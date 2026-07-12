@@ -2,17 +2,15 @@
 
 import Link from "next/link";
 import { BadgeCheck, Star } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { Technician } from "@/lib/types";
 import { cn, formatDistance, formatEta } from "@/lib/utils";
 import { useApp } from "@/lib/store";
 
-const AVATAR_HUE: Record<string, string> = {
-  mechanic: "bg-orange-500",
-  vulcanizer: "bg-teal-500",
-  towing: "bg-sky-500",
-};
-
+/**
+ * Soft blended gray cards for the professional list.
+ * Light: cool slate wash · Dark: charcoal gray (not pure black).
+ */
 export function TechCard({
   tech,
   onRequest,
@@ -29,9 +27,15 @@ export function TechCard({
   return (
     <article
       className={cn(
-        "card-surface flex items-center gap-2.5 rounded-lg px-2.5 py-2",
-        selected && "ring-2 ring-brand/35",
-        !isLight && "text-slate-100"
+        "flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors",
+        isLight
+          ? selected
+            ? "bg-gradient-to-r from-slate-100 via-slate-50 to-orange-50/40"
+            : "bg-gradient-to-r from-slate-100/95 via-slate-50 to-slate-100/80"
+          : selected
+            ? "bg-gradient-to-r from-[#1c1c1c] via-[#222] to-[#1a1612]"
+            : "bg-gradient-to-r from-[#141414] via-[#1a1a1a] to-[#161616]",
+        selected && (isLight ? "ring-1 ring-[#e85a12]/25" : "ring-1 ring-[#e85a12]/30")
       )}
     >
       <Link
@@ -41,12 +45,10 @@ export function TechCard({
         onClick={(e) => e.stopPropagation()}
       >
         <Avatar className="h-10 w-10">
-          <AvatarFallback
-            className={cn(
-              "text-[11px] font-bold text-white",
-              AVATAR_HUE[tech.serviceType] ?? "bg-slate-500"
-            )}
-          >
+          {tech.photo ? (
+            <AvatarImage src={tech.photo} alt="" />
+          ) : null}
+          <AvatarFallback className="bg-brand text-[11px] font-bold text-white">
             {tech.shortName.slice(0, 2).toUpperCase()}
           </AvatarFallback>
         </Avatar>
@@ -60,7 +62,7 @@ export function TechCard({
               onClick={(e) => e.stopPropagation()}
               className={cn(
                 "flex items-center gap-1 text-[13px] font-bold hover:underline",
-                isLight ? "text-slate-900" : "text-white"
+                isLight ? "text-slate-900" : "text-[#f0f0f0]"
               )}
             >
               <span className="truncate">{tech.shortName}</span>
@@ -74,7 +76,7 @@ export function TechCard({
             <p
               className={cn(
                 "truncate text-[10px]",
-                isLight ? "text-slate-500" : "text-white/65"
+                isLight ? "text-slate-500" : "text-[#a8a8a8]"
               )}
             >
               {tech.roleLabel}
@@ -84,7 +86,8 @@ export function TechCard({
                   tech.status === "available" && "text-emerald-500",
                   tech.status === "busy" && "text-amber-500",
                   tech.status === "nearby" && "text-sky-400",
-                  tech.status === "offline" && "text-slate-400"
+                  tech.status === "offline" &&
+                    (isLight ? "text-slate-400" : "text-[#777]")
                 )}
               >
                 {tech.status === "available"
@@ -98,7 +101,6 @@ export function TechCard({
             </p>
           </div>
 
-          {/* Text only — no orange pill background */}
           {onRequest && tech.status !== "offline" && (
             <button
               type="button"
@@ -121,7 +123,7 @@ export function TechCard({
         <div
           className={cn(
             "mt-0.5 flex items-center gap-x-1.5 text-[10px]",
-            isLight ? "text-slate-600" : "text-white/75"
+            isLight ? "text-slate-600" : "text-[#b5b5b5]"
           )}
         >
           <span className="inline-flex items-center gap-0.5 font-semibold">
@@ -131,7 +133,7 @@ export function TechCard({
           <span className="opacity-40">·</span>
           <span>{formatEta(tech.etaMinutes)}</span>
           <span className="opacity-40">·</span>
-          <span>{formatDistance(tech.distanceMiles)}</span>
+          <span>{formatDistance(tech.distanceKm)}</span>
         </div>
       </div>
     </article>

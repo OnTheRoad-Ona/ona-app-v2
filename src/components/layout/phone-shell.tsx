@@ -5,8 +5,8 @@ import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/store";
 
 /**
- * Phone app on pure black stage.
- * Dark mode shell = matte metallic blue (not flat paint).
+ * Phone-width app on pure black stage.
+ * Double-click free space toggles theme — never steals input selection.
  */
 export function PhoneShell({
   children,
@@ -21,13 +21,28 @@ export function PhoneShell({
   const onDoubleClick = (e: MouseEvent) => {
     const el = e.target as HTMLElement | null;
     if (!el) return;
+
+    // Never intercept form controls / editable text
+    const tag = el.tagName?.toLowerCase();
+    if (
+      tag === "input" ||
+      tag === "textarea" ||
+      tag === "select" ||
+      el.isContentEditable
+    ) {
+      return;
+    }
     if (
       el.closest(
-        "button, a, input, textarea, select, label, [role='button'], [role='tab'], [role='slider'], [contenteditable='true']"
+        "input, textarea, select, option, [contenteditable='true'], [contenteditable=''], label, button, a, [role='textbox']"
       )
     ) {
       return;
     }
+    // Don't toggle if user is selecting text
+    const sel = typeof window !== "undefined" ? window.getSelection()?.toString() : "";
+    if (sel && sel.length > 0) return;
+
     toggleTheme();
   };
 
@@ -36,11 +51,11 @@ export function PhoneShell({
       <div
         id="oga-mecho-phone"
         className={cn(
-          "relative flex w-full flex-col overflow-hidden",
+          "relative flex w-full flex-col overflow-hidden rounded-none",
           "h-[min(844px,calc(100dvh-1.5rem))]",
           "max-h-[min(844px,calc(100dvh-1.5rem))]",
-          "max-w-[390px] rounded-[28px]",
-          isLight ? "bg-white" : "matte-metal",
+          "max-w-[390px]",
+          isLight ? "bg-white" : "bg-black",
           className
         )}
         style={{

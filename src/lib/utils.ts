@@ -5,13 +5,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function milesToKm(miles: number) {
-  return miles * 1.60934;
+export function kmToMeters(km: number) {
+  return km * 1000;
 }
 
-export function formatDistance(miles: number) {
-  if (miles < 0.1) return "< 0.1 mi";
-  return `${miles.toFixed(1)} mi`;
+export function formatDistance(km: number) {
+  if (km < 0.1) return "< 0.1 km";
+  if (km < 10) return `${km.toFixed(1)} km`;
+  return `${Math.round(km)} km`;
 }
 
 export function formatEta(minutes: number) {

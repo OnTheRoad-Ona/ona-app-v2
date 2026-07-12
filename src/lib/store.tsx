@@ -21,20 +21,49 @@ import type {
   AppFilters,
   Booking,
   MessageThread,
+  ProService,
+  RegisteredAs,
   ServiceCategory,
   ServiceRequest,
   Technician,
   UserLocation,
+  UserMode,
 } from "@/lib/types";
 
 export type AppTheme = "light" | "dark";
+
+const ROLE_KEY = "oga-mecho-role";
+const SERVICES_KEY = "oga-mecho-pro-services";
+const MODE_KEY = "oga-mecho-mode";
+
+const ALL_PRO_SERVICES: ProService[] = ["mechanic", "vulcanizer", "towing"];
+
+function isProService(v: string): v is ProService {
+  return ALL_PRO_SERVICES.includes(v as ProService);
+}
+
+function isRegisteredAs(v: string | null): v is RegisteredAs {
+  return v === "client" || (v != null && isProService(v));
+}
 
 interface AppState {
   theme: AppTheme;
   toggleTheme: () => void;
   setTheme: (t: AppTheme) => void;
+  /** Ready after localStorage role hydrate */
+  roleReady: boolean;
+  /** What user registered as — drives first open screen */
+  registeredAs: RegisteredAs;
+  /** Current Client vs Professional view */
+  userMode: UserMode;
+  /** All services this pro offers (includes primary registration service) */
+  proServices: ProService[];
+  setRegisteredAs: (role: RegisteredAs) => void;
+  setUserMode: (mode: UserMode) => void;
+  addProService: (service: ProService) => void;
+  removeProService: (service: ProService) => void;
   location: UserLocation;
-  radiusMiles: number;
+  radiusKm: number;
   category: ServiceCategory;
   query: string;
   filters: AppFilters;
@@ -46,7 +75,7 @@ interface AppState {
   messages: MessageThread[];
   locationError: string | null;
   isLocating: boolean;
-  setRadiusMiles: (n: number) => void;
+  setRadiusKm: (n: number) => void;
   setCategory: (c: ServiceCategory) => void;
   setQuery: (q: string) => void;
   toggleFilter: (key: keyof AppFilters) => void;
@@ -78,8 +107,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Default follows OS; may be overridden by double-click (stored)
   const [theme, setThemeState] = useState<AppTheme>("light");
   const [themeReady, setThemeReady] = useState(false);
+
+  // Role / mode — registration drives first open
+  const [roleReady, setRoleReady] = useState(false);
+  const [registeredAs, setRegisteredAsState] = useState<RegisteredAs>("client");
+  const [userMode, setUserModeState] = useState<UserMode>("client");
+  const [proServices, setProServicesState] = useState<ProService[]>([]);
+
   const [location, setLocation] = useState(DEFAULT_USER_LOCATION);
-  const [radiusMiles, setRadiusMiles] = useState(25);
+  const [radiusKm, setRadiusKm] = useState(10);
   const [category, setCategory] = useState<ServiceCategory>("mechanic");
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<AppFilters>(defaultFilters);
@@ -90,7 +126,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
 
-  // Initial: system default unless user previously double-clicked to override
+  // Initial: system default unless user set a preference (toggle / menu)
   useEffect(() => {
     try {
       const saved = localStorage.getItem("oga-mecho-theme") as AppTheme | null;
@@ -104,6 +140,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     setThemeReady(true);
   }, []);
+
+  // Hydrate registration + mode + pro services
+  useEffect(() => {
+    try {
+      const rawRole = localStorage.getItem(ROLE_KEY);
+      const role: RegisteredAs = isRegisteredAs(rawRole) ? rawRole : "client";
+      setRegisteredAsState(role);
+
+      let services: ProService[] = [];
+      const rawServices = localStorage.getItem(SERVICES_KEY);
+      if (rawServices) {
+        try {
+          const parsed = JSON.parse(rawServices) as unknown;
+          if (Array.isArray(parsed)) {
+            services = parsed.filter(isProService);
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      // Ensure primary pro registration is always in services
+      if (isProService(role) && !services.includes(role)) {
+        services = [role, ...services];
+      }
+      setProServicesState(services);
+
+      // Prefer last session mode; else open as registered role
+      const rawMode = localStorage.getItem(MODE_KEY);
+      if (rawMode === "client" || rawMode === "professional") {
+        setUserModeState(rawMode);
+      } else {
+        setUserModeState(role === "client" ? "client" : "professional");
+      }
+    } catch {
+      setRegisteredAsState("client");
+      setUserModeState("client");
+      setProServicesState([]);
+    }
+    setRoleReady(true);
+  }, []);
+
+  // Keep html[data-theme] in sync immediately so matte-metal CSS applies
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = theme;
+    root.style.colorScheme = theme;
+  }, [theme]);
 
   // Follow OS theme when user has not set an override
   useEffect(() => {
@@ -121,10 +204,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
   }, [themeReady]);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-  }, [theme]);
 
   const setTheme = useCallback((t: AppTheme) => {
     setThemeState(t);
@@ -147,15 +226,89 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const setRegisteredAs = useCallback((role: RegisteredAs) => {
+    setRegisteredAsState(role);
+    try {
+      localStorage.setItem(ROLE_KEY, role);
+    } catch {
+      /* ignore */
+    }
+    if (isProService(role)) {
+      setProServicesState((prev) => {
+        const next = prev.includes(role) ? prev : [role, ...prev];
+        try {
+          localStorage.setItem(SERVICES_KEY, JSON.stringify(next));
+        } catch {
+          /* ignore */
+        }
+        return next;
+      });
+      setUserModeState("professional");
+      try {
+        localStorage.setItem(MODE_KEY, "professional");
+      } catch {
+        /* ignore */
+      }
+    } else {
+      setUserModeState("client");
+      try {
+        localStorage.setItem(MODE_KEY, "client");
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
+
+  const setUserMode = useCallback((mode: UserMode) => {
+    setUserModeState(mode);
+    try {
+      localStorage.setItem(MODE_KEY, mode);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const addProService = useCallback((service: ProService) => {
+    setProServicesState((prev) => {
+      if (prev.includes(service)) return prev;
+      const next = [...prev, service];
+      try {
+        localStorage.setItem(SERVICES_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
+
+  const removeProService = useCallback(
+    (service: ProService) => {
+      setProServicesState((prev) => {
+        // Keep at least the primary registration service if pro
+        if (isProService(registeredAs) && service === registeredAs) {
+          return prev;
+        }
+        const next = prev.filter((s) => s !== service);
+        try {
+          localStorage.setItem(SERVICES_KEY, JSON.stringify(next));
+        } catch {
+          /* ignore */
+        }
+        return next;
+      });
+    },
+    [registeredAs]
+  );
+
   const visibleTechnicians = useMemo(
     () =>
       filterAndRankTechnicians(TECHNICIANS, {
-        radiusMiles,
+        radiusKm,
         category,
         query,
         filters,
       }),
-    [radiusMiles, category, query, filters]
+    [radiusKm, category, query, filters]
   );
 
   const toggleFilter = useCallback((key: keyof AppFilters) => {
@@ -173,7 +326,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         status: "pending",
         createdAt: new Date().toISOString(),
         etaMinutes: tech.etaMinutes,
-        distanceMiles: tech.distanceMiles,
+        distanceKm: tech.distanceKm,
         locationLabel: location.label,
       };
       setRequests((prev) => [req, ...prev]);
@@ -234,8 +387,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       theme,
       toggleTheme,
       setTheme,
+      roleReady,
+      registeredAs,
+      userMode,
+      proServices,
+      setRegisteredAs,
+      setUserMode,
+      addProService,
+      removeProService,
       location,
-      radiusMiles,
+      radiusKm,
       category,
       query,
       filters,
@@ -247,7 +408,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       messages,
       locationError,
       isLocating,
-      setRadiusMiles,
+      setRadiusKm,
       setCategory,
       setQuery,
       toggleFilter,
@@ -261,8 +422,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       theme,
       toggleTheme,
       setTheme,
+      roleReady,
+      registeredAs,
+      userMode,
+      proServices,
+      setRegisteredAs,
+      setUserMode,
+      addProService,
+      removeProService,
       location,
-      radiusMiles,
+      radiusKm,
       category,
       query,
       filters,

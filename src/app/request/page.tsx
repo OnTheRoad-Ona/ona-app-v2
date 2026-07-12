@@ -47,7 +47,7 @@ function RequestFlow() {
       <div
         className={cn(
           "flex h-full flex-col items-center justify-center gap-3 p-6",
-          isLight ? "bg-white" : "matte-metal"
+          isLight ? "bg-white" : "bg-black"
         )}
       >
         <p className="font-semibold">No technician available</p>
@@ -73,7 +73,7 @@ function RequestFlow() {
       <div
         className={cn(
           "flex h-full flex-col items-center justify-center px-6 text-center",
-          isLight ? "bg-white" : "matte-metal"
+          isLight ? "bg-white" : "bg-black"
         )}
       >
         <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50">
@@ -110,7 +110,7 @@ function RequestFlow() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-white" : "matte-metal"
+        isLight ? "bg-white" : "bg-black"
       )}
     >
       <header className="page-header">
@@ -150,7 +150,7 @@ function RequestFlow() {
           </p>
           <p className="text-sm text-muted">
             {tech.roleLabel} · {tech.etaMinutes} min ·{" "}
-            {tech.distanceMiles.toFixed(1)} mi
+            {tech.distanceKm.toFixed(1)} km
           </p>
         </div>
 
@@ -174,7 +174,7 @@ function RequestFlow() {
                   ? "bg-brand-soft text-brand"
                   : isLight
                     ? "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                    : "bg-slate-800 text-slate-200 hover:bg-slate-700"
+                    : "bg-black text-slate-200 hover:bg-slate-700"
               )}
             >
               {p}

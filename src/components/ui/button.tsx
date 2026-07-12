@@ -4,17 +4,17 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/25 focus-visible:ring-offset-0 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98] border-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand/30 focus-visible:ring-offset-0 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98] border-0",
   {
     variants: {
       variant: {
         default: "metallic-orange text-white",
-        secondary: "bg-slate-100 text-slate-900 hover:bg-slate-200",
-        outline: "bg-white text-slate-800 hover:bg-slate-50",
-        ghost: "hover:bg-slate-100 text-slate-700",
-        danger: "bg-red-500 text-white hover:bg-red-600",
-        soft: "bg-brand-soft text-brand hover:bg-orange-100",
-        navy: "metallic-navy text-slate-100",
+        secondary: "bg-slate-100 text-slate-900 hover:bg-slate-200 rounded-md",
+        outline: "bg-white text-slate-800 hover:bg-slate-50 rounded-md",
+        ghost: "hover:bg-slate-100 text-slate-700 rounded-md",
+        danger: "bg-red-500 text-white hover:bg-red-600 rounded-md",
+        soft: "bg-brand-soft text-brand hover:bg-orange-100 rounded-md",
+        navy: "bg-black text-slate-100 rounded-md",
       },
       size: {
         default: "h-11 px-5 py-2",

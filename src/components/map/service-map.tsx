@@ -103,8 +103,8 @@ function userIconUrl() {
   return `data:image/svg+xml;charset=UTF-8,${svg}`;
 }
 
-function milesToMeters(miles: number) {
-  return miles * 1609.344;
+function kmToMeters(km: number) {
+  return km * 1000;
 }
 
 function MapControls({
@@ -128,7 +128,7 @@ function MapControls({
           key={label}
           type="button"
           onClick={action}
-          className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-700 shadow-sm hover:bg-slate-50 border-0"
+          className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-700 shadow-sm hover:bg-slate-50 border-0"
           aria-label={label}
         >
           <Icon className={cn("h-4 w-4", label === "Services" && "text-brand")} />
@@ -147,7 +147,7 @@ function NearbyCountBadge({ count }: { count: number }) {
     <div
       className={cn(
         "absolute bottom-3 left-1/2 z-30 -translate-x-1/2 inline-flex items-center gap-2 rounded-full px-3.5 py-2 shadow-lg",
-        isLight ? "bg-white text-slate-900" : "bg-slate-900/95 text-white"
+        isLight ? "bg-white text-slate-900" : "bg-black/95 text-white"
       )}
       aria-label={`${count} nearby technicians`}
     >
@@ -170,7 +170,7 @@ function MockupMap({
   technicians: Technician[];
   onSelect?: (id: string) => void;
 }) {
-  const { location, radiusMiles, selectedTechId, theme } = useApp();
+  const { location, radiusKm, selectedTechId, theme } = useApp();
   const isLight = theme === "light";
 
   const positions = [
@@ -247,7 +247,7 @@ function MockupMap({
       <div
         className="pointer-events-none absolute left-1/2 top-[48%] z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-sky-400/40 bg-sky-400/10"
         style={{
-          width: `${Math.min(78, 34 + radiusMiles * 0.35)}%`,
+          width: `${Math.min(78, 34 + radiusKm * 0.35)}%`,
           aspectRatio: "1",
         }}
       />
@@ -348,7 +348,7 @@ function MockupMap({
                     {t.markerLabel}
                   </span>
                 )}
-                <span className="mt-0.5 inline-block rounded-md bg-slate-900/80 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                <span className="mt-0.5 inline-block rounded-md bg-black/80 px-1.5 py-0.5 text-[9px] font-bold text-white">
                   {t.etaMinutes} min
                 </span>
               </>
@@ -380,7 +380,7 @@ function GoogleServiceMap({
   onSelect?: (id: string) => void;
   onFatalError?: () => void;
 }) {
-  const { location, radiusMiles, selectedTechId } = useApp();
+  const { location, radiusKm, selectedTechId } = useApp();
   const [map, setMap] = useState<google.maps.Map | null>(null);
 
   const center = useMemo(
@@ -465,7 +465,7 @@ function GoogleServiceMap({
       >
         <Circle
           center={center}
-          radius={milesToMeters(Math.max(radiusMiles, 0.5))}
+          radius={kmToMeters(Math.max(radiusKm, 0.5))}
           options={{
             fillColor: "#38bdf8",
             fillOpacity: 0.12,
@@ -506,7 +506,7 @@ function GoogleServiceMap({
           position={center}
           mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
         >
-          <div className="pointer-events-none -translate-x-1/2 translate-y-5 whitespace-nowrap rounded-full bg-slate-900/85 px-2 py-0.5 text-[10px] font-semibold text-white shadow">
+          <div className="pointer-events-none -translate-x-1/2 translate-y-5 whitespace-nowrap rounded-full bg-black/85 px-2 py-0.5 text-[10px] font-semibold text-white shadow">
             You
           </div>
         </OverlayViewF>

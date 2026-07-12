@@ -19,7 +19,7 @@ export function AppHeader() {
 
   return (
     <>
-      <header className="shrink-0 px-3 pb-1 pt-1.5">
+      <header className="shrink-0 px-3 pb-0.5 pt-1">
         <div className="flex items-center justify-between gap-2">
           <div className="leading-[0.9]">
             <p className="text-[17px] font-black tracking-tight">
@@ -72,9 +72,7 @@ export function AppHeader() {
             onClick={() => setMenuOpen(true)}
             className={cn(
               "flex h-8 w-8 items-center justify-center rounded-lg border-0",
-              isLight
-                ? "bg-slate-100 text-slate-700"
-                : "matte-metal-inset text-white"
+              isLight ? "bg-slate-100 text-slate-700" : "bg-black text-white"
             )}
             aria-label="Open menu"
             aria-expanded={menuOpen}

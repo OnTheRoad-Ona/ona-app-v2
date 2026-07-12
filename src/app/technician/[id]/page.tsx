@@ -104,7 +104,7 @@ export default function TechnicianPage({
           </div>
           <div>
             <p className="text-lg font-bold text-slate-900">
-              {formatDistance(tech.distanceMiles)}
+              {formatDistance(tech.distanceKm)}
             </p>
             <p className="text-[10px] text-slate-500">Distance</p>
           </div>

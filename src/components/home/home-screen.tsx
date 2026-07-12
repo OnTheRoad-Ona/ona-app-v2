@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Zap } from "lucide-react";
 import { AppHeader } from "@/components/home/app-header";
@@ -12,11 +12,9 @@ import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 /**
- * Layout:
- * header + search
- * map
- * results sheet
- * bottom bar = Request Help Now (exact slot of old 5-tab nav)
+ * Map 45% / panel 55% initially.
+ * Expand/collapse: flip pill + service category axis only.
+ * List scrolls independently and does not move the panel.
  */
 export function HomeScreen() {
   const router = useRouter();
@@ -28,6 +26,7 @@ export function HomeScreen() {
     theme,
   } = useApp();
   const isLight = theme === "light";
+  const [sheetExpanded, setSheetExpanded] = useState(false);
 
   useEffect(() => {
     retryLocation();
@@ -59,40 +58,52 @@ export function HomeScreen() {
     <div
       className={cn(
         "flex h-full min-h-0 flex-col",
-        isLight ? "bg-white" : "matte-metal"
+        isLight ? "bg-white" : "bg-black"
       )}
     >
-      <div
-        className={cn(
-          "z-20 shrink-0",
-          isLight ? "bg-white" : "bg-transparent"
-        )}
-      >
+      <div className={cn("z-20 shrink-0", isLight ? "bg-white" : "bg-black")}>
         <AppHeader />
         <SearchBar />
       </div>
 
-      <div className="relative min-h-0 flex-1 basis-0">
-        <ServiceMap
-          technicians={visibleTechnicians
-            .filter((t) => t.status !== "offline")
-            .slice(0, 8)}
-          onSelect={setSelectedTechId}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        {/* Map = 45% when collapsed */}
+        <div
+          className={cn(
+            "relative min-h-0 overflow-hidden transition-all duration-300 ease-out",
+            sheetExpanded
+              ? "h-0 flex-[0_0_0%] opacity-0 pointer-events-none"
+              : "flex-[0_0_45%] opacity-100"
+          )}
+        >
+          <ServiceMap
+            technicians={visibleTechnicians
+              .filter((t) => t.status !== "offline")
+              .slice(0, 8)}
+            onSelect={setSelectedTechId}
+          />
+        </div>
+
+        {/* Panel = 55% collapsed; 100% of this area when expanded */}
+        <HomePanel
+          expanded={sheetExpanded}
+          onExpand={() => setSheetExpanded(true)}
+          onCollapse={() => setSheetExpanded(false)}
+          className={
+            sheetExpanded ? "flex-1" : "flex-[0_0_55%] min-h-0"
+          }
         />
       </div>
 
-      <HomePanel />
-
-      {/* Bottom bar — same zone as former 5-tab nav */}
       <div
         className={cn(
-          "z-40 shrink-0 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2",
-          isLight ? "bg-white" : "matte-metal"
+          "z-40 shrink-0 px-3 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-1.5",
+          isLight ? "bg-white" : "bg-black"
         )}
       >
         <Button
           size="default"
-          className="h-12 w-full rounded-lg text-[14px] font-bold"
+          className="h-11 w-full rounded-md text-[14px] font-bold"
           onClick={handleRapidRequest}
         >
           <Zap className="h-4 w-4 fill-white" />

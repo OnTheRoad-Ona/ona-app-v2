@@ -29,7 +29,7 @@ export function BottomNav() {
     <nav
       className={cn(
         "shrink-0 border-0 px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1.5",
-        isLight ? "bg-white" : "matte-metal"
+        isLight ? "bg-white" : "bg-black"
       )}
       aria-label="Main navigation"
     >

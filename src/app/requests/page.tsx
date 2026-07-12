@@ -29,7 +29,7 @@ export default function RequestsPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-white" : "matte-metal"
+        isLight ? "bg-white" : "bg-black"
       )}
     >
       <PageHeader title="Requests" subtitle="Live help & dispatch" />
@@ -39,7 +39,7 @@ export default function RequestsPage() {
           <div
             className={cn(
               "rounded-lg p-6 text-center",
-              isLight ? "bg-slate-50" : "matte-metal-inset"
+              isLight ? "bg-slate-50" : "bg-black"
             )}
           >
             <p className="font-semibold text-sm">No active requests</p>
@@ -82,7 +82,7 @@ export default function RequestsPage() {
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <MapPin className="h-3 w-3" />
-                  {formatDistance(r.distanceMiles)}
+                  {formatDistance(r.distanceKm)}
                 </span>
               </div>
 

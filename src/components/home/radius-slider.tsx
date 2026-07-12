@@ -1,55 +1,44 @@
 "use client";
 
 import { useApp } from "@/lib/store";
+import { MAX_RADIUS_KM } from "@/lib/matching";
 import { cn } from "@/lib/utils";
 
-/** Modern single-line radius control (Uber-style) */
+/** Compact radius control in kilometers (0–10 km) */
 export function RadiusSlider() {
-  const { radiusMiles, setRadiusMiles, theme } = useApp();
+  const { radiusKm, setRadiusKm, theme } = useApp();
   const isLight = theme === "light";
+  const pct = (radiusKm / MAX_RADIUS_KM) * 100;
 
   return (
-    <div className="px-4 py-2">
-      <div
+    <div className="flex items-center gap-2 px-4 py-1">
+      <span
         className={cn(
-          "flex items-center gap-3 rounded-xl px-3 py-2.5",
-          isLight ? "bg-slate-50" : "matte-metal-inset"
+          "shrink-0 text-[10px] font-semibold",
+          isLight ? "text-slate-500" : "text-white/65"
         )}
       >
-        <div className="min-w-0 flex-1">
-          <div className="mb-1.5 flex items-center justify-between">
-            <span
-              className={cn(
-                "text-[11px] font-semibold tracking-wide uppercase",
-                isLight ? "text-slate-500" : "text-white/60"
-              )}
-            >
-              Radius
-            </span>
-            <span
-              className={cn(
-                "rounded-md px-2 py-0.5 text-[12px] font-bold tabular-nums",
-                isLight
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "bg-white/15 text-white"
-              )}
-            >
-              {radiusMiles} mi
-            </span>
-          </div>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={1}
-            value={radiusMiles}
-            onChange={(e) => setRadiusMiles(Number(e.target.value))}
-            className="radius-slider w-full"
-            style={{ ["--pct" as string]: `${radiusMiles}%` }}
-            aria-label="Search radius in miles"
-          />
-        </div>
-      </div>
+        Radius
+      </span>
+      <input
+        type="range"
+        min={0}
+        max={MAX_RADIUS_KM}
+        step={0.5}
+        value={radiusKm}
+        onChange={(e) => setRadiusKm(Number(e.target.value))}
+        className="radius-slider min-w-0 flex-1"
+        style={{ ["--pct" as string]: `${pct}%` }}
+        aria-label="Search radius in kilometers"
+      />
+      <span
+        className={cn(
+          "shrink-0 tabular-nums text-[11px] font-bold",
+          isLight ? "text-slate-900" : "text-white"
+        )}
+      >
+        {radiusKm} km
+      </span>
     </div>
   );
 }

@@ -1,10 +1,12 @@
 import { PROBLEM_MATCHES } from "@/lib/data/technicians";
 import type { AppFilters, ServiceCategory, Technician } from "@/lib/types";
 
-function problemPriority(
-  tech: Technician,
-  query: string
-): number {
+/** Max techs returned in any search */
+export const MAX_TECHNICIANS = 50;
+/** Max search radius in kilometers */
+export const MAX_RADIUS_KM = 10;
+
+function problemPriority(tech: Technician, query: string): number {
   const q = query.toLowerCase().trim();
   if (!q) return 0;
 
@@ -25,17 +27,10 @@ function problemPriority(
   return boost;
 }
 
-/**
- * Smart ranking: distance + availability + rating + response + load + problem match.
- * Higher score = better match (shown first).
- */
-export function scoreTechnician(
-  tech: Technician,
-  query: string
-): number {
+export function scoreTechnician(tech: Technician, query: string): number {
   if (tech.status === "offline") return -1000;
 
-  const distanceScore = Math.max(0, 100 - tech.distanceMiles * 4);
+  const distanceScore = Math.max(0, 100 - tech.distanceKm * 8);
   const ratingScore = tech.rating * 12;
   const availabilityScore =
     tech.status === "available" ? 40 : tech.status === "nearby" ? 20 : 5;
@@ -60,15 +55,16 @@ export function scoreTechnician(
 export function filterAndRankTechnicians(
   technicians: Technician[],
   options: {
-    radiusMiles: number;
+    radiusKm: number;
     category: ServiceCategory;
     query: string;
     filters: AppFilters;
   }
 ): Technician[] {
-  const { radiusMiles, category, query, filters } = options;
+  const { radiusKm, category, query, filters } = options;
+  const radius = Math.min(Math.max(radiusKm, 0), MAX_RADIUS_KM);
 
-  let list = technicians.filter((t) => t.distanceMiles <= radiusMiles);
+  let list = technicians.filter((t) => t.distanceKm <= radius);
 
   if (category !== "all") {
     list = list.filter((t) => t.serviceType === category);
@@ -89,11 +85,11 @@ export function filterAndRankTechnicians(
 
   list = [...list].sort((a, b) => {
     if (filters.nearest) {
-      const d = a.distanceMiles - b.distanceMiles;
+      const d = a.distanceKm - b.distanceKm;
       if (Math.abs(d) > 0.05) return d;
     }
     return scoreTechnician(b, query) - scoreTechnician(a, query);
   });
 
-  return list;
+  return list.slice(0, MAX_TECHNICIANS);
 }

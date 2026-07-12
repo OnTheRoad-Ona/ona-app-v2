@@ -10,27 +10,39 @@ import { useApp } from "@/lib/store";
 import { cn, formatDistance, formatEta } from "@/lib/utils";
 
 export default function TechnicianDashboardPage() {
-  const { requests, updateRequestStatus, technicians, radiusMiles, theme } =
-    useApp();
+  const {
+    requests,
+    updateRequestStatus,
+    technicians,
+    radiusKm,
+    theme,
+    registeredAs,
+    proServices,
+  } = useApp();
   const isLight = theme === "light";
   const [online, setOnline] = useState(true);
-  const [serviceRadius, setServiceRadius] = useState(40);
+  const [serviceRadius, setServiceRadius] = useState(10);
   const me = technicians[0];
 
   const openJobs = requests.filter(
     (r) => !["completed", "cancelled"].includes(r.status)
   );
 
+  const roleLabel =
+    registeredAs === "client"
+      ? "Professional"
+      : registeredAs.charAt(0).toUpperCase() + registeredAs.slice(1);
+
   return (
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-white" : "matte-metal"
+        isLight ? "bg-white" : "bg-black"
       )}
     >
       <PageHeader
         title="Tech Dashboard"
-        subtitle={me.name}
+        subtitle={`${roleLabel} · ${me.name}`}
         backHref="/profile"
       />
 
@@ -44,7 +56,7 @@ export default function TechnicianDashboardPage() {
               ? "bg-emerald-50 text-emerald-700"
               : isLight
                 ? "bg-slate-100 text-slate-500"
-                : "matte-metal-inset text-white/80"
+                : "bg-black text-white/80"
           )}
         >
           <Power className="h-3.5 w-3.5" />
@@ -57,21 +69,36 @@ export default function TechnicianDashboardPage() {
       </div>
 
       <div className="flex-1 space-y-2 overflow-y-auto p-3 scrollbar-hide">
+        {proServices.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {proServices.map((svc) => (
+              <Badge
+                key={svc}
+                variant={registeredAs === svc ? "default" : "soft"}
+                className="capitalize text-[10px]"
+              >
+                {svc}
+                {registeredAs === svc ? " · primary" : ""}
+              </Badge>
+            ))}
+          </div>
+        )}
+
         <div className="card-surface rounded-lg p-3">
           <p className="text-xs font-semibold text-muted">Service radius</p>
-          <p className="text-xl font-bold text-brand">{serviceRadius} mi</p>
+          <p className="text-xl font-bold text-brand">{serviceRadius} km</p>
           <input
             type="range"
-            min={5}
-            max={100}
+            min={1}
+            max={10}
             value={serviceRadius}
             onChange={(e) => setServiceRadius(Number(e.target.value))}
             className="radius-slider mt-2 w-full"
-            style={{ ["--pct" as string]: `${serviceRadius}%` }}
+            style={{ ["--pct" as string]: `${(serviceRadius / 10) * 100}%` }}
             aria-label="Your service radius"
           />
           <p className="mt-1 text-[10px] text-muted">
-            User map radius {radiusMiles} mi
+            User map radius {radiusKm} km
           </p>
         </div>
 
@@ -127,7 +154,7 @@ export default function TechnicianDashboardPage() {
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <MapPin className="h-3 w-3" />
-                  {formatDistance(job.distanceMiles)}
+                  {formatDistance(job.distanceKm)}
                 </span>
               </div>
               <div className="mt-2 flex flex-wrap gap-1.5">

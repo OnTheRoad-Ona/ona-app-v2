@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppProvider } from "@/lib/store";
+import { RoleBootstrap } from "@/components/home/role-bootstrap";
 import { PhoneShell } from "@/components/layout/phone-shell";
 import "./globals.css";
 
@@ -17,7 +18,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "OgaMecho — Find Mechanics, Vulcanizers & Towing Nearby",
   description:
-    "Live mechanic discovery and dispatch. Instantly connect with nearby mechanics, vulcanizers, and tow trucks within 0–100 miles.",
+    "Live mechanic discovery and dispatch. Instantly connect with nearby mechanics, vulcanizers, and tow trucks within 0–10 km.",
   applicationName: "OgaMecho",
 };
 
@@ -42,7 +43,10 @@ export default function RootLayout({
     >
       <body className="min-h-full">
         <AppProvider>
-          <PhoneShell>{children}</PhoneShell>
+          <PhoneShell>
+            <RoleBootstrap />
+            {children}
+          </PhoneShell>
         </AppProvider>
       </body>
     </html>

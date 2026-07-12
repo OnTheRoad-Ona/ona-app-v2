@@ -14,7 +14,7 @@ export default function BookingsPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-white" : "matte-metal"
+        isLight ? "bg-white" : "bg-black"
       )}
     >
       <PageHeader title="Bookings" subtitle="Scheduled repairs" />

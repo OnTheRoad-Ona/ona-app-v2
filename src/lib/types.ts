@@ -1,5 +1,18 @@
 export type ServiceCategory = "mechanic" | "vulcanizer" | "towing" | "all";
 
+/** Services a professional can offer */
+export type ProService = Exclude<ServiceCategory, "all">;
+
+/**
+ * What the user registered as.
+ * Determines the first screen on app open.
+ * Pros can still add more services later.
+ */
+export type RegisteredAs = "client" | ProService;
+
+/** Current session view: client discovery vs professional tools */
+export type UserMode = "client" | "professional";
+
 export type AvailabilityStatus =
   | "available"
   | "busy"
@@ -29,7 +42,7 @@ export interface Technician {
   photo: string;
   rating: number;
   reviewCount: number;
-  distanceMiles: number;
+  distanceKm: number;
   etaMinutes: number;
   status: AvailabilityStatus;
   verified: boolean;
@@ -37,7 +50,7 @@ export interface Technician {
   specialties: string[];
   description: string;
   phone: string;
-  serviceRadiusMiles: number;
+  serviceRadiusKm: number;
   location: Coordinates;
   markerLabel?: string;
   responseSpeedScore: number;
@@ -53,7 +66,7 @@ export interface ServiceRequest {
   status: RequestStatus;
   createdAt: string;
   etaMinutes: number;
-  distanceMiles: number;
+  distanceKm: number;
   locationLabel: string;
 }
 

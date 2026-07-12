@@ -13,7 +13,7 @@ export default function MessagesPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-white" : "matte-metal"
+        isLight ? "bg-white" : "bg-black"
       )}
     >
       <PageHeader title="Messages" subtitle="Chat with technicians" />

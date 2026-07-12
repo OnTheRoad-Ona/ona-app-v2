@@ -34,7 +34,7 @@ export function PageHeader({
           href={backHref}
           className={cn(
             "flex h-8 w-8 items-center justify-center rounded-lg",
-            isLight ? "bg-slate-100 text-slate-700" : "matte-metal-inset text-white"
+            isLight ? "bg-slate-100 text-slate-700" : "bg-black text-white"
           )}
           aria-label="Back"
         >
@@ -67,7 +67,7 @@ export function PageHeader({
             "flex h-8 w-8 items-center justify-center rounded-lg border-0",
             isLight
               ? "bg-slate-100 text-slate-700"
-              : "matte-metal-inset text-white"
+              : "bg-black text-white"
           )}
           aria-label="Open menu"
         >
