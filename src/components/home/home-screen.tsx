@@ -95,9 +95,10 @@ export function HomeScreen() {
         />
       </div>
 
+      {/* Original button size; moderate side + bottom inset */}
       <div
         className={cn(
-          "z-40 shrink-0 px-3 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-1.5",
+          "z-40 shrink-0 px-3 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))]",
           isLight ? "bg-white" : "bg-black"
         )}
       >

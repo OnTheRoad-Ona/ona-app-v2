@@ -97,10 +97,10 @@ export function AppMenu({
       >
         <div className="flex items-start justify-between px-4 pb-3 pt-4">
           <div>
-            <p className="text-[18px] font-black tracking-tight">
-              <span className="text-[#e85a12]">OGA</span>{" "}
+            <p className="text-[18px] font-black tracking-tight whitespace-nowrap">
+              <span className="text-[#e85a12]">Oga</span>
               <span className={isLight ? "text-slate-900" : "text-white"}>
-                MECHO
+                Mecho
               </span>
             </p>
             <p
@@ -164,18 +164,6 @@ export function AppMenu({
               Professional
             </button>
           </div>
-          <p
-            className={cn(
-              "mt-1.5 text-[10px] leading-snug",
-              isLight ? "text-slate-400" : "text-white/45"
-            )}
-          >
-            Registered as{" "}
-            <span className="font-semibold capitalize text-[#e85a12]">
-              {registeredAs}
-            </span>
-            {" · "}opens that view first
-          </p>
         </div>
 
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">

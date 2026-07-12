@@ -23,39 +23,94 @@ import { cn } from "@/lib/utils";
 
 const MAP_ID_CONTAINER = { width: "100%", height: "100%" };
 
-const MAP_STYLES: google.maps.MapTypeStyle[] = [
-  { elementType: "geometry", stylers: [{ color: "#1a2332" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#1a2332" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#8a9bb0" }] },
+/** Dark app (black chrome): clear reddish-brown map */
+const MAP_STYLES_DARK: google.maps.MapTypeStyle[] = [
+  { elementType: "geometry", stylers: [{ color: "#5c2a1e" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#3a1810" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#e0b89a" }] },
   {
     featureType: "administrative",
     elementType: "geometry.stroke",
-    stylers: [{ color: "#2c3a4f" }],
+    stylers: [{ color: "#7a3d2c" }],
   },
   {
     featureType: "road",
     elementType: "geometry",
-    stylers: [{ color: "#2a3a52" }],
+    stylers: [{ color: "#7a4030" }],
   },
   {
     featureType: "road",
     elementType: "geometry.stroke",
-    stylers: [{ color: "#1f2a3a" }],
+    stylers: [{ color: "#4a2418" }],
   },
   {
     featureType: "road.highway",
     elementType: "geometry",
-    stylers: [{ color: "#3d4f68" }],
+    stylers: [{ color: "#8b4a36" }],
   },
   {
     featureType: "water",
     elementType: "geometry",
-    stylers: [{ color: "#0f1724" }],
+    stylers: [{ color: "#3a1c14" }],
   },
   {
     featureType: "poi",
     elementType: "geometry",
-    stylers: [{ color: "#1e2a3c" }],
+    stylers: [{ color: "#6b3426" }],
+  },
+  {
+    featureType: "landscape",
+    elementType: "geometry",
+    stylers: [{ color: "#632e20" }],
+  },
+  {
+    featureType: "landscape.natural",
+    elementType: "geometry",
+    stylers: [{ color: "#6e3424" }],
+  },
+  { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
+  { featureType: "transit", stylers: [{ visibility: "off" }] },
+];
+
+/** Light app: dark green map */
+const MAP_STYLES_LIGHT: google.maps.MapTypeStyle[] = [
+  { elementType: "geometry", stylers: [{ color: "#1a3d2e" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#0f2a1f" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#a8c9b5" }] },
+  {
+    featureType: "administrative",
+    elementType: "geometry.stroke",
+    stylers: [{ color: "#2d5a42" }],
+  },
+  {
+    featureType: "road",
+    elementType: "geometry",
+    stylers: [{ color: "#2a4f3c" }],
+  },
+  {
+    featureType: "road",
+    elementType: "geometry.stroke",
+    stylers: [{ color: "#163528" }],
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry",
+    stylers: [{ color: "#356b4e" }],
+  },
+  {
+    featureType: "water",
+    elementType: "geometry",
+    stylers: [{ color: "#0d281c" }],
+  },
+  {
+    featureType: "poi",
+    elementType: "geometry",
+    stylers: [{ color: "#234836" }],
+  },
+  {
+    featureType: "landscape",
+    elementType: "geometry",
+    stylers: [{ color: "#1e4030" }],
   },
   { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
   { featureType: "transit", stylers: [{ visibility: "off" }] },
@@ -162,7 +217,10 @@ function NearbyCountBadge({ count }: { count: number }) {
   );
 }
 
-/** Neutral city map preview — never paints UI chrome blue over tiles */
+/**
+ * City map preview.
+ * Light chrome → dark green map · Dark chrome → reddish-brown map.
+ */
 function MockupMap({
   technicians,
   onSelect,
@@ -181,71 +239,64 @@ function MockupMap({
     { top: "50%", left: "78%" },
   ];
 
+  // Light app: dark green · Dark app: clear reddish brown
+  const baseBg = isLight ? "bg-[#1a3d2e]" : "bg-[#5c2a1e]";
+  const gridColor = isLight
+    ? "rgba(80,140,100,0.35)"
+    : "rgba(160,90,60,0.4)";
+  const landCenter = isLight ? "#234d38" : "#7a3a28";
+  const landEdge = isLight ? "#143528" : "#3a1810";
+  const parkBlob = isLight ? "bg-[#2d6b4a]/55" : "bg-[#8b4530]/45";
+  const roadColor = isLight ? "#356b4e" : "#a05840";
+  const roadSoft = isLight ? "#2a5540" : "#8b4a36";
+  const radiusStroke = isLight
+    ? "border-emerald-400/45 bg-emerald-400/10"
+    : "border-[#e89060]/50 bg-[#e85a12]/12";
+  const routeStroke = isLight ? "#34d399" : "#f0a070";
+  const youRing = isLight ? "bg-emerald-400/30" : "bg-orange-400/30";
+  const youDot = isLight ? "bg-emerald-600" : "bg-[#c45c2a]";
+
   return (
-    <div
-      className={cn(
-        "relative h-full w-full overflow-hidden",
-        isLight ? "bg-[#e8eef6]" : "bg-[#1a2332]"
-      )}
-    >
+    <div className={cn("relative h-full w-full overflow-hidden", baseBg)}>
       <div
         className="absolute inset-0"
-        style={
-          isLight
-            ? {
-                backgroundImage: `
-                  linear-gradient(rgba(180,195,215,0.35) 1px, transparent 1px),
-                  linear-gradient(90deg, rgba(180,195,215,0.35) 1px, transparent 1px),
-                  radial-gradient(ellipse at 40% 45%, #f0f5fb 0%, #e2eaf4 55%, #d8e2ee 100%)
-                `,
-                backgroundSize: "36px 36px, 36px 36px, 100% 100%",
-              }
-            : {
-                backgroundImage: `
-                  linear-gradient(rgba(55,70,90,0.45) 1px, transparent 1px),
-                  linear-gradient(90deg, rgba(55,70,90,0.45) 1px, transparent 1px),
-                  radial-gradient(ellipse at 45% 50%, #243044 0%, #141b28 70%)
-                `,
-                backgroundSize: "40px 40px, 40px 40px, 100% 100%",
-              }
-        }
-      />
-
-      {isLight && (
-        <>
-          <div
-            className="pointer-events-none absolute rounded-full bg-[#c8e0c4]/70"
-            style={{ width: "18%", height: "14%", top: "28%", left: "12%" }}
-          />
-          <div
-            className="pointer-events-none absolute rounded-full bg-[#c8e0c4]/55"
-            style={{ width: "14%", height: "12%", top: "55%", left: "62%" }}
-          />
-        </>
-      )}
-
-      <div
-        className={cn(
-          "pointer-events-none absolute inset-0",
-          isLight ? "opacity-70" : "opacity-45"
-        )}
         style={{
-          backgroundImage: isLight
-            ? `
-              linear-gradient(112deg, transparent 46%, #c5d0de 46.8%, #c5d0de 50%, transparent 50.8%),
-              linear-gradient(25deg, transparent 38%, #d4dde8 38.6%, #d4dde8 41.2%, transparent 41.8%),
-              linear-gradient(-30deg, transparent 52%, #d4dde8 52.5%, #d4dde8 55%, transparent 55.5%)
-            `
-            : `
-              linear-gradient(112deg, transparent 46%, #354860 46.8%, #354860 50%, transparent 50.8%),
-              linear-gradient(25deg, transparent 38%, #2c3a4f 38.6%, #2c3a4f 41.2%, transparent 41.8%),
-              linear-gradient(-30deg, transparent 52%, #2c3a4f 52.5%, #2c3a4f 55%, transparent 55.5%)
-            `,
+          backgroundImage: `
+            linear-gradient(${gridColor} 1px, transparent 1px),
+            linear-gradient(90deg, ${gridColor} 1px, transparent 1px),
+            radial-gradient(ellipse at 45% 48%, ${landCenter} 0%, ${landEdge} 72%)
+          `,
+          backgroundSize: isLight
+            ? "36px 36px, 36px 36px, 100% 100%"
+            : "40px 40px, 40px 40px, 100% 100%",
         }}
       />
 
       <div
-        className="pointer-events-none absolute left-1/2 top-[48%] z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-sky-400/40 bg-sky-400/10"
+        className={cn("pointer-events-none absolute rounded-full", parkBlob)}
+        style={{ width: "18%", height: "14%", top: "28%", left: "12%" }}
+      />
+      <div
+        className={cn("pointer-events-none absolute rounded-full", parkBlob)}
+        style={{ width: "14%", height: "12%", top: "55%", left: "62%" }}
+      />
+
+      <div
+        className="pointer-events-none absolute inset-0 opacity-55"
+        style={{
+          backgroundImage: `
+            linear-gradient(112deg, transparent 46%, ${roadColor} 46.8%, ${roadColor} 50%, transparent 50.8%),
+            linear-gradient(25deg, transparent 38%, ${roadSoft} 38.6%, ${roadSoft} 41.2%, transparent 41.8%),
+            linear-gradient(-30deg, transparent 52%, ${roadSoft} 52.5%, ${roadSoft} 55%, transparent 55.5%)
+          `,
+        }}
+      />
+
+      <div
+        className={cn(
+          "pointer-events-none absolute left-1/2 top-[48%] z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border-2",
+          radiusStroke
+        )}
         style={{
           width: `${Math.min(78, 34 + radiusKm * 0.35)}%`,
           aspectRatio: "1",
@@ -261,7 +312,7 @@ function MockupMap({
         <path
           d="M 50 50 C 55 42, 62 32, 58 22"
           fill="none"
-          stroke="#0ea5e9"
+          stroke={routeStroke}
           strokeWidth="1.4"
           strokeLinecap="round"
           opacity="0.9"
@@ -270,12 +321,29 @@ function MockupMap({
 
       <div className="absolute left-1/2 top-[48%] z-20 -translate-x-1/2 -translate-y-1/2 text-center">
         <div className="relative mx-auto flex h-14 w-14 items-center justify-center">
-          <span className="absolute inset-0 animate-ping rounded-full bg-sky-400/30" />
-          <span className="relative flex h-10 w-10 items-center justify-center rounded-full bg-sky-500 shadow-xl ring-[3px] ring-white">
+          <span
+            className={cn(
+              "absolute inset-0 animate-ping rounded-full",
+              youRing
+            )}
+          />
+          <span
+            className={cn(
+              "relative flex h-10 w-10 items-center justify-center rounded-full shadow-xl ring-[3px] ring-white",
+              youDot
+            )}
+          >
             <span className="h-3 w-3 rounded-full bg-white" />
           </span>
         </div>
-        <span className="mt-0.5 inline-block rounded-md bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-800 shadow-sm">
+        <span
+          className={cn(
+            "mt-0.5 inline-block rounded-md px-2 py-0.5 text-[10px] font-semibold shadow-sm",
+            isLight
+              ? "bg-[#0f2a1f]/90 text-[#d4efe0]"
+              : "bg-[#2a1c16]/90 text-[#f0d4c4]"
+          )}
+        >
           You
         </span>
       </div>
@@ -380,7 +448,12 @@ function GoogleServiceMap({
   onSelect?: (id: string) => void;
   onFatalError?: () => void;
 }) {
-  const { location, radiusKm, selectedTechId } = useApp();
+  const { location, radiusKm, selectedTechId, theme } = useApp();
+  const isLight = theme === "light";
+  const mapStyles = isLight ? MAP_STYLES_LIGHT : MAP_STYLES_DARK;
+  const mapBg = isLight ? "#1a3d2e" : "#5c2a1e";
+  const radiusColor = isLight ? "#34d399" : "#e8a070";
+  const routeColor = isLight ? "#10b981" : "#e85a12";
   const [map, setMap] = useState<google.maps.Map | null>(null);
 
   const center = useMemo(
@@ -431,6 +504,15 @@ function GoogleServiceMap({
     setMap(null);
   }, [map]);
 
+  // Re-tint map when light/dark toggles
+  useEffect(() => {
+    if (!map) return;
+    map.setOptions({
+      styles: mapStyles,
+      backgroundColor: mapBg,
+    });
+  }, [map, mapStyles, mapBg]);
+
   const zoomToFit = useCallback(() => {
     if (!map || typeof google === "undefined") return;
     const bounds = new google.maps.LatLngBounds();
@@ -455,21 +537,21 @@ function GoogleServiceMap({
         onLoad={onLoad}
         onUnmount={onUnmount}
         options={{
-          styles: MAP_STYLES,
+          styles: mapStyles,
           disableDefaultUI: true,
           zoomControl: false,
           clickableIcons: false,
           gestureHandling: "greedy",
-          backgroundColor: "#1a2332",
+          backgroundColor: mapBg,
         }}
       >
         <Circle
           center={center}
           radius={kmToMeters(Math.max(radiusKm, 0.5))}
           options={{
-            fillColor: "#38bdf8",
+            fillColor: radiusColor,
             fillOpacity: 0.12,
-            strokeColor: "#38bdf8",
+            strokeColor: radiusColor,
             strokeOpacity: 0.55,
             strokeWeight: 2,
             clickable: false,
@@ -479,7 +561,7 @@ function GoogleServiceMap({
           <Polyline
             path={path}
             options={{
-              strokeColor: "#0ea5e9",
+              strokeColor: routeColor,
               strokeOpacity: 0.95,
               strokeWeight: 4,
               geodesic: true,
@@ -642,9 +724,9 @@ function LiveGoogleMap({
 
   if (!isLoaded) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-[#1a2332] text-sm text-slate-300">
+      <div className="flex h-full w-full items-center justify-center bg-[#1a3d2e] text-sm text-[#a8c9b5]">
         <div className="flex flex-col items-center gap-2">
-          <span className="h-8 w-8 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
+          <span className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
           Loading map…
         </div>
       </div>
