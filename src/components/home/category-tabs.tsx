@@ -1,7 +1,18 @@
 "use client";
 
 import { useRef } from "react";
-import { Car, CircleDot, Grid2x2, Wrench } from "lucide-react";
+import {
+  Battery,
+  Car,
+  CircleDot,
+  Cpu,
+  Droplets,
+  Fan,
+  Grid2x2,
+  Paintbrush,
+  Plug,
+  Wrench,
+} from "lucide-react";
 import { useApp } from "@/lib/store";
 import type { ServiceCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -14,12 +25,19 @@ const tabs: {
   { id: "mechanic", label: "Mechanic", icon: Wrench },
   { id: "vulcanizer", label: "Vulcanizer", icon: CircleDot },
   { id: "towing", label: "Tow", icon: Car },
+  { id: "battery", label: "Battery", icon: Battery },
+  { id: "ac", label: "A/C", icon: Fan },
+  { id: "body", label: "Body", icon: Paintbrush },
+  { id: "electrical", label: "Electric", icon: Plug },
+  { id: "diagnostics", label: "Scan", icon: Cpu },
+  { id: "wash", label: "Wash", icon: Droplets },
   { id: "all", label: "All", icon: Grid2x2 },
 ];
 
 /**
- * Service category axis — also expands/collapses the sheet
- * (with the flip pill). List scroll does not.
+ * One continuous gray banner of service options (no cell borders).
+ * Scroll gestures: inverted so trackpad/wheel feel natural —
+ * content-scroll-up (deltaY > 0) expands panel; opposite collapses.
  */
 export function CategoryTabs({
   expanded,
@@ -34,18 +52,23 @@ export function CategoryTabs({
   const isLight = theme === "light";
   const touchY = useRef<number | null>(null);
 
-  /** Scroll up → panel up; scroll down → panel down */
+  /**
+   * Natural scroll direction (fixes inverted feel):
+   * scroll content up / fingers swipe up → panel up (expand)
+   * scroll content down → panel down (collapse)
+   * On wheel: content up ≈ deltaY > 0 with natural scrolling.
+   */
   const onAxisWheel = (e: React.WheelEvent) => {
     if (!onExpand || !onCollapse) return;
-    // Scroll up → expand (panel up)
-    if (e.deltaY < 0 && !expanded) {
+    // Scroll up (content moves up) → panel expands
+    if (e.deltaY > 0 && !expanded) {
       e.preventDefault();
       e.stopPropagation();
       onExpand();
       return;
     }
-    // Scroll down → collapse (panel down)
-    if (e.deltaY > 0 && expanded) {
+    // Scroll down → panel collapses
+    if (e.deltaY < 0 && expanded) {
       e.preventDefault();
       e.stopPropagation();
       onCollapse();
@@ -59,13 +82,13 @@ export function CategoryTabs({
   const onAxisTouchMove = (e: React.TouchEvent) => {
     if (!onExpand || !onCollapse || touchY.current == null) return;
     const dy = e.touches[0].clientY - touchY.current;
-    // Drag up → panel up
+    // Finger moves up on screen → panel up
     if (!expanded && dy < -14) {
       onExpand();
       touchY.current = null;
       return;
     }
-    // Drag down → panel down
+    // Finger moves down → panel down
     if (expanded && dy > 14) {
       onCollapse();
       touchY.current = null;
@@ -83,10 +106,10 @@ export function CategoryTabs({
         role="tablist"
         aria-label="Service category"
         className={cn(
-          "grid grid-cols-4 gap-1 rounded-xl p-1",
+          "grid grid-cols-5 gap-0 rounded-lg p-0.5",
           isLight
-            ? "border border-slate-200/80 bg-slate-50"
-            : "border border-white/15 bg-black"
+            ? "bg-gradient-to-b from-slate-100 to-slate-50"
+            : "bg-gradient-to-b from-[#1a1a1a] to-[#141414]"
         )}
       >
         {tabs.map(({ id, label, icon: Icon }) => {
@@ -99,16 +122,16 @@ export function CategoryTabs({
               aria-selected={active}
               onClick={() => setCategory(id)}
               className={cn(
-                "flex min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 py-2 text-[10px] font-semibold border-0 transition-colors",
+                "flex min-w-0 flex-col items-center justify-center gap-0.5 border-0 px-0.5 py-2 text-[9px] font-semibold transition-colors",
                 active
-                  ? "metallic-orange text-white"
+                  ? "metallic-orange text-white rounded-md"
                   : isLight
-                    ? "bg-transparent text-slate-500 hover:bg-white hover:text-slate-800"
-                    : "bg-transparent text-white/75 hover:bg-white/10 hover:text-white"
+                    ? "bg-transparent text-slate-500 hover:text-slate-800"
+                    : "bg-transparent text-[#a0a0a0] hover:text-white"
               )}
             >
               <Icon
-                className="h-[18px] w-[18px] shrink-0"
+                className="h-4 w-4 shrink-0"
                 strokeWidth={active ? 2.4 : 2}
               />
               <span className="truncate leading-none">{label}</span>

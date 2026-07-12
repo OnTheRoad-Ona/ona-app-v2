@@ -15,9 +15,10 @@ const PAGE_SIZE = 10;
 
 /**
  * Expand/collapse via flip pill + category axis only.
- * Direction: scroll/drag UP → panel up (expand);
- *            scroll/drag DOWN → panel down (collapse).
- * List scrolls independently.
+ * Natural direction (fixed invert):
+ *  - Scroll content up / swipe fingers up → panel up (expand)
+ *  - Scroll content down → panel down (collapse)
+ * List scrolls independently inside one gray banner.
  */
 export function HomePanel({
   expanded,
@@ -61,18 +62,16 @@ export function HomePanel({
   const canShowMore = list.length < total;
 
   /**
-   * Scroll up (deltaY < 0) → panel up (expand)
-   * Scroll down (deltaY > 0) → panel down (collapse)
+   * Natural scroll: content up (deltaY > 0) → expand;
+   * content down (deltaY < 0) → collapse.
    */
   const onSheetWheel = (e: React.WheelEvent) => {
-    // Scroll up → panel up
-    if (e.deltaY < 0 && !expanded) {
+    if (e.deltaY > 0 && !expanded) {
       e.preventDefault();
       onExpand();
       return;
     }
-    // Scroll down → panel down
-    if (e.deltaY > 0 && expanded) {
+    if (e.deltaY < 0 && expanded) {
       e.preventDefault();
       onCollapse();
     }
@@ -85,13 +84,13 @@ export function HomePanel({
   const onSheetTouchMove = (e: React.TouchEvent) => {
     if (gestureY.current == null) return;
     const dy = e.touches[0].clientY - gestureY.current;
-    // Finger / drag up → panel up
+    // Finger up on screen → panel up
     if (!expanded && dy < -14) {
       onExpand();
       gestureY.current = null;
       return;
     }
-    // Finger / drag down → panel down
+    // Finger down → panel down
     if (expanded && dy > 14) {
       onCollapse();
       gestureY.current = null;
@@ -111,7 +110,6 @@ export function HomePanel({
         className
       )}
     >
-      {/* Sheet chrome: scroll up = expand, scroll down = collapse */}
       <div
         onWheel={onSheetWheel}
         onTouchStart={onSheetTouchStart}
@@ -176,100 +174,109 @@ export function HomePanel({
         </div>
       )}
 
-      {/* List scrolls on its own — never expands/collapses the panel */}
-      <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain px-3 pb-1 scrollbar-hide">
-        {list.length === 0 ? (
-          <div className="p-4 text-center">
-            <p
-              className={cn(
-                "text-sm font-semibold",
-                isLight ? "text-slate-800" : "text-white"
-              )}
-            >
-              No technicians nearby
-            </p>
-            <p
-              className={cn(
-                "mt-1 text-[12px]",
-                isLight ? "text-slate-500" : "text-white/75"
-              )}
-            >
-              Nothing within {radiusKm} km.
-            </p>
-            <button
-              type="button"
-              onClick={() => setRadiusKm(10)}
-              className="mt-2 text-[12px] font-bold text-brand"
-            >
-              Set 10 km
-            </button>
-          </div>
-        ) : (
-          <>
-            {list.map((tech) => (
-              <div
-                key={tech.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => setSelectedTechId(tech.id)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    setSelectedTechId(tech.id);
-                  }
-                }}
-                className="cursor-pointer outline-none"
-              >
-                <TechCard
-                  tech={tech}
-                  onRequest={handleRequest}
-                  selected={selectedTechId === tech.id}
-                />
-              </div>
-            ))}
-
-            {canShowMore && (
-              <button
-                type="button"
-                onClick={() =>
-                  setVisibleCount((n) =>
-                    Math.min(n + PAGE_SIZE, MAX_TECHNICIANS, total)
-                  )
-                }
-                className={cn(
-                  "w-full rounded-md py-2.5 text-[12px] font-bold border-0",
-                  isLight
-                    ? "bg-slate-100 text-slate-800 hover:bg-slate-200"
-                    : "bg-white/10 text-white hover:bg-white/15"
-                )}
-              >
-                See more ({list.length} of {total})
-              </button>
-            )}
-
-            {!canShowMore && total > PAGE_SIZE && (
+      {/* One continuous gray banner — no borders / card gaps */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-1 scrollbar-hide">
+        <div
+          className={cn(
+            "min-h-full overflow-hidden rounded-lg",
+            isLight
+              ? "bg-gradient-to-b from-slate-100 via-slate-50 to-slate-100"
+              : "bg-gradient-to-b from-[#1a1a1a] via-[#151515] to-[#121212]"
+          )}
+        >
+          {list.length === 0 ? (
+            <div className="p-4 text-center">
               <p
                 className={cn(
-                  "py-1.5 text-center text-[10px]",
-                  isLight ? "text-slate-400" : "text-white/45"
+                  "text-sm font-semibold",
+                  isLight ? "text-slate-800" : "text-white"
                 )}
               >
-                Showing all {total} within {radiusKm} km
+                No technicians nearby
               </p>
-            )}
-          </>
-        )}
+              <p
+                className={cn(
+                  "mt-1 text-[12px]",
+                  isLight ? "text-slate-500" : "text-white/75"
+                )}
+              >
+                Nothing within {radiusKm} km.
+              </p>
+              <button
+                type="button"
+                onClick={() => setRadiusKm(10)}
+                className="mt-2 text-[12px] font-bold text-brand"
+              >
+                Set 10 km
+              </button>
+            </div>
+          ) : (
+            <>
+              {list.map((tech) => (
+                <div
+                  key={tech.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedTechId(tech.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelectedTechId(tech.id);
+                    }
+                  }}
+                  className="cursor-pointer outline-none"
+                >
+                  <TechCard
+                    tech={tech}
+                    onRequest={handleRequest}
+                    selected={selectedTechId === tech.id}
+                  />
+                </div>
+              ))}
 
-        {!expanded && list.length > 0 && (
-          <p
-            className={cn(
-              "py-2 text-center text-[10px]",
-              isLight ? "text-slate-400" : "text-white/45"
-            )}
-          >
-            Scroll up to expand · scroll down to collapse
-          </p>
-        )}
+              {canShowMore && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setVisibleCount((n) =>
+                      Math.min(n + PAGE_SIZE, MAX_TECHNICIANS, total)
+                    )
+                  }
+                  className={cn(
+                    "w-full border-0 py-2.5 text-[12px] font-bold",
+                    isLight
+                      ? "bg-transparent text-slate-700 hover:bg-slate-200/60"
+                      : "bg-transparent text-white/80 hover:bg-white/[0.04]"
+                  )}
+                >
+                  See more ({list.length} of {total})
+                </button>
+              )}
+
+              {!canShowMore && total > PAGE_SIZE && (
+                <p
+                  className={cn(
+                    "py-1.5 text-center text-[10px]",
+                    isLight ? "text-slate-400" : "text-white/45"
+                  )}
+                >
+                  Showing all {total} within {radiusKm} km
+                </p>
+              )}
+            </>
+          )}
+
+          {!expanded && list.length > 0 && (
+            <p
+              className={cn(
+                "py-2 text-center text-[10px]",
+                isLight ? "text-slate-400" : "text-white/45"
+              )}
+            >
+              Swipe up to expand · swipe down to collapse
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

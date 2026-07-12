@@ -8,8 +8,8 @@ import { cn, formatDistance, formatEta } from "@/lib/utils";
 import { useApp } from "@/lib/store";
 
 /**
- * Soft blended gray cards for the professional list.
- * Light: cool slate wash · Dark: charcoal gray (not pure black).
+ * Row inside the continuous professional list banner.
+ * No borders, no rings — soft gray wash only.
  */
 export function TechCard({
   tech,
@@ -27,15 +27,12 @@ export function TechCard({
   return (
     <article
       className={cn(
-        "flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors",
-        isLight
-          ? selected
-            ? "bg-gradient-to-r from-slate-100 via-slate-50 to-orange-50/40"
-            : "bg-gradient-to-r from-slate-100/95 via-slate-50 to-slate-100/80"
-          : selected
-            ? "bg-gradient-to-r from-[#1c1c1c] via-[#222] to-[#1a1612]"
-            : "bg-gradient-to-r from-[#141414] via-[#1a1a1a] to-[#161616]",
-        selected && (isLight ? "ring-1 ring-[#e85a12]/25" : "ring-1 ring-[#e85a12]/30")
+        "flex items-center gap-2.5 px-3 py-2.5 transition-colors",
+        selected
+          ? isLight
+            ? "bg-slate-200/50"
+            : "bg-white/[0.06]"
+          : "bg-transparent"
       )}
     >
       <Link

@@ -52,6 +52,32 @@ export function scoreTechnician(tech: Technician, query: string): number {
   );
 }
 
+/** Specialty keyword buckets for extended home categories */
+const CATEGORY_KEYWORDS: Partial<Record<ServiceCategory, string[]>> = {
+  battery: ["battery", "jump", "start", "charging"],
+  ac: ["ac", "air", "cool", "climate", "gas"],
+  body: ["body", "panel", "dent", "paint", "spray"],
+  electrical: ["electric", "wiring", "alternator", "ecu", "sensor"],
+  diagnostics: ["diag", "scan", "obd", "fault", "computer"],
+  wash: ["wash", "detail", "clean", "polish", "valeting"],
+};
+
+function matchesCategory(tech: Technician, category: ServiceCategory): boolean {
+  if (category === "all") return true;
+  if (
+    category === "mechanic" ||
+    category === "vulcanizer" ||
+    category === "towing"
+  ) {
+    return tech.serviceType === category;
+  }
+  const keys = CATEGORY_KEYWORDS[category] ?? [];
+  const hay = `${tech.roleLabel} ${tech.description} ${tech.specialties.join(" ")}`.toLowerCase();
+  if (keys.some((k) => hay.includes(k))) return true;
+  // Fallback: specialty services often sit under general mechanics
+  return tech.serviceType === "mechanic";
+}
+
 export function filterAndRankTechnicians(
   technicians: Technician[],
   options: {
@@ -67,7 +93,7 @@ export function filterAndRankTechnicians(
   let list = technicians.filter((t) => t.distanceKm <= radius);
 
   if (category !== "all") {
-    list = list.filter((t) => t.serviceType === category);
+    list = list.filter((t) => matchesCategory(t, category));
   }
 
   if (filters.availableNow) {

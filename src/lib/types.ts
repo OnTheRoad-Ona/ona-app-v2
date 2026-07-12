@@ -1,7 +1,22 @@
-export type ServiceCategory = "mechanic" | "vulcanizer" | "towing" | "all";
+/**
+ * Browse categories on home.
+ * Core pro trades stay mechanic | vulcanizer | towing;
+ * extra filters map via specialty keywords.
+ */
+export type ServiceCategory =
+  | "mechanic"
+  | "vulcanizer"
+  | "towing"
+  | "battery"
+  | "ac"
+  | "body"
+  | "electrical"
+  | "diagnostics"
+  | "wash"
+  | "all";
 
-/** Services a professional can offer */
-export type ProService = Exclude<ServiceCategory, "all">;
+/** Services a professional can register / offer */
+export type ProService = "mechanic" | "vulcanizer" | "towing";
 
 /**
  * What the user registered as.
@@ -37,7 +52,7 @@ export interface Technician {
   id: string;
   name: string;
   shortName: string;
-  serviceType: Exclude<ServiceCategory, "all">;
+  serviceType: ProService;
   roleLabel: string;
   photo: string;
   rating: number;
@@ -61,7 +76,7 @@ export interface ServiceRequest {
   id: string;
   technicianId: string;
   technicianName: string;
-  serviceType: Exclude<ServiceCategory, "all">;
+  serviceType: ProService;
   problem: string;
   status: RequestStatus;
   createdAt: string;
@@ -73,7 +88,7 @@ export interface ServiceRequest {
 export interface Booking {
   id: string;
   technicianName: string;
-  serviceType: Exclude<ServiceCategory, "all">;
+  serviceType: ProService;
   date: string;
   time: string;
   status: "upcoming" | "completed" | "cancelled";
@@ -83,7 +98,7 @@ export interface Booking {
 export interface MessageThread {
   id: string;
   technicianName: string;
-  serviceType: Exclude<ServiceCategory, "all">;
+  serviceType: ProService;
   lastMessage: string;
   time: string;
   unread: number;
