@@ -1,0 +1,304 @@
+@import "tailwindcss";
+
+/* ─── Light (default) ─── */
+:root,
+[data-theme="light"] {
+  --stage: #000000;
+  --background: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-3: #f1f5f9;
+  --elevated: #ffffff;
+  --foreground: #0f172a;
+  --muted: #64748b;
+  --muted-2: #94a3b8;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --app-bg: #ffffff;
+
+  --brand: #e85a12;
+  --brand-bright: #f0651a;
+  --brand-mid: #d14f0e;
+  --brand-deep: #c2480c;
+  --brand-dark: #a83d0a;
+  --brand-soft: #fff4ed;
+  --brand-solid: #e85a12;
+
+  --accent-blue: #2563eb;
+  --navy: #0f172a;
+  --navy-mid: #1e293b;
+  --navy-soft: #334155;
+
+  --map-bg: #e8eef6;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #0ea5e9;
+  --teal: #14b8a6;
+
+  /* Metal tokens unused in light */
+  --metal-deep: #2d4a66;
+  --metal-base: #3a5f82;
+  --metal-mid: #456d92;
+  --metal-lift: #527aa0;
+  --metal-face: #4a7198;
+  --metal-inset: rgba(255, 255, 255, 0.06);
+  --metal-shade: rgba(0, 0, 0, 0.14);
+}
+
+/*
+ * Dark: MATTE METALLIC BLUE (brushed steel / Flash blue family)
+ * Desaturated + layered finish — not flat “paint” #3b8fd0
+ * Stage outside app remains pure black.
+ */
+[data-theme="dark"] {
+  --stage: #000000;
+
+  /* Steel-blue metal family (hue ~205°, lower saturation) */
+  --metal-deep: #243d56;
+  --metal-base: #2f4f6e;
+  --metal-mid: #3a5f82;
+  --metal-lift: #456d92;
+  --metal-face: #3d668a;
+  --metal-inset: rgba(255, 255, 255, 0.07);
+  --metal-shade: rgba(8, 20, 36, 0.35);
+
+  --background: var(--metal-base);
+  --surface: var(--metal-face);
+  --surface-2: var(--metal-mid);
+  --surface-3: var(--metal-lift);
+  --elevated: var(--metal-lift);
+  --foreground: #f1f5f9;
+  --muted: #b8c9db;
+  --muted-2: #8aa0b8;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --app-bg: var(--metal-base);
+
+  --brand: #e85a12;
+  --brand-bright: #f0651a;
+  --brand-mid: #d14f0e;
+  --brand-deep: #c2480c;
+  --brand-dark: #a83d0a;
+  --brand-soft: rgba(255, 140, 60, 0.16);
+  --brand-solid: #e85a12;
+
+  --accent-blue: #7eb0e0;
+  --navy: var(--metal-deep);
+  --navy-mid: var(--metal-base);
+  --navy-soft: var(--metal-mid);
+
+  /* Map stays neutral city tiles */
+  --map-bg: #1a2332;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --info: #38bdf8;
+  --teal: #2dd4bf;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-elevated: var(--elevated);
+  --color-muted: var(--muted);
+  --color-muted-2: var(--muted-2);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-brand: var(--brand);
+  --color-brand-bright: var(--brand-bright);
+  --color-brand-mid: var(--brand-mid);
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-soft: var(--brand-soft);
+  --color-navy: var(--navy);
+  --color-navy-mid: var(--navy-mid);
+  --color-navy-soft: var(--navy-soft);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --color-teal: var(--teal);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: #000;
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/*
+ * Matte metallic finish — brushed steel look:
+ * soft top catch-light + gentle bottom shade (no gloss glow)
+ */
+.matte-metal {
+  background-color: var(--metal-base);
+  background-image: linear-gradient(
+    168deg,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0.03) 32%,
+    rgba(0, 0, 0, 0) 55%,
+    rgba(0, 0, 0, 0.18) 100%
+  );
+  color: var(--foreground);
+}
+
+.matte-metal-panel {
+  background-color: var(--metal-face);
+  background-image: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.02) 40%,
+    rgba(0, 0, 0, 0.12) 100%
+  );
+  color: var(--foreground);
+}
+
+.matte-metal-inset {
+  background-color: var(--metal-deep);
+  background-image: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.12) 0%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  color: var(--foreground);
+}
+
+.app-bg {
+  background: var(--app-bg);
+  color: var(--foreground);
+}
+
+[data-theme="dark"] .app-bg {
+  background-color: var(--metal-base);
+  background-image: linear-gradient(
+    168deg,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0.03) 32%,
+    rgba(0, 0, 0, 0) 55%,
+    rgba(0, 0, 0, 0.18) 100%
+  );
+}
+
+.metallic-orange {
+  background-color: var(--brand-solid);
+  color: #fff;
+  border: none;
+}
+.metallic-orange:hover {
+  background-color: var(--brand-bright);
+}
+.metallic-orange:active {
+  background-color: var(--brand-deep);
+}
+.metallic-orange-text {
+  color: var(--brand-solid);
+}
+
+.card-surface {
+  background: var(--surface);
+  border: none;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+/* Dark: metal plate cards — not frosted plastic on paint */
+[data-theme="dark"] .card-surface {
+  background-color: rgba(255, 255, 255, 0.08);
+  background-image: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0.02) 50%,
+    rgba(0, 0, 0, 0.08) 100%
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: #f1f5f9;
+}
+
+.radius-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--brand-solid) 0%,
+    var(--brand-solid) var(--pct, 25%),
+    var(--surface-3) var(--pct, 25%),
+    var(--surface-3) 100%
+  );
+  outline: none;
+}
+[data-theme="dark"] .radius-slider {
+  background: linear-gradient(
+    to right,
+    var(--brand-solid) 0%,
+    var(--brand-solid) var(--pct, 25%),
+    var(--metal-deep) var(--pct, 25%),
+    var(--metal-deep) 100%
+  );
+}
+.radius-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--brand-solid);
+  border: 2px solid #fff;
+  cursor: pointer;
+}
+.radius-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--brand-solid);
+  border: 2px solid #fff;
+  cursor: pointer;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: transparent;
+  padding: 0.75rem 1rem;
+}
+[data-theme="dark"] .page-header {
+  background: transparent;
+}
+.page-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  padding: 0.375rem;
+  color: var(--muted);
+}
+.page-back:hover {
+  background: var(--metal-inset, var(--surface-3));
+}
