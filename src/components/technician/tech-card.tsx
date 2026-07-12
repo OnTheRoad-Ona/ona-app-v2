@@ -7,7 +7,6 @@ import type { Technician } from "@/lib/types";
 import { cn, formatDistance, formatEta } from "@/lib/utils";
 import { useApp } from "@/lib/store";
 
-/** Compact initials avatar — no image download (low data) */
 const AVATAR_HUE: Record<string, string> = {
   mechanic: "bg-orange-500",
   vulcanizer: "bg-teal-500",
@@ -17,7 +16,6 @@ const AVATAR_HUE: Record<string, string> = {
 export function TechCard({
   tech,
   onRequest,
-  compact = true,
   selected,
 }: {
   tech: Technician;
@@ -31,7 +29,7 @@ export function TechCard({
   return (
     <article
       className={cn(
-        "card-surface flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-shadow",
+        "card-surface flex items-center gap-2.5 rounded-lg px-2.5 py-2",
         selected && "ring-2 ring-brand/35",
         !isLight && "text-slate-100"
       )}
@@ -100,6 +98,7 @@ export function TechCard({
             </p>
           </div>
 
+          {/* Text only — no orange pill background */}
           {onRequest && tech.status !== "offline" && (
             <button
               type="button"
@@ -107,7 +106,12 @@ export function TechCard({
                 e.stopPropagation();
                 onRequest(tech);
               }}
-              className="shrink-0 rounded-md metallic-orange px-2 py-1 text-[11px] font-bold"
+              className={cn(
+                "shrink-0 border-0 bg-transparent px-1 py-1 text-[12px] font-bold",
+                isLight
+                  ? "text-brand hover:text-brand-deep"
+                  : "text-[#ffb07a] hover:text-white"
+              )}
             >
               Request
             </button>
@@ -128,12 +132,6 @@ export function TechCard({
           <span>{formatEta(tech.etaMinutes)}</span>
           <span className="opacity-40">·</span>
           <span>{formatDistance(tech.distanceMiles)}</span>
-          {!compact && tech.specialties[0] && (
-            <>
-              <span className="opacity-40">·</span>
-              <span className="truncate">{tech.specialties[0]}</span>
-            </>
-          )}
         </div>
       </div>
     </article>

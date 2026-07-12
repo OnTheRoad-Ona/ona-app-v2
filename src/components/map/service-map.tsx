@@ -138,21 +138,25 @@ function MapControls({
   );
 }
 
-function LiveRadiusBadge({ miles }: { miles: number }) {
+/** Uber Eats–style nearby count on the map (not miles — radius is in the sheet) */
+function NearbyCountBadge({ count }: { count: number }) {
   const { theme } = useApp();
   const isLight = theme === "light";
 
   return (
     <div
       className={cn(
-        "absolute bottom-3 right-3 z-30 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 shadow-md",
-        isLight ? "bg-white text-slate-800" : "bg-white/95 text-slate-900"
+        "absolute bottom-3 left-1/2 z-30 -translate-x-1/2 inline-flex items-center gap-2 rounded-full px-3.5 py-2 shadow-lg",
+        isLight ? "bg-white text-slate-900" : "bg-slate-900/95 text-white"
       )}
-      aria-label={`Search radius ${miles} miles`}
+      aria-label={`${count} nearby technicians`}
     >
-      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
-      <span className="text-[11px] font-semibold tabular-nums tracking-tight">
-        {miles} mi
+      <span className="relative flex h-2 w-2">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+      </span>
+      <span className="text-[12px] font-bold tabular-nums tracking-tight">
+        {count} nearby
       </span>
     </div>
   );
@@ -358,7 +362,7 @@ function MockupMap({
         onRecenter={() => undefined}
         onZoom={() => undefined}
       />
-      <LiveRadiusBadge miles={radiusMiles} />
+      <NearbyCountBadge count={technicians.length} />
 
       <p className="sr-only">
         Map near {location.label}. {technicians.length} technicians visible.
@@ -554,7 +558,7 @@ function GoogleServiceMap({
         onRecenter={recenter}
         onZoom={() => map?.setZoom((map.getZoom() ?? 13) + 1)}
       />
-      <LiveRadiusBadge miles={radiusMiles} />
+      <NearbyCountBadge count={technicians.length} />
     </div>
   );
 }
