@@ -106,7 +106,7 @@ export function HomePanel({
     <div
       className={cn(
         "relative z-30 flex min-h-0 flex-col transition-all duration-300 ease-out",
-        isLight ? "bg-[#e3e6ec]" : "bg-black",
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
         className
       )}
     >

@@ -2,8 +2,12 @@ import type { AccountType } from "@/lib/types";
 
 /**
  * Cross-account identity registry (local demo store).
- * Prevents the same phone, email, NIN, or BVN from being used
- * on two different accounts (Motorist or Repair Pro).
+ *
+ * Phone, email, NIN, and BVN may each match:
+ *   • one Motorist account, and
+ *   • one Repair Pro account
+ * at the same time (same person can run both).
+ * They cannot match two Motorist accounts or two Repair Pro accounts.
  */
 
 const REGISTRY_KEY = "oga-mecho-account-registry";
@@ -29,6 +33,10 @@ function digitsOnly(v: string): string {
   return v.replace(/\D/g, "");
 }
 
+function accountLabel(type: AccountType): string {
+  return type === "professional" ? "Repair Pro" : "Motorist";
+}
+
 /** Normalize NG phone for comparison (strip country code / leading 0). */
 export function normalizePhone(phone: string): string {
   let d = digitsOnly(phone);
@@ -48,6 +56,19 @@ export function normalizeNin(nin: string): string {
 export function normalizeBvn(bvn: string): string {
   return digitsOnly(bvn);
 }
+
+/** Nigeria NIN is exactly 11 digits. */
+export function isValidNinFormat(nin: string): boolean {
+  return normalizeNin(nin).length === 11;
+}
+
+/** Nigeria BVN is exactly 11 digits. */
+export function isValidBvnFormat(bvn: string): boolean {
+  return normalizeBvn(bvn).length === 11;
+}
+
+export const IDENTITY_RULE_COPY =
+  "Phone, email, NIN, and BVN can only match one Motorist and one Repair Pro account at the same time. One user can use both accounts.";
 
 export function readRegistry(): IdentityClaim[] {
   if (typeof window === "undefined") return [];
@@ -70,8 +91,8 @@ function writeRegistry(list: IdentityClaim[]) {
 }
 
 /**
- * Check whether identity fields are free.
- * @param excludeId — allow updating the same account (e.g. re-login)
+ * Check whether identity fields are free for this account type.
+ * Same phone/email/NIN/BVN may exist once as Motorist and once as Repair Pro.
  */
 export function checkIdentityAvailable(
   input: {
@@ -79,6 +100,7 @@ export function checkIdentityAvailable(
     email: string;
     nin?: string;
     bvn?: string;
+    accountType: AccountType;
   },
   excludeId?: string
 ): IdentityCheckResult {
@@ -86,6 +108,8 @@ export function checkIdentityAvailable(
   const email = normalizeEmail(input.email);
   const nin = input.nin ? normalizeNin(input.nin) : "";
   const bvn = input.bvn ? normalizeBvn(input.bvn) : "";
+  const type = input.accountType;
+  const label = accountLabel(type);
 
   if (phone.length < 10) {
     return {
@@ -94,51 +118,60 @@ export function checkIdentityAvailable(
       message: "Enter a valid phone number (at least 10 digits).",
     };
   }
-  if (!email.includes("@")) {
+  if (!email.includes("@") || email.length < 5) {
     return {
       ok: false,
       field: "email",
       message: "Enter a valid email address.",
     };
   }
+  if (input.nin && input.nin.trim() && !isValidNinFormat(input.nin)) {
+    return {
+      ok: false,
+      field: "nin",
+      message: "NIN must be exactly 11 digits.",
+    };
+  }
+  if (input.bvn && input.bvn.trim() && !isValidBvnFormat(input.bvn)) {
+    return {
+      ok: false,
+      field: "bvn",
+      message: "BVN must be exactly 11 digits.",
+    };
+  }
 
-  const list = readRegistry().filter((c) => c.id !== excludeId);
+  // Only compare against the same account type (motorist vs motorist, pro vs pro)
+  const list = readRegistry().filter(
+    (c) => c.id !== excludeId && c.accountType === type
+  );
 
   for (const c of list) {
     if (normalizePhone(c.phone) === phone) {
       return {
         ok: false,
         field: "phone",
-        message: `This phone number is already registered as a ${
-          c.accountType === "professional" ? "Repair Pro" : "Motorist"
-        }. Use a different number.`,
+        message: `This phone is already on a ${label} account. It can match one Motorist and one Repair Pro at the same time only.`,
       };
     }
     if (normalizeEmail(c.email) === email) {
       return {
         ok: false,
         field: "email",
-        message: `This email is already registered as a ${
-          c.accountType === "professional" ? "Repair Pro" : "Motorist"
-        }. Use a different email.`,
+        message: `This email is already on a ${label} account. It can match one Motorist and one Repair Pro at the same time only.`,
       };
     }
     if (nin && c.nin && normalizeNin(c.nin) === nin) {
       return {
         ok: false,
         field: "nin",
-        message: `This NIN is already linked to a ${
-          c.accountType === "professional" ? "Repair Pro" : "Motorist"
-        } account. One NIN cannot open two accounts.`,
+        message: `This NIN is already on a ${label} account. It can match one Motorist and one Repair Pro at the same time only.`,
       };
     }
     if (bvn && c.bvn && normalizeBvn(c.bvn) === bvn) {
       return {
         ok: false,
         field: "bvn",
-        message: `This BVN is already linked to a ${
-          c.accountType === "professional" ? "Repair Pro" : "Motorist"
-        } account. One BVN cannot open two accounts.`,
+        message: `This BVN is already on a ${label} account. It can match one Motorist and one Repair Pro at the same time only.`,
       };
     }
   }
@@ -153,6 +186,7 @@ export function registerIdentity(claim: IdentityClaim): IdentityCheckResult {
       email: claim.email,
       nin: claim.nin,
       bvn: claim.bvn,
+      accountType: claim.accountType,
     },
     claim.id
   );

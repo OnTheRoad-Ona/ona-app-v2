@@ -4,6 +4,10 @@ import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Zap } from "lucide-react";
+import {
+  VerificationBlockedPanel,
+  VerificationWarningBanner,
+} from "@/components/auth/verification-gate-banner";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -24,7 +28,7 @@ function RequestFlow() {
   const {
     technicians,
     visibleTechnicians,
-    createRequest,
+    bookRequest,
     setSelectedTechId,
     theme,
   } = useApp();
@@ -41,13 +45,15 @@ function RequestFlow() {
   const [problem, setProblem] = useState(PROBLEMS[0]);
   const [step, setStep] = useState<"confirm" | "done">("confirm");
   const [requestId, setRequestId] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState<string | null>(null);
 
   if (!tech) {
     return (
       <div
         className={cn(
           "flex h-full flex-col items-center justify-center gap-3 p-6",
-          isLight ? "bg-white" : "bg-black"
+          isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
         <p className="font-semibold">No technician available</p>
@@ -63,8 +69,14 @@ function RequestFlow() {
 
   const submit = () => {
     setSelectedTechId(tech.id);
-    const req = createRequest(tech, problem);
-    setRequestId(req.id);
+    setBlocked(null);
+    const result = bookRequest(tech, problem);
+    if (!result.ok) {
+      setBlocked(result.message);
+      return;
+    }
+    if (result.warning) setWarning(result.warning);
+    setRequestId(result.request?.id ?? null);
     setStep("done");
   };
 
@@ -73,7 +85,7 @@ function RequestFlow() {
       <div
         className={cn(
           "flex h-full flex-col items-center justify-center px-6 text-center",
-          isLight ? "bg-white" : "bg-black"
+          isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
         <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50">
@@ -94,6 +106,11 @@ function RequestFlow() {
         {requestId && (
           <p className="mt-1 text-xs text-slate-400">ID: {requestId}</p>
         )}
+        {warning && (
+          <div className="mt-4 w-full max-w-sm text-left">
+            <VerificationWarningBanner message={warning} isLight={isLight} />
+          </div>
+        )}
         <div className="mt-6 flex w-full flex-col gap-2">
           <Button size="lg" onClick={() => router.push("/requests")}>
             Track request
@@ -110,7 +127,7 @@ function RequestFlow() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-white" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black"
       )}
     >
       <header className="page-header">
@@ -183,7 +200,14 @@ function RequestFlow() {
         </div>
       </div>
 
-      <div className="p-4">
+      <div className="space-y-3 p-4">
+        {blocked && (
+          <VerificationBlockedPanel
+            message={blocked}
+            isLight={isLight}
+            onClose={() => setBlocked(null)}
+          />
+        )}
         <Button size="lg" className="w-full" onClick={submit}>
           <Zap className="h-5 w-5 fill-white" />
           Confirm & Connect

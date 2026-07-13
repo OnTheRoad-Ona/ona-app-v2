@@ -8,45 +8,22 @@ import {
   authBackBtnClass,
   authFieldClass,
   authLabelClass,
-  authPrimaryBtnClass,
-  authPrimaryBtnStyle,
 } from "@/components/auth/auth-plate";
 import { useApp } from "@/lib/store";
+import type { AccountType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /**
- * Returning user log-in (email + password against saved profile).
+ * Returning user log-in — each Motorist / Repair Pro account is separate.
  */
 export function SignInForm() {
   const router = useRouter();
-  const { userProfile, completeSignup } = useApp();
+  const { signInWithPassword, hasMotoristAccount, hasProAccount } = useApp();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [preferType, setPreferType] = useState<AccountType | "">("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-
-  const onSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    if (!userProfile) {
-      setError("No account found on this device. Please sign up.");
-      return;
-    }
-    const em = email.trim().toLowerCase();
-    if (
-      userProfile.email.trim().toLowerCase() !== em ||
-      userProfile.password !== password
-    ) {
-      setError("Email or password is incorrect.");
-      return;
-    }
-    setBusy(true);
-    // Re-apply session (already stored; ensures authenticated state)
-    completeSignup(userProfile);
-    router.replace(
-      userProfile.accountType === "professional" ? "/dashboard" : "/"
-    );
-  };
 
   return (
     <AuthPlate>
@@ -71,13 +48,79 @@ export function SignInForm() {
           Log In
         </h1>
         <p className="mt-1 text-[13px] text-[#475569]">
-          Welcome back to OgaMecho
+          Welcome back. Motorist and Repair Pro each need their own login.
         </p>
 
         <form
-          onSubmit={onSubmit}
+          onSubmit={(e) => {
+            e.preventDefault();
+            setError("");
+            if (!hasMotoristAccount && !hasProAccount) {
+              setError("No account found on this device. Please sign up.");
+              return;
+            }
+            setBusy(true);
+            const err = signInWithPassword(
+              email,
+              password,
+              preferType || undefined
+            );
+            if (err) {
+              setError(err);
+              setBusy(false);
+              return;
+            }
+            const t =
+              preferType ||
+              localStorage.getItem("oga-mecho-account-type") ||
+              "motorist";
+            router.replace(t === "professional" ? "/dashboard" : "/");
+            setBusy(false);
+          }}
           className="mt-6 flex flex-1 flex-col gap-3.5"
         >
+          {(hasMotoristAccount || hasProAccount) && (
+            <div>
+              <span className={authLabelClass}>Log in as</span>
+              <div className="mt-1 grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPreferType((p) => (p === "motorist" ? "" : "motorist"))
+                  }
+                  className={cn(
+                    "h-10 rounded-md border-0 text-[12px] font-bold",
+                    preferType === "motorist"
+                      ? "bg-[#323231] text-white"
+                      : "bg-black/[0.06] text-[#1e293b]",
+                    !hasMotoristAccount && "opacity-40"
+                  )}
+                  disabled={!hasMotoristAccount}
+                >
+                  Motorist
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPreferType((p) =>
+                      p === "professional" ? "" : "professional"
+                    )
+                  }
+                  className={cn(
+                    "h-10 rounded-md border-0 text-[12px] font-bold",
+                    preferType === "professional"
+                      ? "bg-[#323231] text-white"
+                      : "bg-black/[0.06] text-[#1e293b]",
+                    !hasProAccount && "opacity-40"
+                  )}
+                  disabled={!hasProAccount}
+                >
+                  Repair Pro
+                </button>
+              </div>
+            </div>
+          )}
+
           <label className="block">
             <span className={authLabelClass}>Email</span>
             <input
@@ -112,8 +155,25 @@ export function SignInForm() {
           <button
             type="submit"
             disabled={busy}
-            className={cn(authPrimaryBtnClass, "mt-auto")}
-            style={authPrimaryBtnStyle}
+            className="om-cta-dark-gray mt-auto"
+            style={{
+              WebkitAppearance: "none",
+              appearance: "none",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "100%",
+              height: 44,
+              border: "none",
+              borderRadius: 6,
+              background: "#323231",
+              backgroundColor: "#323231",
+              color: "#ffffff",
+              fontSize: 14,
+              fontWeight: 600,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+              cursor: busy ? "wait" : "pointer",
+            }}
           >
             {busy ? "Signing in…" : "Log In"}
           </button>

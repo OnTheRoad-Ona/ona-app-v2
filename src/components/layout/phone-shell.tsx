@@ -100,7 +100,7 @@ export function PhoneShell({
           "h-[min(844px,calc(100dvh-1.5rem))]",
           "max-h-[min(844px,calc(100dvh-1.5rem))]",
           "max-w-[390px]",
-          isLight ? "bg-[#e3e6ec]" : "bg-black",
+          isLight ? "bg-[#c8c9cd]" : "bg-black",
           className
         )}
         style={{

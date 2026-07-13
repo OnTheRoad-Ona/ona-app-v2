@@ -7,18 +7,18 @@
 :root,
 [data-theme="light"] {
   --stage: #000000;
-  /* Match reference: cool silver-gray panel, not pure white */
-  --background: #e3e6ec;
-  --surface: #e3e6ec;
-  --surface-2: #d8dce4;
-  --surface-3: #cdd2db;
-  --elevated: #eceef3;
+  /* Sheet gray from design reference — #C8C9CD · RGB(200, 201, 205) */
+  --background: #c8c9cd;
+  --surface: #c8c9cd;
+  --surface-2: #bebfc4;
+  --surface-3: #b4b5bb;
+  --elevated: #d4d5d9;
   --foreground: #1e293b;
   --muted: #7b8798;
   --muted-2: #9aa3b2;
-  --border: #cdd2db;
-  --border-strong: #b8bfcb;
-  --app-bg: #e3e6ec;
+  --border: #b4b5bb;
+  --border-strong: #a3a4ab;
+  --app-bg: #c8c9cd;
 
   --brand: #e85a12;
   --brand-bright: #f0651a;
@@ -248,7 +248,7 @@ body {
 }
 
 [data-theme="light"] .card-surface {
-  background: rgba(216, 220, 228, 0.92);
+  background: rgba(212, 213, 217, 0.95);
   border-radius: 0.75rem;
   backdrop-filter: blur(8px);
 }
@@ -417,29 +417,92 @@ body {
 }
 
 /*
- * Login / signup page fill — solid mid-copper only:
- * #8B5534 · RGB(139, 85, 52)
+ * Login / signup page fill — original sheet gray (not landing copper):
+ * #C8C9CD · RGB(200, 201, 205)
  * Wheel gray (brand tire): #323231 · RGB(50, 50, 49)
  */
 .auth-matte-orange,
 .auth-apple-stage {
-  background-color: #8b5534 !important;
+  background-color: #c8c9cd !important;
   background-image: none !important;
 }
 .auth-matte-orange-sheen {
   display: none;
 }
 
-/* Primary auth CTA fallback — wheel gray (brand tire ring) */
+/* Primary auth CTA — dark gray #323231 (Continue to sign up / Next) */
 .auth-apple-cta,
 .auth-metal-orange {
   border: none;
-  background: #323231;
+  background: #323231 !important;
+  color: #ffffff !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
 }
 .auth-apple-cta:hover:not(:disabled),
 .auth-metal-orange:hover:not(:disabled) {
   filter: brightness(1.04);
+  background: #323231 !important;
+}
+
+/**
+ * Forced dark-gray CTA — "Next" / "Continue to sign up".
+ * appearance:none stops Safari/Chrome from painting the system light-gray
+ * disabled button look (which was washing Next to #ddd).
+ */
+button.om-cta-dark-gray,
+.om-cta-dark-gray {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.375rem;
+  width: 100% !important;
+  height: 2.75rem !important;
+  margin: 0;
+  padding: 0 1rem;
+  border: none !important;
+  border-radius: 0.375rem !important;
+  background: #323231 !important;
+  background-color: #323231 !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18) !important;
+  cursor: pointer;
+  opacity: 1 !important;
+  filter: none !important;
+}
+button.om-cta-dark-gray:hover,
+.om-cta-dark-gray:hover {
+  background: #323231 !important;
+  background-color: #323231 !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  filter: brightness(1.06) !important;
+}
+button.om-cta-dark-gray:active,
+.om-cta-dark-gray:active {
+  background: #2a2a29 !important;
+  background-color: #2a2a29 !important;
+  filter: none !important;
+}
+/* Soften when inactive — stay dark gray, never system light gray */
+button.om-cta-dark-gray[aria-disabled="true"],
+.om-cta-dark-gray[aria-disabled="true"],
+button.om-cta-dark-gray:disabled,
+.om-cta-dark-gray:disabled {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  background: #323231 !important;
+  background-color: #323231 !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  opacity: 0.55 !important;
+  cursor: not-allowed !important;
+  filter: none !important;
 }
 
 .auth-apple-progress-track {

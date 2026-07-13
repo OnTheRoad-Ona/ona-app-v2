@@ -67,6 +67,19 @@ export interface UserProfile {
   /** Bank Verification Number (unique across all accounts) */
   bvn?: string;
   /**
+   * Post-signup identity verification (NIN + BVN APIs).
+   * Users can explore the app first; verification unlocks unlimited
+   * book / accept after free trial requests.
+   */
+  ninVerified?: boolean;
+  bvnVerified?: boolean;
+  identityVerifiedAt?: string;
+  /**
+   * Count of gated actions: motorist books + pro accepts.
+   * Used for progressive verification warnings / hard block.
+   */
+  serviceActionCount?: number;
+  /**
    * Service focus (vehicles this pro serves).
    * Shown on their public profile when motorists view them.
    */

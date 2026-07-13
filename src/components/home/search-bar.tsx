@@ -37,11 +37,11 @@ export function SearchBar() {
           autoCorrect="off"
           spellCheck={false}
           className={cn(
-            "search-metal-orange h-9 w-full select-text rounded-md pl-8 pr-9 text-[12px]",
+            "search-metal-orange h-9 w-full select-text rounded-sm pl-8 pr-9 text-[12px]",
             "outline-none focus:outline-none focus:ring-0 focus:border-0",
             "[-webkit-user-select:text] [user-select:text]",
             isLight
-              ? "rounded-xl bg-[#d8dce4]/90 text-[#1e293b] placeholder:text-[#9aa3b2] backdrop-blur-sm"
+              ? "bg-[#bebfc4]/95 text-[#1e293b] placeholder:text-[#6b7280]"
               : "bg-black text-white placeholder:text-white/50"
           )}
         />

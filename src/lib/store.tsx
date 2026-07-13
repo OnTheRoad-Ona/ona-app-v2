@@ -18,6 +18,13 @@ import {
 } from "@/lib/data/technicians";
 import { registerIdentity } from "@/lib/account-registry";
 import { filterAndRankTechnicians } from "@/lib/matching";
+import {
+  findProfilesForLogin,
+  getVaultProfile,
+  LEGACY_PROFILE_KEY,
+  readProfilesVault,
+  saveProfileToVault,
+} from "@/lib/profiles-vault";
 import { isProService, PRO_SERVICE_LABELS } from "@/lib/services";
 import type {
   AccountType,
@@ -33,6 +40,22 @@ import type {
   UserMode,
   UserProfile,
 } from "@/lib/types";
+import { evaluateServiceGate } from "@/lib/verification-gate";
+
+/** Result of book (motorist) or accept (pro) with progressive verification. */
+export type ServiceActionResult =
+  | {
+      ok: true;
+      request?: ServiceRequest;
+      warning: string | null;
+      actionCount: number;
+    }
+  | {
+      ok: false;
+      code: "verification_required" | "not_found" | "invalid";
+      message: string;
+      actionCount: number;
+    };
 
 export type AppTheme = "light" | "dark";
 
@@ -42,7 +65,7 @@ const MODE_KEY = "oga-mecho-mode";
 const AUTH_KEY = "oga-mecho-auth";
 const AUTH_NAME_KEY = "oga-mecho-auth-name";
 const AUTH_ACCOUNT_KEY = "oga-mecho-account-type";
-const PROFILE_KEY = "oga-mecho-profile";
+const PROFILE_KEY = LEGACY_PROFILE_KEY;
 
 /** Public directory id for the signed-in Repair Pro (motorists can open this profile). */
 export const SELF_PRO_TECH_ID = "pro-self";
@@ -77,21 +100,30 @@ export function profileToTechnician(profile: UserProfile): Technician | null {
     focusBits.length > 0
       ? `Serves ${focusBits.join(" · ")}.`
       : "Roadside repair professional.";
+  const specialtyAns = profile.skillAnswers?.specialties;
+  const specialtiesFromSignup = Array.isArray(specialtyAns)
+    ? specialtyAns.filter((s): s is string => typeof s === "string")
+    : typeof specialtyAns === "string"
+      ? [specialtyAns]
+      : [];
   return {
     id: SELF_PRO_TECH_ID,
     name,
     shortName: short,
     serviceType: primary,
-    roleLabel: profile.businessName?.trim() || label,
+    roleLabel: label,
     photo: "/technicians/t1.jpg",
     rating: 5,
     reviewCount: 0,
     distanceKm: 0.2,
     etaMinutes: 6,
     status: "available",
-    verified: Boolean(profile.idNumber),
+    verified: Boolean(profile.ninVerified && profile.bvnVerified),
     fastResponse: true,
-    specialties: services.map((s) => PRO_SERVICE_LABELS[s] ?? s),
+    specialties:
+      specialtiesFromSignup.length > 0
+        ? specialtiesFromSignup
+        : [PRO_SERVICE_LABELS[primary] ?? primary],
     description:
       profile.bio?.trim() ||
       `${focusLine} Based in ${[profile.area, profile.city].filter(Boolean).join(", ") || "Lagos"}.`,
@@ -106,7 +138,7 @@ export function profileToTechnician(profile: UserProfile): Technician | null {
     servedMake: profile.servedBrand || profile.servedMake,
     servedModel: profile.servedModel,
     servedCountry: profile.servedCountry,
-    servedLocation: profile.servedLocation,
+    servedLocation: profile.servedLocation ?? profile.area,
     businessName: profile.businessName,
     yearsExperience: profile.yearsExperience,
     bio: profile.bio,
@@ -135,15 +167,42 @@ interface AppState {
   proServices: ProService[];
   setRegisteredAs: (role: RegisteredAs) => void;
   setUserMode: (mode: UserMode) => void;
+  /** Dual vault: true if this device has a signed-up Motorist profile */
+  hasMotoristAccount: boolean;
+  /** Dual vault: true if this device has a signed-up Repair Pro profile */
+  hasProAccount: boolean;
+  /**
+   * Switch active session to Motorist or Repair Pro.
+   * Requires a separate signup for that type (not one shared login).
+   * Returns null on success, or an error / "needs_signup" | "needs_login" code.
+   */
+  switchAccount: (
+    type: AccountType
+  ) => null | "needs_signup" | "needs_login" | string;
+  /**
+   * Log in with email + password against the dual vault.
+   * Optionally prefer a specific account type when both match.
+   */
+  signInWithPassword: (
+    email: string,
+    password: string,
+    preferType?: AccountType
+  ) => string | null;
   addProService: (service: ProService) => void;
   removeProService: (service: ProService) => void;
   /**
    * Complete Motorist or Repair Pro registration and sign in.
-   * Persists profile + role for session restore.
-   * Enforces unique phone / email / NIN / BVN across accounts.
-   * Returns an error message when identity is already taken.
+   * Each type is a separate account; one person may register both.
    */
   completeSignup: (profile: UserProfile) => string | null;
+  /**
+   * Post-signup NIN + BVN verification. Unlocks unlimited book/accept.
+   * Returns error message or null on success.
+   */
+  completeIdentityVerification: (input: {
+    nin: string;
+    bvn: string;
+  }) => string | null;
   /** Legacy quick login (prefer completeSignup) */
   login: (opts: {
     accountType: AccountType;
@@ -170,8 +229,23 @@ interface AppState {
   setQuery: (q: string) => void;
   toggleFilter: (key: keyof AppFilters) => void;
   setSelectedTechId: (id: string | null) => void;
+  /**
+   * Motorist book help — gated after free trial requests.
+   * Prefer this over raw createRequest for UI flows.
+   */
+  bookRequest: (
+    tech: Technician,
+    problem?: string
+  ) => ServiceActionResult;
+  /** @deprecated use bookRequest — still creates without gate for internal/demo */
   createRequest: (tech: Technician, problem?: string) => ServiceRequest;
-  updateRequestStatus: (id: string, status: ServiceRequest["status"]) => void;
+  /**
+   * Pro accept (or other status). Accept is gated by verification funnel.
+   */
+  updateRequestStatus: (
+    id: string,
+    status: ServiceRequest["status"]
+  ) => ServiceActionResult;
   retryLocation: () => void;
   setManualLocation: (label: string) => void;
 }
@@ -208,6 +282,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [registeredAs, setRegisteredAsState] = useState<RegisteredAs>("client");
   const [userMode, setUserModeState] = useState<UserMode>("client");
   const [proServices, setProServicesState] = useState<ProService[]>([]);
+  const [hasMotoristAccount, setHasMotoristAccount] = useState(false);
+  const [hasProAccount, setHasProAccount] = useState(false);
 
   const [location, setLocation] = useState(DEFAULT_USER_LOCATION);
   const [radiusKm, setRadiusKm] = useState(10);
@@ -279,6 +355,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } else if (authed) {
         setAccountType(role === "client" ? "motorist" : "professional");
       }
+      const vault = readProfilesVault();
+      setHasMotoristAccount(Boolean(vault.motorist));
+      setHasProAccount(Boolean(vault.professional));
+
       const rawProfile = localStorage.getItem(PROFILE_KEY);
       if (rawProfile) {
         try {
@@ -286,6 +366,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         } catch {
           /* ignore */
         }
+      } else if (authed) {
+        const type =
+          rawAccount === "professional" || rawAccount === "motorist"
+            ? rawAccount
+            : vault.professional
+              ? "professional"
+              : "motorist";
+        const fromVault = getVaultProfile(type);
+        if (fromVault) setUserProfile(fromVault);
       }
     } catch {
       setRegisteredAsState("client");
@@ -375,36 +464,185 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const setUserMode = useCallback(
-    (mode: UserMode) => {
-      // Pros cannot enter client mode; motorists cannot enter pro mode.
-      // Only matching account type may use that workspace.
-      if (accountType === "professional" && mode === "client") return;
-      if (accountType === "motorist" && mode === "professional") return;
-      setUserModeState(mode);
+  /** Activate a stored profile as the current session (after signup / switch / login). */
+  const applySession = useCallback((profile: UserProfile) => {
+    const name = profile.fullName.trim() || "User";
+    setUserProfile(profile);
+    setDisplayName(name);
+    setAccountType(profile.accountType);
+    setIsAuthenticated(true);
+
+    try {
+      localStorage.setItem(AUTH_KEY, "1");
+      localStorage.setItem(AUTH_NAME_KEY, name);
+      localStorage.setItem(AUTH_ACCOUNT_KEY, profile.accountType);
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+    } catch {
+      /* ignore */
+    }
+
+    if (profile.accountType === "motorist") {
+      setRegisteredAsState("client");
+      setUserModeState("client");
       try {
-        localStorage.setItem(MODE_KEY, mode);
+        localStorage.setItem(MODE_KEY, "client");
+        localStorage.setItem(ROLE_KEY, "client");
       } catch {
         /* ignore */
       }
+    } else {
+      const services = (profile.services ?? []).filter(isProService).slice(0, 1);
+      const primary = services[0] ?? "mechanic";
+      setProServicesState([primary]);
+      setRegisteredAsState(primary);
+      setUserModeState("professional");
+      try {
+        localStorage.setItem(MODE_KEY, "professional");
+        localStorage.setItem(ROLE_KEY, primary);
+        localStorage.setItem(SERVICES_KEY, JSON.stringify([primary]));
+      } catch {
+        /* ignore */
+      }
+      if (profile.serviceRadiusKm != null) {
+        setRadiusKm(Math.min(10, Math.max(1, profile.serviceRadiusKm)));
+      }
+    }
+
+    if (profile.area || profile.city) {
+      setLocation({
+        label: [profile.area, profile.city].filter(Boolean).join(", "),
+        city: profile.city || profile.area,
+        coordinates: DEFAULT_USER_LOCATION.coordinates,
+      });
+    }
+
+    const vault = readProfilesVault();
+    setHasMotoristAccount(Boolean(vault.motorist));
+    setHasProAccount(Boolean(vault.professional));
+  }, []);
+
+  const switchAccount = useCallback(
+    (type: AccountType): null | "needs_signup" | "needs_login" | string => {
+      const stored = getVaultProfile(type);
+      if (!stored) {
+        return "needs_signup";
+      }
+      // Must have logged into the app at least once this session or stay signed in
+      if (!isAuthenticated && localStorage.getItem(AUTH_KEY) !== "1") {
+        return "needs_login";
+      }
+      applySession(stored);
+      return null;
     },
-    [accountType]
+    [applySession, isAuthenticated]
+  );
+
+  const setUserMode = useCallback(
+    (mode: UserMode) => {
+      const target: AccountType =
+        mode === "professional" ? "professional" : "motorist";
+      const result = switchAccount(target);
+      if (result === null) return;
+      // If switch failed, still update mode only when same type is active
+      if (
+        (mode === "professional" && accountType === "professional") ||
+        (mode === "client" && accountType === "motorist")
+      ) {
+        setUserModeState(mode);
+        try {
+          localStorage.setItem(MODE_KEY, mode);
+        } catch {
+          /* ignore */
+        }
+      }
+    },
+    [switchAccount, accountType]
+  );
+
+  const signInWithPassword = useCallback(
+    (
+      email: string,
+      password: string,
+      preferType?: AccountType
+    ): string | null => {
+      const hits = findProfilesForLogin(email, password);
+      if (hits.length === 0) {
+        return "Email or password is incorrect.";
+      }
+      let pick = hits[0];
+      if (preferType) {
+        pick = hits.find((h) => h.accountType === preferType) ?? pick;
+      } else if (accountType) {
+        pick = hits.find((h) => h.accountType === accountType) ?? pick;
+      }
+      applySession(pick);
+      return null;
+    },
+    [applySession, accountType]
+  );
+
+  const persistProfile = useCallback((profile: UserProfile) => {
+    setUserProfile(profile);
+    saveProfileToVault(profile);
+    try {
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+    } catch {
+      /* ignore */
+    }
+    const vault = readProfilesVault();
+    setHasMotoristAccount(Boolean(vault.motorist));
+    setHasProAccount(Boolean(vault.professional));
+  }, []);
+
+  const completeIdentityVerification = useCallback(
+    (input: { nin: string; bvn: string }): string | null => {
+      if (!userProfile) return "Sign in to verify your identity.";
+      const nin = input.nin.replace(/\D/g, "");
+      const bvn = input.bvn.replace(/\D/g, "");
+      if (nin.length !== 11) return "NIN must be exactly 11 digits.";
+      if (bvn.length !== 11) return "BVN must be exactly 11 digits.";
+
+      const saved: UserProfile = {
+        ...userProfile,
+        idNumber: nin,
+        bvn,
+        ninVerified: true,
+        bvnVerified: true,
+        identityVerifiedAt: new Date().toISOString(),
+      };
+      persistProfile(saved);
+
+      // Keep registry in sync with verified numbers
+      if (saved.identityId) {
+        registerIdentity({
+          id: saved.identityId,
+          accountType: saved.accountType,
+          phone: saved.phone,
+          email: saved.email,
+          nin,
+          bvn,
+          fullName: saved.fullName,
+          createdAt: saved.registeredAt || new Date().toISOString(),
+        });
+      }
+      return null;
+    },
+    [userProfile, persistProfile]
   );
 
   const completeSignup = useCallback(
     (profile: UserProfile): string | null => {
-      // One account type per session identity — cannot open a second pro
-      // registration while already a professional on this device session.
-      if (
-        profile.accountType === "professional" &&
-        isAuthenticated &&
-        accountType === "professional"
-      ) {
-        return "You already have a Repair Professional account. Only one professional signup is allowed.";
+      // Separate signup per type — block only duplicate of the same type
+      const existing = getVaultProfile(profile.accountType);
+      if (existing && !profile.identityId) {
+        return profile.accountType === "professional"
+          ? "You already have a Repair Pro account on this device. Log in or switch from the menu."
+          : "You already have a Motorist account on this device. Log in or switch from the menu.";
       }
 
       const identityId =
         profile.identityId ||
+        existing?.identityId ||
         `acct-${profile.accountType}-${Date.now().toString(36)}`;
 
       // Pros: enforce single skill on profile
@@ -428,73 +666,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
       if (!reg.ok) return reg.message;
 
-      const name = normalized.fullName.trim() || "User";
-      const saved: UserProfile = { ...normalized, identityId };
-      setUserProfile(saved);
-      setDisplayName(name);
-      setAccountType(normalized.accountType);
-      setIsAuthenticated(true);
-
-      try {
-        localStorage.setItem(AUTH_KEY, "1");
-        localStorage.setItem(AUTH_NAME_KEY, name);
-        localStorage.setItem(AUTH_ACCOUNT_KEY, normalized.accountType);
-        localStorage.setItem(PROFILE_KEY, JSON.stringify(saved));
-      } catch {
-        /* ignore */
-      }
-
-      if (normalized.accountType === "motorist") {
-        setRegisteredAs("client");
-        setUserModeState("client");
-        try {
-          localStorage.setItem(MODE_KEY, "client");
-        } catch {
-          /* ignore */
-        }
-        if (normalized.area || normalized.city) {
-          setLocation({
-            label: [normalized.area, normalized.city]
-              .filter(Boolean)
-              .join(", "),
-            city: normalized.city || normalized.area,
-            coordinates: DEFAULT_USER_LOCATION.coordinates,
-          });
-        }
-      } else {
-        const services = (normalized.services ?? [])
-          .filter(isProService)
-          .slice(0, 1);
-        const primary = services[0] ?? "mechanic";
-        setProServicesState([primary]);
-        try {
-          localStorage.setItem(SERVICES_KEY, JSON.stringify([primary]));
-        } catch {
-          /* ignore */
-        }
-        setRegisteredAs(primary);
-        setUserModeState("professional");
-        try {
-          localStorage.setItem(MODE_KEY, "professional");
-        } catch {
-          /* ignore */
-        }
-        if (normalized.serviceRadiusKm != null) {
-          setRadiusKm(Math.min(10, Math.max(1, normalized.serviceRadiusKm)));
-        }
-        if (normalized.area || normalized.city) {
-          setLocation({
-            label: [normalized.area, normalized.city]
-              .filter(Boolean)
-              .join(", "),
-            city: normalized.city || normalized.area,
-            coordinates: DEFAULT_USER_LOCATION.coordinates,
-          });
-        }
-      }
+      // Signup IDs are collected but not live-verified yet — in-app /verify does that
+      const saved: UserProfile = {
+        ...normalized,
+        identityId,
+        serviceActionCount:
+          normalized.serviceActionCount ?? existing?.serviceActionCount ?? 0,
+        ninVerified: normalized.ninVerified ?? existing?.ninVerified ?? false,
+        bvnVerified: normalized.bvnVerified ?? existing?.bvnVerified ?? false,
+      };
+      saveProfileToVault(saved);
+      applySession(saved);
       return null;
     },
-    [setRegisteredAs, isAuthenticated, accountType]
+    [applySession]
   );
 
   const login = useCallback(
@@ -535,11 +720,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAccountType(null);
     setDisplayName("Guest");
     setUserProfile(null);
+    // Keep dual vault so both accounts remain for future login / switch after re-auth
     try {
       localStorage.removeItem(AUTH_KEY);
       localStorage.removeItem(AUTH_NAME_KEY);
       localStorage.removeItem(AUTH_ACCOUNT_KEY);
       localStorage.removeItem(PROFILE_KEY);
+      const vault = readProfilesVault();
+      setHasMotoristAccount(Boolean(vault.motorist));
+      setHasProAccount(Boolean(vault.professional));
     } catch {
       /* ignore */
     }
@@ -670,13 +859,91 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [location.label]
   );
 
+  const bookRequest = useCallback(
+    (tech: Technician, problem = "Roadside assistance"): ServiceActionResult => {
+      const gate = evaluateServiceGate(userProfile, "motorist");
+      const count = userProfile?.serviceActionCount ?? 0;
+      if (!gate.allowed) {
+        return {
+          ok: false,
+          code: "verification_required",
+          message: gate.message,
+          actionCount: count,
+        };
+      }
+      const req = createRequest(tech, problem);
+      if (userProfile) {
+        persistProfile({
+          ...userProfile,
+          serviceActionCount: count + 1,
+        });
+      }
+      return {
+        ok: true,
+        request: req,
+        warning: gate.warning,
+        actionCount: count + 1,
+      };
+    },
+    [userProfile, createRequest, persistProfile]
+  );
+
   const updateRequestStatus = useCallback(
-    (id: string, status: ServiceRequest["status"]) => {
+    (
+      id: string,
+      status: ServiceRequest["status"]
+    ): ServiceActionResult => {
+      const existing = requests.find((r) => r.id === id);
+      if (!existing) {
+        return {
+          ok: false,
+          code: "not_found",
+          message: "Request not found.",
+          actionCount: userProfile?.serviceActionCount ?? 0,
+        };
+      }
+
+      // Only "accept" is gated — decline / progress stays free
+      if (status === "accepted" && existing.status === "pending") {
+        const gate = evaluateServiceGate(
+          userProfile,
+          accountType === "professional" ? "professional" : userProfile?.accountType
+        );
+        const count = userProfile?.serviceActionCount ?? 0;
+        if (!gate.allowed) {
+          return {
+            ok: false,
+            code: "verification_required",
+            message: gate.message,
+            actionCount: count,
+          };
+        }
+        setRequests((prev) =>
+          prev.map((r) => (r.id === id ? { ...r, status } : r))
+        );
+        if (userProfile) {
+          persistProfile({
+            ...userProfile,
+            serviceActionCount: count + 1,
+          });
+        }
+        return {
+          ok: true,
+          warning: gate.warning,
+          actionCount: count + 1,
+        };
+      }
+
       setRequests((prev) =>
         prev.map((r) => (r.id === id ? { ...r, status } : r))
       );
+      return {
+        ok: true,
+        warning: null,
+        actionCount: userProfile?.serviceActionCount ?? 0,
+      };
     },
-    []
+    [requests, userProfile, accountType, persistProfile]
   );
 
   const retryLocation = useCallback(() => {
@@ -733,9 +1000,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       proServices,
       setRegisteredAs,
       setUserMode,
+      hasMotoristAccount,
+      hasProAccount,
+      switchAccount,
+      signInWithPassword,
       addProService,
       removeProService,
       completeSignup,
+      completeIdentityVerification,
       login,
       logout,
       location,
@@ -756,6 +1028,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setQuery,
       toggleFilter,
       setSelectedTechId,
+      bookRequest,
       createRequest,
       updateRequestStatus,
       retryLocation,
@@ -776,9 +1049,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       proServices,
       setRegisteredAs,
       setUserMode,
+      hasMotoristAccount,
+      hasProAccount,
+      switchAccount,
+      signInWithPassword,
       addProService,
       removeProService,
       completeSignup,
+      completeIdentityVerification,
       login,
       logout,
       location,
@@ -795,6 +1073,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       locationError,
       isLocating,
       toggleFilter,
+      bookRequest,
       createRequest,
       updateRequestStatus,
       retryLocation,

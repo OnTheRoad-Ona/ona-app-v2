@@ -58,11 +58,11 @@ export function HomeScreen() {
     <div
       className={cn(
         "flex h-full min-h-0 flex-col",
-        isLight ? "bg-[#e3e6ec]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black"
       )}
     >
       <div
-        className={cn("z-20 shrink-0", isLight ? "bg-[#e3e6ec]" : "bg-black")}
+        className={cn("z-20 shrink-0", isLight ? "bg-[#c8c9cd]" : "bg-black")}
       >
         <AppHeader />
         <SearchBar />
@@ -101,7 +101,7 @@ export function HomeScreen() {
       <div
         className={cn(
           "z-40 shrink-0 px-3 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))]",
-          isLight ? "bg-[#e3e6ec]" : "bg-black"
+          isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
         <Button

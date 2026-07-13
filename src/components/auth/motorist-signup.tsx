@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
@@ -8,28 +8,55 @@ import {
   Lock,
   Mail,
   MapPin,
-  Phone,
   User,
 } from "lucide-react";
 import {
   AuthPlate,
-  authPrimaryBtnClass,
-  authPrimaryBtnStyle,
   authSecondaryBtnClass,
 } from "@/components/auth/auth-plate";
 import { RegistrationComplete } from "@/components/auth/registration-complete";
+import {
+  checkIdentityAvailable,
+  IDENTITY_RULE_COPY,
+} from "@/lib/account-registry";
+import {
+  DEFAULT_PHONE_DIAL,
+  DEFAULT_PHONE_ISO,
+  formatInternationalPhone,
+  getPhoneCodeOptions,
+} from "@/lib/phone-codes";
+import { verifySignupIds } from "@/lib/ng-id-verify-client";
+import {
+  bvnError,
+  emailError,
+  fullNameError,
+  isValidEmail,
+  isValidFullName,
+  isValidPassword,
+  ninError,
+  confirmPasswordError,
+  passwordError,
+  passwordRules,
+  phoneNationalError,
+} from "@/lib/signup-validation";
 import { useApp } from "@/lib/store";
 import type { UserProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Step = 1 | 2 | 3;
 
-/** Reduced-radius fields — gray focus border when selected */
+/**
+ * Full-width stack, ~80% page width.
+ * Clear text-box wells (soft gray + border) on the sheet background.
+ */
 const fieldClass =
-  "h-11 w-full rounded-md border border-transparent bg-white px-3.5 text-[14px] font-medium text-[#0f172a] outline-none placeholder:text-[#94a3b8] shadow-[0_1px_3px_rgba(15,23,42,0.06)] focus:border-[#8E8E93] focus:ring-0";
+  "h-10 w-full rounded-md border border-[#9A9EA6] bg-[#E2E3E7] px-3 text-[13px] font-medium text-[#0f172a] outline-none placeholder:text-[#6b7280] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:border-[#6B7280] focus:bg-[#E8E9ED] focus:ring-0";
 
 const fieldIconClass =
-  "h-11 w-full rounded-md border border-transparent bg-white py-0 pl-10 pr-3.5 text-[14px] font-medium text-[#0f172a] outline-none placeholder:text-[#94a3b8] shadow-[0_1px_3px_rgba(15,23,42,0.06)] focus:border-[#8E8E93] focus:ring-0";
+  "h-10 w-full rounded-md border border-[#9A9EA6] bg-[#E2E3E7] py-0 pl-9 pr-3 text-[13px] font-medium text-[#0f172a] outline-none placeholder:text-[#6b7280] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:border-[#6B7280] focus:bg-[#E8E9ED] focus:ring-0";
+
+const selectClass =
+  "h-10 shrink-0 rounded-md border border-[#9A9EA6] bg-[#E2E3E7] px-1.5 text-[11px] font-semibold text-[#0f172a] outline-none focus:border-[#6B7280]";
 
 /**
  * Full Motorist signup — polished account step + reduced corner radius.
@@ -37,40 +64,109 @@ const fieldIconClass =
 export function MotoristSignup() {
   const router = useRouter();
   const { completeSignup } = useApp();
+  const phoneCodes = useMemo(() => getPhoneCodeOptions(), []);
   const [step, setStep] = useState<Step>(1);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState("");
+  /** Per-field errors shown on blur when leaving a field */
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phoneIso, setPhoneIso] = useState(DEFAULT_PHONE_ISO);
+  const [phoneDial, setPhoneDial] = useState(DEFAULT_PHONE_DIAL);
+  const [phoneNational, setPhoneNational] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [idNumber, setIdNumber] = useState("");
   const [bvn, setBvn] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [city, setCity] = useState("Lagos");
   const [area, setArea] = useState("");
   const [vehicleMake, setVehicleMake] = useState("");
   const [vehicleModel, setVehicleModel] = useState("");
   const [vehicleYear, setVehicleYear] = useState("");
 
+  const fullPhone = formatInternationalPhone(phoneDial, phoneNational);
+
+  const setFieldError = (key: string, msg: string | null) => {
+    setFieldErrors((prev) => {
+      if (!msg) {
+        if (!(key in prev)) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      }
+      return { ...prev, [key]: msg };
+    });
+  };
+
   const step1Ok =
-    fullName.trim().length >= 2 &&
-    phone.trim().length >= 10 &&
-    email.includes("@") &&
-    password.length >= 6 &&
-    (idNumber.trim().length === 0 || idNumber.trim().length >= 11) &&
-    (bvn.trim().length === 0 || bvn.trim().length >= 11);
+    isValidFullName(fullName) &&
+    !phoneNationalError(phoneNational) &&
+    isValidEmail(email) &&
+    isValidPassword(password) &&
+    confirmPassword === password &&
+    confirmPassword.length > 0 &&
+    !ninError(idNumber) &&
+    !bvnError(bvn);
   const step2Ok = city.trim().length >= 2 && area.trim().length >= 2;
 
-  const finish = () => {
+  const validateStep1 = (): string | null =>
+    fullNameError(fullName) ||
+    phoneNationalError(phoneNational) ||
+    emailError(email) ||
+    ninError(idNumber) ||
+    bvnError(bvn) ||
+    passwordError(password) ||
+    confirmPasswordError(password, confirmPassword);
+
+  const guardIdentity = (): string | null => {
+    const check = checkIdentityAvailable({
+      phone: fullPhone,
+      email: email.trim(),
+      nin: idNumber.trim() || undefined,
+      bvn: bvn.trim() || undefined,
+      accountType: "motorist",
+    });
+    return check.ok ? null : check.message;
+  };
+
+  const finish = async () => {
     if (busy) return;
+    const v = validateStep1();
+    if (v) {
+      setFormError(v);
+      setStep(1);
+      return;
+    }
     setBusy(true);
     setFormError("");
+
+    const identityErr = guardIdentity();
+    if (identityErr) {
+      setFormError(identityErr);
+      setBusy(false);
+      setStep(1);
+      return;
+    }
+
+    const verified = await verifySignupIds({
+      nin: idNumber.trim() || undefined,
+      bvn: bvn.trim() || undefined,
+      requireBoth: false,
+    });
+    if (!verified.ok) {
+      setFormError(verified.message);
+      setBusy(false);
+      setStep(1);
+      return;
+    }
+
     const profile: UserProfile = {
       accountType: "motorist",
       fullName: fullName.trim(),
-      phone: phone.trim(),
+      phone: fullPhone,
       email: email.trim(),
       password,
       city: city.trim(),
@@ -101,14 +197,14 @@ export function MotoristSignup() {
   const subtitles: Record<Step, string> = {
     1: "Create your motorist profile to request help nearby",
     2: "So we can match you with pros in your area",
-    3: "Optional — helps pros prepare for your vehicle",
+    3: "Optional. Helps pros prepare for your vehicle",
   };
 
   return (
     <AuthPlate>
-      <div className="flex min-h-0 flex-1 flex-col">
-        {/* Top bar */}
-        <div className="flex items-center justify-between px-4 pb-1 pt-4">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {/* Top bar — full width for chrome */}
+        <div className="mx-auto flex w-[80%] shrink-0 items-center justify-between pb-0.5 pt-2.5">
           <button
             type="button"
             onClick={() =>
@@ -116,148 +212,237 @@ export function MotoristSignup() {
                 ? router.push("/login/role")
                 : setStep((s) => (s - 1) as Step)
             }
-            className="inline-flex h-9 items-center gap-0.5 rounded-md border-0 bg-transparent px-1 text-[13px] font-semibold text-[#1e293b] transition-opacity active:opacity-70"
+            className="inline-flex h-8 items-center gap-0.5 rounded-md border-0 bg-transparent px-0 text-[12px] font-semibold text-[#1e293b] transition-opacity active:opacity-70"
           >
             <ChevronLeft className="h-4 w-4" strokeWidth={2.25} />
             Back
           </button>
-          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#64748b]">
-            Motorist · {step} of 3
+          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#64748b]">
+            Motorist {step}/3
           </span>
-          <span className="w-14" aria-hidden />
+          <span className="w-12" aria-hidden />
         </div>
 
         {/* Header */}
-        <div className="px-5 pt-2 text-center">
-          <h1 className="text-[22px] font-bold leading-tight tracking-tight text-[#0f172a]">
+        <div className="mx-auto w-[80%] shrink-0 pt-1 text-center">
+          <h1 className="text-[18px] font-bold leading-tight tracking-tight text-[#0f172a]">
             {titles[step]}
           </h1>
-          <p className="mx-auto mt-1.5 max-w-[300px] text-[12.5px] leading-relaxed text-[#475569]">
+          <p className="mx-auto mt-0.5 text-[11px] leading-snug text-[#475569]">
             {subtitles[step]}
           </p>
         </div>
 
         {/* Progress */}
-        <div className="mt-4 flex gap-1.5 px-5">
+        <div className="mx-auto mt-2 flex w-[80%] shrink-0 gap-1">
           {([1, 2, 3] as Step[]).map((n) => (
             <span
               key={n}
               className={cn(
-                "h-1 flex-1 rounded-sm transition-colors",
+                "h-0.5 flex-1 rounded-sm transition-colors",
                 n <= step ? "bg-[#e85a12]" : "bg-black/10"
               )}
             />
           ))}
         </div>
 
-        {/* Body */}
-        <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-2 scrollbar-hide">
+        {/* Body — 80% width, stacked fields */}
+        <div
+          className={cn(
+            "mx-auto mt-2 flex min-h-0 w-[80%] flex-1 flex-col pb-1",
+            step === 1 ? "overflow-hidden" : "overflow-y-auto scrollbar-hide"
+          )}
+        >
           {step === 1 && (
-            <div className="flex flex-col gap-3">
-              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#64748b]">
-                Profile details
-              </p>
-
-              <Field label="Full name">
-                <div className="relative">
-                  <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
-                  <input
-                    className={fieldIconClass}
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="e.g. Ada Okafor"
-                    autoComplete="name"
-                  />
-                </div>
-              </Field>
-
-              <Field label="Phone">
-                <div className="relative">
-                  <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
-                  <input
-                    className={fieldIconClass}
-                    value={phone}
-                    onChange={(e) => {
-                      setPhone(e.target.value);
-                      setFormError("");
-                    }}
-                    placeholder="+234 800 000 0000"
-                    type="tel"
-                    autoComplete="tel"
-                  />
-                </div>
-              </Field>
-
-              <Field label="Email">
-                <div className="relative">
-                  <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
-                  <input
-                    className={fieldIconClass}
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      setFormError("");
-                    }}
-                    placeholder="you@email.com"
-                    type="email"
-                    autoComplete="email"
-                  />
-                </div>
-              </Field>
-
-              <Field label="Password">
-                <div className="relative">
-                  <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
-                  <input
-                    className={fieldIconClass}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Min. 6 characters"
-                    type="password"
-                    autoComplete="new-password"
-                  />
-                </div>
-                <PasswordStrength length={password.length} />
-              </Field>
-
-              <Field label="NIN (optional · unique)">
-                <input
-                  className={fieldClass}
-                  value={idNumber}
-                  onChange={(e) => {
-                    setIdNumber(e.target.value);
-                    setFormError("");
-                  }}
-                  placeholder="11-digit NIN"
-                  inputMode="numeric"
-                />
-              </Field>
-
-              <Field label="BVN (optional · unique)">
-                <input
-                  className={fieldClass}
-                  value={bvn}
-                  onChange={(e) => {
-                    setBvn(e.target.value);
-                    setFormError("");
-                  }}
-                  placeholder="11-digit BVN"
-                  inputMode="numeric"
-                />
-              </Field>
-
-              {formError && (
-                <p
-                  className="rounded-md bg-red-50 px-3 py-2 text-[12px] font-medium text-red-700"
-                  role="alert"
-                >
-                  {formError}
+            <div className="flex min-h-0 flex-1 flex-col justify-between gap-1">
+              <div className="flex flex-col gap-1.5 overflow-y-auto scrollbar-hide">
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#64748b]">
+                  Profile details
                 </p>
-              )}
 
-              <p className="text-center text-[11px] text-[#64748b]">
-                Phone, email, NIN, and BVN cannot match a Repair Pro or another
-                Motorist account
+                <Field label="Full name" required>
+                  <div className="relative">
+                    <User className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8]" />
+                    <input
+                      className={fieldIconClass}
+                      value={fullName}
+                      onChange={(e) => {
+                        setFullName(e.target.value);
+                        setFieldError("fullName", null);
+                      }}
+                      onBlur={() =>
+                        setFieldError("fullName", fullNameError(fullName))
+                      }
+                      placeholder="e.g. Ada Okafor"
+                      autoComplete="name"
+                    />
+                  </div>
+                  <FieldHint message={fieldErrors.fullName} />
+                </Field>
+
+                <Field label="Phone" required>
+                  <div className="flex gap-1.5">
+                    <select
+                      className={cn(selectClass, "max-w-[42%]")}
+                      value={phoneIso}
+                      aria-label="Country code"
+                      onChange={(e) => {
+                        const iso = e.target.value;
+                        setPhoneIso(iso);
+                        const opt = phoneCodes.find((c) => c.iso === iso);
+                        if (opt) setPhoneDial(opt.dial);
+                      }}
+                    >
+                      {phoneCodes.map((c) => (
+                        <option key={`${c.iso}-${c.dial}`} value={c.iso}>
+                          {c.label} {c.name}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      className={cn(fieldClass, "min-w-0 flex-1")}
+                      value={phoneNational}
+                      onChange={(e) => {
+                        setPhoneNational(
+                          e.target.value.replace(/\D/g, "").slice(0, 15)
+                        );
+                        setFieldError("phone", null);
+                      }}
+                      onBlur={() =>
+                        setFieldError(
+                          "phone",
+                          phoneNationalError(phoneNational)
+                        )
+                      }
+                      placeholder="8012345678"
+                      type="tel"
+                      inputMode="numeric"
+                      autoComplete="tel-national"
+                    />
+                  </div>
+                  <FieldHint message={fieldErrors.phone} />
+                </Field>
+
+                <Field label="Email" required>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8]" />
+                    <input
+                      className={fieldIconClass}
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        setFieldError("email", null);
+                      }}
+                      onBlur={() => setFieldError("email", emailError(email))}
+                      placeholder="you@email.com"
+                      type="email"
+                      autoComplete="email"
+                    />
+                  </div>
+                  <FieldHint message={fieldErrors.email} />
+                </Field>
+
+                <Field label="NIN (11 digits)">
+                  <input
+                    className={fieldClass}
+                    value={idNumber}
+                    onChange={(e) => {
+                      setIdNumber(e.target.value.replace(/\D/g, "").slice(0, 11));
+                      setFieldError("nin", null);
+                    }}
+                    onBlur={() => setFieldError("nin", ninError(idNumber))}
+                    placeholder="11-digit NIN"
+                    inputMode="numeric"
+                    maxLength={11}
+                  />
+                  <FieldHint message={fieldErrors.nin} />
+                </Field>
+
+                <Field label="BVN (11 digits)">
+                  <input
+                    className={fieldClass}
+                    value={bvn}
+                    onChange={(e) => {
+                      setBvn(e.target.value.replace(/\D/g, "").slice(0, 11));
+                      setFieldError("bvn", null);
+                    }}
+                    onBlur={() => setFieldError("bvn", bvnError(bvn))}
+                    placeholder="11-digit BVN"
+                    inputMode="numeric"
+                    maxLength={11}
+                  />
+                  <FieldHint message={fieldErrors.bvn} />
+                </Field>
+
+                <Field label="Password" required>
+                  <div className="relative">
+                    <Lock className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8]" />
+                    <input
+                      className={fieldIconClass}
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setFieldError("password", null);
+                        if (confirmPassword) {
+                          setFieldError(
+                            "confirm",
+                            confirmPasswordError(e.target.value, confirmPassword)
+                          );
+                        }
+                      }}
+                      onBlur={() =>
+                        setFieldError("password", passwordError(password))
+                      }
+                      placeholder="Min. 8 characters"
+                      type="password"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <PasswordRules password={password} />
+                  <FieldHint message={fieldErrors.password} />
+                </Field>
+
+                <Field label="Confirm password" required>
+                  <div className="relative">
+                    <Lock className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8]" />
+                    <input
+                      className={fieldIconClass}
+                      value={confirmPassword}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        setFieldError(
+                          "confirm",
+                          e.target.value
+                            ? confirmPasswordError(password, e.target.value)
+                            : null
+                        );
+                      }}
+                      onBlur={() =>
+                        setFieldError(
+                          "confirm",
+                          confirmPasswordError(password, confirmPassword)
+                        )
+                      }
+                      placeholder="Re-enter password"
+                      type="password"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <FieldHint message={fieldErrors.confirm} />
+                </Field>
+
+                {formError && (
+                  <p
+                    className="rounded-md bg-red-50 px-2 py-1.5 text-[11px] font-medium leading-snug text-red-700"
+                    role="alert"
+                  >
+                    {formError}
+                  </p>
+                )}
+              </div>
+
+              <p className="shrink-0 text-center text-[10px] leading-snug text-[#64748b]">
+                {IDENTITY_RULE_COPY}
               </p>
             </div>
           )}
@@ -267,7 +452,7 @@ export function MotoristSignup() {
               <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#64748b]">
                 Location
               </p>
-              <Field label="City">
+              <Field label="City" required>
                 <div className="relative">
                   <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
                   <input
@@ -278,7 +463,7 @@ export function MotoristSignup() {
                   />
                 </div>
               </Field>
-              <Field label="Area / landmark">
+              <Field label="Area / landmark" required>
                 <input
                   className={fieldClass}
                   value={area}
@@ -323,28 +508,91 @@ export function MotoristSignup() {
           )}
         </div>
 
-        {/* Footer CTAs */}
-        <div className="flex shrink-0 flex-col gap-2 px-4 pb-5 pt-3">
+        {/* Footer — dark gray #323231 matching "Continue to sign up" */}
+        <div className="mx-auto flex w-[80%] shrink-0 flex-col gap-2 pb-4 pt-2">
           {step < 3 ? (
             <button
               type="button"
-              disabled={step === 1 ? !step1Ok : !step2Ok}
-              className={cn(
-                authPrimaryBtnClass,
-                "!rounded-md flex items-center justify-center gap-1.5"
-              )}
-              style={authPrimaryBtnStyle}
-              onClick={() => setStep((s) => (s + 1) as Step)}
+              className="om-cta-dark-gray"
+              /* Full inline lock — same dark gray as previous page Continue CTA */
+              style={{
+                WebkitAppearance: "none",
+                appearance: "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                width: "100%",
+                height: 44,
+                margin: 0,
+                padding: "0 16px",
+                border: "none",
+                borderRadius: 6,
+                background: "#323231",
+                backgroundColor: "#323231",
+                backgroundImage: "none",
+                color: "#ffffff",
+                fontSize: 14,
+                fontWeight: 600,
+                lineHeight: 1,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+                cursor:
+                  (step === 1 ? step1Ok : step2Ok) ? "pointer" : "not-allowed",
+                opacity: 1,
+                filter: "none",
+              }}
+              data-cta="next"
+              onClick={() => {
+                if (step === 1) {
+                  const err = validateStep1();
+                  if (err) {
+                    setFormError(err);
+                    return;
+                  }
+                  const identityErr = guardIdentity();
+                  if (identityErr) {
+                    setFormError(identityErr);
+                    return;
+                  }
+                } else if (!step2Ok) {
+                  return;
+                }
+                setFormError("");
+                setStep((s) => (s + 1) as Step);
+              }}
             >
-              Continue
-              <ChevronRight className="h-4 w-4 opacity-90" strokeWidth={2.4} />
+              Next
+              <ChevronRight
+                className="h-4 w-4 shrink-0"
+                color="#ffffff"
+                strokeWidth={2.4}
+              />
             </button>
           ) : (
             <button
               type="button"
-              disabled={busy || !step1Ok || !step2Ok}
-              className={cn(authPrimaryBtnClass, "!rounded-md")}
-              style={authPrimaryBtnStyle}
+              className="om-cta-dark-gray"
+              style={{
+                WebkitAppearance: "none",
+                appearance: "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "100%",
+                height: 44,
+                margin: 0,
+                border: "none",
+                borderRadius: 6,
+                background: "#323231",
+                backgroundColor: "#323231",
+                backgroundImage: "none",
+                color: "#ffffff",
+                fontSize: 14,
+                fontWeight: 600,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+                cursor: busy ? "wait" : "pointer",
+                opacity: 1,
+              }}
               onClick={finish}
             >
               {busy ? "Creating account…" : "Create Motorist account"}
@@ -353,11 +601,11 @@ export function MotoristSignup() {
           {step === 3 && (
             <button
               type="button"
-              className={cn(authSecondaryBtnClass, "!rounded-md")}
+              className={authSecondaryBtnClass}
               onClick={finish}
               disabled={busy || !step1Ok || !step2Ok}
             >
-              Skip vehicle · Finish
+              Skip vehicle. Finish
             </button>
           )}
         </div>
@@ -375,46 +623,62 @@ export function MotoristSignup() {
 function Field({
   label,
   children,
+  required,
 }: {
   label: string;
   children: React.ReactNode;
+  required?: boolean;
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[12px] font-semibold text-[#475569]">
+      <span className="mb-0.5 block text-[11px] font-semibold text-[#475569]">
         {label}
+        {required && (
+          <span className="ml-0.5 font-bold text-red-600" aria-label="required">
+            *
+          </span>
+        )}
       </span>
       {children}
     </label>
   );
 }
 
-function PasswordStrength({ length }: { length: number }) {
-  const level = length === 0 ? 0 : length < 6 ? 1 : length < 10 ? 2 : 3;
-  const labels = ["", "Too short", "Good", "Strong"];
-  const colors = ["", "#ef4444", "#e85a12", "#16a34a"];
-
+function FieldHint({ message }: { message?: string }) {
+  if (!message) return null;
   return (
-    <div className="mt-2">
-      <div className="flex gap-1">
-        {[1, 2, 3].map((n) => (
-          <span
-            key={n}
-            className="h-1 flex-1 rounded-sm transition-colors"
-            style={{
-              backgroundColor: n <= level ? colors[level] : "rgba(0,0,0,0.08)",
-            }}
-          />
-        ))}
-      </div>
-      {level > 0 && (
-        <p
-          className="mt-1 text-[10px] font-semibold"
-          style={{ color: colors[level] }}
+    <p className="mt-0.5 text-[10px] font-medium leading-snug text-red-600" role="alert">
+      {message}
+    </p>
+  );
+}
+
+function PasswordRules({ password }: { password: string }) {
+  const r = passwordRules(password);
+  const rows: { ok: boolean; text: string }[] = [
+    { ok: r.length, text: "At least 8 characters" },
+    { ok: r.upper, text: "At least 1 capital letter" },
+    { ok: r.digit, text: "At least 1 number" },
+    { ok: true, text: "Symbols allowed" },
+  ];
+  return (
+    <ul className="mt-1 space-y-0.5">
+      {rows.map((row) => (
+        <li
+          key={row.text}
+          className={cn(
+            "text-[9px] font-medium",
+            password.length === 0
+              ? "text-[#64748b]"
+              : row.ok
+                ? "text-emerald-600"
+                : "text-red-600"
+          )}
         >
-          {labels[level]}
-        </p>
-      )}
-    </div>
+          {row.ok && password.length > 0 ? "✓ " : "· "}
+          {row.text}
+        </li>
+      ))}
+    </ul>
   );
 }

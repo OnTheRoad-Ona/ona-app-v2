@@ -22,7 +22,7 @@ export function AppHeader() {
       {/* Logo inset from left edge; extra top space */}
       <header className="shrink-0 px-3 pb-1 pt-5">
         <div className="flex items-center justify-between gap-3 pl-2">
-          <p className="text-[17px] font-black tracking-tight whitespace-nowrap leading-none">
+          <p className="text-[24px] font-black tracking-tight whitespace-nowrap leading-none">
             <span className="text-[#e85a12]">Oga</span>
             <span className={isLight ? "text-[#1e293b]" : "text-white"}>
               Mecho

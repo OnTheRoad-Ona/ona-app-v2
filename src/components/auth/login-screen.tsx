@@ -6,8 +6,6 @@ import { Car, Check, ChevronLeft, ChevronRight, Wrench } from "lucide-react";
 import {
   AuthPlate,
   WHEEL_GRAY,
-  authPrimaryBtnClass,
-  authPrimaryBtnStyle,
 } from "@/components/auth/auth-plate";
 import type { AccountType } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -64,8 +62,7 @@ export function LoginScreen() {
             <span style={{ color: ACCENT }}>Mecho</span>
           </h1>
           <p className="mx-auto mt-2 max-w-[280px] text-[13px] leading-relaxed text-[#475569]">
-            Choose how you&apos;ll use the app. You can always update this later
-            from your profile.
+            Choose how you&apos;ll use the app
           </p>
         </div>
 
@@ -74,15 +71,6 @@ export function LoginScreen() {
           onSubmit={onSubmit}
           className="mt-7 flex min-h-0 flex-1 flex-col px-4 pb-5"
         >
-          <div className="mb-2.5 px-0.5">
-            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#64748b]">
-              Account type
-            </p>
-            <p className="mt-0.5 text-[15px] font-semibold text-[#0f172a]">
-              Continue as
-            </p>
-          </div>
-
           <div
             className="flex flex-col gap-2.5"
             role="radiogroup"
@@ -105,20 +93,47 @@ export function LoginScreen() {
           </div>
 
           <p className="mt-4 px-0.5 text-center text-[11px] leading-relaxed text-[#64748b]">
-            Takes about 2 minutes
+            {accountType === "professional"
+              ? "Takes about 2 minutes to complete"
+              : "Takes about 1 minute to complete"}
           </p>
 
           <div className="mt-auto pt-5">
             <button
               type="submit"
-              className={cn(
-                authPrimaryBtnClass,
-                "!rounded-md flex items-center justify-center gap-1.5"
-              )}
-              style={authPrimaryBtnStyle}
+              className="om-cta-dark-gray"
+              style={{
+                WebkitAppearance: "none",
+                appearance: "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                width: "100%",
+                height: 44,
+                margin: 0,
+                padding: "0 16px",
+                border: "none",
+                borderRadius: 6,
+                background: "#323231",
+                backgroundColor: "#323231",
+                backgroundImage: "none",
+                color: "#ffffff",
+                fontSize: 14,
+                fontWeight: 600,
+                lineHeight: 1,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+                cursor: "pointer",
+                opacity: 1,
+              }}
+              data-cta="continue-signup"
             >
               Continue to sign up
-              <ChevronRight className="h-4 w-4 opacity-90" strokeWidth={2.4} />
+              <ChevronRight
+                className="h-4 w-4 shrink-0"
+                color="#ffffff"
+                strokeWidth={2.4}
+              />
             </button>
             <p className="mt-2.5 text-center text-[12px] text-[#64748b]">
               Already have an account?{" "}

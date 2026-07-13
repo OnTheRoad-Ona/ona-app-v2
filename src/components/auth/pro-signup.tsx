@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Briefcase, Check, ChevronLeft, ChevronRight, User } from "lucide-react";
 import {
@@ -8,10 +8,30 @@ import {
   authBackBtnClass,
   authFieldClass,
   authLabelClass,
-  authPrimaryBtnClass,
-  authPrimaryBtnStyle,
 } from "@/components/auth/auth-plate";
 import { RegistrationComplete } from "@/components/auth/registration-complete";
+import {
+  checkIdentityAvailable,
+  IDENTITY_RULE_COPY,
+} from "@/lib/account-registry";
+import {
+  DEFAULT_PHONE_DIAL,
+  DEFAULT_PHONE_ISO,
+  formatInternationalPhone,
+  getPhoneCodeOptions,
+} from "@/lib/phone-codes";
+import { verifySignupIds } from "@/lib/ng-id-verify-client";
+import {
+  bvnError,
+  confirmPasswordError,
+  emailError,
+  isValidEmail,
+  isValidPassword,
+  ninError,
+  passwordError,
+  passwordRules,
+  phoneNationalError,
+} from "@/lib/signup-validation";
 import {
   PRO_SERVICE_LABELS,
   PRO_TRADE_OPTIONS,
@@ -52,15 +72,15 @@ function experienceLabel(value: string) {
   return `${value} yrs`;
 }
 
-/** About you fields — reduced radius, gray focus border */
+/** About / contact — clear text-box wells on the sheet */
 const aboutFieldClass =
-  "h-11 w-full rounded-md border border-transparent bg-white px-3.5 text-[14px] font-medium text-[#0f172a] outline-none placeholder:text-[#94a3b8] shadow-[0_1px_3px_rgba(15,23,42,0.06)] focus:border-[#8E8E93] focus:ring-0";
+  "h-10 w-full rounded-md border border-[#9A9EA6] bg-[#E2E3E7] px-3.5 text-[13px] font-medium text-[#0f172a] outline-none placeholder:text-[#6b7280] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:border-[#6B7280] focus:bg-[#E8E9ED] focus:ring-0";
 
 const aboutFieldIconClass =
-  "h-11 w-full rounded-md border border-transparent bg-white py-0 pl-10 pr-3.5 text-[14px] font-medium text-[#0f172a] outline-none placeholder:text-[#94a3b8] shadow-[0_1px_3px_rgba(15,23,42,0.06)] focus:border-[#8E8E93] focus:ring-0";
+  "h-10 w-full rounded-md border border-[#9A9EA6] bg-[#E2E3E7] py-0 pl-10 pr-3.5 text-[13px] font-medium text-[#0f172a] outline-none placeholder:text-[#6b7280] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:border-[#6B7280] focus:bg-[#E8E9ED] focus:ring-0";
 
 const aboutAreaClass =
-  "min-h-[100px] w-full resize-none rounded-md border border-transparent bg-white px-3.5 py-3 text-[14px] font-medium leading-relaxed text-[#0f172a] outline-none placeholder:text-[#94a3b8] shadow-[0_1px_3px_rgba(15,23,42,0.06)] focus:border-[#8E8E93] focus:ring-0";
+  "min-h-[72px] w-full resize-none rounded-md border border-[#9A9EA6] bg-[#E2E3E7] px-3.5 py-2.5 text-[13px] font-medium leading-relaxed text-[#0f172a] outline-none placeholder:text-[#6b7280] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:border-[#6B7280] focus:bg-[#E8E9ED] focus:ring-0";
 
 /**
  * Full Repair Pro registration — one skill only, skill-specific questions,
@@ -69,10 +89,12 @@ const aboutAreaClass =
 export function ProSignup() {
   const router = useRouter();
   const { completeSignup } = useApp();
+  const phoneCodes = useMemo(() => getPhoneCodeOptions(), []);
   const [step, setStep] = useState<Step>(1);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   /** Exactly one skill */
   const [skill, setSkill] = useState<ProService | null>(null);
@@ -83,14 +105,31 @@ export function ProSignup() {
   const [businessName, setBusinessName] = useState("");
   const [yearsExperience, setYearsExperience] = useState("");
   const [bio, setBio] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phoneIso, setPhoneIso] = useState(DEFAULT_PHONE_ISO);
+  const [phoneDial, setPhoneDial] = useState(DEFAULT_PHONE_DIAL);
+  const [phoneNational, setPhoneNational] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [idNumber, setIdNumber] = useState("");
   const [bvn, setBvn] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [city, setCity] = useState("Lagos");
   const [area, setArea] = useState("");
   const [serviceRadiusKm, setServiceRadiusKm] = useState(8);
+
+  const fullPhone = formatInternationalPhone(phoneDial, phoneNational);
+
+  const setFieldError = (key: string, msg: string | null) => {
+    setFieldErrors((prev) => {
+      if (!msg) {
+        if (!(key in prev)) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      }
+      return { ...prev, [key]: msg };
+    });
+  };
 
   /** Service focus prefs (step after skills) — type → brand → model; country → location */
   const [vehicleType, setVehicleType] = useState("Automobile / Passenger Car");
@@ -193,25 +232,68 @@ export function ProSignup() {
   const step4Ok =
     fullName.trim().length >= 2 && businessName.trim().length >= 2;
   const step5Ok =
-    phone.trim().length >= 10 &&
-    email.includes("@") &&
-    password.length >= 6 &&
-    idNumber.trim().length >= 11 &&
-    bvn.trim().length >= 11;
+    !phoneNationalError(phoneNational) &&
+    isValidEmail(email) &&
+    isValidPassword(password) &&
+    confirmPassword === password &&
+    confirmPassword.length > 0 &&
+    !ninError(idNumber) &&
+    !bvnError(bvn);
   const step6Ok =
     city.trim().length >= 2 &&
     area.trim().length >= 2 &&
     serviceRadiusKm >= 1;
 
-  const finish = () => {
+  const validateStep5 = (): string | null =>
+    phoneNationalError(phoneNational) ||
+    emailError(email) ||
+    ninError(idNumber) ||
+    bvnError(bvn) ||
+    passwordError(password) ||
+    confirmPasswordError(password, confirmPassword);
+
+  const finish = async () => {
     if (busy || !skill || !step2Ok || !step4Ok || !step5Ok || !step6Ok) return;
+    const v5 = validateStep5();
+    if (v5) {
+      setFormError(v5);
+      setStep(5);
+      return;
+    }
     setBusy(true);
     setFormError("");
+
+    const identity = checkIdentityAvailable({
+      phone: fullPhone,
+      email: email.trim(),
+      nin: idNumber.trim(),
+      bvn: bvn.trim(),
+      accountType: "professional",
+    });
+    if (!identity.ok) {
+      setFormError(identity.message);
+      setBusy(false);
+      setStep(5);
+      return;
+    }
+
+    const verified = await verifySignupIds({
+      nin: idNumber.trim() || undefined,
+      bvn: bvn.trim() || undefined,
+      requireBoth: false,
+    });
+    if (!verified.ok) {
+      setFormError(verified.message);
+      setBusy(false);
+      setStep(5);
+      return;
+    }
+
     const profile: UserProfile = {
       accountType: "professional",
       fullName: fullName.trim(),
       businessName: businessName.trim(),
-      phone: phone.trim(),
+      phone: fullPhone,
       email: email.trim(),
       password,
       city: city.trim(),
@@ -220,8 +302,8 @@ export function ProSignup() {
       serviceRadiusKm,
       yearsExperience: yearsExperience.trim() || undefined,
       bio: bio.trim() || undefined,
-      idNumber: idNumber.trim(),
-      bvn: bvn.trim(),
+      idNumber: idNumber.trim() || undefined,
+      bvn: bvn.trim() || undefined,
       skillAnswers,
       servedVehicleType: vehicleType,
       servedBrand: vehicleBrand,
@@ -359,7 +441,7 @@ export function ProSignup() {
 
   return (
     <AuthPlate>
-      <div className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-5">
+      <div className="mx-auto flex min-h-0 w-[80%] flex-1 flex-col pb-4 pt-5">
         <button type="button" onClick={goBack} className={authBackBtnClass}>
           <ChevronLeft className="h-4 w-4" strokeWidth={2.25} />
           Back
@@ -802,61 +884,154 @@ export function ProSignup() {
           )}
 
           {step === 5 && (
-            <>
-              <p className="text-center text-[12px] text-[#475569]">
-                Phone, NIN, and BVN must be unique — cannot match another Motorist or Repair Pro account.
+            <div className="flex flex-col gap-1.5">
+              <p className="text-center text-[10px] leading-snug text-[#475569]">
+                {IDENTITY_RULE_COPY}
               </p>
               {formError && (
-                <p className="rounded-md bg-red-50 px-3 py-2 text-[12px] font-medium text-red-700" role="alert">
+                <p
+                  className="rounded-md bg-red-50 px-2 py-1.5 text-[11px] font-medium leading-snug text-red-700"
+                  role="alert"
+                >
                   {formError}
                 </p>
               )}
-              <Field label="Phone">
-                <input
-                  className={authFieldClass}
-                  value={phone}
-                  onChange={(e) => { setPhone(e.target.value); setFormError(""); }}
-                  placeholder="+234 800 000 0000"
-                  type="tel"
-                />
+              <Field label="Phone" required>
+                <div className="flex gap-1.5">
+                  <select
+                    className={cn(
+                      authFieldClass,
+                      "!h-9 !max-w-[42%] !rounded-md !px-1.5 !text-[11px]"
+                    )}
+                    value={phoneIso}
+                    aria-label="Country code"
+                    onChange={(e) => {
+                      const iso = e.target.value;
+                      setPhoneIso(iso);
+                      const opt = phoneCodes.find((c) => c.iso === iso);
+                      if (opt) setPhoneDial(opt.dial);
+                    }}
+                  >
+                    {phoneCodes.map((c) => (
+                      <option key={`${c.iso}-${c.dial}`} value={c.iso}>
+                        {c.label} {c.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    className={cn(
+                      authFieldClass,
+                      "!h-9 min-w-0 flex-1 !rounded-md !text-[13px]"
+                    )}
+                    value={phoneNational}
+                    onChange={(e) => {
+                      setPhoneNational(
+                        e.target.value.replace(/\D/g, "").slice(0, 15)
+                      );
+                      setFieldError("phone", null);
+                    }}
+                    onBlur={() =>
+                      setFieldError("phone", phoneNationalError(phoneNational))
+                    }
+                    placeholder="8012345678"
+                    type="tel"
+                    inputMode="numeric"
+                  />
+                </div>
+                <FieldHint message={fieldErrors.phone} />
               </Field>
-              <Field label="Email">
+              <Field label="Email" required>
                 <input
-                  className={authFieldClass}
+                  className={cn(authFieldClass, "!h-9 !rounded-md !text-[13px]")}
                   value={email}
-                  onChange={(e) => { setEmail(e.target.value); setFormError(""); }}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setFieldError("email", null);
+                  }}
+                  onBlur={() => setFieldError("email", emailError(email))}
                   placeholder="pro@email.com"
                   type="email"
                 />
+                <FieldHint message={fieldErrors.email} />
               </Field>
-              <Field label="Password (min 6)">
+              <Field label="NIN (11 digits)">
                 <input
-                  className={authFieldClass}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  type="password"
-                  placeholder="••••••••"
-                />
-              </Field>
-              <Field label="National ID / NIN (11 digits)">
-                <input
-                  className={authFieldClass}
+                  className={cn(authFieldClass, "!h-9 !rounded-md !text-[13px]")}
                   value={idNumber}
-                  onChange={(e) => { setIdNumber(e.target.value); setFormError(""); }}
+                  onChange={(e) => {
+                    setIdNumber(e.target.value.replace(/\D/g, "").slice(0, 11));
+                    setFieldError("nin", null);
+                  }}
+                  onBlur={() => setFieldError("nin", ninError(idNumber))}
                   placeholder="NIN"
                   inputMode="numeric"
+                  maxLength={11}
                 />
+                <FieldHint message={fieldErrors.nin} />
               </Field>
               <Field label="BVN (11 digits)">
                 <input
-                  className={authFieldClass}
+                  className={cn(authFieldClass, "!h-9 !rounded-md !text-[13px]")}
                   value={bvn}
-                  onChange={(e) => { setBvn(e.target.value); setFormError(""); }}
+                  onChange={(e) => {
+                    setBvn(e.target.value.replace(/\D/g, "").slice(0, 11));
+                    setFieldError("bvn", null);
+                  }}
+                  onBlur={() => setFieldError("bvn", bvnError(bvn))}
                   placeholder="BVN"
                   inputMode="numeric"
+                  maxLength={11}
                 />
+                <FieldHint message={fieldErrors.bvn} />
               </Field>
-            </>
+              <Field label="Password" required>
+                <input
+                  className={cn(authFieldClass, "!h-9 !rounded-md !text-[13px]")}
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setFieldError("password", null);
+                    if (confirmPassword) {
+                      setFieldError(
+                        "confirm",
+                        confirmPasswordError(e.target.value, confirmPassword)
+                      );
+                    }
+                  }}
+                  onBlur={() =>
+                    setFieldError("password", passwordError(password))
+                  }
+                  type="password"
+                  placeholder="Min. 8 characters"
+                />
+                <PasswordRules password={password} inline />
+                <FieldHint message={fieldErrors.password} />
+              </Field>
+              <Field label="Confirm password" required>
+                <input
+                  className={cn(authFieldClass, "!h-9 !rounded-md !text-[13px]")}
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    setFieldError(
+                      "confirm",
+                      e.target.value
+                        ? confirmPasswordError(password, e.target.value)
+                        : null
+                    );
+                  }}
+                  onBlur={() =>
+                    setFieldError(
+                      "confirm",
+                      confirmPasswordError(password, confirmPassword)
+                    )
+                  }
+                  type="password"
+                  placeholder="Re-enter password"
+                />
+                <FieldHint message={fieldErrors.confirm} />
+              </Field>
+            </div>
           )}
 
           {step === 6 && (
@@ -905,7 +1080,7 @@ export function ProSignup() {
               <Row k="Model" v={vehicleModel} />
               <Row k="Country" v={prefCountry} />
               <Row k="State / Region" v={prefLocation} />
-              <Row k="Phone" v={phone} />
+              <Row k="Phone" v={fullPhone} />
               <Row k="Email" v={email} />
               <Row k="NIN" v={idNumber} />
               <Row k="BVN" v={bvn ? "••••" + bvn.slice(-4) : "—"} />
@@ -928,29 +1103,77 @@ export function ProSignup() {
           {step < 7 ? (
             <button
               type="button"
-              className={cn(authPrimaryBtnClass, "!rounded-md")}
-              style={authPrimaryBtnStyle}
-              disabled={
-                (step === 1 && !step1Ok) ||
-                (step === 2 && !step2Ok) ||
-                (step === 3 && !step3Ok) ||
-                (step === 4 && !step4Ok) ||
-                (step === 5 && !step5Ok) ||
-                (step === 6 && !step6Ok)
-              }
+              className="om-cta-dark-gray"
+              style={{
+                WebkitAppearance: "none",
+                appearance: "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "100%",
+                height: 44,
+                margin: 0,
+                border: "none",
+                borderRadius: 6,
+                background: "#323231",
+                backgroundColor: "#323231",
+                backgroundImage: "none",
+                color: "#ffffff",
+                fontSize: 14,
+                fontWeight: 600,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+                cursor: "pointer",
+                opacity: 1,
+              }}
+              data-cta="next"
               onClick={() => {
+                if (step === 5) {
+                  const err = validateStep5();
+                  if (err) {
+                    setFormError(err);
+                    return;
+                  }
+                }
+                const blocked =
+                  (step === 1 && !step1Ok) ||
+                  (step === 2 && !step2Ok) ||
+                  (step === 3 && !step3Ok) ||
+                  (step === 4 && !step4Ok) ||
+                  (step === 5 && !step5Ok) ||
+                  (step === 6 && !step6Ok);
+                if (blocked) return;
                 setFormError("");
                 setStep((s) => (s + 1) as Step);
               }}
             >
-              Continue
+              Next
             </button>
           ) : (
             <button
               type="button"
-              className={cn(authPrimaryBtnClass, "!rounded-md")}
-              style={authPrimaryBtnStyle}
-              disabled={busy}
+              className="om-cta-dark-gray"
+              style={{
+                WebkitAppearance: "none",
+                appearance: "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "100%",
+                height: 44,
+                margin: 0,
+                border: "none",
+                borderRadius: 6,
+                background: "#323231",
+                backgroundColor: "#323231",
+                backgroundImage: "none",
+                color: "#ffffff",
+                fontSize: 14,
+                fontWeight: 600,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+                cursor: busy ? "wait" : "pointer",
+                opacity: 1,
+              }}
+              data-cta="complete-registration"
               onClick={finish}
             >
               {busy ? "Registering…" : "Complete registration"}
@@ -972,15 +1195,72 @@ export function ProSignup() {
 function Field({
   label,
   children,
+  required,
 }: {
   label: string;
   children: React.ReactNode;
+  required?: boolean;
 }) {
   return (
     <label className="block">
-      <span className={authLabelClass}>{label}</span>
+      <span className={authLabelClass}>
+        {label}
+        {required && (
+          <span className="ml-0.5 font-bold text-red-600" aria-label="required">
+            *
+          </span>
+        )}
+      </span>
       {children}
     </label>
+  );
+}
+
+function FieldHint({ message }: { message?: string }) {
+  if (!message) return null;
+  return (
+    <p
+      className="mt-0.5 text-[10px] font-medium leading-snug text-red-600"
+      role="alert"
+    >
+      {message}
+    </p>
+  );
+}
+
+function PasswordRules({
+  password,
+  inline,
+}: {
+  password: string;
+  inline?: boolean;
+}) {
+  const r = passwordRules(password);
+  const rows: { ok: boolean; text: string }[] = [
+    { ok: r.length, text: "At least 8 characters" },
+    { ok: r.upper, text: "At least 1 capital letter" },
+    { ok: r.digit, text: "At least 1 number" },
+    { ok: true, text: "Symbols allowed" },
+  ];
+  return (
+    <ul className={cn("mt-1 space-y-0.5", inline && "mb-0.5")}>
+      {rows.map((row) => (
+        <li
+          key={row.text}
+          className={cn(
+            "text-[9px] font-medium",
+            password.length === 0
+              ? "text-[#64748b]"
+              : row.ok
+                ? "text-emerald-600"
+                : "text-red-600"
+          )}
+        >
+          {row.ok && password.length > 0 ? "✓ " : "· "}
+          {row.text}
+        </li>
+      ))}
+    </ul>
   );
 }
 

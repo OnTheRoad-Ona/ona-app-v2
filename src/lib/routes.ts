@@ -28,6 +28,7 @@ export function isSharedAppPath(pathname: string): boolean {
   if (pathname.startsWith("/messages")) return true;
   if (pathname.startsWith("/profile")) return true;
   if (pathname.startsWith("/requests")) return true;
+  if (pathname.startsWith("/verify")) return true;
   if (pathname.startsWith("/logout")) return true;
   return false;
 }

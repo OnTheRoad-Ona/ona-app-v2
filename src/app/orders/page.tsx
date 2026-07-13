@@ -9,6 +9,10 @@ import {
   Phone,
   XCircle,
 } from "lucide-react";
+import {
+  VerificationBlockedPanel,
+  VerificationWarningBanner,
+} from "@/components/auth/verification-gate-banner";
 import { PageHeader } from "@/components/layout/page-header";
 import { useApp } from "@/lib/store";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
@@ -41,6 +45,19 @@ export default function ProOrdersPage() {
   } = useApp();
   const isLight = theme === "light";
   const [filter, setFilter] = useState<"open" | "all">("open");
+  const [warning, setWarning] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState<string | null>(null);
+
+  const handleUpdate = (id: string, status: RequestStatus) => {
+    const result = updateRequestStatus(id, status);
+    if (!result.ok) {
+      setBlocked(result.message);
+      setWarning(null);
+      return;
+    }
+    setBlocked(null);
+    if (result.warning) setWarning(result.warning);
+  };
 
   const isPro =
     userMode === "professional" || accountType === "professional";
@@ -63,7 +80,7 @@ export default function ProOrdersPage() {
       <div
         className={cn(
           "flex h-full flex-col",
-          isLight ? "bg-white" : "bg-black"
+          isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
         <PageHeader title="Orders" subtitle="Repair Pro only" backHref="/" />
@@ -78,7 +95,7 @@ export default function ProOrdersPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#e3e6ec]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black"
       )}
     >
       <PageHeader
@@ -113,11 +130,25 @@ export default function ProOrdersPage() {
       </div>
 
       <div className="flex-1 space-y-2 overflow-y-auto px-3 pb-4 scrollbar-hide">
+        {warning && (
+          <VerificationWarningBanner
+            message={warning}
+            isLight={isLight}
+            onDismiss={() => setWarning(null)}
+          />
+        )}
+        {blocked && (
+          <VerificationBlockedPanel
+            message={blocked}
+            isLight={isLight}
+            onClose={() => setBlocked(null)}
+          />
+        )}
         {list.length === 0 ? (
           <div
             className={cn(
               "rounded-xl p-6 text-center",
-              isLight ? "bg-white" : "bg-white/5"
+              isLight ? "bg-[#c8c9cd]" : "bg-white/5"
             )}
           >
             <Clock3
@@ -144,7 +175,7 @@ export default function ProOrdersPage() {
               key={job.id}
               job={job}
               isLight={isLight}
-              onUpdate={updateRequestStatus}
+              onUpdate={handleUpdate}
             />
           ))
         )}

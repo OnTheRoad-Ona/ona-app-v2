@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useApp } from "@/lib/store";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
+import type { AccountType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const CLIENT_NAV = [
@@ -44,7 +45,7 @@ export function AppMenu({
   onClose: () => void;
 }) {
   const pathname = usePathname();
-  const router = useRouter(); // logout
+  const router = useRouter();
   const {
     theme,
     location,
@@ -53,13 +54,41 @@ export function AppMenu({
     accountType,
     registeredAs,
     proServices,
+    hasMotoristAccount,
+    hasProAccount,
+    switchAccount,
+    isAuthenticated,
   } = useApp();
   const isLight = theme === "light";
-  // Mode locked to account type — pros cannot enter client home
   const isPro =
     accountType === "professional" ||
     (accountType == null && userMode === "professional");
   const nav = isPro ? PRO_NAV : CLIENT_NAV;
+
+  const onSwitch = (type: AccountType) => {
+    if (type === "motorist" && accountType === "motorist") {
+      onClose();
+      return;
+    }
+    if (type === "professional" && accountType === "professional") {
+      onClose();
+      return;
+    }
+
+    const result = switchAccount(type);
+    if (result === null) {
+      onClose();
+      router.replace(type === "professional" ? "/dashboard" : "/");
+      return;
+    }
+    if (result === "needs_signup") {
+      onClose();
+      router.push(type === "professional" ? "/signup/pro" : "/signup/motorist");
+      return;
+    }
+    onClose();
+    router.push("/login/signin");
+  };
 
   if (!open) return null;
 
@@ -67,19 +96,19 @@ export function AppMenu({
     <div className="absolute inset-0 z-[100] flex" role="dialog" aria-modal>
       <button
         type="button"
-        className="absolute inset-0 bg-black/45 border-0"
+        className="absolute inset-0 border-0 bg-black/45"
         aria-label="Close menu"
         onClick={onClose}
       />
       <aside
         className={cn(
           "relative z-10 flex h-full w-[78%] max-w-[280px] flex-col shadow-2xl",
-          isLight ? "bg-white" : "bg-black"
+          isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
         <div className="flex items-start justify-between px-4 pb-3 pt-4">
           <div>
-            <p className="text-[18px] font-black tracking-tight whitespace-nowrap">
+            <p className="whitespace-nowrap text-[18px] font-black tracking-tight">
               <span className="text-[#e85a12]">Oga</span>
               <span className={isLight ? "text-slate-900" : "text-white"}>
                 Mecho
@@ -99,7 +128,7 @@ export function AppMenu({
             onClick={onClose}
             className={cn(
               "flex h-8 w-8 items-center justify-center rounded-lg border-0",
-              isLight ? "bg-slate-100 text-slate-700" : "bg-black text-white"
+              isLight ? "bg-[#bebfc4] text-slate-700" : "bg-black text-white"
             )}
             aria-label="Close"
           >
@@ -107,34 +136,10 @@ export function AppMenu({
           </button>
         </div>
 
-        {/* Account type badge — no free switch (pro stays pro; motorist stays client) */}
-        <div className="px-3 pb-3">
-          <div
-            className={cn(
-              "rounded-lg px-3 py-2 text-center text-[12px] font-bold",
-              isLight ? "bg-slate-100 text-slate-700" : "bg-white/10 text-white"
-            )}
-          >
-            {isPro ? "Professional account" : "Motorist account"}
-            <p
-              className={cn(
-                "mt-0.5 text-[10px] font-medium",
-                isLight ? "text-slate-500" : "text-white/55"
-              )}
-            >
-              {isPro
-                ? "You can only use professional pages"
-                : "You can only use client pages"}
-            </p>
-          </div>
-        </div>
-
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
           {nav.map(({ href, label, icon: Icon }) => {
             const active =
-              href === "/"
-                ? pathname === "/"
-                : pathname.startsWith(href);
+              href === "/" ? pathname === "/" : pathname.startsWith(href);
             return (
               <Link
                 key={href + label}
@@ -145,7 +150,7 @@ export function AppMenu({
                   active
                     ? "metallic-orange text-white"
                     : isLight
-                      ? "text-slate-700 hover:bg-slate-100"
+                      ? "text-slate-700 hover:bg-[#bebfc4]/70"
                       : "text-white/90 hover:bg-white/10"
                 )}
               >
@@ -155,7 +160,6 @@ export function AppMenu({
             );
           })}
 
-          {/* One skill only — display, no add */}
           {isPro && proServices.length > 0 && (
             <div className="mt-3 px-1">
               <p
@@ -179,6 +183,75 @@ export function AppMenu({
               </div>
             </div>
           )}
+
+          {/* Use as — below Profile nav, above theme/logout */}
+          <div className="mt-4 px-1">
+            <p
+              className={cn(
+                "mb-1.5 px-2 text-[10px] font-bold uppercase tracking-wide",
+                isLight ? "text-slate-400" : "text-white/45"
+              )}
+            >
+              Use as
+            </p>
+            <div
+              className={cn(
+                "grid grid-cols-2 gap-1 rounded-xl p-1",
+                isLight ? "bg-[#bebfc4]/80" : "bg-white/10"
+              )}
+              role="group"
+              aria-label="Switch account type"
+            >
+              <button
+                type="button"
+                onClick={() => onSwitch("motorist")}
+                className={cn(
+                  "rounded-lg border-0 px-2 py-2 text-[12px] font-bold transition-colors",
+                  accountType === "motorist"
+                    ? "bg-[#323231] text-white shadow-sm"
+                    : isLight
+                      ? "bg-transparent text-slate-600"
+                      : "bg-transparent text-white/75"
+                )}
+              >
+                Motorist
+                {!hasMotoristAccount && (
+                  <span className="mt-0.5 block text-[9px] font-medium opacity-80">
+                    Sign up
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => onSwitch("professional")}
+                className={cn(
+                  "rounded-lg border-0 px-2 py-2 text-[12px] font-bold transition-colors",
+                  accountType === "professional"
+                    ? "bg-[#323231] text-white shadow-sm"
+                    : isLight
+                      ? "bg-transparent text-slate-600"
+                      : "bg-transparent text-white/75"
+                )}
+              >
+                Repair Pro
+                {!hasProAccount && (
+                  <span className="mt-0.5 block text-[9px] font-medium opacity-80">
+                    Sign up
+                  </span>
+                )}
+              </button>
+            </div>
+            <p
+              className={cn(
+                "mt-1.5 px-2 text-[10px] leading-snug",
+                isLight ? "text-slate-500" : "text-white/55"
+              )}
+            >
+              {isAuthenticated
+                ? "You can be both. Each needs its own signup. Switch here anytime."
+                : "Sign up or log in for Motorist and Repair Pro separately."}
+            </p>
+          </div>
         </nav>
 
         <div className="space-y-2 px-3 pb-4">
@@ -190,7 +263,7 @@ export function AppMenu({
             className={cn(
               "flex w-full items-center justify-center gap-2 rounded-lg border-0 px-3 py-2.5 text-sm font-semibold",
               isLight
-                ? "bg-slate-100 text-slate-800"
+                ? "bg-[#bebfc4] text-slate-800"
                 : "bg-white/10 text-white"
             )}
           >

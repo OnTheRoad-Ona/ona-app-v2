@@ -50,11 +50,11 @@ export default function TechnicianDashboardPage() {
     <div
       className={cn(
         "flex h-full min-h-0 flex-col",
-        isLight ? "bg-[#e3e6ec]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black"
       )}
     >
       <div
-        className={cn("z-20 shrink-0", isLight ? "bg-[#e3e6ec]" : "bg-black")}
+        className={cn("z-20 shrink-0", isLight ? "bg-[#c8c9cd]" : "bg-black")}
       >
         <PageHeader
           title="Professional Dashboard"

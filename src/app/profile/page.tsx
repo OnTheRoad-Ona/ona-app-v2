@@ -7,6 +7,8 @@ import {
   MapPin,
   Settings,
   Shield,
+  ShieldCheck,
+  UserRound,
   Wrench,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -17,6 +19,14 @@ import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { publicSkillRows } from "@/lib/skill-questions";
 import type { ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import {
+  getServiceActionCount,
+  isIdentityVerified,
+  remainingFreeActions,
+  VERIFY_BLOCK_AT,
+  VERIFY_WARN_FROM,
+  verificationStatusLabel,
+} from "@/lib/verification-gate";
 
 const SERVICE_LABELS = PRO_SERVICE_LABELS;
 
@@ -49,7 +59,7 @@ export default function ProfilePage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-white" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black"
       )}
     >
       <PageHeader title="Profile" subtitle="Account & settings" />
@@ -78,6 +88,66 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        {/* Post-signup identity verification funnel */}
+        <div className="card-surface mt-3 rounded-lg p-3">
+          <div className="flex items-start gap-2">
+            <ShieldCheck
+              className={cn(
+                "mt-0.5 h-5 w-5 shrink-0",
+                isIdentityVerified(userProfile) ? "text-emerald-500" : "text-brand"
+              )}
+            />
+            <div className="min-w-0 flex-1">
+              <p
+                className={cn(
+                  "text-sm font-semibold",
+                  isLight ? "text-slate-900" : "text-white"
+                )}
+              >
+                Identity verification
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted">
+                {isIdentityVerified(userProfile)
+                  ? "NIN and BVN verified — unlimited book & accept."
+                  : `Explore freely first. Warnings from request #${VERIFY_WARN_FROM}; verify before #${VERIFY_BLOCK_AT} to keep booking or accepting.`}
+              </p>
+              <div
+                className={cn(
+                  "mt-2 flex flex-wrap items-center gap-2 rounded-md px-2.5 py-2 text-[11px]",
+                  isLight ? "bg-slate-100" : "bg-white/10"
+                )}
+              >
+                <span
+                  className={cn(
+                    "rounded px-1.5 py-0.5 text-[10px] font-bold uppercase",
+                    verificationStatusLabel(userProfile) === "verified"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : verificationStatusLabel(userProfile) === "partial"
+                        ? "bg-amber-100 text-amber-900"
+                        : "bg-slate-200 text-slate-700"
+                  )}
+                >
+                  {verificationStatusLabel(userProfile)}
+                </span>
+                <span className="text-muted">
+                  Actions used: {getServiceActionCount(userProfile)}
+                  {!isIdentityVerified(userProfile) &&
+                    Number.isFinite(remainingFreeActions(userProfile)) &&
+                    ` · ${remainingFreeActions(userProfile)} free left`}
+                </span>
+              </div>
+              {!isIdentityVerified(userProfile) && (
+                <Link
+                  href="/verify"
+                  className="mt-2.5 inline-flex h-9 items-center justify-center rounded-lg bg-[#323231] px-3 text-[12px] font-semibold text-white"
+                >
+                  Verify NIN & BVN
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Account type locked at signup */}
         <div className="card-surface mt-3 rounded-lg p-3">
           <p
@@ -89,8 +159,8 @@ export default function ProfilePage() {
             Registered as
           </p>
           <p className="mt-0.5 text-[11px] text-muted">
-            Locked to your signup. Professionals stay on professional pages;
-            motorists stay on client pages.
+            You can be both Motorist and Repair Pro. Each needs its own signup.
+            Switch from the menu (☰).
           </p>
           <div
             className={cn(
@@ -104,15 +174,14 @@ export default function ProfilePage() {
                 isLight ? "text-slate-900" : "text-white"
               )}
             >
-              {accountLabel}
+              Active now: {accountLabel}
               {accountType === "professional" && registeredAs !== "client"
                 ? ` · ${SERVICE_LABELS[registeredAs as ProService] ?? registeredAs}`
                 : ""}
             </p>
             <p className="mt-0.5 text-[11px] text-muted">
-              {accountType === "professional"
-                ? "One professional skill only · no client home access"
-                : "Client / motorist workspace only"}
+              Open the three-line menu to switch account type or sign up for the
+              other side.
             </p>
           </div>
         </div>
@@ -225,10 +294,16 @@ export default function ProfilePage() {
               One professional skill only — cannot add more trades on this
               account.
             </p>
-            <div className="mt-2">
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               <span className="metallic-orange inline-block rounded-md px-2.5 py-1.5 text-[11px] font-bold text-white">
                 {SERVICE_LABELS[proServices[0]] ?? proServices[0]} · primary
               </span>
+              <Link
+                href="/technician/pro-self"
+                className="text-[11px] font-bold text-brand underline-offset-2 hover:underline"
+              >
+                Preview public profile
+              </Link>
             </div>
           </div>
         )}
@@ -241,6 +316,11 @@ export default function ProfilePage() {
                     href: "/dashboard",
                     label: "Professional Dashboard",
                     icon: Wrench,
+                  },
+                  {
+                    href: "/technician/pro-self",
+                    label: "My public Repair Pro profile",
+                    icon: UserRound,
                   },
                 ]
               : []),

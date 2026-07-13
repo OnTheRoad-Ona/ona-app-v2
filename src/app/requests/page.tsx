@@ -1,11 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { MapPin, Navigation } from "lucide-react";
+import {
+  VerificationBlockedPanel,
+  VerificationWarningBanner,
+} from "@/components/auth/verification-gate-banner";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/lib/store";
+import type { RequestStatus } from "@/lib/types";
 import { cn, formatDistance, formatEta } from "@/lib/utils";
 
 const statusVariant: Record<
@@ -24,17 +30,44 @@ const statusVariant: Record<
 export default function RequestsPage() {
   const { requests, updateRequestStatus, theme } = useApp();
   const isLight = theme === "light";
+  const [warning, setWarning] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState<string | null>(null);
+
+  const handleUpdate = (id: string, status: RequestStatus) => {
+    const result = updateRequestStatus(id, status);
+    if (!result.ok) {
+      setBlocked(result.message);
+      setWarning(null);
+      return;
+    }
+    setBlocked(null);
+    if (result.warning) setWarning(result.warning);
+  };
 
   return (
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-white" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black"
       )}
     >
       <PageHeader title="Requests" subtitle="Live help & dispatch" />
 
       <div className="flex-1 space-y-2 overflow-y-auto p-3 scrollbar-hide">
+        {warning && (
+          <VerificationWarningBanner
+            message={warning}
+            isLight={isLight}
+            onDismiss={() => setWarning(null)}
+          />
+        )}
+        {blocked && (
+          <VerificationBlockedPanel
+            message={blocked}
+            isLight={isLight}
+            onClose={() => setBlocked(null)}
+          />
+        )}
         {requests.length === 0 ? (
           <div
             className={cn(
@@ -91,14 +124,14 @@ export default function RequestsPage() {
                   <>
                     <Button
                       size="sm"
-                      onClick={() => updateRequestStatus(r.id, "accepted")}
+                      onClick={() => handleUpdate(r.id, "accepted")}
                     >
                       Accept
                     </Button>
                     <Button
                       size="sm"
                       variant="secondary"
-                      onClick={() => updateRequestStatus(r.id, "cancelled")}
+                      onClick={() => handleUpdate(r.id, "cancelled")}
                     >
                       Cancel
                     </Button>
@@ -107,7 +140,7 @@ export default function RequestsPage() {
                 {r.status === "accepted" && (
                   <Button
                     size="sm"
-                    onClick={() => updateRequestStatus(r.id, "en_route")}
+                    onClick={() => handleUpdate(r.id, "en_route")}
                   >
                     En route
                   </Button>
@@ -115,7 +148,7 @@ export default function RequestsPage() {
                 {r.status === "en_route" && (
                   <Button
                     size="sm"
-                    onClick={() => updateRequestStatus(r.id, "arrived")}
+                    onClick={() => handleUpdate(r.id, "arrived")}
                   >
                     Arrived
                   </Button>
@@ -123,7 +156,7 @@ export default function RequestsPage() {
                 {r.status === "arrived" && (
                   <Button
                     size="sm"
-                    onClick={() => updateRequestStatus(r.id, "completed")}
+                    onClick={() => handleUpdate(r.id, "completed")}
                   >
                     Complete
                   </Button>
