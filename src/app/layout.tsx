@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OgaMecho — Find Mechanics, Vulcanizers & Towing Nearby",
+  title: "OgaMecho — Find Mechanics, Vulcanizers & Tow Nearby",
   description:
     "Live mechanic discovery and dispatch. Instantly connect with nearby mechanics, vulcanizers, and tow trucks within 0–10 km.",
   applicationName: "OgaMecho",

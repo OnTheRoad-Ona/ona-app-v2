@@ -2,13 +2,16 @@
 
 import { cn } from "@/lib/utils";
 
-/** Plate copper under letterboxing */
+/** Fallback plate color only if the photo has not painted yet */
 export const BRAND_COPPER = "#c4784a";
 
-/** Logo-only poster (native 720×1280) */
-const BRAND_SRC = "/brand/oga-mecho-hero.jpg?v=12";
-const BRAND_W = 720;
-const BRAND_H = 1280;
+/**
+ * Full metallic brand poster (attached asset) — photo only, no color fills.
+ * 720×1280 source → 2880×5120 (4×) high-quality encode for sharp retina display.
+ */
+const BRAND_SRC = "/brand/oga-mecho-hero.jpg?v=24";
+const BRAND_W = 2880;
+const BRAND_H = 5120;
 
 type BrandHeroProps = {
   className?: string;
@@ -18,8 +21,8 @@ type BrandHeroProps = {
 };
 
 /**
- * Brand background — full-frame logo-only art
- * (state from two steps before logo-only crop / 70% scale).
+ * Brand background — true full-bleed metallic photograph.
+ * No solid fills, glows, or gradient overlays on the art.
  */
 export function BrandHeroMotion({
   className,
@@ -35,7 +38,6 @@ export function BrandHeroMotion({
           motion && "om-apple-motion-sharp",
           className
         )}
-        style={{ backgroundColor: BRAND_COPPER }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -54,39 +56,30 @@ export function BrandHeroMotion({
     <div
       className={cn(
         "pointer-events-none absolute inset-0 overflow-hidden",
+        motion && "om-apple-motion-sharp",
         className
       )}
-      style={{ backgroundColor: BRAND_COPPER }}
       aria-hidden
     >
-      <div
+      {/* Full-bleed photographic background — cover entire frame */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={BRAND_SRC}
+        alt=""
+        width={BRAND_W}
+        height={BRAND_H}
+        decoding="sync"
+        fetchPriority="high"
+        loading="eager"
+        draggable={false}
+        sizes="100vw"
         className={cn(
-          "absolute inset-0 flex items-center justify-center",
-          motion && "om-apple-motion-sharp"
+          "om-brand-img absolute inset-0 h-full w-full",
+          size === "splash" || size === "full"
+            ? "object-cover object-center"
+            : "object-contain object-center"
         )}
-      >
-        <div
-          className="relative h-full max-h-full"
-          style={{
-            aspectRatio: `${BRAND_W} / ${BRAND_H}`,
-            width: "auto",
-            maxWidth: "100%",
-          }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={BRAND_SRC}
-            alt=""
-            width={BRAND_W}
-            height={BRAND_H}
-            decoding="async"
-            fetchPriority="high"
-            draggable={false}
-            sizes="(max-width: 430px) 100vw, 430px"
-            className="om-brand-img absolute inset-0 h-full w-full object-contain object-center"
-          />
-        </div>
-      </div>
+      />
 
       {bottomFade && size === "full" && (
         <div className="absolute inset-x-0 bottom-0 h-[22%] bg-black/25" />

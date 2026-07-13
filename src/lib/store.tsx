@@ -16,7 +16,9 @@ import {
   INITIAL_REQUESTS,
   TECHNICIANS,
 } from "@/lib/data/technicians";
+import { registerIdentity } from "@/lib/account-registry";
 import { filterAndRankTechnicians } from "@/lib/matching";
+import { isProService, PRO_SERVICE_LABELS } from "@/lib/services";
 import type {
   AccountType,
   AppFilters,
@@ -29,6 +31,7 @@ import type {
   Technician,
   UserLocation,
   UserMode,
+  UserProfile,
 } from "@/lib/types";
 
 export type AppTheme = "light" | "dark";
@@ -39,20 +42,76 @@ const MODE_KEY = "oga-mecho-mode";
 const AUTH_KEY = "oga-mecho-auth";
 const AUTH_NAME_KEY = "oga-mecho-auth-name";
 const AUTH_ACCOUNT_KEY = "oga-mecho-account-type";
+const PROFILE_KEY = "oga-mecho-profile";
 
-const ALL_PRO_SERVICES: ProService[] = [
-  "mechanic",
-  "vulcanizer",
-  "towing",
-  "wash",
-];
-
-function isProService(v: string): v is ProService {
-  return ALL_PRO_SERVICES.includes(v as ProService);
-}
+/** Public directory id for the signed-in Repair Pro (motorists can open this profile). */
+export const SELF_PRO_TECH_ID = "pro-self";
 
 function isRegisteredAs(v: string | null): v is RegisteredAs {
   return v === "client" || (v != null && isProService(v));
+}
+
+/** Map a Repair Pro UserProfile into a directory Technician card. */
+export function profileToTechnician(profile: UserProfile): Technician | null {
+  if (profile.accountType !== "professional") return null;
+  const services = (profile.services ?? []).filter(isProService);
+  const primary = services[0] ?? "mechanic";
+  const name = profile.fullName.trim() || "Repair Professional";
+  const short =
+    name.split(/\s+/).length >= 2
+      ? `${name.split(/\s+/)[0]} ${name.split(/\s+/).at(-1)?.[0] ?? ""}.`
+      : name;
+  const label = PRO_SERVICE_LABELS[primary] ?? "Repair Pro";
+  const brand = profile.servedBrand || profile.servedMake;
+  const focusBits = [
+    profile.servedVehicleType,
+    brand && brand !== "Any" ? brand : null,
+    profile.servedModel && profile.servedModel !== "Any"
+      ? profile.servedModel
+      : null,
+    profile.servedCountry && profile.servedCountry !== "Any"
+      ? profile.servedCountry
+      : null,
+  ].filter(Boolean);
+  const focusLine =
+    focusBits.length > 0
+      ? `Serves ${focusBits.join(" · ")}.`
+      : "Roadside repair professional.";
+  return {
+    id: SELF_PRO_TECH_ID,
+    name,
+    shortName: short,
+    serviceType: primary,
+    roleLabel: profile.businessName?.trim() || label,
+    photo: "/technicians/t1.jpg",
+    rating: 5,
+    reviewCount: 0,
+    distanceKm: 0.2,
+    etaMinutes: 6,
+    status: "available",
+    verified: Boolean(profile.idNumber),
+    fastResponse: true,
+    specialties: services.map((s) => PRO_SERVICE_LABELS[s] ?? s),
+    description:
+      profile.bio?.trim() ||
+      `${focusLine} Based in ${[profile.area, profile.city].filter(Boolean).join(", ") || "Lagos"}.`,
+    phone: profile.phone || "+234 800 000 0000",
+    serviceRadiusKm: profile.serviceRadiusKm ?? 8,
+    location: DEFAULT_USER_LOCATION.coordinates,
+    markerLabel: "You",
+    responseSpeedScore: 0.95,
+    currentLoad: 0,
+    servedVehicleType: profile.servedVehicleType,
+    servedBrand: profile.servedBrand || profile.servedMake,
+    servedMake: profile.servedBrand || profile.servedMake,
+    servedModel: profile.servedModel,
+    servedCountry: profile.servedCountry,
+    servedLocation: profile.servedLocation,
+    businessName: profile.businessName,
+    yearsExperience: profile.yearsExperience,
+    bio: profile.bio,
+    skillAnswers: profile.skillAnswers,
+  };
 }
 
 interface AppState {
@@ -66,6 +125,8 @@ interface AppState {
   isAuthenticated: boolean;
   displayName: string;
   accountType: AccountType | null;
+  /** Full signup profile (persisted) */
+  userProfile: UserProfile | null;
   /** What user registered as — drives first open screen */
   registeredAs: RegisteredAs;
   /** Current Client vs Professional view */
@@ -76,11 +137,19 @@ interface AppState {
   setUserMode: (mode: UserMode) => void;
   addProService: (service: ProService) => void;
   removeProService: (service: ProService) => void;
-  /** Sign up / log in as Motorist or Repair Professional */
+  /**
+   * Complete Motorist or Repair Pro registration and sign in.
+   * Persists profile + role for session restore.
+   * Enforces unique phone / email / NIN / BVN across accounts.
+   * Returns an error message when identity is already taken.
+   */
+  completeSignup: (profile: UserProfile) => string | null;
+  /** Legacy quick login (prefer completeSignup) */
   login: (opts: {
     accountType: AccountType;
     name?: string;
     proService?: ProService;
+    proServices?: ProService[];
   }) => void;
   logout: () => void;
   location: UserLocation;
@@ -135,6 +204,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [displayName, setDisplayName] = useState("Guest");
   const [accountType, setAccountType] = useState<AccountType | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [registeredAs, setRegisteredAsState] = useState<RegisteredAs>("client");
   const [userMode, setUserModeState] = useState<UserMode>("client");
   const [proServices, setProServicesState] = useState<ProService[]>([]);
@@ -208,6 +278,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setAccountType(rawAccount);
       } else if (authed) {
         setAccountType(role === "client" ? "motorist" : "professional");
+      }
+      const rawProfile = localStorage.getItem(PROFILE_KEY);
+      if (rawProfile) {
+        try {
+          setUserProfile(JSON.parse(rawProfile) as UserProfile);
+        } catch {
+          /* ignore */
+        }
       }
     } catch {
       setRegisteredAsState("client");
@@ -297,66 +375,182 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const setUserMode = useCallback((mode: UserMode) => {
-    setUserModeState(mode);
-    try {
-      localStorage.setItem(MODE_KEY, mode);
-    } catch {
-      /* ignore */
-    }
-  }, []);
+  const setUserMode = useCallback(
+    (mode: UserMode) => {
+      // Pros cannot enter client mode; motorists cannot enter pro mode.
+      // Only matching account type may use that workspace.
+      if (accountType === "professional" && mode === "client") return;
+      if (accountType === "motorist" && mode === "professional") return;
+      setUserModeState(mode);
+      try {
+        localStorage.setItem(MODE_KEY, mode);
+      } catch {
+        /* ignore */
+      }
+    },
+    [accountType]
+  );
+
+  const completeSignup = useCallback(
+    (profile: UserProfile): string | null => {
+      // One account type per session identity — cannot open a second pro
+      // registration while already a professional on this device session.
+      if (
+        profile.accountType === "professional" &&
+        isAuthenticated &&
+        accountType === "professional"
+      ) {
+        return "You already have a Repair Professional account. Only one professional signup is allowed.";
+      }
+
+      const identityId =
+        profile.identityId ||
+        `acct-${profile.accountType}-${Date.now().toString(36)}`;
+
+      // Pros: enforce single skill on profile
+      const normalized: UserProfile =
+        profile.accountType === "professional"
+          ? {
+              ...profile,
+              services: (profile.services ?? []).filter(isProService).slice(0, 1),
+            }
+          : profile;
+
+      const reg = registerIdentity({
+        id: identityId,
+        accountType: normalized.accountType,
+        phone: normalized.phone,
+        email: normalized.email,
+        nin: normalized.idNumber,
+        bvn: normalized.bvn,
+        fullName: normalized.fullName,
+        createdAt: normalized.registeredAt || new Date().toISOString(),
+      });
+      if (!reg.ok) return reg.message;
+
+      const name = normalized.fullName.trim() || "User";
+      const saved: UserProfile = { ...normalized, identityId };
+      setUserProfile(saved);
+      setDisplayName(name);
+      setAccountType(normalized.accountType);
+      setIsAuthenticated(true);
+
+      try {
+        localStorage.setItem(AUTH_KEY, "1");
+        localStorage.setItem(AUTH_NAME_KEY, name);
+        localStorage.setItem(AUTH_ACCOUNT_KEY, normalized.accountType);
+        localStorage.setItem(PROFILE_KEY, JSON.stringify(saved));
+      } catch {
+        /* ignore */
+      }
+
+      if (normalized.accountType === "motorist") {
+        setRegisteredAs("client");
+        setUserModeState("client");
+        try {
+          localStorage.setItem(MODE_KEY, "client");
+        } catch {
+          /* ignore */
+        }
+        if (normalized.area || normalized.city) {
+          setLocation({
+            label: [normalized.area, normalized.city]
+              .filter(Boolean)
+              .join(", "),
+            city: normalized.city || normalized.area,
+            coordinates: DEFAULT_USER_LOCATION.coordinates,
+          });
+        }
+      } else {
+        const services = (normalized.services ?? [])
+          .filter(isProService)
+          .slice(0, 1);
+        const primary = services[0] ?? "mechanic";
+        setProServicesState([primary]);
+        try {
+          localStorage.setItem(SERVICES_KEY, JSON.stringify([primary]));
+        } catch {
+          /* ignore */
+        }
+        setRegisteredAs(primary);
+        setUserModeState("professional");
+        try {
+          localStorage.setItem(MODE_KEY, "professional");
+        } catch {
+          /* ignore */
+        }
+        if (normalized.serviceRadiusKm != null) {
+          setRadiusKm(Math.min(10, Math.max(1, normalized.serviceRadiusKm)));
+        }
+        if (normalized.area || normalized.city) {
+          setLocation({
+            label: [normalized.area, normalized.city]
+              .filter(Boolean)
+              .join(", "),
+            city: normalized.city || normalized.area,
+            coordinates: DEFAULT_USER_LOCATION.coordinates,
+          });
+        }
+      }
+      return null;
+    },
+    [setRegisteredAs, isAuthenticated, accountType]
+  );
 
   const login = useCallback(
     (opts: {
       accountType: AccountType;
       name?: string;
       proService?: ProService;
+      proServices?: ProService[];
     }) => {
       const name =
         opts.name?.trim() ||
         (opts.accountType === "motorist" ? "Motorist" : "Repair Professional");
-      setDisplayName(name);
-      setAccountType(opts.accountType);
-      setIsAuthenticated(true);
+      const services =
+        opts.proServices?.filter(isProService).slice(0, 2) ??
+        (opts.proService && isProService(opts.proService)
+          ? [opts.proService]
+          : undefined);
 
-      try {
-        localStorage.setItem(AUTH_KEY, "1");
-        localStorage.setItem(AUTH_NAME_KEY, name);
-        localStorage.setItem(AUTH_ACCOUNT_KEY, opts.accountType);
-      } catch {
-        /* ignore */
-      }
-
-      if (opts.accountType === "motorist") {
-        setRegisteredAs("client");
-      } else {
-        const svc: ProService =
-          opts.proService && isProService(opts.proService)
-            ? opts.proService
-            : "mechanic";
-        setRegisteredAs(svc);
-      }
+      // Dev/quick login skips registry (empty phone/email) — demo only
+      completeSignup({
+        accountType: opts.accountType,
+        fullName: name,
+        phone: `+23480${String(Date.now()).slice(-8)}`,
+        email: `${name.replace(/\s+/g, "").toLowerCase()}.${Date.now()}@demo.local`,
+        password: "demo-pass",
+        city: "Lagos",
+        area: "Ikeja",
+        services: services?.slice(0, 1),
+        serviceRadiusKm: 10,
+        registeredAt: new Date().toISOString(),
+      });
     },
-    [setRegisteredAs]
+    [completeSignup]
   );
 
   const logout = useCallback(() => {
     setIsAuthenticated(false);
     setAccountType(null);
     setDisplayName("Guest");
+    setUserProfile(null);
     try {
       localStorage.removeItem(AUTH_KEY);
       localStorage.removeItem(AUTH_NAME_KEY);
       localStorage.removeItem(AUTH_ACCOUNT_KEY);
+      localStorage.removeItem(PROFILE_KEY);
     } catch {
       /* ignore */
     }
   }, []);
 
+  /** One professional skill only — ignore adds beyond the first. */
   const addProService = useCallback((service: ProService) => {
     setProServicesState((prev) => {
+      if (prev.length >= 1) return prev;
       if (prev.includes(service)) return prev;
-      const next = [...prev, service];
+      const next = [service];
       try {
         localStorage.setItem(SERVICES_KEY, JSON.stringify(next));
       } catch {
@@ -385,15 +579,71 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [registeredAs]
   );
 
+  /** Directory = demo pros + signed-in Repair Pro (for motorist discovery). */
+  const technicians = useMemo(() => {
+    const demoFocus = [
+      {
+        servedVehicleType: "Automobile / Passenger Car",
+        servedBrand: "Toyota",
+        servedModel: "Camry",
+        servedCountry: "Nigeria",
+        servedLocation: "Lagos",
+      },
+      {
+        servedVehicleType: "SUV",
+        servedBrand: "Honda",
+        servedModel: "CR-V",
+        servedCountry: "Nigeria",
+        servedLocation: "Abuja",
+      },
+      {
+        servedVehicleType: "Motorcycle",
+        servedBrand: "Bajaj",
+        servedModel: "Boxer",
+        servedCountry: "Nigeria",
+        servedLocation: "Ibadan",
+      },
+      {
+        servedVehicleType: "Pickup Truck",
+        servedBrand: "Toyota",
+        servedModel: "Hilux",
+        servedCountry: "Nigeria",
+        servedLocation: "Port Harcourt",
+      },
+      {
+        servedVehicleType: "Van (Passenger)",
+        servedBrand: "Toyota",
+        servedModel: "Hiace",
+        servedCountry: "Nigeria",
+        servedLocation: "Lagos",
+      },
+    ];
+    const base = TECHNICIANS.map((t, i) => {
+      const f = demoFocus[i % demoFocus.length];
+      return {
+        ...t,
+        servedVehicleType: t.servedVehicleType ?? f.servedVehicleType,
+        servedBrand: t.servedBrand ?? t.servedMake ?? f.servedBrand,
+        servedMake: t.servedBrand ?? t.servedMake ?? f.servedBrand,
+        servedModel: t.servedModel ?? f.servedModel,
+        servedCountry: t.servedCountry ?? f.servedCountry,
+        servedLocation: t.servedLocation ?? f.servedLocation,
+      };
+    });
+    const self = userProfile ? profileToTechnician(userProfile) : null;
+    if (!self) return base;
+    return [self, ...base.filter((t) => t.id !== SELF_PRO_TECH_ID)];
+  }, [userProfile]);
+
   const visibleTechnicians = useMemo(
     () =>
-      filterAndRankTechnicians(TECHNICIANS, {
+      filterAndRankTechnicians(technicians, {
         radiusKm,
         category,
         query,
         filters,
       }),
-    [radiusKm, category, query, filters]
+    [technicians, radiusKm, category, query, filters]
   );
 
   const toggleFilter = useCallback((key: keyof AppFilters) => {
@@ -477,6 +727,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       isAuthenticated,
       displayName,
       accountType,
+      userProfile,
       registeredAs,
       userMode,
       proServices,
@@ -484,6 +735,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setUserMode,
       addProService,
       removeProService,
+      completeSignup,
       login,
       logout,
       location,
@@ -492,7 +744,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       query,
       filters,
       selectedTechId,
-      technicians: TECHNICIANS,
+      technicians,
       visibleTechnicians,
       requests,
       bookings,
@@ -518,6 +770,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       isAuthenticated,
       displayName,
       accountType,
+      userProfile,
       registeredAs,
       userMode,
       proServices,
@@ -525,6 +778,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setUserMode,
       addProService,
       removeProService,
+      completeSignup,
       login,
       logout,
       location,
@@ -533,6 +787,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       query,
       filters,
       selectedTechId,
+      technicians,
       visibleTechnicians,
       requests,
       bookings,

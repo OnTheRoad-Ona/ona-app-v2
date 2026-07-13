@@ -64,26 +64,22 @@ const CATEGORY_KEYWORDS: Partial<Record<ServiceCategory, string[]>> = {
 
 function matchesCategory(tech: Technician, category: ServiceCategory): boolean {
   if (category === "all") return true;
-  if (
-    category === "mechanic" ||
-    category === "vulcanizer" ||
-    category === "towing" ||
-    category === "wash"
-  ) {
-    if (tech.serviceType === category) return true;
-    // Wash also matches car-wash wording on other cards
-    if (category === "wash") {
-      const hay =
-        `${tech.roleLabel} ${tech.description} ${tech.specialties.join(" ")}`.toLowerCase();
-      return (CATEGORY_KEYWORDS.wash ?? []).some((k) => hay.includes(k));
-    }
-    return false;
-  }
+  // Exact primary trade match (all 9 home trades)
+  if (tech.serviceType === category) return true;
   const keys = CATEGORY_KEYWORDS[category] ?? [];
   const hay = `${tech.roleLabel} ${tech.description} ${tech.specialties.join(" ")}`.toLowerCase();
   if (keys.some((k) => hay.includes(k))) return true;
   // Fallback: specialty services often sit under general mechanics
-  return tech.serviceType === "mechanic";
+  if (
+    category === "battery" ||
+    category === "ac" ||
+    category === "body" ||
+    category === "electrical" ||
+    category === "diagnostics"
+  ) {
+    return tech.serviceType === "mechanic";
+  }
+  return false;
 }
 
 export function filterAndRankTechnicians(

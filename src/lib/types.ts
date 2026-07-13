@@ -1,7 +1,6 @@
 /**
  * Browse categories on home.
- * Core pro trades stay mechanic | vulcanizer | towing;
- * extra filters map via specialty keywords.
+ * Real trades match Repair Pro signup (exclude "all").
  */
 export type ServiceCategory =
   | "mechanic"
@@ -15,8 +14,20 @@ export type ServiceCategory =
   | "wash"
   | "all";
 
-/** Services a professional can register / offer */
-export type ProService = "mechanic" | "vulcanizer" | "towing" | "wash";
+/**
+ * Services a professional can register / offer.
+ * Matches the 9 home service cards (excludes "All").
+ */
+export type ProService =
+  | "mechanic"
+  | "vulcanizer"
+  | "towing"
+  | "battery"
+  | "ac"
+  | "body"
+  | "electrical"
+  | "diagnostics"
+  | "wash";
 
 /**
  * What the user registered as.
@@ -30,6 +41,55 @@ export type UserMode = "client" | "professional";
 
 /** Account type chosen on login / sign-up */
 export type AccountType = "motorist" | "professional";
+
+/** Full profile after Motorist or Repair Pro signup */
+export interface UserProfile {
+  accountType: AccountType;
+  fullName: string;
+  phone: string;
+  email: string;
+  /** Stored for demo session only — not a production password store */
+  password: string;
+  city: string;
+  area: string;
+  /** Motorist optional vehicle */
+  vehicleMake?: string;
+  vehicleModel?: string;
+  vehicleYear?: string;
+  /** Repair Pro */
+  businessName?: string;
+  services?: ProService[];
+  serviceRadiusKm?: number;
+  yearsExperience?: string;
+  bio?: string;
+  /** National Identification Number (unique across all accounts) */
+  idNumber?: string;
+  /** Bank Verification Number (unique across all accounts) */
+  bvn?: string;
+  /**
+   * Service focus (vehicles this pro serves).
+   * Shown on their public profile when motorists view them.
+   */
+  servedVehicleType?: string;
+  servedBrand?: string;
+  /** @deprecated prefer servedBrand */
+  servedMake?: string;
+  servedModel?: string;
+  servedCountry?: string;
+  servedLocation?: string;
+  /**
+   * Skill-specific signup answers (keyed by question id).
+   * Public fields are shown when motorists view the pro.
+   * Values may be string, string[], or certification file metadata.
+   */
+  skillAnswers?: Record<
+    string,
+    string | string[] | { name: string; dataUrl: string; mime: string }
+  >;
+  /** Stable identity id for the local account registry */
+  identityId?: string;
+  registeredAt: string;
+}
 
 export type AvailabilityStatus =
   | "available"
@@ -73,6 +133,20 @@ export interface Technician {
   markerLabel?: string;
   responseSpeedScore: number;
   currentLoad: number;
+  /** Service focus — vehicles this pro serves (motorist-visible) */
+  servedVehicleType?: string;
+  servedBrand?: string;
+  servedMake?: string;
+  servedModel?: string;
+  servedCountry?: string;
+  servedLocation?: string;
+  businessName?: string;
+  yearsExperience?: string;
+  bio?: string;
+  skillAnswers?: Record<
+    string,
+    string | string[] | { name: string; dataUrl: string; mime: string }
+  >;
 }
 
 export interface ServiceRequest {

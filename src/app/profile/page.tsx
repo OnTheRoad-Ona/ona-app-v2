@@ -13,29 +13,12 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/lib/store";
-import type { ProService, RegisteredAs } from "@/lib/types";
+import { PRO_SERVICE_LABELS } from "@/lib/services";
+import { publicSkillRows } from "@/lib/skill-questions";
+import type { ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const ROLE_OPTIONS: { id: RegisteredAs; label: string; hint: string }[] = [
-  { id: "client", label: "Client", hint: "Find help nearby" },
-  { id: "mechanic", label: "Mechanic", hint: "Offer repairs" },
-  { id: "vulcanizer", label: "Vulcanizer", hint: "Tires & tubes" },
-  { id: "towing", label: "Towing", hint: "Haul vehicles" },
-];
-
-const SERVICE_LABELS: Record<ProService, string> = {
-  mechanic: "Mechanic",
-  vulcanizer: "Vulcanizer",
-  towing: "Towing",
-  wash: "Car Wash",
-};
-
-const ALL_SERVICES: ProService[] = [
-  "mechanic",
-  "vulcanizer",
-  "towing",
-  "wash",
-];
+const SERVICE_LABELS = PRO_SERVICE_LABELS;
 
 export default function ProfilePage() {
   const {
@@ -43,13 +26,11 @@ export default function ProfilePage() {
     setManualLocation,
     theme,
     registeredAs,
-    setRegisteredAs,
     userMode,
     proServices,
-    addProService,
-    setUserMode,
     displayName: authName,
     accountType,
+    userProfile,
   } = useApp();
   const isLight = theme === "light";
   const isProRegistered = registeredAs !== "client";
@@ -97,7 +78,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Registration role — what opens first */}
+        {/* Account type locked at signup */}
         <div className="card-surface mt-3 rounded-lg p-3">
           <p
             className={cn(
@@ -108,47 +89,129 @@ export default function ProfilePage() {
             Registered as
           </p>
           <p className="mt-0.5 text-[11px] text-muted">
-            First screen when you open the app. You can still switch modes in
-            the menu.
+            Locked to your signup. Professionals stay on professional pages;
+            motorists stay on client pages.
           </p>
-          <div className="mt-2 grid grid-cols-2 gap-1.5">
-            {ROLE_OPTIONS.map(({ id, label, hint }) => {
-              const active = registeredAs === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => {
-                    setRegisteredAs(id);
-                    if (id !== "client") setUserMode("professional");
-                    else setUserMode("client");
-                  }}
-                  className={cn(
-                    "rounded-md border-0 px-2.5 py-2 text-left transition-colors",
-                    active
-                      ? "metallic-orange text-white"
-                      : isLight
-                        ? "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                        : "bg-white/10 text-white/85 hover:bg-white/15"
-                  )}
-                >
-                  <span className="block text-[12px] font-bold">{label}</span>
-                  <span
-                    className={cn(
-                      "block text-[10px]",
-                      active ? "text-white/85" : "text-muted"
-                    )}
-                  >
-                    {hint}
-                  </span>
-                </button>
-              );
-            })}
+          <div
+            className={cn(
+              "mt-2 rounded-md px-3 py-2.5",
+              isLight ? "bg-slate-100" : "bg-white/10"
+            )}
+          >
+            <p
+              className={cn(
+                "text-[13px] font-bold",
+                isLight ? "text-slate-900" : "text-white"
+              )}
+            >
+              {accountLabel}
+              {accountType === "professional" && registeredAs !== "client"
+                ? ` · ${SERVICE_LABELS[registeredAs as ProService] ?? registeredAs}`
+                : ""}
+            </p>
+            <p className="mt-0.5 text-[11px] text-muted">
+              {accountType === "professional"
+                ? "One professional skill only · no client home access"
+                : "Client / motorist workspace only"}
+            </p>
           </div>
         </div>
 
-        {/* Add more services when pro */}
-        {isProRegistered && (
+        {/* Skill answers + vehicles you serve (motorist-visible) */}
+        {accountType === "professional" && userProfile && (
+          <>
+            {userProfile.services?.[0] &&
+              publicSkillRows(
+                userProfile.services[0],
+                userProfile.skillAnswers
+              ).length > 0 && (
+                <div className="card-surface mt-3 rounded-lg p-3">
+                  <p
+                    className={cn(
+                      "text-sm font-semibold",
+                      isLight ? "text-slate-900" : "text-white"
+                    )}
+                  >
+                    Skill profile
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-muted">
+                    From your{" "}
+                    {PRO_SERVICE_LABELS[userProfile.services[0]] ?? "skill"}{" "}
+                    signup · visible to motorists
+                  </p>
+                  <div className="mt-2 divide-y divide-black/5">
+                    {publicSkillRows(
+                      userProfile.services[0],
+                      userProfile.skillAnswers
+                    ).map((row) => (
+                      <div
+                        key={row.label}
+                        className="flex items-start justify-between gap-2 py-2 first:pt-0 last:pb-0"
+                      >
+                        <span className="text-[12px] text-muted">
+                          {row.label}
+                        </span>
+                        <span
+                          className={cn(
+                            "max-w-[58%] text-right text-[12px] font-semibold",
+                            isLight ? "text-slate-900" : "text-white"
+                          )}
+                        >
+                          {row.value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            <div className="card-surface mt-3 rounded-lg p-3">
+              <p
+                className={cn(
+                  "text-sm font-semibold",
+                  isLight ? "text-slate-900" : "text-white"
+                )}
+              >
+                Vehicles you serve
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted">
+                Visible to motorists on your public profile
+              </p>
+              <div className="mt-2 divide-y divide-black/5">
+                {(
+                  [
+                    ["Vehicle type", userProfile.servedVehicleType],
+                    [
+                      "Brand",
+                      userProfile.servedBrand || userProfile.servedMake,
+                    ],
+                    ["Model", userProfile.servedModel],
+                    ["Country", userProfile.servedCountry],
+                    ["State / Region", userProfile.servedLocation],
+                  ] as const
+                ).map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="flex items-center justify-between gap-2 py-2 first:pt-0 last:pb-0"
+                  >
+                    <span className="text-[12px] text-muted">{label}</span>
+                    <span
+                      className={cn(
+                        "max-w-[60%] text-right text-[12px] font-semibold",
+                        isLight ? "text-slate-900" : "text-white"
+                      )}
+                    >
+                      {value || "—"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* One professional skill only */}
+        {isProRegistered && proServices[0] && (
           <div className="card-surface mt-3 rounded-lg p-3">
             <p
               className={cn(
@@ -156,35 +219,16 @@ export default function ProfilePage() {
                 isLight ? "text-slate-900" : "text-white"
               )}
             >
-              Services you run
+              Your skill
             </p>
             <p className="mt-0.5 text-[11px] text-muted">
-              Primary is locked. Add more services you offer.
+              One professional skill only — cannot add more trades on this
+              account.
             </p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {ALL_SERVICES.map((svc) => {
-                const active = proServices.includes(svc);
-                const isPrimary = registeredAs === svc;
-                return (
-                  <button
-                    key={svc}
-                    type="button"
-                    disabled={active}
-                    onClick={() => addProService(svc)}
-                    className={cn(
-                      "rounded-md border-0 px-2.5 py-1.5 text-[11px] font-bold",
-                      active
-                        ? "metallic-orange text-white"
-                        : isLight
-                          ? "bg-slate-100 text-slate-600"
-                          : "bg-white/10 text-white/80"
-                    )}
-                  >
-                    {SERVICE_LABELS[svc]}
-                    {isPrimary ? " · primary" : active ? "" : " · add"}
-                  </button>
-                );
-              })}
+            <div className="mt-2">
+              <span className="metallic-orange inline-block rounded-md px-2.5 py-1.5 text-[11px] font-bold text-white">
+                {SERVICE_LABELS[proServices[0]] ?? proServices[0]} · primary
+              </span>
             </div>
           </div>
         )}
@@ -195,7 +239,7 @@ export default function ProfilePage() {
               ? [
                   {
                     href: "/dashboard",
-                    label: "Technician Dashboard",
+                    label: "Professional Dashboard",
                     icon: Wrench,
                   },
                 ]

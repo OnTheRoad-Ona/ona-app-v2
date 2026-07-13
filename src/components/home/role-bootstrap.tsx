@@ -8,11 +8,11 @@ const SESSION_KEY = "oga-mecho-first-open-done";
 
 /**
  * On first app open per browser session, land on the screen
- * matching registration (client → home, pro → dashboard).
- * User can still switch Client ↔ Professional in the menu.
+ * matching registration (motorist → home, pro → dashboard).
+ * Mode is locked to account type (no free Client ↔ Pro switch).
  */
 export function RoleBootstrap() {
-  const { roleReady, registeredAs } = useApp();
+  const { roleReady, registeredAs, accountType } = useApp();
   const router = useRouter();
   const pathname = usePathname();
   const didRun = useRef(false);
@@ -31,10 +31,10 @@ export function RoleBootstrap() {
     // Only redirect from root on first open
     if (pathname !== "/") return;
 
-    if (registeredAs !== "client") {
+    if (accountType === "professional" || registeredAs !== "client") {
       router.replace("/dashboard");
     }
-  }, [roleReady, registeredAs, pathname, router]);
+  }, [roleReady, registeredAs, accountType, pathname, router]);
 
   return null;
 }

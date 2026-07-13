@@ -2,42 +2,70 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { BrandSplashScreen } from "@/components/auth/brand-splash-screen";
+import { AUTH_BG } from "@/components/auth/auth-plate";
+import { BrandEntryScreen } from "@/components/auth/brand-entry-screen";
 import { IntroScreen } from "@/components/auth/intro-screen";
+import {
+  canAccessPath,
+  homePathForAccount,
+  isPublicPath,
+} from "@/lib/routes";
 import { useApp } from "@/lib/store";
 
 const INTRO_SESSION_KEY = "oga-mecho-intro-done";
-const SPLASH_SESSION_KEY = "oga-mecho-splash-done";
+const ENTRY_SESSION_KEY = "oga-mecho-entry-done";
 
-const PUBLIC_PATHS = new Set(["/login", "/logout"]);
+/** Routes that should re-show the brand Log In / Sign Up sheet */
+function isBrandEntryRoute(pathname: string) {
+  return pathname === "/login" || pathname === "/";
+}
 
-type BootPhase = "loading" | "intro" | "splash" | "ready";
+type BootPhase = "loading" | "intro" | "entry" | "ready";
 
 /**
- * App open flow (each browser session):
  * 1) Intro video
- * 2) High-res brand image (logo only)
- * 3) If signed in → home / dashboard (skip login)
- * 4) If not signed in → login
- * Logout clears auth so step 4 runs again next time.
+ * 2) Brand image + Log In / Sign Up (until user taps)
+ * 3) Log In → /login/signin · Sign Up → /login/role → full signup
+ * Pros stay on professional pages; motorists stay on client pages.
  */
 export function AuthGate({ children }: { children: React.ReactNode }) {
-  const { authReady, isAuthenticated, registeredAs } = useApp();
+  const { authReady, isAuthenticated, accountType } = useApp();
   const pathname = usePathname();
   const router = useRouter();
   const [phase, setPhase] = useState<BootPhase>("loading");
 
   useEffect(() => {
+    if (!authReady) return;
     try {
       const introDone = sessionStorage.getItem(INTRO_SESSION_KEY) === "1";
-      const splashDone = sessionStorage.getItem(SPLASH_SESSION_KEY) === "1";
-      if (!introDone) setPhase("intro");
-      else if (!splashDone) setPhase("splash");
-      else setPhase("ready");
+      if (!introDone) {
+        setPhase("intro");
+        return;
+      }
+      if (isAuthenticated) {
+        setPhase("ready");
+        return;
+      }
+      const entryDone = sessionStorage.getItem(ENTRY_SESSION_KEY) === "1";
+      // Guest on /login root always sees brand entry sheet
+      if (!entryDone || isBrandEntryRoute(pathname)) {
+        if (isBrandEntryRoute(pathname)) {
+          try {
+            sessionStorage.removeItem(ENTRY_SESSION_KEY);
+          } catch {
+            /* ignore */
+          }
+        }
+        setPhase(
+          !entryDone || isBrandEntryRoute(pathname) ? "entry" : "ready"
+        );
+        return;
+      }
+      setPhase("ready");
     } catch {
       setPhase("intro");
     }
-  }, []);
+  }, [authReady, isAuthenticated, pathname]);
 
   const completeIntro = useCallback(() => {
     try {
@@ -45,65 +73,81 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     } catch {
       /* ignore */
     }
-    setPhase("splash");
+    setPhase("entry");
   }, []);
 
-  const completeSplash = useCallback(() => {
-    try {
-      sessionStorage.setItem(SPLASH_SESSION_KEY, "1");
-    } catch {
-      /* ignore */
-    }
-    setPhase("ready");
-  }, []);
+  const finishEntry = useCallback(
+    (path: string) => {
+      try {
+        sessionStorage.setItem(ENTRY_SESSION_KEY, "1");
+      } catch {
+        /* ignore */
+      }
+      setPhase("ready");
+      router.replace(path);
+    },
+    [router]
+  );
 
-  // After boot: signed-in users never sit on login
+  // Signed-in → leave auth routes
   useEffect(() => {
-    if (!authReady || phase !== "ready") return;
-    if (isAuthenticated && pathname === "/login") {
-      router.replace(registeredAs === "client" ? "/" : "/dashboard");
+    if (!authReady || phase !== "ready" || !isAuthenticated) return;
+    if (pathname.startsWith("/login") || pathname.startsWith("/signup")) {
+      router.replace(homePathForAccount(accountType));
     }
-  }, [authReady, phase, isAuthenticated, pathname, registeredAs, router]);
+  }, [authReady, phase, isAuthenticated, pathname, accountType, router]);
 
-  // After boot: guests must sign in (except public auth pages)
+  // Role lock: pro ↔ pro pages only; motorist ↔ client pages only
   useEffect(() => {
-    if (!authReady || phase !== "ready") return;
-    if (PUBLIC_PATHS.has(pathname)) return;
-    if (!isAuthenticated) {
+    if (!authReady || phase !== "ready" || !isAuthenticated) return;
+    if (isPublicPath(pathname)) return;
+    if (!canAccessPath(accountType, pathname)) {
+      router.replace(homePathForAccount(accountType));
+    }
+  }, [authReady, phase, isAuthenticated, pathname, accountType, router]);
+
+  // Guest on protected app route → brand entry
+  useEffect(() => {
+    if (!authReady || phase === "loading" || phase === "intro") return;
+    if (isAuthenticated) return;
+    if (isPublicPath(pathname) && !isBrandEntryRoute(pathname)) return;
+    if (!isPublicPath(pathname)) {
+      setPhase("entry");
       router.replace("/login");
     }
   }, [authReady, phase, isAuthenticated, pathname, router]);
 
-  // After splash, send signed-in users home if they landed on root cold-start
-  useEffect(() => {
-    if (!authReady || phase !== "ready" || !isAuthenticated) return;
-    if (pathname === "/" || pathname === "/login") {
-      // stay on / for motorists; pros open dashboard once after splash
-      if (pathname === "/login") {
-        router.replace(registeredAs === "client" ? "/" : "/dashboard");
-      } else if (registeredAs !== "client" && pathname === "/") {
-        // only auto-route pros if they just finished boot on /
-        // Don't force every visit — RoleBootstrap used to do session once.
-        // Keep simple: pros who open app go dashboard only from login redirect.
-      }
-    }
-  }, [authReady, phase, isAuthenticated, pathname, registeredAs, router]);
-
   if (!authReady || phase === "loading") {
-    return <div className="h-full w-full bg-[#c4784a]" aria-hidden />;
+    return (
+      <div
+        className="h-full w-full"
+        style={{ backgroundColor: AUTH_BG }}
+        aria-hidden
+      />
+    );
   }
 
   if (phase === "intro") {
     return <IntroScreen onComplete={completeIntro} />;
   }
 
-  if (phase === "splash") {
-    return <BrandSplashScreen onComplete={completeSplash} />;
+  if (phase === "entry" && !isAuthenticated) {
+    return (
+      <BrandEntryScreen
+        onLogIn={() => finishEntry("/login/signin")}
+        onSignUp={() => finishEntry("/login/role")}
+      />
+    );
   }
 
-  // Guests redirecting to login — copper frame avoids black flash
-  if (!isAuthenticated && !PUBLIC_PATHS.has(pathname)) {
-    return <div className="h-full w-full bg-[#c4784a]" aria-hidden />;
+  if (!isAuthenticated && !isPublicPath(pathname)) {
+    return (
+      <div
+        className="h-full w-full"
+        style={{ backgroundColor: AUTH_BG }}
+        aria-hidden
+      />
+    );
   }
 
   return <>{children}</>;

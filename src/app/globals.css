@@ -406,13 +406,58 @@ body {
   animation: om-brand-fade-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* Crisp brand art — native pixels, no soft filters */
+/* Crisp brand art — max sharpness, no color filters/glows */
 .om-brand-img {
+  image-rendering: -webkit-optimize-contrast;
   image-rendering: high-quality;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   transform: translateZ(0);
   filter: none;
+}
+
+/*
+ * Login / signup page fill — measured from screenshot:
+ * #C8C9CD · RGB(200, 201, 205)
+ * Wheel gray (brand tire): #323231 · RGB(50, 50, 49)
+ */
+.auth-matte-orange,
+.auth-apple-stage {
+  background-color: #c8c9cd !important;
+  background-image: none !important;
+}
+.auth-matte-orange-sheen {
+  display: none;
+}
+
+/* Primary auth CTA fallback — wheel gray (brand tire ring) */
+.auth-apple-cta,
+.auth-metal-orange {
+  border: none;
+  background: #323231;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+.auth-apple-cta:hover:not(:disabled),
+.auth-metal-orange:hover:not(:disabled) {
+  filter: brightness(1.04);
+}
+
+.auth-apple-progress-track {
+  background: #e2e8f0;
+  border-radius: 999px;
+}
+.auth-apple-progress-fill {
+  background: #e85a12;
+  border-radius: 999px;
+}
+
+/* legacy class names still used on active tiles */
+.auth-apple-tile-active,
+.auth-metal-tile-active {
+  border-color: transparent !important;
+  background: #e85a12 !important;
+  color: #fff !important;
+  box-shadow: 0 4px 14px rgba(232, 90, 18, 0.25) !important;
 }
 
 .om-apple-motion-delay {

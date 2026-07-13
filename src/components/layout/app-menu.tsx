@@ -9,14 +9,13 @@ import {
   LogOut,
   MessageCircle,
   Moon,
-  Plus,
   Sun,
   UserRound,
   Wrench,
   X,
 } from "lucide-react";
 import { useApp } from "@/lib/store";
-import type { ProService } from "@/lib/types";
+import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { cn } from "@/lib/utils";
 
 const CLIENT_NAV = [
@@ -29,24 +28,13 @@ const CLIENT_NAV = [
 
 const PRO_NAV = [
   { href: "/dashboard", label: "Dashboard", icon: Wrench },
+  { href: "/orders", label: "Orders", icon: Briefcase },
   { href: "/requests", label: "Jobs", icon: Clock3 },
   { href: "/messages", label: "Messages", icon: MessageCircle },
   { href: "/profile", label: "Profile", icon: UserRound },
 ] as const;
 
-const SERVICE_LABELS: Record<ProService, string> = {
-  mechanic: "Mechanic",
-  vulcanizer: "Vulcanizer",
-  towing: "Towing",
-  wash: "Car Wash",
-};
-
-const ALL_SERVICES: ProService[] = [
-  "mechanic",
-  "vulcanizer",
-  "towing",
-  "wash",
-];
+const SERVICE_LABELS = PRO_SERVICE_LABELS;
 
 export function AppMenu({
   open,
@@ -56,37 +44,24 @@ export function AppMenu({
   onClose: () => void;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
+  const router = useRouter(); // logout
   const {
     theme,
     location,
     toggleTheme,
     userMode,
-    setUserMode,
+    accountType,
     registeredAs,
     proServices,
-    addProService,
-    setRegisteredAs,
   } = useApp();
   const isLight = theme === "light";
-  const isPro = userMode === "professional";
+  // Mode locked to account type — pros cannot enter client home
+  const isPro =
+    accountType === "professional" ||
+    (accountType == null && userMode === "professional");
   const nav = isPro ? PRO_NAV : CLIENT_NAV;
 
   if (!open) return null;
-
-  const switchMode = (mode: "client" | "professional") => {
-    setUserMode(mode);
-    onClose();
-    if (mode === "professional") {
-      // Ensure they have at least one pro service if switching to pro
-      if (registeredAs === "client" && proServices.length === 0) {
-        setRegisteredAs("mechanic");
-      }
-      router.push("/dashboard");
-    } else {
-      router.push("/");
-    }
-  };
 
   return (
     <div className="absolute inset-0 z-[100] flex" role="dialog" aria-modal>
@@ -132,44 +107,25 @@ export function AppMenu({
           </button>
         </div>
 
-        {/* Client ↔ Professional mode switch */}
+        {/* Account type badge — no free switch (pro stays pro; motorist stays client) */}
         <div className="px-3 pb-3">
           <div
             className={cn(
-              "grid grid-cols-2 gap-1 rounded-lg p-1",
-              isLight ? "bg-slate-100" : "bg-white/10"
+              "rounded-lg px-3 py-2 text-center text-[12px] font-bold",
+              isLight ? "bg-slate-100 text-slate-700" : "bg-white/10 text-white"
             )}
-            role="group"
-            aria-label="App mode"
           >
-            <button
-              type="button"
-              onClick={() => switchMode("client")}
+            {isPro ? "Professional account" : "Motorist account"}
+            <p
               className={cn(
-                "rounded-md py-2 text-[12px] font-bold border-0 transition-colors",
-                !isPro
-                  ? "metallic-orange text-white"
-                  : isLight
-                    ? "bg-transparent text-slate-600"
-                    : "bg-transparent text-white/70"
+                "mt-0.5 text-[10px] font-medium",
+                isLight ? "text-slate-500" : "text-white/55"
               )}
             >
-              Client
-            </button>
-            <button
-              type="button"
-              onClick={() => switchMode("professional")}
-              className={cn(
-                "rounded-md py-2 text-[12px] font-bold border-0 transition-colors",
-                isPro
-                  ? "metallic-orange text-white"
-                  : isLight
-                    ? "bg-transparent text-slate-600"
-                    : "bg-transparent text-white/70"
-              )}
-            >
-              Professional
-            </button>
+              {isPro
+                ? "You can only use professional pages"
+                : "You can only use client pages"}
+            </p>
           </div>
         </div>
 
@@ -199,8 +155,8 @@ export function AppMenu({
             );
           })}
 
-          {/* Pros: add more services */}
-          {isPro && (
+          {/* One skill only — display, no add */}
+          {isPro && proServices.length > 0 && (
             <div className="mt-3 px-1">
               <p
                 className={cn(
@@ -208,45 +164,18 @@ export function AppMenu({
                   isLight ? "text-slate-400" : "text-white/45"
                 )}
               >
-                My services
+                Your skill (1 only)
               </p>
-              <div className="space-y-1">
-                {ALL_SERVICES.map((svc) => {
-                  const active = proServices.includes(svc);
-                  const isPrimary = registeredAs === svc;
-                  return (
-                    <button
-                      key={svc}
-                      type="button"
-                      disabled={active}
-                      onClick={() => addProService(svc)}
-                      className={cn(
-                        "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[12px] font-semibold border-0",
-                        active
-                          ? isLight
-                            ? "bg-orange-50 text-[#e85a12]"
-                            : "bg-[#e85a12]/15 text-[#e85a12]"
-                          : isLight
-                            ? "bg-slate-50 text-slate-600 hover:bg-slate-100"
-                            : "bg-white/5 text-white/80 hover:bg-white/10"
-                      )}
-                    >
-                      <span>
-                        {SERVICE_LABELS[svc]}
-                        {isPrimary && (
-                          <span className="ml-1 text-[10px] font-normal opacity-70">
-                            (primary)
-                          </span>
-                        )}
-                      </span>
-                      {active ? (
-                        <span className="text-[10px] font-bold">Active</span>
-                      ) : (
-                        <Plus className="h-3.5 w-3.5" />
-                      )}
-                    </button>
-                  );
-                })}
+              <div
+                className={cn(
+                  "rounded-lg px-3 py-2 text-[12px] font-semibold",
+                  isLight
+                    ? "bg-orange-50 text-[#e85a12]"
+                    : "bg-[#e85a12]/15 text-[#e85a12]"
+                )}
+              >
+                {SERVICE_LABELS[proServices[0]] ?? proServices[0]}
+                {registeredAs === proServices[0] ? " · primary" : ""}
               </div>
             </div>
           )}
