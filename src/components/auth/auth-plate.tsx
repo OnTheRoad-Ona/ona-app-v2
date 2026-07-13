@@ -3,13 +3,13 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Login / signup fill — measured from design screenshot Image #1:
- * #C8C9CD · RGB(200, 201, 205)
+ * Login / signup fill — solid mid-copper sampled from brand metal field:
+ * #8B5534 · RGB(139, 85, 52)
  *
  * Wheel gray — measured from brand tire ring:
  * #323231 · RGB(50, 50, 49)
  */
-export const AUTH_BG = "#C8C9CD";
+export const AUTH_BG = "#8B5534";
 export const WHEEL_GRAY = "#323231";
 
 export function AuthPlate({

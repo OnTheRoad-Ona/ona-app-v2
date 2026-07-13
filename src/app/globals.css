@@ -417,13 +417,13 @@ body {
 }
 
 /*
- * Login / signup page fill — measured from screenshot:
- * #C8C9CD · RGB(200, 201, 205)
+ * Login / signup page fill — solid mid-copper only:
+ * #8B5534 · RGB(139, 85, 52)
  * Wheel gray (brand tire): #323231 · RGB(50, 50, 49)
  */
 .auth-matte-orange,
 .auth-apple-stage {
-  background-color: #c8c9cd !important;
+  background-color: #8b5534 !important;
   background-image: none !important;
 }
 .auth-matte-orange-sheen {

@@ -9,9 +9,9 @@ export const BRAND_COPPER = "#c4784a";
  * Full metallic brand poster (attached asset) — photo only, no color fills.
  * 720×1280 source → 2880×5120 (4×) high-quality encode for sharp retina display.
  */
-const BRAND_SRC = "/brand/oga-mecho-hero.jpg?v=24";
-const BRAND_W = 2880;
-const BRAND_H = 5120;
+const BRAND_SRC = "/brand/oga-mecho-hero.jpg?v=27";
+const BRAND_W = 2816;
+const BRAND_H = 5888;
 
 type BrandHeroProps = {
   className?: string;
