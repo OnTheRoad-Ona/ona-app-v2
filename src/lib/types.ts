@@ -16,7 +16,7 @@ export type ServiceCategory =
   | "all";
 
 /** Services a professional can register / offer */
-export type ProService = "mechanic" | "vulcanizer" | "towing";
+export type ProService = "mechanic" | "vulcanizer" | "towing" | "wash";
 
 /**
  * What the user registered as.
@@ -27,6 +27,9 @@ export type RegisteredAs = "client" | ProService;
 
 /** Current session view: client discovery vs professional tools */
 export type UserMode = "client" | "professional";
+
+/** Account type chosen on login / sign-up */
+export type AccountType = "motorist" | "professional";
 
 export type AvailabilityStatus =
   | "available"

@@ -41,7 +41,7 @@ export function SearchBar() {
             "outline-none focus:outline-none focus:ring-0 focus:border-0",
             "[-webkit-user-select:text] [user-select:text]",
             isLight
-              ? "bg-white text-slate-900 placeholder:text-slate-400"
+              ? "rounded-xl bg-[#d8dce4]/90 text-[#1e293b] placeholder:text-[#9aa3b2] backdrop-blur-sm"
               : "bg-black text-white placeholder:text-white/50"
           )}
         />
@@ -50,7 +50,7 @@ export function SearchBar() {
           className={cn(
             "absolute right-1 flex h-7 w-7 items-center justify-center rounded-sm border-0",
             isLight
-              ? "text-slate-400 hover:bg-orange-50 hover:text-[#e85a12]"
+              ? "text-[#9aa3b2] hover:bg-[#d9dde6] hover:text-[#e85a12]"
               : "text-white/45 hover:bg-white/10 hover:text-[#e85a12]"
           )}
           aria-label="Filters"

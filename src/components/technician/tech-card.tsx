@@ -9,7 +9,7 @@ import { useApp } from "@/lib/store";
 
 /**
  * Row inside the continuous professional list banner.
- * No borders, no rings — soft gray wash only.
+ * Selection must contrast the list wash in both themes (esp. light).
  */
 export function TechCard({
   tech,
@@ -27,13 +27,15 @@ export function TechCard({
   return (
     <article
       className={cn(
-        "flex items-center gap-2.5 px-3 py-2.5 transition-colors",
+        "flex items-center gap-2.5 border-l-2 px-3 py-2.5 transition-colors",
         selected
           ? isLight
-            ? "bg-slate-200/50"
-            : "bg-white/[0.06]"
-          : "bg-transparent"
+            ? // List banner is ~#d8dce4 — use cooler/darker wash + brand edge
+              "border-brand bg-[#c5ccd8] shadow-[inset_0_0_0_1px_rgba(30,41,59,0.08)]"
+            : "border-brand bg-white/[0.1]"
+          : "border-transparent bg-transparent"
       )}
+      aria-selected={selected}
     >
       <Link
         href={`/technician/${tech.id}`}
@@ -65,7 +67,8 @@ export function TechCard({
               <span className="truncate">{tech.shortName}</span>
               {tech.verified && (
                 <BadgeCheck
-                  className="h-3.5 w-3.5 shrink-0 fill-sky-500 text-white"
+                  className="h-3.5 w-3.5 shrink-0 fill-none text-sky-500"
+                  strokeWidth={2.25}
                   aria-label="Verified"
                 />
               )}

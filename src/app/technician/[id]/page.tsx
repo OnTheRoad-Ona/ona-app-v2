@@ -69,7 +69,10 @@ export default function TechnicianPage({
             <p className="flex items-center gap-1 text-xl font-bold text-slate-900">
               {tech.name}
               {tech.verified && (
-                <BadgeCheck className="h-5 w-5 fill-sky-500 text-white" />
+                <BadgeCheck
+                  className="h-5 w-5 fill-none text-sky-500"
+                  strokeWidth={2.25}
+                />
               )}
             </p>
             <p className="text-sm text-slate-500">{tech.roleLabel}</p>

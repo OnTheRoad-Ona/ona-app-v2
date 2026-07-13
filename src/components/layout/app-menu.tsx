@@ -6,6 +6,7 @@ import {
   Briefcase,
   Clock3,
   Home,
+  LogOut,
   MessageCircle,
   Moon,
   Plus,
@@ -37,9 +38,15 @@ const SERVICE_LABELS: Record<ProService, string> = {
   mechanic: "Mechanic",
   vulcanizer: "Vulcanizer",
   towing: "Towing",
+  wash: "Car Wash",
 };
 
-const ALL_SERVICES: ProService[] = ["mechanic", "vulcanizer", "towing"];
+const ALL_SERVICES: ProService[] = [
+  "mechanic",
+  "vulcanizer",
+  "towing",
+  "wash",
+];
 
 export function AppMenu({
   open,
@@ -245,7 +252,7 @@ export function AppMenu({
           )}
         </nav>
 
-        <div className="px-3 pb-4">
+        <div className="space-y-2 px-3 pb-4">
           <button
             type="button"
             onClick={() => {
@@ -269,6 +276,22 @@ export function AppMenu({
                 Light mode
               </>
             )}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              router.push("/logout");
+            }}
+            className={cn(
+              "flex w-full items-center justify-center gap-2 rounded-lg border-0 px-3 py-2.5 text-sm font-semibold",
+              isLight
+                ? "bg-red-50 text-red-600"
+                : "bg-red-500/15 text-red-400"
+            )}
+          >
+            <LogOut className="h-4 w-4" />
+            Log out
           </button>
         </div>
       </aside>

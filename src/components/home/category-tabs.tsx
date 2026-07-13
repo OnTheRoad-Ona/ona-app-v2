@@ -35,9 +35,8 @@ const tabs: {
 ];
 
 /**
- * One continuous gray banner of service options (no cell borders).
- * Scroll gestures: inverted so trackpad/wheel feel natural —
- * content-scroll-up (deltaY > 0) expands panel; opposite collapses.
+ * Light: soft glass-gray strip (no pastel tile colors).
+ * Dark: charcoal strip.
  */
 export function CategoryTabs({
   expanded,
@@ -52,22 +51,14 @@ export function CategoryTabs({
   const isLight = theme === "light";
   const touchY = useRef<number | null>(null);
 
-  /**
-   * Natural scroll direction (fixes inverted feel):
-   * scroll content up / fingers swipe up → panel up (expand)
-   * scroll content down → panel down (collapse)
-   * On wheel: content up ≈ deltaY > 0 with natural scrolling.
-   */
   const onAxisWheel = (e: React.WheelEvent) => {
     if (!onExpand || !onCollapse) return;
-    // Scroll up (content moves up) → panel expands
     if (e.deltaY > 0 && !expanded) {
       e.preventDefault();
       e.stopPropagation();
       onExpand();
       return;
     }
-    // Scroll down → panel collapses
     if (e.deltaY < 0 && expanded) {
       e.preventDefault();
       e.stopPropagation();
@@ -82,13 +73,11 @@ export function CategoryTabs({
   const onAxisTouchMove = (e: React.TouchEvent) => {
     if (!onExpand || !onCollapse || touchY.current == null) return;
     const dy = e.touches[0].clientY - touchY.current;
-    // Finger moves up on screen → panel up
     if (!expanded && dy < -14) {
       onExpand();
       touchY.current = null;
       return;
     }
-    // Finger moves down → panel down
     if (expanded && dy > 14) {
       onCollapse();
       touchY.current = null;
@@ -106,9 +95,9 @@ export function CategoryTabs({
         role="tablist"
         aria-label="Service category"
         className={cn(
-          "grid grid-cols-5 gap-0 rounded-lg p-0.5",
+          "grid grid-cols-5 gap-0 rounded-xl p-0.5",
           isLight
-            ? "bg-gradient-to-b from-slate-100 to-slate-50"
+            ? "bg-[#d8dce4]/90 backdrop-blur-sm"
             : "bg-gradient-to-b from-[#1a1a1a] to-[#141414]"
         )}
       >
@@ -126,12 +115,15 @@ export function CategoryTabs({
                 active
                   ? "metallic-orange text-white rounded-md"
                   : isLight
-                    ? "bg-transparent text-slate-500 hover:text-slate-800"
+                    ? "bg-transparent text-black hover:text-black"
                     : "bg-transparent text-[#a0a0a0] hover:text-white"
               )}
             >
               <Icon
-                className="h-4 w-4 shrink-0"
+                className={cn(
+                  "h-4 w-4 shrink-0",
+                  !active && isLight && "text-black"
+                )}
                 strokeWidth={active ? 2.4 : 2}
               />
               <span className="truncate leading-none">{label}</span>

@@ -15,7 +15,7 @@ export function RadiusSlider() {
       <span
         className={cn(
           "shrink-0 text-[10px] font-semibold",
-          isLight ? "text-slate-500" : "text-white/65"
+          isLight ? "text-[#7b8798]" : "text-white/65"
         )}
       >
         Radius
@@ -34,7 +34,7 @@ export function RadiusSlider() {
       <span
         className={cn(
           "shrink-0 tabular-nums text-[11px] font-bold",
-          isLight ? "text-slate-900" : "text-white"
+          isLight ? "text-[#1e293b]" : "text-white"
         )}
       >
         {radiusKm} km

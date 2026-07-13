@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppProvider } from "@/lib/store";
-import { RoleBootstrap } from "@/components/home/role-bootstrap";
+import { AuthGate } from "@/components/auth/auth-gate";
 import { PhoneShell } from "@/components/layout/phone-shell";
 import "./globals.css";
 
@@ -44,8 +44,7 @@ export default function RootLayout({
       <body className="min-h-full">
         <AppProvider>
           <PhoneShell>
-            <RoleBootstrap />
-            {children}
+            <AuthGate>{children}</AuthGate>
           </PhoneShell>
         </AppProvider>
       </body>

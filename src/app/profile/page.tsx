@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   ChevronRight,
+  LogOut,
   MapPin,
   Settings,
   Shield,
@@ -26,9 +27,15 @@ const SERVICE_LABELS: Record<ProService, string> = {
   mechanic: "Mechanic",
   vulcanizer: "Vulcanizer",
   towing: "Towing",
+  wash: "Car Wash",
 };
 
-const ALL_SERVICES: ProService[] = ["mechanic", "vulcanizer", "towing"];
+const ALL_SERVICES: ProService[] = [
+  "mechanic",
+  "vulcanizer",
+  "towing",
+  "wash",
+];
 
 export default function ProfilePage() {
   const {
@@ -41,14 +48,21 @@ export default function ProfilePage() {
     proServices,
     addProService,
     setUserMode,
+    displayName: authName,
+    accountType,
   } = useApp();
   const isLight = theme === "light";
   const isProRegistered = registeredAs !== "client";
 
   const displayName =
-    registeredAs === "client"
-      ? "Vehicle Owner"
-      : `${SERVICE_LABELS[registeredAs]} Pro`;
+    authName && authName !== "Guest"
+      ? authName
+      : registeredAs === "client"
+        ? "Vehicle Owner"
+        : `${SERVICE_LABELS[registeredAs]} Pro`;
+
+  const accountLabel =
+    accountType === "professional" ? "Repair Professional" : "Motorist";
 
   return (
     <div
@@ -75,7 +89,7 @@ export default function ProfilePage() {
             >
               {displayName}
             </p>
-            <p className="text-xs text-muted">+234 800 000 0000</p>
+            <p className="text-xs text-muted">{accountLabel}</p>
             <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted">
               <MapPin className="h-3 w-3 text-brand" />
               {location.label}
@@ -240,6 +254,19 @@ export default function ProfilePage() {
             )}
           </div>
         </div>
+
+        <Link
+          href="/logout"
+          className={cn(
+            "mt-3 flex items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm font-bold",
+            isLight
+              ? "bg-red-50 text-red-600 hover:bg-red-100"
+              : "bg-red-500/15 text-red-400 hover:bg-red-500/25"
+          )}
+        >
+          <LogOut className="h-4 w-4" />
+          Log out
+        </Link>
       </div>
     </div>
   );

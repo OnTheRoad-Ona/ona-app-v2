@@ -13,7 +13,11 @@ const chips: { key: keyof AppFilters; label: string; star?: boolean }[] = [
   { key: "fastResponse", label: "Fast" },
 ];
 
-/** Single gray banner of filters — no chip borders / gaps between options */
+/**
+ * Full gray segmented control — active & inactive both gray so the bar
+ * blends as one unit (no orange). Active is a slightly lifted gray +
+ * brighter label; inactive stays softer on the same track.
+ */
 export function FilterChips() {
   const { filters, toggleFilter, theme } = useApp();
   const isLight = theme === "light";
@@ -22,28 +26,31 @@ export function FilterChips() {
     <div className="px-3 py-1">
       <div
         className={cn(
-          "flex w-full overflow-hidden rounded-lg",
+          "flex w-full gap-px overflow-hidden rounded-none",
           isLight
-            ? "bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100"
-            : "bg-gradient-to-r from-[#1a1a1a] via-[#161616] to-[#1a1a1a]"
+            ? "bg-[#d0d5de] backdrop-blur-sm"
+            : "bg-[#2a2a2a]"
         )}
         role="group"
         aria-label="Filters"
       >
         {chips.map(({ key, label, star }) => {
           const active = filters[key];
+
           return (
             <button
               key={key}
               type="button"
               onClick={() => toggleFilter(key)}
               className={cn(
-                "inline-flex min-w-0 flex-1 items-center justify-center gap-0.5 border-0 px-1 py-1.5 text-[10px] font-semibold transition-colors",
+                "inline-flex min-w-0 flex-1 items-center justify-center gap-0.5 rounded-none border-0 px-1 py-1.5 text-[10px] font-semibold transition-colors",
                 active
-                  ? "metallic-orange text-white"
+                  ? isLight
+                    ? "bg-[#b8c0cc] text-[#1e293b]"
+                    : "bg-[#3d3d3d] text-white"
                   : isLight
-                    ? "bg-transparent text-slate-600 hover:text-slate-900"
-                    : "bg-transparent text-[#b0b0b0] hover:text-white"
+                    ? "bg-transparent text-[#6b7585] hover:bg-[#c4cad4]/55 hover:text-[#1e293b]"
+                    : "bg-transparent text-[#c4c4c4] hover:bg-white/[0.06] hover:text-white"
               )}
               aria-pressed={active}
             >
@@ -52,7 +59,9 @@ export function FilterChips() {
                   className={cn(
                     "h-2.5 w-2.5 shrink-0",
                     active
-                      ? "fill-white text-white"
+                      ? isLight
+                        ? "fill-[#1e293b] text-[#1e293b]"
+                        : "fill-white text-white"
                       : "fill-amber-400 text-amber-400"
                   )}
                 />

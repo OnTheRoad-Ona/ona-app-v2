@@ -106,7 +106,7 @@ export function HomePanel({
     <div
       className={cn(
         "relative z-30 flex min-h-0 flex-col transition-all duration-300 ease-out",
-        isLight ? "bg-white" : "bg-black",
+        isLight ? "bg-[#e3e6ec]" : "bg-black",
         className
       )}
     >
@@ -144,7 +144,7 @@ export function HomePanel({
           <span
             className={cn(
               "h-1 w-10 rounded-full",
-              isLight ? "bg-slate-300" : "bg-white/35"
+              isLight ? "bg-[#c5cbd6]" : "bg-white/35"
             )}
           />
         </div>
@@ -180,7 +180,7 @@ export function HomePanel({
           className={cn(
             "min-h-full overflow-hidden rounded-lg",
             isLight
-              ? "bg-gradient-to-b from-slate-100 via-slate-50 to-slate-100"
+              ? "bg-[#d8dce4]/90 backdrop-blur-sm"
               : "bg-gradient-to-b from-[#1a1a1a] via-[#151515] to-[#121212]"
           )}
         >

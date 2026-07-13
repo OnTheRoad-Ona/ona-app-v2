@@ -118,7 +118,13 @@ const MAP_STYLES_LIGHT: google.maps.MapTypeStyle[] = [
 
 function markerIconUrl(type: Technician["serviceType"], selected: boolean) {
   const bg =
-    type === "vulcanizer" ? "#14b8a6" : type === "towing" ? "#0d9488" : "#ff5a00";
+    type === "vulcanizer"
+      ? "#14b8a6"
+      : type === "towing"
+        ? "#0d9488"
+        : type === "wash"
+          ? "#0ea5e9"
+          : "#ff5a00";
   const size = selected ? 40 : 36;
   const svg = encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 36 36">

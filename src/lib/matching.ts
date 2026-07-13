@@ -67,9 +67,17 @@ function matchesCategory(tech: Technician, category: ServiceCategory): boolean {
   if (
     category === "mechanic" ||
     category === "vulcanizer" ||
-    category === "towing"
+    category === "towing" ||
+    category === "wash"
   ) {
-    return tech.serviceType === category;
+    if (tech.serviceType === category) return true;
+    // Wash also matches car-wash wording on other cards
+    if (category === "wash") {
+      const hay =
+        `${tech.roleLabel} ${tech.description} ${tech.specialties.join(" ")}`.toLowerCase();
+      return (CATEGORY_KEYWORDS.wash ?? []).some((k) => hay.includes(k));
+    }
+    return false;
   }
   const keys = CATEGORY_KEYWORDS[category] ?? [];
   const hay = `${tech.roleLabel} ${tech.description} ${tech.specialties.join(" ")}`.toLowerCase();

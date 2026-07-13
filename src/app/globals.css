@@ -1,49 +1,52 @@
 @import "tailwindcss";
 
-/* ─── Light (default) ─── */
+/*
+ * Light (default) — soft cool glass-gray like the reference sheet
+ * (no pastel service colors; dark mode unchanged)
+ */
 :root,
 [data-theme="light"] {
   --stage: #000000;
-  --background: #ffffff;
-  --surface: #ffffff;
-  --surface-2: #f8fafc;
-  --surface-3: #f1f5f9;
-  --elevated: #ffffff;
-  --foreground: #0f172a;
-  --muted: #64748b;
-  --muted-2: #94a3b8;
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
-  --app-bg: #ffffff;
+  /* Match reference: cool silver-gray panel, not pure white */
+  --background: #e3e6ec;
+  --surface: #e3e6ec;
+  --surface-2: #d8dce4;
+  --surface-3: #cdd2db;
+  --elevated: #eceef3;
+  --foreground: #1e293b;
+  --muted: #7b8798;
+  --muted-2: #9aa3b2;
+  --border: #cdd2db;
+  --border-strong: #b8bfcb;
+  --app-bg: #e3e6ec;
 
   --brand: #e85a12;
   --brand-bright: #f0651a;
   --brand-mid: #d14f0e;
   --brand-deep: #c2480c;
   --brand-dark: #a83d0a;
-  --brand-soft: #fff4ed;
+  --brand-soft: #fff0e8;
   --brand-solid: #e85a12;
 
-  --accent-blue: #2563eb;
-  --navy: #0f172a;
-  --navy-mid: #1e293b;
-  --navy-soft: #334155;
+  --accent-blue: #6ba3e0;
+  --navy: #1e293b;
+  --navy-mid: #334155;
+  --navy-soft: #475569;
 
-  --map-bg: #e8eef6;
+  --map-bg: #1a3d2e;
   --success: #10b981;
   --warning: #f59e0b;
   --danger: #ef4444;
-  --info: #0ea5e9;
+  --info: #6ba3e0;
   --teal: #14b8a6;
 
-  /* Defaults so light mode never inherits dark metal */
   --metal-deep: #2a76b5;
   --metal-base: #3b8fd0;
   --metal-mid: #4596d4;
   --metal-lift: #52a3de;
   --metal-face: #4294d2;
   --metal-inset: rgba(255, 255, 255, 0.08);
-  --metal-shade: rgba(0, 0, 0, 0.12);
+  --metal-shade: rgba(0, 0, 0, 0.08);
 }
 
 /*
@@ -206,6 +209,23 @@ body {
   color: #e85a12;
 }
 
+/**
+ * Selected filter segment — solid light metallic orange (no gradient fill).
+ * Demarcation uses tiny gap in the component, not a second color band.
+ */
+.metallic-orange-light {
+  background-color: #f07838;
+  background-image: none;
+  color: #fff;
+  border: none;
+  border-radius: 0 !important;
+  box-shadow: none;
+}
+.metallic-orange-light:hover {
+  background-color: #f08545;
+  background-image: none;
+}
+
 /* Search: no border at rest; hairline orange ring only on focus */
 .search-metal-orange {
   border: none;
@@ -221,10 +241,16 @@ body {
 }
 
 .card-surface {
-  background: var(--surface);
+  background: var(--elevated);
   border: none;
   box-shadow: none;
   outline: none;
+}
+
+[data-theme="light"] .card-surface {
+  background: rgba(216, 220, 228, 0.92);
+  border-radius: 0.75rem;
+  backdrop-filter: blur(8px);
 }
 
 [data-theme="dark"] .card-surface {
@@ -319,4 +345,92 @@ body {
 }
 .page-back:hover {
   background: var(--metal-inset, var(--surface-3));
+}
+
+/* ——— Apple-style dynamic motion (auth brand) ——— */
+/* No blur filters on the hero — blur made the logo look dull/soft */
+
+/* Gentle enter — no big scale (that made the logo look oversized) */
+@keyframes om-apple-enter-sharp {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes om-apple-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes om-apple-panel-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(24px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Legacy class kept for any remaining refs */
+.om-apple-motion,
+.om-apple-motion-sharp {
+  animation:
+    om-apple-enter-sharp 0.95s cubic-bezier(0.16, 1, 0.3, 1) both,
+    om-apple-float 6.5s ease-in-out 0.95s infinite;
+  will-change: transform, opacity;
+  transform-origin: center center;
+}
+
+/* Opacity-only enter (kept for optional use) */
+@keyframes om-brand-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.om-brand-fade-in {
+  animation: om-brand-fade-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Crisp brand art — native pixels, no soft filters */
+.om-brand-img {
+  image-rendering: high-quality;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  filter: none;
+}
+
+.om-apple-motion-delay {
+  animation: om-apple-panel-enter 0.85s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
+}
+
+.om-apple-motion-panel {
+  animation: om-apple-panel-enter 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.35s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .om-apple-motion,
+  .om-apple-motion-sharp,
+  .om-apple-motion-delay,
+  .om-apple-motion-panel,
+  .om-brand-fade-in {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }

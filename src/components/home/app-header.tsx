@@ -24,7 +24,7 @@ export function AppHeader() {
         <div className="flex items-center justify-between gap-3 pl-2">
           <p className="text-[17px] font-black tracking-tight whitespace-nowrap leading-none">
             <span className="text-[#e85a12]">Oga</span>
-            <span className={isLight ? "text-slate-900" : "text-white"}>
+            <span className={isLight ? "text-[#1e293b]" : "text-white"}>
               Mecho
             </span>
           </p>
@@ -34,9 +34,9 @@ export function AppHeader() {
             type="button"
             onClick={() => setMenuOpen(true)}
             className={cn(
-              "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border-0",
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border-0",
               isLight
-                ? "bg-slate-100 text-slate-700"
+                ? "bg-[#d8dce4] text-[#1e293b]"
                 : "bg-white/10 text-white"
             )}
             aria-label="Open menu"

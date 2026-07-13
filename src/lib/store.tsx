@@ -18,6 +18,7 @@ import {
 } from "@/lib/data/technicians";
 import { filterAndRankTechnicians } from "@/lib/matching";
 import type {
+  AccountType,
   AppFilters,
   Booking,
   MessageThread,
@@ -35,8 +36,16 @@ export type AppTheme = "light" | "dark";
 const ROLE_KEY = "oga-mecho-role";
 const SERVICES_KEY = "oga-mecho-pro-services";
 const MODE_KEY = "oga-mecho-mode";
+const AUTH_KEY = "oga-mecho-auth";
+const AUTH_NAME_KEY = "oga-mecho-auth-name";
+const AUTH_ACCOUNT_KEY = "oga-mecho-account-type";
 
-const ALL_PRO_SERVICES: ProService[] = ["mechanic", "vulcanizer", "towing"];
+const ALL_PRO_SERVICES: ProService[] = [
+  "mechanic",
+  "vulcanizer",
+  "towing",
+  "wash",
+];
 
 function isProService(v: string): v is ProService {
   return ALL_PRO_SERVICES.includes(v as ProService);
@@ -52,6 +61,11 @@ interface AppState {
   setTheme: (t: AppTheme) => void;
   /** Ready after localStorage role hydrate */
   roleReady: boolean;
+  /** Auth + role hydrate finished */
+  authReady: boolean;
+  isAuthenticated: boolean;
+  displayName: string;
+  accountType: AccountType | null;
   /** What user registered as — drives first open screen */
   registeredAs: RegisteredAs;
   /** Current Client vs Professional view */
@@ -62,6 +76,13 @@ interface AppState {
   setUserMode: (mode: UserMode) => void;
   addProService: (service: ProService) => void;
   removeProService: (service: ProService) => void;
+  /** Sign up / log in as Motorist or Repair Professional */
+  login: (opts: {
+    accountType: AccountType;
+    name?: string;
+    proService?: ProService;
+  }) => void;
+  logout: () => void;
   location: UserLocation;
   radiusKm: number;
   category: ServiceCategory;
@@ -110,6 +131,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Role / mode — registration drives first open
   const [roleReady, setRoleReady] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [displayName, setDisplayName] = useState("Guest");
+  const [accountType, setAccountType] = useState<AccountType | null>(null);
   const [registeredAs, setRegisteredAsState] = useState<RegisteredAs>("client");
   const [userMode, setUserModeState] = useState<UserMode>("client");
   const [proServices, setProServicesState] = useState<ProService[]>([]);
@@ -141,7 +166,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setThemeReady(true);
   }, []);
 
-  // Hydrate registration + mode + pro services
+  // Hydrate registration + mode + pro services + auth
   useEffect(() => {
     try {
       const rawRole = localStorage.getItem(ROLE_KEY);
@@ -173,12 +198,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } else {
         setUserModeState(role === "client" ? "client" : "professional");
       }
+
+      const authed = localStorage.getItem(AUTH_KEY) === "1";
+      setIsAuthenticated(authed);
+      const name = localStorage.getItem(AUTH_NAME_KEY);
+      if (name) setDisplayName(name);
+      const rawAccount = localStorage.getItem(AUTH_ACCOUNT_KEY);
+      if (rawAccount === "motorist" || rawAccount === "professional") {
+        setAccountType(rawAccount);
+      } else if (authed) {
+        setAccountType(role === "client" ? "motorist" : "professional");
+      }
     } catch {
       setRegisteredAsState("client");
       setUserModeState("client");
       setProServicesState([]);
+      setIsAuthenticated(false);
     }
     setRoleReady(true);
+    setAuthReady(true);
   }, []);
 
   // Keep html[data-theme] in sync immediately so matte-metal CSS applies
@@ -263,6 +301,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUserModeState(mode);
     try {
       localStorage.setItem(MODE_KEY, mode);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const login = useCallback(
+    (opts: {
+      accountType: AccountType;
+      name?: string;
+      proService?: ProService;
+    }) => {
+      const name =
+        opts.name?.trim() ||
+        (opts.accountType === "motorist" ? "Motorist" : "Repair Professional");
+      setDisplayName(name);
+      setAccountType(opts.accountType);
+      setIsAuthenticated(true);
+
+      try {
+        localStorage.setItem(AUTH_KEY, "1");
+        localStorage.setItem(AUTH_NAME_KEY, name);
+        localStorage.setItem(AUTH_ACCOUNT_KEY, opts.accountType);
+      } catch {
+        /* ignore */
+      }
+
+      if (opts.accountType === "motorist") {
+        setRegisteredAs("client");
+      } else {
+        const svc: ProService =
+          opts.proService && isProService(opts.proService)
+            ? opts.proService
+            : "mechanic";
+        setRegisteredAs(svc);
+      }
+    },
+    [setRegisteredAs]
+  );
+
+  const logout = useCallback(() => {
+    setIsAuthenticated(false);
+    setAccountType(null);
+    setDisplayName("Guest");
+    try {
+      localStorage.removeItem(AUTH_KEY);
+      localStorage.removeItem(AUTH_NAME_KEY);
+      localStorage.removeItem(AUTH_ACCOUNT_KEY);
     } catch {
       /* ignore */
     }
@@ -388,6 +473,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       toggleTheme,
       setTheme,
       roleReady,
+      authReady,
+      isAuthenticated,
+      displayName,
+      accountType,
       registeredAs,
       userMode,
       proServices,
@@ -395,6 +484,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setUserMode,
       addProService,
       removeProService,
+      login,
+      logout,
       location,
       radiusKm,
       category,
@@ -423,6 +514,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       toggleTheme,
       setTheme,
       roleReady,
+      authReady,
+      isAuthenticated,
+      displayName,
+      accountType,
       registeredAs,
       userMode,
       proServices,
@@ -430,6 +525,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setUserMode,
       addProService,
       removeProService,
+      login,
+      logout,
       location,
       radiusKm,
       category,
