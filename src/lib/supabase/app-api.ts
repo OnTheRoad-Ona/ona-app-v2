@@ -444,52 +444,70 @@ export async function backendFetchConversations(
     .limit(40);
   if (error || !convs?.length) return [];
 
-  const threads: MessageThread[] = [];
-  for (const c of convs as ConversationRow[]) {
-    const { data: msgs } = await sb
-      .from("messages")
-      .select("*")
-      .eq("conversation_id", c.id)
-      .order("created_at", { ascending: true })
-      .limit(100);
+  const convList = convs as ConversationRow[];
+  const convIds = convList.map((c) => c.id);
+  const peopleIds = [
+    ...new Set(convList.flatMap((c) => [c.motorist_id, c.repair_pro_id])),
+  ];
+  const requestIds = convList
+    .map((c) => c.request_id)
+    .filter(Boolean) as string[];
 
-    const { data: job } = c.request_id
-      ? await sb
-          .from("service_requests")
-          .select("service_type")
-          .eq("id", c.request_id)
-          .maybeSingle()
-      : { data: null };
+  // Batch-fetch related rows (avoids N+1 lag)
+  const [{ data: allMsgs }, { data: names }, { data: jobs }] =
+    await Promise.all([
+      sb
+        .from("messages")
+        .select("*")
+        .in("conversation_id", convIds)
+        .order("created_at", { ascending: true })
+        .limit(500),
+      sb
+        .from("profiles")
+        .select("id, full_name, avatar_url")
+        .in("id", peopleIds),
+      requestIds.length
+        ? sb
+            .from("service_requests")
+            .select("id, service_type")
+            .in("id", requestIds)
+        : Promise.resolve({ data: [] as { id: string; service_type: string }[] }),
+    ]);
 
-    const { data: names } = await sb
-      .from("profiles")
-      .select("id, full_name, avatar_url")
-      .in("id", [c.motorist_id, c.repair_pro_id]);
-
-    const byId = new Map(
-      (
-        names as
-          | { id: string; full_name: string; avatar_url: string | null }[]
-          | null
-      )?.map((n) => [n.id, n]) ?? []
-    );
-
-    threads.push(
-      mapConversationToThread(
-        c,
-        (msgs as MessageRow[]) || [],
-        {
-          motoristName: byId.get(c.motorist_id)?.full_name || "Motorist",
-          technicianName: byId.get(c.repair_pro_id)?.full_name || "Repair Pro",
-          serviceType: ((job as { service_type?: ProService } | null)
-            ?.service_type || "mechanic") as ProService,
-          photo: byId.get(c.repair_pro_id)?.avatar_url || "",
-        },
-        userId
-      )
-    );
+  const byId = new Map(
+    (
+      names as
+        | { id: string; full_name: string; avatar_url: string | null }[]
+        | null
+    )?.map((n) => [n.id, n]) ?? []
+  );
+  const jobById = new Map(
+    (
+      jobs as { id: string; service_type: string }[] | null
+    )?.map((j) => [j.id, j.service_type]) ?? []
+  );
+  const msgsByConv = new Map<string, MessageRow[]>();
+  for (const m of (allMsgs as MessageRow[]) || []) {
+    const arr = msgsByConv.get(m.conversation_id) || [];
+    arr.push(m);
+    msgsByConv.set(m.conversation_id, arr);
   }
-  return threads;
+
+  return convList.map((c) =>
+    mapConversationToThread(
+      c,
+      msgsByConv.get(c.id) || [],
+      {
+        motoristName: byId.get(c.motorist_id)?.full_name || "Motorist",
+        technicianName: byId.get(c.repair_pro_id)?.full_name || "Repair Pro",
+        serviceType: (c.request_id
+          ? (jobById.get(c.request_id) as ProService | undefined)
+          : undefined) || "mechanic",
+        photo: byId.get(c.repair_pro_id)?.avatar_url || "",
+      },
+      userId
+    )
+  );
 }
 
 export async function backendSendMessage(input: {

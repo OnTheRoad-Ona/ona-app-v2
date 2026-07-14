@@ -458,10 +458,20 @@ function GoogleServiceMap({
     });
   }, [map, mapStyles, mapBg]);
 
-  // Follow live GPS center in realtime
+  // Follow GPS only when the user moves ~25m+ (avoids map lag/jitter)
   useEffect(() => {
     if (!map) return;
-    map.panTo(center);
+    const cur = map.getCenter();
+    if (!cur) {
+      map.panTo(center);
+      return;
+    }
+    const dLat = Math.abs(cur.lat() - center.lat);
+    const dLng = Math.abs(cur.lng() - center.lng);
+    // ~0.00025 deg ≈ 25–30 m near equator
+    if (dLat > 0.00025 || dLng > 0.00025) {
+      map.panTo(center);
+    }
   }, [map, center.lat, center.lng, center]);
 
   // Camera stays ~1 km street view; list radius can still be up to 10 km

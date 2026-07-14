@@ -19,7 +19,6 @@ export function HomeScreen() {
     visibleTechnicians,
     setSelectedTechId,
     selectedTechId,
-    retryLocation,
     theme,
   } = useApp();
   const { config } = useAppConfig();
@@ -49,10 +48,7 @@ export function HomeScreen() {
     );
   }
 
-  useEffect(() => {
-    retryLocation();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // GPS is managed in store (10 min cadence). Avoid forced refresh on every home open.
 
   useEffect(() => {
     if (

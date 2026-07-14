@@ -420,42 +420,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setIsAuthenticated(false);
     }
 
-    // Prefer live Supabase session when backend is configured
-    void (async () => {
-      if (!isAppBackendOnline()) {
-        if (!cancelled) {
-          setRoleReady(true);
-          setAuthReady(true);
-        }
-        return;
-      }
-      try {
-        const uid = await backendGetSessionUserId();
-        if (cancelled) return;
-        if (uid) {
+    // Unblock UI immediately (local vault), then upgrade from Supabase if session exists
+    setRoleReady(true);
+    setAuthReady(true);
+
+    if (isAppBackendOnline()) {
+      void (async () => {
+        try {
+          const uid = await backendGetSessionUserId();
+          if (cancelled || !uid) return;
           const profile = await backendLoadUserProfile(uid);
-          if (cancelled) return;
-          if (profile) {
-            setBackendUserId(uid);
-            applySession(profile);
-            setHasMotoristAccount(
-              profile.accountType === "motorist" ||
-                Boolean(readProfilesVault().motorist)
-            );
-            setHasProAccount(
-              profile.accountType === "professional" ||
-                Boolean(readProfilesVault().professional)
-            );
-          }
+          if (cancelled || !profile) return;
+          setBackendUserId(uid);
+          applySession(profile);
+          setHasMotoristAccount(
+            profile.accountType === "motorist" ||
+              Boolean(readProfilesVault().motorist)
+          );
+          setHasProAccount(
+            profile.accountType === "professional" ||
+              Boolean(readProfilesVault().professional)
+          );
+        } catch {
+          /* keep local hydrate */
         }
-      } catch {
-        /* keep local hydrate */
-      }
-      if (!cancelled) {
-        setRoleReady(true);
-        setAuthReady(true);
-      }
-    })();
+      })();
+    }
 
     return () => {
       cancelled = true;
@@ -1336,13 +1326,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ]
   );
 
-  // ── Supabase: load pros + jobs + chats + realtime ─────────────────
+  // ── Supabase: load pros + jobs + chats + realtime (throttled) ─────
+  const userLat = location.coordinates.lat;
+  const userLng = location.coordinates.lng;
+
   const refreshCloudPros = useCallback(() => {
     if (!isAppBackendOnline()) return;
-    void backendFetchPros(location.coordinates).then((list) => {
+    void backendFetchPros({ lat: userLat, lng: userLng }).then((list) => {
       if (list.length > 0) setCloudTechs(list);
     });
-  }, [location.coordinates]);
+  }, [userLat, userLng]);
 
   const refreshCloudJobs = useCallback(() => {
     if (!isAppBackendOnline() || !backendUserId || !accountType) return;
@@ -1360,6 +1353,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, [backendUserId, accountType]);
 
+  // Initial + rare location-driven pros refresh (coords change slowly)
   useEffect(() => {
     refreshCloudPros();
   }, [refreshCloudPros]);
@@ -1369,22 +1363,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     refreshCloudChats();
   }, [refreshCloudJobs, refreshCloudChats]);
 
+  // Debounce Realtime storms (many row events → one refresh)
   useEffect(() => {
     if (!isAppBackendOnline()) return;
-    const unsubPros = backendSubscribePros(() => refreshCloudPros());
+    let prosTimer: ReturnType<typeof setTimeout> | null = null;
+    let jobsTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const unsubPros = backendSubscribePros(() => {
+      if (prosTimer) clearTimeout(prosTimer);
+      prosTimer = setTimeout(() => refreshCloudPros(), 800);
+    });
     const unsubJobs = backendUserId
       ? backendSubscribeJobs(backendUserId, () => {
-          refreshCloudJobs();
-          refreshCloudChats();
+          if (jobsTimer) clearTimeout(jobsTimer);
+          jobsTimer = setTimeout(() => {
+            refreshCloudJobs();
+            refreshCloudChats();
+          }, 800);
         })
       : null;
     return () => {
+      if (prosTimer) clearTimeout(prosTimer);
+      if (jobsTimer) clearTimeout(jobsTimer);
       unsubPros?.();
       unsubJobs?.();
     };
   }, [backendUserId, refreshCloudPros, refreshCloudJobs, refreshCloudChats]);
 
-  // Push pro live location when professional is signed in
+  // Push pro presence at most every 60s (not on every coordinate tick)
   useEffect(() => {
     if (
       !isAppBackendOnline() ||
@@ -1393,8 +1399,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ) {
       return;
     }
-    void backendSetProOnline(backendUserId, true, location.coordinates);
-  }, [backendUserId, accountType, location.coordinates]);
+    void backendSetProOnline(backendUserId, true, {
+      lat: userLat,
+      lng: userLng,
+    });
+    const id = window.setInterval(() => {
+      void backendSetProOnline(backendUserId, true, {
+        lat: userLat,
+        lng: userLng,
+      });
+    }, 60_000);
+    return () => window.clearInterval(id);
+  }, [backendUserId, accountType, userLat, userLng]);
 
   /** GPS label/coords refresh at most every 10 minutes (stable, no blink). */
   const LOCATION_REFRESH_MS = 10 * 60 * 1000;
