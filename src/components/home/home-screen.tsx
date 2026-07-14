@@ -8,7 +8,6 @@ import { HomePanel } from "@/components/home/home-panel";
 import { SearchBar } from "@/components/home/search-bar";
 import { ServiceMap } from "@/components/map/service-map";
 import { useAppConfig } from "@/components/app-config-provider";
-import { Button } from "@/components/ui/button";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -123,21 +122,35 @@ export function HomeScreen() {
         />
       </div>
 
-      {/* Original button size; moderate side + bottom inset */}
+      {/* CTA uses same gray family as the toggle chrome so it sits in the UI, not a new color block */}
       <div
         className={cn(
           "z-40 shrink-0 px-3 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))]",
           isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
-        <Button
-          size="default"
-          className="h-11 w-full rounded-md text-[14px] font-bold"
+        <button
+          type="button"
           onClick={handleRapidRequest}
+          className={cn(
+            "inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 text-[14px] font-bold transition-colors active:scale-[0.98]",
+            isLight
+              ? // One step off sheet gray #c8c9cd / list #d8dce4
+                "bg-[#b4b7bf] text-slate-900 hover:bg-[#aeb1b9] shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]"
+              : // One step off pure black chrome
+                "bg-[#1a1a1a] text-white hover:bg-[#222222] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] ring-1 ring-white/10"
+          )}
         >
-          <Zap className="h-4 w-4 fill-white" />
+          <Zap
+            className={cn(
+              "h-4 w-4",
+              isLight
+                ? "fill-slate-900 text-slate-900"
+                : "fill-white text-white"
+            )}
+          />
           Request Help Now
-        </Button>
+        </button>
       </div>
     </div>
   );

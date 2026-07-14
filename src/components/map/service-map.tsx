@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import {
-  Circle,
   GoogleMap,
   Marker,
   OverlayView,
@@ -86,50 +85,50 @@ const MAP_STYLES_LIGHT: google.maps.MapTypeStyle[] = [
   { featureType: "transit", stylers: [{ visibility: "off" }] },
 ];
 
-/** Dark toggle map: brownish red mixed with black */
+/** Dark toggle map only: deep red mixed with black */
 const MAP_STYLES_DARK: google.maps.MapTypeStyle[] = [
-  { elementType: "geometry", stylers: [{ color: "#2a1410" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#120a08" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#e0b89a" }] },
+  { elementType: "geometry", stylers: [{ color: "#1a0808" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#0a0000" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#e8b4b0" }] },
   {
     featureType: "administrative",
     elementType: "geometry.stroke",
-    stylers: [{ color: "#4a2a20" }],
+    stylers: [{ color: "#3d1515" }],
   },
   {
     featureType: "road",
     elementType: "geometry",
-    stylers: [{ color: "#3a2018" }],
+    stylers: [{ color: "#2a1010" }],
   },
   {
     featureType: "road",
     elementType: "geometry.stroke",
-    stylers: [{ color: "#1a100c" }],
+    stylers: [{ color: "#120606" }],
   },
   {
     featureType: "road.highway",
     elementType: "geometry",
-    stylers: [{ color: "#5c2a1e" }],
+    stylers: [{ color: "#4a1414" }],
   },
   {
     featureType: "water",
     elementType: "geometry",
-    stylers: [{ color: "#0a0605" }],
+    stylers: [{ color: "#050000" }],
   },
   {
     featureType: "poi",
     elementType: "geometry",
-    stylers: [{ color: "#241610" }],
+    stylers: [{ color: "#1f0a0a" }],
   },
   {
     featureType: "landscape",
     elementType: "geometry",
-    stylers: [{ color: "#1a100c" }],
+    stylers: [{ color: "#140606" }],
   },
   {
     featureType: "landscape.natural",
     elementType: "geometry",
-    stylers: [{ color: "#22140f" }],
+    stylers: [{ color: "#1a0808" }],
   },
   { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
   { featureType: "transit", stylers: [{ visibility: "off" }] },
@@ -183,10 +182,6 @@ function userIconUrl() {
   return `data:image/svg+xml;charset=UTF-8,${svg}`;
 }
 
-function kmToMeters(km: number) {
-  return km * 1000;
-}
-
 function MapControls({
   onFit,
   onRecenter,
@@ -197,7 +192,7 @@ function MapControls({
   onZoom: () => void;
 }) {
   return (
-    <div className="absolute right-3 top-2 z-30 flex flex-col gap-2">
+    <div className="absolute right-2.5 top-12 z-30 flex flex-col gap-2">
       {[
         { label: "Fit all", icon: Layers, action: onFit },
         { label: "Recenter", icon: LocateFixed, action: onRecenter },
@@ -208,7 +203,7 @@ function MapControls({
           key={label}
           type="button"
           onClick={action}
-          className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-700 shadow-sm hover:bg-slate-50 border-0"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border-0 bg-white/95 text-slate-700 shadow-[0_2px_10px_rgba(0,0,0,0.18)] hover:bg-white"
           aria-label={label}
         >
           <Icon className={cn("h-4 w-4", label === "Services" && "text-brand")} />
@@ -218,26 +213,36 @@ function MapControls({
   );
 }
 
-/** Uber Eats–style nearby count on the map (not miles — radius is in the sheet) */
+/**
+ * inDrive-style nearby chip: top-center of the map.
+ * Live pulse + count; soft glass pill over the tiles.
+ */
 function NearbyCountBadge({ count }: { count: number }) {
   const { theme } = useApp();
   const isLight = theme === "light";
 
   return (
     <div
-      className={cn(
-        "absolute bottom-3 left-1/2 z-30 -translate-x-1/2 inline-flex items-center gap-2 rounded-full px-3.5 py-2 shadow-lg",
-        isLight ? "bg-white text-slate-900" : "bg-black/95 text-white"
-      )}
+      className="pointer-events-none absolute inset-x-0 top-2.5 z-40 flex justify-center px-12"
       aria-label={`${count} nearby technicians`}
     >
-      <span className="relative flex h-2 w-2">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-      </span>
-      <span className="text-[12px] font-bold tabular-nums tracking-tight">
-        {count} nearby
-      </span>
+      <div
+        className={cn(
+          "inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 shadow-[0_4px_16px_rgba(0,0,0,0.22)] backdrop-blur-md",
+          isLight
+            ? "bg-white/95 text-slate-900 ring-1 ring-black/5"
+            : "bg-black/80 text-white ring-1 ring-white/10"
+        )}
+      >
+        <span className="relative flex h-2 w-2 shrink-0">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+        </span>
+        <span className="text-[12px] font-semibold tabular-nums tracking-tight">
+          <span className="font-bold">{count}</span>
+          <span className="font-medium opacity-90"> nearby</span>
+        </span>
+      </div>
     </div>
   );
 }
@@ -253,7 +258,7 @@ function MockupMap({
   technicians: Technician[];
   onSelect?: (id: string) => void;
 }) {
-  const { location, radiusKm, selectedTechId, theme } = useApp();
+  const { location, selectedTechId, theme } = useApp();
   const isLight = theme === "light";
 
   const positions = [
@@ -264,22 +269,19 @@ function MockupMap({
     { top: "50%", left: "78%" },
   ];
 
-  // Light map = green/black · Dark map = brownish red/black
-  const baseBg = isLight ? "bg-[#0a1610]" : "bg-[#120a08]";
+  // Light map = green/black · Dark map = deep red/black
+  const baseBg = isLight ? "bg-[#0a1610]" : "bg-[#0a0000]";
   const gridColor = isLight
     ? "rgba(80,140,100,0.28)"
-    : "rgba(160,90,60,0.35)";
-  const landCenter = isLight ? "#0f1f16" : "#2a1410";
-  const landEdge = isLight ? "#060d0a" : "#0a0605";
-  const parkBlob = isLight ? "bg-[#14281c]/70" : "bg-[#3a2018]/55";
-  const roadColor = isLight ? "#1e4030" : "#5c2a1e";
-  const roadSoft = isLight ? "#14281c" : "#3a2018";
-  const radiusStroke = isLight
-    ? "border-emerald-400/45 bg-emerald-400/10"
-    : "border-[#e89060]/50 bg-[#e85a12]/12";
-  const routeStroke = isLight ? "#34d399" : "#f0a070";
-  const youRing = isLight ? "bg-emerald-400/30" : "bg-orange-400/30";
-  const youDot = isLight ? "bg-emerald-600" : "bg-[#c45c2a]";
+    : "rgba(140,40,40,0.35)";
+  const landCenter = isLight ? "#0f1f16" : "#1a0808";
+  const landEdge = isLight ? "#060d0a" : "#050000";
+  const parkBlob = isLight ? "bg-[#14281c]/70" : "bg-[#2a1010]/55";
+  const roadColor = isLight ? "#1e4030" : "#4a1414";
+  const roadSoft = isLight ? "#14281c" : "#2a1010";
+  const routeStroke = isLight ? "#34d399" : "#e07070";
+  const youRing = isLight ? "bg-emerald-400/30" : "bg-red-400/30";
+  const youDot = isLight ? "bg-emerald-600" : "bg-[#a82020]";
 
   return (
     <div className={cn("relative h-full w-full overflow-hidden", baseBg)}>
@@ -314,17 +316,6 @@ function MockupMap({
             linear-gradient(25deg, transparent 38%, ${roadSoft} 38.6%, ${roadSoft} 41.2%, transparent 41.8%),
             linear-gradient(-30deg, transparent 52%, ${roadSoft} 52.5%, ${roadSoft} 55%, transparent 55.5%)
           `,
-        }}
-      />
-
-      <div
-        className={cn(
-          "pointer-events-none absolute left-1/2 top-[48%] z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border-2",
-          radiusStroke
-        )}
-        style={{
-          width: `${Math.min(78, 34 + radiusKm * 0.35)}%`,
-          aspectRatio: "1",
         }}
       />
 
@@ -473,12 +464,11 @@ function GoogleServiceMap({
   onSelect?: (id: string) => void;
   onFatalError?: () => void;
 }) {
-  const { location, radiusKm, selectedTechId, theme } = useApp();
+  const { location, selectedTechId, theme } = useApp();
   const isLight = theme === "light";
   const mapStyles = isLight ? MAP_STYLES_LIGHT : MAP_STYLES_DARK;
-  const mapBg = isLight ? "#0a1610" : "#120a08";
-  const radiusColor = isLight ? "#34d399" : "#e8a070";
-  const routeColor = isLight ? "#10b981" : "#e85a12";
+  const mapBg = isLight ? "#0a1610" : "#0a0000";
+  const routeColor = isLight ? "#10b981" : "#c04040";
   const [map, setMap] = useState<google.maps.Map | null>(null);
 
   const center = useMemo(
@@ -561,17 +551,7 @@ function GoogleServiceMap({
 
   return (
     <div className="relative h-full w-full">
-      {/* Live status: pulsing green dot only */}
-      <div
-        className="pointer-events-none absolute left-2.5 top-2.5 z-30"
-        aria-label="Live map"
-        title="Live"
-      >
-        <span className="relative flex h-2.5 w-2.5">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white/90 shadow" />
-        </span>
-      </div>
+      <NearbyCountBadge count={technicians.length} />
       <GoogleMap
         mapContainerStyle={MAP_ID_CONTAINER}
         center={center}
@@ -590,18 +570,6 @@ function GoogleServiceMap({
           fullscreenControl: false,
         }}
       >
-        <Circle
-          center={center}
-          radius={kmToMeters(Math.max(radiusKm, 0.5))}
-          options={{
-            fillColor: radiusColor,
-            fillOpacity: 0.12,
-            strokeColor: radiusColor,
-            strokeOpacity: 0.55,
-            strokeWeight: 2,
-            clickable: false,
-          }}
-        />
         {path.length === 2 && (
           <Polyline
             path={path}
@@ -685,7 +653,6 @@ function GoogleServiceMap({
         onRecenter={recenter}
         onZoom={() => map?.setZoom((map.getZoom() ?? 13) + 1)}
       />
-      <NearbyCountBadge count={technicians.length} />
     </div>
   );
 }

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo } from "react";
 import {
-  Circle,
   MapContainer,
   Marker,
   Polyline,
@@ -15,10 +14,6 @@ import "leaflet/dist/leaflet.css";
 import { useApp } from "@/lib/store";
 import type { Technician } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-function kmToMeters(km: number) {
-  return km * 1000;
-}
 
 function userIcon() {
   return L.divIcon({
@@ -92,22 +87,6 @@ function MapSync({
   return null;
 }
 
-/** Small live status: pulsing green dot only (no text chip). */
-function LiveSign() {
-  return (
-    <div
-      className="pointer-events-none absolute left-2.5 top-2.5 z-[500]"
-      aria-label="Live map"
-      title="Live"
-    >
-      <span className="relative flex h-2.5 w-2.5">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white/90 shadow" />
-      </span>
-    </div>
-  );
-}
-
 /**
  * Real street map via OpenStreetMap tiles (no Google key / billing).
  */
@@ -140,9 +119,7 @@ export function OsmServiceMap({
     ];
   }, [center, routeTarget]);
 
-  const radiusColor = isLight ? "#34d399" : "#e8a070";
-  const routeColor = isLight ? "#10b981" : "#e85a12";
-  // Dark tiles for both; CSS tint differs by theme on chrome chrome
+  const routeColor = isLight ? "#10b981" : "#c04040";
   const tileUrl =
     "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
 
@@ -153,7 +130,29 @@ export function OsmServiceMap({
 
   return (
     <div className="relative h-full w-full">
-      <LiveSign />
+      {/* inDrive-style nearby chip — top center */}
+      <div
+        className="pointer-events-none absolute inset-x-0 top-2.5 z-[500] flex justify-center px-12"
+        aria-label={`${technicians.length} nearby technicians`}
+      >
+        <div
+          className={cn(
+            "inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 shadow-[0_4px_16px_rgba(0,0,0,0.22)] backdrop-blur-md",
+            isLight
+              ? "bg-white/95 text-slate-900 ring-1 ring-black/5"
+              : "bg-black/80 text-white ring-1 ring-white/10"
+          )}
+        >
+          <span className="relative flex h-2 w-2 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+          </span>
+          <span className="text-[12px] font-semibold tabular-nums tracking-tight">
+            <span className="font-bold">{technicians.length}</span>
+            <span className="font-medium opacity-90"> nearby</span>
+          </span>
+        </div>
+      </div>
 
       <MapContainer
         center={[center.lat, center.lng]}
@@ -164,25 +163,14 @@ export function OsmServiceMap({
         style={{
           height: "100%",
           width: "100%",
-          background: isLight ? "#0a1610" : "#120a08",
+          background: isLight ? "#0a1610" : "#0a0000",
           filter: isLight
             ? "none"
-            : "sepia(0.45) hue-rotate(-18deg) saturate(1.15) brightness(0.92)",
+            : "sepia(0.55) hue-rotate(-25deg) saturate(1.35) brightness(0.88)",
         }}
       >
         <TileLayer url={tileUrl} />
         <MapSync center={center} technicians={technicians} radiusKm={radiusKm} />
-        <Circle
-          center={[center.lat, center.lng]}
-          radius={kmToMeters(Math.max(radiusKm, 0.5))}
-          pathOptions={{
-            color: radiusColor,
-            fillColor: radiusColor,
-            fillOpacity: 0.12,
-            weight: 2,
-            opacity: 0.55,
-          }}
-        />
         {path.length === 2 && (
           <Polyline
             positions={path}
@@ -220,7 +208,7 @@ export function OsmServiceMap({
         })}
       </MapContainer>
 
-      <div className="absolute right-3 top-2 z-[500] flex flex-col gap-2">
+      <div className="absolute right-2.5 top-12 z-[500] flex flex-col gap-2">
         {[
           { label: "Fit all", action: () => fire("om-fit") },
           { label: "Recenter", action: () => fire("om-recenter") },
@@ -230,28 +218,13 @@ export function OsmServiceMap({
             key={label}
             type="button"
             onClick={action}
-            className="flex h-8 w-8 items-center justify-center rounded-lg border-0 bg-white text-[10px] font-bold text-slate-700 shadow-sm hover:bg-slate-50"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border-0 bg-white/95 text-[10px] font-bold text-slate-700 shadow-[0_2px_10px_rgba(0,0,0,0.18)] hover:bg-white"
             aria-label={label}
             title={label}
           >
             {label === "Zoom in" ? "+" : label === "Fit all" ? "◎" : "⌖"}
           </button>
         ))}
-      </div>
-
-      <div
-        className={cn(
-          "absolute bottom-3 left-1/2 z-[500] -translate-x-1/2 inline-flex items-center gap-2 rounded-full px-3.5 py-2 shadow-lg",
-          isLight ? "bg-white text-slate-900" : "bg-black/95 text-white"
-        )}
-      >
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-        </span>
-        <span className="text-[12px] font-bold tabular-nums tracking-tight">
-          {technicians.length} nearby
-        </span>
       </div>
     </div>
   );
