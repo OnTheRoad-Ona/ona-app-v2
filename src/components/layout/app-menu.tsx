@@ -128,8 +128,8 @@ export function AppMenu({
       />
       <aside
         className={cn(
-          // 65% of the phone width
-          "relative z-10 flex h-full w-[65%] max-w-none flex-col shadow-2xl",
+          // 75% of the phone width
+          "relative z-10 flex h-full w-[75%] max-w-none flex-col shadow-2xl",
           isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
