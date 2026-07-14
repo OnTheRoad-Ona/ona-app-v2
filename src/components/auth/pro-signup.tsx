@@ -149,10 +149,13 @@ export function ProSignup() {
     });
   };
 
-  /** Service focus: type, up to 2 brands, model, country, location */
+  /** Service focus: type, up to 2 brands, one model per brand, country, location */
   const [vehicleType, setVehicleType] = useState("Automobile / Passenger Car");
   const [vehicleBrands, setVehicleBrands] = useState<string[]>([]);
-  const [vehicleModel, setVehicleModel] = useState("Any");
+  /** Model chosen for each brand (key = brand name) */
+  const [vehicleModelsByBrand, setVehicleModelsByBrand] = useState<
+    Record<string, string>
+  >({});
   const [prefCountry, setPrefCountry] = useState("Nigeria");
   const [prefLocation, setPrefLocation] = useState("Any");
   const [pickerKey, setPickerKey] = useState<PrefKey | null>(null);
@@ -163,31 +166,54 @@ export function ProSignup() {
       ? "Pick up to 2"
       : vehicleBrands.join(", ");
 
+  const modelLabel =
+    vehicleBrands.length === 0
+      ? "Pick brands first"
+      : vehicleBrands
+          .map((b) => {
+            const m = vehicleModelsByBrand[b] || "Any";
+            return vehicleBrands.length > 1 ? `${b} ${m}` : m;
+          })
+          .join(" · ");
+
   const prefValue: Record<PrefKey, string> = {
     vehicleType,
     brand: brandLabel,
-    model: vehicleModel,
+    model: modelLabel,
     country: prefCountry,
     location: prefLocation,
   };
 
-  const primaryBrand = vehicleBrands[0] || "Any";
+  const setModelForBrand = (brand: string, model: string) => {
+    setVehicleModelsByBrand((prev) => ({ ...prev, [brand]: model }));
+  };
 
   const toggleBrand = (value: string) => {
     setVehicleBrands((prev) => {
       if (prev.includes(value)) {
         const next = prev.filter((b) => b !== value);
-        if (next[0]) {
-          setVehicleModel(syncModelForBrand(next[0], vehicleModel, vehicleType));
-        }
+        setVehicleModelsByBrand((models) => {
+          const copy = { ...models };
+          delete copy[value];
+          return copy;
+        });
         return next;
       }
       if (prev.length >= MAX_BRANDS) return prev;
-      // skip pure "Any" stacking with real brands unless alone
-      if (value === "Any") return ["Any"];
+      if (value === "Any") {
+        setVehicleModelsByBrand({ Any: "Any" });
+        return ["Any"];
+      }
       const withoutAny = prev.filter((b) => b !== "Any");
       const next = [...withoutAny, value];
-      setVehicleModel(syncModelForBrand(value, vehicleModel, vehicleType));
+      setVehicleModelsByBrand((models) => {
+        const cleaned = { ...models };
+        delete cleaned.Any;
+        return {
+          ...cleaned,
+          [value]: syncModelForBrand(value, models[value] || "Any", vehicleType),
+        };
+      });
       return next;
     });
   };
@@ -200,8 +226,13 @@ export function ProSignup() {
         .filter((b, i, arr) => arr.indexOf(b) === i)
         .slice(0, MAX_BRANDS);
       setVehicleBrands(synced);
-      const pb = synced[0] || "Any";
-      setVehicleModel(syncModelForBrand(pb, vehicleModel, value));
+      setVehicleModelsByBrand((prev) => {
+        const next: Record<string, string> = {};
+        for (const b of synced) {
+          next[b] = syncModelForBrand(b, prev[b] || "Any", value);
+        }
+        return next;
+      });
       return;
     }
     if (key === "brand") {
@@ -209,7 +240,9 @@ export function ProSignup() {
       return;
     }
     if (key === "model") {
-      setVehicleModel(value);
+      // Single-brand shortcut (multi-brand handled in picker UI)
+      const b = vehicleBrands[0] || "Any";
+      setModelForBrand(b, value);
       return;
     }
     if (key === "country") {
@@ -387,7 +420,15 @@ export function ProSignup() {
       servedVehicleType: vehicleType,
       servedBrand: vehicleBrands.join(", ") || "Any",
       servedMake: vehicleBrands[0] || "Any",
-      servedModel: vehicleModel,
+      servedModel:
+        vehicleBrands.length === 0
+          ? "Any"
+          : vehicleBrands
+              .map((b) => {
+                const m = vehicleModelsByBrand[b] || "Any";
+                return vehicleBrands.length > 1 ? `${b} ${m}` : m;
+              })
+              .join(" · "),
       servedCountry: prefCountry,
       servedLocation: prefLocation,
       registeredAt: new Date().toISOString(),
@@ -425,21 +466,74 @@ export function ProSignup() {
   const pickerLabel = pickerKey
     ? PREF_ROWS.find((r) => r.key === pickerKey)?.label ?? ""
     : "";
-  const pickerOptions = pickerKey
-    ? optionsForPref(
-        pickerKey,
-        vehicleType,
-        primaryBrand,
-        prefCountry
-      ).filter((opt) =>
-        opt.toLowerCase().includes(pickerQuery.trim().toLowerCase())
-      )
-    : [];
 
   /* Full-page picker (same AuthPlate background) */
   if (pickerKey) {
     const isVehicleType = pickerKey === "vehicleType";
     const isBrand = pickerKey === "brand";
+    const isModel = pickerKey === "model";
+    const q = pickerQuery.trim().toLowerCase();
+
+    const filterOpts = (opts: string[]) =>
+      opts.filter((opt) => !q || opt.toLowerCase().includes(q));
+
+    const singleBrandForModel = vehicleBrands[0] || "Any";
+    const modelBrands =
+      vehicleBrands.length > 0 ? vehicleBrands : (["Any"] as string[]);
+
+    const singleOptions =
+      !isModel || vehicleBrands.length <= 1
+        ? filterOpts(
+            optionsForPref(
+              pickerKey,
+              vehicleType,
+              isModel ? singleBrandForModel : vehicleBrands[0] || "Any",
+              prefCountry
+            )
+          )
+        : [];
+
+    const optionBtn = (
+      opt: string,
+      selected: boolean,
+      onPick: () => void,
+      disabled?: boolean
+    ) => (
+      <button
+        type="button"
+        key={opt}
+        disabled={disabled}
+        onClick={onPick}
+        className={cn(
+          "flex w-full items-center justify-between gap-2 rounded-lg border-0 px-2.5 text-left transition-colors",
+          isVehicleType ? "py-2" : "py-2.5",
+          selected
+            ? "bg-[#e85a12]/18 text-[#9a3412] ring-1 ring-[#e85a12]/45"
+            : "bg-transparent text-[#1e293b] active:bg-black/[0.04]",
+          disabled && "opacity-40"
+        )}
+      >
+        <span
+          className={cn(
+            "min-w-0 flex-1 font-semibold uppercase leading-snug tracking-[0.01em]",
+            isVehicleType ? "text-[11.5px]" : "text-[13px]",
+            selected ? "text-[#9a3412]" : "text-[#1e293b]"
+          )}
+        >
+          {opt}
+        </span>
+        {selected && (
+          <Check
+            className={cn(
+              "shrink-0 text-[#e85a12]",
+              isVehicleType ? "h-3.5 w-3.5" : "h-4 w-4"
+            )}
+            strokeWidth={2.5}
+          />
+        )}
+      </button>
+    );
+
     return (
       <AuthPlate>
         <div className="om-pro-signup-fields flex min-h-0 flex-1 flex-col px-3 pb-3 pt-3">
@@ -453,13 +547,27 @@ export function ProSignup() {
               Back
             </button>
             <h1 className="text-[15px] font-bold tracking-tight text-[#1c1c1e]">
-              {isBrand ? "Car brands (up to 2)" : pickerLabel}
+              {isBrand
+                ? "Car brands (up to 2)"
+                : isModel
+                  ? "Model (one per brand)"
+                  : pickerLabel}
             </h1>
           </div>
 
           {isBrand && (
             <p className="mt-1 text-center text-[11px] text-[#475569]">
               Selected {vehicleBrands.length}/{MAX_BRANDS}. Tap to add or remove.
+            </p>
+          )}
+          {isModel && vehicleBrands.length > 1 && (
+            <p className="mt-1 text-center text-[11px] text-[#475569]">
+              Pick one model for each brand, then Done.
+            </p>
+          )}
+          {isModel && vehicleBrands.length === 0 && (
+            <p className="mt-1 text-center text-[11px] text-[#475569]">
+              Pick brands first, then choose models.
             </p>
           )}
 
@@ -475,64 +583,82 @@ export function ProSignup() {
             />
           </div>
 
-          <ul className="mt-1.5 min-h-0 flex-1 list-none overflow-y-auto overscroll-contain scrollbar-hide">
-            {pickerOptions.map((opt, i) => {
-              const selected = isBrand
-                ? vehicleBrands.includes(opt)
-                : prefValue[pickerKey] === opt;
-              const brandFull =
-                isBrand && !selected && vehicleBrands.length >= MAX_BRANDS;
-              return (
-                <li key={opt}>
-                  <button
-                    type="button"
-                    disabled={brandFull}
-                    onClick={() => {
-                      if (isBrand) {
-                        toggleBrand(opt);
-                        return;
-                      }
-                      setPrefValue(pickerKey, opt);
-                      closePicker();
-                    }}
-                    className={cn(
-                      "flex w-full items-center justify-between gap-2 border-0 bg-transparent px-0.5 text-left transition-colors active:bg-black/[0.03]",
-                      isVehicleType ? "py-2" : "py-3",
-                      i > 0 && "border-t border-black/[0.07]",
-                      brandFull && "opacity-40"
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "min-w-0 flex-1 font-semibold uppercase leading-snug tracking-[0.01em]",
-                        isVehicleType ? "text-[11.5px]" : "text-[13px]",
-                        selected ? "text-[#b08d3c]" : "text-[#1e293b]"
+          {/* Multi-brand model picker: one model per brand */}
+          {isModel && vehicleBrands.length > 1 ? (
+            <div className="mt-1.5 min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain scrollbar-hide">
+              {modelBrands.map((brand) => {
+                const opts = filterOpts(
+                  optionsForPref("model", vehicleType, brand, prefCountry)
+                );
+                const chosen = vehicleModelsByBrand[brand] || "Any";
+                return (
+                  <div key={brand}>
+                    <p className="mb-1.5 px-0.5 text-[12px] font-bold uppercase tracking-wide text-[#64748b]">
+                      {brand}
+                    </p>
+                    <ul className="list-none space-y-1">
+                      {opts.map((opt) => (
+                        <li key={`${brand}-${opt}`}>
+                          {optionBtn(opt, chosen === opt, () =>
+                            setModelForBrand(brand, opt)
+                          )}
+                        </li>
+                      ))}
+                      {opts.length === 0 && (
+                        <li className="py-3 text-center text-[12px] text-[#64748b]">
+                          No matches
+                        </li>
                       )}
-                    >
-                      {opt}
-                    </span>
-                    {selected && (
-                      <Check
-                        className={cn(
-                          "shrink-0",
-                          isVehicleType ? "h-3.5 w-3.5" : "h-4 w-4"
-                        )}
-                        style={{ color: PREF_SELECTED }}
-                        strokeWidth={2.5}
-                      />
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <ul className="mt-1.5 min-h-0 flex-1 list-none space-y-1 overflow-y-auto overscroll-contain scrollbar-hide">
+              {singleOptions.map((opt) => {
+                const selected = isBrand
+                  ? vehicleBrands.includes(opt)
+                  : isModel
+                    ? (vehicleModelsByBrand[singleBrandForModel] || "Any") ===
+                      opt
+                    : prefValue[pickerKey] === opt;
+                const brandFull =
+                  isBrand && !selected && vehicleBrands.length >= MAX_BRANDS;
+                return (
+                  <li key={opt}>
+                    {optionBtn(
+                      opt,
+                      selected,
+                      () => {
+                        if (isBrand) {
+                          toggleBrand(opt);
+                          return;
+                        }
+                        if (isModel) {
+                          setModelForBrand(singleBrandForModel, opt);
+                          closePicker();
+                          return;
+                        }
+                        setPrefValue(pickerKey, opt);
+                        closePicker();
+                      },
+                      brandFull
                     )}
-                  </button>
+                  </li>
+                );
+              })}
+              {singleOptions.length === 0 && (
+                <li className="py-8 text-center text-[12px] text-[#64748b]">
+                  {isModel && vehicleBrands.length === 0
+                    ? "Pick car brands first"
+                    : "No matches"}
                 </li>
-              );
-            })}
-            {pickerOptions.length === 0 && (
-              <li className="py-8 text-center text-[12px] text-[#64748b]">
-                No matches
-              </li>
-            )}
-          </ul>
+              )}
+            </ul>
+          )}
 
-          {isBrand && (
+          {(isBrand || (isModel && vehicleBrands.length > 1)) && (
             <button
               type="button"
               className="om-cta-dark-gray mt-2"
@@ -1266,9 +1392,9 @@ export function ProSignup() {
                 publicSkillRows(skill, skillAnswers).map((r) => (
                   <Row key={r.label} k={r.label} v={r.value} />
                 ))}
-              <Row k="Vehicle type" v={vehicleType} />
+              <Row k="Vehicle" v={vehicleType} />
               <Row k="Brands" v={brandLabel} />
-              <Row k="Model" v={vehicleModel} />
+              <Row k="Models" v={modelLabel} />
               <Row k="Country" v={prefCountry} />
               <Row k="State / Region" v={prefLocation} />
               <Row k="Phone" v={fullPhone} />
