@@ -79,16 +79,12 @@ export function HomeScreen() {
     }
   };
 
+  /** Single lower-sheet chrome (panel + CTA share this surface). */
+  const sheetBg = isLight ? "bg-[#c8c9cd]" : "bg-black";
+
   return (
-    <div
-      className={cn(
-        "flex h-full min-h-0 flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
-      )}
-    >
-      <div
-        className={cn("z-20 shrink-0", isLight ? "bg-[#c8c9cd]" : "bg-black")}
-      >
+    <div className={cn("flex h-full min-h-0 flex-col", sheetBg)}>
+      <div className={cn("z-20 shrink-0", sheetBg)}>
         <AppHeader />
         <SearchBar />
       </div>
@@ -112,14 +108,16 @@ export function HomeScreen() {
         </div>
 
         {/*
-          One continuous lower chrome: panel + CTA share the same background
-          so the sheet runs under Request Help Now with no gap strip.
+          One lower sheet: flip pill, list, and Request Help Now all sit on
+          the same continuous background (no cut-out footer).
         */}
         <div
           className={cn(
             "z-30 flex min-h-0 flex-col",
             sheetExpanded ? "flex-1" : "flex-[0_0_55%]",
-            isLight ? "bg-[#c8c9cd]" : "bg-black"
+            sheetBg,
+            // Soft top edge over the map (sheet feel)
+            !sheetExpanded && "rounded-t-2xl shadow-[0_-6px_24px_rgba(0,0,0,0.18)]"
           )}
         >
           <HomePanel
@@ -127,32 +125,36 @@ export function HomeScreen() {
             onExpand={() => setSheetExpanded(true)}
             onCollapse={() => setSheetExpanded(false)}
             className="min-h-0 flex-1 bg-transparent"
-          />
-
-          <div className="shrink-0 px-3 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-            <button
-              type="button"
-              onClick={handleRapidRequest}
-              className={cn(
-                "inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 text-[14px] font-bold transition-colors active:scale-[0.98]",
-                isLight
-                  ? // Vendor select #c5ccd8, one step darker so it reads on sheet
-                    "bg-[#aeb6c4] text-slate-900 hover:bg-[#a4adbc] shadow-[inset_0_0_0_1px_rgba(30,41,59,0.08)]"
-                  : // Same wash as dark selected vendor row
-                    "bg-white/[0.1] text-white hover:bg-white/[0.14] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]"
-              )}
-            >
-              <Zap
+            footer={
+              <div
                 className={cn(
-                  "h-4 w-4",
-                  isLight
-                    ? "fill-slate-900 text-slate-900"
-                    : "fill-white text-white"
+                  "shrink-0 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2",
+                  sheetBg
                 )}
-              />
-              Request Help Now
-            </button>
-          </div>
+              >
+                <button
+                  type="button"
+                  onClick={handleRapidRequest}
+                  className={cn(
+                    "inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 text-[14px] font-bold transition-colors active:scale-[0.98]",
+                    isLight
+                      ? "bg-[#aeb6c4] text-slate-900 hover:bg-[#a4adbc] shadow-[inset_0_0_0_1px_rgba(30,41,59,0.08)]"
+                      : "bg-white/[0.1] text-white hover:bg-white/[0.14] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]"
+                  )}
+                >
+                  <Zap
+                    className={cn(
+                      "h-4 w-4",
+                      isLight
+                        ? "fill-slate-900 text-slate-900"
+                        : "fill-white text-white"
+                    )}
+                  />
+                  Request Help Now
+                </button>
+              </div>
+            }
+          />
         </div>
       </div>
     </div>

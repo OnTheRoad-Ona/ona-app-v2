@@ -25,11 +25,14 @@ export function HomePanel({
   onExpand,
   onCollapse,
   className,
+  footer,
 }: {
   expanded: boolean;
   onExpand: () => void;
   onCollapse: () => void;
   className?: string;
+  /** Renders on the same sheet chrome (e.g. Request Help Now). */
+  footer?: React.ReactNode;
 }) {
   const router = useRouter();
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -138,12 +141,15 @@ export function HomePanel({
               onCollapse();
             }
           }}
-          className="flex cursor-grab justify-center active:cursor-grabbing pb-1 pt-2"
+          className="flex cursor-grab justify-center active:cursor-grabbing pb-1.5 pt-2.5"
         >
+          {/* Flip pill — visible on light sheet too (was too close to #c8c9cd) */}
           <span
             className={cn(
-              "h-1 w-10 rounded-full",
-              isLight ? "bg-[#c5cbd6]" : "bg-white/35"
+              "h-1.5 w-11 rounded-full",
+              isLight
+                ? "bg-[#6b7280] shadow-sm ring-1 ring-black/10"
+                : "bg-white/40"
             )}
           />
         </div>
@@ -173,11 +179,11 @@ export function HomePanel({
         </div>
       )}
 
-      {/* One continuous gray banner — no borders / card gaps */}
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-1 scrollbar-hide">
+      {/* Vendor list — open bottom so it meets the CTA on the same sheet */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-0 scrollbar-hide">
         <div
           className={cn(
-            "min-h-full overflow-hidden rounded-lg",
+            "min-h-full overflow-hidden rounded-t-lg",
             isLight
               ? "bg-[#d8dce4]/90 backdrop-blur-sm"
               : "bg-gradient-to-b from-[#1a1a1a] via-[#151515] to-[#121212]"
@@ -277,6 +283,9 @@ export function HomePanel({
           )}
         </div>
       </div>
+
+      {/* CTA sits on the same lower-panel background — not a cut-out strip */}
+      {footer}
     </div>
   );
 }
