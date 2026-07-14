@@ -166,6 +166,8 @@ export interface ServiceRequest {
   id: string;
   technicianId: string;
   technicianName: string;
+  /** Supabase motorist profile id when job is cloud-backed */
+  motoristId?: string;
   serviceType: ProService;
   problem: string;
   status: RequestStatus;

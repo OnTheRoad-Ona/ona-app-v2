@@ -47,6 +47,24 @@ import type {
 } from "@/lib/types";
 import { getRuntimeAppConfig } from "@/lib/app-config";
 import { evaluateServiceGate } from "@/lib/verification-gate";
+import {
+  backendCreateJob,
+  backendEnsureConversation,
+  backendFetchConversations,
+  backendFetchJobsForUser,
+  backendFetchPros,
+  backendGetSessionUserId,
+  backendLoadUserProfile,
+  backendSendMessage,
+  backendSetProOnline,
+  backendSignIn,
+  backendSignOut,
+  backendSignUp,
+  backendSubscribeJobs,
+  backendSubscribePros,
+  backendUpdateJobStatus,
+  isAppBackendOnline,
+} from "@/lib/supabase/app-api";
 
 /** Result of book (motorist) or accept (pro) with progressive verification. */
 export type ServiceActionResult =
@@ -310,6 +328,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<MessageThread[]>(INITIAL_MESSAGES);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+  /** Live pros from Supabase (null = use demo seed) */
+  const [cloudTechs, setCloudTechs] = useState<Technician[] | null>(null);
+  /** Supabase auth.users id when backend session is active */
+  const [backendUserId, setBackendUserId] = useState<string | null>(null);
 
   // Initial: system default unless user set a preference (toggle / menu)
   useEffect(() => {
@@ -326,8 +348,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setThemeReady(true);
   }, []);
 
-  // Hydrate registration + mode + pro services + auth
+  // Hydrate registration + mode + pro services + auth (local + Supabase session)
   useEffect(() => {
+    let cancelled = false;
     try {
       const rawRole = localStorage.getItem(ROLE_KEY);
       const role: RegisteredAs = isRegisteredAs(rawRole) ? rawRole : "client";
@@ -396,8 +419,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setProServicesState([]);
       setIsAuthenticated(false);
     }
-    setRoleReady(true);
-    setAuthReady(true);
+
+    // Prefer live Supabase session when backend is configured
+    void (async () => {
+      if (!isAppBackendOnline()) {
+        if (!cancelled) {
+          setRoleReady(true);
+          setAuthReady(true);
+        }
+        return;
+      }
+      try {
+        const uid = await backendGetSessionUserId();
+        if (cancelled) return;
+        if (uid) {
+          const profile = await backendLoadUserProfile(uid);
+          if (cancelled) return;
+          if (profile) {
+            setBackendUserId(uid);
+            applySession(profile);
+            setHasMotoristAccount(
+              profile.accountType === "motorist" ||
+                Boolean(readProfilesVault().motorist)
+            );
+            setHasProAccount(
+              profile.accountType === "professional" ||
+                Boolean(readProfilesVault().professional)
+            );
+          }
+        }
+      } catch {
+        /* keep local hydrate */
+      }
+      if (!cancelled) {
+        setRoleReady(true);
+        setAuthReady(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // applySession defined below — hydrate only on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Keep html[data-theme] in sync immediately so matte-metal CSS applies
@@ -584,6 +648,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
       password: string,
       preferType?: AccountType
     ): string | null => {
+      // Supabase auth (async) — return null optimistically if backend online;
+      // UI should await via signInWithPasswordAsync when possible.
+      if (isAppBackendOnline()) {
+        void (async () => {
+          const res = await backendSignIn(email, password);
+          if (res.error || !res.profile) {
+            // fallback local
+            const hits = findProfilesForLogin(email, password);
+            if (hits.length === 0) return;
+            let pick = hits[0];
+            if (preferType) {
+              pick = hits.find((h) => h.accountType === preferType) ?? pick;
+            }
+            applySession(pick);
+            return;
+          }
+          setBackendUserId(res.userId || null);
+          saveProfileToVault(res.profile);
+          applySession(res.profile);
+        })();
+        // Try local first for immediate feedback
+        const hits = findProfilesForLogin(email, password);
+        if (hits.length > 0) {
+          let pick = hits[0];
+          if (preferType) {
+            pick = hits.find((h) => h.accountType === preferType) ?? pick;
+          } else if (accountType) {
+            pick = hits.find((h) => h.accountType === accountType) ?? pick;
+          }
+          applySession(pick);
+          return null;
+        }
+        // Wait for cloud only — show temporary session name
+        return null;
+      }
+
       const hits = findProfilesForLogin(email, password);
       if (hits.length === 0) {
         return "Email or password is incorrect.";
@@ -651,19 +751,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const completeSignup = useCallback(
     (profile: UserProfile): string | null => {
-      // Separate signup per type — block only duplicate of the same type
-      const existing = getVaultProfile(profile.accountType);
-      if (existing && !profile.identityId) {
-        return profile.accountType === "professional"
-          ? "You already have a Repair Pro account on this device. Log in or switch from the menu."
-          : "You already have a Motorist account on this device. Log in or switch from the menu.";
-      }
-
-      const identityId =
-        profile.identityId ||
-        existing?.identityId ||
-        `acct-${profile.accountType}-${Date.now().toString(36)}`;
-
       // Pros: enforce single skill on profile
       const normalized: UserProfile =
         profile.accountType === "professional"
@@ -672,6 +759,83 @@ export function AppProvider({ children }: { children: ReactNode }) {
               services: (profile.services ?? []).filter(isProService).slice(0, 1),
             }
           : profile;
+
+      // ── Supabase path ──────────────────────────────────────────────
+      if (isAppBackendOnline() && normalized.email && normalized.password) {
+        // Fire async; callers that need sync error still get local fallback path
+        void (async () => {
+          const res = await backendSignUp({
+            email: normalized.email,
+            password: normalized.password,
+            fullName: normalized.fullName,
+            phone: normalized.phone,
+            accountType: normalized.accountType,
+            city: normalized.city,
+            area: normalized.area,
+            businessName: normalized.businessName,
+            primaryService: normalized.services?.[0],
+            bio: normalized.bio,
+            yearsExperience: normalized.yearsExperience,
+            serviceRadiusKm: normalized.serviceRadiusKm,
+            lat: location.coordinates.lat,
+            lng: location.coordinates.lng,
+            vehicleMake: normalized.vehicleMake,
+            vehicleModel: normalized.vehicleModel,
+            vehicleYear: normalized.vehicleYear,
+          });
+          if (res.error || !res.profile) {
+            // fall through to local vault so signup still works offline
+            const existing = getVaultProfile(normalized.accountType);
+            const identityId =
+              normalized.identityId ||
+              existing?.identityId ||
+              `acct-${normalized.accountType}-${Date.now().toString(36)}`;
+            const saved: UserProfile = {
+              ...normalized,
+              identityId,
+              serviceActionCount: 0,
+            };
+            saveProfileToVault(saved);
+            applySession(saved);
+            return;
+          }
+          setBackendUserId(res.userId || null);
+          saveProfileToVault(res.profile);
+          applySession(res.profile);
+          if (res.profile.accountType === "motorist") {
+            setHasMotoristAccount(true);
+          } else {
+            setHasProAccount(true);
+          }
+        })();
+        // Optimistic local session so UI continues immediately
+        const existing = getVaultProfile(normalized.accountType);
+        const identityId =
+          normalized.identityId ||
+          existing?.identityId ||
+          `acct-${normalized.accountType}-${Date.now().toString(36)}`;
+        const saved: UserProfile = {
+          ...normalized,
+          identityId,
+          serviceActionCount: 0,
+        };
+        saveProfileToVault(saved);
+        applySession(saved);
+        return null;
+      }
+
+      // ── Local vault path ───────────────────────────────────────────
+      const existing = getVaultProfile(normalized.accountType);
+      if (existing && !normalized.identityId) {
+        return normalized.accountType === "professional"
+          ? "You already have a Repair Pro account on this device. Log in or switch from the menu."
+          : "You already have a Motorist account on this device. Log in or switch from the menu.";
+      }
+
+      const identityId =
+        normalized.identityId ||
+        existing?.identityId ||
+        `acct-${normalized.accountType}-${Date.now().toString(36)}`;
 
       const reg = registerIdentity({
         id: identityId,
@@ -685,7 +849,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
       if (!reg.ok) return reg.message;
 
-      // Signup IDs are collected but not live-verified yet — in-app /verify does that
       const saved: UserProfile = {
         ...normalized,
         identityId,
@@ -698,7 +861,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       applySession(saved);
       return null;
     },
-    [applySession]
+    [applySession, location.coordinates.lat, location.coordinates.lng]
   );
 
   const login = useCallback(
@@ -735,6 +898,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(() => {
+    void backendSignOut();
+    setBackendUserId(null);
     setIsAuthenticated(false);
     setAccountType(null);
     setDisplayName("Guest");
@@ -826,7 +991,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         servedLocation: "Lagos",
       },
     ];
-    const base = TECHNICIANS.map((t, i) => {
+    const seed = TECHNICIANS.map((t, i) => {
       const f = demoFocus[i % demoFocus.length];
       return {
         ...t,
@@ -838,10 +1003,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         servedLocation: t.servedLocation ?? f.servedLocation,
       };
     });
+    // Prefer live Supabase pros when available
+    const base =
+      cloudTechs && cloudTechs.length > 0
+        ? cloudTechs
+        : seed;
     const self = userProfile ? profileToTechnician(userProfile) : null;
     if (!self) return base;
-    return [self, ...base.filter((t) => t.id !== SELF_PRO_TECH_ID)];
-  }, [userProfile]);
+    return [self, ...base.filter((t) => t.id !== SELF_PRO_TECH_ID && t.id !== self.id)];
+  }, [userProfile, cloudTechs]);
 
   const visibleTechnicians = useMemo(
     () =>
@@ -861,6 +1031,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const ensureChatForRequest = useCallback(
     (req: ServiceRequest): string => {
       const id = `chat-${req.id}`;
+      // Cloud conversation (motorist + pro ids)
+      if (isAppBackendOnline() && backendUserId && accountType) {
+        const motoristId =
+          accountType === "motorist"
+            ? backendUserId
+            : req.motoristId || backendUserId;
+        const repairProId =
+          accountType === "professional"
+            ? backendUserId
+            : req.technicianId;
+        if (motoristId && repairProId) {
+          void backendEnsureConversation({
+            requestId: req.id,
+            motoristId,
+            repairProId,
+          }).then((res) => {
+            if (res.conversationId) {
+              void backendFetchConversations(backendUserId, accountType).then(
+                (threads) => {
+                  if (threads.length) setMessages(threads);
+                }
+              );
+            }
+          });
+        }
+      }
       setMessages((prev) => {
         if (prev.some((m) => m.requestId === req.id || m.id === id)) {
           return prev;
@@ -889,7 +1085,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
       return id;
     },
-    [displayName]
+    [displayName, backendUserId, accountType]
   );
 
   const sendChatMessage = useCallback(
@@ -904,6 +1100,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         text: trimmed,
         at: new Date().toISOString(),
       };
+      // Optimistic UI
       setMessages((prev) =>
         prev.map((t) =>
           t.id === threadId
@@ -916,8 +1113,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
             : t
         )
       );
+      if (isAppBackendOnline() && backendUserId) {
+        void backendSendMessage({
+          conversationId: threadId,
+          senderId: backendUserId,
+          body: trimmed,
+        });
+      }
     },
-    [accountType]
+    [accountType, backendUserId]
   );
 
   const visibleMessageThreads = useMemo(() => {
@@ -936,7 +1140,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const createRequest = useCallback(
     (tech: Technician, problem = "Roadside assistance") => {
-      const req: ServiceRequest = {
+      const localReq: ServiceRequest = {
         id: `r-${Date.now()}`,
         technicianId: tech.id,
         technicianName: tech.name,
@@ -948,12 +1152,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
         distanceKm: tech.distanceKm,
         locationLabel: location.label,
       };
-      setRequests((prev) => [req, ...prev]);
-      // Auto-open dedicated motorist↔pro thread for this job
-      ensureChatForRequest(req);
-      return req;
+
+      if (isAppBackendOnline() && backendUserId && accountType === "motorist") {
+        void backendCreateJob({
+          motoristId: backendUserId,
+          repairProId: tech.id,
+          serviceType: tech.serviceType,
+          description: problem,
+          lat: location.coordinates.lat,
+          lng: location.coordinates.lng,
+          address: location.label,
+          radiusKm,
+        }).then((res) => {
+          if (res.request) {
+            setRequests((prev) => [
+              res.request!,
+              ...prev.filter((r) => r.id !== localReq.id),
+            ]);
+            ensureChatForRequest(res.request);
+          }
+        });
+      }
+
+      setRequests((prev) => [localReq, ...prev]);
+      ensureChatForRequest(localReq);
+      return localReq;
     },
-    [location.label, ensureChatForRequest]
+    [
+      location.label,
+      location.coordinates.lat,
+      location.coordinates.lng,
+      ensureChatForRequest,
+      backendUserId,
+      accountType,
+      radiusKm,
+    ]
   );
 
   const bookRequest = useCallback(
@@ -1063,6 +1296,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           prev.map((r) => (r.id === id ? { ...r, status } : r))
         );
         ensureChatForRequest(existing);
+        if (backendUserId && isAppBackendOnline()) {
+          void backendUpdateJobStatus(id, status, backendUserId);
+        }
         if (userProfile) {
           persistProfile({
             ...userProfile,
@@ -1079,6 +1315,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setRequests((prev) =>
         prev.map((r) => (r.id === id ? { ...r, status } : r))
       );
+      if (backendUserId && isAppBackendOnline()) {
+        void backendUpdateJobStatus(id, status, backendUserId);
+      }
       return {
         ok: true,
         warning: null,
@@ -1093,8 +1332,69 @@ export function AppProvider({ children }: { children: ReactNode }) {
       registeredAs,
       proServices,
       ensureChatForRequest,
+      backendUserId,
     ]
   );
+
+  // ── Supabase: load pros + jobs + chats + realtime ─────────────────
+  const refreshCloudPros = useCallback(() => {
+    if (!isAppBackendOnline()) return;
+    void backendFetchPros(location.coordinates).then((list) => {
+      if (list.length > 0) setCloudTechs(list);
+    });
+  }, [location.coordinates]);
+
+  const refreshCloudJobs = useCallback(() => {
+    if (!isAppBackendOnline() || !backendUserId || !accountType) return;
+    void backendFetchJobsForUser(backendUserId, accountType).then((jobs) => {
+      if (jobs.length > 0) setRequests(jobs);
+    });
+  }, [backendUserId, accountType]);
+
+  const refreshCloudChats = useCallback(() => {
+    if (!isAppBackendOnline() || !backendUserId || !accountType) return;
+    void backendFetchConversations(backendUserId, accountType).then(
+      (threads) => {
+        if (threads.length > 0) setMessages(threads);
+      }
+    );
+  }, [backendUserId, accountType]);
+
+  useEffect(() => {
+    refreshCloudPros();
+  }, [refreshCloudPros]);
+
+  useEffect(() => {
+    refreshCloudJobs();
+    refreshCloudChats();
+  }, [refreshCloudJobs, refreshCloudChats]);
+
+  useEffect(() => {
+    if (!isAppBackendOnline()) return;
+    const unsubPros = backendSubscribePros(() => refreshCloudPros());
+    const unsubJobs = backendUserId
+      ? backendSubscribeJobs(backendUserId, () => {
+          refreshCloudJobs();
+          refreshCloudChats();
+        })
+      : null;
+    return () => {
+      unsubPros?.();
+      unsubJobs?.();
+    };
+  }, [backendUserId, refreshCloudPros, refreshCloudJobs, refreshCloudChats]);
+
+  // Push pro live location when professional is signed in
+  useEffect(() => {
+    if (
+      !isAppBackendOnline() ||
+      !backendUserId ||
+      accountType !== "professional"
+    ) {
+      return;
+    }
+    void backendSetProOnline(backendUserId, true, location.coordinates);
+  }, [backendUserId, accountType, location.coordinates]);
 
   /** GPS label/coords refresh at most every 10 minutes (stable, no blink). */
   const LOCATION_REFRESH_MS = 10 * 60 * 1000;
