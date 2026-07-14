@@ -95,7 +95,11 @@ export default function SettingsPage() {
         isLight ? "bg-[#c8c9cd]" : "bg-black"
       )}
     >
-      <PageHeader title="Settings" subtitle="App preferences" />
+      <PageHeader
+        title="Settings"
+        subtitle="App preferences"
+        backHref="/profile"
+      />
 
       <div className="flex-1 space-y-3 overflow-y-auto p-3 scrollbar-hide">
         <section

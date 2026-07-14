@@ -10,7 +10,6 @@ import {
   LogOut,
   MapPin,
   MessageCircle,
-  Settings,
   UserRound,
   Wrench,
   X,
@@ -330,19 +329,6 @@ export function AppMenu({
             )}
           </div>
 
-          <Link
-            href="/settings"
-            onClick={onClose}
-            className={cn(
-              "mt-3 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold",
-              isLight
-                ? "text-slate-700 hover:bg-[#bebfc4]/70"
-                : "text-white/90 hover:bg-white/10"
-            )}
-          >
-            <Settings className="h-4 w-4 shrink-0" />
-            Settings
-          </Link>
         </nav>
 
         <div className="px-3 pb-4 pt-1">
