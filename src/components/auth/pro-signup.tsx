@@ -68,7 +68,6 @@ import {
 type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 /** Selected value accent (matches reference gold check style) */
-const PREF_SELECTED = "#b08d3c";
 
 /** Actual years of service — 1–9, then 10+ */
 const EXP_YEARS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10+"] as const;
