@@ -3,7 +3,8 @@
  * Homepage only needs Maps JavaScript API (no Places library required).
  */
 
-export const GOOGLE_MAPS_LOADER_ID = "oga-mecho-google-maps";
+/** Bump when the Maps API key changes so the JS loader reloads cleanly. */
+export const GOOGLE_MAPS_LOADER_ID = "oga-mecho-google-maps-v2";
 
 /** Keep empty so homepage works with only Maps JavaScript API enabled. */
 export const GOOGLE_MAPS_LIBRARIES: (
