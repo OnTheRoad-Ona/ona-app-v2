@@ -1,0 +1,10 @@
+node_modules
+.next
+.next-admin
+.git
+.vercel-backend
+*.tsbuildinfo
+preview-*.png
+**/*.prev.jpg
+.env*
+.DS_Store
