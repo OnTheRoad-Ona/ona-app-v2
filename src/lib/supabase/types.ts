@@ -1,0 +1,105 @@
+export type UserRole = "admin" | "motorist" | "repair_pro";
+export type ProServiceDb =
+  | "mechanic"
+  | "vulcanizer"
+  | "towing"
+  | "battery"
+  | "ac"
+  | "body"
+  | "electrical"
+  | "diagnostics"
+  | "wash";
+export type ProStatus = "pending" | "approved" | "suspended" | "rejected";
+export type JobStatus =
+  | "draft"
+  | "requested"
+  | "matched"
+  | "accepted"
+  | "en_route"
+  | "in_progress"
+  | "completed"
+  | "cancelled";
+export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
+
+export interface ProfileRow {
+  id: string;
+  role: UserRole;
+  full_name: string;
+  phone: string | null;
+  email: string | null;
+  avatar_url: string | null;
+  city: string | null;
+  area: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RepairProRow {
+  user_id: string;
+  business_name: string | null;
+  primary_service: ProServiceDb;
+  services: ProServiceDb[];
+  status: ProStatus;
+  is_online: boolean;
+  rating_avg: number;
+  rating_count: number;
+  lat: number | null;
+  lng: number | null;
+  service_radius_km: number;
+  years_experience: string | null;
+  bio: string | null;
+  verified: boolean;
+  nin_last4: string | null;
+  bvn_last4: string | null;
+  nin_verified: boolean;
+  bvn_verified: boolean;
+  skills: unknown;
+  vehicle_focus: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceRequestRow {
+  id: string;
+  motorist_id: string;
+  repair_pro_id: string | null;
+  service_type: ProServiceDb;
+  status: JobStatus;
+  description: string;
+  pickup_lat: number | null;
+  pickup_lng: number | null;
+  pickup_address: string | null;
+  radius_km: number;
+  scheduled_at: string | null;
+  accepted_at: string | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  cancel_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaymentRow {
+  id: string;
+  request_id: string;
+  motorist_id: string;
+  repair_pro_id: string | null;
+  amount_kobo: number;
+  currency: string;
+  status: PaymentStatus;
+  provider: string;
+  provider_ref: string | null;
+  paid_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminActionRow {
+  id: string;
+  admin_id: string;
+  action: string;
+  target_user_id: string | null;
+  meta: Record<string, unknown>;
+  created_at: string;
+}

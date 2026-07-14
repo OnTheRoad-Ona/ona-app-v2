@@ -8,18 +8,11 @@ import {
   VerificationBlockedPanel,
   VerificationWarningBanner,
 } from "@/components/auth/verification-gate-banner";
+import { useAppConfig } from "@/components/app-config-provider";
 import { Button } from "@/components/ui/button";
+import { DEFAULT_APP_CONFIG } from "@/lib/app-config";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
-
-const PROBLEMS = [
-  "Flat tire / puncture",
-  "Engine issue",
-  "Battery dead",
-  "Brakes problem",
-  "Car stuck / towing",
-  "Other roadside help",
-];
 
 function RequestFlow() {
   const router = useRouter();
@@ -32,7 +25,12 @@ function RequestFlow() {
     setSelectedTechId,
     theme,
   } = useApp();
+  const { config } = useAppConfig();
   const isLight = theme === "light";
+  const PROBLEMS =
+    config.content.requestProblems?.length > 0
+      ? config.content.requestProblems
+      : DEFAULT_APP_CONFIG.content.requestProblems;
 
   const tech = useMemo(() => {
     if (techId) return technicians.find((t) => t.id === techId);
@@ -148,7 +146,7 @@ function RequestFlow() {
           >
             Request Help
           </h1>
-          <p className="text-xs text-muted">Confirm service · 2 steps max</p>
+          <p className="text-xs text-muted">Confirm and we connect you quickly</p>
         </div>
       </header>
 
@@ -166,7 +164,7 @@ function RequestFlow() {
             {tech.name}
           </p>
           <p className="text-sm text-muted">
-            {tech.roleLabel} · {tech.etaMinutes} min ·{" "}
+            {tech.roleLabel}, about {tech.etaMinutes} min,{" "}
             {tech.distanceKm.toFixed(1)} km
           </p>
         </div>

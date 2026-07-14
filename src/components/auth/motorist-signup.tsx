@@ -1,20 +1,26 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
   Lock,
   Mail,
-  MapPin,
   User,
 } from "lucide-react";
 import {
   AuthPlate,
+  authFieldClass as fieldClass,
+  authFieldIconClass as fieldIconClass,
   authSecondaryBtnClass,
+  authSelectClass as selectClass,
 } from "@/components/auth/auth-plate";
 import { RegistrationComplete } from "@/components/auth/registration-complete";
+import {
+  LocationPickerMap,
+  type PickedLocation,
+} from "@/components/map/location-picker-map";
 import {
   checkIdentityAvailable,
   IDENTITY_RULE_COPY,
@@ -24,7 +30,9 @@ import {
   DEFAULT_PHONE_ISO,
   formatInternationalPhone,
   getPhoneCodeOptions,
+  splitStoredPhone,
 } from "@/lib/phone-codes";
+import { getVaultProfile } from "@/lib/profiles-vault";
 import { verifySignupIds } from "@/lib/ng-id-verify-client";
 import {
   bvnError,
@@ -44,26 +52,12 @@ import type { UserProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Step = 1 | 2 | 3;
-
-/**
- * Full-width stack, ~80% page width.
- * Clear text-box wells (soft gray + border) on the sheet background.
- */
-const fieldClass =
-  "h-10 w-full rounded-md border border-[#9A9EA6] bg-[#E2E3E7] px-3 text-[13px] font-medium text-[#0f172a] outline-none placeholder:text-[#6b7280] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:border-[#6B7280] focus:bg-[#E8E9ED] focus:ring-0";
-
-const fieldIconClass =
-  "h-10 w-full rounded-md border border-[#9A9EA6] bg-[#E2E3E7] py-0 pl-9 pr-3 text-[13px] font-medium text-[#0f172a] outline-none placeholder:text-[#6b7280] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:border-[#6B7280] focus:bg-[#E8E9ED] focus:ring-0";
-
-const selectClass =
-  "h-10 shrink-0 rounded-md border border-[#9A9EA6] bg-[#E2E3E7] px-1.5 text-[11px] font-semibold text-[#0f172a] outline-none focus:border-[#6B7280]";
-
 /**
  * Full Motorist signup — polished account step + reduced corner radius.
  */
 export function MotoristSignup() {
   const router = useRouter();
-  const { completeSignup } = useApp();
+  const { completeSignup, setManualLocation } = useApp();
   const phoneCodes = useMemo(() => getPhoneCodeOptions(), []);
   const [step, setStep] = useState<Step>(1);
   const [done, setDone] = useState(false);
@@ -83,11 +77,36 @@ export function MotoristSignup() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [city, setCity] = useState("Lagos");
   const [area, setArea] = useState("");
+  const [pickedLoc, setPickedLoc] = useState<PickedLocation | null>(null);
   const [vehicleMake, setVehicleMake] = useState("");
   const [vehicleModel, setVehicleModel] = useState("");
   const [vehicleYear, setVehicleYear] = useState("");
+  /** Identity locked from existing Repair Pro account on this device */
+  const [identityLocked, setIdentityLocked] = useState(false);
 
   const fullPhone = formatInternationalPhone(phoneDial, phoneNational);
+
+  useEffect(() => {
+    const pro = getVaultProfile("professional");
+    if (!pro) return;
+    setIdentityLocked(true);
+    setFullName(pro.fullName || "");
+    setEmail(pro.email || "");
+    setIdNumber(pro.idNumber || "");
+    setBvn(pro.bvn || "");
+    setPassword(pro.password || "");
+    setConfirmPassword(pro.password || "");
+    const split = splitStoredPhone(pro.phone || "");
+    setPhoneIso(split.iso);
+    setPhoneDial(split.dial);
+    setPhoneNational(split.national);
+  }, []);
+
+  const onLocationPicked = (loc: PickedLocation) => {
+    setPickedLoc(loc);
+    setCity(loc.city || loc.label);
+    setArea(loc.area || loc.label);
+  };
 
   const setFieldError = (key: string, msg: string | null) => {
     setFieldErrors((prev) => {
@@ -101,25 +120,43 @@ export function MotoristSignup() {
     });
   };
 
-  const step1Ok =
-    isValidFullName(fullName) &&
-    !phoneNationalError(phoneNational) &&
-    isValidEmail(email) &&
-    isValidPassword(password) &&
-    confirmPassword === password &&
-    confirmPassword.length > 0 &&
-    !ninError(idNumber) &&
-    !bvnError(bvn);
+  const step1Ok = identityLocked
+    ? isValidFullName(fullName) &&
+      !phoneNationalError(phoneNational) &&
+      isValidEmail(email) &&
+      password.length > 0 &&
+      !ninError(idNumber) &&
+      !bvnError(bvn)
+    : isValidFullName(fullName) &&
+      !phoneNationalError(phoneNational) &&
+      isValidEmail(email) &&
+      isValidPassword(password) &&
+      confirmPassword === password &&
+      confirmPassword.length > 0 &&
+      !ninError(idNumber) &&
+      !bvnError(bvn);
   const step2Ok = city.trim().length >= 2 && area.trim().length >= 2;
 
-  const validateStep1 = (): string | null =>
-    fullNameError(fullName) ||
-    phoneNationalError(phoneNational) ||
-    emailError(email) ||
-    ninError(idNumber) ||
-    bvnError(bvn) ||
-    passwordError(password) ||
-    confirmPasswordError(password, confirmPassword);
+  const validateStep1 = (): string | null => {
+    if (identityLocked) {
+      return (
+        fullNameError(fullName) ||
+        phoneNationalError(phoneNational) ||
+        emailError(email) ||
+        ninError(idNumber) ||
+        bvnError(bvn)
+      );
+    }
+    return (
+      fullNameError(fullName) ||
+      phoneNationalError(phoneNational) ||
+      emailError(email) ||
+      ninError(idNumber) ||
+      bvnError(bvn) ||
+      passwordError(password) ||
+      confirmPasswordError(password, confirmPassword)
+    );
+  };
 
   const guardIdentity = (): string | null => {
     const check = checkIdentityAvailable({
@@ -178,6 +215,14 @@ export function MotoristSignup() {
       vehicleYear: vehicleYear.trim() || undefined,
       registeredAt: new Date().toISOString(),
     };
+
+    // Apply live map pin (GPS / Places) to the home map session
+    if (pickedLoc) {
+      setManualLocation(pickedLoc.label || `${pickedLoc.area}, ${pickedLoc.city}`, {
+        lat: pickedLoc.lat,
+        lng: pickedLoc.lng,
+      });
+    }
     const err = completeSignup(profile);
     if (err) {
       setFormError(err);
@@ -195,16 +240,16 @@ export function MotoristSignup() {
     3: "Your vehicle",
   };
   const subtitles: Record<Step, string> = {
-    1: "Create your motorist profile to request help nearby",
-    2: "So we can match you with pros in your area",
-    3: "Optional. Helps pros prepare for your vehicle",
+    1: "Create your car owner profile so you can ask for help nearby",
+    2: "We use this to find repair people close to you",
+    3: "Not required. It helps the repair person prepare for your car",
   };
 
   return (
     <AuthPlate>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* Top bar — full width for chrome */}
-        <div className="mx-auto flex w-[80%] shrink-0 items-center justify-between pb-0.5 pt-2.5">
+        <div className="mx-auto flex w-[80%] shrink-0 items-center pb-0.5 pt-2.5">
           <button
             type="button"
             onClick={() =>
@@ -217,10 +262,6 @@ export function MotoristSignup() {
             <ChevronLeft className="h-4 w-4" strokeWidth={2.25} />
             Back
           </button>
-          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#64748b]">
-            Motorist {step}/3
-          </span>
-          <span className="w-12" aria-hidden />
         </div>
 
         {/* Header */}
@@ -233,7 +274,7 @@ export function MotoristSignup() {
           </p>
         </div>
 
-        {/* Progress */}
+        {/* Progress bar only (no page numbers) */}
         <div className="mx-auto mt-2 flex w-[80%] shrink-0 gap-1">
           {([1, 2, 3] as Step[]).map((n) => (
             <span
@@ -257,8 +298,16 @@ export function MotoristSignup() {
             <div className="flex min-h-0 flex-1 flex-col justify-between gap-1">
               <div className="flex flex-col gap-1.5 overflow-y-auto scrollbar-hide">
                 <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#64748b]">
-                  Profile details
+                  Your details
                 </p>
+
+                {identityLocked && (
+                  <p className="rounded-md bg-[#e8e9ed] px-2.5 py-2 text-[11px] leading-snug text-[#334155]">
+                    We filled your name, phone, email, NIN and BVN from your
+                    Repair Pro account. Those cannot be changed here. No new
+                    password needed.
+                  </p>
+                )}
 
                 <Field label="Full name" required>
                   <div className="relative">
@@ -266,7 +315,9 @@ export function MotoristSignup() {
                     <input
                       className={fieldIconClass}
                       value={fullName}
+                      readOnly={identityLocked}
                       onChange={(e) => {
+                        if (identityLocked) return;
                         setFullName(e.target.value);
                         setFieldError("fullName", null);
                       }}
@@ -286,7 +337,9 @@ export function MotoristSignup() {
                       className={cn(selectClass, "max-w-[42%]")}
                       value={phoneIso}
                       aria-label="Country code"
+                      disabled={identityLocked}
                       onChange={(e) => {
+                        if (identityLocked) return;
                         const iso = e.target.value;
                         setPhoneIso(iso);
                         const opt = phoneCodes.find((c) => c.iso === iso);
@@ -302,7 +355,9 @@ export function MotoristSignup() {
                     <input
                       className={cn(fieldClass, "min-w-0 flex-1")}
                       value={phoneNational}
+                      readOnly={identityLocked}
                       onChange={(e) => {
+                        if (identityLocked) return;
                         setPhoneNational(
                           e.target.value.replace(/\D/g, "").slice(0, 15)
                         );
@@ -329,7 +384,9 @@ export function MotoristSignup() {
                     <input
                       className={fieldIconClass}
                       value={email}
+                      readOnly={identityLocked}
                       onChange={(e) => {
+                        if (identityLocked) return;
                         setEmail(e.target.value);
                         setFieldError("email", null);
                       }}
@@ -342,94 +399,105 @@ export function MotoristSignup() {
                   <FieldHint message={fieldErrors.email} />
                 </Field>
 
-                <Field label="NIN (11 digits)">
+                <Field label="NIN (11 numbers)">
                   <input
                     className={fieldClass}
                     value={idNumber}
+                    readOnly={identityLocked}
                     onChange={(e) => {
+                      if (identityLocked) return;
                       setIdNumber(e.target.value.replace(/\D/g, "").slice(0, 11));
                       setFieldError("nin", null);
                     }}
                     onBlur={() => setFieldError("nin", ninError(idNumber))}
-                    placeholder="11-digit NIN"
+                    placeholder="11 numbers only"
                     inputMode="numeric"
                     maxLength={11}
                   />
                   <FieldHint message={fieldErrors.nin} />
                 </Field>
 
-                <Field label="BVN (11 digits)">
+                <Field label="BVN (11 numbers)">
                   <input
                     className={fieldClass}
                     value={bvn}
+                    readOnly={identityLocked}
                     onChange={(e) => {
+                      if (identityLocked) return;
                       setBvn(e.target.value.replace(/\D/g, "").slice(0, 11));
                       setFieldError("bvn", null);
                     }}
                     onBlur={() => setFieldError("bvn", bvnError(bvn))}
-                    placeholder="11-digit BVN"
+                    placeholder="11 numbers only"
                     inputMode="numeric"
                     maxLength={11}
                   />
                   <FieldHint message={fieldErrors.bvn} />
                 </Field>
 
-                <Field label="Password" required>
-                  <div className="relative">
-                    <Lock className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8]" />
-                    <input
-                      className={fieldIconClass}
-                      value={password}
-                      onChange={(e) => {
-                        setPassword(e.target.value);
-                        setFieldError("password", null);
-                        if (confirmPassword) {
-                          setFieldError(
-                            "confirm",
-                            confirmPasswordError(e.target.value, confirmPassword)
-                          );
-                        }
-                      }}
-                      onBlur={() =>
-                        setFieldError("password", passwordError(password))
-                      }
-                      placeholder="Min. 8 characters"
-                      type="password"
-                      autoComplete="new-password"
-                    />
-                  </div>
-                  <PasswordRules password={password} />
-                  <FieldHint message={fieldErrors.password} />
-                </Field>
+                {!identityLocked && (
+                  <>
+                    <Field label="Password" required>
+                      <div className="relative">
+                        <Lock className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8]" />
+                        <input
+                          className={fieldIconClass}
+                          value={password}
+                          onChange={(e) => {
+                            setPassword(e.target.value);
+                            setFieldError("password", null);
+                            if (confirmPassword) {
+                              setFieldError(
+                                "confirm",
+                                confirmPasswordError(
+                                  e.target.value,
+                                  confirmPassword
+                                )
+                              );
+                            }
+                          }}
+                          onBlur={() =>
+                            setFieldError("password", passwordError(password))
+                          }
+                          placeholder="At least 8 characters"
+                          type="password"
+                          autoComplete="new-password"
+                        />
+                      </div>
+                      <PasswordRules password={password} />
+                      <FieldHint message={fieldErrors.password} />
+                    </Field>
 
-                <Field label="Confirm password" required>
-                  <div className="relative">
-                    <Lock className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8]" />
-                    <input
-                      className={fieldIconClass}
-                      value={confirmPassword}
-                      onChange={(e) => {
-                        setConfirmPassword(e.target.value);
-                        setFieldError(
-                          "confirm",
-                          e.target.value
-                            ? confirmPasswordError(password, e.target.value)
-                            : null
-                        );
-                      }}
-                      onBlur={() =>
-                        setFieldError(
-                          "confirm",
-                          confirmPasswordError(password, confirmPassword)
-                        )
-                      }
-                      placeholder="Re-enter password"
-                      type="password"
-                      autoComplete="new-password"
-                    />
-                  </div>
-                  <FieldHint message={fieldErrors.confirm} />
-                </Field>
+                    <Field label="Confirm password" required>
+                      <div className="relative">
+                        <Lock className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8]" />
+                        <input
+                          className={fieldIconClass}
+                          value={confirmPassword}
+                          onChange={(e) => {
+                            setConfirmPassword(e.target.value);
+                            setFieldError(
+                              "confirm",
+                              e.target.value
+                                ? confirmPasswordError(password, e.target.value)
+                                : null
+                            );
+                          }}
+                          onBlur={() =>
+                            setFieldError(
+                              "confirm",
+                              confirmPasswordError(password, confirmPassword)
+                            )
+                          }
+                          placeholder="Re-enter password"
+                          type="password"
+                          autoComplete="new-password"
+                        />
+                      </div>
+                      <FieldHint message={fieldErrors.confirm} />
+                    </Field>
+                  </>
+                )}
 
                 {formError && (
                   <p
@@ -442,35 +510,32 @@ export function MotoristSignup() {
               </div>
 
               <p className="shrink-0 text-center text-[10px] leading-snug text-[#64748b]">
-                {IDENTITY_RULE_COPY}
+                {identityLocked
+                  ? "Your shared details stay the same as your Repair Pro account."
+                  : IDENTITY_RULE_COPY}
               </p>
             </div>
           )}
 
           {step === 2 && (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2.5">
               <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#64748b]">
-                Location
+                Your location on the map
               </p>
-              <Field label="City" required>
-                <div className="relative">
-                  <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
-                  <input
-                    className={fieldIconClass}
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    placeholder="Lagos"
-                  />
+              <p className="text-[11px] leading-snug text-[#475569]">
+                Use live location or search. You can also tap the map or drag
+                the pin to fix the place.
+              </p>
+              <LocationPickerMap
+                value={pickedLoc}
+                onChange={onLocationPicked}
+              />
+              {(city || area) && (
+                <div className="rounded-md border border-[#9A9EA6]/70 bg-white/50 px-2.5 py-2 text-[11px] leading-snug text-[#334155]">
+                  <span className="font-semibold text-[#0f172a]">Selected: </span>
+                  {[area, city].filter(Boolean).join(", ") || pickedLoc?.label}
                 </div>
-              </Field>
-              <Field label="Area / landmark" required>
-                <input
-                  className={fieldClass}
-                  value={area}
-                  onChange={(e) => setArea(e.target.value)}
-                  placeholder="e.g. Ikeja GRA"
-                />
-              </Field>
+              )}
             </div>
           )}
 
@@ -595,7 +660,7 @@ export function MotoristSignup() {
               }}
               onClick={finish}
             >
-              {busy ? "Creating account…" : "Create Motorist account"}
+              {busy ? "Please wait…" : "Create my account"}
             </button>
           )}
           {step === 3 && (
@@ -659,7 +724,7 @@ function PasswordRules({ password }: { password: string }) {
     { ok: r.length, text: "At least 8 characters" },
     { ok: r.upper, text: "At least 1 capital letter" },
     { ok: r.digit, text: "At least 1 number" },
-    { ok: true, text: "Symbols allowed" },
+    { ok: true, text: "You can add symbols if you want" },
   ];
   return (
     <ul className="mt-1 space-y-0.5">

@@ -25,12 +25,12 @@ export function isValidEmail(email: string): boolean {
  */
 export function emailError(email: string, emptyOk = false): FieldError {
   const e = email.trim();
-  if (!e) return emptyOk ? null : "Email is required.";
-  if (!e.includes("@")) return "Email must contain @.";
+  if (!e) return emptyOk ? null : "Please enter your email.";
+  if (!e.includes("@")) return "Email must have @ (example: name@gmail.com).";
   if (!/\.[a-z]{2,}$/i.test(e)) {
-    return "Email must include a domain ending like .com.";
+    return "Email must end with something like .com or .ng.";
   }
-  if (!isValidEmail(e)) return "Enter a valid email address.";
+  if (!isValidEmail(e)) return "Enter a correct email address.";
   return null;
 }
 
@@ -42,18 +42,18 @@ export function isValidIdDigits(value: string, len = 11): boolean {
 /** Optional NIN — if provided, digits only, exactly 11. */
 export function ninError(nin: string): FieldError {
   if (!nin.trim()) return null;
-  if (/[a-zA-Z]/.test(nin)) return "NIN cannot contain letters.";
-  if (/\D/.test(nin)) return "NIN must be numbers only.";
-  if (nin.length !== 11) return "NIN must be exactly 11 digits.";
+  if (/[a-zA-Z]/.test(nin)) return "NIN should not have letters.";
+  if (/\D/.test(nin)) return "NIN should be numbers only.";
+  if (nin.length !== 11) return "NIN must be 11 numbers.";
   return null;
 }
 
-/** Optional BVN — if provided, digits only, exactly 11. */
+/** Optional BVN if provided, digits only, exactly 11. */
 export function bvnError(bvn: string): FieldError {
   if (!bvn.trim()) return null;
-  if (/[a-zA-Z]/.test(bvn)) return "BVN cannot contain letters.";
-  if (/\D/.test(bvn)) return "BVN must be numbers only.";
-  if (bvn.length !== 11) return "BVN must be exactly 11 digits.";
+  if (/[a-zA-Z]/.test(bvn)) return "BVN should not have letters.";
+  if (/\D/.test(bvn)) return "BVN should be numbers only.";
+  if (bvn.length !== 11) return "BVN must be 11 numbers.";
   return null;
 }
 
@@ -62,8 +62,8 @@ export function confirmPasswordError(
   confirm: string,
   emptyOk = false
 ): FieldError {
-  if (!confirm) return emptyOk ? null : "Confirm your password.";
-  if (confirm !== password) return "Passwords do not match.";
+  if (!confirm) return emptyOk ? null : "Type your password again.";
+  if (confirm !== password) return "The two passwords are not the same.";
   return null;
 }
 
@@ -72,13 +72,13 @@ export function confirmPasswordError(
  * Symbols are allowed.
  */
 export function passwordError(password: string, emptyOk = false): FieldError {
-  if (!password) return emptyOk ? null : "Password is required.";
-  if (password.length < 8) return "Password must be at least 8 characters.";
+  if (!password) return emptyOk ? null : "Please create a password.";
+  if (password.length < 8) return "Password needs at least 8 characters.";
   if (!/[A-Z]/.test(password)) {
-    return "Password must include at least one capital letter.";
+    return "Add at least one capital letter (A to Z).";
   }
   if (!/[0-9]/.test(password)) {
-    return "Password must include at least one number.";
+    return "Add at least one number (0 to 9).";
   }
   return null;
 }
@@ -92,15 +92,15 @@ export function phoneNationalError(
   emptyOk = false
 ): FieldError {
   const d = national.replace(/\D/g, "");
-  if (!d) return emptyOk ? null : "Phone number is required.";
-  if (d.length < 7) return "Enter a valid phone number.";
-  if (d.length > 15) return "Phone number is too long.";
+  if (!d) return emptyOk ? null : "Please enter your phone number.";
+  if (d.length < 7) return "That phone number looks too short.";
+  if (d.length > 15) return "That phone number looks too long.";
   return null;
 }
 
 export function fullNameError(name: string, emptyOk = false): FieldError {
-  if (!name.trim()) return emptyOk ? null : "Full name is required.";
-  if (name.trim().length < 2) return "Enter your full name.";
+  if (!name.trim()) return emptyOk ? null : "Please enter your full name.";
+  if (name.trim().length < 2) return "Please enter your full name.";
   return null;
 }
 

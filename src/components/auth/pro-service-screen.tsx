@@ -23,25 +23,25 @@ const PRO_SERVICES: {
   {
     id: "mechanic",
     label: "Mechanic",
-    hint: "Engine, brakes, diagnostics",
+    hint: "Engine, brakes and general repair",
     icon: Wrench,
   },
   {
     id: "vulcanizer",
     label: "Vulcanizer",
-    hint: "Tires, tubes, balancing",
+    hint: "Tyres, tubes and balancing",
     icon: CircleDot,
   },
   {
     id: "towing",
     label: "Tow",
-    hint: "Recovery & haul services",
+    hint: "Tow and recovery",
     icon: Car,
   },
   {
     id: "wash",
     label: "Car Wash",
-    hint: "Detailing & wash services",
+    hint: "Wash, clean and polish",
     icon: Droplets,
   },
 ];

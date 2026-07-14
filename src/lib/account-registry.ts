@@ -68,7 +68,7 @@ export function isValidBvnFormat(bvn: string): boolean {
 }
 
 export const IDENTITY_RULE_COPY =
-  "Phone, email, NIN, and BVN can only match one Motorist and one Repair Pro account at the same time. One user can use both accounts.";
+  "Your phone, email, NIN and BVN can be used once for Motorist and once for Repair Pro. You can open both accounts, but not two of the same type.";
 
 export function readRegistry(): IdentityClaim[] {
   if (typeof window === "undefined") return [];
@@ -115,28 +115,28 @@ export function checkIdentityAvailable(
     return {
       ok: false,
       field: "phone",
-      message: "Enter a valid phone number (at least 10 digits).",
+      message: "Enter a correct phone number (at least 10 digits).",
     };
   }
   if (!email.includes("@") || email.length < 5) {
     return {
       ok: false,
       field: "email",
-      message: "Enter a valid email address.",
+      message: "Enter a correct email address.",
     };
   }
   if (input.nin && input.nin.trim() && !isValidNinFormat(input.nin)) {
     return {
       ok: false,
       field: "nin",
-      message: "NIN must be exactly 11 digits.",
+      message: "NIN must be 11 numbers only.",
     };
   }
   if (input.bvn && input.bvn.trim() && !isValidBvnFormat(input.bvn)) {
     return {
       ok: false,
       field: "bvn",
-      message: "BVN must be exactly 11 digits.",
+      message: "BVN must be 11 numbers only.",
     };
   }
 
@@ -150,28 +150,28 @@ export function checkIdentityAvailable(
       return {
         ok: false,
         field: "phone",
-        message: `This phone is already on a ${label} account. It can match one Motorist and one Repair Pro at the same time only.`,
+        message: `This phone is already used on a ${label} account. Use another number or log in instead.`,
       };
     }
     if (normalizeEmail(c.email) === email) {
       return {
         ok: false,
         field: "email",
-        message: `This email is already on a ${label} account. It can match one Motorist and one Repair Pro at the same time only.`,
+        message: `This email is already used on a ${label} account. Use another email or log in instead.`,
       };
     }
     if (nin && c.nin && normalizeNin(c.nin) === nin) {
       return {
         ok: false,
         field: "nin",
-        message: `This NIN is already on a ${label} account. It can match one Motorist and one Repair Pro at the same time only.`,
+        message: `This NIN is already used on a ${label} account.`,
       };
     }
     if (bvn && c.bvn && normalizeBvn(c.bvn) === bvn) {
       return {
         ok: false,
         field: "bvn",
-        message: `This BVN is already on a ${label} account. It can match one Motorist and one Repair Pro at the same time only.`,
+        message: `This BVN is already used on a ${label} account.`,
       };
     }
   }

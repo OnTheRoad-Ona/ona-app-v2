@@ -1,6 +1,7 @@
 "use client";
 
 import { Search, SlidersHorizontal } from "lucide-react";
+import { useAppConfig } from "@/components/app-config-provider";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -10,10 +11,16 @@ import { cn } from "@/lib/utils";
  */
 export function SearchBar() {
   const { query, setQuery, theme } = useApp();
+  const { config } = useAppConfig();
   const isLight = theme === "light";
 
   return (
     <div className="shrink-0 px-3 pb-1.5 pt-2">
+      {config.content.homeBanner ? (
+        <div className="mb-1.5 rounded-md bg-[#323231] px-2.5 py-1.5 text-center text-[11px] font-semibold text-white">
+          {config.content.homeBanner}
+        </div>
+      ) : null}
       <label
         className="relative flex items-center"
         htmlFor="home-search"
@@ -32,7 +39,10 @@ export function SearchBar() {
           onChange={(e) => setQuery(e.target.value)}
           onDoubleClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
-          placeholder="Search problem, technician, service..."
+          placeholder={
+            config.content.homeSearchPlaceholder ||
+            "Search problem, technician, service..."
+          }
           autoComplete="off"
           autoCorrect="off"
           spellCheck={false}

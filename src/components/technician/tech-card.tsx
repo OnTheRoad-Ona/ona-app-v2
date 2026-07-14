@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { BadgeCheck, Star } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import type { Technician } from "@/lib/types";
 import { cn, formatDistance, formatEta } from "@/lib/utils";
 import { useApp } from "@/lib/store";
@@ -44,9 +45,14 @@ export function TechCard({
         onClick={(e) => e.stopPropagation()}
       >
         <Avatar className="h-10 w-10">
-          {tech.photo ? (
-            <AvatarImage src={tech.photo} alt="" />
-          ) : null}
+          <AvatarImage
+            src={
+              tech.photo && tech.photo.trim().length > 0
+                ? tech.photo
+                : DEFAULT_VENDOR_PHOTO
+            }
+            alt={tech.name}
+          />
           <AvatarFallback className="bg-brand text-[11px] font-bold text-white">
             {tech.shortName.slice(0, 2).toUpperCase()}
           </AvatarFallback>

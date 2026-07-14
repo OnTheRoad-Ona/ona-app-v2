@@ -27,7 +27,7 @@ export function BrandEntryScreen({
       role="dialog"
       aria-label="OgaMecho welcome"
     >
-      {/* True photographic metallic background — no overlay fills */}
+      {/* Auth background — /public/brand/auth-bg-v30.jpg (your attached art) */}
       <BrandHeroMotion size="splash" bottomFade={false} motion={false} />
 
       {/* Top cluster: Welcome → OgaMecho → tagline */}
@@ -47,7 +47,7 @@ export function BrandEntryScreen({
             className="mx-auto mt-2.5 max-w-[300px] text-[12px] font-medium leading-relaxed tracking-[0.04em]"
             style={{ color: TAGLINE_COLOR }}
           >
-            Request help or offer roadside services
+            Get help for your car, or earn money fixing cars
           </p>
         </div>
       </div>

@@ -40,6 +40,7 @@ import type {
   UserMode,
   UserProfile,
 } from "@/lib/types";
+import { getRuntimeAppConfig } from "@/lib/app-config";
 import { evaluateServiceGate } from "@/lib/verification-gate";
 
 /** Result of book (motorist) or accept (pro) with progressive verification. */
@@ -247,7 +248,10 @@ interface AppState {
     status: ServiceRequest["status"]
   ) => ServiceActionResult;
   retryLocation: () => void;
-  setManualLocation: (label: string) => void;
+  setManualLocation: (
+    label: string,
+    coords?: { lat: number; lng: number }
+  ) => void;
 }
 
 const defaultFilters: AppFilters = {
@@ -861,7 +865,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const bookRequest = useCallback(
     (tech: Technician, problem = "Roadside assistance"): ServiceActionResult => {
-      const gate = evaluateServiceGate(userProfile, "motorist");
+      const cfg = getRuntimeAppConfig();
+      const gate = cfg.features.identityVerifyEnabled
+        ? evaluateServiceGate(userProfile, "motorist", {
+            warnFrom: cfg.verification.warnFrom,
+            blockAt: cfg.verification.blockAt,
+          })
+        : {
+            allowed: true as const,
+            warning: null,
+            nextIndex: 0,
+            remaining: Infinity,
+          };
       const count = userProfile?.serviceActionCount ?? 0;
       if (!gate.allowed) {
         return {
@@ -905,10 +920,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       // Only "accept" is gated — decline / progress stays free
       if (status === "accepted" && existing.status === "pending") {
-        const gate = evaluateServiceGate(
-          userProfile,
-          accountType === "professional" ? "professional" : userProfile?.accountType
-        );
+        const cfg = getRuntimeAppConfig();
+        const gate = cfg.features.identityVerifyEnabled
+          ? evaluateServiceGate(
+              userProfile,
+              accountType === "professional"
+                ? "professional"
+                : userProfile?.accountType,
+              {
+                warnFrom: cfg.verification.warnFrom,
+                blockAt: cfg.verification.blockAt,
+              }
+            )
+          : {
+              allowed: true as const,
+              warning: null,
+              nextIndex: 0,
+              remaining: Infinity,
+            };
         const count = userProfile?.serviceActionCount ?? 0;
         if (!gate.allowed) {
           return {
@@ -947,10 +976,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const retryLocation = useCallback(() => {
-    // Keep Ikeja as the designed default; only upgrade when GPS succeeds.
+    // Prefer live GPS; fall back to Ikeja, Lagos for demo if denied/unavailable.
     setIsLocating(true);
     setLocationError(null);
     if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocationError("Location unavailable on this device");
       setIsLocating(false);
       return;
     }
@@ -964,25 +994,75 @@ export function AppProvider({ children }: { children: ReactNode }) {
             lng: pos.coords.longitude,
           },
         });
+        setLocationError(null);
         setIsLocating(false);
       },
-      () => {
-        // Silent fallback — product demo stays on Ikeja, Lagos (design default)
+      (err) => {
         setLocation(DEFAULT_USER_LOCATION);
+        setLocationError(err.message || "Using Ikeja default");
         setIsLocating(false);
       },
-      { enableHighAccuracy: false, timeout: 4000, maximumAge: 60_000 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 15_000 }
     );
   }, []);
 
-  const setManualLocation = useCallback((label: string) => {
-    setLocation({
-      label,
-      city: label,
-      coordinates: DEFAULT_USER_LOCATION.coordinates,
-    });
-    setLocationError(null);
+  // Live GPS on boot + watch for realtime homepage map centering
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    setIsLocating(true);
+    let cancelled = false;
+    const applyPos = (pos: GeolocationPosition) => {
+      if (cancelled) return;
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      setLocation({
+        label: "Live location",
+        city: "Near you",
+        coordinates: { lat, lng },
+      });
+      setIsLocating(false);
+      setLocationError(null);
+      // Best-effort street name for the pin label
+      void import("@/lib/google-maps").then(({ reverseGeocodeLatLng }) =>
+        reverseGeocodeLatLng(lat, lng).then((geo) => {
+          if (!geo || cancelled) return;
+          setLocation((prev) => ({
+            ...prev,
+            label: geo.area || geo.label,
+            city: geo.city || prev.city,
+            coordinates: { lat, lng },
+          }));
+        })
+      );
+    };
+    // One-shot first for faster first paint, then watch
+    navigator.geolocation.getCurrentPosition(applyPos, () => {
+      if (!cancelled) setIsLocating(false);
+    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 5_000 });
+    const watchId = navigator.geolocation.watchPosition(
+      applyPos,
+      () => {
+        if (!cancelled) setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10_000 }
+    );
+    return () => {
+      cancelled = true;
+      navigator.geolocation.clearWatch(watchId);
+    };
   }, []);
+
+  const setManualLocation = useCallback(
+    (label: string, coords?: { lat: number; lng: number }) => {
+      setLocation({
+        label,
+        city: label,
+        coordinates: coords ?? DEFAULT_USER_LOCATION.coordinates,
+      });
+      setLocationError(null);
+    },
+    []
+  );
 
   const value = useMemo<AppState>(
     () => ({

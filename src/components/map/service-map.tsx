@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   Circle,
   GoogleMap,
@@ -17,100 +18,118 @@ import {
   Plus,
   Wrench,
 } from "lucide-react";
+import {
+  getGoogleMapsApiKey,
+  GOOGLE_MAPS_LIBRARIES,
+  GOOGLE_MAPS_LOADER_ID,
+  shouldUseLiveMaps,
+} from "@/lib/google-maps";
 import { useApp } from "@/lib/store";
 import type { Technician } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+const OsmServiceMap = dynamic(
+  () => import("./osm-service-map").then((m) => m.OsmServiceMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full w-full items-center justify-center bg-[#0a1610] text-sm text-[#a8c9b5]">
+        Loading live map…
+      </div>
+    ),
+  }
+);
+
 const MAP_ID_CONTAINER = { width: "100%", height: "100%" };
 
-/** Dark app (black chrome): clear reddish-brown map */
-const MAP_STYLES_DARK: google.maps.MapTypeStyle[] = [
-  { elementType: "geometry", stylers: [{ color: "#5c2a1e" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#3a1810" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#e0b89a" }] },
+/** Light toggle map: dark green mixed with black */
+const MAP_STYLES_LIGHT: google.maps.MapTypeStyle[] = [
+  { elementType: "geometry", stylers: [{ color: "#0f1f16" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#060d0a" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#a8c9b5" }] },
   {
     featureType: "administrative",
     elementType: "geometry.stroke",
-    stylers: [{ color: "#7a3d2c" }],
+    stylers: [{ color: "#1a3d2e" }],
   },
   {
     featureType: "road",
     elementType: "geometry",
-    stylers: [{ color: "#7a4030" }],
+    stylers: [{ color: "#14281c" }],
   },
   {
     featureType: "road",
     elementType: "geometry.stroke",
-    stylers: [{ color: "#4a2418" }],
+    stylers: [{ color: "#0a1610" }],
   },
   {
     featureType: "road.highway",
     elementType: "geometry",
-    stylers: [{ color: "#8b4a36" }],
+    stylers: [{ color: "#1e4030" }],
   },
   {
     featureType: "water",
     elementType: "geometry",
-    stylers: [{ color: "#3a1c14" }],
+    stylers: [{ color: "#060d0a" }],
   },
   {
     featureType: "poi",
     elementType: "geometry",
-    stylers: [{ color: "#6b3426" }],
+    stylers: [{ color: "#0f1f16" }],
   },
   {
     featureType: "landscape",
     elementType: "geometry",
-    stylers: [{ color: "#632e20" }],
-  },
-  {
-    featureType: "landscape.natural",
-    elementType: "geometry",
-    stylers: [{ color: "#6e3424" }],
+    stylers: [{ color: "#0a1610" }],
   },
   { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
   { featureType: "transit", stylers: [{ visibility: "off" }] },
 ];
 
-/** Light app: dark green map */
-const MAP_STYLES_LIGHT: google.maps.MapTypeStyle[] = [
-  { elementType: "geometry", stylers: [{ color: "#1a3d2e" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#0f2a1f" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#a8c9b5" }] },
+/** Dark toggle map: brownish red mixed with black */
+const MAP_STYLES_DARK: google.maps.MapTypeStyle[] = [
+  { elementType: "geometry", stylers: [{ color: "#2a1410" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#120a08" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#e0b89a" }] },
   {
     featureType: "administrative",
     elementType: "geometry.stroke",
-    stylers: [{ color: "#2d5a42" }],
+    stylers: [{ color: "#4a2a20" }],
   },
   {
     featureType: "road",
     elementType: "geometry",
-    stylers: [{ color: "#2a4f3c" }],
+    stylers: [{ color: "#3a2018" }],
   },
   {
     featureType: "road",
     elementType: "geometry.stroke",
-    stylers: [{ color: "#163528" }],
+    stylers: [{ color: "#1a100c" }],
   },
   {
     featureType: "road.highway",
     elementType: "geometry",
-    stylers: [{ color: "#356b4e" }],
+    stylers: [{ color: "#5c2a1e" }],
   },
   {
     featureType: "water",
     elementType: "geometry",
-    stylers: [{ color: "#0d281c" }],
+    stylers: [{ color: "#0a0605" }],
   },
   {
     featureType: "poi",
     elementType: "geometry",
-    stylers: [{ color: "#234836" }],
+    stylers: [{ color: "#241610" }],
   },
   {
     featureType: "landscape",
     elementType: "geometry",
-    stylers: [{ color: "#1e4030" }],
+    stylers: [{ color: "#1a100c" }],
+  },
+  {
+    featureType: "landscape.natural",
+    elementType: "geometry",
+    stylers: [{ color: "#22140f" }],
   },
   { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
   { featureType: "transit", stylers: [{ visibility: "off" }] },
@@ -245,16 +264,16 @@ function MockupMap({
     { top: "50%", left: "78%" },
   ];
 
-  // Light app: dark green · Dark app: clear reddish brown
-  const baseBg = isLight ? "bg-[#1a3d2e]" : "bg-[#5c2a1e]";
+  // Light map = green/black · Dark map = brownish red/black
+  const baseBg = isLight ? "bg-[#0a1610]" : "bg-[#120a08]";
   const gridColor = isLight
-    ? "rgba(80,140,100,0.35)"
-    : "rgba(160,90,60,0.4)";
-  const landCenter = isLight ? "#234d38" : "#7a3a28";
-  const landEdge = isLight ? "#143528" : "#3a1810";
-  const parkBlob = isLight ? "bg-[#2d6b4a]/55" : "bg-[#8b4530]/45";
-  const roadColor = isLight ? "#356b4e" : "#a05840";
-  const roadSoft = isLight ? "#2a5540" : "#8b4a36";
+    ? "rgba(80,140,100,0.28)"
+    : "rgba(160,90,60,0.35)";
+  const landCenter = isLight ? "#0f1f16" : "#2a1410";
+  const landEdge = isLight ? "#060d0a" : "#0a0605";
+  const parkBlob = isLight ? "bg-[#14281c]/70" : "bg-[#3a2018]/55";
+  const roadColor = isLight ? "#1e4030" : "#5c2a1e";
+  const roadSoft = isLight ? "#14281c" : "#3a2018";
   const radiusStroke = isLight
     ? "border-emerald-400/45 bg-emerald-400/10"
     : "border-[#e89060]/50 bg-[#e85a12]/12";
@@ -457,7 +476,7 @@ function GoogleServiceMap({
   const { location, radiusKm, selectedTechId, theme } = useApp();
   const isLight = theme === "light";
   const mapStyles = isLight ? MAP_STYLES_LIGHT : MAP_STYLES_DARK;
-  const mapBg = isLight ? "#1a3d2e" : "#5c2a1e";
+  const mapBg = isLight ? "#0a1610" : "#120a08";
   const radiusColor = isLight ? "#34d399" : "#e8a070";
   const routeColor = isLight ? "#10b981" : "#e85a12";
   const [map, setMap] = useState<google.maps.Map | null>(null);
@@ -519,6 +538,12 @@ function GoogleServiceMap({
     });
   }, [map, mapStyles, mapBg]);
 
+  // Follow live GPS center in realtime
+  useEffect(() => {
+    if (!map) return;
+    map.panTo(center);
+  }, [map, center.lat, center.lng, center]);
+
   const zoomToFit = useCallback(() => {
     if (!map || typeof google === "undefined") return;
     const bounds = new google.maps.LatLngBounds();
@@ -536,10 +561,21 @@ function GoogleServiceMap({
 
   return (
     <div className="relative h-full w-full">
+      {/* Live status: pulsing green dot only */}
+      <div
+        className="pointer-events-none absolute left-2.5 top-2.5 z-30"
+        aria-label="Live map"
+        title="Live"
+      >
+        <span className="relative flex h-2.5 w-2.5">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white/90 shadow" />
+        </span>
+      </div>
       <GoogleMap
         mapContainerStyle={MAP_ID_CONTAINER}
         center={center}
-        zoom={13}
+        zoom={14}
         onLoad={onLoad}
         onUnmount={onUnmount}
         options={{
@@ -549,6 +585,9 @@ function GoogleServiceMap({
           clickableIcons: false,
           gestureHandling: "greedy",
           backgroundColor: mapBg,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
         }}
       >
         <Circle
@@ -587,7 +626,7 @@ function GoogleServiceMap({
                 ? new google.maps.Point(24, 24)
                 : undefined,
           }}
-          title={`You — ${location.label}`}
+          title={`You: ${location.label}`}
           zIndex={1000}
         />
         <OverlayViewF
@@ -652,9 +691,8 @@ function GoogleServiceMap({
 }
 
 /**
- * Uses Google Maps when key is present.
- * On billing/auth failure, switches to mock map (no Google error popup).
- * Set NEXT_PUBLIC_USE_LIVE_MAPS=false to force mock only.
+ * Homepage map: always try Google Maps first when a key is set.
+ * Falls back to OpenStreetMap only if Google rejects the key this session.
  */
 export function ServiceMap({
   technicians,
@@ -663,16 +701,20 @@ export function ServiceMap({
   technicians: Technician[];
   onSelect?: (id: string) => void;
 }) {
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
-  // Live Google only when explicitly enabled (billing must be on).
-  // Otherwise use polished mock map — avoids "can't load Google Maps" dialog.
-  const wantLive = process.env.NEXT_PUBLIC_USE_LIVE_MAPS === "true";
-  const hasKey = Boolean(
-    wantLive && apiKey && !apiKey.includes("your_google") && apiKey.length > 10
-  );
+  const apiKey = getGoogleMapsApiKey();
+  const hasKey = shouldUseLiveMaps();
   const [mapFailed, setMapFailed] = useState(false);
 
-  // Catch Google billing / auth errors immediately
+  // Clear any old "Google failed" sticky flag so a fixed key is used immediately
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem("om_google_maps_failed");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // Catch Google billing / auth errors → fall back to OSM for this session only
   useEffect(() => {
     if (typeof window === "undefined") return;
     const w = window as Window & { gm_authFailure?: () => void };
@@ -681,21 +723,13 @@ export function ServiceMap({
       setMapFailed(true);
       prev?.();
     };
-    // Hide Google error dialog if it flashes before fallback
-    const style = document.createElement("style");
-    style.setAttribute("data-oga-map", "1");
-    style.textContent = `
-      .gm-err-container, .gm-err-message, .dismissButton { display: none !important; }
-    `;
-    document.head.appendChild(style);
     return () => {
       w.gm_authFailure = prev;
-      style.remove();
     };
   }, []);
 
   if (!hasKey || mapFailed) {
-    return <MockupMap technicians={technicians} onSelect={onSelect} />;
+    return <OsmServiceMap technicians={technicians} onSelect={onSelect} />;
   }
 
   return (
@@ -703,7 +737,9 @@ export function ServiceMap({
       technicians={technicians}
       onSelect={onSelect}
       apiKey={apiKey}
-      onFatalError={() => setMapFailed(true)}
+      onFatalError={() => {
+        setMapFailed(true);
+      }}
     />
   );
 }
@@ -717,23 +753,38 @@ function LiveGoogleMap({
   technicians: Technician[];
   onSelect?: (id: string) => void;
   apiKey: string;
-  onFatalError: () => void;
+  onFatalError: (reason?: string) => void;
 }) {
   const { isLoaded, loadError } = useJsApiLoader({
-    id: "oga-mecho-google-maps",
+    id: GOOGLE_MAPS_LOADER_ID,
     googleMapsApiKey: apiKey,
+    // Empty libraries: only Maps JavaScript API needed for homepage
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
+  useEffect(() => {
+    if (loadError) {
+      onFatalError(
+        loadError.message ||
+          "Could not load Google Maps. Check the API key and that Maps JavaScript API is ON."
+      );
+    }
+  }, [loadError, onFatalError]);
+
   if (loadError) {
-    return <MockupMap technicians={technicians} onSelect={onSelect} />;
+    return (
+      <div className="relative h-full w-full">
+        <MockupMap technicians={technicians} onSelect={onSelect} />
+      </div>
+    );
   }
 
   if (!isLoaded) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-[#1a3d2e] text-sm text-[#a8c9b5]">
+      <div className="flex h-full w-full items-center justify-center bg-[#0a1610] text-sm text-[#a8c9b5]">
         <div className="flex flex-col items-center gap-2">
           <span className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
-          Loading map…
+          Loading live Google Maps…
         </div>
       </div>
     );
@@ -743,7 +794,11 @@ function LiveGoogleMap({
     <GoogleServiceMap
       technicians={technicians}
       onSelect={onSelect}
-      onFatalError={onFatalError}
+      onFatalError={() =>
+        onFatalError(
+          "Map tiles blocked. Enable Maps JavaScript API + billing for this key."
+        )
+      }
     />
   );
 }

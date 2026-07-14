@@ -1,13 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Briefcase, Check, ChevronLeft, ChevronRight, User } from "lucide-react";
 import {
   AuthPlate,
   authBackBtnClass,
   authFieldClass,
+  authFieldIconClass,
+  authFieldStyle,
   authLabelClass,
+  authSelectClass,
+  authTextareaClass,
 } from "@/components/auth/auth-plate";
 import { RegistrationComplete } from "@/components/auth/registration-complete";
 import {
@@ -19,12 +23,15 @@ import {
   DEFAULT_PHONE_ISO,
   formatInternationalPhone,
   getPhoneCodeOptions,
+  splitStoredPhone,
 } from "@/lib/phone-codes";
+import { getVaultProfile } from "@/lib/profiles-vault";
 import { verifySignupIds } from "@/lib/ng-id-verify-client";
 import {
   bvnError,
   confirmPasswordError,
   emailError,
+  fullNameError,
   isValidEmail,
   isValidPassword,
   ninError,
@@ -42,6 +49,7 @@ import {
   isSkillFileValue,
   publicSkillRows,
   skillAnswersValid,
+  specialtyMaxForSkill,
   type SkillAnswerValue,
 } from "@/lib/skill-questions";
 import { useApp } from "@/lib/store";
@@ -64,23 +72,14 @@ const PREF_SELECTED = "#b08d3c";
 
 /** Actual years of service — 1–9, then 10+ */
 const EXP_YEARS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10+"] as const;
-const BIO_MAX = 160;
+const BIO_MAX = 144;
+const MAX_BRANDS = 2;
 
 function experienceLabel(value: string) {
   if (value === "10+") return "10+ yrs";
   if (value === "1") return "1 yr";
   return `${value} yrs`;
 }
-
-/** About / contact — clear text-box wells on the sheet */
-const aboutFieldClass =
-  "h-10 w-full rounded-md border border-[#9A9EA6] bg-[#E2E3E7] px-3.5 text-[13px] font-medium text-[#0f172a] outline-none placeholder:text-[#6b7280] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:border-[#6B7280] focus:bg-[#E8E9ED] focus:ring-0";
-
-const aboutFieldIconClass =
-  "h-10 w-full rounded-md border border-[#9A9EA6] bg-[#E2E3E7] py-0 pl-10 pr-3.5 text-[13px] font-medium text-[#0f172a] outline-none placeholder:text-[#6b7280] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:border-[#6B7280] focus:bg-[#E8E9ED] focus:ring-0";
-
-const aboutAreaClass =
-  "min-h-[72px] w-full resize-none rounded-md border border-[#9A9EA6] bg-[#E2E3E7] px-3.5 py-2.5 text-[13px] font-medium leading-relaxed text-[#0f172a] outline-none placeholder:text-[#6b7280] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:border-[#6B7280] focus:bg-[#E8E9ED] focus:ring-0";
 
 /**
  * Full Repair Pro registration — one skill only, skill-specific questions,
@@ -95,6 +94,8 @@ export function ProSignup() {
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  /** Identity locked from existing Motorist account on this device */
+  const [identityLocked, setIdentityLocked] = useState(false);
 
   /** Exactly one skill */
   const [skill, setSkill] = useState<ProService | null>(null);
@@ -119,6 +120,23 @@ export function ProSignup() {
 
   const fullPhone = formatInternationalPhone(phoneDial, phoneNational);
 
+  // Prefill locked identity from existing Motorist account
+  useEffect(() => {
+    const motorist = getVaultProfile("motorist");
+    if (!motorist) return;
+    setIdentityLocked(true);
+    setFullName(motorist.fullName || "");
+    setEmail(motorist.email || "");
+    setIdNumber(motorist.idNumber || "");
+    setBvn(motorist.bvn || "");
+    setPassword(motorist.password || "");
+    setConfirmPassword(motorist.password || "");
+    const split = splitStoredPhone(motorist.phone || "");
+    setPhoneIso(split.iso);
+    setPhoneDial(split.dial);
+    setPhoneNational(split.national);
+  }, []);
+
   const setFieldError = (key: string, msg: string | null) => {
     setFieldErrors((prev) => {
       if (!msg) {
@@ -131,34 +149,63 @@ export function ProSignup() {
     });
   };
 
-  /** Service focus prefs (step after skills) — type → brand → model; country → location */
+  /** Service focus: type, up to 2 brands, model, country, location */
   const [vehicleType, setVehicleType] = useState("Automobile / Passenger Car");
-  const [vehicleBrand, setVehicleBrand] = useState("Any");
+  const [vehicleBrands, setVehicleBrands] = useState<string[]>([]);
   const [vehicleModel, setVehicleModel] = useState("Any");
   const [prefCountry, setPrefCountry] = useState("Nigeria");
   const [prefLocation, setPrefLocation] = useState("Any");
   const [pickerKey, setPickerKey] = useState<PrefKey | null>(null);
   const [pickerQuery, setPickerQuery] = useState("");
 
+  const brandLabel =
+    vehicleBrands.length === 0
+      ? "Pick up to 2"
+      : vehicleBrands.join(", ");
+
   const prefValue: Record<PrefKey, string> = {
     vehicleType,
-    brand: vehicleBrand,
+    brand: brandLabel,
     model: vehicleModel,
     country: prefCountry,
     location: prefLocation,
   };
 
+  const primaryBrand = vehicleBrands[0] || "Any";
+
+  const toggleBrand = (value: string) => {
+    setVehicleBrands((prev) => {
+      if (prev.includes(value)) {
+        const next = prev.filter((b) => b !== value);
+        if (next[0]) {
+          setVehicleModel(syncModelForBrand(next[0], vehicleModel, vehicleType));
+        }
+        return next;
+      }
+      if (prev.length >= MAX_BRANDS) return prev;
+      // skip pure "Any" stacking with real brands unless alone
+      if (value === "Any") return ["Any"];
+      const withoutAny = prev.filter((b) => b !== "Any");
+      const next = [...withoutAny, value];
+      setVehicleModel(syncModelForBrand(value, vehicleModel, vehicleType));
+      return next;
+    });
+  };
+
   const setPrefValue = (key: PrefKey, value: string) => {
     if (key === "vehicleType") {
       setVehicleType(value);
-      const nextBrand = syncBrandForVehicleType(value, vehicleBrand);
-      setVehicleBrand(nextBrand);
-      setVehicleModel(syncModelForBrand(nextBrand, vehicleModel, value));
+      const synced = vehicleBrands
+        .map((b) => syncBrandForVehicleType(value, b))
+        .filter((b, i, arr) => arr.indexOf(b) === i)
+        .slice(0, MAX_BRANDS);
+      setVehicleBrands(synced);
+      const pb = synced[0] || "Any";
+      setVehicleModel(syncModelForBrand(pb, vehicleModel, value));
       return;
     }
     if (key === "brand") {
-      setVehicleBrand(value);
-      setVehicleModel(syncModelForBrand(value, vehicleModel, vehicleType));
+      toggleBrand(value);
       return;
     }
     if (key === "model") {
@@ -183,9 +230,12 @@ export function ProSignup() {
     setPickerQuery("");
   };
 
-  const selectSkill = (id: ProService) => {
+  const selectSkill = (id: ProService, e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
     setSkill(id);
     setSkillAnswers({});
+    // Stay on step 1 until user taps Next (never leave signup)
   };
 
   const setSkillAnswer = (qid: string, value: SkillAnswerValue) => {
@@ -228,29 +278,58 @@ export function ProSignup() {
 
   const step1Ok = skill != null;
   const step2Ok = skill != null && skillAnswersValid(skill, skillAnswers);
-  const step3Ok = true;
+  const step3Ok = vehicleBrands.length >= 1 && vehicleBrands.length <= MAX_BRANDS;
   const step4Ok =
-    fullName.trim().length >= 2 && businessName.trim().length >= 2;
-  const step5Ok =
-    !phoneNationalError(phoneNational) &&
-    isValidEmail(email) &&
-    isValidPassword(password) &&
-    confirmPassword === password &&
-    confirmPassword.length > 0 &&
-    !ninError(idNumber) &&
-    !bvnError(bvn);
+    fullName.trim().length >= 2 &&
+    businessName.trim().length >= 2 &&
+    yearsExperience.trim().length > 0 &&
+    bio.trim().length >= 2 &&
+    bio.trim().length <= BIO_MAX;
+  const step5Ok = identityLocked
+    ? !phoneNationalError(phoneNational) &&
+      isValidEmail(email) &&
+      !ninError(idNumber) &&
+      !bvnError(bvn) &&
+      password.length > 0
+    : !phoneNationalError(phoneNational) &&
+      isValidEmail(email) &&
+      isValidPassword(password) &&
+      confirmPassword === password &&
+      confirmPassword.length > 0 &&
+      !ninError(idNumber) &&
+      !bvnError(bvn);
   const step6Ok =
     city.trim().length >= 2 &&
     area.trim().length >= 2 &&
     serviceRadiusKm >= 1;
 
-  const validateStep5 = (): string | null =>
-    phoneNationalError(phoneNational) ||
-    emailError(email) ||
-    ninError(idNumber) ||
-    bvnError(bvn) ||
-    passwordError(password) ||
-    confirmPasswordError(password, confirmPassword);
+  const validateStep4 = (): string | null => {
+    if (fullNameError(fullName)) return fullNameError(fullName);
+    if (businessName.trim().length < 2) return "Please enter your business or workshop name.";
+    if (!yearsExperience.trim()) return "Please pick how many years you have worked.";
+    if (bio.trim().length < 2) return "Please write a short bio.";
+    if (bio.trim().length > BIO_MAX) return `Bio must be ${BIO_MAX} characters or less.`;
+    return null;
+  };
+
+  const validateStep5 = (): string | null => {
+    if (identityLocked) {
+      return (
+        phoneNationalError(phoneNational) ||
+        emailError(email) ||
+        ninError(idNumber) ||
+        bvnError(bvn)
+      );
+    }
+    return (
+      phoneNationalError(phoneNational) ||
+      emailError(email) ||
+      ninError(idNumber) ||
+      bvnError(bvn) ||
+      passwordError(password) ||
+      confirmPasswordError(password, confirmPassword)
+    );
+  };
 
   const finish = async () => {
     if (busy || !skill || !step2Ok || !step4Ok || !step5Ok || !step6Ok) return;
@@ -306,8 +385,8 @@ export function ProSignup() {
       bvn: bvn.trim() || undefined,
       skillAnswers,
       servedVehicleType: vehicleType,
-      servedBrand: vehicleBrand,
-      servedMake: vehicleBrand,
+      servedBrand: vehicleBrands.join(", ") || "Any",
+      servedMake: vehicleBrands[0] || "Any",
       servedModel: vehicleModel,
       servedCountry: prefCountry,
       servedLocation: prefLocation,
@@ -334,13 +413,13 @@ export function ProSignup() {
   };
 
   const stepTitles: Record<Step, string> = {
-    1: "Choose your skill",
-    2: skill ? getSkillFlow(skill).title : "Skill details",
-    3: "Service focus",
+    1: "What work do you do?",
+    2: skill ? getSkillFlow(skill).title : "Tell us about your skill",
+    3: "Cars you usually fix",
     4: "About you",
-    5: "Contact & security",
-    6: "Service area",
-    7: "Review",
+    5: "Phone, email and password",
+    6: "Where do you work from?",
+    7: "Check and finish",
   };
 
   const pickerLabel = pickerKey
@@ -350,19 +429,20 @@ export function ProSignup() {
     ? optionsForPref(
         pickerKey,
         vehicleType,
-        vehicleBrand,
+        primaryBrand,
         prefCountry
       ).filter((opt) =>
         opt.toLowerCase().includes(pickerQuery.trim().toLowerCase())
       )
     : [];
 
-  /* Full-page picker (same AuthPlate background — no separate sheet) */
+  /* Full-page picker (same AuthPlate background) */
   if (pickerKey) {
     const isVehicleType = pickerKey === "vehicleType";
+    const isBrand = pickerKey === "brand";
     return (
       <AuthPlate>
-        <div className="flex min-h-0 flex-1 flex-col px-3 pb-3 pt-3">
+        <div className="om-pro-signup-fields flex min-h-0 flex-1 flex-col px-3 pb-3 pt-3">
           <div className="relative flex items-center justify-center pb-0.5">
             <button
               type="button"
@@ -373,9 +453,15 @@ export function ProSignup() {
               Back
             </button>
             <h1 className="text-[15px] font-bold tracking-tight text-[#1c1c1e]">
-              {pickerLabel}
+              {isBrand ? "Car brands (up to 2)" : pickerLabel}
             </h1>
           </div>
+
+          {isBrand && (
+            <p className="mt-1 text-center text-[11px] text-[#475569]">
+              Selected {vehicleBrands.length}/{MAX_BRANDS}. Tap to add or remove.
+            </p>
+          )}
 
           <div className="mt-2">
             <input
@@ -383,26 +469,37 @@ export function ProSignup() {
               value={pickerQuery}
               onChange={(e) => setPickerQuery(e.target.value)}
               placeholder="Search"
-              className="h-9 w-full rounded-md border-0 bg-white/70 px-3 text-[13px] font-medium text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border focus:border-[#8E8E93] focus:ring-0"
+              className={authFieldClass}
+              style={authFieldStyle}
               autoFocus
             />
           </div>
 
           <ul className="mt-1.5 min-h-0 flex-1 list-none overflow-y-auto overscroll-contain scrollbar-hide">
             {pickerOptions.map((opt, i) => {
-              const selected = prefValue[pickerKey] === opt;
+              const selected = isBrand
+                ? vehicleBrands.includes(opt)
+                : prefValue[pickerKey] === opt;
+              const brandFull =
+                isBrand && !selected && vehicleBrands.length >= MAX_BRANDS;
               return (
                 <li key={opt}>
                   <button
                     type="button"
+                    disabled={brandFull}
                     onClick={() => {
+                      if (isBrand) {
+                        toggleBrand(opt);
+                        return;
+                      }
                       setPrefValue(pickerKey, opt);
                       closePicker();
                     }}
                     className={cn(
                       "flex w-full items-center justify-between gap-2 border-0 bg-transparent px-0.5 text-left transition-colors active:bg-black/[0.03]",
                       isVehicleType ? "py-2" : "py-3",
-                      i > 0 && "border-t border-black/[0.07]"
+                      i > 0 && "border-t border-black/[0.07]",
+                      brandFull && "opacity-40"
                     )}
                   >
                     <span
@@ -434,6 +531,16 @@ export function ProSignup() {
               </li>
             )}
           </ul>
+
+          {isBrand && (
+            <button
+              type="button"
+              className="om-cta-dark-gray mt-2"
+              onClick={closePicker}
+            >
+              Done
+            </button>
+          )}
         </div>
       </AuthPlate>
     );
@@ -441,7 +548,7 @@ export function ProSignup() {
 
   return (
     <AuthPlate>
-      <div className="mx-auto flex min-h-0 w-[80%] flex-1 flex-col pb-4 pt-5">
+      <div className="om-pro-signup-fields mx-auto flex min-h-0 w-[80%] flex-1 flex-col pb-4 pt-5">
         <button type="button" onClick={goBack} className={authBackBtnClass}>
           <ChevronLeft className="h-4 w-4" strokeWidth={2.25} />
           Back
@@ -450,13 +557,7 @@ export function ProSignup() {
         <h1 className="text-center text-[17px] font-bold tracking-tight text-[#1c1c1e]">
           {stepTitles[step]}
         </h1>
-        <p className="mt-0.5 text-center text-[11px] text-[#1c1c1e]/65">
-          Step {step} of 7
-          {step === 1 ? " · one skill only" : ""}
-          {step === 2 ? " · skill questions" : ""}
-          {step === 3 ? " · vehicles you serve" : ""}
-        </p>
-
+        {/* Progress bar only (no page numbers) */}
         <div className="mt-2 flex gap-1">
           {([1, 2, 3, 4, 5, 6, 7] as Step[]).map((n) => (
             <span
@@ -481,19 +582,20 @@ export function ProSignup() {
         >
           {step === 1 && (
             <>
-              <div className="flex min-h-0 w-full flex-[0_0_85%] flex-col">
-                <ul className="flex min-h-0 flex-1 list-none flex-col gap-2 p-0">
+              <div className="min-h-0 w-full flex-1 overflow-y-auto scrollbar-hide">
+                <ul className="flex list-none flex-col gap-2 p-0 pb-2">
                   {PRO_TRADE_OPTIONS.map(({ id, label, icon: Icon, hint }) => {
                     const active = skill === id;
                     return (
-                      <li key={id} className="min-h-0 flex-1">
+                      <li key={id} className="shrink-0">
                         <button
                           type="button"
-                          onClick={() => selectSkill(id)}
+                          onClick={(e) => selectSkill(id, e)}
                           aria-pressed={active}
                           className={cn(
-                            "flex h-full w-full items-center gap-3 rounded-md border-0 px-3 text-left transition-colors",
-                            !active && "bg-transparent hover:bg-white/20",
+                            "flex min-h-[52px] w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors",
+                            !active &&
+                              "bg-[#E2E3E7] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] hover:bg-[#E8E9ED]",
                             active &&
                               "bg-[#9a9da5] shadow-[0_1px_6px_rgba(15,23,42,0.08)]"
                           )}
@@ -538,7 +640,8 @@ export function ProSignup() {
                 </ul>
               </div>
               <p className="mt-2 shrink-0 text-center text-[11px] text-[#3a3a3c]/70">
-                Select <span className="font-semibold text-[#e85a12]">1</span> skill only
+                Choose only{" "}
+                <span className="font-semibold text-[#e85a12]">one</span> skill
               </p>
             </>
           )}
@@ -562,19 +665,26 @@ export function ProSignup() {
                     key={q.id}
                     className={cn(
                       "flex flex-col border-b border-black/[0.06] last:border-0 last:pb-0",
-                      isSpecialties ? "gap-1.5 pb-3" : "gap-2 pb-3.5"
+                      isSpecialties
+                        ? "gap-2 rounded-md border border-[#c5c7ce] bg-[#e8e9ed]/80 p-2.5 pb-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] last:border last:pb-3"
+                        : "gap-2 pb-3.5"
                     )}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-bold text-[#0f172a]">
+                        <p
+                          className={cn(
+                            "text-[13px] font-bold",
+                            isSpecialties ? "text-[#1e293b]" : "text-[#0f172a]"
+                          )}
+                        >
                           {q.label}
                           {q.required ? (
                             <span className="text-[#e85a12]"> *</span>
                           ) : null}
                         </p>
                         {q.hint && (
-                          <p className="mt-0.5 text-[11px] leading-snug text-[#64748b]">
+                          <p className="mt-0.5 text-[11px] leading-snug text-[#475569]">
                             {q.hint}
                           </p>
                         )}
@@ -584,8 +694,10 @@ export function ProSignup() {
                           className={cn(
                             "shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold tabular-nums",
                             selectedCount > 0
-                              ? "bg-[#323231] text-white"
-                              : "bg-black/10 text-[#475569]"
+                              ? "bg-[#e85a12] text-white"
+                              : isSpecialties
+                                ? "bg-white/80 text-[#475569] ring-1 ring-[#b8bbc3]"
+                                : "bg-black/10 text-[#475569]"
                           )}
                         >
                           {selectedCount}/{q.maxSelect}
@@ -595,7 +707,8 @@ export function ProSignup() {
 
                     {q.type === "text" && (
                       <input
-                        className={aboutFieldClass}
+                        className={authFieldClass}
+                      style={authFieldStyle}
                         value={typeof val === "string" ? val : ""}
                         onChange={(e) => setSkillAnswer(q.id, e.target.value)}
                         placeholder={q.placeholder}
@@ -612,10 +725,10 @@ export function ProSignup() {
                               type="button"
                               onClick={() => setSkillAnswer(q.id, opt)}
                               className={cn(
-                                "rounded-md border-0 px-3 py-2.5 text-[12px] font-semibold transition-colors",
+                                "rounded-md px-3 py-2.5 text-[12px] font-semibold transition-colors",
                                 on
-                                  ? "bg-[#323231] text-white shadow-[0_2px_8px_rgba(0,0,0,0.14)]"
-                                  : "bg-white text-[#0f172a] shadow-[0_1px_3px_rgba(15,23,42,0.06)]"
+                                  ? "border-0 bg-[#323231] text-white shadow-[0_2px_8px_rgba(0,0,0,0.14)]"
+                                  : "border border-[#9A9EA6] bg-[#E2E3E7] text-[#0f172a] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)]"
                               )}
                             >
                               {opt}
@@ -630,8 +743,7 @@ export function ProSignup() {
                         className={cn(
                           "grid",
                           isSpecialties
-                            ? // Equal boxes, no inner scroll — fit on page
-                              "grid-cols-3 gap-1.5"
+                            ? "grid-cols-3 gap-1.5"
                             : "grid-cols-2 gap-2"
                         )}
                       >
@@ -651,15 +763,22 @@ export function ProSignup() {
                                 toggleMulti(q.id, opt, q.maxSelect)
                               }
                               className={cn(
-                                "rounded-md border-0 font-semibold transition-colors",
+                                "rounded-md font-semibold transition-colors",
                                 isSpecialties
                                   ? "flex h-11 items-center justify-center px-1.5 text-center text-[11px] leading-tight"
                                   : "px-2.5 py-2.5 text-left text-[12px] leading-snug",
-                                on
-                                  ? "bg-[#323231] text-white shadow-[0_2px_8px_rgba(0,0,0,0.14)]"
-                                  : atMax
-                                    ? "bg-white/35 text-[#94a3b8]"
-                                    : "bg-white text-[#0f172a] shadow-[0_1px_3px_rgba(15,23,42,0.06)]"
+                                /* "What you can fix": moderate highlight, no border lines */
+                                isSpecialties && on
+                                  ? "border-0 bg-[#fff0e8] text-[#9a3412] shadow-[0_1px_4px_rgba(232,90,18,0.22)] ring-0"
+                                  : isSpecialties && atMax
+                                    ? "border-0 bg-[#e0e1e5] text-[#94a3b8] opacity-70"
+                                    : isSpecialties
+                                      ? "border-0 bg-[#e8e9ed] text-[#1e293b] shadow-[0_1px_3px_rgba(15,23,42,0.08)] active:bg-[#dde0e6]"
+                                      : on
+                                        ? "border-0 bg-[#323231] text-white shadow-[0_2px_8px_rgba(0,0,0,0.14)]"
+                                        : atMax
+                                          ? "border-0 bg-[#E2E3E7]/50 text-[#94a3b8]"
+                                          : "border-0 bg-[#E2E3E7] text-[#0f172a] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)]"
                               )}
                             >
                               {opt}
@@ -679,7 +798,7 @@ export function ProSignup() {
                             {CERTIFICATION_WARNING}
                           </p>
                         </div>
-                        <label className="flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-[#8E8E93] bg-white/70 px-3 py-5 text-center transition-colors active:bg-white">
+                        <label className="flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-[#9A9EA6] bg-[#E2E3E7] px-3 py-5 text-center transition-colors active:bg-[#E8E9ED]">
                           <span className="text-[13px] font-semibold text-[#0f172a]">
                             {isSkillFileValue(val)
                               ? "Replace certificate"
@@ -714,7 +833,7 @@ export function ProSignup() {
           {step === 3 && (
             <div className="flex flex-col pt-1">
               <p className="mb-2 px-0.5 text-center text-[12px] leading-relaxed text-[#475569]">
-                Tell us which vehicles you typically serve
+                Which cars do you usually work on?
               </p>
               <div>
                 {PREF_ROWS.map(({ key, label }, i) => (
@@ -750,25 +869,38 @@ export function ProSignup() {
               <section className="flex flex-col gap-3">
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#64748b]">
-                    Identity
+                    Your name
                   </p>
                   <p className="mt-0.5 text-[12px] text-[#475569]">
-                    How motorists will see you
+                    This is how car owners will see you
                   </p>
                 </div>
 
                 <label className="block">
                   <span className="mb-1.5 block text-[12px] font-semibold text-[#475569]">
                     Full name
+                    <span className="ml-0.5 font-bold text-red-600" aria-label="required">
+                      *
+                    </span>
                   </span>
                   <div className="relative">
                     <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
                     <input
-                      className={aboutFieldIconClass}
+                      className={authFieldIconClass}
+                      style={{
+                        ...authFieldStyle,
+                        ...(identityLocked
+                          ? { opacity: 0.85, cursor: "not-allowed" }
+                          : null),
+                      }}
                       value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
+                      readOnly={identityLocked}
+                      onChange={(e) => {
+                        if (!identityLocked) setFullName(e.target.value);
+                      }}
                       placeholder="e.g. Adaobi Okeke"
                       autoComplete="name"
+                      required
                     />
                   </div>
                 </label>
@@ -776,14 +908,19 @@ export function ProSignup() {
                 <label className="block">
                   <span className="mb-1.5 block text-[12px] font-semibold text-[#475569]">
                     Business / workshop
+                    <span className="ml-0.5 font-bold text-red-600" aria-label="required">
+                      *
+                    </span>
                   </span>
                   <div className="relative">
                     <Briefcase className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
                     <input
-                      className={aboutFieldIconClass}
+                      className={authFieldIconClass}
+                      style={authFieldStyle}
                       value={businessName}
                       onChange={(e) => setBusinessName(e.target.value)}
                       placeholder="e.g. Okafor Auto Care"
+                      required
                     />
                   </div>
                 </label>
@@ -793,9 +930,12 @@ export function ProSignup() {
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#64748b]">
                     Years of service
+                    <span className="ml-0.5 font-bold text-red-600" aria-label="required">
+                      *
+                    </span>
                   </p>
                   <p className="mt-0.5 text-[12px] text-[#475569]">
-                    Optional · choose your actual years
+                    How many years have you worked? (required)
                   </p>
                 </div>
                 <div className="grid grid-cols-5 gap-2">
@@ -806,17 +946,15 @@ export function ProSignup() {
                       <button
                         key={year}
                         type="button"
-                        onClick={() =>
-                          setYearsExperience(on ? "" : year)
-                        }
+                        onClick={() => setYearsExperience(year)}
                         aria-pressed={on}
                         aria-label={experienceLabel(year)}
                         className={cn(
-                          "flex h-11 items-center justify-center rounded-md border-0 px-0.5 text-center font-semibold transition-all",
+                          "flex h-11 items-center justify-center rounded-md px-0.5 text-center font-semibold transition-all",
                           isTenPlus ? "text-[11px] leading-tight" : "text-[14px]",
                           on
-                            ? "bg-[#323231] text-white shadow-[0_2px_8px_rgba(0,0,0,0.16)]"
-                            : "bg-white text-[#0f172a] shadow-[0_1px_3px_rgba(15,23,42,0.06)] active:bg-white/90"
+                            ? "border-0 bg-[#323231] text-white shadow-[0_2px_8px_rgba(0,0,0,0.16)]"
+                            : "border border-[#9A9EA6] bg-[#E2E3E7] text-[#0f172a] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] active:bg-[#E8E9ED]"
                         )}
                       >
                         {isTenPlus ? (
@@ -855,9 +993,12 @@ export function ProSignup() {
                   <div>
                     <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#64748b]">
                       Short bio
+                      <span className="ml-0.5 font-bold text-red-600" aria-label="required">
+                        *
+                      </span>
                     </p>
                     <p className="mt-0.5 text-[12px] text-[#475569]">
-                      Optional · what you do best
+                      Write what you do best (max {BIO_MAX} characters)
                     </p>
                   </div>
                   <span
@@ -872,12 +1013,14 @@ export function ProSignup() {
                   </span>
                 </div>
                 <textarea
-                  className={aboutAreaClass}
+                  className={authTextareaClass}
+                  style={authFieldStyle}
                   value={bio}
                   maxLength={BIO_MAX}
-                  onChange={(e) => setBio(e.target.value)}
-                  placeholder="e.g. Fast diagnostics, honest pricing, 24/7 call-out…"
+                  onChange={(e) => setBio(e.target.value.slice(0, BIO_MAX))}
+                  placeholder="e.g. I come on time, fair price, I work nights"
                   rows={3}
+                  required
                 />
               </section>
             </div>
@@ -885,9 +1028,17 @@ export function ProSignup() {
 
           {step === 5 && (
             <div className="flex flex-col gap-1.5">
-              <p className="text-center text-[10px] leading-snug text-[#475569]">
-                {IDENTITY_RULE_COPY}
-              </p>
+              {identityLocked ? (
+                <p className="rounded-md bg-[#e8e9ed] px-2.5 py-2 text-center text-[11px] leading-snug text-[#334155]">
+                  We filled your name, phone, email, NIN and BVN from your
+                  Motorist account. Those cannot be changed here. No new
+                  password needed.
+                </p>
+              ) : (
+                <p className="text-center text-[10px] leading-snug text-[#475569]">
+                  {IDENTITY_RULE_COPY}
+                </p>
+              )}
               {formError && (
                 <p
                   className="rounded-md bg-red-50 px-2 py-1.5 text-[11px] font-medium leading-snug text-red-700"
@@ -899,13 +1050,13 @@ export function ProSignup() {
               <Field label="Phone" required>
                 <div className="flex gap-1.5">
                   <select
-                    className={cn(
-                      authFieldClass,
-                      "!h-9 !max-w-[42%] !rounded-md !px-1.5 !text-[11px]"
-                    )}
+                    className={cn(authSelectClass, "max-w-[42%]")}
+                    style={authFieldStyle}
                     value={phoneIso}
                     aria-label="Country code"
+                    disabled={identityLocked}
                     onChange={(e) => {
+                      if (identityLocked) return;
                       const iso = e.target.value;
                       setPhoneIso(iso);
                       const opt = phoneCodes.find((c) => c.iso === iso);
@@ -919,12 +1070,17 @@ export function ProSignup() {
                     ))}
                   </select>
                   <input
-                    className={cn(
-                      authFieldClass,
-                      "!h-9 min-w-0 flex-1 !rounded-md !text-[13px]"
-                    )}
+                    className={cn(authFieldClass, "min-w-0 flex-1")}
+                    style={{
+                      ...authFieldStyle,
+                      ...(identityLocked
+                        ? { opacity: 0.85, cursor: "not-allowed" }
+                        : null),
+                    }}
                     value={phoneNational}
+                    readOnly={identityLocked}
                     onChange={(e) => {
+                      if (identityLocked) return;
                       setPhoneNational(
                         e.target.value.replace(/\D/g, "").slice(0, 15)
                       );
@@ -942,9 +1098,17 @@ export function ProSignup() {
               </Field>
               <Field label="Email" required>
                 <input
-                  className={cn(authFieldClass, "!h-9 !rounded-md !text-[13px]")}
+                  className={authFieldClass}
+                  style={{
+                    ...authFieldStyle,
+                    ...(identityLocked
+                      ? { opacity: 0.85, cursor: "not-allowed" }
+                      : null),
+                  }}
                   value={email}
+                  readOnly={identityLocked}
                   onChange={(e) => {
+                    if (identityLocked) return;
                     setEmail(e.target.value);
                     setFieldError("email", null);
                   }}
@@ -954,11 +1118,19 @@ export function ProSignup() {
                 />
                 <FieldHint message={fieldErrors.email} />
               </Field>
-              <Field label="NIN (11 digits)">
+              <Field label="NIN (11 numbers)">
                 <input
-                  className={cn(authFieldClass, "!h-9 !rounded-md !text-[13px]")}
+                  className={authFieldClass}
+                  style={{
+                    ...authFieldStyle,
+                    ...(identityLocked
+                      ? { opacity: 0.85, cursor: "not-allowed" }
+                      : null),
+                  }}
                   value={idNumber}
+                  readOnly={identityLocked}
                   onChange={(e) => {
+                    if (identityLocked) return;
                     setIdNumber(e.target.value.replace(/\D/g, "").slice(0, 11));
                     setFieldError("nin", null);
                   }}
@@ -969,11 +1141,19 @@ export function ProSignup() {
                 />
                 <FieldHint message={fieldErrors.nin} />
               </Field>
-              <Field label="BVN (11 digits)">
+              <Field label="BVN (11 numbers)">
                 <input
-                  className={cn(authFieldClass, "!h-9 !rounded-md !text-[13px]")}
+                  className={authFieldClass}
+                  style={{
+                    ...authFieldStyle,
+                    ...(identityLocked
+                      ? { opacity: 0.85, cursor: "not-allowed" }
+                      : null),
+                  }}
                   value={bvn}
+                  readOnly={identityLocked}
                   onChange={(e) => {
+                    if (identityLocked) return;
                     setBvn(e.target.value.replace(/\D/g, "").slice(0, 11));
                     setFieldError("bvn", null);
                   }}
@@ -984,53 +1164,62 @@ export function ProSignup() {
                 />
                 <FieldHint message={fieldErrors.bvn} />
               </Field>
-              <Field label="Password" required>
-                <input
-                  className={cn(authFieldClass, "!h-9 !rounded-md !text-[13px]")}
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    setFieldError("password", null);
-                    if (confirmPassword) {
-                      setFieldError(
-                        "confirm",
-                        confirmPasswordError(e.target.value, confirmPassword)
-                      );
-                    }
-                  }}
-                  onBlur={() =>
-                    setFieldError("password", passwordError(password))
-                  }
-                  type="password"
-                  placeholder="Min. 8 characters"
-                />
-                <PasswordRules password={password} inline />
-                <FieldHint message={fieldErrors.password} />
-              </Field>
-              <Field label="Confirm password" required>
-                <input
-                  className={cn(authFieldClass, "!h-9 !rounded-md !text-[13px]")}
-                  value={confirmPassword}
-                  onChange={(e) => {
-                    setConfirmPassword(e.target.value);
-                    setFieldError(
-                      "confirm",
-                      e.target.value
-                        ? confirmPasswordError(password, e.target.value)
-                        : null
-                    );
-                  }}
-                  onBlur={() =>
-                    setFieldError(
-                      "confirm",
-                      confirmPasswordError(password, confirmPassword)
-                    )
-                  }
-                  type="password"
-                  placeholder="Re-enter password"
-                />
-                <FieldHint message={fieldErrors.confirm} />
-              </Field>
+              {!identityLocked && (
+                <>
+                  <Field label="Password" required>
+                    <input
+                      className={authFieldClass}
+                      style={authFieldStyle}
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setFieldError("password", null);
+                        if (confirmPassword) {
+                          setFieldError(
+                            "confirm",
+                            confirmPasswordError(
+                              e.target.value,
+                              confirmPassword
+                            )
+                          );
+                        }
+                      }}
+                      onBlur={() =>
+                        setFieldError("password", passwordError(password))
+                      }
+                      type="password"
+                      placeholder="At least 8 characters"
+                    />
+                    <PasswordRules password={password} inline />
+                    <FieldHint message={fieldErrors.password} />
+                  </Field>
+                  <Field label="Confirm password" required>
+                    <input
+                      className={authFieldClass}
+                      style={authFieldStyle}
+                      value={confirmPassword}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        setFieldError(
+                          "confirm",
+                          e.target.value
+                            ? confirmPasswordError(password, e.target.value)
+                            : null
+                        );
+                      }}
+                      onBlur={() =>
+                        setFieldError(
+                          "confirm",
+                          confirmPasswordError(password, confirmPassword)
+                        )
+                      }
+                      type="password"
+                      placeholder="Re-enter password"
+                    />
+                    <FieldHint message={fieldErrors.confirm} />
+                  </Field>
+                </>
+              )}
             </div>
           )}
 
@@ -1039,20 +1228,22 @@ export function ProSignup() {
               <Field label="City">
                 <input
                   className={authFieldClass}
+                      style={authFieldStyle}
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
                   placeholder="Lagos"
                 />
               </Field>
-              <Field label="Base area">
+              <Field label="Area or street">
                 <input
                   className={authFieldClass}
+                      style={authFieldStyle}
                   value={area}
                   onChange={(e) => setArea(e.target.value)}
                   placeholder="e.g. Yaba"
                 />
               </Field>
-              <Field label={`Service radius: ${serviceRadiusKm} km`}>
+              <Field label={`How far you can go: ${serviceRadiusKm} km`}>
                 <input
                   type="range"
                   min={1}
@@ -1070,20 +1261,20 @@ export function ProSignup() {
             <div className="space-y-0 text-[12px]">
               <Row k="Name" v={fullName} />
               <Row k="Business" v={businessName} />
-              <Row k="Skill" v={skill ? PRO_SERVICE_LABELS[skill] : "—"} />
+              <Row k="Skill" v={skill ? PRO_SERVICE_LABELS[skill] : "Not set"} />
               {skill &&
                 publicSkillRows(skill, skillAnswers).map((r) => (
                   <Row key={r.label} k={r.label} v={r.value} />
                 ))}
               <Row k="Vehicle type" v={vehicleType} />
-              <Row k="Brand" v={vehicleBrand} />
+              <Row k="Brands" v={brandLabel} />
               <Row k="Model" v={vehicleModel} />
               <Row k="Country" v={prefCountry} />
               <Row k="State / Region" v={prefLocation} />
               <Row k="Phone" v={fullPhone} />
               <Row k="Email" v={email} />
               <Row k="NIN" v={idNumber} />
-              <Row k="BVN" v={bvn ? "••••" + bvn.slice(-4) : "—"} />
+              <Row k="BVN" v={bvn ? "••••" + bvn.slice(-4) : "Not set"} />
               <Row k="Area" v={`${area}, ${city}`} />
               <Row k="Radius" v={`${serviceRadiusKm} km`} />
               {yearsExperience && (
@@ -1127,6 +1318,17 @@ export function ProSignup() {
               }}
               data-cta="next"
               onClick={() => {
+                if (step === 3 && !step3Ok) {
+                  setFormError("Please pick at least 1 car brand (up to 2).");
+                  return;
+                }
+                if (step === 4) {
+                  const err = validateStep4();
+                  if (err) {
+                    setFormError(err);
+                    return;
+                  }
+                }
                 if (step === 5) {
                   const err = validateStep5();
                   if (err) {
@@ -1176,7 +1378,7 @@ export function ProSignup() {
               data-cta="complete-registration"
               onClick={finish}
             >
-              {busy ? "Registering…" : "Complete registration"}
+              {busy ? "Please wait…" : "Finish and create account"}
             </button>
           )}
         </div>
@@ -1185,7 +1387,7 @@ export function ProSignup() {
 
       <RegistrationComplete
         open={done}
-        accountLabel="Repair Professional"
+        accountLabel="Repair Pro"
         onContinue={() => router.replace("/dashboard")}
       />
     </AuthPlate>
@@ -1240,7 +1442,7 @@ function PasswordRules({
     { ok: r.length, text: "At least 8 characters" },
     { ok: r.upper, text: "At least 1 capital letter" },
     { ok: r.digit, text: "At least 1 number" },
-    { ok: true, text: "Symbols allowed" },
+    { ok: true, text: "You can add symbols if you want" },
   ];
   return (
     <ul className={cn("mt-1 space-y-0.5", inline && "mb-0.5")}>

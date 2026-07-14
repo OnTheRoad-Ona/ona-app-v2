@@ -13,11 +13,12 @@ import {
   Plug,
   Wrench,
 } from "lucide-react";
+import { useAppConfig } from "@/components/app-config-provider";
 import { useApp } from "@/lib/store";
 import type { ServiceCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const tabs: {
+const ALL_TABS: {
   id: ServiceCategory;
   label: string;
   icon: typeof Wrench;
@@ -48,8 +49,13 @@ export function CategoryTabs({
   onCollapse?: () => void;
 }) {
   const { category, setCategory, theme } = useApp();
+  const { config } = useAppConfig();
   const isLight = theme === "light";
   const touchY = useRef<number | null>(null);
+  const enabled = new Set(config.services.enabled ?? []);
+  const tabs = ALL_TABS.filter(
+    (t) => t.id === "all" || enabled.has(t.id)
+  );
 
   const onAxisWheel = (e: React.WheelEvent) => {
     if (!onExpand || !onCollapse) return;

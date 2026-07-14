@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { AppConfigProvider } from "@/components/app-config-provider";
+import { AppFrame } from "@/components/layout/app-frame";
 import { AppProvider } from "@/lib/store";
-import { AuthGate } from "@/components/auth/auth-gate";
-import { PhoneShell } from "@/components/layout/phone-shell";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -16,9 +16,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OgaMecho — Find Mechanics, Vulcanizers & Tow Nearby",
+  title: "OgaMecho: Find mechanics, vulcanizers and tow near you",
   description:
-    "Live mechanic discovery and dispatch. Instantly connect with nearby mechanics, vulcanizers, and tow trucks within 0–10 km.",
+    "Find and call mechanics, vulcanizers and tow trucks near you, within about 10 km.",
   applicationName: "OgaMecho",
 };
 
@@ -42,11 +42,11 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
-        <AppProvider>
-          <PhoneShell>
-            <AuthGate>{children}</AuthGate>
-          </PhoneShell>
-        </AppProvider>
+        <AppConfigProvider>
+          <AppProvider>
+            <AppFrame>{children}</AppFrame>
+          </AppProvider>
+        </AppConfigProvider>
       </body>
     </html>
   );

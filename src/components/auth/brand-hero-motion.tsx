@@ -6,12 +6,15 @@ import { cn } from "@/lib/utils";
 export const BRAND_COPPER = "#c4784a";
 
 /**
- * Full metallic brand poster (attached asset) — photo only, no color fills.
- * 720×1280 source → 2880×5120 (4×) high-quality encode for sharp retina display.
+ * Auth brand background only — photo asset, no solid fills.
+ * Unique filename + version so browsers never keep a stale hero.
  */
-const BRAND_SRC = "/brand/oga-mecho-hero.jpg?v=27";
-const BRAND_W = 2816;
-const BRAND_H = 5888;
+const BRAND_SRC = "/brand/auth-bg-v30.jpg";
+const BRAND_W = 720;
+const BRAND_H = 1280;
+
+/** Full-bleed cover; phone-native 9:16 so face stays centered in the ring. */
+const BRAND_FOCUS = "object-cover object-center";
 
 type BrandHeroProps = {
   className?: string;
@@ -45,7 +48,12 @@ export function BrandHeroMotion({
           alt="Oga Mecho"
           width={BRAND_W}
           height={BRAND_H}
-          className="om-brand-img absolute inset-0 h-full w-full object-cover object-[center_42%]"
+          key={BRAND_SRC}
+          className={cn(
+            "om-brand-img absolute inset-0 h-full w-full",
+            BRAND_FOCUS
+          )}
+          style={{ filter: "none" }}
           draggable={false}
         />
       </div>
@@ -64,11 +72,12 @@ export function BrandHeroMotion({
       {/* Full-bleed photographic background — cover entire frame */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
+        key={BRAND_SRC}
         src={BRAND_SRC}
         alt=""
         width={BRAND_W}
         height={BRAND_H}
-        decoding="sync"
+        decoding="async"
         fetchPriority="high"
         loading="eager"
         draggable={false}
@@ -76,9 +85,13 @@ export function BrandHeroMotion({
         className={cn(
           "om-brand-img absolute inset-0 h-full w-full",
           size === "splash" || size === "full"
-            ? "object-cover object-center"
+            ? BRAND_FOCUS
             : "object-contain object-center"
         )}
+        style={{
+          /* No filters — show the attached art as-is */
+          filter: "none",
+        }}
       />
 
       {bottomFade && size === "full" && (

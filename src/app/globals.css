@@ -1,13 +1,17 @@
 @import "tailwindcss";
 
 /*
- * Light (default) — soft cool glass-gray like the reference sheet
- * (no pastel service colors; dark mode unchanged)
+ * Light (default) — cool glass-gray sheets on a dark-green/black mix stage.
  */
 :root,
 [data-theme="light"] {
-  --stage: #000000;
-  /* Sheet gray from design reference — #C8C9CD · RGB(200, 201, 205) */
+  /* Dark green mixed with black (toggle / stage / map) */
+  --stage: #060d0a;
+  --chrome: #0a1610;
+  --chrome-2: #0f1f16;
+  --chrome-3: #14281c;
+
+  /* Sheet gray from design reference — #C8C9CD */
   --background: #c8c9cd;
   --surface: #c8c9cd;
   --surface-2: #bebfc4;
@@ -33,7 +37,7 @@
   --navy-mid: #334155;
   --navy-soft: #475569;
 
-  --map-bg: #1a3d2e;
+  --map-bg: #0a1610;
   --success: #10b981;
   --warning: #f59e0b;
   --danger: #ef4444;
@@ -50,31 +54,33 @@
 }
 
 /*
- * Dark: real pure black (#000000) everywhere for app chrome.
- * Stage outside phone is also pure black.
+ * Dark: brownish red mixed with black (not pure black).
  */
 [data-theme="dark"] {
-  --stage: #000000;
+  --stage: #0a0605;
+  --chrome: #120a08;
+  --chrome-2: #1a100c;
+  --chrome-3: #241610;
 
-  --metal-deep: #000000;
-  --metal-base: #000000;
-  --metal-mid: #000000;
-  --metal-lift: #000000;
-  --metal-face: #000000;
-  --metal-inset: #000000;
-  --metal-shade: #000000;
+  --metal-deep: #120a08;
+  --metal-base: #1a100c;
+  --metal-mid: #22140f;
+  --metal-lift: #2a1812;
+  --metal-face: #1c110d;
+  --metal-inset: rgba(255, 160, 100, 0.06);
+  --metal-shade: rgba(0, 0, 0, 0.35);
 
-  --background: #000000;
-  --surface: #000000;
-  --surface-2: #000000;
-  --surface-3: #000000;
-  --elevated: #000000;
+  --background: #120a08;
+  --surface: #1a100c;
+  --surface-2: #22140f;
+  --surface-3: #2a1812;
+  --elevated: #1c110d;
   --foreground: #ffffff;
-  --muted: #a3a3a3;
-  --muted-2: #737373;
-  --border: #000000;
-  --border-strong: #000000;
-  --app-bg: #000000;
+  --muted: #c4b0a4;
+  --muted-2: #9a8478;
+  --border: #2e1a14;
+  --border-strong: #3a221a;
+  --app-bg: #120a08;
 
   --brand: #e85a12;
   --brand-bright: #f0651a;
@@ -85,11 +91,12 @@
   --brand-solid: #e85a12;
 
   --accent-blue: #60a5fa;
-  --navy: #000000;
-  --navy-mid: #0a0a0a;
-  --navy-soft: #111111;
+  --navy: #120a08;
+  --navy-mid: #1a100c;
+  --navy-soft: #241610;
 
-  --map-bg: #1a2332;
+  /* Dark map: brownish red mixed with black */
+  --map-bg: #120a08;
   --success: #34d399;
   --warning: #fbbf24;
   --danger: #f87171;
@@ -145,7 +152,7 @@ body {
 }
 
 body {
-  background: #000;
+  background: var(--stage);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -153,29 +160,36 @@ body {
 }
 
 /*
- * Matte metallic finish — brushed steel look:
- * soft top catch-light + gentle bottom shade (no gloss glow)
+ * Matte surfaces follow theme chrome:
+ * light → dark green / black · dark → brownish red / black
  */
-/* Real pure black surfaces */
 [data-theme="dark"] .matte-metal,
 [data-theme="dark"] .matte-metal-panel,
 [data-theme="dark"] .matte-metal-inset,
 [data-theme="dark"] .app-bg {
-  background-color: #000000 !important;
+  background-color: var(--chrome) !important;
   background-image: none !important;
   color: #ffffff;
+}
+
+[data-theme="light"] .matte-metal,
+[data-theme="light"] .matte-metal-panel,
+[data-theme="light"] .matte-metal-inset {
+  background-color: var(--chrome) !important;
+  background-image: none !important;
+  color: #fff;
 }
 
 .matte-metal,
 .matte-metal-panel,
 .matte-metal-inset {
-  background-color: #000000;
+  background-color: var(--chrome);
   background-image: none;
   color: #fff;
 }
 
 .app-bg {
-  background: #000000;
+  background: var(--app-bg);
   color: var(--foreground);
 }
 
@@ -254,11 +268,12 @@ body {
 }
 
 [data-theme="dark"] .card-surface {
-  background-color: #000000;
+  background-color: var(--elevated);
   background-image: none;
   box-shadow: none;
   outline: none;
   color: #ffffff;
+  border: 1px solid var(--border);
 }
 
 /* Thin orange radius track */
@@ -281,8 +296,8 @@ body {
     to right,
     var(--brand-solid) 0%,
     var(--brand-solid) var(--pct, 25%),
-    #2a2a2a var(--pct, 25%),
-    #2a2a2a 100%
+    var(--surface-3) var(--pct, 25%),
+    var(--surface-3) 100%
   );
 }
 .radius-slider::-webkit-slider-runnable-track {
@@ -406,14 +421,21 @@ body {
   animation: om-brand-fade-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* Crisp brand art — max sharpness, no color filters/glows */
+/* Crisp brand art — max sharpness */
 .om-brand-img {
   image-rendering: -webkit-optimize-contrast;
   image-rendering: high-quality;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   transform: translateZ(0);
-  filter: none;
+}
+
+/**
+ * Face inside the tire ring — clearer without enlarging the ring.
+ * Mild lift + contrast so features read on copper chrome; no size change.
+ */
+.om-brand-face {
+  filter: contrast(1.08) brightness(1.06) saturate(1.04);
 }
 
 /*
@@ -428,6 +450,74 @@ body {
 }
 .auth-matte-orange-sheen {
   display: none;
+}
+
+/**
+ * Auth text boxes — Motorist “Your account” style (screenshot reference).
+ * Soft light-gray wells on sheet #C8C9CD. Used for Log In + all Repair Pro signup.
+ */
+.om-auth-field,
+input.om-auth-field,
+select.om-auth-field,
+textarea.om-auth-field {
+  background-color: #e2e3e7 !important;
+  background-image: none !important;
+  border: 1px solid #9a9ea6 !important;
+  border-radius: 0.375rem !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05) !important;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+.om-auth-field:focus,
+input.om-auth-field:focus,
+select.om-auth-field:focus,
+textarea.om-auth-field:focus {
+  background-color: #e8e9ed !important;
+  border-color: #6b7280 !important;
+  outline: none !important;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05) !important;
+}
+/* Chrome / Safari autofill must stay gray wells, not yellow/white */
+input.om-auth-field:-webkit-autofill,
+input.om-auth-field:-webkit-autofill:hover,
+input.om-auth-field:-webkit-autofill:focus,
+textarea.om-auth-field:-webkit-autofill,
+select.om-auth-field:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #e2e3e7 inset !important;
+  box-shadow: 0 0 0 1000px #e2e3e7 inset !important;
+  -webkit-text-fill-color: #0f172a !important;
+  caret-color: #0f172a;
+  transition: background-color 99999s ease-out;
+}
+.om-auth-field::placeholder {
+  color: #6b7280 !important;
+  opacity: 1;
+}
+
+/* Repair Pro signup shell — same sheet gray as Motorist Your account */
+.om-pro-signup-fields input:not([type="file"]):not([type="range"]):not(.sr-only),
+.om-pro-signup-fields select,
+.om-pro-signup-fields textarea {
+  background-color: #e2e3e7 !important;
+  background-image: none !important;
+  border: 1px solid #9a9ea6 !important;
+  border-radius: 0.375rem !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05) !important;
+}
+.om-pro-signup-fields input:not([type="file"]):not([type="range"]):not(.sr-only):focus,
+.om-pro-signup-fields select:focus,
+.om-pro-signup-fields textarea:focus {
+  background-color: #e8e9ed !important;
+  border-color: #6b7280 !important;
+  outline: none !important;
+}
+.om-pro-signup-fields input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #e2e3e7 inset !important;
+  box-shadow: 0 0 0 1000px #e2e3e7 inset !important;
+  -webkit-text-fill-color: #0f172a !important;
 }
 
 /* Primary auth CTA — dark gray #323231 (Continue to sign up / Next) */
@@ -541,4 +631,27 @@ button.om-cta-dark-gray:disabled,
     opacity: 1 !important;
     transform: none !important;
   }
+}
+
+/* Leaflet live map (OpenStreetMap fallback) */
+.leaflet-container {
+  font: inherit;
+  background: #1a3d2e;
+}
+.leaflet-tooltip.om-you-tip,
+.leaflet-tooltip {
+  border: none !important;
+  border-radius: 9999px !important;
+  background: rgba(0, 0, 0, 0.85) !important;
+  color: #fff !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  padding: 2px 8px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35) !important;
+}
+.leaflet-tooltip-top:before,
+.leaflet-tooltip-bottom:before,
+.leaflet-tooltip-left:before,
+.leaflet-tooltip-right:before {
+  border: none !important;
 }

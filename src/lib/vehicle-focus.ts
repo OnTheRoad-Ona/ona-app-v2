@@ -769,11 +769,11 @@ export function getLocationsForCountry(country: string): string[] {
 }
 
 export const PREF_ROWS: { key: PrefKey; label: string }[] = [
-  { key: "vehicleType", label: "Vehicle Type" },
-  { key: "brand", label: "Brand" },
-  { key: "model", label: "Model" },
+  { key: "vehicleType", label: "Type of car" },
+  { key: "brand", label: "Car brands (up to 2)" },
+  { key: "model", label: "Model (e.g. Corolla)" },
   { key: "country", label: "Country" },
-  { key: "location", label: "State / Region" },
+  { key: "location", label: "State" },
 ];
 
 export function optionsForPref(

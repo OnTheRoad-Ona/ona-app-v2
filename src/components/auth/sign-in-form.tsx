@@ -48,7 +48,7 @@ export function SignInForm() {
           Log In
         </h1>
         <p className="mt-1 text-[13px] text-[#475569]">
-          Welcome back. Motorist and Repair Pro each need their own login.
+          Welcome back. Car owner and Repair Pro each use their own login.
         </p>
 
         <form
@@ -56,7 +56,7 @@ export function SignInForm() {
             e.preventDefault();
             setError("");
             if (!hasMotoristAccount && !hasProAccount) {
-              setError("No account found on this device. Please sign up.");
+              setError("No account found on this phone. Please sign up first.");
               return;
             }
             setBusy(true);

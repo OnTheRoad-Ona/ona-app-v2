@@ -65,3 +65,19 @@ export function formatInternationalPhone(
   if (n.startsWith("0")) n = n.slice(1);
   return `+${d}${n}`;
 }
+
+/** Parse +234801… back into country dial + national digits for form prefill. */
+export function splitStoredPhone(phone: string): {
+  iso: string;
+  dial: string;
+  national: string;
+} {
+  const digits = phone.replace(/\D/g, "");
+  const codes = getPhoneCodeOptions().slice().sort((a, b) => b.dial.length - a.dial.length);
+  for (const c of codes) {
+    if (digits.startsWith(c.dial) && digits.length > c.dial.length) {
+      return { iso: c.iso, dial: c.dial, national: digits.slice(c.dial.length) };
+    }
+  }
+  return { iso: DEFAULT_PHONE_ISO, dial: DEFAULT_PHONE_DIAL, national: digits };
+}

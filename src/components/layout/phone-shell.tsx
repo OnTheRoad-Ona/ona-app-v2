@@ -92,7 +92,12 @@ export function PhoneShell({
   };
 
   return (
-    <div className="box-border flex min-h-dvh w-full items-center justify-center bg-black px-3 py-3">
+    <div
+      className={cn(
+        "box-border flex min-h-dvh w-full items-center justify-center px-3 py-3",
+        isLight ? "bg-[#060d0a]" : "bg-[#0a0605]"
+      )}
+    >
       <div
         id="oga-mecho-phone"
         className={cn(
@@ -100,12 +105,14 @@ export function PhoneShell({
           "h-[min(844px,calc(100dvh-1.5rem))]",
           "max-h-[min(844px,calc(100dvh-1.5rem))]",
           "max-w-[390px]",
-          isLight ? "bg-[#c8c9cd]" : "bg-black",
+          isLight ? "bg-[#c8c9cd]" : "bg-[#120a08]",
           className
         )}
         style={{
           width: "min(390px, calc(100vw - 1.5rem))",
-          boxShadow: "0 24px 48px rgba(0,0,0,0.55)",
+          boxShadow: isLight
+            ? "0 24px 48px rgba(6, 13, 10, 0.65)"
+            : "0 24px 48px rgba(10, 6, 5, 0.7)",
         }}
         onDoubleClick={onDoubleClick}
       >
@@ -126,19 +133,19 @@ export function PhoneShell({
             className={cn(
               "flex items-center gap-2 rounded-full px-3.5 py-2 text-[12px] font-semibold shadow-lg",
               toastTheme === "light"
-                ? "bg-white text-slate-800 ring-1 ring-slate-200/80"
-                : "bg-[#2a2a2a] text-white ring-1 ring-white/10"
+                ? "bg-[#0a1610] text-emerald-50 ring-1 ring-emerald-500/30"
+                : "bg-[#1a100c] text-[#f0d4c4] ring-1 ring-[#e85a12]/35"
             )}
             role="status"
           >
             {toastTheme === "light" ? (
               <>
-                <Sun className="h-3.5 w-3.5 text-amber-500" aria-hidden />
+                <Sun className="h-3.5 w-3.5 text-emerald-400" aria-hidden />
                 Light background
               </>
             ) : (
               <>
-                <Moon className="h-3.5 w-3.5 text-sky-300" aria-hidden />
+                <Moon className="h-3.5 w-3.5 text-orange-300" aria-hidden />
                 Dark background
               </>
             )}

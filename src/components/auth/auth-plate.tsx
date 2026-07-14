@@ -36,11 +36,32 @@ export function AuthPlate({
 }
 
 /**
- * Visible text boxes on the sheet: soft gray well + clear border.
- * Same cool family as AUTH_BG, but light enough to read as inputs.
+ * Login text-box standard — same for Motorist, Repair Pro, Log In, Admin.
+ * `!` Tailwind + `om-auth-field` CSS force the gray well (no white override).
+ * #E2E3E7 fill · #9A9EA6 border · h-10 · rounded-md · 13px
  */
 export const authFieldClass =
-  "h-11 w-full rounded-xl border border-[#9A9EA6] bg-[#E2E3E7] px-3.5 text-[14px] font-medium text-[#1e293b] outline-none placeholder:text-[#6b7280] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:border-[#6B7280] focus:bg-[#E8E9ED] focus:ring-0";
+  "om-auth-field h-10 w-full rounded-md border !border-[#9A9EA6] !bg-[#E2E3E7] px-3 text-[13px] font-medium !text-[#0f172a] outline-none placeholder:!text-[#6b7280] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:!border-[#6B7280] focus:!bg-[#E8E9ED] focus:ring-0";
+
+/** Same as authFieldClass with left padding for an icon */
+export const authFieldIconClass =
+  "om-auth-field h-10 w-full rounded-md border !border-[#9A9EA6] !bg-[#E2E3E7] py-0 pl-9 pr-3 text-[13px] font-medium !text-[#0f172a] outline-none placeholder:!text-[#6b7280] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:!border-[#6B7280] focus:!bg-[#E8E9ED] focus:ring-0";
+
+/** Country / select sibling of Motorist phone row */
+export const authSelectClass =
+  "om-auth-field h-10 shrink-0 rounded-md border !border-[#9A9EA6] !bg-[#E2E3E7] px-1.5 text-[11px] font-semibold !text-[#0f172a] outline-none focus:!border-[#6B7280]";
+
+/** Multiline field matching login wells */
+export const authTextareaClass =
+  "om-auth-field min-h-[72px] w-full resize-none rounded-md border !border-[#9A9EA6] !bg-[#E2E3E7] px-3 py-2.5 text-[13px] font-medium leading-relaxed !text-[#0f172a] outline-none placeholder:!text-[#6b7280] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:!border-[#6B7280] focus:!bg-[#E8E9ED] focus:ring-0";
+
+/** Inline style twin — use when a field still paints white */
+export const authFieldStyle: CSSProperties = {
+  backgroundColor: "#E2E3E7",
+  borderColor: "#9A9EA6",
+  color: "#0f172a",
+  boxShadow: "inset 0 1px 2px rgba(15, 23, 42, 0.05)",
+};
 
 export const authLabelClass =
   "mb-1.5 block text-[12px] font-semibold text-[#475569]";

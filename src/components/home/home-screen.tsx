@@ -7,6 +7,7 @@ import { AppHeader } from "@/components/home/app-header";
 import { HomePanel } from "@/components/home/home-panel";
 import { SearchBar } from "@/components/home/search-bar";
 import { ServiceMap } from "@/components/map/service-map";
+import { useAppConfig } from "@/components/app-config-provider";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -25,9 +26,34 @@ export function HomeScreen() {
     retryLocation,
     theme,
   } = useApp();
+  const { config } = useAppConfig();
   const isLight = theme === "light";
   const [sheetExpanded, setSheetExpanded] = useState(false);
 
+  if (config.app.maintenanceMode) {
+    return (
+      <div
+        className={cn(
+          "flex h-full flex-col items-center justify-center gap-3 px-6 text-center",
+          isLight ? "bg-[#c8c9cd]" : "bg-black"
+        )}
+      >
+        <p
+          className={cn(
+            "text-lg font-bold",
+            isLight ? "text-slate-900" : "text-white"
+          )}
+        >
+          {config.app.name}
+        </p>
+        <p className="max-w-xs text-sm text-muted">
+          {config.app.maintenanceMessage}
+        </p>
+      </div>
+    );
+  }
+
+  // Refresh GPS every time home opens so the live map centers on the user
   useEffect(() => {
     retryLocation();
     // eslint-disable-next-line react-hooks/exhaustive-deps

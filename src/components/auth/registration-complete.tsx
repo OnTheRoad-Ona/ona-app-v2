@@ -37,10 +37,10 @@ export function RegistrationComplete({
           id="reg-complete-title"
           className="mt-2.5 text-[16px] font-bold text-[#1e293b]"
         >
-          Registration complete
+          You are done
         </h2>
         <p className="mt-1 text-[12px] text-[#64748b]">
-          Your {accountLabel} account is ready.
+          Your {accountLabel} account is ready to use.
         </p>
         <button
           type="button"

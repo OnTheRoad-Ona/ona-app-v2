@@ -5,7 +5,7 @@ import type { AccountType } from "@/lib/types";
  * Pros stay on pro pages unless they registered as Motorist.
  */
 
-const PUBLIC_PREFIXES = ["/login", "/signup", "/logout"];
+const PUBLIC_PREFIXES = ["/login", "/signup", "/logout", "/admin"];
 
 /** Paths motorists use for discovery / requests */
 export function isClientAppPath(pathname: string): boolean {

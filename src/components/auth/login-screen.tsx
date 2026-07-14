@@ -18,10 +18,12 @@ const ACCENT = "#e85a12";
  */
 export function LoginScreen() {
   const router = useRouter();
-  const [accountType, setAccountType] = useState<AccountType>("motorist");
+  /** No default — user must pick Motorist or Repair Pro */
+  const [accountType, setAccountType] = useState<AccountType | null>(null);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!accountType) return;
     router.push(
       accountType === "professional" ? "/signup/pro" : "/signup/motorist"
     );
@@ -39,8 +41,8 @@ export function LoginScreen() {
   return (
     <AuthPlate>
       <div className="flex min-h-0 flex-1 flex-col">
-        {/* Top bar */}
-        <div className="flex items-center justify-between px-4 pb-1 pt-4">
+        {/* Top bar — no step counter; keep Back only */}
+        <div className="flex items-center px-4 pb-0 pt-3">
           <button
             type="button"
             onClick={goBack}
@@ -49,19 +51,15 @@ export function LoginScreen() {
             <ChevronLeft className="h-4 w-4" strokeWidth={2.25} />
             Back
           </button>
-          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#64748b]">
-            Sign up · 1 of 2
-          </span>
-          <span className="w-14" aria-hidden />
         </div>
 
-        {/* Brand + intro */}
-        <div className="px-5 pt-3 text-center">
+        {/* Brand + intro — pulled up closer to top */}
+        <div className="px-5 pt-1 text-center">
           <h1 className="text-[26px] font-bold leading-none tracking-tight">
             <span style={{ color: WHEEL_GRAY }}>Oga</span>
             <span style={{ color: ACCENT }}>Mecho</span>
           </h1>
-          <p className="mx-auto mt-2 max-w-[280px] text-[13px] leading-relaxed text-[#475569]">
+          <p className="mx-auto mt-1.5 max-w-[280px] text-[13px] leading-relaxed text-[#475569]">
             Choose how you&apos;ll use the app
           </p>
         </div>
@@ -69,7 +67,7 @@ export function LoginScreen() {
         {/* Role cards */}
         <form
           onSubmit={onSubmit}
-          className="mt-7 flex min-h-0 flex-1 flex-col px-4 pb-5"
+          className="mt-5 flex min-h-0 flex-1 flex-col px-4 pb-5"
         >
           <div
             className="flex flex-col gap-2.5"
@@ -80,27 +78,30 @@ export function LoginScreen() {
               active={accountType === "motorist"}
               icon={Car}
               title="Motorist"
-              subtitle="Request roadside help nearby"
+              subtitle="I have a car and need help on the road"
               onClick={() => setAccountType("motorist")}
             />
             <RoleCard
               active={accountType === "professional"}
               icon={Wrench}
               title="Repair Pro"
-              subtitle="Offer services and win jobs"
+              subtitle="I fix cars and want customers"
               onClick={() => setAccountType("professional")}
             />
           </div>
 
           <p className="mt-4 px-0.5 text-center text-[11px] leading-relaxed text-[#64748b]">
-            {accountType === "professional"
-              ? "Takes about 2 minutes to complete"
-              : "Takes about 1 minute to complete"}
+            {!accountType
+              ? "Tap Motorist or Repair Pro to continue"
+              : accountType === "professional"
+                ? "About 2 minutes to finish"
+                : "About 1 minute to finish"}
           </p>
 
           <div className="mt-auto pt-5">
             <button
               type="submit"
+              disabled={!accountType}
               className="om-cta-dark-gray"
               style={{
                 WebkitAppearance: "none",
@@ -123,12 +124,12 @@ export function LoginScreen() {
                 fontWeight: 600,
                 lineHeight: 1,
                 boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
-                cursor: "pointer",
-                opacity: 1,
+                cursor: accountType ? "pointer" : "not-allowed",
+                opacity: accountType ? 1 : 0.45,
               }}
               data-cta="continue-signup"
             >
-              Continue to sign up
+              Continue
               <ChevronRight
                 className="h-4 w-4 shrink-0"
                 color="#ffffff"
@@ -173,17 +174,18 @@ function RoleCard({
       aria-checked={active}
       onClick={onClick}
       className={cn(
-        "flex w-full gap-3 rounded-md border-0 px-3.5 py-3.5 text-left transition-all duration-150",
+        "flex w-full gap-3 rounded-md px-3.5 py-3.5 text-left transition-all duration-150",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e85a12]/45",
+        /* Unselected: flat sheet tone — no white “highlight” until user taps */
         active
-          ? "bg-white shadow-[0_4px_18px_rgba(15,23,42,0.10)]"
-          : "bg-white/55 shadow-[0_1px_4px_rgba(15,23,42,0.05)] active:bg-white/80"
+          ? "border border-transparent bg-white shadow-[0_4px_18px_rgba(15,23,42,0.10)]"
+          : "border border-[#9A9EA6]/70 bg-transparent shadow-none active:bg-black/[0.04]"
       )}
     >
       <Icon
         className={cn(
           "mt-0.5 h-[18px] w-[18px] shrink-0",
-          active ? "text-[#e85a12]" : "text-[#475569]"
+          active ? "text-[#e85a12]" : "text-[#64748b]"
         )}
         strokeWidth={2.1}
       />
@@ -192,20 +194,25 @@ function RoleCard({
         <div className="flex flex-wrap items-center gap-2">
           <span
             className="text-[15px] font-bold leading-tight tracking-tight"
-            style={{ color: active ? WHEEL_GRAY : "#0f172a" }}
+            style={{ color: active ? WHEEL_GRAY : "#334155" }}
           >
             {title}
           </span>
-          {active && (
+          {active ? (
             <span
               className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white"
               style={{ backgroundColor: ACCENT }}
             >
               Selected
             </span>
-          )}
+          ) : null}
         </div>
-        <p className="mt-0.5 text-[12.5px] font-medium leading-snug text-[#334155]">
+        <p
+          className={cn(
+            "mt-0.5 text-[12.5px] font-medium leading-snug",
+            active ? "text-[#334155]" : "text-[#64748b]"
+          )}
+        >
           {subtitle}
         </p>
       </div>
@@ -219,7 +226,9 @@ function RoleCard({
         )}
         aria-hidden
       >
-        {active && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+        {active ? (
+          <Check className="h-3 w-3 text-white" strokeWidth={3} />
+        ) : null}
       </div>
     </button>
   );

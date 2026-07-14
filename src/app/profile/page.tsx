@@ -59,7 +59,7 @@ export default function ProfilePage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-[#120a08]"
       )}
     >
       <PageHeader title="Profile" subtitle="Account & settings" />
@@ -108,8 +108,8 @@ export default function ProfilePage() {
               </p>
               <p className="mt-0.5 text-[11px] text-muted">
                 {isIdentityVerified(userProfile)
-                  ? "NIN and BVN verified — unlimited book & accept."
-                  : `Explore freely first. Warnings from request #${VERIFY_WARN_FROM}; verify before #${VERIFY_BLOCK_AT} to keep booking or accepting.`}
+                  ? "NIN and BVN verified. You can book and accept without limit."
+                  : `You can try the app first. We will remind you from job ${VERIFY_WARN_FROM}. Verify before job ${VERIFY_BLOCK_AT} so you can keep booking or accepting.`}
               </p>
               <div
                 className={cn(
@@ -133,7 +133,7 @@ export default function ProfilePage() {
                   Actions used: {getServiceActionCount(userProfile)}
                   {!isIdentityVerified(userProfile) &&
                     Number.isFinite(remainingFreeActions(userProfile)) &&
-                    ` · ${remainingFreeActions(userProfile)} free left`}
+                    `, ${remainingFreeActions(userProfile)} free left`}
                 </span>
               </div>
               {!isIdentityVerified(userProfile) && (
@@ -156,11 +156,11 @@ export default function ProfilePage() {
               isLight ? "text-slate-900" : "text-white"
             )}
           >
-            Registered as
+            Your account type
           </p>
           <p className="mt-0.5 text-[11px] text-muted">
-            You can be both Motorist and Repair Pro. Each needs its own signup.
-            Switch from the menu (☰).
+            You can be a car owner and a Repair Pro. Each one needs its own
+            signup. Switch from the menu (☰).
           </p>
           <div
             className={cn(
@@ -174,14 +174,14 @@ export default function ProfilePage() {
                 isLight ? "text-slate-900" : "text-white"
               )}
             >
-              Active now: {accountLabel}
+              Using now: {accountLabel}
               {accountType === "professional" && registeredAs !== "client"
-                ? ` · ${SERVICE_LABELS[registeredAs as ProService] ?? registeredAs}`
+                ? ` (${SERVICE_LABELS[registeredAs as ProService] ?? registeredAs})`
                 : ""}
             </p>
             <p className="mt-0.5 text-[11px] text-muted">
-              Open the three-line menu to switch account type or sign up for the
-              other side.
+              Open the three line menu to switch account or sign up for the
+              other one.
             </p>
           </div>
         </div>
@@ -270,7 +270,7 @@ export default function ProfilePage() {
                         isLight ? "text-slate-900" : "text-white"
                       )}
                     >
-                      {value || "—"}
+                      {value || "Not set"}
                     </span>
                   </div>
                 ))}
@@ -291,18 +291,17 @@ export default function ProfilePage() {
               Your skill
             </p>
             <p className="mt-0.5 text-[11px] text-muted">
-              One professional skill only — cannot add more trades on this
-              account.
+              This account has one skill only. You cannot add another trade here.
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <span className="metallic-orange inline-block rounded-md px-2.5 py-1.5 text-[11px] font-bold text-white">
-                {SERVICE_LABELS[proServices[0]] ?? proServices[0]} · primary
+                {SERVICE_LABELS[proServices[0]] ?? proServices[0]} (main)
               </span>
               <Link
                 href="/technician/pro-self"
                 className="text-[11px] font-bold text-brand underline-offset-2 hover:underline"
               >
-                Preview public profile
+                See how customers see you
               </Link>
             </div>
           </div>

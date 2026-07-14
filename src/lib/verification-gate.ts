@@ -36,11 +36,25 @@ export function nextActionIndex(profile: UserProfile | null | undefined): number
   return getServiceActionCount(profile) + 1;
 }
 
+export type VerificationThresholds = {
+  warnFrom?: number;
+  blockAt?: number;
+};
+
+function thresholds(opts?: VerificationThresholds) {
+  const warnFrom = opts?.warnFrom ?? VERIFY_WARN_FROM;
+  const blockAt = opts?.blockAt ?? VERIFY_BLOCK_AT;
+  const freeActions = Math.max(0, blockAt - 1);
+  return { warnFrom, blockAt, freeActions };
+}
+
 export function remainingFreeActions(
-  profile: UserProfile | null | undefined
+  profile: UserProfile | null | undefined,
+  opts?: VerificationThresholds
 ): number {
   if (isIdentityVerified(profile)) return Infinity;
-  return Math.max(0, VERIFY_FREE_ACTIONS - getServiceActionCount(profile));
+  const { freeActions } = thresholds(opts);
+  return Math.max(0, freeActions - getServiceActionCount(profile));
 }
 
 export type GateDecision =
@@ -73,11 +87,13 @@ function roleVerb(accountType: UserProfile["accountType"] | null | undefined): {
  */
 export function evaluateServiceGate(
   profile: UserProfile | null | undefined,
-  accountType?: UserProfile["accountType"] | null
+  accountType?: UserProfile["accountType"] | null,
+  opts?: VerificationThresholds
 ): GateDecision {
   const type = accountType ?? profile?.accountType ?? "motorist";
   const { action, past } = roleVerb(type);
   const next = nextActionIndex(profile);
+  const { warnFrom, blockAt, freeActions } = thresholds(opts);
 
   if (isIdentityVerified(profile)) {
     return {
@@ -88,26 +104,25 @@ export function evaluateServiceGate(
     };
   }
 
-  if (next >= VERIFY_BLOCK_AT) {
+  if (next >= blockAt) {
     return {
       allowed: false,
       nextIndex: next,
       remaining: 0,
-      message: `Verify your NIN and BVN to ${action} more requests. You've used your ${VERIFY_FREE_ACTIONS} free ${past} jobs — complete identity verification to continue.`,
+      message: `Please verify your NIN and BVN to ${action} more jobs. You have used your ${freeActions} free ${past} jobs. Finish verification to continue.`,
     };
   }
 
   let warning: string | null = null;
-  if (next >= VERIFY_WARN_FROM) {
-    const left = VERIFY_FREE_ACTIONS - next + 1;
-    // next is the action they're about to take; remaining after this action:
-    const after = VERIFY_FREE_ACTIONS - next;
-    if (next === VERIFY_WARN_FROM) {
-      warning = `You're getting familiar with OgaMecho. After ${VERIFY_FREE_ACTIONS} free requests, you'll need to verify your NIN and BVN to keep ${action === "accept" ? "accepting" : "booking"}. ${after} free ${after === 1 ? "request" : "requests"} left after this one.`;
-    } else if (next === VERIFY_FREE_ACTIONS) {
-      warning = `Last free request before verification is required. Verify NIN and BVN after this job so you can keep using OgaMecho without interruption.`;
+  if (next >= warnFrom) {
+    const left = freeActions - next + 1;
+    const after = freeActions - next;
+    if (next === warnFrom) {
+      warning = `Welcome. After ${freeActions} free jobs, you will need to verify NIN and BVN to keep ${action === "accept" ? "taking jobs" : "booking help"}. After this one, you have ${after} free ${after === 1 ? "job" : "jobs"} left.`;
+    } else if (next === freeActions) {
+      warning = `This is your last free job before you must verify. After this, please verify your NIN and BVN so you can keep using OgaMecho.`;
     } else {
-      warning = `Verification reminder: you can ${action} ${left} more free request${left === 1 ? "" : "s"} (including this one), then NIN + BVN verification is required.`;
+      warning = `Reminder: you can still ${action} ${left} free job${left === 1 ? "" : "s"} (including this one). After that, you must verify NIN and BVN.`;
     }
   }
 
@@ -115,7 +130,7 @@ export function evaluateServiceGate(
     allowed: true,
     warning,
     nextIndex: next,
-    remaining: VERIFY_FREE_ACTIONS - next + 1,
+    remaining: freeActions - next + 1,
   };
 }
 

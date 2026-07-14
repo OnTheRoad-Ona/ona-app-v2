@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ChevronLeft, ShieldCheck } from "lucide-react";
 import {
+  authFieldClass,
+  authLabelClass,
   authPrimaryBtnClass,
   authPrimaryBtnStyle,
 } from "@/components/auth/auth-plate";
@@ -95,13 +97,6 @@ export default function VerifyIdentityPage() {
     }
   };
 
-  const fieldClass = cn(
-    "h-10 w-full rounded-lg border-0 px-3 text-[13px] font-medium outline-none",
-    isLight
-      ? "bg-slate-100 text-slate-900 placeholder:text-slate-400"
-      : "bg-white/10 text-white placeholder:text-white/40"
-  );
-
   if (done) {
     return (
       <div
@@ -122,7 +117,7 @@ export default function VerifyIdentityPage() {
           You&apos;re verified
         </h2>
         <p className="mt-1.5 max-w-[260px] text-[12px] text-muted">
-          Book and accept without limits.
+          You can book and accept jobs without limit.
         </p>
         <button
           type="button"
@@ -172,8 +167,8 @@ export default function VerifyIdentityPage() {
           Verify your identity
         </h1>
         <p className="mx-auto mt-1 max-w-[300px] shrink-0 text-center text-[11px] leading-snug text-muted">
-          Free until request #{VERIFY_WARN_FROM}. Verify NIN and BVN before
-          request #{VERIFY_BLOCK_AT} to keep booking or accepting.
+          Free try until job {VERIFY_WARN_FROM}. Verify your NIN and BVN before
+          job {VERIFY_BLOCK_AT} so you can keep booking or accepting work.
         </p>
 
         <div
@@ -185,11 +180,11 @@ export default function VerifyIdentityPage() {
           <label className="block">
             <span
               className={cn(
-                "mb-1 flex items-center justify-between text-[11px] font-semibold",
-                isLight ? "text-slate-600" : "text-white/70"
+                authLabelClass,
+                "mb-1 flex items-center justify-between"
               )}
             >
-              NIN (11 digits)
+              NIN (11 numbers)
               {ninOk && (
                 <span className="text-[10px] font-bold text-emerald-600">
                   Verified
@@ -197,7 +192,7 @@ export default function VerifyIdentityPage() {
               )}
             </span>
             <input
-              className={fieldClass}
+              className={authFieldClass}
               value={nin}
               onChange={(e) => {
                 setNin(e.target.value.replace(/\D/g, "").slice(0, 11));
@@ -206,18 +201,18 @@ export default function VerifyIdentityPage() {
               }}
               inputMode="numeric"
               maxLength={11}
-              placeholder="National Identification Number"
+              placeholder="Your 11 digit NIN"
             />
           </label>
 
           <label className="block">
             <span
               className={cn(
-                "mb-1 flex items-center justify-between text-[11px] font-semibold",
-                isLight ? "text-slate-600" : "text-white/70"
+                authLabelClass,
+                "mb-1 flex items-center justify-between"
               )}
             >
-              BVN (11 digits)
+              BVN (11 numbers)
               {bvnOk && (
                 <span className="text-[10px] font-bold text-emerald-600">
                   Verified
@@ -225,7 +220,7 @@ export default function VerifyIdentityPage() {
               )}
             </span>
             <input
-              className={fieldClass}
+              className={authFieldClass}
               value={bvn}
               onChange={(e) => {
                 setBvn(e.target.value.replace(/\D/g, "").slice(0, 11));
@@ -234,7 +229,7 @@ export default function VerifyIdentityPage() {
               }}
               inputMode="numeric"
               maxLength={11}
-              placeholder="Bank Verification Number"
+              placeholder="Your 11 digit BVN"
             />
           </label>
 
@@ -254,7 +249,7 @@ export default function VerifyIdentityPage() {
             style={authPrimaryBtnStyle}
             onClick={submit}
           >
-            {busy ? "Verifying…" : "Verify NIN & BVN"}
+            {busy ? "Please wait…" : "Verify NIN and BVN"}
           </button>
         </div>
       </div>
