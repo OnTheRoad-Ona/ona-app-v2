@@ -55,8 +55,7 @@ export function BrandEntryScreen({
             className="mx-auto mt-2.5 max-w-[300px] text-[12px] font-medium leading-relaxed tracking-[0.04em]"
             style={{ color: TAGLINE_COLOR }}
           >
-            Request trusted help for your car, or earn money fixing cars
-            with roadside service
+            Request help and offer roadside services
           </p>
         </div>
       </div>
