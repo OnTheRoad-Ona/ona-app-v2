@@ -90,10 +90,10 @@ export function HomeScreen() {
       </div>
 
       <div className="relative flex min-h-0 flex-1 flex-col">
-        {/* Map = 45% when collapsed */}
+        {/* Map = 45% when collapsed — Apple spring with the sheet */}
         <div
           className={cn(
-            "relative min-h-0 overflow-hidden transition-all duration-300 ease-out",
+            "om-sheet-spring relative min-h-0 overflow-hidden",
             sheetExpanded
               ? "h-0 flex-[0_0_0%] opacity-0 pointer-events-none"
               : "flex-[0_0_45%] opacity-100"
@@ -113,11 +113,11 @@ export function HomeScreen() {
         */}
         <div
           className={cn(
-            "z-30 flex min-h-0 flex-col",
+            "om-sheet-spring z-30 flex min-h-0 flex-col",
             sheetExpanded ? "flex-1" : "flex-[0_0_55%]",
             sheetBg,
-            // Soft top edge over the map (sheet feel)
-            !sheetExpanded && "rounded-t-2xl shadow-[0_-6px_24px_rgba(0,0,0,0.18)]"
+            !sheetExpanded &&
+              "rounded-t-2xl shadow-[0_-6px_24px_rgba(0,0,0,0.18)]"
           )}
         >
           <HomePanel
@@ -138,8 +138,8 @@ export function HomeScreen() {
                   className={cn(
                     "inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 text-[14px] font-bold transition-colors active:scale-[0.98]",
                     isLight
-                      ? "bg-[#aeb6c4] text-slate-900 hover:bg-[#a4adbc] shadow-[inset_0_0_0_1px_rgba(30,41,59,0.08)]"
-                      : "bg-white/[0.1] text-white hover:bg-white/[0.14] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]"
+                      ? "bg-[#aeb6c4] text-slate-900 hover:bg-[#a4adbc]"
+                      : "bg-white/[0.1] text-white hover:bg-white/[0.14]"
                   )}
                 >
                   <Zap

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { CategoryTabs } from "@/components/home/category-tabs";
 import { FilterChips } from "@/components/home/filter-chips";
@@ -32,7 +32,7 @@ export function HomePanel({
   onCollapse: () => void;
   className?: string;
   /** Renders on the same sheet chrome (e.g. Request Help Now). */
-  footer?: React.ReactNode;
+  footer?: ReactNode;
 }) {
   const router = useRouter();
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -108,7 +108,7 @@ export function HomePanel({
   return (
     <div
       className={cn(
-        "relative z-30 flex min-h-0 flex-col transition-all duration-300 ease-out",
+        "relative z-30 flex min-h-0 flex-col",
         className
       )}
     >

@@ -39,6 +39,12 @@ export function IntroScreen({ onComplete }: { onComplete: () => void }) {
     void play();
   }, []);
 
+  // Preload brand art so handoff never flashes empty/white under the video
+  useEffect(() => {
+    const img = new Image();
+    img.src = "/brand/auth-bg-v30.jpg";
+  }, []);
+
   return (
     <div
       className="absolute inset-0 z-[300] flex flex-col bg-black"
@@ -47,7 +53,7 @@ export function IntroScreen({ onComplete }: { onComplete: () => void }) {
     >
       <video
         ref={videoRef}
-        className="h-full w-full object-cover"
+        className="h-full w-full object-cover bg-black"
         src={INTRO_SRC}
         playsInline
         muted
