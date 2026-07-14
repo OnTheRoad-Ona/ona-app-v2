@@ -674,9 +674,10 @@ export function getModelsForBrand(
   brand: string,
   vehicleType?: string
 ): string[] {
+  // Full catalog for the brand (complete list for whichever brands the user picked)
   const base = MODELS_BY_BRAND[brand] ?? ["Any", "Other"];
-  // Light filter by bucket when useful
-  if (!vehicleType || vehicleType === "Any") return base;
+  // Only narrow for clear non-car buckets when we have a dedicated list
+  if (!vehicleType || vehicleType === "Any") return [...base];
   const bucket = bucketForVehicleType(vehicleType);
   if (bucket === "motorcycle" && brand === "Honda") {
     return [
@@ -692,13 +693,8 @@ export function getModelsForBrand(
   if (bucket === "motorcycle" && brand === "Yamaha") {
     return ["Any", "YZF-R3", "MT-07", "MT-09", "NMAX", "RayZR", "Other"];
   }
-  if (
-    (bucket === "truck" || bucket === "bus") &&
-    brand === "Toyota"
-  ) {
-    return ["Any", "Hilux", "Hiace", "Coaster", "Dyna", "Land Cruiser", "Other"];
-  }
-  return base;
+  // Passenger / general: always full brand model list
+  return [...base];
 }
 
 /** @deprecated use getModelsForBrand */
@@ -771,7 +767,7 @@ export function getLocationsForCountry(country: string): string[] {
 export const PREF_ROWS: { key: PrefKey; label: string }[] = [
   { key: "vehicleType", label: "Vehicle" },
   { key: "brand", label: "Car brands (up to 2)" },
-  { key: "model", label: "Model (one per brand)" },
+  { key: "model", label: "Models (pick as many as you like)" },
   { key: "country", label: "Country" },
   { key: "location", label: "State" },
 ];
