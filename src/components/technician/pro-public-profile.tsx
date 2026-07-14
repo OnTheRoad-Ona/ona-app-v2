@@ -24,7 +24,7 @@ import { cn, formatDistance, formatEta } from "@/lib/utils";
 
 /**
  * Motorist-facing Repair Pro profile.
- * Background follows the app light/dark toggle (not a fixed sheet).
+ * Light toggle → app light gray sheet. Dark toggle → pure black.
  * No map. Photo defaults to OgaMecho logo until the vendor sets one.
  */
 export function ProPublicProfile({
@@ -72,21 +72,21 @@ export function ProPublicProfile({
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-[#120a08]"
+        isLight ? "bg-[#c8c9cd]" : "bg-black"
       )}
     >
-      {/* Top bar — matches theme chrome */}
+      {/* Top bar — matches profile background */}
       <div
         className={cn(
           "flex shrink-0 items-center gap-2 px-3 pb-2 pt-3",
-          isLight ? "bg-[#c8c9cd]" : "bg-[#120a08]"
+          isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
         <Link
           href={backHref}
           className={cn(
             "flex h-9 w-9 items-center justify-center text-lg leading-none",
-            isLight ? "text-slate-800" : "text-[#f0d4c4]"
+            isLight ? "text-slate-800" : "text-white"
           )}
           aria-label="Back"
         >
@@ -104,7 +104,7 @@ export function ProPublicProfile({
           <p
             className={cn(
               "truncate text-[11px] font-medium",
-              isLight ? "text-slate-600" : "text-[#c4b0a4]"
+              isLight ? "text-slate-600" : "text-neutral-400"
             )}
           >
             {skillLabel}
@@ -120,7 +120,7 @@ export function ProPublicProfile({
               "rounded-2xl p-4",
               isLight
                 ? "bg-[#d4d5d9] shadow-sm"
-                : "bg-[#1c110d] ring-1 ring-[#3a221a]"
+                : "bg-neutral-950 ring-1 ring-white/10"
             )}
           >
             <div className="flex items-start gap-3.5">
@@ -166,7 +166,7 @@ export function ProPublicProfile({
                 <p
                   className={cn(
                     "mt-1 text-[11px] font-medium capitalize leading-snug",
-                    isLight ? "text-slate-600" : "text-[#c4b0a4]"
+                    isLight ? "text-slate-600" : "text-neutral-400"
                   )}
                 >
                   {statusText}
@@ -227,7 +227,7 @@ export function ProPublicProfile({
               <p
                 className={cn(
                   "text-[12px]",
-                  isLight ? "text-slate-500" : "text-[#9a8478]"
+                  isLight ? "text-slate-500" : "text-neutral-500"
                 )}
               >
                 No bio yet.
@@ -253,7 +253,7 @@ export function ProPublicProfile({
               <p
                 className={cn(
                   "text-[12px]",
-                  isLight ? "text-slate-500" : "text-[#9a8478]"
+                  isLight ? "text-slate-500" : "text-neutral-500"
                 )}
               >
                 Skill details will appear when this pro completes signup
@@ -276,7 +276,7 @@ export function ProPublicProfile({
                       "rounded-full px-2.5 py-1 text-[11px] font-semibold",
                       isLight
                         ? "bg-white/80 text-slate-800"
-                        : "bg-black/30 text-[#f0d4c4]"
+                        : "bg-white/10 text-neutral-200"
                     )}
                   >
                     {s}
@@ -304,7 +304,7 @@ export function ProPublicProfile({
               <p
                 className={cn(
                   "text-[12px]",
-                  isLight ? "text-slate-500" : "text-[#9a8478]"
+                  isLight ? "text-slate-500" : "text-neutral-500"
                 )}
               >
                 Any vehicle · not specified yet
@@ -335,7 +335,7 @@ export function ProPublicProfile({
             <p
               className={cn(
                 "mt-1.5 flex items-center gap-1 text-[11px] font-medium",
-                isLight ? "text-slate-600" : "text-[#c4b0a4]"
+                isLight ? "text-slate-600" : "text-neutral-400"
               )}
             >
               <Navigation className="h-3 w-3 text-brand" />
@@ -346,7 +346,7 @@ export function ProPublicProfile({
           <p
             className={cn(
               "mt-3 flex items-center justify-center gap-1 text-center text-[10px]",
-              isLight ? "text-slate-500" : "text-[#9a8478]"
+              isLight ? "text-slate-500" : "text-neutral-500"
             )}
           >
             <Clock3 className="h-3 w-3" />
@@ -360,7 +360,7 @@ export function ProPublicProfile({
             "shrink-0 space-y-2 border-t px-3 pb-3 pt-2.5",
             isLight
               ? "border-slate-400/25 bg-[#c8c9cd]"
-              : "border-[#3a221a] bg-[#120a08]"
+              : "border-white/10 bg-black"
           )}
         >
           <div className="grid grid-cols-2 gap-2">
@@ -370,7 +370,7 @@ export function ProPublicProfile({
               className={cn(
                 "h-11",
                 !isLight &&
-                  "border-[#3a221a] bg-[#1c110d] text-white hover:bg-[#241610]"
+                  "border-white/15 bg-neutral-950 text-white hover:bg-neutral-900"
               )}
             >
               <a href={`tel:${tech.phone.replace(/\s/g, "")}`}>
@@ -383,7 +383,7 @@ export function ProPublicProfile({
               asChild
               className={cn(
                 "h-11",
-                !isLight && "bg-[#2a1812] text-white hover:bg-[#321e16]"
+                !isLight && "bg-neutral-900 text-white hover:bg-neutral-800"
               )}
             >
               <Link href="/messages">
@@ -424,7 +424,7 @@ function Stat({
       <p
         className={cn(
           "text-[10px] font-medium",
-          isLight ? "text-slate-500" : "text-[#9a8478]"
+          isLight ? "text-slate-500" : "text-neutral-500"
         )}
       >
         {label}
@@ -450,7 +450,7 @@ function SectionCard({
         "mt-3 rounded-2xl p-3.5",
         isLight
           ? "bg-[#d4d5d9] shadow-sm"
-          : "bg-[#1c110d] ring-1 ring-[#3a221a]"
+          : "bg-neutral-950 ring-1 ring-white/10"
       )}
     >
       <div className="mb-2.5 flex items-center gap-2">
@@ -487,7 +487,7 @@ function Row({
       <span
         className={cn(
           "text-[12px] font-medium",
-          isLight ? "text-slate-500" : "text-[#9a8478]"
+          isLight ? "text-slate-500" : "text-neutral-500"
         )}
       >
         {label}
