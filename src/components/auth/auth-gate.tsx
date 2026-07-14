@@ -139,7 +139,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <div className="relative h-full w-full overflow-hidden bg-black">
         {/* Brand mounts under the video during handoff so crossfade never hits white */}
-        {(phase === "handoff" || phase === "entry") && !isAuthenticated && (
+        {phase === "handoff" && !isAuthenticated && (
           <div className="absolute inset-0 z-0">
             <BrandEntryScreen
               onLogIn={() => finishEntry("/login/signin")}
