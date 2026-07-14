@@ -111,46 +111,49 @@ export function HomeScreen() {
           />
         </div>
 
-        {/* Panel = 55% collapsed; 100% of this area when expanded */}
-        <HomePanel
-          expanded={sheetExpanded}
-          onExpand={() => setSheetExpanded(true)}
-          onCollapse={() => setSheetExpanded(false)}
-          className={
-            sheetExpanded ? "flex-1" : "flex-[0_0_55%] min-h-0"
-          }
-        />
-      </div>
-
-      {/* CTA uses same gray family as the toggle chrome so it sits in the UI, not a new color block */}
-      <div
-        className={cn(
-          "z-40 shrink-0 px-3 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))]",
-          isLight ? "bg-[#c8c9cd]" : "bg-black"
-        )}
-      >
-        <button
-          type="button"
-          onClick={handleRapidRequest}
+        {/*
+          One continuous lower chrome: panel + CTA share the same background
+          so the sheet runs under Request Help Now with no gap strip.
+        */}
+        <div
           className={cn(
-            "inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 text-[14px] font-bold transition-colors active:scale-[0.98]",
-            isLight
-              ? // One step off sheet gray #c8c9cd / list #d8dce4
-                "bg-[#b4b7bf] text-slate-900 hover:bg-[#aeb1b9] shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]"
-              : // One step off pure black chrome
-                "bg-[#1a1a1a] text-white hover:bg-[#222222] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] ring-1 ring-white/10"
+            "z-30 flex min-h-0 flex-col",
+            sheetExpanded ? "flex-1" : "flex-[0_0_55%]",
+            isLight ? "bg-[#c8c9cd]" : "bg-black"
           )}
         >
-          <Zap
-            className={cn(
-              "h-4 w-4",
-              isLight
-                ? "fill-slate-900 text-slate-900"
-                : "fill-white text-white"
-            )}
+          <HomePanel
+            expanded={sheetExpanded}
+            onExpand={() => setSheetExpanded(true)}
+            onCollapse={() => setSheetExpanded(false)}
+            className="min-h-0 flex-1 bg-transparent"
           />
-          Request Help Now
-        </button>
+
+          <div className="shrink-0 px-3 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+            <button
+              type="button"
+              onClick={handleRapidRequest}
+              className={cn(
+                "inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 text-[14px] font-bold transition-colors active:scale-[0.98]",
+                isLight
+                  ? // Vendor select #c5ccd8, one step darker so it reads on sheet
+                    "bg-[#aeb6c4] text-slate-900 hover:bg-[#a4adbc] shadow-[inset_0_0_0_1px_rgba(30,41,59,0.08)]"
+                  : // Same wash as dark selected vendor row
+                    "bg-white/[0.1] text-white hover:bg-white/[0.14] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]"
+              )}
+            >
+              <Zap
+                className={cn(
+                  "h-4 w-4",
+                  isLight
+                    ? "fill-slate-900 text-slate-900"
+                    : "fill-white text-white"
+                )}
+              />
+              Request Help Now
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
