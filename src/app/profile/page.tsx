@@ -5,7 +5,6 @@ import {
   ChevronRight,
   LogOut,
   MapPin,
-  Settings,
   Shield,
   ShieldCheck,
   UserRound,
@@ -324,7 +323,6 @@ export default function ProfilePage() {
                 ]
               : []),
             { href: "/requests", label: "My Requests", icon: Shield },
-            { href: "/settings", label: "Settings", icon: Settings },
           ].map(({ href, label, icon: Icon }) => (
             <Link
               key={label}

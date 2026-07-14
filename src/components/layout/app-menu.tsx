@@ -10,6 +10,7 @@ import {
   LogOut,
   MapPin,
   MessageCircle,
+  Settings,
   UserRound,
   Wrench,
   X,
@@ -19,12 +20,14 @@ import { PRO_SERVICE_LABELS } from "@/lib/services";
 import type { AccountType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+/** Settings sits in the same list arrangement as other menu items (not inside Profile). */
 const CLIENT_NAV = [
   { href: "/", label: "Home", icon: Home },
   { href: "/requests", label: "Requests", icon: Clock3 },
   { href: "/bookings", label: "Bookings", icon: Briefcase },
   { href: "/messages", label: "Messages", icon: MessageCircle },
   { href: "/profile", label: "Profile", icon: UserRound },
+  { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
 const PRO_NAV = [
@@ -33,6 +36,7 @@ const PRO_NAV = [
   { href: "/requests", label: "Jobs", icon: Clock3 },
   { href: "/messages", label: "Messages", icon: MessageCircle },
   { href: "/profile", label: "Profile", icon: UserRound },
+  { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
 const SERVICE_LABELS = PRO_SERVICE_LABELS;
@@ -57,8 +61,6 @@ export function AppMenu({
     hasProAccount,
     switchAccount,
     isAuthenticated,
-    retryLocation,
-    isLocating,
   } = useApp();
   const isLight = theme === "light";
   const isPro =
@@ -67,11 +69,11 @@ export function AppMenu({
   const nav = isPro ? PRO_NAV : CLIENT_NAV;
   const [warn, setWarn] = useState<string | null>(null);
 
+  // Location stays stagnant in the menu (GPS refreshes in store every 10 min)
   useEffect(() => {
     if (!open) return;
     setWarn(null);
-    retryLocation();
-  }, [open, retryLocation]);
+  }, [open]);
 
   const onSwitch = (type: AccountType) => {
     if (type === "motorist" && accountType === "motorist") {
@@ -111,12 +113,10 @@ export function AppMenu({
 
   if (!open) return null;
 
-  const lat = location.coordinates.lat;
-  const lng = location.coordinates.lng;
-  const coordsLabel =
-    Number.isFinite(lat) && Number.isFinite(lng)
-      ? `${lat.toFixed(5)}, ${lng.toFixed(5)}`
-      : "—";
+  const placeLine = [location.label, location.city]
+    .filter(Boolean)
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .join(" · ");
 
   return (
     <div className="absolute inset-0 z-[100] flex" role="dialog" aria-modal>
@@ -128,7 +128,8 @@ export function AppMenu({
       />
       <aside
         className={cn(
-          "relative z-10 flex h-full w-[82%] max-w-[300px] flex-col shadow-2xl",
+          // 65% of the phone width
+          "relative z-10 flex h-full w-[65%] max-w-none flex-col shadow-2xl",
           isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
@@ -140,6 +141,7 @@ export function AppMenu({
                 Mecho
               </span>
             </p>
+            {/* Stagnant current location — no Updating… blink */}
             <div
               className={cn(
                 "mt-2 flex items-start gap-1.5 text-[11px] leading-snug",
@@ -147,23 +149,9 @@ export function AppMenu({
               )}
             >
               <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
-              <div className="min-w-0">
-                <p className="font-semibold">
-                  {isLocating
-                    ? "Updating location…"
-                    : location.label || "Live location"}
-                </p>
-                <p
-                  className={cn(
-                    "mt-0.5 tabular-nums text-[10px]",
-                    isLight ? "text-slate-500" : "text-white/55"
-                  )}
-                >
-                  {location.city}
-                  {location.city ? " · " : ""}
-                  {coordsLabel}
-                </p>
-              </div>
+              <p className="min-w-0 font-semibold">
+                {placeLine || "Current location"}
+              </p>
             </div>
           </div>
           <button

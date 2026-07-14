@@ -1096,8 +1096,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ]
   );
 
+  /** GPS label/coords refresh at most every 10 minutes (stable, no blink). */
+  const LOCATION_REFRESH_MS = 10 * 60 * 1000;
+
+  const applyGpsFix = useCallback(
+    (pos: GeolocationPosition, silent = false) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      // Update coords first without wiping a good street label
+      setLocation((prev) => ({
+        ...prev,
+        coordinates: { lat, lng },
+        label:
+          prev.label && prev.label !== "Live location"
+            ? prev.label
+            : prev.label || "Current location",
+        city: prev.city && prev.city !== "Near you" ? prev.city : prev.city || "Near you",
+      }));
+      setLocationError(null);
+      if (!silent) setIsLocating(false);
+      void import("@/lib/google-maps").then(({ reverseGeocodeLatLng }) =>
+        reverseGeocodeLatLng(lat, lng).then((geo) => {
+          if (!geo) return;
+          setLocation((prev) => ({
+            ...prev,
+            label: geo.area || geo.label || prev.label,
+            city: geo.city || prev.city,
+            coordinates: { lat, lng },
+          }));
+        })
+      );
+    },
+    []
+  );
+
   const retryLocation = useCallback(() => {
-    // Prefer live GPS; fall back to Ikeja, Lagos for demo if denied/unavailable.
     setIsLocating(true);
     setLocationError(null);
     if (typeof navigator === "undefined" || !navigator.geolocation) {
@@ -1106,72 +1139,55 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLocation({
-          label: "Current location",
-          city: "Near you",
-          coordinates: {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-          },
-        });
-        setLocationError(null);
-        setIsLocating(false);
-      },
+      (pos) => applyGpsFix(pos, false),
       (err) => {
         setLocation(DEFAULT_USER_LOCATION);
         setLocationError(err.message || "Using Ikeja default");
         setIsLocating(false);
       },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 15_000 }
+      {
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: LOCATION_REFRESH_MS,
+      }
     );
-  }, []);
+  }, [applyGpsFix]);
 
-  // Live GPS on boot + watch for realtime homepage map centering
+  // Boot: one GPS fix, then refresh only every 10 minutes (no continuous blink)
   useEffect(() => {
     if (typeof navigator === "undefined" || !navigator.geolocation) return;
-    setIsLocating(true);
     let cancelled = false;
-    const applyPos = (pos: GeolocationPosition) => {
+    setIsLocating(true);
+
+    const pull = (silent: boolean) => {
       if (cancelled) return;
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-      setLocation({
-        label: "Live location",
-        city: "Near you",
-        coordinates: { lat, lng },
-      });
-      setIsLocating(false);
-      setLocationError(null);
-      // Best-effort street name for the pin label
-      void import("@/lib/google-maps").then(({ reverseGeocodeLatLng }) =>
-        reverseGeocodeLatLng(lat, lng).then((geo) => {
-          if (!geo || cancelled) return;
-          setLocation((prev) => ({
-            ...prev,
-            label: geo.area || geo.label,
-            city: geo.city || prev.city,
-            coordinates: { lat, lng },
-          }));
-        })
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (cancelled) return;
+          applyGpsFix(pos, silent);
+          if (!silent) setIsLocating(false);
+        },
+        () => {
+          if (!cancelled && !silent) setIsLocating(false);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 12000,
+          maximumAge: LOCATION_REFRESH_MS,
+        }
       );
     };
-    // One-shot first for faster first paint, then watch
-    navigator.geolocation.getCurrentPosition(applyPos, () => {
-      if (!cancelled) setIsLocating(false);
-    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 5_000 });
-    const watchId = navigator.geolocation.watchPosition(
-      applyPos,
-      () => {
-        if (!cancelled) setIsLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10_000 }
+
+    pull(false);
+    const intervalId = window.setInterval(
+      () => pull(true),
+      LOCATION_REFRESH_MS
     );
     return () => {
       cancelled = true;
-      navigator.geolocation.clearWatch(watchId);
+      window.clearInterval(intervalId);
     };
-  }, []);
+  }, [applyGpsFix]);
 
   const setManualLocation = useCallback(
     (label: string, coords?: { lat: number; lng: number }) => {
