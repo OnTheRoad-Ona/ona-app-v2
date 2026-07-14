@@ -17,7 +17,11 @@ import {
   TECHNICIANS,
 } from "@/lib/data/technicians";
 import { registerIdentity } from "@/lib/account-registry";
-import { filterAndRankTechnicians } from "@/lib/matching";
+import {
+  DEFAULT_RADIUS_KM,
+  filterAndRankTechnicians,
+  MAX_RADIUS_KM,
+} from "@/lib/matching";
 import {
   findProfilesForLogin,
   getVaultProfile,
@@ -290,7 +294,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [hasProAccount, setHasProAccount] = useState(false);
 
   const [location, setLocation] = useState(DEFAULT_USER_LOCATION);
-  const [radiusKm, setRadiusKm] = useState(10);
+  const [radiusKm, setRadiusKmState] = useState(DEFAULT_RADIUS_KM);
   const [category, setCategory] = useState<ServiceCategory>("mechanic");
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<AppFilters>(defaultFilters);
@@ -508,7 +512,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         /* ignore */
       }
       if (profile.serviceRadiusKm != null) {
-        setRadiusKm(Math.min(10, Math.max(1, profile.serviceRadiusKm)));
+        setRadiusKmState(
+          Math.min(
+            MAX_RADIUS_KM,
+            Math.max(0.5, profile.serviceRadiusKm ?? DEFAULT_RADIUS_KM)
+          )
+        );
       }
     }
 
@@ -1064,6 +1073,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const setRadiusKm = useCallback((n: number) => {
+    const clamped = Math.min(MAX_RADIUS_KM, Math.max(0.5, n));
+    setRadiusKmState(clamped);
+  }, []);
+
   const value = useMemo<AppState>(
     () => ({
       theme,
@@ -1129,6 +1143,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       proServices,
       setRegisteredAs,
       setUserMode,
+      setRadiusKm,
       hasMotoristAccount,
       hasProAccount,
       switchAccount,

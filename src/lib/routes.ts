@@ -13,6 +13,7 @@ export function isClientAppPath(pathname: string): boolean {
   if (pathname.startsWith("/request")) return true;
   if (pathname.startsWith("/bookings")) return true;
   if (pathname.startsWith("/technician")) return true;
+  if (pathname.startsWith("/search")) return true;
   return false;
 }
 

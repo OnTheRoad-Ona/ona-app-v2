@@ -1,23 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Zap } from "lucide-react";
 import { AppHeader } from "@/components/home/app-header";
 import { HomePanel } from "@/components/home/home-panel";
 import { SearchBar } from "@/components/home/search-bar";
 import { ServiceMap } from "@/components/map/service-map";
 import { useAppConfig } from "@/components/app-config-provider";
 import { useApp } from "@/lib/store";
+import { MAX_TECHNICIANS } from "@/lib/matching";
 import { cn } from "@/lib/utils";
 
 /**
  * Map 45% / panel 55% initially.
  * Expand/collapse: flip pill + service category axis only.
- * List scrolls independently and does not move the panel.
  */
 export function HomeScreen() {
-  const router = useRouter();
   const {
     visibleTechnicians,
     setSelectedTechId,
@@ -52,7 +49,6 @@ export function HomeScreen() {
     );
   }
 
-  // Refresh GPS every time home opens so the live map centers on the user
   useEffect(() => {
     retryLocation();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -67,20 +63,10 @@ export function HomeScreen() {
     }
   }, [visibleTechnicians, selectedTechId, setSelectedTechId]);
 
-  const handleRapidRequest = () => {
-    const best =
-      visibleTechnicians.find((t) => t.status === "available") ??
-      visibleTechnicians[0];
-    if (best) {
-      setSelectedTechId(best.id);
-      router.push(`/request?tech=${best.id}`);
-    } else {
-      router.push("/request");
-    }
-  };
-
-  /** Single lower-sheet chrome (panel + CTA share this surface). */
   const sheetBg = isLight ? "bg-[#c8c9cd]" : "bg-black";
+  const mapTechs = visibleTechnicians
+    .filter((t) => t.status !== "offline")
+    .slice(0, Math.min(8, MAX_TECHNICIANS));
 
   return (
     <div className={cn("flex h-full min-h-0 flex-col", sheetBg)}>
@@ -90,7 +76,6 @@ export function HomeScreen() {
       </div>
 
       <div className="relative flex min-h-0 flex-1 flex-col">
-        {/* Map = 45% when collapsed — Apple spring with the sheet */}
         <div
           className={cn(
             "om-sheet-spring relative min-h-0 overflow-hidden",
@@ -99,18 +84,9 @@ export function HomeScreen() {
               : "flex-[0_0_45%] opacity-100"
           )}
         >
-          <ServiceMap
-            technicians={visibleTechnicians
-              .filter((t) => t.status !== "offline")
-              .slice(0, 8)}
-            onSelect={setSelectedTechId}
-          />
+          <ServiceMap technicians={mapTechs} onSelect={setSelectedTechId} />
         </div>
 
-        {/*
-          One lower sheet: flip pill, list, and Request Help Now all sit on
-          the same continuous background (no cut-out footer).
-        */}
         <div
           className={cn(
             "om-sheet-spring z-30 flex min-h-0 flex-col",
@@ -124,36 +100,7 @@ export function HomeScreen() {
             expanded={sheetExpanded}
             onExpand={() => setSheetExpanded(true)}
             onCollapse={() => setSheetExpanded(false)}
-            className="min-h-0 flex-1 bg-transparent"
-            footer={
-              <div
-                className={cn(
-                  "shrink-0 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2",
-                  sheetBg
-                )}
-              >
-                <button
-                  type="button"
-                  onClick={handleRapidRequest}
-                  className={cn(
-                    "inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 text-[14px] font-bold transition-colors active:scale-[0.98]",
-                    isLight
-                      ? "bg-[#aeb6c4] text-slate-900 hover:bg-[#a4adbc]"
-                      : "bg-white/[0.1] text-white hover:bg-white/[0.14]"
-                  )}
-                >
-                  <Zap
-                    className={cn(
-                      "h-4 w-4",
-                      isLight
-                        ? "fill-slate-900 text-slate-900"
-                        : "fill-white text-white"
-                    )}
-                  />
-                  Request Help Now
-                </button>
-              </div>
-            }
+            className="min-h-0 flex-1 bg-transparent pb-[max(0.5rem,env(safe-area-inset-bottom))]"
           />
         </div>
       </div>

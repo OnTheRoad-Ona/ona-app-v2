@@ -2,21 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import {
-  GoogleMap,
-  Marker,
-  OverlayView,
-  OverlayViewF,
-  Polyline,
-  useJsApiLoader,
-} from "@react-google-maps/api";
-import {
-  Car,
-  Layers,
-  LocateFixed,
-  Plus,
-  Wrench,
-} from "lucide-react";
+import { GoogleMap, Marker, useJsApiLoader } from "@react-google-maps/api";
+import { Car, Wrench } from "lucide-react";
 import {
   getGoogleMapsApiKey,
   GOOGLE_MAPS_LIBRARIES,
@@ -182,40 +169,8 @@ function userIconUrl() {
   return `data:image/svg+xml;charset=UTF-8,${svg}`;
 }
 
-function MapControls({
-  onFit,
-  onRecenter,
-  onZoom,
-}: {
-  onFit: () => void;
-  onRecenter: () => void;
-  onZoom: () => void;
-}) {
-  return (
-    <div className="absolute right-2.5 top-12 z-30 flex flex-col gap-2">
-      {[
-        { label: "Fit all", icon: Layers, action: onFit },
-        { label: "Recenter", icon: LocateFixed, action: onRecenter },
-        { label: "Services", icon: Wrench, action: onFit },
-        { label: "Zoom in", icon: Plus, action: onZoom },
-      ].map(({ label, icon: Icon, action }) => (
-        <button
-          key={label}
-          type="button"
-          onClick={action}
-          className="flex h-8 w-8 items-center justify-center rounded-lg border-0 bg-white/95 text-slate-700 shadow-[0_2px_10px_rgba(0,0,0,0.18)] hover:bg-white"
-          aria-label={label}
-        >
-          <Icon className={cn("h-4 w-4", label === "Services" && "text-brand")} />
-        </button>
-      ))}
-    </div>
-  );
-}
-
 /**
- * inDrive-style nearby chip: top-center of the map.
- * Live pulse + count; soft glass pill over the tiles.
+ * inDrive-style “thought” bar: top-center, no pill background.
  */
 function NearbyCountBadge({ count }: { count: number }) {
   const { theme } = useApp();
@@ -223,26 +178,17 @@ function NearbyCountBadge({ count }: { count: number }) {
 
   return (
     <div
-      className="pointer-events-none absolute inset-x-0 top-2.5 z-40 flex justify-center px-12"
+      className="pointer-events-none absolute inset-x-0 top-2.5 z-40 flex justify-center px-10"
       aria-label={`${count} nearby technicians`}
     >
-      <div
+      <p
         className={cn(
-          "inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 shadow-[0_4px_16px_rgba(0,0,0,0.22)] backdrop-blur-md",
-          isLight
-            ? "bg-white/95 text-slate-900 ring-1 ring-black/5"
-            : "bg-black/80 text-white ring-1 ring-white/10"
+          "text-[13px] font-semibold tabular-nums tracking-tight drop-shadow-[0_1px_2px_rgba(0,0,0,0.65)]",
+          isLight ? "text-white" : "text-white"
         )}
       >
-        <span className="relative flex h-2 w-2 shrink-0">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-        </span>
-        <span className="text-[12px] font-semibold tabular-nums tracking-tight">
-          <span className="font-bold">{count}</span>
-          <span className="font-medium opacity-90"> nearby</span>
-        </span>
-      </div>
+        <span className="font-bold">{count}</span> nearby
+      </p>
     </div>
   );
 }
@@ -441,11 +387,6 @@ function MockupMap({
         );
       })}
 
-      <MapControls
-        onFit={() => undefined}
-        onRecenter={() => undefined}
-        onZoom={() => undefined}
-      />
       <NearbyCountBadge count={technicians.length} />
 
       <p className="sr-only">
@@ -468,7 +409,6 @@ function GoogleServiceMap({
   const isLight = theme === "light";
   const mapStyles = isLight ? MAP_STYLES_LIGHT : MAP_STYLES_DARK;
   const mapBg = isLight ? "#0a1610" : "#0a0000";
-  const routeColor = isLight ? "#10b981" : "#c04040";
   const [map, setMap] = useState<google.maps.Map | null>(null);
 
   const center = useMemo(
@@ -478,17 +418,6 @@ function GoogleServiceMap({
     }),
     [location.coordinates.lat, location.coordinates.lng]
   );
-
-  const routeTarget =
-    technicians.find((t) => t.id === selectedTechId) ?? technicians[0];
-
-  const path = useMemo(() => {
-    if (!routeTarget) return [];
-    return [
-      center,
-      { lat: routeTarget.location.lat, lng: routeTarget.location.lng },
-    ];
-  }, [center, routeTarget]);
 
   const onLoad = useCallback(
     (m: google.maps.Map) => {
@@ -534,20 +463,11 @@ function GoogleServiceMap({
     map.panTo(center);
   }, [map, center.lat, center.lng, center]);
 
-  const zoomToFit = useCallback(() => {
-    if (!map || typeof google === "undefined") return;
-    const bounds = new google.maps.LatLngBounds();
-    bounds.extend(center);
-    technicians.forEach((t) =>
-      bounds.extend({ lat: t.location.lat, lng: t.location.lng })
-    );
-    map.fitBounds(bounds, 48);
-  }, [map, center, technicians]);
-
-  const recenter = useCallback(() => {
-    map?.panTo(center);
-    map?.setZoom(13);
-  }, [map, center]);
+  // Keep map centered on live GPS (1 km nearby view)
+  useEffect(() => {
+    if (!map) return;
+    map.setZoom(15);
+  }, [map]);
 
   return (
     <div className="relative h-full w-full">
@@ -555,7 +475,7 @@ function GoogleServiceMap({
       <GoogleMap
         mapContainerStyle={MAP_ID_CONTAINER}
         center={center}
-        zoom={14}
+        zoom={15}
         onLoad={onLoad}
         onUnmount={onUnmount}
         options={{
@@ -568,43 +488,27 @@ function GoogleServiceMap({
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,
+          // Lighter map load
+          maxZoom: 17,
+          minZoom: 13,
         }}
       >
-        {path.length === 2 && (
-          <Polyline
-            path={path}
-            options={{
-              strokeColor: routeColor,
-              strokeOpacity: 0.95,
-              strokeWeight: 4,
-              geodesic: true,
-            }}
-          />
-        )}
         <Marker
           position={center}
           icon={{
             url: userIconUrl(),
             scaledSize:
               typeof google !== "undefined"
-                ? new google.maps.Size(48, 48)
+                ? new google.maps.Size(40, 40)
                 : undefined,
             anchor:
               typeof google !== "undefined"
-                ? new google.maps.Point(24, 24)
+                ? new google.maps.Point(20, 20)
                 : undefined,
           }}
           title={`You: ${location.label}`}
           zIndex={1000}
         />
-        <OverlayViewF
-          position={center}
-          mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-        >
-          <div className="pointer-events-none -translate-x-1/2 translate-y-5 whitespace-nowrap rounded-full bg-black/85 px-2 py-0.5 text-[10px] font-semibold text-white shadow">
-            You
-          </div>
-        </OverlayViewF>
         {technicians.map((t) => {
           const selected = t.id === selectedTechId;
           return (
@@ -619,40 +523,18 @@ function GoogleServiceMap({
                   : markerIconUrl(t.serviceType, false),
                 scaledSize:
                   typeof google !== "undefined"
-                    ? new google.maps.Size(selected ? 40 : 36, selected ? 48 : 36)
+                    ? new google.maps.Size(selected ? 36 : 32, selected ? 42 : 32)
                     : undefined,
                 anchor:
                   typeof google !== "undefined"
-                    ? new google.maps.Point(selected ? 20 : 18, selected ? 46 : 18)
+                    ? new google.maps.Point(selected ? 18 : 16, selected ? 40 : 16)
                     : undefined,
               }}
               zIndex={selected ? 900 : 100}
             />
           );
         })}
-        {routeTarget && (
-          <OverlayViewF
-            position={{
-              lat: routeTarget.location.lat,
-              lng: routeTarget.location.lng,
-            }}
-            mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-          >
-            <button
-              type="button"
-              onClick={() => onSelect?.(routeTarget.id)}
-              className="-translate-x-1/2 translate-y-1 whitespace-nowrap rounded-md bg-white px-2 py-0.5 text-[10px] font-bold text-slate-900 shadow-md"
-            >
-              {routeTarget.etaMinutes} min
-            </button>
-          </OverlayViewF>
-        )}
       </GoogleMap>
-      <MapControls
-        onFit={zoomToFit}
-        onRecenter={recenter}
-        onZoom={() => map?.setZoom((map.getZoom() ?? 13) + 1)}
-      />
     </div>
   );
 }

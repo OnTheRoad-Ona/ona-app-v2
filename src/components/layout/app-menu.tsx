@@ -1,14 +1,22 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Bell,
   Briefcase,
   Clock3,
+  HelpCircle,
   Home,
+  Info,
+  Languages,
   LogOut,
+  MapPin,
   MessageCircle,
   Moon,
+  Settings,
+  Shield,
   Sun,
   UserRound,
   Wrench,
@@ -58,12 +66,23 @@ export function AppMenu({
     hasProAccount,
     switchAccount,
     isAuthenticated,
+    retryLocation,
+    isLocating,
   } = useApp();
   const isLight = theme === "light";
   const isPro =
     accountType === "professional" ||
     (accountType == null && userMode === "professional");
   const nav = isPro ? PRO_NAV : CLIENT_NAV;
+  const [warn, setWarn] = useState<string | null>(null);
+  const [notifyOn, setNotifyOn] = useState(true);
+
+  // Stable accurate location: refresh GPS when the menu opens
+  useEffect(() => {
+    if (!open) return;
+    setWarn(null);
+    retryLocation();
+  }, [open, retryLocation]);
 
   const onSwitch = (type: AccountType) => {
     if (type === "motorist" && accountType === "motorist") {
@@ -77,13 +96,25 @@ export function AppMenu({
 
     const result = switchAccount(type);
     if (result === null) {
+      setWarn(null);
       onClose();
       router.replace(type === "professional" ? "/dashboard" : "/");
       return;
     }
     if (result === "needs_signup") {
-      onClose();
-      router.push(type === "professional" ? "/signup/pro" : "/signup/motorist");
+      const missing =
+        type === "professional" ? "Repair Pro" : "Motorist";
+      setWarn(
+        `You don't have a ${missing} account yet. Sign up for ${missing} to switch.`
+      );
+      return;
+    }
+    if (result === "needs_login") {
+      setWarn(
+        type === "professional"
+          ? "Log in to use your Repair Pro account."
+          : "Log in to use your Motorist account."
+      );
       return;
     }
     onClose();
@@ -91,6 +122,13 @@ export function AppMenu({
   };
 
   if (!open) return null;
+
+  const lat = location.coordinates.lat;
+  const lng = location.coordinates.lng;
+  const coordsLabel =
+    Number.isFinite(lat) && Number.isFinite(lng)
+      ? `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+      : "—";
 
   return (
     <div className="absolute inset-0 z-[100] flex" role="dialog" aria-modal>
@@ -102,33 +140,50 @@ export function AppMenu({
       />
       <aside
         className={cn(
-          "relative z-10 flex h-full w-[78%] max-w-[280px] flex-col shadow-2xl",
+          "relative z-10 flex h-full w-[82%] max-w-[300px] flex-col shadow-2xl",
           isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
-        <div className="flex items-start justify-between px-4 pb-3 pt-4">
-          <div>
+        <div className="flex items-start justify-between px-4 pb-2 pt-4">
+          <div className="min-w-0 flex-1 pr-2">
             <p className="whitespace-nowrap text-[18px] font-black tracking-tight">
               <span className="text-[#e85a12]">Oga</span>
               <span className={isLight ? "text-slate-900" : "text-white"}>
                 Mecho
               </span>
             </p>
-            <p
+            <div
               className={cn(
-                "mt-1 text-[11px]",
-                isLight ? "text-slate-500" : "text-white/70"
+                "mt-2 flex items-start gap-1.5 text-[11px] leading-snug",
+                isLight ? "text-slate-600" : "text-white/75"
               )}
             >
-              {location.city} · {location.label}
-            </p>
+              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
+              <div className="min-w-0">
+                <p className="font-semibold">
+                  {isLocating
+                    ? "Updating location…"
+                    : location.label || "Live location"}
+                </p>
+                <p
+                  className={cn(
+                    "mt-0.5 tabular-nums text-[10px]",
+                    isLight ? "text-slate-500" : "text-white/55"
+                  )}
+                >
+                  {location.city}
+                  {location.city ? " · " : ""}
+                  {coordsLabel}
+                </p>
+              </div>
+            </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             className={cn(
-              "flex h-8 w-8 items-center justify-center rounded-lg border-0",
-              isLight ? "bg-[#bebfc4] text-slate-700" : "bg-black text-white"
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-0",
+              isLight ? "bg-[#bebfc4] text-slate-700" : "bg-white/10 text-white"
             )}
             aria-label="Close"
           >
@@ -168,7 +223,7 @@ export function AppMenu({
                   isLight ? "text-slate-400" : "text-white/45"
                 )}
               >
-                Your skill (1 only)
+                Your skill
               </p>
               <div
                 className={cn(
@@ -184,7 +239,7 @@ export function AppMenu({
             </div>
           )}
 
-          {/* Use as — below Profile nav, above theme/logout */}
+          {/* Switch account */}
           <div className="mt-4 px-1">
             <p
               className={cn(
@@ -215,11 +270,6 @@ export function AppMenu({
                 )}
               >
                 Motorist
-                {!hasMotoristAccount && (
-                  <span className="mt-0.5 block text-[9px] font-medium opacity-80">
-                    Sign up
-                  </span>
-                )}
               </button>
               <button
                 type="button"
@@ -234,51 +284,189 @@ export function AppMenu({
                 )}
               >
                 Repair Pro
-                {!hasProAccount && (
-                  <span className="mt-0.5 block text-[9px] font-medium opacity-80">
-                    Sign up
-                  </span>
-                )}
               </button>
             </div>
+            {warn ? (
+              <div
+                className={cn(
+                  "mt-2 rounded-lg px-2.5 py-2 text-[11px] font-medium leading-snug",
+                  isLight
+                    ? "bg-amber-50 text-amber-950"
+                    : "bg-amber-500/15 text-amber-100"
+                )}
+                role="alert"
+              >
+                <p>{warn}</p>
+                {warn.includes("don't have") && (
+                  <button
+                    type="button"
+                    className="mt-1.5 border-0 bg-transparent p-0 text-[11px] font-bold text-brand underline"
+                    onClick={() => {
+                      onClose();
+                      router.push(
+                        warn.includes("Repair Pro")
+                          ? "/signup/pro"
+                          : "/signup/motorist"
+                      );
+                    }}
+                  >
+                    Sign up now
+                  </button>
+                )}
+                {warn.includes("Log in") && (
+                  <button
+                    type="button"
+                    className="mt-1.5 border-0 bg-transparent p-0 text-[11px] font-bold text-brand underline"
+                    onClick={() => {
+                      onClose();
+                      router.push("/login/signin");
+                    }}
+                  >
+                    Log in
+                  </button>
+                )}
+              </div>
+            ) : (
+              <p
+                className={cn(
+                  "mt-1.5 px-2 text-[10px] leading-snug",
+                  isLight ? "text-slate-500" : "text-white/55"
+                )}
+              >
+                {hasMotoristAccount && hasProAccount
+                  ? "Both accounts ready. Switch anytime."
+                  : "Sign up for each role separately. Switch when both exist."}
+              </p>
+            )}
+          </div>
+
+          {/* Settings hub */}
+          <div className="mt-4 px-1">
             <p
               className={cn(
-                "mt-1.5 px-2 text-[10px] leading-snug",
-                isLight ? "text-slate-500" : "text-white/55"
+                "mb-1.5 flex items-center gap-1.5 px-2 text-[10px] font-bold uppercase tracking-wide",
+                isLight ? "text-slate-400" : "text-white/45"
               )}
             >
-              {isAuthenticated
-                ? "You can be both. Each needs its own signup. Switch here anytime."
-                : "Sign up or log in for Motorist and Repair Pro separately."}
+              <Settings className="h-3 w-3" />
+              Settings
             </p>
+            <div
+              className={cn(
+                "overflow-hidden rounded-xl",
+                isLight ? "bg-[#bebfc4]/50" : "bg-white/[0.06]"
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => toggleTheme()}
+                className={cn(
+                  "flex w-full items-center gap-3 border-0 px-3 py-2.5 text-left text-[13px] font-semibold",
+                  isLight
+                    ? "bg-transparent text-slate-800"
+                    : "bg-transparent text-white"
+                )}
+              >
+                {isLight ? (
+                  <Moon className="h-4 w-4 shrink-0" />
+                ) : (
+                  <Sun className="h-4 w-4 shrink-0" />
+                )}
+                <span className="flex-1">
+                  {isLight ? "Dark background" : "Light background"}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setNotifyOn((v) => !v)}
+                className={cn(
+                  "flex w-full items-center gap-3 border-0 border-t px-3 py-2.5 text-left text-[13px] font-semibold",
+                  isLight
+                    ? "border-black/5 bg-transparent text-slate-800"
+                    : "border-white/10 bg-transparent text-white"
+                )}
+              >
+                <Bell className="h-4 w-4 shrink-0" />
+                <span className="flex-1">Notifications</span>
+                <span
+                  className={cn(
+                    "text-[11px] font-bold",
+                    notifyOn ? "text-emerald-600" : "text-muted"
+                  )}
+                >
+                  {notifyOn ? "On" : "Off"}
+                </span>
+              </button>
+              <div
+                className={cn(
+                  "flex w-full items-center gap-3 border-t px-3 py-2.5 text-[13px] font-semibold",
+                  isLight
+                    ? "border-black/5 text-slate-800"
+                    : "border-white/10 text-white"
+                )}
+              >
+                <Languages className="h-4 w-4 shrink-0" />
+                <span className="flex-1">Language</span>
+                <span className="text-[11px] font-bold text-muted">EN</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  retryLocation();
+                }}
+                className={cn(
+                  "flex w-full items-center gap-3 border-0 border-t px-3 py-2.5 text-left text-[13px] font-semibold",
+                  isLight
+                    ? "border-black/5 bg-transparent text-slate-800"
+                    : "border-white/10 bg-transparent text-white"
+                )}
+              >
+                <MapPin className="h-4 w-4 shrink-0" />
+                <span className="flex-1">Refresh location</span>
+              </button>
+              <Link
+                href="/profile"
+                onClick={onClose}
+                className={cn(
+                  "flex w-full items-center gap-3 border-t px-3 py-2.5 text-[13px] font-semibold",
+                  isLight
+                    ? "border-black/5 text-slate-800"
+                    : "border-white/10 text-white"
+                )}
+              >
+                <Shield className="h-4 w-4 shrink-0" />
+                Privacy & account
+              </Link>
+              <Link
+                href="/profile"
+                onClick={onClose}
+                className={cn(
+                  "flex w-full items-center gap-3 border-t px-3 py-2.5 text-[13px] font-semibold",
+                  isLight
+                    ? "border-black/5 text-slate-800"
+                    : "border-white/10 text-white"
+                )}
+              >
+                <HelpCircle className="h-4 w-4 shrink-0" />
+                Help
+              </Link>
+              <div
+                className={cn(
+                  "flex w-full items-center gap-3 border-t px-3 py-2.5 text-[13px] font-semibold",
+                  isLight
+                    ? "border-black/5 text-slate-800"
+                    : "border-white/10 text-white"
+                )}
+              >
+                <Info className="h-4 w-4 shrink-0" />
+                <span className="flex-1">About OgaMecho</span>
+                <span className="text-[10px] text-muted">v0.1</span>
+              </div>
+            </div>
           </div>
         </nav>
 
-        <div className="space-y-2 px-3 pb-4">
-          <button
-            type="button"
-            onClick={() => {
-              toggleTheme();
-            }}
-            className={cn(
-              "flex w-full items-center justify-center gap-2 rounded-lg border-0 px-3 py-2.5 text-sm font-semibold",
-              isLight
-                ? "bg-[#bebfc4] text-slate-800"
-                : "bg-white/10 text-white"
-            )}
-          >
-            {isLight ? (
-              <>
-                <Moon className="h-4 w-4" />
-                Dark mode
-              </>
-            ) : (
-              <>
-                <Sun className="h-4 w-4" />
-                Light mode
-              </>
-            )}
-          </button>
+        <div className="px-3 pb-4 pt-1">
           <button
             type="button"
             onClick={() => {

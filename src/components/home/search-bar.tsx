@@ -1,18 +1,25 @@
 "use client";
 
-import { Search, SlidersHorizontal } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Search } from "lucide-react";
 import { useAppConfig } from "@/components/app-config-provider";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 /**
- * Slight gap under location header.
- * Fully selectable text (user-select + stop double-click theme).
+ * Search submits on Enter / Done → search results page (theme-aware).
  */
 export function SearchBar() {
+  const router = useRouter();
   const { query, setQuery, theme } = useApp();
   const { config } = useAppConfig();
   const isLight = theme === "light";
+
+  const goSearch = () => {
+    const q = query.trim();
+    if (!q) return;
+    router.push(`/search?q=${encodeURIComponent(q)}`);
+  };
 
   return (
     <div className="shrink-0 px-3 pb-1.5 pt-2">
@@ -35,8 +42,15 @@ export function SearchBar() {
         <input
           id="home-search"
           type="search"
+          enterKeyHint="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              goSearch();
+            }
+          }}
           onDoubleClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           placeholder={
@@ -47,7 +61,7 @@ export function SearchBar() {
           autoCorrect="off"
           spellCheck={false}
           className={cn(
-            "search-metal-orange h-9 w-full select-text rounded-sm pl-8 pr-9 text-[12px]",
+            "search-metal-orange h-9 w-full select-text rounded-sm pl-8 pr-3 text-[12px]",
             "outline-none focus:outline-none focus:ring-0 focus:border-0",
             "[-webkit-user-select:text] [user-select:text]",
             isLight
@@ -55,18 +69,6 @@ export function SearchBar() {
               : "bg-black text-white placeholder:text-white/50"
           )}
         />
-        <button
-          type="button"
-          className={cn(
-            "absolute right-1 flex h-7 w-7 items-center justify-center rounded-sm border-0",
-            isLight
-              ? "text-[#9aa3b2] hover:bg-[#d9dde6] hover:text-[#e85a12]"
-              : "text-white/45 hover:bg-white/10 hover:text-[#e85a12]"
-          )}
-          aria-label="Filters"
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5" />
-        </button>
       </label>
     </div>
   );

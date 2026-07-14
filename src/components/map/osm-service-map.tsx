@@ -1,14 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import {
-  MapContainer,
-  Marker,
-  Polyline,
-  TileLayer,
-  Tooltip,
-  useMap,
-} from "react-leaflet";
+import { MapContainer, Marker, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useApp } from "@/lib/store";
@@ -108,55 +101,24 @@ export function OsmServiceMap({
     [location.coordinates.lat, location.coordinates.lng]
   );
 
-  const routeTarget =
-    technicians.find((t) => t.id === selectedTechId) ?? technicians[0];
-
-  const path = useMemo(() => {
-    if (!routeTarget) return [] as [number, number][];
-    return [
-      [center.lat, center.lng] as [number, number],
-      [routeTarget.location.lat, routeTarget.location.lng] as [number, number],
-    ];
-  }, [center, routeTarget]);
-
-  const routeColor = isLight ? "#10b981" : "#c04040";
   const tileUrl =
     "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
 
-  const fire = (name: string) => {
-    const mapEl = document.querySelector(".leaflet-container");
-    mapEl?.dispatchEvent(new Event(name));
-  };
-
   return (
     <div className="relative h-full w-full">
-      {/* inDrive-style nearby chip — top center */}
+      {/* Thought-style nearby label — no pill background */}
       <div
-        className="pointer-events-none absolute inset-x-0 top-2.5 z-[500] flex justify-center px-12"
+        className="pointer-events-none absolute inset-x-0 top-2.5 z-[500] flex justify-center px-10"
         aria-label={`${technicians.length} nearby technicians`}
       >
-        <div
-          className={cn(
-            "inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 shadow-[0_4px_16px_rgba(0,0,0,0.22)] backdrop-blur-md",
-            isLight
-              ? "bg-white/95 text-slate-900 ring-1 ring-black/5"
-              : "bg-black/80 text-white ring-1 ring-white/10"
-          )}
-        >
-          <span className="relative flex h-2 w-2 shrink-0">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-          </span>
-          <span className="text-[12px] font-semibold tabular-nums tracking-tight">
-            <span className="font-bold">{technicians.length}</span>
-            <span className="font-medium opacity-90"> nearby</span>
-          </span>
-        </div>
+        <p className="text-[13px] font-semibold tabular-nums tracking-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.65)]">
+          <span className="font-bold">{technicians.length}</span> nearby
+        </p>
       </div>
 
       <MapContainer
         center={[center.lat, center.lng]}
-        zoom={14}
+        zoom={15}
         className="h-full w-full z-0"
         zoomControl={false}
         attributionControl={false}
@@ -171,22 +133,12 @@ export function OsmServiceMap({
       >
         <TileLayer url={tileUrl} />
         <MapSync center={center} technicians={technicians} radiusKm={radiusKm} />
-        {path.length === 2 && (
-          <Polyline
-            positions={path}
-            pathOptions={{ color: routeColor, weight: 4, opacity: 0.95 }}
-          />
-        )}
         <Marker
           position={[center.lat, center.lng]}
           icon={userIcon()}
           title={`You: ${location.label}`}
           zIndexOffset={1000}
-        >
-          <Tooltip permanent direction="bottom" offset={[0, 12]} className="om-you-tip">
-            You · {location.label}
-          </Tooltip>
-        </Marker>
+        />
         {technicians.map((t) => {
           const selected = t.id === selectedTechId;
           return (
@@ -199,33 +151,10 @@ export function OsmServiceMap({
                 click: () => onSelect?.(t.id),
               }}
               zIndexOffset={selected ? 900 : 100}
-            >
-              <Tooltip direction="top" offset={[0, -8]}>
-                {t.name} · {t.etaMinutes} min
-              </Tooltip>
-            </Marker>
+            />
           );
         })}
       </MapContainer>
-
-      <div className="absolute right-2.5 top-12 z-[500] flex flex-col gap-2">
-        {[
-          { label: "Fit all", action: () => fire("om-fit") },
-          { label: "Recenter", action: () => fire("om-recenter") },
-          { label: "Zoom in", action: () => fire("om-zoom") },
-        ].map(({ label, action }) => (
-          <button
-            key={label}
-            type="button"
-            onClick={action}
-            className="flex h-8 w-8 items-center justify-center rounded-lg border-0 bg-white/95 text-[10px] font-bold text-slate-700 shadow-[0_2px_10px_rgba(0,0,0,0.18)] hover:bg-white"
-            aria-label={label}
-            title={label}
-          >
-            {label === "Zoom in" ? "+" : label === "Fit all" ? "◎" : "⌖"}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }

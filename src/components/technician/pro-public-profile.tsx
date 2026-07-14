@@ -120,7 +120,7 @@ export function ProPublicProfile({
               "rounded-2xl p-4",
               isLight
                 ? "bg-[#d4d5d9] shadow-sm"
-                : "bg-neutral-950 ring-1 ring-white/10"
+                : "bg-black"
             )}
           >
             <div className="flex items-start gap-3.5">
@@ -180,7 +180,7 @@ export function ProPublicProfile({
             <div
               className={cn(
                 "mt-4 grid grid-cols-3 gap-1 rounded-xl py-3 text-center",
-                isLight ? "bg-white/55" : "bg-black/25"
+                isLight ? "bg-white/55" : "bg-neutral-900"
               )}
             >
               <Stat
@@ -276,7 +276,7 @@ export function ProPublicProfile({
                       "rounded-full px-2.5 py-1 text-[11px] font-semibold",
                       isLight
                         ? "bg-white/80 text-slate-800"
-                        : "bg-white/10 text-neutral-200"
+                        : "bg-neutral-900 text-neutral-200"
                     )}
                   >
                     {s}
@@ -360,7 +360,7 @@ export function ProPublicProfile({
             "shrink-0 space-y-2 border-t px-3 pb-3 pt-2.5",
             isLight
               ? "border-slate-400/25 bg-[#c8c9cd]"
-              : "border-white/10 bg-black"
+              : "border-neutral-800 bg-black"
           )}
         >
           <div className="grid grid-cols-2 gap-2">
@@ -370,7 +370,7 @@ export function ProPublicProfile({
               className={cn(
                 "h-11",
                 !isLight &&
-                  "border-white/15 bg-neutral-950 text-white hover:bg-neutral-900"
+                  "border-0 bg-neutral-900 text-white hover:bg-neutral-800"
               )}
             >
               <a href={`tel:${tech.phone.replace(/\s/g, "")}`}>
@@ -450,7 +450,7 @@ function SectionCard({
         "mt-3 rounded-2xl p-3.5",
         isLight
           ? "bg-[#d4d5d9] shadow-sm"
-          : "bg-neutral-950 ring-1 ring-white/10"
+          : "bg-black"
       )}
     >
       <div className="mb-2.5 flex items-center gap-2">

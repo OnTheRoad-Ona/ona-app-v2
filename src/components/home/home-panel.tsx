@@ -209,10 +209,10 @@ export function HomePanel({
               </p>
               <button
                 type="button"
-                onClick={() => setRadiusKm(10)}
+                onClick={() => setRadiusKm(1)}
                 className="mt-2 text-[12px] font-bold text-brand"
               >
-                Set 10 km
+                Set 1 km
               </button>
             </div>
           ) : (
