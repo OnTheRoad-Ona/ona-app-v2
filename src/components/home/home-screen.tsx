@@ -89,12 +89,14 @@ export function HomeScreen() {
 
         <div
           className={cn(
-            "om-sheet-spring z-30 flex min-h-0 flex-col",
+            "om-sheet-spring z-30 flex min-h-0 flex-col overflow-hidden",
             sheetExpanded ? "flex-1" : "flex-[0_0_55%]",
-            sheetBg,
+            // Complete black lower panel on dark toggle only
+            isLight ? "bg-[#c8c9cd]" : "bg-black",
             !sheetExpanded &&
               "rounded-t-2xl shadow-[0_-6px_24px_rgba(0,0,0,0.18)]"
           )}
+          style={{ touchAction: "pan-y" }}
         >
           <HomePanel
             expanded={sheetExpanded}

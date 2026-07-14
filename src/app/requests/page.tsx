@@ -28,10 +28,26 @@ const statusVariant: Record<
 };
 
 export default function RequestsPage() {
-  const { requests, updateRequestStatus, theme } = useApp();
+  const {
+    requests,
+    updateRequestStatus,
+    theme,
+    accountType,
+    registeredAs,
+    proServices,
+    ensureChatForRequest,
+  } = useApp();
   const isLight = theme === "light";
   const [warning, setWarning] = useState<string | null>(null);
   const [blocked, setBlocked] = useState<string | null>(null);
+
+  const isPro = accountType === "professional";
+  const mySkill =
+    registeredAs !== "client" ? registeredAs : proServices[0] ?? null;
+
+  const visibleRequests = isPro
+    ? requests.filter((r) => !mySkill || r.serviceType === mySkill)
+    : requests;
 
   const handleUpdate = (id: string, status: RequestStatus) => {
     const result = updateRequestStatus(id, status);
@@ -42,6 +58,10 @@ export default function RequestsPage() {
     }
     setBlocked(null);
     if (result.warning) setWarning(result.warning);
+    if (status === "accepted") {
+      const req = requests.find((r) => r.id === id);
+      if (req) ensureChatForRequest(req);
+    }
   };
 
   return (
@@ -68,7 +88,7 @@ export default function RequestsPage() {
             onClose={() => setBlocked(null)}
           />
         )}
-        {requests.length === 0 ? (
+        {visibleRequests.length === 0 ? (
           <div
             className={cn(
               "rounded-lg p-6 text-center",
@@ -77,14 +97,18 @@ export default function RequestsPage() {
           >
             <p className="font-semibold text-sm">No active requests</p>
             <p className="mt-1 text-xs text-muted">
-              Request help from Home to connect.
+              {isPro
+                ? "Only jobs for your skill appear here."
+                : "Request help from Home to connect."}
             </p>
-            <Button asChild className="mt-3 h-10" size="default">
-              <Link href="/">Find help nearby</Link>
-            </Button>
+            {!isPro && (
+              <Button asChild className="mt-3 h-10" size="default">
+                <Link href="/">Find help nearby</Link>
+              </Button>
+            )}
           </div>
         ) : (
-          requests.map((r) => (
+          visibleRequests.map((r) => (
             <article key={r.id} className="card-surface rounded-lg p-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
@@ -94,10 +118,10 @@ export default function RequestsPage() {
                       isLight ? "text-slate-900" : "text-white"
                     )}
                   >
-                    {r.technicianName}
+                    {isPro ? r.problem : r.technicianName}
                   </p>
                   <p className="text-xs capitalize text-muted">
-                    {r.serviceType} · {r.problem}
+                    {r.serviceType} · {isPro ? r.locationLabel : r.problem}
                   </p>
                 </div>
                 <Badge
@@ -120,7 +144,7 @@ export default function RequestsPage() {
               </div>
 
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {r.status === "pending" && (
+                {r.status === "pending" && isPro && (
                   <>
                     <Button
                       size="sm"
@@ -133,19 +157,35 @@ export default function RequestsPage() {
                       variant="secondary"
                       onClick={() => handleUpdate(r.id, "cancelled")}
                     >
-                      Cancel
+                      Decline
                     </Button>
                   </>
                 )}
-                {r.status === "accepted" && (
+                {r.status === "pending" && !isPro && (
                   <Button
                     size="sm"
-                    onClick={() => handleUpdate(r.id, "en_route")}
+                    variant="secondary"
+                    onClick={() => handleUpdate(r.id, "cancelled")}
                   >
-                    En route
+                    Cancel
                   </Button>
                 )}
-                {r.status === "en_route" && (
+                {r.status === "accepted" && (
+                  <>
+                    {isPro && (
+                      <Button
+                        size="sm"
+                        onClick={() => handleUpdate(r.id, "en_route")}
+                      >
+                        En route
+                      </Button>
+                    )}
+                    <Button size="sm" variant="secondary" asChild>
+                      <Link href="/messages">Chat</Link>
+                    </Button>
+                  </>
+                )}
+                {r.status === "en_route" && isPro && (
                   <Button
                     size="sm"
                     onClick={() => handleUpdate(r.id, "arrived")}
@@ -153,7 +193,7 @@ export default function RequestsPage() {
                     Arrived
                   </Button>
                 )}
-                {r.status === "arrived" && (
+                {r.status === "arrived" && isPro && (
                   <Button
                     size="sm"
                     onClick={() => handleUpdate(r.id, "completed")}

@@ -4,20 +4,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Bell,
   Briefcase,
   Clock3,
-  HelpCircle,
   Home,
-  Info,
-  Languages,
   LogOut,
   MapPin,
   MessageCircle,
-  Moon,
   Settings,
-  Shield,
-  Sun,
   UserRound,
   Wrench,
   X,
@@ -57,7 +50,6 @@ export function AppMenu({
   const {
     theme,
     location,
-    toggleTheme,
     userMode,
     accountType,
     registeredAs,
@@ -75,9 +67,7 @@ export function AppMenu({
     (accountType == null && userMode === "professional");
   const nav = isPro ? PRO_NAV : CLIENT_NAV;
   const [warn, setWarn] = useState<string | null>(null);
-  const [notifyOn, setNotifyOn] = useState(true);
 
-  // Stable accurate location: refresh GPS when the menu opens
   useEffect(() => {
     if (!open) return;
     setWarn(null);
@@ -102,8 +92,7 @@ export function AppMenu({
       return;
     }
     if (result === "needs_signup") {
-      const missing =
-        type === "professional" ? "Repair Pro" : "Motorist";
+      const missing = type === "professional" ? "Repair Pro" : "Motorist";
       setWarn(
         `You don't have a ${missing} account yet. Sign up for ${missing} to switch.`
       );
@@ -239,7 +228,6 @@ export function AppMenu({
             </div>
           )}
 
-          {/* Switch account */}
           <div className="mt-4 px-1">
             <p
               className={cn(
@@ -335,135 +323,26 @@ export function AppMenu({
               >
                 {hasMotoristAccount && hasProAccount
                   ? "Both accounts ready. Switch anytime."
-                  : "Sign up for each role separately. Switch when both exist."}
+                  : isAuthenticated
+                    ? "Sign up for the other role to switch."
+                    : "Sign up or log in for each role separately."}
               </p>
             )}
           </div>
 
-          {/* Settings hub */}
-          <div className="mt-4 px-1">
-            <p
-              className={cn(
-                "mb-1.5 flex items-center gap-1.5 px-2 text-[10px] font-bold uppercase tracking-wide",
-                isLight ? "text-slate-400" : "text-white/45"
-              )}
-            >
-              <Settings className="h-3 w-3" />
-              Settings
-            </p>
-            <div
-              className={cn(
-                "overflow-hidden rounded-xl",
-                isLight ? "bg-[#bebfc4]/50" : "bg-white/[0.06]"
-              )}
-            >
-              <button
-                type="button"
-                onClick={() => toggleTheme()}
-                className={cn(
-                  "flex w-full items-center gap-3 border-0 px-3 py-2.5 text-left text-[13px] font-semibold",
-                  isLight
-                    ? "bg-transparent text-slate-800"
-                    : "bg-transparent text-white"
-                )}
-              >
-                {isLight ? (
-                  <Moon className="h-4 w-4 shrink-0" />
-                ) : (
-                  <Sun className="h-4 w-4 shrink-0" />
-                )}
-                <span className="flex-1">
-                  {isLight ? "Dark background" : "Light background"}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setNotifyOn((v) => !v)}
-                className={cn(
-                  "flex w-full items-center gap-3 border-0 border-t px-3 py-2.5 text-left text-[13px] font-semibold",
-                  isLight
-                    ? "border-black/5 bg-transparent text-slate-800"
-                    : "border-white/10 bg-transparent text-white"
-                )}
-              >
-                <Bell className="h-4 w-4 shrink-0" />
-                <span className="flex-1">Notifications</span>
-                <span
-                  className={cn(
-                    "text-[11px] font-bold",
-                    notifyOn ? "text-emerald-600" : "text-muted"
-                  )}
-                >
-                  {notifyOn ? "On" : "Off"}
-                </span>
-              </button>
-              <div
-                className={cn(
-                  "flex w-full items-center gap-3 border-t px-3 py-2.5 text-[13px] font-semibold",
-                  isLight
-                    ? "border-black/5 text-slate-800"
-                    : "border-white/10 text-white"
-                )}
-              >
-                <Languages className="h-4 w-4 shrink-0" />
-                <span className="flex-1">Language</span>
-                <span className="text-[11px] font-bold text-muted">EN</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  retryLocation();
-                }}
-                className={cn(
-                  "flex w-full items-center gap-3 border-0 border-t px-3 py-2.5 text-left text-[13px] font-semibold",
-                  isLight
-                    ? "border-black/5 bg-transparent text-slate-800"
-                    : "border-white/10 bg-transparent text-white"
-                )}
-              >
-                <MapPin className="h-4 w-4 shrink-0" />
-                <span className="flex-1">Refresh location</span>
-              </button>
-              <Link
-                href="/profile"
-                onClick={onClose}
-                className={cn(
-                  "flex w-full items-center gap-3 border-t px-3 py-2.5 text-[13px] font-semibold",
-                  isLight
-                    ? "border-black/5 text-slate-800"
-                    : "border-white/10 text-white"
-                )}
-              >
-                <Shield className="h-4 w-4 shrink-0" />
-                Privacy & account
-              </Link>
-              <Link
-                href="/profile"
-                onClick={onClose}
-                className={cn(
-                  "flex w-full items-center gap-3 border-t px-3 py-2.5 text-[13px] font-semibold",
-                  isLight
-                    ? "border-black/5 text-slate-800"
-                    : "border-white/10 text-white"
-                )}
-              >
-                <HelpCircle className="h-4 w-4 shrink-0" />
-                Help
-              </Link>
-              <div
-                className={cn(
-                  "flex w-full items-center gap-3 border-t px-3 py-2.5 text-[13px] font-semibold",
-                  isLight
-                    ? "border-black/5 text-slate-800"
-                    : "border-white/10 text-white"
-                )}
-              >
-                <Info className="h-4 w-4 shrink-0" />
-                <span className="flex-1">About OgaMecho</span>
-                <span className="text-[10px] text-muted">v0.1</span>
-              </div>
-            </div>
-          </div>
+          <Link
+            href="/settings"
+            onClick={onClose}
+            className={cn(
+              "mt-3 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold",
+              isLight
+                ? "text-slate-700 hover:bg-[#bebfc4]/70"
+                : "text-white/90 hover:bg-white/10"
+            )}
+          >
+            <Settings className="h-4 w-4 shrink-0" />
+            Settings
+          </Link>
         </nav>
 
         <div className="px-3 pb-4 pt-1">

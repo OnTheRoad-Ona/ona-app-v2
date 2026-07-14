@@ -324,7 +324,7 @@ export default function ProfilePage() {
                 ]
               : []),
             { href: "/requests", label: "My Requests", icon: Shield },
-            { href: "#", label: "Settings", icon: Settings },
+            { href: "/settings", label: "Settings", icon: Settings },
           ].map(({ href, label, icon: Icon }) => (
             <Link
               key={label}

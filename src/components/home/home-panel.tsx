@@ -116,7 +116,8 @@ export function HomePanel({
         onWheel={onSheetWheel}
         onTouchStart={onSheetTouchStart}
         onTouchMove={onSheetTouchMove}
-        className="shrink-0"
+        className="shrink-0 touch-pan-y"
+        style={{ touchAction: "pan-y" }}
       >
         <div
           role="button"
@@ -179,14 +180,12 @@ export function HomePanel({
         </div>
       )}
 
-      {/* Vendor list — open bottom so it meets the CTA on the same sheet */}
+      {/* Vendor list — dark toggle uses solid black panel chrome */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-0 scrollbar-hide">
         <div
           className={cn(
             "min-h-full overflow-hidden rounded-t-lg",
-            isLight
-              ? "bg-[#d8dce4]/90 backdrop-blur-sm"
-              : "bg-gradient-to-b from-[#1a1a1a] via-[#151515] to-[#121212]"
+            isLight ? "bg-[#d8dce4]/90 backdrop-blur-sm" : "bg-black"
           )}
         >
           {list.length === 0 ? (

@@ -34,6 +34,7 @@ import type {
   AccountType,
   AppFilters,
   Booking,
+  ChatMessage,
   MessageThread,
   ProService,
   RegisteredAs,
@@ -57,7 +58,7 @@ export type ServiceActionResult =
     }
   | {
       ok: false;
-      code: "verification_required" | "not_found" | "invalid";
+      code: "verification_required" | "not_found" | "invalid" | "skill_mismatch";
       message: string;
       actionCount: number;
     };
@@ -227,6 +228,8 @@ interface AppState {
   requests: ServiceRequest[];
   bookings: Booking[];
   messages: MessageThread[];
+  /** Threads for active role only (motorist vs pro skill) — no mix-up */
+  visibleMessageThreads: MessageThread[];
   locationError: string | null;
   isLocating: boolean;
   setRadiusKm: (n: number) => void;
@@ -246,11 +249,14 @@ interface AppState {
   createRequest: (tech: Technician, problem?: string) => ServiceRequest;
   /**
    * Pro accept (or other status). Accept is gated by verification funnel.
+   * Pros can only accept jobs matching their registered skill.
    */
   updateRequestStatus: (
     id: string,
     status: ServiceRequest["status"]
   ) => ServiceActionResult;
+  ensureChatForRequest: (req: ServiceRequest) => string;
+  sendChatMessage: (threadId: string, text: string) => void;
   retryLocation: () => void;
   setManualLocation: (
     label: string,
@@ -301,7 +307,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [selectedTechId, setSelectedTechId] = useState<string | null>(null);
   const [requests, setRequests] = useState(INITIAL_REQUESTS);
   const [bookings] = useState(INITIAL_BOOKINGS);
-  const [messages] = useState(INITIAL_MESSAGES);
+  const [messages, setMessages] = useState<MessageThread[]>(INITIAL_MESSAGES);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
 
@@ -852,6 +858,82 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setFilters((prev) => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
+  const ensureChatForRequest = useCallback(
+    (req: ServiceRequest): string => {
+      const id = `chat-${req.id}`;
+      setMessages((prev) => {
+        if (prev.some((m) => m.requestId === req.id || m.id === id)) {
+          return prev;
+        }
+        const thread: MessageThread = {
+          id,
+          requestId: req.id,
+          technicianId: req.technicianId,
+          technicianName: req.technicianName,
+          motoristName: displayName || "Motorist",
+          serviceType: req.serviceType,
+          lastMessage: `Job: ${req.problem}`,
+          time: "now",
+          unread: 0,
+          photo: "",
+          messages: [
+            {
+              id: `${id}-sys`,
+              sender: "system",
+              text: `Chat opened for ${req.serviceType} · ${req.problem}`,
+              at: new Date().toISOString(),
+            },
+          ],
+        };
+        return [thread, ...prev];
+      });
+      return id;
+    },
+    [displayName]
+  );
+
+  const sendChatMessage = useCallback(
+    (threadId: string, text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      const sender: ChatMessage["sender"] =
+        accountType === "professional" ? "professional" : "motorist";
+      const msg: ChatMessage = {
+        id: `msg-${Date.now()}`,
+        sender,
+        text: trimmed,
+        at: new Date().toISOString(),
+      };
+      setMessages((prev) =>
+        prev.map((t) =>
+          t.id === threadId
+            ? {
+                ...t,
+                lastMessage: trimmed,
+                time: "now",
+                messages: [...t.messages, msg],
+              }
+            : t
+        )
+      );
+    },
+    [accountType]
+  );
+
+  const visibleMessageThreads = useMemo(() => {
+    if (accountType === "professional") {
+      const skills = new Set(
+        [
+          ...(proServices ?? []),
+          isProService(registeredAs) ? registeredAs : null,
+        ].filter(Boolean) as ProService[]
+      );
+      return messages.filter((m) => skills.has(m.serviceType));
+    }
+    // Motorist: all their job chats
+    return messages;
+  }, [messages, accountType, proServices, registeredAs]);
+
   const createRequest = useCallback(
     (tech: Technician, problem = "Roadside assistance") => {
       const req: ServiceRequest = {
@@ -867,9 +949,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         locationLabel: location.label,
       };
       setRequests((prev) => [req, ...prev]);
+      // Auto-open dedicated motorist↔pro thread for this job
+      ensureChatForRequest(req);
       return req;
     },
-    [location.label]
+    [location.label, ensureChatForRequest]
   );
 
   const bookRequest = useCallback(
@@ -927,6 +1011,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
         };
       }
 
+      // Skill lock: mechanic cannot take vulcanizer jobs, etc.
+      if (
+        status === "accepted" &&
+        existing.status === "pending" &&
+        accountType === "professional"
+      ) {
+        const mySkill: ProService | null = isProService(registeredAs)
+          ? registeredAs
+          : proServices[0] ?? null;
+        if (mySkill && existing.serviceType !== mySkill) {
+          return {
+            ok: false,
+            code: "skill_mismatch",
+            message: `This job is for ${existing.serviceType}. Your skill is ${mySkill} only — you cannot take another trade's job.`,
+            actionCount: userProfile?.serviceActionCount ?? 0,
+          };
+        }
+      }
+
       // Only "accept" is gated — decline / progress stays free
       if (status === "accepted" && existing.status === "pending") {
         const cfg = getRuntimeAppConfig();
@@ -959,6 +1062,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setRequests((prev) =>
           prev.map((r) => (r.id === id ? { ...r, status } : r))
         );
+        ensureChatForRequest(existing);
         if (userProfile) {
           persistProfile({
             ...userProfile,
@@ -981,7 +1085,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         actionCount: userProfile?.serviceActionCount ?? 0,
       };
     },
-    [requests, userProfile, accountType, persistProfile]
+    [
+      requests,
+      userProfile,
+      accountType,
+      persistProfile,
+      registeredAs,
+      proServices,
+      ensureChatForRequest,
+    ]
   );
 
   const retryLocation = useCallback(() => {
@@ -1115,6 +1227,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       requests,
       bookings,
       messages,
+      visibleMessageThreads,
       locationError,
       isLocating,
       setRadiusKm,
@@ -1125,6 +1238,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       bookRequest,
       createRequest,
       updateRequestStatus,
+      ensureChatForRequest,
+      sendChatMessage,
       retryLocation,
       setManualLocation,
     }),
@@ -1163,6 +1278,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       technicians,
       visibleTechnicians,
       requests,
+      visibleMessageThreads,
+      ensureChatForRequest,
+      sendChatMessage,
       bookings,
       messages,
       locationError,

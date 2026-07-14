@@ -1,13 +1,21 @@
 "use client";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import Link from "next/link";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PageHeader } from "@/components/layout/page-header";
+import { DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
+import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
+/**
+ * Role-aware inbox: motorist sees their job chats;
+ * pro only sees threads for their skill (no mix-up).
+ */
 export default function MessagesPage() {
-  const { messages, theme } = useApp();
+  const { visibleMessageThreads, theme, accountType } = useApp();
   const isLight = theme === "light";
+  const isPro = accountType === "professional";
 
   return (
     <div
@@ -16,24 +24,40 @@ export default function MessagesPage() {
         isLight ? "bg-[#c8c9cd]" : "bg-black"
       )}
     >
-      <PageHeader title="Messages" subtitle="Chat with technicians" />
+      <PageHeader
+        title="Messages"
+        subtitle={
+          isPro
+            ? "Chats with motorists for your skill only"
+            : "Chats with Repair Pros for your jobs"
+        }
+      />
 
-      <div className="flex-1 divide-y divide-transparent overflow-y-auto scrollbar-hide">
-        {messages.length === 0 ? (
-          <p className="p-6 text-center text-sm text-muted">No messages yet.</p>
+      <div className="flex-1 overflow-y-auto scrollbar-hide">
+        {visibleMessageThreads.length === 0 ? (
+          <p className="p-6 text-center text-sm text-muted">
+            No chats yet.{" "}
+            {isPro
+              ? "Accept a matching job to open a chat."
+              : "Book a pro to start a job chat."}
+          </p>
         ) : (
-          messages.map((m) => (
-            <button
+          visibleMessageThreads.map((m) => (
+            <Link
               key={m.id}
-              type="button"
+              href={`/messages/${m.id}`}
               className={cn(
-                "flex w-full items-center gap-3 px-3 py-3 text-left border-0",
-                isLight ? "hover:bg-slate-50" : "hover:bg-white/5"
+                "flex w-full items-center gap-3 border-0 px-3 py-3 text-left",
+                isLight ? "hover:bg-black/[0.04]" : "hover:bg-white/[0.04]"
               )}
             >
               <Avatar className="h-10 w-10">
+                <AvatarImage
+                  src={m.photo || DEFAULT_VENDOR_PHOTO}
+                  alt={m.technicianName}
+                />
                 <AvatarFallback className="bg-brand text-[11px] font-bold text-white">
-                  {m.technicianName.slice(0, 2)}
+                  {(isPro ? m.motoristName : m.technicianName).slice(0, 2)}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
@@ -44,10 +68,15 @@ export default function MessagesPage() {
                       isLight ? "text-slate-900" : "text-white"
                     )}
                   >
-                    {m.technicianName}
+                    {isPro ? m.motoristName : m.technicianName}
                   </p>
-                  <span className="shrink-0 text-[10px] text-muted">{m.time}</span>
+                  <span className="shrink-0 text-[10px] text-muted">
+                    {m.time}
+                  </span>
                 </div>
+                <p className="truncate text-[11px] capitalize text-muted">
+                  {PRO_SERVICE_LABELS[m.serviceType] ?? m.serviceType}
+                </p>
                 <p className="truncate text-xs text-muted">{m.lastMessage}</p>
               </div>
               {m.unread > 0 && (
@@ -55,7 +84,7 @@ export default function MessagesPage() {
                   {m.unread}
                 </span>
               )}
-            </button>
+            </Link>
           ))
         )}
       </div>

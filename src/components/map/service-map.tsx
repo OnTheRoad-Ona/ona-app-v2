@@ -10,6 +10,7 @@ import {
   GOOGLE_MAPS_LOADER_ID,
   shouldUseLiveMaps,
 } from "@/lib/google-maps";
+import { MAP_NEAR_ZOOM } from "@/lib/matching";
 import { useApp } from "@/lib/store";
 import type { Technician } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -463,10 +464,10 @@ function GoogleServiceMap({
     map.panTo(center);
   }, [map, center.lat, center.lng, center]);
 
-  // Keep map centered on live GPS (1 km nearby view)
+  // Camera stays ~1 km street view; list radius can still be up to 10 km
   useEffect(() => {
     if (!map) return;
-    map.setZoom(15);
+    map.setZoom(MAP_NEAR_ZOOM);
   }, [map]);
 
   return (
@@ -475,7 +476,7 @@ function GoogleServiceMap({
       <GoogleMap
         mapContainerStyle={MAP_ID_CONTAINER}
         center={center}
-        zoom={15}
+        zoom={MAP_NEAR_ZOOM}
         onLoad={onLoad}
         onUnmount={onUnmount}
         options={{

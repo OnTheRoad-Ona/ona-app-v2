@@ -185,14 +185,32 @@ export interface Booking {
   locationLabel: string;
 }
 
+export type ChatSender = "motorist" | "professional" | "system";
+
+export interface ChatMessage {
+  id: string;
+  sender: ChatSender;
+  text: string;
+  at: string;
+}
+
+/**
+ * One job/booking conversation between a Motorist and a Repair Pro.
+ * Threads never mix roles or jobs.
+ */
 export interface MessageThread {
   id: string;
+  /** Linked service request when chat started from a job */
+  requestId?: string;
+  technicianId: string;
   technicianName: string;
+  motoristName: string;
   serviceType: ProService;
   lastMessage: string;
   time: string;
   unread: number;
   photo: string;
+  messages: ChatMessage[];
 }
 
 export interface AppFilters {

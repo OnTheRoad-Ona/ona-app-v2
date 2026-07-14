@@ -1,12 +1,14 @@
 import { PROBLEM_MATCHES } from "@/lib/data/technicians";
 import type { AppFilters, ServiceCategory, Technician } from "@/lib/types";
 
-/** Max techs returned in any search (keep low to save map/list load) */
-export const MAX_TECHNICIANS = 12;
-/** Max search radius in kilometers — nearby map tracks skilled workers within 1 km */
-export const MAX_RADIUS_KM = 1;
-/** Default live map radius */
-export const DEFAULT_RADIUS_KM = 1;
+/** Max techs returned in any search (keep load reasonable) */
+export const MAX_TECHNICIANS = 24;
+/** Max search radius in kilometers (list / match) */
+export const MAX_RADIUS_KM = 10;
+/** Default search radius */
+export const DEFAULT_RADIUS_KM = 5;
+/** Map camera zoom for ~1 km street view (radius still uses MAX_RADIUS_KM) */
+export const MAP_NEAR_ZOOM = 15;
 
 function problemPriority(tech: Technician, query: string): number {
   const q = query.toLowerCase().trim();
