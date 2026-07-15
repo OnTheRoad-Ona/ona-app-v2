@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { AuthGate } from "@/components/auth/auth-gate";
+import { InAppCallProvider } from "@/components/call/in-app-call";
 import { PhoneShell } from "@/components/layout/phone-shell";
 import { recordNavigation } from "@/lib/navigation";
 
@@ -26,7 +27,9 @@ export function AppFrame({ children }: { children: ReactNode }) {
 
   return (
     <PhoneShell>
-      <AuthGate>{children}</AuthGate>
+      <InAppCallProvider>
+        <AuthGate>{children}</AuthGate>
+      </InAppCallProvider>
     </PhoneShell>
   );
 }

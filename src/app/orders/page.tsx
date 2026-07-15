@@ -13,6 +13,7 @@ import {
   VerificationBlockedPanel,
   VerificationWarningBanner,
 } from "@/components/auth/verification-gate-banner";
+import { CallButton } from "@/components/call/in-app-call";
 import { PageHeader } from "@/components/layout/page-header";
 import { useApp } from "@/lib/store";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
@@ -295,12 +296,17 @@ function OrderCard({
               primary
             />
           )}
-          <Action
+          <CallButton
             label="Call motorist"
-            icon={Phone}
-            onClick={() => {
-              /* demo */
+            target={{
+              name: job.technicianName || "Motorist",
+              phone: "",
+              roleLabel: "Motorist",
             }}
+            className={cn(
+              "h-9 flex-none rounded-lg px-3 text-[11px]",
+              "bg-black/8 text-slate-800 dark:bg-[#2c2c2e] dark:text-white"
+            )}
           />
         </div>
       )}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { GoogleMap, Marker, useJsApiLoader } from "@react-google-maps/api";
 import { Car, Wrench } from "lucide-react";
+import { LiveProPin } from "@/components/map/live-pro-pin";
 import {
   getGoogleMapsApiKey,
   GOOGLE_MAPS_LIBRARIES,
@@ -505,47 +506,13 @@ function GoogleServiceMap({
         />
         {livePros.map((t) => {
           const selected = t.id === selectedTechId;
-          const dim = selected ? 24 : 20;
-          const pos = { lat: t.location.lat, lng: t.location.lng };
           return (
-            <span key={`${t.id}-${pos.lat.toFixed(5)}-${pos.lng.toFixed(5)}`}>
-              {/* Soft live pulse under the glyph (tiny, no hard circle UI) */}
-              <Marker
-                position={pos}
-                clickable={false}
-                icon={{
-                  path:
-                    typeof google !== "undefined"
-                      ? google.maps.SymbolPath.CIRCLE
-                      : 0,
-                  scale: selected ? 11 : 9,
-                  fillColor: "#e85a12",
-                  fillOpacity: 0.14,
-                  strokeColor: "#e85a12",
-                  strokeOpacity: 0.35,
-                  strokeWeight: 1,
-                }}
-                zIndex={selected ? 890 : 90}
-                opacity={0.85}
-              />
-              <Marker
-                position={pos}
-                onClick={() => onSelect?.(t.id)}
-                title={`${t.name} · ${t.roleLabel} · live · ${t.distanceKm.toFixed(1)} km`}
-                icon={{
-                  url: proMarkerIconUrl(t, selected),
-                  scaledSize:
-                    typeof google !== "undefined"
-                      ? new google.maps.Size(dim, dim)
-                      : undefined,
-                  anchor:
-                    typeof google !== "undefined"
-                      ? new google.maps.Point(dim / 2, dim / 2)
-                      : undefined,
-                }}
-                zIndex={selected ? 900 : 100}
-              />
-            </span>
+            <LiveProPin
+              key={`${t.id}-${t.location.lat.toFixed(5)}-${t.location.lng.toFixed(5)}`}
+              tech={t}
+              selected={selected}
+              onSelect={onSelect}
+            />
           );
         })}
       </GoogleMap>

@@ -5,12 +5,12 @@ import {
   Clock3,
   MessageCircle,
   Navigation,
-  Phone,
   Star,
   Zap,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { CallButton } from "@/components/call/in-app-call";
 import { AchievementBadgesRow } from "@/components/profile/achievement-badges";
 import { ProfileSection, ProfileShell } from "@/components/profile/profile-shell";
 import { RadiusMapPreview } from "@/components/profile/radius-map-preview";
@@ -74,6 +74,11 @@ export function ProPublicView({
     ])
   );
   const photo = tech.photo?.trim() || DEFAULT_VENDOR_PHOTO;
+  const skillLabel =
+    tech.roleLabel ||
+    skills[0] ||
+    tech.serviceType ||
+    "Repair Pro";
   const statusText =
     tech.status === "available"
       ? "Available now"
@@ -112,21 +117,19 @@ export function ProPublicView({
       footer={
         <>
           <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant="outline"
-              asChild
-              className={cn(
-                "h-11 border-0 shadow-none",
+            <CallButton
+              target={{
+                name: tech.name,
+                phone: tech.phone || "",
+                photo: photo,
+                roleLabel: skillLabel,
+              }}
+              className={
                 isLight
                   ? "bg-black/8 text-slate-900"
                   : "bg-[#2c2c2e] text-white"
-              )}
-            >
-              <a href={`tel:${(tech.phone || "").replace(/\s/g, "")}`}>
-                <Phone className="h-4 w-4" />
-                Call
-              </a>
-            </Button>
+              }
+            />
             <Button
               variant="secondary"
               asChild

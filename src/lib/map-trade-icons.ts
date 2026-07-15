@@ -67,6 +67,7 @@ export function tradeIconHtml(
   const pulse = selected ? 28 : 24;
   return `<div class="om-live-pin" style="width:${pulse}px;height:${pulse}px;position:relative;background:transparent;border:none">
     <span class="om-live-beam" aria-hidden="true"></span>
+    <span class="om-live-beam om-live-beam-delay" aria-hidden="true"></span>
     <img src="${url}" width="${size}" height="${size}" alt="" class="om-live-glyph" style="width:${size}px;height:${size}px;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:transparent;border:none;display:block" draggable="false"/>
   </div>`;
 }

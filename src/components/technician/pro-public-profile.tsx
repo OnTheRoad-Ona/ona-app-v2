@@ -11,13 +11,13 @@ import {
   MessageCircle,
   Navigation,
   Pencil,
-  Phone,
   Star,
   Wrench,
   Zap,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { CallButton } from "@/components/call/in-app-call";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { navigateBack } from "@/lib/navigation";
 import { publicSkillRows } from "@/lib/skill-questions";
@@ -362,20 +362,19 @@ export function ProPublicProfile({
           ) : (
             <>
               <div className="grid grid-cols-2 gap-2">
-                <Button
-                  variant="outline"
-                  asChild
-                  className={cn("h-10 border-0 shadow-none", solidBtn)}
-                >
-                  <a href={`tel:${(tech.phone || "").replace(/\s/g, "")}`}>
-                    <Phone className="h-4 w-4" />
-                    Call
-                  </a>
-                </Button>
+                <CallButton
+                  target={{
+                    name: tech.name,
+                    phone: tech.phone || "",
+                    photo: photoSrc,
+                    roleLabel: skillLabel,
+                  }}
+                  className={solidBtn}
+                />
                 <Button
                   variant="secondary"
                   asChild
-                  className={cn("h-10 border-0 shadow-none", solidBtn)}
+                  className={cn("h-11 border-0 shadow-none", solidBtn)}
                 >
                   <Link href="/messages">
                     <MessageCircle className="h-4 w-4" />
