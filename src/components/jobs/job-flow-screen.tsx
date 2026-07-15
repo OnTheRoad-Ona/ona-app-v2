@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
@@ -34,6 +34,7 @@ import {
 } from "@/lib/jobs/client";
 import {
   DISPUTE_REASONS,
+  PRO_TRIP_STATUS_COPY,
   TRIP_STATUS_COPY,
 } from "@/lib/jobs/constants";
 import { negotiationUiStatus } from "@/lib/jobs/state-machine";
@@ -42,6 +43,33 @@ import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { formatMoney, LABOUR_SPLIT_LINE } from "@/lib/pricing";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { cn } from "@/lib/utils";
+
+/** Prefer newer job snapshots so stale polls never undo Start trip etc. */
+function isJobNewer(next: JobRecord, prev: JobRecord | null): boolean {
+  if (!prev) return true;
+  if (next.id !== prev.id) return true;
+  const nt = Date.parse(next.updatedAt || "") || 0;
+  const pt = Date.parse(prev.updatedAt || "") || 0;
+  if (nt !== pt) return nt >= pt;
+  // Same timestamp: allow forward status progression only
+  const order = [
+    "negotiating",
+    "agreed",
+    "paid_booked",
+    "en_route",
+    "arrived",
+    "in_progress",
+    "completed",
+    "satisfied",
+    "released",
+    "disputed",
+    "under_appeal",
+    "cancelled",
+    "expired",
+    "refunded",
+  ];
+  return order.indexOf(next.status) >= order.indexOf(prev.status);
+}
 
 export function JobFlowScreen({
   jobId,
@@ -58,6 +86,7 @@ export function JobFlowScreen({
 }) {
   const router = useRouter();
   const [job, setJob] = useState<JobRecord | null>(null);
+  const jobRef = useRef<JobRecord | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [offerInput, setOfferInput] = useState("");
@@ -69,15 +98,23 @@ export function JobFlowScreen({
   const [flash, setFlash] = useState<string | null>(null);
   const [locHint, setLocHint] = useState<string | null>(null);
 
+  const commitJob = useCallback((next: JobRecord, force = false) => {
+    setJob((prev) => {
+      if (!force && prev && !isJobNewer(next, prev)) return prev;
+      jobRef.current = next;
+      return next;
+    });
+  }, []);
+
   const load = useCallback(async () => {
     const res = await apiGetJob(jobId);
     if (!res.ok) {
       setErr(res.message);
       return;
     }
-    setJob(res.data.job);
+    commitJob(res.data.job);
     setErr(null);
-  }, [jobId]);
+  }, [jobId, commitJob]);
 
   // Fast poll while negotiating so motorist sees pro offers quickly
   useEffect(() => {
@@ -114,7 +151,7 @@ export function JobFlowScreen({
         actorId,
       });
       if (res.ok) {
-        setJob(res.data.job);
+        commitJob(res.data.job);
         setLocHint(null);
       }
     };
@@ -162,7 +199,7 @@ export function JobFlowScreen({
   }, [job]);
 
   const applyJob = (j: JobRecord) => {
-    setJob(j);
+    commitJob(j, true);
     setFlash(null);
   };
 
@@ -552,9 +589,18 @@ export function JobFlowScreen({
   if (
     ["paid_booked", "en_route", "arrived", "in_progress"].includes(job.status)
   ) {
-    const copy = TRIP_STATUS_COPY[job.status] || {
-      title: "Booked",
-      subtitle: "",
+    const copySource =
+      viewer === "repair_pro" ? PRO_TRIP_STATUS_COPY : TRIP_STATUS_COPY;
+    const copy = copySource[job.status] ||
+      TRIP_STATUS_COPY[job.status] || {
+        title: "Booked",
+        subtitle: "",
+      };
+    const statusLabel: Record<string, string> = {
+      paid_booked: "Booked",
+      en_route: "On the way",
+      arrived: "Arrived",
+      in_progress: "Working",
     };
     const proActions: {
       when: string[];
@@ -617,9 +663,18 @@ export function JobFlowScreen({
         setErr(res.message || "Could not update trip status. Try again.");
         return;
       }
-      setJob(res.data.job);
-      // Immediate re-fetch so motorist/pro both see en_route etc.
-      void load();
+      // Force apply — never let a stale poll undo the advance
+      commitJob(res.data.job, true);
+      setFlash(
+        event === "START_TRIP"
+          ? "Trip started — you’re on the way"
+          : event === "MARK_ARRIVED"
+            ? "Marked arrived"
+            : event === "START_WORK"
+              ? "Work started"
+              : "Job marked complete"
+      );
+      window.setTimeout(() => setFlash(null), 3500);
     };
 
     return (
@@ -631,6 +686,11 @@ export function JobFlowScreen({
         fullBleed
         footer={
           <div className="space-y-2">
+            {flash && (
+              <p className="text-center text-[12px] font-bold text-[#e07a3d]">
+                {flash}
+              </p>
+            )}
             {locHint && viewer === "repair_pro" && (
               <p className="text-center text-[11px] font-semibold text-amber-500">
                 {locHint}
@@ -698,6 +758,26 @@ export function JobFlowScreen({
         {/* Bottom sheet — counterpart by role */}
         <div className="relative z-10 -mt-4 px-4">
           <JobCard isLight={isLight}>
+            <div className="mb-2.5 flex items-center justify-between gap-2">
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-black uppercase tracking-wide",
+                  job.status === "en_route" || job.status === "in_progress"
+                    ? "bg-[#e07a3d] text-white"
+                    : isLight
+                      ? "bg-slate-800 text-white"
+                      : "bg-[#3a3a3c] text-white"
+                )}
+              >
+                {statusLabel[job.status] || job.status}
+              </span>
+              {(job.status === "en_route" || job.status === "paid_booked") &&
+                job.etaMinutes != null && (
+                  <span className={cn("text-[12px] font-bold", muted)}>
+                    ETA {job.etaMinutes} min
+                  </span>
+                )}
+            </div>
             <div className="flex items-center gap-3">
               <Avatar className="h-12 w-12 rounded-full">
                 <AvatarImage
@@ -752,11 +832,6 @@ export function JobFlowScreen({
             >
               <Navigation className="h-3.5 w-3.5 text-[#e07a3d]" />
               {job.locationLabel}
-              {job.status === "en_route" || job.status === "paid_booked"
-                ? job.etaMinutes != null
-                  ? ` · ${job.etaMinutes} min`
-                  : ""
-                : ""}
             </p>
           </JobCard>
         </div>

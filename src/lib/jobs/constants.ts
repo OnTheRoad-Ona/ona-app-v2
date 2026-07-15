@@ -74,6 +74,48 @@ export const TRIP_STATUS_COPY: Partial<
   },
 };
 
+/** Repair Pro–facing titles (same statuses, clear action feedback) */
+export const PRO_TRIP_STATUS_COPY: Partial<
+  Record<JobFlowStatus, { title: string; subtitle: string }>
+> = {
+  paid_booked: {
+    title: "Ready to go",
+    subtitle: "Start trip when you leave for the motorist",
+  },
+  en_route: {
+    title: "You’re on the way",
+    subtitle: "Drive to the motorist · mark arrived when there",
+  },
+  arrived: {
+    title: "You’ve arrived",
+    subtitle: "Start work when you begin the repair",
+  },
+  in_progress: {
+    title: "Work in progress",
+    subtitle: "Mark complete when the job is done",
+  },
+  completed: {
+    title: "Job marked complete",
+    subtitle: "Waiting for motorist to confirm & release pay",
+  },
+  satisfied: {
+    title: "Motorist confirmed",
+    subtitle: "Releasing your payout",
+  },
+  released: {
+    title: "Payment released",
+    subtitle: "95% to you · 5% platform",
+  },
+  disputed: {
+    title: "Dispute active",
+    subtitle: "Funds stay locked until resolution",
+  },
+  under_appeal: {
+    title: "Under appeal",
+    subtitle: "Senior review in progress · funds locked",
+  },
+};
+
 export const ACTIVE_TRACKING_STATUSES: JobFlowStatus[] = [
   "paid_booked",
   "en_route",

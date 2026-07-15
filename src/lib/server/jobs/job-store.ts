@@ -55,6 +55,53 @@ function splitMinor(amountMinor: number) {
   return { platformFeeMinor: platform, proPayoutMinor: total - platform };
 }
 
+/** Map classic service_requests.status → premium flow when flow_status is blank */
+function legacyToFlowStatus(legacy: string | null | undefined): JobFlowStatus | null {
+  switch ((legacy || "").toLowerCase()) {
+    case "requested":
+    case "draft":
+    case "matched":
+      return "negotiating";
+    case "accepted":
+      return "paid_booked";
+    case "en_route":
+      return "en_route";
+    case "arrived":
+      return "arrived";
+    case "in_progress":
+      return "in_progress";
+    case "completed":
+      return "completed";
+    case "cancelled":
+      return "cancelled";
+    default:
+      return null;
+  }
+}
+
+const FLOW_STATUSES = new Set<string>([
+  "negotiating",
+  "agreed",
+  "paid_booked",
+  "en_route",
+  "arrived",
+  "in_progress",
+  "completed",
+  "satisfied",
+  "released",
+  "cancelled",
+  "expired",
+  "disputed",
+  "under_appeal",
+  "refunded",
+]);
+
+function resolveFlowStatus(row: Record<string, unknown>): JobFlowStatus {
+  const flow = String(row.flow_status || "").trim();
+  if (flow && FLOW_STATUSES.has(flow)) return flow as JobFlowStatus;
+  return legacyToFlowStatus(String(row.status || "")) || "negotiating";
+}
+
 function rowToJob(row: Record<string, unknown>): JobRecord {
   let offers: JobOffer[] = [];
   const rawOffers = row.offers;
@@ -81,7 +128,7 @@ function rowToJob(row: Record<string, unknown>): JobRecord {
     problem: String(row.problem_text || row.description || ""),
     voiceNote: (row.voice_note as JobMedia) || null,
     photos: (row.photos as JobMedia[]) || [],
-    status: (row.flow_status as JobFlowStatus) || "negotiating",
+    status: resolveFlowStatus(row),
     currency: (row.pricing_currency as AppCurrency) || "NGN",
     proBaseMajor:
       row.pro_base_major != null ? Number(row.pro_base_major) : null,
@@ -240,10 +287,27 @@ async function persist(job: JobRecord): Promise<JobRecord> {
           pro_lng: job.proLocation?.lng ?? null,
           eta_minutes: job.etaMinutes ?? null,
           distance_km: job.distanceKm ?? null,
+          status_history: job.statusHistory,
           updated_at: job.updatedAt,
         })
         .eq("id", job.id);
-      if (e2) console.error("job persist minimal failed", e2.message);
+      if (e2) {
+        console.error("job persist minimal failed", e2.message);
+        // Last resort: flow_status only (text column — always writable)
+        const { error: e3 } = await sb
+          .from("service_requests")
+          .update({
+            flow_status: job.status,
+            updated_at: job.updatedAt,
+          })
+          .eq("id", job.id);
+        if (e3) {
+          console.error("job persist flow_status failed", e3.message);
+          throw new Error(
+            `Could not save trip status (${job.status}). ${e3.message}`
+          );
+        }
+      }
     }
     try {
       await sb.from("job_events").insert({
@@ -256,6 +320,9 @@ async function persist(job: JobRecord): Promise<JobRecord> {
     }
   } catch (e) {
     console.error("job persist exception", e);
+    if (e instanceof Error && e.message.startsWith("Could not save")) {
+      throw e;
+    }
   }
   return job;
 }
