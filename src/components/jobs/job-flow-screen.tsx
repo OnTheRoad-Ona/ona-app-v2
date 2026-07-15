@@ -245,8 +245,8 @@ export function JobFlowScreen({
                   className={cn(
                     "h-12 flex-1 rounded-2xl border-0 px-4 text-[15px] font-bold outline-none ring-1",
                     isLight
-                      ? "bg-white text-slate-900 ring-black/10"
-                      : "bg-white/10 text-white ring-white/15"
+                      ? "bg-[#bebfc4] text-slate-900 ring-black/10"
+                      : "bg-[#1c1c1c] text-white ring-white/10"
                   )}
                 />
                 <button
@@ -357,7 +357,7 @@ export function JobFlowScreen({
                   key={o.id}
                   className={cn(
                     "flex items-center justify-between rounded-xl px-3 py-2.5",
-                    isLight ? "bg-black/[0.04]" : "bg-white/[0.05]"
+                    isLight ? "bg-black/10" : "bg-black/40"
                   )}
                 >
                   <span className={cn("text-[12px] font-bold", muted)}>
@@ -909,10 +909,10 @@ function StatusPill({
 }) {
   const cls =
     tone === "amber"
-      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+      ? "bg-amber-500/20 text-amber-800 dark:text-amber-300"
       : tone === "copper"
-        ? "bg-[#e07a3d]/15 text-[#e07a3d]"
-        : "bg-black/5 text-slate-600 dark:bg-white/10 dark:text-white/70";
+        ? "bg-[#e07a3d]/20 text-[#e07a3d]"
+        : "bg-black/10 text-slate-700 dark:bg-white/10 dark:text-white/70";
   return (
     <span
       className={cn(
@@ -971,11 +971,11 @@ function DisputeSheet({
   onSubmit: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4">
       <div
         className={cn(
           "max-h-[85vh] w-full max-w-md overflow-y-auto rounded-3xl p-5",
-          isLight ? "bg-white" : "bg-[#0f172a]"
+          isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
         <p
@@ -1002,7 +1002,7 @@ function DisputeSheet({
           onChange={(e) => setReason(e.target.value as DisputeReason)}
           className={cn(
             "mt-1 h-11 w-full rounded-xl px-3 text-[13px] font-semibold",
-            isLight ? "bg-black/5" : "bg-white/10 text-white"
+            isLight ? "bg-[#bebfc4]" : "bg-[#1c1c1c] text-white"
           )}
         >
           {DISPUTE_REASONS.map((r) => (
@@ -1018,7 +1018,7 @@ function DisputeSheet({
           placeholder="Short description…"
           className={cn(
             "mt-3 w-full resize-none rounded-xl p-3 text-[13px] outline-none",
-            isLight ? "bg-black/5" : "bg-white/10 text-white"
+            isLight ? "bg-[#bebfc4]" : "bg-[#1c1c1c] text-white"
           )}
         />
         <div className="mt-4 flex gap-2">

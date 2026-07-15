@@ -4,6 +4,10 @@ import type { ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Job flow chrome — same solid stage as the rest of the app
+ * (light #c8c9cd / dark black). No glass, no double panels.
+ */
 export function JobShell({
   isLight,
   title,
@@ -21,25 +25,12 @@ export function JobShell({
   footer?: ReactNode;
   fullBleed?: boolean;
 }) {
-  return (
-    <div
-      className={cn(
-        "relative flex min-h-full flex-col",
-        isLight
-          ? "bg-gradient-to-b from-[#f4f6fa] via-[#eef1f6] to-[#e8ecf3]"
-          : "bg-gradient-to-b from-[#0b1220] via-[#0f172a] to-[#0a0f1a]"
-      )}
-    >
-      {/* Copper glow */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-40 opacity-40"
-        style={{
-          background:
-            "radial-gradient(ellipse 80% 70% at 50% -10%, rgba(224,122,61,0.35), transparent)",
-        }}
-      />
+  const stage = isLight ? "bg-[#c8c9cd]" : "bg-black";
+  const ink = isLight ? "text-slate-900" : "text-white";
+  const muted = isLight ? "text-slate-600" : "text-white/60";
 
+  return (
+    <div className={cn("relative flex min-h-full flex-col", stage)}>
       <header className="relative z-10 flex items-start gap-3 px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
         {onBack && (
           <button
@@ -47,9 +38,7 @@ export function JobShell({
             onClick={onBack}
             className={cn(
               "mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border-0",
-              isLight
-                ? "bg-white/80 text-slate-800 shadow-sm backdrop-blur"
-                : "bg-white/10 text-white backdrop-blur"
+              isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white"
             )}
             aria-label="Back"
           >
@@ -57,21 +46,11 @@ export function JobShell({
           </button>
         )}
         <div className="min-w-0 flex-1 pt-1">
-          <h1
-            className={cn(
-              "text-[22px] font-black tracking-tight",
-              isLight ? "text-slate-900" : "text-white"
-            )}
-          >
+          <h1 className={cn("text-[22px] font-black tracking-tight", ink)}>
             {title}
           </h1>
           {subtitle && (
-            <p
-              className={cn(
-                "mt-0.5 text-[13px] font-medium",
-                isLight ? "text-slate-500" : "text-white/55"
-              )}
-            >
+            <p className={cn("mt-0.5 text-[13px] font-medium", muted)}>
               {subtitle}
             </p>
           )}
@@ -90,10 +69,9 @@ export function JobShell({
       {footer && (
         <div
           className={cn(
-            "sticky bottom-0 z-20 border-t px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl",
-            isLight
-              ? "border-black/5 bg-white/85"
-              : "border-white/10 bg-[#0b1220]/90"
+            "sticky bottom-0 z-20 border-t px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3",
+            stage,
+            isLight ? "border-black/10" : "border-white/10"
           )}
         >
           {footer}
@@ -103,6 +81,7 @@ export function JobShell({
   );
 }
 
+/** Solid content block on the main stage — no glass / transparency */
 export function JobCard({
   isLight,
   children,
@@ -117,8 +96,8 @@ export function JobCard({
       className={cn(
         "rounded-2xl p-4",
         isLight
-          ? "border border-white/60 bg-white/75 shadow-[0_8px_30px_rgba(15,23,42,0.06)] backdrop-blur-xl"
-          : "border border-white/10 bg-white/[0.06] shadow-[0_8px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl",
+          ? "bg-[#bebfc4] text-slate-900"
+          : "bg-[#141414] text-white",
         className
       )}
     >
@@ -146,7 +125,7 @@ export function CopperButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl border-0 bg-[#e07a3d] text-[15px] font-black text-white shadow-lg shadow-[#e07a3d]/30 transition active:scale-[0.99] disabled:opacity-50",
+        "inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl border-0 bg-[#e07a3d] text-[15px] font-black text-white transition active:scale-[0.99] disabled:opacity-50",
         className
       )}
     >
@@ -173,7 +152,7 @@ export function GhostButton({
       className={cn(
         "inline-flex h-12 w-full items-center justify-center rounded-2xl border-0 text-[14px] font-bold transition",
         isLight
-          ? "bg-slate-900/8 text-slate-900"
+          ? "bg-black/10 text-slate-900"
           : "bg-white/10 text-white",
         className
       )}

@@ -316,6 +316,26 @@ export async function listJobsForUser(
         .order("created_at", { ascending: false })
         .limit(50);
       for (const row of data || []) {
+        // Skip legacy cancelled/completed that still had negotiating flow
+        const legacy = String(
+          (row as { status?: string }).status || ""
+        ).toLowerCase();
+        if (legacy === "cancelled" || legacy === "completed") {
+          const flow = String(
+            (row as { flow_status?: string }).flow_status || ""
+          );
+          if (flow === "negotiating" || flow === "agreed") {
+            try {
+              await sb
+                .from("service_requests")
+                .update({ flow_status: "expired" })
+                .eq("id", (row as { id: string }).id);
+            } catch {
+              /* */
+            }
+            continue;
+          }
+        }
         const j = await maybeExpire(rowToJob(row as Record<string, unknown>));
         if (!out.find((x) => x.id === j.id)) out.push(j);
       }
@@ -323,9 +343,21 @@ export async function listJobsForUser(
       /* */
     }
   }
-  return out.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+  return out
+    .filter((j) => {
+      // Never surface terminal / expired / demo-ish empties
+      if (
+        ["expired", "cancelled", "refunded", "released"].includes(j.status)
+      ) {
+        return false;
+      }
+      if (!j.motoristId || !j.problem?.trim()) return false;
+      return true;
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
 }
 
 export async function listDisputedJobs(): Promise<JobRecord[]> {
