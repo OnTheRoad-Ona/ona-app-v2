@@ -77,7 +77,7 @@ export default function RequestsPage() {
           href="/jobs"
           className="text-[12px] font-bold text-[#e07a3d]"
         >
-          Open premium escrow jobs →
+          My jobs (open negotiations) →
         </Link>
       </div>
 

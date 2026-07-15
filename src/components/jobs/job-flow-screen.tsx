@@ -79,11 +79,19 @@ export function JobFlowScreen({
     setErr(null);
   }, [jobId]);
 
+  // Fast poll while negotiating so motorist sees pro offers quickly
   useEffect(() => {
     void load();
-    const id = window.setInterval(() => void load(), 2500);
+    const ms =
+      job?.status === "negotiating" || job?.status === "agreed" ? 1000 : 2500;
+    const id = window.setInterval(() => void load(), ms);
     return () => window.clearInterval(id);
-  }, [load]);
+  }, [load, job?.status]);
+
+  /** My jobs list — stay on open negotiation without cancelling */
+  const goJobsList = useCallback(() => {
+    router.push("/jobs");
+  }, [router]);
 
   // Repair Pro: continuous real GPS while trip is active → Google ETA on server
   useEffect(() => {
@@ -172,7 +180,12 @@ export function JobFlowScreen({
 
   if (!job) {
     return (
-      <JobShell isLight={isLight} title="Loading job…">
+      <JobShell
+        isLight={isLight}
+        title="Loading job…"
+        compactHeader
+        onBack={goJobsList}
+      >
         <div className="flex items-center justify-center py-24">
           <Loader2 className="h-8 w-8 animate-spin text-[#e07a3d]" />
         </div>
@@ -191,8 +204,8 @@ export function JobFlowScreen({
       <JobShell
         isLight={isLight}
         title="Negotiation expired"
-        subtitle="The 10-minute window closed"
-        onBack={() => router.push("/")}
+        compactHeader
+        onBack={goJobsList}
         footer={
           <div className="flex flex-col gap-2">
             <CopperButton onClick={() => router.push(`/request?tech=${job.repairProId}`)}>
@@ -221,54 +234,21 @@ export function JobFlowScreen({
     const canOffer =
       job.offers.length < job.maxOffers &&
       (job.offers.length > 0 || mySide === "repair_pro");
-    const canAccept = last && last.side !== mySide;
+    const canAccept = Boolean(last && last.side !== mySide);
+    const theirOffer =
+      last && last.side !== mySide
+        ? last
+        : [...job.offers].reverse().find((o) => o.side !== mySide);
 
     return (
       <JobShell
         isLight={isLight}
         title="Negotiate labour"
-        subtitle={`${PRO_SERVICE_LABELS[job.serviceType]} · ${job.offers.length}/${job.maxOffers} offers`}
-        onBack={() => router.push(viewer === "motorist" ? "/" : "/dashboard")}
+        compactHeader
+        onBack={goJobsList}
         footer={
           <div className="space-y-2">
-            {canOffer && (
-              <div className="flex gap-2">
-                <input
-                  inputMode="decimal"
-                  value={offerInput}
-                  onChange={(e) => setOfferInput(e.target.value)}
-                  placeholder={
-                    mySide === "repair_pro"
-                      ? "Your labour price"
-                      : "Your counter (max −50%)"
-                  }
-                  className={cn(
-                    "h-12 flex-1 rounded-2xl border-0 px-4 text-[15px] font-bold outline-none ring-1",
-                    isLight
-                      ? "bg-[#bebfc4] text-slate-900 ring-black/10"
-                      : "bg-[#1c1c1c] text-white ring-white/10"
-                  )}
-                />
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    void run(() =>
-                      apiPlaceOffer({
-                        jobId: job.id,
-                        side: mySide,
-                        actorId,
-                        amountMajor: Number(offerInput.replace(/[^\d.]/g, "")),
-                      })
-                    )
-                  }
-                  className="h-12 shrink-0 rounded-2xl bg-[#e07a3d] px-4 text-[13px] font-black text-white"
-                >
-                  Send
-                </button>
-              </div>
-            )}
-            {canAccept && (
+            {canAccept && last && (
               <CopperButton
                 disabled={busy}
                 onClick={() =>
@@ -283,6 +263,50 @@ export function JobFlowScreen({
               >
                 Accept {formatMoney(last.amountMajor, job.currency)}
               </CopperButton>
+            )}
+            {canOffer && (
+              <div className="flex gap-2">
+                <input
+                  inputMode="decimal"
+                  value={offerInput}
+                  onChange={(e) => setOfferInput(e.target.value)}
+                  placeholder={
+                    mySide === "repair_pro"
+                      ? "Your labour price"
+                      : "Your counter (max 50% off)"
+                  }
+                  className={cn(
+                    "h-12 flex-1 rounded-2xl border-0 px-4 text-[15px] font-bold outline-none",
+                    isLight
+                      ? "bg-[#bebfc4] text-slate-900"
+                      : "bg-[#1c1c1c] text-white"
+                  )}
+                />
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      const res = await apiPlaceOffer({
+                        jobId: job.id,
+                        side: mySide,
+                        actorId,
+                        amountMajor: Number(offerInput.replace(/[^\d.]/g, "")),
+                      });
+                      if (res.ok) setOfferInput("");
+                      return res;
+                    })
+                  }
+                  className={cn(
+                    "h-12 shrink-0 rounded-2xl border-0 px-4 text-[13px] font-black",
+                    isLight
+                      ? "bg-[#a8a9ae] text-slate-900"
+                      : "bg-[#2c2c2e] text-white"
+                  )}
+                >
+                  Send
+                </button>
+              </div>
             )}
             <GhostButton
               isLight={isLight}
@@ -305,7 +329,15 @@ export function JobFlowScreen({
         <JobCard isLight={isLight} className="mb-3">
           <CountdownTimer
             endsAt={job.negotiateEndsAt}
-            onExpire={() => void load()}
+            onExpire={() => {
+              void run(() =>
+                apiTransition({
+                  jobId: job.id,
+                  event: "EXPIRE_NEGOTIATION",
+                  actor: "system",
+                })
+              );
+            }}
             className={ink}
           />
           <div className="mt-3 flex flex-wrap gap-2">
@@ -326,10 +358,24 @@ export function JobFlowScreen({
           </div>
         </JobCard>
 
+        {theirOffer && (
+          <JobCard isLight={isLight} className="mb-3">
+            <p className={cn("text-[12px] font-bold", muted)}>
+              {theirOffer.side === "repair_pro"
+                ? "Repair Pro offered"
+                : "Motorist offered"}
+            </p>
+            <p className="mt-1 text-[22px] font-black text-[#e07a3d]">
+              {formatMoney(theirOffer.amountMajor, job.currency)}
+            </p>
+            <p className={cn("mt-1 text-[12px] font-medium", muted)}>
+              Labour only. Spare parts not included.
+            </p>
+          </JobCard>
+        )}
+
         <JobCard isLight={isLight} className="mb-3">
-          <p className={cn("text-[12px] font-bold uppercase tracking-wide", muted)}>
-            Problem
-          </p>
+          <p className={cn("text-[12px] font-bold", muted)}>Problem</p>
           <p className={cn("mt-1 text-[14px] font-semibold leading-snug", ink)}>
             {job.problem}
           </p>
@@ -341,7 +387,7 @@ export function JobFlowScreen({
         </JobCard>
 
         <JobCard isLight={isLight}>
-          <p className={cn("mb-2 text-[12px] font-bold uppercase tracking-wide", muted)}>
+          <p className={cn("mb-2 text-[12px] font-bold", muted)}>
             Offer history
           </p>
           {job.offers.length === 0 ? (
@@ -357,11 +403,11 @@ export function JobFlowScreen({
                   key={o.id}
                   className={cn(
                     "flex items-center justify-between rounded-xl px-3 py-2.5",
-                    isLight ? "bg-black/10" : "bg-black/40"
+                    isLight ? "bg-black/10" : "bg-[#0a0a0a]"
                   )}
                 >
                   <span className={cn("text-[12px] font-bold", muted)}>
-                    #{o.offerIndex} ·{" "}
+                    #{o.offerIndex}{" "}
                     {o.side === "repair_pro" ? "Repair Pro" : "Motorist"}
                   </span>
                   <span className={cn("text-[15px] font-black", ink)}>
@@ -387,8 +433,8 @@ export function JobFlowScreen({
       <JobShell
         isLight={isLight}
         title="Price agreed"
-        subtitle="Labour fee locked · escrow next"
-        onBack={() => router.push("/requests")}
+        compactHeader
+        onBack={goJobsList}
         footer={
           viewer === "motorist" ? (
             <CopperButton
@@ -516,7 +562,8 @@ export function JobFlowScreen({
       <JobShell
         isLight={isLight}
         title={copy.title}
-        subtitle={copy.subtitle}
+        compactHeader
+        onBack={goJobsList}
         fullBleed
         footer={
           <div className="space-y-2">
@@ -652,7 +699,8 @@ export function JobFlowScreen({
       <JobShell
         isLight={isLight}
         title="Job completed"
-        subtitle="Confirm satisfaction to release funds"
+        compactHeader
+        onBack={goJobsList}
         footer={
           viewer === "motorist" ? (
             <CopperButton
@@ -731,10 +779,10 @@ export function JobFlowScreen({
       <JobShell
         isLight={isLight}
         title="Payment released"
-        subtitle="Thank you for using OgaMecho"
-        onBack={() => router.push("/")}
+        compactHeader
+        onBack={goJobsList}
         footer={
-          <CopperButton onClick={() => router.push("/")}>Done</CopperButton>
+          <CopperButton onClick={goJobsList}>Done</CopperButton>
         }
       >
         <JobCard isLight={isLight} className="text-center">
@@ -817,7 +865,8 @@ export function JobFlowScreen({
         title={
           job.status === "under_appeal" ? "Under appeal" : "Dispute active"
         }
-        subtitle="Funds stay locked in escrow"
+        compactHeader
+        onBack={goJobsList}
       >
         <div className="mb-3 flex items-center gap-2 rounded-2xl bg-amber-500/15 px-3 py-3 text-amber-700 dark:text-amber-300">
           <ShieldAlert className="h-5 w-5 shrink-0" />
@@ -869,12 +918,8 @@ export function JobFlowScreen({
             ? "Cancelled"
             : job.status
       }
-      subtitle={
-        job.status === "refunded" || job.escrowStatus === "refunded"
-          ? "Your money has been returned"
-          : undefined
-      }
-      onBack={() => router.push("/")}
+      compactHeader
+      onBack={goJobsList}
       footer={
         <div className="space-y-2">
           <CopperButton
@@ -971,7 +1016,7 @@ function DisputeSheet({
   onSubmit: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4">
       <div
         className={cn(
           "max-h-[85vh] w-full max-w-md overflow-y-auto rounded-3xl p-5",

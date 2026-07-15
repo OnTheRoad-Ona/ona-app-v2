@@ -107,7 +107,7 @@ export async function apiTransition(input: {
     | "SATISFIED"
     | "RELEASE"
     | "EXPIRE_NEGOTIATION";
-  actor: "motorist" | "repair_pro" | "system";
+  actor: "motorist" | "repair_pro" | "system" | "admin";
   actorId?: string;
   /** Real GPS — server computes Google Distance Matrix ETA */
   proLat?: number;

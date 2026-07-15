@@ -56,7 +56,18 @@ function splitMinor(amountMinor: number) {
 }
 
 function rowToJob(row: Record<string, unknown>): JobRecord {
-  const offers = (row.offers as JobOffer[]) || [];
+  let offers: JobOffer[] = [];
+  const rawOffers = row.offers;
+  if (Array.isArray(rawOffers)) {
+    offers = rawOffers as JobOffer[];
+  } else if (typeof rawOffers === "string" && rawOffers.trim()) {
+    try {
+      const parsed = JSON.parse(rawOffers) as JobOffer[];
+      if (Array.isArray(parsed)) offers = parsed;
+    } catch {
+      offers = [];
+    }
+  }
   return {
     id: String(row.id),
     motoristId: String(row.motorist_id),
@@ -271,9 +282,8 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
 }
 
 export async function getJob(id: string): Promise<JobRecord | null> {
-  // expire check on read
-  let job: JobRecord | null = memory.get(id) || null;
-  if (!job && isSupabaseAdminConfigured()) {
+  // Prefer Supabase so offers update across serverless instances (not stale memory)
+  if (isSupabaseAdminConfigured()) {
     try {
       const sb = createServiceSupabase();
       const { data } = await sb
@@ -281,13 +291,18 @@ export async function getJob(id: string): Promise<JobRecord | null> {
         .select("*")
         .eq("id", id)
         .maybeSingle();
-      if (data) job = rowToJob(data as Record<string, unknown>);
+      if (data) {
+        const job = rowToJob(data as Record<string, unknown>);
+        memory.set(id, job);
+        return maybeExpire(job);
+      }
     } catch {
-      /* */
+      /* fall through to memory */
     }
   }
-  if (!job) return null;
-  return maybeExpire(job);
+  const mem = memory.get(id);
+  if (!mem) return null;
+  return maybeExpire(mem);
 }
 
 async function maybeExpire(job: JobRecord): Promise<JobRecord> {

@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 const items = [
   { href: "/", label: "Home", icon: Home },
-  { href: "/requests", label: "Requests", icon: Clock3 },
+  { href: "/jobs", label: "Jobs", icon: Clock3 },
   { href: "/bookings", label: "Bookings", icon: Briefcase },
   { href: "/messages", label: "Messages", icon: MessageCircle },
   { href: "/profile", label: "Profile", icon: UserRound },
