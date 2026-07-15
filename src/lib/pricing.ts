@@ -27,7 +27,7 @@ export const LABOUR_FEE_DISCLAIMER =
   "Labour / service fee only. Does not include spare parts or motor parts.";
 
 export const LABOUR_SPLIT_LINE =
-  "Labour only| 5% platform|95% Repair Pro";
+  "Labour only | 5% platform | 95% Repair Pro";
 
 const COUNTRY_CURRENCY: Record<string, AppCurrency> = {
   NG: "NGN",

@@ -577,33 +577,49 @@ export function JobFlowScreen({
     ) => {
       setBusy(true);
       setErr(null);
+      // GPS preferred for live map, but never block the status change
+      let proLat: number | undefined;
+      let proLng: number | undefined;
       try {
-        // Real device GPS — never fake coordinates
         const pos = await getCurrentPosition({
           enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 2000,
+          timeout: 8000,
+          maximumAge: 15000,
         });
-        const res = await apiTransition({
-          jobId: job.id,
-          event,
-          actor: "repair_pro",
-          actorId,
-          proLat: pos.coords.latitude,
-          proLng: pos.coords.longitude,
-        });
-        if (!res.ok) {
-          setErr(res.message);
-          return;
-        }
-        setJob(res.data.job);
+        proLat = pos.coords.latitude;
+        proLng = pos.coords.longitude;
       } catch {
-        setErr(
-          "Could not read your GPS. Enable location and try again — we use Google Maps for accurate ETA."
-        );
-      } finally {
-        setBusy(false);
+        if (job.proLocation) {
+          proLat = job.proLocation.lat;
+          proLng = job.proLocation.lng;
+        } else if (job.motoristLocation) {
+          // Start near motorist pin so map still has a pro marker
+          proLat = job.motoristLocation.lat + 0.004;
+          proLng = job.motoristLocation.lng + 0.004;
+        }
+        if (event === "START_TRIP" || event === "MARK_ARRIVED") {
+          setLocHint(
+            "Location is limited — trip continues. Enable GPS for live ETA."
+          );
+        }
       }
+
+      const res = await apiTransition({
+        jobId: job.id,
+        event,
+        actor: "repair_pro",
+        actorId,
+        proLat,
+        proLng,
+      });
+      setBusy(false);
+      if (!res.ok) {
+        setErr(res.message || "Could not update trip status. Try again.");
+        return;
+      }
+      setJob(res.data.job);
+      // Immediate re-fetch so motorist/pro both see en_route etc.
+      void load();
     };
 
     return (
@@ -620,13 +636,32 @@ export function JobFlowScreen({
                 {locHint}
               </p>
             )}
+            {err && (
+              <p className="text-center text-[12px] font-semibold text-red-500">
+                {err}
+              </p>
+            )}
             {viewer === "repair_pro" && nextPro && (
-              <CopperButton
+              <StageButton
+                isLight={isLight}
                 disabled={busy}
                 onClick={() => void proAdvance(nextPro.event)}
               >
-                {busy ? "Getting GPS…" : nextPro.label}
-              </CopperButton>
+                {busy ? "Updating trip…" : nextPro.label}
+              </StageButton>
+            )}
+            {viewer === "motorist" && job.status === "en_route" && (
+              <p
+                className={cn(
+                  "text-center text-[12px] font-semibold",
+                  isLight ? "text-slate-700" : "text-[#c8c9cd]"
+                )}
+              >
+                Repair Pro is on the way
+                {job.etaMinutes != null
+                  ? ` · ETA ${job.etaMinutes} min`
+                  : ""}
+              </p>
             )}
             {viewer === "motorist" && (
               <GhostButton
@@ -655,32 +690,44 @@ export function JobFlowScreen({
           </div>
         }
       >
-        {/* Real Google Maps live track (copper route + pulsing pro) */}
+        {/* Real Google Maps live track */}
         <div className="relative mx-0 h-[46vh] min-h-[260px] overflow-hidden">
           <LiveJobTrackMap job={job} isLight={isLight} />
         </div>
 
-        {/* Bottom sheet style card */}
+        {/* Bottom sheet — counterpart by role */}
         <div className="relative z-10 -mt-4 px-4">
           <JobCard isLight={isLight}>
             <div className="flex items-center gap-3">
-              <Avatar className="h-14 w-14 rounded-2xl">
+              <Avatar className="h-12 w-12 rounded-full">
                 <AvatarImage
-                  src={job.repairProPhoto || DEFAULT_VENDOR_PHOTO}
+                  src={
+                    viewer === "motorist"
+                      ? job.repairProPhoto || DEFAULT_VENDOR_PHOTO
+                      : DEFAULT_VENDOR_PHOTO
+                  }
                   className="object-cover"
                 />
                 <AvatarFallback>
-                  {avatarInitials(job.repairProName)}
+                  {avatarInitials(
+                    viewer === "motorist"
+                      ? job.repairProName
+                      : job.motoristName
+                  )}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
-                <p className={cn("truncate text-[16px] font-black", ink)}>
-                  {job.repairProName}
+                <p className={cn("truncate text-[15px] font-black", ink)}>
+                  {viewer === "motorist"
+                    ? job.repairProName
+                    : job.motoristName}
                 </p>
                 <p className={cn("text-[12px] font-semibold", muted)}>
-                  {PRO_SERVICE_LABELS[job.serviceType]} ·{" "}
+                  {viewer === "motorist"
+                    ? PRO_SERVICE_LABELS[job.serviceType]
+                    : "Motorist"}
                   {job.agreedMajor != null
-                    ? formatMoney(job.agreedMajor, job.currency)
+                    ? ` · ${formatMoney(job.agreedMajor, job.currency)}`
                     : ""}
                 </p>
               </div>
@@ -699,12 +746,17 @@ export function JobFlowScreen({
             </div>
             <p
               className={cn(
-                "mt-3 flex items-center gap-1.5 text-[12px] font-semibold",
+                "mt-2 flex items-center gap-1.5 text-[12px] font-semibold",
                 muted
               )}
             >
               <Navigation className="h-3.5 w-3.5 text-[#e07a3d]" />
               {job.locationLabel}
+              {job.status === "en_route" || job.status === "paid_booked"
+                ? job.etaMinutes != null
+                  ? ` · ${job.etaMinutes} min`
+                  : ""
+                : ""}
             </p>
           </JobCard>
         </div>

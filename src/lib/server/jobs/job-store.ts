@@ -133,9 +133,39 @@ function rowToJob(row: Record<string, unknown>): JobRecord {
   };
 }
 
+/** Keep classic status column in sync for older UI / queries */
+function flowToLegacyStatus(flow: JobFlowStatus): string {
+  switch (flow) {
+    case "negotiating":
+    case "agreed":
+      return "requested";
+    case "paid_booked":
+      return "accepted";
+    case "en_route":
+      return "en_route";
+    case "arrived":
+      return "arrived";
+    case "in_progress":
+      return "in_progress";
+    case "completed":
+    case "satisfied":
+    case "released":
+      return "completed";
+    case "cancelled":
+    case "expired":
+    case "refunded":
+    case "disputed":
+    case "under_appeal":
+      return "cancelled";
+    default:
+      return "requested";
+  }
+}
+
 function jobToDbPatch(job: JobRecord): Record<string, unknown> {
   return {
     flow_status: job.status,
+    status: flowToLegacyStatus(job.status),
     problem_text: job.problem,
     description: job.problem,
     voice_note: job.voiceNote,
@@ -193,21 +223,39 @@ async function persist(job: JobRecord): Promise<JobRecord> {
   if (!isSupabaseAdminConfigured()) return job;
   try {
     const sb = createServiceSupabase();
-    await sb
+    const patch = jobToDbPatch(job);
+    const { error } = await sb
       .from("service_requests")
-      .update(jobToDbPatch(job))
+      .update(patch)
       .eq("id", job.id);
+    if (error) {
+      console.error("job persist failed", job.id, job.status, error.message);
+      // Retry with minimal columns if full patch fails (e.g. missing cols)
+      const { error: e2 } = await sb
+        .from("service_requests")
+        .update({
+          flow_status: job.status,
+          status: flowToLegacyStatus(job.status),
+          pro_lat: job.proLocation?.lat ?? null,
+          pro_lng: job.proLocation?.lng ?? null,
+          eta_minutes: job.etaMinutes ?? null,
+          distance_km: job.distanceKm ?? null,
+          updated_at: job.updatedAt,
+        })
+        .eq("id", job.id);
+      if (e2) console.error("job persist minimal failed", e2.message);
+    }
     try {
       await sb.from("job_events").insert({
         request_id: job.id,
-        event_type: "snapshot",
+        event_type: "status",
         payload: { status: job.status },
       });
     } catch {
       /* optional table */
     }
-  } catch {
-    /* memory only */
+  } catch (e) {
+    console.error("job persist exception", e);
   }
   return job;
 }
