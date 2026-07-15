@@ -4,11 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Loader2,
   MessageCircle,
   Navigation,
   Phone,
   ShieldAlert,
+  Star,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CountdownTimer } from "@/components/jobs/countdown-timer";
@@ -20,7 +23,6 @@ import {
   JobShell,
   StageButton,
 } from "@/components/jobs/job-shell";
-import { StarRatingDisplay } from "@/components/ui/star-rating";
 import {
   apiAcceptOffer,
   apiGetJob,
@@ -96,6 +98,8 @@ export function JobFlowScreen({
     useState<DisputeReason>("work_incomplete");
   const [disputeDesc, setDisputeDesc] = useState("");
   const [rating, setRating] = useState(5);
+  const [reviewLeft, setReviewLeft] = useState(false);
+  const [receiptOpen, setReceiptOpen] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const [locHint, setLocHint] = useState<string | null>(null);
 
@@ -774,7 +778,7 @@ export function JobFlowScreen({
                     disabled={busy}
                     onClick={() => void proAdvance(nextPro.event)}
                   >
-                    {busy ? "Updating trip…" : nextPro.label}
+                    {busy ? "Updating job…" : nextPro.label}
                   </CopperButton>
                 ) : (
                   <StageButton
@@ -782,7 +786,7 @@ export function JobFlowScreen({
                     disabled={busy}
                     onClick={() => void proAdvance(nextPro.event)}
                   >
-                    {busy ? "Updating trip…" : nextPro.label}
+                    {busy ? "Updating job…" : nextPro.label}
                   </StageButton>
                 )}
               </>
@@ -1063,64 +1067,116 @@ export function JobFlowScreen({
         compactHeader
         onBack={goJobsList}
         footer={
-          <CopperButton onClick={goJobsList}>Done</CopperButton>
+          !reviewLeft ? (
+            <CopperButton
+              onClick={() => {
+                setReviewLeft(true);
+                setFlash("Thanks for your review");
+                window.setTimeout(() => setFlash(null), 2500);
+              }}
+            >
+              Leave review
+            </CopperButton>
+          ) : (
+            <CopperButton onClick={goJobsList}>Done</CopperButton>
+          )
         }
       >
-        <JobCard isLight={isLight} className="text-center">
-          <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15">
-            <CheckCircle2 className="h-9 w-9 text-emerald-500" />
-          </div>
-          <p className={cn("text-[20px] font-black", ink)}>Success</p>
-          <p className={cn("mt-1 text-[13px]", muted)}>
-            95% → Repair Pro · 5% → platform
+        {/* Flat success layout — no cards / no tinted panels (both themes) */}
+        <div className="flex flex-col items-center px-2 pt-6 text-center">
+          <CheckCircle2
+            className="h-14 w-14 text-emerald-500"
+            strokeWidth={1.75}
+            aria-hidden
+          />
+          <p className={cn("mt-4 text-[22px] font-black tracking-tight", ink)}>
+            Success
           </p>
           {job.agreedMajor != null && (
-            <p className="mt-3 text-[26px] font-black text-[#e07a3d]">
+            <p className="mt-3 text-[32px] font-black tabular-nums tracking-tight text-[#e07a3d]">
               {formatMoney(job.agreedMajor, job.currency)}
             </p>
           )}
-          <div
+          <p className={cn("mt-1 text-[12px] font-semibold", muted)}>
+            Labour only
+          </p>
+
+          {/* Receipt: hidden until tapped (E2) */}
+          <button
+            type="button"
+            onClick={() => setReceiptOpen((o) => !o)}
             className={cn(
-              "mt-4 rounded-xl px-3 py-2 text-left text-[12px]",
-              isLight ? "bg-black/[0.04]" : "bg-white/[0.05]"
+              "mt-6 inline-flex items-center gap-1 border-0 bg-transparent px-0 text-[13px] font-bold",
+              isLight ? "text-slate-800" : "text-white"
             )}
           >
-            <p className={cn("font-bold", ink)}>Receipt</p>
-            <p className={muted}>Ref: {job.paymentReference || job.id}</p>
-            <p className={muted}>
-              Escrow: {job.escrowStatus || "released"} · Labour only
-            </p>
-          </div>
-        </JobCard>
+            Receipt
+            {receiptOpen ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </button>
+          {receiptOpen && (
+            <div className={cn("mt-2 space-y-1 text-[12px] font-medium", muted)}>
+              <p>Ref {job.paymentReference || job.id}</p>
+              <p>Escrow {job.escrowStatus || "released"}</p>
+            </div>
+          )}
 
-        <JobCard isLight={isLight} className="mt-3">
-          <p className={cn("mb-2 text-[13px] font-bold", ink)}>Rate this job</p>
-          <div className="mb-2 flex justify-center gap-1">
-            {[1, 2, 3, 4, 5].map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setRating(n)}
-                className={cn(
-                  "h-10 w-10 rounded-xl text-[16px] font-black",
-                  rating >= n
-                    ? "bg-[#e07a3d] text-white"
-                    : isLight
-                      ? "bg-black/8 text-slate-400"
-                      : "bg-white/10 text-white/40"
-                )}
-              >
-                {n}
-              </button>
-            ))}
+          {/* Rate: stars only (C2) */}
+          <div className="mt-10 w-full">
+            <p className={cn("mb-3 text-[14px] font-bold", ink)}>
+              Rate this job
+            </p>
+            <div
+              className="flex items-center justify-center gap-2"
+              role="radiogroup"
+              aria-label="Job rating"
+            >
+              {[1, 2, 3, 4, 5].map((n) => {
+                const on = rating >= n;
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    role="radio"
+                    aria-checked={rating === n}
+                    aria-label={`${n} star${n === 1 ? "" : "s"}`}
+                    disabled={reviewLeft}
+                    onClick={() => setRating(n)}
+                    className="border-0 bg-transparent p-1 transition active:scale-95 disabled:opacity-70"
+                  >
+                    <Star
+                      className={cn(
+                        "h-9 w-9",
+                        on
+                          ? "fill-[#e07a3d] text-[#e07a3d]"
+                          : isLight
+                            ? "fill-transparent text-slate-400"
+                            : "fill-transparent text-white/35"
+                      )}
+                      strokeWidth={1.75}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+            {reviewLeft && (
+              <p className={cn("mt-3 text-[12px] font-semibold", muted)}>
+                Review submitted
+              </p>
+            )}
+            {flash && (
+              <p className="mt-2 text-[12px] font-bold text-[#e07a3d]">{flash}</p>
+            )}
           </div>
-          <StarRatingDisplay rating={rating} className="justify-center" />
-        </JobCard>
+        </div>
 
         {job.dispute?.decision && !job.dispute.appeal && (
           <button
             type="button"
-            className="mt-3 w-full text-center text-[12px] font-bold text-[#e07a3d]"
+            className="mt-8 w-full text-center text-[12px] font-bold text-[#e07a3d]"
             onClick={() =>
               void run(() =>
                 apiOpenAppeal({
@@ -1131,7 +1187,7 @@ export function JobFlowScreen({
               )
             }
           >
-            Appeal decision (48h window · loser only)
+            Appeal decision (48h window)
           </button>
         )}
       </JobShell>
