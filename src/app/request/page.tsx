@@ -144,9 +144,9 @@ function RequestInner() {
   };
 
   const grayBtn = cn(
-    "inline-flex h-12 w-full items-center justify-center rounded-2xl border-0 text-[14px] font-bold transition active:scale-[0.99] disabled:opacity-50",
+    "inline-flex h-12 w-full items-center justify-center rounded-md border-0 text-[14px] font-bold transition active:scale-[0.99] disabled:opacity-50",
     isLight
-      ? "bg-[#a8a9ae] text-slate-900"
+      ? "bg-[#c8c9cd] text-slate-900 ring-1 ring-black/10"
       : "bg-[#2c2c2e] text-white"
   );
 

@@ -109,7 +109,7 @@ export function JobCard({
   return (
     <div
       className={cn(
-        "rounded-2xl p-4",
+        "rounded-md p-3.5",
         isLight
           ? "bg-[#bebfc4] text-slate-900"
           : "bg-[#141414] text-white",
@@ -140,7 +140,7 @@ export function CopperButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl border-0 bg-[#e07a3d] text-[15px] font-black text-white transition active:scale-[0.99] disabled:opacity-50",
+        "inline-flex h-12 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#e07a3d] text-[15px] font-black text-white transition active:scale-[0.99] disabled:opacity-50",
         className
       )}
     >
@@ -165,10 +165,44 @@ export function GhostButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex h-12 w-full items-center justify-center rounded-2xl border-0 text-[14px] font-bold transition",
+        "inline-flex h-12 w-full items-center justify-center rounded-md border-0 text-[14px] font-bold transition",
         isLight
           ? "bg-black/10 text-slate-900"
           : "bg-white/10 text-white",
+        className
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Blended stage buttons — light gray / dark gray, soft square corners */
+export function StageButton({
+  children,
+  onClick,
+  disabled,
+  isLight,
+  className,
+  type = "button",
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  isLight: boolean;
+  className?: string;
+  type?: "button" | "submit";
+}) {
+  return (
+    <button
+      type={type}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "inline-flex h-12 w-full items-center justify-center rounded-md border-0 text-[14px] font-bold transition active:scale-[0.99] disabled:opacity-50",
+        isLight
+          ? "bg-[#c8c9cd] text-slate-900 ring-1 ring-black/10"
+          : "bg-[#2c2c2e] text-white",
         className
       )}
     >

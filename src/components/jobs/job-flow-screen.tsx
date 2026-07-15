@@ -9,7 +9,6 @@ import {
   Navigation,
   Phone,
   ShieldAlert,
-  Sparkles,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CountdownTimer } from "@/components/jobs/countdown-timer";
@@ -19,6 +18,7 @@ import {
   GhostButton,
   JobCard,
   JobShell,
+  StageButton,
 } from "@/components/jobs/job-shell";
 import { StarRatingDisplay } from "@/components/ui/star-rating";
 import {
@@ -201,7 +201,7 @@ export function JobFlowScreen({
   /* ─── EXPIRED ─── */
   if (job.status === "expired" || negStatus === "expired") {
     const grayBtn = cn(
-      "inline-flex h-12 w-full items-center justify-center rounded-2xl border-0 text-[14px] font-bold transition active:scale-[0.99]",
+      "inline-flex h-12 w-full items-center justify-center rounded-md border-0 text-[14px] font-bold transition active:scale-[0.99]",
       isLight ? "bg-[#a8a9ae] text-slate-900" : "bg-[#2c2c2e] text-white"
     );
     const isPro = viewer === "repair_pro";
@@ -276,9 +276,10 @@ export function JobFlowScreen({
         compactHeader
         onBack={goJobsList}
         footer={
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {canAccept && last && (
-              <CopperButton
+              <StageButton
+                isLight={isLight}
                 disabled={busy}
                 onClick={() =>
                   void run(() =>
@@ -291,10 +292,10 @@ export function JobFlowScreen({
                 }
               >
                 Accept {formatMoney(last.amountMajor, job.currency)}
-              </CopperButton>
+              </StageButton>
             )}
             {canOffer && (
-              <div className="flex gap-2">
+              <div className="flex gap-1.5">
                 <input
                   inputMode="decimal"
                   value={offerInput}
@@ -305,7 +306,7 @@ export function JobFlowScreen({
                       : "Your counter (max 50% off)"
                   }
                   className={cn(
-                    "h-12 flex-1 rounded-2xl border-0 px-4 text-[15px] font-bold outline-none",
+                    "h-11 flex-1 rounded-md border-0 px-3 text-[14px] font-bold outline-none",
                     isLight
                       ? "bg-[#bebfc4] text-slate-900"
                       : "bg-[#1c1c1c] text-white"
@@ -327,7 +328,7 @@ export function JobFlowScreen({
                     })
                   }
                   className={cn(
-                    "h-12 shrink-0 rounded-2xl border-0 px-4 text-[13px] font-black",
+                    "h-11 shrink-0 rounded-md border-0 px-4 text-[13px] font-bold",
                     isLight
                       ? "bg-[#a8a9ae] text-slate-900"
                       : "bg-[#2c2c2e] text-white"
@@ -355,100 +356,102 @@ export function JobFlowScreen({
           </div>
         }
       >
-        <JobCard isLight={isLight} className="mb-3">
-          <CountdownTimer
-            endsAt={job.negotiateEndsAt}
-            onExpire={() => {
-              void run(() =>
-                apiTransition({
-                  jobId: job.id,
-                  event: "EXPIRE_NEGOTIATION",
-                  actor: "system",
-                })
-              );
-            }}
-            className={ink}
-          />
-          <div className="mt-3 flex flex-wrap gap-2">
-            <StatusPill
-              label={
-                negStatus === "waiting"
-                  ? "Waiting"
-                  : negStatus === "countered"
-                    ? "Countered"
-                    : negStatus
-              }
-              tone={negStatus === "waiting" ? "amber" : "copper"}
+        <div className="space-y-1.5">
+          <JobCard isLight={isLight}>
+            <CountdownTimer
+              endsAt={job.negotiateEndsAt}
+              onExpire={() => {
+                void run(() =>
+                  apiTransition({
+                    jobId: job.id,
+                    event: "EXPIRE_NEGOTIATION",
+                    actor: "system",
+                  })
+                );
+              }}
+              className={ink}
             />
-            <StatusPill
-              label={`${job.offers.length} / ${job.maxOffers} offers`}
-              tone="neutral"
-            />
-          </div>
-        </JobCard>
-
-        {theirOffer && (
-          <JobCard isLight={isLight} className="mb-3">
-            <p className={cn("text-[12px] font-bold", muted)}>
-              {theirOffer.side === "repair_pro"
-                ? "Repair Pro offered"
-                : "Motorist offered"}
-            </p>
-            <p className="mt-1 text-[22px] font-black text-[#e07a3d]">
-              {formatMoney(theirOffer.amountMajor, job.currency)}
-            </p>
-            <p className={cn("mt-1 text-[12px] font-medium", muted)}>
-              Labour only. Spare parts not included.
-            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <StatusPill
+                label={
+                  negStatus === "waiting"
+                    ? "Waiting"
+                    : negStatus === "countered"
+                      ? "Countered"
+                      : negStatus
+                }
+                tone={negStatus === "waiting" ? "amber" : "copper"}
+              />
+              <StatusPill
+                label={`${job.offers.length} / ${job.maxOffers} offers`}
+                tone="neutral"
+              />
+            </div>
           </JobCard>
-        )}
 
-        <JobCard isLight={isLight} className="mb-3">
-          <p className={cn("text-[12px] font-bold", muted)}>Problem</p>
-          <p className={cn("mt-1 text-[14px] font-semibold leading-snug", ink)}>
-            {job.problem}
-          </p>
-          {job.voiceNote && (
-            <p className="mt-2 text-[12px] font-semibold text-[#e07a3d]">
-              Voice note attached ({job.voiceNote.durationSec || "?"}s)
-            </p>
+          {theirOffer && (
+            <JobCard isLight={isLight}>
+              <p className={cn("text-[11px] font-bold", muted)}>
+                {theirOffer.side === "repair_pro"
+                  ? "Repair Pro offered"
+                  : "Motorist offered"}
+              </p>
+              <p className="mt-0.5 text-[20px] font-black text-[#e07a3d]">
+                {formatMoney(theirOffer.amountMajor, job.currency)}
+              </p>
+              <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
+                Labour only. Spare parts not included.
+              </p>
+            </JobCard>
           )}
-        </JobCard>
 
-        <JobCard isLight={isLight}>
-          <p className={cn("mb-2 text-[12px] font-bold", muted)}>
-            Offer history
-          </p>
-          {job.offers.length === 0 ? (
-            <p className={cn("text-[13px] font-medium", muted)}>
-              {viewer === "repair_pro"
-                ? "Set your labour price to start. Spare parts are never included."
-                : "Waiting for Repair Pro to open with a labour price…"}
+          <JobCard isLight={isLight}>
+            <p className={cn("text-[11px] font-bold", muted)}>Problem</p>
+            <p className={cn("mt-0.5 text-[13px] font-semibold leading-snug", ink)}>
+              {job.problem}
             </p>
-          ) : (
-            <ul className="space-y-2">
-              {job.offers.map((o) => (
-                <li
-                  key={o.id}
-                  className={cn(
-                    "flex items-center justify-between rounded-xl px-3 py-2.5",
-                    isLight ? "bg-black/10" : "bg-[#0a0a0a]"
-                  )}
-                >
-                  <span className={cn("text-[12px] font-bold", muted)}>
-                    #{o.offerIndex}{" "}
-                    {o.side === "repair_pro" ? "Repair Pro" : "Motorist"}
-                  </span>
-                  <span className={cn("text-[15px] font-black", ink)}>
-                    {formatMoney(o.amountMajor, o.currency)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </JobCard>
+            {job.voiceNote && (
+              <p className="mt-1 text-[11px] font-semibold text-[#e07a3d]">
+                Voice note attached ({job.voiceNote.durationSec || "?"}s)
+              </p>
+            )}
+          </JobCard>
+
+          <JobCard isLight={isLight}>
+            <p className={cn("mb-1.5 text-[11px] font-bold", muted)}>
+              Offer history
+            </p>
+            {job.offers.length === 0 ? (
+              <p className={cn("text-[12px] font-medium", muted)}>
+                {viewer === "repair_pro"
+                  ? "Set your labour price to start. Spare parts are never included."
+                  : "Waiting for Repair Pro to open with a labour price…"}
+              </p>
+            ) : (
+              <ul className="space-y-1">
+                {job.offers.map((o) => (
+                  <li
+                    key={o.id}
+                    className={cn(
+                      "flex items-center justify-between rounded-md px-2.5 py-2",
+                      isLight ? "bg-black/10" : "bg-[#0a0a0a]"
+                    )}
+                  >
+                    <span className={cn("text-[11px] font-bold", muted)}>
+                      #{o.offerIndex}{" "}
+                      {o.side === "repair_pro" ? "Repair Pro" : "Motorist"}
+                    </span>
+                    <span className={cn("text-[14px] font-black", ink)}>
+                      {formatMoney(o.amountMajor, o.currency)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </JobCard>
+        </div>
         {err && (
-          <p className="mt-3 text-center text-[12px] font-semibold text-red-500">
+          <p className="mt-2 text-center text-[12px] font-semibold text-red-500">
             {err}
           </p>
         )}
@@ -458,6 +461,17 @@ export function JobFlowScreen({
 
   /* ─── AGREED ─── */
   if (job.status === "agreed") {
+    const counterpartName =
+      viewer === "motorist" ? job.repairProName : job.motoristName;
+    const counterpartPhoto =
+      viewer === "motorist"
+        ? job.repairProPhoto || DEFAULT_VENDOR_PHOTO
+        : DEFAULT_VENDOR_PHOTO;
+    const counterpartLabel =
+      viewer === "motorist"
+        ? PRO_SERVICE_LABELS[job.serviceType]
+        : "Motorist";
+
     return (
       <JobShell
         isLight={isLight}
@@ -466,7 +480,8 @@ export function JobFlowScreen({
         onBack={goJobsList}
         footer={
           viewer === "motorist" ? (
-            <CopperButton
+            <StageButton
+              isLight={isLight}
               disabled={busy}
               onClick={() =>
                 void run(async () => {
@@ -480,42 +495,46 @@ export function JobFlowScreen({
               }
             >
               {busy ? "Processing…" : "Pay now to book"}
-            </CopperButton>
+            </StageButton>
           ) : (
-            <p className={cn("text-center text-[13px] font-semibold", muted)}>
+            <p
+              className={cn(
+                "text-center text-[13px] font-semibold",
+                isLight ? "text-slate-700" : "text-[#c8c9cd]"
+              )}
+            >
               Waiting for motorist to pay into escrow…
             </p>
           )
         }
       >
-        <div className="mb-4 flex flex-col items-center py-4 text-center">
-          <div className="mb-3 flex h-20 w-20 items-center justify-center rounded-full bg-[#e07a3d]/15">
-            <Sparkles className="h-10 w-10 text-[#e07a3d]" />
-          </div>
-          <p className={cn("text-[28px] font-black tracking-tight", ink)}>
+        <div className="mb-3 flex flex-col items-center py-3 text-center">
+          <p className={cn("text-[26px] font-black tracking-tight", ink)}>
             {job.agreedMajor != null
               ? formatMoney(job.agreedMajor, job.currency)
               : "—"}
           </p>
-          <p className={cn("mt-1 text-[13px] font-medium", muted)}>
+          <p className={cn("mt-1 text-[12px] font-medium", muted)}>
             Labour only · 5% platform · 95% Repair Pro
           </p>
         </div>
         <JobCard isLight={isLight}>
           <div className="flex items-center gap-3">
-            <Avatar className="h-14 w-14 rounded-2xl">
+            <Avatar className="h-12 w-12 rounded-full">
               <AvatarImage
-                src={job.repairProPhoto || DEFAULT_VENDOR_PHOTO}
+                src={counterpartPhoto}
                 className="object-cover"
               />
-              <AvatarFallback>{avatarInitials(job.repairProName)}</AvatarFallback>
+              <AvatarFallback>
+                {avatarInitials(counterpartName)}
+              </AvatarFallback>
             </Avatar>
-            <div>
-              <p className={cn("text-[16px] font-black", ink)}>
-                {job.repairProName}
+            <div className="min-w-0">
+              <p className={cn("truncate text-[15px] font-black", ink)}>
+                {counterpartName}
               </p>
               <p className={cn("text-[12px] font-semibold", muted)}>
-                {PRO_SERVICE_LABELS[job.serviceType]}
+                {counterpartLabel}
               </p>
             </div>
           </div>
