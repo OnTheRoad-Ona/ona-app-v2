@@ -34,26 +34,26 @@ export function JobShell({
 
   return (
     <div className={cn("relative flex h-full min-h-0 flex-col", stage)}>
-      <header className="relative z-10 shrink-0 flex items-start gap-2.5 px-4 pb-1.5 pt-[max(0.75rem,env(safe-area-inset-top))]">
+      <header className="relative z-10 flex shrink-0 items-center gap-2 px-4 pb-1.5 pt-[max(0.75rem,env(safe-area-inset-top))]">
         {onBack && (
           <button
             type="button"
             onClick={onBack}
             className={cn(
-              "mt-0.5 flex shrink-0 items-center justify-center rounded-2xl border-0",
-              compactHeader ? "h-9 w-9" : "h-10 w-10",
-              isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white"
+              "flex shrink-0 items-center justify-center border-0 bg-transparent p-0",
+              compactHeader ? "h-8 w-8" : "h-9 w-9",
+              isLight ? "text-slate-900" : "text-white"
             )}
             aria-label="Back"
           >
             <ArrowLeft className={compactHeader ? "h-4 w-4" : "h-5 w-5"} />
           </button>
         )}
-        <div className="min-w-0 flex-1 pt-0.5">
+        <div className="min-w-0 flex-1">
           <h1
             className={cn(
               "font-black tracking-tight",
-              compactHeader ? "text-[16px] leading-snug" : "text-[22px]",
+              compactHeader ? "text-[16px] leading-none" : "text-[22px] leading-tight",
               ink
             )}
           >
