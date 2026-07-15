@@ -1,6 +1,7 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { MAX_RADIUS_KM } from "@/lib/matching";
 import { DOCS_PENDING_MAX_RADIUS_KM } from "@/lib/skill-questions";
+import { computeDriveMetricsBatch } from "@/lib/server/google-eta";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { mapProToTechnician } from "@/lib/supabase/mappers";
@@ -88,7 +89,7 @@ export async function GET(req: Request) {
       .map((pro) =>
         mapProToTechnician(pro, byId.get(pro.user_id) ?? null, userCoords)
       )
-      // Strict 10 km marketplace; docs pending → 2 km only
+      // Pre-filter with haversine (cheap) before Google matrix
       .filter((t) => {
         if (
           !t.hasLiveLocation ||
@@ -97,6 +98,7 @@ export async function GET(req: Request) {
         ) {
           return false;
         }
+        // Slightly wide pre-filter; matrix refines road distance
         const docsPending =
           t.docsStatus === "under_review" ||
           t.docsStatus === "none" ||
@@ -104,18 +106,52 @@ export async function GET(req: Request) {
         const cap = docsPending
           ? Math.min(MAX_RADIUS_KM, DOCS_PENDING_MAX_RADIUS_KM)
           : MAX_RADIUS_KM;
-        return t.distanceKm <= cap;
+        return t.distanceKm <= cap + 2;
       });
 
+    // Real drive ETA + road distance via Google Distance Matrix (traffic-aware)
+    let enriched = technicians;
+    if (technicians.length > 0) {
+      const metrics = await computeDriveMetricsBatch(
+        userCoords,
+        technicians.map((t) => t.location)
+      );
+      enriched = technicians.map((t, i) => {
+        const m = metrics[i];
+        if (!m) return t;
+        return {
+          ...t,
+          distanceKm: m.distanceKm,
+          etaMinutes: m.etaMinutes,
+        };
+      });
+    }
+
+    // Final radius using road distance when available
+    const techniciansFinal = enriched.filter((t) => {
+      if (typeof t.distanceKm !== "number" || !Number.isFinite(t.distanceKm)) {
+        return false;
+      }
+      const docsPending =
+        t.docsStatus === "under_review" ||
+        t.docsStatus === "none" ||
+        t.docsStatus === "rejected";
+      const cap = docsPending
+        ? Math.min(MAX_RADIUS_KM, DOCS_PENDING_MAX_RADIUS_KM)
+        : MAX_RADIUS_KM;
+      return t.distanceKm <= cap;
+    });
+
     return apiOk({
-      technicians,
-      count: technicians.length,
+      technicians: techniciansFinal,
+      count: techniciansFinal.length,
       meta: {
         origin: userCoords,
         maxRadiusKm: MAX_RADIUS_KM,
         docsPendingRadiusKm: DOCS_PENDING_MAX_RADIUS_KM,
         liveProsInDb: list.length,
-        afterRadius: technicians.length,
+        afterRadius: techniciansFinal.length,
+        etaSource: "google_distance_matrix",
       },
     });
   } catch (e) {

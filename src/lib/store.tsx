@@ -1560,10 +1560,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return { ...t, distanceKm: Number.POSITIVE_INFINITY };
       }
       const d = haversineKm(origin, { lat, lng });
+      // Prefer Google ETA from API when present; never force a 5–6 min floor
+      const estimate =
+        d <= 0.12 ? 1 : d <= 0.3 ? 2 : Math.max(1, Math.round((d / 28) * 60));
+      const fromApi =
+        typeof t.etaMinutes === "number" &&
+        Number.isFinite(t.etaMinutes) &&
+        t.etaMinutes > 0 &&
+        t.etaMinutes < 90;
       return {
         ...t,
         distanceKm: Math.round(d * 10) / 10,
-        etaMinutes: Math.max(5, Math.round(d * 4 + 6)),
+        etaMinutes: fromApi ? t.etaMinutes : estimate,
       };
     });
 

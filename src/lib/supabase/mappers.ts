@@ -97,8 +97,13 @@ export function mapProToTechnician(
     ? haversineKm(userCoords, { lat, lng })
     : 999;
   const serviceType = (pro.primary_service || "mechanic") as ProService;
+  // Placeholder ETA — /api/pros overwrites with Google Distance Matrix when possible
   const etaMinutes = hasLiveLocation
-    ? Math.max(5, Math.round(distanceKm * 4 + 6))
+    ? distanceKm <= 0.12
+      ? 1
+      : distanceKm <= 0.3
+        ? 2
+        : Math.max(1, Math.round((distanceKm / 28) * 60))
     : 99;
   const displayName =
     (profile?.full_name || "").trim() ||
