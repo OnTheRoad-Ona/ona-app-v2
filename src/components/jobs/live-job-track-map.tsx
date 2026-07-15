@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * Live trip map: Google Maps Directions (copper route) + real pro GPS.
- * Falls back to OSM when Maps key is missing.
+ * Live trip map: dual pins + copper route.
+ * Motorist sees Repair Pro movement; pro sees motorist location.
+ * Pins labeled: You | Repair Pro | Motorist
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -27,6 +28,7 @@ import {
   USER_MAP_PIN_SIZE,
   userMapPinUrl,
 } from "@/lib/map-user-pin";
+import { tradeIconDataUrl } from "@/lib/map-trade-icons";
 import { cn, formatDistance, formatEta } from "@/lib/utils";
 
 const OsmFallback = dynamic(
@@ -53,33 +55,71 @@ const MAP_STYLES: google.maps.MapTypeStyle[] = [
   { featureType: "transit", stylers: [{ visibility: "off" }] },
 ];
 
-function PulsingProPin({
+function PinLabel({
   position,
   label,
+  accent,
 }: {
   position: { lat: number; lng: number };
   label: string;
+  accent?: "copper" | "slate";
 }) {
   return (
     <OverlayViewF
       position={position}
       mapPaneName={OVERLAY_MOUSE_TARGET}
-      getPixelPositionOffset={(w, h) => ({
-        x: -(w ?? 36) / 2,
-        y: -(h ?? 36) / 2,
+      getPixelPositionOffset={(w) => ({
+        x: -(w ?? 64) / 2,
+        y: 14,
       })}
     >
       <div
-        className="om-live-pin om-live-pin--map relative h-9 w-9"
+        className={cn(
+          "whitespace-nowrap rounded-md px-1.5 py-0.5 text-[10px] font-black shadow-md",
+          accent === "copper"
+            ? "bg-[#e07a3d] text-white"
+            : "bg-slate-700 text-white"
+        )}
+      >
+        {label}
+      </div>
+    </OverlayViewF>
+  );
+}
+
+function PulsingProPin({
+  position,
+  label,
+  serviceType,
+}: {
+  position: { lat: number; lng: number };
+  label: string;
+  serviceType: string;
+}) {
+  const icon = tradeIconDataUrl(serviceType, { size: 18, selected: true });
+  return (
+    <OverlayViewF
+      position={position}
+      mapPaneName={OVERLAY_MOUSE_TARGET}
+      getPixelPositionOffset={(w, h) => ({
+        x: -(w ?? 40) / 2,
+        y: -(h ?? 40) / 2,
+      })}
+    >
+      <div
+        className="om-live-pin om-live-pin--map relative h-10 w-10"
         title={label}
         aria-label={label}
       >
         <span className="om-live-beam" aria-hidden />
         <span className="om-live-beam om-live-beam-delay" aria-hidden />
         <span
-          className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#e07a3d] ring-4 ring-[#e07a3d]/35"
+          className="absolute left-1/2 top-1/2 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-md ring-2 ring-[#e07a3d]"
           aria-hidden
-        />
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={icon} alt="" width={16} height={16} className="block" />
+        </span>
       </div>
     </OverlayViewF>
   );
@@ -88,9 +128,11 @@ function PulsingProPin({
 function GoogleTrackMap({
   job,
   isLight,
+  viewer,
 }: {
   job: JobRecord;
   isLight: boolean;
+  viewer: "motorist" | "repair_pro";
 }) {
   const mapRef = useRef<google.maps.Map | null>(null);
   const [directions, setDirections] =
@@ -102,18 +144,18 @@ function GoogleTrackMap({
     distanceText?: string;
   } | null>(null);
 
-  const dest = job.motoristLocation;
-  const origin = job.proLocation || null;
+  const motoristPos = job.motoristLocation;
+  const proPos = job.proLocation || null;
 
   const center = useMemo(() => {
-    if (origin) {
+    if (proPos) {
       return {
-        lat: (origin.lat + dest.lat) / 2,
-        lng: (origin.lng + dest.lng) / 2,
+        lat: (proPos.lat + motoristPos.lat) / 2,
+        lng: (proPos.lng + motoristPos.lng) / 2,
       };
     }
-    return dest;
-  }, [origin, dest]);
+    return motoristPos;
+  }, [proPos, motoristPos]);
 
   const { isLoaded } = useJsApiLoader({
     id: GOOGLE_MAPS_LOADER_ID,
@@ -125,17 +167,17 @@ function GoogleTrackMap({
     mapRef.current = map;
   }, []);
 
-  // Directions + live ETA from Google when both points exist
+  // Directions: pro → motorist when both known
   useEffect(() => {
-    if (!isLoaded || !origin || !window.google?.maps) {
+    if (!isLoaded || !proPos || !window.google?.maps) {
       setDirections(null);
       return;
     }
     const svc = new google.maps.DirectionsService();
     svc.route(
       {
-        origin,
-        destination: dest,
+        origin: proPos,
+        destination: motoristPos,
         travelMode: google.maps.TravelMode.DRIVING,
         drivingOptions: {
           departureTime: new Date(),
@@ -159,25 +201,23 @@ function GoogleTrackMap({
             });
           }
           const bounds = new google.maps.LatLngBounds();
-          bounds.extend(origin);
-          bounds.extend(dest);
+          bounds.extend(proPos);
+          bounds.extend(motoristPos);
           mapRef.current?.fitBounds(bounds, 56);
         } else {
           setDirections(null);
         }
       }
     );
-  }, [isLoaded, origin?.lat, origin?.lng, dest.lat, dest.lng]);
+  }, [isLoaded, proPos?.lat, proPos?.lng, motoristPos.lat, motoristPos.lng]);
 
-  // Prefer live server metrics; overlay Google Directions text when fresher
-  const displayEtaMin =
-    job.etaMinutes ?? routeEta?.minutes ?? null;
-  const displayDist =
-    job.distanceKm ?? routeEta?.distanceKm ?? null;
-  const displayEtaText =
-    job.etaText || routeEta?.durationText || null;
-  const displayDistText =
-    job.distanceText || routeEta?.distanceText || null;
+  const displayEtaMin = job.etaMinutes ?? routeEta?.minutes ?? null;
+  const displayDist = job.distanceKm ?? routeEta?.distanceKm ?? null;
+  const displayEtaText = job.etaText || routeEta?.durationText || null;
+  const displayDistText = job.distanceText || routeEta?.distanceText || null;
+
+  const motoristLabel = viewer === "motorist" ? "You" : "Motorist";
+  const proLabel = viewer === "repair_pro" ? "You" : "Repair Pro";
 
   if (!isLoaded) {
     return (
@@ -192,7 +232,7 @@ function GoogleTrackMap({
       <GoogleMap
         mapContainerStyle={{ width: "100%", height: "100%" }}
         center={center}
-        zoom={origin ? 13 : 15}
+        zoom={proPos ? 13 : 15}
         onLoad={onLoad}
         options={{
           disableDefaultUI: true,
@@ -215,8 +255,10 @@ function GoogleTrackMap({
             }}
           />
         )}
+
+        {/* Motorist pin — human silhouette */}
         <Marker
-          position={dest}
+          position={motoristPos}
           icon={{
             url: userMapPinUrl(USER_MAP_PIN_SIZE),
             scaledSize: new google.maps.Size(
@@ -228,14 +270,25 @@ function GoogleTrackMap({
               USER_MAP_PIN_ANCHOR
             ),
           }}
-          title="Your location"
+          title={motoristLabel}
           zIndex={500}
         />
-        {origin && (
-          <PulsingProPin
-            position={origin}
-            label={`${job.repairProName} · live`}
-          />
+        <PinLabel
+          position={motoristPos}
+          label={motoristLabel}
+          accent="slate"
+        />
+
+        {/* Repair Pro pin — trade icon + pulse */}
+        {proPos && (
+          <>
+            <PulsingProPin
+              position={proPos}
+              label={`${proLabel} · live`}
+              serviceType={job.serviceType}
+            />
+            <PinLabel position={proPos} label={proLabel} accent="copper" />
+          </>
         )}
       </GoogleMap>
 
@@ -267,7 +320,7 @@ function GoogleTrackMap({
         </div>
       </div>
 
-      {!origin && (
+      {viewer === "motorist" && !proPos && (
         <div
           className={cn(
             "absolute inset-x-3 top-3 rounded-2xl px-3 py-2 text-center text-[12px] font-bold backdrop-blur-md",
@@ -279,6 +332,18 @@ function GoogleTrackMap({
           Waiting for Repair Pro live location…
         </div>
       )}
+      {viewer === "repair_pro" && !proPos && (
+        <div
+          className={cn(
+            "absolute inset-x-3 top-3 rounded-2xl px-3 py-2 text-center text-[12px] font-bold backdrop-blur-md",
+            isLight
+              ? "bg-white/90 text-slate-800"
+              : "bg-black/60 text-white"
+          )}
+        >
+          Enable GPS to show your live pin · motorist marked below
+        </div>
+      )}
     </div>
   );
 }
@@ -286,12 +351,13 @@ function GoogleTrackMap({
 export function LiveJobTrackMap({
   job,
   isLight,
+  viewer = "motorist",
 }: {
   job: JobRecord;
   isLight: boolean;
+  viewer?: "motorist" | "repair_pro";
 }) {
   if (!shouldUseLiveMaps()) {
-    // OSM still shows pins via service map shape — use compact fallback
     return (
       <div className="relative h-full w-full bg-[#0a1610]">
         <OsmFallback
@@ -344,9 +410,19 @@ export function LiveJobTrackMap({
             </p>
           </div>
         </div>
+        <div className="pointer-events-none absolute left-3 top-3 flex flex-col gap-1">
+          <span className="rounded-md bg-slate-700 px-1.5 py-0.5 text-[10px] font-black text-white">
+            {viewer === "motorist" ? "You" : "Motorist"}
+          </span>
+          {job.proLocation && (
+            <span className="rounded-md bg-[#e07a3d] px-1.5 py-0.5 text-[10px] font-black text-white">
+              {viewer === "repair_pro" ? "You" : "Repair Pro"}
+            </span>
+          )}
+        </div>
       </div>
     );
   }
 
-  return <GoogleTrackMap job={job} isLight={isLight} />;
+  return <GoogleTrackMap job={job} isLight={isLight} viewer={viewer} />;
 }

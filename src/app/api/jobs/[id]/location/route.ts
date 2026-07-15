@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { computeDriveMetrics } from "@/lib/server/google-eta";
-import { getJob, updateJobLocation } from "@/lib/server/jobs/job-store";
+import { getJob, updateTripPartyLocation } from "@/lib/server/jobs/job-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,13 +9,16 @@ export const dynamic = "force-dynamic";
 const bodySchema = z.object({
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
-  /** repair_pro pushes live GPS; optional actor id for future auth */
+  /** Who is sending live GPS — both sides track during active trip */
+  actor: z.enum(["motorist", "repair_pro"]).optional().default("repair_pro"),
   actorId: z.string().optional(),
 });
 
 /**
- * Repair Pro live GPS ping while on trip.
- * Recomputes drive ETA + distance via Google Distance Matrix (traffic-aware).
+ * Live GPS for active trip.
+ * - Repair Pro: updates pro pin → motorist sees movement
+ * - Motorist: updates motorist pin → pro can track them
+ * Recomputes drive ETA when both points exist.
  */
 export async function POST(
   req: Request,
@@ -39,34 +42,52 @@ export async function POST(
       return apiFail("Location updates only while trip is active", 400);
     }
 
-    const pro = { lat: parsed.data.lat, lng: parsed.data.lng };
-    const metrics = await computeDriveMetrics(pro, job.motoristLocation);
+    const actor = parsed.data.actor;
+    const point = { lat: parsed.data.lat, lng: parsed.data.lng };
 
-    // Arrived: if within ~150m, still report but ETA can be 1
-    const arrivedClose = metrics.distanceKm <= 0.15;
-    const etaMinutes = arrivedClose
-      ? Math.min(metrics.etaMinutes, 1)
-      : metrics.etaMinutes;
+    const pro =
+      actor === "repair_pro" ? point : job.proLocation || null;
+    const motorist =
+      actor === "motorist" ? point : job.motoristLocation;
 
-    const updated = await updateJobLocation({
+    let distanceKm = job.distanceKm ?? 0;
+    let etaMinutes = job.etaMinutes ?? 0;
+    let durationText = job.etaText ?? undefined;
+    let distanceText = job.distanceText ?? undefined;
+    let source = job.etaSource ?? "none";
+
+    if (pro && motorist) {
+      const metrics = await computeDriveMetrics(pro, motorist);
+      distanceKm = metrics.distanceKm;
+      const arrivedClose = metrics.distanceKm <= 0.15;
+      etaMinutes = arrivedClose
+        ? Math.min(metrics.etaMinutes, 1)
+        : metrics.etaMinutes;
+      durationText = metrics.durationText;
+      distanceText = metrics.distanceText;
+      source = metrics.source;
+    }
+
+    const updated = await updateTripPartyLocation({
       jobId: id,
-      proLocation: pro,
-      distanceKm: metrics.distanceKm,
+      actor,
+      location: point,
+      distanceKm,
       etaMinutes,
-      metricsSource: metrics.source,
-      durationText: metrics.durationText,
-      distanceText: metrics.distanceText,
+      metricsSource: source,
+      durationText,
+      distanceText,
     });
 
     if (!updated) return apiFail("Could not save location", 500);
     return apiOk({
       job: updated,
       metrics: {
-        distanceKm: metrics.distanceKm,
+        distanceKm,
         etaMinutes,
-        source: metrics.source,
-        durationText: metrics.durationText,
-        distanceText: metrics.distanceText,
+        source,
+        durationText,
+        distanceText,
       },
     });
   } catch (e) {

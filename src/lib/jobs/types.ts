@@ -117,6 +117,8 @@ export type JobRecord = {
   id: string;
   motoristId: string;
   motoristName: string;
+  /** Motorist profile avatar URL when set */
+  motoristPhoto?: string | null;
   repairProId: string;
   repairProName: string;
   repairProPhoto?: string;
@@ -147,6 +149,8 @@ export type JobRecord = {
   etaSource?: string | null;
   /** Last pro GPS ping ISO */
   proLocationAt?: string | null;
+  /** Last motorist GPS ping ISO */
+  motoristLocationAt?: string | null;
   paymentId?: string | null;
   paymentReference?: string | null;
   escrowStatus?: string | null;
@@ -169,6 +173,7 @@ export type JobRecord = {
 export type CreateJobInput = {
   motoristId: string;
   motoristName: string;
+  motoristPhoto?: string | null;
   repairProId: string;
   repairProName: string;
   repairProPhoto?: string;

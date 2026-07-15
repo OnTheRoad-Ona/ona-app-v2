@@ -135,6 +135,7 @@ function RequestInner() {
     const res = await apiCreateJob({
       motoristId: userId,
       motoristName: userProfile?.fullName || "Motorist",
+      motoristPhoto: userProfile?.avatarUrl || null,
       repairProId: tech.id,
       repairProName: tech.name,
       repairProPhoto: tech.photo,

@@ -119,6 +119,7 @@ function rowToJob(row: Record<string, unknown>): JobRecord {
     id: String(row.id),
     motoristId: String(row.motorist_id),
     motoristName: String(row.motorist_name || "Motorist"),
+    motoristPhoto: row.motorist_photo ? String(row.motorist_photo) : null,
     repairProId: String(row.repair_pro_id || ""),
     repairProName: String(row.repair_pro_name || "Repair Pro"),
     repairProPhoto: row.repair_pro_photo
@@ -154,6 +155,9 @@ function rowToJob(row: Record<string, unknown>): JobRecord {
     etaSource: row.eta_source ? String(row.eta_source) : null,
     proLocationAt: row.pro_location_at
       ? String(row.pro_location_at)
+      : null,
+    motoristLocationAt: row.motorist_location_at
+      ? String(row.motorist_location_at)
       : null,
     paymentId: row.payment_id ? String(row.payment_id) : null,
     paymentReference: row.payment_reference
@@ -225,6 +229,9 @@ function jobToDbPatch(job: JobRecord): Record<string, unknown> {
     motorist_name: job.motoristName,
     repair_pro_name: job.repairProName,
     repair_pro_photo: job.repairProPhoto || null,
+    // Live motorist pin uses pickup coords (updated on motorist GPS pings)
+    pickup_lat: job.motoristLocation?.lat ?? null,
+    pickup_lng: job.motoristLocation?.lng ?? null,
     pro_lat: job.proLocation?.lat ?? null,
     pro_lng: job.proLocation?.lng ?? null,
     eta_minutes: job.etaMinutes ?? null,
@@ -283,6 +290,8 @@ async function persist(job: JobRecord): Promise<JobRecord> {
         .update({
           flow_status: job.status,
           status: flowToLegacyStatus(job.status),
+          pickup_lat: job.motoristLocation?.lat ?? null,
+          pickup_lng: job.motoristLocation?.lng ?? null,
           pro_lat: job.proLocation?.lat ?? null,
           pro_lng: job.proLocation?.lng ?? null,
           eta_minutes: job.etaMinutes ?? null,
@@ -309,6 +318,20 @@ async function persist(job: JobRecord): Promise<JobRecord> {
         }
       }
     }
+    // Optional columns (migration may not be applied yet — ignore errors)
+    if (job.motoristPhoto || job.motoristLocationAt) {
+      await sb
+        .from("service_requests")
+        .update({
+          ...(job.motoristPhoto
+            ? { motorist_photo: job.motoristPhoto }
+            : {}),
+          ...(job.motoristLocationAt
+            ? { motorist_location_at: job.motoristLocationAt }
+            : {}),
+        })
+        .eq("id", job.id);
+    }
     try {
       await sb.from("job_events").insert({
         request_id: job.id,
@@ -332,10 +355,27 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
   const ends = new Date(Date.now() + NEGOTIATE_WINDOW_MS).toISOString();
   const id = uid("job");
 
+  // Prefer explicit photo; else hydrate from profiles.avatar_url
+  let motoristPhoto = input.motoristPhoto?.trim() || null;
+  if (!motoristPhoto && isSupabaseAdminConfigured()) {
+    try {
+      const sb = createServiceSupabase();
+      const { data } = await sb
+        .from("profiles")
+        .select("avatar_url")
+        .eq("id", input.motoristId)
+        .maybeSingle();
+      if (data?.avatar_url) motoristPhoto = String(data.avatar_url);
+    } catch {
+      /* optional */
+    }
+  }
+
   const job: JobRecord = {
     id,
     motoristId: input.motoristId,
     motoristName: input.motoristName,
+    motoristPhoto,
     repairProId: input.repairProId,
     repairProName: input.repairProName,
     repairProPhoto: input.repairProPhoto,
@@ -352,6 +392,7 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
     maxOffers: MAX_NEGOTIATION_OFFERS,
     locationLabel: input.locationLabel,
     motoristLocation: input.motoristLocation,
+    motoristLocationAt: ts,
     proLocation: null,
     statusHistory: [{ status: "negotiating", at: ts, by: "motorist" }],
     createdAt: ts,
@@ -384,6 +425,7 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
         // preserve client-generated media if DB stripped
         mapped.photos = job.photos;
         mapped.voiceNote = job.voiceNote;
+        mapped.motoristPhoto = mapped.motoristPhoto || motoristPhoto;
         memory.set(mapped.id, mapped);
         return mapped;
       }
@@ -393,6 +435,25 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
   }
 
   memory.set(id, job);
+  return job;
+}
+
+async function hydrateMotoristPhoto(job: JobRecord): Promise<JobRecord> {
+  if (job.motoristPhoto?.trim()) return job;
+  if (!isSupabaseAdminConfigured() || !job.motoristId) return job;
+  try {
+    const sb = createServiceSupabase();
+    const { data } = await sb
+      .from("profiles")
+      .select("avatar_url")
+      .eq("id", job.motoristId)
+      .maybeSingle();
+    if (data?.avatar_url) {
+      return { ...job, motoristPhoto: String(data.avatar_url) };
+    }
+  } catch {
+    /* optional */
+  }
   return job;
 }
 
@@ -407,7 +468,8 @@ export async function getJob(id: string): Promise<JobRecord | null> {
         .eq("id", id)
         .maybeSingle();
       if (data) {
-        const job = rowToJob(data as Record<string, unknown>);
+        let job = rowToJob(data as Record<string, unknown>);
+        job = await hydrateMotoristPhoto(job);
         memory.set(id, job);
         return maybeExpire(job);
       }
@@ -776,7 +838,40 @@ export async function transitionJob(input: {
   }
 }
 
-/** Live GPS ping from Repair Pro during active trip. */
+/** Live GPS from Repair Pro or Motorist during active trip. */
+export async function updateTripPartyLocation(input: {
+  jobId: string;
+  actor: "motorist" | "repair_pro";
+  location: { lat: number; lng: number };
+  distanceKm: number;
+  etaMinutes: number;
+  metricsSource?: string;
+  durationText?: string;
+  distanceText?: string;
+}): Promise<JobRecord | null> {
+  const job = await getJob(input.jobId);
+  if (!job) return null;
+  const ts = nowIso();
+  const next: JobRecord = {
+    ...job,
+    distanceKm: input.distanceKm,
+    etaMinutes: input.etaMinutes,
+    etaText: input.durationText ?? job.etaText,
+    distanceText: input.distanceText ?? job.distanceText,
+    etaSource: input.metricsSource ?? job.etaSource,
+    updatedAt: ts,
+  };
+  if (input.actor === "repair_pro") {
+    next.proLocation = input.location;
+    next.proLocationAt = ts;
+  } else {
+    next.motoristLocation = input.location;
+    next.motoristLocationAt = ts;
+  }
+  return persist(next);
+}
+
+/** @deprecated use updateTripPartyLocation */
 export async function updateJobLocation(input: {
   jobId: string;
   proLocation: { lat: number; lng: number };
@@ -786,18 +881,15 @@ export async function updateJobLocation(input: {
   durationText?: string;
   distanceText?: string;
 }): Promise<JobRecord | null> {
-  const job = await getJob(input.jobId);
-  if (!job) return null;
-  return persist({
-    ...job,
-    proLocation: input.proLocation,
-    proLocationAt: nowIso(),
+  return updateTripPartyLocation({
+    jobId: input.jobId,
+    actor: "repair_pro",
+    location: input.proLocation,
     distanceKm: input.distanceKm,
     etaMinutes: input.etaMinutes,
-    etaText: input.durationText ?? job.etaText,
-    distanceText: input.distanceText ?? job.distanceText,
-    etaSource: input.metricsSource ?? job.etaSource,
-    updatedAt: nowIso(),
+    metricsSource: input.metricsSource,
+    durationText: input.durationText,
+    distanceText: input.distanceText,
   });
 }
 

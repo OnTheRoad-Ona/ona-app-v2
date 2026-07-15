@@ -121,11 +121,12 @@ export async function apiTransition(input: {
   return parse<{ job: JobRecord }>(res);
 }
 
-/** Repair Pro live GPS ping → Google ETA refresh */
-export async function apiPushProLocation(input: {
+/** Live GPS ping (Repair Pro or Motorist) → ETA refresh */
+export async function apiPushTripLocation(input: {
   jobId: string;
   lat: number;
   lng: number;
+  actor: "motorist" | "repair_pro";
   actorId?: string;
 }) {
   const res = await fetch(`/api/jobs/${input.jobId}/location`, {
@@ -134,6 +135,7 @@ export async function apiPushProLocation(input: {
     body: JSON.stringify({
       lat: input.lat,
       lng: input.lng,
+      actor: input.actor,
       actorId: input.actorId,
     }),
   });
@@ -147,6 +149,19 @@ export async function apiPushProLocation(input: {
       distanceText?: string;
     };
   }>(res);
+}
+
+/** @deprecated use apiPushTripLocation */
+export async function apiPushProLocation(input: {
+  jobId: string;
+  lat: number;
+  lng: number;
+  actorId?: string;
+}) {
+  return apiPushTripLocation({
+    ...input,
+    actor: "repair_pro",
+  });
 }
 
 /** Browser geolocation promise */

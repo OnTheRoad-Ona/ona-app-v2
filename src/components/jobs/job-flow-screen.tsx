@@ -28,7 +28,7 @@ import {
   apiOpenDispute,
   apiPayJob,
   apiPlaceOffer,
-  apiPushProLocation,
+  apiPushTripLocation,
   apiTransition,
   getCurrentPosition,
 } from "@/lib/jobs/client";
@@ -40,6 +40,7 @@ import {
 import { negotiationUiStatus } from "@/lib/jobs/state-machine";
 import type { DisputeReason, JobRecord } from "@/lib/jobs/types";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
+import { tradeIconDataUrl } from "@/lib/map-trade-icons";
 import { formatMoney, LABOUR_SPLIT_LINE } from "@/lib/pricing";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { cn } from "@/lib/utils";
@@ -130,9 +131,9 @@ export function JobFlowScreen({
     router.push("/jobs");
   }, [router]);
 
-  // Repair Pro: continuous real GPS while trip is active → Google ETA on server
+  // Both roles: live GPS while trip active (keeps running when tab is backgrounded)
   useEffect(() => {
-    if (viewer !== "repair_pro" || !job) return;
+    if (!job) return;
     const tracking = [
       "paid_booked",
       "en_route",
@@ -142,12 +143,16 @@ export function JobFlowScreen({
     if (!tracking || !navigator.geolocation) return;
 
     let cancelled = false;
+    let watchId: number | null = null;
+    let wakeLock: WakeLockSentinel | null = null;
+
     const push = async (lat: number, lng: number) => {
       if (cancelled) return;
-      const res = await apiPushProLocation({
+      const res = await apiPushTripLocation({
         jobId: job.id,
         lat,
         lng,
+        actor: viewer,
         actorId,
       });
       if (res.ok) {
@@ -156,31 +161,83 @@ export function JobFlowScreen({
       }
     };
 
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        void push(pos.coords.latitude, pos.coords.longitude);
-      },
-      (e) => {
-        setLocHint(
-          e.code === e.PERMISSION_DENIED
-            ? "Enable location so motorists see your live ETA."
-            : "Waiting for GPS fix…"
-        );
-      },
-      { enableHighAccuracy: true, maximumAge: 3000, timeout: 20000 }
-    );
+    const startWatch = () => {
+      if (watchId != null) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          void push(pos.coords.latitude, pos.coords.longitude);
+        },
+        (e) => {
+          setLocHint(
+            e.code === e.PERMISSION_DENIED
+              ? viewer === "repair_pro"
+                ? "Enable location so the motorist sees your live ETA."
+                : "Enable location so your Repair Pro can find you."
+              : "Waiting for GPS fix…"
+          );
+        },
+        { enableHighAccuracy: true, maximumAge: 3000, timeout: 25000 }
+      );
+    };
 
-    // Also poll getCurrentPosition every 12s as backup
+    startWatch();
+
+    // Backup poll — also fires while backgrounded (throttled by browser)
     const poll = window.setInterval(() => {
-      void getCurrentPosition()
+      void getCurrentPosition({
+        enableHighAccuracy: true,
+        maximumAge: 5000,
+        timeout: 20000,
+      })
         .then((p) => push(p.coords.latitude, p.coords.longitude))
         .catch(() => undefined);
-    }, 12000);
+    }, 10000);
+
+    // Screen wake lock helps keep GPS alive on many mobile browsers
+    const requestWake = async () => {
+      try {
+        if ("wakeLock" in navigator && document.visibilityState === "visible") {
+          wakeLock = await navigator.wakeLock.request("screen");
+          wakeLock.addEventListener("release", () => {
+            wakeLock = null;
+          });
+        }
+      } catch {
+        /* unsupported / denied */
+      }
+    };
+    void requestWake();
+
+    // When returning from background: re-acquire wake lock + immediate GPS
+    const onVis = () => {
+      if (document.visibilityState === "visible") {
+        void requestWake();
+        startWatch();
+        void getCurrentPosition({ enableHighAccuracy: true, maximumAge: 0 })
+          .then((p) => push(p.coords.latitude, p.coords.longitude))
+          .catch(() => undefined);
+      }
+      // Do NOT stop watch when hidden — keep background pings as long as OS allows
+    };
+    document.addEventListener("visibilitychange", onVis);
+
+    // Hint once so users grant Always/While Using location when prompted
+    setLocHint(
+      viewer === "repair_pro"
+        ? "Live tracking on — keep location allowed for this trip."
+        : "Sharing your live pin so Repair Pro can find you."
+    );
+    const hintClear = window.setTimeout(() => setLocHint(null), 5000);
 
     return () => {
       cancelled = true;
-      navigator.geolocation.clearWatch(watchId);
+      document.removeEventListener("visibilitychange", onVis);
+      if (watchId != null) navigator.geolocation.clearWatch(watchId);
       window.clearInterval(poll);
+      window.clearTimeout(hintClear);
+      void wakeLock?.release().catch(() => undefined);
     };
   }, [viewer, job?.id, job?.status, actorId, commitJob]);
 
@@ -702,13 +759,25 @@ export function JobFlowScreen({
               </p>
             )}
             {viewer === "repair_pro" && nextPro && (
-              <StageButton
-                isLight={isLight}
-                disabled={busy}
-                onClick={() => void proAdvance(nextPro.event)}
-              >
-                {busy ? "Updating trip…" : nextPro.label}
-              </StageButton>
+              <>
+                {/* Light toggle: solid copper + white. Dark: stage gray. */}
+                {isLight ? (
+                  <CopperButton
+                    disabled={busy}
+                    onClick={() => void proAdvance(nextPro.event)}
+                  >
+                    {busy ? "Updating trip…" : nextPro.label}
+                  </CopperButton>
+                ) : (
+                  <StageButton
+                    isLight={isLight}
+                    disabled={busy}
+                    onClick={() => void proAdvance(nextPro.event)}
+                  >
+                    {busy ? "Updating trip…" : nextPro.label}
+                  </StageButton>
+                )}
+              </>
             )}
             {viewer === "motorist" && job.status === "en_route" && (
               <p
@@ -750,12 +819,12 @@ export function JobFlowScreen({
           </div>
         }
       >
-        {/* Real Google Maps live track */}
+        {/* Dual live map: motorist tracks pro · pro tracks motorist */}
         <div className="relative mx-0 h-[46vh] min-h-[260px] overflow-hidden">
-          <LiveJobTrackMap job={job} isLight={isLight} />
+          <LiveJobTrackMap job={job} isLight={isLight} viewer={viewer} />
         </div>
 
-        {/* Bottom sheet — counterpart by role */}
+        {/* Counterpart card by role */}
         <div className="relative z-10 -mt-4 px-4">
           <JobCard isLight={isLight}>
             <div className="mb-2.5 flex items-center justify-between gap-2">
@@ -779,23 +848,41 @@ export function JobFlowScreen({
                 )}
             </div>
             <div className="flex items-center gap-3">
-              <Avatar className="h-12 w-12 rounded-full">
-                <AvatarImage
-                  src={
-                    viewer === "motorist"
-                      ? job.repairProPhoto || DEFAULT_VENDOR_PHOTO
-                      : DEFAULT_VENDOR_PHOTO
-                  }
-                  className="object-cover"
-                />
-                <AvatarFallback>
-                  {avatarInitials(
-                    viewer === "motorist"
-                      ? job.repairProName
-                      : job.motoristName
+              {viewer === "motorist" ? (
+                /* Motorist sees Repair Pro trade icon (not face photo) */
+                <div
+                  className={cn(
+                    "flex h-12 w-12 shrink-0 items-center justify-center rounded-full",
+                    isLight ? "bg-white ring-1 ring-black/10" : "bg-[#2c2c2e]"
                   )}
-                </AvatarFallback>
-              </Avatar>
+                  aria-label={PRO_SERVICE_LABELS[job.serviceType]}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={tradeIconDataUrl(job.serviceType, {
+                      size: 28,
+                      selected: true,
+                    })}
+                    alt=""
+                    width={28}
+                    height={28}
+                    className="block"
+                  />
+                </div>
+              ) : (
+                /* Pro sees motorist avatar, else OgaMecho logo */
+                <Avatar className="h-12 w-12 rounded-full">
+                  <AvatarImage
+                    src={
+                      job.motoristPhoto?.trim() || DEFAULT_VENDOR_PHOTO
+                    }
+                    className="object-cover"
+                  />
+                  <AvatarFallback>
+                    {avatarInitials(job.motoristName)}
+                  </AvatarFallback>
+                </Avatar>
+              )}
               <div className="min-w-0 flex-1">
                 <p className={cn("truncate text-[15px] font-black", ink)}>
                   {viewer === "motorist"
@@ -831,7 +918,14 @@ export function JobFlowScreen({
               )}
             >
               <Navigation className="h-3.5 w-3.5 text-[#e07a3d]" />
-              {job.locationLabel}
+              {viewer === "motorist"
+                ? job.proLocation
+                  ? `Repair Pro live · ${job.locationLabel}`
+                  : `Waiting for pro GPS · ${job.locationLabel}`
+                : `Motorist · ${job.locationLabel}`}
+              {job.distanceKm != null
+                ? ` · ${job.distanceKm < 0.1 ? "<0.1" : job.distanceKm.toFixed(1)} km`
+                : ""}
             </p>
           </JobCard>
         </div>

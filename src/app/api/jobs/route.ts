@@ -21,6 +21,7 @@ const mediaSchema = z.object({
 const createSchema = z.object({
   motoristId: z.string().min(1),
   motoristName: z.string().min(1),
+  motoristPhoto: z.string().optional().nullable(),
   repairProId: z.string().min(1),
   repairProName: z.string().min(1),
   repairProPhoto: z.string().optional(),
@@ -51,6 +52,7 @@ export async function POST(req: Request) {
     const job = await createJob({
       motoristId: b.motoristId,
       motoristName: b.motoristName,
+      motoristPhoto: b.motoristPhoto || null,
       repairProId: b.repairProId,
       repairProName: b.repairProName,
       repairProPhoto: b.repairProPhoto,
