@@ -72,6 +72,14 @@ export default function RequestsPage() {
       )}
     >
       <PageHeader title="Requests" subtitle="Live help & dispatch" />
+      <div className="px-3 pb-1">
+        <Link
+          href="/jobs"
+          className="text-[12px] font-bold text-[#e07a3d]"
+        >
+          Open premium escrow jobs →
+        </Link>
+      </div>
 
       <div className="flex-1 space-y-2 overflow-y-auto p-3 scrollbar-hide">
         {warning && (

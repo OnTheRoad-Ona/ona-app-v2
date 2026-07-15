@@ -117,6 +117,16 @@ export default function TechnicianDashboardPage() {
           ) : (
             <span />
           )}
+          <div className="flex items-center gap-3">
+            <Link
+              href="/jobs"
+              className={cn(
+                "text-[12px] font-bold text-[#e07a3d]",
+                isLight ? "" : ""
+              )}
+            >
+              Escrow jobs
+            </Link>
           <button
             type="button"
             disabled={liveBusy}
@@ -152,6 +162,7 @@ export default function TechnicianDashboardPage() {
             </span>
             {liveBusy ? "…" : proLive ? "Live" : "Away"}
           </button>
+          </div>
         </div>
       </div>
 

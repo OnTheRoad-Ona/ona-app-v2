@@ -218,6 +218,8 @@ interface AppState {
   /** Auth + role hydrate finished */
   authReady: boolean;
   isAuthenticated: boolean;
+  /** Supabase auth user id when online */
+  backendUserId: string | null;
   displayName: string;
   accountType: AccountType | null;
   /**
@@ -2195,6 +2197,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       roleReady,
       authReady,
       isAuthenticated,
+      backendUserId,
       serverSessionReady,
       displayName,
       accountType,
@@ -2258,6 +2261,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       roleReady,
       authReady,
       isAuthenticated,
+      backendUserId,
       serverSessionReady,
       displayName,
       accountType,

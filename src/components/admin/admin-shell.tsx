@@ -23,6 +23,7 @@ const NAV_GROUPS: { label: string; items: { href: string; label: string; exact?:
       label: "Operations",
       items: [
         { href: "/admin/jobs", label: "Jobs / requests" },
+        { href: "/admin/disputes", label: "Disputes & appeals" },
         { href: "/admin/bookings", label: "Bookings" },
         { href: "/admin/payments", label: "Payments" },
         { href: "/admin/messages", label: "Messages" },
