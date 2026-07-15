@@ -1,0 +1,449 @@
+import { z } from "zod";
+import { apiFail, apiOk } from "@/lib/server/api-json";
+import { createServiceSupabase } from "@/lib/supabase/server";
+import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
+import { sendSignupConfirmationEmail } from "@/lib/server/resend";
+import { isProService } from "@/lib/services";
+import type { ProService } from "@/lib/types";
+import type { UserRole } from "@/lib/supabase/types";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/**
+ * Public signup via service role.
+ *
+ * Why this exists (permanent fix):
+ * - Browser `auth.signUp` sends confirmation emails → Supabase free-tier rate
+ *   limit → "For security purposes, you can only request this after X seconds"
+ * - Unconfirmed users often have no session → RLS blocks profile writes
+ * - Admin createUser with email_confirm:true creates the account without
+ *   sending email and allows immediate sign-in.
+ */
+const bodySchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+  fullName: z.string().min(2).max(120),
+  phone: z.string().min(7).max(32),
+  accountType: z.enum(["motorist", "professional"]),
+  city: z.string().optional(),
+  area: z.string().optional(),
+  businessName: z.string().optional(),
+  primaryService: z.string().optional(),
+  bio: z.string().optional(),
+  yearsExperience: z.string().optional(),
+  serviceRadiusKm: z.number().optional(),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
+  vehicleMake: z.string().optional(),
+  vehicleModel: z.string().optional(),
+  vehicleYear: z.string().optional(),
+  plateNumber: z.string().optional(),
+  nin: z.string().optional(),
+  bvn: z.string().optional(),
+});
+
+function last4(digits: string | undefined): string | null {
+  const d = (digits || "").replace(/\D/g, "");
+  if (d.length < 4) return null;
+  return d.slice(-4);
+}
+
+function friendlyAuthError(message: string): { message: string; status: number; code: string } {
+  const m = message || "Signup failed";
+  const lower = m.toLowerCase();
+  if (
+    lower.includes("only request this after") ||
+    lower.includes("rate limit") ||
+    lower.includes("over_email_send") ||
+    lower.includes("email rate limit")
+  ) {
+    return {
+      message:
+        "Too many sign-up attempts from this network. Wait about a minute, then try once more with the same details.",
+      status: 429,
+      code: "rate_limited",
+    };
+  }
+  if (
+    lower.includes("already been registered") ||
+    lower.includes("already registered") ||
+    lower.includes("user already exists")
+  ) {
+    return {
+      message:
+        "An account with this email already exists. Log in instead, or use a different email.",
+      status: 409,
+      code: "email_exists",
+    };
+  }
+  if (lower.includes("password")) {
+    return { message: m, status: 400, code: "weak_password" };
+  }
+  return { message: m, status: 400, code: "signup_failed" };
+}
+
+async function logSignupEvent(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  row: {
+    email?: string | null;
+    full_name?: string | null;
+    phone?: string | null;
+    account_type?: string | null;
+    success: boolean;
+    error_message?: string | null;
+    user_id?: string | null;
+    meta?: Record<string, unknown>;
+  }
+) {
+  try {
+    await supabase.from("signup_events").insert({
+      email: row.email ?? null,
+      full_name: row.full_name ?? null,
+      phone: row.phone ?? null,
+      account_type: row.account_type ?? null,
+      success: row.success,
+      error_message: row.error_message ?? null,
+      user_id: row.user_id ?? null,
+      meta: row.meta ?? {},
+    });
+  } catch {
+    /* never block signup on logging */
+  }
+}
+
+export async function POST(req: Request) {
+  if (!isSupabaseAdminConfigured()) {
+    return apiFail(
+      "Server is not configured for sign-up. Contact support.",
+      503,
+      "supabase_not_configured"
+    );
+  }
+
+  let json: unknown;
+  try {
+    json = await req.json();
+  } catch {
+    return apiFail("Invalid JSON body", 400);
+  }
+
+  const parsed = bodySchema.safeParse(json);
+  if (!parsed.success) {
+    return apiFail(
+      "Please check your name, email, phone and password.",
+      400,
+      "validation"
+    );
+  }
+
+  const input = parsed.data;
+  const email = input.email.trim().toLowerCase();
+  const role: UserRole =
+    input.accountType === "professional" ? "repair_pro" : "motorist";
+  const nin = (input.nin || "").replace(/\D/g, "");
+  const bvn = (input.bvn || "").replace(/\D/g, "");
+  const hasNin = nin.length === 11;
+  const hasBvn = bvn.length === 11;
+
+  const supabase = createServiceSupabase();
+  const eventBase = {
+    email,
+    full_name: input.fullName,
+    phone: input.phone,
+    account_type: input.accountType,
+  };
+
+  // 1) Create (or recover) auth user WITHOUT sending confirmation email
+  let userId: string | null = null;
+  let createdNew = false;
+
+  const created = await supabase.auth.admin.createUser({
+    email,
+    password: input.password,
+    email_confirm: true,
+    user_metadata: {
+      role,
+      full_name: input.fullName,
+      phone: input.phone,
+    },
+  });
+
+  if (created.error || !created.data.user) {
+    const msg = created.error?.message || "Could not create account";
+    const lower = msg.toLowerCase();
+    const exists =
+      lower.includes("already") ||
+      lower.includes("registered") ||
+      lower.includes("exists") ||
+      created.error?.status === 422;
+
+    if (!exists) {
+      const f = friendlyAuthError(msg);
+      await logSignupEvent(supabase, {
+        ...eventBase,
+        success: false,
+        error_message: f.message,
+      });
+      return apiFail(f.message, f.status, f.code);
+    }
+
+    // Account already exists — try password sign-in and finish profile
+    const signed = await supabase.auth.signInWithPassword({
+      email,
+      password: input.password,
+    });
+    if (signed.error || !signed.data.user) {
+      const m =
+        "An account with this email already exists. Log in with your password, or reset it if you forgot.";
+      await logSignupEvent(supabase, {
+        ...eventBase,
+        success: false,
+        error_message: m,
+      });
+      return apiFail(m, 409, "email_exists");
+    }
+    userId = signed.data.user.id;
+  } else {
+    userId = created.data.user.id;
+    createdNew = true;
+  }
+
+  if (!userId) {
+    await logSignupEvent(supabase, {
+      ...eventBase,
+      success: false,
+      error_message: "Signup failed — no user id returned.",
+    });
+    return apiFail("Signup failed — no user id returned.", 500);
+  }
+
+  // 2) Enrich profile (service role bypasses RLS; trigger may have inserted stub)
+  const { error: profileErr } = await supabase
+    .from("profiles")
+    .upsert(
+      {
+        id: userId,
+        full_name: input.fullName,
+        phone: input.phone || null,
+        email,
+        city: input.city || null,
+        area: input.area || null,
+        role,
+        is_active: true,
+      },
+      { onConflict: "id" }
+    );
+  if (profileErr) {
+    await logSignupEvent(supabase, {
+      ...eventBase,
+      success: false,
+      error_message: profileErr.message,
+      user_id: userId,
+      meta: { stage: "profile" },
+    });
+    return apiFail(
+      `Account saved but profile failed: ${profileErr.message}`,
+      500,
+      "profile_error"
+    );
+  }
+
+  // 3) Role-specific tables
+  if (role === "motorist") {
+    await supabase.from("repair_pro_profiles").delete().eq("user_id", userId);
+    const { error: motErr } = await supabase.from("motorist_profiles").upsert(
+      {
+        user_id: userId,
+        vehicle_make: input.vehicleMake || null,
+        vehicle_model: input.vehicleModel || null,
+        vehicle_year: input.vehicleYear || null,
+        plate_number: input.plateNumber || null,
+        address_text:
+          [input.area, input.city].filter(Boolean).join(", ") || null,
+        default_lat: input.lat ?? null,
+        default_lng: input.lng ?? null,
+        nin_last4: last4(nin),
+        bvn_last4: last4(bvn),
+        nin_verified: hasNin,
+        bvn_verified: hasBvn,
+        identity_verified_at:
+          hasNin && hasBvn ? new Date().toISOString() : null,
+      },
+      { onConflict: "user_id" }
+    );
+    if (motErr) {
+      await logSignupEvent(supabase, {
+        ...eventBase,
+        success: false,
+        error_message: motErr.message,
+        user_id: userId,
+        meta: { stage: "motorist_profiles" },
+      });
+      return apiFail(
+        `Motorist profile failed: ${motErr.message}`,
+        500,
+        "motorist_profile_error"
+      );
+    }
+  } else {
+    await supabase.from("motorist_profiles").delete().eq("user_id", userId);
+    const svc = (
+      input.primaryService && isProService(input.primaryService)
+        ? input.primaryService
+        : "mechanic"
+    ) as ProService;
+    const { error: proErr } = await supabase.from("repair_pro_profiles").upsert(
+      {
+        user_id: userId,
+        business_name: input.businessName || null,
+        primary_service: svc,
+        services: [svc],
+        status: "approved",
+        // Stay Away until the pro taps Live on the dashboard
+        is_online: false,
+        bio: input.bio || null,
+        years_experience: input.yearsExperience || null,
+        service_radius_km: input.serviceRadiusKm ?? 10,
+        lat: input.lat ?? null,
+        lng: input.lng ?? null,
+        verified: hasNin && hasBvn,
+        nin_last4: last4(nin),
+        bvn_last4: last4(bvn),
+        nin_verified: hasNin,
+        bvn_verified: hasBvn,
+      },
+      { onConflict: "user_id" }
+    );
+    if (proErr) {
+      await logSignupEvent(supabase, {
+        ...eventBase,
+        success: false,
+        error_message: proErr.message,
+        user_id: userId,
+        meta: { stage: "repair_pro_profiles" },
+      });
+      return apiFail(
+        `Repair Pro profile failed: ${proErr.message}`,
+        500,
+        "pro_profile_error"
+      );
+    }
+  }
+
+  // 4) Issue a session for the browser (no email round-trip)
+  const signedIn = await supabase.auth.signInWithPassword({
+    email,
+    password: input.password,
+  });
+  // Confirmation email (Resend) — non-blocking
+  let emailSent: boolean | null = null;
+  let emailError: string | null = null;
+  try {
+    const mail = await sendSignupConfirmationEmail({
+      to: email,
+      fullName: input.fullName,
+      accountType: input.accountType,
+    });
+    emailSent = mail.ok;
+    if (!mail.ok) emailError = mail.error;
+  } catch (e) {
+    emailSent = false;
+    emailError = e instanceof Error ? e.message : "email failed";
+  }
+
+  if (signedIn.error || !signedIn.data.session || !signedIn.data.user) {
+    // Profile is saved — user can still log in manually
+    await logSignupEvent(supabase, {
+      ...eventBase,
+      success: true,
+      user_id: userId,
+      meta: { createdNew, session: false, emailSent, emailError },
+    });
+    return apiOk({
+      userId,
+      createdNew,
+      emailSent,
+      session: null,
+      accountType: input.accountType,
+      role,
+      profile: {
+        id: userId,
+        role,
+        full_name: input.fullName,
+        phone: input.phone,
+        email,
+        city: input.city || null,
+        area: input.area || null,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        avatar_url: null,
+      },
+      extras: {
+        vehicleMake: input.vehicleMake,
+        vehicleModel: input.vehicleModel,
+        vehicleYear: input.vehicleYear,
+        businessName: input.businessName,
+        primaryService: input.primaryService,
+        bio: input.bio,
+        yearsExperience: input.yearsExperience,
+        serviceRadiusKm: input.serviceRadiusKm,
+        nin: hasNin ? nin : undefined,
+        bvn: hasBvn ? bvn : undefined,
+        ninVerified: hasNin,
+        bvnVerified: hasBvn,
+      },
+      warning:
+        "Account created. Please log in with your email and password to continue.",
+    });
+  }
+
+  await logSignupEvent(supabase, {
+    ...eventBase,
+    success: true,
+    user_id: userId,
+    meta: { createdNew, session: true, emailSent, emailError },
+  });
+
+  return apiOk({
+    userId,
+    createdNew,
+    emailSent,
+    session: {
+      access_token: signedIn.data.session.access_token,
+      refresh_token: signedIn.data.session.refresh_token,
+      expires_at: signedIn.data.session.expires_at ?? null,
+    },
+    accountType: input.accountType,
+    role,
+    profile: {
+      id: userId,
+      role,
+      full_name: input.fullName,
+      phone: input.phone,
+      email,
+      city: input.city || null,
+      area: input.area || null,
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      avatar_url: null,
+    },
+    extras: {
+      vehicleMake: input.vehicleMake,
+      vehicleModel: input.vehicleModel,
+      vehicleYear: input.vehicleYear,
+      businessName: input.businessName,
+      primaryService: input.primaryService,
+      bio: input.bio,
+      yearsExperience: input.yearsExperience,
+      serviceRadiusKm: input.serviceRadiusKm,
+      nin: hasNin ? nin : undefined,
+      bvn: hasBvn ? bvn : undefined,
+      ninVerified: hasNin,
+      bvnVerified: hasBvn,
+    },
+  });
+}

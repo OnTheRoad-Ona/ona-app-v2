@@ -6,6 +6,7 @@ import type { AccountType } from "@/lib/types";
  */
 
 const PUBLIC_PREFIXES = ["/login", "/signup", "/logout", "/admin"];
+// /login/reset-password and /signup/error are public
 
 /** Paths motorists use for discovery / requests */
 export function isClientAppPath(pathname: string): boolean {

@@ -5,6 +5,7 @@
  * Falls back gracefully when keys/session missing.
  */
 
+import { MAX_RADIUS_KM } from "@/lib/matching";
 import { getAppSupabase, isAppBackendOnline } from "@/lib/supabase/app-client";
 import {
   appStatusToJob,
@@ -12,6 +13,7 @@ import {
   mapProToTechnician,
   mapRequestRow,
   profileToUserProfile,
+  resolvePrimaryAccountType,
   type ConversationRow,
   type MessageRow,
 } from "@/lib/supabase/mappers";
@@ -28,6 +30,12 @@ import type {
 import { isProService } from "@/lib/services";
 
 export { isAppBackendOnline };
+
+function last4(digits: string | undefined): string | null {
+  const d = (digits || "").replace(/\D/g, "");
+  if (d.length < 4) return null;
+  return d.slice(-4);
+}
 
 export async function backendSignUp(input: {
   email: string;
@@ -49,99 +57,264 @@ export async function backendSignUp(input: {
   vehicleMake?: string;
   vehicleModel?: string;
   vehicleYear?: string;
+  plateNumber?: string;
+  /** Identity (optional at signup) */
+  nin?: string;
+  bvn?: string;
 }): Promise<{ error: string | null; userId?: string; profile?: UserProfile }> {
-  const sb = getAppSupabase();
-  if (!sb) return { error: "Supabase is not configured." };
-
-  const role = input.accountType === "professional" ? "repair_pro" : "motorist";
-  const { data, error } = await sb.auth.signUp({
-    email: input.email.trim().toLowerCase(),
-    password: input.password,
-    options: {
-      data: {
-        role,
-        full_name: input.fullName,
+  /**
+   * Server-side signup (service role, email auto-confirmed).
+   * Avoids Supabase browser signUp confirmation emails that hit:
+   * "For security purposes, you can only request this after X seconds"
+   */
+  let res: Response;
+  try {
+    res = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: input.email,
+        password: input.password,
+        fullName: input.fullName,
         phone: input.phone,
-      },
-    },
-  });
-  if (error) return { error: error.message };
-  const userId = data.user?.id;
-  if (!userId) return { error: "Signup failed — no user returned." };
-
-  // Enrich profile row
-  await sb
-    .from("profiles")
-    .update({
-      full_name: input.fullName,
-      phone: input.phone,
-      email: input.email.trim().toLowerCase(),
-      city: input.city || null,
-      area: input.area || null,
-      role,
-    })
-    .eq("id", userId);
-
-  if (role === "motorist") {
-    await sb.from("motorist_profiles").upsert({
-      user_id: userId,
-      vehicle_make: input.vehicleMake || null,
-      vehicle_model: input.vehicleModel || null,
-      vehicle_year: input.vehicleYear || null,
-      address_text: [input.area, input.city].filter(Boolean).join(", ") || null,
-      default_lat: input.lat ?? null,
-      default_lng: input.lng ?? null,
+        accountType: input.accountType,
+        city: input.city,
+        area: input.area,
+        businessName: input.businessName,
+        primaryService: input.primaryService,
+        bio: input.bio,
+        yearsExperience: input.yearsExperience,
+        serviceRadiusKm: input.serviceRadiusKm,
+        lat: input.lat,
+        lng: input.lng,
+        vehicleMake: input.vehicleMake,
+        vehicleModel: input.vehicleModel,
+        vehicleYear: input.vehicleYear,
+        plateNumber: input.plateNumber,
+        nin: input.nin,
+        bvn: input.bvn,
+      }),
     });
-  } else {
-    const svc = (input.primaryService && isProService(input.primaryService)
-      ? input.primaryService
-      : "mechanic") as ProService;
-    await sb.from("repair_pro_profiles").upsert({
-      user_id: userId,
-      business_name: input.businessName || null,
-      primary_service: svc,
-      services: [svc],
-      // Approve for marketplace visibility (admin can suspend later)
-      status: "approved",
-      is_online: true,
-      bio: input.bio || null,
-      years_experience: input.yearsExperience || null,
-      service_radius_km: input.serviceRadiusKm ?? 10,
-      lat: input.lat ?? null,
-      lng: input.lng ?? null,
-      verified: false,
-    });
+  } catch {
+    return {
+      error:
+        "Network error during sign-up. Check your connection and try once more.",
+    };
   }
+
+  const json = (await res.json().catch(() => null)) as {
+    ok?: boolean;
+    error?: { message?: string; code?: string };
+    data?: {
+      userId?: string;
+      session?: {
+        access_token: string;
+        refresh_token: string;
+      } | null;
+      profile?: ProfileRow;
+      extras?: {
+        vehicleMake?: string;
+        vehicleModel?: string;
+        vehicleYear?: string;
+        businessName?: string;
+        primaryService?: string;
+        bio?: string;
+        yearsExperience?: string;
+        serviceRadiusKm?: number;
+        nin?: string;
+        bvn?: string;
+        ninVerified?: boolean;
+        bvnVerified?: boolean;
+      };
+      warning?: string;
+    };
+  } | null;
+
+  if (!json?.ok || !json.data?.userId || !json.data.profile) {
+    const msg =
+      json?.error?.message ||
+      (res.status === 429
+        ? "Too many sign-up attempts. Wait about a minute, then try once."
+        : "Sign-up failed. Please try again.");
+    return { error: msg };
+  }
+
+  // Establish browser session so the app is logged in immediately
+  const sb = getAppSupabase();
+  if (sb && json.data.session?.access_token && json.data.session?.refresh_token) {
+    const { error: sessionErr } = await sb.auth.setSession({
+      access_token: json.data.session.access_token,
+      refresh_token: json.data.session.refresh_token,
+    });
+    if (sessionErr) {
+      // Profile exists; session optional — user can log in
+      console.warn("setSession after signup:", sessionErr.message);
+    }
+  }
+
+  const p = json.data.profile;
+  const ex = json.data.extras || {};
+  const role = p.role === "repair_pro" ? "repair_pro" : "motorist";
+  const hasNin = Boolean(ex.ninVerified);
+  const hasBvn = Boolean(ex.bvnVerified);
+  const primary =
+    ex.primaryService && isProService(ex.primaryService)
+      ? (ex.primaryService as ProService)
+      : undefined;
 
   const profile = profileToUserProfile(
     {
-      id: userId,
+      id: p.id,
       role,
-      full_name: input.fullName,
-      phone: input.phone,
-      email: input.email,
-      avatar_url: null,
-      city: input.city || null,
-      area: input.area || null,
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      full_name: p.full_name,
+      phone: p.phone,
+      email: p.email,
+      avatar_url: p.avatar_url ?? null,
+      city: p.city,
+      area: p.area,
+      is_active: p.is_active ?? true,
+      created_at: p.created_at || new Date().toISOString(),
+      updated_at: p.updated_at || new Date().toISOString(),
     },
     {
       accountType: input.accountType,
       password: input.password,
-      services: input.primaryService ? [input.primaryService] : undefined,
-      businessName: input.businessName,
-      bio: input.bio,
-      yearsExperience: input.yearsExperience,
-      serviceRadiusKm: input.serviceRadiusKm,
-      vehicleMake: input.vehicleMake,
-      vehicleModel: input.vehicleModel,
-      vehicleYear: input.vehicleYear,
+      services: primary ? [primary] : input.primaryService ? [input.primaryService] : undefined,
+      businessName: ex.businessName || input.businessName,
+      bio: ex.bio || input.bio,
+      yearsExperience: ex.yearsExperience || input.yearsExperience,
+      serviceRadiusKm: ex.serviceRadiusKm ?? input.serviceRadiusKm,
+      vehicleMake: ex.vehicleMake || input.vehicleMake,
+      vehicleModel: ex.vehicleModel || input.vehicleModel,
+      vehicleYear: ex.vehicleYear || input.vehicleYear,
+      idNumber: ex.nin || (hasNin ? input.nin : undefined),
+      bvn: ex.bvn || (hasBvn ? input.bvn : undefined),
+      ninVerified: hasNin,
+      bvnVerified: hasBvn,
+      identityVerifiedAt:
+        hasNin && hasBvn ? new Date().toISOString() : undefined,
     }
   );
 
-  return { error: null, userId, profile };
+  return { error: null, userId: json.data.userId, profile };
+}
+
+/** Persist NIN/BVN verification to Supabase role tables. */
+export async function backendSaveIdentityVerification(input: {
+  userId: string;
+  accountType: AccountType;
+  nin: string;
+  bvn: string;
+}): Promise<string | null> {
+  const sb = getAppSupabase();
+  if (!sb) return "Server is not configured.";
+  const nin = input.nin.replace(/\D/g, "");
+  const bvn = input.bvn.replace(/\D/g, "");
+  const payload = {
+    nin_last4: last4(nin),
+    bvn_last4: last4(bvn),
+    nin_verified: nin.length === 11,
+    bvn_verified: bvn.length === 11,
+  };
+  if (input.accountType === "professional") {
+    const { error } = await sb
+      .from("repair_pro_profiles")
+      .update({
+        ...payload,
+        verified: payload.nin_verified && payload.bvn_verified,
+      })
+      .eq("user_id", input.userId);
+    return error?.message ?? null;
+  }
+  const { error } = await sb
+    .from("motorist_profiles")
+    .update({
+      ...payload,
+      identity_verified_at:
+        payload.nin_verified && payload.bvn_verified
+          ? new Date().toISOString()
+          : null,
+    })
+    .eq("user_id", input.userId);
+  return error?.message ?? null;
+}
+
+/** Phone OTP login — session from server after Africa's Talking code verified */
+export async function backendSignInWithPhoneOtp(input: {
+  phone: string;
+  code: string;
+  preferType?: AccountType;
+}): Promise<{ error: string | null; profile?: UserProfile; userId?: string }> {
+  try {
+    const res = await fetch("/api/auth/phone/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone: input.phone,
+        code: input.code,
+        preferType: input.preferType,
+      }),
+    });
+    const json = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      error?: { message?: string };
+      data?: {
+        userId?: string;
+        session?: { access_token: string; refresh_token: string };
+        userProfile?: UserProfile;
+      };
+    } | null;
+
+    if (!json?.ok || !json.data?.userId || !json.data.userProfile) {
+      return {
+        error:
+          json?.error?.message ||
+          "Phone login failed. Check the code and try again.",
+      };
+    }
+
+    const sb = getAppSupabase();
+    if (
+      sb &&
+      json.data.session?.access_token &&
+      json.data.session?.refresh_token
+    ) {
+      await sb.auth.setSession({
+        access_token: json.data.session.access_token,
+        refresh_token: json.data.session.refresh_token,
+      });
+    }
+
+    return {
+      error: null,
+      userId: json.data.userId,
+      profile: json.data.userProfile,
+    };
+  } catch {
+    return { error: "Network error during phone login." };
+  }
+}
+
+export async function backendSendPhoneOtp(
+  phone: string
+): Promise<{ error: string | null }> {
+  try {
+    const res = await fetch("/api/auth/phone/send-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone }),
+    });
+    const json = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      error?: { message?: string };
+    } | null;
+    if (!json?.ok) {
+      return { error: json?.error?.message || "Could not send code." };
+    }
+    return { error: null };
+  } catch {
+    return { error: "Network error sending SMS code." };
+  }
 }
 
 export async function backendSignIn(
@@ -162,6 +335,115 @@ export async function backendSignIn(
   const loaded = await backendLoadUserProfile(userId);
   if (!loaded) return { error: "Profile not found. Complete signup first." };
   return { error: null, profile: loaded, userId };
+}
+
+/** Smooth Motorist ↔ Repair Pro switch (same user, updates role on server). */
+export async function backendSwitchRole(
+  target: AccountType
+): Promise<{
+  error: string | null;
+  /** Present when error is needs_signup */
+  message?: string;
+  profile?: UserProfile;
+  userId?: string;
+  hasMotorist?: boolean;
+  hasPro?: boolean;
+  primaryAccountType?: AccountType;
+}> {
+  const sb = getAppSupabase();
+  if (!sb) return { error: "Supabase is not configured." };
+
+  const { data: sess } = await sb.auth.getSession();
+  const token = sess.session?.access_token;
+  if (!token) return { error: "Session expired. Please log in again." };
+
+  try {
+    const res = await fetch("/api/auth/switch-role", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        access_token: token,
+        target,
+      }),
+    });
+    const json = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      error?: { message?: string; code?: string };
+      data?: {
+        userId?: string;
+        userProfile?: UserProfile;
+        hasMotorist?: boolean;
+        hasPro?: boolean;
+        primaryAccountType?: AccountType;
+      };
+    } | null;
+
+    if (!json?.ok || !json.data?.userProfile || !json.data.userId) {
+      if (json?.error?.code === "needs_signup") {
+        return {
+          error: "needs_signup",
+          message:
+            json.error.message ||
+            "Sign up for that role first so it saves to the database.",
+        };
+      }
+      return {
+        error: json?.error?.message || "Could not switch account type.",
+      };
+    }
+
+    return {
+      error: null,
+      profile: json.data.userProfile,
+      userId: json.data.userId,
+      hasMotorist: json.data.hasMotorist,
+      hasPro: json.data.hasPro,
+      primaryAccountType: json.data.primaryAccountType,
+    };
+  } catch {
+    return { error: "Network error while switching account." };
+  }
+}
+
+/** Whether this user has motorist + pro side profiles (for dual switch UI). */
+export async function backendDualRoleFlags(userId: string): Promise<{
+  hasMotorist: boolean;
+  hasPro: boolean;
+  /** Original signup role (earlier side-table), independent of active role */
+  primaryAccountType: AccountType;
+}> {
+  const sb = getAppSupabase();
+  if (!sb) {
+    return {
+      hasMotorist: false,
+      hasPro: false,
+      primaryAccountType: "motorist",
+    };
+  }
+  const [mot, pro] = await Promise.all([
+    sb
+      .from("motorist_profiles")
+      .select("user_id, created_at")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    sb
+      .from("repair_pro_profiles")
+      .select("user_id, created_at")
+      .eq("user_id", userId)
+      .maybeSingle(),
+  ]);
+  const hasMotorist = Boolean(mot.data);
+  const hasPro = Boolean(pro.data);
+  return {
+    hasMotorist,
+    hasPro,
+    primaryAccountType: resolvePrimaryAccountType({
+      hasMotorist,
+      hasPro,
+      motoristCreatedAt: (mot.data as { created_at?: string } | null)?.created_at,
+      proCreatedAt: (pro.data as { created_at?: string } | null)?.created_at,
+    }),
+  };
 }
 
 export async function backendSignOut(): Promise<void> {
@@ -192,15 +474,37 @@ export async function backendLoadUserProfile(
   const accountType: AccountType =
     p.role === "repair_pro" ? "professional" : "motorist";
 
-  if (accountType === "professional") {
-    const { data: pro } = await sb
+  // Load both side tables so primary = original signup (earlier created_at)
+  const [motRes, proRes] = await Promise.all([
+    sb.from("motorist_profiles").select("*").eq("user_id", userId).maybeSingle(),
+    sb
       .from("repair_pro_profiles")
       .select("*")
       .eq("user_id", userId)
-      .maybeSingle();
-    const pr = pro as RepairProRow | null;
+      .maybeSingle(),
+  ]);
+  const mot = motRes.data as {
+    vehicle_make?: string | null;
+    vehicle_model?: string | null;
+    vehicle_year?: string | null;
+    nin_verified?: boolean;
+    bvn_verified?: boolean;
+    identity_verified_at?: string | null;
+    created_at?: string;
+  } | null;
+  const pr = proRes.data as RepairProRow | null;
+  const primaryAccountType = resolvePrimaryAccountType({
+    hasMotorist: Boolean(mot),
+    hasPro: Boolean(pr),
+    motoristCreatedAt: mot?.created_at,
+    proCreatedAt: pr?.created_at,
+    activeAccountType: accountType,
+  });
+
+  if (accountType === "professional") {
     return profileToUserProfile(p, {
       accountType,
+      primaryAccountType,
       services: (pr?.services as ProService[]) ||
         (pr?.primary_service ? [pr.primary_service as ProService] : []),
       businessName: pr?.business_name || undefined,
@@ -212,16 +516,15 @@ export async function backendLoadUserProfile(
     });
   }
 
-  const { data: mot } = await sb
-    .from("motorist_profiles")
-    .select("*")
-    .eq("user_id", userId)
-    .maybeSingle();
   return profileToUserProfile(p, {
     accountType,
+    primaryAccountType,
     vehicleMake: mot?.vehicle_make || undefined,
     vehicleModel: mot?.vehicle_model || undefined,
     vehicleYear: mot?.vehicle_year || undefined,
+    ninVerified: Boolean(mot?.nin_verified),
+    bvnVerified: Boolean(mot?.bvn_verified),
+    identityVerifiedAt: mot?.identity_verified_at || undefined,
   });
 }
 
@@ -229,14 +532,37 @@ export async function backendFetchPros(userCoords: {
   lat: number;
   lng: number;
 }): Promise<Technician[]> {
+  // Prefer server route (service role) so every approved pro + name reaches the app
+  try {
+    const qs = new URLSearchParams({
+      lat: String(userCoords.lat),
+      lng: String(userCoords.lng),
+    });
+    const res = await fetch(`/api/pros?${qs.toString()}`, {
+      method: "GET",
+      cache: "no-store",
+    });
+    const json = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      data?: { technicians?: Technician[] };
+    } | null;
+    if (json?.ok && Array.isArray(json.data?.technicians)) {
+      return json.data.technicians;
+    }
+  } catch {
+    /* fall through to client Supabase */
+  }
+
   const sb = getAppSupabase();
   if (!sb) return [];
 
+  // Client fallback: same rules as /api/pros (Live + repair_pro role only)
   const { data: pros, error } = await sb
     .from("repair_pro_profiles")
     .select("*")
     .eq("status", "approved")
-    .limit(80);
+    .eq("is_online", true)
+    .limit(200);
 
   if (error || !pros?.length) return [];
 
@@ -244,15 +570,25 @@ export async function backendFetchPros(userCoords: {
   const { data: profiles } = await sb
     .from("profiles")
     .select("*")
-    .in("id", ids);
+    .in("id", ids)
+    .eq("is_active", true)
+    .eq("role", "repair_pro");
 
   const byId = new Map(
     (profiles as ProfileRow[] | null)?.map((p) => [p.id, p]) ?? []
   );
 
-  return (pros as RepairProRow[]).map((pro) =>
-    mapProToTechnician(pro, byId.get(pro.user_id) ?? null, userCoords)
-  );
+  return (pros as RepairProRow[])
+    .filter((pro) => byId.has(pro.user_id))
+    .map((pro) =>
+      mapProToTechnician(pro, byId.get(pro.user_id) ?? null, userCoords)
+    )
+    .filter(
+      (t) =>
+        typeof t.distanceKm === "number" &&
+        Number.isFinite(t.distanceKm) &&
+        t.distanceKm <= MAX_RADIUS_KM
+    );
 }
 
 export async function backendSetProOnline(

@@ -14,6 +14,7 @@ const NAV_GROUPS: { label: string; items: { href: string; label: string; exact?:
       label: "People",
       items: [
         { href: "/admin/users", label: "Users & roles" },
+        { href: "/admin/motorists", label: "Motorists" },
         { href: "/admin/pros", label: "Repair Pros" },
         { href: "/admin/verification", label: "Identity verify" },
       ],
@@ -40,7 +41,11 @@ const NAV_GROUPS: { label: string; items: { href: string; label: string; exact?:
     },
     {
       label: "System",
-      items: [{ href: "/admin/audit", label: "Audit log" }],
+      items: [
+        { href: "/admin/health", label: "System health" },
+        { href: "/admin/signups", label: "Signup events" },
+        { href: "/admin/audit", label: "Audit log" },
+      ],
     },
   ];
 

@@ -459,11 +459,12 @@ export function ProSignup() {
       servedLocation: prefLocation,
       registeredAt: new Date().toISOString(),
     };
-    const err = completeSignup(profile);
+    const err = await completeSignup(profile);
     if (err) {
-      setFormError(err);
       setBusy(false);
-      setStep(5);
+      router.replace(
+        `/signup/error?role=professional&message=${encodeURIComponent(err)}`
+      );
       return;
     }
     setDone(true);

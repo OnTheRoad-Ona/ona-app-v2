@@ -37,10 +37,12 @@ export function RegistrationComplete({
           id="reg-complete-title"
           className="mt-2.5 text-[16px] font-bold text-[#1e293b]"
         >
-          You are done
+          Account registered
         </h2>
         <p className="mt-1 text-[12px] text-[#64748b]">
-          Your {accountLabel} account is ready to use.
+          Your {accountLabel} account is saved on OgaMecho servers and will
+          appear in the admin backend. Check your email for a confirmation
+          message (when Resend is configured).
         </p>
         <button
           type="button"

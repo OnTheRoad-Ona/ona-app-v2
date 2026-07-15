@@ -3,16 +3,19 @@
  * Homepage only needs Maps JavaScript API (no Places library required).
  */
 
-/** Bump when the Maps API key changes so the JS loader reloads cleanly. */
-export const GOOGLE_MAPS_LOADER_ID = "oga-mecho-google-maps-v2";
+/** Bump when the Maps API key or libraries change so the JS loader reloads cleanly. */
+export const GOOGLE_MAPS_LOADER_ID = "oga-mecho-google-maps-v3-places";
 
-/** Keep empty so homepage works with only Maps JavaScript API enabled. */
+/**
+ * Places is required for Uber-style address suggestions
+ * (“Help someone else” + location pickers).
+ */
 export const GOOGLE_MAPS_LIBRARIES: (
   | "places"
   | "geometry"
   | "drawing"
   | "visualization"
-)[] = [];
+)[] = ["places"];
 
 export function getGoogleMapsApiKey(): string {
   if (typeof process === "undefined") return "";

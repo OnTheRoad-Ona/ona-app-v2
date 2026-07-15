@@ -223,11 +223,13 @@ export function MotoristSignup() {
         lng: pickedLoc.lng,
       });
     }
-    const err = completeSignup(profile);
+    const err = await completeSignup(profile);
     if (err) {
-      setFormError(err);
       setBusy(false);
-      setStep(1);
+      // Hard failure page — never open homepage without server registration
+      router.replace(
+        `/signup/error?role=motorist&message=${encodeURIComponent(err)}`
+      );
       return;
     }
     setDone(true);

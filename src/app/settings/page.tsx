@@ -21,7 +21,15 @@ import { cn } from "@/lib/utils";
  * Full settings hub — opened from Profile (not the hamburger).
  */
 export default function SettingsPage() {
-  const { theme, toggleTheme, retryLocation, isLocating, location } = useApp();
+  const {
+    theme,
+    toggleTheme,
+    retryLocation,
+    isLocating,
+    location,
+    displayName,
+    isAuthenticated,
+  } = useApp();
   const isLight = theme === "light";
   const [notifyOn, setNotifyOn] = useState(true);
 
@@ -107,7 +115,9 @@ export default function SettingsPage() {
           {row({
             icon: isLight ? Moon : Sun,
             label: isLight ? "Dark background" : "Light background",
-            detail: "Double-tap free space also toggles theme",
+            detail: isAuthenticated
+              ? `Saved for ${displayName || "your account"} (personal theme)`
+              : "Device theme · sign in to save per account",
             onClick: () => toggleTheme(),
           })}
           {row({

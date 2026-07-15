@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -23,7 +24,6 @@ import {
   MAX_RADIUS_KM,
 } from "@/lib/matching";
 import {
-  findProfilesForLogin,
   getVaultProfile,
   LEGACY_PROFILE_KEY,
   readProfilesVault,
@@ -57,14 +57,20 @@ import {
   backendLoadUserProfile,
   backendSendMessage,
   backendSetProOnline,
+  backendDualRoleFlags,
+  backendSaveIdentityVerification,
+  backendSendPhoneOtp,
   backendSignIn,
+  backendSignInWithPhoneOtp,
   backendSignOut,
   backendSignUp,
+  backendSwitchRole,
   backendSubscribeJobs,
   backendSubscribePros,
   backendUpdateJobStatus,
   isAppBackendOnline,
 } from "@/lib/supabase/app-api";
+import { haversineKm } from "@/lib/supabase/mappers";
 
 /** Result of book (motorist) or accept (pro) with progressive verification. */
 export type ServiceActionResult =
@@ -89,7 +95,27 @@ const MODE_KEY = "oga-mecho-mode";
 const AUTH_KEY = "oga-mecho-auth";
 const AUTH_NAME_KEY = "oga-mecho-auth-name";
 const AUTH_ACCOUNT_KEY = "oga-mecho-account-type";
+/** Original signup role — never overwritten by Motorist ↔ Pro switch */
+const PRIMARY_ACCOUNT_KEY = "oga-mecho-primary-account";
 const PROFILE_KEY = LEGACY_PROFILE_KEY;
+
+function readStoredPrimaryAccount(): AccountType | null {
+  try {
+    const v = localStorage.getItem(PRIMARY_ACCOUNT_KEY);
+    if (v === "motorist" || v === "professional") return v;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function writeStoredPrimaryAccount(type: AccountType) {
+  try {
+    localStorage.setItem(PRIMARY_ACCOUNT_KEY, type);
+  } catch {
+    /* ignore */
+  }
+}
 
 /** Public directory id for the signed-in Repair Pro (motorists can open this profile). */
 export const SELF_PRO_TECH_ID = "pro-self";
@@ -181,6 +207,11 @@ interface AppState {
   isAuthenticated: boolean;
   displayName: string;
   accountType: AccountType | null;
+  /**
+   * Main account = role they originally signed up as.
+   * Stays fixed when switching Motorist ↔ Repair Pro.
+   */
+  primaryAccountType: AccountType | null;
   /** Full signup profile (persisted) */
   userProfile: UserProfile | null;
   /** What user registered as — drives first open screen */
@@ -196,29 +227,62 @@ interface AppState {
   /** Dual vault: true if this device has a signed-up Repair Pro profile */
   hasProAccount: boolean;
   /**
-   * Switch active session to Motorist or Repair Pro.
-   * Requires a separate signup for that type (not one shared login).
-   * Returns null on success, or an error / "needs_signup" | "needs_login" code.
+   * Repair Pro Live switch — when true, motorists can find this pro.
+   * Synced to repair_pro_profiles.is_online.
+   */
+  proLive: boolean;
+  /** Turn Live/Away on and push is_online to the server */
+  setProLive: (live: boolean) => Promise<void>;
+  /**
+   * Motorist is helping someone else — service pin is the other person's place.
+   * Nearby pros and bookings use this meet location.
+   */
+  helpingSomeoneElse: boolean;
+  helpingSomeoneLabel: string | null;
+  /** Set meet location for “help someone else” (or clear with null) */
+  setHelpingSomeoneElse: (
+    next:
+      | null
+      | {
+          label: string;
+          coordinates: { lat: number; lng: number };
+        }
+  ) => void;
+  /**
+   * Smooth switch Motorist ↔ Repair Pro for the signed-in user (server role flip).
+   * Returns null on success, or an error / "needs_login" code.
    */
   switchAccount: (
     type: AccountType
-  ) => null | "needs_signup" | "needs_login" | string;
+  ) => Promise<null | "needs_signup" | "needs_login" | string>;
   /**
    * Log in with email + password against the dual vault.
    * Optionally prefer a specific account type when both match.
    */
+  /** Server-only login. Never opens the app from local vault alone. */
   signInWithPassword: (
     email: string,
     password: string,
     preferType?: AccountType
-  ) => string | null;
+  ) => Promise<string | null>;
+  /** Request SMS OTP (Africa's Talking) for registered phone */
+  sendPhoneOtp: (phone: string) => Promise<string | null>;
+  /** Verify SMS OTP and open server session */
+  signInWithPhoneOtp: (
+    phone: string,
+    code: string,
+    preferType?: AccountType
+  ) => Promise<string | null>;
+  /** True only when Supabase session + profile are confirmed on the server */
+  serverSessionReady: boolean;
   addProService: (service: ProService) => void;
   removeProService: (service: ProService) => void;
   /**
    * Complete Motorist or Repair Pro registration and sign in.
    * Each type is a separate account; one person may register both.
+   * Requires live Supabase — fails if the database write does not succeed.
    */
-  completeSignup: (profile: UserProfile) => string | null;
+  completeSignup: (profile: UserProfile) => Promise<string | null>;
   /**
    * Post-signup NIN + BVN verification. Unlocks unlimited book/accept.
    * Returns error message or null on success.
@@ -226,7 +290,7 @@ interface AppState {
   completeIdentityVerification: (input: {
     nin: string;
     bvn: string;
-  }) => string | null;
+  }) => Promise<string | null>;
   /** Legacy quick login (prefer completeSignup) */
   login: (opts: {
     accountType: AccountType;
@@ -250,6 +314,8 @@ interface AppState {
   visibleMessageThreads: MessageThread[];
   locationError: string | null;
   isLocating: boolean;
+  /** Re-fetch Live Repair Pros only (no location / filter changes) */
+  refreshNearbyPros: () => void;
   setRadiusKm: (n: number) => void;
   setCategory: (c: ServiceCategory) => void;
   setQuery: (q: string) => void;
@@ -303,6 +369,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Default follows OS; may be overridden by double-click (stored)
   const [theme, setThemeState] = useState<AppTheme>("light");
   const [themeReady, setThemeReady] = useState(false);
+  /** Device-level theme fallback when no account is active */
+  const DEVICE_THEME_KEY = "oga-mecho-theme";
+  const themeKeyForUser = (userId: string | null | undefined) =>
+    userId ? `oga-mecho-theme-user-${userId}` : DEVICE_THEME_KEY;
 
   // Role / mode — registration drives first open
   const [roleReady, setRoleReady] = useState(false);
@@ -310,12 +380,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [displayName, setDisplayName] = useState("Guest");
   const [accountType, setAccountType] = useState<AccountType | null>(null);
+  const [primaryAccountType, setPrimaryAccountType] =
+    useState<AccountType | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [registeredAs, setRegisteredAsState] = useState<RegisteredAs>("client");
   const [userMode, setUserModeState] = useState<UserMode>("client");
   const [proServices, setProServicesState] = useState<ProService[]>([]);
   const [hasMotoristAccount, setHasMotoristAccount] = useState(false);
   const [hasProAccount, setHasProAccount] = useState(false);
+  /** Live = visible to motorists; Away = hidden (stays on until pro turns it off) */
+  const [proLive, setProLiveState] = useState(false);
+  const [helpingSomeoneElse, setHelpingSomeoneElseState] = useState(false);
+  const [helpingSomeoneLabel, setHelpingSomeoneLabel] = useState<string | null>(
+    null
+  );
+  const ownLocationBackup = useRef<UserLocation | null>(null);
 
   const [location, setLocation] = useState(DEFAULT_USER_LOCATION);
   const [radiusKm, setRadiusKmState] = useState(DEFAULT_RADIUS_KM);
@@ -332,11 +411,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [cloudTechs, setCloudTechs] = useState<Technician[] | null>(null);
   /** Supabase auth.users id when backend session is active */
   const [backendUserId, setBackendUserId] = useState<string | null>(null);
+  /** True only after server session is checked (and confirmed or cleared) */
+  const [serverSessionReady, setServerSessionReady] = useState(false);
 
-  // Initial: system default unless user set a preference (toggle / menu)
+  const clearLocalAuth = useCallback(() => {
+    setIsAuthenticated(false);
+    setBackendUserId(null);
+    setDisplayName("Guest");
+    setAccountType(null);
+    setPrimaryAccountType(null);
+    setUserProfile(null);
+    try {
+      localStorage.removeItem(AUTH_KEY);
+      localStorage.removeItem(AUTH_NAME_KEY);
+      localStorage.removeItem(AUTH_ACCOUNT_KEY);
+      localStorage.removeItem(PRIMARY_ACCOUNT_KEY);
+      localStorage.removeItem(PROFILE_KEY);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // Initial: device theme until account session applies personal theme
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("oga-mecho-theme") as AppTheme | null;
+      const saved = localStorage.getItem(DEVICE_THEME_KEY) as AppTheme | null;
       if (saved === "light" || saved === "dark") {
         setThemeState(saved);
       } else {
@@ -348,7 +447,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setThemeReady(true);
   }, []);
 
-  // Hydrate registration + mode + pro services + auth (local + Supabase session)
+  // Hydrate role prefs from localStorage, then REQUIRE Supabase session for auth
   useEffect(() => {
     let cancelled = false;
     try {
@@ -368,13 +467,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           /* ignore */
         }
       }
-      // Ensure primary pro registration is always in services
       if (isProService(role) && !services.includes(role)) {
         services = [role, ...services];
       }
       setProServicesState(services);
 
-      // Prefer last session mode; else open as registered role
       const rawMode = localStorage.getItem(MODE_KEY);
       if (rawMode === "client" || rawMode === "professional") {
         setUserModeState(rawMode);
@@ -382,75 +479,73 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setUserModeState(role === "client" ? "client" : "professional");
       }
 
-      const authed = localStorage.getItem(AUTH_KEY) === "1";
-      setIsAuthenticated(authed);
-      const name = localStorage.getItem(AUTH_NAME_KEY);
-      if (name) setDisplayName(name);
-      const rawAccount = localStorage.getItem(AUTH_ACCOUNT_KEY);
-      if (rawAccount === "motorist" || rawAccount === "professional") {
-        setAccountType(rawAccount);
-      } else if (authed) {
-        setAccountType(role === "client" ? "motorist" : "professional");
-      }
+      // Vault flags only (do NOT grant homepage access from local auth flag)
       const vault = readProfilesVault();
       setHasMotoristAccount(Boolean(vault.motorist));
       setHasProAccount(Boolean(vault.professional));
-
-      const rawProfile = localStorage.getItem(PROFILE_KEY);
-      if (rawProfile) {
-        try {
-          setUserProfile(JSON.parse(rawProfile) as UserProfile);
-        } catch {
-          /* ignore */
-        }
-      } else if (authed) {
-        const type =
-          rawAccount === "professional" || rawAccount === "motorist"
-            ? rawAccount
-            : vault.professional
-              ? "professional"
-              : "motorist";
-        const fromVault = getVaultProfile(type);
-        if (fromVault) setUserProfile(fromVault);
-      }
     } catch {
       setRegisteredAsState("client");
       setUserModeState("client");
       setProServicesState([]);
-      setIsAuthenticated(false);
     }
 
-    // Unblock UI immediately (local vault), then upgrade from Supabase if session exists
     setRoleReady(true);
-    setAuthReady(true);
 
-    if (isAppBackendOnline()) {
-      void (async () => {
-        try {
-          const uid = await backendGetSessionUserId();
-          if (cancelled || !uid) return;
-          const profile = await backendLoadUserProfile(uid);
-          if (cancelled || !profile) return;
-          setBackendUserId(uid);
-          applySession(profile);
-          setHasMotoristAccount(
-            profile.accountType === "motorist" ||
-              Boolean(readProfilesVault().motorist)
-          );
-          setHasProAccount(
-            profile.accountType === "professional" ||
-              Boolean(readProfilesVault().professional)
-          );
-        } catch {
-          /* keep local hydrate */
+    // Hard gate: never trust local AUTH_KEY alone — ghosts like "Stephen King"
+    // must not open the homepage without a real server session.
+    void (async () => {
+      try {
+        if (!isAppBackendOnline()) {
+          clearLocalAuth();
+          return;
         }
-      })();
-    }
+        const uid = await backendGetSessionUserId();
+        if (cancelled) return;
+        if (!uid) {
+          clearLocalAuth();
+          return;
+        }
+        const profile = await backendLoadUserProfile(uid);
+        if (cancelled) return;
+        if (!profile) {
+          clearLocalAuth();
+          await backendSignOut();
+          return;
+        }
+        setBackendUserId(uid);
+        // Personal theme for this account before painting the shell
+        applyAccountTheme(uid);
+        // Attach original signup role before session paint
+        const flags = await backendDualRoleFlags(uid);
+        if (cancelled) return;
+        applySession({
+          ...profile,
+          primaryAccountType:
+            profile.primaryAccountType || flags.primaryAccountType,
+        });
+        setHasMotoristAccount(
+          flags.hasMotorist ||
+            profile.accountType === "motorist" ||
+            Boolean(readProfilesVault().motorist)
+        );
+        setHasProAccount(
+          flags.hasPro ||
+            profile.accountType === "professional" ||
+            Boolean(readProfilesVault().professional)
+        );
+      } catch {
+        if (!cancelled) clearLocalAuth();
+      } finally {
+        if (!cancelled) {
+          setServerSessionReady(true);
+          setAuthReady(true);
+        }
+      }
+    })();
 
     return () => {
       cancelled = true;
     };
-    // applySession defined below — hydrate only on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -461,14 +556,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     root.style.colorScheme = theme;
   }, [theme]);
 
-  // Follow OS theme when user has not set an override
+  // Follow OS theme only when no device/account override is stored
   useEffect(() => {
     if (!themeReady) return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => {
       try {
-        const saved = localStorage.getItem("oga-mecho-theme");
-        if (saved === "light" || saved === "dark") return; // manual override
+        const uid = backendUserId;
+        const key = themeKeyForUser(uid);
+        const saved = localStorage.getItem(key);
+        if (saved === "light" || saved === "dark") return;
+        if (localStorage.getItem(DEVICE_THEME_KEY)) return;
       } catch {
         /* ignore */
       }
@@ -476,28 +574,59 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
-  }, [themeReady]);
+  }, [themeReady, backendUserId]);
 
-  const setTheme = useCallback((t: AppTheme) => {
-    setThemeState(t);
+  /** Persist theme per logged-in account (+ device fallback). */
+  const persistTheme = useCallback(
+    (t: AppTheme, userId?: string | null) => {
+      const uid = userId !== undefined ? userId : backendUserId;
+      try {
+        localStorage.setItem(DEVICE_THEME_KEY, t);
+        if (uid) localStorage.setItem(themeKeyForUser(uid), t);
+      } catch {
+        /* ignore */
+      }
+    },
+    [backendUserId]
+  );
+
+  const applyAccountTheme = useCallback((userId: string | null | undefined) => {
     try {
-      localStorage.setItem("oga-mecho-theme", t);
+      if (userId) {
+        const personal = localStorage.getItem(
+          themeKeyForUser(userId)
+        ) as AppTheme | null;
+        if (personal === "light" || personal === "dark") {
+          setThemeState(personal);
+          return;
+        }
+      }
+      const device = localStorage.getItem(DEVICE_THEME_KEY) as AppTheme | null;
+      if (device === "light" || device === "dark") {
+        setThemeState(device);
+        return;
+      }
+      setThemeState(systemTheme());
     } catch {
-      /* ignore */
+      setThemeState(systemTheme());
     }
   }, []);
+
+  const setTheme = useCallback(
+    (t: AppTheme) => {
+      setThemeState(t);
+      persistTheme(t);
+    },
+    [persistTheme]
+  );
 
   const toggleTheme = useCallback(() => {
     setThemeState((t) => {
       const next = t === "light" ? "dark" : "light";
-      try {
-        localStorage.setItem("oga-mecho-theme", next);
-      } catch {
-        /* ignore */
-      }
+      persistTheme(next);
       return next;
     });
-  }, []);
+  }, [persistTheme]);
 
   const setRegisteredAs = useCallback((role: RegisteredAs) => {
     setRegisteredAsState(role);
@@ -535,16 +664,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /** Activate a stored profile as the current session (after signup / switch / login). */
   const applySession = useCallback((profile: UserProfile) => {
     const name = profile.fullName.trim() || "User";
-    setUserProfile(profile);
+    // Main account = original signup. Prefer server primary, then stored, then
+    // existing session primary — never replace a known primary with the active role.
+    const storedPrimary = readStoredPrimaryAccount();
+    const primary: AccountType =
+      profile.primaryAccountType ||
+      storedPrimary ||
+      primaryAccountType ||
+      profile.accountType;
+    const withPrimary: UserProfile = {
+      ...profile,
+      primaryAccountType: primary,
+    };
+    setUserProfile(withPrimary);
     setDisplayName(name);
     setAccountType(profile.accountType);
+    setPrimaryAccountType(primary);
     setIsAuthenticated(true);
+    writeStoredPrimaryAccount(primary);
+
+    // Load this account's personal theme (full app theme per user)
+    const uid = profile.identityId || null;
+    if (uid) applyAccountTheme(uid);
 
     try {
       localStorage.setItem(AUTH_KEY, "1");
       localStorage.setItem(AUTH_NAME_KEY, name);
       localStorage.setItem(AUTH_ACCOUNT_KEY, profile.accountType);
-      localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(withPrimary));
     } catch {
       /* ignore */
     }
@@ -592,102 +739,212 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const vault = readProfilesVault();
     setHasMotoristAccount(Boolean(vault.motorist));
     setHasProAccount(Boolean(vault.professional));
-  }, []);
+  }, [applyAccountTheme, primaryAccountType]);
 
   const switchAccount = useCallback(
-    (type: AccountType): null | "needs_signup" | "needs_login" | string => {
-      const stored = getVaultProfile(type);
-      if (!stored) {
-        return "needs_signup";
-      }
-      // Must have logged into the app at least once this session or stay signed in
-      if (!isAuthenticated && localStorage.getItem(AUTH_KEY) !== "1") {
+    async (
+      type: AccountType
+    ): Promise<null | "needs_signup" | "needs_login" | string> => {
+      if (!backendUserId || !isAuthenticated) {
         return "needs_login";
       }
-      applySession(stored);
+      if (!isAppBackendOnline()) {
+        return "Server is unavailable. Cannot switch right now.";
+      }
+
+      // Same type already active — caller navigates; no server call
+      if (
+        (type === "motorist" && accountType === "motorist") ||
+        (type === "professional" && accountType === "professional")
+      ) {
+        return null;
+      }
+
+      // Must have completed signup for the target role (side table on server)
+      if (type === "motorist" && !hasMotoristAccount) {
+        return "needs_signup";
+      }
+      if (type === "professional" && !hasProAccount) {
+        return "needs_signup";
+      }
+
+      const res = await backendSwitchRole(type);
+      if (res.error || !res.profile || !res.userId) {
+        if (res.error === "needs_signup") {
+          return "needs_signup";
+        }
+        // Fallback only if vault already has a full signup for that role
+        const stored = getVaultProfile(type);
+        if (stored && stored.accountType === type) {
+          applySession(stored);
+          return null;
+        }
+        return res.error || res.message || "Could not switch account.";
+      }
+
+      setBackendUserId(res.userId);
+      // Preserve original signup as primary when switching (never use active role)
+      const primary: AccountType =
+        res.primaryAccountType ||
+        res.profile.primaryAccountType ||
+        readStoredPrimaryAccount() ||
+        primaryAccountType ||
+        accountType ||
+        "motorist";
+      const switched: UserProfile = {
+        ...res.profile,
+        primaryAccountType: primary,
+      };
+      saveProfileToVault(switched);
+      applySession(switched);
+      if (res.hasMotorist != null) setHasMotoristAccount(res.hasMotorist);
+      if (res.hasPro != null) setHasProAccount(res.hasPro);
+      // Always Away after a role switch — pro must tap Live again
+      setProLiveState(false);
+      if (backendUserId && isAppBackendOnline()) {
+        void backendSetProOnline(backendUserId, false);
+      }
       return null;
     },
-    [applySession, isAuthenticated]
+    [
+      applySession,
+      isAuthenticated,
+      backendUserId,
+      accountType,
+      primaryAccountType,
+      hasMotoristAccount,
+      hasProAccount,
+    ]
   );
 
   const setUserMode = useCallback(
     (mode: UserMode) => {
       const target: AccountType =
         mode === "professional" ? "professional" : "motorist";
-      const result = switchAccount(target);
-      if (result === null) return;
-      // If switch failed, still update mode only when same type is active
-      if (
-        (mode === "professional" && accountType === "professional") ||
-        (mode === "client" && accountType === "motorist")
-      ) {
-        setUserModeState(mode);
-        try {
-          localStorage.setItem(MODE_KEY, mode);
-        } catch {
-          /* ignore */
+      void (async () => {
+        const result = await switchAccount(target);
+        if (result === null) return;
+        if (
+          (mode === "professional" && accountType === "professional") ||
+          (mode === "client" && accountType === "motorist")
+        ) {
+          setUserModeState(mode);
+          try {
+            localStorage.setItem(MODE_KEY, mode);
+          } catch {
+            /* ignore */
+          }
         }
-      }
+      })();
     },
     [switchAccount, accountType]
   );
 
   const signInWithPassword = useCallback(
-    (
+    async (
       email: string,
       password: string,
       preferType?: AccountType
-    ): string | null => {
-      // Supabase auth (async) — return null optimistically if backend online;
-      // UI should await via signInWithPasswordAsync when possible.
-      if (isAppBackendOnline()) {
-        void (async () => {
-          const res = await backendSignIn(email, password);
-          if (res.error || !res.profile) {
-            // fallback local
-            const hits = findProfilesForLogin(email, password);
-            if (hits.length === 0) return;
-            let pick = hits[0];
-            if (preferType) {
-              pick = hits.find((h) => h.accountType === preferType) ?? pick;
-            }
-            applySession(pick);
-            return;
-          }
-          setBackendUserId(res.userId || null);
-          saveProfileToVault(res.profile);
-          applySession(res.profile);
-        })();
-        // Try local first for immediate feedback
-        const hits = findProfilesForLogin(email, password);
-        if (hits.length > 0) {
-          let pick = hits[0];
-          if (preferType) {
-            pick = hits.find((h) => h.accountType === preferType) ?? pick;
-          } else if (accountType) {
-            pick = hits.find((h) => h.accountType === accountType) ?? pick;
-          }
-          applySession(pick);
-          return null;
+    ): Promise<string | null> => {
+      if (!isAppBackendOnline()) {
+        return "Server is unavailable. Log in requires a live OgaMecho account.";
+      }
+      const res = await backendSignIn(email.trim().toLowerCase(), password);
+      if (res.error || !res.profile || !res.userId) {
+        return res.error || "Email or password is incorrect.";
+      }
+      // Prefer tab is a hint only — always open the real account type on the server
+      if (preferType && res.profile.accountType !== preferType) {
+        console.info(
+          `[auth] preferType=${preferType} but account is ${res.profile.accountType}`
+        );
+      }
+      setBackendUserId(res.userId);
+      const withPrimary: UserProfile = {
+        ...res.profile,
+        primaryAccountType:
+          res.profile.primaryAccountType || res.profile.accountType,
+      };
+      saveProfileToVault(withPrimary);
+      applySession(withPrimary);
+      setServerSessionReady(true);
+      void backendDualRoleFlags(res.userId).then((flags) => {
+        setHasMotoristAccount(
+          flags.hasMotorist || res.profile!.accountType === "motorist"
+        );
+        setHasProAccount(
+          flags.hasPro || res.profile!.accountType === "professional"
+        );
+        // Server timestamps win for primary (original signup)
+        if (flags.primaryAccountType) {
+          setPrimaryAccountType(flags.primaryAccountType);
+          writeStoredPrimaryAccount(flags.primaryAccountType);
+          setUserProfile((prev) =>
+            prev
+              ? { ...prev, primaryAccountType: flags.primaryAccountType }
+              : prev
+          );
         }
-        // Wait for cloud only — show temporary session name
-        return null;
-      }
-
-      const hits = findProfilesForLogin(email, password);
-      if (hits.length === 0) {
-        return "Email or password is incorrect.";
-      }
-      let pick = hits[0];
-      if (preferType) {
-        pick = hits.find((h) => h.accountType === preferType) ?? pick;
-      } else if (accountType) {
-        pick = hits.find((h) => h.accountType === accountType) ?? pick;
-      }
-      applySession(pick);
+      });
       return null;
     },
-    [applySession, accountType]
+    [applySession]
+  );
+
+  const sendPhoneOtp = useCallback(async (phone: string): Promise<string | null> => {
+    if (!isAppBackendOnline()) {
+      return "Server is unavailable.";
+    }
+    const res = await backendSendPhoneOtp(phone);
+    return res.error;
+  }, []);
+
+  const signInWithPhoneOtp = useCallback(
+    async (
+      phone: string,
+      code: string,
+      preferType?: AccountType
+    ): Promise<string | null> => {
+      if (!isAppBackendOnline()) {
+        return "Server is unavailable.";
+      }
+      const res = await backendSignInWithPhoneOtp({
+        phone,
+        code,
+        preferType,
+      });
+      if (res.error || !res.profile || !res.userId) {
+        return res.error || "Invalid code.";
+      }
+      setBackendUserId(res.userId);
+      const withPrimary: UserProfile = {
+        ...res.profile,
+        primaryAccountType:
+          res.profile.primaryAccountType || res.profile.accountType,
+      };
+      saveProfileToVault(withPrimary);
+      applySession(withPrimary);
+      setServerSessionReady(true);
+      void backendDualRoleFlags(res.userId).then((flags) => {
+        setHasMotoristAccount(
+          flags.hasMotorist || res.profile!.accountType === "motorist"
+        );
+        setHasProAccount(
+          flags.hasPro || res.profile!.accountType === "professional"
+        );
+        if (flags.primaryAccountType) {
+          setPrimaryAccountType(flags.primaryAccountType);
+          writeStoredPrimaryAccount(flags.primaryAccountType);
+          setUserProfile((prev) =>
+            prev
+              ? { ...prev, primaryAccountType: flags.primaryAccountType }
+              : prev
+          );
+        }
+      });
+      return null;
+    },
+    [applySession]
   );
 
   const persistProfile = useCallback((profile: UserProfile) => {
@@ -704,12 +961,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const completeIdentityVerification = useCallback(
-    (input: { nin: string; bvn: string }): string | null => {
+    async (input: { nin: string; bvn: string }): Promise<string | null> => {
       if (!userProfile) return "Sign in to verify your identity.";
       const nin = input.nin.replace(/\D/g, "");
       const bvn = input.bvn.replace(/\D/g, "");
       if (nin.length !== 11) return "NIN must be exactly 11 digits.";
       if (bvn.length !== 11) return "BVN must be exactly 11 digits.";
+
+      if (isAppBackendOnline() && backendUserId) {
+        const err = await backendSaveIdentityVerification({
+          userId: backendUserId,
+          accountType: userProfile.accountType,
+          nin,
+          bvn,
+        });
+        if (err) return err;
+      } else if (isAppBackendOnline() && !backendUserId) {
+        return "Session not linked to server. Sign in again, then verify.";
+      }
 
       const saved: UserProfile = {
         ...userProfile,
@@ -721,7 +990,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       };
       persistProfile(saved);
 
-      // Keep registry in sync with verified numbers
       if (saved.identityId) {
         registerIdentity({
           id: saved.identityId,
@@ -736,11 +1004,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       return null;
     },
-    [userProfile, persistProfile]
+    [userProfile, persistProfile, backendUserId]
   );
 
   const completeSignup = useCallback(
-    (profile: UserProfile): string | null => {
+    async (profile: UserProfile): Promise<string | null> => {
       // Pros: enforce single skill on profile
       const normalized: UserProfile =
         profile.accountType === "professional"
@@ -750,148 +1018,153 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
           : profile;
 
-      // ── Supabase path ──────────────────────────────────────────────
-      if (isAppBackendOnline() && normalized.email && normalized.password) {
-        // Fire async; callers that need sync error still get local fallback path
-        void (async () => {
-          const res = await backendSignUp({
-            email: normalized.email,
-            password: normalized.password,
-            fullName: normalized.fullName,
-            phone: normalized.phone,
-            accountType: normalized.accountType,
-            city: normalized.city,
-            area: normalized.area,
-            businessName: normalized.businessName,
-            primaryService: normalized.services?.[0],
-            bio: normalized.bio,
-            yearsExperience: normalized.yearsExperience,
-            serviceRadiusKm: normalized.serviceRadiusKm,
-            lat: location.coordinates.lat,
-            lng: location.coordinates.lng,
-            vehicleMake: normalized.vehicleMake,
-            vehicleModel: normalized.vehicleModel,
-            vehicleYear: normalized.vehicleYear,
-          });
-          if (res.error || !res.profile) {
-            // fall through to local vault so signup still works offline
-            const existing = getVaultProfile(normalized.accountType);
-            const identityId =
-              normalized.identityId ||
-              existing?.identityId ||
-              `acct-${normalized.accountType}-${Date.now().toString(36)}`;
-            const saved: UserProfile = {
-              ...normalized,
-              identityId,
-              serviceActionCount: 0,
-            };
-            saveProfileToVault(saved);
-            applySession(saved);
-            return;
-          }
-          setBackendUserId(res.userId || null);
-          saveProfileToVault(res.profile);
-          applySession(res.profile);
-          if (res.profile.accountType === "motorist") {
-            setHasMotoristAccount(true);
-          } else {
-            setHasProAccount(true);
-          }
-        })();
-        // Optimistic local session so UI continues immediately
-        const existing = getVaultProfile(normalized.accountType);
-        const identityId =
-          normalized.identityId ||
-          existing?.identityId ||
-          `acct-${normalized.accountType}-${Date.now().toString(36)}`;
-        const saved: UserProfile = {
-          ...normalized,
-          identityId,
-          serviceActionCount: 0,
-        };
-        saveProfileToVault(saved);
-        applySession(saved);
-        return null;
+      if (!normalized.email?.trim() || !normalized.password) {
+        return "Email and password are required to create your account.";
       }
 
-      // ── Local vault path ───────────────────────────────────────────
-      const existing = getVaultProfile(normalized.accountType);
-      if (existing && !normalized.identityId) {
-        return normalized.accountType === "professional"
-          ? "You already have a Repair Pro account on this device. Log in or switch from the menu."
-          : "You already have a Motorist account on this device. Log in or switch from the menu.";
+      // Hard requirement: live Supabase write — no silent local-only signup
+      if (!isAppBackendOnline()) {
+        return "Server is unavailable. Check your connection and try again — accounts must save to OgaMecho.";
       }
 
-      const identityId =
-        normalized.identityId ||
-        existing?.identityId ||
-        `acct-${normalized.accountType}-${Date.now().toString(36)}`;
-
-      const reg = registerIdentity({
-        id: identityId,
-        accountType: normalized.accountType,
-        phone: normalized.phone,
+      const res = await backendSignUp({
         email: normalized.email,
+        password: normalized.password,
+        fullName: normalized.fullName,
+        phone: normalized.phone,
+        accountType: normalized.accountType,
+        city: normalized.city,
+        area: normalized.area,
+        businessName: normalized.businessName,
+        primaryService: normalized.services?.[0],
+        bio: normalized.bio,
+        yearsExperience: normalized.yearsExperience,
+        serviceRadiusKm: normalized.serviceRadiusKm,
+        lat: location.coordinates.lat,
+        lng: location.coordinates.lng,
+        vehicleMake: normalized.vehicleMake,
+        vehicleModel: normalized.vehicleModel,
+        vehicleYear: normalized.vehicleYear,
         nin: normalized.idNumber,
         bvn: normalized.bvn,
-        fullName: normalized.fullName,
-        createdAt: normalized.registeredAt || new Date().toISOString(),
       });
-      if (!reg.ok) return reg.message;
 
-      const saved: UserProfile = {
-        ...normalized,
-        identityId,
-        serviceActionCount:
-          normalized.serviceActionCount ?? existing?.serviceActionCount ?? 0,
-        ninVerified: normalized.ninVerified ?? existing?.ninVerified ?? false,
-        bvnVerified: normalized.bvnVerified ?? existing?.bvnVerified ?? false,
+      if (res.error || !res.profile || !res.userId) {
+        return (
+          res.error ||
+          "Could not save your account to the server. Please try again."
+        );
+      }
+
+      // Only open the app after a real server user id exists
+      // Signup role is always the main / primary account
+      setBackendUserId(res.userId);
+      const signedUp: UserProfile = {
+        ...res.profile,
+        primaryAccountType: res.profile.accountType,
       };
-      saveProfileToVault(saved);
-      applySession(saved);
+      writeStoredPrimaryAccount(res.profile.accountType);
+      saveProfileToVault(signedUp);
+      applySession(signedUp);
+      setServerSessionReady(true);
+      if (res.profile.accountType === "motorist") {
+        setHasMotoristAccount(true);
+      } else {
+        setHasProAccount(true);
+      }
       return null;
     },
     [applySession, location.coordinates.lat, location.coordinates.lng]
   );
 
   const login = useCallback(
-    (opts: {
+    (_opts: {
       accountType: AccountType;
       name?: string;
       proService?: ProService;
       proServices?: ProService[];
     }) => {
-      const name =
-        opts.name?.trim() ||
-        (opts.accountType === "motorist" ? "Motorist" : "Repair Professional");
-      const services =
-        opts.proServices?.filter(isProService).slice(0, 2) ??
-        (opts.proService && isProService(opts.proService)
-          ? [opts.proService]
-          : undefined);
+      // Demo shortcut disabled — must use real server signup / login
+      console.warn(
+        "Quick demo login is disabled. Use Sign up or Log in against the server."
+      );
+    },
+    []
+  );
 
-      // Dev/quick login skips registry (empty phone/email) — demo only
-      completeSignup({
-        accountType: opts.accountType,
-        fullName: name,
-        phone: `+23480${String(Date.now()).slice(-8)}`,
-        email: `${name.replace(/\s+/g, "").toLowerCase()}.${Date.now()}@demo.local`,
-        password: "demo-pass",
-        city: "Lagos",
-        area: "Ikeja",
-        services: services?.slice(0, 1),
-        serviceRadiusKm: 10,
-        registeredAt: new Date().toISOString(),
+  const setProLive = useCallback(
+    async (live: boolean) => {
+      // Pro stays Live until they turn it off (or leave pro mode / log out)
+      if (live && accountType !== "professional") {
+        return;
+      }
+      setProLiveState(live);
+      try {
+        localStorage.setItem("oga-mecho-pro-live", live ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      if (!backendUserId || !isAppBackendOnline()) return;
+      if (accountType !== "professional") {
+        await backendSetProOnline(backendUserId, false);
+        return;
+      }
+      await backendSetProOnline(backendUserId, live, {
+        lat: location.coordinates.lat,
+        lng: location.coordinates.lng,
       });
     },
-    [completeSignup]
+    [
+      backendUserId,
+      accountType,
+      location.coordinates.lat,
+      location.coordinates.lng,
+    ]
+  );
+
+  const setHelpingSomeoneElse = useCallback(
+    (
+      next:
+        | null
+        | {
+            label: string;
+            coordinates: { lat: number; lng: number };
+          }
+    ) => {
+      if (next == null) {
+        setHelpingSomeoneElseState(false);
+        setHelpingSomeoneLabel(null);
+        if (ownLocationBackup.current) {
+          setLocation(ownLocationBackup.current);
+          ownLocationBackup.current = null;
+        }
+        return;
+      }
+      if (!ownLocationBackup.current) {
+        ownLocationBackup.current = location;
+      }
+      setHelpingSomeoneElseState(true);
+      setHelpingSomeoneLabel(next.label);
+      setLocation({
+        label: next.label,
+        city: next.label,
+        coordinates: next.coordinates,
+      });
+    },
+    [location]
   );
 
   const logout = useCallback(() => {
+    // Go Away so motorists stop seeing this pro
+    if (backendUserId && isAppBackendOnline()) {
+      void backendSetProOnline(backendUserId, false);
+    }
     void backendSignOut();
     setBackendUserId(null);
     setIsAuthenticated(false);
     setAccountType(null);
+    setPrimaryAccountType(null);
+    setProLiveState(false);
     setDisplayName("Guest");
     setUserProfile(null);
     // Keep dual vault so both accounts remain for future login / switch after re-auth
@@ -899,6 +1172,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem(AUTH_KEY);
       localStorage.removeItem(AUTH_NAME_KEY);
       localStorage.removeItem(AUTH_ACCOUNT_KEY);
+      localStorage.removeItem(PRIMARY_ACCOUNT_KEY);
       localStorage.removeItem(PROFILE_KEY);
       const vault = readProfilesVault();
       setHasMotoristAccount(Boolean(vault.motorist));
@@ -906,7 +1180,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [backendUserId]);
 
   /** One professional skill only — ignore adds beyond the first. */
   const addProService = useCallback((service: ProService) => {
@@ -993,15 +1267,62 @@ export function AppProvider({ children }: { children: ReactNode }) {
         servedLocation: t.servedLocation ?? f.servedLocation,
       };
     });
-    // Prefer live Supabase pros when available
+    // Marketplace: only server Live pros (is_online + repair_pro role).
+    // Do not fall back to demo seed for motorists — empty means no one is Live.
     const base =
-      cloudTechs && cloudTechs.length > 0
+      cloudTechs !== null
         ? cloudTechs
-        : seed;
+        : accountType === "professional"
+          ? seed
+          : [];
+
+    // Always recompute distance/ETA from the active pin (my GPS or
+    // “help someone else” meet location) so radius is correct for both.
+    const origin = location.coordinates;
+    const withDistance = base.map((t) => {
+      const lat = t.location?.lat;
+      const lng = t.location?.lng;
+      if (
+        typeof lat !== "number" ||
+        typeof lng !== "number" ||
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng)
+      ) {
+        // No coords → treat as out of range so they never appear in 10 km list
+        return { ...t, distanceKm: Number.POSITIVE_INFINITY };
+      }
+      const d = haversineKm(origin, { lat, lng });
+      return {
+        ...t,
+        distanceKm: Math.round(d * 10) / 10,
+        etaMinutes: Math.max(5, Math.round(d * 4 + 6)),
+      };
+    });
+
+    // Motorist home: never inject the signed-in Repair Pro into discovery
+    // (they look for other pros). Pro self-card stays for pro dashboard only.
+    if (accountType === "motorist" || accountType == null) {
+      return withDistance.filter(
+        (t) => t.id !== SELF_PRO_TECH_ID && t.id !== backendUserId
+      );
+    }
+
     const self = userProfile ? profileToTechnician(userProfile) : null;
-    if (!self) return base;
-    return [self, ...base.filter((t) => t.id !== SELF_PRO_TECH_ID && t.id !== self.id)];
-  }, [userProfile, cloudTechs]);
+    if (!self) return withDistance;
+    return [
+      self,
+      ...withDistance.filter(
+        (t) => t.id !== SELF_PRO_TECH_ID && t.id !== self.id
+      ),
+    ];
+  }, [
+    userProfile,
+    cloudTechs,
+    location.coordinates.lat,
+    location.coordinates.lng,
+    accountType,
+    backendUserId,
+  ]);
 
   const visibleTechnicians = useMemo(
     () =>
@@ -1130,17 +1451,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const createRequest = useCallback(
     (tech: Technician, problem = "Roadside assistance") => {
+      const forSomeone = helpingSomeoneElse;
+      const meetLabel = location.label;
+      const desc = forSomeone
+        ? `[Booking for someone else · meet: ${meetLabel}] ${problem}`
+        : problem;
       const localReq: ServiceRequest = {
         id: `r-${Date.now()}`,
         technicianId: tech.id,
         technicianName: tech.name,
         serviceType: tech.serviceType,
-        problem,
+        problem: desc,
         status: "pending",
         createdAt: new Date().toISOString(),
         etaMinutes: tech.etaMinutes,
         distanceKm: tech.distanceKm,
-        locationLabel: location.label,
+        locationLabel: meetLabel,
+        bookingForSomeoneElse: forSomeone || undefined,
+        meetCoordinates: forSomeone
+          ? { ...location.coordinates }
+          : undefined,
       };
 
       if (isAppBackendOnline() && backendUserId && accountType === "motorist") {
@@ -1148,18 +1478,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
           motoristId: backendUserId,
           repairProId: tech.id,
           serviceType: tech.serviceType,
-          description: problem,
+          description: desc,
           lat: location.coordinates.lat,
           lng: location.coordinates.lng,
-          address: location.label,
+          address: meetLabel,
           radiusKm,
         }).then((res) => {
           if (res.request) {
+            const cloud: ServiceRequest = {
+              ...res.request,
+              bookingForSomeoneElse: forSomeone || undefined,
+              meetCoordinates: forSomeone
+                ? { ...location.coordinates }
+                : undefined,
+              locationLabel: meetLabel,
+            };
             setRequests((prev) => [
-              res.request!,
+              cloud,
               ...prev.filter((r) => r.id !== localReq.id),
             ]);
-            ensureChatForRequest(res.request);
+            ensureChatForRequest(cloud);
           }
         });
       }
@@ -1169,6 +1507,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return localReq;
     },
     [
+      helpingSomeoneElse,
       location.label,
       location.coordinates.lat,
       location.coordinates.lng,
@@ -1331,11 +1670,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const userLng = location.coordinates.lng;
 
   const refreshCloudPros = useCallback(() => {
-    if (!isAppBackendOnline()) return;
+    // Always try — /api/pros returns only Live Repair Pros (online + pro role)
     void backendFetchPros({ lat: userLat, lng: userLng }).then((list) => {
-      if (list.length > 0) setCloudTechs(list);
+      // [] is valid: no one is Live right now (do not re-show demo seeds)
+      setCloudTechs(list);
     });
   }, [userLat, userLng]);
+
+  /** Public: motorist empty-state Refresh — pros list only */
+  const refreshNearbyPros = useCallback(() => {
+    refreshCloudPros();
+  }, [refreshCloudPros]);
 
   const refreshCloudJobs = useCallback(() => {
     if (!isAppBackendOnline() || !backendUserId || !accountType) return;
@@ -1353,9 +1698,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, [backendUserId, accountType]);
 
-  // Initial + rare location-driven pros refresh (coords change slowly)
+  // Initial + location-driven pros refresh; poll while browsing so map pins stay live
   useEffect(() => {
     refreshCloudPros();
+    const poll = window.setInterval(() => refreshCloudPros(), 20_000);
+    return () => window.clearInterval(poll);
   }, [refreshCloudPros]);
 
   useEffect(() => {
@@ -1390,30 +1737,95 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [backendUserId, refreshCloudPros, refreshCloudJobs, refreshCloudChats]);
 
-  // Push pro presence at most every 60s (not on every coordinate tick)
+  // Restore Live preference when session is pro (stays Live until pro turns it off)
+  useEffect(() => {
+    if (accountType !== "professional") return;
+    try {
+      const saved = localStorage.getItem("oga-mecho-pro-live");
+      if (saved === "1") setProLiveState(true);
+    } catch {
+      /* ignore */
+    }
+  }, [accountType]);
+
+  // While Live: push real GPS often so motorist maps show deep live pins
   useEffect(() => {
     if (
       !isAppBackendOnline() ||
       !backendUserId ||
-      accountType !== "professional"
+      accountType !== "professional" ||
+      !proLive
     ) {
       return;
     }
-    void backendSetProOnline(backendUserId, true, {
-      lat: userLat,
-      lng: userLng,
-    });
-    const id = window.setInterval(() => {
-      void backendSetProOnline(backendUserId, true, {
-        lat: userLat,
-        lng: userLng,
-      });
-    }, 60_000);
+    const push = () => {
+      if (typeof navigator === "undefined" || !navigator.geolocation) {
+        void backendSetProOnline(backendUserId, true, {
+          lat: userLat,
+          lng: userLng,
+        });
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          void backendSetProOnline(backendUserId, true, {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          });
+        },
+        () => {
+          void backendSetProOnline(backendUserId, true, {
+            lat: userLat,
+            lng: userLng,
+          });
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 }
+      );
+    };
+    push();
+    const id = window.setInterval(push, 15_000);
     return () => window.clearInterval(id);
-  }, [backendUserId, accountType, userLat, userLng]);
+  }, [backendUserId, accountType, userLat, userLng, proLive]);
+
+  // Leaving pro mode → Away (so motorists don't see them while on Motorist)
+  useEffect(() => {
+    if (accountType === "professional") return;
+    if (!backendUserId || !isAppBackendOnline()) return;
+    if (proLive) {
+      setProLiveState(false);
+      try {
+        localStorage.setItem("oga-mecho-pro-live", "0");
+      } catch {
+        /* ignore */
+      }
+      void backendSetProOnline(backendUserId, false);
+    }
+  }, [accountType, backendUserId, proLive]);
 
   /** GPS label/coords refresh at most every 10 minutes (stable, no blink). */
   const LOCATION_REFRESH_MS = 10 * 60 * 1000;
+
+  /** Map browser GPS errors to clear, actionable copy (not raw "User denied Geolocation"). */
+  const friendlyGeolocationError = useCallback(
+    (err?: GeolocationPositionError | null) => {
+      const code = err?.code;
+      // 1 = PERMISSION_DENIED, 2 = POSITION_UNAVAILABLE, 3 = TIMEOUT
+      if (code === 1) {
+        return "Location is blocked. Allow it in the browser address bar (or site settings), then tap Retry.";
+      }
+      if (code === 3) {
+        return "Location timed out. Check GPS signal, then tap Retry.";
+      }
+      if (code === 2) {
+        return "Location unavailable right now. Check that Location Services are on, then tap Retry.";
+      }
+      if (typeof navigator !== "undefined" && !navigator.geolocation) {
+        return "Location is not available on this device. You can still set a place manually.";
+      }
+      return "We couldn’t get your location. Allow location access, then tap Retry.";
+    },
+    []
+  );
 
   const applyGpsFix = useCallback(
     (pos: GeolocationPosition, silent = false) => {
@@ -1450,7 +1862,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setIsLocating(true);
     setLocationError(null);
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setLocationError("Location unavailable on this device");
+      setLocationError(
+        "Location is not available on this device. You can still set a place manually."
+      );
       setIsLocating(false);
       return;
     }
@@ -1458,7 +1872,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       (pos) => applyGpsFix(pos, false),
       (err) => {
         setLocation(DEFAULT_USER_LOCATION);
-        setLocationError(err.message || "Using Ikeja default");
+        setLocationError(friendlyGeolocationError(err));
         setIsLocating(false);
       },
       {
@@ -1467,7 +1881,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         maximumAge: LOCATION_REFRESH_MS,
       }
     );
-  }, [applyGpsFix]);
+  }, [applyGpsFix, friendlyGeolocationError]);
 
   // Boot: one GPS fix, then refresh only every 10 minutes (no continuous blink)
   useEffect(() => {
@@ -1483,8 +1897,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
           applyGpsFix(pos, silent);
           if (!silent) setIsLocating(false);
         },
-        () => {
-          if (!cancelled && !silent) setIsLocating(false);
+        (err) => {
+          if (cancelled) return;
+          if (!silent) {
+            setLocationError(friendlyGeolocationError(err));
+            setIsLocating(false);
+          }
         },
         {
           enableHighAccuracy: true,
@@ -1503,7 +1921,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [applyGpsFix]);
+  }, [applyGpsFix, friendlyGeolocationError]);
 
   const setManualLocation = useCallback(
     (label: string, coords?: { lat: number; lng: number }) => {
@@ -1530,8 +1948,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       roleReady,
       authReady,
       isAuthenticated,
+      serverSessionReady,
       displayName,
       accountType,
+      primaryAccountType,
       userProfile,
       registeredAs,
       userMode,
@@ -1540,8 +1960,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setUserMode,
       hasMotoristAccount,
       hasProAccount,
+      proLive,
+      setProLive,
+      helpingSomeoneElse,
+      helpingSomeoneLabel,
+      setHelpingSomeoneElse,
       switchAccount,
       signInWithPassword,
+      sendPhoneOtp,
+      signInWithPhoneOtp,
       addProService,
       removeProService,
       completeSignup,
@@ -1562,6 +1989,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       visibleMessageThreads,
       locationError,
       isLocating,
+      refreshNearbyPros,
       setRadiusKm,
       setCategory,
       setQuery,
@@ -1582,8 +2010,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       roleReady,
       authReady,
       isAuthenticated,
+      serverSessionReady,
       displayName,
       accountType,
+      primaryAccountType,
       userProfile,
       registeredAs,
       userMode,
@@ -1593,8 +2023,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setRadiusKm,
       hasMotoristAccount,
       hasProAccount,
+      proLive,
+      setProLive,
+      helpingSomeoneElse,
+      helpingSomeoneLabel,
+      setHelpingSomeoneElse,
       switchAccount,
       signInWithPassword,
+      sendPhoneOtp,
+      signInWithPhoneOtp,
       addProService,
       removeProService,
       completeSignup,
@@ -1617,6 +2054,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       messages,
       locationError,
       isLocating,
+      refreshNearbyPros,
       toggleFilter,
       bookRequest,
       createRequest,

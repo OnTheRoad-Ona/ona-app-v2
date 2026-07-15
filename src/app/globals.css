@@ -635,6 +635,196 @@ button.om-cta-dark-gray:disabled,
   will-change: flex-basis, flex-grow, opacity, transform;
 }
 
+/* Light soft exit when user taps Back (history) */
+.om-page-exit {
+  opacity: 0.72;
+  transform: translateX(-5px);
+  transition:
+    opacity 0.12s cubic-bezier(0.32, 0.72, 0, 1),
+    transform 0.12s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Leaflet trade markers: no white square behind icons */
+.leaflet-div-icon.om-trade-marker {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Subtle live “beam” under small trade glyphs */
+@keyframes om-live-beam {
+  0% {
+    transform: translate(-50%, -50%) scale(0.55);
+    opacity: 0.45;
+  }
+  70% {
+    transform: translate(-50%, -50%) scale(1.35);
+    opacity: 0;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.35);
+    opacity: 0;
+  }
+}
+
+.om-live-pin {
+  background: transparent !important;
+  border: none !important;
+  overflow: visible !important;
+}
+
+.om-live-beam {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  border: 1.5px solid rgba(232, 90, 18, 0.55);
+  background: radial-gradient(
+    circle,
+    rgba(232, 90, 18, 0.18) 0%,
+    rgba(232, 90, 18, 0) 70%
+  );
+  animation: om-live-beam 2.4s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+  pointer-events: none;
+}
+
+.om-live-glyph {
+  filter: drop-shadow(0 0 3px rgba(232, 90, 18, 0.35));
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .om-live-beam {
+    animation: none !important;
+    opacity: 0.25;
+  }
+}
+
+/* Apple-style soft bounce on the help-someone chevron */
+@keyframes om-bounce-arrow {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(4px);
+  }
+}
+
+.om-bounce-arrow {
+  animation: om-bounce-arrow 1.35s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .om-bounce-arrow {
+    animation: none !important;
+  }
+}
+
+/* Quiet “Where are they?” field — no heavy bar */
+.om-help-where-input {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/*
+ * Google Places dropdown — matches active toggle sheet colors
+ * (uses the same CSS variables as light/dark theme on <html data-theme>).
+ */
+.pac-container {
+  z-index: 10000 !important;
+  margin-top: 4px;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16) !important;
+  font-family: inherit;
+  background-color: var(--background) !important;
+  background: var(--background) !important;
+  color: var(--foreground) !important;
+  overflow: hidden;
+}
+
+[data-theme="dark"] .pac-container {
+  /* Match dark home sheet / trade strip */
+  background-color: #141414 !important;
+  background: linear-gradient(to bottom, #1a1a1a, #141414) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5) !important;
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .pac-container,
+:root:not([data-theme="dark"]) .pac-container {
+  /* Match light home sheet / trade strip gray */
+  background-color: #d8dce4 !important;
+  background: #d8dce4 !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  color: #1e293b !important;
+}
+
+.pac-item {
+  border-top: 1px solid var(--border) !important;
+  padding: 10px 12px !important;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.35;
+  color: inherit !important;
+  background: transparent !important;
+}
+
+[data-theme="light"] .pac-item,
+:root:not([data-theme="dark"]) .pac-item {
+  border-top-color: rgba(0, 0, 0, 0.08) !important;
+  color: #1e293b !important;
+}
+
+[data-theme="dark"] .pac-item {
+  border-top-color: rgba(255, 255, 255, 0.08) !important;
+  color: #f5f5f7 !important;
+}
+
+.pac-item:first-child {
+  border-top: none !important;
+}
+
+.pac-item:hover,
+.pac-item-selected,
+.pac-item-selected:hover {
+  background: rgba(232, 90, 18, 0.12) !important;
+}
+
+.pac-item-query {
+  font-weight: 600;
+  color: inherit !important;
+}
+
+.pac-matched {
+  font-weight: 700;
+  color: var(--brand) !important;
+}
+
+.pac-item span {
+  color: inherit;
+}
+
+[data-theme="dark"] .pac-item span {
+  color: #e8e8ea;
+}
+
+.pac-icon {
+  margin-top: 2px;
+  opacity: 0.75;
+  filter: none;
+}
+
+[data-theme="dark"] .pac-icon {
+  filter: invert(1) brightness(1.1);
+  opacity: 0.85;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .om-apple-motion,
   .om-apple-motion-sharp,
@@ -642,6 +832,11 @@ button.om-cta-dark-gray:disabled,
   .om-apple-motion-panel,
   .om-brand-fade-in {
     animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .om-page-exit {
+    transition-duration: 0.01ms !important;
     opacity: 1 !important;
     transform: none !important;
   }

@@ -1,18 +1,29 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
-import Link from "next/link";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, CheckCircle2, Zap } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  ChevronRight,
+  Clock3,
+  MapPin,
+  Navigation,
+  Star,
+} from "lucide-react";
 import {
   VerificationBlockedPanel,
   VerificationWarningBanner,
 } from "@/components/auth/verification-gate-banner";
-import { useAppConfig } from "@/components/app-config-provider";
-import { Button } from "@/components/ui/button";
-import { DEFAULT_APP_CONFIG } from "@/lib/app-config";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
+import { reviewsForPro } from "@/lib/demo-reviews";
+import { defaultBackHref, navigateBack } from "@/lib/navigation";
+import { problemsForService } from "@/lib/request-problems";
+import { PRO_SERVICE_LABELS } from "@/lib/services";
+import { publicSkillRows } from "@/lib/skill-questions";
 import { useApp } from "@/lib/store";
-import { cn } from "@/lib/utils";
+import { cn, formatDistance, formatEta } from "@/lib/utils";
 
 function RequestFlow() {
   const router = useRouter();
@@ -24,13 +35,13 @@ function RequestFlow() {
     bookRequest,
     setSelectedTechId,
     theme,
+    accountType,
+    ensureChatForRequest,
+    helpingSomeoneElse,
+    helpingSomeoneLabel,
+    location,
   } = useApp();
-  const { config } = useAppConfig();
   const isLight = theme === "light";
-  const PROBLEMS =
-    config.content.requestProblems?.length > 0
-      ? config.content.requestProblems
-      : DEFAULT_APP_CONFIG.content.requestProblems;
 
   const tech = useMemo(() => {
     if (techId) return technicians.find((t) => t.id === techId);
@@ -40,30 +51,65 @@ function RequestFlow() {
     );
   }, [techId, technicians, visibleTechnicians]);
 
-  const [problem, setProblem] = useState(PROBLEMS[0]);
+  const problems = useMemo(
+    () => problemsForService(tech?.serviceType),
+    [tech?.serviceType]
+  );
+
+  const [problem, setProblem] = useState(problems[0] ?? "Other roadside help");
   const [step, setStep] = useState<"confirm" | "done">("confirm");
   const [requestId, setRequestId] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [blocked, setBlocked] = useState<string | null>(null);
+  const [showAllReviews, setShowAllReviews] = useState(false);
+
+  useEffect(() => {
+    setProblem(problems[0] ?? "Other roadside help");
+  }, [problems]);
+
+  const allReviews = useMemo(
+    () => (tech ? reviewsForPro(tech.id, 12) : []),
+    [tech]
+  );
+  const visibleReviews = showAllReviews
+    ? allReviews
+    : allReviews.slice(0, 5);
+
+  const skillRows = tech
+    ? publicSkillRows(tech.serviceType, tech.skillAnswers)
+    : [];
+
+  const sheet = isLight ? "bg-[#c8c9cd]" : "bg-black";
+  const ink = isLight ? "text-slate-900" : "text-white";
+  const muted = isLight ? "text-slate-600" : "text-white/65";
 
   if (!tech) {
     return (
       <div
         className={cn(
           "flex h-full flex-col items-center justify-center gap-3 p-6",
-          isLight ? "bg-[#c8c9cd]" : "bg-black"
+          sheet
         )}
       >
-        <p className="font-semibold">No technician available</p>
-        <p className="text-center text-sm text-muted">
+        <p className={cn("font-semibold", ink)}>No technician available</p>
+        <p className={cn("text-center text-sm", muted)}>
           Expand search radius or try another category.
         </p>
-        <Button asChild>
-          <Link href="/">Back to Home</Link>
-        </Button>
+        <button
+          type="button"
+          onClick={() => router.push("/")}
+          className="mt-2 rounded-lg border-0 bg-[#323231] px-4 py-2.5 text-sm font-semibold text-white"
+        >
+          Back to Home
+        </button>
       </div>
     );
   }
+
+  const skillLabel =
+    PRO_SERVICE_LABELS[tech.serviceType] ?? tech.roleLabel ?? "Repair Pro";
+  const photo =
+    tech.photo && tech.photo.trim() ? tech.photo.trim() : DEFAULT_VENDOR_PHOTO;
 
   const submit = () => {
     setSelectedTechId(tech.id);
@@ -74,7 +120,9 @@ function RequestFlow() {
       return;
     }
     if (result.warning) setWarning(result.warning);
-    setRequestId(result.request?.id ?? null);
+    const rid = result.request?.id ?? null;
+    setRequestId(rid);
+    if (result.request) ensureChatForRequest(result.request);
     setStep("done");
   };
 
@@ -83,122 +131,248 @@ function RequestFlow() {
       <div
         className={cn(
           "flex h-full flex-col items-center justify-center px-6 text-center",
-          isLight ? "bg-[#c8c9cd]" : "bg-black"
+          sheet
         )}
       >
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50">
-          <CheckCircle2 className="h-12 w-12 text-emerald-500" />
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15">
+          <CheckCircle2 className="h-9 w-9 text-emerald-500" />
         </div>
-        <h1
-          className={cn(
-            "mt-4 text-2xl font-bold",
-            isLight ? "text-slate-900" : "text-white"
-          )}
-        >
-          Help is on the way
-        </h1>
-        <p className={cn("mt-2 text-sm", isLight ? "text-slate-500" : "text-slate-400")}>
-          Request sent to <strong>{tech.name}</strong>. ETA about{" "}
-          {tech.etaMinutes} minutes.
+        <h1 className={cn("mt-4 text-xl font-bold", ink)}>Request sent</h1>
+        <p className={cn("mt-2 max-w-xs text-sm leading-snug", muted)}>
+          Waiting for <strong className={ink}>{tech.name}</strong> to accept.
+          You&apos;ll get a popup, chat, and live trip tracking once they do.
         </p>
-        {requestId && (
-          <p className="mt-1 text-xs text-slate-400">ID: {requestId}</p>
+        {helpingSomeoneElse && (
+          <p className="mt-2 text-[12px] font-semibold text-brand">
+            Booking for someone else · {helpingSomeoneLabel || location.label}
+          </p>
         )}
         {warning && (
           <div className="mt-4 w-full max-w-sm text-left">
             <VerificationWarningBanner message={warning} isLight={isLight} />
           </div>
         )}
-        <div className="mt-6 flex w-full flex-col gap-2">
-          <Button size="lg" onClick={() => router.push("/requests")}>
+        <div className="mt-6 flex w-full max-w-sm flex-col gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              router.push(
+                requestId ? `/requests/track?id=${requestId}` : "/requests"
+              )
+            }
+            className="w-full rounded-lg border-0 bg-[#323231] py-3 text-sm font-semibold text-white"
+          >
             Track request
-          </Button>
-          <Button size="lg" variant="secondary" onClick={() => router.push("/")}>
-            Back home
-          </Button>
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/messages")}
+            className={cn(
+              "w-full rounded-lg border-0 py-3 text-sm font-semibold",
+              isLight
+                ? "bg-transparent text-slate-700"
+                : "bg-transparent text-white/80"
+            )}
+          >
+            Open messages
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div
-      className={cn(
-        "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
-      )}
-    >
-      <header className="page-header">
+    <div className={cn("flex h-full min-h-0 flex-col", sheet)}>
+      <header className="flex shrink-0 items-center gap-2 px-3 py-2.5">
         <button
           type="button"
-          onClick={() => router.back()}
-          className="page-back"
+          onClick={() => navigateBack(router, defaultBackHref(accountType))}
+          className={cn(
+            "flex h-8 w-8 items-center justify-center rounded-lg border-0 bg-transparent",
+            isLight ? "text-black" : "text-white"
+          )}
           aria-label="Back"
         >
-          <ArrowLeft className="h-5 w-5" />
+          <ArrowLeft className="h-4 w-4" />
         </button>
-        <div>
-          <h1
-            className={cn(
-              "text-lg font-bold",
-              isLight ? "text-slate-900" : "text-white"
-            )}
-          >
+        <div className="min-w-0 flex-1">
+          <h1 className={cn("truncate text-base font-bold", ink)}>
             Request Help
           </h1>
-          <p className="text-xs text-muted">Confirm and we connect you quickly</p>
+          <p className={cn("truncate text-[11px]", muted)}>
+            Review this Repair Pro, then confirm
+          </p>
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-4 scrollbar-hide">
-        <div className="card-surface rounded-xl p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-            Matched technician
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 pb-3 scrollbar-hide">
+        {/* 1. What do you need help with? — top */}
+        <section className="space-y-2">
+          <p className={cn("text-[14px] font-bold", ink)}>
+            What do you need help with?
           </p>
+          <div className="space-y-0.5">
+            {problems.map((p) => {
+              const active = problem === p;
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setProblem(p)}
+                  className={cn(
+                    "flex w-full items-center gap-2.5 border-0 bg-transparent px-0 py-2.5 text-left text-[13px] transition-colors",
+                    active ? "font-bold text-brand" : cn("font-medium", ink)
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "inline-block h-2 w-2 shrink-0 rounded-full",
+                      active
+                        ? "bg-brand"
+                        : isLight
+                          ? "bg-slate-400"
+                          : "bg-white/30"
+                    )}
+                  />
+                  {p}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* 2. Matched pro — professional layout */}
+        <section className="space-y-3">
           <p
             className={cn(
-              "mt-1 text-lg font-bold",
-              isLight ? "text-slate-900" : "text-white"
+              "text-[10px] font-bold uppercase tracking-wide",
+              muted
             )}
           >
-            {tech.name}
+            Matched technician
           </p>
-          <p className="text-sm text-muted">
-            {tech.roleLabel}, about {tech.etaMinutes} min,{" "}
-            {tech.distanceKm.toFixed(1)} km
-          </p>
-        </div>
-
-        <p
-          className={cn(
-            "mb-2 mt-5 text-sm font-semibold",
-            isLight ? "text-slate-800" : "text-slate-100"
-          )}
-        >
-          What do you need help with?
-        </p>
-        <div className="space-y-2">
-          {PROBLEMS.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setProblem(p)}
-              className={cn(
-                "w-full rounded-lg border-0 px-4 py-3 text-left text-sm font-medium transition-colors",
-                problem === p
-                  ? "bg-brand-soft text-brand"
-                  : isLight
-                    ? "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                    : "bg-black text-slate-200 hover:bg-slate-700"
+          <div className="flex items-start gap-3">
+            <Avatar className="h-14 w-14 shrink-0 overflow-hidden rounded-full border-0 ring-0">
+              <AvatarImage
+                src={photo}
+                alt={tech.name}
+                className="h-full w-full object-cover object-center"
+              />
+              <AvatarFallback className="bg-[#323231] text-sm font-bold text-white">
+                {avatarInitials(tech.name, "PR")}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1 space-y-1">
+              <p className={cn("text-[16px] font-bold leading-tight", ink)}>
+                {tech.name}
+              </p>
+              <p className={cn("text-[12px] font-semibold", muted)}>
+                {skillLabel}
+              </p>
+              <div className="flex items-center gap-1 pt-0.5">
+                <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                <span className={cn("text-[13px] font-bold", ink)}>
+                  {tech.rating.toFixed(1)}
+                </span>
+                <span className={cn("text-[11px]", muted)}>
+                  ({tech.reviewCount || allReviews.length} reviews)
+                </span>
+              </div>
+              <div
+                className={cn(
+                  "flex flex-wrap gap-x-4 gap-y-1 pt-1 text-[12px] font-medium",
+                  muted
+                )}
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <Clock3 className="h-3.5 w-3.5 text-brand" />
+                  ETA {formatEta(tech.etaMinutes)}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Navigation className="h-3.5 w-3.5 text-brand" />
+                  {formatDistance(tech.distanceKm)}
+                </span>
+              </div>
+              {tech.verified && (
+                <p className="pt-0.5 text-[11px] font-semibold text-emerald-600">
+                  Verified Repair Pro
+                </p>
               )}
+            </div>
+          </div>
+
+          {helpingSomeoneElse && (
+            <p className="text-[11px] font-semibold leading-snug text-brand">
+              Booking for someone else · meet at{" "}
+              {helpingSomeoneLabel || location.label}
+            </p>
+          )}
+
+          {skillRows.length > 0 && (
+            <div className="space-y-1.5 border-t border-black/5 pt-2 dark:border-white/10">
+              {skillRows.slice(0, 4).map((row) => (
+                <div
+                  key={row.label}
+                  className="flex items-start justify-between gap-3 text-[11px]"
+                >
+                  <span className={muted}>{row.label}</span>
+                  <span className={cn("max-w-[55%] text-right font-semibold", ink)}>
+                    {row.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* 3. Reviews below */}
+        <section className="space-y-2">
+          <p className={cn("text-[13px] font-bold", ink)}>Reviews</p>
+          <div className="space-y-3">
+            {visibleReviews.map((rev) => (
+              <div key={rev.id} className="space-y-0.5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className={cn("text-[12px] font-semibold", ink)}>
+                    {rev.author}
+                  </p>
+                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-500">
+                    <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+                    {rev.rating}
+                  </span>
+                </div>
+                <p className={cn("text-[11px] leading-snug", muted)}>
+                  {rev.comment}
+                </p>
+                <p
+                  className={cn(
+                    "text-[10px]",
+                    isLight ? "text-slate-400" : "text-white/40"
+                  )}
+                >
+                  {rev.ago}
+                </p>
+              </div>
+            ))}
+          </div>
+          {allReviews.length > 5 && (
+            <button
+              type="button"
+              onClick={() => setShowAllReviews((v) => !v)}
+              className="inline-flex items-center gap-0.5 border-0 bg-transparent p-0 text-[12px] font-bold text-brand"
             >
-              {p}
+              {showAllReviews ? "Show less" : "See more"}
+              <ChevronRight
+                className={cn(
+                  "h-3.5 w-3.5 transition-transform",
+                  showAllReviews && "rotate-90"
+                )}
+              />
             </button>
-          ))}
-        </div>
+          )}
+        </section>
       </div>
 
-      <div className="space-y-3 p-4">
+      <div className={cn("shrink-0 space-y-2 px-3 pb-4 pt-1", sheet)}>
         {blocked && (
           <VerificationBlockedPanel
             message={blocked}
@@ -206,10 +380,17 @@ function RequestFlow() {
             onClose={() => setBlocked(null)}
           />
         )}
-        <Button size="lg" className="w-full" onClick={submit}>
-          <Zap className="h-5 w-5 fill-white" />
+        <button
+          type="button"
+          onClick={submit}
+          className="flex w-full items-center justify-center gap-2 rounded-lg border-0 bg-[#323231] py-3.5 text-[15px] font-semibold text-white active:opacity-90"
+        >
           Confirm & Connect
-        </Button>
+        </button>
+        <p className={cn("text-center text-[10px]", muted)}>
+          <MapPin className="mr-0.5 inline h-3 w-3 text-brand" />
+          Pro meets at your service location after they accept
+        </p>
       </div>
     </div>
   );
@@ -219,7 +400,7 @@ export default function RequestPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex h-full items-center justify-center bg-white text-sm text-slate-500">
+        <div className="flex h-full items-center justify-center bg-[#c8c9cd] text-sm text-slate-500">
           Loading request…
         </div>
       }

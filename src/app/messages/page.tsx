@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PageHeader } from "@/components/layout/page-header";
-import { DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
+import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -51,13 +51,16 @@ export default function MessagesPage() {
                 isLight ? "hover:bg-black/[0.04]" : "hover:bg-white/[0.04]"
               )}
             >
-              <Avatar className="h-10 w-10">
+              <Avatar className="h-10 w-10 overflow-hidden rounded-full border-0 bg-transparent shadow-none ring-0">
                 <AvatarImage
                   src={m.photo || DEFAULT_VENDOR_PHOTO}
                   alt={m.technicianName}
+                  className="h-full w-full object-cover object-center"
                 />
                 <AvatarFallback className="bg-brand text-[11px] font-bold text-white">
-                  {(isPro ? m.motoristName : m.technicianName).slice(0, 2)}
+                  {avatarInitials(
+                    isPro ? m.motoristName : m.technicianName
+                  )}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">

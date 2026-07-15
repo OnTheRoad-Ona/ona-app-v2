@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   BadgeCheck,
   Briefcase,
@@ -16,16 +17,16 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
+import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
+import { navigateBack } from "@/lib/navigation";
 import { publicSkillRows } from "@/lib/skill-questions";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import type { Technician } from "@/lib/types";
 import { cn, formatDistance, formatEta } from "@/lib/utils";
 
 /**
- * Motorist-facing Repair Pro profile.
- * Light toggle → app light gray sheet. Dark toggle → pure black.
- * No map. Photo defaults to OgaMecho logo until the vendor sets one.
+ * Motorist-facing Repair Pro profile — tight, flat, premium.
+ * No card washes on body sections; avatar fills the circle with no ring border.
  */
 export function ProPublicProfile({
   tech,
@@ -38,13 +39,12 @@ export function ProPublicProfile({
   onRequest: () => void;
   backHref?: string;
 }) {
+  const router = useRouter();
   const skillLabel =
     PRO_SERVICE_LABELS[tech.serviceType] ?? tech.roleLabel ?? "Repair Pro";
   const skillRows = publicSkillRows(tech.serviceType, tech.skillAnswers);
-  const photoSrc =
-    tech.photo && tech.photo.trim().length > 0
-      ? tech.photo
-      : DEFAULT_VENDOR_PHOTO;
+  const hasCustomPhoto = Boolean(tech.photo && tech.photo.trim().length > 0);
+  const photoSrc = hasCustomPhoto ? tech.photo.trim() : DEFAULT_VENDOR_PHOTO;
 
   const serviceFocus = (
     [
@@ -66,7 +66,19 @@ export function ProPublicProfile({
           : null;
 
   const statusText =
-    tech.status === "available" ? "Available now" : tech.status;
+    tech.status === "available"
+      ? "Available now"
+      : tech.status === "nearby"
+        ? "Nearby"
+        : tech.status === "busy"
+          ? "Busy"
+          : tech.status === "offline"
+            ? "Offline"
+            : tech.status;
+
+  const ink = isLight ? "text-slate-900" : "text-white";
+  const muted = isLight ? "text-slate-500" : "text-neutral-400";
+  const soft = isLight ? "text-slate-600" : "text-neutral-400";
 
   return (
     <div
@@ -75,73 +87,57 @@ export function ProPublicProfile({
         isLight ? "bg-[#c8c9cd]" : "bg-black"
       )}
     >
-      {/* Top bar — matches profile background */}
-      <div
-        className={cn(
-          "flex shrink-0 items-center gap-2 px-3 pb-2 pt-3",
-          isLight ? "bg-[#c8c9cd]" : "bg-black"
-        )}
-      >
-        <Link
-          href={backHref}
+      {/* Compact top bar — history back when available */}
+      <div className="flex shrink-0 items-center gap-1.5 px-2.5 pb-1 pt-2.5">
+        <button
+          type="button"
+          onClick={() => navigateBack(router, backHref)}
           className={cn(
-            "flex h-9 w-9 items-center justify-center text-lg leading-none",
-            isLight ? "text-slate-800" : "text-white"
+            "flex h-8 w-8 items-center justify-center border-0 bg-transparent text-base leading-none",
+            ink
           )}
           aria-label="Back"
         >
           ←
-        </Link>
+        </button>
         <div className="min-w-0 flex-1">
-          <p
-            className={cn(
-              "truncate text-[15px] font-bold tracking-tight",
-              isLight ? "text-slate-900" : "text-white"
-            )}
-          >
-            Repair Pro
+          <p className={cn("truncate text-[14px] font-bold leading-none", ink)}>
+            {tech.name}
           </p>
-          <p
-            className={cn(
-              "truncate text-[11px] font-medium",
-              isLight ? "text-slate-600" : "text-neutral-400"
-            )}
-          >
+          <p className={cn("mt-0.5 truncate text-[11px] font-medium", muted)}>
             {skillLabel}
           </p>
         </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex-1 overflow-y-auto px-3 pb-4 scrollbar-hide">
-          {/* Identity hero card */}
-          <section
-            className={cn(
-              "rounded-2xl p-4",
-              isLight
-                ? "bg-[#d4d5d9] shadow-sm"
-                : "bg-black"
-            )}
-          >
-            <div className="flex items-start gap-3.5">
-              <Avatar className="h-[4.75rem] w-[4.75rem] shrink-0 shadow-md ring-2 ring-white/90">
-                <AvatarImage src={photoSrc} alt={tech.name} />
-                <AvatarFallback className="bg-brand text-base font-bold text-white">
-                  {tech.name.slice(0, 2).toUpperCase()}
+        <div className="flex-1 overflow-y-auto px-3 pb-2 scrollbar-hide">
+          {/* Identity — no outer card, tight hero */}
+          <section className="pt-1">
+            <div className="flex items-center gap-3">
+              {/* Gear ring fills the circular frame edge-to-edge (no orange lap) */}
+              <Avatar className="h-[4.75rem] w-[4.75rem] shrink-0 overflow-hidden rounded-full border-0 bg-transparent shadow-none ring-0">
+                <AvatarImage
+                  src={photoSrc}
+                  alt={tech.name}
+                  className="h-full w-full scale-100 object-cover object-center"
+                />
+                <AvatarFallback className="bg-brand text-sm font-bold text-white">
+                  {avatarInitials(tech.name)}
                 </AvatarFallback>
               </Avatar>
 
-              <div className="min-w-0 flex-1 pt-0.5">
+              <div className="min-w-0 flex-1">
                 <p
                   className={cn(
-                    "flex items-center gap-1.5 text-[18px] font-black leading-tight tracking-tight",
-                    isLight ? "text-slate-900" : "text-white"
+                    "flex items-center gap-1 text-[17px] font-black leading-tight tracking-tight",
+                    ink
                   )}
                 >
                   <span className="truncate">{tech.name}</span>
                   {tech.verified && (
                     <BadgeCheck
-                      className="h-5 w-5 shrink-0 text-sky-500"
+                      className="h-4 w-4 shrink-0 text-sky-500"
                       strokeWidth={2.25}
                     />
                   )}
@@ -150,39 +146,29 @@ export function ProPublicProfile({
                 {tech.businessName ? (
                   <p
                     className={cn(
-                      "mt-0.5 truncate text-[13px] font-semibold",
-                      isLight ? "text-slate-700" : "text-white/85"
+                      "mt-0.5 truncate text-[12px] font-semibold",
+                      soft
                     )}
                   >
                     {tech.businessName}
                   </p>
                 ) : null}
 
-                <p className="mt-1.5 flex items-center gap-1.5 text-[12px] font-bold text-brand">
-                  <Wrench className="h-3.5 w-3.5" strokeWidth={2.3} />
+                <p className="mt-1 flex items-center gap-1 text-[11px] font-bold text-brand">
+                  <Wrench className="h-3 w-3" strokeWidth={2.4} />
                   {skillLabel}
                 </p>
 
-                <p
-                  className={cn(
-                    "mt-1 text-[11px] font-medium capitalize leading-snug",
-                    isLight ? "text-slate-600" : "text-neutral-400"
-                  )}
-                >
+                <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
                   {statusText}
                   {tech.verified ? " · Verified" : ""}
-                  {tech.fastResponse ? " · Fast response" : ""}
+                  {tech.fastResponse ? " · Fast reply" : ""}
                 </p>
               </div>
             </div>
 
-            {/* Stats */}
-            <div
-              className={cn(
-                "mt-4 grid grid-cols-3 gap-1 rounded-xl py-3 text-center",
-                isLight ? "bg-white/55" : "bg-neutral-900"
-              )}
-            >
+            {/* Inline stats — single separator only (no double lines with sections) */}
+            <div className="mt-3 grid grid-cols-3 gap-0 py-2.5 text-center">
               <Stat
                 isLight={isLight}
                 label={`${tech.reviewCount} reviews`}
@@ -206,36 +192,26 @@ export function ProPublicProfile({
             </div>
           </section>
 
-          <SectionCard title="About" icon={Briefcase} isLight={isLight}>
-            {experienceLabel && (
-              <Row
-                label="Experience"
-                value={experienceLabel}
-                isLight={isLight}
-              />
-            )}
+          {/* Flat body sections — no background blocks */}
+          <FlatSection title="About" icon={Briefcase} isLight={isLight}>
+            {experienceLabel ? (
+              <Row label="Experience" value={experienceLabel} isLight={isLight} />
+            ) : null}
             {tech.bio || tech.description ? (
               <p
                 className={cn(
-                  "pt-1 text-[13px] leading-relaxed",
-                  isLight ? "text-slate-700" : "text-white/82"
+                  "text-[13px] leading-snug",
+                  isLight ? "text-slate-700" : "text-white/85"
                 )}
               >
                 {tech.bio || tech.description}
               </p>
             ) : (
-              <p
-                className={cn(
-                  "text-[12px]",
-                  isLight ? "text-slate-500" : "text-neutral-500"
-                )}
-              >
-                No bio yet.
-              </p>
+              <p className={cn("text-[12px]", muted)}>No bio yet.</p>
             )}
-          </SectionCard>
+          </FlatSection>
 
-          <SectionCard
+          <FlatSection
             title={`${skillLabel} skill profile`}
             icon={Wrench}
             isLight={isLight}
@@ -250,47 +226,31 @@ export function ProPublicProfile({
                 />
               ))
             ) : (
-              <p
-                className={cn(
-                  "text-[12px]",
-                  isLight ? "text-slate-500" : "text-neutral-500"
-                )}
-              >
-                Skill details will appear when this pro completes signup
-                questions.
+              <p className={cn("text-[12px]", muted)}>
+                Skill details appear when this pro finishes signup questions.
               </p>
             )}
-          </SectionCard>
+          </FlatSection>
 
-          {tech.specialties.length > 0 && (
-            <SectionCard
-              title="What they can fix"
-              icon={Zap}
-              isLight={isLight}
-            >
-              <div className="flex flex-wrap gap-1.5 pt-0.5">
+          {tech.specialties.length > 0 ? (
+            <FlatSection title="What they can fix" icon={Zap} isLight={isLight}>
+              <div className="flex flex-wrap gap-1.5">
                 {tech.specialties.map((s) => (
                   <span
                     key={s}
                     className={cn(
-                      "rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                      isLight
-                        ? "bg-white/80 text-slate-800"
-                        : "bg-neutral-900 text-neutral-200"
+                      "text-[11px] font-semibold",
+                      isLight ? "text-slate-800" : "text-neutral-200"
                     )}
                   >
-                    {s}
+                    · {s}
                   </span>
                 ))}
               </div>
-            </SectionCard>
-          )}
+            </FlatSection>
+          ) : null}
 
-          <SectionCard
-            title="Vehicles they serve"
-            icon={Car}
-            isLight={isLight}
-          >
+          <FlatSection title="Vehicles they serve" icon={Car} isLight={isLight}>
             {serviceFocus.length > 0 ? (
               serviceFocus.map(([label, value]) => (
                 <Row
@@ -301,52 +261,47 @@ export function ProPublicProfile({
                 />
               ))
             ) : (
-              <p
-                className={cn(
-                  "text-[12px]",
-                  isLight ? "text-slate-500" : "text-neutral-500"
-                )}
-              >
+              <p className={cn("text-[12px]", muted)}>
                 Any vehicle · not specified yet
               </p>
             )}
-          </SectionCard>
+          </FlatSection>
 
-          <SectionCard title="Service area" icon={MapPin} isLight={isLight}>
+          <FlatSection title="Service area" icon={MapPin} isLight={isLight}>
             <Row
               label="Coverage radius"
               value={`${tech.serviceRadiusKm} km`}
               isLight={isLight}
             />
-            {tech.servedLocation && tech.servedLocation !== "Any" && (
+            {tech.servedLocation && tech.servedLocation !== "Any" ? (
               <Row
                 label="Focus region"
                 value={tech.servedLocation}
                 isLight={isLight}
               />
-            )}
-            {tech.servedCountry && tech.servedCountry !== "Any" && (
+            ) : null}
+            {tech.servedCountry && tech.servedCountry !== "Any" ? (
               <Row
                 label="Country"
                 value={tech.servedCountry}
                 isLight={isLight}
               />
-            )}
+            ) : null}
             <p
               className={cn(
-                "mt-1.5 flex items-center gap-1 text-[11px] font-medium",
-                isLight ? "text-slate-600" : "text-neutral-400"
+                "flex items-center gap-1 pt-0.5 text-[11px] font-medium",
+                soft
               )}
             >
               <Navigation className="h-3 w-3 text-brand" />
               Near you · {formatDistance(tech.distanceKm)} away
             </p>
-          </SectionCard>
+          </FlatSection>
 
           <p
             className={cn(
-              "mt-3 flex items-center justify-center gap-1 text-center text-[10px]",
-              isLight ? "text-slate-500" : "text-neutral-500"
+              "mt-2 flex items-center justify-center gap-1 pb-1 text-center text-[10px]",
+              muted
             )}
           >
             <Clock3 className="h-3 w-3" />
@@ -354,13 +309,11 @@ export function ProPublicProfile({
           </p>
         </div>
 
-        {/* Sticky action bar */}
+        {/* Sticky actions — minimal top edge, no heavy borders */}
         <div
           className={cn(
-            "shrink-0 space-y-2 border-t px-3 pb-3 pt-2.5",
-            isLight
-              ? "border-slate-400/25 bg-[#c8c9cd]"
-              : "border-neutral-800 bg-black"
+            "shrink-0 space-y-1.5 px-3 pb-3 pt-2",
+            isLight ? "bg-[#c8c9cd]" : "bg-black"
           )}
         >
           <div className="grid grid-cols-2 gap-2">
@@ -368,12 +321,13 @@ export function ProPublicProfile({
               variant="outline"
               asChild
               className={cn(
-                "h-11",
-                !isLight &&
-                  "border-0 bg-neutral-900 text-white hover:bg-neutral-800"
+                "h-10 border-0 shadow-none",
+                isLight
+                  ? "bg-black/[0.06] text-slate-900 hover:bg-black/[0.1]"
+                  : "bg-white/10 text-white hover:bg-white/15"
               )}
             >
-              <a href={`tel:${tech.phone.replace(/\s/g, "")}`}>
+              <a href={`tel:${(tech.phone || "").replace(/\s/g, "")}`}>
                 <Phone className="h-4 w-4" />
                 Call
               </a>
@@ -382,8 +336,10 @@ export function ProPublicProfile({
               variant="secondary"
               asChild
               className={cn(
-                "h-11",
-                !isLight && "bg-neutral-900 text-white hover:bg-neutral-800"
+                "h-10 border-0 shadow-none",
+                isLight
+                  ? "bg-black/[0.06] text-slate-900 hover:bg-black/[0.1]"
+                  : "bg-white/10 text-white hover:bg-white/15"
               )}
             >
               <Link href="/messages">
@@ -392,8 +348,8 @@ export function ProPublicProfile({
               </Link>
             </Button>
           </div>
-          <Button size="lg" className="h-12 w-full" onClick={onRequest}>
-            <Zap className="h-5 w-5" />
+          <Button size="lg" className="h-11 w-full" onClick={onRequest}>
+            <Zap className="h-4 w-4" />
             Request assistance
           </Button>
         </div>
@@ -415,7 +371,7 @@ function Stat({
     <div>
       <p
         className={cn(
-          "text-[15px] font-bold tabular-nums",
+          "text-[14px] font-bold tabular-nums leading-none",
           isLight ? "text-slate-900" : "text-white"
         )}
       >
@@ -423,7 +379,7 @@ function Stat({
       </p>
       <p
         className={cn(
-          "text-[10px] font-medium",
+          "mt-0.5 text-[10px] font-medium leading-none",
           isLight ? "text-slate-500" : "text-neutral-500"
         )}
       >
@@ -433,7 +389,8 @@ function Stat({
   );
 }
 
-function SectionCard({
+/** Flat section: title + content, no background card, tight spacing */
+function FlatSection({
   title,
   icon: Icon,
   children,
@@ -445,30 +402,31 @@ function SectionCard({
   isLight: boolean;
 }) {
   return (
-    <section
-      className={cn(
-        "mt-3 rounded-2xl p-3.5",
-        isLight
-          ? "bg-[#d4d5d9] shadow-sm"
-          : "bg-black"
-      )}
-    >
-      <div className="mb-2.5 flex items-center gap-2">
-        <Icon
-          className="h-4 w-4 shrink-0 text-brand"
-          strokeWidth={2.2}
-          aria-hidden
-        />
-        <p
-          className={cn(
-            "text-[13px] font-bold tracking-tight",
-            isLight ? "text-slate-900" : "text-white"
-          )}
-        >
-          {title}
-        </p>
+    <section className="mt-3 pt-0">
+      {/* Single hairline only — avoid stacking with stats border-y */}
+      <div
+        className={cn(
+          "mb-2 border-t pt-2.5",
+          isLight ? "border-black/[0.08]" : "border-white/[0.08]"
+        )}
+      >
+        <div className="mb-1.5 flex items-center gap-1.5">
+          <Icon
+            className="h-3.5 w-3.5 shrink-0 text-brand"
+            strokeWidth={2.3}
+            aria-hidden
+          />
+          <p
+            className={cn(
+              "text-[12px] font-bold tracking-tight",
+              isLight ? "text-slate-900" : "text-white"
+            )}
+          >
+            {title}
+          </p>
+        </div>
+        <div className="space-y-0">{children}</div>
       </div>
-      <div className="space-y-0.5">{children}</div>
     </section>
   );
 }
@@ -483,10 +441,10 @@ function Row({
   isLight: boolean;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 py-1.5">
+    <div className="flex items-baseline justify-between gap-3 py-1">
       <span
         className={cn(
-          "text-[12px] font-medium",
+          "text-[11px] font-medium",
           isLight ? "text-slate-500" : "text-neutral-500"
         )}
       >
@@ -494,7 +452,7 @@ function Row({
       </span>
       <span
         className={cn(
-          "max-w-[58%] text-right text-[12px] font-semibold leading-snug",
+          "max-w-[62%] text-right text-[12px] font-semibold leading-snug",
           isLight ? "text-slate-900" : "text-white"
         )}
       >

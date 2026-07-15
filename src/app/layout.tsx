@@ -40,8 +40,13 @@ export default function RootLayout({
       lang="en"
       data-theme="light"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      style={{ backgroundColor: "#0a0a0a" }}
     >
-      <body className="min-h-full">
+      {/* Instant paint: never flash pure white while JS/CSS hydrate */}
+      <body
+        className="min-h-full bg-[#0a0a0a] text-white"
+        style={{ backgroundColor: "#0a0a0a" }}
+      >
         <AppConfigProvider>
           <AppProvider>
             <AppFrame>{children}</AppFrame>

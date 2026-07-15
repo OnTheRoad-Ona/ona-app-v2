@@ -45,6 +45,11 @@ export type AccountType = "motorist" | "professional";
 /** Full profile after Motorist or Repair Pro signup */
 export interface UserProfile {
   accountType: AccountType;
+  /**
+   * Role the user originally signed up as (main / primary account).
+   * Stays fixed when they switch Motorist ↔ Repair Pro.
+   */
+  primaryAccountType?: AccountType;
   fullName: string;
   phone: string;
   email: string;
@@ -143,6 +148,8 @@ export interface Technician {
   phone: string;
   serviceRadiusKm: number;
   location: Coordinates;
+  /** True when lat/lng come from the pro’s live pin (not a fallback) */
+  hasLiveLocation?: boolean;
   markerLabel?: string;
   responseSpeedScore: number;
   currentLoad: number;
@@ -175,6 +182,9 @@ export interface ServiceRequest {
   etaMinutes: number;
   distanceKm: number;
   locationLabel: string;
+  /** Motorist is booking help for another person at this meet point */
+  bookingForSomeoneElse?: boolean;
+  meetCoordinates?: Coordinates;
 }
 
 export interface Booking {

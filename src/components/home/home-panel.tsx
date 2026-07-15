@@ -1,24 +1,66 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
+import { useJsApiLoader } from "@react-google-maps/api";
+import { ChevronLeft, MapPin, X } from "lucide-react";
 import { CategoryTabs } from "@/components/home/category-tabs";
 import { FilterChips } from "@/components/home/filter-chips";
 import { RadiusSlider } from "@/components/home/radius-slider";
 import { TechCard } from "@/components/technician/tech-card";
+import {
+  getGoogleMapsApiKey,
+  GOOGLE_MAPS_LIBRARIES,
+  GOOGLE_MAPS_LOADER_ID,
+  shouldUseLiveMaps,
+} from "@/lib/google-maps";
 import { useApp } from "@/lib/store";
 import type { Technician } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { MAX_TECHNICIANS } from "@/lib/matching";
 
+/** Fallback geocode when Places is unavailable */
+async function geocodeAddress(
+  query: string
+): Promise<{ lat: number; lng: number; label: string } | null> {
+  const q = query.trim();
+  if (!q) return null;
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(
+      q
+    )}`;
+    const res = await fetch(url, {
+      headers: { Accept: "application/json" },
+    });
+    const data = (await res.json()) as {
+      lat?: string;
+      lon?: string;
+      display_name?: string;
+    }[];
+    const hit = data?.[0];
+    if (!hit?.lat || !hit?.lon) return null;
+    return {
+      lat: Number(hit.lat),
+      lng: Number(hit.lon),
+      label: hit.display_name || q,
+    };
+  } catch {
+    return null;
+  }
+}
+
 const PAGE_SIZE = 10;
 
 /**
- * Expand/collapse via flip pill + category axis only.
- * Natural direction (fixed invert):
- *  - Scroll content up / swipe fingers up → panel up (expand)
- *  - Scroll content down → panel down (collapse)
- * List scrolls independently inside one gray banner.
+ * Motorist lower sheet: trade strip + list always visible.
+ * Chevron / swipe-left swaps only the top strip for a quiet
+ * “Where are they?” Places field — no separate page.
  */
 export function HomePanel({
   expanded,
@@ -31,43 +73,175 @@ export function HomePanel({
   onExpand: () => void;
   onCollapse: () => void;
   className?: string;
-  /** Renders on the same sheet chrome (e.g. Request Help Now). */
   footer?: ReactNode;
 }) {
   const router = useRouter();
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  /** Only the top strip swaps; list / radius / filters stay */
+  const [helpMode, setHelpMode] = useState(false);
+  const [helpAddress, setHelpAddress] = useState("");
+  const [helpBusy, setHelpBusy] = useState(false);
+  const [helpError, setHelpError] = useState<string | null>(null);
   const gestureY = useRef<number | null>(null);
+  const helpInputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const applyPlaceRef = useRef<
+    (label: string, lat: number, lng: number) => void
+  >(() => {});
 
   const {
     visibleTechnicians,
     radiusKm,
-    setRadiusKm,
     setSelectedTechId,
     selectedTechId,
     locationError,
     retryLocation,
     theme,
+    accountType,
+    setManualLocation,
+    isAuthenticated,
+    refreshNearbyPros,
+    helpingSomeoneElse,
+    setHelpingSomeoneElse,
   } = useApp();
   const isLight = theme === "light";
+  const [refreshingPros, setRefreshingPros] = useState(false);
+  /** Address confirmed → show trade strip under the field (no chip). */
+  const addressConfirmed = helpingSomeoneElse;
+
+  const isMotorist =
+    isAuthenticated &&
+    (accountType === "motorist" || accountType == null);
+
+  const liveMaps = shouldUseLiveMaps();
+  const apiKey = getGoogleMapsApiKey();
+  const { isLoaded: mapsLoaded } = useJsApiLoader({
+    id: GOOGLE_MAPS_LOADER_ID,
+    googleMapsApiKey: liveMaps ? apiKey : "disabled",
+    libraries: GOOGLE_MAPS_LIBRARIES,
+  });
 
   const handleRequest = (tech: Technician) => {
     setSelectedTechId(tech.id);
     router.push(`/request?tech=${tech.id}`);
   };
 
-  // Reset page size when filters / radius / category / query change
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
   }, [radiusKm, visibleTechnicians.length]);
+
+  useEffect(() => {
+    if (!isMotorist && helpMode) setHelpMode(false);
+  }, [isMotorist, helpMode]);
 
   const total = Math.min(visibleTechnicians.length, MAX_TECHNICIANS);
   const list = visibleTechnicians.slice(0, Math.min(visibleCount, total));
   const canShowMore = list.length < total;
 
-  /**
-   * Natural scroll: content up (deltaY > 0) → expand;
-   * content down (deltaY < 0) → collapse.
-   */
+  const openHelpSomeone = () => {
+    if (!isMotorist) return;
+    setHelpMode(true);
+    setHelpError(null);
+    // Focus after paint so keyboard + Places attach cleanly
+    window.setTimeout(() => helpInputRef.current?.focus(), 80);
+  };
+
+  const closeHelpMode = () => {
+    setHelpMode(false);
+    setHelpError(null);
+  };
+
+  const applyHelpLocation = useCallback(
+    (label: string, lat: number, lng: number) => {
+      const coordinates = { lat, lng };
+      setHelpingSomeoneElse({ label, coordinates });
+      setManualLocation(label, coordinates);
+      refreshNearbyPros();
+      setHelpAddress(label);
+      setHelpError(null);
+      // Stay in help mode: address on top, trades reappear below (no chip)
+    },
+    [setHelpingSomeoneElse, setManualLocation, refreshNearbyPros]
+  );
+
+  applyPlaceRef.current = applyHelpLocation;
+
+  // Google Places Autocomplete — worldwide (Uber-style suggestions)
+  useEffect(() => {
+    if (!helpMode || !mapsLoaded || !liveMaps) return;
+    if (!helpInputRef.current) return;
+    if (!window.google?.maps?.places) return;
+
+    // Re-bind when reopening help mode
+    if (autocompleteRef.current) {
+      google.maps.event.clearInstanceListeners(autocompleteRef.current);
+      autocompleteRef.current = null;
+    }
+
+    try {
+      const ac = new google.maps.places.Autocomplete(helpInputRef.current, {
+        fields: ["formatted_address", "geometry", "name", "place_id"],
+        // Worldwide — no country restriction
+        types: ["geocode"],
+      });
+      ac.addListener("place_changed", () => {
+        const place = ac.getPlace();
+        const loc = place.geometry?.location;
+        if (!loc) {
+          setHelpError("Pick a suggestion from the list.");
+          return;
+        }
+        const lat = loc.lat();
+        const lng = loc.lng();
+        const label =
+          place.formatted_address ||
+          place.name ||
+          `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        applyPlaceRef.current(label, lat, lng);
+      });
+      autocompleteRef.current = ac;
+    } catch {
+      /* Places optional — Enter uses Nominatim fallback */
+    }
+
+    return () => {
+      if (autocompleteRef.current) {
+        google.maps.event.clearInstanceListeners(autocompleteRef.current);
+        autocompleteRef.current = null;
+      }
+    };
+  }, [helpMode, mapsLoaded, liveMaps]);
+
+  const submitHelpAddress = async () => {
+    const typed = helpAddress.trim();
+    if (!typed) {
+      setHelpError("Type an address or pick a suggestion.");
+      return;
+    }
+    setHelpBusy(true);
+    setHelpError(null);
+    try {
+      const geo = await geocodeAddress(typed);
+      if (!geo) {
+        setHelpError("Could not find that place. Try a fuller address.");
+        return;
+      }
+      applyHelpLocation(geo.label, geo.lat, geo.lng);
+    } finally {
+      setHelpBusy(false);
+    }
+  };
+
+  /** Clear address → restore my location (C2). Stay in help mode to type again. */
+  const clearHelpingSomeone = () => {
+    setHelpingSomeoneElse(null);
+    setHelpAddress("");
+    setHelpError(null);
+    retryLocation();
+    refreshNearbyPros();
+    window.setTimeout(() => helpInputRef.current?.focus(), 60);
+  };
+
   const onSheetWheel = (e: React.WheelEvent) => {
     if (e.deltaY > 0 && !expanded) {
       e.preventDefault();
@@ -80,20 +254,18 @@ export function HomePanel({
     }
   };
 
-  const onSheetTouchStart = (e: React.TouchEvent) => {
+  const onPillTouchStart = (e: React.TouchEvent) => {
     gestureY.current = e.touches[0].clientY;
   };
 
-  const onSheetTouchMove = (e: React.TouchEvent) => {
+  const onPillTouchMove = (e: React.TouchEvent) => {
     if (gestureY.current == null) return;
     const dy = e.touches[0].clientY - gestureY.current;
-    // Finger up on screen → panel up
     if (!expanded && dy < -14) {
       onExpand();
       gestureY.current = null;
       return;
     }
-    // Finger down → panel down
     if (expanded && dy > 14) {
       onCollapse();
       gestureY.current = null;
@@ -106,19 +278,8 @@ export function HomePanel({
   };
 
   return (
-    <div
-      className={cn(
-        "relative z-30 flex min-h-0 flex-col",
-        className
-      )}
-    >
-      <div
-        onWheel={onSheetWheel}
-        onTouchStart={onSheetTouchStart}
-        onTouchMove={onSheetTouchMove}
-        className="shrink-0 touch-pan-y"
-        style={{ touchAction: "pan-y" }}
-      >
+    <div className={cn("relative z-30 flex min-h-0 flex-col", className)}>
+      <div onWheel={onSheetWheel} className="shrink-0">
         <div
           role="button"
           tabIndex={0}
@@ -128,6 +289,8 @@ export function HomePanel({
               : "Scroll up to expand panel"
           }
           onClick={onPillClick}
+          onTouchStart={onPillTouchStart}
+          onTouchMove={onPillTouchMove}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
@@ -142,9 +305,9 @@ export function HomePanel({
               onCollapse();
             }
           }}
-          className="flex cursor-grab justify-center active:cursor-grabbing pb-1.5 pt-2.5"
+          className="flex cursor-grab justify-center pb-1.5 pt-2.5 active:cursor-grabbing"
+          style={{ touchAction: "pan-y" }}
         >
-          {/* Flip pill — visible on light sheet too (was too close to #c8c9cd) */}
           <span
             className={cn(
               "h-1.5 w-11 rounded-full",
@@ -155,11 +318,141 @@ export function HomePanel({
           />
         </div>
 
-        <CategoryTabs
-          expanded={expanded}
-          onExpand={onExpand}
-          onCollapse={onCollapse}
-        />
+        {/*
+          Default: trade strip only.
+          Help mode: quiet “Where are they?” on top.
+          After confirm: address stays + trade strip below (no chip).
+        */}
+        {!helpMode ? (
+          <CategoryTabs
+            expanded={expanded}
+            onExpand={onExpand}
+            onCollapse={onCollapse}
+            onSwipeLeft={isMotorist ? openHelpSomeone : undefined}
+            onOpenHelp={isMotorist ? openHelpSomeone : undefined}
+          />
+        ) : (
+          <>
+            <div
+              className="px-3 pb-1 pt-1"
+              onTouchStart={(e) => {
+                gestureY.current = e.touches[0].clientX;
+              }}
+              onTouchEnd={(e) => {
+                if (gestureY.current == null) return;
+                const dx = e.changedTouches[0].clientX - gestureY.current;
+                gestureY.current = null;
+                // Swipe right → leave help mode (back to trades-only top)
+                if (dx > 40) closeHelpMode();
+              }}
+              style={{ touchAction: "manipulation" }}
+            >
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (addressConfirmed) {
+                      clearHelpingSomeone();
+                    }
+                    closeHelpMode();
+                  }}
+                  aria-label="Back to trades"
+                  className={cn(
+                    "inline-flex h-8 w-8 shrink-0 items-center justify-center border-0 bg-transparent p-0",
+                    isLight ? "text-slate-600" : "text-white/70"
+                  )}
+                >
+                  <ChevronLeft className="h-4 w-4" strokeWidth={2.25} />
+                </button>
+
+                <div className="relative min-w-0 flex-1">
+                  <MapPin
+                    className={cn(
+                      "pointer-events-none absolute left-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2",
+                      isLight ? "text-slate-400" : "text-white/40"
+                    )}
+                    strokeWidth={2}
+                  />
+                  <input
+                    ref={helpInputRef}
+                    type="text"
+                    value={helpAddress}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setHelpAddress(next);
+                      setHelpError(null);
+                      // Clearing the field restores my location
+                      if (!next.trim() && addressConfirmed) {
+                        clearHelpingSomeone();
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void submitHelpAddress();
+                      }
+                      if (e.key === "Escape") {
+                        e.preventDefault();
+                        if (addressConfirmed) clearHelpingSomeone();
+                        closeHelpMode();
+                      }
+                    }}
+                    placeholder="Where are they?"
+                    autoComplete="off"
+                    enterKeyHint="search"
+                    aria-label="Where are they? Address for someone else"
+                    className={cn(
+                      "om-help-where-input h-9 w-full border-0 border-b bg-transparent pl-5 pr-7 text-[13px] font-medium outline-none transition-colors",
+                      isLight
+                        ? "border-slate-400/50 text-slate-900 placeholder:text-slate-400 focus:border-brand/60"
+                        : "border-white/20 text-white placeholder:text-white/40 focus:border-brand/50"
+                    )}
+                  />
+                  {(helpAddress || helpBusy) && (
+                    <button
+                      type="button"
+                      aria-label="Clear address and use my location"
+                      disabled={helpBusy}
+                      onClick={clearHelpingSomeone}
+                      className={cn(
+                        "absolute right-0 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center border-0 bg-transparent p-0",
+                        isLight ? "text-slate-400" : "text-white/40"
+                      )}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              {helpError && (
+                <p className="mt-1 pl-9 text-[10px] font-medium text-red-500">
+                  {helpError}
+                </p>
+              )}
+              {helpBusy && (
+                <p
+                  className={cn(
+                    "mt-1 pl-9 text-[10px]",
+                    isLight ? "text-slate-500" : "text-white/45"
+                  )}
+                >
+                  Finding place…
+                </p>
+              )}
+            </div>
+
+            {/* After address confirm: trade options under the address field */}
+            {addressConfirmed && (
+              <CategoryTabs
+                expanded={expanded}
+                onExpand={onExpand}
+                onCollapse={onCollapse}
+              />
+            )}
+          </>
+        )}
+
+        {/* Radius + filters always with the Repair Pro list */}
         <RadiusSlider />
         <FilterChips />
       </div>
@@ -180,7 +473,7 @@ export function HomePanel({
         </div>
       )}
 
-      {/* Vendor list — dark toggle uses solid black panel chrome */}
+      {/* Repair Pro list — always shown; updates with radius / filters / help pin */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-0 scrollbar-hide">
         <div
           className={cn(
@@ -196,22 +489,19 @@ export function HomePanel({
                   isLight ? "text-slate-800" : "text-white"
                 )}
               >
-                No technicians nearby
-              </p>
-              <p
-                className={cn(
-                  "mt-1 text-[12px]",
-                  isLight ? "text-slate-500" : "text-white/75"
-                )}
-              >
-                Nothing within {radiusKm} km.
+                No Repair pros available right now
               </p>
               <button
                 type="button"
-                onClick={() => setRadiusKm(1)}
-                className="mt-2 text-[12px] font-bold text-brand"
+                disabled={refreshingPros}
+                onClick={() => {
+                  setRefreshingPros(true);
+                  refreshNearbyPros();
+                  window.setTimeout(() => setRefreshingPros(false), 800);
+                }}
+                className="mt-2 border-0 bg-transparent text-[12px] font-bold text-brand disabled:opacity-60"
               >
-                Set 1 km
+                {refreshingPros ? "Refreshing…" : "Refresh"}
               </button>
             </div>
           ) : (
@@ -283,7 +573,6 @@ export function HomePanel({
         </div>
       </div>
 
-      {/* CTA sits on the same lower-panel background — not a cut-out strip */}
       {footer}
     </div>
   );

@@ -17,6 +17,22 @@ type UserRow = {
     | { status: string; primary_service: string; verified: boolean }
     | { status: string; primary_service: string; verified: boolean }[]
     | null;
+  motorist_profiles?:
+    | {
+        vehicle_make: string | null;
+        vehicle_model: string | null;
+        vehicle_year: string | null;
+        nin_verified: boolean;
+        bvn_verified: boolean;
+      }
+    | Array<{
+        vehicle_make: string | null;
+        vehicle_model: string | null;
+        vehicle_year: string | null;
+        nin_verified: boolean;
+        bvn_verified: boolean;
+      }>
+    | null;
 };
 
 export default function AdminUsersPage() {
@@ -95,8 +111,9 @@ export default function AdminUsersPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Users & roles</h1>
       <p className="om-admin-sub">
-        One role per account: admin · motorist · repair_pro. Changes save to
-        Supabase.
+        All people on OgaMecho: admin · motorist · repair_pro. Live from
+        Supabase (Vercel signups appear here). For full motorist tools use{" "}
+        <a href="/admin/motorists">Motorists</a>.
       </p>
       {msg ? (
         <div
@@ -131,6 +148,7 @@ export default function AdminUsersPage() {
               <th>Name</th>
               <th>Contact</th>
               <th>Role</th>
+              <th>Extra</th>
               <th>Status</th>
               <th>Assign role (save)</th>
             </tr>
@@ -138,13 +156,30 @@ export default function AdminUsersPage() {
           <tbody>
             {users.length === 0 ? (
               <tr>
-                <td colSpan={5} className="om-admin-muted">
+                <td colSpan={6} className="om-admin-muted">
                   No users yet. After Supabase is connected and seed admin runs,
                   users appear here.
                 </td>
               </tr>
             ) : (
-              users.map((u) => (
+              users.map((u) => {
+                const motRaw = u.motorist_profiles;
+                const mot = Array.isArray(motRaw) ? motRaw[0] : motRaw;
+                const proRaw = u.repair_pro_profiles;
+                const pro = Array.isArray(proRaw) ? proRaw[0] : proRaw;
+                const extra =
+                  u.role === "motorist"
+                    ? [
+                        mot?.vehicle_make,
+                        mot?.vehicle_model,
+                        mot?.vehicle_year,
+                      ]
+                        .filter(Boolean)
+                        .join(" ") || "Motorist"
+                    : u.role === "repair_pro"
+                      ? `${pro?.primary_service || "pro"} · ${pro?.status || "—"}`
+                      : "Admin";
+                return (
                 <tr key={u.id}>
                   <td>
                     <div>{u.full_name || "—"}</div>
@@ -156,6 +191,24 @@ export default function AdminUsersPage() {
                   </td>
                   <td>
                     <span className={`om-admin-badge ${u.role}`}>{u.role}</span>
+                  </td>
+                  <td>
+                    <div>{extra}</div>
+                    {u.role === "motorist" && mot ? (
+                      <div className="om-admin-muted">
+                        NIN {mot.nin_verified ? "✓" : "—"} · BVN{" "}
+                        {mot.bvn_verified ? "✓" : "—"}
+                      </div>
+                    ) : null}
+                    {u.role === "motorist" ? (
+                      <a
+                        href={`/admin/motorists/${u.id}`}
+                        className="om-admin-muted"
+                        style={{ display: "inline-block", marginTop: 4 }}
+                      >
+                        Open motorist →
+                      </a>
+                    ) : null}
                   </td>
                   <td>
                     <button
@@ -184,7 +237,8 @@ export default function AdminUsersPage() {
                     </div>
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>

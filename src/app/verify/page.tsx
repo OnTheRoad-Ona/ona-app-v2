@@ -14,6 +14,7 @@ import {
   isValidNinFormat,
 } from "@/lib/account-registry";
 import { verifyBvnApi, verifyNinApi } from "@/lib/ng-id-verify-client";
+import { defaultBackHref, navigateBack } from "@/lib/navigation";
 import { useApp } from "@/lib/store";
 import {
   isIdentityVerified,
@@ -86,7 +87,7 @@ export default function VerifyIdentityPage() {
         return;
       }
       setBvnOk(true);
-      const err = completeIdentityVerification({ nin, bvn });
+      const err = await completeIdentityVerification({ nin, bvn });
       if (err) {
         setError(err);
         return;
@@ -143,9 +144,11 @@ export default function VerifyIdentityPage() {
       <div className="flex shrink-0 items-center gap-1 px-3 pt-2.5">
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={() =>
+            navigateBack(router, defaultBackHref(accountType))
+          }
           className={cn(
-            "inline-flex h-8 items-center gap-0.5 rounded-lg px-1 text-[12px] font-semibold",
+            "inline-flex h-8 items-center gap-0.5 rounded-lg border-0 bg-transparent px-1 text-[12px] font-semibold",
             isLight ? "text-slate-800" : "text-white"
           )}
         >

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { BadgeCheck, Star } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
+import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import type { Technician } from "@/lib/types";
 import { cn, formatDistance, formatEta } from "@/lib/utils";
 import { useApp } from "@/lib/store";
@@ -44,7 +44,7 @@ export function TechCard({
         aria-label={`View ${tech.name}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <Avatar className="h-10 w-10">
+        <Avatar className="h-10 w-10 overflow-hidden rounded-full border-0 bg-transparent shadow-none ring-0">
           <AvatarImage
             src={
               tech.photo && tech.photo.trim().length > 0
@@ -52,9 +52,10 @@ export function TechCard({
                 : DEFAULT_VENDOR_PHOTO
             }
             alt={tech.name}
+            className="h-full w-full object-cover object-center"
           />
           <AvatarFallback className="bg-brand text-[11px] font-bold text-white">
-            {tech.shortName.slice(0, 2).toUpperCase()}
+            {avatarInitials(tech.name, tech.shortName || "PR")}
           </AvatarFallback>
         </Avatar>
       </Link>

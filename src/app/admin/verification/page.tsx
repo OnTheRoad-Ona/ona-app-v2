@@ -5,12 +5,12 @@ import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
 
 type Row = {
+  kind: "motorist" | "repair_pro";
   user_id: string;
   full_name: string;
   email: string | null;
-  business_name: string | null;
+  label: string | null;
   status: string;
-  primary_service: string;
   verified: boolean;
   nin_verified: boolean;
   bvn_verified: boolean;
@@ -23,10 +23,15 @@ export default function AdminVerificationPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [totals, setTotals] = useState({
     total: 0,
+    motorists: 0,
+    pros: 0,
     fullyVerified: 0,
     partial: 0,
     unverified: 0,
   });
+  const [filter, setFilter] = useState<"all" | "motorist" | "repair_pro">(
+    "all"
+  );
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -44,17 +49,22 @@ export default function AdminVerificationPage() {
     })();
   }, [ready, api]);
 
+  const visible =
+    filter === "all" ? rows : rows.filter((r) => r.kind === filter);
+
   return (
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Identity verification</h1>
       <p className="om-admin-sub">
-        NIN / BVN status for Repair Pros (and verification gate health).
+        NIN / BVN status for Motorists and Repair Pros (live from Supabase).
       </p>
       {error ? <div className="om-admin-error">{error}</div> : null}
 
       <div className="om-admin-cards">
         {[
-          ["Pros", totals.total],
+          ["People", totals.total],
+          ["Motorists", totals.motorists],
+          ["Pros", totals.pros],
           ["Fully verified", totals.fullyVerified],
           ["Partial", totals.partial],
           ["Unverified", totals.unverified],
@@ -68,57 +78,63 @@ export default function AdminVerificationPage() {
 
       <div className="om-admin-panel">
         <div className="om-admin-toolbar">
-          <strong>Pro identity status</strong>
+          <strong>Identity status</strong>
+          <select
+            value={filter}
+            onChange={(e) =>
+              setFilter(e.target.value as "all" | "motorist" | "repair_pro")
+            }
+            style={{ marginLeft: "auto" }}
+          >
+            <option value="all">All people</option>
+            <option value="motorist">Motorists only</option>
+            <option value="repair_pro">Repair Pros only</option>
+          </select>
         </div>
         <table className="om-admin-table">
           <thead>
             <tr>
               <th>Name</th>
-              <th>Service</th>
-              <th>Status</th>
+              <th>Type</th>
+              <th>Detail</th>
               <th>NIN</th>
               <th>BVN</th>
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
+            {visible.length === 0 ? (
               <tr>
                 <td colSpan={5} className="om-admin-muted">
-                  No repair pro profiles yet.
+                  No identity rows yet.
                 </td>
               </tr>
             ) : (
-              rows.map((r) => (
-                <tr key={r.user_id}>
+              visible.map((r) => (
+                <tr key={`${r.kind}-${r.user_id}`}>
                   <td>
                     <strong>{r.full_name}</strong>
                     <div className="om-admin-muted">
-                      {r.business_name || r.email || r.user_id.slice(0, 8)}
+                      {r.email || r.user_id.slice(0, 8)}
                     </div>
                   </td>
-                  <td>{r.primary_service}</td>
                   <td>
-                    <span className={`om-admin-badge ${r.status}`}>
-                      {r.status}
+                    <span className={`om-admin-badge ${r.kind}`}>
+                      {r.kind === "motorist" ? "motorist" : "repair_pro"}
                     </span>
                   </td>
                   <td>
-                    {r.nin_verified ? (
-                      <span className="om-admin-badge approved">
-                        ✓ {r.nin_last4 ? `…${r.nin_last4}` : "ok"}
-                      </span>
-                    ) : (
-                      <span className="om-admin-badge pending">No</span>
-                    )}
+                    {r.label || "—"}
+                    {r.kind === "repair_pro" ? (
+                      <div className="om-admin-muted">{r.status}</div>
+                    ) : null}
                   </td>
                   <td>
-                    {r.bvn_verified ? (
-                      <span className="om-admin-badge approved">
-                        ✓ {r.bvn_last4 ? `…${r.bvn_last4}` : "ok"}
-                      </span>
-                    ) : (
-                      <span className="om-admin-badge pending">No</span>
-                    )}
+                    {r.nin_verified ? "✓" : "—"}
+                    {r.nin_last4 ? ` …${r.nin_last4}` : ""}
+                  </td>
+                  <td>
+                    {r.bvn_verified ? "✓" : "—"}
+                    {r.bvn_last4 ? ` …${r.bvn_last4}` : ""}
                   </td>
                 </tr>
               ))

@@ -10,7 +10,8 @@ export function Avatar({
   return (
     <AvatarPrimitive.Root
       className={cn(
-        "relative flex h-12 w-12 shrink-0 overflow-hidden rounded-full",
+        // Perfect circle clip — no default ring/border (callers add if needed)
+        "relative flex h-12 w-12 shrink-0 overflow-hidden rounded-full border-0 ring-0",
         className
       )}
       {...props}
@@ -24,7 +25,11 @@ export function AvatarImage({
 }: React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>) {
   return (
     <AvatarPrimitive.Image
-      className={cn("aspect-square h-full w-full object-cover", className)}
+      className={cn(
+        // cover + square gear-fill asset → ring sits edge-to-edge in circle
+        "aspect-square h-full w-full object-cover object-center",
+        className
+      )}
       {...props}
     />
   );

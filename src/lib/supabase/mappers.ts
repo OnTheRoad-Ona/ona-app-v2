@@ -79,18 +79,43 @@ export function mapProToTechnician(
   profile: ProfileRow | null,
   userCoords: { lat: number; lng: number }
 ): Technician {
-  const lat = pro.lat ?? DEFAULT_USER_LOCATION.coordinates.lat;
-  const lng = pro.lng ?? DEFAULT_USER_LOCATION.coordinates.lng;
-  const distanceKm = haversineKm(userCoords, { lat, lng });
+  // Prefer the pro’s own live GPS pin (updated while they are Live)
+  const hasLiveLocation =
+    typeof pro.lat === "number" &&
+    typeof pro.lng === "number" &&
+    Number.isFinite(pro.lat) &&
+    Number.isFinite(pro.lng) &&
+    !(pro.lat === 0 && pro.lng === 0);
+
+  const lat = hasLiveLocation
+    ? (pro.lat as number)
+    : userCoords.lat ?? DEFAULT_USER_LOCATION.coordinates.lat;
+  const lng = hasLiveLocation
+    ? (pro.lng as number)
+    : userCoords.lng ?? DEFAULT_USER_LOCATION.coordinates.lng;
+  const distanceKm = hasLiveLocation
+    ? haversineKm(userCoords, { lat, lng })
+    : 999;
   const serviceType = (pro.primary_service || "mechanic") as ProService;
-  const etaMinutes = Math.max(5, Math.round(distanceKm * 4 + 6));
+  const etaMinutes = hasLiveLocation
+    ? Math.max(5, Math.round(distanceKm * 4 + 6))
+    : 99;
+  const displayName =
+    (profile?.full_name || "").trim() ||
+    (pro.business_name || "").trim() ||
+    "Repair Pro";
+  const short =
+    displayName === "Repair Pro"
+      ? "Pro"
+      : displayName.split(/\s+/)[0]?.slice(0, 12) || "Pro";
   return {
     id: pro.user_id,
-    name: profile?.full_name || pro.business_name || "Repair Pro",
-    shortName: (profile?.full_name || "RP").slice(0, 12),
+    name: displayName,
+    shortName: short,
     serviceType,
     roleLabel: PRO_SERVICE_LABELS[serviceType] ?? serviceType,
-    photo: profile?.avatar_url || "",
+    // Empty photo → map/UI uses DEFAULT_VENDOR_PHOTO (Repair Pro brand icon)
+    photo: (profile?.avatar_url || "").trim(),
     rating: Number(pro.rating_avg) || 4.5,
     reviewCount: pro.rating_count || 0,
     distanceKm: Math.round(distanceKm * 10) / 10,
@@ -109,6 +134,7 @@ export function mapProToTechnician(
     phone: profile?.phone || "",
     serviceRadiusKm: pro.service_radius_km || 10,
     location: { lat, lng },
+    hasLiveLocation,
     responseSpeedScore: pro.is_online ? 0.9 : 0.5,
     currentLoad: pro.is_online ? 0 : 1,
     businessName: pro.business_name || undefined,
@@ -141,6 +167,8 @@ export function profileToUserProfile(
   profile: ProfileRow,
   extra?: {
     accountType: AccountType;
+    /** Original signup role — does not change when switching */
+    primaryAccountType?: AccountType;
     password?: string;
     services?: ProService[];
     businessName?: string;
@@ -150,8 +178,11 @@ export function profileToUserProfile(
     vehicleMake?: string;
     vehicleModel?: string;
     vehicleYear?: string;
+    idNumber?: string;
+    bvn?: string;
     ninVerified?: boolean;
     bvnVerified?: boolean;
+    identityVerifiedAt?: string;
   }
 ): UserProfile {
   const accountType =
@@ -159,6 +190,11 @@ export function profileToUserProfile(
     (profile.role === "repair_pro" ? "professional" : "motorist");
   return {
     accountType,
+    // Only set when known (signup role / side-table timestamps). Do not default
+    // to active role — that would overwrite primary on Motorist ↔ Pro switch.
+    ...(extra?.primaryAccountType
+      ? { primaryAccountType: extra.primaryAccountType }
+      : {}),
     fullName: profile.full_name || "",
     phone: profile.phone || "",
     email: profile.email || "",
@@ -175,10 +211,38 @@ export function profileToUserProfile(
     bio: extra?.bio,
     identityId: profile.id,
     registeredAt: profile.created_at,
+    idNumber: extra?.idNumber,
+    bvn: extra?.bvn,
     ninVerified: extra?.ninVerified,
     bvnVerified: extra?.bvnVerified,
+    identityVerifiedAt: extra?.identityVerifiedAt,
     serviceActionCount: 0,
   };
+}
+
+/**
+ * Main account = whichever side profile was created first (original signup).
+ * Falls back to the active role when only one side exists.
+ */
+export function resolvePrimaryAccountType(opts: {
+  hasMotorist: boolean;
+  hasPro: boolean;
+  motoristCreatedAt?: string | null;
+  proCreatedAt?: string | null;
+  activeAccountType?: AccountType;
+}): AccountType {
+  const { hasMotorist, hasPro, motoristCreatedAt, proCreatedAt, activeAccountType } =
+    opts;
+  if (hasMotorist && hasPro) {
+    const m = motoristCreatedAt ? new Date(motoristCreatedAt).getTime() : 0;
+    const p = proCreatedAt ? new Date(proCreatedAt).getTime() : 0;
+    if (m && p) return m <= p ? "motorist" : "professional";
+    if (m) return "motorist";
+    if (p) return "professional";
+  }
+  if (hasPro && !hasMotorist) return "professional";
+  if (hasMotorist && !hasPro) return "motorist";
+  return activeAccountType ?? "motorist";
 }
 
 export type ConversationRow = {

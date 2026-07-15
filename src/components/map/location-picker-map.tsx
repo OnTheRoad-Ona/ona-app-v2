@@ -38,6 +38,8 @@ type Props = {
   value?: PickedLocation | null;
   onChange: (loc: PickedLocation) => void;
   className?: string;
+  /** Shorter map for home sheet / compact panels */
+  compact?: boolean;
 };
 
 const mapContainerStyle = { width: "100%", height: "100%" };
@@ -74,7 +76,13 @@ function parseGeocodeResult(
 /**
  * Live Google Map location picker for Motorist "Where are you?" and anywhere else.
  */
-export function LocationPickerMap({ value, onChange, className }: Props) {
+export function LocationPickerMap({
+  value,
+  onChange,
+  className,
+  compact = false,
+}: Props) {
+  const mapH = compact ? "h-36" : "h-52";
   const apiKey = getGoogleMapsApiKey();
   const live = shouldUseLiveMaps();
   const { isLoaded, loadError } = useJsApiLoader({
@@ -239,6 +247,7 @@ export function LocationPickerMap({ value, onChange, className }: Props) {
         value={value}
         onChange={onChange}
         className={className}
+        compact={compact}
       />
     );
   }
@@ -247,7 +256,8 @@ export function LocationPickerMap({ value, onChange, className }: Props) {
     return (
       <div
         className={cn(
-          "flex h-52 items-center justify-center rounded-md bg-[#d4d5db] text-[12px] font-medium text-[#475569]",
+          "flex items-center justify-center rounded-md bg-[#d4d5db] text-[12px] font-medium text-[#475569]",
+          mapH,
           className
         )}
       >
@@ -271,7 +281,12 @@ export function LocationPickerMap({ value, onChange, className }: Props) {
         />
       </div>
 
-      <div className="relative h-52 overflow-hidden rounded-md border border-[#9A9EA6] bg-[#c8c9cd] shadow-[inset_0_1px_2px_rgba(15,23,42,0.06)]">
+      <div
+        className={cn(
+          "relative overflow-hidden rounded-md border border-[#9A9EA6] bg-[#c8c9cd] shadow-[inset_0_1px_2px_rgba(15,23,42,0.06)]",
+          mapH
+        )}
+      >
         <GoogleMap
           mapContainerStyle={mapContainerStyle}
           center={center}

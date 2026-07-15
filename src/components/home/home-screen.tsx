@@ -25,6 +25,16 @@ export function HomeScreen() {
   const isLight = theme === "light";
   const [sheetExpanded, setSheetExpanded] = useState(false);
 
+  // GPS is managed in store (10 min cadence). Avoid forced refresh on every home open.
+  useEffect(() => {
+    if (
+      visibleTechnicians.length > 0 &&
+      !visibleTechnicians.some((t) => t.id === selectedTechId)
+    ) {
+      setSelectedTechId(visibleTechnicians[0].id);
+    }
+  }, [visibleTechnicians, selectedTechId, setSelectedTechId]);
+
   if (config.app.maintenanceMode) {
     return (
       <div
@@ -47,17 +57,6 @@ export function HomeScreen() {
       </div>
     );
   }
-
-  // GPS is managed in store (10 min cadence). Avoid forced refresh on every home open.
-
-  useEffect(() => {
-    if (
-      visibleTechnicians.length > 0 &&
-      !visibleTechnicians.some((t) => t.id === selectedTechId)
-    ) {
-      setSelectedTechId(visibleTechnicians[0].id);
-    }
-  }, [visibleTechnicians, selectedTechId, setSelectedTechId]);
 
   const sheetBg = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const mapTechs = visibleTechnicians
@@ -87,7 +86,6 @@ export function HomeScreen() {
           className={cn(
             "om-sheet-spring z-30 flex min-h-0 flex-col overflow-hidden",
             sheetExpanded ? "flex-1" : "flex-[0_0_55%]",
-            // Complete black lower panel on dark toggle only
             isLight ? "bg-[#c8c9cd]" : "bg-black",
             !sheetExpanded &&
               "rounded-t-2xl shadow-[0_-6px_24px_rgba(0,0,0,0.18)]"

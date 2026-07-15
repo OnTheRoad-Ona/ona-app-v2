@@ -143,6 +143,12 @@ export default function RequestsPage() {
                 </span>
               </div>
 
+              {r.bookingForSomeoneElse && (
+                <p className="mt-1.5 text-[11px] font-semibold text-brand">
+                  Booking for someone else · {r.locationLabel}
+                </p>
+              )}
+
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {r.status === "pending" && isPro && (
                   <>
@@ -161,25 +167,38 @@ export default function RequestsPage() {
                     </Button>
                   </>
                 )}
-                {r.status === "pending" && !isPro && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => handleUpdate(r.id, "cancelled")}
-                  >
-                    Cancel
-                  </Button>
-                )}
-                {r.status === "accepted" && (
-                  <>
-                    {isPro && (
+                {/* Motorist: cancel / completed only after pro has accepted */}
+                {!isPro &&
+                  ["accepted", "en_route", "arrived", "in_progress"].includes(
+                    r.status
+                  ) && (
+                    <>
                       <Button
                         size="sm"
-                        onClick={() => handleUpdate(r.id, "en_route")}
+                        variant="secondary"
+                        onClick={() => handleUpdate(r.id, "cancelled")}
                       >
-                        En route
+                        Cancel
                       </Button>
-                    )}
+                      <Button
+                        size="sm"
+                        onClick={() => handleUpdate(r.id, "completed")}
+                      >
+                        Completed
+                      </Button>
+                      <Button size="sm" variant="secondary" asChild>
+                        <Link href={`/requests/track?id=${r.id}`}>Track</Link>
+                      </Button>
+                    </>
+                  )}
+                {r.status === "accepted" && isPro && (
+                  <>
+                    <Button
+                      size="sm"
+                      onClick={() => handleUpdate(r.id, "en_route")}
+                    >
+                      En route
+                    </Button>
                     <Button size="sm" variant="secondary" asChild>
                       <Link href="/messages">Chat</Link>
                     </Button>
@@ -200,6 +219,11 @@ export default function RequestsPage() {
                   >
                     Complete
                   </Button>
+                )}
+                {r.status === "pending" && !isPro && (
+                  <p className="w-full text-[11px] text-muted">
+                    Waiting for Repair Pro to accept…
+                  </p>
                 )}
               </div>
             </article>

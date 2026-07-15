@@ -11,6 +11,7 @@ import {
   shouldUseLiveMaps,
 } from "@/lib/google-maps";
 import { MAP_NEAR_ZOOM } from "@/lib/matching";
+import { tradeIconDataUrl } from "@/lib/map-trade-icons";
 import { useApp } from "@/lib/store";
 import type { Technician } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -122,42 +123,18 @@ const MAP_STYLES_DARK: google.maps.MapTypeStyle[] = [
   { featureType: "transit", stylers: [{ visibility: "off" }] },
 ];
 
-function markerIconUrl(type: Technician["serviceType"], selected: boolean) {
-  const bg =
-    type === "vulcanizer"
-      ? "#14b8a6"
-      : type === "towing"
-        ? "#0d9488"
-        : type === "wash"
-          ? "#0ea5e9"
-          : "#ff5a00";
-  const size = selected ? 40 : 36;
-  const svg = encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 36 36">
-      <defs>
-        <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#ffb06a"/>
-          <stop offset="50%" stop-color="${bg}"/>
-          <stop offset="100%" stop-color="${type === "mechanic" ? "#c24100" : "#0f766e"}"/>
-        </linearGradient>
-      </defs>
-      <circle cx="18" cy="18" r="15" fill="url(#g)" stroke="white" stroke-width="3"/>
-      <path d="M12 18h12M18 12v12" stroke="white" stroke-width="2.4" stroke-linecap="round"/>
-    </svg>`
-  );
-  return `data:image/svg+xml;charset=UTF-8,${svg}`;
+/** Small flat trade glyph — blended orange, no disc/ring */
+function proMarkerIconUrl(t: Technician, selected: boolean): string {
+  return tradeIconDataUrl(t.serviceType, {
+    size: selected ? 24 : 20,
+    selected,
+  });
 }
 
-function selectedPinUrl() {
-  const svg = encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="48" viewBox="0 0 40 48">
-      <path d="M20 2C12.3 2 6 8.3 6 16c0 10.5 14 28 14 28s14-17.5 14-28C34 8.3 27.7 2 20 2z" fill="#ef4444" stroke="white" stroke-width="2.5"/>
-      <circle cx="20" cy="16" r="5.5" fill="white"/>
-      <circle cx="20" cy="16" r="2.5" fill="#ef4444"/>
-    </svg>`
-  );
-  return `data:image/svg+xml;charset=UTF-8,${svg}`;
-}
+/**
+ * Google Maps can’t animate SVG data-URLs easily — use a slightly larger
+ * soft glow via canvas-free double marker approach in LiveGoogleMap.
+ */
 
 function userIconUrl() {
   const svg = encodeURIComponent(
@@ -458,35 +435,42 @@ function GoogleServiceMap({
     });
   }, [map, mapStyles, mapBg]);
 
-  // Follow GPS only when the user moves ~25m+ (avoids map lag/jitter)
+  // Only pros with a real live GPS pin on the map
+  const livePros = technicians.filter(
+    (t) =>
+      t.hasLiveLocation !== false &&
+      Number.isFinite(t.location.lat) &&
+      Number.isFinite(t.location.lng) &&
+      !(t.location.lat === 0 && t.location.lng === 0)
+  );
+
+  // Deep view: fit you + each pro’s live coordinates
   useEffect(() => {
-    if (!map) return;
-    const cur = map.getCenter();
-    if (!cur) {
+    if (!map || typeof google === "undefined") return;
+    if (livePros.length === 0) {
       map.panTo(center);
+      map.setZoom(MAP_NEAR_ZOOM + 1);
       return;
     }
-    const dLat = Math.abs(cur.lat() - center.lat);
-    const dLng = Math.abs(cur.lng() - center.lng);
-    // ~0.00025 deg ≈ 25–30 m near equator
-    if (dLat > 0.00025 || dLng > 0.00025) {
-      map.panTo(center);
-    }
-  }, [map, center.lat, center.lng, center]);
-
-  // Camera stays ~1 km street view; list radius can still be up to 10 km
-  useEffect(() => {
-    if (!map) return;
-    map.setZoom(MAP_NEAR_ZOOM);
-  }, [map]);
+    const bounds = new google.maps.LatLngBounds();
+    bounds.extend(center);
+    livePros.forEach((t) =>
+      bounds.extend({ lat: t.location.lat, lng: t.location.lng })
+    );
+    map.fitBounds(bounds, { top: 56, right: 40, bottom: 40, left: 40 });
+    // Allow deeper zoom for close pros (street-level)
+    const z = map.getZoom();
+    if (z != null && z > 18) map.setZoom(18);
+    if (z != null && z < 13 && livePros.length === 1) map.setZoom(15);
+  }, [map, center.lat, center.lng, livePros]);
 
   return (
     <div className="relative h-full w-full">
-      <NearbyCountBadge count={technicians.length} />
+      <NearbyCountBadge count={livePros.length} />
       <GoogleMap
         mapContainerStyle={MAP_ID_CONTAINER}
         center={center}
-        zoom={MAP_NEAR_ZOOM}
+        zoom={MAP_NEAR_ZOOM + 1}
         onLoad={onLoad}
         onUnmount={onUnmount}
         options={{
@@ -499,9 +483,8 @@ function GoogleServiceMap({
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,
-          // Lighter map load
-          maxZoom: 17,
-          minZoom: 13,
+          maxZoom: 19,
+          minZoom: 11,
         }}
       >
         <Marker
@@ -520,29 +503,49 @@ function GoogleServiceMap({
           title={`You: ${location.label}`}
           zIndex={1000}
         />
-        {technicians.map((t) => {
+        {livePros.map((t) => {
           const selected = t.id === selectedTechId;
+          const dim = selected ? 24 : 20;
+          const pos = { lat: t.location.lat, lng: t.location.lng };
           return (
-            <Marker
-              key={t.id}
-              position={{ lat: t.location.lat, lng: t.location.lng }}
-              onClick={() => onSelect?.(t.id)}
-              title={`${t.name} · ${t.etaMinutes} min`}
-              icon={{
-                url: selected
-                  ? selectedPinUrl()
-                  : markerIconUrl(t.serviceType, false),
-                scaledSize:
-                  typeof google !== "undefined"
-                    ? new google.maps.Size(selected ? 36 : 32, selected ? 42 : 32)
-                    : undefined,
-                anchor:
-                  typeof google !== "undefined"
-                    ? new google.maps.Point(selected ? 18 : 16, selected ? 40 : 16)
-                    : undefined,
-              }}
-              zIndex={selected ? 900 : 100}
-            />
+            <span key={`${t.id}-${pos.lat.toFixed(5)}-${pos.lng.toFixed(5)}`}>
+              {/* Soft live pulse under the glyph (tiny, no hard circle UI) */}
+              <Marker
+                position={pos}
+                clickable={false}
+                icon={{
+                  path:
+                    typeof google !== "undefined"
+                      ? google.maps.SymbolPath.CIRCLE
+                      : 0,
+                  scale: selected ? 11 : 9,
+                  fillColor: "#e85a12",
+                  fillOpacity: 0.14,
+                  strokeColor: "#e85a12",
+                  strokeOpacity: 0.35,
+                  strokeWeight: 1,
+                }}
+                zIndex={selected ? 890 : 90}
+                opacity={0.85}
+              />
+              <Marker
+                position={pos}
+                onClick={() => onSelect?.(t.id)}
+                title={`${t.name} · ${t.roleLabel} · live · ${t.distanceKm.toFixed(1)} km`}
+                icon={{
+                  url: proMarkerIconUrl(t, selected),
+                  scaledSize:
+                    typeof google !== "undefined"
+                      ? new google.maps.Size(dim, dim)
+                      : undefined,
+                  anchor:
+                    typeof google !== "undefined"
+                      ? new google.maps.Point(dim / 2, dim / 2)
+                      : undefined,
+                }}
+                zIndex={selected ? 900 : 100}
+              />
+            </span>
           );
         })}
       </GoogleMap>

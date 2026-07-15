@@ -4,6 +4,7 @@ import { useRef } from "react";
 import {
   Battery,
   Car,
+  ChevronRight,
   CircleDot,
   Cpu,
   Droplets,
@@ -36,22 +37,29 @@ const ALL_TABS: {
 ];
 
 /**
- * Light: soft glass-gray strip (no pastel tile colors).
- * Dark: charcoal strip.
+ * 2-row trade strip (5×2). Bouncing arrow sits between A/C (top-right)
+ * and All (bottom-right) without a third row. Swipe left → help page.
  */
 export function CategoryTabs({
   expanded,
   onExpand,
   onCollapse,
+  onSwipeLeft,
+  onSwipeRight,
+  onOpenHelp,
 }: {
   expanded?: boolean;
   onExpand?: () => void;
   onCollapse?: () => void;
+  onSwipeLeft?: () => void;
+  onSwipeRight?: () => void;
+  onOpenHelp?: () => void;
 }) {
   const { category, setCategory, theme } = useApp();
   const { config } = useAppConfig();
   const isLight = theme === "light";
-  const touchY = useRef<number | null>(null);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const moved = useRef(false);
   const enabled = new Set(config.services.enabled ?? []);
   const tabs = ALL_TABS.filter(
     (t) => t.id === "all" || enabled.has(t.id)
@@ -72,36 +80,84 @@ export function CategoryTabs({
     }
   };
 
-  const onAxisTouchStart = (e: React.TouchEvent) => {
-    touchY.current = e.touches[0].clientY;
+  const onPointerDown = (e: React.PointerEvent) => {
+    start.current = { x: e.clientX, y: e.clientY };
+    moved.current = false;
   };
 
-  const onAxisTouchMove = (e: React.TouchEvent) => {
-    if (!onExpand || !onCollapse || touchY.current == null) return;
-    const dy = e.touches[0].clientY - touchY.current;
-    if (!expanded && dy < -14) {
-      onExpand();
-      touchY.current = null;
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!start.current) return;
+    const dx = e.clientX - start.current.x;
+    const dy = e.clientY - start.current.y;
+    if (Math.abs(dx) > 12 || Math.abs(dy) > 12) moved.current = true;
+  };
+
+  const finishGesture = (clientX: number, clientY: number) => {
+    if (!start.current) return;
+    const dx = clientX - start.current.x;
+    const dy = clientY - start.current.y;
+    start.current = null;
+
+    // Horizontal swipe (lower threshold so it fires on mobile)
+    if (Math.abs(dx) >= 28 && Math.abs(dx) > Math.abs(dy) * 0.9) {
+      if (dx < 0) onSwipeLeft?.();
+      else onSwipeRight?.();
       return;
     }
-    if (expanded && dy > 14) {
-      onCollapse();
-      touchY.current = null;
+
+    if (!onExpand || !onCollapse) return;
+    if (!expanded && dy < -18) onExpand();
+    else if (expanded && dy > 18) onCollapse();
+  };
+
+  const onPointerUp = (e: React.PointerEvent) => {
+    finishGesture(e.clientX, e.clientY);
+  };
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    start.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+    };
+    moved.current = false;
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (!start.current) return;
+    const dx = e.touches[0].clientX - start.current.x;
+    const dy = e.touches[0].clientY - start.current.y;
+    if (Math.abs(dx) > 12 || Math.abs(dy) > 12) moved.current = true;
+  };
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const t = e.changedTouches[0];
+    if (!t) {
+      start.current = null;
+      return;
     }
+    finishGesture(t.clientX, t.clientY);
   };
 
   return (
     <div
-      className="px-3 pt-1 pb-1"
+      className="relative px-3 pt-1 pb-1"
       onWheel={onAxisWheel}
-      onTouchStart={onAxisTouchStart}
-      onTouchMove={onAxisTouchMove}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={() => {
+        start.current = null;
+      }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      style={{ touchAction: "pan-y pinch-zoom" }}
     >
       <div
         role="tablist"
         aria-label="Service category"
         className={cn(
-          "grid grid-cols-5 gap-0 rounded-xl p-0.5",
+          "relative grid grid-cols-5 gap-0 rounded-xl p-0.5",
           isLight
             ? "bg-[#d8dce4]/90 backdrop-blur-sm"
             : "bg-gradient-to-b from-[#1a1a1a] to-[#141414]"
@@ -115,7 +171,11 @@ export function CategoryTabs({
               type="button"
               role="tab"
               aria-selected={active}
-              onClick={() => setCategory(id)}
+              onClick={() => {
+                // Ignore click if this was a swipe
+                if (moved.current) return;
+                setCategory(id);
+              }}
               className={cn(
                 "flex min-w-0 flex-col items-center justify-center gap-0.5 border-0 px-0.5 py-2 text-[9px] font-semibold transition-colors",
                 active
@@ -136,6 +196,32 @@ export function CategoryTabs({
             </button>
           );
         })}
+
+        {/* Small bounce arrow: middle of A/C (top-right) and All (bottom-right) — no 3rd row */}
+        {onOpenHelp && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenHelp();
+            }}
+            aria-label="Help someone else get help"
+            className={cn(
+              "absolute right-0.5 top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center border-0 bg-transparent p-0"
+            )}
+          >
+            <span
+              className={cn(
+                "om-bounce-arrow flex h-5 w-5 items-center justify-center rounded-full",
+                isLight
+                  ? "bg-white/90 text-black shadow-sm ring-1 ring-black/8"
+                  : "bg-white/15 text-white ring-1 ring-white/15"
+              )}
+            >
+              <ChevronRight className="h-3 w-3" strokeWidth={2.75} />
+            </span>
+          </button>
+        )}
       </div>
     </div>
   );

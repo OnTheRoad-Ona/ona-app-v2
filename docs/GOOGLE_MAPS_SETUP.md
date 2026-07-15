@@ -27,16 +27,44 @@ npm run dev
    - **Geocoding API** (optional: Google street names; app falls back to OpenStreetMap Nominatim if the key blocks Geocoding)
    - **Places API** (optional: address search autocomplete)
 5. **APIs & Services → Credentials** → click **your API key** (not only Library):
-   - **Application restrictions:** **HTTP referrers** (websites), with:
-     - `http://localhost:3000/*`
-     - `http://127.0.0.1:3000/*`
-     - your production domain `/*`
-     - Or **None** while testing locally
+   - **Application restrictions:** **HTTP referrers** (websites)
+   - **Website restrictions — allow ONLY these** (OgaMecho):
+
+     | Referrer | Purpose |
+     |----------|---------|
+     | `http://localhost:3000/*` | Local public app |
+     | `https://ogamecho.vercel.app/*` | Production public app |
+     | `https://ogamecho-backend.vercel.app/*` | Production admin backend |
+
+     Optional (only if you need them later):
+     - `http://127.0.0.1:3000/*` — same as localhost via IP
+     - `http://localhost:4500/*` — local admin (`npm run dev:admin`)
+
+   - Google needs the `/*` suffix so all paths under each site work (home, signup, admin, etc.).
+   - **Do not** leave “None” if you want the key locked to OgaMecho only.
    - **API restrictions (this is the usual fix for ApiTargetBlockedMapError):**
      - Either **Don't restrict key**, or
-     - **Restrict key** and **include Maps JavaScript API** in the list  
-       (enabling the API in Library is not enough if the key’s allow-list omits it)
-6. Click **Save**, wait 1–5 minutes, hard-refresh the app
+     - **Restrict key** and **include** at least:
+       - **Maps JavaScript API**
+       - **Geocoding API** (street labels)
+       - **Places API** (if you use place search)
+6. Click **Save**, wait **5–10 minutes**, then hard-refresh the app
+
+### Restrict key in Console (click path)
+
+1. Open: https://console.cloud.google.com/apis/credentials  
+2. Select the **project** that owns the OgaMecho Maps key  
+3. Under **API keys**, open your key  
+4. **Application restrictions** → **HTTP referrers (web sites)**  
+5. **Add an item** for each line exactly:
+
+```
+http://localhost:3000/*
+https://ogamecho.vercel.app/*
+https://ogamecho-backend.vercel.app/*
+```
+
+6. **Save**
 
 ## 3. What the homepage shows when live
 

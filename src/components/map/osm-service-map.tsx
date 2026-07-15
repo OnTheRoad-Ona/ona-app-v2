@@ -4,6 +4,7 @@ import { useEffect, useMemo } from "react";
 import { MapContainer, Marker, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { tradeIconHtml } from "@/lib/map-trade-icons";
 import { useApp } from "@/lib/store";
 import type { Technician } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -21,19 +22,15 @@ function userIcon() {
   });
 }
 
-function techIcon(selected: boolean, serviceType: Technician["serviceType"]) {
-  const bg =
-    selected
-      ? "#ef4444"
-      : serviceType === "vulcanizer" || serviceType === "towing"
-        ? "#14b8a6"
-        : "#ff5a00";
-  const size = selected ? 40 : 34;
+/** Small flat trade glyph + subtle live beam */
+function techIcon(t: Technician, selected: boolean) {
+  const size = selected ? 22 : 18;
+  const box = selected ? 28 : 24;
   return L.divIcon({
-    className: "",
-    html: `<div style="width:${size}px;height:${size}px;margin-left:-${size / 2}px;margin-top:-${size / 2}px;border-radius:9999px;background:${bg};border:3px solid white;box-shadow:0 2px 10px rgba(0,0,0,.4)"></div>`,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
+    className: "om-trade-marker",
+    html: tradeIconHtml(t.serviceType, { size, selected }),
+    iconSize: [box, box],
+    iconAnchor: [box / 2, box / 2],
   });
 }
 
@@ -48,9 +45,22 @@ function MapSync({
 }) {
   const map = useMap();
 
+  // Deep view: you + each pro’s live GPS pin
   useEffect(() => {
-    map.panTo([center.lat, center.lng], { animate: true });
-  }, [map, center.lat, center.lng]);
+    const live = technicians.filter(
+      (t) =>
+        t.hasLiveLocation !== false &&
+        Number.isFinite(t.location.lat) &&
+        Number.isFinite(t.location.lng)
+    );
+    const bounds = L.latLngBounds([[center.lat, center.lng]]);
+    live.forEach((t) => bounds.extend([t.location.lat, t.location.lng]));
+    if (live.length > 0) {
+      map.fitBounds(bounds.pad(0.22), { animate: true, maxZoom: 17 });
+    } else {
+      map.setView([center.lat, center.lng], 15, { animate: true });
+    }
+  }, [map, center.lat, center.lng, technicians]);
 
   useEffect(() => {
     const onFit = () => {
@@ -139,21 +149,28 @@ export function OsmServiceMap({
           title={`You: ${location.label}`}
           zIndexOffset={1000}
         />
-        {technicians.map((t) => {
-          const selected = t.id === selectedTechId;
-          return (
-            <Marker
-              key={t.id}
-              position={[t.location.lat, t.location.lng]}
-              icon={techIcon(selected, t.serviceType)}
-              title={`${t.name} · ${t.etaMinutes} min`}
-              eventHandlers={{
-                click: () => onSelect?.(t.id),
-              }}
-              zIndexOffset={selected ? 900 : 100}
-            />
-          );
-        })}
+        {technicians
+          .filter(
+            (t) =>
+              t.hasLiveLocation !== false &&
+              Number.isFinite(t.location.lat) &&
+              Number.isFinite(t.location.lng)
+          )
+          .map((t) => {
+            const selected = t.id === selectedTechId;
+            return (
+              <Marker
+                key={`${t.id}-${t.location.lat}-${t.location.lng}`}
+                position={[t.location.lat, t.location.lng]}
+                icon={techIcon(t, selected)}
+                title={`${t.name} · ${t.roleLabel} · live`}
+                eventHandlers={{
+                  click: () => onSelect?.(t.id),
+                }}
+                zIndexOffset={selected ? 900 : 100}
+              />
+            );
+          })}
       </MapContainer>
     </div>
   );

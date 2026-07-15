@@ -10,8 +10,15 @@ type UserRow = {
   email: string | null;
   phone: string | null;
   role: string;
+  is_active?: boolean;
+  created_at?: string;
   repair_pro_profiles?:
-    | { status: string; primary_service: string; verified: boolean; is_online?: boolean }
+    | {
+        status: string;
+        primary_service: string;
+        verified: boolean;
+        is_online?: boolean;
+      }
     | Array<{
         status: string;
         primary_service: string;
@@ -82,7 +89,9 @@ export default function AdminProsPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Repair Pros</h1>
       <p className="om-admin-sub">
-        Approve, suspend, or reject technicians. Saves to Supabase.
+        Live technicians from Supabase (same people on the Vercel app). Approve,
+        suspend, or reject. &quot;RP&quot; on the app was only a fallback label
+        for missing names — real names show here.
       </p>
       {msg ? (
         <div
@@ -98,15 +107,18 @@ export default function AdminProsPage() {
             <tr>
               <th>Pro</th>
               <th>Service</th>
+              <th>Online</th>
               <th>Status</th>
+              <th>Joined</th>
               <th>Actions (save)</th>
             </tr>
           </thead>
           <tbody>
             {users.length === 0 ? (
               <tr>
-                <td colSpan={4} className="om-admin-muted">
-                  No Repair Pros registered yet.
+                <td colSpan={6} className="om-admin-muted">
+                  No Repair Pros registered yet. When someone signs up as Repair
+                  Pro on ogamecho.vercel.app they appear here.
                 </td>
               </tr>
             ) : (
@@ -115,16 +127,34 @@ export default function AdminProsPage() {
                 return (
                   <tr key={u.id}>
                     <td>
-                      <div>{u.full_name}</div>
+                      <div>{u.full_name || "— (no name)"}</div>
                       <div className="om-admin-muted">{u.email}</div>
+                      <div className="om-admin-muted">{u.phone || ""}</div>
                     </td>
                     <td>{pro?.primary_service || "—"}</td>
+                    <td>
+                      <span
+                        className={`om-admin-badge ${
+                          pro?.is_online ? "approved" : "suspended"
+                        }`}
+                      >
+                        {pro?.is_online ? "online" : "offline"}
+                      </span>
+                    </td>
                     <td>
                       <span
                         className={`om-admin-badge ${pro?.status || "pending"}`}
                       >
                         {pro?.status || "pending"}
                       </span>
+                      {u.is_active === false ? (
+                        <div className="om-admin-muted">account inactive</div>
+                      ) : null}
+                    </td>
+                    <td className="om-admin-muted">
+                      {u.created_at
+                        ? new Date(u.created_at).toLocaleString()
+                        : "—"}
                     </td>
                     <td>
                       <div className="om-admin-row-actions">

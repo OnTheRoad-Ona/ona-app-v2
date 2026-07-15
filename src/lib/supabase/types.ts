@@ -35,6 +35,24 @@ export interface ProfileRow {
   updated_at: string;
 }
 
+export interface MotoristProfileRow {
+  user_id: string;
+  default_lat: number | null;
+  default_lng: number | null;
+  address_text: string | null;
+  vehicle_make: string | null;
+  vehicle_model: string | null;
+  vehicle_year: string | null;
+  plate_number: string | null;
+  nin_last4: string | null;
+  bvn_last4: string | null;
+  nin_verified: boolean;
+  bvn_verified: boolean;
+  identity_verified_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface RepairProRow {
   user_id: string;
   business_name: string | null;

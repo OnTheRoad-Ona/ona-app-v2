@@ -39,10 +39,12 @@ export function OsmLocationPicker({
   value,
   onChange,
   className,
+  compact = false,
 }: {
   value?: PickedLocation | null;
   onChange: (loc: PickedLocation) => void;
   className?: string;
+  compact?: boolean;
 }) {
   const [center, setCenter] = useState({
     lat: value?.lat ?? DEFAULT_USER_LOCATION.coordinates.lat,
@@ -133,7 +135,13 @@ export function OsmLocationPicker({
   };
 
   return (
-    <div className={cn("flex h-full min-h-[240px] flex-col gap-2", className)}>
+    <div
+      className={cn(
+        "flex h-full flex-col gap-2",
+        compact ? "min-h-0" : "min-h-[240px]",
+        className
+      )}
+    >
       <div className="relative flex items-center gap-2">
         <MapPin className="absolute left-2.5 h-4 w-4 text-slate-400" />
         <input

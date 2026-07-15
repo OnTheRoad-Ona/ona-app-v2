@@ -20,7 +20,9 @@ export async function GET(req: Request) {
     let query = supabase
       .from("profiles")
       .select(
-        "id, role, full_name, phone, email, city, area, is_active, created_at, updated_at, repair_pro_profiles(status, primary_service, verified, is_online)"
+        `id, role, full_name, phone, email, city, area, is_active, created_at, updated_at,
+         repair_pro_profiles(status, primary_service, verified, is_online, nin_verified, bvn_verified),
+         motorist_profiles(vehicle_make, vehicle_model, vehicle_year, plate_number, nin_verified, bvn_verified, nin_last4, bvn_last4)`
       )
       .order("created_at", { ascending: false })
       .limit(200);

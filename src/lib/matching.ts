@@ -3,10 +3,10 @@ import type { AppFilters, ServiceCategory, Technician } from "@/lib/types";
 
 /** Max techs returned in any search (keep load reasonable) */
 export const MAX_TECHNICIANS = 24;
-/** Max search radius in kilometers (list / match) */
+/** Hard max search radius in km — pros farther away are never listed or mapped */
 export const MAX_RADIUS_KM = 10;
-/** Default search radius */
-export const DEFAULT_RADIUS_KM = 5;
+/** Default search radius (motorist pin and book-for-someone meet pin) */
+export const DEFAULT_RADIUS_KM = 10;
 /** Map camera zoom for ~1 km street view (radius still uses MAX_RADIUS_KM) */
 export const MAP_NEAR_ZOOM = 15;
 
@@ -96,16 +96,23 @@ export function filterAndRankTechnicians(
   }
 ): Technician[] {
   const { radiusKm, category, query, filters } = options;
+  // Always cap at 10 km — never show pros outside this (self or book-for-someone).
   const radius = Math.min(Math.max(radiusKm, 0), MAX_RADIUS_KM);
 
-  let list = technicians.filter((t) => t.distanceKm <= radius);
+  let list = technicians.filter((t) => {
+    const d = t.distanceKm;
+    if (typeof d !== "number" || !Number.isFinite(d)) return false;
+    return d <= radius;
+  });
 
   if (category !== "all") {
     list = list.filter((t) => matchesCategory(t, category));
   }
 
   if (filters.availableNow) {
-    list = list.filter((t) => t.status === "available" || t.status === "nearby");
+    list = list.filter(
+      (t) => t.status === "available" || t.status === "nearby"
+    );
   }
   if (filters.rating45) {
     list = list.filter((t) => t.rating >= 4.5);
@@ -122,8 +129,13 @@ export function filterAndRankTechnicians(
       const d = a.distanceKm - b.distanceKm;
       if (Math.abs(d) > 0.05) return d;
     }
-    return scoreTechnician(b, query) - scoreTechnician(a, query);
+    // Always prefer nearer when scores are close
+    const scoreDiff = scoreTechnician(b, query) - scoreTechnician(a, query);
+    if (Math.abs(scoreDiff) > 2) return scoreDiff;
+    return a.distanceKm - b.distanceKm;
   });
 
+  // Strict radius only — empty list means no Live pros within radius
+  // (including when booking for someone else at their meet pin).
   return list.slice(0, MAX_TECHNICIANS);
 }

@@ -30,6 +30,11 @@ const QUICK = [
     desc: "Motorists, pros, admins",
   },
   {
+    href: "/admin/motorists",
+    title: "Motorists",
+    desc: "Car owners, vehicles, ID",
+  },
+  {
     href: "/admin/pros",
     title: "Repair Pros",
     desc: "Approve, suspend, verify",
@@ -38,6 +43,16 @@ const QUICK = [
     href: "/admin/jobs",
     title: "Jobs",
     desc: "Live service requests",
+  },
+  {
+    href: "/admin/health",
+    title: "System health",
+    desc: "Auth, DB, Maps, API monitoring",
+  },
+  {
+    href: "/admin/signups",
+    title: "Signup events",
+    desc: "Success + failed registrations",
   },
   {
     href: "/admin/settings",
@@ -98,7 +113,7 @@ export default function AdminDashboardPage() {
         {(
           [
             ["Users", t?.users, "/admin/users"],
-            ["Motorists", t?.motorists, "/admin/users"],
+            ["Motorists", t?.motorists, "/admin/motorists"],
             ["Repair Pros", t?.repairPros, "/admin/pros"],
             ["Pending Pros", t?.pendingPros, "/admin/pros"],
             ["Open jobs", t?.openJobs, "/admin/jobs"],

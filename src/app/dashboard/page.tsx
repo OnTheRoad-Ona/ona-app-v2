@@ -9,7 +9,6 @@ import {
   Navigation,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ServiceMap } from "@/components/map/service-map";
 import { useApp } from "@/lib/store";
@@ -18,8 +17,8 @@ import type { ProService } from "@/lib/types";
 import { cn, formatDistance, formatEta } from "@/lib/utils";
 
 /**
- * Professional dashboard — map + swipe-up job sheet (like motorist home).
- * Jobs filtered to this pro's skill only.
+ * Professional dashboard — flat sheet (no white/card panels).
+ * Live switch writes is_online so motorists can find this pro.
  */
 export default function TechnicianDashboardPage() {
   const {
@@ -31,20 +30,24 @@ export default function TechnicianDashboardPage() {
     registeredAs,
     proServices,
     ensureChatForRequest,
+    proLive,
+    setProLive,
+    userProfile,
   } = useApp();
   const isLight = theme === "light";
-  const [live, setLive] = useState(true);
   const [serviceRadius, setServiceRadius] = useState(10);
   const [panelExpanded, setPanelExpanded] = useState(false);
   const [skillError, setSkillError] = useState<string | null>(null);
+  const [liveBusy, setLiveBusy] = useState(false);
   const gestureY = useRef<number | null>(null);
-  const me = technicians[0];
+  const me =
+    technicians.find((t) => t.id === userProfile?.identityId) ||
+    technicians[0];
 
   const mySkill: ProService | null = isProService(registeredAs)
     ? registeredAs
     : proServices[0] ?? null;
 
-  // Skill isolation: only jobs for this trade
   const openJobs = requests.filter((r) => {
     if (["completed", "cancelled"].includes(r.status)) return false;
     if (mySkill && r.serviceType !== mySkill) return false;
@@ -56,6 +59,8 @@ export default function TechnicianDashboardPage() {
     : "Professional";
 
   const sheetBg = isLight ? "bg-[#c8c9cd]" : "bg-black";
+  const ink = isLight ? "text-slate-900" : "text-white";
+  const muted = isLight ? "text-slate-600" : "text-white/65";
 
   const onTouchStart = (e: React.TouchEvent) => {
     gestureY.current = e.touches[0].clientY;
@@ -99,43 +104,53 @@ export default function TechnicianDashboardPage() {
       <div className={cn("z-20 shrink-0", sheetBg)}>
         <PageHeader
           title="Professional Dashboard"
-          subtitle={`${roleLabel} · ${me.name}`}
+          subtitle={`${roleLabel} · ${me?.name || "Pro"}`}
           showBack={false}
         />
         <div className="flex items-center justify-between gap-2 px-3 pb-2">
+          {/* Flat skill label — no white/soft chip background */}
           {mySkill ? (
-            <Badge variant="soft" className="text-[10px]">
-              {PRO_SERVICE_LABELS[mySkill] ?? mySkill} only
-            </Badge>
+            <p className={cn("text-[12px] font-bold", ink)}>
+              {PRO_SERVICE_LABELS[mySkill] ?? mySkill}
+              <span className={cn("font-semibold", muted)}> only</span>
+            </p>
           ) : (
             <span />
           )}
-          {/* Modern Live control (replaces Online) */}
           <button
             type="button"
-            onClick={() => setLive((v) => !v)}
+            disabled={liveBusy}
+            onClick={() => {
+              setLiveBusy(true);
+              void setProLive(!proLive).finally(() => setLiveBusy(false));
+            }}
             className={cn(
-              "inline-flex shrink-0 items-center gap-2 rounded-full border-0 px-3 py-1.5 text-xs font-bold transition-colors",
-              live
-                ? "bg-emerald-500/15 text-emerald-600"
+              "inline-flex shrink-0 items-center gap-2 border-0 bg-transparent px-0 py-1 text-xs font-bold transition-colors",
+              proLive
+                ? "text-emerald-600"
                 : isLight
-                  ? "bg-slate-200/80 text-slate-500"
-                  : "bg-white/10 text-white/55"
+                  ? "text-slate-500"
+                  : "text-white/55"
             )}
-            aria-pressed={live}
+            aria-pressed={proLive}
+            title={
+              proLive
+                ? "You are Live — motorists can find you"
+                : "You are Away — motorists cannot find you"
+            }
           >
             <span className="relative flex h-2 w-2">
-              {live && (
+              {proLive && (
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
               )}
               <span
                 className={cn(
                   "relative inline-flex h-2 w-2 rounded-full",
-                  live ? "bg-emerald-500" : "bg-slate-400"
+                  proLive ? "bg-emerald-500" : "bg-slate-400"
                 )}
               />
             </span>
-            {live ? "Live" : "Away"}
+            {liveBusy ? "…" : proLive ? "Live" : "Away"}
           </button>
         </div>
       </div>
@@ -149,16 +164,14 @@ export default function TechnicianDashboardPage() {
               : "flex-[0_0_50%] opacity-100"
           )}
         >
-          <ServiceMap technicians={[me]} />
+          {me ? <ServiceMap technicians={[me]} /> : null}
         </div>
 
         <div
           className={cn(
             "om-sheet-spring z-10 flex min-h-0 flex-col overflow-hidden",
             panelExpanded ? "flex-1" : "flex-[0_0_50%]",
-            sheetBg,
-            !panelExpanded &&
-              "rounded-t-2xl shadow-[0_-6px_24px_rgba(0,0,0,0.18)]"
+            sheetBg
           )}
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
@@ -181,60 +194,35 @@ export default function TechnicianDashboardPage() {
             <span
               className={cn(
                 "h-1.5 w-11 rounded-full",
-                isLight
-                  ? "bg-[#6b7280] shadow-sm ring-1 ring-black/10"
-                  : "bg-white/40"
+                isLight ? "bg-[#6b7280]/70" : "bg-white/40"
               )}
             />
           </div>
 
-          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-3 pb-3 scrollbar-hide">
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 pb-3 scrollbar-hide">
             {skillError && (
-              <div
-                className={cn(
-                  "rounded-lg px-3 py-2 text-[11px] font-medium",
-                  isLight
-                    ? "bg-amber-50 text-amber-900"
-                    : "bg-amber-500/15 text-amber-100"
-                )}
-                role="alert"
-              >
+              <p className="text-[11px] font-medium text-amber-800" role="alert">
                 {skillError}
-              </div>
+              </p>
             )}
 
-            <Link
-              href="/orders"
-              className={cn(
-                "flex items-center justify-between rounded-lg p-3",
-                isLight ? "bg-[#d4d5d9]" : "bg-neutral-950"
-              )}
-            >
-              <div>
-                <p
-                  className={cn(
-                    "text-sm font-bold",
-                    isLight ? "text-slate-900" : "text-white"
-                  )}
-                >
+            {/* Flat labels — no card backgrounds */}
+            <div className="flex items-baseline justify-between gap-2">
+              <div className="min-w-0">
+                <Link href="/orders" className={cn("text-sm font-bold", ink)}>
                   Order requests
-                </p>
-                <p className="text-[11px] text-muted">
+                </Link>
+                <p className={cn("text-[11px]", muted)}>
                   Only {roleLabel.toLowerCase()} jobs for your skill
                 </p>
               </div>
-              <Badge variant="soft" className="text-[10px]">
+              <p className={cn("shrink-0 text-[12px] font-bold tabular-nums", ink)}>
                 {openJobs.length} open
-              </Badge>
-            </Link>
+              </p>
+            </div>
 
-            <div
-              className={cn(
-                "rounded-lg p-3",
-                isLight ? "bg-[#d4d5d9]" : "bg-neutral-950"
-              )}
-            >
-              <p className="text-xs font-semibold text-muted">Service radius</p>
+            <div>
+              <p className={cn("text-xs font-semibold", muted)}>Service radius</p>
               <p className="text-xl font-bold text-brand">{serviceRadius} km</p>
               <input
                 type="range"
@@ -248,40 +236,30 @@ export default function TechnicianDashboardPage() {
                 }}
                 aria-label="Your service radius"
               />
-              <p className="mt-1 text-[10px] text-muted">
-                Motorist search radius on map: {radiusKm} km · map view ~1 km
+              <p className={cn("mt-1 text-[10px]", muted)}>
+                Motorist search radius on map: {radiusKm} km
               </p>
             </div>
 
-            <div className="flex items-center justify-between">
-              <h2
-                className={cn(
-                  "text-sm font-bold",
-                  isLight ? "text-slate-900" : "text-white"
-                )}
-              >
-                Nearby requests
-              </h2>
-              <Badge variant="soft" className="text-[10px]">
+            <div className="flex items-baseline justify-between gap-2 pt-0.5">
+              <h2 className={cn("text-sm font-bold", ink)}>Nearby requests</h2>
+              <p className={cn("text-[12px] font-bold tabular-nums", muted)}>
                 {openJobs.length} open
-              </Badge>
+                {openJobs.some((j) => j.status === "pending")
+                  ? " · pending"
+                  : ""}
+              </p>
             </div>
 
-            {!live && (
-              <div
-                className={cn(
-                  "rounded-lg px-3 py-2 text-[11px]",
-                  isLight
-                    ? "bg-amber-50 text-amber-800"
-                    : "bg-amber-500/15 text-amber-100"
-                )}
-              >
-                You&apos;re Away. Go Live to receive jobs.
-              </div>
+            {!proLive && (
+              <p className={cn("text-[11px] font-medium", muted)}>
+                You&apos;re Away. Go Live so motorists can find you and send
+                jobs.
+              </p>
             )}
 
             {openJobs.length === 0 ? (
-              <p className="rounded-lg p-4 text-center text-xs text-muted">
+              <p className={cn("py-2 text-center text-xs", muted)}>
                 No open {roleLabel.toLowerCase()} jobs right now.
               </p>
             ) : (
@@ -289,29 +267,29 @@ export default function TechnicianDashboardPage() {
                 <article
                   key={job.id}
                   className={cn(
-                    "rounded-lg p-3",
-                    isLight ? "bg-[#d4d5d9]" : "bg-neutral-950"
+                    "border-t pt-3",
+                    isLight ? "border-black/[0.08]" : "border-white/[0.08]"
                   )}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p
-                        className={cn(
-                          "text-sm font-bold",
-                          isLight ? "text-slate-900" : "text-white"
-                        )}
-                      >
+                    <div className="min-w-0">
+                      <p className={cn("text-sm font-bold", ink)}>
                         {job.problem}
                       </p>
-                      <p className="text-[11px] capitalize text-muted">
+                      <p className={cn("text-[11px] capitalize", muted)}>
                         {job.serviceType} · {job.locationLabel}
                       </p>
                     </div>
-                    <Badge variant="soft" className="capitalize text-[10px]">
+                    <p
+                      className={cn(
+                        "shrink-0 text-[10px] font-bold uppercase tracking-wide",
+                        muted
+                      )}
+                    >
                       {job.status.replace("_", " ")}
-                    </Badge>
+                    </p>
                   </div>
-                  <div className="mt-1.5 flex gap-2 text-[11px] text-muted">
+                  <div className={cn("mt-1.5 flex gap-2 text-[11px]", muted)}>
                     <span className="inline-flex items-center gap-1">
                       <Navigation className="h-3 w-3 text-brand" />
                       {formatEta(job.etaMinutes)}
@@ -321,12 +299,13 @@ export default function TechnicianDashboardPage() {
                       {formatDistance(job.distanceKm)}
                     </span>
                   </div>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
+                  {/* Keep Accept / Decline as real buttons */}
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
                     {job.status === "pending" && (
                       <>
                         <Button
                           size="sm"
-                          disabled={!live}
+                          disabled={!proLive}
                           onClick={() => accept(job.id)}
                         >
                           Accept

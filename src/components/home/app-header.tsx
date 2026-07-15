@@ -24,20 +24,18 @@ export function AppHeader() {
         <div className="flex items-center justify-between gap-3 pl-2">
           <p className="text-[24px] font-black tracking-tight whitespace-nowrap leading-none">
             <span className="text-[#e85a12]">Oga</span>
-            <span className={isLight ? "text-[#1e293b]" : "text-white"}>
+            <span className={isLight ? "text-black" : "text-white"}>
               Mecho
             </span>
           </p>
 
-          {/* Menu lines sized/aligned to sit level with the logo */}
+          {/* Menu — no chip background (both themes) */}
           <button
             type="button"
             onClick={() => setMenuOpen(true)}
             className={cn(
-              "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border-0",
-              isLight
-                ? "bg-[#d8dce4] text-[#1e293b]"
-                : "bg-white/10 text-white"
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border-0 bg-transparent",
+              isLight ? "text-black" : "text-white"
             )}
             aria-label="Open menu"
             aria-expanded={menuOpen}

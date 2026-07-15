@@ -1,11 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import { Moon, Sun } from "lucide-react";
+import { useCallback, type MouseEvent, type ReactNode } from "react";
+import { AcceptTripPopup } from "@/components/home/accept-trip-popup";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/store";
-
-const TOAST_MS = 2200;
 
 /** True when the event target is an interactive control — not free space. */
 function isInteractiveTarget(el: HTMLElement): boolean {
@@ -36,7 +34,7 @@ function isInteractiveTarget(el: HTMLElement): boolean {
 
 /**
  * Phone-width app on pure black stage.
- * Double-click free space toggles background (light/dark) and shows a toast.
+ * Double-click free space toggles background (light/dark) — no toast popup.
  */
 export function PhoneShell({
   children,
@@ -47,49 +45,19 @@ export function PhoneShell({
 }) {
   const { theme, toggleTheme } = useApp();
   const isLight = theme === "light";
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastTheme, setToastTheme] = useState<"light" | "dark">(theme);
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const clearHideTimer = useCallback(() => {
-    if (hideTimer.current) {
-      clearTimeout(hideTimer.current);
-      hideTimer.current = null;
-    }
-  }, []);
-
-  const showThemeToast = useCallback(
-    (next: "light" | "dark") => {
-      setToastTheme(next);
-      setToastVisible(true);
-      clearHideTimer();
-      hideTimer.current = setTimeout(() => {
-        setToastVisible(false);
-        hideTimer.current = null;
-      }, TOAST_MS);
+  const onDoubleClick = useCallback(
+    (e: MouseEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (!el) return;
+      if (isInteractiveTarget(el)) return;
+      const sel =
+        typeof window !== "undefined" ? window.getSelection()?.toString() : "";
+      if (sel && sel.length > 0) return;
+      toggleTheme();
     },
-    [clearHideTimer]
+    [toggleTheme]
   );
-
-  useEffect(() => () => clearHideTimer(), [clearHideTimer]);
-
-  const onDoubleClick = (e: MouseEvent) => {
-    const el = e.target as HTMLElement | null;
-    if (!el) return;
-
-    // Only free space (not form controls, buttons, links, map markers, etc.)
-    if (isInteractiveTarget(el)) return;
-
-    // Don't toggle if user is selecting text
-    const sel =
-      typeof window !== "undefined" ? window.getSelection()?.toString() : "";
-    if (sel && sel.length > 0) return;
-
-    // Toggle background theme and show confirmation
-    const next: "light" | "dark" = theme === "light" ? "dark" : "light";
-    toggleTheme();
-    showThemeToast(next);
-  };
 
   return (
     <div
@@ -105,51 +73,20 @@ export function PhoneShell({
           "h-[min(844px,calc(100dvh-1.5rem))]",
           "max-h-[min(844px,calc(100dvh-1.5rem))]",
           "max-w-[390px]",
-          isLight ? "bg-[#c8c9cd]" : "bg-[#120a08]",
+          isLight ? "bg-[#c8c9cd]" : "bg-black",
           className
         )}
         style={{
           width: "min(390px, calc(100vw - 1.5rem))",
           boxShadow: isLight
             ? "0 24px 48px rgba(6, 13, 10, 0.65)"
-            : "0 24px 48px rgba(10, 6, 5, 0.7)",
+            : "0 24px 48px rgba(0, 0, 0, 0.75)",
         }}
         onDoubleClick={onDoubleClick}
       >
-        <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
-
-        {/* Background toggle feedback — shown after free-space double-click */}
-        <div
-          className={cn(
-            "pointer-events-none absolute inset-x-0 bottom-20 z-[200] flex justify-center px-4 transition-all duration-200",
-            toastVisible
-              ? "translate-y-0 opacity-100"
-              : "translate-y-2 opacity-0"
-          )}
-          aria-live="polite"
-          aria-atomic
-        >
-          <div
-            className={cn(
-              "flex items-center gap-2 rounded-full px-3.5 py-2 text-[12px] font-semibold shadow-lg",
-              toastTheme === "light"
-                ? "bg-[#0a1610] text-emerald-50 ring-1 ring-emerald-500/30"
-                : "bg-[#1a100c] text-[#f0d4c4] ring-1 ring-[#e85a12]/35"
-            )}
-            role="status"
-          >
-            {toastTheme === "light" ? (
-              <>
-                <Sun className="h-3.5 w-3.5 text-emerald-400" aria-hidden />
-                Light background
-              </>
-            ) : (
-              <>
-                <Moon className="h-3.5 w-3.5 text-orange-300" aria-hidden />
-                Dark background
-              </>
-            )}
-          </div>
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          {children}
+          <AcceptTripPopup />
         </div>
       </div>
     </div>

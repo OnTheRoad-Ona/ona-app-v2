@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Briefcase,
@@ -41,6 +40,10 @@ const PRO_NAV = [
 
 const SERVICE_LABELS = PRO_SERVICE_LABELS;
 
+function homeForRole(type: AccountType): string {
+  return type === "professional" ? "/dashboard" : "/";
+}
+
 export function AppMenu({
   open,
   onClose,
@@ -55,12 +58,13 @@ export function AppMenu({
     location,
     userMode,
     accountType,
-    registeredAs,
     proServices,
     hasMotoristAccount,
     hasProAccount,
     switchAccount,
     isAuthenticated,
+    displayName,
+    userProfile,
   } = useApp();
   const isLight = theme === "light";
   const isPro =
@@ -68,47 +72,90 @@ export function AppMenu({
     (accountType == null && userMode === "professional");
   const nav = isPro ? PRO_NAV : CLIENT_NAV;
   const [warn, setWarn] = useState<string | null>(null);
+  const [signupTarget, setSignupTarget] = useState<AccountType | null>(null);
+
+  const fullNameDisplay = (
+    userProfile?.fullName ||
+    displayName ||
+    ""
+  ).trim();
+
+  const timeGreeting = (() => {
+    const h = new Date().getHours();
+    if (h < 12) return "Good Morning";
+    if (h < 17) return "Good Afternoon";
+    return "Good Evening";
+  })();
 
   // Location stays stagnant in the menu (GPS refreshes in store every 10 min)
   useEffect(() => {
     if (!open) return;
     setWarn(null);
+    setSignupTarget(null);
   }, [open]);
 
-  const onSwitch = (type: AccountType) => {
-    if (type === "motorist" && accountType === "motorist") {
+  const [switching, setSwitching] = useState(false);
+
+  const onSwitch = async (type: AccountType) => {
+    // Already on this role → only navigate to its home page
+    if (
+      (type === "motorist" && accountType === "motorist") ||
+      (type === "professional" && accountType === "professional")
+    ) {
       onClose();
-      return;
-    }
-    if (type === "professional" && accountType === "professional") {
-      onClose();
+      router.replace(homeForRole(type));
       return;
     }
 
-    const result = switchAccount(type);
-    if (result === null) {
-      setWarn(null);
-      onClose();
-      router.replace(type === "professional" ? "/dashboard" : "/");
+    if (!isAuthenticated) {
+      setWarn("Log in to switch between Motorist and Repair Pro.");
+      setSignupTarget(null);
       return;
     }
-    if (result === "needs_signup") {
-      const missing = type === "professional" ? "Repair Pro" : "Motorist";
+
+    // Must complete signup for the target role before switching
+    if (type === "motorist" && !hasMotoristAccount) {
+      setSignupTarget("motorist");
       setWarn(
-        `You don't have a ${missing} account yet. Sign up for ${missing} to switch.`
+        "Sign up as Motorist first so your account is saved to the database."
       );
       return;
     }
-    if (result === "needs_login") {
+    if (type === "professional" && !hasProAccount) {
+      setSignupTarget("professional");
       setWarn(
-        type === "professional"
-          ? "Log in to use your Repair Pro account."
-          : "Log in to use your Motorist account."
+        "Sign up as Repair Pro first so your skill and profile are saved to the database."
       );
       return;
     }
-    onClose();
-    router.push("/login/signin");
+
+    setWarn(null);
+    setSignupTarget(null);
+    setSwitching(true);
+    try {
+      const result = await switchAccount(type);
+      if (result === null) {
+        onClose();
+        router.replace(homeForRole(type));
+        return;
+      }
+      if (result === "needs_login") {
+        setWarn("Log in to switch between Motorist and Repair Pro.");
+        return;
+      }
+      if (result === "needs_signup") {
+        setSignupTarget(type);
+        setWarn(
+          type === "professional"
+            ? "Sign up as Repair Pro first so your skill and profile are saved to the database."
+            : "Sign up as Motorist first so your account is saved to the database."
+        );
+        return;
+      }
+      setWarn(typeof result === "string" ? result : "Could not switch.");
+    } finally {
+      setSwitching(false);
+    }
   };
 
   if (!open) return null;
@@ -117,6 +164,16 @@ export function AppMenu({
     .filter(Boolean)
     .filter((v, i, a) => a.indexOf(v) === i)
     .join(" · ");
+
+  const useAsBtnClass = (active: boolean) =>
+    cn(
+      "rounded-lg border-0 px-2 py-2.5 text-[12px] font-bold transition-colors",
+      active
+        ? "bg-[#323231] text-white shadow-sm"
+        : isLight
+          ? "bg-transparent text-slate-700 hover:bg-[#b0b1b6]/60"
+          : "bg-transparent text-white/85 hover:bg-white/10"
+    );
 
   return (
     <div className="absolute inset-0 z-[100] flex" role="dialog" aria-modal>
@@ -128,38 +185,60 @@ export function AppMenu({
       />
       <aside
         className={cn(
-          // 75% of the phone width
           "relative z-10 flex h-full w-[75%] max-w-none flex-col shadow-2xl",
           isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
-        <div className="flex items-start justify-between px-4 pb-2 pt-4">
+        <div className="flex items-start justify-between px-4 pb-3 pt-4">
           <div className="min-w-0 flex-1 pr-2">
-            <p className="whitespace-nowrap text-[18px] font-black tracking-tight">
-              <span className="text-[#e85a12]">Oga</span>
-              <span className={isLight ? "text-slate-900" : "text-white"}>
-                Mecho
-              </span>
-            </p>
-            {/* Stagnant current location — no Updating… blink */}
-            <div
-              className={cn(
-                "mt-2 flex items-start gap-1.5 text-[11px] leading-snug",
-                isLight ? "text-slate-600" : "text-white/75"
-              )}
-            >
-              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
-              <p className="min-w-0 font-semibold">
-                {placeLine || "Current location"}
+            {/* Signed-in: greeting + full name. Guest: OgaMecho brand */}
+            {isAuthenticated && fullNameDisplay ? (
+              <div className="min-w-0 space-y-0.5">
+                <p
+                  className={cn(
+                    "text-[16px] font-black leading-tight tracking-tight",
+                    isLight ? "text-black" : "text-white"
+                  )}
+                >
+                  {timeGreeting}
+                </p>
+                <p
+                  className={cn(
+                    "truncate text-[13px] font-semibold leading-snug",
+                    isLight ? "text-slate-700" : "text-white/75"
+                  )}
+                >
+                  {fullNameDisplay}
+                </p>
+              </div>
+            ) : (
+              <p className="whitespace-nowrap text-[18px] font-black tracking-tight">
+                <span className="text-[#e85a12]">Oga</span>
+                <span className={isLight ? "text-black" : "text-white"}>
+                  Mecho
+                </span>
               </p>
+            )}
+            <div className="mt-2.5 min-w-0">
+              <div
+                className={cn(
+                  "flex items-start gap-1 text-[10px] leading-snug",
+                  isLight ? "text-slate-600" : "text-white/70"
+                )}
+              >
+                <MapPin className="mt-0.5 h-3 w-3 shrink-0 text-brand" />
+                <p className="min-w-0 font-medium">
+                  {placeLine || "Current location"}
+                </p>
+              </div>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             className={cn(
-              "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-0",
-              isLight ? "bg-[#bebfc4] text-slate-700" : "bg-white/10 text-white"
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-0 bg-transparent",
+              isLight ? "text-black" : "text-white"
             )}
             aria-label="Close"
           >
@@ -172,22 +251,28 @@ export function AppMenu({
             const active =
               href === "/" ? pathname === "/" : pathname.startsWith(href);
             return (
-              <Link
+              <button
                 key={href + label}
-                href={href}
-                onClick={onClose}
+                type="button"
+                onClick={() => {
+                  onClose();
+                  // Instant client navigation — no full document reload
+                  router.push(href);
+                }}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors",
+                  "flex w-full items-center gap-3 rounded-lg border-0 bg-transparent px-3 py-2.5 text-left text-sm font-semibold transition-colors",
                   active
-                    ? "metallic-orange text-white"
+                    ? isLight
+                      ? "text-[#e85a12]"
+                      : "text-[#ffb07a]"
                     : isLight
-                      ? "text-slate-700 hover:bg-[#bebfc4]/70"
-                      : "text-white/90 hover:bg-white/10"
+                      ? "text-slate-700"
+                      : "text-white/90"
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0" strokeWidth={2.2} />
                 {label}
-              </Link>
+              </button>
             );
           })}
 
@@ -199,19 +284,11 @@ export function AppMenu({
                   isLight ? "text-slate-400" : "text-white/45"
                 )}
               >
-                Your skill
+                My Service
               </p>
-              <div
-                className={cn(
-                  "rounded-lg px-3 py-2 text-[12px] font-semibold",
-                  isLight
-                    ? "bg-orange-50 text-[#e85a12]"
-                    : "bg-[#e85a12]/15 text-[#e85a12]"
-                )}
-              >
+              <p className="px-2 py-1 text-[12px] font-semibold text-[#e85a12]">
                 {SERVICE_LABELS[proServices[0]] ?? proServices[0]}
-                {registeredAs === proServices[0] ? " · primary" : ""}
-              </div>
+              </p>
             </div>
           )}
 
@@ -227,38 +304,34 @@ export function AppMenu({
             <div
               className={cn(
                 "grid grid-cols-2 gap-1 rounded-xl p-1",
-                isLight ? "bg-[#bebfc4]/80" : "bg-white/10"
+                isLight ? "bg-[#bebfc4]/80" : "bg-white/10",
+                switching && "opacity-70 pointer-events-none"
               )}
               role="group"
               aria-label="Switch account type"
+              aria-busy={switching}
             >
               <button
                 type="button"
-                onClick={() => onSwitch("motorist")}
-                className={cn(
-                  "rounded-lg border-0 px-2 py-2 text-[12px] font-bold transition-colors",
-                  accountType === "motorist"
-                    ? "bg-[#323231] text-white shadow-sm"
-                    : isLight
-                      ? "bg-transparent text-slate-600"
-                      : "bg-transparent text-white/75"
-                )}
+                disabled={switching}
+                onClick={() => void onSwitch("motorist")}
+                className={useAsBtnClass(accountType === "motorist")}
+                aria-current={accountType === "motorist" ? "true" : undefined}
               >
-                Motorist
+                {switching && accountType !== "motorist" ? "…" : "Motorist"}
               </button>
               <button
                 type="button"
-                onClick={() => onSwitch("professional")}
-                className={cn(
-                  "rounded-lg border-0 px-2 py-2 text-[12px] font-bold transition-colors",
-                  accountType === "professional"
-                    ? "bg-[#323231] text-white shadow-sm"
-                    : isLight
-                      ? "bg-transparent text-slate-600"
-                      : "bg-transparent text-white/75"
-                )}
+                disabled={switching}
+                onClick={() => void onSwitch("professional")}
+                className={useAsBtnClass(accountType === "professional")}
+                aria-current={
+                  accountType === "professional" ? "true" : undefined
+                }
               >
-                Repair Pro
+                {switching && accountType !== "professional"
+                  ? "…"
+                  : "Repair Pro"}
               </button>
             </div>
             {warn ? (
@@ -272,14 +345,14 @@ export function AppMenu({
                 role="alert"
               >
                 <p>{warn}</p>
-                {warn.includes("don't have") && (
+                {signupTarget && (
                   <button
                     type="button"
                     className="mt-1.5 border-0 bg-transparent p-0 text-[11px] font-bold text-brand underline"
                     onClick={() => {
                       onClose();
                       router.push(
-                        warn.includes("Repair Pro")
+                        signupTarget === "professional"
                           ? "/signup/pro"
                           : "/signup/motorist"
                       );
@@ -308,15 +381,10 @@ export function AppMenu({
                   isLight ? "text-slate-500" : "text-white/55"
                 )}
               >
-                {hasMotoristAccount && hasProAccount
-                  ? "Both accounts ready. Switch anytime."
-                  : isAuthenticated
-                    ? "Sign up for the other role to switch."
-                    : "Sign up or log in for each role separately."}
+                Tap to Switch
               </p>
             )}
           </div>
-
         </nav>
 
         <div className="px-3 pb-4 pt-1">
@@ -327,10 +395,8 @@ export function AppMenu({
               router.push("/logout");
             }}
             className={cn(
-              "flex w-full items-center justify-center gap-2 rounded-lg border-0 px-3 py-2.5 text-sm font-semibold",
-              isLight
-                ? "bg-red-50 text-red-600"
-                : "bg-red-500/15 text-red-400"
+              // Same color set as dark toggle for both themes
+              "flex w-full items-center justify-center gap-2 rounded-lg border-0 bg-red-500/15 px-3 py-2.5 text-sm font-semibold text-red-400"
             )}
           >
             <LogOut className="h-4 w-4" />
