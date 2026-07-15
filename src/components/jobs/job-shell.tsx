@@ -16,6 +16,7 @@ export function JobShell({
   children,
   footer,
   fullBleed,
+  compactHeader = false,
 }: {
   isLight: boolean;
   title: string;
@@ -24,6 +25,8 @@ export function JobShell({
   children: ReactNode;
   footer?: ReactNode;
   fullBleed?: boolean;
+  /** Smaller title / subtitle (e.g. describe-problem) */
+  compactHeader?: boolean;
 }) {
   const stage = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const ink = isLight ? "text-slate-900" : "text-white";
@@ -31,26 +34,39 @@ export function JobShell({
 
   return (
     <div className={cn("relative flex h-full min-h-0 flex-col", stage)}>
-      <header className="relative z-10 shrink-0 flex items-start gap-3 px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
+      <header className="relative z-10 shrink-0 flex items-start gap-2.5 px-4 pb-1.5 pt-[max(0.75rem,env(safe-area-inset-top))]">
         {onBack && (
           <button
             type="button"
             onClick={onBack}
             className={cn(
-              "mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border-0",
+              "mt-0.5 flex shrink-0 items-center justify-center rounded-2xl border-0",
+              compactHeader ? "h-9 w-9" : "h-10 w-10",
               isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white"
             )}
             aria-label="Back"
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className={compactHeader ? "h-4 w-4" : "h-5 w-5"} />
           </button>
         )}
-        <div className="min-w-0 flex-1 pt-1">
-          <h1 className={cn("text-[22px] font-black tracking-tight", ink)}>
+        <div className="min-w-0 flex-1 pt-0.5">
+          <h1
+            className={cn(
+              "font-black tracking-tight",
+              compactHeader ? "text-[16px] leading-snug" : "text-[22px]",
+              ink
+            )}
+          >
             {title}
           </h1>
           {subtitle && (
-            <p className={cn("mt-0.5 text-[13px] font-medium", muted)}>
+            <p
+              className={cn(
+                "mt-0.5 font-medium",
+                compactHeader ? "text-[11px] leading-snug" : "text-[13px]",
+                muted
+              )}
+            >
               {subtitle}
             </p>
           )}

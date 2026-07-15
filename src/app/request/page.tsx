@@ -9,7 +9,7 @@ import { Suspense, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Camera, ImagePlus, X } from "lucide-react";
 import { VoiceNoteRecorder } from "@/components/jobs/voice-note-recorder";
-import { CopperButton, JobShell } from "@/components/jobs/job-shell";
+import { JobShell } from "@/components/jobs/job-shell";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { compressImageFile } from "@/lib/image-compress";
@@ -144,16 +144,28 @@ function RequestInner() {
     router.replace(`/jobs/${res.data.job.id}`);
   };
 
+  const grayBtn = cn(
+    "inline-flex h-12 w-full items-center justify-center rounded-2xl border-0 text-[14px] font-bold transition active:scale-[0.99] disabled:opacity-50",
+    isLight
+      ? "bg-[#a8a9ae] text-slate-900"
+      : "bg-[#2c2c2e] text-white"
+  );
+
   if (!tech) {
     return (
       <JobShell
         isLight={isLight}
         title="Describe the problem"
+        compactHeader
         onBack={() => router.push("/")}
         footer={
-          <CopperButton onClick={() => router.push("/")}>
+          <button
+            type="button"
+            onClick={() => router.push("/")}
+            className={grayBtn}
+          >
             Browse map
-          </CopperButton>
+          </button>
         }
       >
         <p className={cn("py-8 text-[14px] font-semibold", muted)}>
@@ -168,11 +180,17 @@ function RequestInner() {
       isLight={isLight}
       title="Describe the problem"
       subtitle={`${PRO_SERVICE_LABELS[tech.serviceType]}  ${tech.name}`}
+      compactHeader
       onBack={() => router.back()}
       footer={
-        <CopperButton disabled={busy} onClick={() => void send()}>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void send()}
+          className={grayBtn}
+        >
           {busy ? "Sending…" : "Send request"}
-        </CopperButton>
+        </button>
       }
     >
       {/* Pro row — flat, no card border */}
