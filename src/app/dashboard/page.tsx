@@ -1,9 +1,8 @@
 "use client";
 
 /**
- * Professional dashboard — NO nearby discovery map.
- * Idle: Go Live + waiting for requests.
- * Jobs: text list only; map/travel opens on /jobs/[id] after a request.
+ * Professional dashboard — no nearby discovery map.
+ * Incoming jobs only after a motorist has actually requested this pro.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -24,6 +23,13 @@ import { isProService, PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import type { ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+const TERMINAL = new Set([
+  "released",
+  "cancelled",
+  "expired",
+  "refunded",
+]);
 
 export default function TechnicianDashboardPage() {
   const {
@@ -54,29 +60,35 @@ export default function TechnicianDashboardPage() {
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-600" : "text-white/65";
 
-  const userId =
-    backendUserId || userProfile?.identityId || userProfile?.email || "";
-
   const loadJobs = useCallback(async () => {
-    if (!userId) {
+    // Only real server user — never demo / local-user placeholders
+    if (!backendUserId) {
+      setJobs([]);
       setJobsLoading(false);
       return;
     }
-    const res = await apiListJobs(userId, "repair_pro");
-    if (res.ok) setJobs(res.data.jobs);
+    const res = await apiListJobs(backendUserId, "repair_pro");
+    if (res.ok) {
+      // Only jobs assigned to this pro after a real motorist request
+      const mine = res.data.jobs.filter(
+        (j) =>
+          j.repairProId === backendUserId &&
+          Boolean(j.motoristId) &&
+          Boolean(j.problem?.trim()) &&
+          !TERMINAL.has(j.status)
+      );
+      setJobs(mine);
+    } else {
+      setJobs([]);
+    }
     setJobsLoading(false);
-  }, [userId]);
+  }, [backendUserId]);
 
   useEffect(() => {
     void loadJobs();
     const t = window.setInterval(() => void loadJobs(), 5000);
     return () => window.clearInterval(t);
   }, [loadJobs]);
-
-  const openJobs = jobs.filter(
-    (j) =>
-      !["released", "cancelled", "expired", "refunded"].includes(j.status)
-  );
 
   const toggleLive = async () => {
     setLiveBusy(true);
@@ -144,7 +156,6 @@ export default function TechnicianDashboardPage() {
       </div>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 pb-4 scrollbar-hide">
-        {/* Idle status card — no nearby map */}
         <div
           className={cn(
             "rounded-2xl px-4 py-5 text-center",
@@ -169,8 +180,8 @@ export default function TechnicianDashboardPage() {
           </p>
           <p className={cn("mt-1 text-[12px] font-medium leading-snug", muted)}>
             {proLive
-              ? "Motorists within 10 km can find you (2 km while docs are under review). Your GPS is shared for discovery only — trip map appears after a job is booked."
-              : "Go Live so motorists nearby can request you. We need GPS permission for your live pin."}
+              ? "Motorists nearby can find you. Stay Live to receive requests."
+              : "Go Live so motorists can request you."}
           </p>
           <Button
             className="mt-4 h-11 w-full max-w-xs"
@@ -191,46 +202,36 @@ export default function TechnicianDashboardPage() {
         </div>
 
         <div className="flex items-center justify-between gap-2">
-          <div>
-            <h2 className={cn("text-sm font-bold", ink)}>Incoming jobs</h2>
-            <p className={cn("text-[11px]", muted)}>
-              Text list · open a job for travel time & live map
-            </p>
-          </div>
-          <Link
-            href="/jobs"
-            className="text-[12px] font-bold text-[#e07a3d]"
-          >
-            All jobs
-          </Link>
+          <h2 className={cn("text-sm font-bold", ink)}>Incoming jobs</h2>
+          {jobs.length > 0 && (
+            <Link
+              href="/jobs"
+              className="text-[12px] font-bold text-[#e07a3d]"
+            >
+              All jobs
+            </Link>
+          )}
         </div>
 
         {jobsLoading ? (
           <div className="flex justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-[#e07a3d]" />
           </div>
-        ) : openJobs.length === 0 ? (
+        ) : jobs.length === 0 ? (
           <div
             className={cn(
               "rounded-2xl px-4 py-6 text-center",
               isLight ? "bg-black/[0.04]" : "bg-white/[0.04]"
             )}
           >
-            <Briefcase
-              className={cn("mx-auto h-8 w-8 opacity-40", muted)}
-            />
+            <Briefcase className={cn("mx-auto h-8 w-8 opacity-40", muted)} />
             <p className={cn("mt-2 text-[13px] font-semibold", muted)}>
               Waiting for requests
-            </p>
-            <p className={cn("mt-1 text-[11px]", muted)}>
-              {proLive
-                ? "No open jobs yet. Stay Live near motorists."
-                : "Go Live first so motorists can send jobs."}
             </p>
           </div>
         ) : (
           <ul className="space-y-2">
-            {openJobs.map((j) => (
+            {jobs.map((j) => (
               <li key={j.id}>
                 <Link
                   href={`/jobs/${j.id}`}
@@ -273,9 +274,6 @@ export default function TechnicianDashboardPage() {
                         </span>
                       )}
                     </p>
-                    <p className="mt-1 text-[11px] font-bold text-[#e07a3d]">
-                      Open for travel time & live map →
-                    </p>
                   </div>
                   <ChevronRight
                     className={cn(
@@ -288,11 +286,6 @@ export default function TechnicianDashboardPage() {
             ))}
           </ul>
         )}
-
-        <p className={cn("px-1 text-center text-[10px] leading-snug", muted)}>
-          Discovery map is motorist-only. Your map shows route, ETA and location
-          only after a motorist books you.
-        </p>
       </div>
     </div>
   );
