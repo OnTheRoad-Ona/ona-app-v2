@@ -173,9 +173,9 @@ export function JobFlowScreen({
           setLocHint(
             e.code === e.PERMISSION_DENIED
               ? viewer === "repair_pro"
-                ? "Enable location so the motorist sees your live ETA."
-                : "Enable location so your Repair Pro can find you."
-              : "Waiting for GPS fix…"
+                ? "Enable location so the motorist sees your live ETA"
+                : "Enable location so your Repair Pro can find you"
+              : "Waiting for GPS fix"
           );
         },
         { enableHighAccuracy: true, maximumAge: 3000, timeout: 25000 }
@@ -223,13 +223,13 @@ export function JobFlowScreen({
     };
     document.addEventListener("visibilitychange", onVis);
 
-    // Hint once so users grant Always/While Using location when prompted
+    // Hint once so users grant location for this trip
     setLocHint(
       viewer === "repair_pro"
-        ? "Live tracking on — keep location allowed for this trip."
-        : "Sharing your live pin so Repair Pro can find you."
+        ? "Live tracking on. Keep location allowed for this trip"
+        : "Sharing your live pin so Repair Pro can find you"
     );
-    const hintClear = window.setTimeout(() => setLocHint(null), 5000);
+    const hintClear = window.setTimeout(() => setLocHint(null), 6000);
 
     return () => {
       cancelled = true;
@@ -655,7 +655,8 @@ export function JobFlowScreen({
       };
     const statusLabel: Record<string, string> = {
       paid_booked: "Booked",
-      en_route: "On the way",
+      // Pro: ON THE ROAD (not “on the way”). Motorist keeps friendly wording.
+      en_route: viewer === "repair_pro" ? "On the road" : "On the way",
       arrived: "Arrived",
       in_progress: "Working",
     };
@@ -702,7 +703,7 @@ export function JobFlowScreen({
         }
         if (event === "START_TRIP" || event === "MARK_ARRIVED") {
           setLocHint(
-            "Location is limited — trip continues. Enable GPS for live ETA."
+            "Location is limited. Trip continues. Enable GPS for live ETA"
           );
         }
       }
@@ -724,7 +725,7 @@ export function JobFlowScreen({
       commitJob(res.data.job, true);
       setFlash(
         event === "START_TRIP"
-          ? "Trip started — you’re on the way"
+          ? "Trip started you’re on the road"
           : event === "MARK_ARRIVED"
             ? "Marked arrived"
             : event === "START_WORK"
@@ -748,8 +749,15 @@ export function JobFlowScreen({
                 {flash}
               </p>
             )}
-            {locHint && viewer === "repair_pro" && (
-              <p className="text-center text-[11px] font-semibold text-amber-500">
+            {locHint && (
+              <p
+                className={cn(
+                  "rounded-md px-3 py-2 text-center text-[12px] font-bold",
+                  isLight
+                    ? "bg-slate-900 text-white"
+                    : "bg-white text-slate-900"
+                )}
+              >
                 {locHint}
               </p>
             )}
@@ -787,9 +795,7 @@ export function JobFlowScreen({
                 )}
               >
                 Repair Pro is on the way
-                {job.etaMinutes != null
-                  ? ` · ETA ${job.etaMinutes} min`
-                  : ""}
+                {job.etaMinutes != null ? ` ETA ${job.etaMinutes} min` : ""}
               </p>
             )}
             {viewer === "motorist" && (
@@ -894,7 +900,7 @@ export function JobFlowScreen({
                     ? PRO_SERVICE_LABELS[job.serviceType]
                     : "Motorist"}
                   {job.agreedMajor != null
-                    ? ` · ${formatMoney(job.agreedMajor, job.currency)}`
+                    ? ` ${formatMoney(job.agreedMajor, job.currency)}`
                     : ""}
                 </p>
               </div>
@@ -913,19 +919,25 @@ export function JobFlowScreen({
             </div>
             <p
               className={cn(
-                "mt-2 flex items-center gap-1.5 text-[12px] font-semibold",
+                "mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] font-semibold",
                 muted
               )}
             >
-              <Navigation className="h-3.5 w-3.5 text-[#e07a3d]" />
-              {viewer === "motorist"
-                ? job.proLocation
-                  ? `Repair Pro live · ${job.locationLabel}`
-                  : `Waiting for pro GPS · ${job.locationLabel}`
-                : `Motorist · ${job.locationLabel}`}
-              {job.distanceKm != null
-                ? ` · ${job.distanceKm < 0.1 ? "<0.1" : job.distanceKm.toFixed(1)} km`
-                : ""}
+              <Navigation className="h-3.5 w-3.5 shrink-0 text-[#e07a3d]" />
+              <span>
+                {viewer === "motorist"
+                  ? job.proLocation
+                    ? `Repair Pro live ${job.locationLabel}`
+                    : `Waiting for pro GPS ${job.locationLabel}`
+                  : `Motorist ${job.locationLabel}`}
+              </span>
+              {job.distanceKm != null && (
+                <span>
+                  {job.distanceKm < 0.1
+                    ? "<0.1 km"
+                    : `${job.distanceKm.toFixed(1)} km`}
+                </span>
+              )}
             </p>
           </JobCard>
         </div>

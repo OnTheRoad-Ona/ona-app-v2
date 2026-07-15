@@ -83,8 +83,8 @@ export const PRO_TRIP_STATUS_COPY: Partial<
     subtitle: "Start trip when you leave for the motorist",
   },
   en_route: {
-    title: "You’re on the way",
-    subtitle: "Drive to the motorist · mark arrived when there",
+    title: "On the road",
+    subtitle: "Drive to the motorist mark arrived when there",
   },
   arrived: {
     title: "You’ve arrived",
@@ -96,7 +96,7 @@ export const PRO_TRIP_STATUS_COPY: Partial<
   },
   completed: {
     title: "Job marked complete",
-    subtitle: "Waiting for motorist to confirm & release pay",
+    subtitle: "Waiting for motorist to confirm and release pay",
   },
   satisfied: {
     title: "Motorist confirmed",
@@ -104,7 +104,7 @@ export const PRO_TRIP_STATUS_COPY: Partial<
   },
   released: {
     title: "Payment released",
-    subtitle: "95% to you · 5% platform",
+    subtitle: "95% to you 5% platform",
   },
   disputed: {
     title: "Dispute active",
@@ -112,7 +112,7 @@ export const PRO_TRIP_STATUS_COPY: Partial<
   },
   under_appeal: {
     title: "Under appeal",
-    subtitle: "Senior review in progress · funds locked",
+    subtitle: "Senior review in progress funds locked",
   },
 };
 
