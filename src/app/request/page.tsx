@@ -17,7 +17,6 @@ import { apiCreateJob } from "@/lib/jobs/client";
 import type { JobMedia } from "@/lib/jobs/types";
 import {
   detectCurrency,
-  formatMoney,
   getBaseLabourPrice,
   LABOUR_FEE_DISCLAIMER,
 } from "@/lib/pricing";
@@ -179,7 +178,6 @@ function RequestInner() {
     <JobShell
       isLight={isLight}
       title="Describe the problem"
-      subtitle={`${PRO_SERVICE_LABELS[tech.serviceType]}  ${tech.name}`}
       compactHeader
       onBack={() => router.back()}
       footer={
@@ -207,9 +205,7 @@ function RequestInner() {
             {tech.name}
           </p>
           <p className={cn("text-[12px] font-medium", muted)}>
-            {base != null
-              ? `Labour from ${formatMoney(base, currency)}`
-              : "Quote on request"}
+            {PRO_SERVICE_LABELS[tech.serviceType] ?? tech.roleLabel ?? tech.serviceType}
           </p>
         </div>
       </div>
