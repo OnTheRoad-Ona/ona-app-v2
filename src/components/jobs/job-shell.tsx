@@ -30,8 +30,8 @@ export function JobShell({
   const muted = isLight ? "text-slate-600" : "text-white/60";
 
   return (
-    <div className={cn("relative flex min-h-full flex-col", stage)}>
-      <header className="relative z-10 flex items-start gap-3 px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
+    <div className={cn("relative flex h-full min-h-0 flex-col", stage)}>
+      <header className="relative z-10 shrink-0 flex items-start gap-3 px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
         {onBack && (
           <button
             type="button"
@@ -59,8 +59,8 @@ export function JobShell({
 
       <div
         className={cn(
-          "relative z-10 flex-1",
-          fullBleed ? "px-0" : "px-4 pb-4"
+          "relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-hide",
+          fullBleed ? "px-0" : "px-4 pb-6"
         )}
       >
         {children}
@@ -69,9 +69,8 @@ export function JobShell({
       {footer && (
         <div
           className={cn(
-            "sticky bottom-0 z-20 border-t px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3",
-            stage,
-            isLight ? "border-black/10" : "border-white/10"
+            "relative z-20 shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3",
+            stage
           )}
         >
           {footer}

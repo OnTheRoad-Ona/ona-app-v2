@@ -104,17 +104,13 @@ export function VoiceNoteRecorder({
     setElapsed(0);
   };
 
-  const card = isLight
-    ? "border border-black/8 bg-white/80 shadow-sm backdrop-blur-xl"
-    : "border border-white/10 bg-white/[0.06] backdrop-blur-xl";
-
   return (
-    <div className={cn("rounded-2xl p-4", card)}>
-      <div className="mb-3 flex items-center justify-between">
+    <div className="py-1">
+      <div className="mb-2.5 flex items-center justify-between">
         <p
           className={cn(
-            "text-[12px] font-bold uppercase tracking-wide",
-            isLight ? "text-slate-600" : "text-white/60"
+            "text-[12px] font-bold",
+            isLight ? "text-slate-700" : "text-white/70"
           )}
         >
           Voice note
@@ -135,7 +131,7 @@ export function VoiceNoteRecorder({
           <button
             type="button"
             onClick={() => void start()}
-            className="inline-flex h-11 items-center gap-2 rounded-2xl bg-[#e07a3d] px-4 text-[13px] font-bold text-white shadow-lg shadow-[#e07a3d]/25"
+            className="inline-flex h-11 items-center gap-2 rounded-2xl border-0 bg-[#e07a3d] px-4 text-[13px] font-bold text-white"
           >
             <Mic className="h-4 w-4" />
             Record
@@ -145,7 +141,7 @@ export function VoiceNoteRecorder({
           <button
             type="button"
             onClick={stop}
-            className="inline-flex h-11 items-center gap-2 rounded-2xl bg-red-500 px-4 text-[13px] font-bold text-white"
+            className="inline-flex h-11 items-center gap-2 rounded-2xl border-0 bg-red-500 px-4 text-[13px] font-bold text-white"
           >
             <Square className="h-4 w-4 fill-current" />
             Stop
@@ -157,10 +153,10 @@ export function VoiceNoteRecorder({
               type="button"
               onClick={playing ? pause : play}
               className={cn(
-                "inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-[13px] font-bold",
+                "inline-flex h-11 items-center gap-2 rounded-2xl border-0 px-4 text-[13px] font-bold",
                 isLight
-                  ? "bg-slate-900 text-white"
-                  : "bg-white text-slate-900"
+                  ? "bg-black/10 text-slate-900"
+                  : "bg-white/10 text-white"
               )}
             >
               {playing ? (
@@ -174,8 +170,8 @@ export function VoiceNoteRecorder({
               type="button"
               onClick={reset}
               className={cn(
-                "inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-[13px] font-bold",
-                isLight ? "bg-black/8 text-slate-800" : "bg-white/10 text-white"
+                "inline-flex h-11 items-center gap-2 rounded-2xl border-0 px-4 text-[13px] font-bold",
+                isLight ? "bg-black/10 text-slate-800" : "bg-white/10 text-white"
               )}
             >
               <RotateCcw className="h-4 w-4" />
@@ -193,7 +189,7 @@ export function VoiceNoteRecorder({
           isLight ? "text-slate-500" : "text-white/45"
         )}
       >
-        Optional — describe the problem out loud.
+        Optional. Describe the problem out loud.
       </p>
     </div>
   );

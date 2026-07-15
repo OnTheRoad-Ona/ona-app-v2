@@ -5,6 +5,11 @@ import { MapContainer, Marker, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { tradeIconHtml } from "@/lib/map-trade-icons";
+import {
+  USER_MAP_PIN_ANCHOR,
+  USER_MAP_PIN_SIZE,
+  userMapPinLeafletHtml,
+} from "@/lib/map-user-pin";
 import { useApp } from "@/lib/store";
 import type { Technician } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -12,13 +17,9 @@ import { cn } from "@/lib/utils";
 function userIcon() {
   return L.divIcon({
     className: "",
-    html: `<div style="width:48px;height:48px;margin-left:-24px;margin-top:-24px;position:relative">
-      <div style="position:absolute;inset:0;border-radius:9999px;background:rgba(14,165,233,0.22)"></div>
-      <div style="position:absolute;left:13px;top:13px;width:22px;height:22px;border-radius:9999px;background:#0ea5e9;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,.35)"></div>
-      <div style="position:absolute;left:20px;top:20px;width:8px;height:8px;border-radius:9999px;background:white"></div>
-    </div>`,
-    iconSize: [48, 48],
-    iconAnchor: [24, 24],
+    html: userMapPinLeafletHtml(),
+    iconSize: [USER_MAP_PIN_SIZE, USER_MAP_PIN_SIZE],
+    iconAnchor: [USER_MAP_PIN_ANCHOR, USER_MAP_PIN_ANCHOR],
   });
 }
 

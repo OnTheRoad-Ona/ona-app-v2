@@ -12,6 +12,11 @@ import {
   shouldUseLiveMaps,
 } from "@/lib/google-maps";
 import { MAP_NEAR_ZOOM } from "@/lib/matching";
+import {
+  USER_MAP_PIN_ANCHOR,
+  USER_MAP_PIN_SIZE,
+  userMapPinUrl,
+} from "@/lib/map-user-pin";
 import { tradeIconDataUrl } from "@/lib/map-trade-icons";
 import { useApp } from "@/lib/store";
 import type { Technician } from "@/lib/types";
@@ -136,17 +141,6 @@ function proMarkerIconUrl(t: Technician, selected: boolean): string {
  * Google Maps can’t animate SVG data-URLs easily — use a slightly larger
  * soft glow via canvas-free double marker approach in LiveGoogleMap.
  */
-
-function userIconUrl() {
-  const svg = encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
-      <circle cx="24" cy="24" r="18" fill="#0ea5e9" fill-opacity="0.22"/>
-      <circle cx="24" cy="24" r="11" fill="#0ea5e9" stroke="white" stroke-width="3.5"/>
-      <circle cx="24" cy="24" r="4.5" fill="white"/>
-    </svg>`
-  );
-  return `data:image/svg+xml;charset=UTF-8,${svg}`;
-}
 
 /**
  * inDrive-style “thought” bar: top-center, no pill background.
@@ -491,18 +485,18 @@ function GoogleServiceMap({
         <Marker
           position={center}
           icon={{
-            url: userIconUrl(),
+            url: userMapPinUrl(USER_MAP_PIN_SIZE),
             scaledSize:
               typeof google !== "undefined"
-                ? new google.maps.Size(40, 40)
+                ? new google.maps.Size(USER_MAP_PIN_SIZE, USER_MAP_PIN_SIZE)
                 : undefined,
             anchor:
               typeof google !== "undefined"
-                ? new google.maps.Point(20, 20)
+                ? new google.maps.Point(USER_MAP_PIN_ANCHOR, USER_MAP_PIN_ANCHOR)
                 : undefined,
           }}
           title={`You: ${location.label}`}
-          zIndex={1000}
+          zIndex={500}
         />
         {livePros.map((t) => {
           const selected = t.id === selectedTechId;

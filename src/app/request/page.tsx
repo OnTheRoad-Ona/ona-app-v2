@@ -1,18 +1,15 @@
 "use client";
 
 /**
- * Premium motorist request — describe problem, voice note, photos → create job.
+ * Describe the problem — modern, flat, fully scrollable.
+ * Optional voice + up to 6 photos.
  */
 
 import { Suspense, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Camera, ImagePlus, X } from "lucide-react";
 import { VoiceNoteRecorder } from "@/components/jobs/voice-note-recorder";
-import {
-  CopperButton,
-  JobCard,
-  JobShell,
-} from "@/components/jobs/job-shell";
+import { CopperButton, JobShell } from "@/components/jobs/job-shell";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { compressImageFile } from "@/lib/image-compress";
@@ -27,6 +24,8 @@ import {
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
+
+const MAX_PHOTOS = 6;
 
 function RequestInner() {
   const router = useRouter();
@@ -68,23 +67,41 @@ function RequestInner() {
       : null;
 
   const userId =
-    backendUserId || userProfile?.identityId || userProfile?.email || "motorist-local";
+    backendUserId ||
+    userProfile?.identityId ||
+    userProfile?.email ||
+    "motorist-local";
 
-  const onPhoto = async (file: File) => {
+  const ink = isLight ? "text-slate-900" : "text-white";
+  const muted = isLight ? "text-slate-600" : "text-white/60";
+  const field = isLight
+    ? "bg-black/10 text-slate-900 placeholder:text-slate-500"
+    : "bg-white/10 text-white placeholder:text-white/40";
+
+  const onPhotos = async (files: FileList | null) => {
+    if (!files?.length) return;
+    const room = MAX_PHOTOS - photos.length;
+    if (room <= 0) {
+      setError(`You can add up to ${MAX_PHOTOS} photos.`);
+      return;
+    }
+    const list = Array.from(files).slice(0, room);
+    setError(null);
     try {
-      const dataUrl = await compressImageFile(file, { maxEdge: 1280 });
-      setPhotos((prev) => [
-        ...prev.slice(0, 4),
-        {
-          id: `photo_${Date.now()}`,
+      const next: JobMedia[] = [];
+      for (const file of list) {
+        const dataUrl = await compressImageFile(file, { maxEdge: 1280 });
+        next.push({
+          id: `photo_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
           kind: "photo",
           url: dataUrl,
           name: file.name,
           mime: file.type,
           createdAt: new Date().toISOString(),
           uploadedBy: userId,
-        },
-      ]);
+        });
+      }
+      setPhotos((prev) => [...prev, ...next].slice(0, MAX_PHOTOS));
     } catch {
       setError("Could not process photo.");
     }
@@ -133,15 +150,15 @@ function RequestInner() {
         isLight={isLight}
         title="Describe the problem"
         onBack={() => router.push("/")}
-      >
-        <JobCard isLight={isLight}>
-          <p className="text-[14px] font-semibold opacity-70">
-            No Repair Pro selected. Go back and pick someone nearby.
-          </p>
-          <CopperButton className="mt-4" onClick={() => router.push("/")}>
+        footer={
+          <CopperButton onClick={() => router.push("/")}>
             Browse map
           </CopperButton>
-        </JobCard>
+        }
+      >
+        <p className={cn("py-8 text-[14px] font-semibold", muted)}>
+          No Repair Pro selected. Go back and pick someone nearby.
+        </p>
       </JobShell>
     );
   }
@@ -150,7 +167,7 @@ function RequestInner() {
     <JobShell
       isLight={isLight}
       title="Describe the problem"
-      subtitle={`${PRO_SERVICE_LABELS[tech.serviceType]} · ${tech.name}`}
+      subtitle={`${PRO_SERVICE_LABELS[tech.serviceType]}  ${tech.name}`}
       onBack={() => router.back()}
       footer={
         <CopperButton disabled={busy} onClick={() => void send()}>
@@ -158,100 +175,86 @@ function RequestInner() {
         </CopperButton>
       }
     >
-      <JobCard isLight={isLight} className="mb-3">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-12 w-12 rounded-2xl">
-            <AvatarImage
-              src={tech.photo || DEFAULT_VENDOR_PHOTO}
-              className="object-cover"
-            />
-            <AvatarFallback>{avatarInitials(tech.name)}</AvatarFallback>
-          </Avatar>
-          <div className="min-w-0">
-            <p
-              className={cn(
-                "truncate text-[15px] font-black",
-                isLight ? "text-slate-900" : "text-white"
-              )}
-            >
-              {tech.name}
-            </p>
-            <p
-              className={cn(
-                "text-[12px] font-semibold",
-                isLight ? "text-slate-500" : "text-white/50"
-              )}
-            >
-              {base != null
-                ? `Listed labour from ${formatMoney(base, currency)}`
-                : "Quote on request"}
-            </p>
-          </div>
+      {/* Pro row — flat, no card border */}
+      <div className="mb-5 flex items-center gap-3">
+        <Avatar className="h-11 w-11 rounded-full">
+          <AvatarImage
+            src={tech.photo || DEFAULT_VENDOR_PHOTO}
+            className="object-cover"
+          />
+          <AvatarFallback>{avatarInitials(tech.name)}</AvatarFallback>
+        </Avatar>
+        <div className="min-w-0">
+          <p className={cn("truncate text-[15px] font-black", ink)}>
+            {tech.name}
+          </p>
+          <p className={cn("text-[12px] font-medium", muted)}>
+            {base != null
+              ? `Labour from ${formatMoney(base, currency)}`
+              : "Quote on request"}
+          </p>
         </div>
-      </JobCard>
+      </div>
 
-      <JobCard isLight={isLight} className="mb-3">
-        <label
-          className={cn(
-            "mb-2 block text-[11px] font-bold uppercase tracking-wide text-[#e07a3d]"
-          )}
-        >
+      {/* Problem */}
+      <section className="mb-5">
+        <label className={cn("mb-2 block text-[13px] font-bold", ink)}>
           What’s wrong?
         </label>
         <textarea
           value={problem}
           onChange={(e) => setProblem(e.target.value)}
           rows={5}
-          placeholder="e.g. Engine overheating on the expressway, steam from the bonnet…"
+          placeholder="e.g. Engine overheating on the expressway, steam from the bonnet"
           className={cn(
-            "w-full resize-none rounded-2xl border-0 p-3 text-[15px] font-medium leading-relaxed outline-none",
-            isLight
-              ? "bg-black/[0.04] text-slate-900 placeholder:text-slate-400"
-              : "bg-white/[0.06] text-white placeholder:text-white/35"
+            "w-full resize-y rounded-2xl border-0 p-3.5 text-[15px] font-medium leading-relaxed outline-none",
+            field
           )}
         />
-        <p
-          className={cn(
-            "mt-2 text-[11px]",
-            isLight ? "text-slate-500" : "text-white/45"
-          )}
-        >
+        <p className={cn("mt-2 text-[11px] font-medium leading-snug", muted)}>
           {LABOUR_FEE_DISCLAIMER}
         </p>
-      </JobCard>
+      </section>
 
-      <div className="mb-3">
+      {/* Voice — optional, no box */}
+      <section className="mb-5">
         <VoiceNoteRecorder
           value={voice}
           onChange={setVoice}
           userId={userId}
           isLight={isLight}
         />
-      </div>
+      </section>
 
-      <JobCard isLight={isLight} className="mb-3">
-        <div className="mb-2 flex items-center justify-between">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-[#e07a3d]">
-            Photos (optional)
+      {/* Photos optional up to 6 */}
+      <section className="mb-4">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className={cn("text-[13px] font-bold", ink)}>
+            Photos{" "}
+            <span className={cn("font-medium", muted)}>
+              optional · {photos.length}/{MAX_PHOTOS}
+            </span>
           </p>
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="inline-flex items-center gap-1 text-[12px] font-bold text-[#e07a3d]"
-          >
-            <ImagePlus className="h-4 w-4" />
-            Add
-          </button>
+          {photos.length < MAX_PHOTOS && (
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="inline-flex items-center gap-1 border-0 bg-transparent text-[12px] font-bold text-[#e07a3d]"
+            >
+              <ImagePlus className="h-4 w-4" />
+              Add
+            </button>
+          )}
         </div>
         <input
           ref={fileRef}
           type="file"
           accept="image/*"
+          multiple
           capture="environment"
           className="hidden"
           onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) void onPhoto(f);
+            void onPhotos(e.target.files);
             e.target.value = "";
           }}
         />
@@ -260,41 +263,54 @@ function RequestInner() {
             type="button"
             onClick={() => fileRef.current?.click()}
             className={cn(
-              "flex h-28 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed",
-              isLight
-                ? "border-black/15 text-slate-500"
-                : "border-white/20 text-white/50"
+              "flex h-24 w-full flex-col items-center justify-center gap-1.5 rounded-2xl border-0",
+              field,
+              muted
             )}
           >
-            <Camera className="h-6 w-6" />
+            <Camera className="h-5 w-5" />
             <span className="text-[12px] font-semibold">
-              Photo of damage or vehicle
+              Add up to {MAX_PHOTOS} photos
             </span>
           </button>
         ) : (
-          <div className="flex gap-2 overflow-x-auto">
+          <div className="flex flex-wrap gap-2">
             {photos.map((p) => (
-              <div key={p.id} className="relative h-24 w-24 shrink-0">
+              <div key={p.id} className="relative h-20 w-20 shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={p.url}
                   alt=""
-                  className="h-24 w-24 rounded-xl object-cover"
+                  className="h-20 w-20 rounded-xl object-cover"
                 />
                 <button
                   type="button"
                   onClick={() =>
                     setPhotos((prev) => prev.filter((x) => x.id !== p.id))
                   }
-                  className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white"
+                  className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full border-0 bg-black/75 text-white"
                 >
                   <X className="h-3 w-3" />
                 </button>
               </div>
             ))}
+            {photos.length < MAX_PHOTOS && (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className={cn(
+                  "flex h-20 w-20 flex-col items-center justify-center gap-0.5 rounded-xl border-0",
+                  field,
+                  muted
+                )}
+              >
+                <ImagePlus className="h-4 w-4" />
+                <span className="text-[10px] font-bold">Add</span>
+              </button>
+            )}
           </div>
         )}
-      </JobCard>
+      </section>
 
       {error && (
         <p className="mb-2 text-center text-[12px] font-semibold text-red-500">

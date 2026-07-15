@@ -22,6 +22,11 @@ import {
   shouldUseLiveMaps,
 } from "@/lib/google-maps";
 import type { JobRecord } from "@/lib/jobs/types";
+import {
+  USER_MAP_PIN_ANCHOR,
+  USER_MAP_PIN_SIZE,
+  userMapPinUrl,
+} from "@/lib/map-user-pin";
 import { cn, formatDistance, formatEta } from "@/lib/utils";
 
 const OsmFallback = dynamic(
@@ -47,17 +52,6 @@ const MAP_STYLES: google.maps.MapTypeStyle[] = [
   { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
   { featureType: "transit", stylers: [{ visibility: "off" }] },
 ];
-
-function userIconUrl() {
-  const svg = encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
-      <circle cx="24" cy="24" r="18" fill="#0ea5e9" fill-opacity="0.22"/>
-      <circle cx="24" cy="24" r="11" fill="#0ea5e9" stroke="white" stroke-width="3.5"/>
-      <circle cx="24" cy="24" r="4.5" fill="white"/>
-    </svg>`
-  );
-  return `data:image/svg+xml;charset=UTF-8,${svg}`;
-}
 
 function PulsingProPin({
   position,
@@ -224,11 +218,18 @@ function GoogleTrackMap({
         <Marker
           position={dest}
           icon={{
-            url: userIconUrl(),
-            scaledSize: new google.maps.Size(40, 40),
-            anchor: new google.maps.Point(20, 20),
+            url: userMapPinUrl(USER_MAP_PIN_SIZE),
+            scaledSize: new google.maps.Size(
+              USER_MAP_PIN_SIZE,
+              USER_MAP_PIN_SIZE
+            ),
+            anchor: new google.maps.Point(
+              USER_MAP_PIN_ANCHOR,
+              USER_MAP_PIN_ANCHOR
+            ),
           }}
           title="Your location"
+          zIndex={500}
         />
         {origin && (
           <PulsingProPin
