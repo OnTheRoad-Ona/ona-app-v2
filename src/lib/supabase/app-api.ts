@@ -66,7 +66,7 @@ export async function backendSignUp(input: {
   nin?: string;
   bvn?: string;
   labourPrices?: Partial<Record<ProService, number | string>>;
-  pricingCurrency?: "NGN" | "USD";
+  pricingCurrency?: import("@/lib/pricing").AppCurrency;
   vehicleFocus?: Record<string, unknown>;
   skillAnswers?: Record<string, unknown>;
   servedVehicleType?: string;
@@ -572,7 +572,7 @@ export async function backendLoadUserProfile(
   if (accountType === "professional") {
     const proExtra = pr as RepairProRow & {
       labour_prices?: UserProfile["servicePrices"];
-      pricing_currency?: "NGN" | "USD";
+      pricing_currency?: import("@/lib/pricing").AppCurrency;
       jobs_completed?: number;
       vehicle_focus?: Record<string, string | undefined>;
     } | null;

@@ -37,6 +37,8 @@ export type ReverseGeocodeResult = {
   label: string;
   city: string;
   area: string;
+  country?: string;
+  countryCode?: string;
 };
 
 /**
@@ -58,6 +60,7 @@ async function reverseGeocodeGoogle(
         formatted_address?: string;
         address_components?: Array<{
           long_name: string;
+          short_name?: string;
           types: string[];
         }>;
       }>;
@@ -68,6 +71,8 @@ async function reverseGeocodeGoogle(
     const comps = r.address_components ?? [];
     const get = (type: string) =>
       comps.find((c) => c.types.includes(type))?.long_name ?? "";
+    const getShort = (type: string) =>
+      comps.find((c) => c.types.includes(type))?.short_name ?? "";
     const area =
       get("neighborhood") ||
       get("sublocality") ||
@@ -80,10 +85,14 @@ async function reverseGeocodeGoogle(
       get("administrative_area_level_1") ||
       get("country") ||
       "";
+    const country = get("country") || "";
+    const countryCode = getShort("country") || "";
     return {
       label: r.formatted_address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
       city: city || "Near you",
       area: area || city || "Near you",
+      country: country || undefined,
+      countryCode: countryCode || undefined,
     };
   } catch {
     return null;
@@ -121,6 +130,7 @@ async function reverseGeocodeNominatim(
         county?: string;
         state?: string;
         country?: string;
+        country_code?: string;
       };
     };
     const addr = data.address ?? {};
@@ -142,6 +152,8 @@ async function reverseGeocodeNominatim(
       label,
       city: city || "Near you",
       area: area || city || "Near you",
+      country: addr.country || undefined,
+      countryCode: addr.country_code?.toUpperCase() || undefined,
     };
   } catch {
     return null;

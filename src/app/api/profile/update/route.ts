@@ -30,7 +30,9 @@ const bodySchema = z.object({
   serviceRadiusKm: z.number().optional(),
   services: z.array(z.string()).optional(),
   labourPrices: z.record(z.string(), z.union([z.number(), z.string()])).optional(),
-  pricingCurrency: z.enum(["NGN", "USD"]).optional(),
+  pricingCurrency: z
+    .enum(["NGN", "USD", "GBP", "ZAR", "EUR", "GHS", "KES", "CAD", "AUD"])
+    .optional(),
   vehicleMake: z.string().optional(),
   vehicleModel: z.string().optional(),
   vehicleYear: z.string().optional(),

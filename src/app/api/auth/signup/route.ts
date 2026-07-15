@@ -47,7 +47,9 @@ const bodySchema = z.object({
   bvn: z.string().optional(),
   /** Labour prices: skill → major units */
   labourPrices: z.record(z.string(), z.union([z.number(), z.string()])).optional(),
-  pricingCurrency: z.enum(["NGN", "USD"]).optional(),
+  pricingCurrency: z
+    .enum(["NGN", "USD", "GBP", "ZAR", "EUR", "GHS", "KES", "CAD", "AUD"])
+    .optional(),
   /** Service focus (vehicles they fix) */
   vehicleFocus: z.record(z.string(), z.unknown()).optional(),
   skillAnswers: z.record(z.string(), z.unknown()).optional(),

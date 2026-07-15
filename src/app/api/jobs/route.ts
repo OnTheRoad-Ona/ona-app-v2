@@ -28,7 +28,10 @@ const createSchema = z.object({
   problem: z.string().min(3).max(2000),
   voiceNote: mediaSchema.nullable().optional(),
   photos: z.array(mediaSchema).optional(),
-  currency: z.enum(["NGN", "USD"]).optional().default("NGN"),
+  currency: z
+    .enum(["NGN", "USD", "GBP", "ZAR", "EUR", "GHS", "KES", "CAD", "AUD"])
+    .optional()
+    .default("NGN"),
   proBaseMajor: z.number().positive().nullable().optional(),
   locationLabel: z.string().optional().default("Near you"),
   lat: z.number(),

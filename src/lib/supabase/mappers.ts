@@ -167,8 +167,9 @@ export function mapProToTechnician(
     skillAnswers: (pro.skills as Technician["skillAnswers"]) || undefined,
     servicePrices: (pro as { labour_prices?: Technician["servicePrices"] })
       .labour_prices,
-    pricingCurrency: (pro as { pricing_currency?: "NGN" | "USD" })
-      .pricing_currency,
+    pricingCurrency: (pro as {
+      pricing_currency?: import("@/lib/pricing").AppCurrency;
+    }).pricing_currency,
   };
 }
 

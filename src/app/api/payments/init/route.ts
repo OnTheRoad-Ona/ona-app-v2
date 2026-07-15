@@ -20,7 +20,9 @@ const bodySchema = z.object({
   email: z.string().email(),
   baseAmountMajor: z.number().positive(),
   discountPercent: z.number().min(0).max(50).optional().default(0),
-  currency: z.enum(["NGN", "USD"]).optional(),
+  currency: z
+    .enum(["NGN", "USD", "GBP", "ZAR", "EUR", "GHS", "KES", "CAD", "AUD"])
+    .optional(),
   countryCode: z.string().optional(),
   countryName: z.string().optional(),
   provider: z.enum(["paystack", "flutterwave", "mock"]).optional(),

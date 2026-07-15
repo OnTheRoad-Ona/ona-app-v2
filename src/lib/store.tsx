@@ -359,7 +359,7 @@ interface AppState {
       labourBaseMajor: number;
       labourAgreedMajor: number;
       discountPercent: number;
-      pricingCurrency: "NGN" | "USD";
+      pricingCurrency: import("@/lib/pricing").AppCurrency;
       negotiationStatus?: ServiceRequest["negotiationStatus"];
     }
   ) => ServiceActionResult;
@@ -371,7 +371,7 @@ interface AppState {
       labourBaseMajor: number;
       labourAgreedMajor: number;
       discountPercent: number;
-      pricingCurrency: "NGN" | "USD";
+      pricingCurrency: import("@/lib/pricing").AppCurrency;
       negotiationStatus?: ServiceRequest["negotiationStatus"];
     }
   ) => ServiceRequest;
@@ -1733,7 +1733,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         labourBaseMajor: number;
         labourAgreedMajor: number;
         discountPercent: number;
-        pricingCurrency: "NGN" | "USD";
+        pricingCurrency: import("@/lib/pricing").AppCurrency;
         negotiationStatus?: ServiceRequest["negotiationStatus"];
       }
     ) => {
@@ -1817,7 +1817,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         labourBaseMajor: number;
         labourAgreedMajor: number;
         discountPercent: number;
-        pricingCurrency: "NGN" | "USD";
+        pricingCurrency: import("@/lib/pricing").AppCurrency;
         negotiationStatus?: ServiceRequest["negotiationStatus"];
       }
     ): ServiceActionResult => {

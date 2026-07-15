@@ -5,7 +5,7 @@
  * Optional voice + up to 6 photos.
  */
 
-import { Suspense, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Camera, ImagePlus, X } from "lucide-react";
 import { VoiceNoteRecorder } from "@/components/jobs/voice-note-recorder";
@@ -17,8 +17,10 @@ import { apiCreateJob } from "@/lib/jobs/client";
 import type { JobMedia } from "@/lib/jobs/types";
 import {
   detectCurrency,
+  detectCurrencyFromGeolocation,
   getBaseLabourPrice,
   LABOUR_FEE_DISCLAIMER,
+  type AppCurrency,
 } from "@/lib/pricing";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
@@ -56,10 +58,23 @@ function RequestInner() {
   const [photos, setPhotos] = useState<JobMedia[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currency, setCurrency] = useState<AppCurrency>(() =>
+    detectCurrency({
+      countryName: userProfile?.servedCountry || location.city,
+    })
+  );
 
-  const currency = detectCurrency({
-    countryName: userProfile?.servedCountry,
-  });
+  // Resolve ₦ / £ / R / $ from GPS + reverse geocode (default NGN)
+  useEffect(() => {
+    let cancelled = false;
+    void detectCurrencyFromGeolocation().then((c) => {
+      if (!cancelled) setCurrency(c);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const base =
     tech && tech.servicePrices
       ? getBaseLabourPrice(tech.servicePrices, tech.serviceType)

@@ -1,11 +1,21 @@
 /**
  * OgaMecho labour/service pricing.
  * Does NOT include spare parts — labour fee only.
+ * Currency follows market/geo: ₦ NG, £ UK, R ZA, etc.
  */
 
 import type { ProService } from "@/lib/types";
 
-export type AppCurrency = "NGN" | "USD";
+export type AppCurrency =
+  | "NGN"
+  | "USD"
+  | "GBP"
+  | "ZAR"
+  | "EUR"
+  | "GHS"
+  | "KES"
+  | "CAD"
+  | "AUD";
 
 /** Platform take on released escrow (Repair Pro receives the rest). */
 export const PLATFORM_COMMISSION_PERCENT = 5;
@@ -16,58 +26,204 @@ export const MAX_DISCOUNT_PERCENT = 50;
 export const LABOUR_FEE_DISCLAIMER =
   "Labour / service fee only. Does not include spare parts or motor parts.";
 
+export const LABOUR_SPLIT_LINE =
+  "Labour only| 5% platform|95% Repair Pro";
+
+const COUNTRY_CURRENCY: Record<string, AppCurrency> = {
+  NG: "NGN",
+  NGA: "NGN",
+  US: "USD",
+  USA: "USD",
+  GB: "GBP",
+  UK: "GBP",
+  GBR: "GBP",
+  ZA: "ZAR",
+  ZAF: "ZAR",
+  GH: "GHS",
+  GHA: "GHS",
+  KE: "KES",
+  KEN: "KES",
+  CA: "CAD",
+  CAN: "CAD",
+  AU: "AUD",
+  AUS: "AUD",
+  IE: "EUR",
+  DE: "EUR",
+  FR: "EUR",
+  NL: "EUR",
+  ES: "EUR",
+  IT: "EUR",
+  AT: "EUR",
+  BE: "EUR",
+  PT: "EUR",
+};
+
+function nameToCurrency(name: string): AppCurrency | null {
+  const n = name.toUpperCase();
+  if (n.includes("NIGERIA") || n === "NG") return "NGN";
+  if (n.includes("UNITED KINGDOM") || n.includes("ENGLAND") || n.includes("SCOTLAND") || n.includes("WALES") || n === "UK" || n === "GB")
+    return "GBP";
+  if (n.includes("SOUTH AFRICA") || n === "ZA") return "ZAR";
+  if (n.includes("UNITED STATES") || n === "USA" || n === "US") return "USD";
+  if (n.includes("GHANA")) return "GHS";
+  if (n.includes("KENYA")) return "KES";
+  if (n.includes("CANADA")) return "CAD";
+  if (n.includes("AUSTRALIA")) return "AUD";
+  if (
+    n.includes("GERMANY") ||
+    n.includes("FRANCE") ||
+    n.includes("IRELAND") ||
+    n.includes("NETHERLANDS") ||
+    n.includes("SPAIN") ||
+    n.includes("ITALY") ||
+    n.includes("EUROPE")
+  )
+    return "EUR";
+  return null;
+}
+
+/**
+ * Resolve marketplace currency from country code/name or locale.
+ * Defaults to NGN (primary market).
+ */
 export function detectCurrency(opts?: {
   countryCode?: string | null;
   countryName?: string | null;
   locale?: string | null;
 }): AppCurrency {
   const code = (opts?.countryCode || "").trim().toUpperCase();
-  const name = (opts?.countryName || "").trim().toUpperCase();
-  if (
-    code === "US" ||
-    code === "USA" ||
-    name.includes("UNITED STATES") ||
-    name === "US"
-  ) {
-    return "USD";
-  }
-  if (
-    code === "NG" ||
-    code === "NGA" ||
-    name.includes("NIGERIA") ||
-    name === "NG"
-  ) {
-    return "NGN";
-  }
-  const locale =
+  if (code && COUNTRY_CURRENCY[code]) return COUNTRY_CURRENCY[code];
+
+  const fromName = nameToCurrency(opts?.countryName || "");
+  if (fromName) return fromName;
+
+  const locale = (
     opts?.locale ||
-    (typeof navigator !== "undefined" ? navigator.language : "en-NG");
-  if (locale.toLowerCase().startsWith("en-us")) return "USD";
-  // Default marketplace: Nigeria
+    (typeof navigator !== "undefined" ? navigator.language : "en-NG")
+  ).toLowerCase();
+
+  if (locale.startsWith("en-gb") || locale === "en-uk") return "GBP";
+  if (locale.startsWith("en-za") || locale.startsWith("af-za")) return "ZAR";
+  if (locale.startsWith("en-us")) return "USD";
+  if (locale.startsWith("en-ng") || locale.startsWith("ha-ng") || locale.startsWith("yo-ng") || locale.startsWith("ig-ng"))
+    return "NGN";
+  if (locale.startsWith("en-gh")) return "GHS";
+  if (locale.startsWith("en-ke") || locale.startsWith("sw-ke")) return "KES";
+  if (locale.startsWith("en-ca") || locale.startsWith("fr-ca")) return "CAD";
+  if (locale.startsWith("en-au")) return "AUD";
+  if (
+    locale.startsWith("de") ||
+    locale.startsWith("fr") ||
+    locale.startsWith("nl") ||
+    locale.startsWith("es") ||
+    locale.startsWith("it") ||
+    locale.startsWith("pt")
+  )
+    return "EUR";
+
+  // Primary market default
   return "NGN";
 }
 
+/**
+ * Use browser GPS → reverse geocode country → currency.
+ * Falls back to locale / NGN.
+ */
+export async function detectCurrencyFromGeolocation(): Promise<AppCurrency> {
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    return detectCurrency();
+  }
+
+  try {
+    const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: false,
+        timeout: 10000,
+        maximumAge: 300_000,
+      });
+    });
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+
+    // Prefer server reverse-geocode (includes country when available)
+    try {
+      const res = await fetch(
+        `/api/reverse-geocode?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`,
+        { cache: "no-store" }
+      );
+      const data = (await res.json().catch(() => null)) as {
+        country?: string;
+        countryCode?: string;
+        city?: string;
+        label?: string;
+      } | null;
+      if (data) {
+        const c = detectCurrency({
+          countryCode: data.countryCode,
+          countryName: data.country || data.city || data.label,
+        });
+        return c;
+      }
+    } catch {
+      /* fall through */
+    }
+
+    // Rough lat/lng region fallback for common markets
+    if (lat >= 4 && lat <= 14 && lng >= 2 && lng <= 15) return "NGN"; // Nigeria box
+    if (lat >= -35 && lat <= -22 && lng >= 16 && lng <= 33) return "ZAR"; // SA
+    if (lat >= 49 && lat <= 61 && lng >= -8 && lng <= 2) return "GBP"; // UK
+    if (lat >= 24 && lat <= 50 && lng >= -125 && lng <= -66) return "USD"; // US
+  } catch {
+    /* permission denied etc. */
+  }
+
+  return detectCurrency();
+}
+
 export function currencySymbol(currency: AppCurrency): string {
-  return currency === "USD" ? "$" : "₦";
+  switch (currency) {
+    case "NGN":
+      return "₦";
+    case "USD":
+      return "$";
+    case "GBP":
+      return "£";
+    case "ZAR":
+      return "R";
+    case "EUR":
+      return "€";
+    case "GHS":
+      return "GH₵";
+    case "KES":
+      return "KSh ";
+    case "CAD":
+      return "C$";
+    case "AUD":
+      return "A$";
+    default:
+      return "₦";
+  }
 }
 
 export function currencyLabel(currency: AppCurrency): string {
-  return currency === "USD" ? "USD" : "NGN";
+  return currency;
 }
 
-/** Major units → minor (kobo / cents). */
+function usesDecimals(currency: AppCurrency): boolean {
+  return currency === "USD" || currency === "GBP" || currency === "EUR" || currency === "CAD" || currency === "AUD";
+}
+
+/** Major units → minor (kobo / cents / pence). */
 export function toMinorUnits(amountMajor: number, currency: AppCurrency): number {
   const n = Math.max(0, Number(amountMajor) || 0);
-  const factor = currency === "USD" || currency === "NGN" ? 100 : 100;
-  return Math.round(n * factor);
+  return Math.round(n * 100);
 }
 
 export function fromMinorUnits(
   amountMinor: number,
   currency: AppCurrency
 ): number {
-  const factor = currency === "USD" || currency === "NGN" ? 100 : 100;
-  return (Number(amountMinor) || 0) / factor;
+  return (Number(amountMinor) || 0) / 100;
 }
 
 export function formatMoney(
@@ -78,10 +234,11 @@ export function formatMoney(
     return "Quote on request";
   }
   const sym = currencySymbol(currency);
+  const dec = usesDecimals(currency);
   try {
     return `${sym}${amountMajor.toLocaleString(undefined, {
-      minimumFractionDigits: currency === "USD" ? 2 : 0,
-      maximumFractionDigits: currency === "USD" ? 2 : 0,
+      minimumFractionDigits: dec ? 2 : 0,
+      maximumFractionDigits: dec ? 2 : 0,
     })}`;
   } catch {
     return `${sym}${amountMajor}`;

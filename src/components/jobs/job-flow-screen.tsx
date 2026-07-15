@@ -39,7 +39,7 @@ import {
 import { negotiationUiStatus } from "@/lib/jobs/state-machine";
 import type { DisputeReason, JobRecord } from "@/lib/jobs/types";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
-import { formatMoney } from "@/lib/pricing";
+import { formatMoney, LABOUR_SPLIT_LINE } from "@/lib/pricing";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { cn } from "@/lib/utils";
 
@@ -515,7 +515,7 @@ export function JobFlowScreen({
               : "—"}
           </p>
           <p className={cn("mt-1 text-[12px] font-medium", muted)}>
-            Labour only · 5% platform · 95% Repair Pro
+            {LABOUR_SPLIT_LINE}
           </p>
         </div>
         <JobCard isLight={isLight}>

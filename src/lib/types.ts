@@ -90,8 +90,8 @@ export interface UserProfile {
    * Spare parts never included. Legacy string values still parse.
    */
   servicePrices?: Partial<Record<ProService, number | string>>;
-  /** Pricing currency for this pro (NGN Nigeria / USD US) */
-  pricingCurrency?: "NGN" | "USD";
+  /** Pricing currency from geo (NGN, GBP, ZAR, USD, …) */
+  pricingCurrency?: import("@/lib/pricing").AppCurrency;
   serviceRadiusKm?: number;
   yearsExperience?: string;
   bio?: string;
@@ -226,7 +226,7 @@ export interface Technician {
   /** Jobs completed (for achievement badges) */
   jobsCompleted?: number;
   servicePrices?: Partial<Record<ProService, number | string>>;
-  pricingCurrency?: "NGN" | "USD";
+  pricingCurrency?: import("@/lib/pricing").AppCurrency;
   skillAnswers?: Record<
     string,
     string | string[] | { name: string; dataUrl: string; mime: string }
@@ -250,7 +250,7 @@ export interface ServiceRequest {
   bookingForSomeoneElse?: boolean;
   meetCoordinates?: Coordinates;
   /** Labour pricing snapshot (escrow) */
-  pricingCurrency?: "NGN" | "USD";
+  pricingCurrency?: import("@/lib/pricing").AppCurrency;
   labourBaseMajor?: number;
   labourAgreedMajor?: number;
   discountPercent?: number;
