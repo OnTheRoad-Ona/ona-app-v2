@@ -20,12 +20,22 @@ export function HomeScreen() {
     setSelectedTechId,
     selectedTechId,
     theme,
+    accountType,
+    retryLocation,
+    refreshNearbyPros,
   } = useApp();
   const { config } = useAppConfig();
   const isLight = theme === "light";
   const [sheetExpanded, setSheetExpanded] = useState(false);
 
-  // GPS is managed in store (10 min cadence). Avoid forced refresh on every home open.
+  // Motorist: refresh GPS + pros on open so discovery uses real pin (not stale default)
+  useEffect(() => {
+    if (accountType === "professional") return;
+    retryLocation();
+    const t = window.setTimeout(() => refreshNearbyPros(), 1200);
+    return () => window.clearTimeout(t);
+  }, [accountType, retryLocation, refreshNearbyPros]);
+
   useEffect(() => {
     if (
       visibleTechnicians.length > 0 &&

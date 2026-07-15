@@ -35,47 +35,54 @@ export async function GET(req: Request) {
 
   try {
     const supabase = createServiceSupabase();
-    // Live only — motorists must not discover Away / offline pros
+    // Live only — not suspended/rejected. Pending+approved both OK when Live.
     const { data: pros, error } = await supabase
       .from("repair_pro_profiles")
       .select("*")
-      .eq("status", "approved")
       .eq("is_online", true)
+      .neq("status", "suspended")
+      .neq("status", "rejected")
       .order("rating_avg", { ascending: false })
       .limit(200);
 
     if (error) return apiFail(error.message, 500);
 
-    const list = (pros ?? []) as RepairProRow[];
+    const list = ((pros ?? []) as RepairProRow[]).filter(
+      (p) => p.status !== "suspended" && p.status !== "rejected"
+    );
     if (!list.length) {
       return apiOk({ technicians: [], count: 0 });
     }
 
-    // Active accounts that are currently signed in as Repair Pro (not Motorist)
+    // Prefer active repair_pro role, but do not hide Live pros if role lag
     const ids = list.map((p) => p.user_id);
     const { data: profiles } = await supabase
       .from("profiles")
       .select("*")
       .in("id", ids)
-      .eq("is_active", true)
-      .eq("role", "repair_pro");
+      .eq("is_active", true);
 
     const byId = new Map(
       ((profiles ?? []) as ProfileRow[]).map((p) => [p.id, p])
     );
 
     const technicians = list
-      .filter((p) => byId.has(p.user_id))
-      // Must have a real GPS pin (set when pro goes Live)
       .filter((p) => {
-        const lat = p.lat;
-        const lng = p.lng;
+        const profile = byId.get(p.user_id);
+        // Hide only if profile missing/inactive; role may lag behind Live toggle
+        if (!profile) return false;
+        if (profile.role === "motorist") return false;
+        return true;
+      })
+      .filter((p) => {
+        const plat = p.lat;
+        const plng = p.lng;
         return (
-          typeof lat === "number" &&
-          typeof lng === "number" &&
-          Number.isFinite(lat) &&
-          Number.isFinite(lng) &&
-          !(lat === 0 && lng === 0)
+          typeof plat === "number" &&
+          typeof plng === "number" &&
+          Number.isFinite(plat) &&
+          Number.isFinite(plng) &&
+          !(plat === 0 && plng === 0)
         );
       })
       .map((pro) =>
@@ -107,7 +114,8 @@ export async function GET(req: Request) {
         origin: userCoords,
         maxRadiusKm: MAX_RADIUS_KM,
         docsPendingRadiusKm: DOCS_PENDING_MAX_RADIUS_KM,
-        liveProsBeforeRadius: list.filter((p) => byId.has(p.user_id)).length,
+        liveProsInDb: list.length,
+        afterRadius: technicians.length,
       },
     });
   } catch (e) {

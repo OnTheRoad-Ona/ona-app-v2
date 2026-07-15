@@ -67,9 +67,9 @@ export async function POST(req: Request) {
       );
     }
 
-    if (b.online && proRow.status !== "approved") {
+    if (b.online && (proRow.status === "suspended" || proRow.status === "rejected")) {
       return apiFail(
-        "Your Repair Pro account is not approved yet.",
+        "Your Repair Pro account is suspended or rejected.",
         403,
         "not_approved"
       );
@@ -99,6 +99,10 @@ export async function POST(req: Request) {
     if (hasGps) {
       patch.lat = lat;
       patch.lng = lng;
+    }
+    // Going Live promotes pending → approved so motorists can discover you
+    if (b.online && (proRow.status === "pending" || !proRow.status)) {
+      patch.status = "approved";
     }
 
     const { error: upErr } = await sb

@@ -648,11 +648,10 @@ export async function backendFetchPros(userCoords: {
   const sb = getAppSupabase();
   if (!sb) return [];
 
-  // Client fallback: same rules as /api/pros (Live + repair_pro role only)
+  // Client fallback: same rules as /api/pros (Live + GPS + range)
   const { data: pros, error } = await sb
     .from("repair_pro_profiles")
     .select("*")
-    .eq("status", "approved")
     .eq("is_online", true)
     .limit(200);
 
@@ -663,20 +662,25 @@ export async function backendFetchPros(userCoords: {
     .from("profiles")
     .select("*")
     .in("id", ids)
-    .eq("is_active", true)
-    .eq("role", "repair_pro");
+    .eq("is_active", true);
 
   const byId = new Map(
     (profiles as ProfileRow[] | null)?.map((p) => [p.id, p]) ?? []
   );
 
   return (pros as RepairProRow[])
-    .filter((pro) => byId.has(pro.user_id))
+    .filter((pro) => {
+      if (pro.status === "suspended" || pro.status === "rejected") return false;
+      const profile = byId.get(pro.user_id);
+      if (!profile || profile.role === "motorist") return false;
+      return true;
+    })
     .map((pro) =>
       mapProToTechnician(pro, byId.get(pro.user_id) ?? null, userCoords)
     )
     .filter((t) => {
       if (
+        !t.hasLiveLocation ||
         typeof t.distanceKm !== "number" ||
         !Number.isFinite(t.distanceKm)
       ) {

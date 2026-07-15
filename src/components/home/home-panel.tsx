@@ -489,26 +489,18 @@ export function HomePanel({
                   isLight ? "text-slate-800" : "text-white"
                 )}
               >
-                No Live Repair Pros nearby
-              </p>
-              <p
-                className={cn(
-                  "mx-auto mt-1.5 max-w-[260px] text-[11px] font-medium leading-snug",
-                  isLight ? "text-slate-600" : "text-white/55"
-                )}
-              >
-                Only pros who are <strong>Live</strong> with GPS, within{" "}
-                <strong>10 km</strong> (or <strong>2 km</strong> while their
-                docs are under review) appear here. Ask them to open the Pro
-                dashboard and tap Go Live.
+                No Repair Pros nearby
               </p>
               <button
                 type="button"
                 disabled={refreshingPros}
                 onClick={() => {
                   setRefreshingPros(true);
-                  refreshNearbyPros();
-                  window.setTimeout(() => setRefreshingPros(false), 800);
+                  retryLocation();
+                  window.setTimeout(() => {
+                    refreshNearbyPros();
+                    setRefreshingPros(false);
+                  }, 1500);
                 }}
                 className="mt-2 border-0 bg-transparent text-[12px] font-bold text-brand disabled:opacity-60"
               >
