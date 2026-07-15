@@ -57,34 +57,15 @@ export function scoreTechnician(tech: Technician, query: string): number {
   );
 }
 
-/** Specialty keyword buckets for extended home categories */
-const CATEGORY_KEYWORDS: Partial<Record<ServiceCategory, string[]>> = {
-  battery: ["battery", "jump", "start", "charging"],
-  ac: ["ac", "air", "cool", "climate", "gas"],
-  body: ["body", "panel", "dent", "paint", "spray"],
-  electrical: ["electric", "wiring", "alternator", "ecu", "sensor"],
-  diagnostics: ["diag", "scan", "obd", "fault", "computer"],
-  wash: ["wash", "detail", "clean", "polish", "valeting"],
-};
-
+/**
+ * Trade tab match — strict.
+ * Battery tab = battery pros only (never show mechanics as battery).
+ * Mechanic tab = mechanic only, etc.
+ */
 function matchesCategory(tech: Technician, category: ServiceCategory): boolean {
   if (category === "all") return true;
-  // Exact primary trade match (all 9 home trades)
-  if (tech.serviceType === category) return true;
-  const keys = CATEGORY_KEYWORDS[category] ?? [];
-  const hay = `${tech.roleLabel} ${tech.description} ${tech.specialties.join(" ")}`.toLowerCase();
-  if (keys.some((k) => hay.includes(k))) return true;
-  // Fallback: specialty services often sit under general mechanics
-  if (
-    category === "battery" ||
-    category === "ac" ||
-    category === "body" ||
-    category === "electrical" ||
-    category === "diagnostics"
-  ) {
-    return tech.serviceType === "mechanic";
-  }
-  return false;
+  // Primary registration skill only
+  return tech.serviceType === category;
 }
 
 export function filterAndRankTechnicians(
@@ -101,6 +82,8 @@ export function filterAndRankTechnicians(
   const radius = Math.min(Math.max(radiusKm, 0), MAX_RADIUS_KM);
 
   let list = technicians.filter((t) => {
+    // Marketplace: Live only (Away / offline never listed)
+    if (t.status !== "available") return false;
     const d = t.distanceKm;
     if (typeof d !== "number" || !Number.isFinite(d)) return false;
     // Docs not yet approved → only visible within 2 km
@@ -119,9 +102,7 @@ export function filterAndRankTechnicians(
   }
 
   if (filters.availableNow) {
-    list = list.filter(
-      (t) => t.status === "available" || t.status === "nearby"
-    );
+    list = list.filter((t) => t.status === "available");
   }
   if (filters.rating45) {
     list = list.filter((t) => t.rating >= 4.5);

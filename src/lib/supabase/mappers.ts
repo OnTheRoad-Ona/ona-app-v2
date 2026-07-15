@@ -120,11 +120,8 @@ export function mapProToTechnician(
     reviewCount: pro.rating_count || 0,
     distanceKm: Math.round(distanceKm * 10) / 10,
     etaMinutes,
-    status: pro.is_online
-      ? "available"
-      : pro.status === "approved"
-        ? "nearby"
-        : "offline",
+    // Live only → available. Away is never "nearby" on the motorist map.
+    status: pro.is_online ? "available" : "offline",
     verified: pro.verified || pro.nin_verified,
     fastResponse: pro.is_online,
     specialties: (() => {

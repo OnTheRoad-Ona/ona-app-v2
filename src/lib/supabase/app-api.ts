@@ -727,9 +727,14 @@ export async function backendSetProOnline(
     const json = (await res.json().catch(() => null)) as {
       ok?: boolean;
       error?: { message?: string };
+      data?: { online?: boolean; pro?: { is_online?: boolean } };
     } | null;
     if (!json?.ok) {
       return json?.error?.message || "Could not update Live status";
+    }
+    // Verify server actually flipped (Away must stick)
+    if (online === false && json.data?.pro?.is_online === true) {
+      return "Could not go Away on server. Try again.";
     }
     return null;
   } catch {
@@ -737,7 +742,7 @@ export async function backendSetProOnline(
     const sb = getAppSupabase();
     if (!sb) return "Backend offline";
     const patch: Record<string, unknown> = { is_online: online };
-    if (coords) {
+    if (coords && online) {
       patch.lat = coords.lat;
       patch.lng = coords.lng;
     }
@@ -747,6 +752,21 @@ export async function backendSetProOnline(
       .eq("user_id", userId);
     return error?.message ?? null;
   }
+}
+
+/** Read Live flag from server (sync dashboard UI). */
+export async function backendGetProOnline(
+  userId: string
+): Promise<boolean | null> {
+  const sb = getAppSupabase();
+  if (!sb) return null;
+  const { data, error } = await sb
+    .from("repair_pro_profiles")
+    .select("is_online")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return Boolean(data.is_online);
 }
 
 export async function backendCreateJob(input: {

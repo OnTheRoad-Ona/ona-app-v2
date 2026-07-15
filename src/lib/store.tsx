@@ -53,6 +53,7 @@ import {
   backendFetchConversations,
   backendFetchJobsForUser,
   backendFetchPros,
+  backendGetProOnline,
   backendGetSessionUserId,
   backendLoadUserProfile,
   backendSendMessage,
@@ -1309,15 +1310,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return "Switch to Repair Pro mode first.";
       }
       if (!backendUserId || !isAppBackendOnline()) {
-        setProLiveState(live);
-        try {
-          localStorage.setItem("oga-mecho-pro-live", live ? "1" : "0");
-        } catch {
-          /* ignore */
-        }
-        return live
-          ? "Server offline — Live is only on this device until you reconnect."
-          : null;
+        // Never flip local Away while server stays Live — require server for both
+        return "Server offline. Connect to go Live or Away so motorists stay in sync.";
       }
       if (accountType !== "professional") {
         await backendSetProOnline(backendUserId, false);
@@ -2055,16 +2049,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [backendUserId, refreshCloudPros, refreshCloudJobs, refreshCloudChats]);
 
-  // Restore Live preference when session is pro (stays Live until pro turns it off)
+  // Sync Live/Away from server (never trust localStorage alone — Away must match is_online)
   useEffect(() => {
-    if (accountType !== "professional") return;
-    try {
-      const saved = localStorage.getItem("oga-mecho-pro-live");
-      if (saved === "1") setProLiveState(true);
-    } catch {
-      /* ignore */
-    }
-  }, [accountType]);
+    if (accountType !== "professional" || !backendUserId) return;
+    if (!isAppBackendOnline()) return;
+    let cancelled = false;
+    void backendGetProOnline(backendUserId).then((online) => {
+      if (cancelled || online == null) return;
+      setProLiveState(online);
+      try {
+        localStorage.setItem("oga-mecho-pro-live", online ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [accountType, backendUserId]);
 
   // While Live: continuous GPS so motorists get accurate 10 km / 2 km discovery
   useEffect(() => {
