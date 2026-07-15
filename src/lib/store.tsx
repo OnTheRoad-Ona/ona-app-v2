@@ -246,8 +246,8 @@ interface AppState {
    * Synced to repair_pro_profiles.is_online.
    */
   proLive: boolean;
-  /** Turn Live/Away on and push is_online to the server */
-  setProLive: (live: boolean) => Promise<void>;
+  /** Turn Live/Away on and push is_online to the server. Returns error message if failed. */
+  setProLive: (live: boolean) => Promise<string | null>;
   /**
    * Motorist is helping someone else — service pin is the other person's place.
    * Nearby pros and bookings use this meet location.
@@ -1303,10 +1303,82 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const setProLive = useCallback(
-    async (live: boolean) => {
+    async (live: boolean): Promise<string | null> => {
       // Pro stays Live until they turn it off (or leave pro mode / log out)
       if (live && accountType !== "professional") {
-        return;
+        return "Switch to Repair Pro mode first.";
+      }
+      if (!backendUserId || !isAppBackendOnline()) {
+        setProLiveState(live);
+        try {
+          localStorage.setItem("oga-mecho-pro-live", live ? "1" : "0");
+        } catch {
+          /* ignore */
+        }
+        return live
+          ? "Server offline — Live is only on this device until you reconnect."
+          : null;
+      }
+      if (accountType !== "professional") {
+        await backendSetProOnline(backendUserId, false);
+        setProLiveState(false);
+        return null;
+      }
+
+      // Going Live: prefer fresh high-accuracy GPS so motorists see you nearby
+      let lat = location.coordinates.lat;
+      let lng = location.coordinates.lng;
+      let gotGps = false;
+      if (live && typeof navigator !== "undefined" && navigator.geolocation) {
+        try {
+          const pos = await new Promise<GeolocationPosition>(
+            (resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 0,
+              });
+            }
+          );
+          lat = pos.coords.latitude;
+          lng = pos.coords.longitude;
+          gotGps = true;
+          setLocation((prev) => ({
+            ...prev,
+            coordinates: { lat, lng },
+          }));
+        } catch {
+          /* fall back to last known */
+        }
+      }
+
+      if (
+        live &&
+        !gotGps &&
+        (!Number.isFinite(lat) ||
+          !Number.isFinite(lng) ||
+          (lat === 0 && lng === 0) ||
+          // Default Lagos seed without real GPS is weak for discovery
+          false)
+      ) {
+        // still try last known
+      }
+
+      const err = await backendSetProOnline(backendUserId, live, {
+        lat,
+        lng,
+      });
+      if (err) {
+        console.warn("setProLive:", err);
+        if (live) {
+          setProLiveState(false);
+          try {
+            localStorage.setItem("oga-mecho-pro-live", "0");
+          } catch {
+            /* ignore */
+          }
+        }
+        return err;
       }
       setProLiveState(live);
       try {
@@ -1314,15 +1386,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch {
         /* ignore */
       }
-      if (!backendUserId || !isAppBackendOnline()) return;
-      if (accountType !== "professional") {
-        await backendSetProOnline(backendUserId, false);
-        return;
-      }
-      await backendSetProOnline(backendUserId, live, {
-        lat: location.coordinates.lat,
-        lng: location.coordinates.lng,
-      });
+      return null;
     },
     [
       backendUserId,
@@ -1478,12 +1542,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       };
     });
     // Marketplace: only server Live pros (is_online + repair_pro role).
-    // Do not fall back to demo seed for motorists — empty means no one is Live.
+    // Motorists never get demo seeds. Pros never load nearby discovery.
     const base =
-      cloudTechs !== null
-        ? cloudTechs
-        : accountType === "professional"
-          ? seed
+      accountType === "professional"
+        ? []
+        : cloudTechs !== null
+          ? cloudTechs
           : [];
 
     // Always recompute distance/ETA from the active pin (my GPS or
@@ -1919,12 +1983,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const userLng = location.coordinates.lng;
 
   const refreshCloudPros = useCallback(() => {
-    // Always try — /api/pros returns only Live Repair Pros (online + pro role)
+    // Motorist marketplace only — pros never load "nearby" discovery feed
+    if (accountType === "professional") {
+      setCloudTechs([]);
+      return;
+    }
+    // /api/pros returns only Live Repair Pros (online + pro role + range)
     void backendFetchPros({ lat: userLat, lng: userLng }).then((list) => {
       // [] is valid: no one is Live right now (do not re-show demo seeds)
       setCloudTechs(list);
     });
-  }, [userLat, userLng]);
+  }, [userLat, userLng, accountType]);
 
   /** Public: motorist empty-state Refresh — pros list only */
   const refreshNearbyPros = useCallback(() => {
@@ -1997,7 +2066,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [accountType]);
 
-  // While Live: push real GPS often so motorist maps show deep live pins
+  // While Live: continuous GPS so motorists get accurate 10 km / 2 km discovery
   useEffect(() => {
     if (
       !isAppBackendOnline() ||
@@ -2007,33 +2076,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ) {
       return;
     }
-    const push = () => {
-      if (typeof navigator === "undefined" || !navigator.geolocation) {
-        void backendSetProOnline(backendUserId, true, {
-          lat: userLat,
-          lng: userLng,
-        });
+
+    const pushCoords = (lat: number, lng: number) => {
+      void backendSetProOnline(backendUserId, true, { lat, lng });
+    };
+
+    let watchId: number | null = null;
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          pushCoords(pos.coords.latitude, pos.coords.longitude);
+        },
+        () => {
+          pushCoords(userLat, userLng);
+        },
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+      );
+    } else {
+      pushCoords(userLat, userLng);
+    }
+
+    // Backup interval (some browsers throttle watchPosition)
+    const id = window.setInterval(() => {
+      if (!navigator.geolocation) {
+        pushCoords(userLat, userLng);
         return;
       }
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          void backendSetProOnline(backendUserId, true, {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-          });
-        },
-        () => {
-          void backendSetProOnline(backendUserId, true, {
-            lat: userLat,
-            lng: userLng,
-          });
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 }
+        (pos) => pushCoords(pos.coords.latitude, pos.coords.longitude),
+        () => pushCoords(userLat, userLng),
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 8000 }
       );
+    }, 20_000);
+
+    return () => {
+      if (watchId != null) navigator.geolocation.clearWatch(watchId);
+      window.clearInterval(id);
     };
-    push();
-    const id = window.setInterval(push, 15_000);
-    return () => window.clearInterval(id);
   }, [backendUserId, accountType, userLat, userLng, proLive]);
 
   // Leaving pro mode → Away (so motorists don't see them while on Motorist)

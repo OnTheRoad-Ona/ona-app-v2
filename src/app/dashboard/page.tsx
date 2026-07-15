@@ -1,58 +1,50 @@
 "use client";
 
-import { useRef, useState } from "react";
+/**
+ * Professional dashboard — NO nearby discovery map.
+ * Idle: Go Live + waiting for requests.
+ * Jobs: text list only; map/travel opens on /jobs/[id] after a request.
+ */
+
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  CheckCircle2,
+  Briefcase,
+  ChevronRight,
+  Loader2,
   MapPin,
-  MessageCircle,
-  Navigation,
+  Radio,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
-import { ServiceMap } from "@/components/map/service-map";
-import { useApp } from "@/lib/store";
+import { apiListJobs } from "@/lib/jobs/client";
+import type { JobRecord } from "@/lib/jobs/types";
+import { formatMoney } from "@/lib/pricing";
 import { isProService, PRO_SERVICE_LABELS } from "@/lib/services";
+import { useApp } from "@/lib/store";
 import type { ProService } from "@/lib/types";
-import { cn, formatDistance, formatEta } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
-/**
- * Professional dashboard — flat sheet (no white/card panels).
- * Live switch writes is_online so motorists can find this pro.
- */
 export default function TechnicianDashboardPage() {
   const {
-    requests,
-    updateRequestStatus,
-    technicians,
-    radiusKm,
     theme,
     registeredAs,
     proServices,
-    ensureChatForRequest,
     proLive,
     setProLive,
     userProfile,
+    backendUserId,
+    displayName,
   } = useApp();
   const isLight = theme === "light";
-  const [serviceRadius, setServiceRadius] = useState(10);
-  const [panelExpanded, setPanelExpanded] = useState(false);
-  const [skillError, setSkillError] = useState<string | null>(null);
   const [liveBusy, setLiveBusy] = useState(false);
-  const gestureY = useRef<number | null>(null);
-  const me =
-    technicians.find((t) => t.id === userProfile?.identityId) ||
-    technicians[0];
+  const [liveErr, setLiveErr] = useState<string | null>(null);
+  const [jobs, setJobs] = useState<JobRecord[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
 
   const mySkill: ProService | null = isProService(registeredAs)
     ? registeredAs
     : proServices[0] ?? null;
-
-  const openJobs = requests.filter((r) => {
-    if (["completed", "cancelled"].includes(r.status)) return false;
-    if (mySkill && r.serviceType !== mySkill) return false;
-    return true;
-  });
 
   const roleLabel = mySkill
     ? PRO_SERVICE_LABELS[mySkill] ?? mySkill
@@ -62,41 +54,41 @@ export default function TechnicianDashboardPage() {
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-600" : "text-white/65";
 
-  const onTouchStart = (e: React.TouchEvent) => {
-    gestureY.current = e.touches[0].clientY;
-  };
-  const onTouchMove = (e: React.TouchEvent) => {
-    if (gestureY.current == null) return;
-    const dy = e.touches[0].clientY - gestureY.current;
-    if (!panelExpanded && dy < -14) {
-      setPanelExpanded(true);
-      gestureY.current = null;
-    }
-    if (panelExpanded && dy > 14) {
-      setPanelExpanded(false);
-      gestureY.current = null;
-    }
-  };
-  const onWheel = (e: React.WheelEvent) => {
-    if (e.deltaY > 0 && !panelExpanded) {
-      e.preventDefault();
-      setPanelExpanded(true);
-    }
-    if (e.deltaY < 0 && panelExpanded) {
-      e.preventDefault();
-      setPanelExpanded(false);
-    }
-  };
+  const userId =
+    backendUserId || userProfile?.identityId || userProfile?.email || "";
 
-  const accept = (id: string) => {
-    const result = updateRequestStatus(id, "accepted");
-    if (!result.ok) {
-      setSkillError(result.message);
+  const loadJobs = useCallback(async () => {
+    if (!userId) {
+      setJobsLoading(false);
       return;
     }
-    setSkillError(null);
-    const job = requests.find((r) => r.id === id);
-    if (job) ensureChatForRequest(job);
+    const res = await apiListJobs(userId, "repair_pro");
+    if (res.ok) setJobs(res.data.jobs);
+    setJobsLoading(false);
+  }, [userId]);
+
+  useEffect(() => {
+    void loadJobs();
+    const t = window.setInterval(() => void loadJobs(), 5000);
+    return () => window.clearInterval(t);
+  }, [loadJobs]);
+
+  const openJobs = jobs.filter(
+    (j) =>
+      !["released", "cancelled", "expired", "refunded"].includes(j.status)
+  );
+
+  const toggleLive = async () => {
+    setLiveBusy(true);
+    setLiveErr(null);
+    try {
+      const err = await setProLive(!proLive);
+      if (err) setLiveErr(err);
+    } catch {
+      setLiveErr("Could not update Live status. Check GPS permission.");
+    } finally {
+      setLiveBusy(false);
+    }
   };
 
   return (
@@ -104,11 +96,10 @@ export default function TechnicianDashboardPage() {
       <div className={cn("z-20 shrink-0", sheetBg)}>
         <PageHeader
           title="Professional Dashboard"
-          subtitle={`${roleLabel} · ${me?.name || "Pro"}`}
+          subtitle={`${roleLabel} · ${userProfile?.fullName || displayName || "Pro"}`}
           showBack={false}
         />
-        <div className="flex items-center justify-between gap-2 px-3 pb-2">
-          {/* Flat skill label — no white/soft chip background */}
+        <div className="flex items-center justify-between gap-2 px-3 pb-3">
           {mySkill ? (
             <p className={cn("text-[12px] font-bold", ink)}>
               {PRO_SERVICE_LABELS[mySkill] ?? mySkill}
@@ -117,23 +108,10 @@ export default function TechnicianDashboardPage() {
           ) : (
             <span />
           )}
-          <div className="flex items-center gap-3">
-            <Link
-              href="/jobs"
-              className={cn(
-                "text-[12px] font-bold text-[#e07a3d]",
-                isLight ? "" : ""
-              )}
-            >
-              Escrow jobs
-            </Link>
           <button
             type="button"
             disabled={liveBusy}
-            onClick={() => {
-              setLiveBusy(true);
-              void setProLive(!proLive).finally(() => setLiveBusy(false));
-            }}
+            onClick={() => void toggleLive()}
             className={cn(
               "inline-flex shrink-0 items-center gap-2 border-0 bg-transparent px-0 py-1 text-xs font-bold transition-colors",
               proLive
@@ -145,7 +123,7 @@ export default function TechnicianDashboardPage() {
             aria-pressed={proLive}
             title={
               proLive
-                ? "You are Live — motorists can find you"
+                ? "You are Live — motorists can find you within range"
                 : "You are Away — motorists cannot find you"
             }
           >
@@ -162,219 +140,159 @@ export default function TechnicianDashboardPage() {
             </span>
             {liveBusy ? "…" : proLive ? "Live" : "Away"}
           </button>
-          </div>
         </div>
       </div>
 
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 pb-4 scrollbar-hide">
+        {/* Idle status card — no nearby map */}
         <div
           className={cn(
-            "om-sheet-spring relative min-h-0 overflow-hidden",
-            panelExpanded
-              ? "h-0 flex-[0_0_0%] opacity-0 pointer-events-none"
-              : "flex-[0_0_50%] opacity-100"
+            "rounded-2xl px-4 py-5 text-center",
+            isLight ? "bg-white/70" : "bg-white/[0.06]"
           )}
-        >
-          {me ? <ServiceMap technicians={[me]} /> : null}
-        </div>
-
-        <div
-          className={cn(
-            "om-sheet-spring z-10 flex min-h-0 flex-col overflow-hidden",
-            panelExpanded ? "flex-1" : "flex-[0_0_50%]",
-            sheetBg
-          )}
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onWheel={onWheel}
-          style={{ touchAction: "pan-y" }}
         >
           <div
-            role="button"
-            tabIndex={0}
-            aria-label={panelExpanded ? "Collapse panel" : "Expand panel"}
-            onClick={() => setPanelExpanded((v) => !v)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                setPanelExpanded((v) => !v);
-              }
-            }}
-            className="flex cursor-grab justify-center pb-1.5 pt-2.5 active:cursor-grabbing"
+            className={cn(
+              "mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl",
+              proLive ? "bg-emerald-500/15" : "bg-[#e07a3d]/15"
+            )}
           >
-            <span
+            <Radio
               className={cn(
-                "h-1.5 w-11 rounded-full",
-                isLight ? "bg-[#6b7280]/70" : "bg-white/40"
+                "h-7 w-7",
+                proLive ? "text-emerald-500" : "text-[#e07a3d]"
               )}
             />
           </div>
+          <p className={cn("text-[16px] font-black", ink)}>
+            {proLive ? "You’re Live" : "You’re Away"}
+          </p>
+          <p className={cn("mt-1 text-[12px] font-medium leading-snug", muted)}>
+            {proLive
+              ? "Motorists within 10 km can find you (2 km while docs are under review). Your GPS is shared for discovery only — trip map appears after a job is booked."
+              : "Go Live so motorists nearby can request you. We need GPS permission for your live pin."}
+          </p>
+          <Button
+            className="mt-4 h-11 w-full max-w-xs"
+            disabled={liveBusy}
+            onClick={() => void toggleLive()}
+          >
+            {liveBusy
+              ? "Updating…"
+              : proLive
+                ? "Go Away"
+                : "Go Live (share GPS)"}
+          </Button>
+          {liveErr && (
+            <p className="mt-2 text-[11px] font-semibold text-red-500">
+              {liveErr}
+            </p>
+          )}
+        </div>
 
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 pb-3 scrollbar-hide">
-            {skillError && (
-              <p className="text-[11px] font-medium text-amber-800" role="alert">
-                {skillError}
-              </p>
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h2 className={cn("text-sm font-bold", ink)}>Incoming jobs</h2>
+            <p className={cn("text-[11px]", muted)}>
+              Text list · open a job for travel time & live map
+            </p>
+          </div>
+          <Link
+            href="/jobs"
+            className="text-[12px] font-bold text-[#e07a3d]"
+          >
+            All jobs
+          </Link>
+        </div>
+
+        {jobsLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-[#e07a3d]" />
+          </div>
+        ) : openJobs.length === 0 ? (
+          <div
+            className={cn(
+              "rounded-2xl px-4 py-6 text-center",
+              isLight ? "bg-black/[0.04]" : "bg-white/[0.04]"
             )}
-
-            {/* Flat labels — no card backgrounds */}
-            <div className="flex items-baseline justify-between gap-2">
-              <div className="min-w-0">
-                <Link href="/orders" className={cn("text-sm font-bold", ink)}>
-                  Order requests
-                </Link>
-                <p className={cn("text-[11px]", muted)}>
-                  Only {roleLabel.toLowerCase()} jobs for your skill
-                </p>
-              </div>
-              <p className={cn("shrink-0 text-[12px] font-bold tabular-nums", ink)}>
-                {openJobs.length} open
-              </p>
-            </div>
-
-            <div>
-              <p className={cn("text-xs font-semibold", muted)}>Service radius</p>
-              <p className="text-xl font-bold text-brand">{serviceRadius} km</p>
-              <input
-                type="range"
-                min={1}
-                max={10}
-                value={serviceRadius}
-                onChange={(e) => setServiceRadius(Number(e.target.value))}
-                className="radius-slider mt-2 w-full"
-                style={{
-                  ["--pct" as string]: `${(serviceRadius / 10) * 100}%`,
-                }}
-                aria-label="Your service radius"
-              />
-              <p className={cn("mt-1 text-[10px]", muted)}>
-                Motorist search radius on map: {radiusKm} km
-              </p>
-            </div>
-
-            <div className="flex items-baseline justify-between gap-2 pt-0.5">
-              <h2 className={cn("text-sm font-bold", ink)}>Nearby requests</h2>
-              <p className={cn("text-[12px] font-bold tabular-nums", muted)}>
-                {openJobs.length} open
-                {openJobs.some((j) => j.status === "pending")
-                  ? " · pending"
-                  : ""}
-              </p>
-            </div>
-
-            {!proLive && (
-              <p className={cn("text-[11px] font-medium", muted)}>
-                You&apos;re Away. Go Live so motorists can find you and send
-                jobs.
-              </p>
-            )}
-
-            {openJobs.length === 0 ? (
-              <p className={cn("py-2 text-center text-xs", muted)}>
-                No open {roleLabel.toLowerCase()} jobs right now.
-              </p>
-            ) : (
-              openJobs.map((job) => (
-                <article
-                  key={job.id}
+          >
+            <Briefcase
+              className={cn("mx-auto h-8 w-8 opacity-40", muted)}
+            />
+            <p className={cn("mt-2 text-[13px] font-semibold", muted)}>
+              Waiting for requests
+            </p>
+            <p className={cn("mt-1 text-[11px]", muted)}>
+              {proLive
+                ? "No open jobs yet. Stay Live near motorists."
+                : "Go Live first so motorists can send jobs."}
+            </p>
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {openJobs.map((j) => (
+              <li key={j.id}>
+                <Link
+                  href={`/jobs/${j.id}`}
                   className={cn(
-                    "border-t pt-3",
-                    isLight ? "border-black/[0.08]" : "border-white/[0.08]"
+                    "flex items-start gap-2 rounded-2xl px-3 py-3 transition active:scale-[0.99]",
+                    isLight ? "bg-white/80" : "bg-white/[0.06]"
                   )}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className={cn("text-sm font-bold", ink)}>
-                        {job.problem}
-                      </p>
-                      <p className={cn("text-[11px] capitalize", muted)}>
-                        {job.serviceType} · {job.locationLabel}
-                      </p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="rounded-full bg-[#e07a3d]/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-[#e07a3d]">
+                        {j.status.replace(/_/g, " ")}
+                      </span>
+                      <span className={cn("text-[11px] font-semibold", muted)}>
+                        {PRO_SERVICE_LABELS[j.serviceType]}
+                      </span>
                     </div>
+                    <p className={cn("mt-1 text-[14px] font-black", ink)}>
+                      {j.motoristName}
+                    </p>
                     <p
                       className={cn(
-                        "shrink-0 text-[10px] font-bold uppercase tracking-wide",
+                        "mt-0.5 line-clamp-2 text-[12px] font-medium",
                         muted
                       )}
                     >
-                      {job.status.replace("_", " ")}
+                      {j.problem}
+                    </p>
+                    <p
+                      className={cn(
+                        "mt-1 flex items-center gap-1 text-[11px]",
+                        muted
+                      )}
+                    >
+                      <MapPin className="h-3 w-3 text-[#e07a3d]" />
+                      {j.locationLabel}
+                      {j.agreedMajor != null && (
+                        <span className="ml-1 font-bold text-[#e07a3d]">
+                          · {formatMoney(j.agreedMajor, j.currency)}
+                        </span>
+                      )}
+                    </p>
+                    <p className="mt-1 text-[11px] font-bold text-[#e07a3d]">
+                      Open for travel time & live map →
                     </p>
                   </div>
-                  <div className={cn("mt-1.5 flex gap-2 text-[11px]", muted)}>
-                    <span className="inline-flex items-center gap-1">
-                      <Navigation className="h-3 w-3 text-brand" />
-                      {formatEta(job.etaMinutes)}
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <MapPin className="h-3 w-3" />
-                      {formatDistance(job.distanceKm)}
-                    </span>
-                  </div>
-                  {/* Keep Accept / Decline as real buttons */}
-                  <div className="mt-2.5 flex flex-wrap gap-1.5">
-                    {job.status === "pending" && (
-                      <>
-                        <Button
-                          size="sm"
-                          disabled={!proLive}
-                          onClick={() => accept(job.id)}
-                        >
-                          Accept
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() =>
-                            updateRequestStatus(job.id, "cancelled")
-                          }
-                        >
-                          Decline
-                        </Button>
-                      </>
+                  <ChevronRight
+                    className={cn(
+                      "mt-1 h-5 w-5 shrink-0",
+                      isLight ? "text-slate-400" : "text-white/30"
                     )}
-                    {job.status === "accepted" && (
-                      <>
-                        <Button
-                          size="sm"
-                          onClick={() =>
-                            updateRequestStatus(job.id, "en_route")
-                          }
-                        >
-                          Start route
-                        </Button>
-                        <Button size="sm" variant="secondary" asChild>
-                          <Link href={`/messages`}>
-                            <MessageCircle className="h-3.5 w-3.5" />
-                            Chat
-                          </Link>
-                        </Button>
-                      </>
-                    )}
-                    {job.status === "en_route" && (
-                      <Button
-                        size="sm"
-                        onClick={() => updateRequestStatus(job.id, "arrived")}
-                      >
-                        Arrived
-                      </Button>
-                    )}
-                    {["arrived", "in_progress"].includes(job.status) && (
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          updateRequestStatus(job.id, "completed")
-                        }
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        Complete
-                      </Button>
-                    )}
-                  </div>
-                </article>
-              ))
-            )}
-          </div>
-        </div>
+                  />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <p className={cn("px-1 text-center text-[10px] leading-snug", muted)}>
+          Discovery map is motorist-only. Your map shows route, ETA and location
+          only after a motorist books you.
+        </p>
       </div>
     </div>
   );

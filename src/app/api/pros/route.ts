@@ -66,12 +66,25 @@ export async function GET(req: Request) {
 
     const technicians = list
       .filter((p) => byId.has(p.user_id))
+      // Must have a real GPS pin (set when pro goes Live)
+      .filter((p) => {
+        const lat = p.lat;
+        const lng = p.lng;
+        return (
+          typeof lat === "number" &&
+          typeof lng === "number" &&
+          Number.isFinite(lat) &&
+          Number.isFinite(lng) &&
+          !(lat === 0 && lng === 0)
+        );
+      })
       .map((pro) =>
         mapProToTechnician(pro, byId.get(pro.user_id) ?? null, userCoords)
       )
       // Strict 10 km marketplace; docs pending → 2 km only
       .filter((t) => {
         if (
+          !t.hasLiveLocation ||
           typeof t.distanceKm !== "number" ||
           !Number.isFinite(t.distanceKm)
         ) {
@@ -87,7 +100,16 @@ export async function GET(req: Request) {
         return t.distanceKm <= cap;
       });
 
-    return apiOk({ technicians, count: technicians.length });
+    return apiOk({
+      technicians,
+      count: technicians.length,
+      meta: {
+        origin: userCoords,
+        maxRadiusKm: MAX_RADIUS_KM,
+        docsPendingRadiusKm: DOCS_PENDING_MAX_RADIUS_KM,
+        liveProsBeforeRadius: list.filter((p) => byId.has(p.user_id)).length,
+      },
+    });
   } catch (e) {
     console.error(e);
     return apiFail("Failed to load repair pros", 500);

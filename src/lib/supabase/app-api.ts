@@ -693,23 +693,56 @@ export async function backendFetchPros(userCoords: {
     });
 }
 
+/**
+ * Go Live / Away with GPS. Uses server route so role + pin always stick
+ * (service role), then motorists can discover within 10 km / 2 km docs.
+ */
 export async function backendSetProOnline(
   userId: string,
   online: boolean,
   coords?: { lat: number; lng: number }
 ): Promise<string | null> {
-  const sb = getAppSupabase();
-  if (!sb) return "Backend offline";
-  const patch: Record<string, unknown> = { is_online: online };
-  if (coords) {
-    patch.lat = coords.lat;
-    patch.lng = coords.lng;
+  try {
+    const sb = getAppSupabase();
+    let access_token: string | undefined;
+    if (sb) {
+      const { data } = await sb.auth.getSession();
+      access_token = data.session?.access_token;
+    }
+    const res = await fetch("/api/pros/live", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId,
+        access_token,
+        online,
+        lat: coords?.lat,
+        lng: coords?.lng,
+      }),
+    });
+    const json = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      error?: { message?: string };
+    } | null;
+    if (!json?.ok) {
+      return json?.error?.message || "Could not update Live status";
+    }
+    return null;
+  } catch {
+    // Fallback: direct client update
+    const sb = getAppSupabase();
+    if (!sb) return "Backend offline";
+    const patch: Record<string, unknown> = { is_online: online };
+    if (coords) {
+      patch.lat = coords.lat;
+      patch.lng = coords.lng;
+    }
+    const { error } = await sb
+      .from("repair_pro_profiles")
+      .update(patch)
+      .eq("user_id", userId);
+    return error?.message ?? null;
   }
-  const { error } = await sb
-    .from("repair_pro_profiles")
-    .update(patch)
-    .eq("user_id", userId);
-  return error?.message ?? null;
 }
 
 export async function backendCreateJob(input: {
