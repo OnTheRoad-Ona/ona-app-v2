@@ -16,6 +16,7 @@ import { ProfileSection, ProfileShell } from "@/components/profile/profile-shell
 import { RadiusMapPreview } from "@/components/profile/radius-map-preview";
 import { SkillsChips } from "@/components/profile/skills-chips";
 import { VerificationMark } from "@/components/profile/verification-mark";
+import { StarRatingDisplay } from "@/components/ui/star-rating";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import {
   detectCurrency,
@@ -188,24 +189,31 @@ export function ProPublicView({
 
         <div
           className={cn(
-            "mt-2.5 grid grid-cols-3 gap-1 rounded-xl py-2 text-center",
+            "mt-2.5 rounded-xl px-2 py-2",
             isLight ? "bg-black/[0.04]" : "bg-[#2c2c2e]"
           )}
         >
-          <div>
-            <p className={cn("inline-flex items-center gap-0.5 text-[14px] font-bold", t.ink)}>
-              <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-              {tech.rating}
-            </p>
-            <p className={cn("text-[10px]", t.muted)}>{tech.reviewCount} reviews</p>
+          <div className="flex justify-center">
+            <StarRatingDisplay
+              rating={tech.rating}
+              size="sm"
+              className={cn("justify-center font-bold", t.ink)}
+            />
           </div>
-          <div>
-            <p className={cn("text-[14px] font-bold tabular-nums", t.ink)}>{jobs}</p>
-            <p className={cn("text-[10px]", t.muted)}>Jobs done</p>
-          </div>
-          <div>
-            <p className="text-[12px] font-bold text-brand">{statusText}</p>
-            <p className={cn("text-[10px]", t.muted)}>Status</p>
+          <p className={cn("mt-0.5 text-center text-[10px]", t.muted)}>
+            {tech.reviewCount} reviews
+          </p>
+          <div className="mt-1.5 grid grid-cols-2 gap-1 text-center">
+            <div>
+              <p className={cn("text-[14px] font-bold tabular-nums", t.ink)}>
+                {jobs}
+              </p>
+              <p className={cn("text-[10px]", t.muted)}>Jobs done</p>
+            </div>
+            <div>
+              <p className="text-[12px] font-bold text-brand">{statusText}</p>
+              <p className={cn("text-[10px]", t.muted)}>Status</p>
+            </div>
           </div>
         </div>
 

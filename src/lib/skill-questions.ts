@@ -51,6 +51,11 @@ export function specialtyMaxForSkill(skill: ProService): number {
  * Specialties are strictly per skill. Never mixed across trades.
  * Compact labels, equal boxes, fit on one screen.
  */
+/**
+ * Core focus tags (strongholds) within each profession.
+ * Selecting a skill means the pro can do ALL work in that trade;
+ * these tags only highlight their strongest areas.
+ */
 export const SPECIALTIES_BY_SKILL: Record<ProService, readonly string[]> = {
   mechanic: [
     "Engine",
@@ -58,8 +63,8 @@ export const SPECIALTIES_BY_SKILL: Record<ProService, readonly string[]> = {
     "Suspension",
     "Clutch",
     "Gearbox",
-    "Oil service",
-    "Timing belt",
+    "Steering service",
+    "Roadside service",
     "Cooling",
     "Exhaust",
     "Fuel system",
@@ -157,19 +162,40 @@ const CERT_UPLOAD: SkillQuestion = {
   accept: "image/*,.pdf,application/pdf",
 };
 
+/** Skill-specific agreement: full profession capability for selected brands. */
+export const SKILL_AGREEMENTS: Record<ProService, string> = {
+  mechanic:
+    "By completing this process, you agree you can fix all engine and mechanical works of the selected motor brand(s).",
+  vulcanizer:
+    "By completing this process, you agree you can fix all tyre and wheel works of the selected motor brand(s).",
+  towing:
+    "By completing this process, you agree you can provide full tow and recovery for the selected motor brand(s).",
+  battery:
+    "By completing this process, you agree you can handle all battery and jump-start works of the selected motor brand(s).",
+  ac: "By completing this process, you agree you can fix all air-conditioning works of the selected motor brand(s).",
+  body: "By completing this process, you agree you can fix all body and paint works of the selected motor brand(s).",
+  electrical:
+    "By completing this process, you agree you can fix all electrical and wiring works of the selected motor brand(s).",
+  diagnostics:
+    "By completing this process, you agree you can run full diagnostics and scan works of the selected motor brand(s).",
+  wash: "By completing this process, you agree you can provide full wash and detailing for the selected motor brand(s).",
+};
+
 function withCertAndSpecialties(
   flow: Omit<SkillFlow, "questions"> & {
     questions: SkillQuestion[];
   }
 ): SkillFlow {
   const specialtyOptions = [...SPECIALTIES_BY_SKILL[flow.skill]];
-  const skillShort = flow.title.replace(" details", "").replace(" questions", "");
+  const skillShort = flow.title
+    .replace(" details", "")
+    .replace(" questions", "");
   const maxSelect = specialtyMaxForSkill(flow.skill);
   const questions: SkillQuestion[] = [
     {
       id: "specialties",
-      label: "What you can fix",
-      hint: `Choose up to ${maxSelect} jobs for ${skillShort} only`,
+      label: "My Repair Core Focus",
+      hint: `Your strongholds within ${skillShort} (up to ${maxSelect}). You can still do all work in this profession.`,
       type: "multiselect",
       required: true,
       public: true,
@@ -191,7 +217,7 @@ export const SKILL_FLOWS: Record<ProService, SkillFlow> = {
   mechanic: withCertAndSpecialties({
     skill: "mechanic",
     title: "Mechanic details",
-    intro: "Only engine and mechanical work. Not tyres, scan, wash or body paint.",
+    intro: SKILL_AGREEMENTS.mechanic,
     questions: [
       {
         id: "mobileTools",
@@ -222,7 +248,7 @@ export const SKILL_FLOWS: Record<ProService, SkillFlow> = {
   vulcanizer: withCertAndSpecialties({
     skill: "vulcanizer",
     title: "Vulcanizer details",
-    intro: "Only tyre and wheel work. Not engine, electrics or towing.",
+    intro: SKILL_AGREEMENTS.vulcanizer,
     questions: [
       {
         id: "mobileCompressor",
@@ -252,7 +278,7 @@ export const SKILL_FLOWS: Record<ProService, SkillFlow> = {
   towing: withCertAndSpecialties({
     skill: "towing",
     title: "Towing details",
-    intro: "Only tow and recovery. Not repairs, tyres or wash.",
+    intro: SKILL_AGREEMENTS.towing,
     questions: [
       {
         id: "towType",
@@ -282,7 +308,7 @@ export const SKILL_FLOWS: Record<ProService, SkillFlow> = {
   battery: withCertAndSpecialties({
     skill: "battery",
     title: "Battery details",
-    intro: "Only battery and jump start work. Not full electrics or computer scan.",
+    intro: SKILL_AGREEMENTS.battery,
     questions: [
       {
         id: "stock",
@@ -305,7 +331,7 @@ export const SKILL_FLOWS: Record<ProService, SkillFlow> = {
   ac: withCertAndSpecialties({
     skill: "ac",
     title: "A/C details",
-    intro: "Only air conditioning work. Not general electrics or bodywork.",
+    intro: SKILL_AGREEMENTS.ac,
     questions: [
       {
         id: "gasType",
@@ -327,7 +353,7 @@ export const SKILL_FLOWS: Record<ProService, SkillFlow> = {
   body: withCertAndSpecialties({
     skill: "body",
     title: "Body work details",
-    intro: "Only body and paint work. Not mechanical or tyre work.",
+    intro: SKILL_AGREEMENTS.body,
     questions: [
       {
         id: "mobile",
@@ -350,7 +376,7 @@ export const SKILL_FLOWS: Record<ProService, SkillFlow> = {
   electrical: withCertAndSpecialties({
     skill: "electrical",
     title: "Electrical details",
-    intro: "Only car electrics and wiring. Not A/C gas or full diagnostics.",
+    intro: SKILL_AGREEMENTS.electrical,
     questions: [
       {
         id: "mobileTools",
@@ -373,7 +399,7 @@ export const SKILL_FLOWS: Record<ProService, SkillFlow> = {
   diagnostics: withCertAndSpecialties({
     skill: "diagnostics",
     title: "Diagnostics details",
-    intro: "Only computer scan and fault codes. Not tyre or body work.",
+    intro: SKILL_AGREEMENTS.diagnostics,
     questions: [
       {
         id: "scanTool",
@@ -396,7 +422,7 @@ export const SKILL_FLOWS: Record<ProService, SkillFlow> = {
   wash: withCertAndSpecialties({
     skill: "wash",
     title: "Car wash details",
-    intro: "Only wash and cleaning. Not repairs or towing.",
+    intro: SKILL_AGREEMENTS.wash,
     questions: [
       {
         id: "mobile",
@@ -469,10 +495,16 @@ export function publicSkillRows(
       continue;
     }
     if (Array.isArray(v)) {
-      if (v.length) rows.push({ label: q.label, value: v.join(", ") });
+      // Use stable public label for core focus
+      const label =
+        q.id === "specialties" ? "My Repair Core Focus" : q.label;
+      if (v.length) rows.push({ label, value: v.join(", ") });
       continue;
     }
     if (String(v).trim()) rows.push({ label: q.label, value: String(v) });
   }
   return rows;
 }
+
+/** Pending docs = pro discovery radius capped at 2 km until admin approves. */
+export const DOCS_PENDING_MAX_RADIUS_KM = 2;

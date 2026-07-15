@@ -79,6 +79,9 @@ export async function backendSignUp(input: {
   bankAccountName?: string;
   bankAccountNumber?: string;
   keepOtherRole?: boolean;
+  docsStatus?: UserProfile["docsStatus"];
+  certificationFileName?: string;
+  certificationFileDataUrl?: string;
 }): Promise<{ error: string | null; userId?: string; profile?: UserProfile }> {
   /**
    * Server-side signup (service role, email auto-confirmed).
@@ -129,6 +132,9 @@ export async function backendSignUp(input: {
         bankAccountName: input.bankAccountName,
         bankAccountNumber: input.bankAccountNumber,
         keepOtherRole: input.keepOtherRole !== false,
+        docsStatus: input.docsStatus,
+        certificationFileName: input.certificationFileName,
+        certificationFileDataUrl: input.certificationFileDataUrl,
       }),
     });
   } catch {
@@ -229,6 +235,10 @@ export async function backendSignUp(input: {
       bvnVerified: hasBvn,
       identityVerifiedAt:
         hasNin && hasBvn ? new Date().toISOString() : undefined,
+      docsStatus: input.docsStatus,
+      certificationFileName: input.certificationFileName,
+      certificationFileDataUrl: input.certificationFileDataUrl,
+      skillAnswers: input.skillAnswers as UserProfile["skillAnswers"],
     }
   );
 
@@ -560,6 +570,16 @@ export async function backendLoadUserProfile(
   });
 
   if (accountType === "professional") {
+    const proExtra = pr as RepairProRow & {
+      labour_prices?: UserProfile["servicePrices"];
+      pricing_currency?: "NGN" | "USD";
+      jobs_completed?: number;
+      vehicle_focus?: Record<string, string | undefined>;
+    } | null;
+    const vf = (proExtra?.vehicle_focus || {}) as Record<
+      string,
+      string | undefined
+    >;
     return profileToUserProfile(p, {
       accountType,
       primaryAccountType,
@@ -571,6 +591,20 @@ export async function backendLoadUserProfile(
       serviceRadiusKm: pr?.service_radius_km,
       ninVerified: pr?.nin_verified,
       bvnVerified: pr?.bvn_verified,
+      docsStatus: (pr?.docs_status as UserProfile["docsStatus"]) || "approved",
+      docsRatingBoostApplied: Boolean(pr?.docs_rating_boost_applied),
+      certificationFileName: pr?.certification_file_name || undefined,
+      certificationFileDataUrl: pr?.certification_file_url || undefined,
+      skillAnswers: (pr?.skills as UserProfile["skillAnswers"]) || undefined,
+      averageRating: pr ? Number(pr.rating_avg) || undefined : undefined,
+      jobsCompleted: proExtra?.jobs_completed,
+      servicePrices: proExtra?.labour_prices,
+      pricingCurrency: proExtra?.pricing_currency,
+      servedVehicleType: vf.servedVehicleType,
+      servedBrand: vf.servedBrand,
+      servedModel: vf.servedModel,
+      servedCountry: vf.servedCountry,
+      servedLocation: vf.servedLocation,
     });
   }
 
@@ -641,12 +675,22 @@ export async function backendFetchPros(userCoords: {
     .map((pro) =>
       mapProToTechnician(pro, byId.get(pro.user_id) ?? null, userCoords)
     )
-    .filter(
-      (t) =>
-        typeof t.distanceKm === "number" &&
-        Number.isFinite(t.distanceKm) &&
-        t.distanceKm <= MAX_RADIUS_KM
-    );
+    .filter((t) => {
+      if (
+        typeof t.distanceKm !== "number" ||
+        !Number.isFinite(t.distanceKm)
+      ) {
+        return false;
+      }
+      const docsPending =
+        t.docsStatus === "under_review" ||
+        t.docsStatus === "none" ||
+        t.docsStatus === "rejected";
+      const cap = docsPending
+        ? Math.min(MAX_RADIUS_KM, 2)
+        : MAX_RADIUS_KM;
+      return t.distanceKm <= cap;
+    });
 }
 
 export async function backendSetProOnline(

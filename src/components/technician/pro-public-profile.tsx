@@ -11,13 +11,13 @@ import {
   MessageCircle,
   Navigation,
   Pencil,
-  Star,
   Wrench,
   Zap,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { CallButton } from "@/components/call/in-app-call";
+import { StarRatingDisplay } from "@/components/ui/star-rating";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { navigateBack } from "@/lib/navigation";
 import { publicSkillRows } from "@/lib/skill-questions";
@@ -216,10 +216,11 @@ export function ProPublicProfile({
                 isLight={isLight}
                 label={`${tech.reviewCount} reviews`}
                 value={
-                  <span className="inline-flex items-center gap-0.5">
-                    <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                    {tech.rating}
-                  </span>
+                  <StarRatingDisplay
+                    rating={tech.rating}
+                    size="sm"
+                    className="justify-center"
+                  />
                 }
               />
               <Stat

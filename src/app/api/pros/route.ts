@@ -1,5 +1,6 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { MAX_RADIUS_KM } from "@/lib/matching";
+import { DOCS_PENDING_MAX_RADIUS_KM } from "@/lib/skill-questions";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { mapProToTechnician } from "@/lib/supabase/mappers";
@@ -68,13 +69,23 @@ export async function GET(req: Request) {
       .map((pro) =>
         mapProToTechnician(pro, byId.get(pro.user_id) ?? null, userCoords)
       )
-      // Strict 10 km marketplace radius around the active pin
-      .filter(
-        (t) =>
-          typeof t.distanceKm === "number" &&
-          Number.isFinite(t.distanceKm) &&
-          t.distanceKm <= MAX_RADIUS_KM
-      );
+      // Strict 10 km marketplace; docs pending → 2 km only
+      .filter((t) => {
+        if (
+          typeof t.distanceKm !== "number" ||
+          !Number.isFinite(t.distanceKm)
+        ) {
+          return false;
+        }
+        const docsPending =
+          t.docsStatus === "under_review" ||
+          t.docsStatus === "none" ||
+          t.docsStatus === "rejected";
+        const cap = docsPending
+          ? Math.min(MAX_RADIUS_KM, DOCS_PENDING_MAX_RADIUS_KM)
+          : MAX_RADIUS_KM;
+        return t.distanceKm <= cap;
+      });
 
     return apiOk({ technicians, count: technicians.length });
   } catch (e) {

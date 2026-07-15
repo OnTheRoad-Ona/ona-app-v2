@@ -184,7 +184,10 @@ export function profileToTechnician(profile: UserProfile): Technician | null {
       profile.bio?.trim() ||
       `${focusLine} Based in ${[profile.area, profile.city].filter(Boolean).join(", ") || "Lagos"}.`,
     phone: profile.phone || "+234 800 000 0000",
-    serviceRadiusKm: profile.serviceRadiusKm ?? 8,
+    serviceRadiusKm:
+      profile.docsStatus === "under_review" || profile.docsStatus === "none"
+        ? Math.min(profile.serviceRadiusKm ?? 8, 2)
+        : profile.serviceRadiusKm ?? 8,
     location: DEFAULT_USER_LOCATION.coordinates,
     markerLabel: "You",
     responseSpeedScore: 0.95,
@@ -200,6 +203,8 @@ export function profileToTechnician(profile: UserProfile): Technician | null {
     bio: profile.bio,
     servicePrices: profile.servicePrices,
     pricingCurrency: profile.pricingCurrency,
+    docsStatus: profile.docsStatus,
+    docsRatingBoostApplied: profile.docsRatingBoostApplied,
     skillAnswers: profile.skillAnswers,
   };
 }
@@ -1198,6 +1203,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         bankName: normalized.bankName,
         bankAccountName: normalized.bankAccountName,
         bankAccountNumber: normalized.bankAccountNumber,
+        docsStatus: normalized.docsStatus,
+        certificationFileName: normalized.certificationFileName,
+        certificationFileDataUrl: normalized.certificationFileDataUrl,
         // Dual role: keep motorist when adding Repair Pro (and vice versa)
         keepOtherRole: true,
       });
@@ -1230,6 +1238,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         pricingCurrency:
           normalized.pricingCurrency ?? res.profile.pricingCurrency,
         skillAnswers: normalized.skillAnswers ?? res.profile.skillAnswers,
+        docsStatus: normalized.docsStatus ?? res.profile.docsStatus,
+        docsRatingBoostApplied:
+          normalized.docsRatingBoostApplied ??
+          res.profile.docsRatingBoostApplied,
+        certificationFileName:
+          normalized.certificationFileName ??
+          res.profile.certificationFileName,
+        certificationFileDataUrl:
+          normalized.certificationFileDataUrl ??
+          res.profile.certificationFileDataUrl,
+        averageRating:
+          normalized.averageRating ?? res.profile.averageRating ?? 5,
         servedVehicleType:
           normalized.servedVehicleType ?? res.profile.servedVehicleType,
         servedBrand: normalized.servedBrand ?? res.profile.servedBrand,

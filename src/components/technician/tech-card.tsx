@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { BadgeCheck, Star } from "lucide-react";
+import { BadgeCheck } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MapBadgeGlyph } from "@/components/profile/achievement-badges";
+import { StarRatingDisplay } from "@/components/ui/star-rating";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import type { Technician } from "@/lib/types";
 import { cn, formatDistance, formatEta } from "@/lib/utils";
@@ -133,18 +134,20 @@ export function TechCard({
 
         <div
           className={cn(
-            "mt-0.5 flex items-center gap-x-1.5 text-[10px]",
+            "mt-0.5 flex flex-col gap-0.5 text-[10px]",
             isLight ? "text-slate-600" : "text-[#b5b5b5]"
           )}
         >
-          <span className="inline-flex items-center gap-0.5 font-semibold">
-            <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
-            {tech.rating.toFixed(1)}
+          <StarRatingDisplay
+            rating={tech.rating}
+            size="sm"
+            className="font-semibold"
+          />
+          <span>
+            {formatEta(tech.etaMinutes)}
+            <span className="mx-1 opacity-40">·</span>
+            {formatDistance(tech.distanceKm)}
           </span>
-          <span className="opacity-40">·</span>
-          <span>{formatEta(tech.etaMinutes)}</span>
-          <span className="opacity-40">·</span>
-          <span>{formatDistance(tech.distanceKm)}</span>
         </div>
       </div>
     </article>

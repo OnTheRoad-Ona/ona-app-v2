@@ -53,6 +53,8 @@ export interface MotoristProfileRow {
   updated_at: string;
 }
 
+export type DocsStatus = "none" | "under_review" | "approved" | "rejected";
+
 export interface RepairProRow {
   user_id: string;
   business_name: string | null;
@@ -74,6 +76,12 @@ export interface RepairProRow {
   bvn_verified: boolean;
   skills: unknown;
   vehicle_focus: unknown;
+  docs_status?: DocsStatus;
+  docs_rating_boost_applied?: boolean;
+  certification_file_name?: string | null;
+  certification_file_url?: string | null;
+  docs_submitted_at?: string | null;
+  docs_reviewed_at?: string | null;
   created_at: string;
   updated_at: string;
 }

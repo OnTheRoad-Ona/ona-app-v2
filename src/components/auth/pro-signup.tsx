@@ -436,6 +436,14 @@ export function ProSignup() {
       return;
     }
 
+    const certUpload = skillAnswers.certificationUpload as
+      | { name?: string; dataUrl?: string; mime?: string }
+      | undefined;
+    const hasCert =
+      certUpload &&
+      typeof certUpload === "object" &&
+      Boolean(certUpload.name || certUpload.dataUrl);
+
     const profile: UserProfile = {
       accountType: "professional",
       fullName: fullName.trim(),
@@ -452,6 +460,16 @@ export function ProSignup() {
       idNumber: idNumber.trim() || undefined,
       bvn: bvn.trim() || undefined,
       skillAnswers,
+      // Cert docs go under review; pro only discoverable within 2 km until approved
+      docsStatus: "under_review",
+      docsRatingBoostApplied: false,
+      certificationFileName: hasCert
+        ? String(certUpload?.name || "certificate")
+        : undefined,
+      certificationFileDataUrl: hasCert
+        ? String(certUpload?.dataUrl || "")
+        : undefined,
+      averageRating: 5,
       servedVehicleType: vehicleType,
       servedBrand: vehicleBrands.join(", ") || "Any",
       servedMake: vehicleBrands[0] || "Any",

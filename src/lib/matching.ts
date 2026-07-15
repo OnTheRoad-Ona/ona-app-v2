@@ -1,4 +1,5 @@
 import { PROBLEM_MATCHES } from "@/lib/data/technicians";
+import { DOCS_PENDING_MAX_RADIUS_KM } from "@/lib/skill-questions";
 import type { AppFilters, ServiceCategory, Technician } from "@/lib/types";
 
 /** Max techs returned in any search (keep load reasonable) */
@@ -102,7 +103,15 @@ export function filterAndRankTechnicians(
   let list = technicians.filter((t) => {
     const d = t.distanceKm;
     if (typeof d !== "number" || !Number.isFinite(d)) return false;
-    return d <= radius;
+    // Docs not yet approved → only visible within 2 km
+    const docsPending =
+      t.docsStatus === "under_review" ||
+      t.docsStatus === "none" ||
+      t.docsStatus === "rejected";
+    const proCap = docsPending
+      ? Math.min(radius, DOCS_PENDING_MAX_RADIUS_KM)
+      : radius;
+    return d <= proCap;
   });
 
   if (category !== "all") {

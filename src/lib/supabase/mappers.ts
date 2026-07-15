@@ -127,12 +127,31 @@ export function mapProToTechnician(
         : "offline",
     verified: pro.verified || pro.nin_verified,
     fastResponse: pro.is_online,
-    specialties: Array.isArray(pro.services)
-      ? pro.services.map((s) => PRO_SERVICE_LABELS[s as ProService] ?? s)
-      : [],
+    specialties: (() => {
+      const skills = pro.skills as Technician["skillAnswers"] | undefined;
+      const core = skills?.specialties;
+      if (Array.isArray(core) && core.length) {
+        return core.map(String);
+      }
+      return Array.isArray(pro.services)
+        ? pro.services.map((s) => PRO_SERVICE_LABELS[s as ProService] ?? s)
+        : [];
+    })(),
     description: pro.bio || "",
     phone: profile?.phone || "",
-    serviceRadiusKm: pro.service_radius_km || 10,
+    serviceRadiusKm: (() => {
+      const base = pro.service_radius_km || 10;
+      const docs = pro.docs_status;
+      // Cap advertised radius while docs pending (legacy null = approved)
+      if (
+        docs === "under_review" ||
+        docs === "none" ||
+        docs === "rejected"
+      ) {
+        return Math.min(base, 2);
+      }
+      return base;
+    })(),
     location: { lat, lng },
     hasLiveLocation,
     responseSpeedScore: pro.is_online ? 0.9 : 0.5,
@@ -140,7 +159,14 @@ export function mapProToTechnician(
     businessName: pro.business_name || undefined,
     yearsExperience: pro.years_experience || undefined,
     bio: pro.bio || undefined,
+    // Legacy rows without column → treat as approved
+    docsStatus: (pro.docs_status as Technician["docsStatus"]) || "approved",
+    docsRatingBoostApplied: Boolean(pro.docs_rating_boost_applied),
     skillAnswers: (pro.skills as Technician["skillAnswers"]) || undefined,
+    servicePrices: (pro as { labour_prices?: Technician["servicePrices"] })
+      .labour_prices,
+    pricingCurrency: (pro as { pricing_currency?: "NGN" | "USD" })
+      .pricing_currency,
   };
 }
 
@@ -183,6 +209,20 @@ export function profileToUserProfile(
     ninVerified?: boolean;
     bvnVerified?: boolean;
     identityVerifiedAt?: string;
+    docsStatus?: UserProfile["docsStatus"];
+    docsRatingBoostApplied?: boolean;
+    certificationFileName?: string;
+    certificationFileDataUrl?: string;
+    skillAnswers?: UserProfile["skillAnswers"];
+    averageRating?: number;
+    jobsCompleted?: number;
+    servicePrices?: UserProfile["servicePrices"];
+    pricingCurrency?: UserProfile["pricingCurrency"];
+    servedVehicleType?: string;
+    servedBrand?: string;
+    servedModel?: string;
+    servedCountry?: string;
+    servedLocation?: string;
   }
 ): UserProfile {
   const accountType =
@@ -216,6 +256,20 @@ export function profileToUserProfile(
     ninVerified: extra?.ninVerified,
     bvnVerified: extra?.bvnVerified,
     identityVerifiedAt: extra?.identityVerifiedAt,
+    docsStatus: extra?.docsStatus,
+    docsRatingBoostApplied: extra?.docsRatingBoostApplied,
+    certificationFileName: extra?.certificationFileName,
+    certificationFileDataUrl: extra?.certificationFileDataUrl,
+    skillAnswers: extra?.skillAnswers,
+    averageRating: extra?.averageRating,
+    jobsCompleted: extra?.jobsCompleted,
+    servicePrices: extra?.servicePrices,
+    pricingCurrency: extra?.pricingCurrency,
+    servedVehicleType: extra?.servedVehicleType,
+    servedBrand: extra?.servedBrand,
+    servedModel: extra?.servedModel,
+    servedCountry: extra?.servedCountry,
+    servedLocation: extra?.servedLocation,
     serviceActionCount: 0,
   };
 }

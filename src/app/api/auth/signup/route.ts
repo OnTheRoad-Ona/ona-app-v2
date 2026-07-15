@@ -64,6 +64,12 @@ const bodySchema = z.object({
   bankAccountNumber: z.string().optional(),
   /** Dual signup: keep the other role's side table */
   keepOtherRole: z.boolean().optional().default(true),
+  /** Certification docs review (pros) */
+  docsStatus: z
+    .enum(["none", "under_review", "approved", "rejected"])
+    .optional(),
+  certificationFileName: z.string().optional(),
+  certificationFileDataUrl: z.string().optional(),
 });
 
 function last4(digits: string | undefined): string | null {
@@ -350,6 +356,30 @@ export async function POST(req: Request) {
       servedCountry: input.servedCountry,
       servedLocation: input.servedLocation,
     };
+    // Cert upload at signup → under_review (2 km discovery until admin approves)
+    const certFromSkills = (() => {
+      const sa = input.skillAnswers as
+        | Record<string, unknown>
+        | undefined;
+      const file = sa?.certificationUpload as
+        | { name?: string; dataUrl?: string }
+        | undefined;
+      if (file && typeof file === "object" && file.name) {
+        return {
+          name: String(file.name),
+          dataUrl:
+            typeof file.dataUrl === "string" ? file.dataUrl : undefined,
+        };
+      }
+      return null;
+    })();
+    const certName =
+      input.certificationFileName || certFromSkills?.name || null;
+    const certUrl =
+      input.certificationFileDataUrl || certFromSkills?.dataUrl || null;
+    const hasCert = Boolean(certName || certUrl);
+    const docsStatus = input.docsStatus || "under_review";
+
     const { error: proErr } = await supabase.from("repair_pro_profiles").upsert(
       {
         user_id: userId,
@@ -376,6 +406,11 @@ export async function POST(req: Request) {
         bank_name: input.bankName || null,
         bank_account_name: input.bankAccountName || null,
         bank_account_number: input.bankAccountNumber || null,
+        docs_status: docsStatus,
+        docs_rating_boost_applied: false,
+        certification_file_name: certName,
+        certification_file_url: certUrl,
+        docs_submitted_at: hasCert ? new Date().toISOString() : null,
       },
       { onConflict: "user_id" }
     );

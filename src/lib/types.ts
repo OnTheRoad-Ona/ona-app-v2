@@ -121,6 +121,14 @@ export interface UserProfile {
   inPersonVerified?: boolean;
   inPersonVerifiedAt?: string;
   /**
+   * Certification docs from signup.
+   * under_review on pro profile until admin approves (then +1 star once).
+   */
+  docsStatus?: "none" | "under_review" | "approved" | "rejected";
+  docsRatingBoostApplied?: boolean;
+  certificationFileName?: string;
+  certificationFileDataUrl?: string;
+  /**
    * Count of gated actions: motorist books + pro accepts.
    * Used for progressive verification warnings / hard block.
    */
@@ -209,6 +217,12 @@ export interface Technician {
   businessName?: string;
   yearsExperience?: string;
   bio?: string;
+  /**
+   * Certification / trade docs review.
+   * under_review → public discovery limited to 2 km until approved.
+   */
+  docsStatus?: "none" | "under_review" | "approved" | "rejected";
+  docsRatingBoostApplied?: boolean;
   /** Jobs completed (for achievement badges) */
   jobsCompleted?: number;
   servicePrices?: Partial<Record<ProService, number | string>>;

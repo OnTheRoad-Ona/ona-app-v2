@@ -30,11 +30,13 @@ import {
 } from "@/lib/profile-system";
 import { useApp } from "@/lib/store";
 import { ServicePriceEditor } from "@/components/pricing/service-price-editor";
+import { StarRatingDisplay } from "@/components/ui/star-rating";
 import {
   detectCurrency,
   type AppCurrency,
 } from "@/lib/pricing";
 import { isProService } from "@/lib/services";
+import { DOCS_PENDING_MAX_RADIUS_KM } from "@/lib/skill-questions";
 import type { ProService, UserProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -234,6 +236,38 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
         >
           {err || msg}
         </p>
+      )}
+
+      {/* D1: Under review — pro own profile only */}
+      {(userProfile.docsStatus === "under_review" ||
+        userProfile.docsStatus === "none" ||
+        userProfile.docsStatus === "rejected") && (
+        <div
+          className={cn(
+            "mb-2 rounded-xl px-3 py-2.5 text-[12px] font-semibold leading-snug",
+            userProfile.docsStatus === "rejected"
+              ? "bg-red-500/15 text-red-500"
+              : isLight
+                ? "bg-amber-500/15 text-amber-800"
+                : "bg-amber-500/20 text-amber-300"
+          )}
+        >
+          <p className="font-black uppercase tracking-wide">
+            {userProfile.docsStatus === "rejected"
+              ? "Documents rejected"
+              : "Under review"}
+          </p>
+          <p className="mt-0.5 font-medium opacity-90">
+            {userProfile.docsStatus === "rejected"
+              ? "Your certification was not approved. Re-upload or contact support."
+              : `Your documents are being checked. You stay visible only within ${DOCS_PENDING_MAX_RADIUS_KM} km until approved. After approval you get +1 star once.`}
+          </p>
+          {userProfile.certificationFileName ? (
+            <p className="mt-1 text-[11px] opacity-80">
+              File: {userProfile.certificationFileName}
+            </p>
+          ) : null}
+        </div>
       )}
 
       <ProfileSection isLight={isLight}>
@@ -449,6 +483,15 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
       </ProfileSection>
 
       <ProfileSection title="Stats" isLight={isLight}>
+        {userProfile.averageRating != null && (
+          <div className="mb-2">
+            <StarRatingDisplay
+              rating={userProfile.averageRating}
+              size="md"
+              className={t.ink}
+            />
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-1.5 text-center sm:grid-cols-4">
           {[
             ["Jobs", jobs],
