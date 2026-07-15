@@ -140,6 +140,13 @@ export type JobRecord = {
   proLocation?: Coordinates | null;
   distanceKm?: number;
   etaMinutes?: number;
+  /** Google Distance Matrix human text e.g. "12 mins" */
+  etaText?: string | null;
+  distanceText?: string | null;
+  /** google_distance_matrix | haversine_fallback */
+  etaSource?: string | null;
+  /** Last pro GPS ping ISO */
+  proLocationAt?: string | null;
   paymentId?: string | null;
   paymentReference?: string | null;
   escrowStatus?: string | null;

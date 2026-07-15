@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
   Loader2,
-  MapPin,
   MessageCircle,
   Navigation,
   Phone,
@@ -14,6 +13,7 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CountdownTimer } from "@/components/jobs/countdown-timer";
+import { LiveJobTrackMap } from "@/components/jobs/live-job-track-map";
 import {
   CopperButton,
   GhostButton,
@@ -28,7 +28,9 @@ import {
   apiOpenDispute,
   apiPayJob,
   apiPlaceOffer,
+  apiPushProLocation,
   apiTransition,
+  getCurrentPosition,
 } from "@/lib/jobs/client";
 import {
   DISPUTE_REASONS,
@@ -39,7 +41,7 @@ import type { DisputeReason, JobRecord } from "@/lib/jobs/types";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { formatMoney } from "@/lib/pricing";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
-import { cn, formatDistance, formatEta } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 export function JobFlowScreen({
   jobId,
@@ -65,6 +67,7 @@ export function JobFlowScreen({
   const [disputeDesc, setDisputeDesc] = useState("");
   const [rating, setRating] = useState(5);
   const [flash, setFlash] = useState<string | null>(null);
+  const [locHint, setLocHint] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await apiGetJob(jobId);
@@ -81,6 +84,60 @@ export function JobFlowScreen({
     const id = window.setInterval(() => void load(), 2500);
     return () => window.clearInterval(id);
   }, [load]);
+
+  // Repair Pro: continuous real GPS while trip is active → Google ETA on server
+  useEffect(() => {
+    if (viewer !== "repair_pro" || !job) return;
+    const tracking = [
+      "paid_booked",
+      "en_route",
+      "arrived",
+      "in_progress",
+    ].includes(job.status);
+    if (!tracking || !navigator.geolocation) return;
+
+    let cancelled = false;
+    const push = async (lat: number, lng: number) => {
+      if (cancelled) return;
+      const res = await apiPushProLocation({
+        jobId: job.id,
+        lat,
+        lng,
+        actorId,
+      });
+      if (res.ok) {
+        setJob(res.data.job);
+        setLocHint(null);
+      }
+    };
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        void push(pos.coords.latitude, pos.coords.longitude);
+      },
+      (e) => {
+        setLocHint(
+          e.code === e.PERMISSION_DENIED
+            ? "Enable location so motorists see your live ETA."
+            : "Waiting for GPS fix…"
+        );
+      },
+      { enableHighAccuracy: true, maximumAge: 3000, timeout: 20000 }
+    );
+
+    // Also poll getCurrentPosition every 12s as backup
+    const poll = window.setInterval(() => {
+      void getCurrentPosition()
+        .then((p) => push(p.coords.latitude, p.coords.longitude))
+        .catch(() => undefined);
+    }, 12000);
+
+    return () => {
+      cancelled = true;
+      navigator.geolocation.clearWatch(watchId);
+      window.clearInterval(poll);
+    };
+  }, [viewer, job?.id, job?.status, actorId]);
 
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-500" : "text-white/55";
@@ -421,6 +478,40 @@ export function JobFlowScreen({
     ];
     const nextPro = proActions.find((a) => a.when.includes(job.status));
 
+    const proAdvance = async (
+      event: "START_TRIP" | "MARK_ARRIVED" | "START_WORK" | "MARK_COMPLETED"
+    ) => {
+      setBusy(true);
+      setErr(null);
+      try {
+        // Real device GPS — never fake coordinates
+        const pos = await getCurrentPosition({
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 2000,
+        });
+        const res = await apiTransition({
+          jobId: job.id,
+          event,
+          actor: "repair_pro",
+          actorId,
+          proLat: pos.coords.latitude,
+          proLng: pos.coords.longitude,
+        });
+        if (!res.ok) {
+          setErr(res.message);
+          return;
+        }
+        setJob(res.data.job);
+      } catch {
+        setErr(
+          "Could not read your GPS. Enable location and try again — we use Google Maps for accurate ETA."
+        );
+      } finally {
+        setBusy(false);
+      }
+    };
+
     return (
       <JobShell
         isLight={isLight}
@@ -429,37 +520,17 @@ export function JobFlowScreen({
         fullBleed
         footer={
           <div className="space-y-2">
+            {locHint && viewer === "repair_pro" && (
+              <p className="text-center text-[11px] font-semibold text-amber-500">
+                {locHint}
+              </p>
+            )}
             {viewer === "repair_pro" && nextPro && (
               <CopperButton
                 disabled={busy}
-                onClick={() =>
-                  void run(() =>
-                    apiTransition({
-                      jobId: job.id,
-                      event: nextPro.event,
-                      actor: "repair_pro",
-                      actorId,
-                      proLat:
-                        job.motoristLocation.lat +
-                        (job.status === "paid_booked" ? 0.01 : 0.001),
-                      proLng: job.motoristLocation.lng + 0.001,
-                      etaMinutes:
-                        job.status === "paid_booked"
-                          ? 12
-                          : job.status === "en_route"
-                            ? 2
-                            : 0,
-                      distanceKm:
-                        job.status === "paid_booked"
-                          ? 2.4
-                          : job.status === "en_route"
-                            ? 0.1
-                            : 0.05,
-                    })
-                  )
-                }
+                onClick={() => void proAdvance(nextPro.event)}
               >
-                {nextPro.label}
+                {busy ? "Getting GPS…" : nextPro.label}
               </CopperButton>
             )}
             {viewer === "motorist" && (
@@ -489,73 +560,9 @@ export function JobFlowScreen({
           </div>
         }
       >
-        {/* Map hero */}
-        <div
-          className="relative mx-0 h-[42vh] min-h-[240px] overflow-hidden"
-          style={{
-            background: isLight
-              ? "linear-gradient(160deg,#0f172a 0%,#1e293b 40%,#0f172a 100%)"
-              : "linear-gradient(160deg,#020617 0%,#0f172a 50%,#1c1917 100%)",
-          }}
-        >
-          <div
-            className="absolute inset-0 opacity-30"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle at 30% 40%, rgba(224,122,61,0.35), transparent 45%), radial-gradient(circle at 70% 60%, rgba(56,189,248,0.15), transparent 40%)",
-            }}
-          />
-          {/* Route line */}
-          <svg className="absolute inset-0 h-full w-full" aria-hidden>
-            <path
-              d="M 40 80 Q 120 40 180 100 T 320 70"
-              fill="none"
-              stroke="#e07a3d"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeDasharray="8 6"
-              opacity="0.85"
-            />
-          </svg>
-          {/* Pulsing pro marker */}
-          <div
-            className="absolute left-[42%] top-[38%] -translate-x-1/2 -translate-y-1/2"
-            aria-hidden
-          >
-            <span className="absolute inset-0 -m-3 animate-ping rounded-full bg-[#e07a3d]/40" />
-            <span className="relative flex h-4 w-4 items-center justify-center rounded-full bg-[#e07a3d] ring-4 ring-[#e07a3d]/30" />
-          </div>
-          {/* Motorist pin */}
-          <div
-            className="absolute bottom-[22%] right-[18%] flex h-8 w-8 items-center justify-center rounded-full bg-sky-400 text-white shadow-lg"
-            aria-hidden
-          >
-            <MapPin className="h-4 w-4" />
-          </div>
-          <div className="absolute bottom-3 left-3 right-3 flex gap-2">
-            <div className="rounded-2xl bg-black/45 px-3 py-2 text-white backdrop-blur">
-              <p className="text-[10px] font-bold uppercase opacity-70">ETA</p>
-              <p className="text-[15px] font-black">
-                {job.etaMinutes != null ? formatEta(job.etaMinutes) : "—"}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-black/45 px-3 py-2 text-white backdrop-blur">
-              <p className="text-[10px] font-bold uppercase opacity-70">
-                Distance
-              </p>
-              <p className="text-[15px] font-black">
-                {job.distanceKm != null
-                  ? formatDistance(job.distanceKm)
-                  : "—"}
-              </p>
-            </div>
-            <div className="ml-auto rounded-2xl bg-[#e07a3d] px-3 py-2 text-white">
-              <p className="text-[10px] font-bold uppercase opacity-90">
-                Escrow
-              </p>
-              <p className="text-[13px] font-black">Held</p>
-            </div>
-          </div>
+        {/* Real Google Maps live track (copper route + pulsing pro) */}
+        <div className="relative mx-0 h-[46vh] min-h-[260px] overflow-hidden">
+          <LiveJobTrackMap job={job} isLight={isLight} />
         </div>
 
         {/* Bottom sheet style card */}

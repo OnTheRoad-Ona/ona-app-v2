@@ -91,6 +91,12 @@ function rowToJob(row: Record<string, unknown>): JobRecord {
         : null,
     distanceKm: row.distance_km != null ? Number(row.distance_km) : undefined,
     etaMinutes: row.eta_minutes != null ? Number(row.eta_minutes) : undefined,
+    etaText: row.eta_text ? String(row.eta_text) : null,
+    distanceText: row.distance_text ? String(row.distance_text) : null,
+    etaSource: row.eta_source ? String(row.eta_source) : null,
+    proLocationAt: row.pro_location_at
+      ? String(row.pro_location_at)
+      : null,
     paymentId: row.payment_id ? String(row.payment_id) : null,
     paymentReference: row.payment_reference
       ? String(row.payment_reference)
@@ -135,6 +141,10 @@ function jobToDbPatch(job: JobRecord): Record<string, unknown> {
     pro_lng: job.proLocation?.lng ?? null,
     eta_minutes: job.etaMinutes ?? null,
     distance_km: job.distanceKm ?? null,
+    eta_text: job.etaText ?? null,
+    distance_text: job.distanceText ?? null,
+    eta_source: job.etaSource ?? null,
+    pro_location_at: job.proLocationAt ?? null,
     payment_id: job.paymentId ?? null,
     payment_reference: job.paymentReference ?? null,
     escrow_status: job.escrowStatus ?? null,
@@ -575,6 +585,9 @@ export async function transitionJob(input: {
   proLocation?: { lat: number; lng: number };
   etaMinutes?: number;
   distanceKm?: number;
+  etaText?: string;
+  distanceText?: string;
+  etaSource?: string;
 }): Promise<{ job: JobRecord } | { error: string }> {
   let job = await getJob(input.jobId);
   if (!job) return { error: "Job not found" };
@@ -584,8 +597,12 @@ export async function transitionJob(input: {
       job = {
         ...job,
         proLocation: input.proLocation,
+        proLocationAt: nowIso(),
         etaMinutes: input.etaMinutes ?? job.etaMinutes,
         distanceKm: input.distanceKm ?? job.distanceKm,
+        etaText: input.etaText ?? job.etaText,
+        distanceText: input.distanceText ?? job.distanceText,
+        etaSource: input.etaSource ?? job.etaSource,
       };
     }
     const updated = await applyEvent(job, input.event, input.actor);
@@ -595,6 +612,31 @@ export async function transitionJob(input: {
       error: e instanceof Error ? e.message : "Transition failed",
     };
   }
+}
+
+/** Live GPS ping from Repair Pro during active trip. */
+export async function updateJobLocation(input: {
+  jobId: string;
+  proLocation: { lat: number; lng: number };
+  distanceKm: number;
+  etaMinutes: number;
+  metricsSource?: string;
+  durationText?: string;
+  distanceText?: string;
+}): Promise<JobRecord | null> {
+  const job = await getJob(input.jobId);
+  if (!job) return null;
+  return persist({
+    ...job,
+    proLocation: input.proLocation,
+    proLocationAt: nowIso(),
+    distanceKm: input.distanceKm,
+    etaMinutes: input.etaMinutes,
+    etaText: input.durationText ?? job.etaText,
+    distanceText: input.distanceText ?? job.distanceText,
+    etaSource: input.metricsSource ?? job.etaSource,
+    updatedAt: nowIso(),
+  });
 }
 
 export async function openDispute(input: {

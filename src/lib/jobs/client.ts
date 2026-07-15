@@ -109,10 +109,9 @@ export async function apiTransition(input: {
     | "EXPIRE_NEGOTIATION";
   actor: "motorist" | "repair_pro" | "system";
   actorId?: string;
+  /** Real GPS — server computes Google Distance Matrix ETA */
   proLat?: number;
   proLng?: number;
-  etaMinutes?: number;
-  distanceKm?: number;
 }) {
   const res = await fetch(`/api/jobs/${input.jobId}/transition`, {
     method: "POST",
@@ -120,6 +119,52 @@ export async function apiTransition(input: {
     body: JSON.stringify(input),
   });
   return parse<{ job: JobRecord }>(res);
+}
+
+/** Repair Pro live GPS ping → Google ETA refresh */
+export async function apiPushProLocation(input: {
+  jobId: string;
+  lat: number;
+  lng: number;
+  actorId?: string;
+}) {
+  const res = await fetch(`/api/jobs/${input.jobId}/location`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      lat: input.lat,
+      lng: input.lng,
+      actorId: input.actorId,
+    }),
+  });
+  return parse<{
+    job: JobRecord;
+    metrics: {
+      distanceKm: number;
+      etaMinutes: number;
+      source: string;
+      durationText?: string;
+      distanceText?: string;
+    };
+  }>(res);
+}
+
+/** Browser geolocation promise */
+export function getCurrentPosition(
+  opts?: PositionOptions
+): Promise<GeolocationPosition> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("Location not available on this device."));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 5000,
+      ...opts,
+    });
+  });
 }
 
 export async function apiOpenDispute(input: {

@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { actorMay, type TransitionEvent } from "@/lib/jobs/state-machine";
-import { transitionJob } from "@/lib/server/jobs/job-store";
+import { computeDriveMetrics } from "@/lib/server/google-eta";
+import { getJob, transitionJob } from "@/lib/server/jobs/job-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,7 @@ const bodySchema = z.object({
   actorId: z.string().optional(),
   proLat: z.number().optional(),
   proLng: z.number().optional(),
+  /** Optional client overrides — server prefers Google Distance Matrix when GPS present */
   etaMinutes: z.number().optional(),
   distanceKm: z.number().optional(),
 });
@@ -45,17 +47,43 @@ export async function POST(
         : { type: b.event as TransitionEvent["type"] }
     ) as TransitionEvent;
 
+    let proLocation =
+      b.proLat != null && b.proLng != null
+        ? { lat: b.proLat, lng: b.proLng }
+        : undefined;
+    let etaMinutes = b.etaMinutes;
+    let distanceKm = b.distanceKm;
+    let etaText: string | undefined;
+    let distanceText: string | undefined;
+    let etaSource: string | undefined;
+
+    // Accurate Google drive time when pro GPS is sent
+    if (proLocation) {
+      const job = await getJob(id);
+      if (job?.motoristLocation) {
+        const metrics = await computeDriveMetrics(
+          proLocation,
+          job.motoristLocation
+        );
+        distanceKm = metrics.distanceKm;
+        etaMinutes = metrics.etaMinutes;
+        etaText = metrics.durationText;
+        distanceText = metrics.distanceText;
+        etaSource = metrics.source;
+      }
+    }
+
     const res = await transitionJob({
       jobId: id,
       event,
       actor: b.actor,
       actorId: b.actorId,
-      proLocation:
-        b.proLat != null && b.proLng != null
-          ? { lat: b.proLat, lng: b.proLng }
-          : undefined,
-      etaMinutes: b.etaMinutes,
-      distanceKm: b.distanceKm,
+      proLocation,
+      etaMinutes,
+      distanceKm,
+      etaText,
+      distanceText,
+      etaSource,
     });
 
     // Auto-release after satisfied
