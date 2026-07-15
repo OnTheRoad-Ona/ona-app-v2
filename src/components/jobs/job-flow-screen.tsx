@@ -200,27 +200,56 @@ export function JobFlowScreen({
 
   /* ─── EXPIRED ─── */
   if (job.status === "expired" || negStatus === "expired") {
+    const grayBtn = cn(
+      "inline-flex h-12 w-full items-center justify-center rounded-2xl border-0 text-[14px] font-bold transition active:scale-[0.99]",
+      isLight ? "bg-[#a8a9ae] text-slate-900" : "bg-[#2c2c2e] text-white"
+    );
+    const isPro = viewer === "repair_pro";
+
     return (
       <JobShell
         isLight={isLight}
         title="Negotiation expired"
         compactHeader
-        onBack={goJobsList}
+        onBack={isPro ? () => router.push("/dashboard") : goJobsList}
         footer={
           <div className="flex flex-col gap-2">
-            <CopperButton onClick={() => router.push(`/request?tech=${job.repairProId}`)}>
-              Request again
-            </CopperButton>
-            <GhostButton isLight={isLight} onClick={() => router.push("/")}>
-              Choose another pro
-            </GhostButton>
+            {isPro ? (
+              <button
+                type="button"
+                className={grayBtn}
+                onClick={() => router.push("/dashboard")}
+              >
+                Back to dashboard
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className={grayBtn}
+                  onClick={() =>
+                    router.push(`/request?tech=${job.repairProId}`)
+                  }
+                >
+                  Request again
+                </button>
+                <button
+                  type="button"
+                  className={grayBtn}
+                  onClick={() => router.push("/")}
+                >
+                  Choose another pro
+                </button>
+              </>
+            )}
           </div>
         }
       >
         <JobCard isLight={isLight}>
-          <p className={cn("text-[14px] font-medium", muted)}>
-            No agreement was reached with {job.repairProName}. You can request
-            the same pro again or pick someone else nearby.
+          <p className={cn("text-[14px] font-medium leading-snug", muted)}>
+            {isPro
+              ? `This negotiation ended between you and ${job.motoristName}. No agreement was reached.`
+              : `No agreement was reached with ${job.repairProName}. You can request the same pro again or pick someone else nearby.`}
           </p>
         </JobCard>
       </JobShell>

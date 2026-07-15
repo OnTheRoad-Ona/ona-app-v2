@@ -5,7 +5,8 @@ import { tradeIconDataUrl } from "@/lib/map-trade-icons";
 import type { Technician } from "@/lib/types";
 
 /**
- * HTML map pin with CSS live pulse — shows Repair Pro is Live/active.
+ * Compact dark-gray trade pin with live pulse.
+ * Sized smaller than before so it doesn’t collide with the motorist pin.
  */
 export function LiveProPin({
   tech,
@@ -16,8 +17,8 @@ export function LiveProPin({
   selected: boolean;
   onSelect?: (id: string) => void;
 }) {
-  const size = selected ? 24 : 20;
-  const box = selected ? 36 : 32;
+  const size = selected ? 17 : 15;
+  const box = selected ? 24 : 22;
   const url = tradeIconDataUrl(tech.serviceType, { size, selected });
 
   return (

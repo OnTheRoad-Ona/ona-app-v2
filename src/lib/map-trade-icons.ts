@@ -1,14 +1,14 @@
 import type { ProService } from "@/lib/types";
 
-/** Soft brand orange (map glyphs) */
-const ORANGE = "#e85a12";
-const ORANGE_GLOW = "#ff8a4c";
+/** Dark gray map glyphs (pros) — sit cleanly beside slate “You” pin */
+const GRAY = "#475569";
+const GRAY_SELECTED = "#334155";
 
 /**
  * Compact Lucide-style paths (24 viewBox). Clean strokes only.
  */
-function tradePath(type: ProService): string {
-  const s = `stroke="${ORANGE}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"`;
+function tradePath(type: ProService, stroke: string): string {
+  const s = `stroke="${stroke}" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" fill="none"`;
   switch (type) {
     case "mechanic":
       return `<path ${s} d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.1-3.1a5 5 0 0 1-6.6 6.6l-6.2 6.2a1.8 1.8 0 0 1-2.5-2.5l6.2-6.2a5 5 0 0 1 6.6-6.6l-3 3z"/>`;
@@ -34,18 +34,18 @@ function tradePath(type: ProService): string {
 }
 
 /**
- * Small transparent trade icon (no disc, no border). Soft orange only.
+ * Small transparent trade icon (no disc). Dark gray.
+ * Default size reduced to sit cleanly with the motorist human pin.
  */
 export function tradeIconDataUrl(
   type: ProService | string,
   opts?: { size?: number; selected?: boolean }
 ): string {
-  const size = opts?.size ?? 22;
+  const size = opts?.size ?? 16;
   const selected = opts?.selected ?? false;
-  const stroke = selected ? ORANGE_GLOW : ORANGE;
+  const stroke = selected ? GRAY_SELECTED : GRAY;
   const svc = (type || "mechanic") as ProService;
-  // Re-color path stroke via replace for selected state
-  const body = tradePath(svc).replaceAll(ORANGE, stroke);
+  const body = tradePath(svc, stroke);
   const svg = encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none">
       ${body}
@@ -55,16 +55,16 @@ export function tradeIconDataUrl(
 }
 
 /**
- * Leaflet marker HTML: tiny icon + subtle live beam (no box).
+ * Leaflet marker HTML: compact dark gray trade icon + subtle live beam.
  */
 export function tradeIconHtml(
   type: ProService | string,
   opts?: { size?: number; selected?: boolean }
 ): string {
-  const size = opts?.size ?? 20;
+  const size = opts?.size ?? 15;
   const selected = opts?.selected ?? false;
   const url = tradeIconDataUrl(type, { size, selected });
-  const pulse = selected ? 28 : 24;
+  const pulse = selected ? 22 : 20;
   return `<div class="om-live-pin" style="width:${pulse}px;height:${pulse}px;position:relative;background:transparent;border:none">
     <span class="om-live-beam" aria-hidden="true"></span>
     <span class="om-live-beam om-live-beam-delay" aria-hidden="true"></span>
