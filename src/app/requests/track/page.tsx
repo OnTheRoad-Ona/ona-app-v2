@@ -43,12 +43,14 @@ function TrackFlow() {
     location,
     updateRequestStatus,
     accountType,
+    userProfile,
   } = useApp();
   const isLight = theme === "light";
   const sheet = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-600" : "text-white/65";
   const isMotorist = accountType === "motorist";
+  const [escrowNote, setEscrowNote] = useState<string | null>(null);
 
   const req = useMemo(
     () =>
@@ -277,7 +279,25 @@ function TrackFlow() {
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => updateRequestStatus(req.id, "cancelled")}
+                onClick={() => {
+                  updateRequestStatus(req.id, "cancelled");
+                  const uid = userProfile?.identityId || "motorist-local";
+                  void fetch("/api/payments/refund", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      requestId: req.id,
+                      userId: uid,
+                      reason: "Cancelled before start",
+                    }),
+                  })
+                    .then((r) => r.json())
+                    .then((j) => {
+                      if (j?.ok) {
+                        setEscrowNote("Full refund requested (if escrow was held).");
+                      }
+                    });
+                }}
                 className={cn(
                   "flex-1 rounded-lg border-0 py-2.5 text-[12px] font-semibold",
                   isLight
@@ -293,7 +313,31 @@ function TrackFlow() {
                 req.status === "accepted") && (
                 <button
                   type="button"
-                  onClick={() => updateRequestStatus(req.id, "completed")}
+                  onClick={() => {
+                    updateRequestStatus(req.id, "completed");
+                    const uid = userProfile?.identityId || "motorist-local";
+                    void fetch("/api/payments/release", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        requestId: req.id,
+                        role: isMotorist ? "motorist" : "professional",
+                        userId: uid,
+                      }),
+                    })
+                      .then((r) => r.json())
+                      .then((j) => {
+                        if (j?.ok?.bothCompleted || j?.data?.bothCompleted) {
+                          setEscrowNote(
+                            "Both parties complete — releasing 95% to pro, 5% platform."
+                          );
+                        } else if (j?.ok || j?.data) {
+                          setEscrowNote(
+                            "You marked complete. Waiting for the other party to unlock payout."
+                          );
+                        }
+                      });
+                  }}
                   className="flex-1 rounded-lg border-0 bg-[#323231] py-2.5 text-[12px] font-semibold text-white"
                 >
                   Completed
@@ -301,6 +345,18 @@ function TrackFlow() {
               )}
             </div>
           )}
+          {escrowNote && (
+            <p className="text-center text-[11px] font-semibold text-brand">
+              {escrowNote}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => router.push("/payments/history")}
+            className="text-center text-[11px] font-bold text-brand"
+          >
+            Payment history & receipts
+          </button>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 /**
  * History-aware back navigation for the phone shell.
- * Prefers the real previous page; falls back when there is no stack.
+ * Prefers the immediate previous in-app page; falls back to Home (`/`).
  */
 
 import type { AccountType } from "@/lib/types";
@@ -10,22 +10,75 @@ type RouterLike = {
   push: (href: string) => void;
 };
 
-export function defaultBackHref(accountType: AccountType | null | undefined): string {
-  return accountType === "professional" ? "/dashboard" : "/";
+const STACK_KEY = "oga-mecho-nav-stack";
+const MAX_STACK = 40;
+
+/** Always Home when there is no previous page (per product rule). */
+export function defaultBackHref(
+  _accountType?: AccountType | null | undefined
+): string {
+  return "/";
 }
 
-/** True when Next.js / browser has a previous entry in this app session. */
+function readStack(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = sessionStorage.getItem(STACK_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((p): p is string => typeof p === "string");
+  } catch {
+    return [];
+  }
+}
+
+function writeStack(stack: string[]) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(
+      STACK_KEY,
+      JSON.stringify(stack.slice(-MAX_STACK))
+    );
+  } catch {
+    /* ignore quota */
+  }
+}
+
+/**
+ * Call on every in-app route change so Back can return to the
+ * immediate previous page (not a fixed hub).
+ */
+export function recordNavigation(path: string): void {
+  if (typeof window === "undefined") return;
+  const clean = path.split("#")[0] || "/";
+  if (!clean.startsWith("/")) return;
+  // Don't track admin in consumer stack
+  if (clean.startsWith("/admin")) return;
+
+  const stack = readStack();
+  const top = stack[stack.length - 1];
+  if (top === clean) return;
+  stack.push(clean);
+  writeStack(stack);
+}
+
+/** True when we know there is a previous in-app page to return to. */
 export function canGoBackInHistory(): boolean {
   if (typeof window === "undefined") return false;
+
+  const stack = readStack();
+  if (stack.length >= 2) return true;
+
   try {
-    const state = window.history.state as { idx?: number } | null;
+    const state = window.history.state as { idx?: number; __na?: number } | null;
     if (state && typeof state.idx === "number" && state.idx > 0) {
       return true;
     }
   } catch {
     /* ignore */
   }
-  // Same-origin referrer + stack depth (cold open of deep link → no)
+
   try {
     if (
       window.history.length > 1 &&
@@ -37,19 +90,53 @@ export function canGoBackInHistory(): boolean {
   } catch {
     /* ignore */
   }
+
   return false;
 }
 
 /**
- * Soft visual cue then navigate back (or to fallback).
+ * Soft visual cue then go to the immediate previous page.
+ * Fallback is always Home (`/`) unless a custom fallback is passed
+ * (still defaults to `/`).
  */
-export function navigateBack(router: RouterLike, fallbackHref: string): void {
+export function navigateBack(
+  router: RouterLike,
+  fallbackHref: string = "/"
+): void {
+  const fallback = fallbackHref?.trim() || "/";
+
   const go = () => {
-    if (canGoBackInHistory()) {
+    const stack = readStack();
+    // Drop current page from our stack
+    if (stack.length >= 1) {
+      const current =
+        typeof window !== "undefined"
+          ? window.location.pathname + window.location.search
+          : "";
+      if (stack[stack.length - 1] === current || stack.length >= 2) {
+        stack.pop();
+      }
+    }
+
+    if (stack.length >= 1) {
+      writeStack(stack);
+      // Prefer real browser back so the user lands on the immediate previous
+      // entry (same as stack top after pop).
+      if (typeof window !== "undefined" && window.history.length > 1) {
+        router.back();
+        return;
+      }
+      const prev = stack[stack.length - 1];
+      router.push(prev || fallback);
+      return;
+    }
+
+    writeStack([]);
+    if (canGoBackInHistory() && typeof window !== "undefined" && window.history.length > 1) {
       router.back();
       return;
     }
-    router.push(fallbackHref);
+    router.push(fallback);
   };
 
   if (typeof document === "undefined") {

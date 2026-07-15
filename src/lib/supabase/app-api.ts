@@ -48,6 +48,7 @@ export async function backendSignUp(input: {
   /** Repair pro */
   businessName?: string;
   primaryService?: ProService;
+  services?: ProService[];
   bio?: string;
   yearsExperience?: string;
   serviceRadiusKm?: number;
@@ -58,9 +59,26 @@ export async function backendSignUp(input: {
   vehicleModel?: string;
   vehicleYear?: string;
   plateNumber?: string;
+  vehiclePhoto?: string;
+  vehicleCommonIssues?: string[];
+  avatarUrl?: string;
   /** Identity (optional at signup) */
   nin?: string;
   bvn?: string;
+  labourPrices?: Partial<Record<ProService, number | string>>;
+  pricingCurrency?: "NGN" | "USD";
+  vehicleFocus?: Record<string, unknown>;
+  skillAnswers?: Record<string, unknown>;
+  servedVehicleType?: string;
+  servedBrand?: string;
+  servedModel?: string;
+  servedCountry?: string;
+  servedLocation?: string;
+  emergencyContact?: { name: string; phone: string };
+  bankName?: string;
+  bankAccountName?: string;
+  bankAccountNumber?: string;
+  keepOtherRole?: boolean;
 }): Promise<{ error: string | null; userId?: string; profile?: UserProfile }> {
   /**
    * Server-side signup (service role, email auto-confirmed).
@@ -82,6 +100,7 @@ export async function backendSignUp(input: {
         area: input.area,
         businessName: input.businessName,
         primaryService: input.primaryService,
+        services: input.services,
         bio: input.bio,
         yearsExperience: input.yearsExperience,
         serviceRadiusKm: input.serviceRadiusKm,
@@ -91,8 +110,25 @@ export async function backendSignUp(input: {
         vehicleModel: input.vehicleModel,
         vehicleYear: input.vehicleYear,
         plateNumber: input.plateNumber,
+        vehiclePhoto: input.vehiclePhoto,
+        vehicleCommonIssues: input.vehicleCommonIssues,
+        avatarUrl: input.avatarUrl,
         nin: input.nin,
         bvn: input.bvn,
+        labourPrices: input.labourPrices,
+        pricingCurrency: input.pricingCurrency,
+        vehicleFocus: input.vehicleFocus,
+        skillAnswers: input.skillAnswers,
+        servedVehicleType: input.servedVehicleType,
+        servedBrand: input.servedBrand,
+        servedModel: input.servedModel,
+        servedCountry: input.servedCountry,
+        servedLocation: input.servedLocation,
+        emergencyContact: input.emergencyContact,
+        bankName: input.bankName,
+        bankAccountName: input.bankAccountName,
+        bankAccountNumber: input.bankAccountNumber,
+        keepOtherRole: input.keepOtherRole !== false,
       }),
     });
   } catch {
@@ -200,6 +236,28 @@ export async function backendSignUp(input: {
 }
 
 /** Persist NIN/BVN verification to Supabase role tables. */
+/** Persist profile fields (labour prices, vehicle, bank, etc.) to Supabase. */
+export async function backendUpdateProfile(
+  accessToken: string,
+  patch: Record<string, unknown>
+): Promise<string | null> {
+  try {
+    const res = await fetch("/api/profile/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ access_token: accessToken, ...patch }),
+    });
+    const json = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      error?: { message?: string };
+    } | null;
+    if (!json?.ok) return json?.error?.message || "Could not save profile";
+    return null;
+  } catch {
+    return "Network error saving profile";
+  }
+}
+
 export async function backendSaveIdentityVerification(input: {
   userId: string;
   accountType: AccountType;

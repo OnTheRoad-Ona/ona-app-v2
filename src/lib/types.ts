@@ -61,12 +61,46 @@ export interface UserProfile {
   vehicleMake?: string;
   vehicleModel?: string;
   vehicleYear?: string;
+  vehiclePlate?: string;
+  vehiclePhoto?: string;
+  vehicleCommonIssues?: string[];
+  /** Profile avatar (data URL or path) */
+  avatarUrl?: string;
+  /** Motorist saved places */
+  savedLocations?: {
+    id: string;
+    label: string;
+    address: string;
+    lat: number;
+    lng: number;
+  }[];
+  emergencyContact?: { name: string; phone: string };
+  /** Stats (local / demo; server may overwrite) */
+  jobsRequested?: number;
+  jobsCompleted?: number;
+  averageRating?: number;
+  averageRatingGiven?: number;
+  avgResponseMinutes?: number;
+  completionRate?: number;
   /** Repair Pro */
   businessName?: string;
   services?: ProService[];
+  /**
+   * Labour/service fee per skill (major units: ₦ or $).
+   * Spare parts never included. Legacy string values still parse.
+   */
+  servicePrices?: Partial<Record<ProService, number | string>>;
+  /** Pricing currency for this pro (NGN Nigeria / USD US) */
+  pricingCurrency?: "NGN" | "USD";
   serviceRadiusKm?: number;
   yearsExperience?: string;
   bio?: string;
+  /** Tier 3 payout / business docs */
+  bankAccountName?: string;
+  bankAccountNumber?: string;
+  bankName?: string;
+  cacDocumentName?: string;
+  cacDocumentDataUrl?: string;
   /** National Identification Number (unique across all accounts) */
   idNumber?: string;
   /** Bank Verification Number (unique across all accounts) */
@@ -79,6 +113,13 @@ export interface UserProfile {
   ninVerified?: boolean;
   bvnVerified?: boolean;
   identityVerifiedAt?: string;
+  phoneVerified?: boolean;
+  emailVerified?: boolean;
+  faceLivenessVerified?: boolean;
+  faceLivenessAt?: string;
+  /** In-person validation → permanent Verification Mark (Tier 3) */
+  inPersonVerified?: boolean;
+  inPersonVerifiedAt?: string;
   /**
    * Count of gated actions: motorist books + pro accepts.
    * Used for progressive verification warnings / hard block.
@@ -95,6 +136,11 @@ export interface UserProfile {
   servedModel?: string;
   servedCountry?: string;
   servedLocation?: string;
+  /**
+   * When vehicles-you-serve was last saved.
+   * Next change allowed only after 28 days.
+   */
+  vehiclesServedUpdatedAt?: string;
   /**
    * Skill-specific signup answers (keyed by question id).
    * Public fields are shown when motorists view the pro.
@@ -163,6 +209,10 @@ export interface Technician {
   businessName?: string;
   yearsExperience?: string;
   bio?: string;
+  /** Jobs completed (for achievement badges) */
+  jobsCompleted?: number;
+  servicePrices?: Partial<Record<ProService, number | string>>;
+  pricingCurrency?: "NGN" | "USD";
   skillAnswers?: Record<
     string,
     string | string[] | { name: string; dataUrl: string; mime: string }
@@ -185,6 +235,20 @@ export interface ServiceRequest {
   /** Motorist is booking help for another person at this meet point */
   bookingForSomeoneElse?: boolean;
   meetCoordinates?: Coordinates;
+  /** Labour pricing snapshot (escrow) */
+  pricingCurrency?: "NGN" | "USD";
+  labourBaseMajor?: number;
+  labourAgreedMajor?: number;
+  discountPercent?: number;
+  negotiationStatus?:
+    | "none"
+    | "pending_pro"
+    | "accepted"
+    | "declined"
+    | "paid";
+  paymentId?: string;
+  paymentReference?: string;
+  escrowStatus?: string;
 }
 
 export interface Booking {

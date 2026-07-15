@@ -4,14 +4,15 @@ import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ProPublicProfile } from "@/components/technician/pro-public-profile";
+import { ProOwnProfile } from "@/components/profile/pro-own-profile";
+import { ProPublicView } from "@/components/profile/pro-public-view";
 import { useApp } from "@/lib/store";
 import type { Technician } from "@/lib/types";
 
 /**
- * Motorist opens a Repair Pro from home / map.
- * Loads from store first; falls back to GET /api/pros/[id] so deep links work
- * even before the cloud list finishes loading (fixes "Technician not found").
+ * Motorist opens a Repair Pro from home / map (read-only).
+ * Own pro card (`pro-self`) → pro own profile editor.
+ * Repair Pros never get a route to view Motorist profiles.
  */
 export default function TechnicianPage({
   params,
@@ -20,14 +21,23 @@ export default function TechnicianPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
-  const { technicians, setSelectedTechId, theme, location } = useApp();
+  const {
+    technicians,
+    setSelectedTechId,
+    theme,
+    location,
+    accountType,
+  } = useApp();
   const fromStore = technicians.find((t) => t.id === id) || null;
   const [tech, setTech] = useState<Technician | null>(fromStore);
   const [loading, setLoading] = useState(!fromStore);
   const [error, setError] = useState<string | null>(null);
   const isLight = theme === "light";
+  const isOwnPro =
+    id === "pro-self" && accountType === "professional";
 
   useEffect(() => {
+    if (isOwnPro) return;
     if (fromStore) {
       setTech(fromStore);
       setLoading(false);
@@ -71,7 +81,17 @@ export default function TechnicianPage({
     return () => {
       cancelled = true;
     };
-  }, [id, fromStore, location?.coordinates?.lat, location?.coordinates?.lng]);
+  }, [
+    id,
+    fromStore,
+    location?.coordinates?.lat,
+    location?.coordinates?.lng,
+    isOwnPro,
+  ]);
+
+  if (isOwnPro) {
+    return <ProOwnProfile isLight={isLight} />;
+  }
 
   if (loading) {
     return (
@@ -87,11 +107,27 @@ export default function TechnicianPage({
 
   if (!tech) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 bg-[#c8c9cd] p-6">
-        <p className="font-semibold text-slate-900">
+      <div
+        className={`flex h-full flex-col items-center justify-center gap-3 p-6 ${
+          isLight ? "bg-[#c8c9cd]" : "bg-black"
+        }`}
+      >
+        <p
+          className={
+            isLight
+              ? "font-semibold text-slate-900"
+              : "font-semibold text-white"
+          }
+        >
           {error || "Technician not found"}
         </p>
-        <p className="max-w-xs text-center text-[12px] text-slate-600">
+        <p
+          className={
+            isLight
+              ? "max-w-xs text-center text-[12px] text-slate-600"
+              : "max-w-xs text-center text-[12px] text-white/60"
+          }
+        >
           This Repair Pro is Away, switched to Motorist, unapproved, or the
           link is outdated. Only Live pros are available.
         </p>
@@ -103,14 +139,13 @@ export default function TechnicianPage({
   }
 
   return (
-    <ProPublicProfile
+    <ProPublicView
       tech={tech}
       isLight={isLight}
       onRequest={() => {
         setSelectedTechId(tech.id);
         router.push(`/request?tech=${tech.id}`);
       }}
-      backHref="/"
     />
   );
 }

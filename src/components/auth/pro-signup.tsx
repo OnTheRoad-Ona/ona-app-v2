@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Briefcase, Check, ChevronLeft, ChevronRight, User } from "lucide-react";
 import {
   AuthPlate,
@@ -85,7 +85,8 @@ function experienceLabel(value: string) {
  */
 export function ProSignup() {
   const router = useRouter();
-  const { completeSignup } = useApp();
+  const searchParams = useSearchParams();
+  const { completeSignup, userProfile, isAuthenticated } = useApp();
   const phoneCodes = useMemo(() => getPhoneCodeOptions(), []);
   const [step, setStep] = useState<Step>(1);
   const [done, setDone] = useState(false);
@@ -94,6 +95,14 @@ export function ProSignup() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   /** Identity locked from existing Motorist account on this device */
   const [identityLocked, setIdentityLocked] = useState(false);
+  /** After dual signup from motorist profile → Professional Dashboard */
+  const nextPath =
+    searchParams.get("next")?.startsWith("/")
+      ? searchParams.get("next")!
+      : "/dashboard";
+  const fromProfile =
+    searchParams.get("from") === "profile" ||
+    searchParams.get("from") === "menu";
 
   /** Exactly one skill */
   const [skill, setSkill] = useState<ProService | null>(null);
@@ -118,9 +127,12 @@ export function ProSignup() {
 
   const fullPhone = formatInternationalPhone(phoneDial, phoneNational);
 
-  // Prefill locked identity from existing Motorist account
+  // Prefill locked identity from existing Motorist account (vault or live session)
   useEffect(() => {
-    const motorist = getVaultProfile("motorist");
+    const motorist =
+      getVaultProfile("motorist") ||
+      (userProfile?.accountType === "motorist" ? userProfile : null) ||
+      (isAuthenticated && userProfile ? userProfile : null);
     if (!motorist) return;
     setIdentityLocked(true);
     setFullName(motorist.fullName || "");
@@ -129,11 +141,13 @@ export function ProSignup() {
     setBvn(motorist.bvn || "");
     setPassword(motorist.password || "");
     setConfirmPassword(motorist.password || "");
+    setCity(motorist.city || "Lagos");
+    setArea(motorist.area || "");
     const split = splitStoredPhone(motorist.phone || "");
     setPhoneIso(split.iso);
     setPhoneDial(split.dial);
     setPhoneNational(split.national);
-  }, []);
+  }, [userProfile, isAuthenticated]);
 
   const setFieldError = (key: string, msg: string | null) => {
     setFieldErrors((prev) => {
@@ -457,6 +471,7 @@ export function ProSignup() {
               .join(" · "),
       servedCountry: prefCountry,
       servedLocation: prefLocation,
+      vehiclesServedUpdatedAt: new Date().toISOString(),
       registeredAt: new Date().toISOString(),
     };
     const err = await completeSignup(profile);
@@ -476,8 +491,11 @@ export function ProSignup() {
       closePicker();
       return;
     }
-    if (step === 1) router.push("/login/role");
-    else setStep((s) => (s - 1) as Step);
+    if (step === 1) {
+      router.push(fromProfile ? "/profile" : "/login/role");
+      return;
+    }
+    setStep((s) => (s - 1) as Step);
   };
 
   const stepTitles: Record<Step, string> = {
@@ -1547,7 +1565,7 @@ export function ProSignup() {
       <RegistrationComplete
         open={done}
         accountLabel="Repair Pro"
-        onContinue={() => router.replace("/dashboard")}
+        onContinue={() => router.replace(nextPath || "/dashboard")}
       />
     </AuthPlate>
   );

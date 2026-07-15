@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { BadgeCheck, Star } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { MapBadgeGlyph } from "@/components/profile/achievement-badges";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import type { Technician } from "@/lib/types";
 import { cn, formatDistance, formatEta } from "@/lib/utils";
@@ -79,6 +80,9 @@ export function TechCard({
                   aria-label="Verified"
                 />
               )}
+              <MapBadgeGlyph
+                completedJobs={tech.jobsCompleted ?? tech.reviewCount ?? 0}
+              />
             </Link>
             <p
               className={cn(

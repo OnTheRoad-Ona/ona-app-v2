@@ -59,6 +59,7 @@ import {
   backendSetProOnline,
   backendDualRoleFlags,
   backendSaveIdentityVerification,
+  backendUpdateProfile,
   backendSendPhoneOtp,
   backendSignIn,
   backendSignInWithPhoneOtp,
@@ -70,6 +71,7 @@ import {
   backendUpdateJobStatus,
   isAppBackendOnline,
 } from "@/lib/supabase/app-api";
+import { getVehiclesServedLock } from "@/lib/profile-edit";
 import { haversineKm } from "@/lib/supabase/mappers";
 
 /** Result of book (motorist) or accept (pro) with progressive verification. */
@@ -162,13 +164,17 @@ export function profileToTechnician(profile: UserProfile): Technician | null {
     shortName: short,
     serviceType: primary,
     roleLabel: label,
-    photo: "/technicians/t1.jpg",
-    rating: 5,
-    reviewCount: 0,
+    photo: profile.avatarUrl || "/technicians/t1.jpg",
+    rating: profile.averageRating ?? 5,
+    reviewCount: profile.jobsCompleted ?? 0,
+    jobsCompleted: profile.jobsCompleted ?? 0,
     distanceKm: 0.2,
     etaMinutes: 6,
     status: "available",
-    verified: Boolean(profile.ninVerified && profile.bvnVerified),
+    verified: Boolean(
+      profile.inPersonVerified ||
+        (profile.ninVerified && profile.bvnVerified)
+    ),
     fastResponse: true,
     specialties:
       specialtiesFromSignup.length > 0
@@ -192,6 +198,8 @@ export function profileToTechnician(profile: UserProfile): Technician | null {
     businessName: profile.businessName,
     yearsExperience: profile.yearsExperience,
     bio: profile.bio,
+    servicePrices: profile.servicePrices,
+    pricingCurrency: profile.pricingCurrency,
     skillAnswers: profile.skillAnswers,
   };
 }
@@ -291,6 +299,17 @@ interface AppState {
     nin: string;
     bvn: string;
   }) => Promise<string | null>;
+  /**
+   * Edit signed-in profile (name, bio, area, vehicles you serve, etc.).
+   * Vehicles-you-serve fields may only change every 28 days.
+   * Returns error message or null on success.
+   */
+  updateUserProfile: (
+    patch: Partial<UserProfile> & {
+      /** When true, patch includes vehicles-served fields (enforces 28-day lock) */
+      vehiclesServedChange?: boolean;
+    }
+  ) => string | null;
   /** Legacy quick login (prefer completeSignup) */
   login: (opts: {
     accountType: AccountType;
@@ -327,10 +346,27 @@ interface AppState {
    */
   bookRequest: (
     tech: Technician,
-    problem?: string
+    problem?: string,
+    pricing?: {
+      labourBaseMajor: number;
+      labourAgreedMajor: number;
+      discountPercent: number;
+      pricingCurrency: "NGN" | "USD";
+      negotiationStatus?: ServiceRequest["negotiationStatus"];
+    }
   ) => ServiceActionResult;
   /** @deprecated use bookRequest — still creates without gate for internal/demo */
-  createRequest: (tech: Technician, problem?: string) => ServiceRequest;
+  createRequest: (
+    tech: Technician,
+    problem?: string,
+    pricing?: {
+      labourBaseMajor: number;
+      labourAgreedMajor: number;
+      discountPercent: number;
+      pricingCurrency: "NGN" | "USD";
+      negotiationStatus?: ServiceRequest["negotiationStatus"];
+    }
+  ) => ServiceRequest;
   /**
    * Pro accept (or other status). Accept is gated by verification funnel.
    * Pros can only accept jobs matching their registered skill.
@@ -1007,6 +1043,101 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [userProfile, persistProfile, backendUserId]
   );
 
+  const updateUserProfile = useCallback(
+    (
+      patch: Partial<UserProfile> & { vehiclesServedChange?: boolean }
+    ): string | null => {
+      if (!userProfile) return "Sign in to edit your profile.";
+
+      const { vehiclesServedChange, ...fields } = patch;
+
+      if (vehiclesServedChange) {
+        const lock = getVehiclesServedLock(userProfile.vehiclesServedUpdatedAt);
+        if (lock.locked) return lock.message;
+      }
+
+      const next: UserProfile = {
+        ...userProfile,
+        ...fields,
+        // Never allow account type flip via profile edit
+        accountType: userProfile.accountType,
+        password: userProfile.password,
+        email: fields.email?.trim() || userProfile.email,
+        fullName: (fields.fullName ?? userProfile.fullName).trim(),
+        phone: fields.phone ?? userProfile.phone,
+      };
+
+      if (vehiclesServedChange) {
+        next.vehiclesServedUpdatedAt = new Date().toISOString();
+      }
+
+      if (next.accountType === "professional") {
+        const services = (next.services ?? userProfile.services ?? []).filter(
+          isProService
+        );
+        next.services = services.length > 0 ? services : userProfile.services;
+        if (next.services?.[0]) {
+          setProServicesState(next.services.filter(isProService));
+          setRegisteredAsState(next.services[0]);
+        }
+      }
+
+      if (!next.fullName) return "Name is required.";
+
+      persistProfile(next);
+      if (next.fullName) setDisplayName(next.fullName);
+
+      // Sync new frontend fields to Supabase when online
+      if (isAppBackendOnline()) {
+        void (async () => {
+          try {
+            const sb = (await import("@/lib/supabase/app-client")).getAppSupabase();
+            const session = sb
+              ? (await sb.auth.getSession()).data.session
+              : null;
+            if (!session?.access_token) return;
+            await backendUpdateProfile(session.access_token, {
+              fullName: next.fullName,
+              phone: next.phone,
+              city: next.city,
+              area: next.area,
+              avatarUrl: next.avatarUrl,
+              businessName: next.businessName,
+              bio: next.bio,
+              yearsExperience: next.yearsExperience,
+              serviceRadiusKm: next.serviceRadiusKm,
+              services: next.services,
+              labourPrices: next.servicePrices,
+              pricingCurrency: next.pricingCurrency,
+              vehicleMake: next.vehicleMake,
+              vehicleModel: next.vehicleModel,
+              vehicleYear: next.vehicleYear,
+              plateNumber: next.vehiclePlate,
+              vehiclePhoto: next.vehiclePhoto,
+              vehicleCommonIssues: next.vehicleCommonIssues,
+              emergencyContact: next.emergencyContact ?? null,
+              savedLocations: next.savedLocations,
+              bankName: next.bankName,
+              bankAccountName: next.bankAccountName,
+              bankAccountNumber: next.bankAccountNumber,
+              faceLivenessVerified: next.faceLivenessVerified,
+              servedVehicleType: next.servedVehicleType,
+              servedBrand: next.servedBrand,
+              servedModel: next.servedModel,
+              servedCountry: next.servedCountry,
+              servedLocation: next.servedLocation,
+              skillAnswers: next.skillAnswers,
+            });
+          } catch {
+            /* local vault already saved */
+          }
+        })();
+      }
+      return null;
+    },
+    [userProfile, persistProfile]
+  );
+
   const completeSignup = useCallback(
     async (profile: UserProfile): Promise<string | null> => {
       // Pros: enforce single skill on profile
@@ -1027,6 +1158,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return "Server is unavailable. Check your connection and try again — accounts must save to OgaMecho.";
       }
 
+      const labourPrices = normalized.servicePrices;
       const res = await backendSignUp({
         email: normalized.email,
         password: normalized.password,
@@ -1037,6 +1169,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         area: normalized.area,
         businessName: normalized.businessName,
         primaryService: normalized.services?.[0],
+        services: normalized.services,
         bio: normalized.bio,
         yearsExperience: normalized.yearsExperience,
         serviceRadiusKm: normalized.serviceRadiusKm,
@@ -1045,8 +1178,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
         vehicleMake: normalized.vehicleMake,
         vehicleModel: normalized.vehicleModel,
         vehicleYear: normalized.vehicleYear,
+        plateNumber: normalized.vehiclePlate,
+        vehiclePhoto: normalized.vehiclePhoto,
+        vehicleCommonIssues: normalized.vehicleCommonIssues,
+        avatarUrl: normalized.avatarUrl,
         nin: normalized.idNumber,
         bvn: normalized.bvn,
+        labourPrices,
+        pricingCurrency: normalized.pricingCurrency,
+        skillAnswers: normalized.skillAnswers as
+          | Record<string, unknown>
+          | undefined,
+        servedVehicleType: normalized.servedVehicleType,
+        servedBrand: normalized.servedBrand,
+        servedModel: normalized.servedModel,
+        servedCountry: normalized.servedCountry,
+        servedLocation: normalized.servedLocation,
+        emergencyContact: normalized.emergencyContact,
+        bankName: normalized.bankName,
+        bankAccountName: normalized.bankAccountName,
+        bankAccountNumber: normalized.bankAccountNumber,
+        // Dual role: keep motorist when adding Repair Pro (and vice versa)
+        keepOtherRole: true,
       });
 
       if (res.error || !res.profile || !res.userId) {
@@ -1057,13 +1210,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       // Only open the app after a real server user id exists
-      // Signup role is always the main / primary account
       setBackendUserId(res.userId);
+      // Preserve original primary account when adding a second role
+      const existingPrimary =
+        readStoredPrimaryAccount() ||
+        primaryAccountType ||
+        userProfile?.primaryAccountType ||
+        null;
+      const primary: AccountType =
+        existingPrimary && existingPrimary !== res.profile.accountType
+          ? existingPrimary
+          : res.profile.accountType;
       const signedUp: UserProfile = {
+        ...normalized,
         ...res.profile,
-        primaryAccountType: res.profile.accountType,
+        primaryAccountType: primary,
+        // Merge vault extras the server may not echo yet
+        servicePrices: normalized.servicePrices ?? res.profile.servicePrices,
+        pricingCurrency:
+          normalized.pricingCurrency ?? res.profile.pricingCurrency,
+        skillAnswers: normalized.skillAnswers ?? res.profile.skillAnswers,
+        servedVehicleType:
+          normalized.servedVehicleType ?? res.profile.servedVehicleType,
+        servedBrand: normalized.servedBrand ?? res.profile.servedBrand,
+        servedModel: normalized.servedModel ?? res.profile.servedModel,
+        servedCountry: normalized.servedCountry ?? res.profile.servedCountry,
+        servedLocation:
+          normalized.servedLocation ?? res.profile.servedLocation,
       };
-      writeStoredPrimaryAccount(res.profile.accountType);
+      if (!existingPrimary) {
+        writeStoredPrimaryAccount(res.profile.accountType);
+      }
       saveProfileToVault(signedUp);
       applySession(signedUp);
       setServerSessionReady(true);
@@ -1071,10 +1248,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setHasMotoristAccount(true);
       } else {
         setHasProAccount(true);
+        // Keep motorist flag if they already had it (dual)
+        if (hasMotoristAccount || existingPrimary === "motorist") {
+          setHasMotoristAccount(true);
+        }
       }
       return null;
     },
-    [applySession, location.coordinates.lat, location.coordinates.lng]
+    [
+      applySession,
+      location.coordinates.lat,
+      location.coordinates.lng,
+      primaryAccountType,
+      userProfile?.primaryAccountType,
+      hasMotoristAccount,
+    ]
   );
 
   const login = useCallback(
@@ -1450,7 +1638,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [messages, accountType, proServices, registeredAs]);
 
   const createRequest = useCallback(
-    (tech: Technician, problem = "Roadside assistance") => {
+    (
+      tech: Technician,
+      problem = "Roadside assistance",
+      pricing?: {
+        labourBaseMajor: number;
+        labourAgreedMajor: number;
+        discountPercent: number;
+        pricingCurrency: "NGN" | "USD";
+        negotiationStatus?: ServiceRequest["negotiationStatus"];
+      }
+    ) => {
       const forSomeone = helpingSomeoneElse;
       const meetLabel = location.label;
       const desc = forSomeone
@@ -1471,6 +1669,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         meetCoordinates: forSomeone
           ? { ...location.coordinates }
           : undefined,
+        labourBaseMajor: pricing?.labourBaseMajor,
+        labourAgreedMajor: pricing?.labourAgreedMajor,
+        discountPercent: pricing?.discountPercent,
+        pricingCurrency: pricing?.pricingCurrency,
+        negotiationStatus: pricing?.negotiationStatus ?? "none",
       };
 
       if (isAppBackendOnline() && backendUserId && accountType === "motorist") {
@@ -1519,7 +1722,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const bookRequest = useCallback(
-    (tech: Technician, problem = "Roadside assistance"): ServiceActionResult => {
+    (
+      tech: Technician,
+      problem = "Roadside assistance",
+      pricing?: {
+        labourBaseMajor: number;
+        labourAgreedMajor: number;
+        discountPercent: number;
+        pricingCurrency: "NGN" | "USD";
+        negotiationStatus?: ServiceRequest["negotiationStatus"];
+      }
+    ): ServiceActionResult => {
       const cfg = getRuntimeAppConfig();
       const gate = cfg.features.identityVerifyEnabled
         ? evaluateServiceGate(userProfile, "motorist", {
@@ -1541,7 +1754,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
           actionCount: count,
         };
       }
-      const req = createRequest(tech, problem);
+      // Labour price required before request / escrow (Quote on request blocks)
+      if (
+        pricing == null ||
+        !Number.isFinite(pricing.labourBaseMajor) ||
+        pricing.labourBaseMajor <= 0
+      ) {
+        return {
+          ok: false,
+          code: "invalid",
+          message:
+            "This Repair Pro has no labour price set. Quote on request — they must set a price on their profile first.",
+          actionCount: count,
+        };
+      }
+      const req = createRequest(tech, problem, pricing);
       if (userProfile) {
         persistProfile({
           ...userProfile,
@@ -1973,6 +2200,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       removeProService,
       completeSignup,
       completeIdentityVerification,
+      updateUserProfile,
       login,
       logout,
       location,
@@ -2036,6 +2264,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       removeProService,
       completeSignup,
       completeIdentityVerification,
+      updateUserProfile,
       login,
       logout,
       location,

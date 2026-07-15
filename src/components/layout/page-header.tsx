@@ -29,13 +29,14 @@ export function PageHeader({
   /** Hide back control (e.g. Professional Dashboard home) */
   showBack?: boolean;
 }) {
-  const { theme, accountType } = useApp();
+  const { theme } = useApp();
   const isLight = theme === "light";
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [mount, setMount] = useState<HTMLElement | null>(null);
 
-  const fallback = backHref ?? defaultBackHref(accountType);
+  // Fallback is always Home when history has no previous page
+  const fallback = backHref ?? defaultBackHref();
 
   useEffect(() => {
     setMount(document.getElementById("oga-mecho-phone"));
@@ -47,15 +48,24 @@ export function PageHeader({
 
   return (
     <>
-      <header className="flex items-center gap-2 px-3 py-2.5">
+      <header
+        className={cn(
+          "flex items-center gap-2 px-3 py-2.5",
+          isLight ? "bg-[#c8c9cd]" : "bg-black"
+        )}
+        style={{ backgroundColor: isLight ? "#c8c9cd" : "#000000" }}
+      >
         {showBack ? (
           <button
             type="button"
             onClick={onBack}
             className={cn(
               "flex h-8 w-8 items-center justify-center rounded-lg border-0 transition-transform duration-150 active:scale-95",
-              isLight ? "bg-slate-100 text-slate-700" : "bg-black text-white"
+              isLight
+                ? "bg-transparent text-slate-800"
+                : "bg-[#1c1c1e] text-white"
             )}
+            style={isLight ? undefined : { backgroundColor: "#1c1c1e" }}
             aria-label="Back"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -76,7 +86,7 @@ export function PageHeader({
             <p
               className={cn(
                 "truncate text-[11px]",
-                isLight ? "text-slate-500" : "text-white/70"
+                isLight ? "text-slate-500" : "text-[#a1a1a6]"
               )}
             >
               {subtitle}
@@ -87,9 +97,10 @@ export function PageHeader({
           type="button"
           onClick={() => setMenuOpen(true)}
           className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-lg border-0 bg-transparent",
-            isLight ? "text-black" : "text-white"
+            "flex h-8 w-8 items-center justify-center rounded-lg border-0",
+            isLight ? "bg-transparent text-black" : "bg-[#1c1c1e] text-white"
           )}
+          style={isLight ? undefined : { backgroundColor: "#1c1c1e" }}
           aria-label="Open menu"
         >
           <Menu className="h-5 w-5" strokeWidth={2.25} />

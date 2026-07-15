@@ -18,7 +18,17 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { reviewsForPro } from "@/lib/demo-reviews";
+import { NegotiatePanel } from "@/components/pricing/negotiate-panel";
 import { defaultBackHref, navigateBack } from "@/lib/navigation";
+import {
+  applyDiscount,
+  detectCurrency,
+  formatMoney,
+  getBaseLabourPrice,
+  LABOUR_FEE_DISCLAIMER,
+  PLATFORM_COMMISSION_PERCENT,
+  type AppCurrency,
+} from "@/lib/pricing";
 import { problemsForService } from "@/lib/request-problems";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { publicSkillRows } from "@/lib/skill-questions";
@@ -35,11 +45,11 @@ function RequestFlow() {
     bookRequest,
     setSelectedTechId,
     theme,
-    accountType,
     ensureChatForRequest,
     helpingSomeoneElse,
     helpingSomeoneLabel,
     location,
+    userProfile,
   } = useApp();
   const isLight = theme === "light";
 
@@ -62,6 +72,9 @@ function RequestFlow() {
   const [warning, setWarning] = useState<string | null>(null);
   const [blocked, setBlocked] = useState<string | null>(null);
   const [showAllReviews, setShowAllReviews] = useState(false);
+  const [discountPercent, setDiscountPercent] = useState(0);
+  const [payBusy, setPayBusy] = useState(false);
+  const [payNote, setPayNote] = useState<string | null>(null);
 
   useEffect(() => {
     setProblem(problems[0] ?? "Other roadside help");
@@ -111,10 +124,42 @@ function RequestFlow() {
   const photo =
     tech.photo && tech.photo.trim() ? tech.photo.trim() : DEFAULT_VENDOR_PHOTO;
 
-  const submit = () => {
+  const currency: AppCurrency =
+    tech.pricingCurrency ||
+    detectCurrency({
+      countryName: tech.servedCountry || userProfile?.servedCountry,
+    });
+  const baseLabour = getBaseLabourPrice(
+    tech.servicePrices,
+    tech.serviceType
+  );
+  const hasPrice = baseLabour != null && baseLabour > 0;
+  const agreedLabour = hasPrice
+    ? applyDiscount(baseLabour, discountPercent)
+    : null;
+
+  const submit = async () => {
     setSelectedTechId(tech.id);
     setBlocked(null);
-    const result = bookRequest(tech, problem);
+    setPayNote(null);
+
+    if (!hasPrice || baseLabour == null) {
+      setBlocked(
+        "This Repair Pro has no labour price set. Quote on request — they must set a price on their profile before you can pay and connect."
+      );
+      return;
+    }
+
+    const negotiationStatus =
+      discountPercent > 0 ? ("pending_pro" as const) : ("accepted" as const);
+
+    const result = bookRequest(tech, problem, {
+      labourBaseMajor: baseLabour,
+      labourAgreedMajor: agreedLabour ?? baseLabour,
+      discountPercent,
+      pricingCurrency: currency,
+      negotiationStatus,
+    });
     if (!result.ok) {
       setBlocked(result.message);
       return;
@@ -123,6 +168,47 @@ function RequestFlow() {
     const rid = result.request?.id ?? null;
     setRequestId(rid);
     if (result.request) ensureChatForRequest(result.request);
+
+    // Full price → initiate escrow immediately. Discount → wait for pro accept first.
+    if (discountPercent === 0 && rid) {
+      setPayBusy(true);
+      try {
+        const motoristId = userProfile?.identityId || "motorist-local";
+        const res = await fetch("/api/payments/init", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            requestId: rid,
+            motoristId,
+            repairProId: tech.id,
+            serviceType: tech.serviceType,
+            email: userProfile?.email || "motorist@ogamecho.app",
+            baseAmountMajor: baseLabour,
+            discountPercent: 0,
+            currency,
+            countryName: tech.servedCountry || userProfile?.servedCountry,
+          }),
+        });
+        const json = await res.json();
+        if (json?.ok && json.data?.authorizationUrl) {
+          window.location.href = json.data.authorizationUrl as string;
+          return;
+        }
+        setPayNote(
+          json?.error?.message ||
+            "Payment link unavailable — request saved; complete payment from Track."
+        );
+      } catch {
+        setPayNote("Could not start payment. Request saved — retry from Track.");
+      } finally {
+        setPayBusy(false);
+      }
+    } else if (discountPercent > 0) {
+      setPayNote(
+        `Discount offer −${discountPercent}% sent. After the Repair Pro accepts, you’ll pay the agreed labour fee into escrow.`
+      );
+    }
+
     setStep("done");
   };
 
@@ -142,6 +228,17 @@ function RequestFlow() {
           Waiting for <strong className={ink}>{tech.name}</strong> to accept.
           You&apos;ll get a popup, chat, and live trip tracking once they do.
         </p>
+        {agreedLabour != null && (
+          <p className="mt-2 text-[13px] font-bold text-brand">
+            Labour fee {formatMoney(agreedLabour, currency)}
+            {discountPercent > 0 ? ` (−${discountPercent}%)` : ""} · escrow
+          </p>
+        )}
+        {payNote && (
+          <p className={cn("mt-2 max-w-sm text-[12px] font-medium", muted)}>
+            {payNote}
+          </p>
+        )}
         {helpingSomeoneElse && (
           <p className="mt-2 text-[12px] font-semibold text-brand">
             Booking for someone else · {helpingSomeoneLabel || location.label}
@@ -186,7 +283,7 @@ function RequestFlow() {
       <header className="flex shrink-0 items-center gap-2 px-3 py-2.5">
         <button
           type="button"
-          onClick={() => navigateBack(router, defaultBackHref(accountType))}
+          onClick={() => navigateBack(router, defaultBackHref())}
           className={cn(
             "flex h-8 w-8 items-center justify-center rounded-lg border-0 bg-transparent",
             isLight ? "text-black" : "text-white"
@@ -373,6 +470,31 @@ function RequestFlow() {
       </div>
 
       <div className={cn("shrink-0 space-y-2 px-3 pb-4 pt-1", sheet)}>
+        {hasPrice && baseLabour != null ? (
+          <NegotiatePanel
+            baseAmountMajor={baseLabour}
+            currency={currency}
+            discountPercent={discountPercent}
+            onChangeDiscount={setDiscountPercent}
+            isLight={isLight}
+            disabled={payBusy}
+          />
+        ) : (
+          <div
+            className={cn(
+              "rounded-2xl px-3 py-3 text-[12px] font-semibold",
+              isLight ? "bg-amber-500/15 text-amber-800" : "bg-amber-500/15 text-amber-300"
+            )}
+          >
+            Quote on request — this pro has not set a labour price for{" "}
+            {skillLabel}. They must add it on their profile before you can pay
+            into escrow.
+          </div>
+        )}
+        <p className={cn("text-center text-[10px] leading-snug", muted)}>
+          {LABOUR_FEE_DISCLAIMER} Platform keeps {PLATFORM_COMMISSION_PERCENT}%
+          after both parties mark complete; pro receives 95%.
+        </p>
         {blocked && (
           <VerificationBlockedPanel
             message={blocked}
@@ -382,14 +504,22 @@ function RequestFlow() {
         )}
         <button
           type="button"
-          onClick={submit}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border-0 bg-[#323231] py-3.5 text-[15px] font-semibold text-white active:opacity-90"
+          disabled={payBusy || !hasPrice}
+          onClick={() => void submit()}
+          className="flex w-full items-center justify-center gap-2 rounded-lg border-0 bg-[#323231] py-3.5 text-[15px] font-semibold text-white active:opacity-90 disabled:opacity-50"
         >
-          Confirm & Connect
+          {payBusy
+            ? "Starting secure payment…"
+            : !hasPrice
+              ? "Price required"
+              : discountPercent > 0
+                ? "Send offer & request"
+                : "Pay labour fee & connect"}
         </button>
         <p className={cn("text-center text-[10px]", muted)}>
           <MapPin className="mr-0.5 inline h-3 w-3 text-brand" />
-          Pro meets at your service location after they accept
+          Card · Bank transfer · USSD via Paystack / Flutterwave · funds held in
+          escrow
         </p>
       </div>
     </div>

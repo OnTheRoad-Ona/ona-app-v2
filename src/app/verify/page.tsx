@@ -145,7 +145,7 @@ export default function VerifyIdentityPage() {
         <button
           type="button"
           onClick={() =>
-            navigateBack(router, defaultBackHref(accountType))
+            navigateBack(router, defaultBackHref())
           }
           className={cn(
             "inline-flex h-8 items-center gap-0.5 rounded-lg border-0 bg-transparent px-1 text-[12px] font-semibold",

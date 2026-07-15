@@ -30,6 +30,7 @@ const bodySchema = z.object({
   area: z.string().optional(),
   businessName: z.string().optional(),
   primaryService: z.string().optional(),
+  services: z.array(z.string()).optional(),
   bio: z.string().optional(),
   yearsExperience: z.string().optional(),
   serviceRadiusKm: z.number().optional(),
@@ -39,8 +40,30 @@ const bodySchema = z.object({
   vehicleModel: z.string().optional(),
   vehicleYear: z.string().optional(),
   plateNumber: z.string().optional(),
+  vehiclePhoto: z.string().optional(),
+  vehicleCommonIssues: z.array(z.string()).optional(),
+  avatarUrl: z.string().optional(),
   nin: z.string().optional(),
   bvn: z.string().optional(),
+  /** Labour prices: skill → major units */
+  labourPrices: z.record(z.string(), z.union([z.number(), z.string()])).optional(),
+  pricingCurrency: z.enum(["NGN", "USD"]).optional(),
+  /** Service focus (vehicles they fix) */
+  vehicleFocus: z.record(z.string(), z.unknown()).optional(),
+  skillAnswers: z.record(z.string(), z.unknown()).optional(),
+  servedVehicleType: z.string().optional(),
+  servedBrand: z.string().optional(),
+  servedModel: z.string().optional(),
+  servedCountry: z.string().optional(),
+  servedLocation: z.string().optional(),
+  emergencyContact: z
+    .object({ name: z.string(), phone: z.string() })
+    .optional(),
+  bankName: z.string().optional(),
+  bankAccountName: z.string().optional(),
+  bankAccountNumber: z.string().optional(),
+  /** Dual signup: keep the other role's side table */
+  keepOtherRole: z.boolean().optional().default(true),
 });
 
 function last4(digits: string | undefined): string | null {
@@ -220,6 +243,7 @@ export async function POST(req: Request) {
   }
 
   // 2) Enrich profile (service role bypasses RLS; trigger may have inserted stub)
+  // Dual accounts: do not wipe the other role — only set active role to the one signing up
   const { error: profileErr } = await supabase
     .from("profiles")
     .upsert(
@@ -230,6 +254,7 @@ export async function POST(req: Request) {
         email,
         city: input.city || null,
         area: input.area || null,
+        avatar_url: input.avatarUrl || null,
         role,
         is_active: true,
       },
@@ -251,8 +276,14 @@ export async function POST(req: Request) {
   }
 
   // 3) Role-specific tables
+  // Dual-role: NEVER delete the other role's side table when keepOtherRole is true
+  // (motorist adding Repair Pro must keep motorist_profiles).
+  const keepOther = input.keepOtherRole !== false;
+
   if (role === "motorist") {
-    await supabase.from("repair_pro_profiles").delete().eq("user_id", userId);
+    if (!keepOther) {
+      await supabase.from("repair_pro_profiles").delete().eq("user_id", userId);
+    }
     const { error: motErr } = await supabase.from("motorist_profiles").upsert(
       {
         user_id: userId,
@@ -260,6 +291,9 @@ export async function POST(req: Request) {
         vehicle_model: input.vehicleModel || null,
         vehicle_year: input.vehicleYear || null,
         plate_number: input.plateNumber || null,
+        vehicle_photo: input.vehiclePhoto || null,
+        vehicle_common_issues: input.vehicleCommonIssues || [],
+        emergency_contact: input.emergencyContact || null,
         address_text:
           [input.area, input.city].filter(Boolean).join(", ") || null,
         default_lat: input.lat ?? null,
@@ -288,18 +322,40 @@ export async function POST(req: Request) {
       );
     }
   } else {
-    await supabase.from("motorist_profiles").delete().eq("user_id", userId);
+    if (!keepOther) {
+      await supabase.from("motorist_profiles").delete().eq("user_id", userId);
+    }
     const svc = (
       input.primaryService && isProService(input.primaryService)
         ? input.primaryService
         : "mechanic"
     ) as ProService;
+    const servicesList = (
+      input.services?.length
+        ? input.services.filter((s): s is ProService => isProService(s))
+        : [svc]
+    ) as ProService[];
+    const labourPrices: Record<string, number> = {};
+    if (input.labourPrices) {
+      for (const [k, v] of Object.entries(input.labourPrices)) {
+        const n = typeof v === "number" ? v : Number(String(v).replace(/[^\d.]/g, ""));
+        if (Number.isFinite(n) && n > 0) labourPrices[k] = n;
+      }
+    }
+    const vehicleFocus = {
+      ...(input.vehicleFocus || {}),
+      servedVehicleType: input.servedVehicleType,
+      servedBrand: input.servedBrand,
+      servedModel: input.servedModel,
+      servedCountry: input.servedCountry,
+      servedLocation: input.servedLocation,
+    };
     const { error: proErr } = await supabase.from("repair_pro_profiles").upsert(
       {
         user_id: userId,
         business_name: input.businessName || null,
         primary_service: svc,
-        services: [svc],
+        services: servicesList.length ? servicesList : [svc],
         status: "approved",
         // Stay Away until the pro taps Live on the dashboard
         is_online: false,
@@ -313,6 +369,13 @@ export async function POST(req: Request) {
         bvn_last4: last4(bvn),
         nin_verified: hasNin,
         bvn_verified: hasBvn,
+        labour_prices: labourPrices,
+        pricing_currency: input.pricingCurrency || "NGN",
+        vehicle_focus: vehicleFocus,
+        skills: input.skillAnswers || {},
+        bank_name: input.bankName || null,
+        bank_account_name: input.bankAccountName || null,
+        bank_account_number: input.bankAccountNumber || null,
       },
       { onConflict: "user_id" }
     );

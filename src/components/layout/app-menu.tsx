@@ -353,12 +353,14 @@ export function AppMenu({
                       onClose();
                       router.push(
                         signupTarget === "professional"
-                          ? "/signup/pro"
-                          : "/signup/motorist"
+                          ? "/signup/pro?from=menu&next=/dashboard"
+                          : "/signup/motorist?from=menu&next=/"
                       );
                     }}
                   >
-                    Sign up now
+                    {signupTarget === "professional"
+                      ? "Start Repair Pro signup"
+                      : "Start Motorist signup"}
                   </button>
                 )}
                 {warn.includes("Log in") && (
