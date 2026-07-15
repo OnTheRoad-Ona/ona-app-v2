@@ -182,7 +182,7 @@ export function JobFlowScreen({
       navigator.geolocation.clearWatch(watchId);
       window.clearInterval(poll);
     };
-  }, [viewer, job?.id, job?.status, actorId]);
+  }, [viewer, job?.id, job?.status, actorId, commitJob]);
 
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-500" : "text-white/55";
