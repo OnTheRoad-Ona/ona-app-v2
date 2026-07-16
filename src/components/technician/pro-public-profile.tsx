@@ -196,8 +196,23 @@ export function ProPublicProfile({
                   {skillLabel}
                 </p>
 
-                <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
-                  {statusText}
+                <p className={cn("mt-0.5 text-[11px] font-semibold", muted)}>
+                  <span
+                    className={cn(
+                      "font-bold",
+                      tech.status === "available"
+                        ? isLight
+                          ? "text-emerald-700"
+                          : "text-emerald-400"
+                        : tech.status === "busy"
+                          ? isLight
+                            ? "text-amber-700"
+                            : "text-amber-400"
+                          : muted
+                    )}
+                  >
+                    {statusText}
+                  </span>
                   {tech.verified ? " · Verified" : ""}
                   {tech.fastResponse ? " · Fast reply" : ""}
                 </p>

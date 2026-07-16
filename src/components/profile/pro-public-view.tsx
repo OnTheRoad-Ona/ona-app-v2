@@ -194,7 +194,22 @@ export function ProPublicView({
               <p className={cn("text-[10px]", t.muted)}>Jobs done</p>
             </div>
             <div>
-              <p className="text-[12px] font-bold text-brand">{statusText}</p>
+              <p
+                className={cn(
+                  "text-[12px] font-bold",
+                  tech.status === "available"
+                    ? isLight
+                      ? "text-emerald-700"
+                      : "text-emerald-400"
+                    : tech.status === "busy"
+                      ? isLight
+                        ? "text-amber-700"
+                        : "text-amber-400"
+                      : "text-brand"
+                )}
+              >
+                {statusText}
+              </p>
               <p className={cn("text-[10px]", t.muted)}>Status</p>
             </div>
           </div>

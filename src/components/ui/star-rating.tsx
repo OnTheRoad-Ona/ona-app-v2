@@ -1,11 +1,12 @@
 "use client";
 
 import { Star } from "lucide-react";
+import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 /**
- * Compact stars + number only: ★★★★☆  4.5
- * (no "N stars of 5 (X.Y+ rating)" copy)
+ * Compact stars + number: ★★★★☆  4.5
+ * High contrast on light gray / white sheets and dark surfaces.
  */
 export function StarRatingDisplay({
   rating,
@@ -22,6 +23,8 @@ export function StarRatingDisplay({
   showNumeric?: boolean;
   starsOnly?: boolean;
 }) {
+  const { theme } = useApp();
+  const isLight = theme === "light";
   const r = Math.max(0, Math.min(max, Number(rating) || 0));
   const full = Math.floor(r + 1e-9);
   const dim =
@@ -41,10 +44,14 @@ export function StarRatingDisplay({
               className={cn(
                 dim,
                 filled
-                  ? "fill-amber-400 text-amber-400"
-                  : "fill-transparent text-amber-400/35"
+                  ? // Solid gold — readable on white / light gray / dark
+                    "fill-[#f59e0b] text-[#d97706]"
+                  : isLight
+                    ? // Empty outline clearly visible on white/light wash
+                      "fill-none text-slate-500"
+                    : "fill-none text-white/55"
               )}
-              strokeWidth={2}
+              strokeWidth={2.25}
             />
           );
         })}
@@ -53,7 +60,8 @@ export function StarRatingDisplay({
         <span
           className={cn(
             "font-bold tabular-nums leading-none",
-            size === "sm" ? "text-[10px]" : "text-[12px]"
+            size === "sm" ? "text-[10px]" : "text-[12px]",
+            isLight ? "text-slate-900" : "text-white"
           )}
         >
           {r.toFixed(1)}

@@ -88,18 +88,22 @@ export function TechCard({
             <p
               className={cn(
                 "truncate text-[10px]",
-                isLight ? "text-slate-500" : "text-[#a8a8a8]"
+                isLight ? "text-slate-600" : "text-[#a8a8a8]"
               )}
             >
               {tech.roleLabel}
               <span className="mx-1 opacity-40">·</span>
               <span
                 className={cn(
-                  tech.status === "available" && "text-emerald-500",
-                  tech.status === "busy" && "text-amber-500",
-                  tech.status === "nearby" && "text-sky-400",
+                  "font-bold",
+                  tech.status === "available" &&
+                    (isLight ? "text-emerald-700" : "text-emerald-400"),
+                  tech.status === "busy" &&
+                    (isLight ? "text-amber-700" : "text-amber-400"),
+                  tech.status === "nearby" &&
+                    (isLight ? "text-sky-700" : "text-sky-400"),
                   tech.status === "offline" &&
-                    (isLight ? "text-slate-400" : "text-[#777]")
+                    (isLight ? "text-slate-500" : "text-[#999]")
                 )}
               >
                 {tech.status === "available"
