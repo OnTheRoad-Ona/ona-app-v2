@@ -34,21 +34,71 @@ export function shouldUseLiveMaps(): boolean {
 }
 
 export type ReverseGeocodeResult = {
-  /** Full formatted address (always prefer this for jobs + maps) */
+  /**
+   * Immediate human address for all users — e.g.
+   * "Dr. Frank Okafor Cl, Lekki, Lagos"
+   * Never lat/lng coordinates.
+   */
   label: string;
   city: string;
   area: string;
-  /** Street line e.g. "7b Oye Balogun Street" */
+  /** Street line e.g. "Dr. Frank Okafor Cl" */
   street?: string;
-  /** Area line under street e.g. "Lekki, Lagos" */
+  /** Area line e.g. "Lekki, Lagos" */
   localityLine?: string;
   country?: string;
   countryCode?: string;
 };
 
+/** Drop country / postal noise; never emit raw coordinates as a label. */
+export function formatImmediateAddress(parts: {
+  street?: string;
+  area?: string;
+  city?: string;
+  state?: string;
+  formatted?: string;
+}): string {
+  const street = (parts.street || "").trim();
+  const area = (parts.area || "").trim();
+  const city = (parts.city || "").trim();
+  const state = (parts.state || "").trim();
+
+  const localityBits: string[] = [];
+  if (area && !street.toLowerCase().includes(area.toLowerCase())) {
+    localityBits.push(area);
+  }
+  // Prefer city (Lagos) over state if same; avoid duplicate Lekki Lekki
+  const cityOrState = city || state;
+  if (
+    cityOrState &&
+    !localityBits.some((b) => b.toLowerCase() === cityOrState.toLowerCase()) &&
+    !street.toLowerCase().includes(cityOrState.toLowerCase())
+  ) {
+    localityBits.push(cityOrState);
+  }
+
+  if (street) {
+    return [street, ...localityBits].join(", ");
+  }
+
+  // Fall back to formatted, strip country / postal codes
+  let fb = (parts.formatted || "").trim();
+  if (fb) {
+    fb = fb
+      .replace(/,\s*Nigeria\s*$/i, "")
+      .replace(/,\s*\d{4,6}\s*$/g, "")
+      .replace(/,\s*NG\s*$/i, "")
+      .trim();
+    // If still looks like coordinates, drop
+    if (/^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(fb)) return "";
+    return fb;
+  }
+  return "";
+}
+
 /**
  * Reverse geocode via Google Geocoding REST.
- * Always returns full formatted_address as label.
+ * Label = immediate address (street + area + city), never coordinates.
  */
 async function reverseGeocodeGoogle(
   lat: number,
@@ -83,6 +133,7 @@ async function reverseGeocodeGoogle(
     const street =
       [streetNum, route].filter(Boolean).join(" ") ||
       get("premise") ||
+      get("point_of_interest") ||
       get("establishment") ||
       "";
     const area =
@@ -94,20 +145,28 @@ async function reverseGeocodeGoogle(
     const city =
       get("locality") ||
       get("administrative_area_level_2") ||
-      get("administrative_area_level_1") ||
       "";
+    const state = get("administrative_area_level_1") || "";
     const country = get("country") || "";
     const countryCode = getShort("country") || "";
-    const full =
-      (r.formatted_address || "").trim() ||
-      [street, area, city, country].filter(Boolean).join(", ") ||
-      `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    const label =
+      formatImmediateAddress({
+        street,
+        area,
+        city: city || state,
+        state,
+        formatted: r.formatted_address,
+      }) ||
+      formatImmediateAddress({
+        formatted: r.formatted_address,
+      });
+    if (!label) return null;
     const localityLine =
-      [area, city].filter(Boolean).join(", ") || city || area || "";
+      [area, city || state].filter(Boolean).join(", ") || city || area || "";
     return {
-      label: full,
-      city: city || area || "Near you",
-      area: area || city || "Near you",
+      label,
+      city: city || state || area || "",
+      area: area || city || "",
       street: street || undefined,
       localityLine: localityLine || undefined,
       country: country || undefined,
@@ -153,26 +212,25 @@ async function reverseGeocodeNominatim(
       };
     };
     const addr = data.address ?? {};
-    const street =
-      [addr.road || addr.pedestrian, addr.neighbourhood]
-        .filter(Boolean)
-        .join(", ") || "";
-    const area = addr.suburb || addr.city_district || addr.neighbourhood || "";
+    const street = (addr.road || addr.pedestrian || "").trim();
+    const area =
+      addr.neighbourhood || addr.suburb || addr.city_district || "";
     const city =
-      addr.city || addr.town || addr.village || addr.county || addr.state || "";
-    // Prefer full display_name (street + area + city)
-    const label =
-      (data.display_name || "").trim() ||
-      [street || addr.road, area, city, addr.country]
-        .filter(Boolean)
-        .join(", ") ||
-      `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      addr.city || addr.town || addr.village || addr.county || "";
+    const state = addr.state || "";
+    const label = formatImmediateAddress({
+      street,
+      area,
+      city: city || state,
+      state,
+      formatted: data.display_name,
+    });
     if (!label) return null;
-    const localityLine = [area, city].filter(Boolean).join(", ");
+    const localityLine = [area, city || state].filter(Boolean).join(", ");
     return {
       label,
-      city: city || area || "Near you",
-      area: area || city || "Near you",
+      city: city || state || area || "",
+      area: area || city || "",
       street: street || undefined,
       localityLine: localityLine || undefined,
       country: addr.country || undefined,

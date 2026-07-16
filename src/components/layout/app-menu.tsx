@@ -9,7 +9,6 @@ import {
   LogOut,
   MapPin,
   MessageCircle,
-  Navigation,
   Settings,
   UserRound,
   Wrench,
@@ -66,8 +65,6 @@ export function AppMenu({
     displayName,
     userProfile,
     isLocating,
-    retryLocation,
-    refreshNearbyPros,
   } = useApp();
   const isLight = theme === "light";
   const isPro =
@@ -90,13 +87,11 @@ export function AppMenu({
     return "Good Evening";
   })();
 
-  // Fresh high-accuracy GPS whenever the menu opens
   useEffect(() => {
     if (!open) return;
     setWarn(null);
     setSignupTarget(null);
-    retryLocation();
-  }, [open, retryLocation]);
+  }, [open]);
 
   const [switching, setSwitching] = useState(false);
 
@@ -164,10 +159,8 @@ export function AppMenu({
 
   if (!open) return null;
 
-  const placeLine = [location.label, location.city]
-    .filter(Boolean)
-    .filter((v, i, a) => a.indexOf(v) === i)
-    .join(" · ");
+  // Immediate place name only (e.g. "Dr. Frank Okafor Cl, Lekki, Lagos")
+  const placeLine = (location.label || "").trim();
 
   const useAsBtnClass = (active: boolean) =>
     cn(
@@ -235,27 +228,11 @@ export function AppMenu({
                 )}
               >
                 <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
-                <div className="min-w-0 flex-1">
-                  <p className="min-w-0 font-semibold">
-                    {isLocating
-                      ? "Updating location…"
-                      : placeLine || "Current location"}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      retryLocation();
-                      window.setTimeout(() => refreshNearbyPros(), 1000);
-                    }}
-                    className={cn(
-                      "mt-1 inline-flex items-center gap-1 border-0 bg-transparent p-0 text-[10px] font-semibold",
-                      "text-[#e07a3d]"
-                    )}
-                  >
-                    <Navigation className="h-3 w-3" />
-                    {isLocating ? "Locating…" : "Refresh location"}
-                  </button>
-                </div>
+                <p className="min-w-0 font-semibold leading-snug">
+                  {isLocating
+                    ? "Updating location…"
+                    : placeLine || "Getting your address…"}
+                </p>
               </div>
             </div>
           </div>

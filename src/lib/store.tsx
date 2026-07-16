@@ -2268,8 +2268,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [accountType, backendUserId, proLive]);
 
-  /** GPS refresh at most every 20 minutes (was 10) — less geocode + network */
-  const LOCATION_REFRESH_MS = 20 * 60 * 1000;
+  /** Refresh GPS every 5 minutes while the app tab is open/visible */
+  const LOCATION_REFRESH_MS = 5 * 60 * 1000;
 
   /** Map browser GPS errors to clear, actionable copy (not raw "User denied Geolocation"). */
   const friendlyGeolocationError = useCallback(
@@ -2346,15 +2346,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       void import("@/lib/google-maps").then(({ reverseGeocodeLatLng }) =>
         reverseGeocodeLatLng(lat, lng).then((geo) => {
           if (!geo || manualPinRef.current) return;
-          const label =
-            (geo.label || "").trim() ||
-            [geo.street, geo.localityLine || geo.area, geo.city]
-              .filter(Boolean)
-              .join(", ") ||
-            `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-          const city =
-            (geo.localityLine || [geo.area, geo.city].filter(Boolean).join(", ") || "")
-              .trim();
+          // Immediate place name only — never raw coordinates
+          const label = (geo.label || "").trim();
+          if (!label || /^-?\d+\.\d+/.test(label)) return;
+          const city = (geo.localityLine || geo.city || geo.area || "").trim();
           lastFullAddressRef.current = label;
           setLocation({
             label,
