@@ -3,12 +3,12 @@
 /**
  * Pro dashboard — Uber-style list under Live (no section titles):
  * - Incoming: New Request only, real meet address (never “Current location”)
- * - Else Recent: small non-clickable completed rows — car type (if any) + location text only
+ * - Else Recent: clock + place name / area (non-clickable, completed only)
  */
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Loader2, Radio } from "lucide-react";
+import { ChevronRight, Clock3, Loader2, Radio } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { apiListJobs } from "@/lib/jobs/client";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
@@ -26,6 +26,10 @@ const RECENT_STATUSES = new Set<JobFlowStatus>([
   "satisfied",
   "released",
 ]);
+
+/** Common city / area tokens for subtitle line */
+const AREA_HINT =
+  /\b(lekki|ikeja|ikoyi|vi|victoria island|island|ajah|yaba|surulere|gbagada|magodo|maryland|ojodu|berger|festac|apapa|mainland|abuja|lagos|phase\s*\d*|estate|gate|route|alternative)\b/i;
 
 /** Labels that are pro GPS noise, not motorist meet address */
 function isGenericLocation(label: string): boolean {
@@ -47,6 +51,42 @@ function meetAddress(j: JobRecord): string | null {
   const raw = (j.locationLabel || "").trim();
   if (!raw || isGenericLocation(raw)) return null;
   return raw;
+}
+
+/**
+ * Uber-style split: street/place on top, city/area under.
+ * e.g. "7b Oye Balogun street, Lekki" → title street, subtitle Lekki
+ * "Tulip Haven Estate Gate 2, Alternative route, Lekki" → first segment / rest
+ */
+function splitPlaceAndArea(label: string): {
+  title: string;
+  subtitle: string | null;
+} {
+  const raw = label.trim();
+  if (!raw) return { title: "", subtitle: null };
+  const parts = raw
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length >= 2) {
+    // First segment = street / place name; remainder = area line
+    return {
+      title: parts[0],
+      subtitle: parts.slice(1).join(", "),
+    };
+  }
+  // Single phrase: try trailing area keyword
+  const words = raw.split(/\s+/);
+  if (words.length >= 2) {
+    const last = words[words.length - 1];
+    if (AREA_HINT.test(last)) {
+      return {
+        title: words.slice(0, -1).join(" "),
+        subtitle: last,
+      };
+    }
+  }
+  return { title: raw, subtitle: null };
 }
 
 export default function TechnicianDashboardPage() {
@@ -294,40 +334,43 @@ export default function TechnicianDashboardPage() {
           </ul>
         )}
 
-        {/* Recent completed — small, not clickable: car type then location */}
+        {/* Recent completed — clock + Uber place/area, no lines, not clickable */}
         {!jobsLoading && showRecent && (
-          <ul className="space-y-0">
+          <ul className="space-y-3">
             {recent.map((j) => {
               const addr = meetAddress(j);
-              const car = (j.motoristVehicle || "").trim();
-              // Prefer real address; fall back to car only
-              if (!addr && !car) return null;
+              if (!addr) return null;
+              const { title, subtitle } = splitPlaceAndArea(addr);
+              if (!title) return null;
               return (
                 <li
                   key={j.id}
-                  className={cn(
-                    "border-0 border-b py-2 last:border-b-0",
-                    isLight ? "border-black/10" : "border-white/10"
-                  )}
+                  className="flex items-start gap-2.5 border-0 bg-transparent py-0.5"
                 >
-                  <p
-                    className={cn(
-                      "text-[12px] font-medium leading-snug",
-                      muted
-                    )}
-                  >
-                    {car && addr ? (
-                      <>
-                        <span className={cn("font-semibold", ink)}>{car}</span>
-                        <span className="mx-1 opacity-50">·</span>
-                        <span>{addr}</span>
-                      </>
-                    ) : car ? (
-                      <span className={cn("font-semibold", ink)}>{car}</span>
-                    ) : (
-                      <span>{addr}</span>
-                    )}
-                  </p>
+                  <Clock3
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#e07a3d]"
+                    aria-hidden
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className={cn(
+                        "text-[13px] font-semibold leading-snug",
+                        ink
+                      )}
+                    >
+                      {title}
+                    </p>
+                    {subtitle ? (
+                      <p
+                        className={cn(
+                          "mt-0.5 text-[11px] font-medium leading-snug",
+                          muted
+                        )}
+                      >
+                        {subtitle}
+                      </p>
+                    ) : null}
+                  </div>
                 </li>
               );
             })}

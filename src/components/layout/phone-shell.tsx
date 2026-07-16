@@ -34,8 +34,8 @@ function isInteractiveTarget(el: HTMLElement): boolean {
 }
 
 /**
- * Always present as a mobile app frame (max ~390px), not a full desktop site.
- * Full height of the viewport; content scrolls inside the frame only.
+ * Fixed phone app frame (390 × ≤844). Expanding the browser only grows the
+ * dark stage around the app — the panel never stretches wider or taller.
  */
 export function PhoneShell({
   children,
@@ -67,25 +67,27 @@ export function PhoneShell({
         "h-[100vh] max-h-[100vh]",
         "h-[100dvh] max-h-[100dvh]",
         "h-[100svh] max-h-[100svh]",
-        // Tiny padding on large screens so it still feels like an app, not a website
-        "px-0 py-0 sm:px-3 sm:py-3",
+        "px-3 py-3",
         isLight ? "bg-[#060d0a]" : "bg-[#0a0605]"
       )}
     >
       <div
         id="oga-mecho-phone"
         className={cn(
-          "relative box-border flex w-full flex-col overflow-hidden",
-          // Always app-width (never full desktop layout)
-          "h-full max-h-full min-h-0",
-          "max-w-[390px]",
+          "relative box-border flex flex-col overflow-hidden",
+          "w-[390px] max-w-[calc(100vw-1.5rem)]",
+          // Cap height so a tall browser does not stretch the app into a desktop page
+          "h-[min(844px,calc(100dvh-1.5rem))] max-h-[min(844px,calc(100dvh-1.5rem))]",
+          "h-[min(844px,calc(100svh-1.5rem))] max-h-[min(844px,calc(100svh-1.5rem))]",
           "shadow-[0_24px_48px_rgba(0,0,0,0.55)]",
           isLight ? "bg-[#c8c9cd]" : "bg-black",
           className
         )}
         style={{
-          width: "min(390px, 100%)",
-          maxWidth: "min(390px, 100vw)",
+          width: "min(390px, calc(100vw - 1.5rem))",
+          maxWidth: "min(390px, calc(100vw - 1.5rem))",
+          height: "min(844px, calc(100dvh - 1.5rem))",
+          maxHeight: "min(844px, calc(100dvh - 1.5rem))",
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
           paddingTop: "env(safe-area-inset-top, 0px)",
         }}
