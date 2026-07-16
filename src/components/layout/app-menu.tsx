@@ -400,8 +400,11 @@ export function AppMenu({
               router.push("/logout");
             }}
             className={cn(
-              // Same color set as dark toggle for both themes
-              "flex w-full items-center justify-center gap-2 rounded-lg border-0 bg-red-500/15 px-3 py-2.5 text-sm font-semibold text-red-400"
+              "flex w-full items-center justify-center gap-2 rounded-lg border-0 px-3 py-2.5 text-sm font-bold",
+              // Light: solid obvious red; dark: strong red fill + white text
+              isLight
+                ? "bg-red-600 text-white hover:bg-red-700"
+                : "bg-red-600 text-white hover:bg-red-500"
             )}
           >
             <LogOut className="h-4 w-4" />
