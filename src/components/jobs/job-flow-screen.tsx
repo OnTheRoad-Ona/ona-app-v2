@@ -31,6 +31,7 @@ import {
   apiPayJob,
   apiPlaceOffer,
   apiPushTripLocation,
+  apiRateJob,
   apiTransition,
   getCurrentPosition,
 } from "@/lib/jobs/client";
@@ -98,10 +99,13 @@ export function JobFlowScreen({
     useState<DisputeReason>("work_incomplete");
   const [disputeDesc, setDisputeDesc] = useState("");
   const [rating, setRating] = useState(5);
+  const [reviewText, setReviewText] = useState("");
   const [reviewLeft, setReviewLeft] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const [locHint, setLocHint] = useState<string | null>(null);
+
+  const REVIEW_MAX = 144;
 
   const commitJob = useCallback((next: JobRecord, force = false) => {
     setJob((prev) => {
@@ -134,6 +138,11 @@ export function JobFlowScreen({
   const goJobsList = useCallback(() => {
     router.push("/jobs");
   }, [router]);
+
+  /** After success: motorist home, pro dashboard */
+  const goHome = useCallback(() => {
+    router.push(viewer === "repair_pro" ? "/dashboard" : "/");
+  }, [router, viewer]);
 
   // Both roles: live GPS while trip active (keeps running when tab is backgrounded)
   useEffect(() => {
@@ -1060,25 +1069,45 @@ export function JobFlowScreen({
 
   /* ─── RELEASED / SATISFIED ─── */
   if (job.status === "released" || job.status === "satisfied") {
+    const reviewChars = reviewText.length;
+    const submitReview = async () => {
+      setBusy(true);
+      setErr(null);
+      const note =
+        viewer === "motorist" ? reviewText.trim().slice(0, REVIEW_MAX) : undefined;
+      const res = await apiRateJob({
+        jobId: job.id,
+        rating,
+        note: note || undefined,
+        actor: viewer,
+      });
+      setBusy(false);
+      if (!res.ok) {
+        setErr(res.message || "Could not save review");
+        return;
+      }
+      commitJob(res.data.job, true);
+      setReviewLeft(true);
+      setFlash("Thanks for your review");
+      window.setTimeout(() => setFlash(null), 2500);
+    };
+
     return (
       <JobShell
         isLight={isLight}
         title="Payment released"
         compactHeader
-        onBack={goJobsList}
+        onBack={goHome}
         footer={
           !reviewLeft ? (
             <CopperButton
-              onClick={() => {
-                setReviewLeft(true);
-                setFlash("Thanks for your review");
-                window.setTimeout(() => setFlash(null), 2500);
-              }}
+              disabled={busy}
+              onClick={() => void submitReview()}
             >
-              Leave review
+              {busy ? "Saving…" : "Leave review"}
             </CopperButton>
           ) : (
-            <CopperButton onClick={goJobsList}>Done</CopperButton>
+            <CopperButton onClick={goHome}>Done</CopperButton>
           )
         }
       >
@@ -1101,7 +1130,7 @@ export function JobFlowScreen({
             Labour only
           </p>
 
-          {/* Receipt: hidden until tapped (E2) */}
+          {/* Receipt: hidden until tapped */}
           <button
             type="button"
             onClick={() => setReceiptOpen((o) => !o)}
@@ -1124,9 +1153,9 @@ export function JobFlowScreen({
             </div>
           )}
 
-          {/* Rate: stars only (C2) */}
-          <div className="mt-10 w-full">
-            <p className={cn("mb-3 text-[14px] font-bold", ink)}>
+          {/* Rate: stars + motorist text review (144 max) */}
+          <div className="mt-10 w-full max-w-md text-left">
+            <p className={cn("mb-3 text-center text-[14px] font-bold", ink)}>
               Rate this job
             </p>
             <div
@@ -1162,13 +1191,57 @@ export function JobFlowScreen({
                 );
               })}
             </div>
+
+            {viewer === "motorist" && (
+              <div className="mt-5">
+                <label
+                  htmlFor="job-review-text"
+                  className={cn("mb-1.5 block text-[12px] font-bold", ink)}
+                >
+                  Write a review
+                </label>
+                <textarea
+                  id="job-review-text"
+                  value={reviewText}
+                  onChange={(e) =>
+                    setReviewText(e.target.value.slice(0, REVIEW_MAX))
+                  }
+                  disabled={reviewLeft}
+                  maxLength={REVIEW_MAX}
+                  rows={3}
+                  placeholder="How was the repair? (optional)"
+                  className={cn(
+                    "w-full resize-none rounded-md border-0 px-3 py-2.5 text-[13px] font-medium outline-none ring-1 transition placeholder:opacity-50 disabled:opacity-60",
+                    isLight
+                      ? "bg-transparent text-slate-900 ring-black/15 focus:ring-[#e07a3d]/50"
+                      : "bg-transparent text-white ring-white/20 focus:ring-[#e07a3d]/50"
+                  )}
+                />
+                <p
+                  className={cn(
+                    "mt-1 text-right text-[11px] font-semibold tabular-nums",
+                    reviewChars >= REVIEW_MAX ? "text-[#e07a3d]" : muted
+                  )}
+                >
+                  {reviewChars}/{REVIEW_MAX}
+                </p>
+              </div>
+            )}
+
             {reviewLeft && (
-              <p className={cn("mt-3 text-[12px] font-semibold", muted)}>
+              <p className={cn("mt-3 text-center text-[12px] font-semibold", muted)}>
                 Review submitted
               </p>
             )}
             {flash && (
-              <p className="mt-2 text-[12px] font-bold text-[#e07a3d]">{flash}</p>
+              <p className="mt-2 text-center text-[12px] font-bold text-[#e07a3d]">
+                {flash}
+              </p>
+            )}
+            {err && (
+              <p className="mt-2 text-center text-[12px] font-semibold text-red-500">
+                {err}
+              </p>
             )}
           </div>
         </div>

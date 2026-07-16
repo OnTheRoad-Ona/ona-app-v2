@@ -164,6 +164,25 @@ export async function apiPushProLocation(input: {
   });
 }
 
+/** Stars + optional text review (motorist, max 144 chars) */
+export async function apiRateJob(input: {
+  jobId: string;
+  rating: number;
+  note?: string;
+  actor?: "motorist" | "repair_pro";
+}) {
+  const res = await fetch(`/api/jobs/${input.jobId}/rate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      rating: input.rating,
+      note: input.note,
+      actor: input.actor,
+    }),
+  });
+  return parse<{ job: JobRecord }>(res);
+}
+
 /** Browser geolocation promise */
 export function getCurrentPosition(
   opts?: PositionOptions

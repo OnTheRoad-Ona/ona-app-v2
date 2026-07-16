@@ -1170,10 +1170,14 @@ export async function rateJob(input: {
   if (job.status !== "released" && job.status !== "satisfied") {
     return { error: "Rate after completion" };
   }
+  const noteRaw = (input.note || "").trim();
+  if (noteRaw.length > 144) {
+    return { error: "Review max 144 characters" };
+  }
   const updated = await persist({
     ...job,
     rating: Math.min(5, Math.max(1, Math.round(input.rating))),
-    ratingNote: input.note,
+    ratingNote: noteRaw || null,
     updatedAt: nowIso(),
   });
   return { job: updated };
