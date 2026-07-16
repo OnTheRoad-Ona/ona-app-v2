@@ -1207,11 +1207,20 @@ export async function rateJob(input: {
   jobId: string;
   rating: number;
   note?: string;
+  /** Only motorists may rate the Repair Pro */
+  actor?: "motorist" | "repair_pro";
 }): Promise<{ job: JobRecord } | { error: string }> {
   const job = await getJob(input.jobId);
   if (!job) return { error: "Not found" };
   if (job.status !== "released" && job.status !== "satisfied") {
     return { error: "Rate after completion" };
+  }
+  // Pros never rate anyone (including other pros)
+  if (input.actor === "repair_pro") {
+    return { error: "Only the motorist can rate and review the Repair Pro" };
+  }
+  if (job.rating != null) {
+    return { error: "This job was already rated" };
   }
   const noteRaw = (input.note || "").trim();
   if (noteRaw.length > 144) {

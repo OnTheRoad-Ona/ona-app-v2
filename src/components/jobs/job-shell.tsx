@@ -17,6 +17,8 @@ export function JobShell({
   footer,
   fullBleed,
   compactHeader = false,
+  /** Body fills height without outer scroll (map + swipe sheet layouts) */
+  fillBody = false,
 }: {
   isLight: boolean;
   title: string;
@@ -27,6 +29,7 @@ export function JobShell({
   fullBleed?: boolean;
   /** Smaller title / subtitle (e.g. describe-problem) */
   compactHeader?: boolean;
+  fillBody?: boolean;
 }) {
   const stage = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const ink = isLight ? "text-slate-900" : "text-white";
@@ -75,7 +78,10 @@ export function JobShell({
 
       <div
         className={cn(
-          "relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-hide",
+          "relative z-10 min-h-0 flex-1",
+          fillBody
+            ? "flex flex-col overflow-hidden"
+            : "overflow-y-auto overscroll-contain scrollbar-hide",
           fullBleed ? "px-0" : "px-4 pb-6"
         )}
       >

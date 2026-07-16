@@ -25,10 +25,19 @@ export async function POST(
       return apiFail("Review max 144 characters", 400);
     }
 
+    // Motorist rates Repair Pro only — pros never rate
+    if (parsed.data.actor === "repair_pro") {
+      return apiFail(
+        "Only the motorist can rate and review the Repair Pro",
+        403
+      );
+    }
+
     const res = await rateJob({
       jobId: id,
       rating: parsed.data.rating,
       note,
+      actor: parsed.data.actor ?? "motorist",
     });
     if ("error" in res) return apiFail(res.error, 400);
     return apiOk({ job: res.job });

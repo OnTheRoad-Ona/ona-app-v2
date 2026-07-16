@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type TouchEvent as ReactTouchEvent,
+  type WheelEvent as ReactWheelEvent,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
@@ -114,6 +122,9 @@ export function JobFlowScreen({
   const [locHint, setLocHint] = useState<string | null>(null);
   /** Repair Pro must confirm they can fix the job before negotiating */
   const [proCanFixAccepted, setProCanFixAccepted] = useState(false);
+  /** Arrived / Work in progress: home-style swipe sheet */
+  const [tripSheetExpanded, setTripSheetExpanded] = useState(false);
+  const tripGestureY = useRef<number | null>(null);
 
   /** Open (or create) cloud job chat so both parties share one conversation */
   const openJobChat = useCallback(
@@ -988,10 +999,408 @@ export function JobFlowScreen({
       }
     };
 
-    // Ready to go (paid_booked): no map, no nested panels — flat stage only
+    // Ready to go (paid_booked): no map. En route: fixed map strip.
+    // Arrived + Work in progress: home-style map + swipe sheet + expand pill.
     const showMap = job.status !== "paid_booked";
     const isReadyToGo = job.status === "paid_booked";
+    const isSwipeTrip =
+      job.status === "arrived" || job.status === "in_progress";
 
+    const statusChip = (
+      <span
+        className={cn(
+          "rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-white",
+          job.status === "paid_booked"
+            ? "bg-emerald-600"
+            : job.status === "en_route" || job.status === "in_progress"
+              ? "bg-[#e07a3d]"
+              : isLight
+                ? "bg-slate-800"
+                : "bg-[#3a3a3c]"
+        )}
+      >
+        {job.status === "paid_booked"
+          ? "Paid · Booked"
+          : statusLabel[job.status] || job.status}
+      </span>
+    );
+
+    const skillChip = (
+      <span
+        className={cn(
+          "rounded px-1.5 py-0.5 text-[9px] font-bold",
+          isLight
+            ? "bg-[#a8a9ae] text-slate-900"
+            : "bg-[#2c2c2e] text-white"
+        )}
+      >
+        {viewer === "motorist"
+          ? PRO_SERVICE_LABELS[job.serviceType]
+          : "Motorist"}
+      </span>
+    );
+
+    const tripMetaHeader = (
+      <div className="flex flex-wrap items-center gap-1.5">
+        {statusChip}
+        {skillChip}
+        <p className={cn("min-w-0 flex-1 truncate text-[16px] font-black", ink)}>
+          {viewer === "motorist" ? job.repairProName : job.motoristName}
+        </p>
+        {job.agreedMajor != null && (
+          <p className="shrink-0 text-[15px] font-black tabular-nums text-[#e07a3d]">
+            {formatMoney(job.agreedMajor, job.currency)}
+          </p>
+        )}
+      </div>
+    );
+
+    const tripDetails = (
+      <>
+        {job.problem?.trim() && (
+          <div>
+            <p
+              className={cn(
+                "text-[10px] font-bold uppercase tracking-wide",
+                muted
+              )}
+            >
+              Problem
+            </p>
+            <p
+              className={cn(
+                "mt-1 text-[14px] font-semibold leading-snug break-words",
+                ink
+              )}
+            >
+              {job.problem}
+            </p>
+          </div>
+        )}
+
+        {!isReadyToGo && (
+          <div className="flex items-start gap-2">
+            <Navigation className="mt-0.5 h-4 w-4 shrink-0 text-[#e07a3d]" />
+            <div className="min-w-0">
+              <p className={cn("text-[13px] font-semibold break-words", ink)}>
+                {job.locationLabel || "Location on map"}
+              </p>
+              <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
+                {viewer === "motorist"
+                  ? job.proLocation
+                    ? "Repair Pro live on map"
+                    : "Waiting for Repair Pro GPS"
+                  : "Navigate to motorist pin"}
+                {job.distanceKm != null &&
+                  ` · ${
+                    job.distanceKm < 0.1
+                      ? "<0.1 km"
+                      : `${job.distanceKm.toFixed(1)} km`
+                  }`}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {isReadyToGo && (
+          <p className={cn("text-[12px] font-medium", muted)}>
+            {viewer === "repair_pro"
+              ? "Start trip when you leave for the motorist."
+              : "Repair Pro will start the trip soon."}
+          </p>
+        )}
+
+        {copy.subtitle && (
+          <p className={cn("text-[12px] font-medium leading-snug", muted)}>
+            {copy.subtitle}
+          </p>
+        )}
+      </>
+    );
+
+    const callMessageRow = (
+      <div className="grid grid-cols-2 gap-2 pt-1">
+        <button
+          type="button"
+          onClick={() => startJobCall(job)}
+          className={cn(
+            "inline-flex h-12 items-center justify-center gap-2 rounded-md border-0 text-[13px] font-bold",
+            isLight
+              ? "bg-[#a8a9ae] text-slate-900"
+              : "bg-[#2c2c2e] text-white"
+          )}
+        >
+          <Phone className="h-4 w-4 text-[#e07a3d]" />
+          Call
+        </button>
+        <button
+          type="button"
+          onClick={() => void openJobChat(job)}
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-md border-0 bg-[#e07a3d] text-[13px] font-bold text-white"
+        >
+          <MessageCircle className="h-4 w-4" />
+          Message
+        </button>
+      </div>
+    );
+
+    const footerBlock = (
+      <div className="space-y-2">
+        {flash && (
+          <p className="text-center text-[12px] font-bold text-[#e07a3d]">
+            {flash}
+          </p>
+        )}
+        {locHint && showMap && (
+          <p
+            className={cn(
+              "rounded-md px-3 py-2 text-center text-[12px] font-bold",
+              isLight ? "bg-slate-900 text-white" : "bg-[#2c2c2e] text-white"
+            )}
+          >
+            {locHint}
+          </p>
+        )}
+        {err && (
+          <p className="text-center text-[12px] font-semibold text-red-500">
+            {err}
+          </p>
+        )}
+        {viewer === "repair_pro" && nextPro && (
+          <>
+            {isLight ? (
+              <CopperButton
+                disabled={busy}
+                onClick={() => void proAdvance(nextPro.event)}
+              >
+                {busy ? "Updating job…" : nextPro.label}
+              </CopperButton>
+            ) : (
+              <StageButton
+                isLight={isLight}
+                disabled={busy}
+                onClick={() => void proAdvance(nextPro.event)}
+              >
+                {busy ? "Updating job…" : nextPro.label}
+              </StageButton>
+            )}
+          </>
+        )}
+        {viewer === "motorist" && job.status === "en_route" && (
+          <p
+            className={cn(
+              "text-center text-[12px] font-semibold",
+              isLight ? "text-slate-700" : "text-[#c8c9cd]"
+            )}
+          >
+            Repair Pro is on the way
+            {job.etaMinutes != null ? ` ETA ${job.etaMinutes} min` : ""}
+          </p>
+        )}
+        {viewer === "motorist" && job.status === "paid_booked" && (
+          <GhostButton
+            isLight={isLight}
+            onClick={() =>
+              void run(() =>
+                apiTransition({
+                  jobId: job.id,
+                  event: "CANCEL",
+                  actor: "motorist",
+                  actorId,
+                })
+              )
+            }
+          >
+            Cancel · full refund
+          </GhostButton>
+        )}
+        {viewer === "motorist" &&
+          (job.status === "en_route" ||
+            job.status === "arrived" ||
+            job.status === "in_progress") && (
+            <GhostButton
+              isLight={isLight}
+              onClick={() =>
+                void run(() =>
+                  apiTransition({
+                    jobId: job.id,
+                    event: "CANCEL",
+                    actor: "motorist",
+                    actorId,
+                  })
+                )
+              }
+            >
+              Cancel · full refund
+            </GhostButton>
+          )}
+        <button
+          type="button"
+          onClick={() => setDisputeOpen(true)}
+          className="w-full text-center text-[12px] font-bold text-red-500"
+        >
+          Open dispute
+        </button>
+      </div>
+    );
+
+    const disputeNode = disputeOpen ? (
+      <DisputeSheet
+        isLight={isLight}
+        reason={disputeReason}
+        setReason={setDisputeReason}
+        desc={disputeDesc}
+        setDesc={setDisputeDesc}
+        busy={busy}
+        onClose={() => setDisputeOpen(false)}
+        onSubmit={() =>
+          void run(async () => {
+            const res = await apiOpenDispute({
+              jobId: job.id,
+              by: viewer,
+              reason: disputeReason,
+              description: disputeDesc,
+            });
+            if (res.ok) setDisputeOpen(false);
+            return res;
+          })
+        }
+      />
+    ) : null;
+
+    /* ── Arrived / Work in progress: map + swipeable lower panel ── */
+    if (isSwipeTrip) {
+      const onPillTouchStart = (e: ReactTouchEvent) => {
+        tripGestureY.current = e.touches[0].clientY;
+      };
+      const onPillTouchMove = (e: ReactTouchEvent) => {
+        if (tripGestureY.current == null) return;
+        const dy = e.touches[0].clientY - tripGestureY.current;
+        if (!tripSheetExpanded && dy < -14) {
+          setTripSheetExpanded(true);
+          tripGestureY.current = null;
+          return;
+        }
+        if (tripSheetExpanded && dy > 14) {
+          setTripSheetExpanded(false);
+          tripGestureY.current = null;
+        }
+      };
+      const onPillClick = () => setTripSheetExpanded((v) => !v);
+      const onSheetWheel = (e: ReactWheelEvent) => {
+        if (e.deltaY > 0 && !tripSheetExpanded) {
+          e.preventDefault();
+          setTripSheetExpanded(true);
+          return;
+        }
+        if (e.deltaY < 0 && tripSheetExpanded) {
+          e.preventDefault();
+          setTripSheetExpanded(false);
+        }
+      };
+
+      return (
+        <JobShell
+          isLight={isLight}
+          title={copy.title}
+          subtitle={copy.subtitle}
+          compactHeader
+          onBack={goJobsList}
+          fullBleed
+          fillBody
+          footer={footerBlock}
+        >
+          <div className="relative flex min-h-0 flex-1 flex-col">
+            {/* Map — collapses when sheet expands (home pattern) */}
+            <div
+              className={cn(
+                "om-sheet-spring relative min-h-0 overflow-hidden",
+                tripSheetExpanded
+                  ? "h-0 flex-[0_0_0%] opacity-0 pointer-events-none"
+                  : "flex-[0_0_42%] opacity-100"
+              )}
+            >
+              <div className="absolute inset-0">
+                <LiveJobTrackMap job={job} isLight={isLight} viewer={viewer} />
+              </div>
+            </div>
+
+            {/* Lower swipe sheet */}
+            <div
+              className={cn(
+                "om-sheet-spring z-30 flex min-h-0 flex-col overflow-hidden",
+                tripSheetExpanded ? "flex-1" : "flex-[0_0_58%]",
+                isLight ? "bg-[#c8c9cd]" : "bg-black",
+                !tripSheetExpanded &&
+                  "rounded-t-2xl shadow-[0_-6px_24px_rgba(0,0,0,0.18)]"
+              )}
+              style={{ touchAction: "pan-y" }}
+              onWheel={onSheetWheel}
+            >
+              {/* Expand pill */}
+              <div className="shrink-0">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-label={
+                    tripSheetExpanded
+                      ? "Swipe down to show map"
+                      : "Swipe up to expand details"
+                  }
+                  onClick={onPillClick}
+                  onTouchStart={onPillTouchStart}
+                  onTouchMove={onPillTouchMove}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onPillClick();
+                    }
+                    if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setTripSheetExpanded(true);
+                    }
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setTripSheetExpanded(false);
+                    }
+                  }}
+                  className="flex cursor-grab justify-center pb-1.5 pt-2.5 active:cursor-grabbing"
+                  style={{ touchAction: "pan-y" }}
+                >
+                  <span
+                    className={cn(
+                      "h-1.5 w-11 rounded-full",
+                      isLight
+                        ? "bg-[#6b7280] shadow-sm ring-1 ring-black/10"
+                        : "bg-white/40"
+                    )}
+                  />
+                </div>
+              </div>
+
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 pb-3 scrollbar-hide">
+                {tripMetaHeader}
+                {tripDetails}
+                {callMessageRow}
+                {!tripSheetExpanded && (
+                  <p
+                    className={cn(
+                      "pt-0.5 text-center text-[10px] font-semibold",
+                      muted
+                    )}
+                  >
+                    Swipe up to expand · swipe down to collapse
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+          {disputeNode}
+        </JobShell>
+      );
+    }
+
+    /* ── Ready to go / On the road (unchanged flat layout) ── */
     return (
       <JobShell
         isLight={isLight}
@@ -999,85 +1408,7 @@ export function JobFlowScreen({
         compactHeader
         onBack={goJobsList}
         fullBleed={showMap}
-        footer={
-          <div className="space-y-2">
-            {flash && (
-              <p className="text-center text-[12px] font-bold text-[#e07a3d]">
-                {flash}
-              </p>
-            )}
-            {locHint && showMap && (
-              <p
-                className={cn(
-                  "rounded-md px-3 py-2 text-center text-[12px] font-bold",
-                  isLight ? "bg-slate-900 text-white" : "bg-[#2c2c2e] text-white"
-                )}
-              >
-                {locHint}
-              </p>
-            )}
-            {err && (
-              <p className="text-center text-[12px] font-semibold text-red-500">
-                {err}
-              </p>
-            )}
-            {viewer === "repair_pro" && nextPro && (
-              <>
-                {isLight ? (
-                  <CopperButton
-                    disabled={busy}
-                    onClick={() => void proAdvance(nextPro.event)}
-                  >
-                    {busy ? "Updating job…" : nextPro.label}
-                  </CopperButton>
-                ) : (
-                  <StageButton
-                    isLight={isLight}
-                    disabled={busy}
-                    onClick={() => void proAdvance(nextPro.event)}
-                  >
-                    {busy ? "Updating job…" : nextPro.label}
-                  </StageButton>
-                )}
-              </>
-            )}
-            {viewer === "motorist" && job.status === "en_route" && (
-              <p
-                className={cn(
-                  "text-center text-[12px] font-semibold",
-                  isLight ? "text-slate-700" : "text-[#c8c9cd]"
-                )}
-              >
-                Repair Pro is on the way
-                {job.etaMinutes != null ? ` ETA ${job.etaMinutes} min` : ""}
-              </p>
-            )}
-            {viewer === "motorist" && (
-              <GhostButton
-                isLight={isLight}
-                onClick={() =>
-                  void run(() =>
-                    apiTransition({
-                      jobId: job.id,
-                      event: "CANCEL",
-                      actor: "motorist",
-                      actorId,
-                    })
-                  )
-                }
-              >
-                Cancel · full refund
-              </GhostButton>
-            )}
-            <button
-              type="button"
-              onClick={() => setDisputeOpen(true)}
-              className="w-full text-center text-[12px] font-bold text-red-500"
-            >
-              Open dispute
-            </button>
-          </div>
-        }
+        footer={footerBlock}
       >
         {showMap && (
           <div className="relative mx-0 h-[38vh] min-h-[220px] max-h-[320px] overflow-hidden">
@@ -1085,149 +1416,17 @@ export function JobFlowScreen({
           </div>
         )}
 
-        {/* Start trip / Ready to go — flat on stage, no card/panel backgrounds */}
         <div
           className={cn(
             "space-y-4",
             showMap ? "relative z-10 -mt-4 px-3 pb-2" : "px-0 pb-2 pt-1"
           )}
         >
-          {/* Status + skill + name on one clean line */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span
-              className={cn(
-                "rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-white",
-                job.status === "paid_booked"
-                  ? "bg-emerald-600"
-                  : job.status === "en_route" || job.status === "in_progress"
-                    ? "bg-[#e07a3d]"
-                    : isLight
-                      ? "bg-slate-800"
-                      : "bg-[#3a3a3c]"
-              )}
-            >
-              {job.status === "paid_booked"
-                ? "Paid · Booked"
-                : statusLabel[job.status] || job.status}
-            </span>
-            <span
-              className={cn(
-                "rounded px-1.5 py-0.5 text-[9px] font-bold",
-                isLight
-                  ? "bg-[#a8a9ae] text-slate-900"
-                  : "bg-[#2c2c2e] text-white"
-              )}
-            >
-              {viewer === "motorist"
-                ? PRO_SERVICE_LABELS[job.serviceType]
-                : "Motorist"}
-            </span>
-            <p className={cn("min-w-0 flex-1 truncate text-[16px] font-black", ink)}>
-              {viewer === "motorist" ? job.repairProName : job.motoristName}
-            </p>
-            {job.agreedMajor != null && (
-              <p className="shrink-0 text-[15px] font-black tabular-nums text-[#e07a3d]">
-                {formatMoney(job.agreedMajor, job.currency)}
-              </p>
-            )}
-          </div>
-
-          {job.problem?.trim() && (
-            <div>
-              <p className={cn("text-[10px] font-bold uppercase tracking-wide", muted)}>
-                Problem
-              </p>
-              <p className={cn("mt-1 text-[14px] font-semibold leading-snug", ink)}>
-                {job.problem}
-              </p>
-            </div>
-          )}
-
-          {!isReadyToGo && (
-            <div className="flex items-start gap-2">
-              <Navigation className="mt-0.5 h-4 w-4 shrink-0 text-[#e07a3d]" />
-              <div className="min-w-0">
-                <p className={cn("text-[13px] font-semibold", ink)}>
-                  {job.locationLabel || "Location on map"}
-                </p>
-                <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
-                  {viewer === "motorist"
-                    ? job.proLocation
-                      ? "Repair Pro live on map"
-                      : "Waiting for Repair Pro GPS"
-                    : "Navigate to motorist pin"}
-                  {job.distanceKm != null &&
-                    ` · ${
-                      job.distanceKm < 0.1
-                        ? "<0.1 km"
-                        : `${job.distanceKm.toFixed(1)} km`
-                    }`}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {isReadyToGo && (
-            <p className={cn("text-[12px] font-medium", muted)}>
-              {viewer === "repair_pro"
-                ? "Start trip when you leave for the motorist."
-                : "Repair Pro will start the trip soon."}
-            </p>
-          )}
-
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => startJobCall(job)}
-              className={cn(
-                "inline-flex h-12 items-center justify-center gap-2 rounded-md border-0 text-[13px] font-bold",
-                isLight
-                  ? "bg-[#a8a9ae] text-slate-900"
-                  : "bg-[#2c2c2e] text-white"
-              )}
-            >
-              <Phone className="h-4 w-4 text-[#e07a3d]" />
-              Call
-            </button>
-            <button
-              type="button"
-              onClick={() => void openJobChat(job)}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-md border-0 bg-[#e07a3d] text-[13px] font-bold text-white"
-            >
-              <MessageCircle className="h-4 w-4" />
-              Message
-            </button>
-          </div>
+          {tripMetaHeader}
+          {tripDetails}
+          {callMessageRow}
         </div>
-
-        {disputeOpen && (
-          <DisputeSheet
-            isLight={isLight}
-            reason={disputeReason}
-            setReason={setDisputeReason}
-            desc={disputeDesc}
-            setDesc={setDisputeDesc}
-            busy={busy}
-            onClose={() => setDisputeOpen(false)}
-            onSubmit={() =>
-              void run(async () => {
-                const res = await apiOpenDispute({
-                  jobId: job.id,
-                  by: viewer,
-                  reason: disputeReason,
-                  description: disputeDesc,
-                });
-                if (res.ok) setDisputeOpen(false);
-                return res;
-              })
-            }
-          />
-        )}
-        {err && (
-          <p className="px-4 pt-2 text-center text-[12px] font-semibold text-red-500">
-            {err}
-          </p>
-        )}
+        {disputeNode}
       </JobShell>
     );
   }
@@ -1314,17 +1513,23 @@ export function JobFlowScreen({
 
   /* ─── RELEASED / SATISFIED ─── */
   if (job.status === "released" || job.status === "satisfied") {
+    // Only motorist rates the Repair Pro. Both sides can view the result.
+    const hasRating = job.rating != null && job.rating > 0;
+    const alreadyLeft = reviewLeft || hasRating;
+    const displayRating = hasRating ? Number(job.rating) : rating;
+    const displayNote = (job.ratingNote || "").trim();
     const reviewChars = reviewText.length;
+
     const submitReview = async () => {
+      if (viewer !== "motorist") return;
       setBusy(true);
       setErr(null);
-      const note =
-        viewer === "motorist" ? reviewText.trim().slice(0, REVIEW_MAX) : undefined;
+      const note = reviewText.trim().slice(0, REVIEW_MAX);
       const res = await apiRateJob({
         jobId: job.id,
         rating,
         note: note || undefined,
-        actor: viewer,
+        actor: "motorist",
       });
       setBusy(false);
       if (!res.ok) {
@@ -1337,6 +1542,61 @@ export function JobFlowScreen({
       window.setTimeout(() => setFlash(null), 2500);
     };
 
+    const starRow = (value: number, interactive: boolean) => (
+      <div
+        className="flex items-center justify-center gap-2"
+        role={interactive ? "radiogroup" : "img"}
+        aria-label={
+          interactive ? "Rate the Repair Pro" : `Rated ${value} out of 5`
+        }
+      >
+        {[1, 2, 3, 4, 5].map((n) => {
+          const on = value >= n;
+          if (!interactive) {
+            return (
+              <Star
+                key={n}
+                className={cn(
+                  "h-8 w-8",
+                  on
+                    ? "fill-[#e07a3d] text-[#e07a3d]"
+                    : isLight
+                      ? "fill-transparent text-slate-400"
+                      : "fill-transparent text-white/35"
+                )}
+                strokeWidth={1.75}
+                aria-hidden
+              />
+            );
+          }
+          return (
+            <button
+              key={n}
+              type="button"
+              role="radio"
+              aria-checked={rating === n}
+              aria-label={`${n} star${n === 1 ? "" : "s"}`}
+              disabled={alreadyLeft}
+              onClick={() => setRating(n)}
+              className="border-0 bg-transparent p-1 transition active:scale-95 disabled:opacity-70"
+            >
+              <Star
+                className={cn(
+                  "h-9 w-9",
+                  on
+                    ? "fill-[#e07a3d] text-[#e07a3d]"
+                    : isLight
+                      ? "fill-transparent text-slate-400"
+                      : "fill-transparent text-white/35"
+                )}
+                strokeWidth={1.75}
+              />
+            </button>
+          );
+        })}
+      </div>
+    );
+
     return (
       <JobShell
         isLight={isLight}
@@ -1344,7 +1604,7 @@ export function JobFlowScreen({
         compactHeader
         onBack={goHome}
         footer={
-          !reviewLeft ? (
+          viewer === "motorist" && !alreadyLeft ? (
             <CopperButton
               disabled={busy}
               onClick={() => void submitReview()}
@@ -1398,86 +1658,100 @@ export function JobFlowScreen({
             </div>
           )}
 
-          {/* Rate: stars + motorist text review (144 max) */}
+          {/* Rating: motorist writes; both motorist + pro can read */}
           <div className="mt-10 w-full max-w-md text-left">
-            <p className={cn("mb-3 text-center text-[14px] font-bold", ink)}>
-              Rate this job
-            </p>
-            <div
-              className="flex items-center justify-center gap-2"
-              role="radiogroup"
-              aria-label="Job rating"
-            >
-              {[1, 2, 3, 4, 5].map((n) => {
-                const on = rating >= n;
-                return (
-                  <button
-                    key={n}
-                    type="button"
-                    role="radio"
-                    aria-checked={rating === n}
-                    aria-label={`${n} star${n === 1 ? "" : "s"}`}
-                    disabled={reviewLeft}
-                    onClick={() => setRating(n)}
-                    className="border-0 bg-transparent p-1 transition active:scale-95 disabled:opacity-70"
-                  >
-                    <Star
-                      className={cn(
-                        "h-9 w-9",
-                        on
-                          ? "fill-[#e07a3d] text-[#e07a3d]"
-                          : isLight
-                            ? "fill-transparent text-slate-400"
-                            : "fill-transparent text-white/35"
-                      )}
-                      strokeWidth={1.75}
-                    />
-                  </button>
-                );
-              })}
-            </div>
-
-            {viewer === "motorist" && (
-              <div className="mt-5">
-                <label
-                  htmlFor="job-review-text"
-                  className={cn("mb-1.5 block text-[12px] font-bold", ink)}
-                >
-                  Write a review
-                </label>
-                <textarea
-                  id="job-review-text"
-                  value={reviewText}
-                  onChange={(e) =>
-                    setReviewText(e.target.value.slice(0, REVIEW_MAX))
-                  }
-                  disabled={reviewLeft}
-                  maxLength={REVIEW_MAX}
-                  rows={3}
-                  placeholder="How was the repair? (optional)"
-                  className={cn(
-                    "w-full resize-none rounded-md border-0 px-3 py-2.5 text-[13px] font-medium outline-none ring-1 transition placeholder:opacity-50 disabled:opacity-60",
-                    isLight
-                      ? "bg-transparent text-slate-900 ring-black/15 focus:ring-[#e07a3d]/50"
-                      : "bg-transparent text-white ring-white/20 focus:ring-[#e07a3d]/50"
-                  )}
-                />
-                <p
-                  className={cn(
-                    "mt-1 text-right text-[11px] font-semibold tabular-nums",
-                    reviewChars >= REVIEW_MAX ? "text-[#e07a3d]" : muted
-                  )}
-                >
-                  {reviewChars}/{REVIEW_MAX}
+            {viewer === "motorist" && !alreadyLeft ? (
+              <>
+                <p className={cn("mb-3 text-center text-[14px] font-bold", ink)}>
+                  Rate your Repair Pro
                 </p>
-              </div>
-            )}
-
-            {reviewLeft && (
-              <p className={cn("mt-3 text-center text-[12px] font-semibold", muted)}>
-                Review submitted
+                {starRow(rating, true)}
+                <div className="mt-5">
+                  <label
+                    htmlFor="job-review-text"
+                    className={cn("mb-1.5 block text-[12px] font-bold", ink)}
+                  >
+                    Write a review
+                  </label>
+                  <textarea
+                    id="job-review-text"
+                    value={reviewText}
+                    onChange={(e) =>
+                      setReviewText(e.target.value.slice(0, REVIEW_MAX))
+                    }
+                    maxLength={REVIEW_MAX}
+                    rows={3}
+                    placeholder="How was the repair? (optional)"
+                    className={cn(
+                      "w-full resize-none rounded-md border-0 px-3 py-2.5 text-[13px] font-medium outline-none ring-1 transition placeholder:opacity-50",
+                      isLight
+                        ? "bg-transparent text-slate-900 ring-black/15 focus:ring-[#e07a3d]/50"
+                        : "bg-transparent text-white ring-white/20 focus:ring-[#e07a3d]/50"
+                    )}
+                  />
+                  <p
+                    className={cn(
+                      "mt-1 text-right text-[11px] font-semibold tabular-nums",
+                      reviewChars >= REVIEW_MAX ? "text-[#e07a3d]" : muted
+                    )}
+                  >
+                    {reviewChars}/{REVIEW_MAX}
+                  </p>
+                </div>
+              </>
+            ) : hasRating ? (
+              <>
+                <p className={cn("mb-3 text-center text-[14px] font-bold", ink)}>
+                  {viewer === "repair_pro"
+                    ? "Motorist rating"
+                    : "Your review of the Repair Pro"}
+                </p>
+                {starRow(displayRating, false)}
+                {displayNote ? (
+                  <p
+                    className={cn(
+                      "mt-4 rounded-md px-3 py-2.5 text-[13px] font-medium leading-snug break-words",
+                      isLight
+                        ? "bg-[#bebfc4]/60 text-slate-900"
+                        : "bg-[#1a1a1a] text-white/90"
+                    )}
+                  >
+                    “{displayNote}”
+                  </p>
+                ) : (
+                  <p
+                    className={cn(
+                      "mt-3 text-center text-[12px] font-semibold",
+                      muted
+                    )}
+                  >
+                    No written review
+                  </p>
+                )}
+                {viewer === "motorist" && (
+                  <p
+                    className={cn(
+                      "mt-3 text-center text-[12px] font-semibold",
+                      muted
+                    )}
+                  >
+                    Review submitted
+                  </p>
+                )}
+              </>
+            ) : (
+              <p
+                className={cn(
+                  "text-center text-[13px] font-semibold leading-snug",
+                  muted
+                )}
+              >
+                {viewer === "repair_pro"
+                  ? "Waiting for the motorist to rate and review this job."
+                  : "Rate this job when you’re ready."}
               </p>
             )}
+
             {flash && (
               <p className="mt-2 text-center text-[12px] font-bold text-[#e07a3d]">
                 {flash}
