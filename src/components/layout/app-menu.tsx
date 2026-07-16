@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Briefcase,
   Clock3,
   History,
   Home,
@@ -33,9 +32,7 @@ const CLIENT_NAV = [
 
 const PRO_NAV = [
   { href: "/dashboard", label: "Dashboard", icon: Wrench },
-  { href: "/orders", label: "Orders", icon: Briefcase },
-  { href: "/requests", label: "Jobs", icon: Clock3 },
-  { href: "/history", label: "History", icon: History },
+  { href: "/jobs", label: "Jobs", icon: Clock3 },
   { href: "/messages", label: "Messages", icon: MessageCircle },
   { href: "/profile", label: "Profile", icon: UserRound },
   { href: "/settings", label: "Settings", icon: Settings },

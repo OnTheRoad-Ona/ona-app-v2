@@ -320,13 +320,6 @@ export default function RequestProcessPage({
           )}
         </section>
 
-        <button
-          type="button"
-          onClick={() => router.push("/requests")}
-          className="inline-flex h-12 w-full items-center justify-center rounded-md border-0 bg-[#2c2c2e] text-[14px] font-semibold text-white"
-        >
-          Back to Requests
-        </button>
       </div>
     </div>
   );

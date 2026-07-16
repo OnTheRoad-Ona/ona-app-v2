@@ -427,11 +427,8 @@ export function JobFlowScreen({
     );
   }
 
-  /* ─── EXPIRED ─── */
+  /* ─── EXPIRED — pure history, no action buttons ─── */
   if (job.status === "expired" || negStatus === "expired") {
-    /** Dark grey CTA — same both themes */
-    const darkGreyBtn =
-      "inline-flex h-12 w-full items-center justify-center rounded-md border-0 bg-[#2c2c2e] text-[14px] font-semibold text-white transition active:scale-[0.99]";
     const isPro = viewer === "repair_pro";
 
     return (
@@ -440,44 +437,11 @@ export function JobFlowScreen({
         title="Negotiation expired"
         compactHeader
         onBack={isPro ? () => router.push("/dashboard") : goJobsList}
-        footer={
-          <div className="flex flex-col gap-2">
-            {isPro ? (
-              <button
-                type="button"
-                className={darkGreyBtn}
-                onClick={() => router.push("/dashboard")}
-              >
-                Back to Dashboard
-              </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  className={darkGreyBtn}
-                  onClick={() =>
-                    router.push(`/request?tech=${job.repairProId}`)
-                  }
-                >
-                  Request again
-                </button>
-                <button
-                  type="button"
-                  className={darkGreyBtn}
-                  onClick={() => router.push("/")}
-                >
-                  Choose another pro
-                </button>
-              </>
-            )}
-          </div>
-        }
       >
-        {/* No gray card — text on stage */}
         <p className={cn("px-0.5 pt-4 text-[14px] font-medium leading-relaxed", ink)}>
           {isPro
             ? `This request ended between you and ${job.motoristName}. No agreement was reached.`
-            : `No agreement was reached with ${job.repairProName}. You can request the same pro again or pick someone else nearby.`}
+            : `No agreement was reached with ${job.repairProName}.`}
         </p>
       </JobShell>
     );
@@ -1621,6 +1585,7 @@ export function JobFlowScreen({
         compactHeader
         onBack={goHome}
         footer={
+          // Pure history when already reviewed / pro view — motorist may still leave review once
           viewer === "motorist" && !alreadyLeft ? (
             <CopperButton
               disabled={busy}
@@ -1628,9 +1593,7 @@ export function JobFlowScreen({
             >
               {busy ? "Saving…" : "Leave review"}
             </CopperButton>
-          ) : (
-            <CopperButton onClick={goHome}>Done</CopperButton>
-          )
+          ) : undefined
         }
       >
         {/* Flat success layout — no cards / no tinted panels (both themes) */}

@@ -1,15 +1,14 @@
 "use client";
 
 /**
- * Pro dashboard — Uber-style list slot under Live:
- * - New Request (negotiating) only while not yet accepted
- * - Otherwise Recent Bookings: address + car type (if set)
- * No section titles, descriptions, or History/All jobs links.
+ * Pro dashboard — Uber-style list under Live (no section titles):
+ * - Incoming: New Request only, real meet address (never “Current location”)
+ * - Else Recent: small non-clickable completed rows — car type (if any) + location text only
  */
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Car, ChevronRight, Clock3, Loader2, MapPin, Radio } from "lucide-react";
+import { ChevronRight, Loader2, Radio } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { apiListJobs } from "@/lib/jobs/client";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
@@ -18,19 +17,37 @@ import { useApp } from "@/lib/store";
 import type { ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-/** Only unaccepted new requests sit in the Incoming slot */
+/** New Request only — leaves dashboard after Accept */
 const INCOMING_STATUSES = new Set<JobFlowStatus>(["negotiating"]);
 
+/** Completed jobs only for Recent */
 const RECENT_STATUSES = new Set<JobFlowStatus>([
   "completed",
   "satisfied",
   "released",
-  "cancelled",
-  "expired",
-  "refunded",
-  // After accept, job leaves Incoming but is not yet “recent finished”
-  // agreed / paid / trip still not listed here (Uber: gone from home list)
 ]);
+
+/** Labels that are pro GPS noise, not motorist meet address */
+function isGenericLocation(label: string): boolean {
+  const t = label.trim().toLowerCase();
+  if (!t) return true;
+  return (
+    t === "current location" ||
+    t === "locating…" ||
+    t === "locating..." ||
+    t === "near you" ||
+    t === "last known location" ||
+    t === "live location" ||
+    t === "pinned location" ||
+    t === "pinned"
+  );
+}
+
+function meetAddress(j: JobRecord): string | null {
+  const raw = (j.locationLabel || "").trim();
+  if (!raw || isGenericLocation(raw)) return null;
+  return raw;
+}
 
 export default function TechnicianDashboardPage() {
   const {
@@ -79,7 +96,6 @@ export default function TechnicianDashboardPage() {
         return true;
       });
 
-      // Incoming = New Request only (disappears after Accept / can fix)
       const open = mine
         .filter((j) => {
           if (!INCOMING_STATUSES.has(j.status)) return false;
@@ -136,7 +152,6 @@ export default function TechnicianDashboardPage() {
     }
   };
 
-  // Uber-style: one list slot under Live
   const showIncoming = incoming.length > 0;
   const showRecent = !showIncoming && recent.length > 0;
 
@@ -183,7 +198,6 @@ export default function TechnicianDashboardPage() {
       </div>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 pb-4 scrollbar-hide">
-        {/* Live */}
         <section className={cn("border-b pb-4", hairline)}>
           <div className="flex items-center gap-3">
             <Radio
@@ -228,107 +242,95 @@ export default function TechnicianDashboardPage() {
           </div>
         )}
 
-        {/* Incoming job rows only — no title / description */}
+        {/* Incoming — live request only, real meet address (no labels) */}
         {!jobsLoading && showIncoming && (
           <ul className="space-y-0">
-            {incoming.map((j) => (
-              <li key={j.id}>
-                <Link
-                  href={`/jobs/${j.id}`}
-                  className={cn(
-                    "flex items-center gap-3 border-0 border-b bg-transparent py-3.5 active:opacity-90",
-                    isLight ? "border-black/10" : "border-white/10"
-                  )}
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className={cn("truncate text-[15px] font-semibold", ink)}>
-                      {j.motoristName}
-                    </p>
-                    {j.locationLabel?.trim() ? (
+            {incoming.map((j) => {
+              const addr = meetAddress(j);
+              return (
+                <li key={j.id}>
+                  <Link
+                    href={`/jobs/${j.id}`}
+                    className={cn(
+                      "flex items-center gap-3 border-0 border-b bg-transparent py-3.5 active:opacity-90",
+                      isLight ? "border-black/10" : "border-white/10"
+                    )}
+                  >
+                    <div className="min-w-0 flex-1">
                       <p
                         className={cn(
-                          "mt-0.5 flex items-center gap-1 text-[12px] font-medium",
-                          muted
+                          "truncate text-[15px] font-semibold",
+                          ink
                         )}
                       >
-                        <MapPin className="h-3 w-3 shrink-0 text-[#e07a3d]" />
-                        <span className="truncate">{j.locationLabel}</span>
+                        {j.motoristName}
                       </p>
-                    ) : null}
-                    {j.problem?.trim() ? (
-                      <p
-                        className={cn(
-                          "mt-0.5 line-clamp-1 text-[12px] font-medium",
-                          muted
-                        )}
-                      >
-                        {j.problem}
-                      </p>
-                    ) : null}
-                  </div>
-                  <ChevronRight className={cn("h-4 w-4 shrink-0", muted)} />
-                </Link>
-              </li>
-            ))}
+                      {addr ? (
+                        <p
+                          className={cn(
+                            "mt-0.5 truncate text-[12px] font-medium",
+                            muted
+                          )}
+                        >
+                          {addr}
+                        </p>
+                      ) : null}
+                      {j.problem?.trim() ? (
+                        <p
+                          className={cn(
+                            "mt-0.5 line-clamp-1 text-[12px] font-medium",
+                            muted
+                          )}
+                        >
+                          {j.problem}
+                        </p>
+                      ) : null}
+                    </div>
+                    <ChevronRight className={cn("h-4 w-4 shrink-0", muted)} />
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         )}
 
-        {/* Recent: address + car type only — same slot, no titles */}
+        {/* Recent completed — small, not clickable: car type then location */}
         {!jobsLoading && showRecent && (
           <ul className="space-y-0">
-            {recent
-              .filter(
-                (j) =>
-                  Boolean(j.locationLabel?.trim()) ||
-                  Boolean(j.motoristVehicle?.trim())
-              )
-              .map((j) => {
-                const address = j.locationLabel?.trim() || "";
-                const car = (j.motoristVehicle || "").trim();
-                return (
-                  <li key={j.id}>
-                    <Link
-                      href={`/requests/${j.id}`}
-                      className={cn(
-                        "flex w-full items-start gap-2.5 border-0 border-b bg-transparent py-3.5 text-left last:border-b-0",
-                        isLight ? "border-black/10" : "border-white/10"
-                      )}
-                    >
-                      <Clock3
-                        className="mt-0.5 h-4 w-4 shrink-0 text-[#e07a3d]"
-                        aria-hidden
-                      />
-                      <div className="min-w-0 flex-1 space-y-1">
-                        {address ? (
-                          <p
-                            className={cn(
-                              "flex items-start gap-1.5 text-[14px] font-semibold leading-snug",
-                              ink
-                            )}
-                          >
-                            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#e07a3d]" />
-                            <span className="line-clamp-2">{address}</span>
-                          </p>
-                        ) : null}
-                        {car ? (
-                          <p
-                            className={cn(
-                              "flex items-center gap-1.5 pl-0.5 text-[12px] font-medium",
-                              muted
-                            )}
-                          >
-                            <Car className="h-3.5 w-3.5 shrink-0" />
-                            <span className="truncate">{car}</span>
-                          </p>
-                        ) : null}
-                      </div>
-                      <ChevronRight
-                        className={cn("mt-0.5 h-4 w-4 shrink-0", muted)}
-                      />
-                    </Link>
-                  </li>
-                );
-              })}
+            {recent.map((j) => {
+              const addr = meetAddress(j);
+              const car = (j.motoristVehicle || "").trim();
+              // Prefer real address; fall back to car only
+              if (!addr && !car) return null;
+              return (
+                <li
+                  key={j.id}
+                  className={cn(
+                    "border-0 border-b py-2 last:border-b-0",
+                    isLight ? "border-black/10" : "border-white/10"
+                  )}
+                >
+                  <p
+                    className={cn(
+                      "text-[12px] font-medium leading-snug",
+                      muted
+                    )}
+                  >
+                    {car && addr ? (
+                      <>
+                        <span className={cn("font-semibold", ink)}>{car}</span>
+                        <span className="mx-1 opacity-50">·</span>
+                        <span>{addr}</span>
+                      </>
+                    ) : car ? (
+                      <span className={cn("font-semibold", ink)}>{car}</span>
+                    ) : (
+                      <span>{addr}</span>
+                    )}
+                  </p>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
