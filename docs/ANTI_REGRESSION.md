@@ -92,6 +92,13 @@ Portals for menus/call sheets must mount on `#oga-mecho-phone`, not `document.bo
 | Job list polls | ≥ **60s**; pause when tab hidden |
 | Live pro GPS upload | ≥ **45–60s** between pushes |
 | Intro video | `preload="none"` — do not auto-download 600KB+ on open |
+| In-app call | Prefer WebRTC via Supabase signaling; `tel:` only via `openTelDialer` never `location.href` |
+
+### In-app voice (WebRTC)
+- Signaling: Realtime broadcast on `call-inbox:{userId}` + `call-session:{callId}`
+- STUN only (Google public) — no paid TURN required for many networks
+- Job Call passes `userId` (peer) + optional `phone` fallback
+- Incoming: Accept / Decline UI on the other device when app is open
 
 ## 8. Pre-merge smoke (call / message / negotiate)
 

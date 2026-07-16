@@ -162,28 +162,28 @@ export function JobFlowScreen({
             (t) =>
               t.name === j.repairProName && t.serviceType === j.serviceType
           );
-        const phone = (
-          j.repairProPhone ||
-          tech?.phone ||
-          ""
-        ).trim();
-        if (!phone) {
-          setFlash("Repair Pro phone not on file — use Message.");
+        const phone = (j.repairProPhone || tech?.phone || "").trim();
+        const peerId = j.repairProId;
+        if (!phone && !peerId) {
+          setFlash("Cannot call — no in-app peer or phone. Use Message.");
           window.setTimeout(() => setFlash(null), 3500);
           return;
         }
+        // Prefer in-app WebRTC when peer id known; phone is fallback
         startCall({
           name: j.repairProName,
           phone,
           photo: j.repairProPhoto || tech?.photo,
           roleLabel: PRO_SERVICE_LABELS[j.serviceType] || "Repair Pro",
+          userId: peerId || undefined,
+          jobId: j.id,
         });
         return;
       }
-      // Pro → motorist: phone hydrated from profiles on job load
       const phone = (j.motoristPhone || "").trim();
-      if (!phone) {
-        setFlash("Motorist phone not on file — use Message.");
+      const peerId = j.motoristId;
+      if (!phone && !peerId) {
+        setFlash("Cannot call — no in-app peer or phone. Use Message.");
         window.setTimeout(() => setFlash(null), 3500);
         return;
       }
@@ -192,6 +192,8 @@ export function JobFlowScreen({
         phone,
         photo: j.motoristPhoto || undefined,
         roleLabel: "Motorist",
+        userId: peerId || undefined,
+        jobId: j.id,
       });
     },
     [startCall, technicians, viewer]
