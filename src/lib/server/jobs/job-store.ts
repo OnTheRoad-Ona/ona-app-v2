@@ -227,11 +227,13 @@ function jobToDbPatch(job: JobRecord): Record<string, unknown> {
     agreed_major: job.agreedMajor,
     max_offers: job.maxOffers,
     motorist_name: job.motoristName,
+    motorist_photo: job.motoristPhoto || null,
     repair_pro_name: job.repairProName,
     repair_pro_photo: job.repairProPhoto || null,
     // Live motorist pin uses pickup coords (updated on motorist GPS pings)
     pickup_lat: job.motoristLocation?.lat ?? null,
     pickup_lng: job.motoristLocation?.lng ?? null,
+    motorist_location_at: job.motoristLocationAt ?? null,
     pro_lat: job.proLocation?.lat ?? null,
     pro_lng: job.proLocation?.lng ?? null,
     eta_minutes: job.etaMinutes ?? null,
@@ -317,20 +319,6 @@ async function persist(job: JobRecord): Promise<JobRecord> {
           );
         }
       }
-    }
-    // Optional columns (migration may not be applied yet — ignore errors)
-    if (job.motoristPhoto || job.motoristLocationAt) {
-      await sb
-        .from("service_requests")
-        .update({
-          ...(job.motoristPhoto
-            ? { motorist_photo: job.motoristPhoto }
-            : {}),
-          ...(job.motoristLocationAt
-            ? { motorist_location_at: job.motoristLocationAt }
-            : {}),
-        })
-        .eq("id", job.id);
     }
     try {
       await sb.from("job_events").insert({

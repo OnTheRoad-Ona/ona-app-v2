@@ -13,7 +13,8 @@
     "db:seed-admin": "node scripts/seed-admin.mjs",
     "lint": "eslint",
     "db:apply": "node scripts/apply-schema.mjs",
-    "db:setup": "node scripts/apply-schema.mjs && node scripts/seed-admin.mjs"
+    "db:sync": "node scripts/sync-db-latest.mjs",
+    "db:setup": "node scripts/apply-schema.mjs && node scripts/seed-admin.mjs && node scripts/sync-db-latest.mjs"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.2.2",
