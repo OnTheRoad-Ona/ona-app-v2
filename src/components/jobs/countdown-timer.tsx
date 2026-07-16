@@ -40,20 +40,21 @@ export function CountdownTimer({
 
   return (
     <div className={cn("w-full", className)}>
-      <div className="mb-1.5 flex items-end justify-between gap-2">
-        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#e07a3d]">
-          Negotiation timer
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <p className="text-[10px] font-medium tracking-wide text-[#e07a3d]">
+          Time left
         </p>
         <p
           className={cn(
-            "font-black tabular-nums tracking-tight",
-            urgent ? "text-red-500 text-[28px]" : "text-[26px] text-inherit"
+            "text-[15px] font-semibold tabular-nums tracking-tight leading-none",
+            urgent ? "text-red-500" : "text-inherit"
           )}
         >
           {String(m).padStart(2, "0")}:{String(s).padStart(2, "0")}
         </p>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
+      {/* Slim progress track */}
+      <div className="h-[3px] w-full overflow-hidden rounded-full bg-black/15 dark:bg-white/15">
         <div
           className={cn(
             "h-full rounded-full transition-all duration-300",

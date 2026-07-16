@@ -621,13 +621,13 @@ export function JobFlowScreen({
                     maxLength={MAX_OFFER_DIGITS}
                     value={offerInput}
                     onChange={(e) => {
-                      // Digits only, no leading zeros as whole price, max 6 chars
-                      const raw = e.target.value.replace(/\D/g, "").slice(0, MAX_OFFER_DIGITS);
+                      const raw = e.target.value
+                        .replace(/\D/g, "")
+                        .slice(0, MAX_OFFER_DIGITS);
                       if (raw === "") {
                         setOfferInput("");
                         return;
                       }
-                      // Allow typing but block pure 0
                       if (/^0+$/.test(raw)) {
                         setOfferInput("");
                         return;
@@ -640,10 +640,10 @@ export function JobFlowScreen({
                         : "Counter (max 50% off)"
                     }
                     className={cn(
-                      "h-11 flex-1 rounded-md border-0 px-3 text-[14px] font-bold outline-none",
+                      "h-11 flex-1 rounded-md border-0 bg-transparent px-3 text-[14px] font-medium outline-none ring-1",
                       isLight
-                        ? "bg-[#bebfc4] text-slate-900"
-                        : "bg-[#1c1c1c] text-white"
+                        ? "text-slate-900 ring-black/20 placeholder:text-slate-500 focus:ring-[#e07a3d]/55"
+                        : "text-white ring-white/25 placeholder:text-white/40 focus:ring-[#e07a3d]/55"
                     )}
                     aria-label="Labour price offer"
                   />
@@ -655,7 +655,10 @@ export function JobFlowScreen({
                         const amount = Number(offerInput.replace(/\D/g, ""));
                         if (!Number.isFinite(amount) || amount < 1) {
                           setErr("Price cannot start from 0.");
-                          return { ok: false as const, message: "Price cannot start from 0." };
+                          return {
+                            ok: false as const,
+                            message: "Price cannot start from 0.",
+                          };
                         }
                         const res = await apiPlaceOffer({
                           jobId: job.id,
@@ -667,23 +670,23 @@ export function JobFlowScreen({
                         return res;
                       })
                     }
-                    className={cn(
-                      "h-11 shrink-0 rounded-md border-0 px-4 text-[13px] font-bold disabled:opacity-40",
-                      isLight
-                        ? "bg-[#a8a9ae] text-slate-900"
-                        : "bg-[#2c2c2e] text-white"
-                    )}
+                    className="h-11 shrink-0 rounded-md border-0 bg-[#e07a3d] px-4 text-[13px] font-semibold text-white disabled:opacity-40"
                   >
                     Send
                   </button>
                 </div>
                 <p className={cn("text-[10px] font-medium", muted)}>
-                  Up to {job.maxOffers} offers · not 0 · max {MAX_OFFER_DIGITS} digits · 20 min
+                  Up to {job.maxOffers} offers · not 0 · max {MAX_OFFER_DIGITS}{" "}
+                  digits · 20 min
                 </p>
               </div>
             )}
             <GhostButton
               isLight={isLight}
+              className={cn(
+                "bg-transparent font-medium",
+                isLight ? "text-slate-700" : "text-white/75"
+              )}
               onClick={() =>
                 void run(() =>
                   apiTransition({
@@ -700,8 +703,9 @@ export function JobFlowScreen({
           </div>
         }
       >
-        <div className="space-y-1.5">
-          <JobCard isLight={isLight}>
+        {/* Flat stage — no gray cards / chips */}
+        <div className="space-y-5 px-0.5 pt-1">
+          <div>
             <CountdownTimer
               endsAt={job.negotiateEndsAt}
               onExpire={() => {
@@ -715,47 +719,45 @@ export function JobFlowScreen({
               }}
               className={ink}
             />
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              <StatusPill
-                label={
-                  negStatus === "waiting"
-                    ? "Waiting"
-                    : negStatus === "countered"
-                      ? "Countered"
-                      : negStatus
-                }
-                tone={negStatus === "waiting" ? "amber" : "copper"}
-              />
-              <StatusPill
-                label={`${job.offers.length} / ${job.maxOffers} offers`}
-                tone="neutral"
-              />
-            </div>
-          </JobCard>
+            <p className={cn("mt-2 text-[12px] font-medium", muted)}>
+              {negStatus === "waiting"
+                ? "Waiting for a reply"
+                : negStatus === "countered"
+                  ? "Counter offer on the table"
+                  : String(negStatus)}
+              {" · "}
+              {job.offers.length}/{job.maxOffers} offers
+            </p>
+          </div>
 
           {theirOffer && (
-            <JobCard isLight={isLight}>
-              <p className={cn("text-[11px] font-bold", muted)}>
+            <div>
+              <p className={cn("text-[11px] font-medium", muted)}>
                 {theirOffer.side === "repair_pro"
                   ? "Repair Pro offered"
                   : "Motorist offered"}
               </p>
-              <p className="mt-0.5 text-[20px] font-black text-[#e07a3d]">
+              <p className="mt-0.5 text-[22px] font-semibold tabular-nums text-[#e07a3d]">
                 {formatMoney(theirOffer.amountMajor, job.currency)}
               </p>
               <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
                 Labour only. Spare parts not included.
               </p>
-            </JobCard>
+            </div>
           )}
 
-          <JobCard isLight={isLight}>
-            <p className={cn("text-[11px] font-bold", muted)}>Problem</p>
-            <p className={cn("mt-0.5 text-[13px] font-semibold leading-snug", ink)}>
+          <div>
+            <p className={cn("text-[11px] font-medium", muted)}>Problem</p>
+            <p
+              className={cn(
+                "mt-1 text-[14px] font-medium leading-relaxed",
+                ink
+              )}
+            >
               {job.problem}
             </p>
             {job.voiceNote?.url && (
-              <div className="mt-3">
+              <div className="mt-2.5">
                 <VoiceNotePlayer
                   url={job.voiceNote.url}
                   durationSec={job.voiceNote.durationSec}
@@ -768,43 +770,45 @@ export function JobFlowScreen({
                 />
               </div>
             )}
-          </JobCard>
+          </div>
 
-          <JobCard isLight={isLight}>
-            <p className={cn("mb-1.5 text-[11px] font-bold", muted)}>
+          <div>
+            <p className={cn("mb-1.5 text-[11px] font-medium", muted)}>
               Offer history
             </p>
             {job.offers.length === 0 ? (
-              <p className={cn("text-[12px] font-medium", muted)}>
+              <p className={cn("text-[13px] font-medium leading-snug", muted)}>
                 {viewer === "repair_pro"
                   ? "Set your labour price to start. Spare parts are never included."
                   : "Waiting for Repair Pro to open with a labour price…"}
               </p>
             ) : (
-              <ul className="space-y-1">
+              <ul className="space-y-2">
                 {job.offers.map((o) => (
                   <li
                     key={o.id}
-                    className={cn(
-                      "flex items-center justify-between rounded-md px-2.5 py-2",
-                      isLight ? "bg-black/10" : "bg-[#0a0a0a]"
-                    )}
+                    className="flex items-center justify-between gap-3 py-0.5"
                   >
-                    <span className={cn("text-[11px] font-bold", muted)}>
+                    <span className={cn("text-[12px] font-medium", muted)}>
                       #{o.offerIndex}{" "}
                       {o.side === "repair_pro" ? "Repair Pro" : "Motorist"}
                     </span>
-                    <span className={cn("text-[14px] font-black", ink)}>
+                    <span
+                      className={cn(
+                        "text-[14px] font-semibold tabular-nums",
+                        ink
+                      )}
+                    >
                       {formatMoney(o.amountMajor, o.currency)}
                     </span>
                   </li>
                 ))}
               </ul>
             )}
-          </JobCard>
+          </div>
         </div>
         {err && (
-          <p className="mt-2 text-center text-[12px] font-semibold text-red-500">
+          <p className="mt-3 text-center text-[12px] font-medium text-red-500">
             {err}
           </p>
         )}
