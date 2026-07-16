@@ -96,7 +96,7 @@ function PulsingProPin({
   label: string;
   serviceType: string;
 }) {
-  const icon = tradeIconDataUrl(serviceType, { size: 26, selected: true });
+  const icon = tradeIconDataUrl(serviceType, { size: 24, selected: true });
   return (
     <OverlayViewF
       position={position}
@@ -117,8 +117,8 @@ function PulsingProPin({
         <img
           src={icon}
           alt=""
-          width={26}
-          height={26}
+          width={24}
+          height={24}
           className="om-live-glyph absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2"
         />
       </div>

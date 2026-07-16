@@ -23,10 +23,10 @@ function userIcon() {
   });
 }
 
-/** Filled metallic-orange trade pin + live beam */
+/** Orange trade glyph only (no circle) + live beam — same size, shade on select */
 function techIcon(t: Technician, selected: boolean) {
-  const size = selected ? 28 : 24;
-  const box = selected ? 36 : 32;
+  const size = 24;
+  const box = 32;
   return L.divIcon({
     className: "om-trade-marker",
     html: tradeIconHtml(t.serviceType, { size, selected }),

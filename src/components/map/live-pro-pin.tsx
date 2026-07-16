@@ -4,9 +4,12 @@ import { OverlayViewF, OVERLAY_MOUSE_TARGET } from "@react-google-maps/api";
 import { tradeIconDataUrl } from "@/lib/map-trade-icons";
 import type { Technician } from "@/lib/types";
 
+/** Same pixel size always — selected only changes orange shade (no circle plate). */
+const ICON_SIZE = 24;
+const BOX = 32;
+
 /**
- * Filled metallic-orange trade pin with live pulse.
- * Bright orange disc + white trade glyph so pros stay visible on any map theme.
+ * Repair Pro map pin: filled metallic-orange trade icon only (no disc).
  */
 export function LiveProPin({
   tech,
@@ -17,25 +20,26 @@ export function LiveProPin({
   selected: boolean;
   onSelect?: (id: string) => void;
 }) {
-  const size = selected ? 28 : 24;
-  const box = selected ? 36 : 32;
-  const url = tradeIconDataUrl(tech.serviceType, { size, selected });
+  const url = tradeIconDataUrl(tech.serviceType, {
+    size: ICON_SIZE,
+    selected,
+  });
 
   return (
     <OverlayViewF
       position={{ lat: tech.location.lat, lng: tech.location.lng }}
       mapPaneName={OVERLAY_MOUSE_TARGET}
       getPixelPositionOffset={(w, h) => ({
-        x: -(w ?? box) / 2,
-        y: -(h ?? box) / 2,
+        x: -(w ?? BOX) / 2,
+        y: -(h ?? BOX) / 2,
       })}
     >
       <button
         type="button"
         className="om-live-pin om-live-pin--map border-0 bg-transparent p-0"
         style={{
-          width: box,
-          height: box,
+          width: BOX,
+          height: BOX,
           position: "relative",
           cursor: "pointer",
         }}
@@ -51,13 +55,13 @@ export function LiveProPin({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={url}
-          width={size}
-          height={size}
+          width={ICON_SIZE}
+          height={ICON_SIZE}
           alt=""
           className="om-live-glyph"
           style={{
-            width: size,
-            height: size,
+            width: ICON_SIZE,
+            height: ICON_SIZE,
             position: "absolute",
             left: "50%",
             top: "50%",

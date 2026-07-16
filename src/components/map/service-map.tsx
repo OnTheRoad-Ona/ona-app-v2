@@ -128,10 +128,10 @@ const MAP_STYLES_DARK: google.maps.MapTypeStyle[] = [
   { featureType: "transit", stylers: [{ visibility: "off" }] },
 ];
 
-/** Filled metallic-orange trade pin (visible on green/red map stages) */
+/** Orange filled trade glyph only — no circle plate; selected = shade only */
 function proMarkerIconUrl(t: Technician, selected: boolean): string {
   return tradeIconDataUrl(t.serviceType, {
-    size: selected ? 28 : 24,
+    size: 24,
     selected,
   });
 }
@@ -306,8 +306,8 @@ function MockupMap({
               <img
                 src={pinUrl}
                 alt=""
-                width={isSel ? 28 : 24}
-                height={isSel ? 28 : 24}
+                width={24}
+                height={24}
                 className="om-live-glyph relative z-[1] block"
                 draggable={false}
               />
