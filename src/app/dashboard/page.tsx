@@ -2,13 +2,12 @@
 
 /**
  * Professional dashboard — Live control, Incoming jobs, Recent Bookings.
- * Recent Bookings (finished) only when there is no open Incoming request.
+ * Section titles only when there are items. Recent hidden while open jobs exist.
  */
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  Briefcase,
   ChevronRight,
   Clock3,
   Loader2,
@@ -43,12 +42,15 @@ function shortStatus(status: JobFlowStatus): string {
     case "satisfied":
     case "released":
       return "Finished";
+    case "cancelled":
+      return "Cancelled";
+    case "expired":
+      return "Expired";
     default:
       return String(status).replace(/_/g, " ");
   }
 }
 
-/** Open pipeline — active work */
 const ACTIVE_INCOMING = new Set<JobFlowStatus>([
   "negotiating",
   "agreed",
@@ -58,11 +60,14 @@ const ACTIVE_INCOMING = new Set<JobFlowStatus>([
   "in_progress",
 ]);
 
-/** Finished bookings for Recent Bookings */
+/** Any finished / closed job counts as a recent booking */
 const RECENT_FINISHED = new Set<JobFlowStatus>([
   "completed",
   "satisfied",
   "released",
+  "cancelled",
+  "expired",
+  "refunded",
 ]);
 
 export default function TechnicianDashboardPage() {
@@ -136,7 +141,8 @@ export default function TechnicianDashboardPage() {
           const d = rank(a.status) - rank(b.status);
           if (d !== 0) return d;
           return (
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            new Date(b.updatedAt || b.createdAt).getTime() -
+            new Date(a.updatedAt || a.createdAt).getTime()
           );
         });
 
@@ -147,7 +153,7 @@ export default function TechnicianDashboardPage() {
             new Date(b.updatedAt || b.createdAt).getTime() -
             new Date(a.updatedAt || a.createdAt).getTime()
         )
-        .slice(0, 12);
+        .slice(0, 20);
 
       setIncoming(open);
       setRecent(finished);
@@ -181,7 +187,8 @@ export default function TechnicianDashboardPage() {
   };
 
   /** Hide Recent Bookings whenever any open Incoming exists */
-  const showRecent = incoming.length === 0;
+  const showRecent = incoming.length === 0 && recent.length > 0;
+  const showIncoming = incoming.length > 0;
 
   return (
     <div className={cn("flex h-full min-h-0 flex-col", stage)}>
@@ -265,38 +272,20 @@ export default function TechnicianDashboardPage() {
           )}
         </section>
 
-        {/* Incoming jobs */}
-        <section>
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <h2 className={cn("text-[15px] font-black", ink)}>
-              Incoming jobs
-              {incoming.length > 0 ? (
-                <span className="ml-1.5 text-[#e07a3d]">
-                  ({incoming.length})
-                </span>
-              ) : null}
-            </h2>
-            <Link href="/jobs" className="text-[12px] font-bold text-[#e07a3d]">
-              All jobs
-            </Link>
+        {jobsLoading && (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin text-[#e07a3d]" />
           </div>
-          <p className={cn("mb-2 text-[11px] font-medium leading-snug", muted)}>
-            New requests pop up as Job request. Stay Live to receive them.
-          </p>
+        )}
 
-          {jobsLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-5 w-5 animate-spin text-[#e07a3d]" />
-            </div>
-          ) : incoming.length === 0 ? (
-            <div className="py-6 text-center">
-              <Briefcase className={cn("mx-auto h-7 w-7 opacity-40", muted)} />
-              <p className={cn("mt-2 text-[13px] font-semibold", muted)}>
-                No open requests
-              </p>
-            </div>
-          ) : (
-            <ul className="space-y-0 divide-y divide-black/10 dark:divide-white/10">
+        {/* Incoming jobs — title only when there is at least one */}
+        {!jobsLoading && showIncoming && (
+          <section>
+            <h2 className={cn("mb-1 text-[15px] font-black", ink)}>
+              Incoming jobs
+              <span className="ml-1.5 text-[#e07a3d]">({incoming.length})</span>
+            </h2>
+            <ul className="space-y-0">
               {incoming.map((j) => {
                 const skill =
                   PRO_SERVICE_LABELS[j.serviceType] ?? j.serviceType;
@@ -310,7 +299,10 @@ export default function TechnicianDashboardPage() {
                   <li key={j.id}>
                     <Link
                       href={`/jobs/${j.id}`}
-                      className="flex items-center gap-2.5 bg-transparent py-3 active:opacity-90"
+                      className={cn(
+                        "flex items-center gap-2.5 border-0 border-b bg-transparent py-3 active:opacity-90",
+                        isLight ? "border-black/10" : "border-white/10"
+                      )}
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex min-w-0 items-center gap-1.5">
@@ -368,76 +360,63 @@ export default function TechnicianDashboardPage() {
                 );
               })}
             </ul>
-          )}
-        </section>
+          </section>
+        )}
 
-        {/* Recent Bookings — only when no open Incoming */}
-        {showRecent && (
+        {/* Recent Bookings — title only when items exist and no open incoming */}
+        {!jobsLoading && showRecent && (
           <section>
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <h2 className={cn("text-[15px] font-black", ink)}>
-                Recent Bookings
-              </h2>
-              <Link
-                href="/history"
-                className="text-[12px] font-bold text-[#e07a3d]"
-              >
-                History
-              </Link>
-            </div>
-            <p className={cn("mb-2 text-[11px] font-medium leading-snug", muted)}>
-              Finished jobs. Tap for process (view only).
-            </p>
-
-            {jobsLoading ? null : recent.length === 0 ? (
-              <p className={cn("py-4 text-center text-[13px] font-medium", muted)}>
-                No recent bookings yet
-              </p>
-            ) : (
-              <ul className="space-y-0">
-                {recent.map((j) => (
-                  <li key={j.id}>
-                    <Link
-                      href={`/requests/${j.id}`}
-                      className={cn(
-                        "flex w-full items-start gap-2.5 border-0 border-b bg-transparent py-3 text-left last:border-b-0",
-                        isLight ? "border-black/10" : "border-white/10"
-                      )}
-                    >
-                      <Clock3
-                        className="mt-0.5 h-4 w-4 shrink-0 text-[#e07a3d]"
-                        aria-hidden
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className={cn("truncate text-[15px] font-semibold", ink)}>
-                          {j.motoristName}
-                        </p>
-                        <p
-                          className={cn(
-                            "mt-0.5 flex items-start gap-1 text-[12px] font-medium leading-snug",
-                            muted
-                          )}
-                        >
-                          <MapPin className="mt-0.5 h-3 w-3 shrink-0 opacity-70" />
-                          <span className="line-clamp-2">
-                            {j.locationLabel?.trim() || "Address not set"}
-                          </span>
-                        </p>
-                        <p className={cn("mt-1 text-[10px] font-medium", muted)}>
-                          {shortStatus(j.status)}
-                          {j.agreedMajor != null
-                            ? ` · ${formatMoney(j.agreedMajor, j.currency)}`
-                            : ""}
-                        </p>
-                      </div>
-                      <ChevronRight
-                        className={cn("mt-0.5 h-4 w-4 shrink-0", muted)}
-                      />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <h2 className={cn("mb-1 text-[15px] font-black", ink)}>
+              Recent Bookings
+            </h2>
+            <ul className="space-y-0">
+              {recent.map((j) => (
+                <li key={j.id}>
+                  <Link
+                    href={`/requests/${j.id}`}
+                    className={cn(
+                      "flex w-full items-start gap-2.5 border-0 border-b bg-transparent py-3 text-left last:border-b-0",
+                      isLight ? "border-black/10" : "border-white/10"
+                    )}
+                  >
+                    <Clock3
+                      className="mt-0.5 h-4 w-4 shrink-0 text-[#e07a3d]"
+                      aria-hidden
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={cn(
+                          "truncate text-[15px] font-semibold",
+                          ink
+                        )}
+                      >
+                        {j.motoristName}
+                      </p>
+                      <p
+                        className={cn(
+                          "mt-0.5 flex items-start gap-1 text-[12px] font-medium leading-snug",
+                          muted
+                        )}
+                      >
+                        <MapPin className="mt-0.5 h-3 w-3 shrink-0 opacity-70" />
+                        <span className="line-clamp-2">
+                          {j.locationLabel?.trim() || "Address not set"}
+                        </span>
+                      </p>
+                      <p className={cn("mt-1 text-[10px] font-medium", muted)}>
+                        {shortStatus(j.status)}
+                        {j.agreedMajor != null
+                          ? ` · ${formatMoney(j.agreedMajor, j.currency)}`
+                          : ""}
+                      </p>
+                    </div>
+                    <ChevronRight
+                      className={cn("mt-0.5 h-4 w-4 shrink-0", muted)}
+                    />
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </section>
         )}
       </div>

@@ -17,20 +17,17 @@ body {
   max-height: 100%;
   min-height: 0;
   overflow: hidden;
-  /* Contain paint/layout so children cannot escape the frame */
+  /* Always phone-app width — never stretch to desktop site */
+  width: min(390px, 100vw) !important;
+  max-width: min(390px, 100vw) !important;
+  margin-left: auto;
+  margin-right: auto;
   contain: layout paint;
 }
 
 #oga-mecho-phone > * {
   min-height: 0;
   max-height: 100%;
-}
-
-@media (min-width: 640px) {
-  #oga-mecho-phone {
-    width: min(390px, calc(100vw - 1.5rem)) !important;
-    max-width: 390px;
-  }
 }
 
 /*

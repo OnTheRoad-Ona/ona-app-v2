@@ -34,11 +34,8 @@ function isInteractiveTarget(el: HTMLElement): boolean {
 }
 
 /**
- * App chrome — content is locked to a single viewport-sized frame.
- * Prevents UI from “lapping” / spilling outside the app bounds.
- *
- * - Mobile: full screen, overflow clipped
- * - Desktop (sm+): centered 390px phone mock
+ * Always present as a mobile app frame (max ~390px), not a full desktop site.
+ * Full height of the viewport; content scrolls inside the frame only.
  */
 export function PhoneShell({
   children,
@@ -66,12 +63,12 @@ export function PhoneShell({
   return (
     <div
       className={cn(
-        "box-border flex w-full items-stretch justify-center overflow-hidden",
-        // Lock outer stage to one viewport — no page growth
-        "h-[100vh] max-h-[100vh] w-full",
+        "box-border flex w-full items-center justify-center overflow-hidden",
+        "h-[100vh] max-h-[100vh]",
         "h-[100dvh] max-h-[100dvh]",
         "h-[100svh] max-h-[100svh]",
-        "px-0 py-0 sm:items-center sm:px-3 sm:py-3",
+        // Tiny padding on large screens so it still feels like an app, not a website
+        "px-0 py-0 sm:px-3 sm:py-3",
         isLight ? "bg-[#060d0a]" : "bg-[#0a0605]"
       )}
     >
@@ -79,17 +76,16 @@ export function PhoneShell({
         id="oga-mecho-phone"
         className={cn(
           "relative box-border flex w-full flex-col overflow-hidden",
-          // Fixed height chain so children cannot expand the shell
+          // Always app-width (never full desktop layout)
           "h-full max-h-full min-h-0",
-          "max-w-full",
-          // Desktop phone mock
-          "sm:h-[min(844px,calc(100dvh-1.5rem))] sm:max-h-[min(844px,calc(100dvh-1.5rem))] sm:max-w-[390px] sm:shadow-[0_24px_48px_rgba(0,0,0,0.65)]",
+          "max-w-[390px]",
+          "shadow-[0_24px_48px_rgba(0,0,0,0.55)]",
           isLight ? "bg-[#c8c9cd]" : "bg-black",
           className
         )}
         style={{
-          width: "100%",
-          // Keep safe-area inside the height (border-box), not outside it
+          width: "min(390px, 100%)",
+          maxWidth: "min(390px, 100vw)",
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
           paddingTop: "env(safe-area-inset-top, 0px)",
         }}

@@ -580,18 +580,15 @@ export async function listJobsForUser(
   }
   return out
     .filter((j) => {
-      // Never surface terminal / expired / demo-ish empties
-      if (
-        ["expired", "cancelled", "refunded", "released"].includes(j.status)
-      ) {
-        return false;
-      }
+      // Keep finished jobs (released / completed / etc.) for Recent Bookings + History.
+      // Only drop empty demo shells.
       if (!j.motoristId || !j.problem?.trim()) return false;
       return true;
     })
     .sort(
       (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        new Date(b.updatedAt || b.createdAt).getTime() -
+        new Date(a.updatedAt || a.createdAt).getTime()
     );
 }
 
