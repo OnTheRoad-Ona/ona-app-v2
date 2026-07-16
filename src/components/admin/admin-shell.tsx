@@ -15,10 +15,11 @@ const NAV_GROUPS: {
   {
     label: "Customer Care",
     items: [
-      { href: "/admin", label: "Care desk", exact: true },
+      { href: "/admin", label: "Dashboard", exact: true },
       { href: "/admin/jobs", label: "Live jobs" },
       { href: "/admin/disputes", label: "Disputes & appeals" },
       { href: "/admin/payments", label: "Escrow & payments" },
+      { href: "/admin/pros", label: "Repair Pros" },
       { href: "/admin/users", label: "Users" },
       { href: "/admin/verification", label: "Verification" },
       { href: "/admin/audit", label: "Audit trail" },

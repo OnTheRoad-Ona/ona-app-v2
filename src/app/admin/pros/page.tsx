@@ -28,10 +28,18 @@ type UserRow = {
     | null;
 };
 
+type ProStatus = "pending" | "approved" | "suspended" | "rejected";
+
 function proMeta(u: UserRow) {
   const raw = u.repair_pro_profiles;
   if (!raw) return null;
   return Array.isArray(raw) ? raw[0] : raw;
+}
+
+function blurActive() {
+  if (typeof document !== "undefined") {
+    (document.activeElement as HTMLElement | null)?.blur?.();
+  }
 }
 
 export default function AdminProsPage() {
@@ -39,12 +47,13 @@ export default function AdminProsPage() {
   const [adminName, setAdminName] = useState("Admin");
   const [users, setUsers] = useState<UserRow[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/users?role=repair_pro");
     const json = await res.json();
     if (!json.ok) {
-      if (res.status === 401 || res.status === 403) {
+      if (res.status === 401) {
         router.replace("/admin/login");
         return;
       }
@@ -66,32 +75,53 @@ export default function AdminProsPage() {
     })();
   }, [load, router]);
 
-  async function setStatus(
-    id: string,
-    status: "pending" | "approved" | "suspended" | "rejected"
-  ) {
+  async function setStatus(id: string, status: ProStatus) {
     setMsg(null);
-    const res = await fetch(`/api/admin/pros/${id}/status`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    const json = await res.json();
-    if (!json.ok) {
-      setMsg(json.error?.message || "Failed");
-      return;
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/admin/pros/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        setMsg(json.error?.message || "Failed");
+        return;
+      }
+      // Optimistic UI: switch button state immediately so Approve no longer lights up
+      setUsers((prev) =>
+        prev.map((u) => {
+          if (u.id !== id) return u;
+          const meta = proMeta(u);
+          const nextMeta = {
+            status,
+            primary_service: meta?.primary_service || "",
+            verified: status === "approved",
+            is_online: meta?.is_online,
+          };
+          return { ...u, repair_pro_profiles: nextMeta };
+        })
+      );
+      setMsg(
+        status === "approved"
+          ? "Approved — button is settled (no longer a call-to-action)"
+          : `Saved pro status → ${status}`
+      );
+      await load();
+    } finally {
+      setBusyId(null);
+      blurActive();
     }
-    setMsg(`Saved pro status → ${status}`);
-    await load();
   }
 
   return (
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Repair Pros</h1>
       <p className="om-admin-sub">
-        Live technicians from Supabase (same people on the Vercel app). Approve,
-        suspend, or reject. &quot;RP&quot; on the app was only a fallback label
-        for missing names — real names show here.
+        Approve, suspend, or reject. After Approve, the button turns into a
+        quiet &quot;Approved&quot; state — it will not stay lit as if you still
+        need to click it.
       </p>
       {msg ? (
         <div
@@ -110,7 +140,7 @@ export default function AdminProsPage() {
               <th>Online</th>
               <th>Status</th>
               <th>Joined</th>
-              <th>Actions (save)</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -124,6 +154,8 @@ export default function AdminProsPage() {
             ) : (
               users.map((u) => {
                 const pro = proMeta(u);
+                const status = (pro?.status || "pending") as ProStatus;
+                const busy = busyId === u.id;
                 return (
                   <tr key={u.id}>
                     <td>
@@ -142,10 +174,8 @@ export default function AdminProsPage() {
                       </span>
                     </td>
                     <td>
-                      <span
-                        className={`om-admin-badge ${pro?.status || "pending"}`}
-                      >
-                        {pro?.status || "pending"}
+                      <span className={`om-admin-badge ${status}`}>
+                        {status}
                       </span>
                       {u.is_active === false ? (
                         <div className="om-admin-muted">account inactive</div>
@@ -158,26 +188,49 @@ export default function AdminProsPage() {
                     </td>
                     <td>
                       <div className="om-admin-row-actions">
+                        {/* Current status = settled (not lit CTA). Others = quiet ghost. */}
                         <button
                           type="button"
-                          className="om-admin-btn"
-                          onClick={() => setStatus(u.id, "approved")}
+                          className={
+                            status === "approved"
+                              ? "om-admin-btn done"
+                              : "om-admin-btn ghost"
+                          }
+                          disabled={busy || status === "approved"}
+                          aria-pressed={status === "approved"}
+                          onClick={() => void setStatus(u.id, "approved")}
                         >
-                          Approve
+                          {status === "approved"
+                            ? "✓ Approved"
+                            : busy
+                              ? "…"
+                              : "Approve"}
                         </button>
                         <button
                           type="button"
-                          className="om-admin-btn ghost"
-                          onClick={() => setStatus(u.id, "suspended")}
+                          className={
+                            status === "suspended"
+                              ? "om-admin-btn done"
+                              : "om-admin-btn ghost"
+                          }
+                          disabled={busy || status === "suspended"}
+                          aria-pressed={status === "suspended"}
+                          onClick={() => void setStatus(u.id, "suspended")}
                         >
-                          Suspend
+                          {status === "suspended" ? "✓ Suspended" : "Suspend"}
                         </button>
                         <button
                           type="button"
-                          className="om-admin-btn ghost"
-                          onClick={() => setStatus(u.id, "rejected")}
+                          className={
+                            status === "rejected"
+                              ? "om-admin-btn done"
+                              : "om-admin-btn ghost"
+                          }
+                          disabled={busy || status === "rejected"}
+                          aria-pressed={status === "rejected"}
+                          onClick={() => void setStatus(u.id, "rejected")}
                         >
-                          Reject
+                          {status === "rejected" ? "✓ Rejected" : "Reject"}
                         </button>
                       </div>
                     </td>

@@ -35,18 +35,23 @@ export function useAdminGate() {
   const api = useCallback(async <T,>(
     path: string,
     init?: RequestInit
-  ): Promise<{ ok: true; data: T } | { ok: false; message: string; status: number }> => {
+  ): Promise<
+    | { ok: true; data: T }
+    | { ok: false; message: string; status: number; code?: string }
+  > => {
     try {
       const res = await fetch(path, init);
       const json = await res.json();
       if (!json.ok) {
-        if (res.status === 401 || res.status === 403) {
+        // Only force re-login on true auth expiry — not 403 (permission / unlock)
+        if (res.status === 401) {
           router.replace("/admin/login");
         }
         return {
           ok: false,
           message: json.error?.message || "Request failed",
           status: res.status,
+          code: json.error?.code as string | undefined,
         };
       }
       return { ok: true, data: json.data as T };

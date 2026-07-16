@@ -345,6 +345,23 @@
 .om-admin-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  filter: none;
+  box-shadow: none;
+}
+
+/* Settled / current state — do NOT look like a CTA to click again */
+.om-admin-btn.done,
+.om-admin-btn.done:hover,
+.om-admin-btn.done:focus,
+.om-admin-btn.done:disabled {
+  background: var(--om-success-bg) !important;
+  color: var(--om-success) !important;
+  border: 1px solid rgba(21, 128, 61, 0.35) !important;
+  opacity: 1;
+  cursor: default;
+  filter: none;
+  box-shadow: none;
+  outline: none;
 }
 
 .om-admin-btn.ghost {
@@ -359,6 +376,15 @@
 
 .om-admin-btn.danger {
   background: var(--om-danger);
+}
+
+.om-admin-btn:focus {
+  outline: 2px solid transparent;
+}
+
+.om-admin-btn:focus-visible {
+  outline: 2px solid var(--om-accent);
+  outline-offset: 2px;
 }
 
 .om-admin-table {

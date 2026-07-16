@@ -49,12 +49,23 @@ type Board = {
   platformFeePercent: number;
 };
 
+type DashboardTotals = {
+  users: number;
+  motorists: number;
+  repairPros: number;
+  pendingPros: number;
+  openJobs: number;
+  completedJobs: number;
+  revenueNgn: number;
+};
+
 export default function CareDeskPage() {
-  const { adminName, ready, api } = useAdminGate();
+  const { adminName, ready, api, error: gateError } = useAdminGate();
   const [status, setStatus] = useState<CareStatus | null>(null);
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [board, setBoard] = useState<Board | null>(null);
+  const [dash, setDash] = useState<DashboardTotals | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [jobDetail, setJobDetail] = useState<{
     job: Record<string, unknown>;
@@ -69,6 +80,7 @@ export default function CareDeskPage() {
   const refreshStatus = useCallback(async () => {
     const res = await api<CareStatus>("/api/admin/care/status");
     if (res.ok) setStatus(res.data);
+    else if (res.status !== 401) setErr(res.message);
   }, [api]);
 
   const refreshBoard = useCallback(async () => {
@@ -76,16 +88,23 @@ export default function CareDeskPage() {
     if (res.ok) setBoard(res.data);
   }, [api]);
 
+  const refreshDash = useCallback(async () => {
+    const res = await api<{ totals: DashboardTotals }>("/api/admin/dashboard");
+    if (res.ok) setDash(res.data.totals);
+  }, [api]);
+
   useEffect(() => {
     if (!ready) return;
     void refreshStatus();
     void refreshBoard();
+    void refreshDash();
     const t = window.setInterval(() => {
       void refreshBoard();
       void refreshStatus();
+      void refreshDash();
     }, 20_000);
     return () => window.clearInterval(t);
-  }, [ready, refreshBoard, refreshStatus]);
+  }, [ready, refreshBoard, refreshStatus, refreshDash]);
 
   useEffect(() => {
     if (!ready || query.trim().length < 2) {
@@ -141,11 +160,15 @@ export default function CareDeskPage() {
       }
       setMsg(json.data?.message || "Done");
       void refreshBoard();
+      void refreshDash();
       if (selectedJobId) void openJob(selectedJobId);
     } catch {
       setErr("Network error");
     } finally {
       setBusy(false);
+      if (typeof document !== "undefined") {
+        (document.activeElement as HTMLElement | null)?.blur?.();
+      }
     }
   };
 
@@ -155,16 +178,55 @@ export default function CareDeskPage() {
     (jobDetail?.job as { flow_status?: string })?.flow_status ||
     "";
 
+  if (!ready) {
+    return (
+      <AdminShell adminName={adminName}>
+        <h1 className="om-admin-h1">Dashboard</h1>
+        <p className="om-admin-muted">
+          {gateError || "Loading admin session…"}
+        </p>
+      </AdminShell>
+    );
+  }
+
   return (
     <AdminShell
       adminName={status?.fullName || adminName}
       roleLabel={status?.roleLabel}
     >
-      <h1 className="om-admin-h1">Customer Care desk</h1>
+      <h1 className="om-admin-h1">Dashboard</h1>
       <p className="om-admin-sub">
-        Search any case · watch live jobs · one-click escrow, freeze, dispute.
-        Platform fee {board?.platformFeePercent ?? 5}% on release.
+        Overview + Customer Care tools. Search cases, watch live jobs, one-click
+        escrow / freeze / dispute. Platform fee{" "}
+        {board?.platformFeePercent ?? 5}% on release.
       </p>
+
+      {/* Always-visible totals dashboard */}
+      <div className="om-admin-cards">
+        {(
+          [
+            ["Users", dash?.users, "/admin/users"],
+            ["Motorists", dash?.motorists, "/admin/motorists"],
+            ["Repair Pros", dash?.repairPros, "/admin/pros"],
+            ["Pending Pros", dash?.pendingPros, "/admin/pros"],
+            ["Open jobs", dash?.openJobs ?? board?.jobs.length, "/admin/jobs"],
+            ["Completed", dash?.completedJobs, "/admin/jobs"],
+            [
+              "Revenue (₦)",
+              dash != null ? dash.revenueNgn.toLocaleString() : undefined,
+              "/admin/payments",
+            ],
+            ["Disputes", board?.disputedCount, "/admin/disputes"],
+          ] as const
+        ).map(([label, value, href]) => (
+          <div className="om-admin-card" key={label}>
+            <Link href={href}>
+              <div className="label">{label}</div>
+              <div className="value">{value ?? "…"}</div>
+            </Link>
+          </div>
+        ))}
+      </div>
 
       <SensitiveUnlockBar
         unlocked={unlocked}
@@ -229,16 +291,17 @@ export default function CareDeskPage() {
         ) : null}
       </div>
 
-      {/* Stats strip */}
+      {/* Live ops strip */}
+      <h2 className="om-admin-section-title">Live ops</h2>
       <div className="om-admin-cards">
         {(
           [
-            ["Live jobs", board?.jobs.length],
-            ["Disputes", board?.disputedCount],
+            ["Live board", board?.jobs.length],
             ["Appeals", board?.appealCount],
             ["En route", board?.byStatus?.en_route],
             ["In progress", board?.byStatus?.in_progress],
             ["Paid/booked", board?.byStatus?.paid_booked],
+            ["Negotiating", board?.byStatus?.negotiating],
           ] as const
         ).map(([label, value]) => (
           <div className="om-admin-card" key={label}>

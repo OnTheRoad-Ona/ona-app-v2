@@ -91,6 +91,24 @@ export default function AdminVerificationPage() {
     } else {
       setFlash("Documents rejected.");
     }
+    // Optimistic: settle button immediately so Approve no longer looks lit
+    setRows((prev) =>
+      prev.map((row) =>
+        row.user_id === userId && row.kind === "repair_pro"
+          ? {
+              ...row,
+              docs_status: action === "approve" ? "approved" : "rejected",
+              docs_rating_boost_applied:
+                action === "approve"
+                  ? true
+                  : row.docs_rating_boost_applied,
+            }
+          : row
+      )
+    );
+    if (typeof document !== "undefined") {
+      (document.activeElement as HTMLElement | null)?.blur?.();
+    }
     await load();
   };
 
@@ -280,22 +298,40 @@ export default function AdminVerificationPage() {
                           type="button"
                           disabled={busyId === r.user_id}
                           onClick={() => void docsAction(r.user_id, "reject")}
-                          className="om-admin-btn"
-                          style={{ opacity: 0.85 }}
+                          className="om-admin-btn ghost"
                         >
                           Reject
                         </button>
                       </div>
                     ) : r.kind === "repair_pro" &&
-                      r.docs_status === "rejected" ? (
+                      r.docs_status === "approved" ? (
                       <button
                         type="button"
-                        disabled={busyId === r.user_id}
-                        onClick={() => void docsAction(r.user_id, "approve")}
-                        className="om-admin-btn"
+                        className="om-admin-btn done"
+                        disabled
+                        aria-pressed
                       >
-                        Approve docs
+                        ✓ Docs approved
                       </button>
+                    ) : r.kind === "repair_pro" &&
+                      r.docs_status === "rejected" ? (
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        <button
+                          type="button"
+                          className="om-admin-btn done"
+                          disabled
+                        >
+                          ✓ Rejected
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busyId === r.user_id}
+                          onClick={() => void docsAction(r.user_id, "approve")}
+                          className="om-admin-btn ghost"
+                        >
+                          Approve docs
+                        </button>
+                      </div>
                     ) : (
                       <span className="om-admin-muted">—</span>
                     )}
