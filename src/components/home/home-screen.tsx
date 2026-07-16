@@ -73,7 +73,10 @@ export function HomeScreen() {
     .slice(0, Math.min(8, MAX_TECHNICIANS));
 
   return (
-    <div className={cn("flex h-full min-h-0 flex-col", sheetBg)}>
+    <div
+      data-theme-toggle-ok
+      className={cn("flex h-full min-h-0 flex-col", sheetBg)}
+    >
       <div className={cn("z-20 shrink-0", sheetBg)}>
         <AppHeader />
         <SearchBar />
@@ -81,6 +84,7 @@ export function HomeScreen() {
 
       <div className="relative flex min-h-0 flex-1 flex-col">
         <div
+          data-map-surface
           className={cn(
             "om-sheet-spring relative min-h-0 overflow-hidden",
             sheetExpanded
@@ -92,6 +96,7 @@ export function HomeScreen() {
         </div>
 
         <div
+          data-theme-toggle-ok
           className={cn(
             "om-sheet-spring z-30 flex min-h-0 flex-col overflow-hidden",
             sheetExpanded ? "flex-1" : "flex-[0_0_55%]",

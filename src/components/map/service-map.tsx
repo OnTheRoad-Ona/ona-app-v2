@@ -203,7 +203,10 @@ function MockupMap({
   const youDot = isLight ? "bg-emerald-600" : "bg-[#a82020]";
 
   return (
-    <div className={cn("relative h-full w-full overflow-hidden", baseBg)}>
+    <div
+      data-map-surface
+      className={cn("relative h-full w-full overflow-hidden", baseBg)}
+    >
       <div
         className="absolute inset-0"
         style={{
@@ -460,7 +463,7 @@ function GoogleServiceMap({
   }, [map, center.lat, center.lng, livePros]);
 
   return (
-    <div className="relative h-full w-full">
+    <div data-map-surface className="relative h-full w-full">
       <NearbyCountBadge count={livePros.length} />
       <GoogleMap
         mapContainerStyle={MAP_ID_CONTAINER}

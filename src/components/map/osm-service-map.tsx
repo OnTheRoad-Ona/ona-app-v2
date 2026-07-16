@@ -116,7 +116,7 @@ export function OsmServiceMap({
     "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
 
   return (
-    <div className="relative h-full w-full">
+    <div data-map-surface className="relative h-full w-full">
       {/* Thought-style nearby label — no pill background */}
       <div
         className="pointer-events-none absolute inset-x-0 top-2.5 z-[500] flex justify-center px-10"
