@@ -16,6 +16,7 @@ import {
   authSecondaryBtnClass,
   authSelectClass as selectClass,
 } from "@/components/auth/auth-plate";
+import { PasswordField } from "@/components/auth/password-field";
 import { RegistrationComplete } from "@/components/auth/registration-complete";
 import {
   LocationPickerMap,
@@ -441,9 +442,9 @@ export function MotoristSignup() {
                   <>
                     <Field label="Password" required>
                       <div className="relative">
-                        <Lock className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8]" />
-                        <input
-                          className={fieldIconClass}
+                        <Lock className="pointer-events-none absolute left-2.5 top-1/2 z-[1] h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8]" />
+                        <PasswordField
+                          withLeftIcon
                           value={password}
                           onChange={(e) => {
                             setPassword(e.target.value);
@@ -462,7 +463,6 @@ export function MotoristSignup() {
                             setFieldError("password", passwordError(password))
                           }
                           placeholder="At least 8 characters"
-                          type="password"
                           autoComplete="new-password"
                         />
                       </div>
@@ -472,9 +472,9 @@ export function MotoristSignup() {
 
                     <Field label="Confirm password" required>
                       <div className="relative">
-                        <Lock className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8]" />
-                        <input
-                          className={fieldIconClass}
+                        <Lock className="pointer-events-none absolute left-2.5 top-1/2 z-[1] h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8]" />
+                        <PasswordField
+                          withLeftIcon
                           value={confirmPassword}
                           onChange={(e) => {
                             setConfirmPassword(e.target.value);
@@ -492,7 +492,6 @@ export function MotoristSignup() {
                             )
                           }
                           placeholder="Re-enter password"
-                          type="password"
                           autoComplete="new-password"
                         />
                       </div>

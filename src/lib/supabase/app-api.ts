@@ -389,19 +389,76 @@ export async function backendSignIn(
   email: string,
   password: string
 ): Promise<{ error: string | null; profile?: UserProfile; userId?: string }> {
+  const cleanEmail = email.trim().toLowerCase();
+
+  // Prefer server login (service-role profile + repair) — fixes Vercel/RLS login failures
+  try {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: cleanEmail, password }),
+    });
+    const json = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      error?: { message?: string };
+      data?: {
+        userId?: string;
+        profile?: UserProfile;
+        access_token?: string;
+        refresh_token?: string;
+      };
+    } | null;
+
+    if (json?.ok && json.data?.userId && json.data.profile) {
+      const sb = getAppSupabase();
+      if (sb && json.data.access_token && json.data.refresh_token) {
+        const { error: sessErr } = await sb.auth.setSession({
+          access_token: json.data.access_token,
+          refresh_token: json.data.refresh_token,
+        });
+        if (sessErr) {
+          console.warn("setSession after login", sessErr.message);
+        }
+      }
+      return {
+        error: null,
+        profile: json.data.profile,
+        userId: json.data.userId,
+      };
+    }
+
+    if (json?.error?.message) {
+      return { error: json.error.message };
+    }
+  } catch {
+    /* fall through to browser auth */
+  }
+
+  // Fallback: pure browser sign-in (local / offline edge cases)
   const sb = getAppSupabase();
   if (!sb) return { error: "Supabase is not configured." };
 
   const { data, error } = await sb.auth.signInWithPassword({
-    email: email.trim().toLowerCase(),
+    email: cleanEmail,
     password,
   });
-  if (error) return { error: error.message };
+  if (error) {
+    const m = error.message.toLowerCase();
+    if (m.includes("invalid login") || m.includes("invalid credentials")) {
+      return { error: "Email or password is incorrect." };
+    }
+    return { error: error.message };
+  }
   const userId = data.user?.id;
   if (!userId) return { error: "Login failed." };
 
   const loaded = await backendLoadUserProfile(userId);
-  if (!loaded) return { error: "Profile not found. Complete signup first." };
+  if (!loaded) {
+    return {
+      error:
+        "Profile not found after login. Try again or contact support.",
+    };
+  }
   return { error: null, profile: loaded, userId };
 }
 

@@ -6,11 +6,11 @@ import { ChevronLeft } from "lucide-react";
 import {
   AuthPlate,
   authBackBtnClass,
-  authFieldClass,
   authLabelClass,
   authPrimaryBtnClass,
   authPrimaryBtnStyle,
 } from "@/components/auth/auth-plate";
+import { PasswordField } from "@/components/auth/password-field";
 
 /**
  * Landing page from Supabase recovery email.
@@ -114,9 +114,7 @@ export default function ResetPasswordPage() {
         >
           <label className="block">
             <span className={authLabelClass}>New password</span>
-            <input
-              className={authFieldClass}
-              type="password"
+            <PasswordField
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -127,9 +125,7 @@ export default function ResetPasswordPage() {
           </label>
           <label className="block">
             <span className={authLabelClass}>Confirm password</span>
-            <input
-              className={authFieldClass}
-              type="password"
+            <PasswordField
               autoComplete="new-password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}

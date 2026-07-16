@@ -13,6 +13,7 @@ import {
   authSelectClass,
   authTextareaClass,
 } from "@/components/auth/auth-plate";
+import { PasswordField } from "@/components/auth/password-field";
 import { RegistrationComplete } from "@/components/auth/registration-complete";
 import {
   checkIdentityAvailable,
@@ -1362,9 +1363,7 @@ export function ProSignup() {
               {!identityLocked && (
                 <>
                   <Field label="Password" required>
-                    <input
-                      className={authFieldClass}
-                      style={authFieldStyle}
+                    <PasswordField
                       value={password}
                       onChange={(e) => {
                         setPassword(e.target.value);
@@ -1382,16 +1381,14 @@ export function ProSignup() {
                       onBlur={() =>
                         setFieldError("password", passwordError(password))
                       }
-                      type="password"
                       placeholder="At least 8 characters"
+                      autoComplete="new-password"
                     />
                     <PasswordRules password={password} inline />
                     <FieldHint message={fieldErrors.password} />
                   </Field>
                   <Field label="Confirm password" required>
-                    <input
-                      className={authFieldClass}
-                      style={authFieldStyle}
+                    <PasswordField
                       value={confirmPassword}
                       onChange={(e) => {
                         setConfirmPassword(e.target.value);
@@ -1408,8 +1405,8 @@ export function ProSignup() {
                           confirmPasswordError(password, confirmPassword)
                         )
                       }
-                      type="password"
                       placeholder="Re-enter password"
+                      autoComplete="new-password"
                     />
                     <FieldHint message={fieldErrors.confirm} />
                   </Field>

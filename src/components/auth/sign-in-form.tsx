@@ -9,6 +9,7 @@ import {
   authFieldClass,
   authLabelClass,
 } from "@/components/auth/auth-plate";
+import { PasswordField } from "@/components/auth/password-field";
 import { useApp } from "@/lib/store";
 import type { AccountType } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -55,11 +56,27 @@ export function SignInForm() {
         return;
       }
       // Prefer real account type from session (not a wrong tab selection)
-      const t =
+      let t =
         localStorage.getItem("oga-mecho-account-type") ||
         preferType ||
         "motorist";
-      router.replace(t === "professional" ? "/dashboard" : "/");
+      try {
+        const raw = localStorage.getItem("oga-mecho-profile");
+        if (raw) {
+          const p = JSON.parse(raw) as { accountType?: string };
+          if (p.accountType === "professional" || p.accountType === "motorist") {
+            t = p.accountType;
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+      // Hard navigate so AuthGate re-reads session cleanly on Vercel
+      window.location.assign(t === "professional" ? "/dashboard" : "/");
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Login failed. Check your connection."
+      );
     } finally {
       setBusy(false);
     }
@@ -267,9 +284,7 @@ export function SignInForm() {
               </label>
               <label className="block">
                 <span className={authLabelClass}>Password</span>
-                <input
-                  className={authFieldClass}
-                  type="password"
+                <PasswordField
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

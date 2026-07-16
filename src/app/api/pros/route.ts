@@ -109,25 +109,64 @@ export async function GET(req: Request) {
         return t.distanceKm <= cap + 2;
       });
 
-    // Real drive ETA + road distance via Google Distance Matrix (traffic-aware)
-    let enriched = technicians;
-    if (technicians.length > 0) {
-      const metrics = await computeDriveMetricsBatch(
-        userCoords,
-        technicians.map((t) => t.location)
-      );
-      enriched = technicians.map((t, i) => {
-        const m = metrics[i];
-        if (!m) return t;
-        return {
-          ...t,
-          distanceKm: m.distanceKm,
-          etaMinutes: m.etaMinutes,
-        };
-      });
+    // Fast path: haversine radius first so home map paints quickly.
+    // Google Distance Matrix only for the nearest handful (was blocking ~1–2s).
+    const haversineFinal = technicians
+      .filter((t) => {
+        if (typeof t.distanceKm !== "number" || !Number.isFinite(t.distanceKm)) {
+          return false;
+        }
+        const docsPending =
+          t.docsStatus === "under_review" ||
+          t.docsStatus === "none" ||
+          t.docsStatus === "rejected";
+        const cap = docsPending
+          ? Math.min(MAX_RADIUS_KM, DOCS_PENDING_MAX_RADIUS_KM)
+          : MAX_RADIUS_KM;
+        return t.distanceKm <= cap;
+      })
+      .sort((a, b) => (a.distanceKm ?? 99) - (b.distanceKm ?? 99))
+      .slice(0, 24);
+
+    let enriched = haversineFinal;
+    let etaSource: "google_distance_matrix" | "haversine_fast" = "haversine_fast";
+
+    // Only matrix the closest 8 pins — keeps discovery snappy on Vercel
+    const matrixTargets = haversineFinal.slice(0, 8);
+    if (matrixTargets.length > 0) {
+      try {
+        const metrics = await Promise.race([
+          computeDriveMetricsBatch(
+            userCoords,
+            matrixTargets.map((t) => t.location)
+          ),
+          new Promise<null>((resolve) =>
+            setTimeout(() => resolve(null), 1200)
+          ),
+        ]);
+        if (metrics) {
+          etaSource = "google_distance_matrix";
+          const byId = new Map(
+            matrixTargets.map((t, i) => {
+              const m = metrics[i];
+              if (!m) return [t.id, t] as const;
+              return [
+                t.id,
+                {
+                  ...t,
+                  distanceKm: m.distanceKm,
+                  etaMinutes: m.etaMinutes,
+                },
+              ] as const;
+            })
+          );
+          enriched = haversineFinal.map((t) => byId.get(t.id) || t);
+        }
+      } catch {
+        /* keep haversine */
+      }
     }
 
-    // Final radius using road distance when available
     const techniciansFinal = enriched.filter((t) => {
       if (typeof t.distanceKm !== "number" || !Number.isFinite(t.distanceKm)) {
         return false;
@@ -139,7 +178,7 @@ export async function GET(req: Request) {
       const cap = docsPending
         ? Math.min(MAX_RADIUS_KM, DOCS_PENDING_MAX_RADIUS_KM)
         : MAX_RADIUS_KM;
-      return t.distanceKm <= cap;
+      return t.distanceKm <= cap + 0.5;
     });
 
     return apiOk({
@@ -151,7 +190,7 @@ export async function GET(req: Request) {
         docsPendingRadiusKm: DOCS_PENDING_MAX_RADIUS_KM,
         liveProsInDb: list.length,
         afterRadius: techniciansFinal.length,
-        etaSource: "google_distance_matrix",
+        etaSource,
       },
     });
   } catch (e) {
