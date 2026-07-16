@@ -5,10 +5,12 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Briefcase,
   Clock3,
+  History,
   Home,
   LogOut,
   MapPin,
   MessageCircle,
+  Navigation,
   Settings,
   UserRound,
   Wrench,
@@ -23,6 +25,7 @@ import { cn } from "@/lib/utils";
 const CLIENT_NAV = [
   { href: "/", label: "Home", icon: Home },
   { href: "/requests", label: "Requests", icon: Clock3 },
+  { href: "/history", label: "History", icon: History },
   { href: "/messages", label: "Messages", icon: MessageCircle },
   { href: "/profile", label: "Profile", icon: UserRound },
   { href: "/settings", label: "Settings", icon: Settings },
@@ -32,6 +35,7 @@ const PRO_NAV = [
   { href: "/dashboard", label: "Dashboard", icon: Wrench },
   { href: "/orders", label: "Orders", icon: Briefcase },
   { href: "/requests", label: "Jobs", icon: Clock3 },
+  { href: "/history", label: "History", icon: History },
   { href: "/messages", label: "Messages", icon: MessageCircle },
   { href: "/profile", label: "Profile", icon: UserRound },
   { href: "/settings", label: "Settings", icon: Settings },
@@ -64,6 +68,9 @@ export function AppMenu({
     isAuthenticated,
     displayName,
     userProfile,
+    isLocating,
+    retryLocation,
+    refreshNearbyPros,
   } = useApp();
   const isLight = theme === "light";
   const isPro =
@@ -86,12 +93,13 @@ export function AppMenu({
     return "Good Evening";
   })();
 
-  // Location stays stagnant in the menu (GPS refreshes in store every 10 min)
+  // Fresh high-accuracy GPS whenever the menu opens
   useEffect(() => {
     if (!open) return;
     setWarn(null);
     setSignupTarget(null);
-  }, [open]);
+    retryLocation();
+  }, [open, retryLocation]);
 
   const [switching, setSwitching] = useState(false);
 
@@ -221,14 +229,32 @@ export function AppMenu({
             <div className="mt-2.5 min-w-0">
               <div
                 className={cn(
-                  "flex items-start gap-1 text-[10px] leading-snug",
-                  isLight ? "text-slate-600" : "text-white/70"
+                  "flex items-start gap-1.5 text-[11px] leading-snug",
+                  isLight ? "text-slate-800" : "text-white/85"
                 )}
               >
-                <MapPin className="mt-0.5 h-3 w-3 shrink-0 text-brand" />
-                <p className="min-w-0 font-medium">
-                  {placeLine || "Current location"}
-                </p>
+                <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
+                <div className="min-w-0 flex-1">
+                  <p className="min-w-0 font-semibold">
+                    {isLocating
+                      ? "Updating location…"
+                      : placeLine || "Current location"}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      retryLocation();
+                      window.setTimeout(() => refreshNearbyPros(), 1000);
+                    }}
+                    className={cn(
+                      "mt-1 inline-flex items-center gap-1 border-0 bg-transparent p-0 text-[10px] font-semibold",
+                      "text-[#e07a3d]"
+                    )}
+                  >
+                    <Navigation className="h-3 w-3" />
+                    {isLocating ? "Locating…" : "Refresh location"}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

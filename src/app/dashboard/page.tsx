@@ -13,7 +13,6 @@ import {
   Radio,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
-import { Button } from "@/components/ui/button";
 import { apiListJobs } from "@/lib/jobs/client";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
@@ -218,17 +217,18 @@ export default function TechnicianDashboardPage() {
               </p>
             </div>
           </div>
-          <Button
-            className="mt-3 h-10 w-full"
+          <button
+            type="button"
             disabled={liveBusy}
             onClick={() => void toggleLive()}
+            className={cn(
+              "mt-3 inline-flex h-11 w-full items-center justify-center rounded-md border-0",
+              "bg-[#2c2c2e] text-[14px] font-semibold text-white transition active:scale-[0.99]",
+              "disabled:opacity-50"
+            )}
           >
-            {liveBusy
-              ? "Updating…"
-              : proLive
-                ? "Go Away"
-                : "Go Live (share GPS)"}
-          </Button>
+            {liveBusy ? "Updating…" : proLive ? "Go Away" : "Go Live"}
+          </button>
           {liveErr && (
             <p className="mt-2 text-center text-[11px] font-semibold text-red-500">
               {liveErr}
