@@ -51,9 +51,10 @@ export function CountdownTimer({
     const c = 2 * Math.PI * r;
     const dash = (pct / 100) * c;
     const strokeColor = urgent ? "#ef4444" : "#e07a3d";
+    // Visible track on both light/dark stages (not washed-out gray)
     const trackColor = urgent
-      ? "rgba(239,68,68,0.18)"
-      : "rgba(224,122,61,0.18)";
+      ? "rgba(239,68,68,0.28)"
+      : "rgba(224,122,61,0.28)";
 
     return (
       <div

@@ -102,7 +102,11 @@ export function JobShell({
   );
 }
 
-/** Solid content block on the main stage — no glass / transparency */
+/**
+ * Content block on the main stage.
+ * Default: no gray fill (transparent) so text sits on the stage.
+ * Pass className to opt into a surface if needed.
+ */
 export function JobCard({
   isLight,
   children,
@@ -115,10 +119,8 @@ export function JobCard({
   return (
     <div
       className={cn(
-        "rounded-md p-3.5",
-        isLight
-          ? "bg-[#bebfc4] text-slate-900"
-          : "bg-[#141414] text-white",
+        "rounded-md bg-transparent p-0",
+        isLight ? "text-slate-900" : "text-white",
         className
       )}
     >

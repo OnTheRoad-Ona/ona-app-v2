@@ -370,7 +370,8 @@ export function JobFlowScreen({
   }, [viewer, job?.id, job?.status, actorId]);
 
   const ink = isLight ? "text-slate-900" : "text-white";
-  const muted = isLight ? "text-slate-500" : "text-white/55";
+  /** Readable secondary text — avoid pale gray on stage */
+  const muted = isLight ? "text-slate-700" : "text-white/75";
 
   const negStatus = useMemo(() => {
     if (!job) return "waiting";
@@ -428,10 +429,9 @@ export function JobFlowScreen({
 
   /* ─── EXPIRED ─── */
   if (job.status === "expired" || negStatus === "expired") {
-    const grayBtn = cn(
-      "inline-flex h-12 w-full items-center justify-center rounded-md border-0 text-[14px] font-bold transition active:scale-[0.99]",
-      isLight ? "bg-[#a8a9ae] text-slate-900" : "bg-[#2c2c2e] text-white"
-    );
+    /** Dark grey CTA — same both themes */
+    const darkGreyBtn =
+      "inline-flex h-12 w-full items-center justify-center rounded-md border-0 bg-[#2c2c2e] text-[14px] font-semibold text-white transition active:scale-[0.99]";
     const isPro = viewer === "repair_pro";
 
     return (
@@ -445,16 +445,16 @@ export function JobFlowScreen({
             {isPro ? (
               <button
                 type="button"
-                className={grayBtn}
+                className={darkGreyBtn}
                 onClick={() => router.push("/dashboard")}
               >
-                Back to dashboard
+                Back to Dashboard
               </button>
             ) : (
               <>
                 <button
                   type="button"
-                  className={grayBtn}
+                  className={darkGreyBtn}
                   onClick={() =>
                     router.push(`/request?tech=${job.repairProId}`)
                   }
@@ -463,23 +463,22 @@ export function JobFlowScreen({
                 </button>
                 <button
                   type="button"
-                  className={grayBtn}
-                  onClick={() => router.push(isPro ? "/dashboard" : "/")}
+                  className={darkGreyBtn}
+                  onClick={() => router.push("/")}
                 >
-                  {isPro ? "Home" : "Choose another pro"}
+                  Choose another pro
                 </button>
               </>
             )}
           </div>
         }
       >
-        <JobCard isLight={isLight}>
-          <p className={cn("text-[14px] font-medium leading-snug", muted)}>
-            {isPro
-              ? `This request ended between you and ${job.motoristName}. No agreement was reached.`
-              : `No agreement was reached with ${job.repairProName}. You can request the same pro again or pick someone else nearby.`}
-          </p>
-        </JobCard>
+        {/* No gray card — text on stage */}
+        <p className={cn("px-0.5 pt-4 text-[14px] font-medium leading-relaxed", ink)}>
+          {isPro
+            ? `This request ended between you and ${job.motoristName}. No agreement was reached.`
+            : `No agreement was reached with ${job.repairProName}. You can request the same pro again or pick someone else nearby.`}
+        </p>
       </JobShell>
     );
   }
@@ -524,8 +523,11 @@ export function JobFlowScreen({
               >
                 I can fix this
               </CopperButton>
-              <GhostButton
-                isLight={isLight}
+              <button
+                type="button"
+                className={cn(
+                  "inline-flex h-12 w-full items-center justify-center rounded-md border-0 bg-[#2c2c2e] text-[14px] font-semibold text-white"
+                )}
                 onClick={() =>
                   void run(() =>
                     apiTransition({
@@ -538,28 +540,24 @@ export function JobFlowScreen({
                 }
               >
                 Cancel · I cannot fix this
-              </GhostButton>
+              </button>
             </div>
           }
         >
-          <div className="space-y-3 px-1 pt-2">
-            <p className={cn("text-[15px] font-black leading-snug", ink)}>
+          <div className="space-y-4 px-0.5 pt-2">
+            <p className={cn("text-[15px] font-semibold leading-snug", ink)}>
               Read this before you accept this request
             </p>
-            <p className={cn("text-[14px] font-medium leading-relaxed", muted)}>
-              By tapping <span className={ink}>I can fix this</span>, you are
-              saying you have the skill and tools for this job. Only continue if
-              you can complete the work. If you cannot, cancel so the motorist
-              can find someone else.
+            <p className={cn("text-[14px] font-medium leading-relaxed", ink)}>
+              By tapping{" "}
+              <span className="font-semibold text-[#e07a3d]">I can fix this</span>
+              , you are saying you have the skill and tools for this job. Only
+              continue if you can complete the work. If you cannot, cancel so
+              the motorist can find someone else.
             </p>
-            <JobCard isLight={isLight}>
-              <p className={cn("text-[11px] font-bold", muted)}>Problem</p>
-              <p
-                className={cn(
-                  "mt-0.5 text-[13px] font-semibold leading-snug",
-                  ink
-                )}
-              >
+            <div>
+              <p className={cn("text-[11px] font-medium", muted)}>Problem</p>
+              <p className={cn("mt-1 text-[14px] font-medium leading-relaxed", ink)}>
                 {job.problem}
               </p>
               {job.voiceNote?.url && (
@@ -572,7 +570,7 @@ export function JobFlowScreen({
                   />
                 </div>
               )}
-            </JobCard>
+            </div>
             {err && (
               <p className="text-center text-[12px] font-semibold text-red-500">
                 {err}
@@ -592,8 +590,7 @@ export function JobFlowScreen({
         footer={
           <div className="space-y-1.5">
             {canAccept && last && (
-              <StageButton
-                isLight={isLight}
+              <CopperButton
                 disabled={busy}
                 onClick={() =>
                   void run(() =>
@@ -606,7 +603,7 @@ export function JobFlowScreen({
                 }
               >
                 Accept {formatMoney(last.amountMajor, job.currency)}
-              </StageButton>
+              </CopperButton>
             )}
             {canOffer && (
               <div className="space-y-1">
@@ -677,11 +674,11 @@ export function JobFlowScreen({
                 </p>
               </div>
             )}
-            <GhostButton
-              isLight={isLight}
+            <button
+              type="button"
               className={cn(
-                "bg-transparent font-medium",
-                isLight ? "text-slate-700" : "text-white/75"
+                "inline-flex h-11 w-full items-center justify-center rounded-md border-0 bg-transparent text-[13px] font-medium",
+                ink
               )}
               onClick={() =>
                 void run(() =>
@@ -695,18 +692,20 @@ export function JobFlowScreen({
               }
             >
               Cancel request
-            </GhostButton>
+            </button>
           </div>
         }
       >
-        {/* Top: problem + offers · Middle: ring timer */}
-        <div className="flex min-h-0 flex-col px-0.5 pt-1">
-          <div className="shrink-0 space-y-4">
-            <div>
-              <p className={cn("text-[11px] font-medium", muted)}>Problem</p>
+        {/* Top: problem + offers · Middle: ring timer · no gray panels */}
+        <div className="flex min-h-0 flex-col bg-transparent px-0.5 pt-1">
+          <div className="shrink-0 space-y-4 bg-transparent">
+            <div className="bg-transparent">
+              <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
+                Problem
+              </p>
               <p
                 className={cn(
-                  "mt-1 text-[14px] font-medium leading-relaxed",
+                  "mt-1 text-[15px] font-medium leading-relaxed",
                   ink
                 )}
               >
@@ -729,8 +728,8 @@ export function JobFlowScreen({
             </div>
 
             {theirOffer && (
-              <div>
-                <p className={cn("text-[11px] font-medium", muted)}>
+              <div className="bg-transparent">
+                <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
                   {theirOffer.side === "repair_pro"
                     ? "Repair Pro offered"
                     : "Motorist offered"}
@@ -738,18 +737,18 @@ export function JobFlowScreen({
                 <p className="mt-0.5 text-[22px] font-semibold tabular-nums text-[#e07a3d]">
                   {formatMoney(theirOffer.amountMajor, job.currency)}
                 </p>
-                <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
+                <p className={cn("mt-0.5 text-[12px] font-medium", muted)}>
                   Labour only. Spare parts not included.
                 </p>
               </div>
             )}
 
-            <div>
-              <p className={cn("mb-1.5 text-[11px] font-medium", muted)}>
+            <div className="bg-transparent">
+              <p className={cn("mb-1.5 text-[11px] font-semibold uppercase tracking-wide", muted)}>
                 Offer history
               </p>
               {job.offers.length === 0 ? (
-                <p className={cn("text-[13px] font-medium leading-snug", muted)}>
+                <p className={cn("text-[13px] font-medium leading-snug", ink)}>
                   {viewer === "repair_pro"
                     ? "Set your labour price to start. Spare parts are never included."
                     : "Waiting for Repair Pro to open with a labour price…"}
@@ -759,7 +758,7 @@ export function JobFlowScreen({
                   {job.offers.map((o) => (
                     <li
                       key={o.id}
-                      className="flex items-center justify-between gap-3 py-0.5"
+                      className="flex items-center justify-between gap-3 bg-transparent py-0.5"
                     >
                       <span className={cn("text-[12px] font-medium", muted)}>
                         #{o.offerIndex}{" "}
@@ -767,7 +766,7 @@ export function JobFlowScreen({
                       </span>
                       <span
                         className={cn(
-                          "text-[14px] font-semibold tabular-nums",
+                          "text-[15px] font-semibold tabular-nums",
                           ink
                         )}
                       >
@@ -780,8 +779,8 @@ export function JobFlowScreen({
             </div>
           </div>
 
-          {/* Ring sits mid-page under problem / offer history */}
-          <div className="flex min-h-[42vh] flex-1 flex-col items-center justify-center py-5">
+          {/* Ring mid-page under problem / offer history */}
+          <div className="flex min-h-[42vh] flex-1 flex-col items-center justify-center bg-transparent py-5">
             <CountdownTimer
               variant="ring"
               endsAt={job.negotiateEndsAt}
@@ -799,7 +798,7 @@ export function JobFlowScreen({
             <p
               className={cn(
                 "mt-3 text-center text-[12px] font-medium",
-                muted
+                ink
               )}
             >
               {negStatus === "waiting"
