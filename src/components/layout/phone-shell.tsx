@@ -34,11 +34,11 @@ function isInteractiveTarget(el: HTMLElement): boolean {
 }
 
 /**
- * App chrome:
- * - Real phones / narrow viewports: full-screen (no desktop “phone frame” gaps)
- * - Wide desktops: centered phone mock (max 390px)
+ * App chrome — content is locked to a single viewport-sized frame.
+ * Prevents UI from “lapping” / spilling outside the app bounds.
  *
- * Height uses vh + dvh + svh fallbacks so older mobile WebViews never get height:0.
+ * - Mobile: full screen, overflow clipped
+ * - Desktop (sm+): centered 390px phone mock
  */
 export function PhoneShell({
   children,
@@ -66,9 +66,11 @@ export function PhoneShell({
   return (
     <div
       className={cn(
-        // Outer stage — full bleed on mobile, padded frame on sm+
-        "box-border flex w-full items-stretch justify-center",
-        "min-h-[100vh] min-h-[100dvh] min-h-[100svh]",
+        "box-border flex w-full items-stretch justify-center overflow-hidden",
+        // Lock outer stage to one viewport — no page growth
+        "h-[100vh] max-h-[100vh] w-full",
+        "h-[100dvh] max-h-[100dvh]",
+        "h-[100svh] max-h-[100svh]",
         "px-0 py-0 sm:items-center sm:px-3 sm:py-3",
         isLight ? "bg-[#060d0a]" : "bg-[#0a0605]"
       )}
@@ -76,36 +78,24 @@ export function PhoneShell({
       <div
         id="oga-mecho-phone"
         className={cn(
-          "relative flex w-full flex-col overflow-hidden rounded-none",
-          // Mobile: fill the real screen (critical for phone browsers & in-app WebViews)
-          "h-[100vh] h-[100dvh] h-[100svh] max-h-none max-w-none",
-          // Desktop: phone mock
-          "sm:h-[min(844px,calc(100dvh-1.5rem))] sm:max-h-[min(844px,calc(100dvh-1.5rem))] sm:max-w-[390px]",
+          "relative box-border flex w-full flex-col overflow-hidden",
+          // Fixed height chain so children cannot expand the shell
+          "h-full max-h-full min-h-0",
+          "max-w-full",
+          // Desktop phone mock
+          "sm:h-[min(844px,calc(100dvh-1.5rem))] sm:max-h-[min(844px,calc(100dvh-1.5rem))] sm:max-w-[390px] sm:shadow-[0_24px_48px_rgba(0,0,0,0.65)]",
           isLight ? "bg-[#c8c9cd]" : "bg-black",
           className
         )}
         style={{
-          // Avoid inline width on mobile so full width works; desktop caps at 390
           width: "100%",
-          maxWidth: "100%",
-          // Safe area for notched phones (iOS)
+          // Keep safe-area inside the height (border-box), not outside it
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
-          boxShadow: undefined,
+          paddingTop: "env(safe-area-inset-top, 0px)",
         }}
         onDoubleClick={onDoubleClick}
       >
-        {/* Desktop-only shadow via class would need media query; apply in CSS for sm+ */}
-        <div
-          className={cn(
-            "relative flex min-h-0 min-h-full flex-1 flex-col",
-            "sm:shadow-[0_24px_48px_rgba(0,0,0,0.65)]"
-          )}
-          style={{
-            // Force a real height chain for children (flex-1)
-            height: "100%",
-            minHeight: "100%",
-          }}
-        >
+        <div className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
           {children}
           <AcceptTripPopup />
           <IncomingJobPopup />

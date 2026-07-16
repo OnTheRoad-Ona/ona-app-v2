@@ -183,7 +183,11 @@ export function AppMenu({
     );
 
   return (
-    <div className="absolute inset-0 z-[100] flex" role="dialog" aria-modal>
+    <div
+      className="absolute inset-0 z-[100] flex max-h-full max-w-full overflow-hidden"
+      role="dialog"
+      aria-modal
+    >
       <button
         type="button"
         className="absolute inset-0 border-0 bg-black/45"
@@ -192,7 +196,7 @@ export function AppMenu({
       />
       <aside
         className={cn(
-          "relative z-10 flex h-full w-[75%] max-w-none flex-col shadow-2xl",
+          "relative z-10 flex h-full max-h-full w-[min(75%,300px)] max-w-full flex-col overflow-hidden shadow-2xl",
           isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >

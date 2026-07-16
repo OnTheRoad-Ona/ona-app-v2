@@ -175,11 +175,13 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     router,
   ]);
 
+  // All boot/app states share the same size lock so UI never spills the frame
+  const frame = "relative flex h-full min-h-0 w-full flex-col overflow-hidden";
+
   // Loading session: brand art only — no Log In / Sign Up (avoids auth flash)
-  // Always fill parent height so mobile WebViews never show empty black void
   if (!authReady || phase === "loading") {
     return (
-      <div className="relative h-full min-h-[100%] w-full overflow-hidden bg-black">
+      <div className={cn(frame, "bg-black")}>
         <BrandHeroMotion size="splash" bottomFade={false} motion={false} />
         <p className="pointer-events-none absolute inset-x-0 bottom-10 text-center text-[12px] font-medium text-white/55">
           Loading OgaMecho…
@@ -191,7 +193,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   // Intro video (signed-in or guest)
   if (phase === "intro" || phase === "handoff") {
     return (
-      <div className="relative h-full w-full overflow-hidden bg-black">
+      <div className={cn(frame, "bg-black")}>
         {phase === "handoff" && !isAuthenticated && (
           <div className="absolute inset-0 z-0">
             <BrandEntryScreen
@@ -201,7 +203,6 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             />
           </div>
         )}
-        {/* Signed-in handoff: keep black underlay only */}
         {phase === "handoff" && isAuthenticated && (
           <div className="absolute inset-0 z-0 bg-black" />
         )}
@@ -220,7 +221,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   // Auth entry only for guests
   if (phase === "entry" && !isAuthenticated) {
     return (
-      <div className="relative h-full w-full overflow-hidden bg-black">
+      <div className={cn(frame, "bg-black")}>
         <BrandEntryScreen
           onLogIn={() => finishEntry("/login/signin")}
           onSignUp={() => finishEntry("/login/role")}
@@ -232,7 +233,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated && !isPublicPath(pathname)) {
     return (
-      <div className="relative h-full w-full overflow-hidden bg-black">
+      <div className={cn(frame, "bg-black")}>
         <BrandEntryScreen
           onLogIn={() => finishEntry("/login/signin")}
           onSignUp={() => finishEntry("/login/role")}
@@ -243,6 +244,13 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="h-full w-full bg-[#c8c9cd] dark:bg-black">{children}</div>
+    <div
+      className={cn(
+        frame,
+        "bg-[#c8c9cd] dark:bg-black"
+      )}
+    >
+      {children}
+    </div>
   );
 }
