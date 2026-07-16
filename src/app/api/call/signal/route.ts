@@ -10,7 +10,7 @@ const postSchema = z.object({
   callId: z.string().min(4).max(80),
   toUserId: z.string().uuid(),
   fromUserId: z.string().uuid(),
-  kind: z.enum(["offer", "answer", "ice", "hangup", "reject"]),
+  kind: z.enum(["offer", "answer", "ice", "hangup", "reject", "accepting"]),
   payload: z.record(z.string(), z.unknown()).default({}),
 });
 

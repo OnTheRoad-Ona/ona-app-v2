@@ -3,8 +3,9 @@
 /**
  * In-app voice:
  * 1) WebRTC + durable HTTP signaling + STUN/TURN
- * 2) Low-bandwidth audio: mono ~16kHz, Opus ~8–24 kbps adaptive (silent)
- * 3) Auto phone dialer fallback if peer not connected
+ * 2) Low-bandwidth audio: mono ~16kHz, Opus adaptive (silent)
+ * 3) Phone dialer fallback only if peer never answers (not mid-ICE)
+ * 4) Incoming call works on any screen + browser notification
  */
 
 import {
@@ -27,6 +28,13 @@ import {
   VolumeX,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  canNotify,
+  ensureNotifyPermission,
+  showAppNotification,
+  vibrateCallPattern,
+  waitIceGathering,
+} from "@/lib/app-notify";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import {
   ackCallSignals,
@@ -76,6 +84,8 @@ const CallContext = createContext<CallContextValue | null>(null);
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
+  { urls: "stun:stun2.l.google.com:19302" },
+  { urls: "stun:stun.cloudflare.com:3478" },
   {
     urls: [
       "turn:openrelay.metered.ca:80",
@@ -136,6 +146,13 @@ function isUuid(s: string | undefined | null): boolean {
   );
 }
 
+/** Remote SDP must be used as-is — only munge local offers/answers. */
+function asRemoteDesc(
+  sdp: RTCSessionDescriptionInit
+): RTCSessionDescriptionInit {
+  return { type: sdp.type, sdp: sdp.sdp };
+}
+
 export function InAppCallProvider({ children }: { children: ReactNode }) {
   const { theme, backendUserId, displayName, userProfile, accountType } =
     useApp();
@@ -170,14 +187,17 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
   const peerIdRef = useRef<string | null>(null);
   const phoneRef = useRef<string>("");
   const timerRef = useRef<number | null>(null);
-  const failTimerRef = useRef<number | null>(null);
+  const ringFailTimerRef = useRef<number | null>(null);
+  const iceFailTimerRef = useRef<number | null>(null);
   const ringTimerRef = useRef<number | null>(null);
   const bitrateStopRef = useRef<(() => void) | null>(null);
   const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
   const phaseRef = useRef<CallPhase>("idle");
   const myIdRef = useRef<string | null>(null);
   const processedIds = useRef<Set<string>>(new Set());
-  const targetRef = useRef<CallTarget | null>(null);
+  /** True after answer SDP applied (caller) or Accept (callee) — block phone fallback */
+  const answeredRef = useRef(false);
+  const connectedOnceRef = useRef(false);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -185,9 +205,6 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     myIdRef.current = backendUserId;
   }, [backendUserId]);
-  useEffect(() => {
-    targetRef.current = target;
-  }, [target]);
 
   useEffect(() => {
     setMount(document.getElementById("oga-mecho-phone") || document.body);
@@ -198,9 +215,13 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    if (failTimerRef.current) {
-      window.clearTimeout(failTimerRef.current);
-      failTimerRef.current = null;
+    if (ringFailTimerRef.current) {
+      window.clearTimeout(ringFailTimerRef.current);
+      ringFailTimerRef.current = null;
+    }
+    if (iceFailTimerRef.current) {
+      window.clearTimeout(iceFailTimerRef.current);
+      iceFailTimerRef.current = null;
     }
     if (ringTimerRef.current) {
       window.clearInterval(ringTimerRef.current);
@@ -235,7 +256,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
   const pushSignal = useCallback(
     async (
       toUserId: string,
-      kind: "offer" | "answer" | "ice" | "hangup" | "reject",
+      kind: "offer" | "answer" | "ice" | "hangup" | "reject" | "accepting",
       callId: string,
       payload: Record<string, unknown>
     ) => {
@@ -254,6 +275,14 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
 
   const fallToPhone = useCallback(
     (reason: string) => {
+      // Never yank WebRTC mid-handshake after answer/accept
+      if (answeredRef.current && phaseRef.current === "connecting") {
+        setStatusHint(
+          reason ||
+            "Still linking voice… stay on this screen (both apps open, mic allowed)"
+        );
+        return false;
+      }
       const phone = phoneRef.current.replace(/[^\d+]/g, "");
       if (!phone) {
         setStatusHint(reason || "Call failed");
@@ -292,6 +321,8 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
     callIdRef.current = null;
     peerIdRef.current = null;
     phoneRef.current = "";
+    answeredRef.current = false;
+    connectedOnceRef.current = false;
     setIncoming(null);
     setPhase((p) => (p === "idle" ? "idle" : "ended"));
     setStatusHint("");
@@ -311,18 +342,25 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       el = document.createElement("audio");
       el.autoplay = true;
       el.setAttribute("playsinline", "true");
+      // iOS / Chrome remote playback
+      (el as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
       el.style.display = "none";
       document.body.appendChild(el);
       remoteAudioRef.current = el;
     }
     el.srcObject = stream;
     el.volume = 1;
-    void el.play().catch(() => undefined);
+    el.muted = false;
+    void el.play().catch(() => {
+      // Retry after brief delay (autoplay policy)
+      window.setTimeout(() => {
+        void remoteAudioRef.current?.play().catch(() => undefined);
+      }, 200);
+    });
   }, []);
 
   const ensureMic = useCallback(async () => {
     if (streamRef.current) return streamRef.current;
-    // Audio-only, mono, ~16 kHz — never video (low mobile data)
     const stream = await getLowBandwidthAudioStream();
     if (stream) streamRef.current = stream;
     return stream;
@@ -339,7 +377,39 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const scheduleIceFailWatch = useCallback(() => {
+    if (iceFailTimerRef.current) {
+      window.clearTimeout(iceFailTimerRef.current);
+    }
+    iceFailTimerRef.current = window.setTimeout(() => {
+      if (phaseRef.current === "connected" || connectedOnceRef.current) return;
+      if (phaseRef.current !== "connecting") return;
+      // One ICE restart attempt
+      const pc = pcRef.current;
+      if (pc && pc.connectionState !== "closed") {
+        try {
+          pc.restartIce();
+          setStatusHint("Retrying connection… keep both apps open");
+        } catch {
+          /* */
+        }
+      }
+      // After restart, another 12s then soft fail (phone only if not answered path with no phone)
+      iceFailTimerRef.current = window.setTimeout(() => {
+        if (phaseRef.current === "connected" || connectedOnceRef.current) return;
+        if (!fallToPhone("Could not link in-app voice")) {
+          setStatusHint(
+            "Still connecting… stay here with mic on. Or use Call on phone line."
+          );
+        }
+      }, 12_000);
+    }, 10_000);
+  }, [fallToPhone]);
+
   const markConnected = useCallback(() => {
+    if (connectedOnceRef.current && phaseRef.current === "connected") return;
+    connectedOnceRef.current = true;
+    answeredRef.current = true;
     setPhase("connected");
     setStatusHint("In-app voice connected");
     if (!timerRef.current) {
@@ -348,15 +418,18 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
         1000
       );
     }
-    if (failTimerRef.current) {
-      window.clearTimeout(failTimerRef.current);
-      failTimerRef.current = null;
+    if (ringFailTimerRef.current) {
+      window.clearTimeout(ringFailTimerRef.current);
+      ringFailTimerRef.current = null;
+    }
+    if (iceFailTimerRef.current) {
+      window.clearTimeout(iceFailTimerRef.current);
+      iceFailTimerRef.current = null;
     }
     if (ringTimerRef.current) {
       window.clearInterval(ringTimerRef.current);
       ringTimerRef.current = null;
     }
-    // Silent adaptive Opus bitrate every 3s (Fair default → stats-driven)
     const pc = pcRef.current;
     if (pc && !bitrateStopRef.current) {
       void applyAudioSenderBitrate(pc, DEFAULT_BITRATE_BPS);
@@ -368,31 +441,55 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
     (local: MediaStream) => {
       const pc = new RTCPeerConnection({
         iceServers: ICE_SERVERS,
-        iceCandidatePoolSize: 8,
+        iceCandidatePoolSize: 10,
+        bundlePolicy: "max-bundle",
+        rtcpMuxPolicy: "require",
       });
 
-      // Audio only — never add video tracks/transceivers
       local.getAudioTracks().forEach((track) => {
         pc.addTrack(track, local);
       });
+      // Ensure bidirectional audio even if remote track late
+      const hasAudioSend = pc
+        .getTransceivers()
+        .some((t) => t.receiver.track?.kind === "audio" || t.sender.track?.kind === "audio");
+      if (!hasAudioSend) {
+        try {
+          pc.addTransceiver("audio", { direction: "sendrecv" });
+        } catch {
+          /* */
+        }
+      }
 
       pc.ontrack = (ev) => {
-        // Ignore non-audio
         if (ev.track && ev.track.kind !== "audio") {
-          ev.track.stop();
+          try {
+            ev.track.stop();
+          } catch {
+            /* */
+          }
           return;
         }
         const stream =
           ev.streams[0] ||
           (ev.track ? new MediaStream([ev.track]) : null);
-        if (stream) attachRemote(stream);
+        if (stream) {
+          attachRemote(stream);
+          // Media path = connected even if ICE state lags
+          markConnected();
+        }
+        if (ev.track) {
+          ev.track.onunmute = () => {
+            if (stream) attachRemote(stream);
+            markConnected();
+          };
+        }
       };
 
       pc.onicecandidate = (ev) => {
         const peer = peerIdRef.current;
         const callId = callIdRef.current;
         if (!ev.candidate || !peer || !callId) return;
-        // Skip video m-line candidates if any
         void pushSignal(peer, "ice", callId, {
           candidate: ev.candidate.toJSON(),
         });
@@ -403,12 +500,14 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
         if (st === "connected" || st === "completed") {
           markConnected();
         } else if (st === "failed") {
-          if (!fallToPhone("WebRTC failed")) {
+          if (!fallToPhone("WebRTC ICE failed")) {
             setStatusHint("Connection failed — try Call on phone");
           }
-        } else if (st === "checking") {
-          setPhase("connecting");
-          setStatusHint("Connecting voice…");
+        } else if (st === "checking" || st === "disconnected") {
+          if (phaseRef.current !== "connected") {
+            setPhase("connecting");
+            setStatusHint("Connecting voice…");
+          }
         }
       };
 
@@ -422,18 +521,42 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       };
 
       pcRef.current = pc;
-      // Initial Fair bitrate before first offer/answer negotiation settles
       void applyAudioSenderBitrate(pc, DEFAULT_BITRATE_BPS);
       return pc;
     },
     [attachRemote, fallToPhone, markConnected, pushSignal]
   );
 
+  const notifyIncomingCall = useCallback(
+    (fromName: string, callId: string) => {
+      vibrateCallPattern();
+      void ensureNotifyPermission().then((p) => {
+        if (p === "granted" || canNotify()) {
+          showAppNotification({
+            title: "Incoming call",
+            body: `${fromName} is calling on OgaMecho`,
+            tag: `call-${callId}`,
+            requireInteraction: true,
+          });
+        }
+      });
+      // Also try without waiting if already granted
+      if (canNotify()) {
+        showAppNotification({
+          title: "Incoming call",
+          body: `${fromName} is calling on OgaMecho`,
+          tag: `call-${callId}`,
+          requireInteraction: true,
+        });
+      }
+    },
+    []
+  );
+
   const processSignal = useCallback(
     async (row: CallSignalRow) => {
       if (processedIds.current.has(row.id)) return;
       processedIds.current.add(row.id);
-      // Bound set size
       if (processedIds.current.size > 200) {
         processedIds.current = new Set([...processedIds.current].slice(-80));
       }
@@ -449,6 +572,8 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
         closePeer();
         callIdRef.current = null;
         peerIdRef.current = null;
+        answeredRef.current = false;
+        connectedOnceRef.current = false;
         setIncoming(null);
         setPhase("ended");
         setStatusHint(row.kind === "reject" ? "Call declined" : "Call ended");
@@ -459,6 +584,26 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
           setSeconds(0);
           setStatusHint("");
         }, 1000);
+        return;
+      }
+
+      // Callee tapped Accept — update caller UI immediately
+      if (row.kind === "accepting") {
+        if (callIdRef.current && row.callId !== callIdRef.current) return;
+        answeredRef.current = true;
+        if (ringFailTimerRef.current) {
+          window.clearTimeout(ringFailTimerRef.current);
+          ringFailTimerRef.current = null;
+        }
+        if (ringTimerRef.current) {
+          window.clearInterval(ringTimerRef.current);
+          ringTimerRef.current = null;
+        }
+        if (phaseRef.current !== "connected") {
+          setPhase("connecting");
+          setStatusHint("They picked up — linking voice…");
+        }
+        scheduleIceFailWatch();
         return;
       }
 
@@ -483,15 +628,48 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
         if (callIdRef.current && row.callId !== callIdRef.current) return;
         const pc = pcRef.current;
         const sdp = row.payload.sdp as RTCSessionDescriptionInit | undefined;
-        if (!pc || !sdp) return;
+        if (!pc || !sdp?.sdp) {
+          console.warn("answer ignored: no pc or sdp", {
+            hasPc: !!pc,
+            hasSdp: !!sdp?.sdp,
+          });
+          return;
+        }
         try {
-          if (pc.signalingState === "have-local-offer") {
-            await pc.setRemoteDescription(
-              descriptionWithMungedSdp(sdp, DEFAULT_BITRATE_BPS)
-            );
+          // Cancel ring→phone fallback — peer answered
+          answeredRef.current = true;
+          if (ringFailTimerRef.current) {
+            window.clearTimeout(ringFailTimerRef.current);
+            ringFailTimerRef.current = null;
+          }
+          if (ringTimerRef.current) {
+            window.clearInterval(ringTimerRef.current);
+            ringTimerRef.current = null;
+          }
+
+          const state = pc.signalingState;
+          if (state === "have-local-offer" || state === "have-remote-pranswer") {
+            // Do NOT munge remote SDP
+            await pc.setRemoteDescription(asRemoteDesc(sdp));
             await flushIce(pc);
             setPhase("connecting");
-            setStatusHint("Connecting voice…");
+            setStatusHint("They answered — connecting voice…");
+            scheduleIceFailWatch();
+          } else if (state === "stable" && pc.currentRemoteDescription) {
+            // Already applied
+            setPhase("connecting");
+            scheduleIceFailWatch();
+          } else {
+            console.warn("answer unexpected signalingState", state);
+            // Try anyway
+            try {
+              await pc.setRemoteDescription(asRemoteDesc(sdp));
+              await flushIce(pc);
+              setPhase("connecting");
+              scheduleIceFailWatch();
+            } catch (e2) {
+              console.warn("answer force set failed", e2);
+            }
           }
         } catch (e) {
           console.warn("answer", e);
@@ -504,10 +682,15 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
 
       if (row.kind === "offer") {
         const p = phaseRef.current;
-        if (p !== "idle" && p !== "ended") return;
+        // Allow offer while idle/ended; if already in a call with same id, ignore
+        if (p !== "idle" && p !== "ended") {
+          if (callIdRef.current === row.callId) return;
+          return;
+        }
         const rawSdp = row.payload.sdp as RTCSessionDescriptionInit | undefined;
-        if (!rawSdp) return;
-        const sdp = descriptionWithMungedSdp(rawSdp, DEFAULT_BITRATE_BPS);
+        if (!rawSdp?.sdp) return;
+        // Store remote SDP raw (no munge)
+        const sdp = asRemoteDesc(rawSdp);
         const fromName = String(row.payload.fromName || "Caller");
         const fromPhoto = row.payload.fromPhoto
           ? String(row.payload.fromPhoto)
@@ -518,6 +701,8 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
 
         callIdRef.current = row.callId;
         peerIdRef.current = row.from;
+        answeredRef.current = false;
+        connectedOnceRef.current = false;
         setIncoming({
           callId: row.callId,
           from: row.from,
@@ -534,26 +719,36 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
           roleLabel: fromRole || "Incoming",
           userId: row.from,
         });
+        unlockAudio();
         playPersonTone(row.from, "call_ring");
+        notifyIncomingCall(fromName, row.callId);
         if (ringTimerRef.current) window.clearInterval(ringTimerRef.current);
         ringTimerRef.current = window.setInterval(() => {
           if (phaseRef.current === "ringing") {
             playPersonTone(row.from, "call_ring");
+            vibrateCallPattern();
           }
         }, 2200);
       }
     },
-    [clearTimers, closePeer, fallToPhone, flushIce, stopMedia]
+    [
+      clearTimers,
+      closePeer,
+      fallToPhone,
+      flushIce,
+      notifyIncomingCall,
+      scheduleIceFailWatch,
+      stopMedia,
+    ]
   );
 
-  // Poll durable signal inbox + optional Realtime (pro must receive offer)
+  // Poll durable signal inbox + Realtime (works on every screen)
   useEffect(() => {
     if (!backendUserId || !isUuid(backendUserId)) return;
     let cancelled = false;
 
     const tick = async () => {
       if (cancelled) return;
-      // Keep polling even when tab backgrounded (mobile call pickup)
       const rows = await pollCallSignals(backendUserId);
       if (!rows.length || cancelled) return;
       const acked: string[] = [];
@@ -569,10 +764,15 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
     };
 
     void tick();
-    // Fast poll so callee rings quickly
-    const id = window.setInterval(() => void tick(), 800);
+    // Faster while call active; still poll when idle for incoming
+    const id = window.setInterval(() => void tick(), 700);
 
-    // Realtime INSERT on call_signals for this user (if enabled)
+    const onVis = () => {
+      if (!document.hidden) void tick();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", onVis);
+
     const sb = getAppSupabase();
     let channel: ReturnType<NonNullable<typeof sb>["channel"]> | null = null;
     if (sb) {
@@ -596,6 +796,8 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("focus", onVis);
       if (sb && channel) void sb.removeChannel(channel);
     };
   }, [backendUserId, processSignal]);
@@ -607,31 +809,33 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       window.clearInterval(ringTimerRef.current);
       ringTimerRef.current = null;
     }
+    answeredRef.current = true;
     setPhase("connecting");
     setStatusHint("Answering…");
     callIdRef.current = incoming.callId;
     peerIdRef.current = incoming.from;
 
+    // Tell caller immediately that we picked up (fixes "one side still ringing")
+    void pushSignal(incoming.from, "accepting", incoming.callId, {});
+
     const local = await ensureMic();
     if (!local) {
       setStatusHint("Allow microphone to answer");
       setPhase("ringing");
+      answeredRef.current = false;
       return;
     }
 
     const pc = createPeer(local);
     try {
-      const remote = descriptionWithMungedSdp(
-        incoming.sdp,
-        DEFAULT_BITRATE_BPS
-      );
-      await pc.setRemoteDescription(remote);
+      // Remote offer as-is
+      await pc.setRemoteDescription(asRemoteDesc(incoming.sdp));
       await flushIce(pc);
       const answer = await pc.createAnswer();
       const mungedAnswer = descriptionWithMungedSdp(answer, DEFAULT_BITRATE_BPS);
       await pc.setLocalDescription(mungedAnswer);
-      // Wait a moment for ICE gathering to start
-      await new Promise((r) => setTimeout(r, 300));
+      // Gather some candidates into SDP + trickle the rest
+      await waitIceGathering(pc, 2000);
       const localDesc = pc.localDescription || mungedAnswer;
       const err = await pushSignal(incoming.from, "answer", incoming.callId, {
         sdp: { type: localDesc.type, sdp: localDesc.sdp },
@@ -641,15 +845,8 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
         setStatusHint(err);
       }
       setIncoming(null);
-      setStatusHint("Connecting voice… allow mic on both phones");
-      failTimerRef.current = window.setTimeout(() => {
-        if (phaseRef.current !== "connected") {
-          // Callee can't dial caller automatically; keep waiting with clear text
-          setStatusHint(
-            "Still connecting… stay on this screen. If this fails, use phone numbers in profiles."
-          );
-        }
-      }, 12000);
+      setStatusHint("Connecting voice… keep both apps open");
+      scheduleIceFailWatch();
     } catch (e) {
       console.warn("accept", e);
       if (!fallToPhone("Answer failed")) {
@@ -666,6 +863,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
     flushIce,
     incoming,
     pushSignal,
+    scheduleIceFailWatch,
   ]);
 
   const rejectIncoming = useCallback(async () => {
@@ -682,6 +880,8 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
     setMode(null);
     callIdRef.current = null;
     peerIdRef.current = null;
+    answeredRef.current = false;
+    connectedOnceRef.current = false;
     closePeer();
   }, [closePeer, incoming, pushSignal]);
 
@@ -697,6 +897,8 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       clearTimers();
       stopMedia();
       closePeer();
+      answeredRef.current = false;
+      connectedOnceRef.current = false;
       setTarget({ ...t, phone });
       setMode("phone");
       setPhase("dialing");
@@ -725,6 +927,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
         return false;
       }
       unlockAudio();
+      void ensureNotifyPermission();
       clearTimers();
       stopMedia();
       closePeer();
@@ -733,6 +936,8 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       callIdRef.current = callId;
       peerIdRef.current = t.userId;
       phoneRef.current = (t.phone || "").replace(/[^\d+]/g, "");
+      answeredRef.current = false;
+      connectedOnceRef.current = false;
       setTarget(t);
       setMode("webrtc");
       setPhase("dialing");
@@ -766,10 +971,10 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
           DEFAULT_BITRATE_BPS
         );
         await pc.setLocalDescription(mungedOffer);
-        await new Promise((r) => setTimeout(r, 350));
+        await waitIceGathering(pc, 2000);
 
         setPhase("ringing");
-        setStatusHint("Ringing… (keep both apps open)");
+        setStatusHint("Ringing… they can pick up on any OgaMecho screen");
         playPersonTone(t.userId, "call_ring");
         ringTimerRef.current = window.setInterval(() => {
           if (phaseRef.current === "ringing") {
@@ -798,24 +1003,23 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
           return false;
         }
 
-        setStatusHint(
-          "Ringing other device… keep their app open on this job"
-        );
+        setStatusHint("Ringing… keep your app open");
 
-        // If no answer / ICE, fall back to phone (caller dials pro number)
-        failTimerRef.current = window.setTimeout(() => {
+        // Only fall to phone if they NEVER pick up (still ringing/dialing)
+        ringFailTimerRef.current = window.setTimeout(() => {
           if (
-            phaseRef.current !== "connected" &&
-            phaseRef.current !== "idle" &&
-            phaseRef.current !== "ended"
+            phaseRef.current === "ringing" ||
+            phaseRef.current === "dialing"
           ) {
-            if (!fallToPhone("No answer in-app — opening phone dialer")) {
-              setStatusHint(
-                "Repair Pro did not pick up in-app. Ask them to open OgaMecho, or use Message."
-              );
+            if (!answeredRef.current) {
+              if (!fallToPhone("No answer in-app — opening phone dialer")) {
+                setStatusHint(
+                  "No answer. Ask them to open OgaMecho, or use Message."
+                );
+              }
             }
           }
-        }, 15000);
+        }, 22_000);
 
         return true;
       } catch (e) {
@@ -848,10 +1052,10 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
   const startCall = useCallback(
     (t: CallTarget) => {
       unlockAudio();
+      void ensureNotifyPermission();
       const peerOk = Boolean(t.userId && isUuid(t.userId) && backendUserId);
       const phoneOk = Boolean((t.phone || "").replace(/[^\d+]/g, ""));
 
-      // Prefer WebRTC when peer id is real UUID; else phone
       if (peerOk) {
         void startWebRtcCall(t);
         return;

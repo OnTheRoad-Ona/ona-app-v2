@@ -1790,38 +1790,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [accountType, backendUserId, displayName]
   );
 
-  // Detect new inbound messages → unique tone for the other person
-  const prevMsgSig = useRef("");
-  useEffect(() => {
-    if (!backendUserId || !messages.length) return;
-    let latestOther: { at: string; who: string } | null = null;
-    for (const th of messages) {
-      for (const m of th.messages) {
-        if (m.sender === "system") continue;
-        const mine =
-          (accountType === "professional" && m.sender === "professional") ||
-          (accountType === "motorist" && m.sender === "motorist");
-        if (mine) continue;
-        const who =
-          m.sender === "professional"
-            ? th.technicianId || th.technicianName
-            : th.motoristName;
-        if (!latestOther || m.at > latestOther.at) {
-          latestOther = { at: m.at, who };
-        }
-      }
-    }
-    if (!latestOther) return;
-    const sig = `${latestOther.who}|${latestOther.at}`;
-    if (!prevMsgSig.current) {
-      prevMsgSig.current = sig;
-      return;
-    }
-    if (sig !== prevMsgSig.current) {
-      prevMsgSig.current = sig;
-      playPersonTone(latestOther.who, "message");
-    }
-  }, [messages, backendUserId, accountType]);
+  // Inbound message tone + banner handled by InboundBanner (app-wide)
 
   // All chats for this account (skill filter hid pro job chats)
   const visibleMessageThreads = useMemo(() => messages, [messages]);

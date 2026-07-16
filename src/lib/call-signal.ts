@@ -8,7 +8,9 @@ export type CallSignalKind =
   | "answer"
   | "ice"
   | "hangup"
-  | "reject";
+  | "reject"
+  /** Callee tapped Accept — caller UI moves to Connecting before answer SDP arrives */
+  | "accepting";
 
 export type CallSignalRow = {
   id: string;
