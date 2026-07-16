@@ -121,6 +121,8 @@ export type JobRecord = {
   motoristPhoto?: string | null;
   /** From profiles.phone — for in-app Call */
   motoristPhone?: string | null;
+  /** Motorist vehicle (from profile) e.g. "Toyota Camry" */
+  motoristVehicle?: string | null;
   repairProId: string;
   repairProName: string;
   repairProPhoto?: string;

@@ -448,14 +448,17 @@ async function hydrateMotoristPhoto(job: JobRecord): Promise<JobRecord> {
 /** Load motorist + repair pro phone numbers for Call buttons */
 async function hydrateJobPhones(job: JobRecord): Promise<JobRecord> {
   if (!isSupabaseAdminConfigured()) return job;
-  if (job.motoristPhone?.trim() && job.repairProPhone?.trim()) return job;
+  const needPhones =
+    !job.motoristPhone?.trim() || !job.repairProPhone?.trim();
+  const needVehicle = !job.motoristVehicle?.trim();
+  if (!needPhones && !needVehicle) return job;
   try {
     const sb = createServiceSupabase();
     const ids = [job.motoristId, job.repairProId].filter(Boolean);
     if (!ids.length) return job;
     const { data } = await sb
       .from("profiles")
-      .select("id, phone, avatar_url, full_name")
+      .select("id, phone, avatar_url, full_name, vehicle_make, vehicle_model")
       .in("id", ids);
     if (!data?.length) return job;
     let next = { ...job };
@@ -464,9 +467,15 @@ async function hydrateJobPhones(job: JobRecord): Promise<JobRecord> {
       phone?: string | null;
       avatar_url?: string | null;
       full_name?: string | null;
+      vehicle_make?: string | null;
+      vehicle_model?: string | null;
     }[]) {
       const phone = (row.phone || "").trim() || null;
       if (row.id === job.motoristId) {
+        const make = (row.vehicle_make || "").trim();
+        const model = (row.vehicle_model || "").trim();
+        const vehicle =
+          [make, model].filter(Boolean).join(" ").trim() || null;
         next = {
           ...next,
           motoristPhone: next.motoristPhone || phone,
@@ -477,6 +486,7 @@ async function hydrateJobPhones(job: JobRecord): Promise<JobRecord> {
             next.motoristName && next.motoristName !== "Motorist"
               ? next.motoristName
               : String(row.full_name || next.motoristName || "Motorist"),
+          motoristVehicle: next.motoristVehicle || vehicle,
         };
       }
       if (row.id === job.repairProId) {
@@ -571,7 +581,8 @@ export async function listJobsForUser(
             continue;
           }
         }
-        const j = await maybeExpire(rowToJob(row as Record<string, unknown>));
+        let j = await maybeExpire(rowToJob(row as Record<string, unknown>));
+        j = await hydrateJobPhones(j);
         if (!out.find((x) => x.id === j.id)) out.push(j);
       }
     } catch {
