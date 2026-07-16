@@ -23,7 +23,6 @@ import { cn } from "@/lib/utils";
 const CLIENT_NAV = [
   { href: "/", label: "Home", icon: Home },
   { href: "/requests", label: "Requests", icon: Clock3 },
-  { href: "/bookings", label: "Bookings", icon: Briefcase },
   { href: "/messages", label: "Messages", icon: MessageCircle },
   { href: "/profile", label: "Profile", icon: UserRound },
   { href: "/settings", label: "Settings", icon: Settings },
