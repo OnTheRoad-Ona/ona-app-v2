@@ -1,18 +1,19 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ProOwnProfile } from "@/components/profile/pro-own-profile";
 import { ProPublicView } from "@/components/profile/pro-public-view";
+import type { ProfileReview } from "@/lib/profile-system";
 import { useApp } from "@/lib/store";
 import type { Technician } from "@/lib/types";
 
 /**
  * Motorist opens a Repair Pro from home / map (read-only).
  * Own pro card (`pro-self`) → pro own profile editor.
- * Repair Pros never get a route to view Motorist profiles.
+ * Live reviews poll so new ratings appear before offering.
  */
 export default function TechnicianPage({
   params,
@@ -30,11 +31,56 @@ export default function TechnicianPage({
   } = useApp();
   const fromStore = technicians.find((t) => t.id === id) || null;
   const [tech, setTech] = useState<Technician | null>(fromStore);
+  const [reviews, setReviews] = useState<ProfileReview[]>([]);
   const [loading, setLoading] = useState(!fromStore);
   const [error, setError] = useState<string | null>(null);
   const isLight = theme === "light";
   const isOwnPro =
     id === "pro-self" && accountType === "professional";
+
+  const applyReviewMeta = useCallback(
+    (
+      list: ProfileReview[],
+      ratingAvg?: number,
+      ratingCount?: number
+    ) => {
+      setReviews(list);
+      setTech((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          rating:
+            typeof ratingAvg === "number" && ratingAvg > 0
+              ? ratingAvg
+              : prev.rating,
+          reviewCount:
+            typeof ratingCount === "number"
+              ? ratingCount
+              : list.length || prev.reviewCount,
+        };
+      });
+    },
+    []
+  );
+
+  const loadReviews = useCallback(async () => {
+    if (!id || id === "pro-self") return;
+    try {
+      const res = await fetch(`/api/pros/${encodeURIComponent(id)}/reviews`, {
+        cache: "no-store",
+      });
+      const json = await res.json().catch(() => null);
+      if (!json?.ok) return;
+      const list = (json.data?.reviews || []) as ProfileReview[];
+      applyReviewMeta(
+        list,
+        Number(json.data?.ratingAvg),
+        Number(json.data?.ratingCount)
+      );
+    } catch {
+      /* keep last known */
+    }
+  }, [id, applyReviewMeta]);
 
   useEffect(() => {
     if (isOwnPro) return;
@@ -42,11 +88,10 @@ export default function TechnicianPage({
       setTech(fromStore);
       setLoading(false);
       setError(null);
-      return;
     }
 
     let cancelled = false;
-    setLoading(true);
+    setLoading((v) => (fromStore ? false : true));
     setError(null);
     const lat = location?.coordinates?.lat ?? 6.5244;
     const lng = location?.coordinates?.lng ?? 3.3792;
@@ -63,17 +108,31 @@ export default function TechnicianPage({
         const json = await res.json().catch(() => null);
         if (cancelled) return;
         if (!json?.ok || !json.data?.technician) {
-          setTech(null);
-          setError(json?.error?.message || "Technician not found");
+          if (!fromStore) {
+            setTech(null);
+            setError(json?.error?.message || "Technician not found");
+          }
           setLoading(false);
+          // Still try reviews (pro may be offline but reviews public)
+          void loadReviews();
           return;
         }
-        setTech(json.data.technician as Technician);
+        const t = json.data.technician as Technician;
+        setTech(t);
+        const list = (json.data.reviews || []) as ProfileReview[];
+        applyReviewMeta(
+          list,
+          Number(json.data.ratingAvg ?? t.rating),
+          Number(json.data.ratingCount ?? t.reviewCount)
+        );
         setLoading(false);
       } catch {
         if (!cancelled) {
-          setError("Could not load technician. Check your connection.");
+          if (!fromStore) {
+            setError("Could not load technician. Check your connection.");
+          }
           setLoading(false);
+          void loadReviews();
         }
       }
     })();
@@ -87,7 +146,27 @@ export default function TechnicianPage({
     location?.coordinates?.lat,
     location?.coordinates?.lng,
     isOwnPro,
+    applyReviewMeta,
+    loadReviews,
   ]);
+
+  // Real-time-ish: poll reviews every 4s while on profile
+  useEffect(() => {
+    if (isOwnPro || !id || id === "pro-self") return;
+    void loadReviews();
+    const tick = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      void loadReviews();
+    }, 4000);
+    const onVis = () => {
+      if (!document.hidden) void loadReviews();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.clearInterval(tick);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [id, isOwnPro, loadReviews]);
 
   if (isOwnPro) {
     return <ProOwnProfile isLight={isLight} />;
@@ -142,6 +221,7 @@ export default function TechnicianPage({
     <ProPublicView
       tech={tech}
       isLight={isLight}
+      reviews={reviews}
       onRequest={() => {
         setSelectedTechId(tech.id);
         router.push(`/request?tech=${tech.id}`);

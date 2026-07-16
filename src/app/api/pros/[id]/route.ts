@@ -1,4 +1,8 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import {
+  listProReviews,
+  toProfileReview,
+} from "@/lib/server/reviews";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { mapProToTechnician } from "@/lib/supabase/mappers";
@@ -10,6 +14,7 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/pros/[id] — single Live Repair Pro for motorist deep-links.
  * Only when: approved + is_online + profiles.role = repair_pro.
+ * Includes live reviews so motorists can read before offering.
  */
 export async function GET(
   req: Request,
@@ -71,7 +76,15 @@ export async function GET(
       userCoords
     );
 
-    return apiOk({ technician });
+    const reviewRows = await listProReviews(id, 30);
+    const reviews = reviewRows.map(toProfileReview);
+
+    return apiOk({
+      technician,
+      reviews,
+      ratingAvg: technician.rating,
+      ratingCount: technician.reviewCount,
+    });
   } catch (e) {
     console.error(e);
     return apiFail("Failed to load technician", 500);

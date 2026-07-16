@@ -91,25 +91,8 @@ export function ProPublicView({
             ? "Nearby"
             : tech.status;
 
-  const demoReviews: ProfileReview[] =
-    reviews.length > 0
-      ? reviews
-      : [
-          {
-            id: "r1",
-            authorName: "Ada O.",
-            rating: 5,
-            date: "2 days ago",
-            comment: "Fast, professional, and fixed my battery on the spot.",
-          },
-          {
-            id: "r2",
-            authorName: "Chidi M.",
-            rating: 4.5,
-            date: "1 week ago",
-            comment: "Good communication and fair pricing.",
-          },
-        ];
+  // Live reviews only (no demo filler) — motorists see real ratings before offer
+  const liveReviews = reviews;
 
   return (
     <ProfileShell
@@ -262,29 +245,40 @@ export function ProPublicView({
       </ProfileSection>
 
       <ProfileSection title="Recent reviews" isLight={isLight}>
-        <div className="max-h-48 space-y-2 overflow-y-auto scrollbar-hide">
-          {demoReviews.map((r) => (
-            <div
-              key={r.id}
-              className={cn(
-                "rounded-xl px-2.5 py-2",
-                isLight ? "bg-black/[0.04]" : "bg-[#2c2c2e]"
-              )}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className={cn("text-[12px] font-bold", t.ink)}>{r.authorName}</p>
-                <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-amber-400">
-                  <Star className="h-3 w-3 fill-amber-400" />
-                  {r.rating}
-                </span>
+        {liveReviews.length === 0 ? (
+          <p className={cn("text-[12px] font-medium leading-snug", t.muted)}>
+            No reviews yet. Ratings from motorists after completed jobs will
+            show here.
+          </p>
+        ) : (
+          <div className="max-h-56 space-y-2 overflow-y-auto scrollbar-hide">
+            {liveReviews.map((r) => (
+              <div
+                key={r.id}
+                className={cn(
+                  "rounded-xl px-2.5 py-2",
+                  isLight ? "bg-black/[0.04]" : "bg-[#2c2c2e]"
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className={cn("text-[12px] font-bold", t.ink)}>
+                    {r.authorName}
+                  </p>
+                  <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-amber-400">
+                    <Star className="h-3 w-3 fill-amber-400" />
+                    {r.rating}
+                  </span>
+                </div>
+                {r.date ? (
+                  <p className={cn("mt-0.5 text-[10px]", t.muted)}>{r.date}</p>
+                ) : null}
+                <p className={cn("mt-1 text-[12px] leading-snug", t.soft)}>
+                  {r.comment}
+                </p>
               </div>
-              <p className={cn("mt-0.5 text-[10px]", t.muted)}>{r.date}</p>
-              <p className={cn("mt-1 text-[12px] leading-snug", t.soft)}>
-                {r.comment}
-              </p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
         <p className={cn("mt-2 flex items-center justify-center gap-1 text-[10px]", t.muted)}>
           <Clock3 className="h-3 w-3" />
           Typical reply {formatEta(tech.etaMinutes)}

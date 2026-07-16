@@ -251,7 +251,7 @@ export function JobFlowScreen({
       await load();
     };
     void tick();
-    // Low data: negotiate 8s, active trip 15s (location pings carry ETA)
+    // Low data: negotiate 8s, active trip 15s; post-pay reviews poll fast (3s)
     const ms =
       job?.status === "negotiating" || job?.status === "agreed"
         ? 8000
@@ -259,7 +259,9 @@ export function JobFlowScreen({
               job?.status || ""
             )
           ? 15_000
-          : 20_000;
+          : job?.status === "released" || job?.status === "satisfied"
+            ? 3000
+            : 20_000;
     const id = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void tick();

@@ -1226,12 +1226,31 @@ export async function rateJob(input: {
   if (noteRaw.length > 144) {
     return { error: "Review max 144 characters" };
   }
+  const stars = Math.min(5, Math.max(1, Math.round(input.rating)));
   const updated = await persist({
     ...job,
-    rating: Math.min(5, Math.max(1, Math.round(input.rating))),
+    rating: stars,
     ratingNote: noteRaw || null,
     updatedAt: nowIso(),
   });
+
+  // Publish to reviews table + pro profile aggregates (motorists see before offer)
+  try {
+    const { publishProReview } = await import("@/lib/server/reviews");
+    const pub = await publishProReview({
+      requestId: job.id,
+      motoristId: job.motoristId,
+      repairProId: job.repairProId,
+      rating: stars,
+      comment: noteRaw || null,
+    });
+    if (!pub.ok) {
+      console.warn("rateJob: profile review publish failed", pub.error);
+    }
+  } catch (e) {
+    console.warn("rateJob: profile review publish error", e);
+  }
+
   return { job: updated };
 }
 
