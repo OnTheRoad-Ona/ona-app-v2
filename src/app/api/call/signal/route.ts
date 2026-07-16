@@ -11,35 +11,47 @@ const postSchema = z.object({
   toUserId: z.string().uuid(),
   fromUserId: z.string().uuid(),
   kind: z.enum(["offer", "answer", "ice", "hangup", "reject"]),
-  payload: z.record(z.string(), z.unknown()),
+  payload: z.record(z.string(), z.unknown()).default({}),
 });
 
 /**
- * Durable WebRTC signaling.
- * Broadcast-only signaling was dropping offers on mobile; this stores rows
- * the callee polls every ~1s while idle / in a call.
+ * Durable WebRTC signaling stored in Postgres.
+ * Callee polls; signals are NOT marked consumed until PATCH ack
+ * (so a failed client parse cannot drop the offer forever).
  */
 export async function POST(req: Request) {
   if (!isSupabaseAdminConfigured()) {
     return apiFail("Supabase not configured", 503);
   }
   try {
-    const parsed = postSchema.safeParse(await req.json());
-    if (!parsed.success) return apiFail("Invalid signal", 400);
+    const body = await req.json();
+    const parsed = postSchema.safeParse(body);
+    if (!parsed.success) {
+      return apiFail(
+        `Invalid signal: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+        400
+      );
+    }
     const b = parsed.data;
-    const sb = createServiceSupabase();
+    if (b.toUserId === b.fromUserId) {
+      return apiFail("Cannot signal yourself", 400);
+    }
 
-    const { error } = await sb.from("call_signals").insert({
-      call_id: b.callId,
-      to_user_id: b.toUserId,
-      from_user_id: b.fromUserId,
-      kind: b.kind,
-      payload: b.payload,
-      consumed: false,
-    });
+    const sb = createServiceSupabase();
+    const { data, error } = await sb
+      .from("call_signals")
+      .insert({
+        call_id: b.callId,
+        to_user_id: b.toUserId,
+        from_user_id: b.fromUserId,
+        kind: b.kind,
+        payload: b.payload ?? {},
+        consumed: false,
+      })
+      .select("id")
+      .maybeSingle();
 
     if (error) {
-      // Table may not exist yet — return clear error
       if (
         error.message.includes("call_signals") ||
         error.code === "42P01"
@@ -49,46 +61,40 @@ export async function POST(req: Request) {
           503
         );
       }
+      console.error("call_signals insert", error);
       return apiFail(error.message, 500);
     }
-    return apiOk({ ok: true });
+    return apiOk({ id: data?.id, ok: true });
   } catch (e) {
     return apiFail(e instanceof Error ? e.message : "Signal failed", 500);
   }
 }
 
-const getSchema = z.object({
-  userId: z.string().uuid(),
-  after: z.string().optional(),
-});
-
-/** Poll inbox for unconsumed signals */
+/** Poll inbox — does NOT consume (use PATCH to ack) */
 export async function GET(req: Request) {
   if (!isSupabaseAdminConfigured()) {
     return apiFail("Supabase not configured", 503);
   }
   try {
     const url = new URL(req.url);
-    const parsed = getSchema.safeParse({
-      userId: url.searchParams.get("userId"),
-      after: url.searchParams.get("after") || undefined,
-    });
-    if (!parsed.success) return apiFail("userId required", 400);
-
-    const sb = createServiceSupabase();
-    let q = sb
-      .from("call_signals")
-      .select("id, call_id, from_user_id, kind, payload, created_at")
-      .eq("to_user_id", parsed.data.userId)
-      .eq("consumed", false)
-      .order("created_at", { ascending: true })
-      .limit(40);
-
-    if (parsed.data.after) {
-      q = q.gt("created_at", parsed.data.after);
+    const userId = url.searchParams.get("userId") || "";
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        userId
+      )
+    ) {
+      return apiFail("userId required (uuid)", 400);
     }
 
-    const { data, error } = await q;
+    const sb = createServiceSupabase();
+    const { data, error } = await sb
+      .from("call_signals")
+      .select("id, call_id, from_user_id, kind, payload, created_at")
+      .eq("to_user_id", userId)
+      .eq("consumed", false)
+      .order("created_at", { ascending: true })
+      .limit(50);
+
     if (error) {
       if (error.code === "42P01") {
         return apiOk({ signals: [], missingTable: true });
@@ -97,26 +103,41 @@ export async function GET(req: Request) {
     }
 
     const rows = data || [];
-    // Mark consumed so we don't re-process
-    if (rows.length) {
-      const ids = rows.map((r) => r.id as string);
-      await sb
-        .from("call_signals")
-        .update({ consumed: true })
-        .in("id", ids);
-    }
-
     return apiOk({
       signals: rows.map((r) => ({
         id: r.id,
         callId: r.call_id,
         from: r.from_user_id,
         kind: r.kind,
-        payload: r.payload,
+        payload: r.payload || {},
         createdAt: r.created_at,
       })),
     });
   } catch (e) {
     return apiFail(e instanceof Error ? e.message : "Poll failed", 500);
+  }
+}
+
+const patchSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(50),
+});
+
+/** Mark signals consumed after successful client handling */
+export async function PATCH(req: Request) {
+  if (!isSupabaseAdminConfigured()) {
+    return apiFail("Supabase not configured", 503);
+  }
+  try {
+    const parsed = patchSchema.safeParse(await req.json());
+    if (!parsed.success) return apiFail("ids required", 400);
+    const sb = createServiceSupabase();
+    const { error } = await sb
+      .from("call_signals")
+      .update({ consumed: true })
+      .in("id", parsed.data.ids);
+    if (error) return apiFail(error.message, 500);
+    return apiOk({ ok: true });
+  } catch (e) {
+    return apiFail(e instanceof Error ? e.message : "Ack failed", 500);
   }
 }

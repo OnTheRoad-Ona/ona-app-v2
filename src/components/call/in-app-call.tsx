@@ -31,12 +31,14 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import {
+  ackCallSignals,
   pollCallSignals,
   postCallSignal,
   type CallSignalRow,
 } from "@/lib/call-signal";
 import { playPersonTone, unlockAudio } from "@/lib/sound-tone";
 import { useApp } from "@/lib/store";
+import { getAppSupabase } from "@/lib/supabase/app-client";
 import { cn } from "@/lib/utils";
 
 export type CallTarget = {
@@ -524,22 +526,57 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
     [clearTimers, closePeer, fallToPhone, flushIce, stopMedia]
   );
 
-  // Poll durable signal inbox (works even when Realtime broadcast drops)
+  // Poll durable signal inbox + optional Realtime (pro must receive offer)
   useEffect(() => {
     if (!backendUserId || !isUuid(backendUserId)) return;
     let cancelled = false;
+
     const tick = async () => {
-      if (cancelled || document.hidden) return;
+      if (cancelled) return;
+      // Keep polling even when tab backgrounded (mobile call pickup)
       const rows = await pollCallSignals(backendUserId);
+      if (!rows.length || cancelled) return;
+      const acked: string[] = [];
       for (const r of rows) {
-        await processSignal(r);
+        try {
+          await processSignal(r);
+          acked.push(r.id);
+        } catch (e) {
+          console.warn("processSignal", e);
+        }
       }
+      if (acked.length) void ackCallSignals(acked);
     };
+
     void tick();
-    const id = window.setInterval(() => void tick(), 1200);
+    // Fast poll so callee rings quickly
+    const id = window.setInterval(() => void tick(), 800);
+
+    // Realtime INSERT on call_signals for this user (if enabled)
+    const sb = getAppSupabase();
+    let channel: ReturnType<NonNullable<typeof sb>["channel"]> | null = null;
+    if (sb) {
+      channel = sb
+        .channel(`call-db:${backendUserId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "call_signals",
+            filter: `to_user_id=eq.${backendUserId}`,
+          },
+          () => {
+            void tick();
+          }
+        )
+        .subscribe();
+    }
+
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      if (sb && channel) void sb.removeChannel(channel);
     };
   }, [backendUserId, processSignal]);
 
@@ -570,19 +607,24 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       await pc.setLocalDescription(answer);
       // Wait a moment for ICE gathering to start
       await new Promise((r) => setTimeout(r, 300));
+      const localDesc = pc.localDescription || answer;
       const err = await pushSignal(incoming.from, "answer", incoming.callId, {
-        sdp: pc.localDescription || answer,
+        sdp: { type: localDesc.type, sdp: localDesc.sdp },
       });
       if (err) {
+        console.error("answer signal failed", err);
         setStatusHint(err);
       }
       setIncoming(null);
-      setStatusHint("Connecting voice…");
+      setStatusHint("Connecting voice… allow mic on both phones");
       failTimerRef.current = window.setTimeout(() => {
         if (phaseRef.current !== "connected") {
-          fallToPhone("Slow connect — using phone");
+          // Callee can't dial caller automatically; keep waiting with clear text
+          setStatusHint(
+            "Still connecting… stay on this screen. If this fails, use phone numbers in profiles."
+          );
         }
-      }, 10000);
+      }, 12000);
     } catch (e) {
       console.warn("accept", e);
       if (!fallToPhone("Answer failed")) {
@@ -706,16 +748,20 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
           }
         }, 2200);
 
+        const sdp = pc.localDescription || offer;
         const err = await pushSignal(t.userId, "offer", callId, {
-          sdp: pc.localDescription || offer,
+          sdp: {
+            type: sdp.type,
+            sdp: sdp.sdp,
+          },
           fromName: myName,
           fromPhoto: myPhoto || null,
           fromRole: myRole,
         });
         if (err) {
-          // Table missing or network — go straight to phone
+          console.error("offer signal failed", err);
           if (phoneRef.current) {
-            fallToPhone("In-app signaling unavailable");
+            fallToPhone(`Signal error: ${err}`);
             return true;
           }
           setStatusHint(err);
@@ -723,18 +769,24 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
           return false;
         }
 
-        // Fast auto-fallback to phone if peer never connects
+        setStatusHint(
+          "Ringing other device… keep their app open on this job"
+        );
+
+        // If no answer / ICE, fall back to phone (caller dials pro number)
         failTimerRef.current = window.setTimeout(() => {
           if (
             phaseRef.current !== "connected" &&
             phaseRef.current !== "idle" &&
             phaseRef.current !== "ended"
           ) {
-            if (!fallToPhone("No answer on in-app — phone line")) {
-              setStatusHint("No answer — try again or use Message");
+            if (!fallToPhone("No answer in-app — opening phone dialer")) {
+              setStatusHint(
+                "Repair Pro did not pick up in-app. Ask them to open OgaMecho, or use Message."
+              );
             }
           }
-        }, 12000);
+        }, 15000);
 
         return true;
       } catch (e) {

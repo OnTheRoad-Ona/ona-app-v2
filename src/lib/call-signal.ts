@@ -1,6 +1,6 @@
 /**
- * Durable call signaling client — POST/GET /api/call/signal
- * More reliable than Realtime broadcast alone on mobile networks.
+ * Durable call signaling — POST/GET /api/call/signal
+ * Also supports client-side Supabase Realtime when available.
  */
 
 export type CallSignalKind =
@@ -36,7 +36,9 @@ export async function postCallSignal(input: {
       ok?: boolean;
       error?: { message?: string };
     } | null;
-    if (!json?.ok) return json?.error?.message || "Signal failed";
+    if (!json?.ok) {
+      return json?.error?.message || `Signal failed (${res.status})`;
+    }
     return null;
   } catch {
     return "Network error sending call signal";
@@ -48,14 +50,35 @@ export async function pollCallSignals(
 ): Promise<CallSignalRow[]> {
   try {
     const qs = new URLSearchParams({ userId });
-    const res = await fetch(`/api/call/signal?${qs}`, { cache: "no-store" });
+    const res = await fetch(`/api/call/signal?${qs}`, {
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    });
     const json = (await res.json().catch(() => null)) as {
       ok?: boolean;
       data?: { signals?: CallSignalRow[]; missingTable?: boolean };
+      error?: { message?: string };
     } | null;
-    if (!json?.ok || !json.data?.signals) return [];
-    return json.data.signals;
-  } catch {
+    if (!json?.ok) {
+      console.warn("pollCallSignals", json?.error?.message || res.status);
+      return [];
+    }
+    return json.data?.signals || [];
+  } catch (e) {
+    console.warn("pollCallSignals network", e);
     return [];
+  }
+}
+
+export async function ackCallSignals(ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  try {
+    await fetch("/api/call/signal", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+  } catch {
+    /* best-effort */
   }
 }

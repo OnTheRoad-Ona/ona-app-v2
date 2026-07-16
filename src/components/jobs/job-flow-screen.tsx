@@ -988,8 +988,9 @@ export function JobFlowScreen({
       }
     };
 
-    // Ready to go (paid_booked): no map — full panel for details + Call/Message
+    // Ready to go (paid_booked): no map, no nested panels — flat stage only
     const showMap = job.status !== "paid_booked";
+    const isReadyToGo = job.status === "paid_booked";
 
     return (
       <JobShell
@@ -1009,9 +1010,7 @@ export function JobFlowScreen({
               <p
                 className={cn(
                   "rounded-md px-3 py-2 text-center text-[12px] font-bold",
-                  isLight
-                    ? "bg-slate-900 text-white"
-                    : "bg-[#2c2c2e] text-white"
+                  isLight ? "bg-slate-900 text-white" : "bg-[#2c2c2e] text-white"
                 )}
               >
                 {locHint}
@@ -1080,247 +1079,124 @@ export function JobFlowScreen({
           </div>
         }
       >
-        {/* Map only after trip starts (en_route+) — Ready to go uses full panel */}
         {showMap && (
           <div className="relative mx-0 h-[38vh] min-h-[220px] max-h-[320px] overflow-hidden">
             <LiveJobTrackMap job={job} isLight={isLight} viewer={viewer} />
           </div>
         )}
 
-        {/* Job panel — full height when Ready to go (no map) */}
+        {/* Start trip / Ready to go — flat on stage, no card/panel backgrounds */}
         <div
           className={cn(
-            "space-y-3 px-3 pb-2",
-            showMap ? "relative z-10 -mt-5" : "pt-1"
+            "space-y-4",
+            showMap ? "relative z-10 -mt-4 px-3 pb-2" : "px-0 pb-2 pt-1"
           )}
         >
-          <div
-            className={cn(
-              "overflow-hidden rounded-md",
-              isLight ? "bg-[#bebfc4]" : "bg-[#141414]"
-            )}
-          >
-            {/* Status strip */}
-            <div
+          {/* Status + skill + name on one clean line */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span
               className={cn(
-                "flex items-center justify-between gap-2 px-3.5 py-2.5",
-                isLight ? "bg-[#c8c9cd]" : "bg-[#1a1a1c]"
+                "rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-white",
+                job.status === "paid_booked"
+                  ? "bg-emerald-600"
+                  : job.status === "en_route" || job.status === "in_progress"
+                    ? "bg-[#e07a3d]"
+                    : isLight
+                      ? "bg-slate-800"
+                      : "bg-[#3a3a3c]"
               )}
             >
-              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                <span
-                  className={cn(
-                    "inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.08em]",
-                    job.status === "en_route" || job.status === "in_progress"
-                      ? "bg-[#e07a3d] text-white"
-                      : job.status === "paid_booked"
-                        ? "bg-emerald-600 text-white"
-                        : isLight
-                          ? "bg-slate-800 text-white"
-                          : "bg-[#3a3a3c] text-white"
-                  )}
-                >
-                  {job.status === "paid_booked"
-                    ? "Paid · Booked"
-                    : statusLabel[job.status] || job.status}
-                </span>
-                <span
-                  className={cn(
-                    "truncate text-[11px] font-bold",
-                    isLight ? "text-slate-600" : "text-white/55"
-                  )}
-                >
-                  {viewer === "motorist"
-                    ? PRO_SERVICE_LABELS[job.serviceType]
-                    : "Motorist"}
-                </span>
-              </div>
-              {(job.status === "en_route" || job.status === "paid_booked") &&
-                (job.etaText || job.etaMinutes != null) && (
-                  <span
-                    className={cn(
-                      "shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-black tabular-nums",
-                      isLight
-                        ? "bg-[#e07a3d]/15 text-[#c45a20]"
-                        : "bg-[#e07a3d]/20 text-[#e07a3d]"
-                    )}
-                  >
-                    {job.etaText ||
-                      (job.etaMinutes != null
-                        ? `ETA ${job.etaMinutes} min`
-                        : "")}
-                  </span>
-                )}
-            </div>
-
-            <div className="space-y-3 px-3.5 py-3.5">
-              {/* Person row */}
-              <div className="flex items-center gap-3">
-                {viewer === "motorist" ? (
-                  <div
-                    className={cn(
-                      "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl",
-                      isLight ? "bg-[#c8c9cd]" : "bg-[#2c2c2e]"
-                    )}
-                    aria-label={PRO_SERVICE_LABELS[job.serviceType]}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={tradeIconDataUrl(job.serviceType, {
-                        size: 32,
-                        selected: true,
-                      })}
-                      alt=""
-                      width={32}
-                      height={32}
-                      className="block"
-                    />
-                  </div>
-                ) : (
-                  <Avatar className="h-14 w-14 shrink-0 rounded-2xl">
-                    <AvatarImage
-                      src={job.motoristPhoto?.trim() || DEFAULT_VENDOR_PHOTO}
-                      className="object-cover"
-                    />
-                    <AvatarFallback className="rounded-2xl bg-brand text-sm font-bold text-white">
-                      {avatarInitials(job.motoristName)}
-                    </AvatarFallback>
-                  </Avatar>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p
-                    className={cn(
-                      "truncate text-[17px] font-black tracking-tight",
-                      ink
-                    )}
-                  >
-                    {viewer === "motorist"
-                      ? job.repairProName
-                      : job.motoristName}
-                  </p>
-                  <p
-                    className={cn(
-                      "mt-0.5 text-[12px] font-semibold",
-                      isLight ? "text-slate-600" : "text-white/55"
-                    )}
-                  >
-                    {viewer === "motorist"
-                      ? `${PRO_SERVICE_LABELS[job.serviceType]} · Repair Pro`
-                      : "Motorist on this job"}
-                  </p>
-                </div>
-                {job.agreedMajor != null && (
-                  <div className="shrink-0 text-right">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#e07a3d]/90">
-                      Labour
-                    </p>
-                    <p className="text-[16px] font-black tabular-nums text-[#e07a3d]">
-                      {formatMoney(job.agreedMajor, job.currency)}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Problem */}
-              {job.problem?.trim() && (
-                <div
-                  className={cn(
-                    "rounded-md px-3 py-2.5",
-                    isLight ? "bg-[#c8c9cd]" : "bg-[#0a0a0a]"
-                  )}
-                >
-                  <p
-                    className={cn(
-                      "text-[10px] font-bold uppercase tracking-[0.12em]",
-                      muted
-                    )}
-                  >
-                    Problem
-                  </p>
-                  <p
-                    className={cn(
-                      "mt-1 text-[13px] font-semibold leading-snug",
-                      ink
-                    )}
-                  >
-                    {job.problem}
-                  </p>
-                </div>
+              {job.status === "paid_booked"
+                ? "Paid · Booked"
+                : statusLabel[job.status] || job.status}
+            </span>
+            <span
+              className={cn(
+                "rounded px-1.5 py-0.5 text-[9px] font-bold",
+                isLight
+                  ? "bg-[#a8a9ae] text-slate-900"
+                  : "bg-[#2c2c2e] text-white"
               )}
+            >
+              {viewer === "motorist"
+                ? PRO_SERVICE_LABELS[job.serviceType]
+                : "Motorist"}
+            </span>
+            <p className={cn("min-w-0 flex-1 truncate text-[16px] font-black", ink)}>
+              {viewer === "motorist" ? job.repairProName : job.motoristName}
+            </p>
+            {job.agreedMajor != null && (
+              <p className="shrink-0 text-[15px] font-black tabular-nums text-[#e07a3d]">
+                {formatMoney(job.agreedMajor, job.currency)}
+              </p>
+            )}
+          </div>
 
-              {/* Location */}
-              <div className="flex items-start gap-2">
-                <span
-                  className={cn(
-                    "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
-                    isLight ? "bg-[#c8c9cd] text-[#e07a3d]" : "bg-[#2c2c2e] text-[#e07a3d]"
-                  )}
-                >
-                  <Navigation className="h-3.5 w-3.5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p
-                    className={cn(
-                      "text-[10px] font-bold uppercase tracking-[0.12em]",
-                      isLight ? "text-slate-500" : "text-white/40"
-                    )}
-                  >
-                    {viewer === "motorist" ? "Meet point" : "Motorist location"}
-                  </p>
-                  <p
-                    className={cn(
-                      "mt-0.5 text-[13px] font-semibold leading-snug",
-                      ink
-                    )}
-                  >
-                    {job.locationLabel || "Location shared on map"}
-                  </p>
-                  <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
-                    {job.status === "paid_booked"
-                      ? viewer === "repair_pro"
-                        ? "Start trip when you leave for the motorist"
-                        : "Repair Pro will start the trip soon"
-                      : viewer === "motorist"
-                        ? job.proLocation
-                          ? "Repair Pro live on map"
-                          : "Waiting for Repair Pro GPS"
-                        : "Navigate to motorist pin"}
-                    {job.distanceKm != null &&
-                      showMap &&
-                      ` · ${
-                        job.distanceKm < 0.1
-                          ? "<0.1 km"
-                          : `${job.distanceKm.toFixed(1)} km`
-                      }`}
-                  </p>
-                </div>
-              </div>
+          {job.problem?.trim() && (
+            <div>
+              <p className={cn("text-[10px] font-bold uppercase tracking-wide", muted)}>
+                Problem
+              </p>
+              <p className={cn("mt-1 text-[14px] font-semibold leading-snug", ink)}>
+                {job.problem}
+              </p>
+            </div>
+          )}
 
-              {/* Call + Message */}
-              <div className="grid grid-cols-2 gap-2 pt-0.5">
-                <button
-                  type="button"
-                  onClick={() => startJobCall(job)}
-                  className={cn(
-                    "inline-flex h-12 items-center justify-center gap-2 rounded-md border-0 text-[13px] font-bold",
-                    isLight
-                      ? "bg-[#c8c9cd] text-slate-900"
-                      : "bg-[#2c2c2e] text-white"
-                  )}
-                >
-                  <Phone className="h-4 w-4 text-[#e07a3d]" />
-                  Call
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void openJobChat(job)}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-md border-0 bg-[#e07a3d] text-[13px] font-bold text-white"
-                >
-                  <MessageCircle className="h-4 w-4" />
-                  Message
-                </button>
+          {!isReadyToGo && (
+            <div className="flex items-start gap-2">
+              <Navigation className="mt-0.5 h-4 w-4 shrink-0 text-[#e07a3d]" />
+              <div className="min-w-0">
+                <p className={cn("text-[13px] font-semibold", ink)}>
+                  {job.locationLabel || "Location on map"}
+                </p>
+                <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
+                  {viewer === "motorist"
+                    ? job.proLocation
+                      ? "Repair Pro live on map"
+                      : "Waiting for Repair Pro GPS"
+                    : "Navigate to motorist pin"}
+                  {job.distanceKm != null &&
+                    ` · ${
+                      job.distanceKm < 0.1
+                        ? "<0.1 km"
+                        : `${job.distanceKm.toFixed(1)} km`
+                    }`}
+                </p>
               </div>
             </div>
+          )}
+
+          {isReadyToGo && (
+            <p className={cn("text-[12px] font-medium", muted)}>
+              {viewer === "repair_pro"
+                ? "Start trip when you leave for the motorist."
+                : "Repair Pro will start the trip soon."}
+            </p>
+          )}
+
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => startJobCall(job)}
+              className={cn(
+                "inline-flex h-12 items-center justify-center gap-2 rounded-md border-0 text-[13px] font-bold",
+                isLight
+                  ? "bg-[#a8a9ae] text-slate-900"
+                  : "bg-[#2c2c2e] text-white"
+              )}
+            >
+              <Phone className="h-4 w-4 text-[#e07a3d]" />
+              Call
+            </button>
+            <button
+              type="button"
+              onClick={() => void openJobChat(job)}
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-md border-0 bg-[#e07a3d] text-[13px] font-bold text-white"
+            >
+              <MessageCircle className="h-4 w-4" />
+              Message
+            </button>
           </div>
         </div>
 
