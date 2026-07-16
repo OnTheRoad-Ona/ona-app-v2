@@ -13,6 +13,7 @@ import {
   ShieldAlert,
   Star,
 } from "lucide-react";
+import { useInAppCall } from "@/components/call/in-app-call";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CountdownTimer } from "@/components/jobs/countdown-timer";
 import { LiveJobTrackMap } from "@/components/jobs/live-job-track-map";
@@ -38,6 +39,7 @@ import {
 } from "@/lib/jobs/client";
 import {
   DISPUTE_REASONS,
+  MAX_OFFER_DIGITS,
   PRO_TRIP_STATUS_COPY,
   TRIP_STATUS_COPY,
 } from "@/lib/jobs/constants";
@@ -47,6 +49,8 @@ import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { tradeIconDataUrl } from "@/lib/map-trade-icons";
 import { formatMoney, LABOUR_SPLIT_LINE } from "@/lib/pricing";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
+import { useApp } from "@/lib/store";
+import type { ServiceRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /** Prefer newer job snapshots so stale polls never undo Start trip etc. */
@@ -90,6 +94,9 @@ export function JobFlowScreen({
   email?: string;
 }) {
   const router = useRouter();
+  const { startCall } = useInAppCall();
+  const { technicians, ensureChatForRequest, visibleMessageThreads } =
+    useApp();
   const [job, setJob] = useState<JobRecord | null>(null);
   const jobRef = useRef<JobRecord | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -107,6 +114,69 @@ export function JobFlowScreen({
   const [locHint, setLocHint] = useState<string | null>(null);
   /** Repair Pro must confirm they can fix the job before negotiating */
   const [proCanFixAccepted, setProCanFixAccepted] = useState(false);
+
+  /** Open (or create) the job chat thread and go there without collapsing layout */
+  const openJobChat = useCallback(
+    (j: JobRecord) => {
+      const existing = visibleMessageThreads.find(
+        (t) =>
+          t.requestId === j.id ||
+          t.id === `chat-${j.id}` ||
+          (t.technicianId === j.repairProId &&
+            (viewer === "repair_pro" || t.motoristName === j.motoristName))
+      );
+      if (existing) {
+        router.push(`/messages/${existing.id}`);
+        return;
+      }
+      const req: ServiceRequest = {
+        id: j.id,
+        technicianId: j.repairProId,
+        technicianName: j.repairProName,
+        motoristId: j.motoristId,
+        serviceType: j.serviceType,
+        problem: j.problem,
+        status: "accepted",
+        createdAt: j.createdAt,
+        etaMinutes: j.etaMinutes ?? 0,
+        distanceKm: j.distanceKm ?? 0,
+        locationLabel: j.locationLabel,
+      };
+      const threadId = ensureChatForRequest(req);
+      router.push(`/messages/${threadId}`);
+    },
+    [ensureChatForRequest, router, viewer, visibleMessageThreads]
+  );
+
+  const startJobCall = useCallback(
+    (j: JobRecord) => {
+      if (viewer === "motorist") {
+        const tech =
+          technicians.find((t) => t.id === j.repairProId) ||
+          technicians.find(
+            (t) =>
+              t.name === j.repairProName && t.serviceType === j.serviceType
+          );
+        const phone = (tech?.phone || "").trim();
+        if (!phone) {
+          setFlash("Repair Pro phone not available yet — try Chat.");
+          window.setTimeout(() => setFlash(null), 3500);
+          return;
+        }
+        startCall({
+          name: j.repairProName,
+          phone,
+          photo: j.repairProPhoto || tech?.photo,
+          roleLabel: PRO_SERVICE_LABELS[j.serviceType] || "Repair Pro",
+        });
+        return;
+      }
+      // Pro → motorist: phone may not be on the job payload yet
+      setFlash("Motorist phone not available yet — use Chat for now.");
+      window.setTimeout(() => setFlash(null), 3500);
+    },
+    [startCall, technicians, viewer]
+  );
 
   useEffect(() => {
     try {
@@ -508,47 +578,73 @@ export function JobFlowScreen({
               </StageButton>
             )}
             {canOffer && (
-              <div className="flex gap-1.5">
-                <input
-                  inputMode="decimal"
-                  value={offerInput}
-                  onChange={(e) => setOfferInput(e.target.value)}
-                  placeholder={
-                    mySide === "repair_pro"
-                      ? "Your labour price"
-                      : "Your counter (max 50% off)"
-                  }
-                  className={cn(
-                    "h-11 flex-1 rounded-md border-0 px-3 text-[14px] font-bold outline-none",
-                    isLight
-                      ? "bg-[#bebfc4] text-slate-900"
-                      : "bg-[#1c1c1c] text-white"
-                  )}
-                />
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    void run(async () => {
-                      const res = await apiPlaceOffer({
-                        jobId: job.id,
-                        side: mySide,
-                        actorId,
-                        amountMajor: Number(offerInput.replace(/[^\d.]/g, "")),
-                      });
-                      if (res.ok) setOfferInput("");
-                      return res;
-                    })
-                  }
-                  className={cn(
-                    "h-11 shrink-0 rounded-md border-0 px-4 text-[13px] font-bold",
-                    isLight
-                      ? "bg-[#a8a9ae] text-slate-900"
-                      : "bg-[#2c2c2e] text-white"
-                  )}
-                >
-                  Send
-                </button>
+              <div className="space-y-1">
+                <div className="flex gap-1.5">
+                  <input
+                    inputMode="numeric"
+                    pattern="[1-9][0-9]*"
+                    maxLength={MAX_OFFER_DIGITS}
+                    value={offerInput}
+                    onChange={(e) => {
+                      // Digits only, no leading zeros as whole price, max 6 chars
+                      const raw = e.target.value.replace(/\D/g, "").slice(0, MAX_OFFER_DIGITS);
+                      if (raw === "") {
+                        setOfferInput("");
+                        return;
+                      }
+                      // Allow typing but block pure 0
+                      if (/^0+$/.test(raw)) {
+                        setOfferInput("");
+                        return;
+                      }
+                      setOfferInput(raw.replace(/^0+/, "") || raw);
+                    }}
+                    placeholder={
+                      mySide === "repair_pro"
+                        ? "Labour price (not 0)"
+                        : "Counter (max 50% off)"
+                    }
+                    className={cn(
+                      "h-11 flex-1 rounded-md border-0 px-3 text-[14px] font-bold outline-none",
+                      isLight
+                        ? "bg-[#bebfc4] text-slate-900"
+                        : "bg-[#1c1c1c] text-white"
+                    )}
+                    aria-label="Labour price offer"
+                  />
+                  <button
+                    type="button"
+                    disabled={busy || !offerInput || Number(offerInput) < 1}
+                    onClick={() =>
+                      void run(async () => {
+                        const amount = Number(offerInput.replace(/\D/g, ""));
+                        if (!Number.isFinite(amount) || amount < 1) {
+                          setErr("Price cannot start from 0.");
+                          return { ok: false as const, message: "Price cannot start from 0." };
+                        }
+                        const res = await apiPlaceOffer({
+                          jobId: job.id,
+                          side: mySide,
+                          actorId,
+                          amountMajor: amount,
+                        });
+                        if (res.ok) setOfferInput("");
+                        return res;
+                      })
+                    }
+                    className={cn(
+                      "h-11 shrink-0 rounded-md border-0 px-4 text-[13px] font-bold disabled:opacity-40",
+                      isLight
+                        ? "bg-[#a8a9ae] text-slate-900"
+                        : "bg-[#2c2c2e] text-white"
+                    )}
+                  >
+                    Send
+                  </button>
+                </div>
+                <p className={cn("text-[10px] font-medium", muted)}>
+                  Up to {job.maxOffers} offers · not 0 · max {MAX_OFFER_DIGITS} digits · 20 min
+                </p>
               </div>
             )}
             <GhostButton
@@ -1033,13 +1129,17 @@ export function JobFlowScreen({
                 </p>
               </div>
               <div className="flex gap-2">
-                <IconRound isLight={isLight} label="Call">
+                <IconRound
+                  isLight={isLight}
+                  label="Call"
+                  onClick={() => startJobCall(job)}
+                >
                   <Phone className="h-4 w-4" />
                 </IconRound>
                 <IconRound
                   isLight={isLight}
                   label="Chat"
-                  onClick={() => router.push("/messages")}
+                  onClick={() => openJobChat(job)}
                 >
                   <MessageCircle className="h-4 w-4" />
                 </IconRound>
@@ -1424,7 +1524,7 @@ export function JobFlowScreen({
         <GhostButton
           isLight={isLight}
           className="mt-3"
-          onClick={() => router.push("/messages")}
+          onClick={() => openJobChat(job)}
         >
           Open chat
         </GhostButton>

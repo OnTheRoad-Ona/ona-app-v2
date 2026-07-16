@@ -1,16 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { NEGOTIATE_WINDOW_MS } from "@/lib/jobs/constants";
 import { cn } from "@/lib/utils";
 
 export function CountdownTimer({
   endsAt,
   onExpire,
   className,
+  /** Total window for progress bar (defaults to 20 min negotiation) */
+  totalMs = NEGOTIATE_WINDOW_MS,
 }: {
   endsAt: string;
   onExpire?: () => void;
   className?: string;
+  totalMs?: number;
 }) {
   const [left, setLeft] = useState(() =>
     Math.max(0, new Date(endsAt).getTime() - Date.now())
@@ -31,10 +35,8 @@ export function CountdownTimer({
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
   const urgent = totalSec <= 60;
-  const pct = Math.min(
-    100,
-    Math.max(0, (left / (10 * 60 * 1000)) * 100)
-  );
+  const denom = totalMs > 0 ? totalMs : NEGOTIATE_WINDOW_MS;
+  const pct = Math.min(100, Math.max(0, (left / denom) * 100));
 
   return (
     <div className={cn("w-full", className)}>

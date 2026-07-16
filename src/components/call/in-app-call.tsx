@@ -41,14 +41,43 @@ type CallContextValue = {
 
 const CallContext = createContext<CallContextValue | null>(null);
 
+/**
+ * Open the device dialer WITHOUT navigating the SPA away.
+ * `window.location.href = tel:…` unloads / collapses the app and breaks Back.
+ * See docs/ANTI_REGRESSION.md — do not reintroduce location.href tel: handoff.
+ */
+export function openTelDialer(phone: string): boolean {
+  const n = (phone || "").replace(/[^\d+]/g, "");
+  if (!n) return false;
+  try {
+    const a = document.createElement("a");
+    a.href = `tel:${n}`;
+    a.setAttribute("aria-hidden", "true");
+    a.style.cssText =
+      "position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none";
+    document.body.appendChild(a);
+    a.click();
+    // Remove on next frame so the click is fully processed
+    window.requestAnimationFrame(() => {
+      try {
+        a.remove();
+      } catch {
+        /* ignore */
+      }
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function useInAppCall(): CallContextValue {
   const ctx = useContext(CallContext);
   if (!ctx) {
-    // Fallback when provider missing — still usable
+    // Fallback when provider missing — still usable, never use location.href
     return {
       startCall: (t) => {
-        const n = (t.phone || "").replace(/\s/g, "");
-        if (n) window.location.href = `tel:${n}`;
+        openTelDialer(t.phone);
       },
       endCall: () => {},
       active: false,
@@ -67,6 +96,9 @@ function formatDuration(sec: number): string {
  * In-app call UI: dials carrier via tel: while showing a full-screen call sheet
  * (mute / speaker / end). Real PSTN still uses the device dialer; the sheet
  * is the in-app experience before and during the call handoff.
+ *
+ * Critical: never set window.location to tel: — that collapses the phone shell
+ * and breaks history/back navigation.
  */
 export function InAppCallProvider({ children }: { children: ReactNode }) {
   const { theme } = useApp();
@@ -79,6 +111,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
   const [mount, setMount] = useState<HTMLElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<number | null>(null);
+  const dialTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     setMount(
@@ -91,11 +124,19 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
     streamRef.current = null;
   }, []);
 
-  const endCall = useCallback(() => {
+  const clearTimers = useCallback(() => {
     if (timerRef.current) {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    if (dialTimerRef.current) {
+      window.clearTimeout(dialTimerRef.current);
+      dialTimerRef.current = null;
+    }
+  }, []);
+
+  const endCall = useCallback(() => {
+    clearTimers();
     stopMic();
     setPhase((p) => (p === "idle" ? "idle" : "ended"));
     window.setTimeout(() => {
@@ -103,16 +144,24 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       setPhase("idle");
       setSeconds(0);
       setMuted(false);
-    }, 600);
-  }, [stopMic]);
+      setSpeaker(true);
+    }, 400);
+  }, [clearTimers, stopMic]);
 
   const startCall = useCallback(
     (t: CallTarget) => {
-      const phone = (t.phone || "").replace(/\s/g, "");
+      const phone = (t.phone || "").replace(/[^\d+]/g, "");
       if (!phone) return;
+
+      // Reset any previous call cleanly
+      clearTimers();
+      stopMic();
+
       setTarget({ ...t, phone });
       setPhase("dialing");
       setSeconds(0);
+      setMuted(false);
+      setSpeaker(true);
 
       // Open mic for in-app audio presence (optional permission)
       void navigator.mediaDevices
@@ -124,28 +173,39 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
           /* mic optional — call still proceeds */
         });
 
-      // Hand off to carrier dialer (real PSTN) after brief in-app dial UI
-      window.setTimeout(() => {
-        try {
-          window.location.href = `tel:${phone}`;
-        } catch {
-          /* ignore */
-        }
+      // Hand off to carrier dialer WITHOUT navigating the SPA
+      dialTimerRef.current = window.setTimeout(() => {
+        openTelDialer(phone);
         setPhase("connected");
         timerRef.current = window.setInterval(() => {
           setSeconds((s) => s + 1);
         }, 1000);
-      }, 900);
+      }, 700);
     },
-    []
+    [clearTimers, stopMic]
   );
 
   useEffect(() => {
     return () => {
-      if (timerRef.current) window.clearInterval(timerRef.current);
+      clearTimers();
       stopMic();
     };
-  }, [stopMic]);
+  }, [clearTimers, stopMic]);
+
+  // If user leaves the tab (phone dialer) and comes back, keep sheet usable
+  useEffect(() => {
+    const onVis = () => {
+      // Ensure exit animation class never sticks after external dialer
+      const root = document.getElementById("oga-mecho-phone");
+      root?.classList.remove("om-page-exit");
+    };
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("pageshow", onVis);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pageshow", onVis);
+    };
+  }, []);
 
   useEffect(() => {
     if (!streamRef.current) return;
@@ -168,6 +228,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       ? createPortal(
           <div
             className={cn(
+              // fixed to the phone shell (relative parent) so it never collapses layout
               "absolute inset-0 z-[200] flex flex-col",
               isLight ? "bg-[#0a1610]" : "bg-[#0a0000]"
             )}
@@ -208,6 +269,15 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
                 In-app call · connecting via your phone line for a clear
                 roadside conversation
               </p>
+              {phase === "connected" && (
+                <button
+                  type="button"
+                  onClick={() => openTelDialer(target.phone)}
+                  className="mt-4 border-0 bg-transparent text-[12px] font-bold text-brand underline-offset-2 hover:underline"
+                >
+                  Open dialer again
+                </button>
+              )}
             </div>
 
             <div className="flex items-center justify-center gap-6 px-8 pb-10">
@@ -276,13 +346,17 @@ export function CallButton({
   variant?: "solid" | "ghost";
 }) {
   const { startCall } = useInAppCall();
-  const disabled = !(target.phone || "").replace(/\s/g, "");
+  const disabled = !(target.phone || "").replace(/[^\d+]/g, "");
 
   return (
     <button
       type="button"
       disabled={disabled}
-      onClick={() => startCall(target)}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        startCall(target);
+      }}
       className={cn(
         "inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border-0 text-[13px] font-bold disabled:opacity-40",
         variant === "solid"

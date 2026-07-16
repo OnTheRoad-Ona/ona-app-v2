@@ -71,28 +71,31 @@ export default function ChatThreadPage({
     return (
       <div
         className={cn(
-          "flex h-full flex-col items-center justify-center gap-2 p-6",
+          "flex h-full min-h-0 flex-col",
           isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
-        <p
-          className={cn(
-            "font-semibold",
-            isLight ? "text-slate-900" : "text-white"
-          )}
-        >
-          Chat not found
-        </p>
-        <p className="text-center text-xs text-muted">
-          This thread may belong to another role or skill.
-        </p>
-        <button
-          type="button"
-          className="mt-2 border-0 bg-transparent text-sm font-bold text-brand"
-          onClick={() => router.push("/messages")}
-        >
-          Back to messages
-        </button>
+        <PageHeader title="Chat" backHref="/messages" />
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-6">
+          <p
+            className={cn(
+              "font-semibold",
+              isLight ? "text-slate-900" : "text-white"
+            )}
+          >
+            Chat not found
+          </p>
+          <p className="text-center text-xs text-muted">
+            This thread may belong to another role or skill.
+          </p>
+          <button
+            type="button"
+            className="mt-2 border-0 bg-transparent text-sm font-bold text-brand"
+            onClick={() => router.push("/messages")}
+          >
+            Back to messages
+          </button>
+        </div>
       </div>
     );
   }
@@ -171,13 +174,13 @@ export default function ChatThreadPage({
   return (
     <div
       className={cn(
-        "flex h-full flex-col",
+        "flex h-full min-h-0 flex-col overflow-hidden",
         isLight ? "bg-[#c8c9cd]" : "bg-black"
       )}
     >
-      <PageHeader title={title} subtitle={subtitle} />
+      <PageHeader title={title} subtitle={subtitle} backHref="/messages" />
 
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-2 scrollbar-hide">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-3 py-2 scrollbar-hide">
         {thread.messages.map((msg) => {
           if (msg.sender === "system") {
             return (

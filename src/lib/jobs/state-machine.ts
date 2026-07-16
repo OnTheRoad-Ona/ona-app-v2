@@ -8,6 +8,8 @@ import {
   DISPUTABLE_STATUSES,
   MAX_DISCOUNT_PERCENT,
   MAX_NEGOTIATION_OFFERS,
+  MAX_OFFER_AMOUNT_MAJOR,
+  MIN_OFFER_AMOUNT_MAJOR,
 } from "@/lib/jobs/constants";
 
 export type TransitionActor = "motorist" | "repair_pro" | "system" | "admin";
@@ -134,7 +136,7 @@ export function assertTransition(
   return next;
 }
 
-/** Pro must place offer #1. Max 3 offers total. */
+/** Pro must place offer #1. Max 6 offers total (back-and-forth). */
 export function canPlaceOffer(input: {
   status: JobFlowStatus;
   offerCount: number;
@@ -150,7 +152,10 @@ export function canPlaceOffer(input: {
     return { ok: false, reason: "Negotiation timer expired." };
   }
   if (input.offerCount >= MAX_NEGOTIATION_OFFERS) {
-    return { ok: false, reason: "Maximum of 3 offers reached." };
+    return {
+      ok: false,
+      reason: `Maximum of ${MAX_NEGOTIATION_OFFERS} offers reached.`,
+    };
   }
   if (input.offerCount === 0 && input.side !== "repair_pro") {
     return {
@@ -163,7 +168,7 @@ export function canPlaceOffer(input: {
 
 /**
  * Motorist counter must be ≥ 50% of pro base (max 50% discount).
- * Pro can set any positive labour price.
+ * Pro can set any positive labour price (not 0; max 6 digits).
  */
 export function validateOfferAmount(input: {
   side: OfferSide;
@@ -171,8 +176,22 @@ export function validateOfferAmount(input: {
   proBaseMajor: number | null;
   lastProOfferMajor: number | null;
 }): { ok: true } | { ok: false; reason: string } {
-  if (!Number.isFinite(input.amountMajor) || input.amountMajor <= 0) {
+  if (!Number.isFinite(input.amountMajor)) {
     return { ok: false, reason: "Enter a valid labour price." };
+  }
+  if (input.amountMajor < MIN_OFFER_AMOUNT_MAJOR) {
+    return { ok: false, reason: "Price cannot start from 0. Enter a real amount." };
+  }
+  if (input.amountMajor > MAX_OFFER_AMOUNT_MAJOR) {
+    return {
+      ok: false,
+      reason: `Price can be at most ${MAX_OFFER_AMOUNT_MAJOR.toLocaleString()} (6 digits).`,
+    };
+  }
+  // Reject fractional inputs that aren't whole major units beyond digit cap
+  const digits = String(Math.floor(input.amountMajor)).replace(/\D/g, "");
+  if (digits.length > 6) {
+    return { ok: false, reason: "Price is limited to 6 digits." };
   }
   if (input.side === "motorist") {
     const base =

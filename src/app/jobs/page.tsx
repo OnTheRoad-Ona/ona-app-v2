@@ -55,24 +55,35 @@ export default function JobsInboxPage() {
         return;
       }
       const now = Date.now();
-      const list = res.data.jobs.filter((j) => {
-        if (!ACTIVE.has(j.status)) return false;
-        if (!j.problem?.trim()) return false;
-        if (
-          j.status === "negotiating" &&
-          j.negotiateEndsAt &&
-          now > new Date(j.negotiateEndsAt).getTime()
-        ) {
-          return false;
-        }
-        if (viewer === "repair_pro" && j.repairProId !== backendUserId) {
-          return false;
-        }
-        if (viewer === "motorist" && j.motoristId !== backendUserId) {
-          return false;
-        }
-        return true;
-      });
+      const list = res.data.jobs
+        .filter((j) => {
+          if (!ACTIVE.has(j.status)) return false;
+          if (!j.problem?.trim()) return false;
+          if (
+            j.status === "negotiating" &&
+            j.negotiateEndsAt &&
+            now > new Date(j.negotiateEndsAt).getTime()
+          ) {
+            return false;
+          }
+          if (viewer === "repair_pro" && j.repairProId !== backendUserId) {
+            return false;
+          }
+          if (viewer === "motorist" && j.motoristId !== backendUserId) {
+            return false;
+          }
+          return true;
+        })
+        .sort((a, b) => {
+          // Keep new negotiations on top so pros can switch mid-job
+          const rank = (s: string) =>
+            s === "negotiating" ? 0 : s === "agreed" ? 1 : 2;
+          const d = rank(a.status) - rank(b.status);
+          if (d !== 0) return d;
+          return (
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+        });
       setJobs(list);
       setLoading(false);
     };

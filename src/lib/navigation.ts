@@ -1,6 +1,8 @@
 /**
  * History-aware back navigation for the phone shell.
  * Prefers the immediate previous in-app page; falls back to Home (`/`).
+ * See docs/ANTI_REGRESSION.md — after tel:/external handoff, prefer stack push
+ * over history.back() so Back never dies and the shell never stays collapsed.
  */
 
 import type { AccountType } from "@/lib/types";
@@ -94,6 +96,12 @@ export function canGoBackInHistory(): boolean {
   return false;
 }
 
+/** Always clear soft-exit styling so Back never leaves the shell collapsed. */
+export function clearPageExitClass(): void {
+  if (typeof document === "undefined") return;
+  document.getElementById("oga-mecho-phone")?.classList.remove("om-page-exit");
+}
+
 /**
  * Soft visual cue then go to the immediate previous page.
  * Fallback is always Home (`/`) unless a custom fallback is passed
@@ -106,36 +114,39 @@ export function navigateBack(
   const fallback = fallbackHref?.trim() || "/";
 
   const go = () => {
+    clearPageExitClass();
+
     const stack = readStack();
+    const current =
+      typeof window !== "undefined"
+        ? window.location.pathname + window.location.search
+        : "";
+
     // Drop current page from our stack
     if (stack.length >= 1) {
-      const current =
-        typeof window !== "undefined"
-          ? window.location.pathname + window.location.search
-          : "";
       if (stack[stack.length - 1] === current || stack.length >= 2) {
         stack.pop();
       }
     }
 
+    // Skip duplicate tops / same-as-current so Back always moves
+    while (
+      stack.length >= 1 &&
+      (stack[stack.length - 1] === current || !stack[stack.length - 1])
+    ) {
+      stack.pop();
+    }
+
     if (stack.length >= 1) {
+      const prev = stack[stack.length - 1] || fallback;
       writeStack(stack);
-      // Prefer real browser back so the user lands on the immediate previous
-      // entry (same as stack top after pop).
-      if (typeof window !== "undefined" && window.history.length > 1) {
-        router.back();
-        return;
-      }
-      const prev = stack[stack.length - 1];
-      router.push(prev || fallback);
+      // Prefer explicit push to a known in-app path — more reliable than
+      // history.back() after tel: dialer / external app handoff.
+      router.push(prev);
       return;
     }
 
     writeStack([]);
-    if (canGoBackInHistory() && typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
-      return;
-    }
     router.push(fallback);
   };
 
@@ -152,7 +163,7 @@ export function navigateBack(
 
   root.classList.add("om-page-exit");
   window.setTimeout(() => {
-    root.classList.remove("om-page-exit");
+    clearPageExitClass();
     go();
   }, 120);
 }

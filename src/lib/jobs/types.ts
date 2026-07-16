@@ -64,7 +64,7 @@ export type JobOffer = {
   amountMinor: number;
   currency: AppCurrency;
   createdAt: string;
-  /** 1-based index in negotiation (max 3) */
+  /** 1-based index in negotiation (max 6) */
   offerIndex: number;
 };
 
@@ -133,9 +133,9 @@ export type JobRecord = {
   /** Final agreed labour (major) */
   agreedMajor: number | null;
   offers: JobOffer[];
-  /** Negotiation window end (ISO) — 10 min from create */
+  /** Negotiation window end (ISO) — 20 min from create */
   negotiateEndsAt: string;
-  /** Max offers total (pro + motorist) */
+  /** Max offers total (pro + motorist), up to 6 */
   maxOffers: number;
   locationLabel: string;
   motoristLocation: Coordinates;

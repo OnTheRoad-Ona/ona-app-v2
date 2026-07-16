@@ -141,7 +141,7 @@ export function ProPublicView({
                   : "bg-[#2c2c2e] text-white"
               )}
             >
-              <Link href="/messages">
+              <Link href="/messages" onClick={(e) => e.stopPropagation()}>
                 <MessageCircle className="h-4 w-4" />
                 Chat
               </Link>

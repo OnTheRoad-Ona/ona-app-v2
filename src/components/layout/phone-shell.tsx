@@ -2,6 +2,7 @@
 
 import { useCallback, type MouseEvent, type ReactNode } from "react";
 import { AcceptTripPopup } from "@/components/home/accept-trip-popup";
+import { IncomingJobPopup } from "@/components/home/incoming-job-popup";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/store";
 
@@ -87,6 +88,8 @@ export function PhoneShell({
         <div className="relative flex min-h-0 flex-1 flex-col">
           {children}
           <AcceptTripPopup />
+          {/* Repair Pro: keep multi-motorist alerts even mid-job */}
+          <IncomingJobPopup />
         </div>
       </div>
     </div>

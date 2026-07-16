@@ -213,7 +213,14 @@ export default function TechnicianDashboardPage() {
 
         <section>
           <div className="mb-2 flex items-center justify-between gap-2">
-            <h2 className={cn("text-sm font-bold", ink)}>Incoming jobs</h2>
+            <h2 className={cn("text-sm font-bold", ink)}>
+              Incoming jobs
+              {jobs.length > 0 && (
+                <span className="ml-1.5 text-[12px] font-bold text-[#e07a3d]">
+                  ({jobs.length})
+                </span>
+              )}
+            </h2>
             {jobs.length > 0 && (
               <Link
                 href="/jobs"
@@ -223,6 +230,11 @@ export default function TechnicianDashboardPage() {
               </Link>
             )}
           </div>
+
+          <p className={cn("mb-3 text-[11px] font-medium leading-snug", muted)}>
+            Stay Live to keep receiving new motorist requests — even while
+            another job is open. Pick the best fit if one is not going well.
+          </p>
 
           {jobsLoading ? (
             <div className="flex justify-center py-10">
@@ -239,13 +251,25 @@ export default function TechnicianDashboardPage() {
             </div>
           ) : (
             <ul className={cn("divide-y", hairline)}>
-              {jobs.map((j) => (
+              {[...jobs]
+                .sort((a, b) => {
+                  // Negotiating first so new requests stay visible mid-trip
+                  const rank = (s: string) =>
+                    s === "negotiating" ? 0 : s === "agreed" ? 1 : 2;
+                  const d = rank(a.status) - rank(b.status);
+                  if (d !== 0) return d;
+                  return (
+                    new Date(b.createdAt).getTime() -
+                    new Date(a.createdAt).getTime()
+                  );
+                })
+                .map((j) => (
                 <li key={j.id}>
                   <Link
                     href={`/jobs/${j.id}`}
                     className="flex items-start gap-2 py-3.5 transition active:opacity-80"
                   >
-                    <div className="min-w-0 flex-1">
+                    <div className="min-h-0 min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="rounded-full bg-[#e07a3d]/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-[#e07a3d]">
                           {j.status.replace(/_/g, " ")}

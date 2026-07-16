@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { AuthGate } from "@/components/auth/auth-gate";
 import { InAppCallProvider } from "@/components/call/in-app-call";
 import { PhoneShell } from "@/components/layout/phone-shell";
-import { recordNavigation } from "@/lib/navigation";
+import { clearPageExitClass, recordNavigation } from "@/lib/navigation";
 
 /** Phone shell + auth for the consumer app; full-page for /admin backend. */
 export function AppFrame({ children }: { children: ReactNode }) {
@@ -16,6 +16,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
   // Track path so Back returns to the immediate previous page
   useEffect(() => {
     if (isAdmin) return;
+    clearPageExitClass();
     const qs =
       typeof window !== "undefined" ? window.location.search || "" : "";
     recordNavigation(`${pathname}${qs}`);

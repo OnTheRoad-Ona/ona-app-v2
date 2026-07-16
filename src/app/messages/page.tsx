@@ -20,7 +20,7 @@ export default function MessagesPage() {
   return (
     <div
       className={cn(
-        "flex h-full flex-col",
+        "flex h-full min-h-0 flex-col overflow-hidden",
         isLight ? "bg-[#c8c9cd]" : "bg-black"
       )}
     >
@@ -31,9 +31,10 @@ export default function MessagesPage() {
             ? "Chats with motorists for your skill only"
             : "Chats with Repair Pros for your jobs"
         }
+        backHref={isPro ? "/dashboard" : "/"}
       />
 
-      <div className="flex-1 overflow-y-auto scrollbar-hide">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-hide">
         {visibleMessageThreads.length === 0 ? (
           <p className="p-6 text-center text-sm text-muted">
             No chats yet.{" "}

@@ -4,9 +4,18 @@ import type { DisputeReason, JobFlowStatus } from "@/lib/jobs/types";
 export const JOB_COPPER = "#e07a3d";
 export const JOB_NAVY = "#0f172a";
 
-/** Negotiation window */
-export const NEGOTIATE_WINDOW_MS = 10 * 60 * 1000;
-export const MAX_NEGOTIATION_OFFERS = 3;
+/**
+ * Negotiation product rules (do not hardcode elsewhere).
+ * See docs/ANTI_REGRESSION.md §5.
+ */
+/** Negotiation window — 20 minutes for price back-and-forth */
+export const NEGOTIATE_WINDOW_MS = 20 * 60 * 1000;
+/** Max total price offers (pro + motorist combined), up to 6 rounds */
+export const MAX_NEGOTIATION_OFFERS = 6;
+/** Price cannot be 0; max 6 numeric characters (e.g. 999999) */
+export const MIN_OFFER_AMOUNT_MAJOR = 1;
+export const MAX_OFFER_DIGITS = 6;
+export const MAX_OFFER_AMOUNT_MAJOR = 999_999;
 
 /** Motorist counter cannot go below this % of pro base */
 export const MAX_DISCOUNT_PERCENT = 50;

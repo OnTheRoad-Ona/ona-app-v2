@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Menu } from "lucide-react";
 import { AppMenu } from "@/components/layout/app-menu";
 import {
+  clearPageExitClass,
   defaultBackHref,
   navigateBack,
 } from "@/lib/navigation";
@@ -40,9 +41,12 @@ export function PageHeader({
 
   useEffect(() => {
     setMount(document.getElementById("oga-mecho-phone"));
+    // Never leave shell dimmed/shifted if a prior back animation was interrupted
+    clearPageExitClass();
   }, []);
 
   const onBack = () => {
+    clearPageExitClass();
     navigateBack(router, fallback);
   };
 

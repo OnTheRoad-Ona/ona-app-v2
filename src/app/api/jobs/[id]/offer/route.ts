@@ -9,7 +9,8 @@ const bodySchema = z.object({
   action: z.enum(["place", "accept"]),
   side: z.enum(["repair_pro", "motorist"]),
   actorId: z.string().min(1),
-  amountMajor: z.number().positive().optional(),
+  // Price cannot be 0; max 6 digits (1 … 999999)
+  amountMajor: z.number().int().min(1).max(999_999).optional(),
 });
 
 export async function POST(
