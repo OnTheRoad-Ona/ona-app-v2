@@ -10,6 +10,9 @@ body {
   overflow: hidden;
   overscroll-behavior: none;
   position: relative;
+  /* Full page stage flips with html[data-theme] */
+  background-color: var(--stage, #060d0a);
+  transition: background-color 0.2s ease;
 }
 
 /* Fixed app frame: 390 wide × max 844 tall — browser expand does not stretch it */

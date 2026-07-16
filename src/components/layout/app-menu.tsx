@@ -400,11 +400,11 @@ export function AppMenu({
               router.push("/logout");
             }}
             className={cn(
-              "flex w-full items-center justify-center gap-2 rounded-lg border-0 px-3 py-2.5 text-sm font-semibold",
-              // Soft red — readable but not solid fill
+              "flex w-full items-center justify-center gap-2 rounded-lg border-0 px-3 py-2.5 text-sm font-semibold shadow-none ring-0 outline-none",
+              // Soft red fill + red text — no border / ring
               isLight
-                ? "bg-red-500/18 text-red-700 ring-1 ring-red-600/35 hover:bg-red-500/28"
-                : "bg-red-500/20 text-red-300 ring-1 ring-red-400/30 hover:bg-red-500/30"
+                ? "bg-red-500/18 text-red-700 hover:bg-red-500/28"
+                : "bg-red-500/20 text-red-300 hover:bg-red-500/30"
             )}
           >
             <LogOut className="h-4 w-4" />

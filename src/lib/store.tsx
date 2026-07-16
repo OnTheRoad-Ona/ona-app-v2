@@ -672,11 +672,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep html[data-theme] in sync immediately so matte-metal CSS applies
+  // Keep html[data-theme] + page stage in sync so full app flips light↔dark
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.theme = theme;
     root.style.colorScheme = theme;
+    // Explicit stage so body/html match phone shell outer (opposite themes)
+    const stage = theme === "light" ? "#060d0a" : "#0a0605";
+    root.style.backgroundColor = stage;
+    if (document.body) document.body.style.backgroundColor = stage;
   }, [theme]);
 
   // Follow OS theme only when no device/account override is stored

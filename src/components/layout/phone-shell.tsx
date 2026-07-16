@@ -1,12 +1,21 @@
 "use client";
 
-import { useCallback, useRef, type MouseEvent, type ReactNode, type TouchEvent } from "react";
+import {
+  useCallback,
+  useRef,
+  type MouseEvent,
+  type ReactNode,
+  type TouchEvent,
+} from "react";
 import { AcceptTripPopup } from "@/components/home/accept-trip-popup";
 import { IncomingJobPopup } from "@/components/home/incoming-job-popup";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/store";
 
-/** True when the event target is an interactive control — not free space. */
+/**
+ * Free-space only: not buttons, links, inputs, cards, or other controls.
+ * Empty padding, list gaps, and header chrome may toggle theme.
+ */
 function isInteractiveTarget(el: HTMLElement): boolean {
   const tag = el.tagName?.toLowerCase();
   if (
@@ -17,18 +26,41 @@ function isInteractiveTarget(el: HTMLElement): boolean {
     tag === "button" ||
     tag === "a" ||
     tag === "label" ||
-    tag === "img" ||
     tag === "video" ||
     tag === "canvas" ||
-    tag === "svg" ||
     el.isContentEditable
   ) {
     return true;
   }
 
+  // Cards + real controls — not plain text/padding/gaps
   if (
     el.closest(
-      "input, textarea, select, option, button, a, label, img, video, canvas, svg, [contenteditable='true'], [contenteditable=''], [role='textbox'], [role='button'], [role='tab'], [role='link'], [role='menuitem'], [role='switch'], [role='checkbox'], [role='slider'], [role='dialog'], [data-no-theme-toggle]"
+      [
+        "button",
+        "a",
+        "input",
+        "textarea",
+        "select",
+        "option",
+        "label",
+        "video",
+        "canvas",
+        "[contenteditable='true']",
+        "[contenteditable='']",
+        "[role='button']",
+        "[role='link']",
+        "[role='tab']",
+        "[role='menuitem']",
+        "[role='switch']",
+        "[role='checkbox']",
+        "[role='slider']",
+        "[role='textbox']",
+        "[role='combobox']",
+        "[data-no-theme-toggle]",
+        ".card-surface",
+        "[data-card]",
+      ].join(", ")
     )
   ) {
     return true;
@@ -38,7 +70,7 @@ function isInteractiveTarget(el: HTMLElement): boolean {
 }
 
 /**
- * Fixed phone app frame. Double-click / double-tap free space toggles light/dark.
+ * Fixed phone app frame. Double-click / double-tap free space fully toggles light/dark.
  */
 export function PhoneShell({
   children,
@@ -66,7 +98,6 @@ export function PhoneShell({
 
   const onDoubleClick = useCallback(
     (e: MouseEvent) => {
-      // Capture on free space only
       tryToggleTheme(e.target);
     },
     [tryToggleTheme]
@@ -99,9 +130,10 @@ export function PhoneShell({
         "h-[100dvh] max-h-[100dvh]",
         "h-[100svh] max-h-[100svh]",
         "px-3 py-3",
+        // Outer stage flips with full theme (green-black ↔ red-black)
         isLight ? "bg-[#060d0a]" : "bg-[#0a0605]"
       )}
-      // Outer stage free space also toggles (desktop padding around phone)
+      // Outer stage free space also toggles
       onDoubleClick={onDoubleClick}
       onTouchEnd={onTouchEnd}
     >
@@ -113,6 +145,7 @@ export function PhoneShell({
           "h-[min(844px,calc(100dvh-1.5rem))] max-h-[min(844px,calc(100dvh-1.5rem))]",
           "h-[min(844px,calc(100svh-1.5rem))] max-h-[min(844px,calc(100svh-1.5rem))]",
           "shadow-[0_24px_48px_rgba(0,0,0,0.55)]",
+          // App sheet flips with full theme (gray ↔ black)
           isLight ? "bg-[#c8c9cd]" : "bg-black",
           className
         )}

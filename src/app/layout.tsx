@@ -61,13 +61,12 @@ export default function RootLayout({
       lang="en"
       data-theme="light"
       className={`${geistSans.variable} ${geistMono.variable} h-full max-h-full overflow-hidden antialiased`}
-      style={{ backgroundColor: "#0a0a0a", height: "100%", maxHeight: "100%" }}
+      style={{ height: "100%", maxHeight: "100%" }}
     >
-      {/* Instant paint: never flash pure white while JS/CSS hydrate */}
+      {/* Stage color comes from data-theme CSS vars; no white flash */}
       <body
-        className="h-full max-h-full overflow-hidden bg-[#0a0a0a] text-white"
+        className="h-full max-h-full overflow-hidden text-white"
         style={{
-          backgroundColor: "#0a0a0a",
           overscrollBehavior: "none",
         }}
       >
