@@ -71,7 +71,7 @@ function statusLabel(s: JobFlowStatus, isPro: boolean): string {
     case "refunded":
       return "Refunded";
     default:
-      return s.replace(/_/g, " ");
+      return String(s).replace(/_/g, " ");
   }
 }
 
@@ -92,12 +92,7 @@ function formatWhen(iso: string): string {
 
 export default function RequestsPage() {
   const router = useRouter();
-  const {
-    theme,
-    accountType,
-    backendUserId,
-    refreshCloudJobs,
-  } = useApp();
+  const { theme, accountType, backendUserId } = useApp();
   const isLight = theme === "light";
   const isPro = accountType === "professional";
   const viewer = isPro ? "repair_pro" : "motorist";
@@ -145,13 +140,12 @@ export default function RequestsPage() {
 
   useEffect(() => {
     void load();
-    refreshCloudJobs();
     const t = window.setInterval(() => {
       if (document.hidden) return;
       void load();
     }, 15_000);
     return () => window.clearInterval(t);
-  }, [load, refreshCloudJobs]);
+  }, [load]);
 
   const { active, past } = useMemo(() => {
     const a: JobRecord[] = [];

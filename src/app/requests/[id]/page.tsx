@@ -59,7 +59,7 @@ function stepTitle(s: JobFlowStatus, isPro: boolean): string {
     case "refunded":
       return "Refunded";
     default:
-      return s.replace(/_/g, " ");
+      return String(s).replace(/_/g, " ");
   }
 }
 
