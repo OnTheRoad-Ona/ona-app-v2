@@ -34,16 +34,21 @@ export function shouldUseLiveMaps(): boolean {
 }
 
 export type ReverseGeocodeResult = {
+  /** Full formatted address (always prefer this for jobs + maps) */
   label: string;
   city: string;
   area: string;
+  /** Street line e.g. "7b Oye Balogun Street" */
+  street?: string;
+  /** Area line under street e.g. "Lekki, Lagos" */
+  localityLine?: string;
   country?: string;
   countryCode?: string;
 };
 
 /**
  * Reverse geocode via Google Geocoding REST.
- * Often fails with REQUEST_DENIED when the key only allows Maps JavaScript API.
+ * Always returns full formatted_address as label.
  */
 async function reverseGeocodeGoogle(
   lat: number,
@@ -73,24 +78,38 @@ async function reverseGeocodeGoogle(
       comps.find((c) => c.types.includes(type))?.long_name ?? "";
     const getShort = (type: string) =>
       comps.find((c) => c.types.includes(type))?.short_name ?? "";
+    const streetNum = get("street_number");
+    const route = get("route");
+    const street =
+      [streetNum, route].filter(Boolean).join(" ") ||
+      get("premise") ||
+      get("establishment") ||
+      "";
     const area =
       get("neighborhood") ||
       get("sublocality") ||
       get("sublocality_level_1") ||
-      get("route") ||
-      get("administrative_area_level_2") ||
+      get("sublocality_level_2") ||
       "";
     const city =
       get("locality") ||
+      get("administrative_area_level_2") ||
       get("administrative_area_level_1") ||
-      get("country") ||
       "";
     const country = get("country") || "";
     const countryCode = getShort("country") || "";
+    const full =
+      (r.formatted_address || "").trim() ||
+      [street, area, city, country].filter(Boolean).join(", ") ||
+      `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    const localityLine =
+      [area, city].filter(Boolean).join(", ") || city || area || "";
     return {
-      label: r.formatted_address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
-      city: city || "Near you",
+      label: full,
+      city: city || area || "Near you",
       area: area || city || "Near you",
+      street: street || undefined,
+      localityLine: localityLine || undefined,
       country: country || undefined,
       countryCode: countryCode || undefined,
     };
@@ -134,24 +153,28 @@ async function reverseGeocodeNominatim(
       };
     };
     const addr = data.address ?? {};
-    const area =
-      addr.neighbourhood ||
-      addr.suburb ||
-      addr.city_district ||
-      addr.road ||
-      addr.pedestrian ||
-      "";
+    const street =
+      [addr.road || addr.pedestrian, addr.neighbourhood]
+        .filter(Boolean)
+        .join(", ") || "";
+    const area = addr.suburb || addr.city_district || addr.neighbourhood || "";
     const city =
       addr.city || addr.town || addr.village || addr.county || addr.state || "";
+    // Prefer full display_name (street + area + city)
     const label =
-      data.display_name ||
-      [addr.road || addr.pedestrian, area, city].filter(Boolean).join(", ") ||
+      (data.display_name || "").trim() ||
+      [street || addr.road, area, city, addr.country]
+        .filter(Boolean)
+        .join(", ") ||
       `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     if (!label) return null;
+    const localityLine = [area, city].filter(Boolean).join(", ");
     return {
       label,
-      city: city || "Near you",
+      city: city || area || "Near you",
       area: area || city || "Near you",
+      street: street || undefined,
+      localityLine: localityLine || undefined,
       country: addr.country || undefined,
       countryCode: addr.country_code?.toUpperCase() || undefined,
     };

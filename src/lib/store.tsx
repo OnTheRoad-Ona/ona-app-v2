@@ -1850,7 +1850,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     ) => {
       const forSomeone = helpingSomeoneElse;
-      const meetLabel = location.label;
+      // Always store full address for jobs + maps (street + area)
+      const meetLabel = (() => {
+        const full = (location.label || "").trim();
+        const city = (location.city || "").trim();
+        if (
+          full &&
+          full !== "Current location" &&
+          full !== "Locating…" &&
+          full !== "Locating..."
+        ) {
+          // If label already includes city, use as-is; else append city
+          if (city && !full.toLowerCase().includes(city.toLowerCase())) {
+            return `${full}, ${city}`;
+          }
+          return full;
+        }
+        if (city) return city;
+        return "Near you";
+      })();
       const desc = forSomeone
         ? `[Booking for someone else · meet: ${meetLabel}] ${problem}`
         : problem;
@@ -2277,6 +2295,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   /** Last reverse-geocode time — avoid Google Geocoding on every GPS tick */
   const lastGeocodeAt = useRef(0);
+  /** Last full address string from geocode (for throttle) */
+  const lastFullAddressRef = useRef("");
 
   const applyGpsFix = useCallback(
     (pos: GeolocationPosition, silent = false) => {
@@ -2287,32 +2307,55 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
-      // Always trust GPS coords — never keep a stale city label (e.g. Ikeja)
-      setLocation({
-        label: "Current location",
-        city: "Near you",
+      // Keep coords immediately; keep previous full address until reverse-geocode returns
+      setLocation((prev) => ({
+        label:
+          prev.label &&
+          prev.label !== "Current location" &&
+          prev.label !== "Locating…"
+            ? prev.label
+            : "Locating…",
+        city: prev.city && prev.city !== "Near you" ? prev.city : prev.city || "",
         coordinates: { lat, lng },
-      });
+      }));
       setLocationError(null);
       if (!silent) setIsLocating(false);
-      try {
-        localStorage.setItem(
-          LAST_GPS_KEY,
-          JSON.stringify({ lat, lng, label: "Current location", city: "Near you" })
-        );
-      } catch {
-        /* */
-      }
 
-      // Reverse geocode so Island/Lekki/etc. show correctly (throttle 2 min)
+      // Resolve FULL Google formatted address (never area-only like "Lekki")
       const now = Date.now();
-      if (now - lastGeocodeAt.current < 2 * 60 * 1000) return;
+      const hasFull =
+        lastFullAddressRef.current.includes(",") &&
+        lastFullAddressRef.current.length > 12;
+      if (hasFull && now - lastGeocodeAt.current < 90_000) {
+        try {
+          localStorage.setItem(
+            LAST_GPS_KEY,
+            JSON.stringify({
+              lat,
+              lng,
+              label: lastFullAddressRef.current,
+              city: "",
+            })
+          );
+        } catch {
+          /* */
+        }
+        return;
+      }
       lastGeocodeAt.current = now;
       void import("@/lib/google-maps").then(({ reverseGeocodeLatLng }) =>
         reverseGeocodeLatLng(lat, lng).then((geo) => {
           if (!geo || manualPinRef.current) return;
-          const label = geo.area || geo.label || "Current location";
-          const city = geo.city || "Near you";
+          const label =
+            (geo.label || "").trim() ||
+            [geo.street, geo.localityLine || geo.area, geo.city]
+              .filter(Boolean)
+              .join(", ") ||
+            `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+          const city =
+            (geo.localityLine || [geo.area, geo.city].filter(Boolean).join(", ") || "")
+              .trim();
+          lastFullAddressRef.current = label;
           setLocation({
             label,
             city,

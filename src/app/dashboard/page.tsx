@@ -54,9 +54,10 @@ function meetAddress(j: JobRecord): string | null {
 }
 
 /**
- * Uber-style split: street/place on top, city/area under.
- * e.g. "7b Oye Balogun street, Lekki" → title street, subtitle Lekki
- * "Tulip Haven Estate Gate 2, Alternative route, Lekki" → first segment / rest
+ * Uber-style split from full Google address:
+ * title = street / first segment
+ * subtitle = everything under (area, city, …)
+ * Always try to produce a second line when the full address has commas.
  */
 function splitPlaceAndArea(label: string): {
   title: string;
@@ -64,12 +65,12 @@ function splitPlaceAndArea(label: string): {
 } {
   const raw = label.trim();
   if (!raw) return { title: "", subtitle: null };
+  // "7b Oye Balogun Street, Lekki, Lagos, Nigeria"
   const parts = raw
     .split(",")
     .map((p) => p.trim())
     .filter(Boolean);
   if (parts.length >= 2) {
-    // First segment = street / place name; remainder = area line
     return {
       title: parts[0],
       subtitle: parts.slice(1).join(", "),
@@ -78,12 +79,14 @@ function splitPlaceAndArea(label: string): {
   // Single phrase: try trailing area keyword
   const words = raw.split(/\s+/);
   if (words.length >= 2) {
-    const last = words[words.length - 1];
-    if (AREA_HINT.test(last)) {
-      return {
-        title: words.slice(0, -1).join(" "),
-        subtitle: last,
-      };
+    for (let i = words.length - 1; i >= 1; i--) {
+      const tail = words.slice(i).join(" ");
+      if (AREA_HINT.test(tail)) {
+        return {
+          title: words.slice(0, i).join(" "),
+          subtitle: tail,
+        };
+      }
     }
   }
   return { title: raw, subtitle: null };
