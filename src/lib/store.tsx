@@ -537,30 +537,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // Hard gate: never trust local AUTH_KEY alone — ghosts like "Stephen King"
     // must not open the homepage without a real server session.
+    // Cap wait so Supabase hang never leaves the app on a black splash forever.
+    const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> =>
+      new Promise((resolve, reject) => {
+        const t = window.setTimeout(
+          () => reject(new Error("session_timeout")),
+          ms
+        );
+        p.then(
+          (v) => {
+            window.clearTimeout(t);
+            resolve(v);
+          },
+          (e) => {
+            window.clearTimeout(t);
+            reject(e);
+          }
+        );
+      });
+
     void (async () => {
       try {
         if (!isAppBackendOnline()) {
           clearLocalAuth();
           return;
         }
-        const uid = await backendGetSessionUserId();
+        const uid = await withTimeout(backendGetSessionUserId(), 8000);
         if (cancelled) return;
         if (!uid) {
           clearLocalAuth();
           return;
         }
-        const profile = await backendLoadUserProfile(uid);
+        const profile = await withTimeout(backendLoadUserProfile(uid), 8000);
         if (cancelled) return;
         if (!profile) {
           clearLocalAuth();
-          await backendSignOut();
+          await backendSignOut().catch(() => undefined);
           return;
         }
         setBackendUserId(uid);
         // Personal theme for this account before painting the shell
         applyAccountTheme(uid);
         // Attach original signup role before session paint
-        const flags = await backendDualRoleFlags(uid);
+        const flags = await withTimeout(backendDualRoleFlags(uid), 6000);
         if (cancelled) return;
         applySession({
           ...profile,
@@ -587,8 +606,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     })();
 
+    // Absolute safety: never block boot longer than 12s
+    const hardCap = window.setTimeout(() => {
+      if (cancelled) return;
+      setServerSessionReady(true);
+      setAuthReady(true);
+    }, 12000);
+
     return () => {
       cancelled = true;
+      window.clearTimeout(hardCap);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

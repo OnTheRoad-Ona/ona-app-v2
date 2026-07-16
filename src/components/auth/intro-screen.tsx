@@ -21,8 +21,13 @@ export function IntroScreen({ onComplete }: { onComplete: () => void }) {
 
   useEffect(() => {
     const t = window.setTimeout(() => setCanSkip(true), 900);
-    return () => window.clearTimeout(t);
-  }, []);
+    // Never hang on a stalled video stream (black screen forever)
+    const max = window.setTimeout(() => finish(), 12000);
+    return () => {
+      window.clearTimeout(t);
+      window.clearTimeout(max);
+    };
+  }, [finish]);
 
   useEffect(() => {
     const v = videoRef.current;
@@ -33,7 +38,7 @@ export function IntroScreen({ onComplete }: { onComplete: () => void }) {
         v.muted = true;
         await v.play();
       } catch {
-        // Autoplay blocked — still allow skip / end
+        // Autoplay blocked — still allow skip / end / max timeout
       }
     };
     void play();
