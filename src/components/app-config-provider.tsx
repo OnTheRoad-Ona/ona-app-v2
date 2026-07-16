@@ -33,7 +33,8 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch("/api/config", { cache: "no-store" });
+      // Allow browser cache — config rarely changes mid-session
+      const res = await fetch("/api/config", { cache: "default" });
       const json = await res.json();
       if (json.ok && json.data?.config) {
         const next: AppConfig = {
@@ -73,7 +74,11 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void refresh();
-    const t = setInterval(() => void refresh(), 60_000);
+    // Config is not hot-path — refresh every 5 minutes, not every minute
+    const t = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      void refresh();
+    }, 300_000);
     return () => clearInterval(t);
   }, [refresh]);
 

@@ -10,13 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  DEFAULT_USER_LOCATION,
-  INITIAL_BOOKINGS,
-  INITIAL_MESSAGES,
-  INITIAL_REQUESTS,
-  TECHNICIANS,
-} from "@/lib/data/technicians";
+import { DEFAULT_USER_LOCATION } from "@/lib/data/technicians";
 import { registerIdentity } from "@/lib/account-registry";
 import {
   DEFAULT_RADIUS_KM,
@@ -454,9 +448,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<AppFilters>(defaultFilters);
   const [selectedTechId, setSelectedTechId] = useState<string | null>(null);
-  const [requests, setRequests] = useState(INITIAL_REQUESTS);
-  const [bookings] = useState(INITIAL_BOOKINGS);
-  const [messages, setMessages] = useState<MessageThread[]>(INITIAL_MESSAGES);
+  // Start empty — no demo seed payload on first paint (faster load)
+  const [requests, setRequests] = useState<ServiceRequest[]>([]);
+  const [bookings] = useState<Booking[]>([]);
+  const [messages, setMessages] = useState<MessageThread[]>([]);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   /** Live pros from Supabase (null = use demo seed) */
@@ -570,29 +565,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
           clearLocalAuth();
           return;
         }
-        const uid = await withTimeout(backendGetSessionUserId(), 8000);
+        // Tight timeouts + parallel profile/flags so boot is not 8s+8s+6s
+        const uid = await withTimeout(backendGetSessionUserId(), 4000);
         if (cancelled) return;
         if (!uid) {
           clearLocalAuth();
           return;
         }
-        const profile = await withTimeout(backendLoadUserProfile(uid), 8000);
+        setBackendUserId(uid);
+        applyAccountTheme(uid);
+
+        const [profile, flags] = await Promise.all([
+          withTimeout(backendLoadUserProfile(uid), 4500),
+          withTimeout(backendDualRoleFlags(uid), 3500).catch(() => ({
+            hasMotorist: false,
+            hasPro: false,
+            primaryAccountType: undefined as AccountType | undefined,
+          })),
+        ]);
         if (cancelled) return;
         if (!profile) {
           clearLocalAuth();
           await backendSignOut().catch(() => undefined);
           return;
         }
-        setBackendUserId(uid);
-        // Personal theme for this account before painting the shell
-        applyAccountTheme(uid);
-        // Attach original signup role before session paint
-        const flags = await withTimeout(backendDualRoleFlags(uid), 6000);
-        if (cancelled) return;
         applySession({
           ...profile,
           primaryAccountType:
-            profile.primaryAccountType || flags.primaryAccountType,
+            profile.primaryAccountType ||
+            flags.primaryAccountType ||
+            undefined,
         });
         setHasMotoristAccount(
           flags.hasMotorist ||
@@ -614,12 +616,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     })();
 
-    // Absolute safety: never block boot longer than 12s
+    // Absolute safety: never block boot longer than 6s
     const hardCap = window.setTimeout(() => {
       if (cancelled) return;
       setServerSessionReady(true);
       setAuthReady(true);
-    }, 12000);
+    }, 6000);
 
     return () => {
       cancelled = true;
@@ -1519,59 +1521,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [registeredAs]
   );
 
-  /** Directory = demo pros + signed-in Repair Pro (for motorist discovery). */
+  /** Live marketplace pros only (no demo seed — keeps first paint light). */
   const technicians = useMemo(() => {
-    const demoFocus = [
-      {
-        servedVehicleType: "Automobile / Passenger Car",
-        servedBrand: "Toyota",
-        servedModel: "Camry",
-        servedCountry: "Nigeria",
-        servedLocation: "Lagos",
-      },
-      {
-        servedVehicleType: "SUV",
-        servedBrand: "Honda",
-        servedModel: "CR-V",
-        servedCountry: "Nigeria",
-        servedLocation: "Abuja",
-      },
-      {
-        servedVehicleType: "Motorcycle",
-        servedBrand: "Bajaj",
-        servedModel: "Boxer",
-        servedCountry: "Nigeria",
-        servedLocation: "Ibadan",
-      },
-      {
-        servedVehicleType: "Pickup Truck",
-        servedBrand: "Toyota",
-        servedModel: "Hilux",
-        servedCountry: "Nigeria",
-        servedLocation: "Port Harcourt",
-      },
-      {
-        servedVehicleType: "Van (Passenger)",
-        servedBrand: "Toyota",
-        servedModel: "Hiace",
-        servedCountry: "Nigeria",
-        servedLocation: "Lagos",
-      },
-    ];
-    const seed = TECHNICIANS.map((t, i) => {
-      const f = demoFocus[i % demoFocus.length];
-      return {
-        ...t,
-        servedVehicleType: t.servedVehicleType ?? f.servedVehicleType,
-        servedBrand: t.servedBrand ?? t.servedMake ?? f.servedBrand,
-        servedMake: t.servedBrand ?? t.servedMake ?? f.servedBrand,
-        servedModel: t.servedModel ?? f.servedModel,
-        servedCountry: t.servedCountry ?? f.servedCountry,
-        servedLocation: t.servedLocation ?? f.servedLocation,
-      };
-    });
     // Marketplace: only server Live pros (is_online + repair_pro role).
-    // Motorists never get demo seeds. Pros never load nearby discovery.
     const base =
       accountType === "professional"
         ? []
@@ -2078,16 +2030,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, [backendUserId, accountType]);
 
-  // Initial + location-driven pros refresh; poll while browsing so map pins stay live
+  // Initial pros fetch; poll slowly and only while the tab is visible
   useEffect(() => {
     refreshCloudPros();
-    const poll = window.setInterval(() => refreshCloudPros(), 20_000);
+    const poll = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      refreshCloudPros();
+    }, 45_000);
     return () => window.clearInterval(poll);
   }, [refreshCloudPros]);
 
   useEffect(() => {
     refreshCloudJobs();
-    refreshCloudChats();
+    // Chats can wait a beat so first paint is not competing with 3 APIs
+    const t = window.setTimeout(() => refreshCloudChats(), 1200);
+    return () => window.clearTimeout(t);
   }, [refreshCloudJobs, refreshCloudChats]);
 
   // Debounce Realtime storms (many row events → one refresh)
@@ -2098,7 +2055,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const unsubPros = backendSubscribePros(() => {
       if (prosTimer) clearTimeout(prosTimer);
-      prosTimer = setTimeout(() => refreshCloudPros(), 800);
+      prosTimer = setTimeout(() => refreshCloudPros(), 1500);
     });
     const unsubJobs = backendUserId
       ? backendSubscribeJobs(backendUserId, () => {
@@ -2106,7 +2063,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           jobsTimer = setTimeout(() => {
             refreshCloudJobs();
             refreshCloudChats();
-          }, 800);
+          }, 1500);
         })
       : null;
     return () => {
@@ -2147,27 +2104,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    let lastPush = 0;
+    let inflight = false;
     const pushCoords = (lat: number, lng: number) => {
-      void backendSetProOnline(backendUserId, true, { lat, lng });
+      const now = Date.now();
+      if (inflight || now - lastPush < 12_000) return;
+      lastPush = now;
+      inflight = true;
+      void backendSetProOnline(backendUserId, true, { lat, lng }).finally(() => {
+        inflight = false;
+      });
     };
 
-    let watchId: number | null = null;
+    // One initial pin, then interval — avoid watchPosition spam that freezes UI
     if (typeof navigator !== "undefined" && navigator.geolocation) {
-      watchId = navigator.geolocation.watchPosition(
-        (pos) => {
-          pushCoords(pos.coords.latitude, pos.coords.longitude);
-        },
-        () => {
-          pushCoords(userLat, userLng);
-        },
-        { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => pushCoords(pos.coords.latitude, pos.coords.longitude),
+        () => pushCoords(userLat, userLng),
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 15000 }
       );
     } else {
       pushCoords(userLat, userLng);
     }
 
-    // Backup interval (some browsers throttle watchPosition)
     const id = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
       if (!navigator.geolocation) {
         pushCoords(userLat, userLng);
         return;
@@ -2175,12 +2136,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       navigator.geolocation.getCurrentPosition(
         (pos) => pushCoords(pos.coords.latitude, pos.coords.longitude),
         () => pushCoords(userLat, userLng),
-        { enableHighAccuracy: true, timeout: 12000, maximumAge: 8000 }
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 20000 }
       );
-    }, 20_000);
+    }, 30_000);
 
     return () => {
-      if (watchId != null) navigator.geolocation.clearWatch(watchId);
       window.clearInterval(id);
     };
   }, [backendUserId, accountType, userLat, userLng, proLive]);
@@ -2275,19 +2235,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       },
       {
         enableHighAccuracy: true,
-        timeout: 12000,
+        timeout: 8000,
         maximumAge: LOCATION_REFRESH_MS,
       }
     );
   }, [applyGpsFix, friendlyGeolocationError]);
 
-  // Boot: one GPS fix, then refresh only every 10 minutes (no continuous blink)
+  // Boot: one GPS fix (low accuracy first for speed), then refresh every 10 min
   useEffect(() => {
     if (typeof navigator === "undefined" || !navigator.geolocation) return;
     let cancelled = false;
     setIsLocating(true);
 
-    const pull = (silent: boolean) => {
+    const pull = (silent: boolean, highAccuracy: boolean) => {
       if (cancelled) return;
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -2303,20 +2263,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
         },
         {
-          enableHighAccuracy: true,
-          timeout: 12000,
-          maximumAge: LOCATION_REFRESH_MS,
+          enableHighAccuracy: highAccuracy,
+          timeout: highAccuracy ? 8000 : 5000,
+          maximumAge: highAccuracy ? 60_000 : 120_000,
         }
       );
     };
 
-    pull(false);
+    // Fast approximate fix first so home/map can paint; refine later
+    pull(false, false);
+    const refine = window.setTimeout(() => pull(true, true), 2500);
     const intervalId = window.setInterval(
-      () => pull(true),
+      () => {
+        if (document.hidden) return;
+        pull(true, false);
+      },
       LOCATION_REFRESH_MS
     );
     return () => {
       cancelled = true;
+      window.clearTimeout(refine);
       window.clearInterval(intervalId);
     };
   }, [applyGpsFix, friendlyGeolocationError]);

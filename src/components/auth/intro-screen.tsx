@@ -20,9 +20,10 @@ export function IntroScreen({ onComplete }: { onComplete: () => void }) {
   }, [onComplete]);
 
   useEffect(() => {
-    const t = window.setTimeout(() => setCanSkip(true), 900);
-    // Never hang on a stalled video stream (black screen forever)
-    const max = window.setTimeout(() => finish(), 12000);
+    // Skip available almost immediately so boot never feels stuck
+    const t = window.setTimeout(() => setCanSkip(true), 350);
+    // Cap intro hard — never block the app for a long video download
+    const max = window.setTimeout(() => finish(), 6000);
     return () => {
       window.clearTimeout(t);
       window.clearTimeout(max);
@@ -38,17 +39,12 @@ export function IntroScreen({ onComplete }: { onComplete: () => void }) {
         v.muted = true;
         await v.play();
       } catch {
-        // Autoplay blocked — still allow skip / end / max timeout
+        // Autoplay blocked — finish quickly so user is not stuck on black
+        window.setTimeout(() => finish(), 800);
       }
     };
     void play();
-  }, []);
-
-  // Preload brand art so handoff never flashes empty/white under the video
-  useEffect(() => {
-    const img = new Image();
-    img.src = "/brand/auth-bg-v30.jpg";
-  }, []);
+  }, [finish]);
 
   return (
     <div
@@ -63,7 +59,8 @@ export function IntroScreen({ onComplete }: { onComplete: () => void }) {
         playsInline
         muted
         autoPlay
-        preload="auto"
+        // metadata only — full preload was making first open very slow
+        preload="metadata"
         onEnded={finish}
         onError={finish}
       />

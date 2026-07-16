@@ -79,7 +79,11 @@ export function IncomingJobPopup() {
     };
 
     void poll();
-    const t = window.setInterval(() => void poll(), 4000);
+    // 10s is enough for multi-job alerts without hammering the API
+    const t = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      void poll();
+    }, 10_000);
     return () => {
       cancelled = true;
       window.clearInterval(t);

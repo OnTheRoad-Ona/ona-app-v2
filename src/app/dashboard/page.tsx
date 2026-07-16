@@ -101,7 +101,10 @@ export default function TechnicianDashboardPage() {
 
   useEffect(() => {
     void loadJobs();
-    const t = window.setInterval(() => void loadJobs(), 5000);
+    const t = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      void loadJobs();
+    }, 12_000);
     return () => window.clearInterval(t);
   }, [loadJobs]);
 

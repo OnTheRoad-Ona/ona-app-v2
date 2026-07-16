@@ -21,20 +21,18 @@ export function HomeScreen() {
     selectedTechId,
     theme,
     accountType,
-    retryLocation,
     refreshNearbyPros,
   } = useApp();
   const { config } = useAppConfig();
   const isLight = theme === "light";
   const [sheetExpanded, setSheetExpanded] = useState(false);
 
-  // Motorist: refresh GPS + pros on open so discovery uses real pin (not stale default)
+  // Motorist: one light pros refresh on open (GPS already starts in AppProvider)
   useEffect(() => {
     if (accountType === "professional") return;
-    retryLocation();
-    const t = window.setTimeout(() => refreshNearbyPros(), 1200);
+    const t = window.setTimeout(() => refreshNearbyPros(), 600);
     return () => window.clearTimeout(t);
-  }, [accountType, retryLocation, refreshNearbyPros]);
+  }, [accountType, refreshNearbyPros]);
 
   useEffect(() => {
     if (

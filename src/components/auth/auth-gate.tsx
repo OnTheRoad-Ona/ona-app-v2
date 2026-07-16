@@ -14,10 +14,10 @@ import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 const ENTRY_SESSION_KEY = "oga-mecho-entry-done";
-/** Last time intro finished — re-show every 3 hours on a new open */
+/** Last time intro finished — re-show at most once per day (faster daily opens) */
 const INTRO_AT_KEY = "oga-mecho-intro-at";
-const INTRO_EVERY_MS = 3 * 60 * 60 * 1000;
-const HANDOFF_MS = 780;
+const INTRO_EVERY_MS = 24 * 60 * 60 * 1000;
+const HANDOFF_MS = 420;
 
 function shouldShowIntro(): boolean {
   try {
