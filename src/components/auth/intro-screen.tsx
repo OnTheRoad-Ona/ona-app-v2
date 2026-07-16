@@ -52,6 +52,7 @@ export function IntroScreen({ onComplete }: { onComplete: () => void }) {
       role="dialog"
       aria-label="OgaMecho intro"
     >
+      {/* DATA: no auto video download — black splash + skip; video only if user waits */}
       <video
         ref={videoRef}
         className="h-full w-full object-cover bg-black"
@@ -59,8 +60,7 @@ export function IntroScreen({ onComplete }: { onComplete: () => void }) {
         playsInline
         muted
         autoPlay
-        // metadata only — full preload was making first open very slow
-        preload="metadata"
+        preload="none"
         onEnded={finish}
         onError={finish}
       />
@@ -69,7 +69,7 @@ export function IntroScreen({ onComplete }: { onComplete: () => void }) {
         <button
           type="button"
           onClick={finish}
-          className="absolute right-3 top-3 z-10 rounded-full border-0 bg-black/45 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-md"
+          className="absolute right-3 top-3 z-10 rounded-full border-0 bg-black/55 px-3 py-1.5 text-[11px] font-semibold text-white"
         >
           Skip
         </button>

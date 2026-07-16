@@ -139,8 +139,9 @@ export async function apiPushTripLocation(input: {
       actorId: input.actorId,
     }),
   });
+  // job may be a slim location patch (not full JobRecord)
   return parse<{
-    job: JobRecord;
+    job: Partial<JobRecord> & { id: string };
     metrics: {
       distanceKm: number;
       etaMinutes: number;

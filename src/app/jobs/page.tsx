@@ -109,7 +109,7 @@ export default function JobsInboxPage() {
     const t = window.setInterval(() => {
       if (document.hidden) return;
       void load();
-    }, 30_000);
+    }, 60_000);
     return () => {
       cancelled = true;
       window.clearInterval(t);

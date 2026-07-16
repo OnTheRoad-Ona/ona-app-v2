@@ -2030,44 +2030,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, [backendUserId, accountType]);
 
-  // Pros: load once on open; rare poll (2 min) only when tab visible — saves mobile data
+  // Pros: load once; poll every 3 min when tab visible (no Realtime GPS storm)
   useEffect(() => {
     refreshCloudPros();
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudPros();
-    }, 120_000);
+    }, 180_000);
     return () => window.clearInterval(poll);
   }, [refreshCloudPros]);
 
   useEffect(() => {
     refreshCloudJobs();
-    // Chats once after idle — avoid 3 parallel requests on boot
-    const t = window.setTimeout(() => refreshCloudChats(), 4000);
+    const t = window.setTimeout(() => refreshCloudChats(), 8000);
     return () => window.clearTimeout(t);
   }, [refreshCloudJobs, refreshCloudChats]);
 
-  // Realtime: longer debounce so bursts don’t spam API/data
+  // Jobs Realtime (user-filtered only) with heavy debounce
   useEffect(() => {
-    if (!isAppBackendOnline()) return;
-    let prosTimer: ReturnType<typeof setTimeout> | null = null;
+    if (!isAppBackendOnline() || !backendUserId) return;
     let jobsTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const unsubPros = backendSubscribePros(() => {
-      if (prosTimer) clearTimeout(prosTimer);
-      prosTimer = setTimeout(() => refreshCloudPros(), 4000);
+    // Pros realtime intentionally null — GPS writes no longer refresh the map feed
+    const unsubPros = backendSubscribePros(() => refreshCloudPros());
+    const unsubJobs = backendSubscribeJobs(backendUserId, () => {
+      if (jobsTimer) clearTimeout(jobsTimer);
+      jobsTimer = setTimeout(() => refreshCloudJobs(), 8000);
     });
-    const unsubJobs = backendUserId
-      ? backendSubscribeJobs(backendUserId, () => {
-          if (jobsTimer) clearTimeout(jobsTimer);
-          jobsTimer = setTimeout(() => {
-            refreshCloudJobs();
-            // Chats only on job events occasionally — skip every time
-          }, 4000);
-        })
-      : null;
     return () => {
-      if (prosTimer) clearTimeout(prosTimer);
       if (jobsTimer) clearTimeout(jobsTimer);
       unsubPros?.();
       unsubJobs?.();
@@ -2161,8 +2150,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [accountType, backendUserId, proLive]);
 
-  /** GPS label/coords refresh at most every 10 minutes (stable, no blink). */
-  const LOCATION_REFRESH_MS = 10 * 60 * 1000;
+  /** GPS refresh at most every 20 minutes (was 10) — less geocode + network */
+  const LOCATION_REFRESH_MS = 20 * 60 * 1000;
 
   /** Map browser GPS errors to clear, actionable copy (not raw "User denied Geolocation"). */
   const friendlyGeolocationError = useCallback(
@@ -2186,11 +2175,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  /** Last reverse-geocode time — avoid Google Geocoding on every GPS tick */
+  const lastGeocodeAt = useRef(0);
+
   const applyGpsFix = useCallback(
     (pos: GeolocationPosition, silent = false) => {
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
-      // Update coords first without wiping a good street label
       setLocation((prev) => ({
         ...prev,
         coordinates: { lat, lng },
@@ -2198,10 +2189,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
           prev.label && prev.label !== "Live location"
             ? prev.label
             : prev.label || "Current location",
-        city: prev.city && prev.city !== "Near you" ? prev.city : prev.city || "Near you",
+        city:
+          prev.city && prev.city !== "Near you"
+            ? prev.city
+            : prev.city || "Near you",
       }));
       setLocationError(null);
       if (!silent) setIsLocating(false);
+
+      // DATA: reverse geocode at most once per 15 minutes (was every GPS fix)
+      const now = Date.now();
+      if (now - lastGeocodeAt.current < 15 * 60 * 1000) return;
+      lastGeocodeAt.current = now;
       void import("@/lib/google-maps").then(({ reverseGeocodeLatLng }) =>
         reverseGeocodeLatLng(lat, lng).then((geo) => {
           if (!geo) return;

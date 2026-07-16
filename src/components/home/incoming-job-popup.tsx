@@ -79,11 +79,11 @@ export function IncomingJobPopup() {
     };
 
     void poll();
-    // Low data: check for new motorist jobs every 30s when tab is visible
+    // Low data: 45s when visible (was 4–10s and triple-polled with dashboard)
     const t = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void poll();
-    }, 30_000);
+    }, 45_000);
     return () => {
       cancelled = true;
       window.clearInterval(t);

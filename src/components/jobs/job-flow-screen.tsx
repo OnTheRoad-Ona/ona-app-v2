@@ -219,16 +219,19 @@ export function JobFlowScreen({
       await load();
     };
     void tick();
-    // Slower polls = less mobile data (Realtime covers most updates)
+    // Low data: negotiate 8s, active trip 15s (location pings carry ETA)
     const ms =
       job?.status === "negotiating" || job?.status === "agreed"
-        ? 4000
+        ? 8000
         : ["paid_booked", "en_route", "arrived", "in_progress"].includes(
               job?.status || ""
             )
-          ? 8000
-          : 10000;
-    const id = window.setInterval(() => void tick(), ms);
+          ? 15_000
+          : 20_000;
+    const id = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      void tick();
+    }, ms);
     return () => {
       cancelled = true;
       window.clearInterval(id);
@@ -257,13 +260,12 @@ export function JobFlowScreen({
     if (!tracking || !navigator.geolocation) return;
 
     let cancelled = false;
-    let watchId: number | null = null;
-    let wakeLock: WakeLockSentinel | null = null;
 
-    // Throttle GPS hard — trip tracking still works, far less data
+    // DATA: no watchPosition stream + no Google matrix per ping.
+    // One interval every 30s is enough for map movement on mobile.
     let lastPushAt = 0;
     let inflight = false;
-    const PUSH_MIN_MS = 12_000;
+    const PUSH_MIN_MS = 28_000;
 
     const push = async (lat: number, lng: number) => {
       if (cancelled || inflight) return;
@@ -280,97 +282,61 @@ export function JobFlowScreen({
           actorId,
         });
         if (!cancelled && res.ok) {
-          commitJob(res.data.job);
+          // Merge slim location payload into current job (API no longer returns full job)
+          const patch = res.data.job as Partial<JobRecord>;
+          setJob((prev) => {
+            if (!prev || prev.id !== job.id) return prev;
+            const next = {
+              ...prev,
+              ...patch,
+              // Keep rich fields that slim response omits
+              offers: prev.offers,
+              photos: prev.photos,
+              voiceNote: prev.voiceNote,
+              problem: prev.problem,
+              motoristName: prev.motoristName,
+              repairProName: prev.repairProName,
+              statusHistory: prev.statusHistory,
+            } as JobRecord;
+            jobRef.current = next;
+            return next;
+          });
           setLocHint(null);
         }
       } catch {
-        /* network blip — next tick retries */
+        /* network blip */
       } finally {
         inflight = false;
       }
     };
 
-    const startWatch = () => {
-      if (watchId != null) {
-        navigator.geolocation.clearWatch(watchId);
-      }
-      watchId = navigator.geolocation.watchPosition(
-        (pos) => {
-          void push(pos.coords.latitude, pos.coords.longitude);
-        },
-        (e) => {
-          if (cancelled) return;
-          setLocHint(
-            e.code === e.PERMISSION_DENIED
-              ? viewer === "repair_pro"
-                ? "Enable location so the motorist sees your live ETA"
-                : "Enable location so your Repair Pro can find you"
-              : "Waiting for GPS fix"
-          );
-        },
-        { enableHighAccuracy: true, maximumAge: 8000, timeout: 12000 }
-      );
-    };
-
-    startWatch();
-
-    // Backup GPS every 25s (watch already throttled)
-    const poll = window.setInterval(() => {
+    const sample = () => {
       if (document.hidden) return;
       void getCurrentPosition({
         enableHighAccuracy: false,
-        maximumAge: 20_000,
-        timeout: 8000,
+        maximumAge: 25_000,
+        timeout: 6000,
       })
         .then((p) => push(p.coords.latitude, p.coords.longitude))
         .catch(() => undefined);
-    }, 25_000);
-
-    // Screen wake lock helps keep GPS alive on many mobile browsers
-    const requestWake = async () => {
-      try {
-        if ("wakeLock" in navigator && document.visibilityState === "visible") {
-          wakeLock = await navigator.wakeLock.request("screen");
-          wakeLock.addEventListener("release", () => {
-            wakeLock = null;
-          });
-        }
-      } catch {
-        /* unsupported / denied */
-      }
     };
-    void requestWake();
 
-    // When returning from background: re-acquire wake lock + immediate GPS
-    const onVis = () => {
-      if (document.visibilityState === "visible") {
-        void requestWake();
-        startWatch();
-        void getCurrentPosition({ enableHighAccuracy: true, maximumAge: 0 })
-          .then((p) => push(p.coords.latitude, p.coords.longitude))
-          .catch(() => undefined);
-      }
-      // Do NOT stop watch when hidden — keep background pings as long as OS allows
-    };
-    document.addEventListener("visibilitychange", onVis);
+    sample();
+    const poll = window.setInterval(sample, 30_000);
 
-    // Hint once so users grant location for this trip
     setLocHint(
       viewer === "repair_pro"
-        ? "Live tracking on. Keep location allowed for this trip"
-        : "Sharing your live pin so Repair Pro can find you"
+        ? "Sharing location for this trip"
+        : "Sharing your pin so Repair Pro can find you"
     );
-    const hintClear = window.setTimeout(() => setLocHint(null), 6000);
+    const hintClear = window.setTimeout(() => setLocHint(null), 4000);
 
     return () => {
       cancelled = true;
-      document.removeEventListener("visibilitychange", onVis);
-      if (watchId != null) navigator.geolocation.clearWatch(watchId);
       window.clearInterval(poll);
       window.clearTimeout(hintClear);
-      void wakeLock?.release().catch(() => undefined);
     };
-  }, [viewer, job?.id, job?.status, actorId, commitJob]);
+  }, [viewer, job?.id, job?.status, actorId]);
 
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-500" : "text-white/55";

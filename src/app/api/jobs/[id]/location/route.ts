@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
-import { computeDriveMetrics } from "@/lib/server/google-eta";
+import { haversineEtaMinutes } from "@/lib/server/google-eta";
 import { getJob, updateTripPartyLocation } from "@/lib/server/jobs/job-store";
 
 export const runtime = "nodejs";
@@ -9,16 +9,31 @@ export const dynamic = "force-dynamic";
 const bodySchema = z.object({
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
-  /** Who is sending live GPS — both sides track during active trip */
   actor: z.enum(["motorist", "repair_pro"]).optional().default("repair_pro"),
   actorId: z.string().optional(),
 });
 
+function haversineKm(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number }
+): number {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const la1 = (a.lat * Math.PI) / 180;
+  const la2 = (b.lat * Math.PI) / 180;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
 /**
  * Live GPS for active trip.
- * - Repair Pro: updates pro pin → motorist sees movement
- * - Motorist: updates motorist pin → pro can track them
- * Recomputes drive ETA when both points exist.
+ *
+ * DATA FIX: never call Google Distance Matrix on every ping.
+ * Previously every 12–25s GPS POST hit Google Maps → massive mobile data + cost.
+ * Now: cheap haversine only (client already polls job for status).
  */
 export async function POST(
   req: Request,
@@ -52,20 +67,13 @@ export async function POST(
 
     let distanceKm = job.distanceKm ?? 0;
     let etaMinutes = job.etaMinutes ?? 0;
-    let durationText = job.etaText ?? undefined;
-    let distanceText = job.distanceText ?? undefined;
-    let source = job.etaSource ?? "none";
+    let source = "haversine_fast";
 
     if (pro && motorist) {
-      const metrics = await computeDriveMetrics(pro, motorist);
-      distanceKm = metrics.distanceKm;
-      const arrivedClose = metrics.distanceKm <= 0.15;
-      etaMinutes = arrivedClose
-        ? Math.min(metrics.etaMinutes, 1)
-        : metrics.etaMinutes;
-      durationText = metrics.durationText;
-      distanceText = metrics.distanceText;
-      source = metrics.source;
+      distanceKm = Math.round(haversineKm(pro, motorist) * 10) / 10;
+      etaMinutes =
+        distanceKm <= 0.15 ? 1 : haversineEtaMinutes(distanceKm);
+      source = "haversine_fast";
     }
 
     const updated = await updateTripPartyLocation({
@@ -75,19 +83,32 @@ export async function POST(
       distanceKm,
       etaMinutes,
       metricsSource: source,
-      durationText,
-      distanceText,
+      durationText: undefined,
+      distanceText: undefined,
     });
 
     if (!updated) return apiFail("Could not save location", 500);
+
+    // Slim response — do not ship full job history/photos every ping
     return apiOk({
-      job: updated,
+      job: {
+        id: updated.id,
+        status: updated.status,
+        proLocation: updated.proLocation,
+        motoristLocation: updated.motoristLocation,
+        distanceKm: updated.distanceKm,
+        etaMinutes: updated.etaMinutes,
+        etaText: updated.etaText,
+        distanceText: updated.distanceText,
+        etaSource: updated.etaSource,
+        proLocationAt: updated.proLocationAt,
+        motoristLocationAt: updated.motoristLocationAt,
+        updatedAt: updated.updatedAt,
+      },
       metrics: {
         distanceKm,
         etaMinutes,
         source,
-        durationText,
-        distanceText,
       },
     });
   } catch (e) {

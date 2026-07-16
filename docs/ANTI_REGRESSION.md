@@ -80,7 +80,20 @@ footer: shrink-0 (if any)
 
 Portals for menus/call sheets must mount on `#oga-mecho-phone`, not `document.body` alone when that would break the shell.
 
-## 7. Pre-merge smoke (call / message / negotiate)
+## 7. Mobile data — never reintroduce these burners
+
+| Consumer | Rule |
+|----------|------|
+| Trip GPS `POST /api/jobs/.../location` | **No Google Distance Matrix** — haversine only; slim response |
+| Marketplace `/api/pros` | **Haversine only** — no batch Distance Matrix on list |
+| Supabase Realtime jobs | Filter by `motorist_id` / `repair_pro_id` of current user only |
+| Supabase Realtime pros | **Disabled** — GPS writes must not refresh all motorists |
+| Reverse geocode | At most every **15 min** |
+| Job list polls | ≥ **60s**; pause when tab hidden |
+| Live pro GPS upload | ≥ **45–60s** between pushes |
+| Intro video | `preload="none"` — do not auto-download 600KB+ on open |
+
+## 8. Pre-merge smoke (call / message / negotiate)
 
 1. Open active job → Call → dialer opens → End call → shell intact → Back works  
 2. Job → Chat → thread opens → Back → messages → Back → previous screen  

@@ -125,11 +125,11 @@ export default function TechnicianDashboardPage() {
 
   useEffect(() => {
     void loadJobs();
-    // Low data: poll every 30s, only when tab visible
+    // Low data: 60s poll when visible (Realtime also covers own jobs)
     const t = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void loadJobs();
-    }, 30_000);
+    }, 60_000);
     return () => window.clearInterval(t);
   }, [loadJobs]);
 

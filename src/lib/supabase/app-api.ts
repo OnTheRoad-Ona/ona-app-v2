@@ -1109,7 +1109,11 @@ export function backendSubscribeMessages(
   };
 }
 
-/** Subscribe to service request updates for multi-device job status. */
+/**
+ * Job Realtime — filtered to this user’s rows only.
+ * OLD BUG: subscribed to *all* service_requests → every pro GPS/status in the
+ * whole app triggered a full jobs refetch for every client (huge data waste).
+ */
 export function backendSubscribeJobs(
   userId: string,
   onChange: () => void
@@ -1120,7 +1124,22 @@ export function backendSubscribeJobs(
     .channel(`jobs:${userId}`)
     .on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "service_requests" },
+      {
+        event: "*",
+        schema: "public",
+        table: "service_requests",
+        filter: `motorist_id=eq.${userId}`,
+      },
+      () => onChange()
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "service_requests",
+        filter: `repair_pro_id=eq.${userId}`,
+      },
       () => onChange()
     )
     .subscribe();
@@ -1129,19 +1148,14 @@ export function backendSubscribeJobs(
   };
 }
 
-/** Subscribe to pro location/online changes for map. */
-export function backendSubscribePros(onChange: () => void): (() => void) | null {
-  const sb = getAppSupabase();
-  if (!sb) return null;
-  const channel = sb
-    .channel("pros:live")
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "repair_pro_profiles" },
-      () => onChange()
-    )
-    .subscribe();
-  return () => {
-    void sb.removeChannel(channel);
-  };
+/**
+ * Pros Realtime DISABLED for data savings.
+ * OLD BUG: subscribed to all repair_pro_profiles changes → every Live pro’s
+ * GPS ping re-fetched /api/pros for every motorist (catastrophic data use).
+ * Discovery uses a slow poll instead (see store refreshCloudPros interval).
+ */
+export function backendSubscribePros(
+  _onChange: () => void
+): (() => void) | null {
+  return null;
 }
