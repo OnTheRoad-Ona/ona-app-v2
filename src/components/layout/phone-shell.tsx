@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, type MouseEvent, type ReactNode } from "react";
+import { useCallback, useRef, type MouseEvent, type ReactNode, type TouchEvent } from "react";
 import { AcceptTripPopup } from "@/components/home/accept-trip-popup";
 import { IncomingJobPopup } from "@/components/home/incoming-job-popup";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,10 @@ function isInteractiveTarget(el: HTMLElement): boolean {
     tag === "button" ||
     tag === "a" ||
     tag === "label" ||
+    tag === "img" ||
+    tag === "video" ||
+    tag === "canvas" ||
+    tag === "svg" ||
     el.isContentEditable
   ) {
     return true;
@@ -24,7 +28,7 @@ function isInteractiveTarget(el: HTMLElement): boolean {
 
   if (
     el.closest(
-      "input, textarea, select, option, button, a, label, [contenteditable='true'], [contenteditable=''], [role='textbox'], [role='button'], [role='tab'], [role='link'], [role='menuitem'], [role='switch'], [role='checkbox'], [role='slider']"
+      "input, textarea, select, option, button, a, label, img, video, canvas, svg, [contenteditable='true'], [contenteditable=''], [role='textbox'], [role='button'], [role='tab'], [role='link'], [role='menuitem'], [role='switch'], [role='checkbox'], [role='slider'], [role='dialog'], [data-no-theme-toggle]"
     )
   ) {
     return true;
@@ -34,8 +38,7 @@ function isInteractiveTarget(el: HTMLElement): boolean {
 }
 
 /**
- * Fixed phone app frame (390 × ≤844). Expanding the browser only grows the
- * dark stage around the app — the panel never stretches wider or taller.
+ * Fixed phone app frame. Double-click / double-tap free space toggles light/dark.
  */
 export function PhoneShell({
   children,
@@ -46,10 +49,11 @@ export function PhoneShell({
 }) {
   const { theme, toggleTheme } = useApp();
   const isLight = theme === "light";
+  const lastTapRef = useRef(0);
 
-  const onDoubleClick = useCallback(
-    (e: MouseEvent) => {
-      const el = e.target as HTMLElement | null;
+  const tryToggleTheme = useCallback(
+    (target: EventTarget | null) => {
+      const el = target as HTMLElement | null;
       if (!el) return;
       if (isInteractiveTarget(el)) return;
       const sel =
@@ -58,6 +62,33 @@ export function PhoneShell({
       toggleTheme();
     },
     [toggleTheme]
+  );
+
+  const onDoubleClick = useCallback(
+    (e: MouseEvent) => {
+      // Capture on free space only
+      tryToggleTheme(e.target);
+    },
+    [tryToggleTheme]
+  );
+
+  /** Mobile: double-tap free space toggles theme */
+  const onTouchEnd = useCallback(
+    (e: TouchEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (!el || isInteractiveTarget(el)) {
+        lastTapRef.current = 0;
+        return;
+      }
+      const now = Date.now();
+      if (now - lastTapRef.current < 320 && now - lastTapRef.current > 40) {
+        lastTapRef.current = 0;
+        tryToggleTheme(e.target);
+        return;
+      }
+      lastTapRef.current = now;
+    },
+    [tryToggleTheme]
   );
 
   return (
@@ -70,13 +101,15 @@ export function PhoneShell({
         "px-3 py-3",
         isLight ? "bg-[#060d0a]" : "bg-[#0a0605]"
       )}
+      // Outer stage free space also toggles (desktop padding around phone)
+      onDoubleClick={onDoubleClick}
+      onTouchEnd={onTouchEnd}
     >
       <div
         id="oga-mecho-phone"
         className={cn(
           "relative box-border flex flex-col overflow-hidden",
           "w-[390px] max-w-[calc(100vw-1.5rem)]",
-          // Cap height so a tall browser does not stretch the app into a desktop page
           "h-[min(844px,calc(100dvh-1.5rem))] max-h-[min(844px,calc(100dvh-1.5rem))]",
           "h-[min(844px,calc(100svh-1.5rem))] max-h-[min(844px,calc(100svh-1.5rem))]",
           "shadow-[0_24px_48px_rgba(0,0,0,0.55)]",
@@ -92,6 +125,7 @@ export function PhoneShell({
           paddingTop: "env(safe-area-inset-top, 0px)",
         }}
         onDoubleClick={onDoubleClick}
+        onTouchEnd={onTouchEnd}
       >
         <div className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
           {children}
