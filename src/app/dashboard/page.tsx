@@ -1,19 +1,17 @@
 "use client";
 
 /**
- * Professional dashboard — flat on the main app stage (no nested glass panels).
- * Incoming jobs only after a motorist has requested this pro (active flow).
+ * Professional dashboard — solid stage, compact incoming jobs, low data use.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  ArrowUpRight,
   Briefcase,
+  ChevronRight,
   Loader2,
   MapPin,
   Radio,
-  Wrench,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -25,46 +23,32 @@ import { useApp } from "@/lib/store";
 import type { ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-function statusPresentation(status: JobFlowStatus): {
-  label: string;
-  tone: "emerald" | "copper" | "amber" | "slate" | "red";
-} {
+function shortStatus(status: JobFlowStatus): string {
   switch (status) {
     case "paid_booked":
-      return { label: "Paid · Booked", tone: "emerald" };
+      return "Paid · Booked";
     case "negotiating":
-      return { label: "Negotiating", tone: "amber" };
+      return "Negotiating";
     case "agreed":
-      return { label: "Price agreed", tone: "copper" };
+      return "Agreed";
     case "en_route":
-      return { label: "On the road", tone: "copper" };
+      return "On the road";
     case "arrived":
-      return { label: "Arrived", tone: "copper" };
+      return "Arrived";
     case "in_progress":
-      return { label: "Working", tone: "copper" };
+      return "Working";
     case "completed":
     case "satisfied":
-      return { label: "Complete", tone: "emerald" };
+      return "Complete";
     case "disputed":
+      return "Dispute";
     case "under_appeal":
-      return { label: status === "disputed" ? "Dispute" : "Appeal", tone: "red" };
+      return "Appeal";
     default:
-      return {
-        label: status.replace(/_/g, " "),
-        tone: "slate",
-      };
+      return status.replace(/_/g, " ");
   }
 }
 
-const toneClass = {
-  emerald: "bg-emerald-600 text-white",
-  copper: "bg-[#e07a3d] text-white",
-  amber: "bg-amber-500 text-white",
-  slate: "bg-slate-700 text-white",
-  red: "bg-red-500 text-white",
-} as const;
-
-/** Only active escrow flow states after a real motorist request */
 const ACTIVE_INCOMING = new Set([
   "negotiating",
   "agreed",
@@ -103,11 +87,12 @@ export default function TechnicianDashboardPage() {
     ? PRO_SERVICE_LABELS[mySkill] ?? mySkill
     : "Professional";
 
-  // Same solid stage as motorist home / app shell
   const stage = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const ink = isLight ? "text-slate-900" : "text-white";
-  const muted = isLight ? "text-slate-600" : "text-white/65";
+  const muted = isLight ? "text-slate-600" : "text-[#a1a1a6]";
   const hairline = isLight ? "border-black/10" : "border-white/10";
+  /** Solid row surface — no translucency */
+  const row = isLight ? "bg-[#bebfc4]" : "bg-[#141414]";
 
   const loadJobs = useCallback(async () => {
     if (!backendUserId) {
@@ -122,7 +107,6 @@ export default function TechnicianDashboardPage() {
         if (j.repairProId !== backendUserId) return false;
         if (!j.motoristId || !j.problem?.trim()) return false;
         if (!ACTIVE_INCOMING.has(j.status)) return false;
-        // Drop expired negotiation windows
         if (
           j.status === "negotiating" &&
           j.negotiateEndsAt &&
@@ -141,10 +125,11 @@ export default function TechnicianDashboardPage() {
 
   useEffect(() => {
     void loadJobs();
+    // Low data: poll every 30s, only when tab visible
     const t = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void loadJobs();
-    }, 12_000);
+    }, 30_000);
     return () => window.clearInterval(t);
   }, [loadJobs]);
 
@@ -165,7 +150,13 @@ export default function TechnicianDashboardPage() {
     () =>
       [...jobs].sort((a, b) => {
         const rank = (s: string) =>
-          s === "negotiating" ? 0 : s === "agreed" ? 1 : s === "paid_booked" ? 2 : 3;
+          s === "negotiating"
+            ? 0
+            : s === "agreed"
+              ? 1
+              : s === "paid_booked"
+                ? 2
+                : 3;
         const d = rank(a.status) - rank(b.status);
         if (d !== 0) return d;
         return (
@@ -183,7 +174,7 @@ export default function TechnicianDashboardPage() {
           subtitle={`${roleLabel} · ${userProfile?.fullName || displayName || "Pro"}`}
           showBack={false}
         />
-        <div className="flex items-center justify-between gap-2 px-3 pb-3">
+        <div className="flex items-center justify-between gap-2 px-3 pb-2">
           {mySkill ? (
             <p className={cn("text-[12px] font-bold", ink)}>
               {PRO_SERVICE_LABELS[mySkill] ?? mySkill}
@@ -197,50 +188,38 @@ export default function TechnicianDashboardPage() {
             disabled={liveBusy}
             onClick={() => void toggleLive()}
             className={cn(
-              "inline-flex shrink-0 items-center gap-2 border-0 bg-transparent px-0 py-1 text-xs font-bold transition-colors",
+              "inline-flex shrink-0 items-center gap-2 border-0 bg-transparent px-0 py-1 text-xs font-bold",
               proLive
                 ? "text-emerald-600"
                 : isLight
                   ? "text-slate-500"
-                  : "text-white/55"
+                  : "text-[#a1a1a6]"
             )}
             aria-pressed={proLive}
           >
-            <span className="relative flex h-2 w-2">
-              {proLive && (
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
+            <span
+              className={cn(
+                "inline-flex h-2 w-2 rounded-full",
+                proLive ? "bg-emerald-500" : "bg-slate-400"
               )}
-              <span
-                className={cn(
-                  "relative inline-flex h-2 w-2 rounded-full",
-                  proLive ? "bg-emerald-500" : "bg-slate-400"
-                )}
-              />
-            </span>
+            />
             {liveBusy ? "…" : proLive ? "Live" : "Away"}
           </button>
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 pb-5 scrollbar-hide">
-        {/* Live status — flat on stage, no floating glass card */}
-        <section className={cn("border-b pb-5", hairline)}>
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 pb-4 scrollbar-hide">
+        {/* Live — flat, no layered cards */}
+        <section className={cn("border-b pb-4", hairline)}>
           <div className="flex items-center gap-3">
-            <span
+            <Radio
               className={cn(
-                "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl",
-                proLive ? "bg-emerald-500/20" : "bg-[#e07a3d]/20"
+                "h-5 w-5 shrink-0",
+                proLive ? "text-emerald-500" : "text-[#e07a3d]"
               )}
-            >
-              <Radio
-                className={cn(
-                  "h-5 w-5",
-                  proLive ? "text-emerald-500" : "text-[#e07a3d]"
-                )}
-              />
-            </span>
+            />
             <div className="min-w-0 flex-1">
-              <p className={cn("text-[16px] font-black", ink)}>
+              <p className={cn("text-[15px] font-black", ink)}>
                 {proLive ? "You’re Live" : "You’re Away"}
               </p>
               <p className={cn("text-[12px] font-medium", muted)}>
@@ -251,7 +230,7 @@ export default function TechnicianDashboardPage() {
             </div>
           </div>
           <Button
-            className="mt-4 h-11 w-full"
+            className="mt-3 h-10 w-full"
             disabled={liveBusy}
             onClick={() => void toggleLive()}
           >
@@ -268,268 +247,101 @@ export default function TechnicianDashboardPage() {
           )}
         </section>
 
-        <section className="space-y-3">
-          {/* Section header */}
-          <div className="flex items-end justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h2
-                  className={cn(
-                    "text-[17px] font-black tracking-tight",
-                    ink
-                  )}
-                >
-                  Incoming jobs
-                </h2>
-                {jobs.length > 0 && (
-                  <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[#e07a3d] px-2 text-[11px] font-black text-white">
-                    {jobs.length}
-                  </span>
-                )}
-              </div>
-              <p
-                className={cn(
-                  "mt-0.5 text-[11px] font-medium",
-                  isLight ? "text-slate-500" : "text-white/45"
-                )}
-              >
-                New requests stay visible even mid-job
-              </p>
-            </div>
+        {/* Incoming jobs — compact solid rows, no nested transparent layers */}
+        <section>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h2 className={cn("text-[15px] font-black", ink)}>
+              Incoming jobs
+              {jobs.length > 0 ? (
+                <span className="ml-1.5 text-[#e07a3d]">({jobs.length})</span>
+              ) : null}
+            </h2>
             <Link
               href="/jobs"
-              className={cn(
-                "inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-bold transition active:scale-[0.98]",
-                isLight
-                  ? "bg-white/80 text-[#c45a20] shadow-sm ring-1 ring-black/6"
-                  : "bg-[#2c2c2e] text-[#e07a3d]"
-              )}
+              className="text-[12px] font-bold text-[#e07a3d]"
             >
               All jobs
-              <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
           </div>
 
-          {/* Compact tip */}
-          <div
-            className={cn(
-              "flex gap-2.5 rounded-2xl px-3 py-2.5",
-              isLight
-                ? "bg-white/55 ring-1 ring-black/5"
-                : "bg-[#1a1a1c] ring-1 ring-white/8"
-            )}
-          >
-            <span
-              className={cn(
-                "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl",
-                proLive ? "bg-emerald-500/15 text-emerald-600" : "bg-[#e07a3d]/15 text-[#e07a3d]"
-              )}
-            >
-              <Radio className="h-3.5 w-3.5" />
-            </span>
-            <p
-              className={cn(
-                "text-[11px] font-medium leading-snug",
-                isLight ? "text-slate-600" : "text-white/60"
-              )}
-            >
-              {proLive ? (
-                <>
-                  You’re <span className="font-bold text-emerald-600">Live</span>
-                  {" — "}new motorist requests keep arriving. Open any job if
-                  the current one isn’t a fit.
-                </>
-              ) : (
-                <>
-                  Go <span className="font-bold text-[#e07a3d]">Live</span> to
-                  receive new requests while other jobs stay open.
-                </>
-              )}
-            </p>
-          </div>
+          <p className={cn("mb-2 text-[11px] font-medium leading-snug", muted)}>
+            Stay Live for new requests — even with a job open.
+          </p>
 
           {jobsLoading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-[#e07a3d]" />
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-[#e07a3d]" />
             </div>
           ) : sortedJobs.length === 0 ? (
-            <div
-              className={cn(
-                "flex flex-col items-center rounded-2xl px-4 py-10 text-center",
-                isLight
-                  ? "bg-white/50 ring-1 ring-black/5"
-                  : "bg-[#141414] ring-1 ring-white/8"
-              )}
-            >
-              <span
-                className={cn(
-                  "flex h-12 w-12 items-center justify-center rounded-2xl",
-                  isLight ? "bg-black/5" : "bg-white/5"
-                )}
-              >
-                <Briefcase
-                  className={cn("h-6 w-6 opacity-50", muted)}
-                />
-              </span>
-              <p className={cn("mt-3 text-[14px] font-bold", ink)}>
-                No incoming jobs yet
-              </p>
-              <p className={cn("mt-1 max-w-[220px] text-[12px] font-medium", muted)}>
-                When a motorist requests you, it will appear here as a card.
+            <div className="py-8 text-center">
+              <Briefcase className={cn("mx-auto h-7 w-7 opacity-40", muted)} />
+              <p className={cn("mt-2 text-[13px] font-semibold", muted)}>
+                Waiting for requests
               </p>
             </div>
           ) : (
-            <ul className="space-y-2.5">
+            <ul className="space-y-2">
               {sortedJobs.map((j) => {
-                const st = statusPresentation(j.status);
                 const skill =
                   PRO_SERVICE_LABELS[j.serviceType] ?? j.serviceType;
+                const price =
+                  j.agreedMajor != null
+                    ? formatMoney(j.agreedMajor, j.currency)
+                    : j.proBaseMajor != null
+                      ? formatMoney(j.proBaseMajor, j.currency)
+                      : null;
                 return (
                   <li key={j.id}>
                     <Link
                       href={`/jobs/${j.id}`}
                       className={cn(
-                        "block overflow-hidden rounded-2xl shadow-sm ring-1 transition active:scale-[0.99]",
-                        isLight
-                          ? "bg-[#d4d5d9] ring-black/8"
-                          : "bg-[#1a1a1c] ring-white/10"
+                        "flex items-start gap-2 rounded-md px-3 py-2.5 active:opacity-90",
+                        row
                       )}
                     >
-                      {/* Status strip */}
-                      <div
-                        className={cn(
-                          "flex items-center justify-between gap-2 px-3.5 py-2",
-                          isLight ? "bg-white/55" : "bg-white/[0.04]"
-                        )}
-                      >
-                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                          <span
-                            className={cn(
-                              "inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.06em]",
-                              toneClass[st.tone]
-                            )}
-                          >
-                            {st.label}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                          <span className="text-[10px] font-black uppercase tracking-wide text-[#e07a3d]">
+                            {shortStatus(j.status)}
                           </span>
-                          <span
-                            className={cn(
-                              "inline-flex items-center gap-1 truncate text-[11px] font-bold",
-                              isLight ? "text-slate-600" : "text-white/55"
-                            )}
-                          >
-                            <Wrench className="h-3 w-3 shrink-0 text-[#e07a3d]" />
+                          <span className={cn("text-[11px] font-semibold", muted)}>
                             {skill}
                           </span>
                         </div>
-                        <ArrowUpRight
+                        <p className={cn("mt-0.5 truncate text-[14px] font-black", ink)}>
+                          {j.motoristName}
+                        </p>
+                        <p
                           className={cn(
-                            "h-4 w-4 shrink-0",
-                            isLight ? "text-slate-400" : "text-white/35"
+                            "mt-0.5 line-clamp-1 text-[12px] font-medium",
+                            muted
                           )}
-                        />
-                      </div>
-
-                      <div className="space-y-2.5 px-3.5 py-3">
-                        {/* Motorist + price */}
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p
-                              className={cn(
-                                "text-[10px] font-bold uppercase tracking-[0.12em]",
-                                isLight ? "text-slate-500" : "text-white/40"
-                              )}
-                            >
-                              Motorist
-                            </p>
-                            <p
-                              className={cn(
-                                "mt-0.5 truncate text-[16px] font-black tracking-tight",
-                                ink
-                              )}
-                            >
-                              {j.motoristName}
-                            </p>
-                          </div>
-                          {j.agreedMajor != null ? (
-                            <div className="shrink-0 text-right">
-                              <p className="text-[10px] font-bold uppercase tracking-wide text-[#e07a3d]/90">
-                                Labour
-                              </p>
-                              <p className="text-[16px] font-black tabular-nums text-[#e07a3d]">
-                                {formatMoney(j.agreedMajor, j.currency)}
-                              </p>
-                            </div>
-                          ) : j.proBaseMajor != null ? (
-                            <div className="shrink-0 text-right">
-                              <p className="text-[10px] font-bold uppercase tracking-wide text-[#e07a3d]/90">
-                                Offer
-                              </p>
-                              <p className="text-[16px] font-black tabular-nums text-[#e07a3d]">
-                                {formatMoney(j.proBaseMajor, j.currency)}
-                              </p>
-                            </div>
-                          ) : null}
+                        >
+                          {j.problem}
+                        </p>
+                        <div
+                          className={cn(
+                            "mt-1 flex items-center gap-1 text-[11px] font-semibold",
+                            muted
+                          )}
+                        >
+                          <MapPin className="h-3 w-3 shrink-0 text-[#e07a3d]" />
+                          <span className="min-w-0 truncate">
+                            {j.locationLabel || "On map"}
+                          </span>
+                          {price && (
+                            <span className="ml-auto shrink-0 font-black text-[#e07a3d]">
+                              {price}
+                            </span>
+                          )}
                         </div>
-
-                        {/* Problem */}
-                        {j.problem?.trim() && (
-                          <div
-                            className={cn(
-                              "rounded-xl px-3 py-2",
-                              isLight ? "bg-white/70" : "bg-black/35"
-                            )}
-                          >
-                            <p
-                              className={cn(
-                                "text-[10px] font-bold uppercase tracking-[0.12em]",
-                                isLight ? "text-slate-500" : "text-white/40"
-                              )}
-                            >
-                              Problem
-                            </p>
-                            <p
-                              className={cn(
-                                "mt-0.5 line-clamp-2 text-[13px] font-semibold leading-snug",
-                                ink
-                              )}
-                            >
-                              {j.problem}
-                            </p>
-                          </div>
+                      </div>
+                      <ChevronRight
+                        className={cn(
+                          "mt-1 h-4 w-4 shrink-0",
+                          isLight ? "text-slate-500" : "text-[#6b6b6b]"
                         )}
-
-                        {/* Location */}
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={cn(
-                              "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
-                              isLight
-                                ? "bg-white text-[#e07a3d]"
-                                : "bg-[#2c2c2e] text-[#e07a3d]"
-                            )}
-                          >
-                            <MapPin className="h-3.5 w-3.5" />
-                          </span>
-                          <p
-                            className={cn(
-                              "min-w-0 flex-1 truncate text-[12px] font-semibold",
-                              isLight ? "text-slate-700" : "text-white/75"
-                            )}
-                          >
-                            {j.locationLabel || "Location on map"}
-                          </p>
-                          <span
-                            className={cn(
-                              "shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold",
-                              isLight
-                                ? "bg-slate-900 text-white"
-                                : "bg-white/10 text-white"
-                            )}
-                          >
-                            Open
-                          </span>
-                        </div>
-                      </div>
+                      />
                     </Link>
                   </li>
                 );

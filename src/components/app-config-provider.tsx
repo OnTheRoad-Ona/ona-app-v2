@@ -74,11 +74,11 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void refresh();
-    // Config is not hot-path — refresh every 5 minutes, not every minute
+    // Config almost never changes — refresh at most every 15 minutes
     const t = setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void refresh();
-    }, 300_000);
+    }, 900_000);
     return () => clearInterval(t);
   }, [refresh]);
 

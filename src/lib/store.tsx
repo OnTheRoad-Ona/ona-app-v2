@@ -2030,24 +2030,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, [backendUserId, accountType]);
 
-  // Initial pros fetch; poll slowly and only while the tab is visible
+  // Pros: load once on open; rare poll (2 min) only when tab visible — saves mobile data
   useEffect(() => {
     refreshCloudPros();
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudPros();
-    }, 45_000);
+    }, 120_000);
     return () => window.clearInterval(poll);
   }, [refreshCloudPros]);
 
   useEffect(() => {
     refreshCloudJobs();
-    // Chats can wait a beat so first paint is not competing with 3 APIs
-    const t = window.setTimeout(() => refreshCloudChats(), 1200);
+    // Chats once after idle — avoid 3 parallel requests on boot
+    const t = window.setTimeout(() => refreshCloudChats(), 4000);
     return () => window.clearTimeout(t);
   }, [refreshCloudJobs, refreshCloudChats]);
 
-  // Debounce Realtime storms (many row events → one refresh)
+  // Realtime: longer debounce so bursts don’t spam API/data
   useEffect(() => {
     if (!isAppBackendOnline()) return;
     let prosTimer: ReturnType<typeof setTimeout> | null = null;
@@ -2055,15 +2055,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const unsubPros = backendSubscribePros(() => {
       if (prosTimer) clearTimeout(prosTimer);
-      prosTimer = setTimeout(() => refreshCloudPros(), 1500);
+      prosTimer = setTimeout(() => refreshCloudPros(), 4000);
     });
     const unsubJobs = backendUserId
       ? backendSubscribeJobs(backendUserId, () => {
           if (jobsTimer) clearTimeout(jobsTimer);
           jobsTimer = setTimeout(() => {
             refreshCloudJobs();
-            refreshCloudChats();
-          }, 1500);
+            // Chats only on job events occasionally — skip every time
+          }, 4000);
         })
       : null;
     return () => {
@@ -2072,7 +2072,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       unsubPros?.();
       unsubJobs?.();
     };
-  }, [backendUserId, refreshCloudPros, refreshCloudJobs, refreshCloudChats]);
+  }, [backendUserId, refreshCloudPros, refreshCloudJobs]);
 
   // Sync Live/Away from server (never trust localStorage alone — Away must match is_online)
   useEffect(() => {
@@ -2108,7 +2108,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let inflight = false;
     const pushCoords = (lat: number, lng: number) => {
       const now = Date.now();
-      if (inflight || now - lastPush < 12_000) return;
+      // Min 45s between Live GPS uploads — major data saver on mobile
+      if (inflight || now - lastPush < 45_000) return;
       lastPush = now;
       inflight = true;
       void backendSetProOnline(backendUserId, true, { lat, lng }).finally(() => {
@@ -2116,12 +2117,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
     };
 
-    // One initial pin, then interval — avoid watchPosition spam that freezes UI
+    // One initial pin, then slow interval (no watchPosition stream)
     if (typeof navigator !== "undefined" && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => pushCoords(pos.coords.latitude, pos.coords.longitude),
         () => pushCoords(userLat, userLng),
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 15000 }
+        { enableHighAccuracy: false, timeout: 6000, maximumAge: 60_000 }
       );
     } else {
       pushCoords(userLat, userLng);
@@ -2136,9 +2137,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       navigator.geolocation.getCurrentPosition(
         (pos) => pushCoords(pos.coords.latitude, pos.coords.longitude),
         () => pushCoords(userLat, userLng),
-        { enableHighAccuracy: false, timeout: 8000, maximumAge: 20000 }
+        { enableHighAccuracy: false, timeout: 6000, maximumAge: 60_000 }
       );
-    }, 30_000);
+    }, 60_000);
 
     return () => {
       window.clearInterval(id);

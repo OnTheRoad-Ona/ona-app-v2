@@ -219,14 +219,15 @@ export function JobFlowScreen({
       await load();
     };
     void tick();
+    // Slower polls = less mobile data (Realtime covers most updates)
     const ms =
       job?.status === "negotiating" || job?.status === "agreed"
-        ? 1500
+        ? 4000
         : ["paid_booked", "en_route", "arrived", "in_progress"].includes(
               job?.status || ""
             )
-          ? 4000
-          : 3000;
+          ? 8000
+          : 10000;
     const id = window.setInterval(() => void tick(), ms);
     return () => {
       cancelled = true;
@@ -259,10 +260,10 @@ export function JobFlowScreen({
     let watchId: number | null = null;
     let wakeLock: WakeLockSentinel | null = null;
 
-    // Throttle GPS pushes so rapid watchPosition ticks cannot stall the UI
+    // Throttle GPS hard — trip tracking still works, far less data
     let lastPushAt = 0;
     let inflight = false;
-    const PUSH_MIN_MS = 4000;
+    const PUSH_MIN_MS = 12_000;
 
     const push = async (lat: number, lng: number) => {
       if (cancelled || inflight) return;
@@ -313,16 +314,17 @@ export function JobFlowScreen({
 
     startWatch();
 
-    // Backup poll — also fires while backgrounded (throttled by browser)
+    // Backup GPS every 25s (watch already throttled)
     const poll = window.setInterval(() => {
+      if (document.hidden) return;
       void getCurrentPosition({
-        enableHighAccuracy: true,
-        maximumAge: 8000,
-        timeout: 10000,
+        enableHighAccuracy: false,
+        maximumAge: 20_000,
+        timeout: 8000,
       })
         .then((p) => push(p.coords.latitude, p.coords.longitude))
         .catch(() => undefined);
-    }, 12000);
+    }, 25_000);
 
     // Screen wake lock helps keep GPS alive on many mobile browsers
     const requestWake = async () => {

@@ -79,11 +79,11 @@ export function IncomingJobPopup() {
     };
 
     void poll();
-    // 10s is enough for multi-job alerts without hammering the API
+    // Low data: check for new motorist jobs every 30s when tab is visible
     const t = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void poll();
-    }, 10_000);
+    }, 30_000);
     return () => {
       cancelled = true;
       window.clearInterval(t);
