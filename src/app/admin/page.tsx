@@ -2,13 +2,13 @@
 
 /**
  * Customer Care desk — primary daily workspace.
- * Search · live board · one-click actions · audit · sensitive unlock.
+ * Search · live board · one-click actions (password popup only when needed).
  */
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
-import { SensitiveUnlockBar } from "@/components/admin/sensitive-unlock";
+import { withSensitivePassword } from "@/components/admin/sensitive-unlock";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
 
 type CareStatus = {
@@ -16,8 +16,6 @@ type CareStatus = {
   roleLabel: string;
   fullName: string;
   email: string;
-  sensitiveUnlocked: boolean;
-  unlockExpiresAt: number | null;
 };
 
 type SearchHit = {
@@ -75,8 +73,6 @@ export default function CareDeskPage() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const unlocked = !!status?.sensitiveUnlocked;
-
   const refreshStatus = useCallback(async () => {
     const res = await api<CareStatus>("/api/admin/care/status");
     if (res.ok) setStatus(res.data);
@@ -100,7 +96,6 @@ export default function CareDeskPage() {
     void refreshDash();
     const t = window.setInterval(() => {
       void refreshBoard();
-      void refreshStatus();
       void refreshDash();
     }, 20_000);
     return () => window.clearInterval(t);
@@ -136,40 +131,44 @@ export default function CareDeskPage() {
     setJobDetail(res.data);
   };
 
-  const runAction = async (body: Record<string, unknown>) => {
-    if (!unlocked) {
-      setErr("Unlock sensitive mode first (password 336699).");
-      return;
-    }
-    setBusy(true);
+  const runAction = async (
+    body: Record<string, unknown>,
+    reason: string
+  ) => {
     setErr(null);
     setMsg(null);
-    try {
-      const res = await fetch("/api/admin/care/action", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const json = await res.json();
-      if (!json.ok) {
-        setErr(json.error?.message || "Action failed");
-        if (json.error?.code === "sensitive_locked") {
-          void refreshStatus();
+    await withSensitivePassword(
+      {
+        title: "Password required",
+        detail: reason,
+      },
+      async () => {
+        setBusy(true);
+        try {
+          const res = await fetch("/api/admin/care/action", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          const json = await res.json();
+          if (!json.ok) {
+            setErr(json.error?.message || "Action failed");
+            return;
+          }
+          setMsg(json.data?.message || "Done");
+          void refreshBoard();
+          void refreshDash();
+          if (selectedJobId) void openJob(selectedJobId);
+        } catch {
+          setErr("Network error");
+        } finally {
+          setBusy(false);
+          if (typeof document !== "undefined") {
+            (document.activeElement as HTMLElement | null)?.blur?.();
+          }
         }
-        return;
       }
-      setMsg(json.data?.message || "Done");
-      void refreshBoard();
-      void refreshDash();
-      if (selectedJobId) void openJob(selectedJobId);
-    } catch {
-      setErr("Network error");
-    } finally {
-      setBusy(false);
-      if (typeof document !== "undefined") {
-        (document.activeElement as HTMLElement | null)?.blur?.();
-      }
-    }
+    );
   };
 
   const job = jobDetail?.job;
@@ -228,21 +227,10 @@ export default function CareDeskPage() {
         ))}
       </div>
 
-      <SensitiveUnlockBar
-        unlocked={unlocked}
-        expiresAt={status?.unlockExpiresAt ?? null}
-        onChange={(s) =>
-          setStatus((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  sensitiveUnlocked: s.unlocked,
-                  unlockExpiresAt: s.expiresAt,
-                }
-              : prev
-          )
-        }
-      />
+      <p className="om-admin-muted" style={{ marginBottom: "1rem", fontSize: 12 }}>
+        Sensitive actions (escrow, freeze, dispute) ask for the temporary password
+        in a popup only when you click them — not on the whole dashboard.
+      </p>
 
       {err ? <div className="om-admin-error">{err}</div> : null}
       {msg ? (
@@ -427,12 +415,12 @@ export default function CareDeskPage() {
                 <button
                   type="button"
                   className="om-admin-btn primary"
-                  disabled={busy || !unlocked}
+                  disabled={busy}
                   onClick={() =>
-                    void runAction({
-                      type: "release_escrow",
-                      jobId: selectedJobId,
-                    })
+                    void runAction(
+                      { type: "release_escrow", jobId: selectedJobId },
+                      "Enter password to release escrow to the Repair Pro."
+                    )
                   }
                 >
                   Release escrow
@@ -440,12 +428,12 @@ export default function CareDeskPage() {
                 <button
                   type="button"
                   className="om-admin-btn"
-                  disabled={busy || !unlocked}
+                  disabled={busy}
                   onClick={() =>
-                    void runAction({
-                      type: "refund_escrow",
-                      jobId: selectedJobId,
-                    })
+                    void runAction(
+                      { type: "refund_escrow", jobId: selectedJobId },
+                      "Enter password to refund escrow to the motorist."
+                    )
                   }
                 >
                   Refund motorist
@@ -453,14 +441,17 @@ export default function CareDeskPage() {
                 <button
                   type="button"
                   className="om-admin-btn"
-                  disabled={busy || !unlocked}
+                  disabled={busy}
                   onClick={() =>
-                    void runAction({
-                      type: "resolve_dispute",
-                      jobId: selectedJobId,
-                      outcome: "full_release_pro",
-                      kind: "dispute",
-                    })
+                    void runAction(
+                      {
+                        type: "resolve_dispute",
+                        jobId: selectedJobId,
+                        outcome: "full_release_pro",
+                        kind: "dispute",
+                      },
+                      "Enter password to resolve dispute in favour of the pro."
+                    )
                   }
                 >
                   Dispute → pay pro
@@ -468,14 +459,17 @@ export default function CareDeskPage() {
                 <button
                   type="button"
                   className="om-admin-btn"
-                  disabled={busy || !unlocked}
+                  disabled={busy}
                   onClick={() =>
-                    void runAction({
-                      type: "resolve_dispute",
-                      jobId: selectedJobId,
-                      outcome: "full_refund_motorist",
-                      kind: "dispute",
-                    })
+                    void runAction(
+                      {
+                        type: "resolve_dispute",
+                        jobId: selectedJobId,
+                        outcome: "full_refund_motorist",
+                        kind: "dispute",
+                      },
+                      "Enter password to resolve dispute with a full refund."
+                    )
                   }
                 >
                   Dispute → refund
@@ -485,12 +479,17 @@ export default function CareDeskPage() {
                     <button
                       type="button"
                       className="om-admin-btn"
-                      disabled={busy || !unlocked}
+                      disabled={busy}
                       onClick={() =>
-                        void runAction({
-                          type: "freeze_user",
-                          userId: String(job?.motoristId || job?.motorist_id),
-                        })
+                        void runAction(
+                          {
+                            type: "freeze_user",
+                            userId: String(
+                              job?.motoristId || job?.motorist_id
+                            ),
+                          },
+                          "Enter password to freeze this motorist account."
+                        )
                       }
                     >
                       Freeze motorist
@@ -498,12 +497,17 @@ export default function CareDeskPage() {
                     <button
                       type="button"
                       className="om-admin-btn"
-                      disabled={busy || !unlocked}
+                      disabled={busy}
                       onClick={() =>
-                        void runAction({
-                          type: "unfreeze_user",
-                          userId: String(job?.motoristId || job?.motorist_id),
-                        })
+                        void runAction(
+                          {
+                            type: "unfreeze_user",
+                            userId: String(
+                              job?.motoristId || job?.motorist_id
+                            ),
+                          },
+                          "Enter password to unfreeze this motorist account."
+                        )
                       }
                     >
                       Unfreeze motorist
@@ -514,12 +518,17 @@ export default function CareDeskPage() {
                   <button
                     type="button"
                     className="om-admin-btn"
-                    disabled={busy || !unlocked}
+                    disabled={busy}
                     onClick={() =>
-                      void runAction({
-                        type: "freeze_user",
-                        userId: String(job?.repairProId || job?.repair_pro_id),
-                      })
+                      void runAction(
+                        {
+                          type: "freeze_user",
+                          userId: String(
+                            job?.repairProId || job?.repair_pro_id
+                          ),
+                        },
+                        "Enter password to freeze this Repair Pro account."
+                      )
                     }
                   >
                     Freeze pro
@@ -527,8 +536,8 @@ export default function CareDeskPage() {
                 ) : null}
               </div>
               <p className="om-admin-muted" style={{ marginTop: "0.75rem", fontSize: 12 }}>
-                Every action is written to the audit trail with your staff ID and
-                IP. 🔒 buttons need password unlock.
+                Each money/freeze action opens a password popup first. Logged in
+                the audit trail with your staff ID and IP.
               </p>
               <p style={{ marginTop: "0.5rem" }}>
                 <Link href="/admin/audit">View audit trail →</Link>

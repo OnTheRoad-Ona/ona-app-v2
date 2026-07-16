@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { SensitivePageGate } from "@/components/admin/sensitive-page-gate";
+import { withSensitivePassword } from "@/components/admin/sensitive-unlock";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
 import type { AppConfig } from "@/lib/app-config";
 
@@ -26,27 +28,39 @@ export default function AdminSettingsPage() {
 
   async function save() {
     if (!config) return;
-    setBusy(true);
     setMsg(null);
     setError(null);
-    const res = await api<{ config: AppConfig }>("/api/admin/settings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: "app", value: config.app }),
-    });
-    setBusy(false);
-    if (!res.ok) {
-      setError(res.message);
-      return;
-    }
-    setConfig(res.data.config);
-    setMsg("App settings saved — frontend will pick them up.");
+    await withSensitivePassword(
+      {
+        title: "Password required",
+        detail: "Enter password to save system settings.",
+      },
+      async () => {
+        setBusy(true);
+        try {
+          const res = await api<{ config: AppConfig }>("/api/admin/settings", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key: "app", value: config.app }),
+          });
+          if (!res.ok) {
+            setError(res.message);
+            return;
+          }
+          setConfig(res.data.config);
+          setMsg("App settings saved — frontend will pick them up.");
+        } finally {
+          setBusy(false);
+        }
+      }
+    );
   }
 
   const app = config?.app;
 
   return (
     <AdminShell adminName={adminName}>
+      <SensitivePageGate pageName="Settings">
       <h1 className="om-admin-h1">App settings</h1>
       <p className="om-admin-sub">
         Branding, support, maintenance mode, default theme for the public app.
@@ -192,6 +206,7 @@ export default function AdminSettingsPage() {
           )}
         </div>
       </div>
+      </SensitivePageGate>
     </AdminShell>
   );
 }

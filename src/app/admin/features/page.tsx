@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { SensitivePageGate } from "@/components/admin/sensitive-page-gate";
+import { withSensitivePassword } from "@/components/admin/sensitive-unlock";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
 import type { AppConfig, FeaturesSection } from "@/lib/app-config";
 
@@ -74,25 +76,37 @@ export default function AdminFeaturesPage() {
 
   async function save() {
     if (!features) return;
-    setBusy(true);
     setMsg(null);
     setError(null);
-    const res = await api<{ config: AppConfig }>("/api/admin/settings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: "features", value: features }),
-    });
-    setBusy(false);
-    if (!res.ok) {
-      setError(res.message);
-      return;
-    }
-    setFeatures(res.data.config.features);
-    setMsg("Feature flags saved.");
+    await withSensitivePassword(
+      {
+        title: "Password required",
+        detail: "Enter password to save feature flags.",
+      },
+      async () => {
+        setBusy(true);
+        try {
+          const res = await api<{ config: AppConfig }>("/api/admin/settings", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key: "features", value: features }),
+          });
+          if (!res.ok) {
+            setError(res.message);
+            return;
+          }
+          setFeatures(res.data.config.features);
+          setMsg("Feature flags saved.");
+        } finally {
+          setBusy(false);
+        }
+      }
+    );
   }
 
   return (
     <AdminShell adminName={adminName}>
+      <SensitivePageGate pageName="Features">
       <h1 className="om-admin-h1">Feature flags</h1>
       <p className="om-admin-sub">
         Turn major OgaMecho capabilities on or off without a code deploy.
@@ -148,6 +162,7 @@ export default function AdminFeaturesPage() {
           )}
         </div>
       </div>
+      </SensitivePageGate>
     </AdminShell>
   );
 }

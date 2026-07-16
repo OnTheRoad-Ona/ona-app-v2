@@ -2,15 +2,25 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
+import {
+  isPasswordGatedPath,
+  promptSensitivePassword,
+  SensitivePasswordHost,
+} from "@/components/admin/sensitive-unlock";
 
 /**
  * Customer Care–first navigation.
- * Daily ops on top; deep admin tools under “More”.
+ * 🔒 routes open a password popup *before* navigation.
  */
 const NAV_GROUPS: {
   label: string;
-  items: { href: string; label: string; exact?: boolean }[];
+  items: {
+    href: string;
+    label: string;
+    exact?: boolean;
+    password?: boolean;
+  }[];
 }[] = [
   {
     label: "Customer Care",
@@ -29,7 +39,6 @@ const NAV_GROUPS: {
     label: "Directory",
     items: [
       { href: "/admin/motorists", label: "Motorists" },
-      { href: "/admin/pros", label: "Repair Pros" },
       { href: "/admin/messages", label: "Messages" },
       { href: "/admin/reviews", label: "Reviews" },
     ],
@@ -39,8 +48,8 @@ const NAV_GROUPS: {
     items: [
       { href: "/admin/health", label: "Health" },
       { href: "/admin/signups", label: "Signups" },
-      { href: "/admin/settings", label: "Settings 🔒" },
-      { href: "/admin/features", label: "Features 🔒" },
+      { href: "/admin/settings", label: "Settings 🔒", password: true },
+      { href: "/admin/features", label: "Features 🔒", password: true },
       { href: "/admin/services", label: "Services" },
       { href: "/admin/matching", label: "Matching" },
       { href: "/admin/content", label: "Content" },
@@ -83,8 +92,29 @@ export function AdminShell({
     router.refresh();
   }
 
+  async function onNavClick(
+    e: MouseEvent<HTMLAnchorElement>,
+    href: string,
+    needsPassword?: boolean
+  ) {
+    if (!needsPassword && !isPasswordGatedPath(href)) return;
+    // Already on that page — allow
+    if (pathname === href || pathname.startsWith(`${href}/`)) return;
+
+    e.preventDefault();
+    const pageName = href.split("/").pop() || "page";
+    const ok = await promptSensitivePassword({
+      title: `Password required`,
+      detail: `Enter the temporary password before opening ${pageName}. This page is restricted.`,
+    });
+    if (ok) {
+      router.push(href);
+    }
+  }
+
   return (
     <div className="om-admin-shell">
+      <SensitivePasswordHost />
       <aside className="om-admin-nav">
         <div className="om-admin-brand">
           Oga<span>Mecho</span> Care
@@ -108,6 +138,9 @@ export function AdminShell({
                   key={item.href}
                   href={item.href}
                   className={active ? "active" : undefined}
+                  onClick={(e) =>
+                    void onNavClick(e, item.href, item.password)
+                  }
                 >
                   {item.label}
                 </Link>

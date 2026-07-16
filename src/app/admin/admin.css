@@ -81,6 +81,56 @@
   }
 }
 
+/* Sensitive password popup — only when needed */
+.om-admin-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 17, 23, 0.55);
+  backdrop-filter: blur(3px);
+}
+
+.om-admin-modal {
+  width: min(100%, 400px);
+  background: var(--om-panel-2);
+  color: var(--om-text);
+  border: 1px solid var(--om-border);
+  border-radius: 0.65rem;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28);
+  padding: 1.15rem 1.25rem 1.2rem;
+}
+
+.om-admin-modal-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.om-admin-modal .om-admin-input,
+.om-admin-input {
+  height: 2.5rem;
+  box-sizing: border-box;
+  background: var(--om-input);
+  border: 1px solid #9a9ea6;
+  color: var(--om-text);
+  border-radius: 0.375rem;
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  outline: none;
+  font-family: inherit;
+}
+
+.om-admin-modal .om-admin-input:focus,
+.om-admin-input:focus {
+  border-color: var(--om-accent);
+}
+
 @media (max-width: 900px) {
   .om-admin-shell {
     grid-template-columns: 1fr;

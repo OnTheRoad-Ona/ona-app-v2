@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { withSensitivePassword } from "@/components/admin/sensitive-unlock";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
 import type { JobRecord } from "@/lib/jobs/types";
 
@@ -37,26 +38,37 @@ export default function AdminDisputesPage() {
     kind: "dispute" | "appeal",
     outcome: "full_release_pro" | "full_refund_motorist" | "partial_split"
   ) => {
-    setBusyId(jobId);
     setError(null);
     setFlash(null);
-    const res = await api<{ job: JobRecord }>("/api/admin/disputes", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jobId,
-        kind,
-        outcome,
-        proPercent: splitPct[jobId] ?? 70,
-      }),
-    });
-    setBusyId(null);
-    if (!res.ok) {
-      setError(res.message);
-      return;
-    }
-    setFlash(`Resolved ${jobId.slice(0, 8)}… → ${outcome}`);
-    await load();
+    await withSensitivePassword(
+      {
+        title: "Password required",
+        detail: `Enter password to finalise this ${kind} decision.`,
+      },
+      async () => {
+        setBusyId(jobId);
+        try {
+          const res = await api<{ job: JobRecord }>("/api/admin/disputes", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              jobId,
+              kind,
+              outcome,
+              proPercent: splitPct[jobId] ?? 70,
+            }),
+          });
+          if (!res.ok) {
+            setError(res.message);
+            return;
+          }
+          setFlash(`Resolved ${jobId.slice(0, 8)}… → ${outcome}`);
+          await load();
+        } finally {
+          setBusyId(null);
+        }
+      }
+    );
   };
 
   return (

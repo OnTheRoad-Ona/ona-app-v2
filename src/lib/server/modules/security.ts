@@ -17,8 +17,8 @@ export const SENSITIVE_ACTION_PASSWORD =
 /** Admin panel idle timeout (30 minutes) */
 export const ADMIN_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
-/** Sensitive unlock window after correct password (10 minutes) */
-export const SENSITIVE_UNLOCK_TTL_MS = 10 * 60 * 1000;
+/** Short unlock after popup password — enough for one page visit / action */
+export const SENSITIVE_UNLOCK_TTL_MS = 3 * 60 * 1000;
 
 /** Cookie names */
 export const ADMIN_SESSION_COOKIE = "ogamecho_admin_session";

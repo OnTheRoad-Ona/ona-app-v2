@@ -72,7 +72,7 @@ export async function POST(req: Request) {
       unlocked: true,
       expiresAt: exp,
       ttlMs: SENSITIVE_UNLOCK_TTL_MS,
-      message: "Sensitive actions unlocked for 10 minutes",
+      message: "Unlocked for this action / page",
     });
   } catch (e) {
     if (e instanceof AdminAuthError) {
