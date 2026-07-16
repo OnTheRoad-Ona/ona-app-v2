@@ -699,9 +699,89 @@ export function JobFlowScreen({
           </div>
         }
       >
-        {/* Flat stage — large ring timer center, content below */}
-        <div className="space-y-5 px-0.5 pt-1">
-          <div className="flex flex-col items-center py-2">
+        {/* Top: problem + offers · Middle: ring timer */}
+        <div className="flex min-h-0 flex-col px-0.5 pt-1">
+          <div className="shrink-0 space-y-4">
+            <div>
+              <p className={cn("text-[11px] font-medium", muted)}>Problem</p>
+              <p
+                className={cn(
+                  "mt-1 text-[14px] font-medium leading-relaxed",
+                  ink
+                )}
+              >
+                {job.problem}
+              </p>
+              {job.voiceNote?.url && (
+                <div className="mt-2.5">
+                  <VoiceNotePlayer
+                    url={job.voiceNote.url}
+                    durationSec={job.voiceNote.durationSec}
+                    isLight={isLight}
+                    label={
+                      viewer === "motorist"
+                        ? "Your voice note"
+                        : "Motorist voice note"
+                    }
+                  />
+                </div>
+              )}
+            </div>
+
+            {theirOffer && (
+              <div>
+                <p className={cn("text-[11px] font-medium", muted)}>
+                  {theirOffer.side === "repair_pro"
+                    ? "Repair Pro offered"
+                    : "Motorist offered"}
+                </p>
+                <p className="mt-0.5 text-[22px] font-semibold tabular-nums text-[#e07a3d]">
+                  {formatMoney(theirOffer.amountMajor, job.currency)}
+                </p>
+                <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
+                  Labour only. Spare parts not included.
+                </p>
+              </div>
+            )}
+
+            <div>
+              <p className={cn("mb-1.5 text-[11px] font-medium", muted)}>
+                Offer history
+              </p>
+              {job.offers.length === 0 ? (
+                <p className={cn("text-[13px] font-medium leading-snug", muted)}>
+                  {viewer === "repair_pro"
+                    ? "Set your labour price to start. Spare parts are never included."
+                    : "Waiting for Repair Pro to open with a labour price…"}
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {job.offers.map((o) => (
+                    <li
+                      key={o.id}
+                      className="flex items-center justify-between gap-3 py-0.5"
+                    >
+                      <span className={cn("text-[12px] font-medium", muted)}>
+                        #{o.offerIndex}{" "}
+                        {o.side === "repair_pro" ? "Repair Pro" : "Motorist"}
+                      </span>
+                      <span
+                        className={cn(
+                          "text-[14px] font-semibold tabular-nums",
+                          ink
+                        )}
+                      >
+                        {formatMoney(o.amountMajor, o.currency)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          {/* Ring sits mid-page under problem / offer history */}
+          <div className="flex min-h-[42vh] flex-1 flex-col items-center justify-center py-5">
             <CountdownTimer
               variant="ring"
               endsAt={job.negotiateEndsAt}
@@ -731,86 +811,9 @@ export function JobFlowScreen({
               {job.offers.length}/{job.maxOffers} offers
             </p>
           </div>
-
-          {theirOffer && (
-            <div>
-              <p className={cn("text-[11px] font-medium", muted)}>
-                {theirOffer.side === "repair_pro"
-                  ? "Repair Pro offered"
-                  : "Motorist offered"}
-              </p>
-              <p className="mt-0.5 text-[22px] font-semibold tabular-nums text-[#e07a3d]">
-                {formatMoney(theirOffer.amountMajor, job.currency)}
-              </p>
-              <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
-                Labour only. Spare parts not included.
-              </p>
-            </div>
-          )}
-
-          <div>
-            <p className={cn("text-[11px] font-medium", muted)}>Problem</p>
-            <p
-              className={cn(
-                "mt-1 text-[14px] font-medium leading-relaxed",
-                ink
-              )}
-            >
-              {job.problem}
-            </p>
-            {job.voiceNote?.url && (
-              <div className="mt-2.5">
-                <VoiceNotePlayer
-                  url={job.voiceNote.url}
-                  durationSec={job.voiceNote.durationSec}
-                  isLight={isLight}
-                  label={
-                    viewer === "motorist"
-                      ? "Your voice note"
-                      : "Motorist voice note"
-                  }
-                />
-              </div>
-            )}
-          </div>
-
-          <div>
-            <p className={cn("mb-1.5 text-[11px] font-medium", muted)}>
-              Offer history
-            </p>
-            {job.offers.length === 0 ? (
-              <p className={cn("text-[13px] font-medium leading-snug", muted)}>
-                {viewer === "repair_pro"
-                  ? "Set your labour price to start. Spare parts are never included."
-                  : "Waiting for Repair Pro to open with a labour price…"}
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {job.offers.map((o) => (
-                  <li
-                    key={o.id}
-                    className="flex items-center justify-between gap-3 py-0.5"
-                  >
-                    <span className={cn("text-[12px] font-medium", muted)}>
-                      #{o.offerIndex}{" "}
-                      {o.side === "repair_pro" ? "Repair Pro" : "Motorist"}
-                    </span>
-                    <span
-                      className={cn(
-                        "text-[14px] font-semibold tabular-nums",
-                        ink
-                      )}
-                    >
-                      {formatMoney(o.amountMajor, o.currency)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
         </div>
         {err && (
-          <p className="mt-3 text-center text-[12px] font-medium text-red-500">
+          <p className="mt-1 text-center text-[12px] font-medium text-red-500">
             {err}
           </p>
         )}
