@@ -163,15 +163,26 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       setMuted(false);
       setSpeaker(true);
 
-      // Open mic for in-app audio presence (optional permission)
-      void navigator.mediaDevices
-        ?.getUserMedia?.({ audio: true })
-        .then((stream) => {
-          streamRef.current = stream;
-        })
-        .catch(() => {
-          /* mic optional — call still proceeds */
-        });
+      // Mic is optional — never await permission prompts (they stall the UI)
+      if (navigator.mediaDevices?.getUserMedia) {
+        const micTimeout = window.setTimeout(() => {
+          /* ignore slow permission dialog */
+        }, 2500);
+        void navigator.mediaDevices
+          .getUserMedia({ audio: true })
+          .then((stream) => {
+            window.clearTimeout(micTimeout);
+            // Only keep stream if this call is still active
+            if (streamRef.current) {
+              stream.getTracks().forEach((t) => t.stop());
+              return;
+            }
+            streamRef.current = stream;
+          })
+          .catch(() => {
+            window.clearTimeout(micTimeout);
+          });
+      }
 
       // Hand off to carrier dialer WITHOUT navigating the SPA
       dialTimerRef.current = window.setTimeout(() => {
@@ -180,7 +191,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
         timerRef.current = window.setInterval(() => {
           setSeconds((s) => s + 1);
         }, 1000);
-      }, 700);
+      }, 500);
     },
     [clearTimers, stopMic]
   );

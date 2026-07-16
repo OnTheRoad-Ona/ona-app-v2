@@ -211,13 +211,27 @@ export function JobFlowScreen({
     setErr(null);
   }, [jobId, commitJob]);
 
-  // Fast poll while negotiating so motorist sees pro offers quickly
+  // Poll job state; slower during tracking so GPS + UI never thrash
   useEffect(() => {
-    void load();
+    let cancelled = false;
+    const tick = async () => {
+      if (cancelled) return;
+      await load();
+    };
+    void tick();
     const ms =
-      job?.status === "negotiating" || job?.status === "agreed" ? 1000 : 2500;
-    const id = window.setInterval(() => void load(), ms);
-    return () => window.clearInterval(id);
+      job?.status === "negotiating" || job?.status === "agreed"
+        ? 1500
+        : ["paid_booked", "en_route", "arrived", "in_progress"].includes(
+              job?.status || ""
+            )
+          ? 4000
+          : 3000;
+    const id = window.setInterval(() => void tick(), ms);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
   }, [load, job?.status]);
 
   /** My jobs list — stay on open negotiation without cancelling */
@@ -245,18 +259,33 @@ export function JobFlowScreen({
     let watchId: number | null = null;
     let wakeLock: WakeLockSentinel | null = null;
 
+    // Throttle GPS pushes so rapid watchPosition ticks cannot stall the UI
+    let lastPushAt = 0;
+    let inflight = false;
+    const PUSH_MIN_MS = 4000;
+
     const push = async (lat: number, lng: number) => {
-      if (cancelled) return;
-      const res = await apiPushTripLocation({
-        jobId: job.id,
-        lat,
-        lng,
-        actor: viewer,
-        actorId,
-      });
-      if (res.ok) {
-        commitJob(res.data.job);
-        setLocHint(null);
+      if (cancelled || inflight) return;
+      const now = Date.now();
+      if (now - lastPushAt < PUSH_MIN_MS) return;
+      lastPushAt = now;
+      inflight = true;
+      try {
+        const res = await apiPushTripLocation({
+          jobId: job.id,
+          lat,
+          lng,
+          actor: viewer,
+          actorId,
+        });
+        if (!cancelled && res.ok) {
+          commitJob(res.data.job);
+          setLocHint(null);
+        }
+      } catch {
+        /* network blip — next tick retries */
+      } finally {
+        inflight = false;
       }
     };
 
@@ -269,6 +298,7 @@ export function JobFlowScreen({
           void push(pos.coords.latitude, pos.coords.longitude);
         },
         (e) => {
+          if (cancelled) return;
           setLocHint(
             e.code === e.PERMISSION_DENIED
               ? viewer === "repair_pro"
@@ -277,7 +307,7 @@ export function JobFlowScreen({
               : "Waiting for GPS fix"
           );
         },
-        { enableHighAccuracy: true, maximumAge: 3000, timeout: 25000 }
+        { enableHighAccuracy: true, maximumAge: 8000, timeout: 12000 }
       );
     };
 
@@ -287,12 +317,12 @@ export function JobFlowScreen({
     const poll = window.setInterval(() => {
       void getCurrentPosition({
         enableHighAccuracy: true,
-        maximumAge: 5000,
-        timeout: 20000,
+        maximumAge: 8000,
+        timeout: 10000,
       })
         .then((p) => push(p.coords.latitude, p.coords.longitude))
         .catch(() => undefined);
-    }, 10000);
+    }, 12000);
 
     // Screen wake lock helps keep GPS alive on many mobile browsers
     const requestWake = async () => {
@@ -362,13 +392,19 @@ export function JobFlowScreen({
   const run = async (fn: () => Promise<{ ok: true; data: { job: JobRecord } } | { ok: false; message: string }>) => {
     setBusy(true);
     setErr(null);
-    const res = await fn();
-    setBusy(false);
-    if (!res.ok) {
-      setErr(res.message);
-      return;
+    try {
+      const res = await fn();
+      if (!res.ok) {
+        setErr(res.message);
+        return;
+      }
+      applyJob(res.data.job);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Something went wrong. Try again.");
+    } finally {
+      // Never leave the UI stuck on “Updating…”
+      setBusy(false);
     }
-    applyJob(res.data.job);
   };
 
   if (!job) {
@@ -909,54 +945,61 @@ export function JobFlowScreen({
       let proLat: number | undefined;
       let proLng: number | undefined;
       try {
-        const pos = await getCurrentPosition({
-          enableHighAccuracy: true,
-          timeout: 8000,
-          maximumAge: 15000,
-        });
-        proLat = pos.coords.latitude;
-        proLng = pos.coords.longitude;
-      } catch {
-        if (job.proLocation) {
-          proLat = job.proLocation.lat;
-          proLng = job.proLocation.lng;
-        } else if (job.motoristLocation) {
-          // Start near motorist pin so map still has a pro marker
-          proLat = job.motoristLocation.lat + 0.004;
-          proLng = job.motoristLocation.lng + 0.004;
+        try {
+          const pos = await getCurrentPosition({
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: 20000,
+          });
+          proLat = pos.coords.latitude;
+          proLng = pos.coords.longitude;
+        } catch {
+          if (job.proLocation) {
+            proLat = job.proLocation.lat;
+            proLng = job.proLocation.lng;
+          } else if (job.motoristLocation) {
+            // Start near motorist pin so map still has a pro marker
+            proLat = job.motoristLocation.lat + 0.004;
+            proLng = job.motoristLocation.lng + 0.004;
+          }
+          if (event === "START_TRIP" || event === "MARK_ARRIVED") {
+            setLocHint(
+              "Location is limited. Trip continues. Enable GPS for live ETA"
+            );
+          }
         }
-        if (event === "START_TRIP" || event === "MARK_ARRIVED") {
-          setLocHint(
-            "Location is limited. Trip continues. Enable GPS for live ETA"
-          );
-        }
-      }
 
-      const res = await apiTransition({
-        jobId: job.id,
-        event,
-        actor: "repair_pro",
-        actorId,
-        proLat,
-        proLng,
-      });
-      setBusy(false);
-      if (!res.ok) {
-        setErr(res.message || "Could not update trip status. Try again.");
-        return;
+        const res = await apiTransition({
+          jobId: job.id,
+          event,
+          actor: "repair_pro",
+          actorId,
+          proLat,
+          proLng,
+        });
+        if (!res.ok) {
+          setErr(res.message || "Could not update trip status. Try again.");
+          return;
+        }
+        // Force apply — never let a stale poll undo the advance
+        commitJob(res.data.job, true);
+        setFlash(
+          event === "START_TRIP"
+            ? "Trip started you’re on the road"
+            : event === "MARK_ARRIVED"
+              ? "Marked arrived"
+              : event === "START_WORK"
+                ? "Work started"
+                : "Job marked complete"
+        );
+        window.setTimeout(() => setFlash(null), 3500);
+      } catch (e) {
+        setErr(
+          e instanceof Error ? e.message : "Could not update trip. Try again."
+        );
+      } finally {
+        setBusy(false);
       }
-      // Force apply — never let a stale poll undo the advance
-      commitJob(res.data.job, true);
-      setFlash(
-        event === "START_TRIP"
-          ? "Trip started you’re on the road"
-          : event === "MARK_ARRIVED"
-            ? "Marked arrived"
-            : event === "START_WORK"
-              ? "Work started"
-              : "Job marked complete"
-      );
-      window.setTimeout(() => setFlash(null), 3500);
     };
 
     return (
@@ -1050,124 +1093,247 @@ export function JobFlowScreen({
         }
       >
         {/* Dual live map: motorist tracks pro · pro tracks motorist */}
-        <div className="relative mx-0 h-[46vh] min-h-[260px] overflow-hidden">
+        <div className="relative mx-0 h-[38vh] min-h-[220px] max-h-[320px] overflow-hidden">
           <LiveJobTrackMap job={job} isLight={isLight} viewer={viewer} />
         </div>
 
-        {/* Counterpart card by role */}
-        <div className="relative z-10 -mt-4 px-4">
-          <JobCard isLight={isLight}>
-            <div className="mb-2.5 flex items-center justify-between gap-2">
-              <span
-                className={cn(
-                  "inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-black uppercase tracking-wide",
-                  job.status === "en_route" || job.status === "in_progress"
-                    ? "bg-[#e07a3d] text-white"
-                    : isLight
-                      ? "bg-slate-800 text-white"
-                      : "bg-[#3a3a3c] text-white"
-                )}
-              >
-                {statusLabel[job.status] || job.status}
-              </span>
-              {(job.status === "en_route" || job.status === "paid_booked") &&
-                job.etaMinutes != null && (
-                  <span className={cn("text-[12px] font-bold", muted)}>
-                    ETA {job.etaMinutes} min
-                  </span>
-                )}
-            </div>
-            <div className="flex items-center gap-3">
-              {viewer === "motorist" ? (
-                /* Motorist sees Repair Pro trade icon (not face photo) */
-                <div
-                  className={cn(
-                    "flex h-12 w-12 shrink-0 items-center justify-center rounded-full",
-                    isLight ? "bg-white ring-1 ring-black/10" : "bg-[#2c2c2e]"
-                  )}
-                  aria-label={PRO_SERVICE_LABELS[job.serviceType]}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={tradeIconDataUrl(job.serviceType, {
-                      size: 28,
-                      selected: true,
-                    })}
-                    alt=""
-                    width={28}
-                    height={28}
-                    className="block"
-                  />
-                </div>
-              ) : (
-                /* Pro sees motorist avatar, else OgaMecho logo */
-                <Avatar className="h-12 w-12 rounded-full">
-                  <AvatarImage
-                    src={
-                      job.motoristPhoto?.trim() || DEFAULT_VENDOR_PHOTO
-                    }
-                    className="object-cover"
-                  />
-                  <AvatarFallback>
-                    {avatarInitials(job.motoristName)}
-                  </AvatarFallback>
-                </Avatar>
+        {/* Modern track card: status · person · problem · place · price · Call/Chat */}
+        <div className="relative z-10 -mt-5 space-y-3 px-3 pb-2">
+          <div
+            className={cn(
+              "overflow-hidden rounded-2xl shadow-lg ring-1",
+              isLight
+                ? "bg-[#d4d5d9] ring-black/8"
+                : "bg-[#1a1a1c] ring-white/10"
+            )}
+          >
+            {/* Status strip */}
+            <div
+              className={cn(
+                "flex items-center justify-between gap-2 px-3.5 py-2.5",
+                isLight ? "bg-white/55" : "bg-white/[0.04]"
               )}
-              <div className="min-w-0 flex-1">
-                <p className={cn("truncate text-[15px] font-black", ink)}>
-                  {viewer === "motorist"
-                    ? job.repairProName
-                    : job.motoristName}
-                </p>
-                <p className={cn("text-[12px] font-semibold", muted)}>
+            >
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                <span
+                  className={cn(
+                    "inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.08em]",
+                    job.status === "en_route" || job.status === "in_progress"
+                      ? "bg-[#e07a3d] text-white"
+                      : job.status === "paid_booked"
+                        ? "bg-emerald-600 text-white"
+                        : isLight
+                          ? "bg-slate-800 text-white"
+                          : "bg-[#3a3a3c] text-white"
+                  )}
+                >
+                  {job.status === "paid_booked"
+                    ? "Paid · Booked"
+                    : statusLabel[job.status] || job.status}
+                </span>
+                <span
+                  className={cn(
+                    "truncate text-[11px] font-bold",
+                    isLight ? "text-slate-600" : "text-white/55"
+                  )}
+                >
                   {viewer === "motorist"
                     ? PRO_SERVICE_LABELS[job.serviceType]
                     : "Motorist"}
-                  {job.agreedMajor != null
-                    ? ` ${formatMoney(job.agreedMajor, job.currency)}`
-                    : ""}
-                </p>
+                </span>
               </div>
-              <div className="flex gap-2">
-                <IconRound
-                  isLight={isLight}
-                  label="Call"
-                  onClick={() => startJobCall(job)}
+              {(job.status === "en_route" || job.status === "paid_booked") &&
+                (job.etaText || job.etaMinutes != null) && (
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-black tabular-nums",
+                      isLight
+                        ? "bg-[#e07a3d]/15 text-[#c45a20]"
+                        : "bg-[#e07a3d]/20 text-[#e07a3d]"
+                    )}
+                  >
+                    {job.etaText ||
+                      (job.etaMinutes != null
+                        ? `ETA ${job.etaMinutes} min`
+                        : "")}
+                  </span>
+                )}
+            </div>
+
+            <div className="space-y-3 px-3.5 py-3.5">
+              {/* Person row */}
+              <div className="flex items-center gap-3">
+                {viewer === "motorist" ? (
+                  <div
+                    className={cn(
+                      "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl",
+                      isLight
+                        ? "bg-white shadow-sm ring-1 ring-black/6"
+                        : "bg-[#2c2c2e]"
+                    )}
+                    aria-label={PRO_SERVICE_LABELS[job.serviceType]}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={tradeIconDataUrl(job.serviceType, {
+                        size: 32,
+                        selected: true,
+                      })}
+                      alt=""
+                      width={32}
+                      height={32}
+                      className="block"
+                    />
+                  </div>
+                ) : (
+                  <Avatar className="h-14 w-14 shrink-0 rounded-2xl">
+                    <AvatarImage
+                      src={job.motoristPhoto?.trim() || DEFAULT_VENDOR_PHOTO}
+                      className="object-cover"
+                    />
+                    <AvatarFallback className="rounded-2xl bg-brand text-sm font-bold text-white">
+                      {avatarInitials(job.motoristName)}
+                    </AvatarFallback>
+                  </Avatar>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p
+                    className={cn(
+                      "truncate text-[17px] font-black tracking-tight",
+                      ink
+                    )}
+                  >
+                    {viewer === "motorist"
+                      ? job.repairProName
+                      : job.motoristName}
+                  </p>
+                  <p
+                    className={cn(
+                      "mt-0.5 text-[12px] font-semibold",
+                      isLight ? "text-slate-600" : "text-white/55"
+                    )}
+                  >
+                    {viewer === "motorist"
+                      ? `${PRO_SERVICE_LABELS[job.serviceType]} · Repair Pro`
+                      : "Motorist on this job"}
+                  </p>
+                </div>
+                {job.agreedMajor != null && (
+                  <div className="shrink-0 text-right">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#e07a3d]/90">
+                      Labour
+                    </p>
+                    <p className="text-[16px] font-black tabular-nums text-[#e07a3d]">
+                      {formatMoney(job.agreedMajor, job.currency)}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Problem */}
+              {job.problem?.trim() && (
+                <div
+                  className={cn(
+                    "rounded-xl px-3 py-2.5",
+                    isLight ? "bg-white/70" : "bg-black/35"
+                  )}
                 >
-                  <Phone className="h-4 w-4" />
-                </IconRound>
-                <IconRound
-                  isLight={isLight}
-                  label="Chat"
+                  <p
+                    className={cn(
+                      "text-[10px] font-bold uppercase tracking-[0.12em]",
+                      isLight ? "text-slate-500" : "text-white/40"
+                    )}
+                  >
+                    Problem
+                  </p>
+                  <p
+                    className={cn(
+                      "mt-1 text-[13px] font-semibold leading-snug",
+                      ink
+                    )}
+                  >
+                    {job.problem}
+                  </p>
+                </div>
+              )}
+
+              {/* Location */}
+              <div className="flex items-start gap-2">
+                <span
+                  className={cn(
+                    "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
+                    isLight ? "bg-white text-[#e07a3d]" : "bg-[#2c2c2e] text-[#e07a3d]"
+                  )}
+                >
+                  <Navigation className="h-3.5 w-3.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p
+                    className={cn(
+                      "text-[10px] font-bold uppercase tracking-[0.12em]",
+                      isLight ? "text-slate-500" : "text-white/40"
+                    )}
+                  >
+                    {viewer === "motorist" ? "Meet point" : "Motorist location"}
+                  </p>
+                  <p
+                    className={cn(
+                      "mt-0.5 text-[13px] font-semibold leading-snug",
+                      ink
+                    )}
+                  >
+                    {job.locationLabel || "Location shared on map"}
+                  </p>
+                  <p
+                    className={cn(
+                      "mt-0.5 text-[11px] font-medium",
+                      isLight ? "text-slate-500" : "text-white/45"
+                    )}
+                  >
+                    {viewer === "motorist"
+                      ? job.proLocation
+                        ? "Repair Pro live on map"
+                        : "Waiting for Repair Pro GPS"
+                      : "Navigate to motorist pin"}
+                    {job.distanceKm != null &&
+                      ` · ${
+                        job.distanceKm < 0.1
+                          ? "<0.1 km"
+                          : `${job.distanceKm.toFixed(1)} km`
+                      }`}
+                  </p>
+                </div>
+              </div>
+
+              {/* Call + Chat — full actions, never tiny dead icons */}
+              <div className="grid grid-cols-2 gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => startJobCall(job)}
+                  className={cn(
+                    "inline-flex h-12 items-center justify-center gap-2 rounded-xl border-0 text-[13px] font-bold transition active:scale-[0.98]",
+                    isLight
+                      ? "bg-white text-slate-900 shadow-sm ring-1 ring-black/8"
+                      : "bg-[#2c2c2e] text-white"
+                  )}
+                >
+                  <Phone className="h-4 w-4 text-[#e07a3d]" />
+                  Call
+                </button>
+                <button
+                  type="button"
                   onClick={() => openJobChat(job)}
+                  className={cn(
+                    "inline-flex h-12 items-center justify-center gap-2 rounded-xl border-0 text-[13px] font-bold text-white transition active:scale-[0.98]",
+                    "bg-[#e07a3d] shadow-sm"
+                  )}
                 >
                   <MessageCircle className="h-4 w-4" />
-                </IconRound>
+                  Message
+                </button>
               </div>
             </div>
-            <p
-              className={cn(
-                "mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] font-semibold",
-                muted
-              )}
-            >
-              <Navigation className="h-3.5 w-3.5 shrink-0 text-[#e07a3d]" />
-              <span>
-                {viewer === "motorist"
-                  ? job.proLocation
-                    ? `Repair Pro live ${job.locationLabel}`
-                    : `Waiting for pro GPS ${job.locationLabel}`
-                  : `Motorist ${job.locationLabel}`}
-              </span>
-              {job.distanceKm != null && (
-                <span>
-                  {job.distanceKm < 0.1
-                    ? "<0.1 km"
-                    : `${job.distanceKm.toFixed(1)} km`}
-                </span>
-              )}
-            </p>
-          </JobCard>
+          </div>
         </div>
 
         {disputeOpen && (
@@ -1592,32 +1758,6 @@ function StatusPill({
     >
       {label}
     </span>
-  );
-}
-
-function IconRound({
-  children,
-  isLight,
-  label,
-  onClick,
-}: {
-  children: React.ReactNode;
-  isLight: boolean;
-  label: string;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      onClick={onClick}
-      className={cn(
-        "flex h-10 w-10 items-center justify-center rounded-2xl",
-        isLight ? "bg-slate-900/8 text-slate-900" : "bg-white/10 text-white"
-      )}
-    >
-      {children}
-    </button>
   );
 }
 
