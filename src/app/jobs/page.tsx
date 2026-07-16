@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Loader2, MapPin } from "lucide-react";
+import { ChevronRight, Loader2 } from "lucide-react";
 import { JobShell } from "@/components/jobs/job-shell";
 import { apiListJobs } from "@/lib/jobs/client";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
@@ -141,6 +141,8 @@ export default function JobsInboxPage() {
         {jobs.map((j) => {
           const name =
             viewer === "repair_pro" ? j.motoristName : j.repairProName;
+          const skill = PRO_SERVICE_LABELS[j.serviceType] ?? j.serviceType;
+          const status = shortStatus(j.status);
           const price =
             j.agreedMajor != null
               ? formatMoney(j.agreedMajor, j.currency)
@@ -150,56 +152,62 @@ export default function JobsInboxPage() {
               <Link
                 href={`/jobs/${j.id}`}
                 className={cn(
-                  "flex items-start gap-2 rounded-md px-3 py-2.5",
+                  "flex items-center gap-2.5 rounded-lg px-3 py-3",
                   row
                 )}
               >
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-x-2">
-                    <span className="text-[10px] font-black uppercase tracking-wide text-[#e07a3d]">
-                      {shortStatus(j.status)}
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span
+                      className={cn(
+                        "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide",
+                        j.status === "paid_booked"
+                          ? "bg-emerald-600 text-white"
+                          : j.status === "negotiating"
+                            ? "bg-amber-500 text-white"
+                            : "bg-[#e07a3d] text-white"
+                      )}
+                    >
+                      {status}
                     </span>
-                    <span className={cn("text-[11px] font-semibold", muted)}>
-                      {PRO_SERVICE_LABELS[j.serviceType]}
+                    <span
+                      className={cn(
+                        "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold",
+                        isLight
+                          ? "bg-[#a8a9ae] text-slate-900"
+                          : "bg-[#2c2c2e] text-white"
+                      )}
+                    >
+                      {skill}
                     </span>
-                  </div>
-                  <p className={cn("mt-0.5 truncate text-[14px] font-black", ink)}>
-                    {name}
-                  </p>
-                  <p
-                    className={cn(
-                      "mt-0.5 line-clamp-1 text-[12px] font-medium",
-                      muted
-                    )}
-                  >
-                    {j.problem}
-                  </p>
-                  {(j.locationLabel || price) && (
                     <p
                       className={cn(
-                        "mt-1 flex items-center gap-1 text-[11px] font-semibold",
+                        "min-w-0 flex-1 truncate text-[15px] font-black leading-tight",
+                        ink
+                      )}
+                    >
+                      {name}
+                    </p>
+                  </div>
+                  {j.problem?.trim() && (
+                    <p
+                      className={cn(
+                        "mt-1.5 line-clamp-1 text-[12px] font-medium",
                         muted
                       )}
                     >
-                      {j.locationLabel && (
-                        <>
-                          <MapPin className="h-3 w-3 shrink-0 text-[#e07a3d]" />
-                          <span className="min-w-0 truncate">
-                            {j.locationLabel}
-                          </span>
-                        </>
-                      )}
-                      {price && (
-                        <span className="ml-auto shrink-0 font-black text-[#e07a3d]">
-                          {price}
-                        </span>
-                      )}
+                      {j.problem}
+                    </p>
+                  )}
+                  {price && (
+                    <p className="mt-1 text-[13px] font-black tabular-nums text-[#e07a3d]">
+                      {price}
                     </p>
                   )}
                 </div>
                 <ChevronRight
                   className={cn(
-                    "mt-1 h-4 w-4 shrink-0",
+                    "h-4 w-4 shrink-0",
                     isLight ? "text-slate-500" : "text-[#6b6b6b]"
                   )}
                 />

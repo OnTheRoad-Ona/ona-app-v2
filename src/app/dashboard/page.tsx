@@ -10,7 +10,6 @@ import {
   Briefcase,
   ChevronRight,
   Loader2,
-  MapPin,
   Radio,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
@@ -290,55 +289,69 @@ export default function TechnicianDashboardPage() {
                     : j.proBaseMajor != null
                       ? formatMoney(j.proBaseMajor, j.currency)
                       : null;
+                const status = shortStatus(j.status);
                 return (
                   <li key={j.id}>
                     <Link
                       href={`/jobs/${j.id}`}
                       className={cn(
-                        "flex items-start gap-2 rounded-md px-3 py-2.5 active:opacity-90",
+                        "flex items-center gap-2.5 rounded-lg px-3 py-3 active:opacity-90",
                         row
                       )}
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                          <span className="text-[10px] font-black uppercase tracking-wide text-[#e07a3d]">
-                            {shortStatus(j.status)}
+                        {/* Status + skill in front of name — one clean line */}
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span
+                            className={cn(
+                              "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide",
+                              j.status === "paid_booked"
+                                ? "bg-emerald-600 text-white"
+                                : j.status === "negotiating"
+                                  ? "bg-amber-500 text-white"
+                                  : "bg-[#e07a3d] text-white"
+                            )}
+                          >
+                            {status}
                           </span>
-                          <span className={cn("text-[11px] font-semibold", muted)}>
+                          <span
+                            className={cn(
+                              "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold",
+                              isLight
+                                ? "bg-[#a8a9ae] text-slate-900"
+                                : "bg-[#2c2c2e] text-white"
+                            )}
+                          >
                             {skill}
                           </span>
+                          <p
+                            className={cn(
+                              "min-w-0 flex-1 truncate text-[15px] font-black leading-tight",
+                              ink
+                            )}
+                          >
+                            {j.motoristName}
+                          </p>
                         </div>
-                        <p className={cn("mt-0.5 truncate text-[14px] font-black", ink)}>
-                          {j.motoristName}
-                        </p>
-                        <p
-                          className={cn(
-                            "mt-0.5 line-clamp-1 text-[12px] font-medium",
-                            muted
-                          )}
-                        >
-                          {j.problem}
-                        </p>
-                        <div
-                          className={cn(
-                            "mt-1 flex items-center gap-1 text-[11px] font-semibold",
-                            muted
-                          )}
-                        >
-                          <MapPin className="h-3 w-3 shrink-0 text-[#e07a3d]" />
-                          <span className="min-w-0 truncate">
-                            {j.locationLabel || "On map"}
-                          </span>
-                          {price && (
-                            <span className="ml-auto shrink-0 font-black text-[#e07a3d]">
-                              {price}
-                            </span>
-                          )}
-                        </div>
+                        {j.problem?.trim() && (
+                          <p
+                            className={cn(
+                              "mt-1.5 line-clamp-1 text-[12px] font-medium",
+                              muted
+                            )}
+                          >
+                            {j.problem}
+                          </p>
+                        )}
+                        {price && (
+                          <p className="mt-1 text-[13px] font-black tabular-nums text-[#e07a3d]">
+                            {price}
+                          </p>
+                        )}
                       </div>
                       <ChevronRight
                         className={cn(
-                          "mt-1 h-4 w-4 shrink-0",
+                          "h-4 w-4 shrink-0",
                           isLight ? "text-slate-500" : "text-[#6b6b6b]"
                         )}
                       />
