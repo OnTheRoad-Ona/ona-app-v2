@@ -12,6 +12,7 @@ import {
   backendSubscribeMessages,
   type MessageRow,
 } from "@/lib/supabase/app-api";
+import { unlockAudio } from "@/lib/sound-tone";
 import type { ChatMessage } from "@/lib/types";
 
 function pickMime(): string {
@@ -200,6 +201,7 @@ export default function ChatThreadPage({
 
   const send = () => {
     if (!draft.trim() && !pendingVoice) return;
+    unlockAudio();
     sendChatMessage(thread.id, draft, pendingVoice);
     setDraft("");
     setPendingVoice(null);
