@@ -573,10 +573,6 @@ export function JobFlowScreen({
                 </div>
               )}
             </JobCard>
-            <p className={cn("text-[12px] font-semibold leading-snug", muted)}>
-              Motorist: {job.motoristName}
-              {job.locationLabel ? ` · ${job.locationLabel}` : ""}
-            </p>
             {err && (
               <p className="text-center text-[12px] font-semibold text-red-500">
                 {err}
@@ -703,10 +699,11 @@ export function JobFlowScreen({
           </div>
         }
       >
-        {/* Flat stage — no gray cards / chips */}
+        {/* Flat stage — large ring timer center, content below */}
         <div className="space-y-5 px-0.5 pt-1">
-          <div>
+          <div className="flex flex-col items-center py-2">
             <CountdownTimer
+              variant="ring"
               endsAt={job.negotiateEndsAt}
               onExpire={() => {
                 void run(() =>
@@ -719,7 +716,12 @@ export function JobFlowScreen({
               }}
               className={ink}
             />
-            <p className={cn("mt-2 text-[12px] font-medium", muted)}>
+            <p
+              className={cn(
+                "mt-3 text-center text-[12px] font-medium",
+                muted
+              )}
+            >
               {negStatus === "waiting"
                 ? "Waiting for a reply"
                 : negStatus === "countered"
