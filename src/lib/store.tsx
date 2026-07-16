@@ -658,12 +658,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     })();
 
-    // Absolute safety: never block boot longer than 6s
+    // Absolute safety: never block boot on slow mobile networks / WebViews
     const hardCap = window.setTimeout(() => {
       if (cancelled) return;
       setServerSessionReady(true);
       setAuthReady(true);
-    }, 6000);
+    }, 3500);
 
     return () => {
       cancelled = true;

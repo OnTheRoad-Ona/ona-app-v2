@@ -176,10 +176,14 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   ]);
 
   // Loading session: brand art only — no Log In / Sign Up (avoids auth flash)
+  // Always fill parent height so mobile WebViews never show empty black void
   if (!authReady || phase === "loading") {
     return (
-      <div className="relative h-full w-full overflow-hidden bg-black">
+      <div className="relative h-full min-h-[100%] w-full overflow-hidden bg-black">
         <BrandHeroMotion size="splash" bottomFade={false} motion={false} />
+        <p className="pointer-events-none absolute inset-x-0 bottom-10 text-center text-[12px] font-medium text-white/55">
+          Loading OgaMecho…
+        </p>
       </div>
     );
   }

@@ -25,13 +25,29 @@ export const metadata: Metadata = {
   description:
     "Find and call mechanics, vulcanizers and tow trucks near you, within about 10 km.",
   applicationName: "OgaMecho",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "OgaMecho",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  other: {
+    // Help in-app browsers (WhatsApp, Instagram, etc.) render full height
+    "mobile-web-app-capable": "yes",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  themeColor: "#e85a12",
+  maximumScale: 5,
+  userScalable: true,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#c8c9cd" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
   viewportFit: "cover",
 };
 
@@ -45,12 +61,15 @@ export default function RootLayout({
       lang="en"
       data-theme="light"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-      style={{ backgroundColor: "#0a0a0a" }}
+      style={{ backgroundColor: "#0a0a0a", height: "100%" }}
     >
       {/* Instant paint: never flash pure white while JS/CSS hydrate */}
       <body
-        className="min-h-full bg-[#0a0a0a] text-white"
-        style={{ backgroundColor: "#0a0a0a" }}
+        className="min-h-[100vh] min-h-[100dvh] min-h-[100svh] bg-[#0a0a0a] text-white"
+        style={{
+          backgroundColor: "#0a0a0a",
+          overscrollBehavior: "none",
+        }}
       >
         <AppConfigProvider>
           <AppProvider>

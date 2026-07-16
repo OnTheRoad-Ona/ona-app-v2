@@ -1,5 +1,27 @@
 @import "tailwindcss";
 
+/* Full-height app on phones (Safari / Chrome / in-app WebViews) */
+html,
+body {
+  height: 100%;
+  min-height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  min-height: 100svh;
+}
+
+#oga-mecho-phone {
+  min-height: 100%;
+}
+
+@media (min-width: 640px) {
+  #oga-mecho-phone {
+    width: min(390px, calc(100vw - 1.5rem)) !important;
+    max-width: 390px;
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.65);
+  }
+}
+
 /*
  * Light (default) — cool glass-gray sheets on a dark-green/black mix stage.
  */

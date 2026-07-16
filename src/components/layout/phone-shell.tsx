@@ -34,8 +34,11 @@ function isInteractiveTarget(el: HTMLElement): boolean {
 }
 
 /**
- * Phone-width app on pure black stage.
- * Double-click free space toggles background (light/dark) — no toast popup.
+ * App chrome:
+ * - Real phones / narrow viewports: full-screen (no desktop “phone frame” gaps)
+ * - Wide desktops: centered phone mock (max 390px)
+ *
+ * Height uses vh + dvh + svh fallbacks so older mobile WebViews never get height:0.
  */
 export function PhoneShell({
   children,
@@ -63,7 +66,10 @@ export function PhoneShell({
   return (
     <div
       className={cn(
-        "box-border flex min-h-dvh w-full items-center justify-center px-3 py-3",
+        // Outer stage — full bleed on mobile, padded frame on sm+
+        "box-border flex w-full items-stretch justify-center",
+        "min-h-[100vh] min-h-[100dvh] min-h-[100svh]",
+        "px-0 py-0 sm:items-center sm:px-3 sm:py-3",
         isLight ? "bg-[#060d0a]" : "bg-[#0a0605]"
       )}
     >
@@ -71,24 +77,37 @@ export function PhoneShell({
         id="oga-mecho-phone"
         className={cn(
           "relative flex w-full flex-col overflow-hidden rounded-none",
-          "h-[min(844px,calc(100dvh-1.5rem))]",
-          "max-h-[min(844px,calc(100dvh-1.5rem))]",
-          "max-w-[390px]",
+          // Mobile: fill the real screen (critical for phone browsers & in-app WebViews)
+          "h-[100vh] h-[100dvh] h-[100svh] max-h-none max-w-none",
+          // Desktop: phone mock
+          "sm:h-[min(844px,calc(100dvh-1.5rem))] sm:max-h-[min(844px,calc(100dvh-1.5rem))] sm:max-w-[390px]",
           isLight ? "bg-[#c8c9cd]" : "bg-black",
           className
         )}
         style={{
-          width: "min(390px, calc(100vw - 1.5rem))",
-          boxShadow: isLight
-            ? "0 24px 48px rgba(6, 13, 10, 0.65)"
-            : "0 24px 48px rgba(0, 0, 0, 0.75)",
+          // Avoid inline width on mobile so full width works; desktop caps at 390
+          width: "100%",
+          maxWidth: "100%",
+          // Safe area for notched phones (iOS)
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          boxShadow: undefined,
         }}
         onDoubleClick={onDoubleClick}
       >
-        <div className="relative flex min-h-0 flex-1 flex-col">
+        {/* Desktop-only shadow via class would need media query; apply in CSS for sm+ */}
+        <div
+          className={cn(
+            "relative flex min-h-0 min-h-full flex-1 flex-col",
+            "sm:shadow-[0_24px_48px_rgba(0,0,0,0.65)]"
+          )}
+          style={{
+            // Force a real height chain for children (flex-1)
+            height: "100%",
+            minHeight: "100%",
+          }}
+        >
           {children}
           <AcceptTripPopup />
-          {/* Repair Pro: keep multi-motorist alerts even mid-job */}
           <IncomingJobPopup />
         </div>
       </div>
