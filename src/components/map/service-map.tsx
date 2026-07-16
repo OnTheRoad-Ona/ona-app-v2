@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { GoogleMap, Marker, useJsApiLoader } from "@react-google-maps/api";
-import { Car, Wrench } from "lucide-react";
 import { LiveProPin } from "@/components/map/live-pro-pin";
 import {
   getGoogleMapsApiKey,
@@ -129,10 +128,10 @@ const MAP_STYLES_DARK: google.maps.MapTypeStyle[] = [
   { featureType: "transit", stylers: [{ visibility: "off" }] },
 ];
 
-/** Small flat trade glyph — blended orange, no disc/ring */
+/** Filled metallic-orange trade pin (visible on green/red map stages) */
 function proMarkerIconUrl(t: Technician, selected: boolean): string {
   return tradeIconDataUrl(t.serviceType, {
-    size: selected ? 24 : 20,
+    size: selected ? 28 : 24,
     selected,
   });
 }
@@ -286,79 +285,43 @@ function MockupMap({
         </span>
       </div>
 
-      {/* Technician pins */}
+      {/* Technician pins — filled metallic orange trade icons */}
       {technicians.slice(0, 5).map((t, i) => {
         const pos = positions[i % positions.length];
         const isSel = t.id === selectedTechId || (!selectedTechId && i === 1);
-        const isTow = t.serviceType === "towing";
-        const isVulc = t.serviceType === "vulcanizer";
+        const pinUrl = proMarkerIconUrl(t, isSel);
 
         return (
           <button
             key={t.id}
             type="button"
             onClick={() => onSelect?.(t.id)}
-            className="absolute z-20 -translate-x-1/2 -translate-y-1/2 text-center"
+            className="om-live-pin absolute z-20 -translate-x-1/2 -translate-y-1/2 text-center"
             style={{ top: pos.top, left: pos.left }}
             aria-label={`${t.name}, ${t.etaMinutes} min`}
           >
-            {isLight ? (
-              /* Light mode: blue teardrop pins like Mechanic City */
-              <>
-                <span className="relative mx-auto block h-9 w-7">
-                  <span
-                    className={cn(
-                      "absolute left-1/2 top-0 h-7 w-7 -translate-x-1/2 rounded-full shadow-md ring-2 ring-white",
-                      isSel ? "bg-blue-700" : "bg-blue-600"
-                    )}
-                  />
-                  <span
-                    className={cn(
-                      "absolute left-1/2 top-[18px] h-3 w-3 -translate-x-1/2 rotate-45",
-                      isSel ? "bg-blue-700" : "bg-blue-600"
-                    )}
-                  />
-                </span>
-                <span className="mt-0.5 inline-block rounded-md bg-white px-1.5 py-0.5 text-[9px] font-bold text-slate-800 shadow ring-1 ring-slate-100">
-                  {t.etaMinutes} min
-                </span>
-              </>
-            ) : isSel ? (
-              <>
-                <span className="mx-auto flex h-10 w-9 items-end justify-center">
-                  <span className="relative flex h-9 w-9 items-center justify-center">
-                    <span className="absolute inset-0 rounded-full bg-red-500 shadow-lg ring-[3px] ring-white" />
-                    <span className="relative h-3 w-3 rounded-full bg-white ring-2 ring-red-600" />
-                  </span>
-                </span>
-                <span className="mt-0.5 inline-block rounded-md bg-white px-1.5 py-0.5 text-[9px] font-bold text-slate-900 shadow">
-                  {t.etaMinutes} min
-                </span>
-              </>
-            ) : (
-              <>
-                <span
-                  className={cn(
-                    "mx-auto flex h-9 w-9 items-center justify-center rounded-full text-white shadow-lg ring-[2.5px] ring-white",
-                    isVulc || isTow ? "bg-teal-500" : "bg-[#ff5a00]"
-                  )}
-                >
-                  {isTow ? (
-                    <Car className="h-4 w-4" strokeWidth={2.5} />
-                  ) : (
-                    <Wrench className="h-4 w-4" strokeWidth={2.5} />
-                  )}
-                </span>
-                {t.markerLabel && (
-                  <span className="mt-0.5 block text-[9px] font-bold text-white drop-shadow-md">
-                    {t.markerLabel}
-                  </span>
-                )}
-                <span className="mt-0.5 inline-block rounded-md bg-black/80 px-1.5 py-0.5 text-[9px] font-bold text-white">
-                  {t.etaMinutes} min
-                </span>
-              </>
-            )}
+            <span className="relative mx-auto flex h-9 w-9 items-center justify-center">
+              <span className="om-live-beam absolute inset-0" aria-hidden />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={pinUrl}
+                alt=""
+                width={isSel ? 28 : 24}
+                height={isSel ? 28 : 24}
+                className="om-live-glyph relative z-[1] block"
+                draggable={false}
+              />
+            </span>
+            <span
+              className={cn(
+                "mt-0.5 inline-block rounded-md px-1.5 py-0.5 text-[9px] font-bold shadow",
+                isLight
+                  ? "bg-white text-slate-800 ring-1 ring-slate-100"
+                  : "bg-black/80 text-white"
+              )}
+            >
+              {t.etaMinutes} min
+            </span>
           </button>
         );
       })}

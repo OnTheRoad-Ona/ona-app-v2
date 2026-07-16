@@ -5,8 +5,8 @@ import { tradeIconDataUrl } from "@/lib/map-trade-icons";
 import type { Technician } from "@/lib/types";
 
 /**
- * Compact dark-gray trade pin with live pulse.
- * Sized smaller than before so it doesn’t collide with the motorist pin.
+ * Filled metallic-orange trade pin with live pulse.
+ * Bright orange disc + white trade glyph so pros stay visible on any map theme.
  */
 export function LiveProPin({
   tech,
@@ -17,8 +17,8 @@ export function LiveProPin({
   selected: boolean;
   onSelect?: (id: string) => void;
 }) {
-  const size = selected ? 17 : 15;
-  const box = selected ? 24 : 22;
+  const size = selected ? 28 : 24;
+  const box = selected ? 36 : 32;
   const url = tradeIconDataUrl(tech.serviceType, { size, selected });
 
   return (

@@ -96,7 +96,7 @@ function PulsingProPin({
   label: string;
   serviceType: string;
 }) {
-  const icon = tradeIconDataUrl(serviceType, { size: 18, selected: true });
+  const icon = tradeIconDataUrl(serviceType, { size: 26, selected: true });
   return (
     <OverlayViewF
       position={position}
@@ -113,13 +113,14 @@ function PulsingProPin({
       >
         <span className="om-live-beam" aria-hidden />
         <span className="om-live-beam om-live-beam-delay" aria-hidden />
-        <span
-          className="absolute left-1/2 top-1/2 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-md ring-2 ring-[#e07a3d]"
-          aria-hidden
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={icon} alt="" width={16} height={16} className="block" />
-        </span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={icon}
+          alt=""
+          width={26}
+          height={26}
+          className="om-live-glyph absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2"
+        />
       </div>
     </OverlayViewF>
   );

@@ -1,19 +1,30 @@
 import type { ProService } from "@/lib/types";
 
-/** Dark gray map glyphs (pros) — sit cleanly beside slate “You” pin */
-const GRAY = "#475569";
-const GRAY_SELECTED = "#334155";
+/**
+ * Filled metallic orange — readable on green/red map stages.
+ * Bright face + deep rim so pins never blend into the basemap.
+ */
+const ORANGE_FACE = "#f06a1e";
+const ORANGE_MID = "#e85a12";
+const ORANGE_DEEP = "#b8430c";
+const ORANGE_RIM = "#7c2d0a";
+const ORANGE_SELECTED_FACE = "#ff8a3d";
+const ORANGE_SELECTED_MID = "#ff6b1a";
+const ORANGE_SELECTED_DEEP = "#d14f0e";
+const ORANGE_SELECTED_RIM = "#9a3412";
+const GLYPH = "#ffffff";
 
 /**
- * Compact Lucide-style paths (24 viewBox). Clean strokes only.
+ * Compact Lucide-style paths (24 viewBox).
+ * White filled glyphs on a metallic orange disc.
  */
-function tradePath(type: ProService, stroke: string): string {
-  const s = `stroke="${stroke}" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" fill="none"`;
+function tradeGlyph(type: ProService): string {
+  const s = `fill="none" stroke="${GLYPH}" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round"`;
   switch (type) {
     case "mechanic":
       return `<path ${s} d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.1-3.1a5 5 0 0 1-6.6 6.6l-6.2 6.2a1.8 1.8 0 0 1-2.5-2.5l6.2-6.2a5 5 0 0 1 6.6-6.6l-3 3z"/>`;
     case "vulcanizer":
-      return `<circle ${s} cx="12" cy="12" r="8.5"/><circle ${s} cx="12" cy="12" r="2.8"/>`;
+      return `<circle ${s} cx="12" cy="12" r="7.2"/><circle ${s} cx="12" cy="12" r="2.4"/>`;
     case "towing":
       return `<path ${s} d="M5 17h-1a1 1 0 0 1-1-1v-3.2c0-.5.2-1 .6-1.3L6 9.5h7.2c.4 0 .8.2 1 .5L16 12h2.5c.8 0 1.5.7 1.5 1.5V16a1 1 0 0 1-1 1h-1"/><circle ${s} cx="7.5" cy="17" r="1.8"/><circle ${s} cx="16.5" cy="17" r="1.8"/><path ${s} d="M5 17h9"/>`;
     case "battery":
@@ -34,40 +45,59 @@ function tradePath(type: ProService, stroke: string): string {
 }
 
 /**
- * Small transparent trade icon (no disc). Dark gray.
- * Default size reduced to sit cleanly with the motorist human pin.
+ * Filled metallic-orange trade pin (disc + white glyph).
+ * Selected = brighter face so it pops next to other pros.
  */
 export function tradeIconDataUrl(
   type: ProService | string,
   opts?: { size?: number; selected?: boolean }
 ): string {
-  const size = opts?.size ?? 16;
+  const size = opts?.size ?? 20;
   const selected = opts?.selected ?? false;
-  const stroke = selected ? GRAY_SELECTED : GRAY;
+  const face = selected ? ORANGE_SELECTED_FACE : ORANGE_FACE;
+  const mid = selected ? ORANGE_SELECTED_MID : ORANGE_MID;
+  const deep = selected ? ORANGE_SELECTED_DEEP : ORANGE_DEEP;
+  const rim = selected ? ORANGE_SELECTED_RIM : ORANGE_RIM;
   const svc = (type || "mechanic") as ProService;
-  const body = tradePath(svc, stroke);
+  const glyph = tradeGlyph(svc);
+  const gid = selected ? "omMetalSel" : "omMetal";
+
   const svg = encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none">
-      ${body}
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">
+      <defs>
+        <radialGradient id="${gid}" cx="32%" cy="28%" r="78%">
+          <stop offset="0%" stop-color="${face}"/>
+          <stop offset="48%" stop-color="${mid}"/>
+          <stop offset="100%" stop-color="${deep}"/>
+        </radialGradient>
+        <filter id="${gid}s" x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="1" stdDeviation="1.1" flood-color="${rim}" flood-opacity="0.55"/>
+        </filter>
+      </defs>
+      <circle cx="12" cy="12" r="10.4" fill="url(#${gid})" stroke="${rim}" stroke-width="1.35" filter="url(#${gid}s)"/>
+      <circle cx="12" cy="12" r="10.4" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="1"/>
+      <g transform="translate(12 12) scale(0.72) translate(-12 -12)">
+        ${glyph}
+      </g>
     </svg>`
   );
   return `data:image/svg+xml;charset=UTF-8,${svg}`;
 }
 
 /**
- * Leaflet marker HTML: compact dark gray trade icon + subtle live beam.
+ * Leaflet marker HTML: filled metallic-orange trade pin + live beam.
  */
 export function tradeIconHtml(
   type: ProService | string,
   opts?: { size?: number; selected?: boolean }
 ): string {
-  const size = opts?.size ?? 15;
+  const size = opts?.size ?? 20;
   const selected = opts?.selected ?? false;
   const url = tradeIconDataUrl(type, { size, selected });
-  const pulse = selected ? 22 : 20;
+  const pulse = selected ? 28 : 26;
   return `<div class="om-live-pin" style="width:${pulse}px;height:${pulse}px;position:relative;background:transparent;border:none">
-    <span class="om-live-beam" aria-hidden="true"></span>
-    <span class="om-live-beam om-live-beam-delay" aria-hidden="true"></span>
-    <img src="${url}" width="${size}" height="${size}" alt="" class="om-live-glyph" style="width:${size}px;height:${size}px;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:transparent;border:none;display:block" draggable="false"/>
+    <span class="om-live-beam om-live-beam--orange" aria-hidden="true"></span>
+    <span class="om-live-beam om-live-beam-delay om-live-beam--orange" aria-hidden="true"></span>
+    <img src="${url}" width="${size}" height="${size}" alt="" class="om-live-glyph" style="width:${size}px;height:${size}px;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:transparent;border:none;display:block;filter:drop-shadow(0 1px 2px rgba(124,45,10,0.45))" draggable="false"/>
   </div>`;
 }
