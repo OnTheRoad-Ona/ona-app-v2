@@ -17,9 +17,32 @@ import { playPersonTone, unlockAudio } from "@/lib/sound-tone";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
+const SHOWN_KEY = "om-job-request-shown";
+
+function readShown(): Set<string> {
+  try {
+    const raw = sessionStorage.getItem(SHOWN_KEY);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw) as string[];
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function markShown(id: string) {
+  try {
+    const s = readShown();
+    s.add(id);
+    sessionStorage.setItem(SHOWN_KEY, JSON.stringify([...s].slice(-40)));
+  } catch {
+    /* */
+  }
+}
+
 /**
- * Repair Pro only: new motorist request → in-app popup + browser notification.
- * Only open New Request / agreed jobs (not completed).
+ * Repair Pro only: Job request auto-popup + browser notification.
+ * New motorist requests surface immediately while the app is open.
  */
 export function IncomingJobPopup() {
   const { accountType, backendUserId, theme, isAuthenticated } = useApp();
@@ -30,6 +53,31 @@ export function IncomingJobPopup() {
   const primed = useRef(false);
   const [alertJob, setAlertJob] = useState<JobRecord | null>(null);
   const [otherCount, setOtherCount] = useState(0);
+
+  const surfaceJob = (j: JobRecord) => {
+    if (pathname.includes(`/jobs/${j.id}`)) {
+      markShown(j.id);
+      return;
+    }
+    unlockAudio();
+    playPersonTone(j.motoristId || j.motoristName, "notification");
+    vibrateCallPattern();
+    setAlertJob(j);
+    markShown(j.id);
+    const skill =
+      PRO_SERVICE_LABELS[j.serviceType] || j.serviceType || "Job";
+    void ensureNotifyPermission().then(() => {
+      if (canNotify()) {
+        showAppNotification({
+          title: "Job request",
+          body: `${j.motoristName}: ${j.problem.slice(0, 80)} · ${skill}`,
+          tag: `job-${j.id}`,
+          href: `/jobs/${j.id}`,
+          requireInteraction: true,
+        });
+      }
+    });
+  };
 
   useEffect(() => {
     if (!isAuthenticated || accountType !== "professional" || !backendUserId) {
@@ -46,7 +94,7 @@ export function IncomingJobPopup() {
       const open = res.data.jobs.filter((j) => {
         if (j.repairProId !== backendUserId) return false;
         if (!j.motoristId || !j.problem?.trim()) return false;
-        // New Request / agreed only for popup alerts
+        // Popup for new requests (negotiating) primarily
         if (j.status !== "negotiating" && j.status !== "agreed") return false;
         if (
           j.status === "negotiating" &&
@@ -58,35 +106,27 @@ export function IncomingJobPopup() {
         return true;
       });
 
+      const shown = readShown();
+
       if (!primed.current) {
         knownIds.current = new Set(open.map((j) => j.id));
         primed.current = true;
         setOtherCount(open.length);
+        // Surface newest Job request not yet shown this session
+        const newest = open.find(
+          (j) => j.status === "negotiating" && !shown.has(j.id)
+        );
+        if (newest) surfaceJob(newest);
         return;
       }
 
       for (const j of open) {
         if (!knownIds.current.has(j.id)) {
           knownIds.current.add(j.id);
-          if (pathname.includes(`/jobs/${j.id}`)) continue;
-          unlockAudio();
-          playPersonTone(j.motoristId || j.motoristName, "notification");
-          vibrateCallPattern();
-          setAlertJob(j);
-          const skill =
-            PRO_SERVICE_LABELS[j.serviceType] || j.serviceType || "Job";
-          void ensureNotifyPermission().then(() => {
-            if (canNotify()) {
-              showAppNotification({
-                title: "New Request",
-                body: `${j.motoristName}: ${j.problem.slice(0, 80)} · ${skill}`,
-                tag: `job-${j.id}`,
-                href: `/jobs/${j.id}`,
-                requireInteraction: true,
-              });
-            }
-          });
-          break;
+          if (j.status === "negotiating" || !shown.has(j.id)) {
+            surfaceJob(j);
+            break;
+          }
         }
       }
 
@@ -100,9 +140,8 @@ export function IncomingJobPopup() {
 
     void poll();
     const t = window.setInterval(() => {
-      // Keep polling when app is open (even backgrounded tab when possible)
       void poll();
-    }, 8000);
+    }, 4000);
     const onVis = () => {
       if (!document.hidden) void poll();
     };
@@ -165,7 +204,7 @@ export function IncomingJobPopup() {
             <div className="mb-2 flex items-start justify-between gap-2">
               <div>
                 <p className="text-[11px] font-black uppercase tracking-wide text-[#e07a3d]">
-                  New Request
+                  Job request
                 </p>
                 <p className="mt-0.5 text-[16px] font-black leading-tight">
                   {alertJob.motoristName}
@@ -222,7 +261,7 @@ export function IncomingJobPopup() {
                 }}
                 className="h-11 rounded-xl border-0 bg-[#e07a3d] text-[13px] font-bold text-white"
               >
-                Open request
+                Open job request
               </button>
             </div>
           </div>

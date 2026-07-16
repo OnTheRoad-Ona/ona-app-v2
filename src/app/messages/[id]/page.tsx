@@ -2,9 +2,10 @@
 
 import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Mic, Send, Square } from "lucide-react";
+import { Lock, Mic, Send, Square } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { VoiceNotePlayer } from "@/components/jobs/voice-note-player";
+import { apiGetJob } from "@/lib/jobs/client";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -14,6 +15,15 @@ import {
 } from "@/lib/supabase/app-api";
 import { unlockAudio } from "@/lib/sound-tone";
 import type { ChatMessage } from "@/lib/types";
+
+/** Chat stays readable forever after job is done — send is locked */
+const CHAT_CLOSED_STATUSES = new Set([
+  "satisfied",
+  "released",
+  "cancelled",
+  "expired",
+  "refunded",
+]);
 
 function pickMime(): string {
   if (typeof MediaRecorder === "undefined") return "";
@@ -56,6 +66,8 @@ export default function ChatThreadPage({
     mime: string;
   } | null>(null);
   const [recError, setRecError] = useState<string | null>(null);
+  /** After satisfied/released — history only, no new messages */
+  const [chatClosed, setChatClosed] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
@@ -70,6 +82,23 @@ export default function ChatThreadPage({
     }, 5000);
     return () => window.clearInterval(t);
   }, [refreshCloudChats, id]);
+
+  // Lock send forever once the linked job is finished / closed
+  useEffect(() => {
+    const rid = thread?.requestId;
+    if (!rid || rid.startsWith("chat-")) {
+      setChatClosed(false);
+      return;
+    }
+    let cancelled = false;
+    void apiGetJob(rid).then((res) => {
+      if (cancelled || !res.ok) return;
+      setChatClosed(CHAT_CLOSED_STATUSES.has(res.data.job.status));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [thread?.requestId]);
 
   // Realtime inserts for this conversation (when id is a real UUID)
   useEffect(() => {
@@ -133,9 +162,12 @@ export default function ChatThreadPage({
   }
 
   const title = isPro ? thread.motoristName : thread.technicianName;
-  const subtitle = `${PRO_SERVICE_LABELS[thread.serviceType] ?? thread.serviceType} · job chat`;
+  const subtitle = chatClosed
+    ? `${PRO_SERVICE_LABELS[thread.serviceType] ?? thread.serviceType} · read only`
+    : `${PRO_SERVICE_LABELS[thread.serviceType] ?? thread.serviceType} · job chat`;
 
   const startRec = async () => {
+    if (chatClosed) return;
     setRecError(null);
     if (
       !navigator.mediaDevices?.getUserMedia ||
@@ -200,6 +232,7 @@ export default function ChatThreadPage({
   };
 
   const send = () => {
+    if (chatClosed) return;
     if (!draft.trim() && !pendingVoice) return;
     unlockAudio();
     sendChatMessage(thread.id, draft, pendingVoice);
@@ -215,6 +248,21 @@ export default function ChatThreadPage({
       )}
     >
       <PageHeader title={title} subtitle={subtitle} backHref="/messages" />
+
+      {chatClosed && (
+        <div
+          className={cn(
+            "flex shrink-0 items-start gap-2 px-3 py-2",
+            isLight ? "text-slate-800" : "text-white/85"
+          )}
+        >
+          <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#e07a3d]" />
+          <p className="text-[11px] font-medium leading-snug">
+            This job is finished. Chat is closed forever — you can still read
+            messages, but you cannot send new ones.
+          </p>
+        </div>
+      )}
 
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-3 py-2 scrollbar-hide">
         {thread.messages.map((msg: ChatMessage) => {
@@ -266,7 +314,7 @@ export default function ChatThreadPage({
         <div ref={bottomRef} />
       </div>
 
-      {pendingVoice && (
+      {!chatClosed && pendingVoice && (
         <div className="px-3 pb-1">
           <VoiceNotePlayer
             url={pendingVoice.url}
@@ -283,10 +331,22 @@ export default function ChatThreadPage({
           </button>
         </div>
       )}
-      {recError && (
+      {!chatClosed && recError && (
         <p className="px-3 text-[11px] font-semibold text-red-500">{recError}</p>
       )}
 
+      {chatClosed ? (
+        <div
+          className={cn(
+            "shrink-0 border-t px-3 py-3 text-center text-[12px] font-medium",
+            isLight
+              ? "border-black/10 text-slate-700"
+              : "border-white/10 text-white/70"
+          )}
+        >
+          Chat closed · view only
+        </div>
+      ) : (
       <div
         className={cn(
           "flex shrink-0 items-center gap-2 border-t px-3 py-2",
@@ -338,6 +398,7 @@ export default function ChatThreadPage({
           <Send className="h-4 w-4" />
         </button>
       </div>
+      )}
     </div>
   );
 }

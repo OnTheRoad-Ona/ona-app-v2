@@ -1,15 +1,18 @@
 "use client";
 
 /**
- * Professional dashboard — solid stage, compact incoming jobs, low data use.
+ * Professional dashboard — Live control, Incoming jobs, Recent Bookings.
+ * Recent Bookings (finished) only when there is no open Incoming request.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Briefcase,
   ChevronRight,
+  Clock3,
   Loader2,
+  MapPin,
   Radio,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
@@ -35,19 +38,31 @@ function shortStatus(status: JobFlowStatus): string {
       return "Arrived";
     case "in_progress":
       return "Working";
+    case "completed":
+      return "Completed";
+    case "satisfied":
+    case "released":
+      return "Finished";
     default:
-      return status.replace(/_/g, " ");
+      return String(status).replace(/_/g, " ");
   }
 }
 
-/** Open pipeline only — completed/released/cancelled leave Incoming immediately */
-const ACTIVE_INCOMING = new Set([
+/** Open pipeline — active work */
+const ACTIVE_INCOMING = new Set<JobFlowStatus>([
   "negotiating",
   "agreed",
   "paid_booked",
   "en_route",
   "arrived",
   "in_progress",
+]);
+
+/** Finished bookings for Recent Bookings */
+const RECENT_FINISHED = new Set<JobFlowStatus>([
+  "completed",
+  "satisfied",
+  "released",
 ]);
 
 export default function TechnicianDashboardPage() {
@@ -64,7 +79,8 @@ export default function TechnicianDashboardPage() {
   const isLight = theme === "light";
   const [liveBusy, setLiveBusy] = useState(false);
   const [liveErr, setLiveErr] = useState<string | null>(null);
-  const [jobs, setJobs] = useState<JobRecord[]>([]);
+  const [incoming, setIncoming] = useState<JobRecord[]>([]);
+  const [recent, setRecent] = useState<JobRecord[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
 
   const mySkill: ProService | null = isProService(registeredAs)
@@ -77,14 +93,13 @@ export default function TechnicianDashboardPage() {
 
   const stage = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const ink = isLight ? "text-slate-900" : "text-white";
-  const muted = isLight ? "text-slate-600" : "text-[#a1a1a6]";
+  const muted = isLight ? "text-slate-700" : "text-white/75";
   const hairline = isLight ? "border-black/10" : "border-white/10";
-  /** Solid row surface — no translucency */
-  const row = isLight ? "bg-[#bebfc4]" : "bg-[#141414]";
 
   const loadJobs = useCallback(async () => {
     if (!backendUserId) {
-      setJobs([]);
+      setIncoming([]);
+      setRecent([]);
       setJobsLoading(false);
       return;
     }
@@ -94,30 +109,61 @@ export default function TechnicianDashboardPage() {
       const mine = res.data.jobs.filter((j) => {
         if (j.repairProId !== backendUserId) return false;
         if (!j.motoristId || !j.problem?.trim()) return false;
-        if (!ACTIVE_INCOMING.has(j.status)) return false;
-        if (
-          j.status === "negotiating" &&
-          j.negotiateEndsAt &&
-          now > new Date(j.negotiateEndsAt).getTime()
-        ) {
-          return false;
-        }
         return true;
       });
-      setJobs(mine);
+
+      const open = mine
+        .filter((j) => {
+          if (!ACTIVE_INCOMING.has(j.status)) return false;
+          if (
+            j.status === "negotiating" &&
+            j.negotiateEndsAt &&
+            now > new Date(j.negotiateEndsAt).getTime()
+          ) {
+            return false;
+          }
+          return true;
+        })
+        .sort((a, b) => {
+          const rank = (s: string) =>
+            s === "negotiating"
+              ? 0
+              : s === "agreed"
+                ? 1
+                : s === "paid_booked"
+                  ? 2
+                  : 3;
+          const d = rank(a.status) - rank(b.status);
+          if (d !== 0) return d;
+          return (
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+        });
+
+      const finished = mine
+        .filter((j) => RECENT_FINISHED.has(j.status))
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt || b.createdAt).getTime() -
+            new Date(a.updatedAt || a.createdAt).getTime()
+        )
+        .slice(0, 12);
+
+      setIncoming(open);
+      setRecent(finished);
     } else {
-      setJobs([]);
+      setIncoming([]);
+      setRecent([]);
     }
     setJobsLoading(false);
   }, [backendUserId]);
 
   useEffect(() => {
     void loadJobs();
-    // Keep Incoming fresh so completed jobs leave quickly
     const t = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void loadJobs();
-    }, 10_000);
+    }, 8_000);
     return () => window.clearInterval(t);
   }, [loadJobs]);
 
@@ -134,25 +180,8 @@ export default function TechnicianDashboardPage() {
     }
   };
 
-  const sortedJobs = useMemo(
-    () =>
-      [...jobs].sort((a, b) => {
-        const rank = (s: string) =>
-          s === "negotiating"
-            ? 0
-            : s === "agreed"
-              ? 1
-              : s === "paid_booked"
-                ? 2
-                : 3;
-        const d = rank(a.status) - rank(b.status);
-        if (d !== 0) return d;
-        return (
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-      }),
-    [jobs]
-  );
+  /** Hide Recent Bookings whenever any open Incoming exists */
+  const showRecent = incoming.length === 0;
 
   return (
     <div className={cn("flex h-full min-h-0 flex-col", stage)}>
@@ -196,8 +225,8 @@ export default function TechnicianDashboardPage() {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 pb-4 scrollbar-hide">
-        {/* Live — flat, no layered cards */}
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 pb-4 scrollbar-hide">
+        {/* Live */}
         <section className={cn("border-b pb-4", hairline)}>
           <div className="flex items-center gap-3">
             <Radio
@@ -236,41 +265,39 @@ export default function TechnicianDashboardPage() {
           )}
         </section>
 
-        {/* Incoming jobs — compact solid rows, no nested transparent layers */}
+        {/* Incoming jobs */}
         <section>
           <div className="mb-2 flex items-center justify-between gap-2">
             <h2 className={cn("text-[15px] font-black", ink)}>
               Incoming jobs
-              {jobs.length > 0 ? (
-                <span className="ml-1.5 text-[#e07a3d]">({jobs.length})</span>
+              {incoming.length > 0 ? (
+                <span className="ml-1.5 text-[#e07a3d]">
+                  ({incoming.length})
+                </span>
               ) : null}
             </h2>
-            <Link
-              href="/jobs"
-              className="text-[12px] font-bold text-[#e07a3d]"
-            >
+            <Link href="/jobs" className="text-[12px] font-bold text-[#e07a3d]">
               All jobs
             </Link>
           </div>
-
           <p className={cn("mb-2 text-[11px] font-medium leading-snug", muted)}>
-            Stay Live for new requests — even with a job open.
+            New requests pop up as Job request. Stay Live to receive them.
           </p>
 
           {jobsLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-5 w-5 animate-spin text-[#e07a3d]" />
             </div>
-          ) : sortedJobs.length === 0 ? (
-            <div className="py-8 text-center">
+          ) : incoming.length === 0 ? (
+            <div className="py-6 text-center">
               <Briefcase className={cn("mx-auto h-7 w-7 opacity-40", muted)} />
               <p className={cn("mt-2 text-[13px] font-semibold", muted)}>
-                Waiting for requests
+                No open requests
               </p>
             </div>
           ) : (
-            <ul className="space-y-2">
-              {sortedJobs.map((j) => {
+            <ul className="space-y-0 divide-y divide-black/10 dark:divide-white/10">
+              {incoming.map((j) => {
                 const skill =
                   PRO_SERVICE_LABELS[j.serviceType] ?? j.serviceType;
                 const price =
@@ -279,71 +306,62 @@ export default function TechnicianDashboardPage() {
                     : j.proBaseMajor != null
                       ? formatMoney(j.proBaseMajor, j.currency)
                       : null;
-                const status = shortStatus(j.status);
                 return (
                   <li key={j.id}>
                     <Link
                       href={`/jobs/${j.id}`}
-                      className={cn(
-                        "flex items-center gap-2.5 rounded-lg px-3 py-3 active:opacity-90",
-                        row
-                      )}
+                      className="flex items-center gap-2.5 bg-transparent py-3 active:opacity-90"
                     >
                       <div className="min-w-0 flex-1">
-                        {/* Status + skill in front of name — one clean line */}
                         <div className="flex min-w-0 items-center gap-1.5">
                           <span
                             className={cn(
-                              "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide",
+                              "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-white",
                               j.status === "paid_booked"
-                                ? "bg-emerald-600 text-white"
+                                ? "bg-emerald-600"
                                 : j.status === "negotiating"
-                                  ? "bg-amber-500 text-white"
-                                  : "bg-[#e07a3d] text-white"
+                                  ? "bg-amber-500"
+                                  : "bg-[#e07a3d]"
                             )}
                           >
-                            {status}
+                            {shortStatus(j.status)}
                           </span>
                           <span
                             className={cn(
-                              "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold",
-                              isLight
-                                ? "bg-[#a8a9ae] text-slate-900"
-                                : "bg-[#2c2c2e] text-white"
+                              "shrink-0 text-[10px] font-semibold",
+                              muted
                             )}
                           >
                             {skill}
                           </span>
                           <p
                             className={cn(
-                              "min-w-0 flex-1 truncate text-[15px] font-black leading-tight",
+                              "min-w-0 flex-1 truncate text-[15px] font-semibold",
                               ink
                             )}
                           >
                             {j.motoristName}
                           </p>
                         </div>
-                        {j.problem?.trim() && (
+                        {j.locationLabel?.trim() && (
                           <p
                             className={cn(
-                              "mt-1.5 line-clamp-1 text-[12px] font-medium",
+                              "mt-1 flex items-center gap-1 text-[12px] font-medium",
                               muted
                             )}
                           >
-                            {j.problem}
+                            <MapPin className="h-3 w-3 shrink-0 text-[#e07a3d]" />
+                            <span className="truncate">{j.locationLabel}</span>
                           </p>
                         )}
                         {price && (
-                          <p className="mt-1 text-[13px] font-black tabular-nums text-[#e07a3d]">
+                          <p className="mt-0.5 text-[13px] font-semibold tabular-nums text-[#e07a3d]">
                             {price}
                           </p>
                         )}
                       </div>
                       <ChevronRight
-                        className={cn(
-                          "h-4 w-4 shrink-0",
-                          isLight ? "text-slate-500" : "text-[#6b6b6b]"
-                        )}
+                        className={cn("h-4 w-4 shrink-0", muted)}
                       />
                     </Link>
                   </li>
@@ -352,6 +370,76 @@ export default function TechnicianDashboardPage() {
             </ul>
           )}
         </section>
+
+        {/* Recent Bookings — only when no open Incoming */}
+        {showRecent && (
+          <section>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className={cn("text-[15px] font-black", ink)}>
+                Recent Bookings
+              </h2>
+              <Link
+                href="/history"
+                className="text-[12px] font-bold text-[#e07a3d]"
+              >
+                History
+              </Link>
+            </div>
+            <p className={cn("mb-2 text-[11px] font-medium leading-snug", muted)}>
+              Finished jobs. Tap for process (view only).
+            </p>
+
+            {jobsLoading ? null : recent.length === 0 ? (
+              <p className={cn("py-4 text-center text-[13px] font-medium", muted)}>
+                No recent bookings yet
+              </p>
+            ) : (
+              <ul className="space-y-0">
+                {recent.map((j) => (
+                  <li key={j.id}>
+                    <Link
+                      href={`/requests/${j.id}`}
+                      className={cn(
+                        "flex w-full items-start gap-2.5 border-0 border-b bg-transparent py-3 text-left last:border-b-0",
+                        isLight ? "border-black/10" : "border-white/10"
+                      )}
+                    >
+                      <Clock3
+                        className="mt-0.5 h-4 w-4 shrink-0 text-[#e07a3d]"
+                        aria-hidden
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className={cn("truncate text-[15px] font-semibold", ink)}>
+                          {j.motoristName}
+                        </p>
+                        <p
+                          className={cn(
+                            "mt-0.5 flex items-start gap-1 text-[12px] font-medium leading-snug",
+                            muted
+                          )}
+                        >
+                          <MapPin className="mt-0.5 h-3 w-3 shrink-0 opacity-70" />
+                          <span className="line-clamp-2">
+                            {j.locationLabel?.trim() || "Address not set"}
+                          </span>
+                        </p>
+                        <p className={cn("mt-1 text-[10px] font-medium", muted)}>
+                          {shortStatus(j.status)}
+                          {j.agreedMajor != null
+                            ? ` · ${formatMoney(j.agreedMajor, j.currency)}`
+                            : ""}
+                        </p>
+                      </div>
+                      <ChevronRight
+                        className={cn("mt-0.5 h-4 w-4 shrink-0", muted)}
+                      />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
       </div>
     </div>
   );

@@ -1128,6 +1128,10 @@ export function JobFlowScreen({
       </>
     );
 
+    const chatClosedForever = ["satisfied", "released", "cancelled", "expired", "refunded"].includes(
+      job.status
+    );
+
     const callMessageRow = (
       <div className="grid grid-cols-2 gap-2 pt-1">
         <button
@@ -1146,10 +1150,13 @@ export function JobFlowScreen({
         <button
           type="button"
           onClick={() => void openJobChat(job)}
-          className="inline-flex h-12 items-center justify-center gap-2 rounded-md border-0 bg-[#e07a3d] text-[13px] font-bold text-white"
+          className={cn(
+            "inline-flex h-12 items-center justify-center gap-2 rounded-md border-0 text-[13px] font-bold text-white",
+            chatClosedForever ? "bg-[#2c2c2e]" : "bg-[#e07a3d]"
+          )}
         >
           <MessageCircle className="h-4 w-4" />
-          Message
+          {chatClosedForever ? "View chat" : "Message"}
         </button>
       </div>
     );
