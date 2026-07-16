@@ -320,6 +320,46 @@ export type MessageRow = {
   created_at: string;
 };
 
+/** Parse plain text or JSON voice payload from messages.body */
+function parseChatBody(m: MessageRow, conv: ConversationRow): ChatMessage {
+  const sender: ChatMessage["sender"] =
+    m.sender_id === conv.motorist_id
+      ? "motorist"
+      : m.sender_id === conv.repair_pro_id
+        ? "professional"
+        : "system";
+  const raw = m.body || "";
+  if (raw.startsWith("{") && raw.includes("voiceUrl")) {
+    try {
+      const parsed = JSON.parse(raw) as {
+        text?: string;
+        voiceUrl?: string;
+        voiceDurationSec?: number | null;
+        voiceMime?: string | null;
+      };
+      if (parsed.voiceUrl) {
+        return {
+          id: m.id,
+          sender,
+          text: (parsed.text || "Voice note").trim() || "Voice note",
+          at: m.created_at,
+          voiceUrl: parsed.voiceUrl,
+          voiceDurationSec: parsed.voiceDurationSec ?? null,
+          voiceMime: parsed.voiceMime ?? null,
+        };
+      }
+    } catch {
+      /* plain text */
+    }
+  }
+  return {
+    id: m.id,
+    sender,
+    text: raw,
+    at: m.created_at,
+  };
+}
+
 export function mapConversationToThread(
   conv: ConversationRow,
   msgs: MessageRow[],
@@ -332,20 +372,11 @@ export function mapConversationToThread(
   myUserId: string
 ): MessageThread {
   const last = msgs[msgs.length - 1];
-  const chatMsgs: ChatMessage[] = msgs.map((m) => ({
-    id: m.id,
-    sender:
-      m.sender_id === conv.motorist_id
-        ? "motorist"
-        : m.sender_id === conv.repair_pro_id
-          ? "professional"
-          : "system",
-    text: m.body,
-    at: m.created_at,
-  }));
+  const chatMsgs: ChatMessage[] = msgs.map((m) => parseChatBody(m, conv));
   const unread = msgs.filter(
     (m) => !m.read_at && m.sender_id !== myUserId
   ).length;
+  const lastPreview = chatMsgs[chatMsgs.length - 1];
   return {
     id: conv.id,
     requestId: conv.request_id || undefined,
@@ -353,7 +384,13 @@ export function mapConversationToThread(
     technicianName: names.technicianName,
     motoristName: names.motoristName,
     serviceType: names.serviceType,
-    lastMessage: last?.body || "New chat",
+    lastMessage: lastPreview
+      ? lastPreview.voiceUrl
+        ? lastPreview.text && lastPreview.text !== "Voice note"
+          ? `🎤 ${lastPreview.text}`
+          : "🎤 Voice note"
+        : lastPreview.text
+      : "New chat",
     time: last
       ? new Date(last.created_at).toLocaleTimeString([], {
           hour: "2-digit",

@@ -384,7 +384,15 @@ interface AppState {
     status: ServiceRequest["status"]
   ) => ServiceActionResult;
   ensureChatForRequest: (req: ServiceRequest) => string;
-  sendChatMessage: (threadId: string, text: string) => void;
+  sendChatMessage: (
+    threadId: string,
+    text: string,
+    voice?: {
+      url: string;
+      durationSec?: number;
+      mime?: string;
+    } | null
+  ) => void;
   retryLocation: () => void;
   setManualLocation: (
     label: string,
@@ -1703,16 +1711,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const sendChatMessage = useCallback(
-    (threadId: string, text: string) => {
+    (
+      threadId: string,
+      text: string,
+      voice?: {
+        url: string;
+        durationSec?: number;
+        mime?: string;
+      } | null
+    ) => {
       const trimmed = text.trim();
-      if (!trimmed) return;
+      if (!trimmed && !voice?.url) return;
       const sender: ChatMessage["sender"] =
         accountType === "professional" ? "professional" : "motorist";
+      const preview = voice?.url
+        ? trimmed
+          ? `🎤 ${trimmed}`
+          : "🎤 Voice note"
+        : trimmed;
       const msg: ChatMessage = {
         id: `msg-${Date.now()}`,
         sender,
-        text: trimmed,
+        text: trimmed || "Voice note",
         at: new Date().toISOString(),
+        voiceUrl: voice?.url || null,
+        voiceDurationSec: voice?.durationSec ?? null,
+        voiceMime: voice?.mime ?? null,
       };
       // Optimistic UI
       setMessages((prev) =>
@@ -1720,7 +1744,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           t.id === threadId
             ? {
                 ...t,
-                lastMessage: trimmed,
+                lastMessage: preview,
                 time: "now",
                 messages: [...t.messages, msg],
               }
@@ -1728,10 +1752,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         )
       );
       if (isAppBackendOnline() && backendUserId) {
+        // Persist text; voice data URL stays client-side if body column is text-only
+        const body = voice?.url
+          ? JSON.stringify({
+              text: trimmed || "Voice note",
+              voiceUrl: voice.url,
+              voiceDurationSec: voice.durationSec ?? null,
+              voiceMime: voice.mime ?? null,
+            })
+          : trimmed;
         void backendSendMessage({
           conversationId: threadId,
           senderId: backendUserId,
-          body: trimmed,
+          body,
         });
       }
     },

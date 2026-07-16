@@ -1,13 +1,28 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Mic, Pause, Play, RotateCcw, Square } from "lucide-react";
+import { Mic, RotateCcw, Square } from "lucide-react";
+import { VoiceNotePlayer } from "@/components/jobs/voice-note-player";
 import { cn } from "@/lib/utils";
 import type { JobMedia } from "@/lib/jobs/types";
 
+const MAX_SEC = 60;
+
+function pickMime(): string {
+  if (typeof MediaRecorder === "undefined") return "";
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/ogg;codecs=opus",
+    "audio/ogg",
+  ];
+  return candidates.find((m) => MediaRecorder.isTypeSupported(m)) || "";
+}
+
 /**
- * Browser MediaRecorder voice note — record / play / re-record.
- * Stores as data URL (works without Storage keys; swap to Supabase Storage later).
+ * Browser MediaRecorder voice note — record, listen back, re-record.
+ * Stores as data URL so sender + receiver can play without storage bucket.
  */
 export function VoiceNoteRecorder({
   value,
@@ -21,87 +36,142 @@ export function VoiceNoteRecorder({
   isLight: boolean;
 }) {
   const [recording, setRecording] = useState(false);
-  const [playing, setPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const mediaRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const chunks = useRef<Blob[]>([]);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const startedAt = useRef(0);
   const timer = useRef<number | null>(null);
 
   useEffect(() => {
     return () => {
       if (timer.current) window.clearInterval(timer.current);
-      mediaRef.current?.stop();
+      try {
+        mediaRef.current?.stop();
+      } catch {
+        /* */
+      }
+      streamRef.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);
 
   const start = async () => {
     setError(null);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError("This browser cannot record audio. Try Chrome or Safari.");
+      return;
+    }
+    if (typeof MediaRecorder === "undefined") {
+      setError("Voice recording is not supported on this device.");
+      return;
+    }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      });
+      streamRef.current = stream;
+      const mime = pickMime();
+      const rec = mime
+        ? new MediaRecorder(stream, { mimeType: mime })
+        : new MediaRecorder(stream);
       chunks.current = [];
+
       rec.ondataavailable = (e) => {
-        if (e.data.size) chunks.current.push(e.data);
+        if (e.data && e.data.size > 0) chunks.current.push(e.data);
       };
+
+      rec.onerror = () => {
+        setError("Recording failed. Try again.");
+        setRecording(false);
+        stream.getTracks().forEach((t) => t.stop());
+      };
+
       rec.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunks.current, { type: "audio/webm" });
+        streamRef.current = null;
+        if (timer.current) {
+          window.clearInterval(timer.current);
+          timer.current = null;
+        }
+
+        const blobType = rec.mimeType || mime || "audio/webm";
+        const blob = new Blob(chunks.current, { type: blobType });
+        if (!blob.size) {
+          setError("No audio captured. Hold closer and try again.");
+          setRecording(false);
+          return;
+        }
         const durationSec = Math.max(
           1,
-          Math.round((Date.now() - startedAt.current) / 1000)
+          Math.min(MAX_SEC, Math.round((Date.now() - startedAt.current) / 1000))
         );
-        const dataUrl = await blobToDataUrl(blob);
-        onChange({
-          id: `voice_${Date.now()}`,
-          kind: "voice",
-          url: dataUrl,
-          name: `voice-${durationSec}s.webm`,
-          mime: "audio/webm",
-          durationSec,
-          createdAt: new Date().toISOString(),
-          uploadedBy: userId,
-        });
+        try {
+          const dataUrl = await blobToDataUrl(blob);
+          const ext = blobType.includes("mp4")
+            ? "m4a"
+            : blobType.includes("ogg")
+              ? "ogg"
+              : "webm";
+          onChange({
+            id: `voice_${Date.now()}`,
+            kind: "voice",
+            url: dataUrl,
+            name: `voice-${durationSec}s.${ext}`,
+            mime: blobType,
+            durationSec,
+            createdAt: new Date().toISOString(),
+            uploadedBy: userId,
+          });
+        } catch {
+          setError("Could not save voice note. Try again.");
+        }
         setRecording(false);
-        if (timer.current) window.clearInterval(timer.current);
       };
+
       mediaRef.current = rec;
       startedAt.current = Date.now();
       setElapsed(0);
-      timer.current = window.setInterval(() => {
-        setElapsed(Math.round((Date.now() - startedAt.current) / 1000));
-      }, 250);
-      rec.start();
+      // timeslice so data arrives on all browsers (not only at stop)
+      rec.start(200);
       setRecording(true);
+      timer.current = window.setInterval(() => {
+        const sec = Math.round((Date.now() - startedAt.current) / 1000);
+        setElapsed(sec);
+        if (sec >= MAX_SEC) {
+          try {
+            rec.stop();
+          } catch {
+            /* */
+          }
+        }
+      }, 200);
     } catch {
-      setError("Microphone permission is needed for voice notes.");
+      setError("Allow microphone access to record a voice note.");
     }
   };
 
   const stop = () => {
-    mediaRef.current?.stop();
-  };
-
-  const play = () => {
-    if (!value?.url) return;
-    if (!audioRef.current) audioRef.current = new Audio(value.url);
-    else audioRef.current.src = value.url;
-    audioRef.current.onended = () => setPlaying(false);
-    void audioRef.current.play();
-    setPlaying(true);
-  };
-
-  const pause = () => {
-    audioRef.current?.pause();
-    setPlaying(false);
+    const rec = mediaRef.current;
+    if (!rec || rec.state === "inactive") {
+      setRecording(false);
+      return;
+    }
+    try {
+      if (rec.state === "recording") rec.requestData();
+      rec.stop();
+    } catch {
+      setRecording(false);
+    }
   };
 
   const reset = () => {
-    pause();
     onChange(null);
     setElapsed(0);
+    setError(null);
   };
 
   return (
@@ -131,7 +201,7 @@ export function VoiceNoteRecorder({
           <button
             type="button"
             onClick={() => void start()}
-            className="inline-flex h-11 items-center gap-2 rounded-2xl border-0 bg-[#e07a3d] px-4 text-[13px] font-bold text-white"
+            className="inline-flex h-11 items-center gap-2 rounded-md border-0 bg-[#e07a3d] px-4 text-[13px] font-bold text-white"
           >
             <Mic className="h-4 w-4" />
             Record
@@ -141,45 +211,39 @@ export function VoiceNoteRecorder({
           <button
             type="button"
             onClick={stop}
-            className="inline-flex h-11 items-center gap-2 rounded-2xl border-0 bg-red-500 px-4 text-[13px] font-bold text-white"
+            className="inline-flex h-11 items-center gap-2 rounded-md border-0 bg-red-500 px-4 text-[13px] font-bold text-white"
           >
             <Square className="h-4 w-4 fill-current" />
             Stop
           </button>
         )}
         {value && !recording && (
-          <>
-            <button
-              type="button"
-              onClick={playing ? pause : play}
-              className={cn(
-                "inline-flex h-11 items-center gap-2 rounded-2xl border-0 px-4 text-[13px] font-bold",
-                isLight
-                  ? "bg-black/10 text-slate-900"
-                  : "bg-white/10 text-white"
-              )}
-            >
-              {playing ? (
-                <Pause className="h-4 w-4" />
-              ) : (
-                <Play className="h-4 w-4" />
-              )}
-              {playing ? "Pause" : "Play"}
-            </button>
-            <button
-              type="button"
-              onClick={reset}
-              className={cn(
-                "inline-flex h-11 items-center gap-2 rounded-2xl border-0 px-4 text-[13px] font-bold",
-                isLight ? "bg-black/10 text-slate-800" : "bg-white/10 text-white"
-              )}
-            >
-              <RotateCcw className="h-4 w-4" />
-              Re-record
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={reset}
+            className={cn(
+              "inline-flex h-11 items-center gap-2 rounded-md border-0 px-4 text-[13px] font-bold",
+              isLight ? "bg-black/10 text-slate-800" : "bg-white/10 text-white"
+            )}
+          >
+            <RotateCcw className="h-4 w-4" />
+            Re-record
+          </button>
         )}
       </div>
+
+      {/* Sender listens back with same player receivers use */}
+      {value?.url && !recording && (
+        <div className="mt-3">
+          <VoiceNotePlayer
+            url={value.url}
+            durationSec={value.durationSec}
+            isLight={isLight}
+            label="Your voice note · tap play"
+          />
+        </div>
+      )}
+
       {error && (
         <p className="mt-2 text-[12px] font-semibold text-red-500">{error}</p>
       )}
@@ -189,7 +253,8 @@ export function VoiceNoteRecorder({
           isLight ? "text-slate-500" : "text-white/45"
         )}
       >
-        Optional. Describe the problem out loud.
+        Optional. Describe the problem out loud (max {MAX_SEC}s). Play it back
+        before you send.
       </p>
     </div>
   );

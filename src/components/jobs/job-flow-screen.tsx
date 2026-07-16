@@ -23,6 +23,7 @@ import {
   JobShell,
   StageButton,
 } from "@/components/jobs/job-shell";
+import { VoiceNotePlayer } from "@/components/jobs/voice-note-player";
 import {
   apiAcceptOffer,
   apiGetJob,
@@ -104,6 +105,21 @@ export function JobFlowScreen({
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const [locHint, setLocHint] = useState<string | null>(null);
+  /** Repair Pro must confirm they can fix the job before negotiating */
+  const [proCanFixAccepted, setProCanFixAccepted] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (
+        typeof window !== "undefined" &&
+        sessionStorage.getItem(`om-can-fix-${jobId}`) === "1"
+      ) {
+        setProCanFixAccepted(true);
+      }
+    } catch {
+      /* */
+    }
+  }, [jobId]);
 
   const REVIEW_MAX = 144;
 
@@ -376,6 +392,96 @@ export function JobFlowScreen({
         ? last
         : [...job.offers].reverse().find((o) => o.side !== mySide);
 
+    // D2: first time pro opens this request — confirm they can fix it
+    const needsProCanFixGate =
+      viewer === "repair_pro" &&
+      !proCanFixAccepted &&
+      job.offers.length === 0;
+
+    if (needsProCanFixGate) {
+      return (
+        <JobShell
+          isLight={isLight}
+          title="Can you fix this?"
+          compactHeader
+          onBack={goJobsList}
+          footer={
+            <div className="space-y-2">
+              <CopperButton
+                onClick={() => {
+                  setProCanFixAccepted(true);
+                  try {
+                    sessionStorage.setItem(`om-can-fix-${job.id}`, "1");
+                  } catch {
+                    /* */
+                  }
+                }}
+              >
+                I can fix this
+              </CopperButton>
+              <GhostButton
+                isLight={isLight}
+                onClick={() =>
+                  void run(() =>
+                    apiTransition({
+                      jobId: job.id,
+                      event: "CANCEL",
+                      actor: "repair_pro",
+                      actorId,
+                    })
+                  )
+                }
+              >
+                Cancel · I cannot fix this
+              </GhostButton>
+            </div>
+          }
+        >
+          <div className="space-y-3 px-1 pt-2">
+            <p className={cn("text-[15px] font-black leading-snug", ink)}>
+              Read this before you negotiate
+            </p>
+            <p className={cn("text-[14px] font-medium leading-relaxed", muted)}>
+              By tapping <span className={ink}>I can fix this</span>, you are
+              saying you have the skill and tools for this job. Only continue if
+              you can complete the work. If you cannot, cancel so the motorist
+              can find someone else.
+            </p>
+            <JobCard isLight={isLight}>
+              <p className={cn("text-[11px] font-bold", muted)}>Problem</p>
+              <p
+                className={cn(
+                  "mt-0.5 text-[13px] font-semibold leading-snug",
+                  ink
+                )}
+              >
+                {job.problem}
+              </p>
+              {job.voiceNote?.url && (
+                <div className="mt-3">
+                  <VoiceNotePlayer
+                    url={job.voiceNote.url}
+                    durationSec={job.voiceNote.durationSec}
+                    isLight={isLight}
+                    label="Motorist voice note"
+                  />
+                </div>
+              )}
+            </JobCard>
+            <p className={cn("text-[12px] font-semibold leading-snug", muted)}>
+              Motorist: {job.motoristName}
+              {job.locationLabel ? ` · ${job.locationLabel}` : ""}
+            </p>
+            {err && (
+              <p className="text-center text-[12px] font-semibold text-red-500">
+                {err}
+              </p>
+            )}
+          </div>
+        </JobShell>
+      );
+    }
+
     return (
       <JobShell
         isLight={isLight}
@@ -517,10 +623,19 @@ export function JobFlowScreen({
             <p className={cn("mt-0.5 text-[13px] font-semibold leading-snug", ink)}>
               {job.problem}
             </p>
-            {job.voiceNote && (
-              <p className="mt-1 text-[11px] font-semibold text-[#e07a3d]">
-                Voice note attached ({job.voiceNote.durationSec || "?"}s)
-              </p>
+            {job.voiceNote?.url && (
+              <div className="mt-3">
+                <VoiceNotePlayer
+                  url={job.voiceNote.url}
+                  durationSec={job.voiceNote.durationSec}
+                  isLight={isLight}
+                  label={
+                    viewer === "motorist"
+                      ? "Your voice note"
+                      : "Motorist voice note"
+                  }
+                />
+              </div>
             )}
           </JobCard>
 

@@ -282,6 +282,10 @@ export interface ChatMessage {
   sender: ChatSender;
   text: string;
   at: string;
+  /** Optional voice note (data URL or remote URL) */
+  voiceUrl?: string | null;
+  voiceDurationSec?: number | null;
+  voiceMime?: string | null;
 }
 
 /**

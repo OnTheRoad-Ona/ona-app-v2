@@ -1,17 +1,28 @@
 "use client";
 
 import { use, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Send } from "lucide-react";
+import { Mic, Send, Square } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { VoiceNotePlayer } from "@/components/jobs/voice-note-player";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
+function pickMime(): string {
+  if (typeof MediaRecorder === "undefined") return "";
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/ogg;codecs=opus",
+  ];
+  return candidates.find((m) => MediaRecorder.isTypeSupported(m)) || "";
+}
+
 /**
  * Single job chat: Motorist ↔ one Repair Pro for one request.
- * Does not mix with other jobs or other skills.
+ * Text + voice notes (sender can play back; receiver can listen).
  */
 export default function ChatThreadPage({
   params,
@@ -30,11 +41,31 @@ export default function ChatThreadPage({
   const isPro = accountType === "professional";
   const thread = visibleMessageThreads.find((t) => t.id === id);
   const [draft, setDraft] = useState("");
+  const [recording, setRecording] = useState(false);
+  const [pendingVoice, setPendingVoice] = useState<{
+    url: string;
+    durationSec: number;
+    mime: string;
+  } | null>(null);
+  const [recError, setRecError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const mediaRef = useRef<MediaRecorder | null>(null);
+  const chunks = useRef<Blob[]>([]);
+  const startedAt = useRef(0);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [thread?.messages.length]);
+  }, [thread?.messages.length, pendingVoice]);
+
+  useEffect(() => {
+    return () => {
+      try {
+        mediaRef.current?.stop();
+      } catch {
+        /* */
+      }
+    };
+  }, []);
 
   if (!thread) {
     return (
@@ -44,7 +75,12 @@ export default function ChatThreadPage({
           isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
-        <p className={cn("font-semibold", isLight ? "text-slate-900" : "text-white")}>
+        <p
+          className={cn(
+            "font-semibold",
+            isLight ? "text-slate-900" : "text-white"
+          )}
+        >
           Chat not found
         </p>
         <p className="text-center text-xs text-muted">
@@ -64,9 +100,72 @@ export default function ChatThreadPage({
   const title = isPro ? thread.motoristName : thread.technicianName;
   const subtitle = `${PRO_SERVICE_LABELS[thread.serviceType] ?? thread.serviceType} · job chat`;
 
+  const startRec = async () => {
+    setRecError(null);
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setRecError("Voice not supported on this device");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = pickMime();
+      const rec = mime
+        ? new MediaRecorder(stream, { mimeType: mime })
+        : new MediaRecorder(stream);
+      chunks.current = [];
+      rec.ondataavailable = (e) => {
+        if (e.data?.size) chunks.current.push(e.data);
+      };
+      rec.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blobType = rec.mimeType || mime || "audio/webm";
+        const blob = new Blob(chunks.current, { type: blobType });
+        if (!blob.size) {
+          setRecError("No audio captured");
+          setRecording(false);
+          return;
+        }
+        const durationSec = Math.max(
+          1,
+          Math.round((Date.now() - startedAt.current) / 1000)
+        );
+        const url = await new Promise<string>((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(String(r.result));
+          r.onerror = () => reject(new Error("read failed"));
+          r.readAsDataURL(blob);
+        });
+        setPendingVoice({ url, durationSec, mime: blobType });
+        setRecording(false);
+      };
+      mediaRef.current = rec;
+      startedAt.current = Date.now();
+      rec.start(200);
+      setRecording(true);
+    } catch {
+      setRecError("Allow microphone to send a voice note");
+    }
+  };
+
+  const stopRec = () => {
+    const rec = mediaRef.current;
+    if (!rec || rec.state === "inactive") {
+      setRecording(false);
+      return;
+    }
+    try {
+      if (rec.state === "recording") rec.requestData();
+      rec.stop();
+    } catch {
+      setRecording(false);
+    }
+  };
+
   const send = () => {
-    sendChatMessage(thread.id, draft);
+    if (!draft.trim() && !pendingVoice) return;
+    sendChatMessage(thread.id, draft, pendingVoice);
     setDraft("");
+    setPendingVoice(null);
   };
 
   return (
@@ -100,7 +199,7 @@ export default function ChatThreadPage({
             >
               <div
                 className={cn(
-                  "max-w-[80%] rounded-2xl px-3 py-2 text-[13px] leading-snug",
+                  "max-w-[85%] space-y-1.5 rounded-2xl px-3 py-2 text-[13px] leading-snug",
                   mine
                     ? "rounded-br-md bg-brand text-white"
                     : isLight
@@ -108,13 +207,52 @@ export default function ChatThreadPage({
                       : "rounded-bl-md bg-neutral-900 text-white"
                 )}
               >
-                {msg.text}
+                {msg.text && msg.text !== "Voice note" && (
+                  <p>{msg.text}</p>
+                )}
+                {msg.voiceUrl && (
+                  <VoiceNotePlayer
+                    url={msg.voiceUrl}
+                    durationSec={msg.voiceDurationSec}
+                    isLight={mine ? false : isLight}
+                    label={mine ? "Your voice" : "Voice note"}
+                    className={
+                      mine
+                        ? "bg-black/20"
+                        : undefined
+                    }
+                  />
+                )}
+                {msg.voiceUrl && (!msg.text || msg.text === "Voice note") && (
+                  <span className="sr-only">Voice note</span>
+                )}
               </div>
             </div>
           );
         })}
         <div ref={bottomRef} />
       </div>
+
+      {pendingVoice && (
+        <div className="px-3 pb-1">
+          <VoiceNotePlayer
+            url={pendingVoice.url}
+            durationSec={pendingVoice.durationSec}
+            isLight={isLight}
+            label="Preview · play before send"
+          />
+          <button
+            type="button"
+            onClick={() => setPendingVoice(null)}
+            className="mt-1 border-0 bg-transparent text-[11px] font-bold text-[#e07a3d]"
+          >
+            Discard voice
+          </button>
+        </div>
+      )}
+      {recError && (
+        <p className="px-3 text-[11px] font-semibold text-red-500">{recError}</p>
+      )}
 
       <div
         className={cn(
@@ -124,6 +262,21 @@ export default function ChatThreadPage({
             : "border-white/10 bg-black"
         )}
       >
+        <button
+          type="button"
+          onClick={() => (recording ? stopRec() : void startRec())}
+          className={cn(
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 text-white",
+            recording ? "bg-red-500" : "bg-[#e07a3d]"
+          )}
+          aria-label={recording ? "Stop recording" : "Record voice note"}
+        >
+          {recording ? (
+            <Square className="h-4 w-4 fill-current" />
+          ) : (
+            <Mic className="h-4 w-4" />
+          )}
+        </button>
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -133,7 +286,8 @@ export default function ChatThreadPage({
               send();
             }
           }}
-          placeholder="Type a message…"
+          placeholder={recording ? "Recording…" : "Type a message…"}
+          disabled={recording}
           className={cn(
             "h-10 min-w-0 flex-1 rounded-full border-0 px-4 text-[13px] outline-none",
             isLight
@@ -144,7 +298,7 @@ export default function ChatThreadPage({
         <button
           type="button"
           onClick={send}
-          disabled={!draft.trim()}
+          disabled={recording || (!draft.trim() && !pendingVoice)}
           className="flex h-10 w-10 items-center justify-center rounded-full border-0 bg-brand text-white disabled:opacity-40"
           aria-label="Send"
         >
