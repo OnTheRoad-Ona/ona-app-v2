@@ -5,24 +5,64 @@
  * Incoming jobs only after a motorist has requested this pro (active flow).
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  ArrowUpRight,
   Briefcase,
-  ChevronRight,
   Loader2,
   MapPin,
   Radio,
+  Wrench,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { apiListJobs } from "@/lib/jobs/client";
-import type { JobRecord } from "@/lib/jobs/types";
+import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
 import { isProService, PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import type { ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+function statusPresentation(status: JobFlowStatus): {
+  label: string;
+  tone: "emerald" | "copper" | "amber" | "slate" | "red";
+} {
+  switch (status) {
+    case "paid_booked":
+      return { label: "Paid · Booked", tone: "emerald" };
+    case "negotiating":
+      return { label: "Negotiating", tone: "amber" };
+    case "agreed":
+      return { label: "Price agreed", tone: "copper" };
+    case "en_route":
+      return { label: "On the road", tone: "copper" };
+    case "arrived":
+      return { label: "Arrived", tone: "copper" };
+    case "in_progress":
+      return { label: "Working", tone: "copper" };
+    case "completed":
+    case "satisfied":
+      return { label: "Complete", tone: "emerald" };
+    case "disputed":
+    case "under_appeal":
+      return { label: status === "disputed" ? "Dispute" : "Appeal", tone: "red" };
+    default:
+      return {
+        label: status.replace(/_/g, " "),
+        tone: "slate",
+      };
+  }
+}
+
+const toneClass = {
+  emerald: "bg-emerald-600 text-white",
+  copper: "bg-[#e07a3d] text-white",
+  amber: "bg-amber-500 text-white",
+  slate: "bg-slate-700 text-white",
+  red: "bg-red-500 text-white",
+} as const;
 
 /** Only active escrow flow states after a real motorist request */
 const ACTIVE_INCOMING = new Set([
@@ -121,6 +161,20 @@ export default function TechnicianDashboardPage() {
     }
   };
 
+  const sortedJobs = useMemo(
+    () =>
+      [...jobs].sort((a, b) => {
+        const rank = (s: string) =>
+          s === "negotiating" ? 0 : s === "agreed" ? 1 : s === "paid_booked" ? 2 : 3;
+        const d = rank(a.status) - rank(b.status);
+        if (d !== 0) return d;
+        return (
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      }),
+    [jobs]
+  );
+
   return (
     <div className={cn("flex h-full min-h-0 flex-col", stage)}>
       <div className={cn("z-20 shrink-0", stage)}>
@@ -214,110 +268,272 @@ export default function TechnicianDashboardPage() {
           )}
         </section>
 
-        <section>
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <h2 className={cn("text-sm font-bold", ink)}>
-              Incoming jobs
-              {jobs.length > 0 && (
-                <span className="ml-1.5 text-[12px] font-bold text-[#e07a3d]">
-                  ({jobs.length})
-                </span>
-              )}
-            </h2>
-            {jobs.length > 0 && (
-              <Link
-                href="/jobs"
-                className="text-[12px] font-bold text-[#e07a3d]"
+        <section className="space-y-3">
+          {/* Section header */}
+          <div className="flex items-end justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2
+                  className={cn(
+                    "text-[17px] font-black tracking-tight",
+                    ink
+                  )}
+                >
+                  Incoming jobs
+                </h2>
+                {jobs.length > 0 && (
+                  <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[#e07a3d] px-2 text-[11px] font-black text-white">
+                    {jobs.length}
+                  </span>
+                )}
+              </div>
+              <p
+                className={cn(
+                  "mt-0.5 text-[11px] font-medium",
+                  isLight ? "text-slate-500" : "text-white/45"
+                )}
               >
-                All jobs
-              </Link>
-            )}
+                New requests stay visible even mid-job
+              </p>
+            </div>
+            <Link
+              href="/jobs"
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-bold transition active:scale-[0.98]",
+                isLight
+                  ? "bg-white/80 text-[#c45a20] shadow-sm ring-1 ring-black/6"
+                  : "bg-[#2c2c2e] text-[#e07a3d]"
+              )}
+            >
+              All jobs
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </Link>
           </div>
 
-          <p className={cn("mb-3 text-[11px] font-medium leading-snug", muted)}>
-            Stay Live to keep receiving new motorist requests — even while
-            another job is open. Pick the best fit if one is not going well.
-          </p>
+          {/* Compact tip */}
+          <div
+            className={cn(
+              "flex gap-2.5 rounded-2xl px-3 py-2.5",
+              isLight
+                ? "bg-white/55 ring-1 ring-black/5"
+                : "bg-[#1a1a1c] ring-1 ring-white/8"
+            )}
+          >
+            <span
+              className={cn(
+                "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl",
+                proLive ? "bg-emerald-500/15 text-emerald-600" : "bg-[#e07a3d]/15 text-[#e07a3d]"
+              )}
+            >
+              <Radio className="h-3.5 w-3.5" />
+            </span>
+            <p
+              className={cn(
+                "text-[11px] font-medium leading-snug",
+                isLight ? "text-slate-600" : "text-white/60"
+              )}
+            >
+              {proLive ? (
+                <>
+                  You’re <span className="font-bold text-emerald-600">Live</span>
+                  {" — "}new motorist requests keep arriving. Open any job if
+                  the current one isn’t a fit.
+                </>
+              ) : (
+                <>
+                  Go <span className="font-bold text-[#e07a3d]">Live</span> to
+                  receive new requests while other jobs stay open.
+                </>
+              )}
+            </p>
+          </div>
 
           {jobsLoading ? (
-            <div className="flex justify-center py-10">
+            <div className="flex justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-[#e07a3d]" />
             </div>
-          ) : jobs.length === 0 ? (
-            <div className="py-8 text-center">
-              <Briefcase
-                className={cn("mx-auto h-8 w-8 opacity-35", muted)}
-              />
-              <p className={cn("mt-2 text-[13px] font-semibold", muted)}>
-                Waiting for requests
+          ) : sortedJobs.length === 0 ? (
+            <div
+              className={cn(
+                "flex flex-col items-center rounded-2xl px-4 py-10 text-center",
+                isLight
+                  ? "bg-white/50 ring-1 ring-black/5"
+                  : "bg-[#141414] ring-1 ring-white/8"
+              )}
+            >
+              <span
+                className={cn(
+                  "flex h-12 w-12 items-center justify-center rounded-2xl",
+                  isLight ? "bg-black/5" : "bg-white/5"
+                )}
+              >
+                <Briefcase
+                  className={cn("h-6 w-6 opacity-50", muted)}
+                />
+              </span>
+              <p className={cn("mt-3 text-[14px] font-bold", ink)}>
+                No incoming jobs yet
+              </p>
+              <p className={cn("mt-1 max-w-[220px] text-[12px] font-medium", muted)}>
+                When a motorist requests you, it will appear here as a card.
               </p>
             </div>
           ) : (
-            <ul className={cn("divide-y", hairline)}>
-              {[...jobs]
-                .sort((a, b) => {
-                  // Negotiating first so new requests stay visible mid-trip
-                  const rank = (s: string) =>
-                    s === "negotiating" ? 0 : s === "agreed" ? 1 : 2;
-                  const d = rank(a.status) - rank(b.status);
-                  if (d !== 0) return d;
-                  return (
-                    new Date(b.createdAt).getTime() -
-                    new Date(a.createdAt).getTime()
-                  );
-                })
-                .map((j) => (
-                <li key={j.id}>
-                  <Link
-                    href={`/jobs/${j.id}`}
-                    className="flex items-start gap-2 py-3.5 transition active:opacity-80"
-                  >
-                    <div className="min-h-0 min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="rounded-full bg-[#e07a3d]/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-[#e07a3d]">
-                          {j.status.replace(/_/g, " ")}
-                        </span>
-                        <span
-                          className={cn("text-[11px] font-semibold", muted)}
-                        >
-                          {PRO_SERVICE_LABELS[j.serviceType]}
-                        </span>
-                      </div>
-                      <p className={cn("mt-1 text-[15px] font-black", ink)}>
-                        {j.motoristName}
-                      </p>
-                      <p
-                        className={cn(
-                          "mt-0.5 line-clamp-2 text-[12px] font-medium",
-                          muted
-                        )}
-                      >
-                        {j.problem}
-                      </p>
-                      <p
-                        className={cn(
-                          "mt-1 flex items-center gap-1 text-[11px]",
-                          muted
-                        )}
-                      >
-                        <MapPin className="h-3 w-3 text-[#e07a3d]" />
-                        {j.locationLabel}
-                        {j.agreedMajor != null && (
-                          <span className="ml-1 font-bold text-[#e07a3d]">
-                            · {formatMoney(j.agreedMajor, j.currency)}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                    <ChevronRight
+            <ul className="space-y-2.5">
+              {sortedJobs.map((j) => {
+                const st = statusPresentation(j.status);
+                const skill =
+                  PRO_SERVICE_LABELS[j.serviceType] ?? j.serviceType;
+                return (
+                  <li key={j.id}>
+                    <Link
+                      href={`/jobs/${j.id}`}
                       className={cn(
-                        "mt-1 h-5 w-5 shrink-0",
-                        isLight ? "text-slate-400" : "text-white/30"
+                        "block overflow-hidden rounded-2xl shadow-sm ring-1 transition active:scale-[0.99]",
+                        isLight
+                          ? "bg-[#d4d5d9] ring-black/8"
+                          : "bg-[#1a1a1c] ring-white/10"
                       )}
-                    />
-                  </Link>
-                </li>
-              ))}
+                    >
+                      {/* Status strip */}
+                      <div
+                        className={cn(
+                          "flex items-center justify-between gap-2 px-3.5 py-2",
+                          isLight ? "bg-white/55" : "bg-white/[0.04]"
+                        )}
+                      >
+                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                          <span
+                            className={cn(
+                              "inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.06em]",
+                              toneClass[st.tone]
+                            )}
+                          >
+                            {st.label}
+                          </span>
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 truncate text-[11px] font-bold",
+                              isLight ? "text-slate-600" : "text-white/55"
+                            )}
+                          >
+                            <Wrench className="h-3 w-3 shrink-0 text-[#e07a3d]" />
+                            {skill}
+                          </span>
+                        </div>
+                        <ArrowUpRight
+                          className={cn(
+                            "h-4 w-4 shrink-0",
+                            isLight ? "text-slate-400" : "text-white/35"
+                          )}
+                        />
+                      </div>
+
+                      <div className="space-y-2.5 px-3.5 py-3">
+                        {/* Motorist + price */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p
+                              className={cn(
+                                "text-[10px] font-bold uppercase tracking-[0.12em]",
+                                isLight ? "text-slate-500" : "text-white/40"
+                              )}
+                            >
+                              Motorist
+                            </p>
+                            <p
+                              className={cn(
+                                "mt-0.5 truncate text-[16px] font-black tracking-tight",
+                                ink
+                              )}
+                            >
+                              {j.motoristName}
+                            </p>
+                          </div>
+                          {j.agreedMajor != null ? (
+                            <div className="shrink-0 text-right">
+                              <p className="text-[10px] font-bold uppercase tracking-wide text-[#e07a3d]/90">
+                                Labour
+                              </p>
+                              <p className="text-[16px] font-black tabular-nums text-[#e07a3d]">
+                                {formatMoney(j.agreedMajor, j.currency)}
+                              </p>
+                            </div>
+                          ) : j.proBaseMajor != null ? (
+                            <div className="shrink-0 text-right">
+                              <p className="text-[10px] font-bold uppercase tracking-wide text-[#e07a3d]/90">
+                                Offer
+                              </p>
+                              <p className="text-[16px] font-black tabular-nums text-[#e07a3d]">
+                                {formatMoney(j.proBaseMajor, j.currency)}
+                              </p>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        {/* Problem */}
+                        {j.problem?.trim() && (
+                          <div
+                            className={cn(
+                              "rounded-xl px-3 py-2",
+                              isLight ? "bg-white/70" : "bg-black/35"
+                            )}
+                          >
+                            <p
+                              className={cn(
+                                "text-[10px] font-bold uppercase tracking-[0.12em]",
+                                isLight ? "text-slate-500" : "text-white/40"
+                              )}
+                            >
+                              Problem
+                            </p>
+                            <p
+                              className={cn(
+                                "mt-0.5 line-clamp-2 text-[13px] font-semibold leading-snug",
+                                ink
+                              )}
+                            >
+                              {j.problem}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Location */}
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
+                              isLight
+                                ? "bg-white text-[#e07a3d]"
+                                : "bg-[#2c2c2e] text-[#e07a3d]"
+                            )}
+                          >
+                            <MapPin className="h-3.5 w-3.5" />
+                          </span>
+                          <p
+                            className={cn(
+                              "min-w-0 flex-1 truncate text-[12px] font-semibold",
+                              isLight ? "text-slate-700" : "text-white/75"
+                            )}
+                          >
+                            {j.locationLabel || "Location on map"}
+                          </p>
+                          <span
+                            className={cn(
+                              "shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold",
+                              isLight
+                                ? "bg-slate-900 text-white"
+                                : "bg-white/10 text-white"
+                            )}
+                          >
+                            Open
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>

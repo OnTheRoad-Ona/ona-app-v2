@@ -3,14 +3,39 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { ArrowUpRight, Loader2, MapPin, Wrench } from "lucide-react";
 import { JobShell } from "@/components/jobs/job-shell";
 import { apiListJobs } from "@/lib/jobs/client";
-import type { JobRecord } from "@/lib/jobs/types";
+import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
+
+function jobStatusLabel(status: JobFlowStatus): {
+  label: string;
+  tone: string;
+} {
+  switch (status) {
+    case "paid_booked":
+      return { label: "Paid · Booked", tone: "bg-emerald-600 text-white" };
+    case "negotiating":
+      return { label: "Negotiating", tone: "bg-amber-500 text-white" };
+    case "agreed":
+      return { label: "Price agreed", tone: "bg-[#e07a3d] text-white" };
+    case "en_route":
+      return { label: "On the road", tone: "bg-[#e07a3d] text-white" };
+    case "arrived":
+      return { label: "Arrived", tone: "bg-[#e07a3d] text-white" };
+    case "in_progress":
+      return { label: "Working", tone: "bg-[#e07a3d] text-white" };
+    default:
+      return {
+        label: status.replace(/_/g, " "),
+        tone: "bg-slate-700 text-white",
+      };
+  }
+}
 
 const ACTIVE = new Set([
   "negotiating",
@@ -119,48 +144,89 @@ export default function JobsInboxPage() {
           No jobs yet
         </p>
       )}
-      <ul className={cn("divide-y", hairline)}>
-        {jobs.map((j) => (
-          <li key={j.id}>
-            <Link
-              href={`/jobs/${j.id}`}
-              className="flex items-start gap-2 py-3.5 transition active:opacity-80"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-[#e07a3d]/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-[#e07a3d]">
-                    {j.status.replace(/_/g, " ")}
-                  </span>
-                  <span className={cn("text-[11px] font-semibold", muted)}>
-                    {PRO_SERVICE_LABELS[j.serviceType]}
-                  </span>
-                </div>
-                <p className={cn("mt-1 truncate text-[15px] font-black", ink)}>
-                  {viewer === "repair_pro" ? j.motoristName : j.repairProName}
-                </p>
-                <p
+      <ul className="space-y-2.5">
+        {jobs.map((j) => {
+          const st = jobStatusLabel(j.status);
+          const name =
+            viewer === "repair_pro" ? j.motoristName : j.repairProName;
+          return (
+            <li key={j.id}>
+              <Link
+                href={`/jobs/${j.id}`}
+                className={cn(
+                  "block overflow-hidden rounded-2xl ring-1 transition active:scale-[0.99]",
+                  isLight
+                    ? "bg-[#d4d5d9] ring-black/8"
+                    : "bg-[#1a1a1c] ring-white/10"
+                )}
+              >
+                <div
                   className={cn(
-                    "mt-0.5 line-clamp-2 text-[12px] font-medium",
-                    muted
+                    "flex items-center justify-between gap-2 px-3.5 py-2",
+                    isLight ? "bg-white/55" : "bg-white/[0.04]"
                   )}
                 >
-                  {j.problem}
-                </p>
-                {j.agreedMajor != null && (
-                  <p className="mt-1 text-[13px] font-black text-[#e07a3d]">
-                    {formatMoney(j.agreedMajor, j.currency)}
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    <span
+                      className={cn(
+                        "rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wide",
+                        st.tone
+                      )}
+                    >
+                      {st.label}
+                    </span>
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1 text-[11px] font-bold",
+                        muted
+                      )}
+                    >
+                      <Wrench className="h-3 w-3 text-[#e07a3d]" />
+                      {PRO_SERVICE_LABELS[j.serviceType]}
+                    </span>
+                  </div>
+                  <ArrowUpRight
+                    className={cn(
+                      "h-4 w-4 shrink-0",
+                      isLight ? "text-slate-400" : "text-white/35"
+                    )}
+                  />
+                </div>
+                <div className="space-y-2 px-3.5 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className={cn("truncate text-[16px] font-black", ink)}>
+                      {name}
+                    </p>
+                    {j.agreedMajor != null && (
+                      <p className="shrink-0 text-[15px] font-black tabular-nums text-[#e07a3d]">
+                        {formatMoney(j.agreedMajor, j.currency)}
+                      </p>
+                    )}
+                  </div>
+                  <p
+                    className={cn(
+                      "line-clamp-2 text-[13px] font-semibold leading-snug",
+                      isLight ? "text-slate-700" : "text-white/75"
+                    )}
+                  >
+                    {j.problem}
                   </p>
-                )}
-              </div>
-              <ChevronRight
-                className={cn(
-                  "mt-1 h-5 w-5 shrink-0",
-                  isLight ? "text-slate-400" : "text-white/30"
-                )}
-              />
-            </Link>
-          </li>
-        ))}
+                  {j.locationLabel && (
+                    <p
+                      className={cn(
+                        "flex items-center gap-1.5 text-[12px] font-medium",
+                        muted
+                      )}
+                    >
+                      <MapPin className="h-3.5 w-3.5 shrink-0 text-[#e07a3d]" />
+                      <span className="truncate">{j.locationLabel}</span>
+                    </p>
+                  )}
+                </div>
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </JobShell>
   );
