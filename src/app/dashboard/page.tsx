@@ -27,7 +27,7 @@ function shortStatus(status: JobFlowStatus): string {
     case "paid_booked":
       return "Paid · Booked";
     case "negotiating":
-      return "Negotiating";
+      return "New Request";
     case "agreed":
       return "Agreed";
     case "en_route":
@@ -36,18 +36,12 @@ function shortStatus(status: JobFlowStatus): string {
       return "Arrived";
     case "in_progress":
       return "Working";
-    case "completed":
-    case "satisfied":
-      return "Complete";
-    case "disputed":
-      return "Dispute";
-    case "under_appeal":
-      return "Appeal";
     default:
       return status.replace(/_/g, " ");
   }
 }
 
+/** Open pipeline only — completed/released/cancelled leave Incoming immediately */
 const ACTIVE_INCOMING = new Set([
   "negotiating",
   "agreed",
@@ -55,10 +49,6 @@ const ACTIVE_INCOMING = new Set([
   "en_route",
   "arrived",
   "in_progress",
-  "completed",
-  "satisfied",
-  "disputed",
-  "under_appeal",
 ]);
 
 export default function TechnicianDashboardPage() {
@@ -124,11 +114,11 @@ export default function TechnicianDashboardPage() {
 
   useEffect(() => {
     void loadJobs();
-    // Low data: 60s poll when visible (Realtime also covers own jobs)
+    // Keep Incoming fresh so completed jobs leave quickly
     const t = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void loadJobs();
-    }, 60_000);
+    }, 10_000);
     return () => window.clearInterval(t);
   }, [loadJobs]);
 

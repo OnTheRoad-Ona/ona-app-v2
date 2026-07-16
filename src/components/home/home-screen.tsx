@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { MapPin, Navigation } from "lucide-react";
 import { AppHeader } from "@/components/home/app-header";
 import { HomePanel } from "@/components/home/home-panel";
 import { SearchBar } from "@/components/home/search-bar";
@@ -22,6 +23,9 @@ export function HomeScreen() {
     theme,
     accountType,
     refreshNearbyPros,
+    location,
+    isLocating,
+    retryLocation,
   } = useApp();
   const { config } = useAppConfig();
   const isLight = theme === "light";
@@ -76,6 +80,41 @@ export function HomeScreen() {
       <div className={cn("z-20 shrink-0", sheetBg)}>
         <AppHeader />
         <SearchBar />
+        {/* Live GPS label — never stuck on Ikeja; tap to re-locate */}
+        {accountType !== "professional" && (
+          <div className="flex items-center gap-2 px-3 pb-1.5">
+            <MapPin
+              className="h-3.5 w-3.5 shrink-0 text-[#e07a3d]"
+              aria-hidden
+            />
+            <p
+              className={cn(
+                "min-w-0 flex-1 truncate text-[11px] font-semibold",
+                isLight ? "text-slate-700" : "text-white/70"
+              )}
+            >
+              {isLocating
+                ? "Locating you…"
+                : location.label || "Current location"}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                retryLocation();
+                window.setTimeout(() => refreshNearbyPros(), 1200);
+              }}
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1 rounded-md border-0 px-2 py-1 text-[10px] font-bold",
+                isLight
+                  ? "bg-[#a8a9ae] text-slate-900"
+                  : "bg-[#2c2c2e] text-white"
+              )}
+            >
+              <Navigation className="h-3 w-3" />
+              {isLocating ? "…" : "My location"}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="relative flex min-h-0 flex-1 flex-col">

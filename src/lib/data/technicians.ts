@@ -6,12 +6,19 @@ import type {
   UserLocation,
 } from "@/lib/types";
 
-/** Default map center — Ikeja, Lagos */
+/**
+ * Boot placeholder only — never treat as real location.
+ * Live GPS / last-known / manual pin override this immediately.
+ * (Do not hardcode Ikeja — it pinned users away from Island/Lekki.)
+ */
 export const DEFAULT_USER_LOCATION: UserLocation = {
-  label: "Ikeja, Lagos",
-  city: "Lagos, Nigeria",
-  coordinates: { lat: 6.6018, lng: 3.3515 },
+  label: "Locating…",
+  city: "",
+  coordinates: { lat: 6.4474, lng: 3.3903 }, // generic Lagos lagoon; replaced by GPS
 };
+
+/** localStorage key for last successful GPS fix */
+export const LAST_GPS_KEY = "oga-mecho-last-gps";
 
 /** Pros within ~10 km (includes nearby car wash for Wash tab) */
 export const TECHNICIANS: Technician[] = [

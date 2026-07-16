@@ -719,16 +719,23 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
           roleLabel: fromRole || "Incoming",
           userId: row.from,
         });
+        // Auto present full-screen ring on any screen while app is open
         unlockAudio();
         playPersonTone(row.from, "call_ring");
         notifyIncomingCall(fromName, row.callId);
+        try {
+          window.focus();
+        } catch {
+          /* */
+        }
         if (ringTimerRef.current) window.clearInterval(ringTimerRef.current);
         ringTimerRef.current = window.setInterval(() => {
           if (phaseRef.current === "ringing") {
+            unlockAudio();
             playPersonTone(row.from, "call_ring");
             vibrateCallPattern();
           }
-        }, 2200);
+        }, 2000);
       }
     },
     [
@@ -764,14 +771,15 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
     };
 
     void tick();
-    // Faster while call active; still poll when idle for incoming
-    const id = window.setInterval(() => void tick(), 700);
+    // Aggressive poll while app is open so ring UI appears immediately
+    const id = window.setInterval(() => void tick(), 500);
 
     const onVis = () => {
-      if (!document.hidden) void tick();
+      void tick();
     };
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("focus", onVis);
+    window.addEventListener("pageshow", onVis);
 
     const sb = getAppSupabase();
     let channel: ReturnType<NonNullable<typeof sb>["channel"]> | null = null;
@@ -798,9 +806,26 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("focus", onVis);
+      window.removeEventListener("pageshow", onVis);
       if (sb && channel) void sb.removeChannel(channel);
     };
   }, [backendUserId, processSignal]);
+
+  // Unlock audio on first user gesture so ring plays without being on call screen
+  useEffect(() => {
+    const once = () => {
+      unlockAudio();
+      void ensureNotifyPermission();
+      window.removeEventListener("pointerdown", once);
+      window.removeEventListener("touchstart", once);
+    };
+    window.addEventListener("pointerdown", once, { passive: true });
+    window.addEventListener("touchstart", once, { passive: true });
+    return () => {
+      window.removeEventListener("pointerdown", once);
+      window.removeEventListener("touchstart", once);
+    };
+  }, []);
 
   const acceptIncoming = useCallback(async () => {
     if (!incoming || !backendUserId) return;

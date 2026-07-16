@@ -87,6 +87,14 @@ export const TRIP_STATUS_COPY: Partial<
 export const PRO_TRIP_STATUS_COPY: Partial<
   Record<JobFlowStatus, { title: string; subtitle: string }>
 > = {
+  negotiating: {
+    title: "New Request",
+    subtitle: "Review the job and send or accept a labour price",
+  },
+  agreed: {
+    title: "Price agreed",
+    subtitle: "Waiting for motorist payment",
+  },
   paid_booked: {
     title: "Ready to go",
     subtitle: "Start trip when you leave for the motorist",

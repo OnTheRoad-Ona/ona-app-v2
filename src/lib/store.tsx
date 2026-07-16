@@ -10,7 +10,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { DEFAULT_USER_LOCATION } from "@/lib/data/technicians";
+import {
+  DEFAULT_USER_LOCATION,
+  LAST_GPS_KEY,
+} from "@/lib/data/technicians";
 import { registerIdentity } from "@/lib/account-registry";
 import {
   DEFAULT_RADIUS_KM,
@@ -449,8 +452,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
     null
   );
   const ownLocationBackup = useRef<UserLocation | null>(null);
+  /** User manually pinned a place — don't overwrite with GPS until Retry */
+  const manualPinRef = useRef(false);
 
-  const [location, setLocation] = useState(DEFAULT_USER_LOCATION);
+  const [location, setLocation] = useState(() => {
+    if (typeof window === "undefined") return DEFAULT_USER_LOCATION;
+    try {
+      const raw = localStorage.getItem(LAST_GPS_KEY);
+      if (!raw) return DEFAULT_USER_LOCATION;
+      const p = JSON.parse(raw) as {
+        lat?: number;
+        lng?: number;
+        label?: string;
+        city?: string;
+      };
+      if (
+        typeof p.lat === "number" &&
+        typeof p.lng === "number" &&
+        Number.isFinite(p.lat) &&
+        Number.isFinite(p.lng) &&
+        Math.abs(p.lat) > 0.1 &&
+        Math.abs(p.lng) > 0.1
+      ) {
+        return {
+          label: p.label || "Last known location",
+          city: p.city || "",
+          coordinates: { lat: p.lat, lng: p.lng },
+        };
+      }
+    } catch {
+      /* */
+    }
+    return DEFAULT_USER_LOCATION;
+  });
   const [radiusKm, setRadiusKmState] = useState(DEFAULT_RADIUS_KM);
   const [category, setCategory] = useState<ServiceCategory>("mechanic");
   const [query, setQuery] = useState("");
@@ -817,12 +851,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    // Profile area is a label only — never overwrite live GPS with a fixed city
     if (profile.area || profile.city) {
-      setLocation({
-        label: [profile.area, profile.city].filter(Boolean).join(", "),
-        city: profile.city || profile.area,
-        coordinates: DEFAULT_USER_LOCATION.coordinates,
-      });
+      setLocation((prev) => ({
+        ...prev,
+        label:
+          prev.label &&
+          prev.label !== "Locating…" &&
+          prev.label !== "Current location" &&
+          prev.label !== "Last known location"
+            ? prev.label
+            : [profile.area, profile.city].filter(Boolean).join(", "),
+        city: profile.city || profile.area || prev.city,
+        // keep real coordinates from GPS / last-known — never force Ikeja
+      }));
     }
 
     const vault = readProfilesVault();
@@ -2238,36 +2280,52 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const applyGpsFix = useCallback(
     (pos: GeolocationPosition, silent = false) => {
+      // Manual pin wins until user taps Retry / Use my location
+      if (manualPinRef.current) {
+        if (!silent) setIsLocating(false);
+        return;
+      }
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
-      setLocation((prev) => ({
-        ...prev,
+      // Always trust GPS coords — never keep a stale city label (e.g. Ikeja)
+      setLocation({
+        label: "Current location",
+        city: "Near you",
         coordinates: { lat, lng },
-        label:
-          prev.label && prev.label !== "Live location"
-            ? prev.label
-            : prev.label || "Current location",
-        city:
-          prev.city && prev.city !== "Near you"
-            ? prev.city
-            : prev.city || "Near you",
-      }));
+      });
       setLocationError(null);
       if (!silent) setIsLocating(false);
+      try {
+        localStorage.setItem(
+          LAST_GPS_KEY,
+          JSON.stringify({ lat, lng, label: "Current location", city: "Near you" })
+        );
+      } catch {
+        /* */
+      }
 
-      // DATA: reverse geocode at most once per 15 minutes (was every GPS fix)
+      // Reverse geocode so Island/Lekki/etc. show correctly (throttle 2 min)
       const now = Date.now();
-      if (now - lastGeocodeAt.current < 15 * 60 * 1000) return;
+      if (now - lastGeocodeAt.current < 2 * 60 * 1000) return;
       lastGeocodeAt.current = now;
       void import("@/lib/google-maps").then(({ reverseGeocodeLatLng }) =>
         reverseGeocodeLatLng(lat, lng).then((geo) => {
-          if (!geo) return;
-          setLocation((prev) => ({
-            ...prev,
-            label: geo.area || geo.label || prev.label,
-            city: geo.city || prev.city,
+          if (!geo || manualPinRef.current) return;
+          const label = geo.area || geo.label || "Current location";
+          const city = geo.city || "Near you";
+          setLocation({
+            label,
+            city,
             coordinates: { lat, lng },
-          }));
+          });
+          try {
+            localStorage.setItem(
+              LAST_GPS_KEY,
+              JSON.stringify({ lat, lng, label, city })
+            );
+          } catch {
+            /* */
+          }
         })
       );
     },
@@ -2275,6 +2333,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const retryLocation = useCallback(() => {
+    manualPinRef.current = false;
     setIsLocating(true);
     setLocationError(null);
     if (typeof navigator === "undefined" || !navigator.geolocation) {
@@ -2287,26 +2346,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     navigator.geolocation.getCurrentPosition(
       (pos) => applyGpsFix(pos, false),
       (err) => {
-        setLocation(DEFAULT_USER_LOCATION);
+        // Keep last-known coords — never snap back to Ikeja
         setLocationError(friendlyGeolocationError(err));
         setIsLocating(false);
       },
       {
         enableHighAccuracy: true,
-        timeout: 8000,
-        maximumAge: LOCATION_REFRESH_MS,
+        timeout: 12_000,
+        maximumAge: 0, // force fresh fix
       }
     );
   }, [applyGpsFix, friendlyGeolocationError]);
 
-  // Boot: one GPS fix (low accuracy first for speed), then refresh every 10 min
+  // Boot: GPS first (high accuracy soon after), never pin Ikeja
   useEffect(() => {
     if (typeof navigator === "undefined" || !navigator.geolocation) return;
     let cancelled = false;
     setIsLocating(true);
 
     const pull = (silent: boolean, highAccuracy: boolean) => {
-      if (cancelled) return;
+      if (cancelled || manualPinRef.current) return;
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           if (cancelled) return;
@@ -2322,19 +2381,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         },
         {
           enableHighAccuracy: highAccuracy,
-          timeout: highAccuracy ? 8000 : 5000,
-          maximumAge: highAccuracy ? 60_000 : 120_000,
+          timeout: highAccuracy ? 12_000 : 6000,
+          // Fresh enough for Island vs Ikeja; avoid multi-hour stale cache
+          maximumAge: highAccuracy ? 15_000 : 60_000,
         }
       );
     };
 
-    // Fast approximate fix first so home/map can paint; refine later
-    pull(false, false);
-    const refine = window.setTimeout(() => pull(true, true), 2500);
+    pull(false, true);
+    const refine = window.setTimeout(() => pull(true, true), 2000);
     const intervalId = window.setInterval(
       () => {
-        if (document.hidden) return;
-        pull(true, false);
+        if (document.hidden || manualPinRef.current) return;
+        pull(true, true);
       },
       LOCATION_REFRESH_MS
     );
@@ -2347,12 +2406,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setManualLocation = useCallback(
     (label: string, coords?: { lat: number; lng: number }) => {
+      if (!coords || !Number.isFinite(coords.lat) || !Number.isFinite(coords.lng)) {
+        setLocationError("Pick a place on the map or allow GPS.");
+        return;
+      }
+      manualPinRef.current = true;
       setLocation({
-        label,
-        city: label,
-        coordinates: coords ?? DEFAULT_USER_LOCATION.coordinates,
+        label: label || "Pinned location",
+        city: label || "Pinned",
+        coordinates: { lat: coords.lat, lng: coords.lng },
       });
       setLocationError(null);
+      try {
+        localStorage.setItem(
+          LAST_GPS_KEY,
+          JSON.stringify({
+            lat: coords.lat,
+            lng: coords.lng,
+            label: label || "Pinned location",
+            city: label || "Pinned",
+          })
+        );
+      } catch {
+        /* */
+      }
     },
     []
   );

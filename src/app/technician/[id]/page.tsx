@@ -93,12 +93,16 @@ export default function TechnicianPage({
     let cancelled = false;
     setLoading((v) => (fromStore ? false : true));
     setError(null);
-    const lat = location?.coordinates?.lat ?? 6.5244;
-    const lng = location?.coordinates?.lng ?? 3.3792;
-    const qs = new URLSearchParams({
-      lat: String(lat),
-      lng: String(lng),
-    });
+    const lat = location?.coordinates?.lat;
+    const lng = location?.coordinates?.lng;
+    // Prefer live GPS only — no hardcoded Ikeja/mainland fallback
+    const qs = new URLSearchParams();
+    if (typeof lat === "number" && Number.isFinite(lat)) {
+      qs.set("lat", String(lat));
+    }
+    if (typeof lng === "number" && Number.isFinite(lng)) {
+      qs.set("lng", String(lng));
+    }
 
     void (async () => {
       try {

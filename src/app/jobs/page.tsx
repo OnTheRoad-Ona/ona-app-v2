@@ -12,12 +12,15 @@ import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
-function shortStatus(status: JobFlowStatus): string {
+function shortStatus(
+  status: JobFlowStatus,
+  viewer: "repair_pro" | "motorist"
+): string {
   switch (status) {
     case "paid_booked":
       return "Paid · Booked";
     case "negotiating":
-      return "Negotiating";
+      return viewer === "repair_pro" ? "New Request" : "Negotiating";
     case "agreed":
       return "Agreed";
     case "en_route":
@@ -26,12 +29,29 @@ function shortStatus(status: JobFlowStatus): string {
       return "Arrived";
     case "in_progress":
       return "Working";
+    case "completed":
+    case "satisfied":
+      return "Complete";
+    case "disputed":
+      return "Dispute";
+    case "under_appeal":
+      return "Appeal";
     default:
       return status.replace(/_/g, " ");
   }
 }
 
-const ACTIVE = new Set([
+/** Pro Incoming = open pipeline only. Motorist My jobs can still show recent complete. */
+const PRO_INCOMING = new Set([
+  "negotiating",
+  "agreed",
+  "paid_booked",
+  "en_route",
+  "arrived",
+  "in_progress",
+]);
+
+const MOTORIST_ACTIVE = new Set([
   "negotiating",
   "agreed",
   "paid_booked",
@@ -74,9 +94,11 @@ export default function JobsInboxPage() {
         return;
       }
       const now = Date.now();
+      const allowed =
+        viewer === "repair_pro" ? PRO_INCOMING : MOTORIST_ACTIVE;
       const list = res.data.jobs
         .filter((j) => {
-          if (!ACTIVE.has(j.status)) return false;
+          if (!allowed.has(j.status)) return false;
           if (!j.problem?.trim()) return false;
           if (
             j.status === "negotiating" &&
@@ -109,7 +131,7 @@ export default function JobsInboxPage() {
     const t = window.setInterval(() => {
       if (document.hidden) return;
       void load();
-    }, 60_000);
+    }, 12_000);
     return () => {
       cancelled = true;
       window.clearInterval(t);
@@ -142,7 +164,7 @@ export default function JobsInboxPage() {
           const name =
             viewer === "repair_pro" ? j.motoristName : j.repairProName;
           const skill = PRO_SERVICE_LABELS[j.serviceType] ?? j.serviceType;
-          const status = shortStatus(j.status);
+          const status = shortStatus(j.status, viewer);
           const price =
             j.agreedMajor != null
               ? formatMoney(j.agreedMajor, j.currency)

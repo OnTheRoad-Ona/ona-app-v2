@@ -464,9 +464,9 @@ export function JobFlowScreen({
                 <button
                   type="button"
                   className={grayBtn}
-                  onClick={() => router.push("/")}
+                  onClick={() => router.push(isPro ? "/dashboard" : "/")}
                 >
-                  Choose another pro
+                  {isPro ? "Home" : "Choose another pro"}
                 </button>
               </>
             )}
@@ -476,7 +476,7 @@ export function JobFlowScreen({
         <JobCard isLight={isLight}>
           <p className={cn("text-[14px] font-medium leading-snug", muted)}>
             {isPro
-              ? `This negotiation ended between you and ${job.motoristName}. No agreement was reached.`
+              ? `This request ended between you and ${job.motoristName}. No agreement was reached.`
               : `No agreement was reached with ${job.repairProName}. You can request the same pro again or pick someone else nearby.`}
           </p>
         </JobCard>
@@ -484,7 +484,7 @@ export function JobFlowScreen({
     );
   }
 
-  /* ─── NEGOTIATING ─── */
+  /* ─── NEGOTIATING / NEW REQUEST ─── */
   if (job.status === "negotiating") {
     const last = job.offers[job.offers.length - 1];
     const mySide = viewer === "motorist" ? "motorist" : "repair_pro";
@@ -544,7 +544,7 @@ export function JobFlowScreen({
         >
           <div className="space-y-3 px-1 pt-2">
             <p className={cn("text-[15px] font-black leading-snug", ink)}>
-              Read this before you negotiate
+              Read this before you accept this request
             </p>
             <p className={cn("text-[14px] font-medium leading-relaxed", muted)}>
               By tapping <span className={ink}>I can fix this</span>, you are
@@ -590,7 +590,7 @@ export function JobFlowScreen({
     return (
       <JobShell
         isLight={isLight}
-        title="Negotiate labour"
+        title={viewer === "repair_pro" ? "New Request" : "Negotiate labour"}
         compactHeader
         onBack={goJobsList}
         footer={
@@ -1858,8 +1858,13 @@ export function JobFlowScreen({
           >
             Request again
           </CopperButton>
-          <GhostButton isLight={isLight} onClick={() => router.push("/")}>
-            Choose another pro
+          <GhostButton
+            isLight={isLight}
+            onClick={() =>
+              router.push(viewer === "repair_pro" ? "/dashboard" : "/")
+            }
+          >
+            {viewer === "repair_pro" ? "Home" : "Choose another pro"}
           </GhostButton>
         </div>
       }
