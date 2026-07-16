@@ -2,11 +2,9 @@
 
 /**
  * In-app voice:
- * 1) WebRTC with durable HTTP signaling (/api/call/signal) + STUN/TURN
- * 2) Auto phone dialer fallback if peer not connected in ~8s
- *
- * Previous failures: Realtime broadcast-only signaling dropped offers on mobile;
- * STUN-only ICE failed behind carrier NAT.
+ * 1) WebRTC + durable HTTP signaling + STUN/TURN
+ * 2) Low-bandwidth audio: mono ~16kHz, Opus ~8–24 kbps adaptive (silent)
+ * 3) Auto phone dialer fallback if peer not connected
  */
 
 import {
@@ -40,6 +38,13 @@ import { playPersonTone, unlockAudio } from "@/lib/sound-tone";
 import { useApp } from "@/lib/store";
 import { getAppSupabase } from "@/lib/supabase/app-client";
 import { cn } from "@/lib/utils";
+import {
+  applyAudioSenderBitrate,
+  DEFAULT_BITRATE_BPS,
+  descriptionWithMungedSdp,
+  getLowBandwidthAudioStream,
+  startAdaptiveBitrateLoop,
+} from "@/lib/webrtc-audio";
 
 export type CallTarget = {
   name: string;
@@ -167,6 +172,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
   const timerRef = useRef<number | null>(null);
   const failTimerRef = useRef<number | null>(null);
   const ringTimerRef = useRef<number | null>(null);
+  const bitrateStopRef = useRef<(() => void) | null>(null);
   const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
   const phaseRef = useRef<CallPhase>("idle");
   const myIdRef = useRef<string | null>(null);
@@ -200,6 +206,10 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       window.clearInterval(ringTimerRef.current);
       ringTimerRef.current = null;
     }
+    if (bitrateStopRef.current) {
+      bitrateStopRef.current();
+      bitrateStopRef.current = null;
+    }
   }, []);
 
   const stopMedia = useCallback(() => {
@@ -209,6 +219,10 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const closePeer = useCallback(() => {
+    if (bitrateStopRef.current) {
+      bitrateStopRef.current();
+      bitrateStopRef.current = null;
+    }
     try {
       pcRef.current?.close();
     } catch {
@@ -308,21 +322,10 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
 
   const ensureMic = useCallback(async () => {
     if (streamRef.current) return streamRef.current;
-    if (!navigator.mediaDevices?.getUserMedia) return null;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-        video: false,
-      });
-      streamRef.current = stream;
-      return stream;
-    } catch {
-      return null;
-    }
+    // Audio-only, mono, ~16 kHz — never video (low mobile data)
+    const stream = await getLowBandwidthAudioStream();
+    if (stream) streamRef.current = stream;
+    return stream;
   }, []);
 
   const flushIce = useCallback(async (pc: RTCPeerConnection) => {
@@ -353,6 +356,12 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       window.clearInterval(ringTimerRef.current);
       ringTimerRef.current = null;
     }
+    // Silent adaptive Opus bitrate every 3s (Fair default → stats-driven)
+    const pc = pcRef.current;
+    if (pc && !bitrateStopRef.current) {
+      void applyAudioSenderBitrate(pc, DEFAULT_BITRATE_BPS);
+      bitrateStopRef.current = startAdaptiveBitrateLoop(pc, 3000);
+    }
   }, []);
 
   const createPeer = useCallback(
@@ -362,12 +371,17 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
         iceCandidatePoolSize: 8,
       });
 
-      // Only add local tracks — do NOT also addTransceiver (that broke SDP)
+      // Audio only — never add video tracks/transceivers
       local.getAudioTracks().forEach((track) => {
         pc.addTrack(track, local);
       });
 
       pc.ontrack = (ev) => {
+        // Ignore non-audio
+        if (ev.track && ev.track.kind !== "audio") {
+          ev.track.stop();
+          return;
+        }
         const stream =
           ev.streams[0] ||
           (ev.track ? new MediaStream([ev.track]) : null);
@@ -378,6 +392,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
         const peer = peerIdRef.current;
         const callId = callIdRef.current;
         if (!ev.candidate || !peer || !callId) return;
+        // Skip video m-line candidates if any
         void pushSignal(peer, "ice", callId, {
           candidate: ev.candidate.toJSON(),
         });
@@ -407,6 +422,8 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       };
 
       pcRef.current = pc;
+      // Initial Fair bitrate before first offer/answer negotiation settles
+      void applyAudioSenderBitrate(pc, DEFAULT_BITRATE_BPS);
       return pc;
     },
     [attachRemote, fallToPhone, markConnected, pushSignal]
@@ -469,7 +486,9 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
         if (!pc || !sdp) return;
         try {
           if (pc.signalingState === "have-local-offer") {
-            await pc.setRemoteDescription(sdp);
+            await pc.setRemoteDescription(
+              descriptionWithMungedSdp(sdp, DEFAULT_BITRATE_BPS)
+            );
             await flushIce(pc);
             setPhase("connecting");
             setStatusHint("Connecting voice…");
@@ -486,8 +505,9 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       if (row.kind === "offer") {
         const p = phaseRef.current;
         if (p !== "idle" && p !== "ended") return;
-        const sdp = row.payload.sdp as RTCSessionDescriptionInit | undefined;
-        if (!sdp) return;
+        const rawSdp = row.payload.sdp as RTCSessionDescriptionInit | undefined;
+        if (!rawSdp) return;
+        const sdp = descriptionWithMungedSdp(rawSdp, DEFAULT_BITRATE_BPS);
         const fromName = String(row.payload.fromName || "Caller");
         const fromPhoto = row.payload.fromPhoto
           ? String(row.payload.fromPhoto)
@@ -601,13 +621,18 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
 
     const pc = createPeer(local);
     try {
-      await pc.setRemoteDescription(incoming.sdp);
+      const remote = descriptionWithMungedSdp(
+        incoming.sdp,
+        DEFAULT_BITRATE_BPS
+      );
+      await pc.setRemoteDescription(remote);
       await flushIce(pc);
       const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
+      const mungedAnswer = descriptionWithMungedSdp(answer, DEFAULT_BITRATE_BPS);
+      await pc.setLocalDescription(mungedAnswer);
       // Wait a moment for ICE gathering to start
       await new Promise((r) => setTimeout(r, 300));
-      const localDesc = pc.localDescription || answer;
+      const localDesc = pc.localDescription || mungedAnswer;
       const err = await pushSignal(incoming.from, "answer", incoming.callId, {
         sdp: { type: localDesc.type, sdp: localDesc.sdp },
       });
@@ -736,7 +761,11 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
           offerToReceiveAudio: true,
           offerToReceiveVideo: false,
         });
-        await pc.setLocalDescription(offer);
+        const mungedOffer = descriptionWithMungedSdp(
+          offer,
+          DEFAULT_BITRATE_BPS
+        );
+        await pc.setLocalDescription(mungedOffer);
         await new Promise((r) => setTimeout(r, 350));
 
         setPhase("ringing");
@@ -748,7 +777,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
           }
         }, 2200);
 
-        const sdp = pc.localDescription || offer;
+        const sdp = pc.localDescription || mungedOffer;
         const err = await pushSignal(t.userId, "offer", callId, {
           sdp: {
             type: sdp.type,
