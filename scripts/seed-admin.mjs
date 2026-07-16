@@ -72,6 +72,7 @@ async function main() {
       {
         id: user.id,
         role: "admin",
+        admin_role: "super_admin",
         full_name: fullName,
         email: email.toLowerCase(),
         is_active: true,

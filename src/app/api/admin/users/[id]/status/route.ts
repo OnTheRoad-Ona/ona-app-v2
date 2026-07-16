@@ -2,7 +2,9 @@ import { z } from "zod";
 import {
   AdminAuthError,
   logAdminAction,
-  requireAdmin,
+  requireSensitiveAction,
+  clientIp,
+  userAgent,
 } from "@/lib/server/admin-auth";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { createServiceSupabase } from "@/lib/supabase/server";
@@ -23,7 +25,8 @@ export async function PATCH(
     return apiFail("Supabase is not configured", 503, "supabase_not_configured");
   }
   try {
-    const { session } = await requireAdmin();
+    // Freeze / unfreeze requires temporary password unlock
+    const { session } = await requireSensitiveAction("user_freeze", req);
     const { id } = await ctx.params;
     const parsed = bodySchema.safeParse(await req.json());
     if (!parsed.success) return apiFail("Invalid body", 400);
@@ -42,13 +45,17 @@ export async function PATCH(
       session.userId,
       parsed.data.is_active ? "activate_user" : "deactivate_user",
       id,
-      {}
+      {
+        sensitive: true,
+        ip: clientIp(req),
+        user_agent: userAgent(req),
+      }
     );
 
     return apiOk({ user: data });
   } catch (e) {
     if (e instanceof AdminAuthError) {
-      return apiFail(e.message, e.status, "auth");
+      return apiFail(e.message, e.status, e.code || "auth");
     }
     return apiFail("Failed to update user status", 500);
   }

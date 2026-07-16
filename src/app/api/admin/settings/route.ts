@@ -3,6 +3,7 @@ import {
   AdminAuthError,
   logAdminAction,
   requireAdmin,
+  requireSensitiveAction,
 } from "@/lib/server/admin-auth";
 import {
   loadAppConfig,
@@ -24,7 +25,8 @@ export async function GET() {
     const config = await loadAppConfig();
     return apiOk({ config });
   } catch (e) {
-    if (e instanceof AdminAuthError) return apiFail(e.message, e.status, "auth");
+    if (e instanceof AdminAuthError)
+      return apiFail(e.message, e.status, e.code || "auth");
     return apiFail("Failed to load settings", 500);
   }
 }
@@ -39,7 +41,8 @@ export async function PATCH(req: Request) {
     return apiFail("Supabase is not configured", 503);
   }
   try {
-    const { session } = await requireAdmin();
+    // System settings require temporary password unlock (336699)
+    const { session } = await requireSensitiveAction("system_settings", req);
     const body = patchSchema.safeParse(await req.json());
     if (!body.success) {
       return apiFail("Invalid settings payload", 400, "validation");
@@ -53,11 +56,13 @@ export async function PATCH(req: Request) {
     await logAdminAction(session.userId, "settings.update", null, {
       key: body.data.key,
       value: body.data.value,
+      sensitive: true,
     });
     const config = await loadAppConfig();
     return apiOk({ config });
   } catch (e) {
-    if (e instanceof AdminAuthError) return apiFail(e.message, e.status, "auth");
+    if (e instanceof AdminAuthError)
+      return apiFail(e.message, e.status, e.code || "auth");
     return apiFail("Failed to save settings", 500);
   }
 }

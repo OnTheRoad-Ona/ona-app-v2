@@ -24,6 +24,8 @@ export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
 export interface ProfileRow {
   id: string;
   role: UserRole;
+  /** Panel RBAC: super_admin | customer_care | support */
+  admin_role?: string | null;
   full_name: string;
   phone: string | null;
   email: string | null;

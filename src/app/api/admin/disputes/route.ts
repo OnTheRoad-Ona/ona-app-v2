@@ -3,6 +3,7 @@ import {
   AdminAuthError,
   logAdminAction,
   requireAdmin,
+  requireSensitiveAction,
 } from "@/lib/server/admin-auth";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import {
@@ -51,7 +52,8 @@ const patchSchema = z.object({
 
 export async function PATCH(req: Request) {
   try {
-    const { session } = await requireAdmin();
+    // Dispute final decision requires temporary password unlock (336699)
+    const { session } = await requireSensitiveAction("dispute_resolve", req);
     const parsed = patchSchema.safeParse(await req.json());
     if (!parsed.success) return apiFail("Invalid body", 400);
     const b = parsed.data;
