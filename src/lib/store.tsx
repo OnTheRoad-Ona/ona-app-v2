@@ -378,6 +378,13 @@ interface AppState {
     status: ServiceRequest["status"]
   ) => ServiceActionResult;
   ensureChatForRequest: (req: ServiceRequest) => string;
+  /**
+   * Ensure cloud conversation exists and return the real conversation UUID
+   * (required so both parties see each other's messages).
+   */
+  ensureChatForRequestAsync: (req: ServiceRequest) => Promise<string>;
+  /** Re-fetch messages from server (other party + multi-device). */
+  refreshCloudChats: () => void;
   sendChatMessage: (
     threadId: string,
     text: string,
@@ -1602,45 +1609,60 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setFilters((prev) => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
-  const ensureChatForRequest = useCallback(
-    (req: ServiceRequest): string => {
-      const id = `chat-${req.id}`;
-      // Cloud conversation (motorist + pro ids)
+  const ensureChatForRequestAsync = useCallback(
+    async (req: ServiceRequest): Promise<string> => {
+      const localId = `chat-${req.id}`;
+
+      // Prefer existing real server conversation
+      let hitId: string | null = null;
+      setMessages((prev) => {
+        const existing = prev.find(
+          (m) => m.requestId === req.id && m.id && !m.id.startsWith("chat-")
+        );
+        if (existing) hitId = existing.id;
+        return prev;
+      });
+      if (hitId) return hitId;
+
       if (isAppBackendOnline() && backendUserId && accountType) {
         const motoristId =
           accountType === "motorist"
             ? backendUserId
-            : req.motoristId || backendUserId;
+            : req.motoristId || "";
         const repairProId =
           accountType === "professional"
             ? backendUserId
             : req.technicianId;
         if (motoristId && repairProId) {
-          void backendEnsureConversation({
+          const res = await backendEnsureConversation({
             requestId: req.id,
             motoristId,
             repairProId,
-          }).then((res) => {
-            if (res.conversationId) {
-              void backendFetchConversations(backendUserId, accountType).then(
-                (threads) => {
-                  if (threads.length) setMessages(threads);
-                }
-              );
-            }
           });
+          if (res.conversationId) {
+            const threads = await backendFetchConversations(
+              backendUserId,
+              accountType
+            );
+            if (threads.length) setMessages(threads);
+            return res.conversationId;
+          }
         }
       }
+
       setMessages((prev) => {
-        if (prev.some((m) => m.requestId === req.id || m.id === id)) {
+        if (prev.some((m) => m.requestId === req.id || m.id === localId)) {
           return prev;
         }
         const thread: MessageThread = {
-          id,
+          id: localId,
           requestId: req.id,
           technicianId: req.technicianId,
           technicianName: req.technicianName,
-          motoristName: displayName || "Motorist",
+          motoristName:
+            accountType === "motorist"
+              ? displayName || "Motorist"
+              : "Motorist",
           serviceType: req.serviceType,
           lastMessage: `Job: ${req.problem}`,
           time: "now",
@@ -1648,18 +1670,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
           photo: "",
           messages: [
             {
-              id: `${id}-sys`,
+              id: `${localId}-sys`,
               sender: "system",
-              text: `Chat opened for ${req.serviceType} · ${req.problem}`,
+              text: `Chat opened · ${req.problem}`,
               at: new Date().toISOString(),
             },
           ],
         };
         return [thread, ...prev];
       });
-      return id;
+      return localId;
     },
     [displayName, backendUserId, accountType]
+  );
+
+  const ensureChatForRequest = useCallback(
+    (req: ServiceRequest): string => {
+      void ensureChatForRequestAsync(req);
+      return `chat-${req.id}`;
+    },
+    [ensureChatForRequestAsync]
   );
 
   const sendChatMessage = useCallback(
@@ -1690,10 +1720,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         voiceDurationSec: voice?.durationSec ?? null,
         voiceMime: voice?.mime ?? null,
       };
-      // Optimistic UI
+
+      // Optimistic update on matching thread
       setMessages((prev) =>
         prev.map((t) =>
-          t.id === threadId
+          t.id === threadId ||
+          (t.requestId &&
+            (threadId === `chat-${t.requestId}` || threadId === t.requestId))
             ? {
                 ...t,
                 lastMessage: preview,
@@ -1703,39 +1736,58 @@ export function AppProvider({ children }: { children: ReactNode }) {
             : t
         )
       );
-      if (isAppBackendOnline() && backendUserId) {
-        // Persist text; voice data URL stays client-side if body column is text-only
-        const body = voice?.url
-          ? JSON.stringify({
-              text: trimmed || "Voice note",
-              voiceUrl: voice.url,
-              voiceDurationSec: voice.durationSec ?? null,
-              voiceMime: voice.mime ?? null,
-            })
-          : trimmed;
-        void backendSendMessage({
-          conversationId: threadId,
+
+      if (!isAppBackendOnline() || !backendUserId || !accountType) return;
+
+      const body = voice?.url
+        ? JSON.stringify({
+            text: trimmed || "Voice note",
+            voiceUrl: voice.url,
+            voiceDurationSec: voice.durationSec ?? null,
+            voiceMime: voice.mime ?? null,
+          })
+        : trimmed;
+
+      void (async () => {
+        // Resolve real conversation UUID (never insert with chat- local id)
+        let conversationId = threadId;
+        if (conversationId.startsWith("chat-")) {
+          const requestId = conversationId.replace(/^chat-/, "");
+          const threads = await backendFetchConversations(
+            backendUserId,
+            accountType
+          );
+          const hit = threads.find(
+            (th) => th.requestId === requestId || th.id === threadId
+          );
+          if (hit) {
+            conversationId = hit.id;
+            setMessages(threads);
+          } else {
+            console.warn("sendChatMessage: no cloud conversation for", requestId);
+            return;
+          }
+        }
+
+        const err = await backendSendMessage({
+          conversationId,
           senderId: backendUserId,
           body,
         });
-      }
+        if (err) console.warn("sendChatMessage failed", err);
+        // Pull latest so both devices stay in sync
+        const threads = await backendFetchConversations(
+          backendUserId,
+          accountType
+        );
+        if (threads.length) setMessages(threads);
+      })();
     },
     [accountType, backendUserId]
   );
 
-  const visibleMessageThreads = useMemo(() => {
-    if (accountType === "professional") {
-      const skills = new Set(
-        [
-          ...(proServices ?? []),
-          isProService(registeredAs) ? registeredAs : null,
-        ].filter(Boolean) as ProService[]
-      );
-      return messages.filter((m) => skills.has(m.serviceType));
-    }
-    // Motorist: all their job chats
-    return messages;
-  }, [messages, accountType, proServices, registeredAs]);
+  // All chats for this account (skill filter hid pro job chats)
+  const visibleMessageThreads = useMemo(() => messages, [messages]);
 
   const createRequest = useCallback(
     (
@@ -2365,6 +2417,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       createRequest,
       updateRequestStatus,
       ensureChatForRequest,
+      ensureChatForRequestAsync,
+      refreshCloudChats,
       sendChatMessage,
       retryLocation,
       setManualLocation,
@@ -2417,6 +2471,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       requests,
       visibleMessageThreads,
       ensureChatForRequest,
+      ensureChatForRequestAsync,
+      refreshCloudChats,
       sendChatMessage,
       bookings,
       messages,

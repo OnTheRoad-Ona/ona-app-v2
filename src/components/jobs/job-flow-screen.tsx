@@ -95,7 +95,7 @@ export function JobFlowScreen({
 }) {
   const router = useRouter();
   const { startCall } = useInAppCall();
-  const { technicians, ensureChatForRequest, visibleMessageThreads } =
+  const { technicians, ensureChatForRequestAsync, visibleMessageThreads } =
     useApp();
   const [job, setJob] = useState<JobRecord | null>(null);
   const jobRef = useRef<JobRecord | null>(null);
@@ -115,17 +115,15 @@ export function JobFlowScreen({
   /** Repair Pro must confirm they can fix the job before negotiating */
   const [proCanFixAccepted, setProCanFixAccepted] = useState(false);
 
-  /** Open (or create) the job chat thread and go there without collapsing layout */
+  /** Open (or create) cloud job chat so both parties share one conversation */
   const openJobChat = useCallback(
-    (j: JobRecord) => {
+    async (j: JobRecord) => {
       const existing = visibleMessageThreads.find(
         (t) =>
-          t.requestId === j.id ||
-          t.id === `chat-${j.id}` ||
-          (t.technicianId === j.repairProId &&
-            (viewer === "repair_pro" || t.motoristName === j.motoristName))
+          (t.requestId === j.id && !t.id.startsWith("chat-")) ||
+          t.id === `chat-${j.id}`
       );
-      if (existing) {
+      if (existing && !existing.id.startsWith("chat-")) {
         router.push(`/messages/${existing.id}`);
         return;
       }
@@ -142,10 +140,17 @@ export function JobFlowScreen({
         distanceKm: j.distanceKm ?? 0,
         locationLabel: j.locationLabel,
       };
-      const threadId = ensureChatForRequest(req);
-      router.push(`/messages/${threadId}`);
+      setFlash("Opening chat…");
+      try {
+        const threadId = await ensureChatForRequestAsync(req);
+        setFlash(null);
+        router.push(`/messages/${threadId}`);
+      } catch {
+        setFlash("Could not open chat. Try again.");
+        window.setTimeout(() => setFlash(null), 3000);
+      }
     },
-    [ensureChatForRequest, router, viewer, visibleMessageThreads]
+    [ensureChatForRequestAsync, router, visibleMessageThreads]
   );
 
   const startJobCall = useCallback(
@@ -157,9 +162,13 @@ export function JobFlowScreen({
             (t) =>
               t.name === j.repairProName && t.serviceType === j.serviceType
           );
-        const phone = (tech?.phone || "").trim();
+        const phone = (
+          j.repairProPhone ||
+          tech?.phone ||
+          ""
+        ).trim();
         if (!phone) {
-          setFlash("Repair Pro phone not available yet — try Chat.");
+          setFlash("Repair Pro phone not on file — use Message.");
           window.setTimeout(() => setFlash(null), 3500);
           return;
         }
@@ -171,9 +180,19 @@ export function JobFlowScreen({
         });
         return;
       }
-      // Pro → motorist: phone may not be on the job payload yet
-      setFlash("Motorist phone not available yet — use Chat for now.");
-      window.setTimeout(() => setFlash(null), 3500);
+      // Pro → motorist: phone hydrated from profiles on job load
+      const phone = (j.motoristPhone || "").trim();
+      if (!phone) {
+        setFlash("Motorist phone not on file — use Message.");
+        window.setTimeout(() => setFlash(null), 3500);
+        return;
+      }
+      startCall({
+        name: j.motoristName,
+        phone,
+        photo: j.motoristPhoto || undefined,
+        roleLabel: "Motorist",
+      });
     },
     [startCall, technicians, viewer]
   );
@@ -248,15 +267,12 @@ export function JobFlowScreen({
     router.push(viewer === "repair_pro" ? "/dashboard" : "/");
   }, [router, viewer]);
 
-  // Both roles: live GPS while trip active (keeps running when tab is backgrounded)
+  // Live GPS only after Start trip (map is shown). Ready-to-go has no map.
   useEffect(() => {
     if (!job) return;
-    const tracking = [
-      "paid_booked",
-      "en_route",
-      "arrived",
-      "in_progress",
-    ].includes(job.status);
+    const tracking = ["en_route", "arrived", "in_progress"].includes(
+      job.status
+    );
     if (!tracking || !navigator.geolocation) return;
 
     let cancelled = false;
@@ -970,13 +986,16 @@ export function JobFlowScreen({
       }
     };
 
+    // Ready to go (paid_booked): no map — full panel for details + Call/Message
+    const showMap = job.status !== "paid_booked";
+
     return (
       <JobShell
         isLight={isLight}
         title={copy.title}
         compactHeader
         onBack={goJobsList}
-        fullBleed
+        fullBleed={showMap}
         footer={
           <div className="space-y-2">
             {flash && (
@@ -984,13 +1003,13 @@ export function JobFlowScreen({
                 {flash}
               </p>
             )}
-            {locHint && (
+            {locHint && showMap && (
               <p
                 className={cn(
                   "rounded-md px-3 py-2 text-center text-[12px] font-bold",
                   isLight
                     ? "bg-slate-900 text-white"
-                    : "bg-white text-slate-900"
+                    : "bg-[#2c2c2e] text-white"
                 )}
               >
                 {locHint}
@@ -1003,7 +1022,6 @@ export function JobFlowScreen({
             )}
             {viewer === "repair_pro" && nextPro && (
               <>
-                {/* Light toggle: solid copper + white. Dark: stage gray. */}
                 {isLight ? (
                   <CopperButton
                     disabled={busy}
@@ -1060,26 +1078,31 @@ export function JobFlowScreen({
           </div>
         }
       >
-        {/* Dual live map: motorist tracks pro · pro tracks motorist */}
-        <div className="relative mx-0 h-[38vh] min-h-[220px] max-h-[320px] overflow-hidden">
-          <LiveJobTrackMap job={job} isLight={isLight} viewer={viewer} />
-        </div>
+        {/* Map only after trip starts (en_route+) — Ready to go uses full panel */}
+        {showMap && (
+          <div className="relative mx-0 h-[38vh] min-h-[220px] max-h-[320px] overflow-hidden">
+            <LiveJobTrackMap job={job} isLight={isLight} viewer={viewer} />
+          </div>
+        )}
 
-        {/* Modern track card: status · person · problem · place · price · Call/Chat */}
-        <div className="relative z-10 -mt-5 space-y-3 px-3 pb-2">
+        {/* Job panel — full height when Ready to go (no map) */}
+        <div
+          className={cn(
+            "space-y-3 px-3 pb-2",
+            showMap ? "relative z-10 -mt-5" : "pt-1"
+          )}
+        >
           <div
             className={cn(
-              "overflow-hidden rounded-2xl shadow-lg ring-1",
-              isLight
-                ? "bg-[#d4d5d9] ring-black/8"
-                : "bg-[#1a1a1c] ring-white/10"
+              "overflow-hidden rounded-md",
+              isLight ? "bg-[#bebfc4]" : "bg-[#141414]"
             )}
           >
             {/* Status strip */}
             <div
               className={cn(
                 "flex items-center justify-between gap-2 px-3.5 py-2.5",
-                isLight ? "bg-white/55" : "bg-white/[0.04]"
+                isLight ? "bg-[#c8c9cd]" : "bg-[#1a1a1c]"
               )}
             >
               <div className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -1135,9 +1158,7 @@ export function JobFlowScreen({
                   <div
                     className={cn(
                       "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl",
-                      isLight
-                        ? "bg-white shadow-sm ring-1 ring-black/6"
-                        : "bg-[#2c2c2e]"
+                      isLight ? "bg-[#c8c9cd]" : "bg-[#2c2c2e]"
                     )}
                     aria-label={PRO_SERVICE_LABELS[job.serviceType]}
                   >
@@ -1202,14 +1223,14 @@ export function JobFlowScreen({
               {job.problem?.trim() && (
                 <div
                   className={cn(
-                    "rounded-xl px-3 py-2.5",
-                    isLight ? "bg-white/70" : "bg-black/35"
+                    "rounded-md px-3 py-2.5",
+                    isLight ? "bg-[#c8c9cd]" : "bg-[#0a0a0a]"
                   )}
                 >
                   <p
                     className={cn(
                       "text-[10px] font-bold uppercase tracking-[0.12em]",
-                      isLight ? "text-slate-500" : "text-white/40"
+                      muted
                     )}
                   >
                     Problem
@@ -1230,7 +1251,7 @@ export function JobFlowScreen({
                 <span
                   className={cn(
                     "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
-                    isLight ? "bg-white text-[#e07a3d]" : "bg-[#2c2c2e] text-[#e07a3d]"
+                    isLight ? "bg-[#c8c9cd] text-[#e07a3d]" : "bg-[#2c2c2e] text-[#e07a3d]"
                   )}
                 >
                   <Navigation className="h-3.5 w-3.5" />
@@ -1252,18 +1273,18 @@ export function JobFlowScreen({
                   >
                     {job.locationLabel || "Location shared on map"}
                   </p>
-                  <p
-                    className={cn(
-                      "mt-0.5 text-[11px] font-medium",
-                      isLight ? "text-slate-500" : "text-white/45"
-                    )}
-                  >
-                    {viewer === "motorist"
-                      ? job.proLocation
-                        ? "Repair Pro live on map"
-                        : "Waiting for Repair Pro GPS"
-                      : "Navigate to motorist pin"}
+                  <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
+                    {job.status === "paid_booked"
+                      ? viewer === "repair_pro"
+                        ? "Start trip when you leave for the motorist"
+                        : "Repair Pro will start the trip soon"
+                      : viewer === "motorist"
+                        ? job.proLocation
+                          ? "Repair Pro live on map"
+                          : "Waiting for Repair Pro GPS"
+                        : "Navigate to motorist pin"}
                     {job.distanceKm != null &&
+                      showMap &&
                       ` · ${
                         job.distanceKm < 0.1
                           ? "<0.1 km"
@@ -1273,15 +1294,15 @@ export function JobFlowScreen({
                 </div>
               </div>
 
-              {/* Call + Chat — full actions, never tiny dead icons */}
+              {/* Call + Message */}
               <div className="grid grid-cols-2 gap-2 pt-0.5">
                 <button
                   type="button"
                   onClick={() => startJobCall(job)}
                   className={cn(
-                    "inline-flex h-12 items-center justify-center gap-2 rounded-xl border-0 text-[13px] font-bold transition active:scale-[0.98]",
+                    "inline-flex h-12 items-center justify-center gap-2 rounded-md border-0 text-[13px] font-bold",
                     isLight
-                      ? "bg-white text-slate-900 shadow-sm ring-1 ring-black/8"
+                      ? "bg-[#c8c9cd] text-slate-900"
                       : "bg-[#2c2c2e] text-white"
                   )}
                 >
@@ -1290,11 +1311,8 @@ export function JobFlowScreen({
                 </button>
                 <button
                   type="button"
-                  onClick={() => openJobChat(job)}
-                  className={cn(
-                    "inline-flex h-12 items-center justify-center gap-2 rounded-xl border-0 text-[13px] font-bold text-white transition active:scale-[0.98]",
-                    "bg-[#e07a3d] shadow-sm"
-                  )}
+                  onClick={() => void openJobChat(job)}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-md border-0 bg-[#e07a3d] text-[13px] font-bold text-white"
                 >
                   <MessageCircle className="h-4 w-4" />
                   Message

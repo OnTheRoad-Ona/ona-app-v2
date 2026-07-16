@@ -30,6 +30,7 @@ import type {
 import { isProService } from "@/lib/services";
 
 export { isAppBackendOnline };
+export type { MessageRow };
 
 function last4(digits: string | undefined): string | null {
   const d = (digits || "").replace(/\D/g, "");

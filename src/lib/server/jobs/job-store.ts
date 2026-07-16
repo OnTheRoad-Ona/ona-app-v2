@@ -445,6 +445,60 @@ async function hydrateMotoristPhoto(job: JobRecord): Promise<JobRecord> {
   return job;
 }
 
+/** Load motorist + repair pro phone numbers for Call buttons */
+async function hydrateJobPhones(job: JobRecord): Promise<JobRecord> {
+  if (!isSupabaseAdminConfigured()) return job;
+  if (job.motoristPhone?.trim() && job.repairProPhone?.trim()) return job;
+  try {
+    const sb = createServiceSupabase();
+    const ids = [job.motoristId, job.repairProId].filter(Boolean);
+    if (!ids.length) return job;
+    const { data } = await sb
+      .from("profiles")
+      .select("id, phone, avatar_url, full_name")
+      .in("id", ids);
+    if (!data?.length) return job;
+    let next = { ...job };
+    for (const row of data as {
+      id: string;
+      phone?: string | null;
+      avatar_url?: string | null;
+      full_name?: string | null;
+    }[]) {
+      const phone = (row.phone || "").trim() || null;
+      if (row.id === job.motoristId) {
+        next = {
+          ...next,
+          motoristPhone: next.motoristPhone || phone,
+          motoristPhoto:
+            next.motoristPhoto ||
+            (row.avatar_url ? String(row.avatar_url) : null),
+          motoristName:
+            next.motoristName && next.motoristName !== "Motorist"
+              ? next.motoristName
+              : String(row.full_name || next.motoristName || "Motorist"),
+        };
+      }
+      if (row.id === job.repairProId) {
+        next = {
+          ...next,
+          repairProPhone: next.repairProPhone || phone,
+          repairProPhoto:
+            next.repairProPhoto ||
+            (row.avatar_url ? String(row.avatar_url) : undefined),
+          repairProName:
+            next.repairProName && next.repairProName !== "Repair Pro"
+              ? next.repairProName
+              : String(row.full_name || next.repairProName || "Repair Pro"),
+        };
+      }
+    }
+    return next;
+  } catch {
+    return job;
+  }
+}
+
 export async function getJob(id: string): Promise<JobRecord | null> {
   // Prefer Supabase so offers update across serverless instances (not stale memory)
   if (isSupabaseAdminConfigured()) {
@@ -458,6 +512,7 @@ export async function getJob(id: string): Promise<JobRecord | null> {
       if (data) {
         let job = rowToJob(data as Record<string, unknown>);
         job = await hydrateMotoristPhoto(job);
+        job = await hydrateJobPhones(job);
         memory.set(id, job);
         return maybeExpire(job);
       }
@@ -467,7 +522,7 @@ export async function getJob(id: string): Promise<JobRecord | null> {
   }
   const mem = memory.get(id);
   if (!mem) return null;
-  return maybeExpire(mem);
+  return maybeExpire(await hydrateJobPhones(mem));
 }
 
 async function maybeExpire(job: JobRecord): Promise<JobRecord> {

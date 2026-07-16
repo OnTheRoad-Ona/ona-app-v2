@@ -119,9 +119,13 @@ export type JobRecord = {
   motoristName: string;
   /** Motorist profile avatar URL when set */
   motoristPhoto?: string | null;
+  /** From profiles.phone — for in-app Call */
+  motoristPhone?: string | null;
   repairProId: string;
   repairProName: string;
   repairProPhoto?: string;
+  /** From profiles.phone — for in-app Call */
+  repairProPhone?: string | null;
   serviceType: ProService;
   problem: string;
   voiceNote?: JobMedia | null;

@@ -8,6 +8,11 @@ import { VoiceNotePlayer } from "@/components/jobs/voice-note-player";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import {
+  backendSubscribeMessages,
+  type MessageRow,
+} from "@/lib/supabase/app-api";
+import type { ChatMessage } from "@/lib/types";
 
 function pickMime(): string {
   if (typeof MediaRecorder === "undefined") return "";
@@ -21,8 +26,8 @@ function pickMime(): string {
 }
 
 /**
- * Single job chat: Motorist ↔ one Repair Pro for one request.
- * Text + voice notes (sender can play back; receiver can listen).
+ * Single job chat: Motorist ↔ Repair Pro.
+ * Polls + Realtime so both parties see each other's messages.
  */
 export default function ChatThreadPage({
   params,
@@ -34,8 +39,10 @@ export default function ChatThreadPage({
   const {
     visibleMessageThreads,
     sendChatMessage,
+    refreshCloudChats,
     theme,
     accountType,
+    backendUserId,
   } = useApp();
   const isLight = theme === "light";
   const isPro = accountType === "professional";
@@ -52,6 +59,27 @@ export default function ChatThreadPage({
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const startedAt = useRef(0);
+
+  // Pull server messages so the other party's chat appears
+  useEffect(() => {
+    refreshCloudChats();
+    const t = window.setInterval(() => {
+      if (document.hidden) return;
+      refreshCloudChats();
+    }, 5000);
+    return () => window.clearInterval(t);
+  }, [refreshCloudChats, id]);
+
+  // Realtime inserts for this conversation (when id is a real UUID)
+  useEffect(() => {
+    if (!id || id.startsWith("chat-") || !backendUserId) return;
+    const unsub = backendSubscribeMessages(id, (_row: MessageRow) => {
+      refreshCloudChats();
+    });
+    return () => {
+      unsub?.();
+    };
+  }, [id, backendUserId, refreshCloudChats]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -83,15 +111,18 @@ export default function ChatThreadPage({
               isLight ? "text-slate-900" : "text-white"
             )}
           >
-            Chat not found
+            Loading chat…
           </p>
           <p className="text-center text-xs text-muted">
-            This thread may belong to another role or skill.
+            Syncing messages with the server.
           </p>
           <button
             type="button"
             className="mt-2 border-0 bg-transparent text-sm font-bold text-brand"
-            onClick={() => router.push("/messages")}
+            onClick={() => {
+              refreshCloudChats();
+              router.push("/messages");
+            }}
           >
             Back to messages
           </button>
@@ -105,7 +136,10 @@ export default function ChatThreadPage({
 
   const startRec = async () => {
     setRecError(null);
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+    if (
+      !navigator.mediaDevices?.getUserMedia ||
+      typeof MediaRecorder === "undefined"
+    ) {
       setRecError("Voice not supported on this device");
       return;
     }
@@ -181,7 +215,7 @@ export default function ChatThreadPage({
       <PageHeader title={title} subtitle={subtitle} backHref="/messages" />
 
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-3 py-2 scrollbar-hide">
-        {thread.messages.map((msg) => {
+        {thread.messages.map((msg: ChatMessage) => {
           if (msg.sender === "system") {
             return (
               <p
@@ -206,24 +240,18 @@ export default function ChatThreadPage({
                   mine
                     ? "rounded-br-md bg-brand text-white"
                     : isLight
-                      ? "rounded-bl-md bg-white text-slate-900"
+                      ? "rounded-bl-md bg-[#bebfc4] text-slate-900"
                       : "rounded-bl-md bg-neutral-900 text-white"
                 )}
               >
-                {msg.text && msg.text !== "Voice note" && (
-                  <p>{msg.text}</p>
-                )}
+                {msg.text && msg.text !== "Voice note" && <p>{msg.text}</p>}
                 {msg.voiceUrl && (
                   <VoiceNotePlayer
                     url={msg.voiceUrl}
                     durationSec={msg.voiceDurationSec}
                     isLight={mine ? false : isLight}
                     label={mine ? "Your voice" : "Voice note"}
-                    className={
-                      mine
-                        ? "bg-black/20"
-                        : undefined
-                    }
+                    className={mine ? "bg-black/20" : undefined}
                   />
                 )}
                 {msg.voiceUrl && (!msg.text || msg.text === "Voice note") && (
@@ -294,7 +322,7 @@ export default function ChatThreadPage({
           className={cn(
             "h-10 min-w-0 flex-1 rounded-full border-0 px-4 text-[13px] outline-none",
             isLight
-              ? "bg-white text-slate-900 placeholder:text-slate-400"
+              ? "bg-[#bebfc4] text-slate-900 placeholder:text-slate-500"
               : "bg-neutral-900 text-white placeholder:text-white/40"
           )}
         />
