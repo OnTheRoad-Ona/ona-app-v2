@@ -1121,19 +1121,13 @@ export function JobFlowScreen({
             fill="none"
             aria-hidden
           >
-            {/* Modern handset: arc + stem (single stroke weight) */}
+            {/* Clean classic phone — minimal stroke, professional */}
             <path
-              d="M9 5.5c0-.8.7-1.5 1.5-1.5h3c.8 0 1.5.7 1.5 1.5v1.2c0 .4-.2.8-.5 1L13 9.5v1.2c2.2.8 3.9 2.5 4.7 4.7H19c.4 0 .8.2 1 .5l1.3 1.5c.3.3.3.9 0 1.2l-1.1 1.1c-.7.7-1.7 1-2.7.8-4.4-.8-8.1-4.5-8.9-8.9-.2-1 .1-2 .8-2.7l1.1-1.1c.3-.3.9-.3 1.2 0L13 9.3"
+              d="M6.5 4.8c0-.7.5-1.3 1.2-1.3h1.6c.5 0 1 .3 1.2.8l.9 2.4c.2.5 0 1.1-.4 1.4L9.5 9.4c1 2 2.6 3.6 4.6 4.6l1.3-1.5c.3-.4.9-.6 1.4-.4l2.4.9c.5.2.8.7.8 1.2v1.6c0 .7-.6 1.2-1.3 1.2C11.5 17 7 12.5 7 5.9c0-.4 0-.7.5-1.1Z"
               stroke="currentColor"
-              strokeWidth="1.65"
+              strokeWidth="1.75"
               strokeLinecap="round"
               strokeLinejoin="round"
-            />
-            <path
-              d="M8.5 15.5c1.8 1.5 4.2 2.2 6.5 1.8"
-              stroke="currentColor"
-              strokeWidth="1.65"
-              strokeLinecap="round"
             />
           </svg>
         </button>
