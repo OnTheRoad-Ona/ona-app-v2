@@ -1110,24 +1110,36 @@ export function JobFlowScreen({
           type="button"
           onClick={() => startJobCall(job)}
           className={cn(
-            "inline-flex h-12 items-center justify-center gap-2 rounded-md border-0 text-[13px] font-bold",
+            "inline-flex h-12 items-center justify-center gap-2 rounded-sm border-0 text-[13px] font-bold shadow-none",
             isLight
               ? "bg-[#a8a9ae] text-slate-900"
               : "bg-[#2c2c2e] text-white"
           )}
         >
-          <Phone className="h-4 w-4 text-[#e07a3d]" />
+          {/* Flat line icon — no fill, no 3D, no border, no gradient */}
+          <Phone
+            className={cn(
+              "h-[18px] w-[18px] shrink-0",
+              isLight ? "text-slate-900" : "text-white"
+            )}
+            strokeWidth={1.75}
+            fill="none"
+          />
           Call
         </button>
         <button
           type="button"
           onClick={() => void openJobChat(job)}
           className={cn(
-            "inline-flex h-12 items-center justify-center gap-2 rounded-md border-0 text-[13px] font-bold text-white",
+            "inline-flex h-12 items-center justify-center gap-2 rounded-sm border-0 text-[13px] font-bold text-white shadow-none",
             chatClosedForever ? "bg-[#2c2c2e]" : "bg-[#e07a3d]"
           )}
         >
-          <MessageCircle className="h-4 w-4" />
+          <MessageCircle
+            className="h-[18px] w-[18px] shrink-0 text-white"
+            strokeWidth={1.75}
+            fill="none"
+          />
           {chatClosedForever ? "View chat" : "Message"}
         </button>
       </div>
@@ -1199,7 +1211,7 @@ export function JobFlowScreen({
                 })
               )
             }
-            className="inline-flex h-12 w-full items-center justify-center rounded-md border-0 bg-[#3a3a3c] text-[14px] font-bold text-white transition active:scale-[0.99]"
+            className="inline-flex h-12 w-full items-center justify-center rounded-sm border-0 bg-[#3a3a3c] text-[14px] font-bold text-white transition active:scale-[0.99]"
           >
             Cancel full refund
           </button>
@@ -1220,7 +1232,7 @@ export function JobFlowScreen({
                   })
                 )
               }
-              className="inline-flex h-12 w-full items-center justify-center rounded-md border-0 bg-[#3a3a3c] text-[14px] font-bold text-white transition active:scale-[0.99]"
+              className="inline-flex h-12 w-full items-center justify-center rounded-sm border-0 bg-[#3a3a3c] text-[14px] font-bold text-white transition active:scale-[0.99]"
             >
               Cancel full refund
             </button>

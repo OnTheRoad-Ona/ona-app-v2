@@ -29,7 +29,7 @@ import {
   userMapPinUrl,
 } from "@/lib/map-user-pin";
 import { tradeIconDataUrl } from "@/lib/map-trade-icons";
-import { cn, formatDistance, formatEta } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const OsmFallback = dynamic(
   () =>
@@ -55,89 +55,25 @@ const MAP_STYLES: google.maps.MapTypeStyle[] = [
   { featureType: "transit", stylers: [{ visibility: "off" }] },
 ];
 
-function PinLabel({
-  position,
-  label,
-  accent,
-}: {
-  position: { lat: number; lng: number };
-  label: string;
-  accent?: "copper" | "slate";
-}) {
+/** Escrow only — bottom-left so Google +/− zoom stays free on the right */
+function EscrowHeldChip() {
   return (
-    <OverlayViewF
-      position={position}
-      mapPaneName={OVERLAY_MOUSE_TARGET}
-      getPixelPositionOffset={(w) => ({
-        x: -(w ?? 64) / 2,
-        y: 14,
-      })}
-    >
+    <div className="pointer-events-none absolute bottom-3 left-3 z-[5]">
       <div
-        className={cn(
-          "whitespace-nowrap rounded-md px-1.5 py-0.5 text-[10px] font-black shadow-md border-0",
-          accent === "copper"
-            ? "bg-[#e07a3d] text-white"
-            : "bg-slate-700 text-white"
-        )}
-      >
-        {label}
-      </div>
-    </OverlayViewF>
-  );
-}
-
-/**
- * Single modern capsule: ETA | Distance | Escrow
- * Solid fill, soft shadow only — no rings / borders / glass.
- */
-function TripMapStatsBar({
-  eta,
-  distance,
-  liveTraffic,
-}: {
-  eta: string;
-  distance: string;
-  liveTraffic?: boolean;
-}) {
-  return (
-    <div className="pointer-events-none absolute bottom-3 left-3 right-3">
-      <div
-        className="flex items-center rounded-sm bg-[#141416] px-1 py-1.5 shadow-[0_10px_28px_rgba(0,0,0,0.45)]"
+        className="rounded-sm bg-[#e07a3d] px-3 py-2 shadow-[0_8px_20px_rgba(0,0,0,0.35)]"
         style={{ border: "none" }}
       >
-        <div className="min-w-0 flex-1 px-3 py-1.5 text-center">
-          <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/45">
-            ETA
-          </p>
-          <p className="truncate text-[14px] font-bold tabular-nums leading-snug text-white">
-            {eta}
-          </p>
-          {liveTraffic ? (
-            <p className="text-[8px] font-semibold text-[#e07a3d]">Live</p>
-          ) : null}
-        </div>
-        <div className="min-w-0 flex-1 px-3 py-1.5 text-center">
-          <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/45">
-            Distance
-          </p>
-          <p className="truncate text-[14px] font-bold tabular-nums leading-snug text-white">
-            {distance}
-          </p>
-        </div>
-        <div className="min-w-0 flex-1 rounded-sm bg-[#e07a3d] px-3 py-1.5 text-center shadow-none">
-          <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/90">
-            Escrow
-          </p>
-          <p className="text-[14px] font-bold leading-snug text-white">Held</p>
-        </div>
+        <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/90">
+          Escrow
+        </p>
+        <p className="text-[14px] font-bold leading-snug text-white">Held</p>
       </div>
     </div>
   );
 }
 
-/** Clear modern pro pin: orange trade icon only — no text label */
-function PulsingProPin({
+/** Pro pin: orange trade icon only — no text, no pulse/glow */
+function ProMapPin({
   position,
   label,
   serviceType,
@@ -146,9 +82,13 @@ function PulsingProPin({
   label: string;
   serviceType: string;
 }) {
-  const size = 32;
-  const box = 44;
-  const icon = tradeIconDataUrl(serviceType, { size, selected: true });
+  const size = 30;
+  const box = 32;
+  const icon = tradeIconDataUrl(serviceType, {
+    size,
+    selected: true,
+    flat: true,
+  });
   return (
     <OverlayViewF
       position={position}
@@ -159,20 +99,25 @@ function PulsingProPin({
       })}
     >
       <div
-        className="om-live-pin om-live-pin--map relative"
+        className="relative border-0 bg-transparent"
         style={{ width: box, height: box }}
         title={label}
         aria-label={label}
       >
-        <span className="om-live-beam" aria-hidden />
-        <span className="om-live-beam om-live-beam-delay" aria-hidden />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={icon}
           alt=""
           width={size}
           height={size}
-          className="om-live-glyph absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2"
+          className="block border-0"
+          style={{
+            width: size,
+            height: size,
+            filter: "none",
+            display: "block",
+          }}
+          draggable={false}
         />
       </div>
     </OverlayViewF>
@@ -265,12 +210,7 @@ function GoogleTrackMap({
     );
   }, [isLoaded, proPos?.lat, proPos?.lng, motoristPos.lat, motoristPos.lng]);
 
-  const displayEtaMin = job.etaMinutes ?? routeEta?.minutes ?? null;
-  const displayDist = job.distanceKm ?? routeEta?.distanceKm ?? null;
-  const displayEtaText = job.etaText || routeEta?.durationText || null;
-  const displayDistText = job.distanceText || routeEta?.distanceText || null;
-
-  const motoristLabel = viewer === "motorist" ? "You" : "Motorist";
+  const motoristTitle = viewer === "motorist" ? "You" : "Motorist";
   const proLabel = viewer === "repair_pro" ? "You" : "Repair Pro";
 
   if (!isLoaded) {
@@ -291,6 +231,12 @@ function GoogleTrackMap({
         options={{
           disableDefaultUI: true,
           zoomControl: true,
+          zoomControlOptions: {
+            position:
+              typeof google !== "undefined"
+                ? google.maps.ControlPosition.RIGHT_BOTTOM
+                : 9,
+          },
           styles: MAP_STYLES,
           clickableIcons: false,
           gestureHandling: "greedy",
@@ -310,7 +256,7 @@ function GoogleTrackMap({
           />
         )}
 
-        {/* Motorist pin — human silhouette */}
+        {/* Motorist pin — icon only (no “You” text) */}
         <Marker
           position={motoristPos}
           icon={{
@@ -324,18 +270,13 @@ function GoogleTrackMap({
               USER_MAP_PIN_ANCHOR
             ),
           }}
-          title={motoristLabel}
+          title={motoristTitle}
           zIndex={500}
         />
-        <PinLabel
-          position={motoristPos}
-          label={motoristLabel}
-          accent="slate"
-        />
 
-        {/* Repair Pro pin — icon only (no text label) */}
+        {/* Repair Pro pin — flat orange icon, no glow */}
         {proPos && (
-          <PulsingProPin
+          <ProMapPin
             position={proPos}
             label={proLabel}
             serviceType={job.serviceType}
@@ -343,25 +284,15 @@ function GoogleTrackMap({
         )}
       </GoogleMap>
 
-      <TripMapStatsBar
-        eta={
-          displayEtaText ||
-          (displayEtaMin != null ? formatEta(displayEtaMin) : "—")
-        }
-        distance={
-          displayDistText ||
-          (displayDist != null ? formatDistance(displayDist) : "—")
-        }
-        liveTraffic={job.etaSource === "google_distance_matrix"}
-      />
+      <EscrowHeldChip />
 
       {viewer === "motorist" && !proPos && (
         <div
           className={cn(
-            "absolute inset-x-3 top-3 rounded-2xl px-3 py-2 text-center text-[12px] font-bold backdrop-blur-md",
+            "absolute inset-x-3 top-3 rounded-sm px-3 py-2 text-center text-[12px] font-bold",
             isLight
-              ? "bg-white/90 text-slate-800"
-              : "bg-black/60 text-white"
+              ? "bg-[#e8e9ed] text-slate-800 shadow-md"
+              : "bg-[#1c1c1e] text-white shadow-md"
           )}
         >
           Waiting for Repair Pro live location…
@@ -370,10 +301,10 @@ function GoogleTrackMap({
       {viewer === "repair_pro" && !proPos && (
         <div
           className={cn(
-            "absolute inset-x-3 top-3 rounded-2xl px-3 py-2 text-center text-[12px] font-bold backdrop-blur-md",
+            "absolute inset-x-3 top-3 rounded-sm px-3 py-2 text-center text-[12px] font-bold",
             isLight
-              ? "bg-white/90 text-slate-800"
-              : "bg-black/60 text-white"
+              ? "bg-[#e8e9ed] text-slate-800 shadow-md"
+              : "bg-[#1c1c1e] text-white shadow-md"
           )}
         >
           Enable GPS to show your live pin · motorist marked below
@@ -425,21 +356,7 @@ export function LiveJobTrackMap({
               : []
           }
         />
-        <TripMapStatsBar
-          eta={
-            job.etaText ||
-            (job.etaMinutes != null ? formatEta(job.etaMinutes) : "—")
-          }
-          distance={
-            job.distanceText ||
-            (job.distanceKm != null ? formatDistance(job.distanceKm) : "—")
-          }
-        />
-        <div className="pointer-events-none absolute left-3 top-3 flex flex-col gap-1">
-          <span className="rounded-md bg-slate-700 px-1.5 py-0.5 text-[10px] font-black text-white">
-            {viewer === "motorist" ? "You" : "Motorist"}
-          </span>
-        </div>
+        <EscrowHeldChip />
       </div>
     );
   }

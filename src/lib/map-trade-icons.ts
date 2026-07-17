@@ -51,18 +51,22 @@ function tradeGlyph(type: ProService, fill: string, rim: string): string {
  */
 export function tradeIconDataUrl(
   type: ProService | string,
-  opts?: { size?: number; selected?: boolean }
+  opts?: { size?: number; selected?: boolean; flat?: boolean }
 ): string {
   const size = opts?.size ?? 22;
   const selected = opts?.selected ?? false;
+  const flat = opts?.flat === true;
   const fill = selected ? ORANGE_SEL : ORANGE;
   const rim = selected ? ORANGE_SEL_DEEP : ORANGE_DEEP;
   const svc = (type || "mechanic") as ProService;
   const body = tradeGlyph(svc, fill, rim);
   const gid = selected ? "omGSel" : "omG";
 
+  // flat: no drop-shadow / glow (trip map spanner)
   const svg = encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none">
+    flat
+      ? `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none">${body}</svg>`
+      : `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none">
       <defs>
         <filter id="${gid}" x="-40%" y="-40%" width="180%" height="180%">
           <feDropShadow dx="0" dy="1" stdDeviation="1.05" flood-color="${rim}" flood-opacity="0.5"/>
