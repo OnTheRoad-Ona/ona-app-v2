@@ -1119,22 +1119,20 @@ export function JobFlowScreen({
             fill="none"
             aria-hidden
           >
-            {/* Diagonal receiver — deep matte black outline */}
-            <g transform="rotate(-28 12 12)">
-              <path
-                d="M8.2 6.2c0-.9.7-1.6 1.6-1.6h4.4c.9 0 1.6.7 1.6 1.6v1.4c0 .5-.2 1-.6 1.3l-1.1.9v2.4l1.1.9c.4.3.6.8.6 1.3v1.4c0 .9-.7 1.6-1.6 1.6h-4.4c-.9 0-1.6-.7-1.6-1.6v-1.4c0-.5.2-1 .6-1.3l1.1-.9V9.8l-1.1-.9c-.4-.3-.6-.8-.6-1.3V6.2Z"
-                stroke="#111111"
-                strokeWidth="1.55"
-                strokeLinejoin="round"
-              />
-              {/* Gold accent — thin body line */}
-              <path
-                d="M10.2 12h3.6"
-                stroke="#C5A46E"
-                strokeWidth="1.45"
-                strokeLinecap="round"
-              />
-            </g>
+            {/* Classic phone handset — instantly readable call mark */}
+            <path
+              d="M8.05 3.5c.4-.4 1-.5 1.5-.3l2.2 1c.5.2.8.7.7 1.2l-.4 2.1c-.1.4-.3.7-.7.9l-1.3.6c1.2 2.4 3.1 4.3 5.5 5.5l.6-1.3c.2-.4.5-.6.9-.7l2.1-.4c.5-.1 1 .2 1.2.7l1 2.2c.2.5.1 1.1-.3 1.5l-1.2 1.2c-.5.5-1.2.7-1.9.6-4.8-.7-8.8-4.7-9.5-9.5-.1-.7.1-1.4.6-1.9L8.05 3.5Z"
+              stroke="#111111"
+              strokeWidth="1.6"
+              strokeLinejoin="round"
+            />
+            {/* Gold accent — short detail on earpiece */}
+            <path
+              d="M9.4 5.6l1.4.6"
+              stroke="#C5A46E"
+              strokeWidth="1.45"
+              strokeLinecap="round"
+            />
           </svg>
         </button>
         <button
