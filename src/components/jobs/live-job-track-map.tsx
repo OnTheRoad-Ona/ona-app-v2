@@ -56,49 +56,64 @@ const MAP_STYLES: google.maps.MapTypeStyle[] = [
 ];
 
 /**
- * Trip stats bar — solid dark capsule, near-square corners.
- * Time + distance values only (no ETA/Distance labels).
- * Raised above Google logo / attribution (Terms compliance).
- * Left side only so +/− zoom stays clear on the right.
+ * Trip stats bar — solid fills only (no glass/gradient).
+ * Time + distance: values only; text white or black from theme.
+ * Escrow Held: same solid #FF6B35 + rounded-lg as Message button.
+ * Raised above Google attribution; left-aligned clear of zoom.
  */
 function TripMapStatsBar({
   time,
   distance,
+  isLight,
 }: {
   time: string;
   distance: string;
+  isLight: boolean;
 }) {
+  // Amount (time/distance) — blend with track: black on light gray, white on dark
+  const amountClass = isLight
+    ? "text-[#111111]"
+    : "text-white";
+
   return (
     <div
       className="pointer-events-none absolute left-3 z-[5] max-w-[calc(100%-5rem)]"
-      // Clear Google Maps attribution strip (~28–40px); keep free of logo
       style={{ bottom: "2.75rem" }}
     >
       <div
-        className="flex max-w-full items-center rounded-sm bg-[#141416] px-1 py-1 shadow-[0_8px_20px_rgba(0,0,0,0.4)]"
-        style={{ border: "none" }}
+        className={cn(
+          "flex max-w-full items-center rounded-lg border-0 px-1 py-1",
+          isLight ? "bg-[#E8E8E8]" : "bg-[#2c2c2e]"
+        )}
+        style={{ border: "none", boxShadow: "none" }}
       >
-        {/* Time — value only, no “ETA” text */}
+        {/* Time value only */}
         <div className="min-w-0 max-w-[5.5rem] px-2.5 py-1.5 text-center">
           <p
-            className="truncate text-[13px] font-bold tabular-nums leading-none text-white"
+            className={cn(
+              "truncate text-[13px] font-bold tabular-nums leading-none",
+              amountClass
+            )}
             title={time}
           >
             {time}
           </p>
         </div>
-        {/* Distance — value only, no “Distance” text */}
+        {/* Distance value only */}
         <div className="min-w-0 max-w-[5.5rem] px-2.5 py-1.5 text-center">
           <p
-            className="truncate text-[13px] font-bold tabular-nums leading-none text-white"
+            className={cn(
+              "truncate text-[13px] font-bold tabular-nums leading-none",
+              amountClass
+            )}
             title={distance}
           >
             {distance}
           </p>
         </div>
-        {/* Escrow Held — same copper style */}
-        <div className="shrink-0 rounded-sm bg-[#e07a3d] px-2.5 py-1.5 text-center">
-          <p className="text-[8px] font-semibold uppercase tracking-[0.12em] text-white/90">
+        {/* Escrow Held — Message button language: solid #FF6B35, soft rounded-lg */}
+        <div className="shrink-0 rounded-lg border-0 bg-[#FF6B35] px-2.5 py-1.5 text-center shadow-none">
+          <p className="text-[8px] font-semibold uppercase tracking-[0.12em] text-white">
             Escrow
           </p>
           <p className="text-[12px] font-bold leading-none text-white">Held</p>
@@ -331,7 +346,11 @@ function GoogleTrackMap({
         )}
       </GoogleMap>
 
-      <TripMapStatsBar time={timeValue} distance={distValue} />
+      <TripMapStatsBar
+        time={timeValue}
+        distance={distValue}
+        isLight={isLight}
+      />
 
       {viewer === "motorist" && !proPos && (
         <div
@@ -412,6 +431,7 @@ export function LiveJobTrackMap({
             job.distanceText ||
             (job.distanceKm != null ? formatDistance(job.distanceKm) : "—")
           }
+          isLight={isLight}
         />
       </div>
     );
