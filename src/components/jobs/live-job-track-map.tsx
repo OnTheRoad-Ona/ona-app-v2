@@ -294,31 +294,36 @@ function GoogleTrackMap({
         )}
       </GoogleMap>
 
-      <div className="pointer-events-none absolute bottom-3 left-3 right-3 flex flex-wrap gap-2">
-        <div className="rounded-2xl bg-black/55 px-3 py-2 text-white backdrop-blur-md">
-          <p className="text-[10px] font-bold uppercase opacity-70">ETA</p>
-          <p className="text-[15px] font-black tabular-nums">
+      {/* Solid minimal map stats — no vague glass */}
+      <div className="pointer-events-none absolute bottom-3 left-3 right-3 flex items-stretch gap-2">
+        <div className="om-map-stat flex min-w-0 flex-1 flex-col justify-center rounded-xl bg-[#1c1c1e] px-2.5 py-2 shadow-md ring-1 ring-white/10">
+          <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#a1a1a6]">
+            ETA
+          </p>
+          <p className="truncate text-[14px] font-black tabular-nums leading-tight text-white">
             {displayEtaText ||
               (displayEtaMin != null ? formatEta(displayEtaMin) : "—")}
           </p>
           {job.etaSource === "google_distance_matrix" && (
-            <p className="text-[9px] font-semibold text-[#e07a3d]">
+            <p className="mt-0.5 text-[8px] font-semibold text-[#e07a3d]">
               Live traffic
             </p>
           )}
         </div>
-        <div className="rounded-2xl bg-black/55 px-3 py-2 text-white backdrop-blur-md">
-          <p className="text-[10px] font-bold uppercase opacity-70">
+        <div className="om-map-stat flex min-w-0 flex-1 flex-col justify-center rounded-xl bg-[#1c1c1e] px-2.5 py-2 shadow-md ring-1 ring-white/10">
+          <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#a1a1a6]">
             Distance
           </p>
-          <p className="text-[15px] font-black tabular-nums">
+          <p className="truncate text-[14px] font-black tabular-nums leading-tight text-white">
             {displayDistText ||
               (displayDist != null ? formatDistance(displayDist) : "—")}
           </p>
         </div>
-        <div className="ml-auto rounded-2xl bg-[#e07a3d] px-3 py-2 text-white shadow-lg shadow-[#e07a3d]/30">
-          <p className="text-[10px] font-bold uppercase opacity-90">Escrow</p>
-          <p className="text-[13px] font-black">Held</p>
+        <div className="om-map-stat flex shrink-0 flex-col justify-center rounded-xl bg-[#e07a3d] px-2.5 py-2 shadow-md">
+          <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-white/85">
+            Escrow
+          </p>
+          <p className="text-[14px] font-black leading-tight text-white">Held</p>
         </div>
       </div>
 

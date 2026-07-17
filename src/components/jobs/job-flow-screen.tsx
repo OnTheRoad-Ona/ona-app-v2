@@ -1099,7 +1099,13 @@ export function JobFlowScreen({
     );
 
     const callMessageRow = (
-      <div className="grid grid-cols-2 gap-2 pt-1">
+      <div
+        className={cn(
+          "grid grid-cols-2 gap-2",
+          // Arrived sheet: push Call / Message further down
+          isSwipeTrip ? "mt-8 pt-2" : "pt-1"
+        )}
+      >
         <button
           type="button"
           onClick={() => startJobCall(job)}
