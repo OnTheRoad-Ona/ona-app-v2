@@ -29,7 +29,7 @@ import {
   userMapPinUrl,
 } from "@/lib/map-user-pin";
 import { tradeIconDataUrl } from "@/lib/map-trade-icons";
-import { cn } from "@/lib/utils";
+import { cn, formatDistance, formatEta } from "@/lib/utils";
 
 const OsmFallback = dynamic(
   () =>
@@ -55,18 +55,50 @@ const MAP_STYLES: google.maps.MapTypeStyle[] = [
   { featureType: "transit", stylers: [{ visibility: "off" }] },
 ];
 
-/** Escrow only — bottom-left so Google +/− zoom stays free on the right */
-function EscrowHeldChip() {
+/**
+ * Trip stats bar — same solid dark capsule style.
+ * Time + distance values only (no ETA/Distance labels).
+ * Escrow Held keeps its copper segment.
+ * Sits bottom-left with max-width so Google +/− (right) is free.
+ */
+function TripMapStatsBar({
+  time,
+  distance,
+}: {
+  time: string;
+  distance: string;
+}) {
   return (
-    <div className="pointer-events-none absolute bottom-3 left-3 z-[5]">
+    <div className="pointer-events-none absolute bottom-3 left-3 z-[5] max-w-[calc(100%-4.5rem)]">
       <div
-        className="rounded-sm bg-[#e07a3d] px-3 py-2 shadow-[0_8px_20px_rgba(0,0,0,0.35)]"
+        className="flex max-w-full items-center rounded-sm bg-[#141416] px-1 py-1 shadow-[0_8px_20px_rgba(0,0,0,0.4)]"
         style={{ border: "none" }}
       >
-        <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/90">
-          Escrow
-        </p>
-        <p className="text-[14px] font-bold leading-snug text-white">Held</p>
+        {/* Time — value only, no “ETA” text */}
+        <div className="min-w-0 max-w-[5.5rem] px-2.5 py-1.5 text-center">
+          <p
+            className="truncate text-[13px] font-bold tabular-nums leading-none text-white"
+            title={time}
+          >
+            {time}
+          </p>
+        </div>
+        {/* Distance — value only, no “Distance” text */}
+        <div className="min-w-0 max-w-[5.5rem] px-2.5 py-1.5 text-center">
+          <p
+            className="truncate text-[13px] font-bold tabular-nums leading-none text-white"
+            title={distance}
+          >
+            {distance}
+          </p>
+        </div>
+        {/* Escrow Held — same copper style */}
+        <div className="shrink-0 rounded-sm bg-[#e07a3d] px-2.5 py-1.5 text-center">
+          <p className="text-[8px] font-semibold uppercase tracking-[0.12em] text-white/90">
+            Escrow
+          </p>
+          <p className="text-[12px] font-bold leading-none text-white">Held</p>
+        </div>
       </div>
     </div>
   );
@@ -213,6 +245,17 @@ function GoogleTrackMap({
   const motoristTitle = viewer === "motorist" ? "You" : "Motorist";
   const proLabel = viewer === "repair_pro" ? "You" : "Repair Pro";
 
+  const displayEtaMin = job.etaMinutes ?? routeEta?.minutes ?? null;
+  const displayDist = job.distanceKm ?? routeEta?.distanceKm ?? null;
+  const timeValue =
+    job.etaText ||
+    routeEta?.durationText ||
+    (displayEtaMin != null ? formatEta(displayEtaMin) : "—");
+  const distValue =
+    job.distanceText ||
+    routeEta?.distanceText ||
+    (displayDist != null ? formatDistance(displayDist) : "—");
+
   if (!isLoaded) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-[#0a1610] text-sm text-[#a8c9b5]">
@@ -284,7 +327,7 @@ function GoogleTrackMap({
         )}
       </GoogleMap>
 
-      <EscrowHeldChip />
+      <TripMapStatsBar time={timeValue} distance={distValue} />
 
       {viewer === "motorist" && !proPos && (
         <div
@@ -356,7 +399,16 @@ export function LiveJobTrackMap({
               : []
           }
         />
-        <EscrowHeldChip />
+        <TripMapStatsBar
+          time={
+            job.etaText ||
+            (job.etaMinutes != null ? formatEta(job.etaMinutes) : "—")
+          }
+          distance={
+            job.distanceText ||
+            (job.distanceKm != null ? formatDistance(job.distanceKm) : "—")
+          }
+        />
       </div>
     );
   }
