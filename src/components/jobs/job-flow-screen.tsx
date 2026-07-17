@@ -11,6 +11,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import {
+  ArrowLeft,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -1099,26 +1100,37 @@ export function JobFlowScreen({
     );
 
     const callMessageRow = (
-      <div className="grid grid-cols-2 gap-2 pt-1">
+      <div className={cn("grid grid-cols-2 gap-2 pt-1", isSwipeTrip && isLight && "gap-2.5 pt-0")}>
         <button
           type="button"
           onClick={() => startJobCall(job)}
           className={cn(
-            "inline-flex h-12 items-center justify-center gap-2 rounded-md border-0 text-[13px] font-bold",
-            isLight
-              ? "bg-[#a8a9ae] text-slate-900"
-              : "bg-[#2c2c2e] text-white"
+            "inline-flex h-12 items-center justify-center gap-2 border-0 text-[13px] font-bold",
+            isSwipeTrip && isLight
+              ? "om-arrived-btn-call h-[3.25rem] rounded-2xl text-white"
+              : isLight
+                ? "rounded-md bg-[#a8a9ae] text-slate-900"
+                : "rounded-md bg-[#2c2c2e] text-white"
           )}
         >
-          <Phone className="h-4 w-4 text-[#e07a3d]" />
+          <Phone
+            className={cn(
+              "h-4 w-4",
+              isSwipeTrip && isLight ? "text-[#ffb07a]" : "text-[#e07a3d]"
+            )}
+          />
           Call
         </button>
         <button
           type="button"
           onClick={() => void openJobChat(job)}
           className={cn(
-            "inline-flex h-12 items-center justify-center gap-2 rounded-md border-0 text-[13px] font-bold text-white",
-            chatClosedForever ? "bg-[#2c2c2e]" : "bg-[#e07a3d]"
+            "inline-flex h-12 items-center justify-center gap-2 border-0 text-[13px] font-bold text-white",
+            isSwipeTrip && isLight
+              ? "om-arrived-btn-msg h-[3.25rem] rounded-2xl"
+              : "rounded-md",
+            !(isSwipeTrip && isLight) &&
+              (chatClosedForever ? "bg-[#2c2c2e]" : "bg-[#e07a3d]")
           )}
         >
           <MessageCircle className="h-4 w-4" />
@@ -1155,6 +1167,11 @@ export function JobFlowScreen({
               <CopperButton
                 disabled={busy}
                 onClick={() => void proAdvance(nextPro.event)}
+                className={
+                  isSwipeTrip
+                    ? "h-[3.25rem] rounded-2xl bg-gradient-to-br from-[#ff8a3d] via-[#e07a3d] to-[#c2410c] text-[15px] shadow-[0_8px_20px_rgba(224,122,61,0.35)]"
+                    : undefined
+                }
               >
                 {busy ? "Updating job…" : nextPro.label}
               </CopperButton>
@@ -1201,8 +1218,8 @@ export function JobFlowScreen({
           (job.status === "en_route" ||
             job.status === "arrived" ||
             job.status === "in_progress") && (
-            <GhostButton
-              isLight={isLight}
+            <button
+              type="button"
               onClick={() =>
                 void run(() =>
                   apiTransition({
@@ -1213,14 +1230,25 @@ export function JobFlowScreen({
                   })
                 )
               }
+              className={cn(
+                "inline-flex h-12 w-full items-center justify-center border-0 text-[14px] font-bold transition",
+                isSwipeTrip && isLight
+                  ? "h-[3rem] rounded-2xl bg-[#e8e0d2] text-slate-800"
+                  : isLight
+                    ? "rounded-md bg-black/10 text-slate-900"
+                    : "rounded-md bg-white/10 text-white"
+              )}
             >
               Cancel full refund
-            </GhostButton>
+            </button>
           )}
         <button
           type="button"
           onClick={() => setDisputeOpen(true)}
-          className="w-full text-center text-[12px] font-bold text-red-500"
+          className={cn(
+            "w-full text-center text-[12px] font-bold",
+            isSwipeTrip && isLight ? "text-[#b91c1c]" : "text-red-500"
+          )}
         >
           Open dispute
         </button>
@@ -1282,6 +1310,169 @@ export function JobFlowScreen({
         }
       };
 
+      /* ── Premium light arrived design (solid surfaces only) ── */
+      if (isLight) {
+        const partyName =
+          viewer === "motorist" ? job.repairProName : job.motoristName;
+        const partyPhoto =
+          viewer === "motorist" ? job.repairProPhoto : job.motoristPhoto;
+
+        return (
+          <div className="om-arrived-stage relative flex h-full min-h-0 flex-col">
+            {/* Solid dark cinematic header */}
+            <header className="om-arrived-header relative z-20 shrink-0 px-4 pb-3.5 pt-[max(0.85rem,env(safe-area-inset-top))]">
+              <div className="om-arrived-header-accent absolute inset-y-0 left-0 w-1.5" />
+              <div className="flex items-center gap-2.5 pl-2">
+                <button
+                  type="button"
+                  onClick={goJobsList}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border-0 bg-[#2c241e] text-white"
+                  aria-label="Back"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#e07a3d]">
+                    Live job
+                  </p>
+                  <h1 className="truncate text-[18px] font-black leading-tight tracking-tight text-white">
+                    {copy.title}
+                  </h1>
+                </div>
+              </div>
+              <div className="om-arrived-live-bar mt-3 h-1 w-full rounded-full" />
+            </header>
+
+            <div className="relative flex min-h-0 flex-1 flex-col">
+              {/* Map in solid copper frame */}
+              <div
+                className={cn(
+                  "om-sheet-spring relative min-h-0 overflow-hidden",
+                  tripSheetExpanded
+                    ? "h-0 flex-[0_0_0%] opacity-0 pointer-events-none"
+                    : "flex-[0_0_40%] opacity-100"
+                )}
+              >
+                <div className="absolute inset-x-3 bottom-1 top-2 overflow-hidden rounded-[1.35rem] om-arrived-map-frame">
+                  <div className="absolute inset-[3px] overflow-hidden rounded-[1.15rem]">
+                    <LiveJobTrackMap
+                      job={job}
+                      isLight={isLight}
+                      viewer={viewer}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Solid warm sheet */}
+              <div
+                className={cn(
+                  "om-sheet-spring om-arrived-sheet z-30 flex min-h-0 flex-col overflow-hidden",
+                  tripSheetExpanded ? "flex-1" : "flex-[0_0_60%]",
+                  !tripSheetExpanded && "rounded-t-[1.75rem]"
+                )}
+                style={{ touchAction: "pan-y" }}
+                onWheel={onSheetWheel}
+              >
+                <div className="shrink-0">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    aria-label={
+                      tripSheetExpanded
+                        ? "Swipe down to show map"
+                        : "Swipe up to expand details"
+                    }
+                    onClick={onPillClick}
+                    onTouchStart={onPillTouchStart}
+                    onTouchMove={onPillTouchMove}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onPillClick();
+                      }
+                      if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setTripSheetExpanded(true);
+                      }
+                      if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setTripSheetExpanded(false);
+                      }
+                    }}
+                    className="flex cursor-grab justify-center pb-2 pt-3 active:cursor-grabbing"
+                    style={{ touchAction: "pan-y" }}
+                  >
+                    <span className="h-1.5 w-12 rounded-full bg-[#cfc5b5]" />
+                  </div>
+                </div>
+
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3.5 pb-2 scrollbar-hide">
+                  {/* Hero identity card — solid white */}
+                  <div className="om-arrived-card rounded-2xl p-3.5">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-0 shadow-md ring-2 ring-[#e07a3d]/35">
+                        <AvatarImage
+                          src={partyPhoto || undefined}
+                          className="object-cover"
+                        />
+                        <AvatarFallback className="rounded-2xl bg-[#1a1410] text-[13px] font-black text-white">
+                          {avatarInitials(partyName || "PR")}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[17px] font-black tracking-tight text-[#1a1410]">
+                          {partyName}
+                        </p>
+                        <p className="mt-0.5 text-[12px] font-bold text-[#e07a3d]">
+                          {job.status === "arrived"
+                            ? "On site with you"
+                            : "Work in progress"}
+                        </p>
+                      </div>
+                      {job.agreedMajor != null && (
+                        <div className="om-arrived-price shrink-0 rounded-xl px-2.5 py-1.5 text-white">
+                          <p className="text-[9px] font-bold uppercase tracking-wide opacity-90">
+                            Escrow
+                          </p>
+                          <p className="text-[14px] font-black tabular-nums leading-none">
+                            {formatMoney(job.agreedMajor, job.currency)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    {job.problem?.trim() ? (
+                      <div className="mt-3 rounded-xl bg-[#f4efe6] px-3 py-2.5">
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-[#8a7d6c]">
+                          Problem
+                        </p>
+                        <p className="mt-1 text-[13px] font-semibold leading-snug text-[#1a1410]">
+                          {job.problem}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {callMessageRow}
+
+                  {!tripSheetExpanded && (
+                    <p className="pt-0.5 text-center text-[10px] font-semibold text-[#8a7d6c]">
+                      Swipe up to expand — swipe down to collapse
+                    </p>
+                  )}
+                </div>
+
+                <div className="om-arrived-footer shrink-0 px-3.5 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-2.5">
+                  {footerBlock}
+                </div>
+              </div>
+            </div>
+            {disputeNode}
+          </div>
+        );
+      }
+
+      /* Dark swipe trip (unchanged structure, solid black sheet) */
       return (
         <JobShell
           isLight={isLight}
@@ -1294,7 +1485,6 @@ export function JobFlowScreen({
           footer={footerBlock}
         >
           <div className="relative flex min-h-0 flex-1 flex-col">
-            {/* Map — collapses when sheet expands (home pattern) */}
             <div
               className={cn(
                 "om-sheet-spring relative min-h-0 overflow-hidden",
@@ -1308,19 +1498,16 @@ export function JobFlowScreen({
               </div>
             </div>
 
-            {/* Lower swipe sheet */}
             <div
               className={cn(
-                "om-sheet-spring z-30 flex min-h-0 flex-col overflow-hidden",
+                "om-sheet-spring z-30 flex min-h-0 flex-col overflow-hidden bg-black",
                 tripSheetExpanded ? "flex-1" : "flex-[0_0_58%]",
-                isLight ? "bg-[#c8c9cd]" : "bg-black",
                 !tripSheetExpanded &&
                   "rounded-t-2xl shadow-[0_-6px_24px_rgba(0,0,0,0.18)]"
               )}
               style={{ touchAction: "pan-y" }}
               onWheel={onSheetWheel}
             >
-              {/* Expand pill */}
               <div className="shrink-0">
                 <div
                   role="button"
@@ -1350,14 +1537,7 @@ export function JobFlowScreen({
                   className="flex cursor-grab justify-center pb-1.5 pt-2.5 active:cursor-grabbing"
                   style={{ touchAction: "pan-y" }}
                 >
-                  <span
-                    className={cn(
-                      "h-1.5 w-11 rounded-full",
-                      isLight
-                        ? "bg-[#6b7280] shadow-sm ring-1 ring-black/10"
-                        : "bg-white/40"
-                    )}
-                  />
+                  <span className="h-1.5 w-11 rounded-full bg-white/40" />
                 </div>
               </div>
 
