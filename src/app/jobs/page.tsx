@@ -6,40 +6,10 @@ import { useRouter } from "next/navigation";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { JobShell } from "@/components/jobs/job-shell";
 import { apiListJobs } from "@/lib/jobs/client";
-import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
+import type { JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
-import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
-
-function shortStatus(
-  status: JobFlowStatus,
-  viewer: "repair_pro" | "motorist"
-): string {
-  switch (status) {
-    case "paid_booked":
-      return "Paid · Booked";
-    case "negotiating":
-      return viewer === "repair_pro" ? "New Request" : "Negotiating";
-    case "agreed":
-      return "Agreed";
-    case "en_route":
-      return "On the road";
-    case "arrived":
-      return "Arrived";
-    case "in_progress":
-      return "Working";
-    case "completed":
-    case "satisfied":
-      return "Complete";
-    case "disputed":
-      return "Dispute";
-    case "under_appeal":
-      return "Appeal";
-    default:
-      return status.replace(/_/g, " ");
-  }
-}
 
 /** Pro Incoming = open pipeline only. Motorist My jobs can still show recent complete. */
 const PRO_INCOMING = new Set([
@@ -163,8 +133,6 @@ export default function JobsInboxPage() {
         {jobs.map((j) => {
           const name =
             viewer === "repair_pro" ? j.motoristName : j.repairProName;
-          const skill = PRO_SERVICE_LABELS[j.serviceType] ?? j.serviceType;
-          const status = shortStatus(j.status, viewer);
           const price =
             j.agreedMajor != null
               ? formatMoney(j.agreedMajor, j.currency)
@@ -179,38 +147,14 @@ export default function JobsInboxPage() {
                 )}
               >
                 <div className="min-w-0 flex-1">
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <span
-                      className={cn(
-                        "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide",
-                        j.status === "paid_booked"
-                          ? "bg-emerald-600 text-white"
-                          : j.status === "negotiating"
-                            ? "bg-amber-500 text-white"
-                            : "bg-[#e07a3d] text-white"
-                      )}
-                    >
-                      {status}
-                    </span>
-                    <span
-                      className={cn(
-                        "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold",
-                        isLight
-                          ? "bg-[#a8a9ae] text-slate-900"
-                          : "bg-[#2c2c2e] text-white"
-                      )}
-                    >
-                      {skill}
-                    </span>
-                    <p
-                      className={cn(
-                        "min-w-0 flex-1 truncate text-[15px] font-black leading-tight",
-                        ink
-                      )}
-                    >
-                      {name}
-                    </p>
-                  </div>
+                  <p
+                    className={cn(
+                      "truncate text-[15px] font-black leading-tight",
+                      ink
+                    )}
+                  >
+                    {name}
+                  </p>
                   {j.problem?.trim() && (
                     <p
                       className={cn(
