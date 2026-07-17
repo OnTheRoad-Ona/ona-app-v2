@@ -55,7 +55,7 @@ export const TRIP_STATUS_COPY: Partial<
   },
   arrived: {
     title: "Repair Pro has arrived",
-    subtitle: "They are at your location",
+    subtitle: "",
   },
   in_progress: {
     title: "Work in progress",

@@ -87,6 +87,7 @@ function PinLabel({
   );
 }
 
+/** Clear modern pro pin: orange trade icon only — no text label */
 function PulsingProPin({
   position,
   label,
@@ -96,18 +97,21 @@ function PulsingProPin({
   label: string;
   serviceType: string;
 }) {
-  const icon = tradeIconDataUrl(serviceType, { size: 24, selected: true });
+  const size = 32;
+  const box = 44;
+  const icon = tradeIconDataUrl(serviceType, { size, selected: true });
   return (
     <OverlayViewF
       position={position}
       mapPaneName={OVERLAY_MOUSE_TARGET}
       getPixelPositionOffset={(w, h) => ({
-        x: -(w ?? 40) / 2,
-        y: -(h ?? 40) / 2,
+        x: -(w ?? box) / 2,
+        y: -(h ?? box) / 2,
       })}
     >
       <div
-        className="om-live-pin om-live-pin--map relative h-10 w-10"
+        className="om-live-pin om-live-pin--map relative"
+        style={{ width: box, height: box }}
         title={label}
         aria-label={label}
       >
@@ -117,8 +121,8 @@ function PulsingProPin({
         <img
           src={icon}
           alt=""
-          width={24}
-          height={24}
+          width={size}
+          height={size}
           className="om-live-glyph absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2"
         />
       </div>
@@ -280,16 +284,13 @@ function GoogleTrackMap({
           accent="slate"
         />
 
-        {/* Repair Pro pin — trade icon + pulse */}
+        {/* Repair Pro pin — icon only (no text label) */}
         {proPos && (
-          <>
-            <PulsingProPin
-              position={proPos}
-              label={`${proLabel} · live`}
-              serviceType={job.serviceType}
-            />
-            <PinLabel position={proPos} label={proLabel} accent="copper" />
-          </>
+          <PulsingProPin
+            position={proPos}
+            label={proLabel}
+            serviceType={job.serviceType}
+          />
         )}
       </GoogleMap>
 
@@ -415,11 +416,6 @@ export function LiveJobTrackMap({
           <span className="rounded-md bg-slate-700 px-1.5 py-0.5 text-[10px] font-black text-white">
             {viewer === "motorist" ? "You" : "Motorist"}
           </span>
-          {job.proLocation && (
-            <span className="rounded-md bg-[#e07a3d] px-1.5 py-0.5 text-[10px] font-black text-white">
-              {viewer === "repair_pro" ? "You" : "Repair Pro"}
-            </span>
-          )}
         </div>
       </div>
     );

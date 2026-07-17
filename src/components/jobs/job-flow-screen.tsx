@@ -994,7 +994,7 @@ export function JobFlowScreen({
         )}
       >
         {job.status === "paid_booked"
-          ? "Paid · Booked"
+          ? "Paid Booked"
           : statusLabel[job.status] || job.status}
       </span>
     );
@@ -1014,10 +1014,11 @@ export function JobFlowScreen({
       </span>
     );
 
+    // Arrived / WIP: clean sheet — no ARRIVED/Mechanic chips, no address block
     const tripMetaHeader = (
       <div className="flex flex-wrap items-center gap-1.5">
-        {statusChip}
-        {skillChip}
+        {!isSwipeTrip && statusChip}
+        {!isSwipeTrip && skillChip}
         <p className={cn("min-w-0 flex-1 truncate text-[16px] font-black", ink)}>
           {viewer === "motorist" ? job.repairProName : job.motoristName}
         </p>
@@ -1052,7 +1053,8 @@ export function JobFlowScreen({
           </div>
         )}
 
-        {!isReadyToGo && (
+        {/* Address / live distance — only before arrival (not on arrived WIP sheet) */}
+        {!isReadyToGo && !isSwipeTrip && (
           <div className="flex items-start gap-2">
             <Navigation className="mt-0.5 h-4 w-4 shrink-0 text-[#e07a3d]" />
             <div className="min-w-0">
@@ -1066,7 +1068,7 @@ export function JobFlowScreen({
                     : "Waiting for Repair Pro GPS"
                   : "Navigate to motorist pin"}
                 {job.distanceKm != null &&
-                  ` · ${
+                  ` ${
                     job.distanceKm < 0.1
                       ? "<0.1 km"
                       : `${job.distanceKm.toFixed(1)} km`
@@ -1079,16 +1081,16 @@ export function JobFlowScreen({
         {isReadyToGo && (
           <p className={cn("text-[12px] font-medium", muted)}>
             {viewer === "repair_pro"
-              ? "Start trip when you leave for the motorist."
-              : "Repair Pro will start the trip soon."}
+              ? "Start trip when you leave for the motorist"
+              : "Repair Pro will start the trip soon"}
           </p>
         )}
 
-        {copy.subtitle && (
+        {!isSwipeTrip && copy.subtitle ? (
           <p className={cn("text-[12px] font-medium leading-snug", muted)}>
             {copy.subtitle}
           </p>
-        )}
+        ) : null}
       </>
     );
 
@@ -1192,7 +1194,7 @@ export function JobFlowScreen({
               )
             }
           >
-            Cancel · full refund
+            Cancel full refund
           </GhostButton>
         )}
         {viewer === "motorist" &&
@@ -1212,7 +1214,7 @@ export function JobFlowScreen({
                 )
               }
             >
-              Cancel · full refund
+              Cancel full refund
             </GhostButton>
           )}
         <button
@@ -1284,7 +1286,7 @@ export function JobFlowScreen({
         <JobShell
           isLight={isLight}
           title={copy.title}
-          subtitle={copy.subtitle}
+          subtitle={undefined}
           compactHeader
           onBack={goJobsList}
           fullBleed
@@ -1370,7 +1372,7 @@ export function JobFlowScreen({
                       muted
                     )}
                   >
-                    Swipe up to expand · swipe down to collapse
+                    Swipe up to expand — swipe down to collapse
                   </p>
                 )}
               </div>

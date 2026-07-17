@@ -15,9 +15,9 @@ const ORANGE_SEL_DEEP = "#c2410c";
  */
 function tradeGlyph(type: ProService, fill: string, rim: string): string {
   // Closed shapes: solid orange fill + deep rim. Open strokes: thick orange stroke.
-  const filled = `fill="${fill}" stroke="${rim}" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round"`;
-  const stroked = `fill="none" stroke="${fill}" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round"`;
-  const dual = `fill="${fill}" stroke="${rim}" stroke-width="1.05" stroke-linecap="round" stroke-linejoin="round"`;
+  const filled = `fill="${fill}" stroke="${rim}" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"`;
+  const stroked = `fill="none" stroke="${fill}" stroke-width="2.65" stroke-linecap="round" stroke-linejoin="round"`;
+  const dual = `fill="${fill}" stroke="${rim}" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"`;
 
   switch (type) {
     case "mechanic":
