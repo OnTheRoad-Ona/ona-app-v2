@@ -1021,7 +1021,13 @@ export function JobFlowScreen({
           {viewer === "motorist" ? job.repairProName : job.motoristName}
         </p>
         {job.agreedMajor != null && (
-          <p className="shrink-0 text-[15px] font-black tabular-nums text-[#e07a3d]">
+          <p
+            className={cn(
+              "shrink-0 text-[15px] font-black tabular-nums",
+              // Amount: black on light sheet, white on dark — not orange
+              isLight ? "text-black" : "text-white"
+            )}
+          >
             {formatMoney(job.agreedMajor, job.currency)}
           </p>
         )}
