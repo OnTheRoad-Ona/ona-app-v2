@@ -75,7 +75,7 @@ function PinLabel({
     >
       <div
         className={cn(
-          "whitespace-nowrap rounded-md px-1.5 py-0.5 text-[10px] font-black shadow-md",
+          "whitespace-nowrap rounded-md px-1.5 py-0.5 text-[10px] font-black shadow-md border-0",
           accent === "copper"
             ? "bg-[#e07a3d] text-white"
             : "bg-slate-700 text-white"
@@ -84,6 +84,55 @@ function PinLabel({
         {label}
       </div>
     </OverlayViewF>
+  );
+}
+
+/**
+ * Single modern capsule: ETA | Distance | Escrow
+ * Solid fill, soft shadow only — no rings / borders / glass.
+ */
+function TripMapStatsBar({
+  eta,
+  distance,
+  liveTraffic,
+}: {
+  eta: string;
+  distance: string;
+  liveTraffic?: boolean;
+}) {
+  return (
+    <div className="pointer-events-none absolute bottom-3 left-3 right-3">
+      <div
+        className="flex items-center rounded-[1.25rem] bg-[#141416] px-1 py-1.5 shadow-[0_10px_28px_rgba(0,0,0,0.45)]"
+        style={{ border: "none" }}
+      >
+        <div className="min-w-0 flex-1 px-3 py-1.5 text-center">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/45">
+            ETA
+          </p>
+          <p className="truncate text-[14px] font-bold tabular-nums leading-snug text-white">
+            {eta}
+          </p>
+          {liveTraffic ? (
+            <p className="text-[8px] font-semibold text-[#e07a3d]">Live</p>
+          ) : null}
+        </div>
+        <div className="min-w-0 flex-1 px-3 py-1.5 text-center">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/45">
+            Distance
+          </p>
+          <p className="truncate text-[14px] font-bold tabular-nums leading-snug text-white">
+            {distance}
+          </p>
+        </div>
+        <div className="min-w-0 flex-1 rounded-[1rem] bg-[#e07a3d] px-3 py-1.5 text-center shadow-none">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/90">
+            Escrow
+          </p>
+          <p className="text-[14px] font-bold leading-snug text-white">Held</p>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -294,38 +343,17 @@ function GoogleTrackMap({
         )}
       </GoogleMap>
 
-      {/* Solid minimal map stats — no vague glass */}
-      <div className="pointer-events-none absolute bottom-3 left-3 right-3 flex items-stretch gap-2">
-        <div className="om-map-stat flex min-w-0 flex-1 flex-col justify-center rounded-xl bg-[#1c1c1e] px-2.5 py-2 shadow-md ring-1 ring-white/10">
-          <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#a1a1a6]">
-            ETA
-          </p>
-          <p className="truncate text-[14px] font-black tabular-nums leading-tight text-white">
-            {displayEtaText ||
-              (displayEtaMin != null ? formatEta(displayEtaMin) : "—")}
-          </p>
-          {job.etaSource === "google_distance_matrix" && (
-            <p className="mt-0.5 text-[8px] font-semibold text-[#e07a3d]">
-              Live traffic
-            </p>
-          )}
-        </div>
-        <div className="om-map-stat flex min-w-0 flex-1 flex-col justify-center rounded-xl bg-[#1c1c1e] px-2.5 py-2 shadow-md ring-1 ring-white/10">
-          <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#a1a1a6]">
-            Distance
-          </p>
-          <p className="truncate text-[14px] font-black tabular-nums leading-tight text-white">
-            {displayDistText ||
-              (displayDist != null ? formatDistance(displayDist) : "—")}
-          </p>
-        </div>
-        <div className="om-map-stat flex shrink-0 flex-col justify-center rounded-xl bg-[#e07a3d] px-2.5 py-2 shadow-md">
-          <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-white/85">
-            Escrow
-          </p>
-          <p className="text-[14px] font-black leading-tight text-white">Held</p>
-        </div>
-      </div>
+      <TripMapStatsBar
+        eta={
+          displayEtaText ||
+          (displayEtaMin != null ? formatEta(displayEtaMin) : "—")
+        }
+        distance={
+          displayDistText ||
+          (displayDist != null ? formatDistance(displayDist) : "—")
+        }
+        liveTraffic={job.etaSource === "google_distance_matrix"}
+      />
 
       {viewer === "motorist" && !proPos && (
         <div
@@ -397,26 +425,16 @@ export function LiveJobTrackMap({
               : []
           }
         />
-        <div className="pointer-events-none absolute bottom-3 left-3 right-3 flex gap-2">
-          <div className="rounded-2xl bg-black/55 px-3 py-2 text-white backdrop-blur-md">
-            <p className="text-[10px] font-bold uppercase opacity-70">ETA</p>
-            <p className="text-[15px] font-black">
-              {job.etaText ||
-                (job.etaMinutes != null ? formatEta(job.etaMinutes) : "—")}
-            </p>
-          </div>
-          <div className="rounded-2xl bg-black/55 px-3 py-2 text-white backdrop-blur-md">
-            <p className="text-[10px] font-bold uppercase opacity-70">
-              Distance
-            </p>
-            <p className="text-[15px] font-black">
-              {job.distanceText ||
-                (job.distanceKm != null
-                  ? formatDistance(job.distanceKm)
-                  : "—")}
-            </p>
-          </div>
-        </div>
+        <TripMapStatsBar
+          eta={
+            job.etaText ||
+            (job.etaMinutes != null ? formatEta(job.etaMinutes) : "—")
+          }
+          distance={
+            job.distanceText ||
+            (job.distanceKm != null ? formatDistance(job.distanceKm) : "—")
+          }
+        />
         <div className="pointer-events-none absolute left-3 top-3 flex flex-col gap-1">
           <span className="rounded-md bg-slate-700 px-1.5 py-0.5 text-[10px] font-black text-white">
             {viewer === "motorist" ? "You" : "Motorist"}

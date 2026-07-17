@@ -1187,8 +1187,8 @@ export function JobFlowScreen({
           </p>
         )}
         {viewer === "motorist" && job.status === "paid_booked" && (
-          <GhostButton
-            isLight={isLight}
+          <button
+            type="button"
             onClick={() =>
               void run(() =>
                 apiTransition({
@@ -1199,16 +1199,17 @@ export function JobFlowScreen({
                 })
               )
             }
+            className="inline-flex h-12 w-full items-center justify-center rounded-md border-0 bg-[#3a3a3c] text-[14px] font-bold text-white transition active:scale-[0.99]"
           >
             Cancel full refund
-          </GhostButton>
+          </button>
         )}
         {viewer === "motorist" &&
           (job.status === "en_route" ||
             job.status === "arrived" ||
             job.status === "in_progress") && (
-            <GhostButton
-              isLight={isLight}
+            <button
+              type="button"
               onClick={() =>
                 void run(() =>
                   apiTransition({
@@ -1219,9 +1220,10 @@ export function JobFlowScreen({
                   })
                 )
               }
+              className="inline-flex h-12 w-full items-center justify-center rounded-md border-0 bg-[#3a3a3c] text-[14px] font-bold text-white transition active:scale-[0.99]"
             >
               Cancel full refund
-            </GhostButton>
+            </button>
           )}
         <button
           type="button"
@@ -1358,29 +1360,32 @@ export function JobFlowScreen({
                 >
                   <span
                     className={cn(
-                      "h-1.5 w-11 rounded-full",
-                      isLight
-                        ? "bg-[#6b7280] shadow-sm ring-1 ring-black/10"
-                        : "bg-white/40"
+                      "h-1.5 w-11 rounded-full border-0",
+                      isLight ? "bg-[#6b7280]" : "bg-white/40"
                     )}
                   />
                 </div>
               </div>
 
-              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 pb-3 scrollbar-hide">
-                {tripMetaHeader}
-                {tripDetails}
-                {callMessageRow}
-                {!tripSheetExpanded && (
-                  <p
-                    className={cn(
-                      "pt-0.5 text-center text-[10px] font-semibold",
-                      muted
-                    )}
-                  >
-                    Swipe up to expand — swipe down to collapse
-                  </p>
-                )}
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-3 pb-3 scrollbar-hide">
+                <div className="space-y-3">
+                  {tripMetaHeader}
+                  {tripDetails}
+                </div>
+                {/* Push Call / Message / swipe hint lower on the sheet */}
+                <div className="mt-auto space-y-2 pt-10">
+                  {callMessageRow}
+                  {!tripSheetExpanded && (
+                    <p
+                      className={cn(
+                        "pb-1 pt-2 text-center text-[10px] font-semibold",
+                        muted
+                      )}
+                    >
+                      Swipe up to expand — swipe down to collapse
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
