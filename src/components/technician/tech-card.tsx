@@ -6,26 +6,42 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MapBadgeGlyph } from "@/components/profile/achievement-badges";
 import { StarRatingDisplay } from "@/components/ui/star-rating";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
+import {
+  proCtaKind,
+  proCtaLabel,
+  type ProCtaKind,
+} from "@/lib/jobs/motorist-pro-cta";
+import type { JobRecord } from "@/lib/jobs/types";
 import type { Technician } from "@/lib/types";
 import { cn, formatDistance, formatEta } from "@/lib/utils";
 import { useApp } from "@/lib/store";
 
 /**
  * Row inside the continuous professional list banner.
- * Selection must contrast the list wash in both themes (esp. light).
+ * Request → Open (accepted) → Booked (working); Open/Booked open live job.
  */
 export function TechCard({
   tech,
   onRequest,
   selected,
+  activeJob,
+  onOpenJob,
 }: {
   tech: Technician;
   onRequest?: (tech: Technician) => void;
   compact?: boolean;
   selected?: boolean;
+  /** Active job with this pro (if any) */
+  activeJob?: JobRecord | null;
+  onOpenJob?: (jobId: string) => void;
 }) {
   const { theme } = useApp();
   const isLight = theme === "light";
+  const cta: ProCtaKind = proCtaKind(activeJob);
+  const label = proCtaLabel(cta, false);
+  const showAction =
+    Boolean(onRequest || onOpenJob) &&
+    (tech.status !== "offline" || cta !== "request");
 
   return (
     <article
@@ -33,8 +49,7 @@ export function TechCard({
         "flex items-center gap-2.5 border-l-2 px-3 py-2.5 transition-colors",
         selected
           ? isLight
-            ? // List banner is ~#d8dce4 — use cooler/darker wash + brand edge
-              "border-brand bg-[#c5ccd8] shadow-[inset_0_0_0_1px_rgba(30,41,59,0.08)]"
+            ? "border-brand bg-[#c5ccd8] shadow-[inset_0_0_0_1px_rgba(30,41,59,0.08)]"
             : "border-brand bg-white/[0.1]"
           : "border-transparent bg-transparent"
       )}
@@ -117,21 +132,33 @@ export function TechCard({
             </p>
           </div>
 
-          {onRequest && tech.status !== "offline" && (
+          {showAction && (
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onRequest(tech);
+                if (cta !== "request" && activeJob?.id) {
+                  onOpenJob?.(activeJob.id);
+                  return;
+                }
+                onRequest?.(tech);
               }}
               className={cn(
                 "shrink-0 border-0 bg-transparent px-1 py-1 text-[12px] font-bold",
-                isLight
-                  ? "text-brand hover:text-brand-deep"
-                  : "text-[#ffb07a] hover:text-white"
+                cta === "booked"
+                  ? isLight
+                    ? "text-emerald-800"
+                    : "text-emerald-400"
+                  : cta === "open"
+                    ? isLight
+                      ? "text-sky-800"
+                      : "text-sky-300"
+                    : isLight
+                      ? "text-brand hover:text-brand-deep"
+                      : "text-[#ffb07a] hover:text-white"
               )}
             >
-              Request
+              {label}
             </button>
           )}
         </div>

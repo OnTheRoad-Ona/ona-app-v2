@@ -40,11 +40,16 @@ export function ProPublicView({
   isLight,
   reviews = [],
   onRequest,
+  ctaLabel = "Request Help",
+  ctaKind = "request",
 }: {
   tech: Technician;
   isLight: boolean;
   reviews?: ProfileReview[];
   onRequest: () => void;
+  /** Request Help | Open | Booked */
+  ctaLabel?: string;
+  ctaKind?: "request" | "open" | "booked";
 }) {
   const t = profileTheme(isLight);
   const jobs = tech.jobsCompleted ?? tech.reviewCount ?? 0;
@@ -130,9 +135,20 @@ export function ProPublicView({
               </Link>
             </Button>
           </div>
-          <Button size="lg" className="h-12 w-full" onClick={onRequest}>
-            <Zap className="h-4 w-4" />
-            Request Help
+          <Button
+            size="lg"
+            className={cn(
+              "h-12 w-full border-0 shadow-none",
+              ctaKind === "booked"
+                ? "bg-emerald-700 text-white hover:bg-emerald-800"
+                : ctaKind === "open"
+                  ? "bg-sky-700 text-white hover:bg-sky-800"
+                  : undefined
+            )}
+            onClick={onRequest}
+          >
+            {ctaKind === "request" ? <Zap className="h-4 w-4" /> : null}
+            {ctaLabel}
           </Button>
         </>
       }

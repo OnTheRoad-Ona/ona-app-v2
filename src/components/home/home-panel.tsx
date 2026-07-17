@@ -20,6 +20,7 @@ import {
   GOOGLE_MAPS_LOADER_ID,
   shouldUseLiveMaps,
 } from "@/lib/google-maps";
+import { useMotoristJobsByPro } from "@/lib/jobs/use-motorist-jobs-by-pro";
 import { useApp } from "@/lib/store";
 import type { Technician } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -121,9 +122,15 @@ export function HomePanel({
     libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
+  const { byPro: jobsByPro } = useMotoristJobsByPro();
+
   const handleRequest = (tech: Technician) => {
     setSelectedTechId(tech.id);
     router.push(`/request?tech=${tech.id}`);
+  };
+
+  const handleOpenJob = (jobId: string) => {
+    router.push(`/jobs/${jobId}`);
   };
 
   useEffect(() => {
@@ -527,6 +534,8 @@ export function HomePanel({
                     tech={tech}
                     onRequest={handleRequest}
                     selected={selectedTechId === tech.id}
+                    activeJob={jobsByPro[tech.id] ?? null}
+                    onOpenJob={handleOpenJob}
                   />
                 </div>
               ))}

@@ -6,6 +6,11 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ProOwnProfile } from "@/components/profile/pro-own-profile";
 import { ProPublicView } from "@/components/profile/pro-public-view";
+import {
+  proCtaKind,
+  proCtaLabel,
+} from "@/lib/jobs/motorist-pro-cta";
+import { useMotoristJobsByPro } from "@/lib/jobs/use-motorist-jobs-by-pro";
 import type { ProfileReview } from "@/lib/profile-system";
 import { useApp } from "@/lib/store";
 import type { Technician } from "@/lib/types";
@@ -37,6 +42,9 @@ export default function TechnicianPage({
   const isLight = theme === "light";
   const isOwnPro =
     id === "pro-self" && accountType === "professional";
+  const { byPro: jobsByPro } = useMotoristJobsByPro();
+  const activeJob = tech ? jobsByPro[tech.id] ?? null : null;
+  const cta = proCtaKind(activeJob);
 
   const applyReviewMeta = useCallback(
     (
@@ -226,7 +234,13 @@ export default function TechnicianPage({
       tech={tech}
       isLight={isLight}
       reviews={reviews}
+      ctaKind={cta}
+      ctaLabel={proCtaLabel(cta, true)}
       onRequest={() => {
+        if (cta !== "request" && activeJob?.id) {
+          router.push(`/jobs/${activeJob.id}`);
+          return;
+        }
         setSelectedTechId(tech.id);
         router.push(`/request?tech=${tech.id}`);
       }}

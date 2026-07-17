@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { TechCard } from "@/components/technician/tech-card";
+import { useMotoristJobsByPro } from "@/lib/jobs/use-motorist-jobs-by-pro";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +24,7 @@ function SearchResultsBody() {
     radiusKm,
   } = useApp();
   const isLight = theme === "light";
+  const { byPro: jobsByPro } = useMotoristJobsByPro();
 
   useEffect(() => {
     if (qParam && qParam !== query) setQuery(qParam);
@@ -132,6 +134,8 @@ function SearchResultsBody() {
                 <TechCard
                   tech={tech}
                   selected={selectedTechId === tech.id}
+                  activeJob={jobsByPro[tech.id] ?? null}
+                  onOpenJob={(jobId) => router.push(`/jobs/${jobId}`)}
                   onRequest={(t) => {
                     setSelectedTechId(t.id);
                     router.push(`/request?tech=${t.id}`);
