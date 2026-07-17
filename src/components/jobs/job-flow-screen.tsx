@@ -1096,39 +1096,45 @@ export function JobFlowScreen({
       job.status
     );
 
+    /**
+     * Icon-only Call / Message — elite Swiss-minimal line marks.
+     * Flat solid buttons, no labels / glow / gradient / shadow on icons.
+     */
     const callMessageRow = (
       <div
         className={cn(
-          "grid grid-cols-2 gap-2",
+          "grid grid-cols-2 gap-2.5",
           isSwipeTrip ? "mt-8 pt-2" : "pt-1"
         )}
       >
-        {/* Icon-only — unique flat marks, no labels / glow / gradient */}
         <button
           type="button"
           onClick={() => startJobCall(job)}
           aria-label="Call"
-          className={cn(
-            "inline-flex h-12 w-full items-center justify-center rounded-sm border-0 shadow-none",
-            isLight
-              ? "bg-[#a8a9ae] text-slate-900"
-              : "bg-[#2c2c2e] text-white"
-          )}
+          className="inline-flex h-12 w-full items-center justify-center rounded-lg border-0 bg-[#E8E8E8] shadow-none"
         >
           <svg
             viewBox="0 0 24 24"
-            className="h-6 w-6"
+            className="h-[22px] w-[22px]"
             fill="none"
             aria-hidden
           >
-            {/* Clean classic phone — minimal stroke, professional */}
-            <path
-              d="M6.5 4.8c0-.7.5-1.3 1.2-1.3h1.6c.5 0 1 .3 1.2.8l.9 2.4c.2.5 0 1.1-.4 1.4L9.5 9.4c1 2 2.6 3.6 4.6 4.6l1.3-1.5c.3-.4.9-.6 1.4-.4l2.4.9c.5.2.8.7.8 1.2v1.6c0 .7-.6 1.2-1.3 1.2C11.5 17 7 12.5 7 5.9c0-.4 0-.7.5-1.1Z"
-              stroke="currentColor"
-              strokeWidth="1.75"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+            {/* Diagonal receiver — deep matte black outline */}
+            <g transform="rotate(-28 12 12)">
+              <path
+                d="M8.2 6.2c0-.9.7-1.6 1.6-1.6h4.4c.9 0 1.6.7 1.6 1.6v1.4c0 .5-.2 1-.6 1.3l-1.1.9v2.4l1.1.9c.4.3.6.8.6 1.3v1.4c0 .9-.7 1.6-1.6 1.6h-4.4c-.9 0-1.6-.7-1.6-1.6v-1.4c0-.5.2-1 .6-1.3l1.1-.9V9.8l-1.1-.9c-.4-.3-.6-.8-.6-1.3V6.2Z"
+                stroke="#111111"
+                strokeWidth="1.55"
+                strokeLinejoin="round"
+              />
+              {/* Gold accent — thin body line */}
+              <path
+                d="M10.2 12h3.6"
+                stroke="#C5A46E"
+                strokeWidth="1.45"
+                strokeLinecap="round"
+              />
+            </g>
           </svg>
         </button>
         <button
@@ -1136,27 +1142,40 @@ export function JobFlowScreen({
           onClick={() => void openJobChat(job)}
           aria-label={chatClosedForever ? "View chat" : "Message"}
           className={cn(
-            "inline-flex h-12 w-full items-center justify-center rounded-sm border-0 text-white shadow-none",
-            chatClosedForever ? "bg-[#2c2c2e]" : "bg-[#e07a3d]"
+            "inline-flex h-12 w-full items-center justify-center rounded-lg border-0 shadow-none",
+            chatClosedForever ? "bg-[#3a3a3c]" : "bg-[#FF6B35]"
           )}
         >
           <svg
             viewBox="0 0 24 24"
-            className="h-6 w-6"
+            className="h-[22px] w-[22px]"
             fill="none"
             aria-hidden
           >
-            {/* Minimal square bubble + corner tip + dual dashes */}
+            {/* Speech bubble + elegant tail */}
             <path
-              d="M6 5h12a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 18 16h-5.2L8 19.2V16H6A1.5 1.5 0 0 1 4.5 14.5v-8A1.5 1.5 0 0 1 6 5Z"
-              stroke="currentColor"
-              strokeWidth="1.65"
+              d="M5.5 5.8A1.8 1.8 0 0 1 7.3 4h9.4a1.8 1.8 0 0 1 1.8 1.8v7.2a1.8 1.8 0 0 1-1.8 1.8h-4.1L8.2 18.2v-3.4H7.3a1.8 1.8 0 0 1-1.8-1.8V5.8Z"
+              stroke="#111111"
+              strokeWidth="1.55"
               strokeLinejoin="round"
             />
+            {/* Text lines — two black, one gold accent */}
             <path
-              d="M8.5 9h7M8.5 12h4.5"
-              stroke="currentColor"
-              strokeWidth="1.65"
+              d="M8.4 7.6h7.2"
+              stroke="#111111"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+            />
+            <path
+              d="M8.4 10h5.6"
+              stroke="#C5A46E"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+            />
+            <path
+              d="M8.4 12.4h4"
+              stroke="#111111"
+              strokeWidth="1.4"
               strokeLinecap="round"
             />
           </svg>
