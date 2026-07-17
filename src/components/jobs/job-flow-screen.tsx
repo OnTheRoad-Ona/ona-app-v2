@@ -1100,65 +1100,72 @@ export function JobFlowScreen({
       <div
         className={cn(
           "grid grid-cols-2 gap-2",
-          // Arrived sheet: push Call / Message further down
           isSwipeTrip ? "mt-8 pt-2" : "pt-1"
         )}
       >
+        {/* Icon-only — unique flat marks, no labels / glow / gradient */}
         <button
           type="button"
           onClick={() => startJobCall(job)}
+          aria-label="Call"
           className={cn(
-            "inline-flex h-12 items-center justify-center gap-2 rounded-sm border-0 text-[13px] font-bold shadow-none",
+            "inline-flex h-12 w-full items-center justify-center rounded-sm border-0 shadow-none",
             isLight
               ? "bg-[#a8a9ae] text-slate-900"
               : "bg-[#2c2c2e] text-white"
           )}
         >
-          {/* Flat geometric call mark — stroke only, no glow/gradient */}
           <svg
             viewBox="0 0 24 24"
-            className="h-[18px] w-[18px] shrink-0"
+            className="h-6 w-6"
             fill="none"
             aria-hidden
           >
+            {/* Modern handset: arc + stem (single stroke weight) */}
             <path
-              d="M8.2 4h2.1l1.1 2.9-1.5 1.2c.8 1.7 2.2 3.1 3.9 3.9l1.2-1.5L18 11.6v2.1c0 .8-.6 1.4-1.4 1.5-5.6.8-10.2-3.8-9.4-9.4.1-.8.7-1.4 1.5-1.4Z"
+              d="M9 5.5c0-.8.7-1.5 1.5-1.5h3c.8 0 1.5.7 1.5 1.5v1.2c0 .4-.2.8-.5 1L13 9.5v1.2c2.2.8 3.9 2.5 4.7 4.7H19c.4 0 .8.2 1 .5l1.3 1.5c.3.3.3.9 0 1.2l-1.1 1.1c-.7.7-1.7 1-2.7.8-4.4-.8-8.1-4.5-8.9-8.9-.2-1 .1-2 .8-2.7l1.1-1.1c.3-.3.9-.3 1.2 0L13 9.3"
               stroke="currentColor"
-              strokeWidth="1.7"
+              strokeWidth="1.65"
+              strokeLinecap="round"
               strokeLinejoin="round"
             />
+            <path
+              d="M8.5 15.5c1.8 1.5 4.2 2.2 6.5 1.8"
+              stroke="currentColor"
+              strokeWidth="1.65"
+              strokeLinecap="round"
+            />
           </svg>
-          Call
         </button>
         <button
           type="button"
           onClick={() => void openJobChat(job)}
+          aria-label={chatClosedForever ? "View chat" : "Message"}
           className={cn(
-            "inline-flex h-12 items-center justify-center gap-2 rounded-sm border-0 text-[13px] font-bold text-white shadow-none",
+            "inline-flex h-12 w-full items-center justify-center rounded-sm border-0 text-white shadow-none",
             chatClosedForever ? "bg-[#2c2c2e]" : "bg-[#e07a3d]"
           )}
         >
-          {/* Flat chat square + lines — stroke only, no fill/glow/gradient */}
           <svg
             viewBox="0 0 24 24"
-            className="h-[18px] w-[18px] shrink-0 text-white"
+            className="h-6 w-6"
             fill="none"
             aria-hidden
           >
+            {/* Minimal square bubble + corner tip + dual dashes */}
             <path
-              d="M5.5 6.2A2.2 2.2 0 0 1 7.7 4h8.6a2.2 2.2 0 0 1 2.2 2.2v5.6a2.2 2.2 0 0 1-2.2 2.2h-3.4L9.5 17v-2.9H7.7a2.2 2.2 0 0 1-2.2-2.2V6.2Z"
+              d="M6 5h12a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 18 16h-5.2L8 19.2V16H6A1.5 1.5 0 0 1 4.5 14.5v-8A1.5 1.5 0 0 1 6 5Z"
               stroke="currentColor"
-              strokeWidth="1.7"
+              strokeWidth="1.65"
               strokeLinejoin="round"
             />
             <path
-              d="M9 8.2h6M9 10.8h3.8"
+              d="M8.5 9h7M8.5 12h4.5"
               stroke="currentColor"
-              strokeWidth="1.7"
+              strokeWidth="1.65"
               strokeLinecap="round"
             />
           </svg>
-          {chatClosedForever ? "View chat" : "Message"}
         </button>
       </div>
     );
