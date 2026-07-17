@@ -1323,7 +1323,7 @@ export function JobFlowScreen({
                 tripSheetExpanded ? "flex-1" : "flex-[0_0_58%]",
                 isLight ? "bg-[#c8c9cd]" : "bg-black",
                 !tripSheetExpanded &&
-                  "rounded-t-2xl shadow-[0_-6px_24px_rgba(0,0,0,0.18)]"
+                  "rounded-t-sm shadow-[0_-6px_24px_rgba(0,0,0,0.18)]"
               )}
               style={{ touchAction: "pan-y" }}
               onWheel={onSheetWheel}

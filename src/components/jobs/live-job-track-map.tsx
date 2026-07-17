@@ -103,7 +103,7 @@ function TripMapStatsBar({
   return (
     <div className="pointer-events-none absolute bottom-3 left-3 right-3">
       <div
-        className="flex items-center rounded-[1.25rem] bg-[#141416] px-1 py-1.5 shadow-[0_10px_28px_rgba(0,0,0,0.45)]"
+        className="flex items-center rounded-sm bg-[#141416] px-1 py-1.5 shadow-[0_10px_28px_rgba(0,0,0,0.45)]"
         style={{ border: "none" }}
       >
         <div className="min-w-0 flex-1 px-3 py-1.5 text-center">
@@ -125,7 +125,7 @@ function TripMapStatsBar({
             {distance}
           </p>
         </div>
-        <div className="min-w-0 flex-1 rounded-[1rem] bg-[#e07a3d] px-3 py-1.5 text-center shadow-none">
+        <div className="min-w-0 flex-1 rounded-sm bg-[#e07a3d] px-3 py-1.5 text-center shadow-none">
           <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/90">
             Escrow
           </p>
