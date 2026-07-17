@@ -15,9 +15,7 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
-  MessageCircle,
   Navigation,
-  Phone,
   ShieldAlert,
   Star,
 } from "lucide-react";
@@ -1116,15 +1114,20 @@ export function JobFlowScreen({
               : "bg-[#2c2c2e] text-white"
           )}
         >
-          {/* Flat line icon — no fill, no 3D, no border, no gradient */}
-          <Phone
-            className={cn(
-              "h-[18px] w-[18px] shrink-0",
-              isLight ? "text-slate-900" : "text-white"
-            )}
-            strokeWidth={1.75}
+          {/* Flat geometric call mark — stroke only, no glow/gradient */}
+          <svg
+            viewBox="0 0 24 24"
+            className="h-[18px] w-[18px] shrink-0"
             fill="none"
-          />
+            aria-hidden
+          >
+            <path
+              d="M8.2 4h2.1l1.1 2.9-1.5 1.2c.8 1.7 2.2 3.1 3.9 3.9l1.2-1.5L18 11.6v2.1c0 .8-.6 1.4-1.4 1.5-5.6.8-10.2-3.8-9.4-9.4.1-.8.7-1.4 1.5-1.4Z"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinejoin="round"
+            />
+          </svg>
           Call
         </button>
         <button
@@ -1135,11 +1138,26 @@ export function JobFlowScreen({
             chatClosedForever ? "bg-[#2c2c2e]" : "bg-[#e07a3d]"
           )}
         >
-          <MessageCircle
+          {/* Flat chat square + lines — stroke only, no fill/glow/gradient */}
+          <svg
+            viewBox="0 0 24 24"
             className="h-[18px] w-[18px] shrink-0 text-white"
-            strokeWidth={1.75}
             fill="none"
-          />
+            aria-hidden
+          >
+            <path
+              d="M5.5 6.2A2.2 2.2 0 0 1 7.7 4h8.6a2.2 2.2 0 0 1 2.2 2.2v5.6a2.2 2.2 0 0 1-2.2 2.2h-3.4L9.5 17v-2.9H7.7a2.2 2.2 0 0 1-2.2-2.2V6.2Z"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M9 8.2h6M9 10.8h3.8"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+            />
+          </svg>
           {chatClosedForever ? "View chat" : "Message"}
         </button>
       </div>

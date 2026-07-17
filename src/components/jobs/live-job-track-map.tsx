@@ -56,10 +56,10 @@ const MAP_STYLES: google.maps.MapTypeStyle[] = [
 ];
 
 /**
- * Trip stats bar — same solid dark capsule style.
+ * Trip stats bar — solid dark capsule, near-square corners.
  * Time + distance values only (no ETA/Distance labels).
- * Escrow Held keeps its copper segment.
- * Sits bottom-left with max-width so Google +/− (right) is free.
+ * Raised above Google logo / attribution (Terms compliance).
+ * Left side only so +/− zoom stays clear on the right.
  */
 function TripMapStatsBar({
   time,
@@ -69,7 +69,11 @@ function TripMapStatsBar({
   distance: string;
 }) {
   return (
-    <div className="pointer-events-none absolute bottom-3 left-3 z-[5] max-w-[calc(100%-4.5rem)]">
+    <div
+      className="pointer-events-none absolute left-3 z-[5] max-w-[calc(100%-5rem)]"
+      // Clear Google Maps attribution strip (~28–40px); keep free of logo
+      style={{ bottom: "2.75rem" }}
+    >
       <div
         className="flex max-w-full items-center rounded-sm bg-[#141416] px-1 py-1 shadow-[0_8px_20px_rgba(0,0,0,0.4)]"
         style={{ border: "none" }}
