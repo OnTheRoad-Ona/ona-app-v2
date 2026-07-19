@@ -85,13 +85,16 @@ const ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
   { urls: "stun:stun2.l.google.com:19302" },
+  { urls: "stun:stun3.l.google.com:19302" },
   { urls: "stun:stun.cloudflare.com:3478" },
+  // Public TURN for NAT / mobile networks (best-effort free relay)
   {
     urls: [
       "turn:openrelay.metered.ca:80",
       "turn:openrelay.metered.ca:80?transport=tcp",
       "turn:openrelay.metered.ca:443",
       "turns:openrelay.metered.ca:443?transport=tcp",
+      "turn:openrelay.metered.ca:443?transport=tcp",
     ],
     username: "openrelayproject",
     credential: "openrelayproject",
@@ -500,10 +503,25 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
         if (st === "connected" || st === "completed") {
           markConnected();
         } else if (st === "failed") {
-          if (!fallToPhone("WebRTC ICE failed")) {
-            setStatusHint("Connection failed — try Call on phone");
+          // One more ICE restart before phone fallback
+          try {
+            pc.restartIce();
+            setStatusHint("Reconnecting voice…");
+            scheduleIceFailWatch();
+          } catch {
+            if (!fallToPhone("WebRTC ICE failed")) {
+              setStatusHint("Connection failed — try Call on phone");
+            }
           }
-        } else if (st === "checking" || st === "disconnected") {
+        } else if (st === "disconnected") {
+          setStatusHint("Connection weak — reconnecting…");
+          try {
+            pc.restartIce();
+          } catch {
+            /* */
+          }
+          scheduleIceFailWatch();
+        } else if (st === "checking") {
           if (phaseRef.current !== "connected") {
             setPhase("connecting");
             setStatusHint("Connecting voice…");
@@ -514,8 +532,22 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === "connected") markConnected();
         if (pc.connectionState === "failed") {
-          if (!fallToPhone("Connection failed")) {
-            setStatusHint("Connection failed — try Call on phone");
+          try {
+            pc.restartIce();
+            setStatusHint("Retrying connection…");
+            scheduleIceFailWatch();
+          } catch {
+            if (!fallToPhone("Connection failed")) {
+              setStatusHint("Connection failed — try Call on phone");
+            }
+          }
+        }
+        if (pc.connectionState === "disconnected") {
+          setStatusHint("Reconnecting… keep both screens open");
+          try {
+            pc.restartIce();
+          } catch {
+            /* */
           }
         }
       };
@@ -524,7 +556,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       void applyAudioSenderBitrate(pc, DEFAULT_BITRATE_BPS);
       return pc;
     },
-    [attachRemote, fallToPhone, markConnected, pushSignal]
+    [attachRemote, fallToPhone, markConnected, pushSignal, scheduleIceFailWatch]
   );
 
   const notifyIncomingCall = useCallback(
@@ -771,8 +803,18 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
     };
 
     void tick();
-    // Aggressive poll while app is open so ring UI appears immediately
-    const id = window.setInterval(() => void tick(), 500);
+    // Realtime INSERT wakes us; poll backs up.
+    // When tab is backgrounded, poll a bit faster so ring still arrives (best-effort web).
+    const id = window.setInterval(() => {
+      const hidden =
+        typeof document !== "undefined" ? document.hidden : false;
+      // Always poll — hidden tabs need call signals for best-effort ring
+      void tick();
+      // Extra wake when returning to foreground
+      if (!hidden) {
+        /* realtime also fires */
+      }
+    }, 3_000);
 
     const onVis = () => {
       void tick();

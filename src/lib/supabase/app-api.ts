@@ -6,6 +6,7 @@
  */
 
 import { MAX_RADIUS_KM } from "@/lib/matching";
+import { DOCS_PENDING_MAX_RADIUS_KM } from "@/lib/skill-questions";
 import { getAppSupabase, isAppBackendOnline } from "@/lib/supabase/app-client";
 import {
   appStatusToJob,
@@ -190,8 +191,23 @@ export async function backendSignUp(input: {
       refresh_token: json.data.session.refresh_token,
     });
     if (sessionErr) {
-      // Profile exists; session optional — user can log in
-      console.warn("setSession after signup:", sessionErr.message);
+      // Fallback: password sign-in so signup never leaves user "not signed in"
+      const { error: loginErr } = await sb.auth.signInWithPassword({
+        email: input.email.trim().toLowerCase(),
+        password: input.password,
+      });
+      if (loginErr) {
+        console.warn("session after signup:", sessionErr.message, loginErr.message);
+      }
+    }
+  } else if (sb && json.data.userId) {
+    // Account saved but no session tokens — try password login once
+    const { error: loginErr } = await sb.auth.signInWithPassword({
+      email: input.email.trim().toLowerCase(),
+      password: input.password,
+    });
+    if (loginErr) {
+      console.warn("login after signup:", loginErr.message);
     }
   }
 
@@ -572,6 +588,28 @@ export async function backendDualRoleFlags(userId: string): Promise<{
   };
 }
 
+/** Server logout: force is_online=false then clear browser session */
+export async function backendLogout(): Promise<void> {
+  try {
+    const sb = getAppSupabase();
+    let access_token: string | undefined;
+    let userId: string | undefined;
+    if (sb) {
+      const { data } = await sb.auth.getSession();
+      access_token = data.session?.access_token;
+      userId = data.session?.user?.id;
+    }
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ access_token, userId }),
+    }).catch(() => null);
+  } catch {
+    /* ignore */
+  }
+  await backendSignOut();
+}
+
 export async function backendSignOut(): Promise<void> {
   const sb = getAppSupabase();
   if (!sb) return;
@@ -613,6 +651,10 @@ export async function backendLoadUserProfile(
     vehicle_make?: string | null;
     vehicle_model?: string | null;
     vehicle_year?: string | null;
+    plate_number?: string | null;
+    vehicle_photo?: string | null;
+    vehicle_common_issues?: string[] | null;
+    vehicles?: UserProfile["vehicles"];
     nin_verified?: boolean;
     bvn_verified?: boolean;
     identity_verified_at?: string | null;
@@ -672,6 +714,10 @@ export async function backendLoadUserProfile(
     vehicleMake: mot?.vehicle_make || undefined,
     vehicleModel: mot?.vehicle_model || undefined,
     vehicleYear: mot?.vehicle_year || undefined,
+    vehiclePlate: mot?.plate_number || undefined,
+    vehiclePhoto: mot?.vehicle_photo || undefined,
+    vehicleCommonIssues: mot?.vehicle_common_issues || undefined,
+    vehicles: Array.isArray(mot?.vehicles) ? mot.vehicles : undefined,
     ninVerified: Boolean(mot?.nin_verified),
     bvnVerified: Boolean(mot?.bvn_verified),
     identityVerifiedAt: mot?.identity_verified_at || undefined,
@@ -745,11 +791,9 @@ export async function backendFetchPros(userCoords: {
         return false;
       }
       const docsPending =
-        t.docsStatus === "under_review" ||
-        t.docsStatus === "none" ||
-        t.docsStatus === "rejected";
+        t.docsStatus === "under_review" || t.docsStatus === "rejected";
       const cap = docsPending
-        ? Math.min(MAX_RADIUS_KM, 2)
+        ? Math.min(MAX_RADIUS_KM, DOCS_PENDING_MAX_RADIUS_KM)
         : MAX_RADIUS_KM;
       return t.distanceKm <= cap;
     });
@@ -1081,6 +1125,23 @@ export async function backendSendMessage(input: {
     .update({ last_message_at: new Date().toISOString() })
     .eq("id", input.conversationId);
   return null;
+}
+
+/** Mark other party's messages as read in this conversation. */
+export async function backendMarkMessagesRead(
+  conversationId: string,
+  userId: string
+): Promise<void> {
+  if (!conversationId || conversationId.startsWith("chat-") || !userId) return;
+  try {
+    await fetch("/api/messages/read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversationId, userId }),
+    });
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Subscribe to new messages in a conversation (Realtime). */

@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ArrowLeft, Menu } from "lucide-react";
 import { AppMenu } from "@/components/layout/app-menu";
 import {
   clearPageExitClass,
-  defaultBackHref,
   navigateBack,
+  smartBackFallback,
 } from "@/lib/navigation";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -19,25 +19,30 @@ export function PageHeader({
   subtitle,
   backHref,
   showBack = true,
+  backOpensMenu = false,
 }: {
   title: string;
   subtitle?: string;
   /**
-   * Fallback only when there is no previous page in history
-   * (e.g. opened this screen from a cold link). Defaults by role.
+   * Fallback when there is no useful previous page in the stack.
+   * Defaults from current route + role (e.g. Job details → /jobs).
    */
   backHref?: string;
   /** Hide back control (e.g. Professional Dashboard home) */
   showBack?: boolean;
+  /** Back opens the ☰ three-line menu list instead of history back */
+  backOpensMenu?: boolean;
 }) {
-  const { theme } = useApp();
+  const { theme, accountType } = useApp();
   const isLight = theme === "light";
   const router = useRouter();
+  const pathname = usePathname() || "/";
   const [menuOpen, setMenuOpen] = useState(false);
   const [mount, setMount] = useState<HTMLElement | null>(null);
 
-  // Fallback is always Home when history has no previous page
-  const fallback = backHref ?? defaultBackHref();
+  const fallback =
+    backHref?.trim() ||
+    smartBackFallback(pathname, accountType);
 
   useEffect(() => {
     setMount(document.getElementById("oga-mecho-phone"));
@@ -47,7 +52,12 @@ export function PageHeader({
 
   const onBack = () => {
     clearPageExitClass();
-    navigateBack(router, fallback);
+    // Prefer explicit backHref (e.g. Settings → role home) over menu-open trap
+    if (backOpensMenu && !backHref?.trim()) {
+      setMenuOpen(true);
+      return;
+    }
+    navigateBack(router, fallback, accountType);
   };
 
   return (
@@ -65,11 +75,11 @@ export function PageHeader({
             onClick={onBack}
             className={cn(
               "flex h-8 w-8 items-center justify-center rounded-lg border-0 transition-transform duration-150 active:scale-95",
-              isLight
-                ? "bg-transparent text-slate-800"
-                : "bg-[#1c1c1e] text-white"
+              isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white"
             )}
-            style={isLight ? undefined : { backgroundColor: "#1c1c1e" }}
+            style={{
+              backgroundColor: isLight ? "#c8c9cd" : "#000000",
+            }}
             aria-label="Back"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -102,9 +112,11 @@ export function PageHeader({
           onClick={() => setMenuOpen(true)}
           className={cn(
             "flex h-8 w-8 items-center justify-center rounded-lg border-0",
-            isLight ? "bg-transparent text-black" : "bg-[#1c1c1e] text-white"
+            isLight ? "bg-[#c8c9cd] text-black" : "bg-black text-white"
           )}
-          style={isLight ? undefined : { backgroundColor: "#1c1c1e" }}
+          style={{
+            backgroundColor: isLight ? "#c8c9cd" : "#000000",
+          }}
           aria-label="Open menu"
         >
           <Menu className="h-5 w-5" strokeWidth={2.25} />

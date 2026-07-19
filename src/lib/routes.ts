@@ -24,6 +24,7 @@ export function isProAppPath(pathname: string): boolean {
   if (pathname.startsWith("/dashboard")) return true;
   if (pathname.startsWith("/orders")) return true;
   if (pathname.startsWith("/jobs")) return true;
+  if (pathname.startsWith("/artisan")) return true;
   return false;
 }
 
@@ -35,6 +36,7 @@ export function isSharedAppPath(pathname: string): boolean {
   if (pathname.startsWith("/requests")) return true;
   if (pathname.startsWith("/jobs")) return true;
   if (pathname.startsWith("/verify")) return true;
+  if (pathname.startsWith("/artisan")) return true;
   if (pathname.startsWith("/logout")) return true;
   return false;
 }

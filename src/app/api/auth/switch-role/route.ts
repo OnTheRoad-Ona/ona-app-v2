@@ -72,8 +72,20 @@ export async function POST(req: Request) {
   if (findErr || !existing) {
     return apiFail("Profile not found", 404);
   }
+
+  // Self-heal: accidental deactivation must not block Motorist ↔ Repair Pro switch.
+  // Admin freeze can re-apply is_active=false later; dual-role users need to switch.
   if (!existing.is_active) {
-    return apiFail("This account is deactivated", 403);
+    const { data: revived, error: reviveErr } = await admin
+      .from("profiles")
+      .update({ is_active: true, updated_at: new Date().toISOString() })
+      .eq("id", userId)
+      .select("*")
+      .maybeSingle();
+    if (reviveErr || !revived) {
+      return apiFail("This account is deactivated", 403);
+    }
+    Object.assign(existing, revived);
   }
 
   // Require a real side-profile (completed signup). Do not invent empty rows.
@@ -85,7 +97,7 @@ export async function POST(req: Request) {
       .maybeSingle();
     if (!motRow) {
       return apiFail(
-        "Sign up as Motorist first so your account is saved properly.",
+        "You don't have a Motorist account yet.",
         409,
         "needs_signup"
       );
@@ -98,7 +110,7 @@ export async function POST(req: Request) {
       .maybeSingle();
     if (!proRow) {
       return apiFail(
-        "Sign up as Repair Pro first so your skill and profile are saved properly.",
+        "You don't have a Repair Pro account yet. Finish signup to go Live and receive jobs.",
         409,
         "needs_signup"
       );

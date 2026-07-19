@@ -143,7 +143,7 @@ export default function RequestsPage() {
     const t = window.setInterval(() => {
       if (document.hidden) return;
       void load();
-    }, 15_000);
+    }, 120_000);
     return () => window.clearInterval(t);
   }, [load]);
 

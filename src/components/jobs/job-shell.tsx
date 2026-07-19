@@ -43,10 +43,13 @@ export function JobShell({
             type="button"
             onClick={onBack}
             className={cn(
-              "flex shrink-0 items-center justify-center border-0 bg-transparent p-0",
+              "flex shrink-0 items-center justify-center rounded-lg border-0",
               compactHeader ? "h-8 w-8" : "h-9 w-9",
-              isLight ? "text-slate-900" : "text-white"
+              isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white"
             )}
+            style={{
+              backgroundColor: isLight ? "#c8c9cd" : "#000000",
+            }}
             aria-label="Back"
           >
             <ArrowLeft className={compactHeader ? "h-4 w-4" : "h-5 w-5"} />

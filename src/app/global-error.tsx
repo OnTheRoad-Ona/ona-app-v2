@@ -28,8 +28,12 @@ export default function GlobalError({
           textAlign: "center",
         }}
       >
-        <p style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>
-          <span style={{ color: "#e85a12" }}>Oga</span>Mecho
+        <p
+          style={{ fontSize: 22, fontWeight: 900, margin: 0 }}
+          aria-label="Ona"
+        >
+          <span style={{ color: "#FF6B35" }}>O</span>
+          <span style={{ color: "#C8C9CD" }}>na</span>
         </p>
         <p
           style={{

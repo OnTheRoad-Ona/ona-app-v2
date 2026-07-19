@@ -8,7 +8,12 @@ export type ProServiceDb =
   | "body"
   | "electrical"
   | "diagnostics"
-  | "wash";
+  | "wash"
+  | "plumber"
+  | "carpenter"
+  | "painter"
+  | "solar"
+  | "generator";
 export type ProStatus = "pending" | "approved" | "suspended" | "rejected";
 export type JobStatus =
   | "draft"

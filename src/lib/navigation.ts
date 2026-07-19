@@ -1,10 +1,12 @@
 /**
  * History-aware back navigation for the phone shell.
- * Prefers the immediate previous in-app page; falls back to Home (`/`).
- * See docs/ANTI_REGRESSION.md — after tel:/external handoff, prefer stack push
- * over history.back() so Back never dies and the shell never stays collapsed.
+ * Prefers the immediate previous in-app page; falls back to a logical parent
+ * (e.g. Job details → Jobs), not a random home link.
+ * Never jumps into the other role’s home — only the menu “Use as” switch changes account.
+ * See docs/ANTI_REGRESSION.md.
  */
 
+import { canAccessPath } from "@/lib/routes";
 import type { AccountType } from "@/lib/types";
 
 type RouterLike = {
@@ -15,11 +17,67 @@ type RouterLike = {
 const STACK_KEY = "oga-mecho-nav-stack";
 const MAX_STACK = 40;
 
-/** Always Home when there is no previous page (per product rule). */
+/** Role home: Repair Pro dashboard, Motorist map home. */
 export function defaultBackHref(
-  _accountType?: AccountType | null | undefined
+  accountType?: AccountType | null | undefined
 ): string {
-  return "/";
+  return accountType === "professional" ? "/dashboard" : "/";
+}
+
+/**
+ * Logical parent for a route when the nav stack is empty or only has root.
+ * Keeps Back consistent (Job details → Jobs, chat → messages, etc.).
+ */
+export function smartBackFallback(
+  pathname: string,
+  accountType?: AccountType | null | undefined
+): string {
+  const home = defaultBackHref(accountType);
+  const path = (pathname || "/").split("?")[0] || "/";
+
+  // Past job process (from Jobs list)
+  if (/^\/requests\/[^/]+$/.test(path)) {
+    return accountType === "professional" ? "/jobs" : "/history";
+  }
+  // Live job flow
+  if (/^\/jobs\/[^/]+$/.test(path)) {
+    return "/jobs";
+  }
+  if (path === "/jobs") return home;
+  if (path === "/history") return home;
+  if (path === "/requests") return home;
+
+  // Messages
+  if (/^\/messages\/[^/]+$/.test(path)) return "/messages";
+  if (path === "/messages") return home;
+
+  // Profile / settings
+  if (path === "/profile" || path === "/settings") return home;
+  if (path.startsWith("/payments")) return "/profile";
+
+  // Motorist flows
+  if (path.startsWith("/technician/")) return "/";
+  if (path === "/request" || path === "/search" || path === "/verify")
+    return "/";
+  if (path.startsWith("/signup")) return "/login";
+  if (path.startsWith("/login/")) return "/login";
+
+  return home;
+}
+
+function isDetailPath(path: string): boolean {
+  const p = path.split("?")[0] || "/";
+  return (
+    /^\/requests\/[^/]+$/.test(p) ||
+    /^\/jobs\/[^/]+$/.test(p) ||
+    /^\/messages\/[^/]+$/.test(p) ||
+    /^\/technician\/[^/]+$/.test(p)
+  );
+}
+
+function isRoleHome(path: string): boolean {
+  const p = path.split("?")[0] || "/";
+  return p === "/" || p === "/dashboard";
 }
 
 function readStack(): string[] {
@@ -65,6 +123,33 @@ export function recordNavigation(path: string): void {
   writeStack(stack);
 }
 
+/**
+ * Reset stack when the user deliberately switches Motorist ↔ Repair Pro
+ * (menu “Use as” only). Prevents Back from hopping into the other role’s pages.
+ */
+export function resetNavStack(seedPath?: string): void {
+  if (typeof window === "undefined") return;
+  const seed = (seedPath || "").split("#")[0];
+  if (seed && seed.startsWith("/") && !seed.startsWith("/admin")) {
+    writeStack([seed]);
+  } else {
+    writeStack([]);
+  }
+}
+
+function pathOnly(href: string): string {
+  return (href || "/").split("?")[0] || "/";
+}
+
+/** Stack entry is valid for the *current* account — never cross-role. */
+function stackEntryAllowed(
+  href: string,
+  accountType?: AccountType | null
+): boolean {
+  if (!accountType) return true;
+  return canAccessPath(accountType, pathOnly(href));
+}
+
 /** True when we know there is a previous in-app page to return to. */
 export function canGoBackInHistory(): boolean {
   if (typeof window === "undefined") return false;
@@ -104,14 +189,23 @@ export function clearPageExitClass(): void {
 
 /**
  * Soft visual cue then go to the immediate previous page.
- * Fallback is always Home (`/`) unless a custom fallback is passed
- * (still defaults to `/`).
+ * Fallback is logical parent (e.g. Job details → /jobs), then role home.
+ * Never navigates to a path the current account cannot access (no accidental
+ * Motorist ↔ Pro hop — only menu “Use as” switches account).
  */
 export function navigateBack(
   router: RouterLike,
-  fallbackHref: string = "/"
+  fallbackHref?: string,
+  accountType?: AccountType | null
 ): void {
-  const fallback = fallbackHref?.trim() || "/";
+  const currentPathname =
+    typeof window !== "undefined" ? window.location.pathname || "/" : "/";
+  const smart = smartBackFallback(currentPathname, accountType);
+  const fallback = (
+    fallbackHref?.trim() ||
+    smart ||
+    defaultBackHref(accountType)
+  ).split("#")[0];
 
   const go = () => {
     clearPageExitClass();
@@ -121,6 +215,10 @@ export function navigateBack(
       typeof window !== "undefined"
         ? window.location.pathname + window.location.search
         : "";
+    const currentPath =
+      typeof window !== "undefined"
+        ? window.location.pathname
+        : currentPathname;
 
     // Drop current page from our stack
     if (stack.length >= 1) {
@@ -129,25 +227,48 @@ export function navigateBack(
       }
     }
 
-    // Skip duplicate tops / same-as-current so Back always moves
-    while (
-      stack.length >= 1 &&
-      (stack[stack.length - 1] === current || !stack[stack.length - 1])
-    ) {
-      stack.pop();
+    // Skip duplicate tops / same-as-current / other-role pages
+    while (stack.length >= 1) {
+      const top = stack[stack.length - 1];
+      if (
+        !top ||
+        top === current ||
+        top === currentPath ||
+        !stackEntryAllowed(top, accountType)
+      ) {
+        stack.pop();
+        continue;
+      }
+      break;
     }
 
     if (stack.length >= 1) {
-      const prev = stack[stack.length - 1] || fallback;
+      const prev = (stack[stack.length - 1] || fallback).split("#")[0];
+      const prevPath = pathOnly(prev);
+
+      // Detail screens: prefer list parent over bare role-home in stack
+      if (
+        isDetailPath(currentPath) &&
+        isRoleHome(prevPath) &&
+        fallback &&
+        !isRoleHome(fallback) &&
+        stackEntryAllowed(fallback, accountType)
+      ) {
+        writeStack(stack);
+        router.push(fallback);
+        return;
+      }
+
       writeStack(stack);
-      // Prefer explicit push to a known in-app path — more reliable than
-      // history.back() after tel: dialer / external app handoff.
       router.push(prev);
       return;
     }
 
     writeStack([]);
-    router.push(fallback);
+    const safeFallback = stackEntryAllowed(fallback, accountType)
+      ? fallback
+      : defaultBackHref(accountType);
+    router.push(safeFallback);
   };
 
   if (typeof document === "undefined") {

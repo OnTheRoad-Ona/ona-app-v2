@@ -97,6 +97,17 @@ async function loadOrRepairProfile(
 
   if (!profile) return null;
 
+  // Revive accidentally deactivated accounts so Motorist ↔ Pro switch works after login
+  if ((profile as ProfileRow).is_active === false) {
+    const { data: revived } = await admin
+      .from("profiles")
+      .update({ is_active: true, updated_at: new Date().toISOString() })
+      .eq("id", userId)
+      .select("*")
+      .maybeSingle();
+    if (revived) profile = revived;
+  }
+
   const p = profile as ProfileRow;
   const accountType: AccountType =
     p.role === "repair_pro" ? "professional" : "motorist";
@@ -114,6 +125,10 @@ async function loadOrRepairProfile(
     vehicle_make?: string | null;
     vehicle_model?: string | null;
     vehicle_year?: string | null;
+    plate_number?: string | null;
+    vehicle_photo?: string | null;
+    vehicle_common_issues?: string[] | null;
+    vehicles?: import("@/lib/types").MotoristVehicle[] | null;
     nin_verified?: boolean;
     bvn_verified?: boolean;
     identity_verified_at?: string | null;
@@ -177,6 +192,10 @@ async function loadOrRepairProfile(
     vehicleMake: mot?.vehicle_make || undefined,
     vehicleModel: mot?.vehicle_model || undefined,
     vehicleYear: mot?.vehicle_year || undefined,
+    vehiclePlate: mot?.plate_number || undefined,
+    vehiclePhoto: mot?.vehicle_photo || undefined,
+    vehicleCommonIssues: mot?.vehicle_common_issues || undefined,
+    vehicles: Array.isArray(mot?.vehicles) ? mot.vehicles : undefined,
     ninVerified: Boolean(mot?.nin_verified),
     bvnVerified: Boolean(mot?.bvn_verified),
     identityVerifiedAt: mot?.identity_verified_at || undefined,

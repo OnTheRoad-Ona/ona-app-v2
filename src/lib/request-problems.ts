@@ -83,6 +83,46 @@ const BY_SKILL: Record<ProService, string[]> = {
     "Engine bay clean",
     OTHER,
   ],
+  plumber: [
+    "Pipe leak",
+    "Blocked drain",
+    "Tap / toilet repair",
+    "Water heater",
+    "New pipe install",
+    OTHER,
+  ],
+  carpenter: [
+    "Door / window fix",
+    "Furniture repair",
+    "Cabinet work",
+    "Shelving",
+    "Wood fitting",
+    OTHER,
+  ],
+  painter: [
+    "Room painting",
+    "Exterior paint",
+    "Touch-up / patch",
+    "Ceiling paint",
+    "Wall prep",
+    OTHER,
+  ],
+  solar: [
+    "Solar panel install",
+    "Inverter issue",
+    "Battery bank",
+    "Wiring / fault",
+    "System check",
+    OTHER,
+  ],
+  generator: [
+    "Won't start",
+    "Service / oil change",
+    "No power output",
+    "Strange noise",
+    "Fuel system",
+    OTHER,
+  ],
 };
 
 export function problemsForService(service: ProService | string | undefined): string[] {

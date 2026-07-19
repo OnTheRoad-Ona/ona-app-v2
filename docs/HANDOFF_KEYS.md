@@ -23,6 +23,8 @@ For Vercel:
 npx vercel login
 ```
 
-Then follow `docs/VERCEL_DEPLOY.md` for:
+Then follow `docs/VERCEL_DEPLOY.md` for the **primary** app:
 - https://ogamecho.vercel.app  
-- https://ogamecho-backend.vercel.app  
+- https://ogamecho.vercel.app/admin  
+
+(`ogamecho-backend` is optional/legacy. If you see “deployment is temporarily paused”, the Hobby team is soft-blocked on fair-use transfer — unpause via Billing/Usage or upgrade; redeploy alone will not fix it.)

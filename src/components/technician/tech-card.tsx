@@ -12,6 +12,11 @@ import {
   type ProCtaKind,
 } from "@/lib/jobs/motorist-pro-cta";
 import type { JobRecord } from "@/lib/jobs/types";
+import {
+  formatMoney,
+  getBaseLabourPrice,
+  type AppCurrency,
+} from "@/lib/pricing";
 import type { Technician } from "@/lib/types";
 import { cn, formatDistance, formatEta } from "@/lib/utils";
 import { useApp } from "@/lib/store";
@@ -89,6 +94,18 @@ export function TechCard({
               )}
             >
               <span className="truncate">{tech.shortName}</span>
+              {tech.isNewArtisan ? (
+                <span
+                  className={cn(
+                    "shrink-0 rounded px-1 py-0.5 text-[8px] font-black uppercase tracking-wide",
+                    isLight
+                      ? "bg-amber-100 text-amber-900"
+                      : "bg-amber-500/25 text-amber-200"
+                  )}
+                >
+                  New
+                </span>
+              ) : null}
               {tech.verified && (
                 <BadgeCheck
                   className="h-3.5 w-3.5 shrink-0 fill-none text-sky-500"
@@ -178,6 +195,22 @@ export function TechCard({
             {formatEta(tech.etaMinutes)}
             <span className="mx-1 opacity-40">·</span>
             {formatDistance(tech.distanceKm)}
+            {(() => {
+              const labour = getBaseLabourPrice(
+                tech.servicePrices,
+                tech.serviceType
+              );
+              if (labour == null) return null;
+              const cur = (tech.pricingCurrency || "NGN") as AppCurrency;
+              return (
+                <>
+                  <span className="mx-1 opacity-40">·</span>
+                  <span className="font-bold text-brand">
+                    {formatMoney(labour, cur)}
+                  </span>
+                </>
+              );
+            })()}
           </span>
         </div>
       </div>

@@ -60,6 +60,14 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
           services: {
             ...DEFAULT_APP_CONFIG.services,
             ...json.data.config.services,
+            // Union defaults + remote so new trades (plumber, solar, …)
+            // never disappear when DB still has the old enabled list
+            enabled: Array.from(
+              new Set([
+                ...DEFAULT_APP_CONFIG.services.enabled,
+                ...((json.data.config.services?.enabled as string[]) ?? []),
+              ])
+            ),
           },
         };
         setRuntimeAppConfig(next);

@@ -23,13 +23,14 @@ function userIcon() {
   });
 }
 
-/** Orange trade glyph only (no circle) + live beam — same size, shade on select */
+/** Live pro: Message-orange trade glyph with gentle pulse */
 function techIcon(t: Technician, selected: boolean) {
   const size = 24;
   const box = 32;
+  const live = t.status === "available" || t.hasLiveLocation !== false;
   return L.divIcon({
     className: "om-trade-marker",
-    html: tradeIconHtml(t.serviceType, { size, selected }),
+    html: tradeIconHtml(t.serviceType, { size, selected, live }),
     iconSize: [box, box],
     iconAnchor: [box / 2, box / 2],
   });

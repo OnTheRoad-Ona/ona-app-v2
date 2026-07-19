@@ -59,12 +59,16 @@ open http://localhost:4500/admin/login
 
 ## 7. Vercel
 
-| Project | Domain | Command notes |
-|---------|--------|----------------|
-| `ogamecho` | https://ogamecho.vercel.app | public app |
-| `ogamecho-backend` | https://ogamecho-backend.vercel.app | admin + APIs |
+| Project | Domain | Notes |
+|---------|--------|--------|
+| **`ogamecho`** (primary) | https://ogamecho.vercel.app | Public app **and** `/admin` + all APIs |
+| `ogamecho-backend` (optional) | https://ogamecho-backend.vercel.app | Same codebase; avoid if possible (extra bandwidth) |
 
-Add the same Supabase + Maps env vars in both projects.  
-**Only** `ogamecho-backend` needs `SUPABASE_SERVICE_ROLE_KEY`.
+Put the **same** Supabase + Maps env on `ogamecho`, including:
+
+- `SUPABASE_SERVICE_ROLE_KEY` (needed for server APIs and admin — not backend-only)
+- `NEXT_PUBLIC_APP_URL=https://ogamecho.vercel.app`
+
+If production shows **“This deployment is temporarily paused”**, the team is soft-blocked (Hobby fair use / Fast Origin Transfer) — see `docs/VERCEL_DEPLOY.md`. Local `npm run dev` / `npm run dev:admin` still works with `.env.local`.
 
 You must run `npx vercel login` once before deploy.

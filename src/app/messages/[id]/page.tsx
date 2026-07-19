@@ -1,10 +1,11 @@
 "use client";
 
-import { use, useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, Mic, Send, Square } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { VoiceNotePlayer } from "@/components/jobs/voice-note-player";
+import { useNotificationsOptional } from "@/components/notifications/notification-provider";
 import { apiGetJob } from "@/lib/jobs/client";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
@@ -13,6 +14,8 @@ import {
   backendSubscribeMessages,
   type MessageRow,
 } from "@/lib/supabase/app-api";
+import { createBrowserSupabase } from "@/lib/supabase/client";
+import { MESSAGE_ORANGE } from "@/lib/map-trade-icons";
 import { unlockAudio } from "@/lib/sound-tone";
 import type { ChatMessage } from "@/lib/types";
 
@@ -51,10 +54,12 @@ export default function ChatThreadPage({
     visibleMessageThreads,
     sendChatMessage,
     refreshCloudChats,
+    markThreadRead,
     theme,
     accountType,
     backendUserId,
   } = useApp();
+  const notif = useNotificationsOptional();
   const isLight = theme === "light";
   const isPro = accountType === "professional";
   const thread = visibleMessageThreads.find((t) => t.id === id);
@@ -68,20 +73,45 @@ export default function ChatThreadPage({
   const [recError, setRecError] = useState<string | null>(null);
   /** After satisfied/released — history only, no new messages */
   const [chatClosed, setChatClosed] = useState(false);
+  /** Other party is typing (Realtime broadcast) */
+  const [otherTyping, setOtherTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const startedAt = useRef(0);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const typingChannelRef = useRef<any>(null);
+  const typingStopTimer = useRef<number | null>(null);
+  const lastTypingSent = useRef(0);
 
-  // Pull server messages so the other party's chat appears
+  // Pull server messages; Realtime handles inserts — slow poll is backup only
   useEffect(() => {
     refreshCloudChats();
     const t = window.setInterval(() => {
       if (document.hidden) return;
       refreshCloudChats();
-    }, 5000);
+    }, 60_000);
     return () => window.clearInterval(t);
   }, [refreshCloudChats, id]);
+
+  // Mark thread + related message notifications as read when open / new msgs arrive
+  useEffect(() => {
+    if (!id || !thread) return;
+    markThreadRead(id);
+    if (notif) {
+      const ids = notif.notifications
+        .filter(
+          (n) =>
+            !n.readAt &&
+            n.category === "messages" &&
+            (n.href === `/messages/${id}` ||
+              n.href === `/messages/${thread.id}` ||
+              (thread.requestId != null && n.jobId === thread.requestId))
+        )
+        .map((n) => n.id);
+      if (ids.length) void notif.markRead(ids);
+    }
+  }, [id, thread?.id, thread?.messages.length, markThreadRead]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Lock send forever once the linked job is finished / closed
   useEffect(() => {
@@ -105,15 +135,77 @@ export default function ChatThreadPage({
     if (!id || id.startsWith("chat-") || !backendUserId) return;
     const unsub = backendSubscribeMessages(id, (_row: MessageRow) => {
       refreshCloudChats();
+      markThreadRead(id);
     });
     return () => {
       unsub?.();
     };
-  }, [id, backendUserId, refreshCloudChats]);
+  }, [id, backendUserId, refreshCloudChats, markThreadRead]);
+
+  // Typing indicator channel (broadcast — no extra DB rows)
+  useEffect(() => {
+    if (!id || id.startsWith("chat-") || !backendUserId || chatClosed) {
+      setOtherTyping(false);
+      return;
+    }
+    let sb: ReturnType<typeof createBrowserSupabase> | null = null;
+    try {
+      sb = createBrowserSupabase();
+    } catch {
+      return;
+    }
+    if (!sb) return;
+    const channel = sb.channel(`om-typing:${id}`, {
+      config: { broadcast: { self: false } },
+    });
+    channel
+      .on(
+        "broadcast",
+        { event: "typing" },
+        (payload: { payload?: { userId?: string; typing?: boolean } }) => {
+          const p = payload.payload;
+          if (!p || p.userId === backendUserId) return;
+          setOtherTyping(Boolean(p.typing));
+          if (typingStopTimer.current) {
+            window.clearTimeout(typingStopTimer.current);
+          }
+          if (p.typing) {
+            typingStopTimer.current = window.setTimeout(() => {
+              setOtherTyping(false);
+            }, 3500);
+          }
+        }
+      )
+      .subscribe();
+    typingChannelRef.current = channel;
+    return () => {
+      typingChannelRef.current = null;
+      setOtherTyping(false);
+      if (typingStopTimer.current) window.clearTimeout(typingStopTimer.current);
+      void sb.removeChannel(channel);
+    };
+  }, [id, backendUserId, chatClosed]);
+
+  const broadcastTyping = useCallback(
+    (typing: boolean) => {
+      const ch = typingChannelRef.current;
+      if (!ch || !backendUserId || chatClosed) return;
+      const now = Date.now();
+      // Throttle typing=true to ~1.2s
+      if (typing && now - lastTypingSent.current < 1200) return;
+      if (typing) lastTypingSent.current = now;
+      void ch.send({
+        type: "broadcast",
+        event: "typing",
+        payload: { userId: backendUserId, typing },
+      });
+    },
+    [backendUserId, chatClosed]
+  );
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [thread?.messages.length, pendingVoice]);
+  }, [thread?.messages.length, pendingVoice, otherTyping]);
 
   useEffect(() => {
     return () => {
@@ -235,6 +327,7 @@ export default function ChatThreadPage({
     if (chatClosed) return;
     if (!draft.trim() && !pendingVoice) return;
     unlockAudio();
+    broadcastTyping(false);
     sendChatMessage(thread.id, draft, pendingVoice);
     setDraft("");
     setPendingVoice(null);
@@ -288,11 +381,22 @@ export default function ChatThreadPage({
                 className={cn(
                   "max-w-[85%] space-y-1.5 rounded-2xl px-3 py-2 text-[13px] leading-snug",
                   mine
-                    ? "rounded-br-md bg-brand text-white"
+                    ? "rounded-br-md text-white"
                     : isLight
                       ? "rounded-bl-md bg-[#bebfc4] text-slate-900"
                       : "rounded-bl-md bg-neutral-900 text-white"
                 )}
+                style={
+                  mine
+                    ? {
+                        // Glassy Message orange — same as Message button
+                        backgroundColor: MESSAGE_ORANGE,
+                        backgroundImage:
+                          "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.06) 40%, rgba(0,0,0,0.06) 100%)",
+                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.28)",
+                      }
+                    : undefined
+                }
               >
                 {msg.text && msg.text !== "Voice note" && <p>{msg.text}</p>}
                 {msg.voiceUrl && (
@@ -311,6 +415,17 @@ export default function ChatThreadPage({
             </div>
           );
         })}
+        {otherTyping && !chatClosed && (
+          <p
+            className={cn(
+              "px-2 text-[12px] italic transition-opacity duration-200",
+              isLight ? "text-slate-600" : "text-white/65"
+            )}
+            aria-live="polite"
+          >
+            Typing…
+          </p>
+        )}
         <div ref={bottomRef} />
       </div>
 
@@ -372,7 +487,13 @@ export default function ChatThreadPage({
         </button>
         <input
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value;
+            setDraft(v);
+            if (v.trim()) broadcastTyping(true);
+            else broadcastTyping(false);
+          }}
+          onBlur={() => broadcastTyping(false)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();

@@ -249,17 +249,17 @@ export function JobFlowScreen({
       await load();
     };
     void tick();
-    // Low data: negotiate 8s, active trip 15s; post-pay reviews poll fast (3s)
+    // Low data: negotiate 18s, active trip 40s; post-pay 20s; idle 45s
     const ms =
       job?.status === "negotiating" || job?.status === "agreed"
-        ? 8000
+        ? 18_000
         : ["paid_booked", "en_route", "arrived", "in_progress"].includes(
               job?.status || ""
             )
-          ? 15_000
+          ? 40_000
           : job?.status === "released" || job?.status === "satisfied"
-            ? 3000
-            : 20_000;
+            ? 20_000
+            : 45_000;
     const id = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void tick();
@@ -351,7 +351,7 @@ export function JobFlowScreen({
     };
 
     sample();
-    const poll = window.setInterval(sample, 30_000);
+    const poll = window.setInterval(sample, 45_000);
 
     setLocHint(
       viewer === "repair_pro"
@@ -390,15 +390,47 @@ export function JobFlowScreen({
   const run = async (fn: () => Promise<{ ok: true; data: { job: JobRecord } } | { ok: false; message: string }>) => {
     setBusy(true);
     setErr(null);
+    const prevStatus = jobRef.current?.status;
     try {
       const res = await fn();
       if (!res.ok) {
         setErr(res.message);
+        try {
+          const { playAppSound } = await import("@/lib/sound-tone");
+          playAppSound("error");
+        } catch {
+          /* */
+        }
         return;
       }
       applyJob(res.data.job);
+      const next = res.data.job.status;
+      try {
+        const { playAppSound } = await import("@/lib/sound-tone");
+        if (next !== prevStatus) {
+          if (next === "agreed") playAppSound("request_accepted");
+          else if (next === "paid_booked") playAppSound("payment_success");
+          else if (next === "en_route") playAppSound("trip_started");
+          else if (next === "arrived") playAppSound("arrived");
+          else if (next === "completed" || next === "satisfied")
+            playAppSound("job_complete");
+          else if (next === "released") playAppSound("job_complete");
+          else playAppSound("success_soft");
+        } else if (prevStatus === "negotiating") {
+          // Offer placed without status change
+          playAppSound("offer_sent");
+        }
+      } catch {
+        /* audio optional */
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Something went wrong. Try again.");
+      try {
+        const { playAppSound } = await import("@/lib/sound-tone");
+        playAppSound("error");
+      } catch {
+        /* */
+      }
     } finally {
       // Never leave the UI stuck on “Updating…”
       setBusy(false);
@@ -696,7 +728,7 @@ export function JobFlowScreen({
                     ? "Repair Pro offered"
                     : "Motorist offered"}
                 </p>
-                <p className="mt-0.5 text-[22px] font-semibold tabular-nums text-[#e07a3d]">
+                <p className={cn("mt-0.5 text-[22px] font-semibold tabular-nums", ink)}>
                   {formatMoney(theirOffer.amountMajor, job.currency)}
                 </p>
                 <p className={cn("mt-0.5 text-[12px] font-medium", muted)}>
@@ -1520,7 +1552,7 @@ export function JobFlowScreen({
             Escrow releases 95% to {job.repairProName} only after you confirm.
           </p>
           {job.agreedMajor != null && (
-            <p className="mt-4 text-[24px] font-black text-[#e07a3d]">
+            <p className={cn("mt-4 text-[24px] font-black tabular-nums", ink)}>
               {formatMoney(job.agreedMajor, job.currency)}
             </p>
           )}
@@ -1674,7 +1706,7 @@ export function JobFlowScreen({
             Success
           </p>
           {job.agreedMajor != null && (
-            <p className="mt-3 text-[32px] font-black tabular-nums tracking-tight text-[#e07a3d]">
+            <p className={cn("mt-3 text-[32px] font-black tabular-nums tracking-tight", ink)}>
               {formatMoney(job.agreedMajor, job.currency)}
             </p>
           )}

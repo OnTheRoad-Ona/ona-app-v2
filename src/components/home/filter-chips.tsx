@@ -13,11 +13,19 @@ const chips: { key: keyof AppFilters; label: string; star?: boolean }[] = [
   { key: "fastResponse", label: "Fast" },
 ];
 
+const FILTER_HINT: Record<keyof AppFilters, string> = {
+  nearest: "Sort by closest first",
+  rating45: "Only pros rated 4.5 or higher",
+  availableNow: "Only Live pros with GPS",
+  verified: "Only verified pros",
+  fastResponse: "Only fast-reply pros",
+};
+
 /**
- * Segmented filters — strong contrast for star + Available on light/white wash.
+ * Segmented filters — each chip filters map pins + list (see matching.ts).
  */
 export function FilterChips() {
-  const { filters, toggleFilter, theme } = useApp();
+  const { filters, toggleFilter, theme, visibleTechnicians } = useApp();
   const isLight = theme === "light";
 
   return (
@@ -37,6 +45,7 @@ export function FilterChips() {
             <button
               key={key}
               type="button"
+              title={FILTER_HINT[key]}
               onClick={() => toggleFilter(key)}
               className={cn(
                 "inline-flex min-w-0 flex-1 items-center justify-center gap-0.5 rounded-none border-0 px-1 py-1.5 text-[10px] font-bold transition-colors",
@@ -49,6 +58,7 @@ export function FilterChips() {
                     : "bg-transparent text-[#d0d0d0] hover:bg-white/[0.06] hover:text-white"
               )}
               aria-pressed={active}
+              aria-label={`${label}. ${FILTER_HINT[key]}. ${visibleTechnicians.length} match.`}
             >
               {star && (
                 <Star

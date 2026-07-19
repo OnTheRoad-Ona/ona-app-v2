@@ -3,17 +3,17 @@
 import { cn } from "@/lib/utils";
 
 /** Fallback plate color only if the photo has not painted yet */
-export const BRAND_COPPER = "#c4784a";
+export const BRAND_COPPER = "#c97d47";
 
 /**
- * Auth brand background only — photo asset, no solid fills.
- * Unique filename + version so browsers never keep a stale hero.
+ * Intro / auth full-bleed art — clean copper + tire-ring portrait.
+ * Always clipped to parent (phone shell); never full browser window.
  */
-const BRAND_SRC = "/brand/auth-bg-v30.jpg";
+const BRAND_SRC = "/brand/auth-bg-v31.jpg";
 const BRAND_W = 720;
 const BRAND_H = 1280;
 
-/** Full-bleed cover; phone-native 9:16 so face stays centered in the ring. */
+/** Cover phone frame; face stays centered in the ring */
 const BRAND_FOCUS = "object-cover object-center";
 
 type BrandHeroProps = {
@@ -21,17 +21,20 @@ type BrandHeroProps = {
   size?: "full" | "card" | "splash";
   bottomFade?: boolean;
   motion?: boolean;
+  /** Soft fade + slight scale on first paint (intro) */
+  introMotion?: boolean;
 };
 
 /**
  * Brand background — true full-bleed metallic photograph.
- * No solid fills, glows, or gradient overlays on the art.
+ * Confined by overflow:hidden parent (#oga-mecho-phone).
  */
 export function BrandHeroMotion({
   className,
   size = "full",
   bottomFade = false,
   motion = true,
+  introMotion = false,
 }: BrandHeroProps) {
   if (size === "card") {
     return (
@@ -45,7 +48,7 @@ export function BrandHeroMotion({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={BRAND_SRC}
-          alt="Oga Mecho"
+          alt="Ona"
           width={BRAND_W}
           height={BRAND_H}
           key={BRAND_SRC}
@@ -63,13 +66,14 @@ export function BrandHeroMotion({
   return (
     <div
       className={cn(
+        /* Absolute fill of phone shell only — never fixed/viewport */
         "pointer-events-none absolute inset-0 overflow-hidden",
-        motion && "om-apple-motion-sharp",
+        motion && !introMotion && "om-apple-motion-sharp",
         className
       )}
       aria-hidden
+      style={{ backgroundColor: BRAND_COPPER }}
     >
-      {/* Full-bleed photographic background — cover entire frame */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         key={BRAND_SRC}
@@ -81,16 +85,16 @@ export function BrandHeroMotion({
         fetchPriority="high"
         loading="eager"
         draggable={false}
-        sizes="100vw"
+        sizes="390px"
         className={cn(
-          "om-brand-img absolute inset-0 h-full w-full",
-          size === "splash" || size === "full"
-            ? BRAND_FOCUS
-            : "object-contain object-center"
+          "om-brand-img absolute inset-0 h-full w-full max-h-full max-w-full",
+          BRAND_FOCUS,
+          introMotion && "om-intro-hero-img"
         )}
         style={{
-          /* No filters — show the attached art as-is */
           filter: "none",
+          objectFit: "cover",
+          objectPosition: "center center",
         }}
       />
 

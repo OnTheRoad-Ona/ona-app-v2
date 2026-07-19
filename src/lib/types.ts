@@ -12,11 +12,16 @@ export type ServiceCategory =
   | "electrical"
   | "diagnostics"
   | "wash"
+  | "plumber"
+  | "carpenter"
+  | "painter"
+  | "solar"
+  | "generator"
   | "all";
 
 /**
  * Services a professional can register / offer.
- * Matches the 9 home service cards (excludes "All").
+ * Matches home service cards (excludes "All").
  */
 export type ProService =
   | "mechanic"
@@ -27,7 +32,12 @@ export type ProService =
   | "body"
   | "electrical"
   | "diagnostics"
-  | "wash";
+  | "wash"
+  | "plumber"
+  | "carpenter"
+  | "painter"
+  | "solar"
+  | "generator";
 
 /**
  * What the user registered as.
@@ -41,6 +51,17 @@ export type UserMode = "client" | "professional";
 
 /** Account type chosen on login / sign-up */
 export type AccountType = "motorist" | "professional";
+
+/** One motorist vehicle (unlimited list on profile) */
+export type MotoristVehicle = {
+  id: string;
+  make: string;
+  model: string;
+  year?: string;
+  plate?: string;
+  photo?: string;
+  commonIssues?: string[];
+};
 
 /** Full profile after Motorist or Repair Pro signup */
 export interface UserProfile {
@@ -57,13 +78,15 @@ export interface UserProfile {
   password: string;
   city: string;
   area: string;
-  /** Motorist optional vehicle */
+  /** Motorist optional vehicle (legacy single — kept as first of `vehicles`) */
   vehicleMake?: string;
   vehicleModel?: string;
   vehicleYear?: string;
   vehiclePlate?: string;
   vehiclePhoto?: string;
   vehicleCommonIssues?: string[];
+  /** Motorist can add unlimited vehicles (one-at-a-time wizard) */
+  vehicles?: MotoristVehicle[];
   /** Profile avatar (data URL or path) */
   avatarUrl?: string;
   /** Motorist saved places */
@@ -156,7 +179,9 @@ export interface UserProfile {
    */
   skillAnswers?: Record<
     string,
-    string | string[] | { name: string; dataUrl: string; mime: string }
+    | string
+    | string[]
+    | { name: string; dataUrl?: string; mime?: string; hasFile?: boolean }
   >;
   /** Stable identity id for the local account registry */
   identityId?: string;
@@ -225,11 +250,15 @@ export interface Technician {
   docsRatingBoostApplied?: boolean;
   /** Jobs completed (for achievement badges) */
   jobsCompleted?: number;
+  /** New Artisan badge — lower ranking until 5 successful jobs */
+  isNewArtisan?: boolean;
   servicePrices?: Partial<Record<ProService, number | string>>;
   pricingCurrency?: import("@/lib/pricing").AppCurrency;
   skillAnswers?: Record<
     string,
-    string | string[] | { name: string; dataUrl: string; mime: string }
+    | string
+    | string[]
+    | { name: string; dataUrl?: string; mime?: string; hasFile?: boolean }
   >;
 }
 

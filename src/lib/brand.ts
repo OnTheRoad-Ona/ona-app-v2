@@ -9,8 +9,10 @@ export const DEFAULT_VENDOR_PHOTO = "/brand/default-pro-avatar.png?v=7";
 /** No fill behind default — image already fills the circle (transparent not needed). */
 export const DEFAULT_VENDOR_PHOTO_BG = "transparent";
 
-/** Legacy full-bleed auth/hero art (not for small circular avatars). */
-export const BRAND_HERO_PHOTO = "/brand/oga-mecho-hero.jpg";
+/** Full-bleed intro / auth hero art (not for small circular avatars). */
+export const BRAND_HERO_PHOTO = "/brand/auth-bg-v31.jpg";
+/** Same asset — boot / intro still */
+export const ONA_INTRO_IMAGE = "/brand/ona-intro-v1.jpg";
 
 /** Initials for avatar fallback rings (e.g. "Oluwatosin Olanrewaju" → "OO"). */
 export function avatarInitials(

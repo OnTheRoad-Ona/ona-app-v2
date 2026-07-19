@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Car, Check, ChevronLeft, ChevronRight, Wrench } from "lucide-react";
 import {
   AuthPlate,
   WHEEL_GRAY,
 } from "@/components/auth/auth-plate";
+import { useAuthNavigate } from "@/components/auth/auth-transition";
 import type { AccountType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -17,14 +17,14 @@ const ACCENT = "#e85a12";
  * Sheet #C8C9CD · wheel gray #323231 · brand orange accents.
  */
 export function LoginScreen() {
-  const router = useRouter();
+  const { exiting, go } = useAuthNavigate();
   /** No default — user must pick Motorist or Repair Pro */
   const [accountType, setAccountType] = useState<AccountType | null>(null);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!accountType) return;
-    router.push(
+    go(
       accountType === "professional" ? "/signup/pro" : "/signup/motorist"
     );
   };
@@ -35,11 +35,11 @@ export function LoginScreen() {
     } catch {
       /* ignore */
     }
-    router.push("/login");
+    go("/login");
   };
 
   return (
-    <AuthPlate>
+    <AuthPlate exiting={exiting}>
       <div className="flex min-h-0 flex-1 flex-col">
         {/* Top bar — no step counter; keep Back only */}
         <div className="flex items-center px-4 pb-0 pt-3">
@@ -55,9 +55,12 @@ export function LoginScreen() {
 
         {/* Brand + intro — pulled up closer to top */}
         <div className="px-5 pt-1 text-center">
-          <h1 className="text-[26px] font-bold leading-none tracking-tight">
-            <span style={{ color: WHEEL_GRAY }}>Oga</span>
-            <span style={{ color: ACCENT }}>Mecho</span>
+          <h1
+            className="text-[32px] font-black leading-none tracking-tight"
+            aria-label="Ona"
+          >
+            <span className="text-[#1c1c1e]">O</span>
+            <span className="text-black">na</span>
           </h1>
           <p className="mx-auto mt-1.5 max-w-[280px] text-[13px] leading-relaxed text-[#475569]">
             Choose how you&apos;ll use the app
@@ -142,7 +145,7 @@ export function LoginScreen() {
                 type="button"
                 className="border-0 bg-transparent p-0 font-semibold"
                 style={{ color: ACCENT }}
-                onClick={() => router.push("/login/signin")}
+                onClick={() => go("/login/signin")}
               >
                 Log In
               </button>

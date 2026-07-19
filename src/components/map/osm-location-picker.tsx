@@ -4,9 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 import { MapContainer, Marker, TileLayer, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { Crosshair, MapPin, Navigation } from "lucide-react";
+import { Building2, Crosshair, MapPin, Navigation } from "lucide-react";
 import { reverseGeocodeLatLng } from "@/lib/google-maps";
 import { DEFAULT_USER_LOCATION } from "@/lib/data/technicians";
+import {
+  knownPlaceNear,
+  knownPlaceToPick,
+  matchKnownPlaces,
+  resolveKnownPlace,
+  type KnownPlace,
+} from "@/lib/known-places";
 import { cn } from "@/lib/utils";
 import type { PickedLocation } from "./location-picker-map";
 
@@ -34,6 +41,7 @@ function ClickHandler({
 
 /**
  * OpenStreetMap picker when Google Maps key is rejected or missing.
+ * Same curated place search as the Google picker (1st Price Furniture, etc.).
  */
 export function OsmLocationPicker({
   value,
@@ -54,11 +62,39 @@ export function OsmLocationPicker({
   const [query, setQuery] = useState(value?.label ?? "");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [openSuggest, setOpenSuggest] = useState(false);
+  const [knownHits, setKnownHits] = useState<KnownPlace[]>([]);
+
+  const applyPick = useCallback(
+    (picked: PickedLocation) => {
+      setPin({ lat: picked.lat, lng: picked.lng });
+      setCenter({ lat: picked.lat, lng: picked.lng });
+      setQuery(picked.label);
+      onChange(picked);
+      setOpenSuggest(false);
+      setStatus(null);
+    },
+    [onChange]
+  );
+
+  const applyKnown = useCallback(
+    (place: KnownPlace) => {
+      applyPick(knownPlaceToPick(place));
+      setStatus(`${place.name} · pinned`);
+    },
+    [applyPick]
+  );
 
   const reverseGeocode = useCallback(
     async (lat: number, lng: number) => {
       setBusy(true);
       try {
+        const near = knownPlaceNear(lat, lng);
+        if (near) {
+          applyPick(knownPlaceToPick(near));
+          setStatus(`${near.name} · nearby pin snapped`);
+          return;
+        }
         const rest = await reverseGeocodeLatLng(lat, lng);
         if (rest) {
           const picked: PickedLocation = {
@@ -68,9 +104,7 @@ export function OsmLocationPicker({
             city: rest.city,
             area: rest.area,
           };
-          setQuery(picked.label);
-          onChange(picked);
-          setStatus(null);
+          applyPick(picked);
           return;
         }
         const fallback: PickedLocation = {
@@ -80,8 +114,7 @@ export function OsmLocationPicker({
           city: "Near you",
           area: "Selected pin",
         };
-        setQuery(fallback.label);
-        onChange(fallback);
+        applyPick(fallback);
         setStatus("Pin saved. Street name could not be loaded yet.");
       } catch {
         setStatus("We could not get the street name. Your pin is still saved.");
@@ -96,7 +129,7 @@ export function OsmLocationPicker({
         setBusy(false);
       }
     },
-    [onChange]
+    [applyPick, onChange]
   );
 
   const placePin = useCallback(
@@ -134,6 +167,27 @@ export function OsmLocationPicker({
     );
   };
 
+  const onQueryChange = (text: string) => {
+    setQuery(text);
+    setOpenSuggest(true);
+    setKnownHits(matchKnownPlaces(text, 4).map((r) => r.place));
+  };
+
+  const submitSearch = () => {
+    const typed = query.trim();
+    if (!typed) return;
+    const known = resolveKnownPlace(typed) || knownHits[0];
+    if (known) {
+      applyKnown(known);
+      return;
+    }
+    setStatus("Try “1st Price Furniture Company” or drop a pin on the map.");
+    setOpenSuggest(false);
+  };
+
+  const showPanel =
+    openSuggest && query.trim().length >= 2 && knownHits.length > 0;
+
   return (
     <div
       className={cn(
@@ -142,15 +196,54 @@ export function OsmLocationPicker({
         className
       )}
     >
-      <div className="relative flex items-center gap-2">
-        <MapPin className="absolute left-2.5 h-4 w-4 text-slate-400" />
+      <div className="relative">
+        <MapPin className="pointer-events-none absolute left-2.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <input
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Street name appears after you drop a pin"
+          onChange={(e) => onQueryChange(e.target.value)}
+          onFocus={() => {
+            if (query.trim().length >= 2) {
+              setKnownHits(matchKnownPlaces(query, 4).map((r) => r.place));
+              setOpenSuggest(true);
+            }
+          }}
+          onBlur={() => {
+            window.setTimeout(() => setOpenSuggest(false), 180);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              submitSearch();
+            }
+          }}
+          placeholder="Search place, street, or company…"
           className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none focus:border-emerald-500"
-          readOnly
+          autoComplete="off"
         />
+        {showPanel ? (
+          <ul className="absolute left-0 right-0 top-[calc(100%+4px)] z-[600] max-h-48 overflow-y-auto rounded-xl border-0 bg-white">
+            {knownHits.map((p) => (
+              <li key={p.id}>
+                <button
+                  type="button"
+                  className="flex w-full items-start gap-2 border-0 bg-transparent px-3 py-2.5 text-left hover:bg-slate-50"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyKnown(p)}
+                >
+                  <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                  <span className="min-w-0">
+                    <span className="block text-[12px] font-bold text-slate-900">
+                      {p.name}
+                    </span>
+                    <span className="block text-[10px] font-medium text-slate-500">
+                      {p.address}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
 
       <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl ring-1 ring-slate-200">
@@ -164,7 +257,11 @@ export function OsmLocationPicker({
         >
           <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
           <ClickHandler onPick={(lat, lng) => placePin(lat, lng)} />
-          <Marker position={[pin.lat, pin.lng]} icon={pinIcon()} />
+          <Marker
+            position={[pin.lat, pin.lng]}
+            icon={pinIcon()}
+            title={query || "Selected location"}
+          />
         </MapContainer>
 
         <div className="absolute bottom-2 left-2 right-2 z-[500] flex gap-2">

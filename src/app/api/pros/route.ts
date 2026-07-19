@@ -36,18 +36,45 @@ export async function GET(req: Request) {
   try {
     const supabase = createServiceSupabase();
     // Live only — not suspended/rejected. Pending+approved both OK when Live.
+    // Slim columns only: never pull certification_file_url / skills base64 (multi-MB thrash).
     const { data: pros, error } = await supabase
       .from("repair_pro_profiles")
-      .select("*")
+      .select(
+        [
+          "user_id",
+          "business_name",
+          "primary_service",
+          "services",
+          "status",
+          "is_online",
+          "rating_avg",
+          "rating_count",
+          "lat",
+          "lng",
+          "service_radius_km",
+          "years_experience",
+          "bio",
+          "verified",
+          "labour_prices",
+          "pricing_currency",
+          "vehicle_focus",
+          "jobs_completed",
+          "avg_response_minutes",
+          "completion_rate",
+          "docs_status",
+          "face_liveness_verified",
+          "in_person_verified",
+        ].join(",")
+      )
       .eq("is_online", true)
       .neq("status", "suspended")
       .neq("status", "rejected")
       .order("rating_avg", { ascending: false })
-      .limit(200);
+      .limit(80);
 
     if (error) return apiFail(error.message, 500);
 
-    const list = ((pros ?? []) as RepairProRow[]).filter(
+    const list = ((pros ?? []) as unknown as RepairProRow[]).filter(
       (p) => p.status !== "suspended" && p.status !== "rejected"
     );
     if (!list.length) {
@@ -58,12 +85,14 @@ export async function GET(req: Request) {
     const ids = list.map((p) => p.user_id);
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("*")
+      .select(
+        "id,role,full_name,phone,email,avatar_url,city,area,is_active,phone_verified,email_verified"
+      )
       .in("id", ids)
       .eq("is_active", true);
 
     const byId = new Map(
-      ((profiles ?? []) as ProfileRow[]).map((p) => [p.id, p])
+      ((profiles ?? []) as unknown as ProfileRow[]).map((p) => [p.id, p])
     );
 
     const technicians = list
@@ -99,9 +128,7 @@ export async function GET(req: Request) {
         }
         // Slightly wide pre-filter; matrix refines road distance
         const docsPending =
-          t.docsStatus === "under_review" ||
-          t.docsStatus === "none" ||
-          t.docsStatus === "rejected";
+          t.docsStatus === "under_review" || t.docsStatus === "rejected";
         const cap = docsPending
           ? Math.min(MAX_RADIUS_KM, DOCS_PENDING_MAX_RADIUS_KM)
           : MAX_RADIUS_KM;
@@ -117,9 +144,7 @@ export async function GET(req: Request) {
           return false;
         }
         const docsPending =
-          t.docsStatus === "under_review" ||
-          t.docsStatus === "none" ||
-          t.docsStatus === "rejected";
+          t.docsStatus === "under_review" || t.docsStatus === "rejected";
         const cap = docsPending
           ? Math.min(MAX_RADIUS_KM, DOCS_PENDING_MAX_RADIUS_KM)
           : MAX_RADIUS_KM;

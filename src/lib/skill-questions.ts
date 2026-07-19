@@ -9,8 +9,10 @@ export type SkillFieldType =
 
 export type SkillFileValue = {
   name: string;
-  dataUrl: string;
-  mime: string;
+  /** May be omitted when payload was capped for size (signup still valid). */
+  dataUrl?: string;
+  mime?: string;
+  hasFile?: boolean;
 };
 
 export type SkillAnswerValue = string | string[] | SkillFileValue;
@@ -144,6 +146,46 @@ export const SPECIALTIES_BY_SKILL: Record<ProService, readonly string[]> = {
     "Underbody",
     "Wax",
   ],
+  plumber: [
+    "Pipe leak",
+    "Blocked drain",
+    "Tap / toilet",
+    "Water heater",
+    "New install",
+    "Pump",
+  ],
+  carpenter: [
+    "Doors",
+    "Windows",
+    "Furniture",
+    "Cabinets",
+    "Shelves",
+    "Roof wood",
+  ],
+  painter: [
+    "Interior",
+    "Exterior",
+    "Ceiling",
+    "Touch-up",
+    "Texture",
+    "Prep",
+  ],
+  solar: [
+    "Panel install",
+    "Inverter",
+    "Battery bank",
+    "Wiring",
+    "Maintenance",
+    "Hybrid",
+  ],
+  generator: [
+    "Petrol gen",
+    "Diesel gen",
+    "Service",
+    "Repair",
+    "Install",
+    "Transfer switch",
+  ],
 };
 
 /** @deprecated use SPECIALTIES_BY_SKILL.mechanic */
@@ -155,9 +197,9 @@ export const CERTIFICATION_WARNING =
 const CERT_UPLOAD: SkillQuestion = {
   id: "certificationUpload",
   label: "Upload your certificate",
-  hint: "Needed. Use PDF, JPG or PNG (trade paper, training letter or licence)",
+  hint: "Optional. PDF, JPG or PNG (trade paper, training letter or licence)",
   type: "file",
-  required: true,
+  required: false,
   public: false,
   accept: "image/*,.pdf,application/pdf",
 };
@@ -179,6 +221,16 @@ export const SKILL_AGREEMENTS: Record<ProService, string> = {
   diagnostics:
     "By completing this process, you agree you can run full diagnostics and scan works of the selected motor brand(s).",
   wash: "By completing this process, you agree you can provide full wash and detailing for the selected motor brand(s).",
+  plumber:
+    "By completing this process, you agree you can handle plumbing and water works for the jobs you accept.",
+  carpenter:
+    "By completing this process, you agree you can handle carpentry and woodwork for the jobs you accept.",
+  painter:
+    "By completing this process, you agree you can handle painting and surface finishing for the jobs you accept.",
+  solar:
+    "By completing this process, you agree you can handle solar and inverter works for the jobs you accept.",
+  generator:
+    "By completing this process, you agree you can service and repair generators for the jobs you accept.",
 };
 
 function withCertAndSpecialties(
@@ -195,7 +247,7 @@ function withCertAndSpecialties(
     {
       id: "specialties",
       label: "My Repair Core Focus",
-      hint: `Your strongholds within ${skillShort} (up to ${maxSelect}). You can still do all work in this profession.`,
+      hint: `Your strongholds within ${skillShort} (up to ${maxSelect}). By proceeding you accept to being able to do all work in this profession.`,
       type: "multiselect",
       required: true,
       public: true,
@@ -442,20 +494,134 @@ export const SKILL_FLOWS: Record<ProService, SkillFlow> = {
       },
     ],
   }),
+  plumber: withCertAndSpecialties({
+    skill: "plumber",
+    title: "Plumber details",
+    intro: SKILL_AGREEMENTS.plumber,
+    questions: [
+      {
+        id: "mobileTools",
+        label: "Do you come with tools?",
+        type: "select",
+        required: true,
+        public: true,
+        options: [...YES_NO],
+      },
+      {
+        id: "callout",
+        label: "Can you work at night or on weekends?",
+        type: "select",
+        required: true,
+        public: true,
+        options: [...YES_NO],
+      },
+    ],
+  }),
+  carpenter: withCertAndSpecialties({
+    skill: "carpenter",
+    title: "Carpenter details",
+    intro: SKILL_AGREEMENTS.carpenter,
+    questions: [
+      {
+        id: "mobileTools",
+        label: "Do you come with tools?",
+        type: "select",
+        required: true,
+        public: true,
+        options: [...YES_NO],
+      },
+      {
+        id: "callout",
+        label: "Can you work at night or on weekends?",
+        type: "select",
+        required: true,
+        public: true,
+        options: [...YES_NO],
+      },
+    ],
+  }),
+  painter: withCertAndSpecialties({
+    skill: "painter",
+    title: "Painter details",
+    intro: SKILL_AGREEMENTS.painter,
+    questions: [
+      {
+        id: "mobileTools",
+        label: "Do you come with tools and materials?",
+        type: "select",
+        required: true,
+        public: true,
+        options: [...YES_NO],
+      },
+      {
+        id: "callout",
+        label: "Can you work at night or on weekends?",
+        type: "select",
+        required: true,
+        public: true,
+        options: [...YES_NO],
+      },
+    ],
+  }),
+  solar: withCertAndSpecialties({
+    skill: "solar",
+    title: "Solar details",
+    intro: SKILL_AGREEMENTS.solar,
+    questions: [
+      {
+        id: "mobileTools",
+        label: "Do you install on-site?",
+        type: "select",
+        required: true,
+        public: true,
+        options: [...YES_NO],
+      },
+      {
+        id: "callout",
+        label: "Can you work at night or on weekends?",
+        type: "select",
+        required: true,
+        public: true,
+        options: [...YES_NO],
+      },
+    ],
+  }),
+  generator: withCertAndSpecialties({
+    skill: "generator",
+    title: "Generator details",
+    intro: SKILL_AGREEMENTS.generator,
+    questions: [
+      {
+        id: "mobileTools",
+        label: "Do you come with tools?",
+        type: "select",
+        required: true,
+        public: true,
+        options: [...YES_NO],
+      },
+      {
+        id: "callout",
+        label: "Can you work at night or on weekends?",
+        type: "select",
+        required: true,
+        public: true,
+        options: [...YES_NO],
+      },
+    ],
+  }),
 };
 
 export function getSkillFlow(skill: ProService): SkillFlow {
-  return SKILL_FLOWS[skill];
+  // Fallback protects every trade if a key is ever missing
+  return SKILL_FLOWS[skill] ?? SKILL_FLOWS.mechanic;
 }
 
 export function isSkillFileValue(v: unknown): v is SkillFileValue {
-  return (
-    !!v &&
-    typeof v === "object" &&
-    "name" in v &&
-    "dataUrl" in v &&
-    typeof (v as SkillFileValue).name === "string"
-  );
+  if (!v || typeof v !== "object" || !("name" in v)) return false;
+  const f = v as SkillFileValue;
+  if (typeof f.name !== "string" || !f.name.trim()) return false;
+  // Valid when we have bytes or at least a named upload
+  return Boolean(f.dataUrl || f.hasFile || f.name);
 }
 
 export function skillAnswersValid(

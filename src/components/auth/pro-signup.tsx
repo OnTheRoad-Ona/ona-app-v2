@@ -10,9 +10,12 @@ import {
   authFieldIconClass,
   authFieldStyle,
   authLabelClass,
+  authLockedFieldClass,
+  authLockedFieldStyle,
   authSelectClass,
   authTextareaClass,
 } from "@/components/auth/auth-plate";
+import { useAuthNavigate } from "@/components/auth/auth-transition";
 import { PasswordField } from "@/components/auth/password-field";
 import { RegistrationComplete } from "@/components/auth/registration-complete";
 import {
@@ -40,17 +43,17 @@ import {
   passwordRules,
   phoneNationalError,
 } from "@/lib/signup-validation";
+import { compressImageFile } from "@/lib/image-compress";
 import {
   PRO_SERVICE_LABELS,
   PRO_TRADE_OPTIONS,
 } from "@/lib/services";
+import { ARTISAN_TRADE_CATALOG, tradeDef } from "@/lib/artisan/catalog";
 import {
   CERTIFICATION_WARNING,
   getSkillFlow,
   isSkillFileValue,
   publicSkillRows,
-  skillAnswersValid,
-  specialtyMaxForSkill,
   type SkillAnswerValue,
 } from "@/lib/skill-questions";
 import { useApp } from "@/lib/store";
@@ -64,8 +67,12 @@ import {
   syncLocationForCountry,
 } from "@/lib/vehicle-focus";
 
-/** 1 skill · 2 skill Q · 3 vehicles · 4 about · 5 contact · 6 area · 7 review */
-type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+/**
+ * Account signup: trade → specialty page → about → contact → area → review.
+ * Profession-specific questions: /artisan/onboarding.
+ */
+type Step = 1 | 2 | 4 | 5 | 6 | 7;
+const FLOW_STEPS: Step[] = [1, 2, 4, 5, 6, 7];
 
 /** Selected value accent (matches reference gold check style) */
 
@@ -86,6 +93,7 @@ function experienceLabel(value: string) {
  */
 export function ProSignup() {
   const router = useRouter();
+  const { exiting, go } = useAuthNavigate();
   const searchParams = useSearchParams();
   const { completeSignup, userProfile, isAuthenticated } = useApp();
   const phoneCodes = useMemo(() => getPhoneCodeOptions(), []);
@@ -96,17 +104,17 @@ export function ProSignup() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   /** Identity locked from existing Motorist account on this device */
   const [identityLocked, setIdentityLocked] = useState(false);
-  /** After dual signup from motorist profile → Professional Dashboard */
+  /** After signup → artisan verification onboarding (Go Live gated until approved) */
   const nextPath =
     searchParams.get("next")?.startsWith("/")
       ? searchParams.get("next")!
-      : "/dashboard";
-  const fromProfile =
-    searchParams.get("from") === "profile" ||
-    searchParams.get("from") === "menu";
+      : "/artisan/onboarding";
+  const fromMenu = searchParams.get("from") === "menu";
+  const fromProfile = searchParams.get("from") === "profile";
 
-  /** Exactly one skill */
+  /** Exactly one skill + required specialty */
   const [skill, setSkill] = useState<ProService | null>(null);
+  const [specialty, setSpecialty] = useState<string | null>(null);
   const [skillAnswers, setSkillAnswers] = useState<
     Record<string, SkillAnswerValue>
   >({});
@@ -128,27 +136,45 @@ export function ProSignup() {
 
   const fullPhone = formatInternationalPhone(phoneDial, phoneNational);
 
-  // Prefill locked identity from existing Motorist account (vault or live session)
+  /**
+   * Dim/lock identity ONLY when adding Repair Pro from an existing Motorist
+   * account (menu / profile dual-role). Fresh guest signup stays fully editable.
+   */
   useEffect(() => {
-    const motorist =
-      getVaultProfile("motorist") ||
-      (userProfile?.accountType === "motorist" ? userProfile : null) ||
-      (isAuthenticated && userProfile ? userProfile : null);
-    if (!motorist) return;
+    const dualRole = fromMenu || fromProfile;
+    if (!dualRole || !isAuthenticated) {
+      setIdentityLocked(false);
+      return;
+    }
+    const vaultMot = getVaultProfile("motorist");
+    const liveMot =
+      userProfile?.accountType === "motorist" ? userProfile : null;
+    const sessionSource =
+      userProfile && userProfile.accountType !== "professional"
+        ? userProfile
+        : null;
+    const motorist = liveMot || sessionSource || vaultMot;
+    if (!motorist) {
+      setIdentityLocked(false);
+      return;
+    }
     setIdentityLocked(true);
-    setFullName(motorist.fullName || "");
-    setEmail(motorist.email || "");
-    setIdNumber(motorist.idNumber || "");
-    setBvn(motorist.bvn || "");
-    setPassword(motorist.password || "");
-    setConfirmPassword(motorist.password || "");
-    setCity(motorist.city || "Lagos");
-    setArea(motorist.area || "");
-    const split = splitStoredPhone(motorist.phone || "");
+    setFullName(motorist.fullName || vaultMot?.fullName || "");
+    setEmail(motorist.email || vaultMot?.email || "");
+    setIdNumber(motorist.idNumber || vaultMot?.idNumber || "");
+    setBvn(motorist.bvn || vaultMot?.bvn || "");
+    setCity(motorist.city || vaultMot?.city || "Lagos");
+    setArea(motorist.area || vaultMot?.area || "");
+    const pwd = (vaultMot?.password || motorist.password || "").trim();
+    if (pwd) {
+      setPassword(pwd);
+      setConfirmPassword(pwd);
+    }
+    const split = splitStoredPhone(motorist.phone || vaultMot?.phone || "");
     setPhoneIso(split.iso);
     setPhoneDial(split.dial);
     setPhoneNational(split.national);
-  }, [userProfile, isAuthenticated]);
+  }, [userProfile, isAuthenticated, fromMenu, fromProfile]);
 
   const setFieldError = (key: string, msg: string | null) => {
     setFieldErrors((prev) => {
@@ -303,8 +329,9 @@ export function ProSignup() {
     e?.preventDefault();
     e?.stopPropagation();
     setSkill(id);
+    setSpecialty(null);
     setSkillAnswers({});
-    // Stay on step 1 until user taps Next (never leave signup)
+    // Stay on step 1 until specialty chosen + Next
   };
 
   const setSkillAnswer = (qid: string, value: SkillAnswerValue) => {
@@ -333,33 +360,58 @@ export function ProSignup() {
       });
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = String(reader.result ?? "");
-      setSkillAnswer(qid, {
-        name: file.name,
-        dataUrl,
-        mime: file.type || "application/octet-stream",
-      });
-    };
-    reader.readAsDataURL(file);
+    // Compress images so vulcanizer/pro signup does not hit body-size limits
+    void (async () => {
+      try {
+        const isImage = (file.type || "").startsWith("image/");
+        const dataUrl = isImage
+          ? await compressImageFile(file, { maxEdge: 1280, quality: 0.72 })
+          : await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(String(reader.result ?? ""));
+              reader.onerror = () => reject(new Error("read failed"));
+              reader.readAsDataURL(file);
+            });
+        // PDF or still-huge: store name only; server keeps signup working
+        if (!isImage && dataUrl.length > 350_000) {
+          setSkillAnswer(qid, {
+            name: file.name,
+            mime: file.type || "application/pdf",
+          });
+          return;
+        }
+        setSkillAnswer(qid, {
+          name: file.name,
+          dataUrl,
+          mime: file.type || "application/octet-stream",
+        });
+      } catch {
+        setSkillAnswer(qid, {
+          name: file.name,
+          mime: file.type || "application/octet-stream",
+        });
+      }
+    })();
   };
 
-  const step1Ok = skill != null;
-  const step2Ok = skill != null && skillAnswersValid(skill, skillAnswers);
-  const step3Ok = vehicleBrands.length >= 1 && vehicleBrands.length <= MAX_BRANDS;
+  const step1Ok = skill != null; // specialty selected on step 2
+  const step2Ok = Boolean(specialty?.trim());
+  const step3Ok = true; // no vehicle step in account signup
   const step4Ok =
     fullName.trim().length >= 2 &&
     businessName.trim().length >= 2 &&
     yearsExperience.trim().length > 0 &&
     bio.trim().length >= 2 &&
     bio.trim().length <= BIO_MAX;
+  /** Dual signup: reuse existing Motorist password (min 6 for server) */
+  const dualPasswordOk = password.trim().length >= 6;
+
   const step5Ok = identityLocked
     ? !phoneNationalError(phoneNational) &&
       isValidEmail(email) &&
       !ninError(idNumber) &&
       !bvnError(bvn) &&
-      password.length > 0
+      dualPasswordOk
     : !phoneNationalError(phoneNational) &&
       isValidEmail(email) &&
       isValidPassword(password) &&
@@ -383,12 +435,16 @@ export function ProSignup() {
 
   const validateStep5 = (): string | null => {
     if (identityLocked) {
-      return (
+      const base =
         phoneNationalError(phoneNational) ||
         emailError(email) ||
         ninError(idNumber) ||
-        bvnError(bvn)
-      );
+        bvnError(bvn);
+      if (base) return base;
+      if (!dualPasswordOk) {
+        return "Enter the same password you use for your Motorist account.";
+      }
+      return null;
     }
     return (
       phoneNationalError(phoneNational) ||
@@ -401,7 +457,7 @@ export function ProSignup() {
   };
 
   const finish = async () => {
-    if (busy || !skill || !step2Ok || !step4Ok || !step5Ok || !step6Ok) return;
+    if (busy || !skill || !specialty || !step4Ok || !step5Ok || !step6Ok) return;
     const v5 = validateStep5();
     if (v5) {
       setFormError(v5);
@@ -411,18 +467,21 @@ export function ProSignup() {
     setBusy(true);
     setFormError("");
 
-    const identity = checkIdentityAvailable({
-      phone: fullPhone,
-      email: email.trim(),
-      nin: idNumber.trim(),
-      bvn: bvn.trim(),
-      accountType: "professional",
-    });
-    if (!identity.ok) {
-      setFormError(identity.message);
-      setBusy(false);
-      setStep(5);
-      return;
+    // Dual role: same phone/email as Motorist is intentional — do not block
+    if (!identityLocked) {
+      const identity = checkIdentityAvailable({
+        phone: fullPhone,
+        email: email.trim(),
+        nin: idNumber.trim(),
+        bvn: bvn.trim(),
+        accountType: "professional",
+      });
+      if (!identity.ok) {
+        setFormError(identity.message);
+        setBusy(false);
+        setStep(5);
+        return;
+      }
     }
 
     const verified = await verifySignupIds({
@@ -460,9 +519,12 @@ export function ProSignup() {
       bio: bio.trim() || undefined,
       idNumber: idNumber.trim() || undefined,
       bvn: bvn.trim() || undefined,
-      skillAnswers,
-      // Cert docs go under review; pro only discoverable within 2 km until approved
-      docsStatus: "under_review",
+      skillAnswers: {
+        ...skillAnswers,
+        specialty: specialty || "",
+      },
+      // Only under_review when a cert was uploaded; no cert → full radius (admin can still verify)
+      docsStatus: hasCert ? "under_review" : "none",
       docsRatingBoostApplied: false,
       certificationFileName: hasCert
         ? String(certUpload?.name || "certificate")
@@ -471,23 +533,11 @@ export function ProSignup() {
         ? String(certUpload?.dataUrl || "")
         : undefined,
       averageRating: 5,
-      servedVehicleType: vehicleType,
-      servedBrand: vehicleBrands.join(", ") || "Any",
-      servedMake: vehicleBrands[0] || "Any",
-      servedModel:
-        vehicleBrands.length === 0
-          ? "Any"
-          : vehicleBrands
-              .map((b) => {
-                const list = vehicleModelsByBrand[b]?.length
-                  ? vehicleModelsByBrand[b]
-                  : ["Any"];
-                const modelsText = list.join(", ");
-                return vehicleBrands.length > 1
-                  ? `${b}: ${modelsText}`
-                  : modelsText;
-              })
-              .join(" · "),
+      // Specialty / scope — never force car brands on non-auto trades
+      servedVehicleType: specialty || "General",
+      servedBrand: specialty || "General",
+      servedMake: specialty || "General",
+      servedModel: specialty || "General",
       servedCountry: prefCountry,
       servedLocation: prefLocation,
       vehiclesServedUpdatedAt: new Date().toISOString(),
@@ -511,27 +561,50 @@ export function ProSignup() {
       return;
     }
     if (step === 1) {
-      router.push(fromProfile ? "/profile" : "/login/role");
+      if (fromMenu) {
+        // Dual-signup from ☰ — return to Motorist home
+        router.replace("/");
+        return;
+      }
+      if (fromProfile) {
+        router.push("/profile");
+        return;
+      }
+      go("/login/role");
       return;
     }
-    setStep((s) => (s - 1) as Step);
+    const idx = FLOW_STEPS.indexOf(step);
+    if (idx > 0) setStep(FLOW_STEPS[idx - 1]);
   };
 
   const stepTitles: Record<Step, string> = {
-    1: "What work do you do?",
-    2: skill ? getSkillFlow(skill).title : "Tell us about your skill",
-    3: "Cars you usually fix",
+    1: "Choose your trade",
+    2: skill
+      ? `Your ${PRO_SERVICE_LABELS[skill] || "trade"} focus`
+      : "Choose your focus",
     4: "About you",
-    5: "Phone, email and password",
-    6: "Where do you work from?",
-    7: "Check and finish",
+    5: "Contact & security",
+    6: "Service area",
+    7: "Review & create",
+  };
+
+  const specialtyOptions = skill
+    ? tradeDef(skill)?.specialties ||
+      ARTISAN_TRADE_CATALOG.find((t) => t.service === skill)?.specialties ||
+      []
+    : [];
+
+  const nextFlowStep = (s: Step): Step | null => {
+    const idx = FLOW_STEPS.indexOf(s);
+    if (idx < 0 || idx >= FLOW_STEPS.length - 1) return null;
+    return FLOW_STEPS[idx + 1];
   };
 
   const pickerLabel = pickerKey
     ? PREF_ROWS.find((r) => r.key === pickerKey)?.label ?? ""
     : "";
 
-  /* Full-page picker (same AuthPlate background) */
+  /* Full-page skill picker (same AuthPlate background + enter/exit motion) */
   if (pickerKey) {
     const isVehicleType = pickerKey === "vehicleType";
     const isBrand = pickerKey === "brand";
@@ -631,7 +704,7 @@ export function ProSignup() {
     };
 
     return (
-      <AuthPlate>
+      <AuthPlate exiting={exiting}>
         <div className="om-pro-signup-fields flex min-h-0 flex-1 flex-col px-3 pb-3 pt-3">
           <div className="relative flex items-center justify-center pb-0.5">
             <button
@@ -743,7 +816,7 @@ export function ProSignup() {
   }
 
   return (
-    <AuthPlate>
+    <AuthPlate exiting={exiting}>
       <div className="om-pro-signup-fields mx-auto flex min-h-0 w-[80%] flex-1 flex-col pb-4 pt-5">
         <button type="button" onClick={goBack} className={authBackBtnClass}>
           <ChevronLeft className="h-4 w-4" strokeWidth={2.25} />
@@ -753,19 +826,22 @@ export function ProSignup() {
         <h1 className="text-center text-[17px] font-bold tracking-tight text-[#1c1c1e]">
           {stepTitles[step]}
         </h1>
-        {/* Progress bar only (no page numbers) */}
+        {/* Progress bar — account signup steps only (no car/skill-Q steps) */}
         <div className="mt-2 flex gap-1">
-          {([1, 2, 3, 4, 5, 6, 7] as Step[]).map((n) => (
-            <span
-              key={n}
-              className={cn(
-                "h-0.5 flex-1 rounded-sm",
-                n <= step
-                  ? "auth-apple-progress-fill"
-                  : "auth-apple-progress-track"
-              )}
-            />
-          ))}
+          {FLOW_STEPS.map((n, i) => {
+            const currentIdx = FLOW_STEPS.indexOf(step);
+            return (
+              <span
+                key={n}
+                className={cn(
+                  "h-0.5 flex-1 rounded-sm",
+                  i <= currentIdx
+                    ? "auth-apple-progress-fill"
+                    : "auth-apple-progress-track"
+                )}
+              />
+            );
+          })}
         </div>
 
         <div
@@ -837,226 +913,86 @@ export function ProSignup() {
               </div>
               <p className="mt-2 shrink-0 text-center text-[11px] text-[#3a3a3c]/70">
                 Choose only{" "}
-                <span className="font-semibold text-[#e85a12]">one</span> skill
+                <span className="font-semibold text-[#e85a12]">one</span> trade,
+                then pick your focus
               </p>
             </>
           )}
 
-          {/* Step 2 — skill-specific questions (professional layout) */}
+          {/* Step 2 — full-page specialty (modern cards, not chips) */}
           {step === 2 && skill && (
-            <div className="flex flex-col gap-3.5 pb-1 pt-0.5">
-              <div className="text-center">
-                <p className="text-[11px] leading-snug text-[#475569]">
-                  {getSkillFlow(skill).intro}
-                </p>
-              </div>
-
-              {getSkillFlow(skill).questions.map((q) => {
-                const val = skillAnswers[q.id];
-                const selectedCount = Array.isArray(val) ? val.length : 0;
-                const isSpecialties = q.id === "specialties";
-
-                return (
-                  <section
-                    key={q.id}
-                    className={cn(
-                      "flex flex-col border-b border-black/[0.06] last:border-0 last:pb-0",
-                      isSpecialties
-                        ? "gap-2 rounded-md border border-[#c5c7ce] bg-[#e8e9ed]/80 p-2.5 pb-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] last:border last:pb-3"
-                        : "gap-2 pb-3.5"
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p
-                          className={cn(
-                            "text-[13px] font-bold",
-                            isSpecialties ? "text-[#1e293b]" : "text-[#0f172a]"
-                          )}
-                        >
-                          {q.label}
-                          {q.required ? (
-                            <span className="text-[#e85a12]"> *</span>
-                          ) : null}
-                        </p>
-                        {q.hint && (
-                          <p className="mt-0.5 text-[11px] leading-snug text-[#475569]">
-                            {q.hint}
-                          </p>
-                        )}
-                      </div>
-                      {q.type === "multiselect" && q.maxSelect != null && (
-                        <span
-                          className={cn(
-                            "shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold tabular-nums",
-                            selectedCount > 0
-                              ? "bg-[#e85a12] text-white"
-                              : isSpecialties
-                                ? "bg-white/80 text-[#475569] ring-1 ring-[#b8bbc3]"
-                                : "bg-black/10 text-[#475569]"
-                          )}
-                        >
-                          {selectedCount}/{q.maxSelect}
-                        </span>
-                      )}
-                    </div>
-
-                    {q.type === "text" && (
-                      <input
-                        className={authFieldClass}
-                      style={authFieldStyle}
-                        value={typeof val === "string" ? val : ""}
-                        onChange={(e) => setSkillAnswer(q.id, e.target.value)}
-                        placeholder={q.placeholder}
-                      />
-                    )}
-
-                    {q.type === "select" && (
-                      <div className="grid grid-cols-2 gap-2">
-                        {(q.options ?? []).map((opt) => {
-                          const on = val === opt;
-                          return (
-                            <button
-                              key={opt}
-                              type="button"
-                              onClick={() => setSkillAnswer(q.id, opt)}
-                              className={cn(
-                                "rounded-md px-3 py-2.5 text-[12px] font-semibold transition-colors",
-                                on
-                                  ? "border-0 bg-[#323231] text-white shadow-[0_2px_8px_rgba(0,0,0,0.14)]"
-                                  : "border border-[#9A9EA6] bg-[#E2E3E7] text-[#0f172a] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)]"
-                              )}
-                            >
-                              {opt}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {q.type === "multiselect" && (
-                      <div
+            <div className="flex min-h-0 flex-1 flex-col pt-1">
+              <p className="mb-3 text-center text-[12px] leading-relaxed text-[#475569]">
+                Where do you mainly work as a{" "}
+                <span className="font-semibold text-[#1e293b]">
+                  {PRO_SERVICE_LABELS[skill]}
+                </span>
+                ?
+              </p>
+              <ul className="flex min-h-0 flex-1 list-none flex-col gap-2.5 overflow-y-auto p-0 pb-2 scrollbar-hide">
+                {specialtyOptions.map((s) => {
+                  const on = specialty === s;
+                  return (
+                    <li key={s} className="shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setSpecialty(s)}
+                        aria-pressed={on}
                         className={cn(
-                          "grid",
-                          isSpecialties
-                            ? "grid-cols-3 gap-1.5"
-                            : "grid-cols-2 gap-2"
+                          "flex min-h-[64px] w-full items-center gap-3 rounded-xl px-4 py-3.5 text-left transition-all",
+                          on
+                            ? "bg-[#323231] text-white shadow-[0_4px_14px_rgba(15,23,42,0.18)]"
+                            : "bg-[#E2E3E7] text-[#1c1c1e] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] active:scale-[0.99]"
                         )}
                       >
-                        {(q.options ?? []).map((opt) => {
-                          const arr = Array.isArray(val) ? val : [];
-                          const on = arr.includes(opt);
-                          const atMax =
-                            q.maxSelect != null &&
-                            arr.length >= q.maxSelect &&
-                            !on;
-                          return (
-                            <button
-                              key={opt}
-                              type="button"
-                              disabled={atMax}
-                              onClick={() =>
-                                toggleMulti(q.id, opt, q.maxSelect)
-                              }
-                              className={cn(
-                                "rounded-md font-semibold transition-colors",
-                                isSpecialties
-                                  ? "flex h-11 items-center justify-center px-1.5 text-center text-[11px] leading-tight"
-                                  : "px-2.5 py-2.5 text-left text-[12px] leading-snug",
-                                /* "What you can fix": moderate highlight, no border lines */
-                                isSpecialties && on
-                                  ? "border-0 bg-[#fff0e8] text-[#9a3412] shadow-[0_1px_4px_rgba(232,90,18,0.22)] ring-0"
-                                  : isSpecialties && atMax
-                                    ? "border-0 bg-[#e0e1e5] text-[#94a3b8] opacity-70"
-                                    : isSpecialties
-                                      ? "border-0 bg-[#e8e9ed] text-[#1e293b] shadow-[0_1px_3px_rgba(15,23,42,0.08)] active:bg-[#dde0e6]"
-                                      : on
-                                        ? "border-0 bg-[#323231] text-white shadow-[0_2px_8px_rgba(0,0,0,0.14)]"
-                                        : atMax
-                                          ? "border-0 bg-[#E2E3E7]/50 text-[#94a3b8]"
-                                          : "border-0 bg-[#E2E3E7] text-[#0f172a] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)]"
-                              )}
-                            >
-                              {opt}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {q.type === "file" && (
-                      <div className="flex flex-col gap-2">
-                        <div
-                          className="rounded-md border border-red-300/80 bg-red-50 px-3 py-2.5"
-                          role="note"
+                        <span
+                          className={cn(
+                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[15px] font-black",
+                            on
+                              ? "bg-[#e85a12] text-white"
+                              : "bg-white/80 text-[#e85a12]"
+                          )}
                         >
-                          <p className="text-center text-[10px] font-bold uppercase leading-snug tracking-[0.03em] text-red-700">
-                            {CERTIFICATION_WARNING}
-                          </p>
-                        </div>
-                        <label className="flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-[#9A9EA6] bg-[#E2E3E7] px-3 py-5 text-center transition-colors active:bg-[#E8E9ED]">
-                          <span className="text-[13px] font-semibold text-[#0f172a]">
-                            {isSkillFileValue(val)
-                              ? "Replace certificate"
-                              : "Tap to upload certificate"}
+                          {s.charAt(0)}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span
+                            className={cn(
+                              "block text-[15px] font-bold tracking-tight",
+                              on ? "text-white" : "text-[#1c1c1e]"
+                            )}
+                          >
+                            {s}
                           </span>
-                          <span className="mt-1 text-[11px] text-[#64748b]">
-                            PDF, JPG, or PNG · required
+                          <span
+                            className={cn(
+                              "mt-0.5 block text-[11px] font-medium",
+                              on ? "text-white/65" : "text-[#64748b]"
+                            )}
+                          >
+                            Tap to select this focus area
                           </span>
-                          <input
-                            type="file"
-                            accept={q.accept ?? "image/*,.pdf,application/pdf"}
-                            className="sr-only"
-                            onChange={(e) =>
-                              onCertFile(q.id, e.target.files?.[0] ?? null)
-                            }
-                          />
-                        </label>
-                        {isSkillFileValue(val) && (
-                          <p className="text-center text-[12px] font-medium text-[#16a34a]">
-                            ✓ {val.name}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </section>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Step 3 — Service focus (same app bg, no extra panel fill) */}
-          {step === 3 && (
-            <div className="flex flex-col pt-1">
-              <p className="mb-2 px-0.5 text-center text-[12px] leading-relaxed text-[#475569]">
-                Which cars do you usually work on?
-              </p>
-              <div>
-                {PREF_ROWS.map(({ key, label }, i) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => openPicker(key)}
-                    className={cn(
-                      "flex w-full items-center justify-between gap-3 border-0 bg-transparent px-1 py-3.5 text-left transition-colors active:bg-black/[0.03]",
-                      i > 0 && "border-t border-black/[0.08]"
-                    )}
-                  >
-                    <span className="text-[15px] font-semibold text-[#1e293b]">
-                      {label}
-                    </span>
-                    <span className="flex min-w-0 items-center gap-1">
-                      <span className="truncate text-[13px] font-medium uppercase tracking-[0.02em] text-[#64748b]">
-                        {prefValue[key]}
-                      </span>
-                      <ChevronRight
-                        className="h-4 w-4 shrink-0 text-[#94a3b8]"
-                        strokeWidth={2}
-                      />
-                    </span>
-                  </button>
-                ))}
-              </div>
+                        </span>
+                        <span
+                          className={cn(
+                            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[12px] font-bold",
+                            on
+                              ? "bg-[#e85a12] text-white"
+                              : "border border-[#9A9EA6]/60 bg-transparent text-transparent"
+                          )}
+                        >
+                          ✓
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              {!specialty ? (
+                <p className="mt-2 shrink-0 text-center text-[11px] font-medium text-[#64748b]">
+                  Required — pick the best match for your work
+                </p>
+              ) : null}
             </div>
           )}
 
@@ -1068,7 +1004,7 @@ export function ProSignup() {
                     Your name
                   </p>
                   <p className="mt-0.5 text-[12px] text-[#475569]">
-                    This is how car owners will see you
+                    This is how customers will see you
                   </p>
                 </div>
 
@@ -1082,15 +1018,18 @@ export function ProSignup() {
                   <div className="relative">
                     <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
                     <input
-                      className={authFieldIconClass}
-                      style={{
-                        ...authFieldStyle,
-                        ...(identityLocked
-                          ? { opacity: 0.85, cursor: "not-allowed" }
-                          : null),
-                      }}
+                      className={cn(
+                        authFieldIconClass,
+                        identityLocked && authLockedFieldClass
+                      )}
+                      style={
+                        identityLocked
+                          ? authLockedFieldStyle
+                          : authFieldStyle
+                      }
                       value={fullName}
                       readOnly={identityLocked}
+                      tabIndex={identityLocked ? -1 : undefined}
                       onChange={(e) => {
                         if (!identityLocked) setFullName(e.target.value);
                       }}
@@ -1226,9 +1165,10 @@ export function ProSignup() {
             <div className="flex flex-col gap-1.5">
               {identityLocked ? (
                 <p className="rounded-md bg-[#e8e9ed] px-2.5 py-2 text-center text-[11px] leading-snug text-[#334155]">
-                  We filled your name, phone, email, NIN and BVN from your
-                  Motorist account. Those cannot be changed here. No new
-                  password needed.
+                  Name, phone, email, NIN and BVN are filled from your Motorist
+                  account and dimmed (locked). Use the{" "}
+                  <span className="font-semibold">same password</span> as that
+                  account below — no new password.
                 </p>
               ) : (
                 <p className="text-center text-[10px] leading-snug text-[#475569]">
@@ -1246,8 +1186,14 @@ export function ProSignup() {
               <Field label="Phone" required>
                 <div className="flex gap-1.5">
                   <select
-                    className={cn(authSelectClass, "max-w-[42%]")}
-                    style={authFieldStyle}
+                    className={cn(
+                      authSelectClass,
+                      "max-w-[42%]",
+                      identityLocked && authLockedFieldClass
+                    )}
+                    style={
+                      identityLocked ? authLockedFieldStyle : authFieldStyle
+                    }
                     value={phoneIso}
                     aria-label="Country code"
                     disabled={identityLocked}
@@ -1266,15 +1212,17 @@ export function ProSignup() {
                     ))}
                   </select>
                   <input
-                    className={cn(authFieldClass, "min-w-0 flex-1")}
-                    style={{
-                      ...authFieldStyle,
-                      ...(identityLocked
-                        ? { opacity: 0.85, cursor: "not-allowed" }
-                        : null),
-                    }}
+                    className={cn(
+                      authFieldClass,
+                      "min-w-0 flex-1",
+                      identityLocked && authLockedFieldClass
+                    )}
+                    style={
+                      identityLocked ? authLockedFieldStyle : authFieldStyle
+                    }
                     value={phoneNational}
                     readOnly={identityLocked}
+                    tabIndex={identityLocked ? -1 : undefined}
                     onChange={(e) => {
                       if (identityLocked) return;
                       setPhoneNational(
@@ -1294,15 +1242,16 @@ export function ProSignup() {
               </Field>
               <Field label="Email" required>
                 <input
-                  className={authFieldClass}
-                  style={{
-                    ...authFieldStyle,
-                    ...(identityLocked
-                      ? { opacity: 0.85, cursor: "not-allowed" }
-                      : null),
-                  }}
+                  className={cn(
+                    authFieldClass,
+                    identityLocked && authLockedFieldClass
+                  )}
+                  style={
+                    identityLocked ? authLockedFieldStyle : authFieldStyle
+                  }
                   value={email}
                   readOnly={identityLocked}
+                  tabIndex={identityLocked ? -1 : undefined}
                   onChange={(e) => {
                     if (identityLocked) return;
                     setEmail(e.target.value);
@@ -1314,17 +1263,18 @@ export function ProSignup() {
                 />
                 <FieldHint message={fieldErrors.email} />
               </Field>
-              <Field label="NIN (11 numbers)">
+              <Field label="NIN">
                 <input
-                  className={authFieldClass}
-                  style={{
-                    ...authFieldStyle,
-                    ...(identityLocked
-                      ? { opacity: 0.85, cursor: "not-allowed" }
-                      : null),
-                  }}
+                  className={cn(
+                    authFieldClass,
+                    identityLocked && authLockedFieldClass
+                  )}
+                  style={
+                    identityLocked ? authLockedFieldStyle : authFieldStyle
+                  }
                   value={idNumber}
                   readOnly={identityLocked}
+                  tabIndex={identityLocked ? -1 : undefined}
                   onChange={(e) => {
                     if (identityLocked) return;
                     setIdNumber(e.target.value.replace(/\D/g, "").slice(0, 11));
@@ -1337,17 +1287,18 @@ export function ProSignup() {
                 />
                 <FieldHint message={fieldErrors.nin} />
               </Field>
-              <Field label="BVN (11 numbers)">
+              <Field label="BVN">
                 <input
-                  className={authFieldClass}
-                  style={{
-                    ...authFieldStyle,
-                    ...(identityLocked
-                      ? { opacity: 0.85, cursor: "not-allowed" }
-                      : null),
-                  }}
+                  className={cn(
+                    authFieldClass,
+                    identityLocked && authLockedFieldClass
+                  )}
+                  style={
+                    identityLocked ? authLockedFieldStyle : authFieldStyle
+                  }
                   value={bvn}
                   readOnly={identityLocked}
+                  tabIndex={identityLocked ? -1 : undefined}
                   onChange={(e) => {
                     if (identityLocked) return;
                     setBvn(e.target.value.replace(/\D/g, "").slice(0, 11));
@@ -1360,7 +1311,36 @@ export function ProSignup() {
                 />
                 <FieldHint message={fieldErrors.bvn} />
               </Field>
-              {!identityLocked && (
+              {identityLocked ? (
+                <Field
+                  label="Same password as your Motorist account"
+                  required
+                >
+                  <PasswordField
+                    value={password}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setPassword(v);
+                      setConfirmPassword(v);
+                      setFieldError("password", null);
+                    }}
+                    onBlur={() => {
+                      if (!dualPasswordOk) {
+                        setFieldError(
+                          "password",
+                          "Enter the same password as your Motorist account."
+                        );
+                      }
+                    }}
+                    placeholder="Your existing password"
+                    autoComplete="current-password"
+                  />
+                  <p className="mt-1 text-[10px] leading-snug text-[#64748b]">
+                    No new password — use the one you already signed up with.
+                  </p>
+                  <FieldHint message={fieldErrors.password} />
+                </Field>
+              ) : (
                 <>
                   <Field label="Password" required>
                     <PasswordField
@@ -1453,16 +1433,8 @@ export function ProSignup() {
             <div className="space-y-0 text-[12px]">
               <Row k="Name" v={fullName} />
               <Row k="Business" v={businessName} />
-              <Row k="Skill" v={skill ? PRO_SERVICE_LABELS[skill] : "Not set"} />
-              {skill &&
-                publicSkillRows(skill, skillAnswers).map((r) => (
-                  <Row key={r.label} k={r.label} v={r.value} />
-                ))}
-              <Row k="Vehicle" v={vehicleType} />
-              <Row k="Brands" v={brandLabel} />
-              <Row k="Models" v={modelLabel} />
-              <Row k="Country" v={prefCountry} />
-              <Row k="State / Region" v={prefLocation} />
+              <Row k="Trade" v={skill ? PRO_SERVICE_LABELS[skill] : "Not set"} />
+              <Row k="Focus" v={specialty || "Not set"} />
               <Row k="Phone" v={fullPhone} />
               <Row k="Email" v={email} />
               <Row k="NIN" v={idNumber} />
@@ -1510,8 +1482,23 @@ export function ProSignup() {
               }}
               data-cta="next"
               onClick={() => {
-                if (step === 3 && !step3Ok) {
-                  setFormError("Please pick at least 1 car brand (up to 2).");
+                if (step === 1) {
+                  if (!skill) {
+                    setFormError("Please select your trade.");
+                    return;
+                  }
+                  // Trade only on step 1 — specialty is the next full page
+                  setFormError("");
+                  setStep(2);
+                  return;
+                }
+                if (step === 2) {
+                  if (!specialty?.trim()) {
+                    setFormError("Please pick your focus area.");
+                    return;
+                  }
+                  setFormError("");
+                  setStep(4);
                   return;
                 }
                 if (step === 4) {
@@ -1529,15 +1516,14 @@ export function ProSignup() {
                   }
                 }
                 const blocked =
-                  (step === 1 && !step1Ok) ||
-                  (step === 2 && !step2Ok) ||
-                  (step === 3 && !step3Ok) ||
                   (step === 4 && !step4Ok) ||
                   (step === 5 && !step5Ok) ||
                   (step === 6 && !step6Ok);
                 if (blocked) return;
+                const nxt = nextFlowStep(step);
+                if (!nxt) return;
                 setFormError("");
-                setStep((s) => (s + 1) as Step);
+                setStep(nxt);
               }}
             >
               Next
@@ -1580,7 +1566,10 @@ export function ProSignup() {
       <RegistrationComplete
         open={done}
         accountLabel="Repair Pro"
-        onContinue={() => router.replace(nextPath || "/dashboard")}
+        onContinue={() => {
+          // Artisan verification → Pending Review → admin approve → Go Live
+          router.replace(nextPath || "/artisan/onboarding");
+        }}
       />
     </AuthPlate>
   );

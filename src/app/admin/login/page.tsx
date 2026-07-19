@@ -39,13 +39,13 @@ export default function AdminLoginPage() {
       <form className="om-admin-form" onSubmit={onSubmit}>
         <div>
           <div className="om-admin-brand">
-            Oga<span>Mecho</span> Admin
+            Ona Admin
           </div>
           <h1 className="om-admin-h1" style={{ fontSize: "1.25rem" }}>
             Sign in
           </h1>
           <p className="om-admin-sub">
-            Full control of the OgaMecho app — light grey console
+            Full control of the Ona app — light grey console
           </p>
         </div>
         {error ? <div className="om-admin-error">{error}</div> : null}

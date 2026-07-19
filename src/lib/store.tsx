@@ -43,6 +43,8 @@ import type {
   UserProfile,
 } from "@/lib/types";
 import { getRuntimeAppConfig } from "@/lib/app-config";
+import { resetNavStack } from "@/lib/navigation";
+import { playAppSound } from "@/lib/sound-tone";
 import { evaluateServiceGate } from "@/lib/verification-gate";
 import {
   backendCreateJob,
@@ -53,6 +55,7 @@ import {
   backendGetProOnline,
   backendGetSessionUserId,
   backendLoadUserProfile,
+  backendMarkMessagesRead,
   backendSendMessage,
   backendSetProOnline,
   backendDualRoleFlags,
@@ -61,11 +64,11 @@ import {
   backendSendPhoneOtp,
   backendSignIn,
   backendSignInWithPhoneOtp,
+  backendLogout,
   backendSignOut,
   backendSignUp,
   backendSwitchRole,
   backendSubscribeJobs,
-  backendSubscribePros,
   backendUpdateJobStatus,
   isAppBackendOnline,
 } from "@/lib/supabase/app-api";
@@ -184,7 +187,8 @@ export function profileToTechnician(profile: UserProfile): Technician | null {
       `${focusLine} Based in ${[profile.area, profile.city].filter(Boolean).join(", ") || "Lagos"}.`,
     phone: profile.phone || "+234 800 000 0000",
     serviceRadiusKm:
-      profile.docsStatus === "under_review" || profile.docsStatus === "none"
+      profile.docsStatus === "under_review" ||
+      profile.docsStatus === "rejected"
         ? Math.min(profile.serviceRadiusKm ?? 8, 2)
         : profile.serviceRadiusKm ?? 8,
     location: DEFAULT_USER_LOCATION.coordinates,
@@ -398,6 +402,8 @@ interface AppState {
       mime?: string;
     } | null
   ) => void;
+  /** Opened a chat — clear unread badge + persist read_at on server */
+  markThreadRead: (threadId: string) => void;
   retryLocation: () => void;
   setManualLocation: (
     label: string,
@@ -631,13 +637,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
           await backendSignOut().catch(() => undefined);
           return;
         }
-        applySession({
-          ...profile,
-          primaryAccountType:
-            profile.primaryAccountType ||
-            flags.primaryAccountType ||
-            undefined,
-        });
         setHasMotoristAccount(
           flags.hasMotorist ||
             profile.accountType === "motorist" ||
@@ -648,6 +647,59 @@ export function AppProvider({ children }: { children: ReactNode }) {
             profile.accountType === "professional" ||
             Boolean(readProfilesVault().professional)
         );
+
+        // Last switched role (Use as) must survive reload — prefer local active
+        // account when dual-role and it differs from server profile.role.
+        let sessionProfile: UserProfile = {
+          ...profile,
+          primaryAccountType:
+            profile.primaryAccountType ||
+            flags.primaryAccountType ||
+            undefined,
+        };
+        try {
+          const preferred = localStorage.getItem(AUTH_ACCOUNT_KEY) as
+            | AccountType
+            | null;
+          const canMotorist =
+            flags.hasMotorist ||
+            profile.accountType === "motorist" ||
+            Boolean(readProfilesVault().motorist);
+          const canPro =
+            flags.hasPro ||
+            profile.accountType === "professional" ||
+            Boolean(readProfilesVault().professional);
+          if (
+            (preferred === "motorist" || preferred === "professional") &&
+            preferred !== profile.accountType &&
+            ((preferred === "motorist" && canMotorist) ||
+              (preferred === "professional" && canPro))
+          ) {
+            const switched = await withTimeout(
+              backendSwitchRole(preferred),
+              4500
+            ).catch(() => null);
+            if (switched?.profile && switched.userId) {
+              sessionProfile = {
+                ...switched.profile,
+                primaryAccountType:
+                  switched.primaryAccountType ||
+                  switched.profile.primaryAccountType ||
+                  sessionProfile.primaryAccountType,
+              };
+              setBackendUserId(switched.userId);
+            } else {
+              // Keep last local role so reload still matches last Use as
+              sessionProfile = {
+                ...sessionProfile,
+                accountType: preferred,
+              };
+            }
+          }
+        } catch {
+          /* keep server profile */
+        }
+        applySession(sessionProfile);
       } catch {
         if (!cancelled) clearLocalAuth();
       } finally {
@@ -908,12 +960,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (res.error === "needs_signup") {
           return "needs_signup";
         }
-        // Fallback only if vault already has a full signup for that role
-        const stored = getVaultProfile(type);
-        if (stored && stored.accountType === type) {
-          applySession(stored);
-          return null;
-        }
+        // Do not fake a client-only switch — reload would restore the other role
         return res.error || res.message || "Could not switch account.";
       }
 
@@ -939,6 +986,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (backendUserId && isAppBackendOnline()) {
         void backendSetProOnline(backendUserId, false);
       }
+      // Fresh nav stack for this role only — Back must not hop to the other role
+      resetNavStack(type === "professional" ? "/dashboard" : "/");
       return null;
     },
     [
@@ -1214,6 +1263,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               plateNumber: next.vehiclePlate,
               vehiclePhoto: next.vehiclePhoto,
               vehicleCommonIssues: next.vehicleCommonIssues,
+              vehicles: next.vehicles,
               emergencyContact: next.emergencyContact ?? null,
               savedLocations: next.savedLocations,
               bankName: next.bankName,
@@ -1258,6 +1308,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       const labourPrices = normalized.servicePrices;
+      // Slim cert payload — full base64 in skills jsonb breaks vulcanizer/pro signup
+      const rawSkills = (normalized.skillAnswers || {}) as Record<
+        string,
+        unknown
+      >;
+      const slimSkills: Record<string, unknown> = { ...rawSkills };
+      if (
+        slimSkills.certificationUpload &&
+        typeof slimSkills.certificationUpload === "object"
+      ) {
+        const f = slimSkills.certificationUpload as {
+          name?: string;
+          mime?: string;
+          dataUrl?: string;
+        };
+        slimSkills.certificationUpload = {
+          name: f.name || "certificate",
+          mime: f.mime,
+          hasFile: Boolean(f.dataUrl || f.name),
+        };
+      }
+      let certData = normalized.certificationFileDataUrl;
+      if (
+        (!certData || !String(certData).startsWith("data:")) &&
+        rawSkills.certificationUpload &&
+        typeof rawSkills.certificationUpload === "object"
+      ) {
+        const f = rawSkills.certificationUpload as { dataUrl?: string };
+        if (typeof f.dataUrl === "string") certData = f.dataUrl;
+      }
+      // Cap body size so free-tier / Next body limits do not kill signup
+      if (certData && certData.length > 400_000) {
+        certData = undefined;
+      }
+
       const res = await backendSignUp({
         email: normalized.email,
         password: normalized.password,
@@ -1285,9 +1370,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         bvn: normalized.bvn,
         labourPrices,
         pricingCurrency: normalized.pricingCurrency,
-        skillAnswers: normalized.skillAnswers as
-          | Record<string, unknown>
-          | undefined,
+        skillAnswers: slimSkills,
         servedVehicleType: normalized.servedVehicleType,
         servedBrand: normalized.servedBrand,
         servedModel: normalized.servedModel,
@@ -1299,7 +1382,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         bankAccountNumber: normalized.bankAccountNumber,
         docsStatus: normalized.docsStatus,
         certificationFileName: normalized.certificationFileName,
-        certificationFileDataUrl: normalized.certificationFileDataUrl,
+        certificationFileDataUrl: certData,
         // Dual role: keep motorist when adding Repair Pro (and vice versa)
         keepOtherRole: true,
       });
@@ -1410,6 +1493,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return null;
       }
 
+      // Artisan verification gate: only approved pros may Go Live
+      if (live) {
+        try {
+          const { getArtisanProfile } = await import("@/lib/artisan/local-store");
+          const { canGoLive } = await import("@/lib/artisan/status");
+          const artisan = getArtisanProfile(backendUserId);
+          const gate = canGoLive(artisan);
+          if (!gate.allowed) {
+            return gate.message;
+          }
+        } catch {
+          /* if module fails, fall through — server should still enforce */
+        }
+      }
+
       // Going Live: prefer fresh high-accuracy GPS so motorists see you nearby
       let lat = location.coordinates.lat;
       let lng = location.coordinates.lng;
@@ -1471,6 +1569,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch {
         /* ignore */
       }
+      playAppSound(live ? "pro_live" : "pro_away");
       return null;
     },
     [
@@ -1514,11 +1613,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(() => {
-    // Go Away so motorists stop seeing this pro
-    if (backendUserId && isAppBackendOnline()) {
-      void backendSetProOnline(backendUserId, false);
-    }
-    void backendSignOut();
+    // Server-side Live OFF + session clear (prevents ghost online / previous pro)
+    void backendLogout();
+
     setBackendUserId(null);
     setIsAuthenticated(false);
     setAccountType(null);
@@ -1526,8 +1623,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setProLiveState(false);
     setDisplayName("Guest");
     setUserProfile(null);
+    setCloudTechs([]);
     // Keep dual vault so both accounts remain for future login / switch after re-auth
     try {
+      localStorage.setItem("oga-mecho-pro-live", "0");
+      localStorage.removeItem("oga-mecho-pro-live");
       localStorage.removeItem(AUTH_KEY);
       localStorage.removeItem(AUTH_NAME_KEY);
       localStorage.removeItem(AUTH_ACCOUNT_KEY);
@@ -1539,7 +1639,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore */
     }
-  }, [backendUserId]);
+  }, []);
 
   /** One professional skill only — ignore adds beyond the first. */
   const addProService = useCallback((service: ProService) => {
@@ -1837,6 +1937,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   // Inbound message tone + banner handled by InboundBanner (app-wide)
+
+  const markThreadRead = useCallback(
+    (threadId: string) => {
+      if (!threadId) return;
+      setMessages((prev) =>
+        prev.map((t) =>
+          t.id === threadId ||
+          (t.requestId &&
+            (threadId === `chat-${t.requestId}` || threadId === t.requestId))
+            ? { ...t, unread: 0 }
+            : t
+        )
+      );
+      if (!backendUserId || threadId.startsWith("chat-")) return;
+      void backendMarkMessagesRead(threadId, backendUserId);
+    },
+    [backendUserId]
+  );
 
   // All chats for this account (skill filter hid pro job chats)
   const visibleMessageThreads = useMemo(() => messages, [messages]);
@@ -2152,38 +2270,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, [backendUserId, accountType]);
 
-  // Pros: load once; poll every 3 min when tab visible (no Realtime GPS storm)
+  // Pros: load once; poll every 8 min when tab visible (data saver)
   useEffect(() => {
     refreshCloudPros();
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudPros();
-    }, 180_000);
+    }, 480_000);
     return () => window.clearInterval(poll);
   }, [refreshCloudPros]);
 
   useEffect(() => {
     refreshCloudJobs();
-    const t = window.setTimeout(() => refreshCloudChats(), 8000);
+    // Chats only after idle delay — not on every job refresh
+    const t = window.setTimeout(() => refreshCloudChats(), 45_000);
     return () => window.clearTimeout(t);
   }, [refreshCloudJobs, refreshCloudChats]);
 
-  // Jobs Realtime (user-filtered only) with heavy debounce
+  // Jobs Realtime only (no pros Realtime storm) — heavy debounce
   useEffect(() => {
     if (!isAppBackendOnline() || !backendUserId) return;
     let jobsTimer: ReturnType<typeof setTimeout> | null = null;
-    // Pros realtime intentionally null — GPS writes no longer refresh the map feed
-    const unsubPros = backendSubscribePros(() => refreshCloudPros());
+    // Do not subscribe to all pros updates — map uses slow poll only
     const unsubJobs = backendSubscribeJobs(backendUserId, () => {
       if (jobsTimer) clearTimeout(jobsTimer);
-      jobsTimer = setTimeout(() => refreshCloudJobs(), 8000);
+      jobsTimer = setTimeout(() => refreshCloudJobs(), 25_000);
     });
     return () => {
       if (jobsTimer) clearTimeout(jobsTimer);
-      unsubPros?.();
       unsubJobs?.();
     };
-  }, [backendUserId, refreshCloudPros, refreshCloudJobs]);
+  }, [backendUserId, refreshCloudJobs]);
 
   // Sync Live/Away from server (never trust localStorage alone — Away must match is_online)
   useEffect(() => {
@@ -2219,8 +2336,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let inflight = false;
     const pushCoords = (lat: number, lng: number) => {
       const now = Date.now();
-      // Min 45s between Live GPS uploads — major data saver on mobile
-      if (inflight || now - lastPush < 45_000) return;
+      // Min 3 min between Live GPS uploads — aggressive mobile data saver
+      if (inflight || now - lastPush < 180_000) return;
       lastPush = now;
       inflight = true;
       void backendSetProOnline(backendUserId, true, { lat, lng }).finally(() => {
@@ -2233,7 +2350,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       navigator.geolocation.getCurrentPosition(
         (pos) => pushCoords(pos.coords.latitude, pos.coords.longitude),
         () => pushCoords(userLat, userLng),
-        { enableHighAccuracy: false, timeout: 6000, maximumAge: 60_000 }
+        { enableHighAccuracy: false, timeout: 6000, maximumAge: 180_000 }
       );
     } else {
       pushCoords(userLat, userLng);
@@ -2248,9 +2365,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       navigator.geolocation.getCurrentPosition(
         (pos) => pushCoords(pos.coords.latitude, pos.coords.longitude),
         () => pushCoords(userLat, userLng),
-        { enableHighAccuracy: false, timeout: 6000, maximumAge: 60_000 }
+        { enableHighAccuracy: false, timeout: 6000, maximumAge: 180_000 }
       );
-    }, 60_000);
+    }, 180_000);
 
     return () => {
       window.clearInterval(id);
@@ -2312,16 +2429,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
       // Keep coords immediately; keep previous full address until reverse-geocode returns
-      setLocation((prev) => ({
-        label:
-          prev.label &&
-          prev.label !== "Current location" &&
-          prev.label !== "Locating…"
-            ? prev.label
-            : "Locating…",
-        city: prev.city && prev.city !== "Near you" ? prev.city : prev.city || "",
-        coordinates: { lat, lng },
-      }));
+      setLocation((prev) => {
+        // Drop boot/fallback labels immediately; keep a real prior address until geocode
+        const isPlaceholder =
+          !prev.label ||
+          prev.label === "Current location" ||
+          prev.label === "Locating…" ||
+          prev.label === DEFAULT_USER_LOCATION.label;
+        return {
+          label: isPlaceholder ? "Locating…" : prev.label,
+          city:
+            isPlaceholder || prev.city === "Near you"
+              ? ""
+              : prev.city || "",
+          coordinates: { lat, lng },
+        };
+      });
       setLocationError(null);
       if (!silent) setIsLocating(false);
 
@@ -2388,7 +2511,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     navigator.geolocation.getCurrentPosition(
       (pos) => applyGpsFix(pos, false),
       (err) => {
-        // Keep last-known coords — never snap back to Ikeja
+        // Keep last-known / Ajegunle fallback — never invent a random Lagos pin
         setLocationError(friendlyGeolocationError(err));
         setIsLocating(false);
       },
@@ -2545,6 +2668,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ensureChatForRequestAsync,
       refreshCloudChats,
       sendChatMessage,
+      markThreadRead,
       retryLocation,
       setManualLocation,
     }),
@@ -2599,6 +2723,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ensureChatForRequestAsync,
       refreshCloudChats,
       sendChatMessage,
+      markThreadRead,
       bookings,
       messages,
       locationError,

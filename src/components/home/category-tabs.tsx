@@ -2,7 +2,6 @@
 
 import { useRef } from "react";
 import {
-  Battery,
   Car,
   ChevronRight,
   CircleDot,
@@ -10,12 +9,17 @@ import {
   Droplets,
   Fan,
   Grid2x2,
+  Hammer,
   Paintbrush,
+  PaintRoller,
   Plug,
+  ShowerHead,
+  Sun,
   Wrench,
+  Zap,
 } from "lucide-react";
-import { useAppConfig } from "@/components/app-config-provider";
 import { useApp } from "@/lib/store";
+import { CarBattery } from "@/lib/services";
 import type { ServiceCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -27,18 +31,22 @@ const ALL_TABS: {
   { id: "mechanic", label: "Mechanic", icon: Wrench },
   { id: "vulcanizer", label: "Vulcanizer", icon: CircleDot },
   { id: "towing", label: "Tow", icon: Car },
-  { id: "battery", label: "Battery", icon: Battery },
+  { id: "battery", label: "Battery", icon: CarBattery },
   { id: "ac", label: "A/C", icon: Fan },
   { id: "body", label: "Body", icon: Paintbrush },
   { id: "electrical", label: "Electric", icon: Plug },
   { id: "diagnostics", label: "Scan", icon: Cpu },
   { id: "wash", label: "Wash", icon: Droplets },
+  { id: "plumber", label: "Plumber", icon: ShowerHead },
+  { id: "carpenter", label: "Carpenter", icon: Hammer },
+  { id: "painter", label: "Painter", icon: PaintRoller },
+  { id: "solar", label: "Solar", icon: Sun },
+  { id: "generator", label: "Generator", icon: Zap },
   { id: "all", label: "All", icon: Grid2x2 },
 ];
 
 /**
- * 2-row trade strip (5×2). Bouncing arrow sits between A/C (top-right)
- * and All (bottom-right) without a third row. Swipe left → help page.
+ * Trade strip (5 columns, wraps rows). Swipe left → help page.
  */
 export function CategoryTabs({
   expanded,
@@ -56,14 +64,11 @@ export function CategoryTabs({
   onOpenHelp?: () => void;
 }) {
   const { category, setCategory, theme } = useApp();
-  const { config } = useAppConfig();
   const isLight = theme === "light";
   const start = useRef<{ x: number; y: number } | null>(null);
   const moved = useRef(false);
-  const enabled = new Set(config.services.enabled ?? []);
-  const tabs = ALL_TABS.filter(
-    (t) => t.id === "all" || enabled.has(t.id)
-  );
+  // Full motorist trade bar — always show every shipped trade
+  const tabs = ALL_TABS;
 
   const onAxisWheel = (e: React.WheelEvent) => {
     if (!onExpand || !onCollapse) return;

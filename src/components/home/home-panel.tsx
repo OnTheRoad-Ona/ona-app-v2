@@ -20,18 +20,30 @@ import {
   GOOGLE_MAPS_LOADER_ID,
   shouldUseLiveMaps,
 } from "@/lib/google-maps";
+import {
+  knownPlaceNear,
+  knownPlaceToPick,
+  matchKnownPlaces,
+  resolveKnownPlace,
+  type KnownPlace,
+} from "@/lib/known-places";
 import { useMotoristJobsByPro } from "@/lib/jobs/use-motorist-jobs-by-pro";
 import { useApp } from "@/lib/store";
 import type { Technician } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { MAX_TECHNICIANS } from "@/lib/matching";
 
-/** Fallback geocode when Places is unavailable */
+/** Fallback geocode when Places is unavailable (curated places first). */
 async function geocodeAddress(
   query: string
 ): Promise<{ lat: number; lng: number; label: string } | null> {
   const q = query.trim();
   if (!q) return null;
+  const known = resolveKnownPlace(q);
+  if (known) {
+    const p = knownPlaceToPick(known);
+    return { lat: p.lat, lng: p.lng, label: p.label };
+  }
   try {
     const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(
       q
@@ -46,9 +58,16 @@ async function geocodeAddress(
     }[];
     const hit = data?.[0];
     if (!hit?.lat || !hit?.lon) return null;
+    const lat = Number(hit.lat);
+    const lng = Number(hit.lon);
+    const near = knownPlaceNear(lat, lng);
+    if (near) {
+      const p = knownPlaceToPick(near);
+      return { lat: p.lat, lng: p.lng, label: p.label };
+    }
     return {
-      lat: Number(hit.lat),
-      lng: Number(hit.lon),
+      lat,
+      lng,
       label: hit.display_name || q,
     };
   } catch {
@@ -83,6 +102,8 @@ export function HomePanel({
   const [helpAddress, setHelpAddress] = useState("");
   const [helpBusy, setHelpBusy] = useState(false);
   const [helpError, setHelpError] = useState<string | null>(null);
+  const [helpKnownHits, setHelpKnownHits] = useState<KnownPlace[]>([]);
+  const [helpSuggestOpen, setHelpSuggestOpen] = useState(false);
   const gestureY = useRef<number | null>(null);
   const helpInputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
@@ -93,6 +114,7 @@ export function HomePanel({
   const {
     visibleTechnicians,
     radiusKm,
+    filters,
     setSelectedTechId,
     selectedTechId,
     locationError,
@@ -200,6 +222,17 @@ export function HomePanel({
         }
         const lat = loc.lat();
         const lng = loc.lng();
+        // Curated POI: keep business name on the map when address/name matches
+        const text = `${place.name || ""} ${place.formatted_address || ""}`;
+        const known =
+          resolveKnownPlace(text) ||
+          resolveKnownPlace(place.formatted_address || "") ||
+          knownPlaceNear(lat, lng);
+        if (known) {
+          const p = knownPlaceToPick(known);
+          applyPlaceRef.current(p.label, p.lat, p.lng);
+          return;
+        }
         const label =
           place.formatted_address ||
           place.name ||
@@ -388,14 +421,30 @@ export function HomePanel({
                       const next = e.target.value;
                       setHelpAddress(next);
                       setHelpError(null);
+                      const hits = matchKnownPlaces(next, 4).map((r) => r.place);
+                      setHelpKnownHits(hits);
+                      setHelpSuggestOpen(hits.length > 0 && next.trim().length >= 2);
                       // Clearing the field restores my location
                       if (!next.trim() && addressConfirmed) {
                         clearHelpingSomeone();
                       }
                     }}
+                    onFocus={() => {
+                      const hits = matchKnownPlaces(helpAddress, 4).map(
+                        (r) => r.place
+                      );
+                      setHelpKnownHits(hits);
+                      setHelpSuggestOpen(
+                        hits.length > 0 && helpAddress.trim().length >= 2
+                      );
+                    }}
+                    onBlur={() => {
+                      window.setTimeout(() => setHelpSuggestOpen(false), 180);
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
+                        setHelpSuggestOpen(false);
                         void submitHelpAddress();
                       }
                       if (e.key === "Escape") {
@@ -415,6 +464,52 @@ export function HomePanel({
                         : "border-white/20 text-white placeholder:text-white/40 focus:border-brand/50"
                     )}
                   />
+                  {helpSuggestOpen && helpKnownHits.length > 0 ? (
+                    <ul
+                      className={cn(
+                        "absolute left-0 right-0 top-[calc(100%+4px)] z-40 max-h-44 overflow-y-auto rounded-md border-0",
+                        isLight ? "bg-[#c8c9cd]" : "bg-black"
+                      )}
+                      role="listbox"
+                    >
+                      {helpKnownHits.map((p) => (
+                        <li key={p.id} role="option">
+                          <button
+                            type="button"
+                            className={cn(
+                              "flex w-full flex-col items-start border-0 bg-transparent px-2.5 py-2 text-left",
+                              isLight
+                                ? "hover:bg-[#d4d5db]"
+                                : "hover:bg-white/10"
+                            )}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              const pick = knownPlaceToPick(p);
+                              applyHelpLocation(pick.label, pick.lat, pick.lng);
+                              setHelpSuggestOpen(false);
+                            }}
+                          >
+                            <span
+                              className={cn(
+                                "text-[12px] font-bold",
+                                isLight ? "text-slate-900" : "text-white"
+                              )}
+                            >
+                              {p.name}
+                            </span>
+                            <span
+                              className={cn(
+                                "text-[10px] font-medium",
+                                isLight ? "text-slate-600" : "text-white/55"
+                              )}
+                            >
+                              {p.address}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                   {(helpAddress || helpBusy) && (
                     <button
                       type="button"
@@ -496,7 +591,13 @@ export function HomePanel({
                   isLight ? "text-slate-800" : "text-white"
                 )}
               >
-                No Repair Pros nearby
+                {filters.availableNow
+                  ? "No Pros Available"
+                  : filters.rating45 ||
+                      filters.verified ||
+                      filters.fastResponse
+                    ? "No pros match these filters"
+                    : "No Repair Pros nearby"}
               </p>
               <button
                 type="button"
@@ -516,6 +617,15 @@ export function HomePanel({
             </div>
           ) : (
             <>
+              <p
+                className={cn(
+                  "px-3 pt-2 text-[10px] font-semibold uppercase tracking-wide",
+                  isLight ? "text-slate-600" : "text-white/55"
+                )}
+              >
+                {total} nearby
+                {filters.nearest ? " · nearest first" : ""}
+              </p>
               {list.map((tech) => (
                 <div
                   key={tech.id}

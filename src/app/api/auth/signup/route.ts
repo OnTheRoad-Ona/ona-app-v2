@@ -80,6 +80,40 @@ function last4(digits: string | undefined): string | null {
   return d.slice(-4);
 }
 
+/** Strip huge data-URLs from skill answers (certs stay on dedicated columns). */
+function slimSkillAnswers(
+  raw: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (k === "certificationUpload" && v && typeof v === "object") {
+      const file = v as { name?: string; mime?: string; dataUrl?: string };
+      out[k] = {
+        name: file.name || "certificate",
+        mime: file.mime || undefined,
+        // Never store multi-MB base64 in skills jsonb — breaks vulcanizer/pro signup
+        hasFile: Boolean(file.dataUrl || file.name),
+      };
+      continue;
+    }
+    if (typeof v === "string" && v.startsWith("data:") && v.length > 8_000) {
+      out[k] = "[file omitted]";
+      continue;
+    }
+    out[k] = v;
+  }
+  return out;
+}
+
+/** Cap cert data URL size so Postgres / request body does not fail signup. */
+function capCertDataUrl(url: string | null | undefined): string | null {
+  if (!url || typeof url !== "string") return null;
+  // ~400KB text — enough for compressed photo; larger payloads fail many hosts
+  if (url.length > 400_000) return null;
+  return url;
+}
+
 function friendlyAuthError(message: string): { message: string; status: number; code: string } {
   const m = message || "Signup failed";
   const lower = m.toLowerCase();
@@ -186,6 +220,38 @@ export async function POST(req: Request) {
     account_type: input.accountType,
   };
 
+  // Phone uniqueness across different accounts (same user dual-role reuses their phone)
+  const phoneDigits = input.phone.replace(/\D/g, "");
+  if (phoneDigits.length >= 10) {
+    const tail =
+      phoneDigits.length > 10 ? phoneDigits.slice(-10) : phoneDigits;
+    const { data: phoneRows } = await supabase
+      .from("profiles")
+      .select("id, email, phone")
+      .not("phone", "is", null)
+      .limit(500);
+    const phoneTaken = (phoneRows || []).find((row) => {
+      const d = String(row.phone || "").replace(/\D/g, "");
+      if (d.length < 10) return false;
+      const rowTail = d.length > 10 ? d.slice(-10) : d;
+      if (rowTail !== tail) return false;
+      const rowEmail = String(row.email || "").trim().toLowerCase();
+      return rowEmail !== email;
+    });
+    if (phoneTaken) {
+      await logSignupEvent(supabase, {
+        ...eventBase,
+        success: false,
+        error_message: "phone_exists",
+      });
+      return apiFail(
+        "This phone number is already used on another OgaMecho account. Use a different number or log in.",
+        409,
+        "phone_exists"
+      );
+    }
+  }
+
   // 1) Create (or recover) auth user WITHOUT sending confirmation email
   let userId: string | null = null;
   let createdNew = false;
@@ -252,6 +318,7 @@ export async function POST(req: Request) {
 
   // 2) Enrich profile (service role bypasses RLS; trigger may have inserted stub)
   // Dual accounts: do not wipe the other role — only set active role to the one signing up
+  // Always force is_active true on signup / dual-role add (never inherit a frozen flag)
   const { error: profileErr } = await supabase
     .from("profiles")
     .upsert(
@@ -265,6 +332,7 @@ export async function POST(req: Request) {
         avatar_url: input.avatarUrl || null,
         role,
         is_active: true,
+        updated_at: new Date().toISOString(),
       },
       { onConflict: "id" }
     );
@@ -377,10 +445,16 @@ export async function POST(req: Request) {
     })();
     const certName =
       input.certificationFileName || certFromSkills?.name || null;
-    const certUrl =
+    const rawCertUrl =
       input.certificationFileDataUrl || certFromSkills?.dataUrl || null;
-    const hasCert = Boolean(certName || certUrl);
-    const docsStatus = input.docsStatus || "under_review";
+    const certUrl = capCertDataUrl(rawCertUrl);
+    const hasCert = Boolean(certName || certUrl || rawCertUrl);
+    // Default: under_review only when cert present; bare signup is "none" (full radius)
+    const docsStatus =
+      input.docsStatus || (hasCert ? "under_review" : "none");
+    const skillsSlim = slimSkillAnswers(
+      input.skillAnswers as Record<string, unknown> | undefined
+    );
 
     const { error: proErr } = await supabase.from("repair_pro_profiles").upsert(
       {
@@ -404,13 +478,14 @@ export async function POST(req: Request) {
         labour_prices: labourPrices,
         pricing_currency: input.pricingCurrency || "NGN",
         vehicle_focus: vehicleFocus,
-        skills: input.skillAnswers || {},
+        skills: skillsSlim,
         bank_name: input.bankName || null,
         bank_account_name: input.bankAccountName || null,
         bank_account_number: input.bankAccountNumber || null,
         docs_status: docsStatus,
         docs_rating_boost_applied: false,
         certification_file_name: certName,
+        // Prefer slim URL; if oversized, keep name only so signup still succeeds
         certification_file_url: certUrl,
         docs_submitted_at: hasCert ? new Date().toISOString() : null,
       },
@@ -433,10 +508,18 @@ export async function POST(req: Request) {
   }
 
   // 4) Issue a session for the browser (no email round-trip)
-  const signedIn = await supabase.auth.signInWithPassword({
+  let signedIn = await supabase.auth.signInWithPassword({
     email,
     password: input.password,
   });
+  // Retry once if sign-in races with createUser
+  if (signedIn.error || !signedIn.data.session) {
+    await new Promise((r) => setTimeout(r, 400));
+    signedIn = await supabase.auth.signInWithPassword({
+      email,
+      password: input.password,
+    });
+  }
   // Confirmation email (Resend) — non-blocking
   let emailSent: boolean | null = null;
   let emailError: string | null = null;
@@ -453,8 +536,8 @@ export async function POST(req: Request) {
     emailError = e instanceof Error ? e.message : "email failed";
   }
 
+  // Still return success with profile if session missing — client can auto-login
   if (signedIn.error || !signedIn.data.session || !signedIn.data.user) {
-    // Profile is saved — user can still log in manually
     await logSignupEvent(supabase, {
       ...eventBase,
       success: true,
@@ -486,7 +569,10 @@ export async function POST(req: Request) {
         vehicleModel: input.vehicleModel,
         vehicleYear: input.vehicleYear,
         businessName: input.businessName,
-        primaryService: input.primaryService,
+        primaryService:
+          input.primaryService ||
+          input.services?.[0] ||
+          undefined,
         bio: input.bio,
         yearsExperience: input.yearsExperience,
         serviceRadiusKm: input.serviceRadiusKm,
@@ -496,7 +582,7 @@ export async function POST(req: Request) {
         bvnVerified: hasBvn,
       },
       warning:
-        "Account created. Please log in with your email and password to continue.",
+        "Account created. Opening session failed — try logging in once with the same email and password.",
     });
   }
 

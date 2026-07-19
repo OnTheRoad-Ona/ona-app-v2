@@ -226,22 +226,40 @@ export function fromMinorUnits(
   return (Number(amountMinor) || 0) / 100;
 }
 
+/**
+ * Format labour amounts for display.
+ * Nigeria default: always show ₦ with grouping (e.g. ₦5,000).
+ */
 export function formatMoney(
   amountMajor: number | null | undefined,
-  currency: AppCurrency
+  currency?: AppCurrency | string | null
 ): string {
-  if (amountMajor == null || !Number.isFinite(amountMajor)) {
+  if (amountMajor == null || !Number.isFinite(Number(amountMajor))) {
     return "Quote on request";
   }
-  const sym = currencySymbol(currency);
-  const dec = usesDecimals(currency);
+  // Default market is Nigeria — prefer ₦ when currency missing/unknown
+  const cur: AppCurrency =
+    currency === "USD" ||
+    currency === "GBP" ||
+    currency === "ZAR" ||
+    currency === "EUR" ||
+    currency === "GHS" ||
+    currency === "KES" ||
+    currency === "CAD" ||
+    currency === "AUD"
+      ? currency
+      : "NGN";
+  const sym = currencySymbol(cur);
+  const dec = usesDecimals(cur);
+  const n = Number(amountMajor);
   try {
-    return `${sym}${amountMajor.toLocaleString(undefined, {
+    const locale = cur === "NGN" ? "en-NG" : undefined;
+    return `${sym}${n.toLocaleString(locale, {
       minimumFractionDigits: dec ? 2 : 0,
       maximumFractionDigits: dec ? 2 : 0,
     })}`;
   } catch {
-    return `${sym}${amountMajor}`;
+    return `${sym}${Math.round(n).toLocaleString("en-NG")}`;
   }
 }
 

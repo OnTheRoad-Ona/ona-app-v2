@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ona</title>
+    <style>
+      /* Minimal — real intro lives inside the phone shell after redirect */
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #060d0a;
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      (function () {
+        try {
+          localStorage.clear();
+          sessionStorage.clear();
+        } catch (e) {}
+        try {
+          document.cookie.split(";").forEach(function (c) {
+            var n = c.split("=")[0].trim();
+            if (!n) return;
+            document.cookie =
+              n + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+          });
+        } catch (e) {}
+        location.replace("/login");
+      })();
+    </script>
+  </body>
+</html>

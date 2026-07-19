@@ -162,20 +162,15 @@ export default function TechnicianPage({
     loadReviews,
   ]);
 
-  // Real-time-ish: poll reviews every 4s while on profile
+  // Reviews: load once + when tab becomes visible (no 4s poll — data saver)
   useEffect(() => {
     if (isOwnPro || !id || id === "pro-self") return;
     void loadReviews();
-    const tick = window.setInterval(() => {
-      if (typeof document !== "undefined" && document.hidden) return;
-      void loadReviews();
-    }, 4000);
     const onVis = () => {
       if (!document.hidden) void loadReviews();
     };
     document.addEventListener("visibilitychange", onVis);
     return () => {
-      window.clearInterval(tick);
       document.removeEventListener("visibilitychange", onVis);
     };
   }, [id, isOwnPro, loadReviews]);

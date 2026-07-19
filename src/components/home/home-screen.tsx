@@ -11,7 +11,7 @@ import { MAX_TECHNICIANS } from "@/lib/matching";
 import { cn } from "@/lib/utils";
 
 /**
- * Map 45% / panel 55% initially.
+ * Map 40% / panel 60% initially (slightly taller lower sheet for trades).
  * Expand/collapse: flip pill + service category axis only.
  * Live GPS lives in the hamburger menu (not under search).
  */
@@ -89,7 +89,7 @@ export function HomeScreen() {
             "om-sheet-spring relative min-h-0 overflow-hidden",
             sheetExpanded
               ? "h-0 flex-[0_0_0%] opacity-0 pointer-events-none"
-              : "flex-[0_0_45%] opacity-100"
+              : "flex-[0_0_40%] opacity-100"
           )}
         >
           <ServiceMap technicians={mapTechs} onSelect={setSelectedTechId} />
@@ -99,7 +99,7 @@ export function HomeScreen() {
           data-theme-toggle-ok
           className={cn(
             "om-sheet-spring z-30 flex min-h-0 flex-col overflow-hidden",
-            sheetExpanded ? "flex-1" : "flex-[0_0_55%]",
+            sheetExpanded ? "flex-1" : "flex-[0_0_60%]",
             isLight ? "bg-[#c8c9cd]" : "bg-black",
             !sheetExpanded &&
               "rounded-t-2xl shadow-[0_-6px_24px_rgba(0,0,0,0.18)]"

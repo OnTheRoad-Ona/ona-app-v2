@@ -3,33 +3,52 @@
 /**
  * Pro dashboard — Uber-style list under Live (no section titles):
  * - Incoming: New Request only, real meet address (never “Current location”)
- * - Else Recent: clock + place name / area (non-clickable, completed only)
+ * - Recent: Uber place + area only (never problem text / demo address)
  */
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Clock3, Loader2, Radio } from "lucide-react";
+import { ChevronRight, Clock3, Loader2, Radio, Shield } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { getArtisanProfile } from "@/lib/artisan/local-store";
+import { canGoLive, statusLabel } from "@/lib/artisan/status";
+import type { ArtisanVerificationProfile } from "@/lib/artisan/types";
 import { apiListJobs } from "@/lib/jobs/client";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
-import { isProService, PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
-import type { ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /** New Request only — leaves dashboard after Accept */
 const INCOMING_STATUSES = new Set<JobFlowStatus>(["negotiating"]);
 
-/** Completed jobs only for Recent */
+/** Past / closed jobs for Recent — same set for every trade (Battery, Vulcanizer, …) */
 const RECENT_STATUSES = new Set<JobFlowStatus>([
   "completed",
   "satisfied",
   "released",
+  "cancelled",
+  "expired",
+  "disputed",
+  "under_appeal",
+  "refunded",
 ]);
 
 /** Common city / area tokens for subtitle line */
 const AREA_HINT =
   /\b(lekki|ikeja|ikoyi|vi|victoria island|island|ajah|yaba|surulere|gbagada|magodo|maryland|ojodu|berger|festac|apapa|mainland|abuja|lagos|phase\s*\d*|estate|gate|route|alternative)\b/i;
+
+/** Away CTA when already Live — rotates every 3 hours */
+const LIVE_AWAY_LABELS = [
+  "Take Time Off",
+  "Take Some Rest",
+  "Go Away",
+] as const;
+const LIVE_AWAY_ROTATE_MS = 3 * 60 * 60 * 1000;
+
+function liveAwayButtonLabel(now = Date.now()): string {
+  const i = Math.floor(now / LIVE_AWAY_ROTATE_MS) % LIVE_AWAY_LABELS.length;
+  return LIVE_AWAY_LABELS[i];
+}
 
 /** Labels that are pro GPS noise, not motorist meet address */
 function isGenericLocation(label: string): boolean {
@@ -93,30 +112,25 @@ function splitPlaceAndArea(label: string): {
 }
 
 export default function TechnicianDashboardPage() {
-  const {
-    theme,
-    registeredAs,
-    proServices,
-    proLive,
-    setProLive,
-    userProfile,
-    backendUserId,
-    displayName,
-  } = useApp();
+  const { theme, proLive, setProLive, backendUserId } = useApp();
   const isLight = theme === "light";
   const [liveBusy, setLiveBusy] = useState(false);
   const [liveErr, setLiveErr] = useState<string | null>(null);
   const [incoming, setIncoming] = useState<JobRecord[]>([]);
   const [recent, setRecent] = useState<JobRecord[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
+  const [awayLabel, setAwayLabel] = useState(() => liveAwayButtonLabel());
+  const [artisan, setArtisan] = useState<ArtisanVerificationProfile | null>(
+    null
+  );
 
-  const mySkill: ProService | null = isProService(registeredAs)
-    ? registeredAs
-    : proServices[0] ?? null;
-
-  const roleLabel = mySkill
-    ? PRO_SERVICE_LABELS[mySkill] ?? mySkill
-    : "Professional";
+  useEffect(() => {
+    if (!backendUserId) {
+      setArtisan(null);
+      return;
+    }
+    setArtisan(getArtisanProfile(backendUserId));
+  }, [backendUserId, proLive, liveErr]);
 
   const stage = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const ink = isLight ? "text-slate-900" : "text-white";
@@ -178,9 +192,18 @@ export default function TechnicianDashboardPage() {
     const t = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void loadJobs();
-    }, 6_000);
+    }, 180_000);
     return () => window.clearInterval(t);
   }, [loadJobs]);
+
+  // Refresh Away button copy when the 3-hour slot rolls over (local only)
+  useEffect(() => {
+    if (!proLive) return;
+    const tick = () => setAwayLabel(liveAwayButtonLabel());
+    tick();
+    const t = window.setInterval(tick, 300_000);
+    return () => window.clearInterval(t);
+  }, [proLive]);
 
   const toggleLive = async () => {
     setLiveBusy(true);
@@ -196,25 +219,17 @@ export default function TechnicianDashboardPage() {
   };
 
   const showIncoming = incoming.length > 0;
-  const showRecent = !showIncoming && recent.length > 0;
+  /** Same for every trade: Recent always when finished jobs exist (not hidden by Incoming). */
+  const showRecent = recent.length > 0;
 
   return (
     <div className={cn("flex h-full min-h-0 flex-col", stage)}>
       <div className={cn("z-20 shrink-0", stage)}>
         <PageHeader
           title="Professional Dashboard"
-          subtitle={`${roleLabel} · ${userProfile?.fullName || displayName || "Pro"}`}
           showBack={false}
         />
-        <div className="flex items-center justify-between gap-2 px-3 pb-2">
-          {mySkill ? (
-            <p className={cn("text-[12px] font-bold", ink)}>
-              {PRO_SERVICE_LABELS[mySkill] ?? mySkill}
-              <span className={cn("font-semibold", muted)}> only</span>
-            </p>
-          ) : (
-            <span />
-          )}
+        <div className="flex items-center justify-end gap-2 px-3 pb-2">
           <button
             type="button"
             disabled={liveBusy}
@@ -235,12 +250,60 @@ export default function TechnicianDashboardPage() {
                 proLive ? "bg-emerald-500" : "bg-slate-400"
               )}
             />
-            {liveBusy ? "…" : proLive ? "Live" : "Away"}
+            {liveBusy ? "…" : proLive ? "Live" : "Live"}
           </button>
         </div>
       </div>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 pb-4 scrollbar-hide">
+        {/* Artisan verification gate banner */}
+        {artisan && artisan.status !== "approved" ? (
+          <section
+            className={cn(
+              "rounded-md px-3 py-3",
+              isLight ? "bg-[#fff7ed]" : "bg-white/10"
+            )}
+          >
+            <div className="flex items-start gap-2">
+              <Shield className="mt-0.5 h-4 w-4 shrink-0 text-[#e85a12]" />
+              <div className="min-w-0 flex-1">
+                <p className={cn("text-[13px] font-bold", ink)}>
+                  {statusLabel(artisan.status)}
+                </p>
+                <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
+                  {(() => {
+                    const g = canGoLive(artisan);
+                    return g.allowed ? "" : g.message;
+                  })()}
+                </p>
+                <Link
+                  href={
+                    artisan.status === "draft" ||
+                    artisan.status === "rejected"
+                      ? "/artisan/onboarding"
+                      : "/artisan/verification"
+                  }
+                  className="mt-2 inline-flex text-[12px] font-bold text-[#e85a12]"
+                >
+                  {artisan.status === "pending_review"
+                    ? "View status"
+                    : "Continue verification"}
+                </Link>
+              </div>
+            </div>
+          </section>
+        ) : artisan?.isNewArtisan ? (
+          <p
+            className={cn(
+              "rounded-md px-3 py-2 text-[11px] font-semibold",
+              isLight ? "bg-amber-50 text-amber-900" : "bg-amber-500/15 text-amber-100"
+            )}
+          >
+            New Artisan badge is on. Complete 5 successful jobs to remove it
+            and improve search ranking.
+          </p>
+        ) : null}
+
         <section className={cn("border-b pb-4", hairline)}>
           <div className="flex items-center gap-3">
             <Radio
@@ -251,12 +314,12 @@ export default function TechnicianDashboardPage() {
             />
             <div className="min-w-0 flex-1">
               <p className={cn("text-[15px] font-black", ink)}>
-                {proLive ? "You’re Live" : "You’re Away"}
+                {proLive ? "You are Live" : "Go Live"}
               </p>
               <p className={cn("text-[12px] font-medium", muted)}>
                 {proLive
-                  ? "Motorists nearby can find you."
-                  : "Go Live so motorists can request you."}
+                  ? "You’re Live. Motorists nearby can find you."
+                  : "Motorists nearby can find you when you’re Live."}
               </p>
             </div>
           </div>
@@ -270,7 +333,11 @@ export default function TechnicianDashboardPage() {
               "disabled:opacity-50"
             )}
           >
-            {liveBusy ? "Updating…" : proLive ? "Go Away" : "Go Live"}
+            {liveBusy
+              ? "Updating…"
+              : proLive
+                ? awayLabel
+                : "Go Live"}
           </button>
           {liveErr && (
             <p className="mt-2 text-center text-[11px] font-semibold text-red-500">
@@ -337,7 +404,7 @@ export default function TechnicianDashboardPage() {
           </ul>
         )}
 
-        {/* Recent completed — clock + Uber place/area, no lines, not clickable */}
+        {/* Recent — Uber place + area only (no problem text, no demo fallbacks) */}
         {!jobsLoading && showRecent && (
           <ul className="space-y-3">
             {recent.map((j) => {
@@ -351,7 +418,10 @@ export default function TechnicianDashboardPage() {
                   className="flex items-start gap-2.5 border-0 bg-transparent py-0.5"
                 >
                   <Clock3
-                    className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#e07a3d]"
+                    className={cn(
+                      "mt-0.5 h-3.5 w-3.5 shrink-0",
+                      isLight ? "text-slate-600" : "text-white/60"
+                    )}
                     aria-hidden
                   />
                   <div className="min-w-0 flex-1">

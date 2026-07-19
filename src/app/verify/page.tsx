@@ -145,7 +145,7 @@ export default function VerifyIdentityPage() {
         <button
           type="button"
           onClick={() =>
-            navigateBack(router, defaultBackHref())
+            navigateBack(router, defaultBackHref(accountType), accountType)
           }
           className={cn(
             "inline-flex h-8 items-center gap-0.5 rounded-lg border-0 bg-transparent px-1 text-[12px] font-semibold",
@@ -187,7 +187,7 @@ export default function VerifyIdentityPage() {
                 "mb-1 flex items-center justify-between"
               )}
             >
-              NIN (11 numbers)
+              NIN
               {ninOk && (
                 <span className="text-[10px] font-bold text-emerald-600">
                   Verified
@@ -204,7 +204,7 @@ export default function VerifyIdentityPage() {
               }}
               inputMode="numeric"
               maxLength={11}
-              placeholder="Your 11 digit NIN"
+              placeholder="NIN"
             />
           </label>
 
@@ -215,7 +215,7 @@ export default function VerifyIdentityPage() {
                 "mb-1 flex items-center justify-between"
               )}
             >
-              BVN (11 numbers)
+              BVN
               {bvnOk && (
                 <span className="text-[10px] font-bold text-emerald-600">
                   Verified
@@ -232,7 +232,7 @@ export default function VerifyIdentityPage() {
               }}
               inputMode="numeric"
               maxLength={11}
-              placeholder="Your 11 digit BVN"
+              placeholder="BVN"
             />
           </label>
 

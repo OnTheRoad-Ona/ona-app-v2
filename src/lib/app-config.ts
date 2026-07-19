@@ -63,13 +63,13 @@ export type AppConfig = {
 
 export const DEFAULT_APP_CONFIG: AppConfig = {
   app: {
-    name: "OgaMecho",
+    name: "Ona",
     tagline: "Help for your car when you need it",
     supportEmail: "support@ogamecho.com",
     supportPhone: "",
     maintenanceMode: false,
     maintenanceMessage:
-      "OgaMecho is updating. Please try again in a short while.",
+      "Ona is updating. Please try again in a short while.",
     defaultTheme: "light",
     forceTheme: null,
   },
@@ -120,6 +120,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       "electrical",
       "diagnostics",
       "wash",
+      "plumber",
+      "carpenter",
+      "painter",
+      "solar",
+      "generator",
     ],
     labels: {},
   },
@@ -148,6 +153,13 @@ export function mergeConfig(
       base[key] = { ...base[key], ...(val as object) } as never;
     }
   }
+  // Always keep every default trade enabled (union with any DB overrides)
+  base.services.enabled = Array.from(
+    new Set([
+      ...DEFAULT_APP_CONFIG.services.enabled,
+      ...(base.services.enabled ?? []),
+    ])
+  );
   return base;
 }
 

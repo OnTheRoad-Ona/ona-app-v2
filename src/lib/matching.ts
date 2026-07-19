@@ -44,6 +44,8 @@ export function scoreTechnician(tech: Technician, query: string): number {
   const verifiedBonus = tech.verified ? 10 : 0;
   const fastBonus = tech.fastResponse ? 8 : 0;
   const matchBoost = problemPriority(tech, query);
+  // New Artisan: lower ranking until 5 completed jobs (see artisan/status)
+  const newArtisanPenalty = tech.isNewArtisan ? 35 : 0;
 
   return (
     distanceScore +
@@ -53,7 +55,8 @@ export function scoreTechnician(tech: Technician, query: string): number {
     verifiedBonus +
     fastBonus +
     matchBoost -
-    loadPenalty
+    loadPenalty -
+    newArtisanPenalty
   );
 }
 
@@ -86,11 +89,10 @@ export function filterAndRankTechnicians(
     if (t.status !== "available") return false;
     const d = t.distanceKm;
     if (typeof d !== "number" || !Number.isFinite(d)) return false;
-    // Docs not yet approved → only visible within 2 km
+    // Cert under review / rejected → only visible within 2 km
+    // "none" = no cert uploaded yet → full radius (signup without docs)
     const docsPending =
-      t.docsStatus === "under_review" ||
-      t.docsStatus === "none" ||
-      t.docsStatus === "rejected";
+      t.docsStatus === "under_review" || t.docsStatus === "rejected";
     const proCap = docsPending
       ? Math.min(radius, DOCS_PENDING_MAX_RADIUS_KM)
       : radius;
@@ -101,27 +103,41 @@ export function filterAndRankTechnicians(
     list = list.filter((t) => matchesCategory(t, category));
   }
 
+  // Available = Live with a real GPS pin (not a stale/offline placeholder)
   if (filters.availableNow) {
-    list = list.filter((t) => t.status === "available");
+    list = list.filter(
+      (t) => t.status === "available" && t.hasLiveLocation !== false
+    );
   }
+  // 4.5+ rating
   if (filters.rating45) {
-    list = list.filter((t) => t.rating >= 4.5);
+    list = list.filter((t) => Number(t.rating) >= 4.5);
   }
+  // Verified NIN/docs
   if (filters.verified) {
-    list = list.filter((t) => t.verified);
+    list = list.filter((t) => Boolean(t.verified));
   }
+  // Fast reply (mapped flag or strong response score)
   if (filters.fastResponse) {
-    list = list.filter((t) => t.fastResponse);
+    list = list.filter(
+      (t) =>
+        Boolean(t.fastResponse) ||
+        (typeof t.responseSpeedScore === "number" &&
+          t.responseSpeedScore >= 0.75)
+    );
   }
 
   list = [...list].sort((a, b) => {
+    // Nearest: pure distance first (chip on by default)
     if (filters.nearest) {
       const d = a.distanceKm - b.distanceKm;
-      if (Math.abs(d) > 0.05) return d;
+      if (Math.abs(d) > 0.02) return d;
+      // Tie-break by score when nearly equal distance
+      return scoreTechnician(b, query) - scoreTechnician(a, query);
     }
-    // Always prefer nearer when scores are close
+    // Nearest off: rank by overall score, then distance
     const scoreDiff = scoreTechnician(b, query) - scoreTechnician(a, query);
-    if (Math.abs(scoreDiff) > 2) return scoreDiff;
+    if (Math.abs(scoreDiff) > 0.5) return scoreDiff;
     return a.distanceKm - b.distanceKm;
   });
 

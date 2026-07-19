@@ -1,8 +1,10 @@
 # OgaMecho Customer Care guide
 
 **Who this is for:** Customer Care, Support, Super Admin  
-**Where:** https://ogamecho.vercel.app/admin  
-**Temporary sensitive password:** `336699`
+**Where:** https://ogamecho.vercel.app/admin (local: http://localhost:4500/admin)  
+**Temporary sensitive password:** `336699`  
+
+If the site says **“This deployment is temporarily paused”**, that is a Vercel account/usage block — not a bad Care login. Use local admin or fix Vercel usage (see `docs/VERCEL_DEPLOY.md`).
 
 ---
 

@@ -18,6 +18,7 @@ import type { JobMedia } from "@/lib/jobs/types";
 import {
   detectCurrency,
   detectCurrencyFromGeolocation,
+  formatMoney,
   getBaseLabourPrice,
   LABOUR_FEE_DISCLAIMER,
   type AppCurrency,
@@ -154,7 +155,19 @@ function RequestInner() {
     setBusy(false);
     if (!res.ok) {
       setError(res.message);
+      try {
+        const { playAppSound } = await import("@/lib/sound-tone");
+        playAppSound("error");
+      } catch {
+        /* */
+      }
       return;
+    }
+    try {
+      const { playAppSound } = await import("@/lib/sound-tone");
+      playAppSound("success_soft");
+    } catch {
+      /* */
     }
     router.replace(`/jobs/${res.data.job.id}`);
   };
@@ -222,6 +235,14 @@ function RequestInner() {
           </p>
           <p className={cn("text-[12px] font-medium", muted)}>
             {PRO_SERVICE_LABELS[tech.serviceType] ?? tech.roleLabel ?? tech.serviceType}
+            {base != null ? (
+              <>
+                <span className="mx-1 opacity-40">·</span>
+                <span className="font-bold text-brand">
+                  {formatMoney(base, currency)}
+                </span>
+              </>
+            ) : null}
           </p>
         </div>
       </div>

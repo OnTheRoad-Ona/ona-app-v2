@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Pencil } from "lucide-react";
 import { navigateBack } from "@/lib/navigation";
 import { profileTheme } from "@/lib/profile-system";
+import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 export function ProfileShell({
@@ -26,6 +27,7 @@ export function ProfileShell({
   error?: string | null;
 }) {
   const router = useRouter();
+  const { accountType } = useApp();
   const t = profileTheme(isLight);
 
   return (
@@ -39,11 +41,20 @@ export function ProfileShell({
       >
         <button
           type="button"
-          onClick={() => navigateBack(router, "/")}
+          onClick={() =>
+            navigateBack(
+              router,
+              accountType === "professional" ? "/dashboard" : "/",
+              accountType
+            )
+          }
           className={cn(
             "flex h-8 w-8 items-center justify-center rounded-lg border-0",
-            isLight ? "bg-transparent text-slate-800" : "bg-[#1c1c1e] text-white"
+            isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white"
           )}
+          style={{
+            backgroundColor: isLight ? "#c8c9cd" : "#000000",
+          }}
           aria-label="Back"
         >
           <ArrowLeft className="h-4 w-4" />

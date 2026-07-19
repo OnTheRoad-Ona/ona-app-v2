@@ -128,7 +128,7 @@ const MAP_STYLES_DARK: google.maps.MapTypeStyle[] = [
   { featureType: "transit", stylers: [{ visibility: "off" }] },
 ];
 
-/** Orange filled trade glyph only — no circle plate; selected = shade only */
+/** Solid Message-orange trade glyph only — no plate / glow */
 function proMarkerIconUrl(t: Technician, selected: boolean): string {
   return tradeIconDataUrl(t.serviceType, {
     size: 24,
@@ -301,14 +301,14 @@ function MockupMap({
             aria-label={`${t.name}, ${t.etaMinutes} min`}
           >
             <span className="relative mx-auto flex h-9 w-9 items-center justify-center">
-              <span className="om-live-beam absolute inset-0" aria-hidden />
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={pinUrl}
                 alt=""
                 width={24}
                 height={24}
-                className="om-live-glyph relative z-[1] block"
+                className="om-live-glyph om-live-glyph--pulse relative z-[1] block"
+                style={{ filter: "none" }}
                 draggable={false}
               />
             </span>

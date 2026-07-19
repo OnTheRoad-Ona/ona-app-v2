@@ -30,6 +30,7 @@ const NAV_GROUPS: {
       { href: "/admin/disputes", label: "Disputes & appeals" },
       { href: "/admin/payments", label: "Escrow & payments" },
       { href: "/admin/pros", label: "Repair Pros" },
+      { href: "/admin/artisans", label: "Artisan review" },
       { href: "/admin/users", label: "Users" },
       { href: "/admin/verification", label: "Verification" },
       { href: "/admin/audit", label: "Audit trail" },
@@ -117,7 +118,7 @@ export function AdminShell({
       <SensitivePasswordHost />
       <aside className="om-admin-nav">
         <div className="om-admin-brand">
-          Oga<span>Mecho</span> Care
+          Ona Care
         </div>
         <p
           className="om-admin-muted"

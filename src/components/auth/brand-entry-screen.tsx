@@ -5,11 +5,11 @@ import { WHEEL_GRAY } from "@/components/auth/auth-plate";
 import { cn } from "@/lib/utils";
 
 /**
- * After intro video:
+ * Guest brand entry:
  * - Full metallic brand photograph as background (no copper fills / gradients)
- * - Top: WELCOME TO · OgaMecho · tagline
+ * - Top: WELCOME TO · Ona · tagline
  * - Bottom: Log In / Sign Up
- * - Apple motion when arriving from intro (crossfade under video)
+ * - Optional Apple enter motion
  */
 const TAGLINE_COLOR = "#000000";
 const LOGIN_BTN_BG = "#C8C9CD";
@@ -21,17 +21,23 @@ export function BrandEntryScreen({
 }: {
   onLogIn: () => void;
   onSignUp: () => void;
-  /** Play Apple enter motion (after intro handoff) */
+  /** Play Apple enter motion on first paint */
   animateIn?: boolean;
 }) {
   return (
     <div
-      className="absolute inset-0 z-[300] overflow-hidden bg-black"
+      className="absolute inset-0 z-[300] overflow-hidden"
+      style={{ backgroundColor: "#c97d47" }}
       role="dialog"
-      aria-label="OgaMecho welcome"
+      aria-label="Ona welcome"
     >
-      {/* Brand art with Apple motion — black underlay until pixels paint */}
-      <BrandHeroMotion size="splash" bottomFade={false} motion={animateIn} />
+      {/* Confined to phone shell — cover crop, no full-window bleed */}
+      <BrandHeroMotion
+        size="splash"
+        bottomFade={false}
+        motion={false}
+        introMotion={animateIn}
+      />
 
       {/* Top cluster */}
       <div
@@ -43,13 +49,16 @@ export function BrandEntryScreen({
         <div className="text-center">
           <p
             className="text-[11px] font-semibold uppercase tracking-[0.38em]"
-            style={{ color: "#ffffff" }}
+            style={{ color: LOGIN_BTN_BG }}
           >
             Welcome to
           </p>
-          <h1 className="mt-2 text-[32px] font-black tracking-tight">
-            <span style={{ color: "#ffffff" }}>Oga</span>
-            <span style={{ color: "#1c1c1e" }}>Mecho</span>
+          <h1
+            className="mt-2 text-[36px] font-black tracking-tight"
+            aria-label="Ona"
+          >
+            <span style={{ color: LOGIN_BTN_BG }}>O</span>
+            <span style={{ color: "#C8C9CD" }}>na</span>
           </h1>
           <p
             className="mx-auto mt-2.5 max-w-[300px] text-[12px] font-medium leading-relaxed tracking-[0.04em]"

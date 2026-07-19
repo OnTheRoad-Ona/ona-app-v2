@@ -266,7 +266,7 @@ export function ProPublicView({
                 <span className="font-semibold capitalize">
                   {s.replace(/_/g, " ")}
                 </span>
-                <span className={cn("font-bold", major != null ? "text-brand" : t.muted)}>
+                <span className={cn("font-bold", major != null ? t.ink : t.muted)}>
                   {formatMoney(major, cur)}
                 </span>
               </li>

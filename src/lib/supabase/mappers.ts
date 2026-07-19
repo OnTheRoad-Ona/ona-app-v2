@@ -127,8 +127,11 @@ export function mapProToTechnician(
     etaMinutes,
     // Live only → available. Away is never "nearby" on the motorist map.
     status: pro.is_online ? "available" : "offline",
-    verified: pro.verified || pro.nin_verified,
-    fastResponse: pro.is_online,
+    verified: Boolean(pro.verified || pro.nin_verified),
+    // Fast: Live + solid rating (or explicit high response score below)
+    fastResponse:
+      Boolean(pro.is_online) &&
+      (Number(pro.rating_avg) >= 4.3 || Boolean(pro.verified)),
     specialties: (() => {
       const skills = pro.skills as Technician["skillAnswers"] | undefined;
       const core = skills?.specialties;
@@ -144,19 +147,21 @@ export function mapProToTechnician(
     serviceRadiusKm: (() => {
       const base = pro.service_radius_km || 10;
       const docs = pro.docs_status;
-      // Cap advertised radius while docs pending (legacy null = approved)
-      if (
-        docs === "under_review" ||
-        docs === "none" ||
-        docs === "rejected"
-      ) {
+      // Cap advertised radius only while cert is under review / rejected
+      // (null / approved / none → full radius)
+      if (docs === "under_review" || docs === "rejected") {
         return Math.min(base, 2);
       }
       return base;
     })(),
     location: { lat, lng },
     hasLiveLocation,
-    responseSpeedScore: pro.is_online ? 0.9 : 0.5,
+    responseSpeedScore: (() => {
+      if (!pro.is_online) return 0.35;
+      const r = Number(pro.rating_avg) || 4.5;
+      // 4.0 → ~0.7, 4.5 → ~0.8, 5.0 → ~0.9
+      return Math.min(0.98, 0.45 + r * 0.1);
+    })(),
     currentLoad: pro.is_online ? 0 : 1,
     businessName: pro.business_name || undefined,
     yearsExperience: pro.years_experience || undefined,
@@ -207,6 +212,10 @@ export function profileToUserProfile(
     vehicleMake?: string;
     vehicleModel?: string;
     vehicleYear?: string;
+    vehiclePlate?: string;
+    vehiclePhoto?: string;
+    vehicleCommonIssues?: string[];
+    vehicles?: UserProfile["vehicles"];
     idNumber?: string;
     bvn?: string;
     ninVerified?: boolean;
@@ -247,6 +256,10 @@ export function profileToUserProfile(
     vehicleMake: extra?.vehicleMake,
     vehicleModel: extra?.vehicleModel,
     vehicleYear: extra?.vehicleYear,
+    vehiclePlate: extra?.vehiclePlate,
+    vehiclePhoto: extra?.vehiclePhoto,
+    vehicleCommonIssues: extra?.vehicleCommonIssues,
+    vehicles: extra?.vehicles,
     businessName: extra?.businessName,
     services: extra?.services,
     serviceRadiusKm: extra?.serviceRadiusKm,

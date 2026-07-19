@@ -456,6 +456,126 @@ body {
   animation: om-brand-fade-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* ——— Auth navigation: soft fade + slight slide up (~300ms) ——— */
+@keyframes om-auth-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes om-auth-exit {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.om-auth-enter {
+  animation: om-auth-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+.om-auth-exit {
+  animation: om-auth-exit 0.28s cubic-bezier(0.4, 0, 0.2, 1) both !important;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .om-auth-enter,
+  .om-auth-exit {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+/* ——— Intro confined to phone shell (soft fade + slight scale) ——— */
+@keyframes om-intro-hero-in {
+  0% {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes om-intro-splash-hold {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes om-intro-splash-out {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.03);
+  }
+}
+
+@keyframes om-intro-welcome-in {
+  0% {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Hero image only — never leave the phone clip */
+.om-intro-hero-img {
+  animation: om-intro-hero-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: center center;
+  will-change: transform, opacity;
+}
+
+.om-intro-splash-layer {
+  animation: om-intro-splash-hold 0.01s linear both;
+  /* Splash must never steal taps from Log In / Sign Up underneath */
+  pointer-events: none;
+}
+
+.om-intro-splash-layer.is-exiting {
+  animation: om-intro-splash-out 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+  pointer-events: none;
+}
+
+.om-intro-welcome-layer {
+  animation: om-intro-welcome-in 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: center center;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .om-intro-hero-img,
+  .om-intro-splash-layer,
+  .om-intro-splash-layer.is-exiting,
+  .om-intro-welcome-layer {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
 /* Crisp brand art — max sharpness */
 .om-brand-img {
   image-rendering: -webkit-optimize-contrast;
@@ -525,9 +645,36 @@ select.om-auth-field:-webkit-autofill {
   caret-color: #0f172a;
   transition: background-color 99999s ease-out;
 }
-.om-auth-field::placeholder {
-  color: #6b7280 !important;
-  opacity: 1;
+/*
+ * Placeholders (pretext) — app-wide.
+ * Lighter / softer than typed text so empty fields never look filled-in.
+ */
+input::placeholder,
+textarea::placeholder,
+select::placeholder {
+  color: #c5cbd4 !important;
+  opacity: 0.7 !important;
+  font-weight: 400 !important;
+  -webkit-text-fill-color: #c5cbd4 !important;
+}
+
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder,
+[data-theme="dark"] select::placeholder {
+  color: rgba(255, 255, 255, 0.28) !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.28) !important;
+}
+
+/* Auth wells + pro signup (same dim pretext) */
+.om-auth-field::placeholder,
+.om-pro-signup-fields input::placeholder,
+.om-pro-signup-fields textarea::placeholder,
+.om-pro-signup-fields select::placeholder {
+  color: #c5cbd4 !important;
+  opacity: 0.7 !important;
+  font-weight: 400 !important;
+  -webkit-text-fill-color: #c5cbd4 !important;
 }
 
 /* Repair Pro signup shell — same sheet gray as Motorist Your account */
@@ -670,6 +817,26 @@ button.om-cta-dark-gray:disabled,
   will-change: flex-basis, flex-grow, opacity, transform;
 }
 
+/* Smooth page content enter (subtle, low cost) */
+@keyframes om-page-enter {
+  from {
+    opacity: 0.88;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.om-page-enter {
+  animation: om-page-enter 0.22s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+/* Menu / sheet backdrop fade */
+.om-fade-in {
+  animation: om-toast-in 0.22s ease-out both;
+}
+
 /* Light soft exit when user taps Back (history) */
 .om-page-exit {
   opacity: 0.72;
@@ -686,19 +853,16 @@ button.om-cta-dark-gray:disabled,
   box-shadow: none !important;
 }
 
-/* Live Repair Pro map pulse — motorist can see who is Live/active */
-@keyframes om-live-beam {
-  0% {
-    transform: translate(-50%, -50%) scale(0.45);
-    opacity: 0.65;
-  }
-  70% {
-    transform: translate(-50%, -50%) scale(1.55);
-    opacity: 0;
-  }
+/* Live Repair Pro map pin — solid Message-orange glyph + gentle pulse when Live */
+@keyframes om-live-glyph-pulse {
+  0%,
   100% {
-    transform: translate(-50%, -50%) scale(1.55);
-    opacity: 0;
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.14);
+    opacity: 0.72;
   }
 }
 
@@ -706,12 +870,12 @@ button.om-cta-dark-gray:disabled,
   0% {
     transform: scale(0.92);
     opacity: 0.55;
-    box-shadow: 0 0 0 0 rgba(232, 90, 18, 0.45);
+    box-shadow: 0 0 0 0 rgba(255, 107, 53, 0.45);
   }
   70% {
     transform: scale(1.12);
     opacity: 0;
-    box-shadow: 0 0 0 14px rgba(232, 90, 18, 0);
+    box-shadow: 0 0 0 14px rgba(255, 107, 53, 0);
   }
   100% {
     transform: scale(1.12);
@@ -729,42 +893,28 @@ button.om-cta-dark-gray:disabled,
   z-index: 2;
 }
 
-.om-live-beam {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 100%;
-  height: 100%;
-  border-radius: 9999px;
-  border: 2px solid rgba(232, 90, 18, 0.85);
-  background: radial-gradient(
-    circle,
-    rgba(255, 138, 61, 0.4) 0%,
-    rgba(232, 90, 18, 0.16) 45%,
-    rgba(232, 90, 18, 0) 72%
-  );
-  animation: om-live-beam 1.8s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
-  pointer-events: none;
-}
-
-.om-live-beam-delay {
-  animation-delay: 0.9s;
-  border-color: rgba(255, 160, 90, 0.7);
-}
-
+/* Beams off — Live = glyph scale/fade only */
+.om-live-beam,
+.om-live-beam-delay,
 .om-live-beam--orange {
-  border-color: rgba(255, 122, 46, 0.9);
+  display: none !important;
 }
 
 .om-live-glyph {
-  filter: drop-shadow(0 1px 3px rgba(124, 45, 10, 0.55))
-    drop-shadow(0 0 6px rgba(232, 90, 18, 0.45));
+  filter: none !important;
   pointer-events: none;
   z-index: 1;
+  transform-origin: center center;
+}
+
+/** Live / active pro — gentle scale + fade on the spanner (and other trade glyphs) */
+.om-live-glyph--pulse {
+  animation: om-live-glyph-pulse 1.65s ease-in-out infinite;
+  will-change: transform, opacity;
 }
 
 .om-call-ring {
-  border: 2px solid rgba(232, 90, 18, 0.55);
+  border: 2px solid rgba(255, 107, 53, 0.55);
   animation: om-call-ring 1.6s ease-out infinite;
   pointer-events: none;
 }
@@ -774,10 +924,37 @@ button.om-cta-dark-gray:disabled,
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .om-live-beam,
+  .om-live-glyph--pulse {
+    animation: none !important;
+    opacity: 1;
+    transform: scale(1);
+  }
   .om-call-ring {
     animation: none !important;
     opacity: 0.3;
+  }
+}
+
+/* Notification toasts / center sheet — subtle motion only */
+@keyframes om-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes om-sheet-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -909,7 +1086,11 @@ button.om-cta-dark-gray:disabled,
   .om-apple-motion-sharp,
   .om-apple-motion-delay,
   .om-apple-motion-panel,
-  .om-brand-fade-in {
+  .om-brand-fade-in,
+  .om-intro-hero-img,
+  .om-intro-splash-layer,
+  .om-intro-splash-layer.is-exiting,
+  .om-intro-welcome-layer {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;

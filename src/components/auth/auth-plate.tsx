@@ -18,9 +18,12 @@ export const WHEEL_GRAY = "#323231";
 export function AuthPlate({
   children,
   className,
+  exiting,
 }: {
   children: React.ReactNode;
   className?: string;
+  /** Soft exit before router navigation */
+  exiting?: boolean;
 }) {
   return (
     <div
@@ -30,7 +33,14 @@ export function AuthPlate({
       )}
       style={{ backgroundColor: AUTH_BG }}
     >
-      <div className="relative z-10 flex min-h-0 flex-1 flex-col">{children}</div>
+      <div
+        className={cn(
+          "relative z-10 flex min-h-0 flex-1 flex-col om-auth-enter",
+          exiting && "om-auth-exit"
+        )}
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -41,11 +51,11 @@ export function AuthPlate({
  * #E2E3E7 fill · #9A9EA6 border · h-10 · rounded-md · 13px
  */
 export const authFieldClass =
-  "om-auth-field h-10 w-full rounded-md border !border-[#9A9EA6] !bg-[#E2E3E7] px-3 text-[13px] font-medium !text-[#0f172a] outline-none placeholder:!text-[#6b7280] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:!border-[#6B7280] focus:!bg-[#E8E9ED] focus:ring-0";
+  "om-auth-field h-10 w-full rounded-md border !border-[#9A9EA6] !bg-[#E2E3E7] px-3 text-[13px] font-medium !text-[#0f172a] outline-none placeholder:!text-[#c5cbd4] placeholder:opacity-70 shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:!border-[#6B7280] focus:!bg-[#E8E9ED] focus:ring-0";
 
 /** Same as authFieldClass with left padding for an icon */
 export const authFieldIconClass =
-  "om-auth-field h-10 w-full rounded-md border !border-[#9A9EA6] !bg-[#E2E3E7] py-0 pl-9 pr-3 text-[13px] font-medium !text-[#0f172a] outline-none placeholder:!text-[#6b7280] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:!border-[#6B7280] focus:!bg-[#E8E9ED] focus:ring-0";
+  "om-auth-field h-10 w-full rounded-md border !border-[#9A9EA6] !bg-[#E2E3E7] py-0 pl-9 pr-3 text-[13px] font-medium !text-[#0f172a] outline-none placeholder:!text-[#c5cbd4] placeholder:opacity-70 shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:!border-[#6B7280] focus:!bg-[#E8E9ED] focus:ring-0";
 
 /** Country / select sibling of Motorist phone row */
 export const authSelectClass =
@@ -53,7 +63,7 @@ export const authSelectClass =
 
 /** Multiline field matching login wells */
 export const authTextareaClass =
-  "om-auth-field min-h-[72px] w-full resize-none rounded-md border !border-[#9A9EA6] !bg-[#E2E3E7] px-3 py-2.5 text-[13px] font-medium leading-relaxed !text-[#0f172a] outline-none placeholder:!text-[#6b7280] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:!border-[#6B7280] focus:!bg-[#E8E9ED] focus:ring-0";
+  "om-auth-field min-h-[72px] w-full resize-none rounded-md border !border-[#9A9EA6] !bg-[#E2E3E7] px-3 py-2.5 text-[13px] font-medium leading-relaxed !text-[#0f172a] outline-none placeholder:!text-[#c5cbd4] placeholder:opacity-70 shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:!border-[#6B7280] focus:!bg-[#E8E9ED] focus:ring-0";
 
 /** Inline style twin — use when a field still paints white */
 export const authFieldStyle: CSSProperties = {
@@ -62,6 +72,24 @@ export const authFieldStyle: CSSProperties = {
   color: "#0f172a",
   boxShadow: "inset 0 1px 2px rgba(15, 23, 42, 0.05)",
 };
+
+/**
+ * Locked identity fields when adding a second role (Motorist ↔ Repair Pro).
+ * Prefilled from the first account — dimmed (not blurred), non-editable.
+ */
+export const authLockedFieldStyle: CSSProperties = {
+  ...authFieldStyle,
+  opacity: 0.55,
+  filter: "none",
+  cursor: "not-allowed",
+  userSelect: "none",
+  WebkitUserSelect: "none",
+  backgroundColor: "#cfd0d4",
+  color: "#64748b",
+};
+
+export const authLockedFieldClass =
+  "opacity-55 cursor-not-allowed select-none !bg-[#cfd0d4] !text-[#64748b]";
 
 export const authLabelClass =
   "mb-1.5 block text-[12px] font-semibold text-[#475569]";

@@ -15,8 +15,9 @@ export default function AppError({
       className="flex min-h-[100vh] min-h-[100dvh] flex-col items-center justify-center gap-4 bg-[#0a0a0a] px-6 text-center text-white"
       role="alert"
     >
-      <p className="text-[18px] font-bold tracking-tight">
-        <span className="text-[#e85a12]">Oga</span>Mecho
+      <p className="text-[22px] font-black tracking-tight" aria-label="Ona">
+        <span className="text-[#FF6B35]">O</span>
+        <span className="text-[#C8C9CD]">na</span>
       </p>
       <p className="max-w-xs text-[14px] font-medium text-white/80">
         Something went wrong while loading. Check your connection and try

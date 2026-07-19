@@ -9,18 +9,21 @@ import {
   authFieldClass,
   authLabelClass,
 } from "@/components/auth/auth-plate";
+import { useAuthNavigate } from "@/components/auth/auth-transition";
 import { PasswordField } from "@/components/auth/password-field";
 import { useApp } from "@/lib/store";
+import { playAppSound, unlockAudio } from "@/lib/sound-tone";
 import type { AccountType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Mode = "email" | "phone";
 
 /**
- * Returning user log-in — email/password or phone OTP (Africa's Talking).
+ * Returning user log-in — email/password or phone OTP (SMS).
  */
 export function SignInForm() {
   const router = useRouter();
+  const { exiting, go } = useAuthNavigate();
   const { signInWithPassword, sendPhoneOtp, signInWithPhoneOtp } = useApp();
   const [mode, setMode] = useState<Mode>("email");
   const [email, setEmail] = useState("");
@@ -53,8 +56,12 @@ export function SignInForm() {
       );
       if (err) {
         setError(err);
+        unlockAudio();
+        playAppSound("error");
         return;
       }
+      unlockAudio();
+      playAppSound("login_success");
       // Prefer real account type from session (not a wrong tab selection)
       let t =
         localStorage.getItem("oga-mecho-account-type") ||
@@ -71,12 +78,16 @@ export function SignInForm() {
       } catch {
         /* ignore */
       }
-      // Hard navigate so AuthGate re-reads session cleanly on Vercel
-      window.location.assign(t === "professional" ? "/dashboard" : "/");
+      // Short delay so login chime can start before hard navigation
+      const dest = t === "professional" ? "/dashboard" : "/";
+      window.setTimeout(() => {
+        window.location.assign(dest);
+      }, 280);
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Login failed. Check your connection."
       );
+      playAppSound("error");
     } finally {
       setBusy(false);
     }
@@ -153,20 +164,26 @@ export function SignInForm() {
       );
       if (err) {
         setError(err);
+        unlockAudio();
+        playAppSound("error");
         return;
       }
+      unlockAudio();
+      playAppSound("login_success");
       const t =
         preferType ||
         localStorage.getItem("oga-mecho-account-type") ||
         "motorist";
-      router.replace(t === "professional" ? "/dashboard" : "/");
+      window.setTimeout(() => {
+        router.replace(t === "professional" ? "/dashboard" : "/");
+      }, 280);
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <AuthPlate>
+    <AuthPlate exiting={exiting}>
       <div className="flex min-h-0 flex-1 flex-col px-4 pb-5 pt-5">
         <button
           type="button"
@@ -176,7 +193,7 @@ export function SignInForm() {
             } catch {
               /* ignore */
             }
-            router.push("/login");
+            go("/login");
           }}
           className={authBackBtnClass}
         >
@@ -187,10 +204,6 @@ export function SignInForm() {
         <h1 className="text-[22px] font-bold tracking-tight text-[#1e293b]">
           Log In
         </h1>
-        <p className="mt-1 text-[13px] text-[#475569]">
-          Email &amp; password, or a one-time code by SMS (Africa&apos;s
-          Talking).
-        </p>
 
         {/* Mode tabs */}
         <div className="mt-4 grid grid-cols-2 gap-1.5">
@@ -442,7 +455,7 @@ export function SignInForm() {
           <button
             type="button"
             className="text-[13px] font-semibold text-[#e85a12]"
-            onClick={() => router.push("/login/role")}
+            onClick={() => go("/login/role")}
           >
             New here? Sign up
           </button>

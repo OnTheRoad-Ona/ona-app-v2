@@ -68,7 +68,7 @@ export function isValidBvnFormat(bvn: string): boolean {
 }
 
 export const IDENTITY_RULE_COPY =
-  "Your phone, email, NIN and BVN can be used once for Motorist and once for Repair Pro. You can open both accounts, but not two of the same type.";
+  "One person can hold Motorist and Repair Pro with the same phone, email, NIN and BVN. You cannot open two Motorist accounts or two Repair Pro accounts.";
 
 export function readRegistry(): IdentityClaim[] {
   if (typeof window === "undefined") return [];

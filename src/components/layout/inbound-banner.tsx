@@ -14,6 +14,7 @@ import {
   showAppNotification,
   vibrateMessagePattern,
 } from "@/lib/app-notify";
+import { CHAT_CLOSED_JOB_STATUSES } from "@/lib/notifications/types";
 import { playPersonTone } from "@/lib/sound-tone";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,7 @@ type Banner =
 export function InboundBanner() {
   const {
     messages,
+    requests,
     backendUserId,
     accountType,
     theme,
@@ -46,14 +48,14 @@ export function InboundBanner() {
   const primed = useRef(false);
   const hideTimer = useRef<number | null>(null);
 
-  // Continuous chat poll so messages arrive on every screen
+  // Chat sync backup (Realtime + open-thread poll handle active chat)
   useEffect(() => {
     if (!isAuthenticated || !backendUserId || !accountType) return;
     refreshCloudChats();
     const id = window.setInterval(() => {
-      // Keep polling even when backgrounded (mobile may throttle)
+      if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudChats();
-    }, 3500);
+    }, 60_000);
     const onVis = () => {
       if (!document.hidden) refreshCloudChats();
     };
@@ -99,6 +101,11 @@ export function InboundBanner() {
     } | null = null;
 
     for (const th of messages) {
+      // Closed job chats must never pop up as banners
+      if (th.requestId) {
+        const job = requests.find((r) => r.id === th.requestId);
+        if (job && CHAT_CLOSED_JOB_STATUSES.has(job.status)) continue;
+      }
       for (const m of th.messages) {
         if (m.sender === "system") continue;
         const mine =

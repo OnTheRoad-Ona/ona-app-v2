@@ -21,14 +21,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OgaMecho: Find mechanics, vulcanizers and tow near you",
+  title: "Ona: Find mechanics, vulcanizers and tow near you",
   description:
     "Find and call mechanics, vulcanizers and tow trucks near you, within about 10 km.",
-  applicationName: "OgaMecho",
+  applicationName: "Ona",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "OgaMecho",
+    title: "Ona",
   },
   formatDetection: {
     telephone: false,

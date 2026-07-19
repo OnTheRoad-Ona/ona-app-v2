@@ -13,7 +13,7 @@ import { apiListJobs } from "@/lib/jobs/client";
 import type { JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
-import { playPersonTone, unlockAudio } from "@/lib/sound-tone";
+import { playAppSound, unlockAudio } from "@/lib/sound-tone";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -60,7 +60,7 @@ export function IncomingJobPopup() {
       return;
     }
     unlockAudio();
-    playPersonTone(j.motoristId || j.motoristName, "notification");
+    playAppSound("request_new");
     vibrateCallPattern();
     setAlertJob(j);
     markShown(j.id);

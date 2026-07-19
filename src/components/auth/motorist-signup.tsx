@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
@@ -13,9 +13,12 @@ import {
   AuthPlate,
   authFieldClass as fieldClass,
   authFieldIconClass as fieldIconClass,
+  authLockedFieldClass,
+  authLockedFieldStyle,
   authSecondaryBtnClass,
   authSelectClass as selectClass,
 } from "@/components/auth/auth-plate";
+import { useAuthNavigate } from "@/components/auth/auth-transition";
 import { PasswordField } from "@/components/auth/password-field";
 import { RegistrationComplete } from "@/components/auth/registration-complete";
 import {
@@ -55,10 +58,14 @@ import { cn } from "@/lib/utils";
 type Step = 1 | 2 | 3;
 /**
  * Full Motorist signup — polished account step + reduced corner radius.
+ * Menu dual-signup: locks identity from Repair Pro, lands on Motorist home.
  */
 export function MotoristSignup() {
   const router = useRouter();
-  const { completeSignup, setManualLocation } = useApp();
+  const { exiting, go } = useAuthNavigate();
+  const searchParams = useSearchParams();
+  const { completeSignup, setManualLocation, userProfile, isAuthenticated } =
+    useApp();
   const phoneCodes = useMemo(() => getPhoneCodeOptions(), []);
   const [step, setStep] = useState<Step>(1);
   const [done, setDone] = useState(false);
@@ -82,26 +89,47 @@ export function MotoristSignup() {
   const [vehicleMake, setVehicleMake] = useState("");
   const [vehicleModel, setVehicleModel] = useState("");
   const [vehicleYear, setVehicleYear] = useState("");
-  /** Identity locked from existing Repair Pro account on this device */
+  /** Identity locked from existing Repair Pro account (menu dual-signup) */
   const [identityLocked, setIdentityLocked] = useState(false);
+
+  const fromMenu = searchParams.get("from") === "menu";
+  const nextPath =
+    searchParams.get("next")?.startsWith("/")
+      ? searchParams.get("next")!
+      : "/";
 
   const fullPhone = formatInternationalPhone(phoneDial, phoneNational);
 
+  // Prefill + lock identity from existing Repair Pro (vault + live session)
   useEffect(() => {
-    const pro = getVaultProfile("professional");
+    const vaultPro = getVaultProfile("professional");
+    const livePro =
+      userProfile?.accountType === "professional" ? userProfile : null;
+    // Dual signup from menu: any authenticated non-motorist session is the source
+    const sessionSource =
+      isAuthenticated && userProfile && userProfile.accountType !== "motorist"
+        ? userProfile
+        : null;
+    const pro = vaultPro || livePro || sessionSource;
     if (!pro) return;
     setIdentityLocked(true);
-    setFullName(pro.fullName || "");
-    setEmail(pro.email || "");
-    setIdNumber(pro.idNumber || "");
-    setBvn(pro.bvn || "");
-    setPassword(pro.password || "");
-    setConfirmPassword(pro.password || "");
-    const split = splitStoredPhone(pro.phone || "");
+    setFullName(pro.fullName || vaultPro?.fullName || "");
+    setEmail(pro.email || vaultPro?.email || "");
+    setIdNumber(pro.idNumber || vaultPro?.idNumber || "");
+    setBvn(pro.bvn || vaultPro?.bvn || "");
+    setCity(pro.city || vaultPro?.city || "Lagos");
+    setArea(pro.area || vaultPro?.area || "");
+    // Prefill same password if we still have it locally (user can edit)
+    const pwd = (vaultPro?.password || pro.password || "").trim();
+    if (pwd) {
+      setPassword(pwd);
+      setConfirmPassword(pwd);
+    }
+    const split = splitStoredPhone(pro.phone || vaultPro?.phone || "");
     setPhoneIso(split.iso);
     setPhoneDial(split.dial);
     setPhoneNational(split.national);
-  }, []);
+  }, [userProfile, isAuthenticated]);
 
   const onLocationPicked = (loc: PickedLocation) => {
     setPickedLoc(loc);
@@ -121,11 +149,14 @@ export function MotoristSignup() {
     });
   };
 
+  /** Dual signup: reuse existing password (min 6 for server), not a new-password checklist */
+  const dualPasswordOk = password.trim().length >= 6;
+
   const step1Ok = identityLocked
     ? isValidFullName(fullName) &&
       !phoneNationalError(phoneNational) &&
       isValidEmail(email) &&
-      password.length > 0 &&
+      dualPasswordOk &&
       !ninError(idNumber) &&
       !bvnError(bvn)
     : isValidFullName(fullName) &&
@@ -140,13 +171,17 @@ export function MotoristSignup() {
 
   const validateStep1 = (): string | null => {
     if (identityLocked) {
-      return (
+      const base =
         fullNameError(fullName) ||
         phoneNationalError(phoneNational) ||
         emailError(email) ||
         ninError(idNumber) ||
-        bvnError(bvn)
-      );
+        bvnError(bvn);
+      if (base) return base;
+      if (!dualPasswordOk) {
+        return "Enter the same password you use for your Repair Pro account.";
+      }
+      return null;
     }
     return (
       fullNameError(fullName) ||
@@ -159,7 +194,21 @@ export function MotoristSignup() {
     );
   };
 
+  const goBack = () => {
+    if (step === 1) {
+      if (fromMenu) {
+        router.replace("/dashboard");
+        return;
+      }
+      go("/login/role");
+      return;
+    }
+    setStep((s) => (s - 1) as Step);
+  };
+
   const guardIdentity = (): string | null => {
+    // Dual role (same person): Motorist + Repair Pro share one phone/email/NIN/BVN
+    if (identityLocked) return null;
     const check = checkIdentityAvailable({
       phone: fullPhone,
       email: email.trim(),
@@ -249,17 +298,13 @@ export function MotoristSignup() {
   };
 
   return (
-    <AuthPlate>
+    <AuthPlate exiting={exiting}>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* Top bar — full width for chrome */}
         <div className="mx-auto flex w-[80%] shrink-0 items-center pb-0.5 pt-2.5">
           <button
             type="button"
-            onClick={() =>
-              step === 1
-                ? router.push("/login/role")
-                : setStep((s) => (s - 1) as Step)
-            }
+            onClick={goBack}
             className="inline-flex h-8 items-center gap-0.5 rounded-md border-0 bg-transparent px-0 text-[12px] font-semibold text-[#1e293b] transition-opacity active:opacity-70"
           >
             <ChevronLeft className="h-4 w-4" strokeWidth={2.25} />
@@ -306,9 +351,10 @@ export function MotoristSignup() {
 
                 {identityLocked && (
                   <p className="rounded-md bg-[#e8e9ed] px-2.5 py-2 text-[11px] leading-snug text-[#334155]">
-                    We filled your name, phone, email, NIN and BVN from your
-                    Repair Pro account. Those cannot be changed here. No new
-                    password needed.
+                    Name, phone, email, NIN and BVN are filled from your Repair
+                    Pro account and dimmed (locked). Use the{" "}
+                    <span className="font-semibold">same password</span> as that
+                    account below, then finish the Motorist steps.
                   </p>
                 )}
 
@@ -316,9 +362,14 @@ export function MotoristSignup() {
                   <div className="relative">
                     <User className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8]" />
                     <input
-                      className={fieldIconClass}
+                      className={cn(
+                        fieldIconClass,
+                        identityLocked && authLockedFieldClass
+                      )}
+                      style={identityLocked ? authLockedFieldStyle : undefined}
                       value={fullName}
                       readOnly={identityLocked}
+                      tabIndex={identityLocked ? -1 : undefined}
                       onChange={(e) => {
                         if (identityLocked) return;
                         setFullName(e.target.value);
@@ -337,7 +388,12 @@ export function MotoristSignup() {
                 <Field label="Phone" required>
                   <div className="flex gap-1.5">
                     <select
-                      className={cn(selectClass, "max-w-[42%]")}
+                      className={cn(
+                        selectClass,
+                        "max-w-[42%]",
+                        identityLocked && authLockedFieldClass
+                      )}
+                      style={identityLocked ? authLockedFieldStyle : undefined}
                       value={phoneIso}
                       aria-label="Country code"
                       disabled={identityLocked}
@@ -356,9 +412,15 @@ export function MotoristSignup() {
                       ))}
                     </select>
                     <input
-                      className={cn(fieldClass, "min-w-0 flex-1")}
+                      className={cn(
+                        fieldClass,
+                        "min-w-0 flex-1",
+                        identityLocked && authLockedFieldClass
+                      )}
+                      style={identityLocked ? authLockedFieldStyle : undefined}
                       value={phoneNational}
                       readOnly={identityLocked}
+                      tabIndex={identityLocked ? -1 : undefined}
                       onChange={(e) => {
                         if (identityLocked) return;
                         setPhoneNational(
@@ -385,9 +447,14 @@ export function MotoristSignup() {
                   <div className="relative">
                     <Mail className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8]" />
                     <input
-                      className={fieldIconClass}
+                      className={cn(
+                        fieldIconClass,
+                        identityLocked && authLockedFieldClass
+                      )}
+                      style={identityLocked ? authLockedFieldStyle : undefined}
                       value={email}
                       readOnly={identityLocked}
+                      tabIndex={identityLocked ? -1 : undefined}
                       onChange={(e) => {
                         if (identityLocked) return;
                         setEmail(e.target.value);
@@ -402,43 +469,83 @@ export function MotoristSignup() {
                   <FieldHint message={fieldErrors.email} />
                 </Field>
 
-                <Field label="NIN (11 numbers)">
+                <Field label="NIN">
                   <input
-                    className={fieldClass}
+                    className={cn(
+                      fieldClass,
+                      identityLocked && authLockedFieldClass
+                    )}
+                    style={identityLocked ? authLockedFieldStyle : undefined}
                     value={idNumber}
                     readOnly={identityLocked}
+                    tabIndex={identityLocked ? -1 : undefined}
                     onChange={(e) => {
                       if (identityLocked) return;
                       setIdNumber(e.target.value.replace(/\D/g, "").slice(0, 11));
                       setFieldError("nin", null);
                     }}
                     onBlur={() => setFieldError("nin", ninError(idNumber))}
-                    placeholder="11 numbers only"
+                    placeholder="NIN"
                     inputMode="numeric"
                     maxLength={11}
                   />
                   <FieldHint message={fieldErrors.nin} />
                 </Field>
 
-                <Field label="BVN (11 numbers)">
+                <Field label="BVN">
                   <input
-                    className={fieldClass}
+                    className={cn(
+                      fieldClass,
+                      identityLocked && authLockedFieldClass
+                    )}
+                    style={identityLocked ? authLockedFieldStyle : undefined}
                     value={bvn}
                     readOnly={identityLocked}
+                    tabIndex={identityLocked ? -1 : undefined}
                     onChange={(e) => {
                       if (identityLocked) return;
                       setBvn(e.target.value.replace(/\D/g, "").slice(0, 11));
                       setFieldError("bvn", null);
                     }}
                     onBlur={() => setFieldError("bvn", bvnError(bvn))}
-                    placeholder="11 numbers only"
+                    placeholder="BVN"
                     inputMode="numeric"
                     maxLength={11}
                   />
                   <FieldHint message={fieldErrors.bvn} />
                 </Field>
 
-                {!identityLocked && (
+                {identityLocked ? (
+                  <Field label="Same password as your Repair Pro account" required>
+                    <div className="relative">
+                      <Lock className="pointer-events-none absolute left-2.5 top-1/2 z-[1] h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8]" />
+                      <PasswordField
+                        withLeftIcon
+                        value={password}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setPassword(v);
+                          setConfirmPassword(v);
+                          setFieldError("password", null);
+                        }}
+                        onBlur={() => {
+                          if (!dualPasswordOk) {
+                            setFieldError(
+                              "password",
+                              "Enter the same password as your Repair Pro account."
+                            );
+                          }
+                        }}
+                        placeholder="Your existing password"
+                        autoComplete="current-password"
+                      />
+                    </div>
+                    <p className="mt-1 text-[10px] leading-snug text-[#64748b]">
+                      No new password — use the one you already signed up with.
+                    </p>
+                    <FieldHint message={fieldErrors.password} />
+                  </Field>
+                ) : (
                   <>
                     <Field label="Password" required>
                       <div className="relative">
@@ -512,7 +619,7 @@ export function MotoristSignup() {
 
               <p className="shrink-0 text-center text-[10px] leading-snug text-[#64748b]">
                 {identityLocked
-                  ? "Your shared details stay the same as your Repair Pro account."
+                  ? "Dimmed details stay the same as Repair Pro. Same password. After signup you open as Motorist."
                   : IDENTITY_RULE_COPY}
               </p>
             </div>
@@ -680,7 +787,10 @@ export function MotoristSignup() {
       <RegistrationComplete
         open={done}
         accountLabel="Motorist"
-        onContinue={() => router.replace("/")}
+        onContinue={() => {
+          // Land on Motorist home (or ?next= from menu dual-signup)
+          router.replace(nextPath || "/");
+        }}
       />
     </AuthPlate>
   );

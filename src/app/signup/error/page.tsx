@@ -11,12 +11,32 @@ import {
   authSecondaryBtnClass,
 } from "@/components/auth/auth-plate";
 
+/** Short user-facing copy for common server errors */
+function simpleMessage(raw: string): string {
+  const m = (raw || "").toLowerCase();
+  if (m.includes("pro_service") || m.includes("invalid input value for enum")) {
+    return "This trade is not enabled on the server yet. Try again after an update, or pick another trade.";
+  }
+  if (m.includes("not signed in") || m.includes("not authenticated")) {
+    return "Sign-up did not finish. Try again.";
+  }
+  if (m.includes("already") && (m.includes("phone") || m.includes("email"))) {
+    return "This phone or email is already registered. Log in instead.";
+  }
+  if (m.includes("password")) {
+    return "Check your password and try again.";
+  }
+  // Keep short — strip long technical dumps
+  const one = raw.split(/[.\n]/)[0]?.trim() || raw;
+  return one.length > 120 ? `${one.slice(0, 117)}…` : one || "Sign-up failed. Try again.";
+}
+
 function SignupErrorBody() {
   const router = useRouter();
   const params = useSearchParams();
-  const message =
-    params.get("message") ||
-    "Your account was not registered on OgaMecho servers. Please try again.";
+  const raw =
+    params.get("message") || "Sign-up failed. Please try again.";
+  const message = simpleMessage(raw);
   const role = params.get("role") || "motorist";
 
   return (
@@ -30,13 +50,9 @@ function SignupErrorBody() {
             <AlertTriangle className="h-7 w-7 text-[#dc2626]" strokeWidth={2} />
           </div>
           <h1 className="mt-3 text-[17px] font-bold text-[#1e293b]">
-            Registration failed
+            Sign-up failed
           </h1>
-          <p className="mt-2 text-[12px] leading-relaxed text-[#64748b]">
-            You are <strong>not signed in</strong>. The homepage stays locked
-            until your account is saved on OgaMecho servers.
-          </p>
-          <p className="mt-3 rounded-xl bg-[#fef2f2] px-3 py-2.5 text-left text-[12px] font-medium text-[#991b1b]">
+          <p className="mt-3 rounded-xl bg-[#fef2f2] px-3 py-2.5 text-left text-[13px] font-medium leading-snug text-[#991b1b]">
             {message}
           </p>
           <button
@@ -49,21 +65,21 @@ function SignupErrorBody() {
               )
             }
           >
-            Try sign up again
+            Try again
           </button>
           <button
             type="button"
             className={`${authSecondaryBtnClass} mt-2 h-10 rounded-2xl text-[13px] font-semibold`}
             onClick={() => router.replace("/login/signin")}
           >
-            Log in instead
+            Log in
           </button>
           <button
             type="button"
             className="mt-3 text-[12px] font-semibold text-[#64748b] underline"
             onClick={() => router.replace("/login")}
           >
-            Back to start
+            Back
           </button>
         </div>
       </div>
@@ -75,7 +91,7 @@ export default function SignupErrorPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex h-full items-center justify-center bg-black text-white text-sm">
+        <div className="flex h-full items-center justify-center bg-black text-sm text-white">
           Loading…
         </div>
       }

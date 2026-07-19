@@ -123,15 +123,20 @@ function TripMapStatsBar({
   );
 }
 
-/** Pro pin: orange trade icon only — no text, no pulse/glow */
+/**
+ * Pro pin on trip map — solid Message-orange trade icon.
+ * Pulses only while the pro is actively on the trip (en route / arrived / working).
+ */
 function ProMapPin({
   position,
   label,
   serviceType,
+  active = true,
 }: {
   position: { lat: number; lng: number };
   label: string;
   serviceType: string;
+  active?: boolean;
 }) {
   const size = 30;
   const box = 32;
@@ -155,21 +160,34 @@ function ProMapPin({
         title={label}
         aria-label={label}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={icon}
-          alt=""
-          width={size}
-          height={size}
-          className="block border-0"
+        <span
+          className="absolute left-1/2 top-1/2 flex items-center justify-center"
           style={{
             width: size,
             height: size,
-            filter: "none",
-            display: "block",
+            transform: "translate(-50%, -50%)",
           }}
-          draggable={false}
-        />
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={icon}
+            alt=""
+            width={size}
+            height={size}
+            className={
+              active
+                ? "om-live-glyph om-live-glyph--pulse block border-0"
+                : "om-live-glyph block border-0"
+            }
+            style={{
+              width: size,
+              height: size,
+              filter: "none",
+              display: "block",
+            }}
+            draggable={false}
+          />
+        </span>
       </div>
     </OverlayViewF>
   );

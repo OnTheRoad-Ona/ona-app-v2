@@ -3,28 +3,53 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Bell,
+  Briefcase,
   Clock3,
   History,
   Home,
   LogOut,
-  MapPin,
-  MessageCircle,
   Settings,
   UserRound,
   Wrench,
   X,
 } from "lucide-react";
+import { useNotificationsOptional } from "@/components/notifications/notification-provider";
+import { MESSAGE_ORANGE } from "@/lib/map-trade-icons";
+import { defaultBackHref, resetNavStack } from "@/lib/navigation";
 import { useApp } from "@/lib/store";
-import { PRO_SERVICE_LABELS } from "@/lib/services";
-import type { AccountType } from "@/lib/types";
+import {
+  isProService,
+  PRO_SERVICE_LABELS,
+  PRO_TRADE_OPTIONS,
+} from "@/lib/services";
+import type { AccountType, ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-/** Settings sits in the same list arrangement as other menu items (not inside Profile). */
+/** Trade glyph + orange accents (My Service) */
+const TRADE_ICON_GLYPH = "#e85a12";
+const LINE_ACCENT = "#e85a12";
+
+function TradeIcon({ service }: { service: ProService }) {
+  const opt = PRO_TRADE_OPTIONS.find((t) => t.id === service);
+  const Icon = opt?.icon ?? Wrench;
+  return (
+    <Icon
+      className="h-4 w-4 shrink-0"
+      strokeWidth={2.2}
+      style={{ color: TRADE_ICON_GLYPH }}
+      aria-hidden
+    />
+  );
+}
+
+/** Settings sits in the same list arrangement as other menu items (not inside Profile).
+ *  Messages removed from ☰ — chat only via active request/job.
+ *  Notifications opens the Notification Center (text + unread badge).
+ */
 const CLIENT_NAV = [
-  { href: "/", label: "Home", icon: Home },
-  { href: "/requests", label: "Requests", icon: Clock3 },
+  { href: "/", label: "Dashboard", icon: Home },
   { href: "/history", label: "History", icon: History },
-  { href: "/messages", label: "Messages", icon: MessageCircle },
   { href: "/profile", label: "Profile", icon: UserRound },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
@@ -32,7 +57,6 @@ const CLIENT_NAV = [
 const PRO_NAV = [
   { href: "/dashboard", label: "Dashboard", icon: Wrench },
   { href: "/jobs", label: "Jobs", icon: Clock3 },
-  { href: "/messages", label: "Messages", icon: MessageCircle },
   { href: "/profile", label: "Profile", icon: UserRound },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
@@ -71,6 +95,8 @@ export function AppMenu({
     accountType === "professional" ||
     (accountType == null && userMode === "professional");
   const nav = isPro ? PRO_NAV : CLIENT_NAV;
+  const notif = useNotificationsOptional();
+  const unread = notif?.unreadCount ?? 0;
   const [warn, setWarn] = useState<string | null>(null);
   const [signupTarget, setSignupTarget] = useState<AccountType | null>(null);
 
@@ -115,15 +141,13 @@ export function AppMenu({
     // Must complete signup for the target role before switching
     if (type === "motorist" && !hasMotoristAccount) {
       setSignupTarget("motorist");
-      setWarn(
-        "Sign up as Motorist first so your account is saved to the database."
-      );
+      setWarn("You don't have a Motorist account yet.");
       return;
     }
     if (type === "professional" && !hasProAccount) {
       setSignupTarget("professional");
       setWarn(
-        "Sign up as Repair Pro first so your skill and profile are saved to the database."
+        "You don't have a Repair Pro account yet. Finish signup to go Live and receive jobs."
       );
       return;
     }
@@ -134,6 +158,8 @@ export function AppMenu({
     try {
       const result = await switchAccount(type);
       if (result === null) {
+        // Only “Use as” switches roles — reset stack so Back stays in this role
+        resetNavStack(homeForRole(type));
         onClose();
         router.replace(homeForRole(type));
         return;
@@ -146,8 +172,8 @@ export function AppMenu({
         setSignupTarget(type);
         setWarn(
           type === "professional"
-            ? "Sign up as Repair Pro first so your skill and profile are saved to the database."
-            : "Sign up as Motorist first so your account is saved to the database."
+            ? "You don't have a Repair Pro account yet. Finish signup to go Live and receive jobs."
+            : "You don't have a Motorist account yet."
         );
         return;
       }
@@ -180,19 +206,19 @@ export function AppMenu({
     >
       <button
         type="button"
-        className="absolute inset-0 border-0 bg-black/45"
+        className="absolute inset-0 border-0 bg-black/45 transition-opacity duration-200"
         aria-label="Close menu"
         onClick={onClose}
       />
       <aside
         className={cn(
-          "relative z-10 flex h-full max-h-full w-[min(75%,300px)] max-w-full flex-col overflow-hidden shadow-2xl",
+          "relative z-10 flex h-full max-h-full w-[min(75%,300px)] max-w-full flex-col overflow-hidden animate-[om-sheet-up_0.22s_ease-out]",
           isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
         <div className="flex items-start justify-between px-4 pb-3 pt-4">
           <div className="min-w-0 flex-1 pr-2">
-            {/* Signed-in: greeting + full name. Guest: OgaMecho brand */}
+            {/* Signed-in: greeting + full name. Guest: Ona brand */}
             {isAuthenticated && fullNameDisplay ? (
               <div className="min-w-0 space-y-0.5">
                 <p
@@ -213,27 +239,27 @@ export function AppMenu({
                 </p>
               </div>
             ) : (
-              <p className="whitespace-nowrap text-[18px] font-black tracking-tight">
-                <span className="text-[#e85a12]">Oga</span>
-                <span className={isLight ? "text-black" : "text-white"}>
-                  Mecho
+              <p
+                className="whitespace-nowrap text-[28px] font-black tracking-tight leading-none"
+                aria-label="Ona"
+              >
+                <span className="text-[#FF6B35]">O</span>
+                <span className={isLight ? "text-black" : "text-[#C8C9CD]"}>
+                  na
                 </span>
               </p>
             )}
             <div className="mt-2.5 min-w-0">
-              <div
+              <p
                 className={cn(
-                  "flex items-start gap-1.5 text-[11px] leading-snug",
+                  "min-w-0 text-[11px] font-semibold leading-snug",
                   isLight ? "text-slate-800" : "text-white/85"
                 )}
               >
-                <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
-                <p className="min-w-0 font-semibold leading-snug">
-                  {isLocating
-                    ? "Updating location…"
-                    : placeLine || "Getting your address…"}
-                </p>
-              </div>
+                {isLocating
+                  ? "Updating location…"
+                  : placeLine || "Getting your address…"}
+              </p>
             </div>
           </div>
           <button
@@ -251,14 +277,24 @@ export function AppMenu({
 
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
           {nav.map(({ href, label, icon: Icon }) => {
-            const active =
-              href === "/" ? pathname === "/" : pathname.startsWith(href);
+            const roleHome = defaultBackHref(accountType);
+            const isHomeItem =
+              href === "/" || href === "/dashboard" || href === roleHome;
+            const active = isHomeItem
+              ? pathname === "/" || pathname === "/dashboard"
+              : pathname === href || pathname.startsWith(`${href}/`);
             return (
               <button
                 key={href + label}
                 type="button"
                 onClick={() => {
                   onClose();
+                  // Home/Dashboard: reset stack so Back never traps on Settings
+                  if (isHomeItem) {
+                    resetNavStack(href);
+                    router.replace(href);
+                    return;
+                  }
                   // Instant client navigation — no full document reload
                   router.push(href);
                 }}
@@ -279,27 +315,74 @@ export function AppMenu({
             );
           })}
 
-          {isPro && proServices.length > 0 && (
-            <div className="mt-3 px-1">
-              <p
-                className={cn(
-                  "mb-1.5 px-2 text-[10px] font-bold uppercase tracking-wide",
-                  isLight ? "text-slate-400" : "text-white/45"
-                )}
+          {/* Notifications — same icon row as Home / History / Profile / Settings */}
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              notif?.openCenter();
+            }}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-lg border-0 bg-transparent px-3 py-2.5 text-left text-sm font-semibold transition-colors",
+              isLight ? "text-slate-700" : "text-white/90"
+            )}
+          >
+            <Bell className="h-4 w-4 shrink-0" strokeWidth={2.2} />
+            <span className="min-w-0 flex-1">Notifications</span>
+            {unread > 0 ? (
+              <span
+                className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-bold text-white"
+                style={{
+                  backgroundColor: MESSAGE_ORANGE,
+                }}
+                aria-label={`${unread} unread`}
               >
-                My Service
-              </p>
-              <p className="px-2 py-1 text-[12px] font-semibold text-[#e85a12]">
-                {SERVICE_LABELS[proServices[0]] ?? proServices[0]}
-              </p>
-            </div>
-          )}
+                {unread > 99 ? "99+" : unread}
+              </span>
+            ) : null}
+          </button>
 
-          <div className="mt-4 px-1">
+          {/* Role block — solid orange line demarcation */}
+          <div className="mt-5 px-1 pt-3">
+            <div
+              className="mb-3 h-px w-full"
+              style={{ backgroundColor: LINE_ACCENT }}
+              aria-hidden
+            />
+            {isPro && proServices.length > 0 && (
+              <div className="mb-4">
+                {/* Line 1: same size as Dashboard / Jobs / Profile */}
+                <div
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-lg border-0 px-3 py-2.5 text-sm font-semibold",
+                    isLight ? "text-slate-700" : "text-white/90"
+                  )}
+                >
+                  <Briefcase className="h-4 w-4 shrink-0" strokeWidth={2.2} />
+                  <span className="min-w-0 flex-1">My Service</span>
+                </div>
+                {/* Line 2: trade name + skill icon far right (glassy soft orange plate) */}
+                <div className="mt-0.5 flex w-full items-center gap-3 px-3 py-1.5">
+                  <span
+                    className={cn(
+                      "min-w-0 flex-1 text-sm font-semibold",
+                      isLight ? "text-slate-900" : "text-white"
+                    )}
+                  >
+                    {SERVICE_LABELS[proServices[0]] ?? proServices[0]}
+                  </span>
+                  {isProService(proServices[0]) ? (
+                    <TradeIcon service={proServices[0]} />
+                  ) : (
+                    <TradeIcon service="mechanic" />
+                  )}
+                </div>
+              </div>
+            )}
             <p
               className={cn(
                 "mb-1.5 px-2 text-[10px] font-bold uppercase tracking-wide",
-                isLight ? "text-slate-400" : "text-white/45"
+                isLight ? "text-slate-700" : "text-white/70"
               )}
             >
               Use as
@@ -307,7 +390,7 @@ export function AppMenu({
             <div
               className={cn(
                 "grid grid-cols-2 gap-1 rounded-xl p-1",
-                isLight ? "bg-[#bebfc4]/80" : "bg-white/10",
+                isLight ? "bg-[#bebfc4]" : "bg-[#1c1c1e]",
                 switching && "opacity-70 pointer-events-none"
               )}
               role="group"
@@ -341,17 +424,24 @@ export function AppMenu({
               <div
                 className={cn(
                   "mt-2 rounded-lg px-2.5 py-2 text-[11px] font-medium leading-snug",
+                  // Same solid stage as Motorist / Repair Pro app chrome
                   isLight
-                    ? "bg-amber-50 text-amber-950"
-                    : "bg-amber-500/15 text-amber-100"
+                    ? "bg-[#c8c9cd] text-slate-900"
+                    : "bg-black text-white"
                 )}
                 role="alert"
               >
-                <p>{warn}</p>
+                <p
+                  className={cn(
+                    isLight ? "text-slate-900" : "text-white"
+                  )}
+                >
+                  {warn}
+                </p>
                 {signupTarget && (
                   <button
                     type="button"
-                    className="mt-1.5 border-0 bg-transparent p-0 text-[11px] font-bold text-brand underline"
+                    className="mt-1.5 border-0 bg-transparent p-0 text-[11px] font-bold text-[#e85a12] underline"
                     onClick={() => {
                       onClose();
                       router.push(
@@ -361,15 +451,13 @@ export function AppMenu({
                       );
                     }}
                   >
-                    {signupTarget === "professional"
-                      ? "Start Repair Pro signup"
-                      : "Start Motorist signup"}
+                    Sign Up here
                   </button>
                 )}
                 {warn.includes("Log in") && (
                   <button
                     type="button"
-                    className="mt-1.5 border-0 bg-transparent p-0 text-[11px] font-bold text-brand underline"
+                    className="mt-1.5 border-0 bg-transparent p-0 text-[11px] font-bold text-[#e85a12] underline"
                     onClick={() => {
                       onClose();
                       router.push("/login/signin");
@@ -382,8 +470,8 @@ export function AppMenu({
             ) : (
               <p
                 className={cn(
-                  "mt-1.5 px-2 text-[10px] leading-snug",
-                  isLight ? "text-slate-500" : "text-white/55"
+                  "mt-1.5 px-2 text-[10px] font-medium leading-snug",
+                  isLight ? "text-slate-700" : "text-white/70"
                 )}
               >
                 Tap to Switch

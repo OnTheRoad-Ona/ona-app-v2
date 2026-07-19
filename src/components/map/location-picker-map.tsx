@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { GoogleMap, Marker, useJsApiLoader } from "@react-google-maps/api";
-import { Crosshair, MapPin, Navigation } from "lucide-react";
+import { Crosshair, MapPin, Navigation, Building2 } from "lucide-react";
 import {
   getGoogleMapsApiKey,
   GOOGLE_MAPS_LIBRARIES,
@@ -12,6 +12,13 @@ import {
   shouldUseLiveMaps,
 } from "@/lib/google-maps";
 import { DEFAULT_USER_LOCATION } from "@/lib/data/technicians";
+import {
+  knownPlaceNear,
+  knownPlaceToPick,
+  matchKnownPlaces,
+  resolveKnownPlace,
+  type KnownPlace,
+} from "@/lib/known-places";
 import { cn } from "@/lib/utils";
 
 const OsmLocationPicker = dynamic(
@@ -44,6 +51,13 @@ type Props = {
 
 const mapContainerStyle = { width: "100%", height: "100%" };
 
+type GoogleSuggestion = {
+  id: string;
+  primary: string;
+  secondary: string;
+  placeId: string;
+};
+
 function parseGeocodeResult(
   result: google.maps.GeocoderResult,
   lat: number,
@@ -70,11 +84,18 @@ function parseGeocodeResult(
     [area, city].filter(Boolean).join(", ") ||
     `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 
+  // Snap nearby reverse-geocode to curated business name
+  const near = knownPlaceNear(lat, lng);
+  if (near) {
+    return knownPlaceToPick(near);
+  }
+
   return { lat, lng, label, city, area: area || city };
 }
 
 /**
  * Live Google Map location picker for Motorist "Where are you?" and anywhere else.
+ * Curated places (e.g. 1st Price Furniture Company) appear first in search.
  */
 export function LocationPickerMap({
   value,
@@ -101,25 +122,57 @@ export function LocationPickerMap({
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const [openSuggest, setOpenSuggest] = useState(false);
+  const [knownHits, setKnownHits] = useState<KnownPlace[]>([]);
+  const [googleHits, setGoogleHits] = useState<GoogleSuggestion[]>([]);
+  const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(
+    null
+  );
+  const debounceRef = useRef<number | null>(null);
+
+  const applyPick = useCallback(
+    (picked: PickedLocation, zoom = 16) => {
+      setPin({ lat: picked.lat, lng: picked.lng });
+      setCenter({ lat: picked.lat, lng: picked.lng });
+      mapRef.current?.panTo({ lat: picked.lat, lng: picked.lng });
+      mapRef.current?.setZoom(zoom);
+      setQuery(picked.label);
+      onChange(picked);
+      setOpenSuggest(false);
+      setStatus(null);
+    },
+    [onChange]
+  );
+
+  const applyKnown = useCallback(
+    (place: KnownPlace) => {
+      applyPick(knownPlaceToPick(place), 17);
+      setStatus(`${place.name} · pinned`);
+    },
+    [applyPick]
+  );
 
   const reverseGeocode = useCallback(
     async (lat: number, lng: number) => {
       setBusy(true);
       try {
-        // Prefer REST geocode (works without Places JS library)
+        // Curated POI near pin → keep business name on the map
+        const near = knownPlaceNear(lat, lng);
+        if (near) {
+          applyPick(knownPlaceToPick(near), 17);
+          setStatus(`${near.name} · nearby pin snapped`);
+          return;
+        }
+
         const rest = await reverseGeocodeLatLng(lat, lng);
         if (rest) {
-          const picked: PickedLocation = {
+          applyPick({
             lat,
             lng,
             label: rest.label,
             city: rest.city,
             area: rest.area,
-          };
-          setQuery(picked.label);
-          onChange(picked);
-          setStatus(null);
+          });
           return;
         }
         if (window.google?.maps) {
@@ -128,10 +181,7 @@ export function LocationPickerMap({
             location: { lat, lng },
           });
           if (results?.[0]) {
-            const picked = parseGeocodeResult(results[0], lat, lng);
-            setQuery(picked.label);
-            onChange(picked);
-            setStatus(null);
+            applyPick(parseGeocodeResult(results[0], lat, lng));
             return;
           }
         }
@@ -142,8 +192,7 @@ export function LocationPickerMap({
           city: "Near you",
           area: "Selected pin",
         };
-        setQuery(fallback.label);
-        onChange(fallback);
+        applyPick(fallback);
         setStatus("Pin saved. Street name could not be loaded yet.");
       } catch {
         setStatus("We could not get the street name. Your pin is still saved.");
@@ -158,7 +207,7 @@ export function LocationPickerMap({
         setBusy(false);
       }
     },
-    [onChange]
+    [applyPick, onChange]
   );
 
   const placePin = useCallback(
@@ -183,7 +232,6 @@ export function LocationPickerMap({
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
         placePin(lat, lng, true);
-        setStatus("Live GPS location set");
         setBusy(false);
       },
       () => {
@@ -194,29 +242,142 @@ export function LocationPickerMap({
     );
   }, [placePin]);
 
-  // Optional Places autocomplete if the library is available (not required)
-  useEffect(() => {
-    if (!isLoaded || !live || !inputRef.current) return;
-    if (!window.google?.maps?.places) return;
-    if (autocompleteRef.current) return;
-    try {
-      const ac = new google.maps.places.Autocomplete(inputRef.current, {
-        fields: ["formatted_address", "geometry", "address_components", "name"],
-        componentRestrictions: { country: ["ng"] },
-      });
-      ac.addListener("place_changed", () => {
-        const place = ac.getPlace();
-        const loc = place.geometry?.location;
-        if (!loc) return;
-        const lat = loc.lat();
-        const lng = loc.lng();
-        setPin({ lat, lng });
-        setCenter({ lat, lng });
-        mapRef.current?.panTo({ lat, lng });
-        mapRef.current?.setZoom(16);
+  const fetchGoogleSuggestions = useCallback(
+    (text: string) => {
+      if (!isLoaded || !live || !window.google?.maps?.places) {
+        setGoogleHits([]);
+        return;
+      }
+      try {
+        if (!sessionTokenRef.current) {
+          sessionTokenRef.current =
+            new google.maps.places.AutocompleteSessionToken();
+        }
+        const svc = new google.maps.places.AutocompleteService();
+        svc.getPlacePredictions(
+          {
+            input: text,
+            componentRestrictions: { country: ["ng"] },
+            sessionToken: sessionTokenRef.current,
+          },
+          (preds, status) => {
+            if (
+              status !== google.maps.places.PlacesServiceStatus.OK ||
+              !preds?.length
+            ) {
+              setGoogleHits([]);
+              return;
+            }
+            setGoogleHits(
+              preds.slice(0, 5).map((p) => ({
+                id: p.place_id,
+                primary:
+                  p.structured_formatting?.main_text ||
+                  p.description.split(",")[0] ||
+                  p.description,
+                secondary:
+                  p.structured_formatting?.secondary_text ||
+                  p.description,
+                placeId: p.place_id,
+              }))
+            );
+          }
+        );
+      } catch {
+        setGoogleHits([]);
+      }
+    },
+    [isLoaded, live]
+  );
+
+  const onQueryChange = (text: string) => {
+    setQuery(text);
+    setOpenSuggest(true);
+    const known = matchKnownPlaces(text, 4).map((r) => r.place);
+    setKnownHits(known);
+
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    if (text.trim().length < 2) {
+      setGoogleHits([]);
+      return;
+    }
+    debounceRef.current = window.setTimeout(() => {
+      fetchGoogleSuggestions(text.trim());
+    }, 220);
+  };
+
+  const selectGoogle = (s: GoogleSuggestion) => {
+    if (!window.google?.maps?.places || !mapRef.current) {
+      // Geocoder fallback by description
+      void (async () => {
+        const known = resolveKnownPlace(s.primary + " " + s.secondary);
+        if (known) {
+          applyKnown(known);
+          return;
+        }
+        setBusy(true);
+        try {
+          const geocoder = new google.maps.Geocoder();
+          const { results } = await geocoder.geocode({
+            address: `${s.primary}, ${s.secondary}`,
+            componentRestrictions: { country: "ng" },
+          });
+          if (results?.[0]?.geometry?.location) {
+            const lat = results[0].geometry.location.lat();
+            const lng = results[0].geometry.location.lng();
+            applyPick(parseGeocodeResult(results[0], lat, lng), 16);
+          }
+        } finally {
+          setBusy(false);
+        }
+      })();
+      return;
+    }
+
+    // If Google row is really our address, prefer curated name
+    const knownFromText = resolveKnownPlace(
+      `${s.primary} ${s.secondary}`
+    );
+    if (knownFromText) {
+      applyKnown(knownFromText);
+      sessionTokenRef.current = null;
+      return;
+    }
+
+    setBusy(true);
+    const svc = new google.maps.places.PlacesService(mapRef.current);
+    svc.getDetails(
+      {
+        placeId: s.placeId,
+        fields: ["formatted_address", "geometry", "name", "address_components"],
+        sessionToken: sessionTokenRef.current ?? undefined,
+      },
+      (place, status) => {
+        setBusy(false);
+        sessionTokenRef.current = null;
+        if (
+          status !== google.maps.places.PlacesServiceStatus.OK ||
+          !place?.geometry?.location
+        ) {
+          setStatus("Could not open that place. Try again.");
+          return;
+        }
+        const lat = place.geometry.location.lat();
+        const lng = place.geometry.location.lng();
+        const near = knownPlaceNear(lat, lng);
+        if (near) {
+          applyKnown(near);
+          return;
+        }
+        // Relabel if Google description matches our aliases
+        const text = `${place.name || ""} ${place.formatted_address || ""}`;
+        const known = resolveKnownPlace(text);
+        if (known) {
+          applyKnown(known);
+          return;
+        }
         if (place.formatted_address) {
-          setQuery(place.formatted_address);
-          onChange({
+          applyPick({
             lat,
             lng,
             label: place.formatted_address,
@@ -226,12 +387,50 @@ export function LocationPickerMap({
         } else {
           void reverseGeocode(lat, lng);
         }
-      });
-      autocompleteRef.current = ac;
-    } catch {
-      /* Places optional */
+      }
+    );
+  };
+
+  const submitSearch = () => {
+    const typed = query.trim();
+    if (!typed) return;
+    const known = resolveKnownPlace(typed);
+    if (known) {
+      applyKnown(known);
+      return;
     }
-  }, [isLoaded, live, onChange, reverseGeocode]);
+    if (knownHits[0]) {
+      applyKnown(knownHits[0]);
+      return;
+    }
+    if (googleHits[0]) {
+      selectGoogle(googleHits[0]);
+      return;
+    }
+    // Geocode typed free text
+    setBusy(true);
+    void (async () => {
+      try {
+        if (window.google?.maps) {
+          const geocoder = new google.maps.Geocoder();
+          const { results } = await geocoder.geocode({
+            address: typed,
+            componentRestrictions: { country: "ng" },
+          });
+          if (results?.[0]?.geometry?.location) {
+            const lat = results[0].geometry.location.lat();
+            const lng = results[0].geometry.location.lng();
+            applyPick(parseGeocodeResult(results[0], lat, lng), 16);
+            return;
+          }
+        }
+        setStatus("Could not find that place. Try a fuller address.");
+      } finally {
+        setBusy(false);
+        setOpenSuggest(false);
+      }
+    })();
+  };
 
   // Initial GPS once
   useEffect(() => {
@@ -240,6 +439,14 @@ export function LocationPickerMap({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (value?.label) setQuery(value.label);
+    if (value?.lat && value?.lng) {
+      setPin({ lat: value.lat, lng: value.lng });
+      setCenter({ lat: value.lat, lng: value.lng });
+    }
+  }, [value?.lat, value?.lng, value?.label]);
 
   if (!live || loadError) {
     return (
@@ -266,19 +473,99 @@ export function LocationPickerMap({
     );
   }
 
+  const showPanel =
+    openSuggest &&
+    query.trim().length >= 2 &&
+    (knownHits.length > 0 || googleHits.length > 0);
+
   return (
     <div className={cn("flex flex-col gap-2", className)}>
       <div className="relative">
-        <MapPin className="pointer-events-none absolute left-2.5 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 text-[#e85a12]" />
+        <MapPin className="pointer-events-none absolute left-2.5 top-1/2 z-20 h-3.5 w-3.5 -translate-y-1/2 text-[#e85a12]" />
         <input
           ref={inputRef}
           type="search"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search area or street…"
+          onChange={(e) => onQueryChange(e.target.value)}
+          onFocus={() => {
+            if (query.trim().length >= 2) {
+              setKnownHits(matchKnownPlaces(query, 4).map((r) => r.place));
+              setOpenSuggest(true);
+            }
+          }}
+          onBlur={() => {
+            // Delay so click on suggestion registers
+            window.setTimeout(() => setOpenSuggest(false), 180);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              submitSearch();
+            }
+            if (e.key === "Escape") setOpenSuggest(false);
+          }}
+          placeholder="Search place, street, or company…"
           className="h-10 w-full rounded-md border border-[#9A9EA6] bg-[#E2E3E7] py-0 pl-8 pr-3 text-[13px] font-medium text-[#0f172a] outline-none placeholder:text-[#6b7280] focus:border-[#6B7280] focus:bg-[#E8E9ED]"
           autoComplete="off"
+          aria-autocomplete="list"
+          aria-expanded={showPanel}
+          aria-controls="om-location-suggestions"
         />
+
+        {showPanel ? (
+          <ul
+            id="om-location-suggestions"
+            role="listbox"
+            className="absolute left-0 right-0 top-[calc(100%+4px)] z-30 max-h-56 overflow-y-auto rounded-md border-0 bg-[#E2E3E7]"
+          >
+            {knownHits.map((p) => (
+              <li key={p.id} role="option">
+                <button
+                  type="button"
+                  className="flex w-full items-start gap-2 border-0 bg-transparent px-2.5 py-2.5 text-left hover:bg-[#d4d5db] active:bg-[#c8c9cd]"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyKnown(p)}
+                >
+                  <Building2
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#e85a12]"
+                    strokeWidth={2.2}
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-[12px] font-bold text-[#0f172a]">
+                      {p.name}
+                    </span>
+                    <span className="block text-[10px] font-medium text-[#475569]">
+                      {p.address}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+            {googleHits.map((s) => (
+              <li key={s.id} role="option">
+                <button
+                  type="button"
+                  className="flex w-full items-start gap-2 border-0 bg-transparent px-2.5 py-2.5 text-left hover:bg-[#d4d5db] active:bg-[#c8c9cd]"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => selectGoogle(s)}
+                >
+                  <MapPin
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#64748b]"
+                    strokeWidth={2.2}
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-[12px] font-bold text-[#0f172a]">
+                      {s.primary}
+                    </span>
+                    <span className="block text-[10px] font-medium text-[#475569]">
+                      {s.secondary}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
 
       <div
@@ -312,6 +599,7 @@ export function LocationPickerMap({
           <Marker
             position={pin}
             draggable
+            title={query || "Selected location"}
             onDragEnd={(e) => {
               const lat = e.latLng?.lat();
               const lng = e.latLng?.lng();
@@ -336,9 +624,11 @@ export function LocationPickerMap({
         </div>
       </div>
 
-      {(status || value?.label) && (
+      {(status || value?.label || query) && (
         <p className="text-[11px] leading-snug text-[#475569]">
-          {busy ? "Updating address…" : status || value?.label}
+          {busy
+            ? "Updating address…"
+            : status || value?.label || query}
         </p>
       )}
     </div>

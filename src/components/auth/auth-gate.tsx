@@ -1,150 +1,195 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { BrandEntryScreen } from "@/components/auth/brand-entry-screen";
-import { BrandHeroMotion } from "@/components/auth/brand-hero-motion";
-import { IntroScreen } from "@/components/auth/intro-screen";
+import { BrandHeroMotion, BRAND_COPPER } from "@/components/auth/brand-hero-motion";
 import {
   canAccessPath,
   homePathForAccount,
   isPublicPath,
 } from "@/lib/routes";
+import { AUTH_TRANSITION_MS } from "@/components/auth/auth-transition";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 const ENTRY_SESSION_KEY = "oga-mecho-entry-done";
-/** Last time intro finished — re-show at most once per day (faster daily opens) */
-const INTRO_AT_KEY = "oga-mecho-intro-at";
-const INTRO_EVERY_MS = 24 * 60 * 60 * 1000;
-const HANDOFF_MS = 420;
+/** Minimum splash so intro never flash-cuts (phone-shell only) */
+const SPLASH_MIN_MS = 900;
+/** Soft crossfade splash → Welcome */
+const HANDOFF_MS = 560;
 
-function shouldShowIntro(): boolean {
-  try {
-    const last = Number(localStorage.getItem(INTRO_AT_KEY) || "0");
-    if (!Number.isFinite(last) || last <= 0) return true;
-    return Date.now() - last >= INTRO_EVERY_MS;
-  } catch {
-    return true;
-  }
-}
-
-function markIntroShown() {
-  try {
-    localStorage.setItem(INTRO_AT_KEY, String(Date.now()));
-  } catch {
-    /* ignore */
-  }
-}
-
-function isBrandEntryRoute(pathname: string) {
+/** Exact welcome routes only — not /login/signin or /login/role */
+function isWelcomeRoute(pathname: string) {
   return pathname === "/login" || pathname === "/";
 }
 
-type BootPhase = "loading" | "intro" | "handoff" | "entry" | "ready";
+type BootPhase = "loading" | "handoff" | "entry" | "ready";
 
-/**
- * Boot flow:
- * - Signed-in: keep session forever; intro at most every 3h → home (never auth screen)
- * - Guest: intro (if due) → Log In / Sign Up entry
- */
+function isDualRoleSignupPath(
+  pathname: string,
+  hasMotoristAccount: boolean,
+  hasProAccount: boolean
+): boolean {
+  if (pathname.startsWith("/signup/error")) return true;
+
+  if (
+    typeof window !== "undefined" &&
+    (pathname.startsWith("/signup/motorist") ||
+      pathname.startsWith("/signup/pro"))
+  ) {
+    try {
+      const from = new URLSearchParams(window.location.search).get("from");
+      if (from === "menu" || from === "profile") return true;
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (pathname.startsWith("/signup/motorist") && !hasMotoristAccount) {
+    return true;
+  }
+  if (pathname.startsWith("/signup/pro") && !hasProAccount) {
+    return true;
+  }
+  return false;
+}
+
 export function AuthGate({ children }: { children: React.ReactNode }) {
-  const { authReady, isAuthenticated, accountType, serverSessionReady } =
-    useApp();
+  const {
+    authReady,
+    isAuthenticated,
+    accountType,
+    serverSessionReady,
+    hasMotoristAccount,
+    hasProAccount,
+  } = useApp();
   const pathname = usePathname();
   const router = useRouter();
   const [phase, setPhase] = useState<BootPhase>("loading");
-  const [introFading, setIntroFading] = useState(false);
+  const [splashExiting, setSplashExiting] = useState(false);
+  /** Soft exit of Welcome before Log In / Sign Up route */
+  const [entryExiting, setEntryExiting] = useState(false);
+  const bootStartedAt = useRef(
+    typeof performance !== "undefined" ? performance.now() : Date.now()
+  );
+  const handoffTimer = useRef<number | null>(null);
+  /** Prevents welcome effect from undoing a Log In / Sign Up navigation */
+  const navigatingAwayRef = useRef(false);
 
-  // Decide boot phase once auth is known — never log signed-in users out
+  // After auth is known, hold splash briefly then hand off with transition
   useEffect(() => {
     if (!authReady) return;
+    if (phase !== "loading") return;
 
-    if (isAuthenticated) {
-      // Stay signed in; optional intro, then app — never brand auth entry
-      if (shouldShowIntro()) {
-        setPhase("intro");
-      } else {
-        setPhase("ready");
-      }
-      return;
-    }
+    const elapsed =
+      (typeof performance !== "undefined" ? performance.now() : Date.now()) -
+      bootStartedAt.current;
+    const wait = Math.max(0, SPLASH_MIN_MS - elapsed);
 
-    // Guest
-    try {
-      if (shouldShowIntro()) {
-        setPhase("intro");
+    const t = window.setTimeout(() => {
+      if (isAuthenticated) {
+        setSplashExiting(true);
+        handoffTimer.current = window.setTimeout(() => {
+          setPhase("ready");
+          setSplashExiting(false);
+        }, HANDOFF_MS);
         return;
       }
-      const entryDone = sessionStorage.getItem(ENTRY_SESSION_KEY) === "1";
-      if (!entryDone || isBrandEntryRoute(pathname)) {
-        if (isBrandEntryRoute(pathname)) {
-          try {
-            sessionStorage.removeItem(ENTRY_SESSION_KEY);
-          } catch {
-            /* ignore */
-          }
-        }
+
+      setPhase("handoff");
+      setSplashExiting(true);
+      handoffTimer.current = window.setTimeout(() => {
         setPhase("entry");
-        return;
-      }
-      setPhase("ready");
-    } catch {
-      setPhase("intro");
-    }
-  }, [authReady, isAuthenticated, pathname]);
+        setSplashExiting(false);
+      }, HANDOFF_MS);
+    }, wait);
 
-  const completeIntro = useCallback(() => {
-    markIntroShown();
+    return () => {
+      window.clearTimeout(t);
+      if (handoffTimer.current) window.clearTimeout(handoffTimer.current);
+    };
+  }, [authReady, isAuthenticated, phase]);
 
-    // Signed-in: go straight to home/dashboard — never auth page
-    if (isAuthenticated) {
-      setPhase("ready");
-      router.replace(homePathForAccount(accountType));
+  /**
+   * Welcome only when guest is on / or /login and has not chosen Log In / Sign Up.
+   * Never pull user back to welcome while navigating to /login/signin or /login/role.
+   */
+  useEffect(() => {
+    if (!authReady || isAuthenticated) return;
+    if (phase === "loading" || phase === "handoff") return;
+    if (navigatingAwayRef.current) return;
+
+    // Already past welcome (sign-in form, role pick, signup, …)
+    if (!isWelcomeRoute(pathname)) {
+      if (phase !== "ready") setPhase("ready");
       return;
     }
 
-    // Guest: crossfade into Log In / Sign Up
-    setPhase("handoff");
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => setIntroFading(true));
-    });
-    window.setTimeout(() => {
-      setPhase("entry");
-      setIntroFading(false);
-    }, HANDOFF_MS);
-  }, [isAuthenticated, accountType, router]);
+    // Explicit welcome routes — show entry unless mid-navigation
+    try {
+      const entryDone = sessionStorage.getItem(ENTRY_SESSION_KEY) === "1";
+      if (entryDone) {
+        // Stale flag on welcome URL (e.g. Back cleared path) — allow welcome again
+        sessionStorage.removeItem(ENTRY_SESSION_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+    if (phase !== "entry") setPhase("entry");
+  }, [authReady, isAuthenticated, pathname, phase]);
 
   const finishEntry = useCallback(
     (path: string) => {
+      if (entryExiting) return;
+      navigatingAwayRef.current = true;
+      setEntryExiting(true);
       try {
         sessionStorage.setItem(ENTRY_SESSION_KEY, "1");
       } catch {
         /* ignore */
       }
-      setPhase("ready");
-      router.replace(path);
+      // Soft fade out Welcome, then navigate (Log In / Sign Up)
+      window.setTimeout(() => {
+        setPhase("ready");
+        router.replace(path);
+        setEntryExiting(false);
+        window.setTimeout(() => {
+          navigatingAwayRef.current = false;
+        }, 800);
+      }, AUTH_TRANSITION_MS);
     },
-    [router]
+    [entryExiting, router]
   );
 
-  // Signed-in → never linger on auth routes
+  // Signed-in → leave login; allow dual-role signup when the other account is missing
   useEffect(() => {
     if (!authReady || !isAuthenticated) return;
-    if (phase === "intro" || phase === "handoff") return;
-    if (
-      pathname.startsWith("/login") ||
-      pathname.startsWith("/signup") ||
-      pathname === "/"
-    ) {
-      // "/" is home for motorists — only redirect login/signup
-      if (pathname.startsWith("/login") || pathname.startsWith("/signup")) {
-        if (phase === "ready") {
-          router.replace(homePathForAccount(accountType));
-        }
-      }
+    if (phase !== "ready") return;
+
+    if (pathname.startsWith("/login")) {
+      router.replace(homePathForAccount(accountType));
+      return;
     }
-  }, [authReady, phase, isAuthenticated, pathname, accountType, router]);
+
+    if (pathname.startsWith("/signup")) {
+      if (
+        isDualRoleSignupPath(pathname, hasMotoristAccount, hasProAccount)
+      ) {
+        return;
+      }
+      router.replace(homePathForAccount(accountType));
+    }
+  }, [
+    authReady,
+    phase,
+    isAuthenticated,
+    pathname,
+    accountType,
+    hasMotoristAccount,
+    hasProAccount,
+    router,
+  ]);
 
   // Role lock
   useEffect(() => {
@@ -155,13 +200,13 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
   }, [authReady, phase, isAuthenticated, pathname, accountType, router]);
 
-  // Guest on protected route → entry (signed-in users never hit this)
+  // Guest on protected route → welcome
   useEffect(() => {
-    if (!authReady || phase === "loading" || phase === "intro" || phase === "handoff")
-      return;
+    if (!authReady || phase === "loading" || phase === "handoff") return;
+    if (navigatingAwayRef.current) return;
     if (isAuthenticated && serverSessionReady) return;
     if (isAuthenticated) return;
-    if (isPublicPath(pathname) && !isBrandEntryRoute(pathname)) return;
+    if (isPublicPath(pathname) && !isWelcomeRoute(pathname)) return;
     if (!isPublicPath(pathname)) {
       setPhase("entry");
       router.replace("/login");
@@ -175,70 +220,102 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     router,
   ]);
 
-  // All boot/app states share the same size lock so UI never spills the frame
-  const frame = "relative flex h-full min-h-0 w-full flex-col overflow-hidden";
+  const frame =
+    "relative flex h-full min-h-0 w-full flex-col overflow-hidden";
 
-  // Loading session: brand art only — no Log In / Sign Up (avoids auth flash)
-  if (!authReady || phase === "loading") {
-    return (
-      <div className={cn(frame, "bg-black")}>
-        <BrandHeroMotion size="splash" bottomFade={false} motion={false} />
-        <p className="pointer-events-none absolute inset-x-0 bottom-10 text-center text-[12px] font-medium text-white/55">
-          Loading OgaMecho…
-        </p>
-      </div>
-    );
-  }
+  const splashLayer = (
+    <div
+      className={cn(
+        "absolute inset-0 z-20 overflow-hidden om-intro-splash-layer",
+        splashExiting && "is-exiting"
+      )}
+      style={{ backgroundColor: BRAND_COPPER }}
+      // Never block Log In during handoff
+      aria-hidden={splashExiting}
+    >
+      <BrandHeroMotion
+        size="splash"
+        bottomFade={false}
+        motion={false}
+        introMotion
+      />
+      <p
+        className={cn(
+          "pointer-events-none absolute inset-x-0 bottom-10 z-10 text-center text-[12px] font-medium transition-opacity duration-300",
+          splashExiting ? "opacity-0" : "opacity-70"
+        )}
+        style={{ color: "#C8C9CD" }}
+      >
+        Loading Ona…
+      </p>
+    </div>
+  );
 
-  // Intro video (signed-in or guest)
-  if (phase === "intro" || phase === "handoff") {
+  if (phase === "loading" || phase === "handoff") {
     return (
-      <div className={cn(frame, "bg-black")}>
-        {phase === "handoff" && !isAuthenticated && (
-          <div className="absolute inset-0 z-0">
+      <div
+        className={cn(frame)}
+        style={{ backgroundColor: BRAND_COPPER }}
+      >
+        {phase === "handoff" && !isAuthenticated ? (
+          <div
+            className={cn(
+              "absolute inset-0 z-10 overflow-hidden om-intro-welcome-layer",
+              entryExiting && "om-auth-exit"
+            )}
+          >
             <BrandEntryScreen
               onLogIn={() => finishEntry("/login/signin")}
               onSignUp={() => finishEntry("/login/role")}
               animateIn
             />
           </div>
-        )}
-        {phase === "handoff" && isAuthenticated && (
-          <div className="absolute inset-0 z-0 bg-black" />
-        )}
-        <div
-          className={cn(
-            "absolute inset-0 z-10 bg-black transition-opacity duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]",
-            introFading ? "opacity-0 pointer-events-none" : "opacity-100"
-          )}
-        >
-          <IntroScreen onComplete={completeIntro} />
-        </div>
+        ) : null}
+        {splashLayer}
       </div>
     );
   }
 
-  // Auth entry only for guests
   if (phase === "entry" && !isAuthenticated) {
     return (
-      <div className={cn(frame, "bg-black")}>
-        <BrandEntryScreen
-          onLogIn={() => finishEntry("/login/signin")}
-          onSignUp={() => finishEntry("/login/role")}
-          animateIn
-        />
+      <div
+        className={cn(frame)}
+        style={{ backgroundColor: BRAND_COPPER }}
+      >
+        <div
+          className={cn(
+            "absolute inset-0 overflow-hidden om-auth-enter",
+            entryExiting && "om-auth-exit"
+          )}
+        >
+          <BrandEntryScreen
+            onLogIn={() => finishEntry("/login/signin")}
+            onSignUp={() => finishEntry("/login/role")}
+            animateIn
+          />
+        </div>
       </div>
     );
   }
 
   if (!isAuthenticated && !isPublicPath(pathname)) {
     return (
-      <div className={cn(frame, "bg-black")}>
-        <BrandEntryScreen
-          onLogIn={() => finishEntry("/login/signin")}
-          onSignUp={() => finishEntry("/login/role")}
-          animateIn={false}
-        />
+      <div
+        className={cn(frame)}
+        style={{ backgroundColor: BRAND_COPPER }}
+      >
+        <div
+          className={cn(
+            "absolute inset-0 overflow-hidden om-auth-enter",
+            entryExiting && "om-auth-exit"
+          )}
+        >
+          <BrandEntryScreen
+            onLogIn={() => finishEntry("/login/signin")}
+            onSignUp={() => finishEntry("/login/role")}
+            animateIn={false}
+          />
+        </div>
       </div>
     );
   }

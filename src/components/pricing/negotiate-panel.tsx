@@ -57,7 +57,7 @@ export function NegotiatePanel({
             {LABOUR_FEE_DISCLAIMER}
           </p>
         </div>
-        <p className="text-[15px] font-black tabular-nums text-brand">
+        <p className={cn("text-[15px] font-black tabular-nums", isLight ? "text-slate-900" : "text-white")}>
           {formatMoney(agreed, currency)}
         </p>
       </div>

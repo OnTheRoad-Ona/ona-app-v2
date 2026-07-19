@@ -39,6 +39,19 @@ const bodySchema = z.object({
   plateNumber: z.string().optional(),
   vehiclePhoto: z.string().optional(),
   vehicleCommonIssues: z.array(z.string()).optional(),
+  vehicles: z
+    .array(
+      z.object({
+        id: z.string(),
+        make: z.string(),
+        model: z.string(),
+        year: z.string().optional(),
+        plate: z.string().optional(),
+        photo: z.string().optional(),
+        commonIssues: z.array(z.string()).optional(),
+      })
+    )
+    .optional(),
   emergencyContact: z
     .object({ name: z.string(), phone: z.string() })
     .nullable()
@@ -138,6 +151,7 @@ export async function POST(req: Request) {
         ...(b.vehicleCommonIssues !== undefined
           ? { vehicle_common_issues: b.vehicleCommonIssues }
           : {}),
+        ...(b.vehicles !== undefined ? { vehicles: b.vehicles } : {}),
         ...(b.emergencyContact !== undefined
           ? { emergency_contact: b.emergencyContact }
           : {}),

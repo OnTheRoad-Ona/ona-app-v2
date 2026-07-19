@@ -16,18 +16,58 @@ import {
   ProfileSection,
   ProfileShell,
 } from "@/components/profile/profile-shell";
+import { MotoristVehicleWizard } from "@/components/profile/motorist-vehicle-wizard";
 import { TierProgress } from "@/components/profile/verification-mark";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { compressImageFile } from "@/lib/image-compress";
 import {
-  COMMON_VEHICLE_ISSUES,
   memberSinceLabel,
   profileTheme,
   type JobHistoryItem,
 } from "@/lib/profile-system";
 import { useApp } from "@/lib/store";
-import type { UserProfile } from "@/lib/types";
+import type { MotoristVehicle, UserProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+function vehiclesFromProfile(p: UserProfile): MotoristVehicle[] {
+  if (Array.isArray(p.vehicles) && p.vehicles.length > 0) return p.vehicles;
+  if (p.vehicleMake || p.vehicleModel) {
+    return [
+      {
+        id: "legacy-primary",
+        make: p.vehicleMake || "",
+        model: p.vehicleModel || "",
+        year: p.vehicleYear,
+        plate: p.vehiclePlate,
+        photo: p.vehiclePhoto,
+        commonIssues: p.vehicleCommonIssues,
+      },
+    ];
+  }
+  return [];
+}
+
+function legacyFieldsFromVehicles(list: MotoristVehicle[]) {
+  const first = list[0];
+  if (!first) {
+    return {
+      vehicleMake: undefined as string | undefined,
+      vehicleModel: undefined as string | undefined,
+      vehicleYear: undefined as string | undefined,
+      vehiclePlate: undefined as string | undefined,
+      vehiclePhoto: undefined as string | undefined,
+      vehicleCommonIssues: undefined as string[] | undefined,
+    };
+  }
+  return {
+    vehicleMake: first.make || undefined,
+    vehicleModel: first.model || undefined,
+    vehicleYear: first.year,
+    vehiclePlate: first.plate,
+    vehiclePhoto: first.photo,
+    vehicleCommonIssues: first.commonIssues,
+  };
+}
 
 /**
  * 2. Motorist own profile — editable only by the motorist.
@@ -44,16 +84,10 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
 
   const [fullName, setFullName] = useState(userProfile?.fullName || "");
   const [avatarUrl, setAvatarUrl] = useState(userProfile?.avatarUrl || "");
-  const [make, setMake] = useState(userProfile?.vehicleMake || "");
-  const [model, setModel] = useState(userProfile?.vehicleModel || "");
-  const [year, setYear] = useState(userProfile?.vehicleYear || "");
-  const [plate, setPlate] = useState(userProfile?.vehiclePlate || "");
-  const [vehiclePhoto, setVehiclePhoto] = useState(
-    userProfile?.vehiclePhoto || ""
+  const [vehicles, setVehicles] = useState<MotoristVehicle[]>(() =>
+    userProfile ? vehiclesFromProfile(userProfile) : []
   );
-  const [issues, setIssues] = useState<string[]>(
-    userProfile?.vehicleCommonIssues || []
-  );
+  const [addingVehicle, setAddingVehicle] = useState(false);
   const [emName, setEmName] = useState(
     userProfile?.emergencyContact?.name || ""
   );
@@ -103,15 +137,26 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
   const syncFromProfile = (p: UserProfile) => {
     setFullName(p.fullName || "");
     setAvatarUrl(p.avatarUrl || "");
-    setMake(p.vehicleMake || "");
-    setModel(p.vehicleModel || "");
-    setYear(p.vehicleYear || "");
-    setPlate(p.vehiclePlate || "");
-    setVehiclePhoto(p.vehiclePhoto || "");
-    setIssues(p.vehicleCommonIssues || []);
+    setVehicles(vehiclesFromProfile(p));
+    setAddingVehicle(false);
     setEmName(p.emergencyContact?.name || "");
     setEmPhone(p.emergencyContact?.phone || "");
     setSaved(p.savedLocations || []);
+  };
+
+  const persistVehicles = (list: MotoristVehicle[]) => {
+    setVehicles(list);
+    const legacy = legacyFieldsFromVehicles(list);
+    const e = updateUserProfile({
+      vehicles: list,
+      ...legacy,
+    });
+    if (e) {
+      setErr(e);
+      return false;
+    }
+    setMsg(list.length ? "Vehicles updated." : "Vehicle removed.");
+    return true;
   };
 
   const onPickAvatar = async (file: File | null) => {
@@ -127,15 +172,12 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
   const save = () => {
     setErr(null);
     setMsg(null);
+    const legacy = legacyFieldsFromVehicles(vehicles);
     const e = updateUserProfile({
       fullName: fullName.trim(),
       avatarUrl: avatarUrl || undefined,
-      vehicleMake: make.trim() || undefined,
-      vehicleModel: model.trim() || undefined,
-      vehicleYear: year.trim() || undefined,
-      vehiclePlate: plate.trim() || undefined,
-      vehiclePhoto: vehiclePhoto || undefined,
-      vehicleCommonIssues: issues,
+      vehicles,
+      ...legacy,
       emergencyContact:
         emName.trim() || emPhone.trim()
           ? { name: emName.trim(), phone: emPhone.trim() }
@@ -148,6 +190,7 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
     }
     setMsg("Profile saved.");
     setEditing(false);
+    setAddingVehicle(false);
   };
 
   const addLocation = () => {
@@ -329,106 +372,99 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
         </button>
       </ProfileSection>
 
-      <ProfileSection title="Vehicle" isLight={isLight}>
-        {editing ? (
-          <div className="space-y-2">
-            <label className="flex cursor-pointer items-center gap-3">
-              <span
+      <ProfileSection
+        title="Vehicles"
+        isLight={isLight}
+        action={
+          !addingVehicle ? (
+            <button
+              type="button"
+              onClick={() => {
+                setAddingVehicle(true);
+                setMsg(null);
+                setErr(null);
+              }}
+              className="inline-flex items-center gap-1 border-0 bg-transparent text-[12px] font-bold text-brand"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add vehicle
+            </button>
+          ) : null
+        }
+      >
+        <div className="space-y-3">
+          {vehicles.length === 0 && !addingVehicle && (
+            <p className={cn("text-[12px]", t.muted)}>
+              No vehicles yet. Add as many as you need — one step at a time.
+            </p>
+          )}
+
+          {vehicles.map((v) => (
+            <div
+              key={v.id}
+              className={cn(
+                "flex gap-3 rounded-xl p-2",
+                isLight ? "bg-black/[0.04]" : "bg-white/[0.06]"
+              )}
+            >
+              {v.photo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={v.photo}
+                  alt=""
+                  className="h-14 w-14 shrink-0 rounded-xl object-cover"
+                />
+              ) : (
+                <span
+                  className={cn(
+                    "flex h-14 w-14 shrink-0 items-center justify-center rounded-xl",
+                    isLight ? "bg-black/8" : "bg-[#2c2c2e]"
+                  )}
+                >
+                  <Camera className="h-5 w-5 text-brand" />
+                </span>
+              )}
+              <div className="min-w-0 flex-1 space-y-0.5 text-[12px]">
+                <p className={cn("font-semibold", t.ink)}>
+                  {[v.make, v.model, v.year].filter(Boolean).join(" · ")}
+                </p>
+                {v.plate ? (
+                  <p className={t.muted}>Plate · {v.plate}</p>
+                ) : null}
+                {(v.commonIssues?.length ?? 0) > 0 && (
+                  <p className={t.muted}>
+                    Issues · {v.commonIssues!.join(", ")}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                aria-label="Remove vehicle"
+                onClick={() => {
+                  const next = vehicles.filter((x) => x.id !== v.id);
+                  persistVehicles(next);
+                }}
                 className={cn(
-                  "flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl",
-                  isLight ? "bg-black/8" : "bg-[#2c2c2e]"
+                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border-0",
+                  isLight ? "bg-black/8 text-slate-700" : "bg-[#2c2c2e] text-white/80"
                 )}
               >
-                {vehiclePhoto ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={vehiclePhoto}
-                    alt="Vehicle"
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <Camera className="h-5 w-5 text-brand" />
-                )}
-              </span>
-              <span className={cn("text-[12px] font-semibold", t.ink)}>
-                Tap to add vehicle photo
-              </span>
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={async (e) => {
-                  const f = e.target.files?.[0];
-                  if (!f) return;
-                  try {
-                    setVehiclePhoto(await compressImageFile(f, { maxEdge: 720 }));
-                  } catch {
-                    setErr("Could not process vehicle photo.");
-                  }
-                }}
-              />
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <input className={field} placeholder="Make" value={make} onChange={(e) => setMake(e.target.value)} />
-              <input className={field} placeholder="Model" value={model} onChange={(e) => setModel(e.target.value)} />
-              <input className={field} placeholder="Year" value={year} onChange={(e) => setYear(e.target.value)} />
-              <input className={field} placeholder="Plate number" value={plate} onChange={(e) => setPlate(e.target.value)} />
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
             </div>
-            <p className={cn("text-[11px] font-semibold", t.muted)}>Common issues</p>
-            <div className="flex flex-wrap gap-1.5">
-              {COMMON_VEHICLE_ISSUES.map((issue) => {
-                const on = issues.includes(issue);
-                return (
-                  <button
-                    key={issue}
-                    type="button"
-                    onClick={() =>
-                      setIssues((prev) =>
-                        on ? prev.filter((x) => x !== issue) : [...prev, issue]
-                      )
-                    }
-                    className={cn(
-                      "rounded-full border-0 px-2.5 py-1 text-[10px] font-bold",
-                      on
-                        ? "bg-brand text-white"
-                        : isLight
-                          ? "bg-black/8 text-slate-700"
-                          : "bg-[#2c2c2e] text-white/75"
-                    )}
-                  >
-                    {issue}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          <div className="flex gap-3">
-            {userProfile.vehiclePhoto ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={userProfile.vehiclePhoto}
-                alt="Vehicle"
-                className="h-14 w-14 shrink-0 rounded-xl object-cover"
-              />
-            ) : null}
-            <div className="min-w-0 flex-1 space-y-1 text-[12px]">
-              <p className={cn("font-semibold", t.ink)}>
-                {[userProfile.vehicleMake, userProfile.vehicleModel, userProfile.vehicleYear]
-                  .filter(Boolean)
-                  .join(" · ") || "No vehicle saved"}
-              </p>
-              {userProfile.vehiclePlate && (
-                <p className={t.muted}>Plate · {userProfile.vehiclePlate}</p>
-              )}
-              {(userProfile.vehicleCommonIssues?.length ?? 0) > 0 && (
-                <p className={t.muted}>
-                  Issues · {userProfile.vehicleCommonIssues!.join(", ")}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
+          ))}
+
+          {addingVehicle && (
+            <MotoristVehicleWizard
+              isLight={isLight}
+              onCancel={() => setAddingVehicle(false)}
+              onSave={(v) => {
+                const next = [...vehicles, v];
+                if (persistVehicles(next)) setAddingVehicle(false);
+              }}
+            />
+          )}
+        </div>
       </ProfileSection>
 
       <ProfileSection
