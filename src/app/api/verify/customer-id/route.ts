@@ -12,8 +12,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Customer submits government ID for Tier 2 admin review.
- * Writes explicit identity_review_status = submitted so Verification / Customer review can list it.
+ * Customer submits full government ID package for Tier 2 admin review.
+ * Stores numbers, both photos, country, kind — everything care needs to approve.
  */
 const bodySchema = z.object({
   access_token: z.string().min(10),
@@ -31,6 +31,13 @@ function last4Digits(raw: string): string | null {
   const alnum = raw.replace(/\W/g, "");
   if (alnum.length >= 4) return alnum.slice(-4);
   return null;
+}
+
+function capPhoto(url: string | null | undefined): string | null {
+  if (!url) return null;
+  // ~1.5MB text cap for Postgres row comfort
+  if (url.length > 1_500_000) return null;
+  return url;
 }
 
 export async function POST(req: Request) {
@@ -68,50 +75,118 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
     const ninLast4 = last4Digits(primary);
     const bvnLast4 = bank ? last4Digits(bank) : null;
+    const front = capPhoto(parsed.data.govIdFrontUrl);
+    const back = capPhoto(parsed.data.govIdBackUrl);
+    const frontRaw = parsed.data.govIdFrontUrl || null;
+    const backRaw = parsed.data.govIdBackUrl || null;
 
-    // Cap photo size in DB — keep meta flag if too large
-    const front = parsed.data.govIdFrontUrl || null;
-    const frontStored =
-      front && front.length <= 1_500_000 ? front : front ? null : null;
-    const hasPhoto = Boolean(front);
+    const admin = createServiceSupabase();
 
-    const payload = {
+    // Snapshot account profile for admin review (name/phone/city)
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("full_name, email, phone, city, area, created_at")
+      .eq("id", userId)
+      .maybeSingle();
+
+    const { data: existingMot } = await admin
+      .from("motorist_profiles")
+      .select(
+        "user_id, vehicle_make, vehicle_model, vehicle_year, plate_number, vehicles, phone_verified, first_service_at"
+      )
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    const payload: Record<string, unknown> = {
       nin_last4: ninLast4,
       bvn_last4: bvnLast4,
       nin_verified: false,
       bvn_verified: false,
-      identity_verified_at: null as string | null,
+      identity_verified_at: null,
       identity_review_status: "submitted",
       identity_submitted_at: now,
-      identity_reviewed_at: null as string | null,
-      identity_reviewed_by: null as string | null,
-      identity_rejection_reason: null as string | null,
+      identity_reviewed_at: null,
+      identity_reviewed_by: null,
+      identity_rejection_reason: null,
       gov_id_kind: parsed.data.govIdKind || null,
-      gov_id_front_url: frontStored,
-      gov_id_back_url: parsed.data.govIdBackUrl || null,
+      gov_id_front_url: front,
+      gov_id_back_url: back,
+      // Full numbers for care review (also mirrored to encrypted columns)
+      gov_id_number: primary,
+      bank_id_number: bank || null,
+      nin_encrypted: primary,
+      bvn_encrypted: bank || null,
+      identity_country_iso: iso,
       gov_id_meta: {
         countryIso: iso,
+        govIdKind: parsed.data.govIdKind || null,
+        primaryId: primary,
+        bankId: bank || null,
         primaryLast4: ninLast4,
-        hasPhoto,
-        photoStored: Boolean(frontStored),
+        bankLast4: bvnLast4,
+        hasPhoto: Boolean(frontRaw),
+        hasBackPhoto: Boolean(backRaw),
+        photoStored: Boolean(front),
+        backPhotoStored: Boolean(back),
+        photoTooLarge: Boolean(frontRaw && !front),
+        backPhotoTooLarge: Boolean(backRaw && !back),
         submittedAt: now,
+        accountSnapshot: {
+          fullName: profile?.full_name ?? null,
+          email: profile?.email ?? null,
+          phone: profile?.phone ?? null,
+          city: profile?.city ?? null,
+          area: profile?.area ?? null,
+          registeredAt: profile?.created_at ?? null,
+          vehicleMake: existingMot?.vehicle_make ?? null,
+          vehicleModel: existingMot?.vehicle_model ?? null,
+          vehicleYear: existingMot?.vehicle_year ?? null,
+          plate: existingMot?.plate_number ?? null,
+          phoneVerified: Boolean(existingMot?.phone_verified),
+          firstServiceAt: existingMot?.first_service_at ?? null,
+        },
       },
+      review_checklist: {},
       updated_at: now,
     };
 
-    const admin = createServiceSupabase();
-    const { data: existing } = await admin
-      .from("motorist_profiles")
-      .select("user_id")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    if (existing?.user_id) {
+    if (existingMot?.user_id) {
       const { error } = await admin
         .from("motorist_profiles")
         .update(payload)
         .eq("user_id", userId);
-      if (error) return apiFail(error.message, 500);
+      if (error) {
+        // Retry without newer columns if migration lag
+        if (
+          error.message.includes("gov_id_number") ||
+          error.message.includes("identity_country") ||
+          error.message.includes("review_checklist")
+        ) {
+          const slim = {
+            nin_last4: ninLast4,
+            bvn_last4: bvnLast4,
+            nin_verified: false,
+            bvn_verified: false,
+            identity_verified_at: null,
+            identity_review_status: "submitted",
+            identity_submitted_at: now,
+            gov_id_kind: parsed.data.govIdKind || null,
+            gov_id_front_url: front,
+            gov_id_back_url: back,
+            nin_encrypted: primary,
+            bvn_encrypted: bank || null,
+            gov_id_meta: payload.gov_id_meta,
+            updated_at: now,
+          };
+          const { error: e2 } = await admin
+            .from("motorist_profiles")
+            .update(slim)
+            .eq("user_id", userId);
+          if (e2) return apiFail(e2.message, 500);
+        } else {
+          return apiFail(error.message, 500);
+        }
+      }
     } else {
       const { error } = await admin.from("motorist_profiles").insert({
         user_id: userId,
@@ -124,6 +199,11 @@ export async function POST(req: Request) {
       status: "submitted",
       message: "ID submitted for admin / customer care review.",
       submittedAt: now,
+      stored: {
+        hasFront: Boolean(front),
+        hasBack: Boolean(back),
+        primaryLast4: ninLast4,
+      },
     });
   } catch {
     return apiFail("Could not submit ID for review", 500);
