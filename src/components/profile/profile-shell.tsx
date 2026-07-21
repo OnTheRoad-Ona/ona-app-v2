@@ -129,10 +129,8 @@ export function ProfileSection({
   return (
     <section
       className={cn(
-        "mb-1 space-y-2 px-0 py-2.5",
-        isLight
-          ? "border-b border-black/10 last:border-b-0"
-          : "mb-1.5 rounded-2xl px-3 py-3"
+        "mb-1.5 space-y-2 rounded-2xl px-3 py-3",
+        isLight ? "bg-black/[0.04]" : ""
       )}
       style={isLight ? undefined : { backgroundColor: t.cardBg }}
     >

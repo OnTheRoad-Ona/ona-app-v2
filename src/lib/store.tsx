@@ -2338,6 +2338,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const cfg = getRuntimeAppConfig();
       const gate = cfg.features.identityVerifyEnabled
         ? evaluateServiceGate(userProfile, "motorist", {
+            trialDays: cfg.verification.trialDays ?? 30,
             warnFrom: cfg.verification.warnFrom,
             blockAt: cfg.verification.blockAt,
           })
@@ -2372,9 +2373,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       const req = createRequest(tech, problem, pricing);
       if (userProfile) {
+        const nowIso = new Date().toISOString();
         persistProfile({
           ...userProfile,
           serviceActionCount: count + 1,
+          // Start 30-day free window on first request
+          firstServiceAt: userProfile.firstServiceAt || nowIso,
         });
       }
       return {
@@ -2431,6 +2435,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 ? "professional"
                 : userProfile?.accountType,
               {
+                trialDays: cfg.verification.trialDays ?? 30,
                 warnFrom: cfg.verification.warnFrom,
                 blockAt: cfg.verification.blockAt,
               }
@@ -2458,9 +2463,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           void backendUpdateJobStatus(id, status, backendUserId);
         }
         if (userProfile) {
+          const nowIso = new Date().toISOString();
           persistProfile({
             ...userProfile,
             serviceActionCount: count + 1,
+            firstServiceAt: userProfile.firstServiceAt || nowIso,
           });
         }
         return {

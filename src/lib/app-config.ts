@@ -34,8 +34,12 @@ export type MatchingSection = {
 };
 
 export type VerificationSection = {
+  /** @deprecated count-based; use trialDays */
   warnFrom: number;
+  /** @deprecated count-based; use trialDays */
   blockAt: number;
+  /** Free booking days from first request (Tier 1) until Tier 2 */
+  trialDays: number;
   requireNin: boolean;
   requireBvn: boolean;
 };
@@ -91,9 +95,10 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     minRatingFilter: 0,
   },
   verification: {
-    warnFrom: 3,
-    /** 7th request blocked → 6 free with phone-only (Tier 1) */
-    blockAt: 7,
+    warnFrom: 1,
+    blockAt: 31,
+    /** 30 free days from first request (Tier 1 phone only) */
+    trialDays: 30,
     requireNin: true,
     requireBvn: true,
   },
@@ -161,6 +166,13 @@ export function mergeConfig(
       ...(base.services.enabled ?? []),
     ])
   );
+  // Ensure time-based trial exists even if DB still has count-only verification
+  if (
+    typeof base.verification.trialDays !== "number" ||
+    !Number.isFinite(base.verification.trialDays)
+  ) {
+    base.verification.trialDays = DEFAULT_APP_CONFIG.verification.trialDays;
+  }
   return base;
 }
 

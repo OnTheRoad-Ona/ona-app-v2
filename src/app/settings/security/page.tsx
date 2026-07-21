@@ -42,6 +42,19 @@ function storageKey(base: string, email?: string) {
   return `${base}:${email || "guest"}`;
 }
 
+/** otpauth URI for authenticator apps (TOTP) */
+function authenticatorOtpauth(secret: string, account: string): string {
+  const label = encodeURIComponent(`Ona:${account || "user"}`);
+  const issuer = encodeURIComponent("Ona");
+  return `otpauth://totp/${label}?secret=${secret}&issuer=${issuer}&algorithm=SHA1&digits=6&period=30`;
+}
+
+/** QR image URL for scanning (setup only — one small load) */
+function authenticatorQrUrl(secret: string, account: string): string {
+  const data = encodeURIComponent(authenticatorOtpauth(secret, account));
+  return `https://api.qrserver.com/v1/create-qr-code/?size=168x168&ecc=M&margin=8&data=${data}`;
+}
+
 export default function SettingsSecurityPage() {
   const { theme, userProfile, updateUserProfile, accountType } = useApp();
   const isLight = theme === "light";
@@ -460,24 +473,42 @@ export default function SettingsSecurityPage() {
           ) : null}
 
           {setupStep === "authenticator" ? (
-            <div className="mt-3 space-y-2">
+            <div className="mt-3 space-y-3">
               <p className={cn("text-[12px] font-semibold", ink)}>
                 Authenticator setup
               </p>
-              <p className={cn("text-[11px] font-medium", muted)}>
-                Add this secret in your authenticator app, then enter the 6-digit
-                code
+              <p className={cn("text-[11px] font-medium leading-relaxed", muted)}>
+                Open Google Authenticator, Authy, or similar and scan the QR —
+                or enter the secret manually if you prefer.
               </p>
+              {secret ? (
+                <div className="flex flex-col items-center gap-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={authenticatorQrUrl(secret, email)}
+                    alt="Authenticator QR code — scan with your app"
+                    width={168}
+                    height={168}
+                    className="rounded-lg bg-white p-2"
+                    loading="lazy"
+                  />
+                  <p className={cn("text-[10px] font-medium", muted)}>
+                    Scan with your authenticator app
+                  </p>
+                </div>
+              ) : null}
               <div
                 className={cn(
-                  "rounded-md px-3 py-2 font-mono text-[13px] font-bold tracking-wider",
-                  isLight ? "bg-black/[0.08] text-slate-900" : "bg-white/[0.1] text-white"
+                  "rounded-md px-3 py-2 font-mono text-[12px] font-bold tracking-wider break-all",
+                  isLight
+                    ? "bg-black/[0.08] text-slate-900"
+                    : "bg-white/[0.1] text-white"
                 )}
               >
                 {secret || "—"}
               </div>
               <p className={cn("text-[10px] font-medium", muted)}>
-                Account Ona · type Time-based
+                Secret · Account Ona · Time-based (30s)
               </p>
               <input
                 className={settingsInputClass(isLight)}
@@ -487,7 +518,7 @@ export default function SettingsSecurityPage() {
                 onChange={(e) =>
                   setAuthCode(e.target.value.replace(/\D/g, "").slice(0, 6))
                 }
-                placeholder="6-digit code"
+                placeholder="6-digit code from app"
               />
               {setupErr ? (
                 <p className="text-[11px] font-semibold text-red-500">

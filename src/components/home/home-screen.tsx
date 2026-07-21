@@ -40,8 +40,8 @@ export function HomeScreen() {
   const isLight = theme === "light";
   /** Open with lower panel down (collapsed) — map on top, sheet ~60% bottom */
   const [sheetExpanded, setSheetExpanded] = useState(false);
-  /** Map loads with collapsed panel so home is map-first on open */
-  const [mapEnabled, setMapEnabled] = useState(true);
+  /** Data-saver: no map tiles until the user taps Show map */
+  const [mapEnabled, setMapEnabled] = useState(false);
 
   useEffect(() => {
     if (
@@ -76,9 +76,10 @@ export function HomeScreen() {
   }
 
   const sheetBg = isLight ? "bg-[#c8c9cd]" : "bg-black";
+  // Cap map pins hard — tiles + markers are the main data cost
   const mapTechs = visibleTechnicians
     .filter((t) => t.status !== "offline")
-    .slice(0, Math.min(6, MAX_TECHNICIANS));
+    .slice(0, Math.min(4, MAX_TECHNICIANS));
 
   const openMap = () => {
     setMapEnabled(true);

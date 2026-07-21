@@ -85,7 +85,7 @@ export function ProPublicProfile({
   const insetBg = isLight ? "transparent" : "#2c2c2e";
   const page = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const card = isLight
-    ? "bg-transparent border-b border-black/10 last:border-b-0"
+    ? "mb-1.5 rounded-2xl bg-black/[0.04]"
     : "bg-[#1c1c1e]";
   const inset = isLight ? "bg-transparent" : "bg-[#2c2c2e]";
   const ink = isLight ? "text-slate-900" : "text-white";

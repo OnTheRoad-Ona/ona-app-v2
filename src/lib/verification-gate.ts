@@ -4,22 +4,29 @@ import type { UserProfile } from "@/lib/types";
  * Customer progressive verification
  *
  * Tier 1 — Phone OTP verified
- * Tier 2 — Country ID uploaded + admin/care approved
+ *   Free booking/help for 30 days starting at the first request.
+ * Tier 2 — Government ID submitted AND admin/care approved
+ *   Full unlimited access.
  *
- * With only Tier 1: up to 6 free requests, then blocked until Tier 2 approved.
+ * Home shows a verify prompt every open until Tier 2.
  */
 
-/** First action that shows a verification warning (1-based index). */
-export const VERIFY_WARN_FROM = 3;
+/** Days of free requests after the customer's first request (Tier 1 only). */
+export const TIER1_TRIAL_DAYS = 30;
 
-/** Free requests allowed with phone-only (Tier 1). */
-export const VERIFY_FREE_ACTIONS = 6;
+/** @deprecated Prefer TIER1_TRIAL_DAYS — kept for older call sites */
+export const VERIFY_WARN_FROM = 1;
 
-/** First action blocked without Tier 2 (1-based): 7th request. */
-export const VERIFY_BLOCK_AT = VERIFY_FREE_ACTIONS + 1;
+/** @deprecated Prefer TIER1_TRIAL_DAYS */
+export const VERIFY_FREE_ACTIONS = TIER1_TRIAL_DAYS;
+
+/** @deprecated Prefer time-based trial */
+export const VERIFY_BLOCK_AT = TIER1_TRIAL_DAYS + 1;
 
 /** Demo / local OTP for customer phone verify (Africa's Talking later). */
 export const CUSTOMER_PHONE_OTP = "336699";
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export type IdentityReviewStatus =
   | "none"
@@ -33,13 +40,27 @@ export function isPhoneVerified(
   return Boolean(profile?.phoneVerified);
 }
 
-/** Tier 2 complete — admin/care approved government ID */
+/**
+ * Tier 2 complete — ID must be submitted and admin/care approved.
+ * Submitted-only (pending) is NOT full access.
+ */
 export function isIdentityVerified(
   profile: UserProfile | null | undefined
 ): boolean {
   if (!profile) return false;
-  if (profile.identityReviewStatus === "approved") return true;
-  if (profile.identityVerifiedAt && profile.govIdVerified) return true;
+  // Explicit dual condition: admin approved (implies submitted) + verified flags
+  if (profile.identityReviewStatus === "approved") {
+    return true;
+  }
+  // Legacy mirror: care-approved stamp on profile
+  if (
+    profile.govIdVerified &&
+    profile.identityVerifiedAt &&
+    profile.identityReviewStatus !== "rejected" &&
+    profile.identityReviewStatus !== "submitted"
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -47,6 +68,13 @@ export function isIdentityPending(
   profile: UserProfile | null | undefined
 ): boolean {
   return profile?.identityReviewStatus === "submitted";
+}
+
+/** ISO timestamp of the customer's first gated request (starts the 30-day clock). */
+export function getFirstServiceAt(
+  profile: UserProfile | null | undefined
+): string | null {
+  return profile?.firstServiceAt || null;
 }
 
 export function getServiceActionCount(
@@ -62,25 +90,73 @@ export function nextActionIndex(
   return getServiceActionCount(profile) + 1;
 }
 
-export type VerificationThresholds = {
-  warnFrom?: number;
-  blockAt?: number;
-};
-
-function thresholds(opts?: VerificationThresholds) {
-  const warnFrom = opts?.warnFrom ?? VERIFY_WARN_FROM;
-  const blockAt = opts?.blockAt ?? VERIFY_BLOCK_AT;
-  const freeActions = Math.max(0, blockAt - 1);
-  return { warnFrom, blockAt, freeActions };
+/**
+ * Milliseconds remaining in the Tier 1 free window.
+ * Infinity when T2; full window when no first request yet.
+ */
+export function trialMsRemaining(
+  profile: UserProfile | null | undefined,
+  trialDays = TIER1_TRIAL_DAYS
+): number {
+  if (isIdentityVerified(profile)) return Infinity;
+  const first = getFirstServiceAt(profile);
+  if (!first) return trialDays * MS_PER_DAY;
+  const end = new Date(first).getTime() + trialDays * MS_PER_DAY;
+  return Math.max(0, end - Date.now());
 }
 
+/** Whole days left in trial (ceil). Infinity when T2. */
+export function trialDaysRemaining(
+  profile: UserProfile | null | undefined,
+  trialDays = TIER1_TRIAL_DAYS
+): number {
+  const ms = trialMsRemaining(profile, trialDays);
+  if (!Number.isFinite(ms)) return Infinity;
+  return Math.ceil(ms / MS_PER_DAY);
+}
+
+export function isTrialExpired(
+  profile: UserProfile | null | undefined,
+  trialDays = TIER1_TRIAL_DAYS
+): boolean {
+  if (isIdentityVerified(profile)) return false;
+  const first = getFirstServiceAt(profile);
+  if (!first) return false;
+  return trialMsRemaining(profile, trialDays) <= 0;
+}
+
+/**
+ * Whether home should show the verify lower panel every open.
+ * True for customers who have not reached Tier 2.
+ */
+export function shouldShowHomeVerifyPanel(
+  profile: UserProfile | null | undefined,
+  accountType?: UserProfile["accountType"] | null
+): boolean {
+  const type = accountType ?? profile?.accountType ?? "motorist";
+  if (type === "professional") return false;
+  return !isIdentityVerified(profile);
+}
+
+export type VerificationThresholds = {
+  /** @deprecated count-based; ignored when trialDays is set */
+  warnFrom?: number;
+  /** @deprecated count-based; ignored when trialDays is set */
+  blockAt?: number;
+  trialDays?: number;
+};
+
+function resolveTrialDays(opts?: VerificationThresholds) {
+  return opts?.trialDays ?? TIER1_TRIAL_DAYS;
+}
+
+/** Days left in free window (for UI). Infinity when T2. */
 export function remainingFreeActions(
   profile: UserProfile | null | undefined,
   opts?: VerificationThresholds
 ): number {
   if (isIdentityVerified(profile)) return Infinity;
-  const { freeActions } = thresholds(opts);
-  return Math.max(0, freeActions - getServiceActionCount(profile));
+  return trialDaysRemaining(profile, resolveTrialDays(opts));
 }
 
 export type GateDecision =
@@ -100,6 +176,7 @@ export type GateDecision =
 
 /**
  * Evaluate whether the customer may create one more request.
+ * Free window: 30 days from first request (Tier 1). Full access only after T2.
  */
 export function evaluateServiceGate(
   profile: UserProfile | null | undefined,
@@ -108,7 +185,8 @@ export function evaluateServiceGate(
 ): GateDecision {
   const type = accountType ?? profile?.accountType ?? "motorist";
   const next = nextActionIndex(profile);
-  const { warnFrom, blockAt, freeActions } = thresholds(opts);
+  const trialDays = resolveTrialDays(opts);
+  const daysLeft = trialDaysRemaining(profile, trialDays);
 
   // Pros use separate artisan flow — only gate motorists here for request create
   if (type === "professional") {
@@ -140,8 +218,8 @@ export function evaluateServiceGate(
     };
   }
 
-  // After 6 free requests without Tier 2 approval → suspended for booking
-  if (next >= blockAt) {
+  // Trial clock started and expired without Tier 2
+  if (isTrialExpired(profile, trialDays)) {
     const pending = isIdentityPending(profile);
     return {
       allowed: false,
@@ -150,29 +228,28 @@ export function evaluateServiceGate(
       reason: pending ? "id" : "suspended",
       message: pending
         ? "Your ID is under review by admin / customer care. You cannot create new requests until it is approved."
-        : `You have used your ${freeActions} free requests. Upload your government ID for review so admin / customer care can approve Tier 2 and restore booking.`,
+        : `Your ${trialDays}-day free period has ended. Submit your government ID and wait for admin / customer care approval (Tier 2) to keep booking.`,
     };
   }
 
+  // Within trial — always soft-warn until T2 (home also shows panel every open)
   let warning: string | null = null;
-  if (next >= warnFrom) {
-    const left = freeActions - next + 1;
-    const after = freeActions - next;
-    if (next === warnFrom) {
-      warning = `After ${freeActions} free requests you must upload your ID for admin approval. After this one, you have ${after} free request${after === 1 ? "" : "s"} left.`;
-    } else if (next === freeActions) {
-      warning =
-        "This is your last free request. Next time you must upload ID and wait for admin / customer care approval.";
-    } else {
-      warning = `You can still book ${left} free request${left === 1 ? "" : "s"} (including this one) before ID upload is required.`;
-    }
+  if (!getFirstServiceAt(profile)) {
+    warning = `You get ${trialDays} free days of requests from your first booking. Verify your ID (Tier 2) for full access.`;
+  } else if (daysLeft <= 7) {
+    warning =
+      daysLeft <= 1
+        ? "Last day of free access. Submit your ID for admin approval to keep booking."
+        : `${daysLeft} free days left. Upload your government ID for admin / customer care approval.`;
+  } else {
+    warning = `${daysLeft} free days left before ID verification is required. Verify anytime for unlimited booking.`;
   }
 
   return {
     allowed: true,
     warning,
     nextIndex: next,
-    remaining: freeActions - next + 1,
+    remaining: Number.isFinite(daysLeft) ? daysLeft : Infinity,
   };
 }
 

@@ -27,18 +27,19 @@ import { useApp } from "@/lib/store";
 import {
   CUSTOMER_PHONE_OTP,
   customerTierLabel,
+  getFirstServiceAt,
   isIdentityPending,
   isIdentityVerified,
   isPhoneVerified,
   remainingFreeActions,
-  VERIFY_FREE_ACTIONS,
+  TIER1_TRIAL_DAYS,
 } from "@/lib/verification-gate";
 import { cn } from "@/lib/utils";
 
 /**
- * Customer verification
+ * Customer verification (customers only)
  * Tier 1 — Phone OTP (demo code 336699)
- * Tier 2 — Country ID type + number + photo → admin/care review
+ * Tier 2 — Country ID type + number + photo → admin/care review + approval
  */
 export default function VerifyIdentityPage() {
   const router = useRouter();
@@ -86,8 +87,9 @@ export default function VerifyIdentityPage() {
   const phoneOk = isPhoneVerified(userProfile);
   const tier2Ok = isIdentityVerified(userProfile);
   const pending = isIdentityPending(userProfile);
-  const freeLeft = remainingFreeActions(userProfile);
+  const daysLeft = remainingFreeActions(userProfile);
   const tier = customerTierLabel(userProfile);
+  const trialStarted = Boolean(getFirstServiceAt(userProfile));
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -190,29 +192,31 @@ export default function VerifyIdentityPage() {
 
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-600" : "text-white/60";
-  const card = isLight ? "bg-black/[0.05]" : "bg-white/[0.06]";
+  // Soft grey cards (not pure white) — matches app shell
+  const card = isLight ? "bg-[#d4d5d9]" : "bg-white/[0.06]";
+  const shell = isLight ? "bg-[#c8c9cd]" : "bg-black";
 
   if (tier2Ok) {
     return (
       <div
         className={cn(
           "flex h-full flex-col items-center justify-center px-5 text-center",
-          isLight ? "bg-[#c8c9cd]" : "bg-black"
+          shell
         )}
       >
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50">
           <CheckCircle2 className="h-8 w-8 text-emerald-500" />
         </div>
-        <h2 className={cn("mt-3 text-[17px] font-bold", ink)}>
+        <h2 className={cn("mt-4 text-[17px] font-bold", ink)}>
           Tier 2 approved
         </h2>
-        <p className={cn("mt-1.5 max-w-[280px] text-[12px]", muted)}>
-          Your ID was approved by admin / customer care. You can book without
-          the free-request limit.
+        <p className={cn("mt-2 max-w-[280px] text-[12px] leading-relaxed", muted)}>
+          Your ID was submitted and approved by admin / customer care. You can
+          book without the free-period limit.
         </p>
         <button
           type="button"
-          className={cn(authPrimaryBtnClass, "mt-4")}
+          className={cn(authPrimaryBtnClass, "mt-6")}
           style={authPrimaryBtnStyle}
           onClick={() => router.replace("/")}
         >
@@ -223,18 +227,13 @@ export default function VerifyIdentityPage() {
   }
 
   return (
-    <div
-      className={cn(
-        "flex h-full min-h-0 flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
-      )}
-    >
-      <div className="flex shrink-0 items-center gap-2 px-3 pb-2 pt-3">
+    <div className={cn("flex h-full min-h-0 flex-col", shell)}>
+      <div className="flex shrink-0 items-center gap-2 px-4 pb-3 pt-4">
         <button
           type="button"
           onClick={() => navigateBack(router, defaultBackHref(accountType))}
           className={cn(
-            "inline-flex h-9 w-9 items-center justify-center border-0 bg-transparent",
+            "inline-flex h-10 w-10 items-center justify-center border-0 bg-transparent",
             ink
           )}
           aria-label="Back"
@@ -243,59 +242,65 @@ export default function VerifyIdentityPage() {
         </button>
         <div className="min-w-0 flex-1">
           <h1 className={cn("text-[16px] font-bold", ink)}>Verification</h1>
-          <p className={cn("text-[11px] font-medium", muted)}>
+          <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
             {tier} · {pack.countryName}
-            {phoneOk && freeLeft < Infinity
-              ? ` · ${freeLeft} free request${freeLeft === 1 ? "" : "s"} left`
+            {phoneOk && daysLeft < Infinity
+              ? trialStarted
+                ? ` · ${daysLeft} free day${daysLeft === 1 ? "" : "s"} left`
+                : ` · ${TIER1_TRIAL_DAYS}-day free period from first request`
               : ""}
           </p>
         </div>
         <ShieldCheck className="h-5 w-5 shrink-0 text-[#FF6B35]" />
       </div>
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 pb-6 scrollbar-hide">
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-8 scrollbar-hide">
         {error ? (
-          <p className="rounded-md bg-red-500/15 px-3 py-2 text-[12px] font-medium text-red-600">
+          <p className="rounded-xl bg-red-500/15 px-4 py-3 text-[12px] font-medium text-red-600">
             {error}
           </p>
         ) : null}
 
         {/* Tier 1 — Phone */}
-        <section className={cn("rounded-xl px-3 py-3", card)}>
+        <section className={cn("rounded-2xl px-4 py-5", card)}>
           <p className={cn("flex items-center gap-2 text-[13px] font-bold", ink)}>
             <Phone className="h-4 w-4 text-[#FF6B35]" />
             Tier 1 · Phone
           </p>
-          <p className={cn("mt-1 text-[11px]", muted)}>
+          <p className={cn("mt-2 text-[12px] leading-relaxed", muted)}>
             {phoneOk
-              ? "Verified"
+              ? "Verified — free booking for 30 days from your first request."
               : "Confirm your phone with a one-time code."}
           </p>
           {phoneOk ? (
-            <p className="mt-2 flex items-center gap-1.5 text-[12px] font-semibold text-emerald-600">
+            <p className="mt-4 flex items-center gap-1.5 text-[12px] font-semibold text-emerald-600">
               <CheckCircle2 className="h-4 w-4" />{" "}
               {userProfile?.phone || "Phone verified"}
             </p>
           ) : (
             <>
-              <p className={cn("mt-2 text-[11px] font-medium", muted)}>
+              <p className={cn("mt-4 text-[12px] font-medium", muted)}>
                 {userProfile?.phone || "No phone on account"}
               </p>
               <button
                 type="button"
                 onClick={sendDemoOtp}
-                className="mt-2 text-[11px] font-bold text-[#FF6B35]"
+                className="mt-3 text-[12px] font-bold text-[#FF6B35]"
               >
                 Send code
               </button>
               {otpMsg ? (
-                <p className={cn("mt-1 text-[11px]", muted)}>{otpMsg}</p>
+                <p className={cn("mt-2 text-[11px] leading-relaxed", muted)}>
+                  {otpMsg}
+                </p>
               ) : null}
-              <label className={cn(authLabelClass, "mt-2")}>OTP code</label>
+              <label className={cn(authLabelClass, "mt-4")}>OTP code</label>
               <input
-                className={authFieldClass}
+                className={cn(authFieldClass, "mt-1.5")}
                 value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                onChange={(e) =>
+                  setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                }
                 placeholder={CUSTOMER_PHONE_OTP}
                 inputMode="numeric"
                 maxLength={6}
@@ -304,7 +309,10 @@ export default function VerifyIdentityPage() {
                 type="button"
                 disabled={otpBusy || otp.length < 4}
                 onClick={() => void confirmPhone()}
-                className={cn(authPrimaryBtnClass, "mt-2 h-10 disabled:opacity-50")}
+                className={cn(
+                  authPrimaryBtnClass,
+                  "mt-4 h-11 disabled:opacity-50"
+                )}
                 style={authPrimaryBtnStyle}
               >
                 {otpBusy ? "Checking…" : "Verify phone"}
@@ -314,27 +322,28 @@ export default function VerifyIdentityPage() {
         </section>
 
         {/* Tier 2 — Country ID */}
-        <section className={cn("rounded-xl px-3 py-3", card)}>
+        <section className={cn("rounded-2xl px-4 py-5", card)}>
           <p className={cn("flex items-center gap-2 text-[13px] font-bold", ink)}>
             <Upload className="h-4 w-4 text-[#FF6B35]" />
             Tier 2 · Government ID
           </p>
-          <p className={cn("mt-1 text-[11px]", muted)}>
+          <p className={cn("mt-2 text-[12px] leading-relaxed", muted)}>
             {submitted
-              ? "Submitted — waiting for admin / customer care approval."
-              : `ID types for ${pack.countryName}. After ${VERIFY_FREE_ACTIONS} free requests you must upload ID to keep booking.`}
+              ? "Submitted — waiting for admin / customer care approval. Full access needs both: ID submitted and admin-approved."
+              : `ID types for ${pack.countryName}. After your ${TIER1_TRIAL_DAYS}-day free period you need ID submitted and admin-approved to keep booking.`}
           </p>
 
           {submitted ? (
-            <p className="mt-3 text-[12px] font-semibold text-amber-600">
-              Under review · you cannot create new requests until approved
-              {getServiceCountNote(userProfile)}
+            <p className="mt-4 text-[12px] font-semibold leading-relaxed text-amber-600">
+              Under review · full booking unlocks when admin / customer care
+              approves your ID
+              {trialNote(userProfile)}
             </p>
           ) : (
             <>
-              <label className={cn(authLabelClass, "mt-3")}>ID type</label>
+              <label className={cn(authLabelClass, "mt-5")}>ID type</label>
               <select
-                className={authFieldClass}
+                className={cn(authFieldClass, "mt-1.5")}
                 value={idType}
                 onChange={(e) => {
                   setIdType(e.target.value);
@@ -351,11 +360,11 @@ export default function VerifyIdentityPage() {
                 ))}
               </select>
 
-              <label className={cn(authLabelClass, "mt-2")}>
+              <label className={cn(authLabelClass, "mt-5")}>
                 {selectedDoc?.label || "ID"} number
               </label>
               <input
-                className={authFieldClass}
+                className={cn(authFieldClass, "mt-1.5")}
                 value={idNumber}
                 onChange={(e) =>
                   setIdNumber(
@@ -368,15 +377,17 @@ export default function VerifyIdentityPage() {
                 disabled={!phoneOk}
               />
               {selectedDoc?.hint ? (
-                <p className={cn("mt-0.5 text-[10px]", muted)}>
+                <p className={cn("mt-2 text-[11px] leading-relaxed", muted)}>
                   {selectedDoc.hint}
                 </p>
               ) : null}
 
               <label
                 className={cn(
-                  "mt-3 flex h-12 cursor-pointer items-center justify-center gap-2 rounded-md border-0 text-[12px] font-bold",
-                  isLight ? "bg-black/10 text-slate-800" : "bg-[#2c2c2e] text-white",
+                  "mt-5 flex h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border-0 text-[12px] font-bold",
+                  isLight
+                    ? "bg-black/10 text-slate-800"
+                    : "bg-[#2c2c2e] text-white",
                   !phoneOk && "pointer-events-none opacity-50"
                 )}
               >
@@ -407,7 +418,10 @@ export default function VerifyIdentityPage() {
                 type="button"
                 disabled={busy || !phoneOk}
                 onClick={() => void submitId()}
-                className={cn(authPrimaryBtnClass, "mt-3 h-10 disabled:opacity-50")}
+                className={cn(
+                  authPrimaryBtnClass,
+                  "mt-5 h-11 disabled:opacity-50"
+                )}
                 style={authPrimaryBtnStyle}
               >
                 {busy ? "Submitting…" : "Submit ID for review"}
@@ -416,19 +430,29 @@ export default function VerifyIdentityPage() {
           )}
         </section>
 
-        <p className={cn("px-1 text-center text-[10px] leading-snug", muted)}>
-          Tier 1 alone allows {VERIFY_FREE_ACTIONS} requests. Then booking is
-          suspended until Tier 2 ID is approved by admin / customer care.
+        <p
+          className={cn(
+            "px-2 text-center text-[11px] leading-relaxed",
+            muted
+          )}
+        >
+          Tier 1 alone allows free requests for {TIER1_TRIAL_DAYS} days from
+          your first request. Full access requires ID submitted and approved by
+          admin / customer care (Tier 2).
         </p>
       </div>
     </div>
   );
 }
 
-function getServiceCountNote(
-  profile: { serviceActionCount?: number } | null | undefined
+function trialNote(
+  profile: {
+    firstServiceAt?: string;
+    serviceActionCount?: number;
+  } | null | undefined
 ): string {
-  const n = profile?.serviceActionCount ?? 0;
-  if (n >= VERIFY_FREE_ACTIONS) return ".";
-  return ` · ${n}/${VERIFY_FREE_ACTIONS} free used.`;
+  if (!profile?.firstServiceAt) return ".";
+  const days = remainingFreeActions(profile as never);
+  if (!Number.isFinite(days) || days <= 0) return ".";
+  return ` · ${days} free day${days === 1 ? "" : "s"} left.`;
 }

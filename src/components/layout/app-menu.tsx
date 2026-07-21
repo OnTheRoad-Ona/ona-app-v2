@@ -28,7 +28,6 @@ import { cn } from "@/lib/utils";
 
 /** Trade glyph + orange accents (My Service) */
 const TRADE_ICON_GLYPH = "#FF6B35";
-const LINE_ACCENT = "#FF6B35";
 
 function TradeIcon({ service }: { service: ProService }) {
   const opt = PRO_TRADE_OPTIONS.find((t) => t.id === service);
@@ -394,13 +393,8 @@ export function AppMenu({
             ) : null}
           </button>
 
-          {/* Role block — solid orange line demarcation */}
+          {/* Role block — no divider line (app-wide clean cards) */}
           <div className="mt-5 px-1 pt-3">
-            <div
-              className="mb-3 h-px w-full"
-              style={{ backgroundColor: LINE_ACCENT }}
-              aria-hidden
-            />
             {isPro && proServices.length > 0 && (
               <div className="mb-4">
                 {/* Line 1: same size as Dashboard / Jobs / Profile */}

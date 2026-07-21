@@ -27,12 +27,17 @@ import {
   resolveKnownPlace,
   type KnownPlace,
 } from "@/lib/known-places";
+import { HomeVerifyPanel } from "@/components/auth/verification-gate-banner";
 import { useMotoristJobsByPro } from "@/lib/jobs/use-motorist-jobs-by-pro";
 import { useT } from "@/lib/i18n";
 import { useApp } from "@/lib/store";
 import type { Technician } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { MAX_TECHNICIANS } from "@/lib/matching";
+import {
+  evaluateServiceGate,
+  shouldShowHomeVerifyPanel,
+} from "@/lib/verification-gate";
 
 /** Fallback geocode when Places is unavailable (curated places first). */
 async function geocodeAddress(
@@ -125,6 +130,7 @@ export function HomePanel({
     refreshNearbyPros,
     helpingSomeoneElse,
     setHelpingSomeoneElse,
+    userProfile,
   } = useApp();
   const isLight = theme === "light";
   const [refreshingPros, setRefreshingPros] = useState(false);
@@ -134,6 +140,17 @@ export function HomePanel({
   const isMotorist =
     isAuthenticated &&
     (accountType === "motorist" || accountType == null);
+
+  /** Every home open until Tier 2 — ~25% lower-panel verify prompt */
+  const showVerifyPanel =
+    isMotorist && shouldShowHomeVerifyPanel(userProfile, accountType);
+  const verifyGate = showVerifyPanel
+    ? evaluateServiceGate(userProfile, "motorist")
+    : null;
+  const verifyMessage =
+    verifyGate && !verifyGate.allowed
+      ? verifyGate.message
+      : verifyGate?.warning || null;
 
   const liveMaps = shouldUseLiveMaps();
   const apiKey = getGoogleMapsApiKey();
@@ -566,6 +583,11 @@ export function HomePanel({
 
       {/* Repair Pro list — always shown; updates with radius / filters / help pin */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-0 scrollbar-hide">
+        {showVerifyPanel ? (
+          <div className="mb-2 shrink-0">
+            <HomeVerifyPanel message={verifyMessage} isLight={isLight} />
+          </div>
+        ) : null}
         <div
           className={cn(
             "min-h-full overflow-hidden rounded-t-lg",

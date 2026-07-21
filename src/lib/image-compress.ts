@@ -6,8 +6,9 @@ export async function compressImageFile(
   file: File,
   opts?: { maxEdge?: number; quality?: number }
 ): Promise<string> {
-  const maxEdge = opts?.maxEdge ?? 720;
-  const quality = opts?.quality ?? 0.82;
+  // Data-saver defaults — avatars / vehicle photos stay sharp enough
+  const maxEdge = opts?.maxEdge ?? 480;
+  const quality = opts?.quality ?? 0.72;
 
   const dataUrl = await readFileAsDataUrl(file);
   const img = await loadImage(dataUrl);

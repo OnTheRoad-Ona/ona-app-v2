@@ -176,13 +176,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backendUserId, isAuthenticated, role]);
 
-  // Poll backup every 5 min when visible (Realtime is primary)
+  // Poll backup every 10 min when visible (Realtime is primary — data saver)
   useEffect(() => {
     if (!backendUserId || !isAuthenticated) return;
     const t = window.setInterval(() => {
       if (document.hidden) return;
       void refresh();
-    }, 300_000);
+    }, 600_000);
     return () => window.clearInterval(t);
   }, [backendUserId, isAuthenticated, refresh]);
 

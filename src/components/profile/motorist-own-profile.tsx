@@ -1,12 +1,11 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Camera,
   MapPin,
   Plus,
-  Star,
   Trash2,
   Wrench,
 } from "lucide-react";
@@ -20,13 +19,10 @@ import { MotoristVehicleWizard } from "@/components/profile/motorist-vehicle-wiz
 import { TierProgress } from "@/components/profile/verification-mark";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { compressImageFile } from "@/lib/image-compress";
-import {
-  memberSinceLabel,
-  profileTheme,
-  type JobHistoryItem,
-} from "@/lib/profile-system";
+import { memberSinceLabel, profileTheme } from "@/lib/profile-system";
+import { resetNavStack } from "@/lib/navigation";
 import { useApp } from "@/lib/store";
-import type { MotoristVehicle, UserProfile } from "@/lib/types";
+import type { AccountType, MotoristVehicle, UserProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 function vehiclesFromProfile(p: UserProfile): MotoristVehicle[] {
@@ -74,13 +70,21 @@ function legacyFieldsFromVehicles(list: MotoristVehicle[]) {
  */
 export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
   const router = useRouter();
-  const { userProfile, updateUserProfile, location, hasProAccount } = useApp();
+  const {
+    userProfile,
+    updateUserProfile,
+    location,
+    hasProAccount,
+    accountType,
+    switchAccount,
+  } = useApp();
   const t = profileTheme(isLight);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [editing, setEditing] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [switching, setSwitching] = useState(false);
 
   const [fullName, setFullName] = useState(userProfile?.fullName || "");
   const [avatarUrl, setAvatarUrl] = useState(userProfile?.avatarUrl || "");
@@ -102,27 +106,42 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
   const jobsCompleted = userProfile?.jobsCompleted ?? 0;
   const ratingGiven = userProfile?.averageRatingGiven ?? 0;
 
-  const history: JobHistoryItem[] = useMemo(
-    () => [
-      {
-        id: "j1",
-        proName: "Tunde A.",
-        serviceType: "Battery",
-        status: "Completed",
-        date: "3 days ago",
-        ratingGiven: 5,
-      },
-      {
-        id: "j2",
-        proName: "Kemi V.",
-        serviceType: "Vulcanizer",
-        status: "Completed",
-        date: "2 weeks ago",
-        ratingGiven: 4,
-      },
-    ],
-    []
-  );
+  const onSwitchRole = async (type: AccountType) => {
+    if (type === "motorist" && accountType === "motorist") return;
+    if (type === "professional" && accountType === "professional") {
+      resetNavStack("/dashboard");
+      router.replace("/dashboard");
+      return;
+    }
+    if (type === "professional" && !hasProAccount) {
+      router.push("/signup/pro?from=profile&next=/dashboard");
+      return;
+    }
+    setSwitching(true);
+    setErr(null);
+    try {
+      const result = await switchAccount(type);
+      if (result === null) {
+        const home = type === "professional" ? "/dashboard" : "/";
+        resetNavStack(home);
+        router.replace(home);
+        return;
+      }
+      if (result === "needs_signup") {
+        router.push(
+          type === "professional"
+            ? "/signup/pro?from=profile&next=/dashboard"
+            : "/signup/motorist?from=profile&next=/"
+        );
+        return;
+      }
+      setErr(
+        typeof result === "string" ? result : "Could not switch account."
+      );
+    } finally {
+      setSwitching(false);
+    }
+  };
 
   if (!userProfile || userProfile.accountType !== "motorist") {
     return (
@@ -312,7 +331,7 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
               </p>
             )}
             <p className={cn("mt-0.5 text-[12px] font-semibold", t.muted)}>
-              Motorist
+              Customer
             </p>
             <p className={cn("mt-1 text-[11px]", t.muted)}>
               Member since {memberSinceLabel(userProfile.registeredAt)}
@@ -339,26 +358,64 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
         </div>
       </ProfileSection>
 
-      <ProfileSection title="Switch to Repair Pro" isLight={isLight}>
+      <ProfileSection title="Use as" isLight={isLight}>
         <p className={cn("text-[12px] leading-snug", t.muted)}>
           {hasProAccount
-            ? "You already have a Repair Pro account. Switch from the menu (☰) to go Live and earn."
-            : "Offer roadside services as a mechanic, vulcanizer, tow and more. Finish a short signup — then open your Professional Dashboard."}
+            ? "Switch between Customer and Repair Pro without leaving this screen."
+            : "Offer roadside services as a mechanic, vulcanizer, tow and more. Finish a short signup to unlock Repair Pro."}
         </p>
-        <button
-          type="button"
-          onClick={() => {
-            if (hasProAccount) {
-              router.push("/dashboard");
-              return;
-            }
-            router.push("/signup/pro?from=profile&next=/dashboard");
-          }}
-          className="mt-2.5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border-0 bg-brand text-[13px] font-bold text-white"
+        <div
+          className={cn(
+            "mt-2.5 grid grid-cols-2 gap-1 rounded-xl p-1",
+            isLight ? "bg-black/[0.06]" : "bg-[#2c2c2e]",
+            switching && "pointer-events-none opacity-70"
+          )}
+          role="group"
+          aria-label="Switch account type"
         >
-          <Wrench className="h-4 w-4" />
-          {hasProAccount ? "Open Professional Dashboard" : "Become a Repair Pro"}
-        </button>
+          <button
+            type="button"
+            disabled={switching}
+            onClick={() => void onSwitchRole("motorist")}
+            className={cn(
+              "rounded-lg border-0 px-2 py-2.5 text-[12px] font-bold",
+              accountType === "motorist" || accountType == null
+                ? "bg-[#323231] text-white shadow-sm"
+                : isLight
+                  ? "bg-transparent text-slate-700"
+                  : "bg-transparent text-white/85"
+            )}
+          >
+            Customer
+          </button>
+          <button
+            type="button"
+            disabled={switching}
+            onClick={() => void onSwitchRole("professional")}
+            className={cn(
+              "rounded-lg border-0 px-2 py-2.5 text-[12px] font-bold",
+              accountType === "professional"
+                ? "bg-[#323231] text-white shadow-sm"
+                : isLight
+                  ? "bg-transparent text-slate-700"
+                  : "bg-transparent text-white/85"
+            )}
+          >
+            {switching ? "…" : "Repair Pro"}
+          </button>
+        </div>
+        {!hasProAccount ? (
+          <button
+            type="button"
+            onClick={() =>
+              router.push("/signup/pro?from=profile&next=/dashboard")
+            }
+            className="mt-2.5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border-0 bg-brand text-[13px] font-bold text-white"
+          >
+            <Wrench className="h-4 w-4" />
+            Become a Repair Pro
+          </button>
+        ) : null}
       </ProfileSection>
 
       <ProfileSection title="Verification" isLight={isLight}>
@@ -585,38 +642,7 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
           ))}
         </div>
       </ProfileSection>
-
-      <ProfileSection title="Recent jobs" isLight={isLight}>
-        {history.length === 0 ? (
-          <p className={cn("text-[12px]", t.muted)}>No jobs yet.</p>
-        ) : (
-          <ul className="space-y-1.5">
-            {history.map((j) => (
-              <li
-                key={j.id}
-                className={cn(
-                  "rounded-xl px-2.5 py-2",
-                  isLight ? "bg-black/[0.04]" : "bg-[#2c2c2e]"
-                )}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <p className={cn("text-[12px] font-bold", t.ink)}>{j.proName}</p>
-                  <span className="text-[10px] font-bold text-brand">{j.status}</span>
-                </div>
-                <p className={cn("text-[11px]", t.muted)}>
-                  {j.serviceType} · {j.date}
-                  {j.ratingGiven != null && (
-                    <span className="ml-1 inline-flex items-center gap-0.5 text-amber-400">
-                      <Star className="h-2.5 w-2.5 fill-amber-400" />
-                      {j.ratingGiven}
-                    </span>
-                  )}
-                </p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </ProfileSection>
+      {/* Recent jobs live on the Repair Pro dashboard only */}
     </ProfileShell>
   );
 }

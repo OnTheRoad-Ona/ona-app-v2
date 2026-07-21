@@ -266,6 +266,14 @@ export default function SettingsPage() {
               />
               <SettingsRow
                 isLight={isLight}
+                icon={Shield}
+                label="Verification"
+                detail="Phone · government ID (Tier 1–2)"
+                href="/verify"
+                onClick={rememberScroll}
+              />
+              <SettingsRow
+                isLight={isLight}
                 icon={MapPin}
                 label="Addresses & location"
                 detail="Home, Work, service pin"

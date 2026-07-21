@@ -176,6 +176,11 @@ export interface UserProfile {
    */
   serviceActionCount?: number;
   /**
+   * ISO timestamp of the customer's first gated request.
+   * Starts the Tier 1 free window (30 days) until Tier 2 approval.
+   */
+  firstServiceAt?: string;
+  /**
    * Service focus (vehicles this pro serves).
    * Shown on their public profile when motorists view them.
    */
