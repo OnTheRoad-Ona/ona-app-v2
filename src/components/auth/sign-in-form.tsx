@@ -11,10 +11,14 @@ import {
 } from "@/components/auth/auth-plate";
 import { useAuthNavigate } from "@/components/auth/auth-transition";
 import { PasswordField } from "@/components/auth/password-field";
+import { useT } from "@/lib/i18n";
 import { useApp } from "@/lib/store";
 import { playAppSound, unlockAudio } from "@/lib/sound-tone";
 import type { AccountType } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+/** Near-black for Forgot password / New here? Sign up (auth plate is always light gray) */
+const AUTH_LINK_NEAR_BLACK = "#0a0a0a";
 
 type Mode = "email" | "phone";
 
@@ -23,6 +27,7 @@ type Mode = "email" | "phone";
  */
 export function SignInForm() {
   const router = useRouter();
+  const t = useT();
   const { exiting, go } = useAuthNavigate();
   const { signInWithPassword, sendPhoneOtp, signInWithPhoneOtp } = useApp();
   const [mode, setMode] = useState<Mode>("email");
@@ -43,6 +48,10 @@ export function SignInForm() {
     e.preventDefault();
     setError("");
     setInfo("");
+    if (!preferType) {
+      setError(t("auth.pickRole"));
+      return;
+    }
     if (!email.trim() || !password) {
       setError("Enter your email and password.");
       return;
@@ -52,7 +61,7 @@ export function SignInForm() {
       const err = await signInWithPassword(
         email.trim().toLowerCase(),
         password,
-        preferType || undefined
+        preferType
       );
       if (err) {
         setError(err);
@@ -62,27 +71,11 @@ export function SignInForm() {
       }
       unlockAudio();
       playAppSound("login_success");
-      // Prefer real account type from session (not a wrong tab selection)
-      let t =
-        localStorage.getItem("oga-mecho-account-type") ||
-        preferType ||
-        "motorist";
-      try {
-        const raw = localStorage.getItem("oga-mecho-profile");
-        if (raw) {
-          const p = JSON.parse(raw) as { accountType?: string };
-          if (p.accountType === "professional" || p.accountType === "motorist") {
-            t = p.accountType;
-          }
-        }
-      } catch {
-        /* ignore */
-      }
-      // Short delay so login chime can start before hard navigation
-      const dest = t === "professional" ? "/dashboard" : "/";
+      // Go to the role they selected
+      const dest = preferType === "professional" ? "/dashboard" : "/";
       window.setTimeout(() => {
-        window.location.assign(dest);
-      }, 280);
+        router.replace(dest);
+      }, 180);
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Login failed. Check your connection."
@@ -126,6 +119,10 @@ export function SignInForm() {
   async function onSendCode() {
     setError("");
     setInfo("");
+    if (!preferType) {
+      setError(t("auth.pickRole"));
+      return;
+    }
     if (!phone.trim()) {
       setError("Enter the phone number you used at signup.");
       return;
@@ -147,6 +144,10 @@ export function SignInForm() {
   async function onPhoneSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    if (!preferType) {
+      setError(t("auth.pickRole"));
+      return;
+    }
     if (!otpSent) {
       await onSendCode();
       return;
@@ -160,7 +161,7 @@ export function SignInForm() {
       const err = await signInWithPhoneOtp(
         phone.trim(),
         otp.trim(),
-        preferType || undefined
+        preferType
       );
       if (err) {
         setError(err);
@@ -170,12 +171,10 @@ export function SignInForm() {
       }
       unlockAudio();
       playAppSound("login_success");
-      const t =
-        preferType ||
-        localStorage.getItem("oga-mecho-account-type") ||
-        "motorist";
       window.setTimeout(() => {
-        router.replace(t === "professional" ? "/dashboard" : "/");
+        router.replace(
+          preferType === "professional" ? "/dashboard" : "/"
+        );
       }, 280);
     } finally {
       setBusy(false);
@@ -198,11 +197,11 @@ export function SignInForm() {
           className={authBackBtnClass}
         >
           <ChevronLeft className="h-4 w-4" strokeWidth={2.25} />
-          Back
+          {t("common.back")}
         </button>
 
         <h1 className="text-[22px] font-bold tracking-tight text-[#1e293b]">
-          Log In
+          {t("auth.logIn")}
         </h1>
 
         {/* Mode tabs */}
@@ -221,7 +220,7 @@ export function SignInForm() {
                 : "bg-black/[0.06] text-[#1e293b]"
             )}
           >
-            Email
+            {t("auth.emailTab")}
           </button>
           <button
             type="button"
@@ -237,7 +236,7 @@ export function SignInForm() {
                 : "bg-black/[0.06] text-[#1e293b]"
             )}
           >
-            Phone code
+            {t("auth.phoneTab")}
           </button>
         </div>
 
@@ -246,13 +245,14 @@ export function SignInForm() {
           className="mt-4 flex flex-1 flex-col gap-3.5"
         >
           <div>
-            <span className={authLabelClass}>Log in as</span>
+            <span className={authLabelClass}>{t("auth.loginAs")}</span>
             <div className="mt-1 grid grid-cols-2 gap-1.5">
               <button
                 type="button"
-                onClick={() =>
-                  setPreferType((p) => (p === "motorist" ? "" : "motorist"))
-                }
+                onClick={() => {
+                  setPreferType("motorist");
+                  setError("");
+                }}
                 className={cn(
                   "h-10 rounded-md border-0 text-[12px] font-bold",
                   preferType === "motorist"
@@ -260,15 +260,14 @@ export function SignInForm() {
                     : "bg-black/[0.06] text-[#1e293b]"
                 )}
               >
-                Motorist
+                {t("auth.motorist")}
               </button>
               <button
                 type="button"
-                onClick={() =>
-                  setPreferType((p) =>
-                    p === "professional" ? "" : "professional"
-                  )
-                }
+                onClick={() => {
+                  setPreferType("professional");
+                  setError("");
+                }}
                 className={cn(
                   "h-10 rounded-md border-0 text-[12px] font-bold",
                   preferType === "professional"
@@ -276,7 +275,7 @@ export function SignInForm() {
                     : "bg-black/[0.06] text-[#1e293b]"
                 )}
               >
-                Repair Pro
+                {t("auth.pro")}
               </button>
             </div>
           </div>
@@ -284,7 +283,7 @@ export function SignInForm() {
           {mode === "email" ? (
             <>
               <label className="block">
-                <span className={authLabelClass}>Email</span>
+                <span className={authLabelClass}>{t("auth.email")}</span>
                 <input
                   className={authFieldClass}
                   type="email"
@@ -296,7 +295,7 @@ export function SignInForm() {
                 />
               </label>
               <label className="block">
-                <span className={authLabelClass}>Password</span>
+                <span className={authLabelClass}>{t("auth.password")}</span>
                 <PasswordField
                   autoComplete="current-password"
                   value={password}
@@ -309,7 +308,7 @@ export function SignInForm() {
           ) : (
             <>
               <label className="block">
-                <span className={authLabelClass}>Phone number</span>
+                <span className={authLabelClass}>{t("auth.phone")}</span>
                 <input
                   className={authFieldClass}
                   type="tel"
@@ -344,9 +343,9 @@ export function SignInForm() {
                   type="button"
                   disabled={busy}
                   onClick={() => void onSendCode()}
-                  className="text-left text-[12px] font-semibold text-[#e85a12]"
+                  className="text-left text-[12px] font-semibold text-[#FF6B35]"
                 >
-                  Resend code
+                  {t("auth.resendCode")}
                 </button>
               ) : null}
             </>
@@ -355,7 +354,8 @@ export function SignInForm() {
           {mode === "email" && !forgotOpen ? (
             <button
               type="button"
-              className="text-left text-[12px] font-semibold text-[#e85a12]"
+              className="border-0 bg-transparent p-0 text-left text-[12px] font-semibold"
+              style={{ color: AUTH_LINK_NEAR_BLACK }}
               onClick={() => {
                 setForgotOpen(true);
                 setForgotEmail(email);
@@ -363,21 +363,21 @@ export function SignInForm() {
                 setInfo("");
               }}
             >
-              Forgot password?
+              {t("auth.forgotPassword")}
             </button>
           ) : null}
 
           {forgotOpen && mode === "email" ? (
             <div className="rounded-lg bg-black/[0.04] p-3">
               <p className="text-[12px] font-semibold text-[#1e293b]">
-                Reset password
+                {t("auth.resetPassword")}
               </p>
               <p className="mt-1 text-[11px] text-[#64748b]">
                 We&apos;ll email a link to set a new password. Use the same
                 email as your Repair Pro or Motorist account.
               </p>
               <label className="mt-2 block">
-                <span className={authLabelClass}>Email</span>
+                <span className={authLabelClass}>{t("auth.email")}</span>
                 <input
                   className={authFieldClass}
                   type="email"
@@ -393,7 +393,7 @@ export function SignInForm() {
                   onClick={(e) => void onForgotPassword(e as unknown as React.FormEvent)}
                   className="h-9 flex-1 rounded-md border-0 bg-[#323231] text-[12px] font-bold text-white"
                 >
-                  {forgotBusy ? "Sending…" : "Send reset link"}
+                  {forgotBusy ? t("auth.sending") : t("auth.sendResetLink")}
                 </button>
                 <button
                   type="button"
@@ -403,7 +403,7 @@ export function SignInForm() {
                     setError("");
                   }}
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </button>
               </div>
             </div>
@@ -444,20 +444,21 @@ export function SignInForm() {
             }}
           >
             {busy
-              ? "Please wait…"
+              ? t("auth.pleaseWait")
               : mode === "email"
-                ? "Log In"
+                ? t("auth.logIn")
                 : otpSent
-                  ? "Verify code & log in"
-                  : "Send SMS code"}
+                  ? t("auth.verifyAndLogin")
+                  : t("auth.sendSmsCode")}
           </button>
 
           <button
             type="button"
-            className="text-[13px] font-semibold text-[#e85a12]"
+            className="border-0 bg-transparent p-0 text-[13px] font-semibold"
+            style={{ color: AUTH_LINK_NEAR_BLACK }}
             onClick={() => go("/login/role")}
           >
-            New here? Sign up
+            {t("auth.newHere")}
           </button>
         </form>
       </div>

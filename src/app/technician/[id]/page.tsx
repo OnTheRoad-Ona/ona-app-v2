@@ -214,7 +214,7 @@ export default function TechnicianPage({
               : "max-w-xs text-center text-[12px] text-white/60"
           }
         >
-          This Repair Pro is Away, switched to Motorist, unapproved, or the
+          This Repair Pro is Away, switched to Customer, unapproved, or the
           link is outdated. Only Live pros are available.
         </p>
         <Button asChild>

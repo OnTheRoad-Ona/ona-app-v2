@@ -49,7 +49,7 @@ export default function AdminReviewsPage() {
               <th>Rating</th>
               <th>Comment</th>
               <th>Pro</th>
-              <th>Motorist</th>
+              <th>Customer</th>
             </tr>
           </thead>
           <tbody>

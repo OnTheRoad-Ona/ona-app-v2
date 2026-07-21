@@ -14,6 +14,8 @@ import { useRouter } from "next/navigation";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { JobShell } from "@/components/jobs/job-shell";
 import { PageHeader } from "@/components/layout/page-header";
+import { ExpiredDialog } from "@/components/ui/expired-dialog";
+import { JOB_CLOSED_MESSAGE } from "@/lib/chat-expired";
 import { apiListJobs } from "@/lib/jobs/client";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
@@ -159,10 +161,13 @@ function ProJobsPage({
   isLight: boolean;
   backendUserId: string | null | undefined;
 }) {
+  const router = useRouter();
   const [active, setActive] = useState<JobRecord[]>([]);
   const [past, setPast] = useState<JobRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [closedOpen, setClosedOpen] = useState(false);
+  const [viewHref, setViewHref] = useState<string | null>(null);
 
   const stage = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const ink = isLight ? "text-slate-900" : "text-white";
@@ -238,7 +243,7 @@ function ProJobsPage({
   }, [load]);
 
   return (
-    <div className={cn("flex h-full min-h-0 flex-col", stage)}>
+    <div className={cn("relative flex h-full min-h-0 flex-col", stage)}>
       <PageHeader title="Jobs" backHref="/dashboard" />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 scrollbar-hide">
@@ -336,10 +341,14 @@ function ProJobsPage({
                       : null;
                   return (
                     <li key={j.id}>
-                      <Link
-                        href={`/requests/${j.id}`}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setViewHref(`/requests/${j.id}`);
+                          setClosedOpen(true);
+                        }}
                         className={cn(
-                          "flex items-start gap-2.5 border-0 border-b bg-transparent py-3.5 active:opacity-90",
+                          "flex w-full items-start gap-2.5 border-0 border-b bg-transparent py-3.5 text-left active:opacity-90",
                           hairline
                         )}
                       >
@@ -399,7 +408,7 @@ function ProJobsPage({
                           className={cn("mt-1 h-4 w-4 shrink-0", muted)}
                           aria-hidden
                         />
-                      </Link>
+                      </button>
                     </li>
                   );
                 })}
@@ -408,6 +417,26 @@ function ProJobsPage({
           </section>
         )}
       </div>
+
+      <ExpiredDialog
+        open={closedOpen}
+        isLight={isLight}
+        message={JOB_CLOSED_MESSAGE}
+        onClose={() => {
+          setClosedOpen(false);
+          setViewHref(null);
+        }}
+        onView={
+          viewHref
+            ? () => {
+                const href = viewHref;
+                setClosedOpen(false);
+                setViewHref(null);
+                router.push(href);
+              }
+            : undefined
+        }
+      />
     </div>
   );
 }

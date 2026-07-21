@@ -164,7 +164,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
     userProfile?.fullName?.trim() || displayName || "OgaMecho user";
   const myPhoto = userProfile?.avatarUrl || "";
   const myRole =
-    accountType === "professional" ? "Repair Pro" : "Motorist";
+    accountType === "professional" ? "Repair Pro" : "Customer";
 
   const [target, setTarget] = useState<CallTarget | null>(null);
   const [phase, setPhase] = useState<CallPhase>("idle");
@@ -803,18 +803,11 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
     };
 
     void tick();
-    // Realtime INSERT wakes us; poll backs up.
-    // When tab is backgrounded, poll a bit faster so ring still arrives (best-effort web).
+    // Realtime INSERT wakes us; slow poll backs up (was thrashing UI / looking "stuck").
     const id = window.setInterval(() => {
-      const hidden =
-        typeof document !== "undefined" ? document.hidden : false;
-      // Always poll — hidden tabs need call signals for best-effort ring
+      if (typeof document !== "undefined" && document.hidden) return;
       void tick();
-      // Extra wake when returning to foreground
-      if (!hidden) {
-        /* realtime also fires */
-      }
-    }, 3_000);
+    }, 8_000);
 
     const onVis = () => {
       void tick();

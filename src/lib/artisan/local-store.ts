@@ -7,7 +7,6 @@ import { emptyTiers } from "@/lib/artisan/status";
 import type { ArtisanVerificationProfile } from "@/lib/artisan/types";
 
 const KEY = "ona-artisan-profiles-v1";
-const OTP_KEY = "ona-artisan-otp-v1";
 
 function readAll(): Record<string, ArtisanVerificationProfile> {
   if (typeof window === "undefined") return {};
@@ -81,42 +80,17 @@ export function ensureArtisanDraft(input: {
     introVideo: null,
     isNewArtisan: true,
     successfulJobsCount: 0,
+    visibilityTier: 1,
+    tier2ApprovedAt: null,
+    tier3ApprovedAt: null,
+    tier4ApprovedAt: null,
+    goLiveWindowEndsAt: null,
+    tier4OneStarSeeded: false,
     createdAt: now,
     updatedAt: now,
   };
   return saveArtisanProfile(draft);
 }
 
-/** Mock OTP — code always "123456" in dev */
-export function mockSendOtp(phone: string): { ok: true; demoCode: string } {
-  const code = "123456";
-  try {
-    localStorage.setItem(
-      OTP_KEY,
-      JSON.stringify({ phone, code, at: Date.now() })
-    );
-  } catch {
-    /* */
-  }
-  return { ok: true, demoCode: code };
-}
-
-export function mockVerifyOtp(
-  phone: string,
-  code: string
-): { ok: true } | { ok: false; error: string } {
-  try {
-    const raw = localStorage.getItem(OTP_KEY);
-    if (!raw) return { ok: false, error: "No code sent. Request OTP first." };
-    const p = JSON.parse(raw) as { phone: string; code: string };
-    if (p.phone !== phone) {
-      return { ok: false, error: "Phone does not match the OTP request." };
-    }
-    if (code.trim() !== p.code && code.trim() !== "123456") {
-      return { ok: false, error: "Invalid code. Demo code is 123456." };
-    }
-    return { ok: true };
-  } catch {
-    return { ok: false, error: "Could not verify OTP." };
-  }
-}
+/** @deprecated Use sendArtisanOtp / verifyArtisanOtp from verification.ts */
+export { sendArtisanOtp as mockSendOtp, verifyArtisanOtp as mockVerifyOtp } from "@/lib/artisan/verification";

@@ -50,6 +50,18 @@ create table if not exists artisan_profiles (
   is_new_artisan boolean not null default true,
   successful_jobs_count int not null default 0,
 
+  -- Visibility ladder (mirror repair_pro_profiles)
+  visibility_tier smallint not null default 1 check (visibility_tier between 1 and 4),
+  tier2_approved_at timestamptz,
+  tier3_approved_at timestamptz,
+  tier4_approved_at timestamptz,
+  go_live_window_ends_at timestamptz,
+  tier4_one_star_seeded boolean not null default false,
+
+  -- Optional service-area centroid for admin maps (live pin is repair_pro_profiles.lat/lng)
+  service_lat double precision,
+  service_lng double precision,
+
   submitted_at timestamptz,
   reviewed_at timestamptz,
   reviewed_by uuid,

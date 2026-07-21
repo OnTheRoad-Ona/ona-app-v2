@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowLeft, Menu } from "lucide-react";
@@ -20,6 +20,8 @@ export function PageHeader({
   backHref,
   showBack = true,
   backOpensMenu = false,
+  titleClassName,
+  titleStyle,
 }: {
   title: string;
   subtitle?: string;
@@ -32,6 +34,9 @@ export function PageHeader({
   showBack?: boolean;
   /** Back opens the ☰ three-line menu list instead of history back */
   backOpensMenu?: boolean;
+  /** Optional title color/class (e.g. brand orange for Dashboard) */
+  titleClassName?: string;
+  titleStyle?: CSSProperties;
 }) {
   const { theme, accountType } = useApp();
   const isLight = theme === "light";
@@ -91,8 +96,10 @@ export function PageHeader({
           <h1
             className={cn(
               "truncate text-base font-bold",
-              isLight ? "text-slate-900" : "text-white"
+              titleClassName ||
+                (isLight ? "text-slate-900" : "text-white")
             )}
+            style={titleStyle}
           >
             {title}
           </h1>

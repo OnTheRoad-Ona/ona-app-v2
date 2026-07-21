@@ -23,10 +23,13 @@ import { useApp } from "@/lib/store";
 import {
   getQuietHours,
   setQuietHours,
+  QUIET_HOURS_ANYTIME,
   type QuietHoursConfig,
 } from "@/lib/notifications/quiet-hours";
-import { MESSAGE_ORANGE, COPPER } from "@/lib/notifications/types";
 import { cn } from "@/lib/utils";
+
+/** Icons, on-toggles, and primary buttons — never yellow/copper */
+const ACCENT = "#FF6B35";
 
 const STORAGE_KEY = "oga-mecho-notification-settings";
 
@@ -94,12 +97,22 @@ function readSettings(userKey: string): NotificationSettingsState {
       },
       quietHours: {
         enabled: p.quietHours?.enabled !== false,
-        startHour: Number.isFinite(p.quietHours?.startHour)
-          ? Number(p.quietHours?.startHour)
-          : 22,
-        endHour: Number.isFinite(p.quietHours?.endHour)
-          ? Number(p.quietHours?.endHour)
-          : 7,
+        startHour:
+          Number(p.quietHours?.startHour) === QUIET_HOURS_ANYTIME
+            ? QUIET_HOURS_ANYTIME
+            : Number.isFinite(p.quietHours?.startHour) &&
+                Number(p.quietHours?.startHour) >= 0 &&
+                Number(p.quietHours?.startHour) <= 23
+              ? Number(p.quietHours?.startHour)
+              : 22,
+        endHour:
+          Number(p.quietHours?.endHour) === QUIET_HOURS_ANYTIME
+            ? QUIET_HOURS_ANYTIME
+            : Number.isFinite(p.quietHours?.endHour) &&
+                Number(p.quietHours?.endHour) >= 0 &&
+                Number(p.quietHours?.endHour) <= 23
+              ? Number(p.quietHours?.endHour)
+              : 7,
       },
     };
   } catch {
@@ -175,10 +188,17 @@ const DELIVERY_ROWS: {
 ];
 
 function hourLabel(h: number): string {
+  if (h === QUIET_HOURS_ANYTIME) return "Anytime";
   const period = h >= 12 ? "PM" : "AM";
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:00 ${period}`;
 }
+
+const HOUR_OPTIONS: number[] = [
+  QUIET_HOURS_ANYTIME,
+  ...Array.from({ length: 24 }, (_, h) => h),
+];
+
 
 type Props = {
   /** Compact embed under Settings, or full standalone card */
@@ -190,7 +210,7 @@ type Props = {
 export function NotificationSettings({ className, onSaved }: Props) {
   const { theme, backendUserId, displayName } = useApp();
   const isLight = theme === "light";
-  const accent = isLight ? MESSAGE_ORANGE : COPPER;
+  const accent = ACCENT;
   const userKey = backendUserId || "guest";
   const formId = useId();
 
@@ -329,10 +349,10 @@ export function NotificationSettings({ className, onSaved }: Props) {
         <div className="flex items-start gap-2 px-3 pt-3">
           <span
             className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
-            style={{ backgroundColor: isLight ? "#ff6b3522" : "rgba(197,164,110,0.18)" }}
+            style={{ backgroundColor: "rgba(255, 107, 53, 0.15)" }}
             aria-hidden
           >
-            <Bell className="h-4 w-4" style={{ color: accent }} strokeWidth={2.2} />
+            <Bell className="h-4 w-4" style={{ color: ACCENT }} strokeWidth={2.2} />
           </span>
           <div className="min-w-0 flex-1">
             <h3
@@ -471,8 +491,8 @@ export function NotificationSettings({ className, onSaved }: Props) {
                   )}
                   aria-label="Quiet hours start"
                 >
-                  {Array.from({ length: 24 }, (_, h) => (
-                    <option key={h} value={h}>
+                  {HOUR_OPTIONS.map((h) => (
+                    <option key={`from-${h}`} value={h}>
                       {hourLabel(h)}
                     </option>
                   ))}
@@ -493,8 +513,8 @@ export function NotificationSettings({ className, onSaved }: Props) {
                   )}
                   aria-label="Quiet hours end"
                 >
-                  {Array.from({ length: 24 }, (_, h) => (
-                    <option key={h} value={h}>
+                  {HOUR_OPTIONS.map((h) => (
+                    <option key={`until-${h}`} value={h}>
                       {hourLabel(h)}
                     </option>
                   ))}

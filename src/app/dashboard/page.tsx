@@ -11,10 +11,16 @@ import Link from "next/link";
 import { ChevronRight, Clock3, Loader2, Radio, Shield } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { getArtisanProfile } from "@/lib/artisan/local-store";
-import { canGoLive, statusLabel } from "@/lib/artisan/status";
+import {
+  canGoLive,
+  resolveVisibilityTier,
+  rulesForTier,
+  tier2GoLiveWarning,
+} from "@/lib/artisan/status";
 import type { ArtisanVerificationProfile } from "@/lib/artisan/types";
 import { apiListJobs } from "@/lib/jobs/client";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
+import { useT } from "@/lib/i18n";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -113,6 +119,7 @@ function splitPlaceAndArea(label: string): {
 
 export default function TechnicianDashboardPage() {
   const { theme, proLive, setProLive, backendUserId } = useApp();
+  const t = useT();
   const isLight = theme === "light";
   const [liveBusy, setLiveBusy] = useState(false);
   const [liveErr, setLiveErr] = useState<string | null>(null);
@@ -256,22 +263,25 @@ export default function TechnicianDashboardPage() {
       </div>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 pb-4 scrollbar-hide">
-        {/* Artisan verification gate banner */}
+        {/* Artisan verification / visibility tier gate */}
         {artisan && artisan.status !== "approved" ? (
           <section
             className={cn(
               "rounded-md px-3 py-3",
-              isLight ? "bg-[#fff7ed]" : "bg-white/10"
+              isLight ? "bg-[#d4d5d9]" : "bg-white/10"
             )}
           >
             <div className="flex items-start gap-2">
-              <Shield className="mt-0.5 h-4 w-4 shrink-0 text-[#e85a12]" />
+              <Shield className="mt-0.5 h-4 w-4 shrink-0 text-[#FF6B35]" />
               <div className="min-w-0 flex-1">
                 <p className={cn("text-[13px] font-bold", ink)}>
-                  {statusLabel(artisan.status)}
+                  Tier {resolveVisibilityTier(artisan)}
                 </p>
                 <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
                   {(() => {
+                    if (artisan.status === "draft") {
+                      return t("gate.finishBeforeLive");
+                    }
                     const g = canGoLive(artisan);
                     return g.allowed ? "" : g.message;
                   })()}
@@ -283,25 +293,58 @@ export default function TechnicianDashboardPage() {
                       ? "/artisan/onboarding"
                       : "/artisan/verification"
                   }
-                  className="mt-2 inline-flex text-[12px] font-bold text-[#e85a12]"
+                  className="mt-2 inline-flex text-[12px] font-bold text-[#FF6B35]"
                 >
                   {artisan.status === "pending_review"
-                    ? "View status"
-                    : "Continue verification"}
+                    ? t("gate.viewStatus")
+                    : t("gate.continueVerification")}
                 </Link>
               </div>
             </div>
           </section>
-        ) : artisan?.isNewArtisan ? (
-          <p
-            className={cn(
-              "rounded-md px-3 py-2 text-[11px] font-semibold",
-              isLight ? "bg-amber-50 text-amber-900" : "bg-amber-500/15 text-amber-100"
-            )}
-          >
-            New Artisan badge is on. Complete 5 successful jobs to remove it
-            and improve search ranking.
-          </p>
+        ) : artisan ? (
+          <>
+            {(() => {
+              const warn = tier2GoLiveWarning(artisan);
+              if (!warn) return null;
+              return (
+                <p
+                  className={cn(
+                    "rounded-md px-3 py-2 text-[11px] font-semibold",
+                    isLight
+                      ? "bg-[#FF6B35]/15 text-[#FF6B35]"
+                      : "bg-[#FF6B35]/20 text-[#FF6B35]"
+                  )}
+                >
+                  {warn}
+                </p>
+              );
+            })()}
+            {(() => {
+              const tier = resolveVisibilityTier(artisan);
+              const rules = rulesForTier(tier);
+              const g = canGoLive(artisan);
+              if (g.allowed && !rules.showNewBadge) return null;
+              return (
+                <p
+                  className={cn(
+                    "rounded-md px-3 py-2 text-[11px] font-semibold",
+                    isLight ? "bg-[#d4d5d9] text-slate-800" : "bg-white/10 text-white/90"
+                  )}
+                >
+                  {!g.allowed ? (
+                    <>{g.message}</>
+                  ) : (
+                    <>
+                      Tier {tier} · {rules.visibilityPercent}% visibility · max{" "}
+                      {rules.maxRadiusKm} km
+                      {rules.showNewBadge ? " · New Badge on" : ""}
+                    </>
+                  )}
+                </p>
+              );
+            })()}
+          </>
         ) : null}
 
         <section className={cn("border-b pb-4", hairline)}>
@@ -309,7 +352,7 @@ export default function TechnicianDashboardPage() {
             <Radio
               className={cn(
                 "h-5 w-5 shrink-0",
-                proLive ? "text-emerald-500" : "text-[#e07a3d]"
+                proLive ? "text-emerald-500" : "text-[#FF6B35]"
               )}
             />
             <div className="min-w-0 flex-1">
@@ -318,8 +361,8 @@ export default function TechnicianDashboardPage() {
               </p>
               <p className={cn("text-[12px] font-medium", muted)}>
                 {proLive
-                  ? "You’re Live. Motorists nearby can find you."
-                  : "Motorists nearby can find you when you’re Live."}
+                  ? "You’re Live. Customers nearby can find you."
+                  : "Customers nearby can find you when you’re Live."}
               </p>
             </div>
           </div>

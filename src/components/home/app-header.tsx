@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Menu } from "lucide-react";
 import { AppMenu } from "@/components/layout/app-menu";
+import { useT } from "@/lib/i18n";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 export function AppHeader() {
   const { theme } = useApp();
+  const t = useT();
   const isLight = theme === "light";
   const [menuOpen, setMenuOpen] = useState(false);
   const [mount, setMount] = useState<HTMLElement | null>(null);
@@ -43,7 +45,7 @@ export function AppHeader() {
             style={{
               backgroundColor: isLight ? "#c8c9cd" : "#000000",
             }}
-            aria-label="Open menu"
+            aria-label={t("home.openMenu")}
             aria-expanded={menuOpen}
           >
             <Menu className="h-[18px] w-[18px]" strokeWidth={2.35} />

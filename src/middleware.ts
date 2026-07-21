@@ -15,9 +15,13 @@ function isBackendHost(host: string): boolean {
   return (
     h.includes("ogamecho-backend") ||
     h.startsWith("ogamecho-backend") ||
+    h.includes("ona-backend") ||
+    h.startsWith("ona-backend") ||
     h === "ogamecho-backend-mi.vercel.app" ||
     h === "ogamecho-backend-two.vercel.app" ||
-    h === "ogamecho-backend-wit7.vercel.app"
+    h === "ogamecho-backend-wit7.vercel.app" ||
+    h === "ona-backend.vercel.app" ||
+    h === "ona-backend-mi.vercel.app"
   );
 }
 

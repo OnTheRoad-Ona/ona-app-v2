@@ -23,13 +23,14 @@ type Ctx = {
 
 const AppConfigContext = createContext<Ctx>({
   config: DEFAULT_APP_CONFIG,
-  ready: false,
+  ready: true,
   refresh: async () => {},
 });
 
 export function AppConfigProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_APP_CONFIG);
-  const [ready, setReady] = useState(false);
+  // Defaults paint immediately — remote config is deferred (data saver)
+  const [ready, setReady] = useState(true);
 
   const refresh = useCallback(async () => {
     try {
@@ -81,13 +82,32 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void refresh();
-    // Config almost never changes — refresh at most every 15 minutes
+    // Defer network until after first paint / idle (splash + login stay light)
+    let cancelled = false;
+    const run = () => {
+      if (cancelled) return;
+      void refresh();
+    };
+    let idleId: number | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      idleId = window.requestIdleCallback(run, { timeout: 4000 });
+    } else {
+      timeoutId = setTimeout(run, 2500);
+    }
+    // Config almost never changes — refresh at most every 30 minutes
     const t = setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void refresh();
-    }, 900_000);
-    return () => clearInterval(t);
+    }, 1_800_000);
+    return () => {
+      cancelled = true;
+      if (idleId != null && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleId);
+      }
+      if (timeoutId != null) clearTimeout(timeoutId);
+      clearInterval(t);
+    };
   }, [refresh]);
 
   const value = useMemo(

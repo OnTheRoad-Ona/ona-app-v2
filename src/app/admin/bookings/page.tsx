@@ -36,7 +36,7 @@ export default function AdminBookingsPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Bookings</h1>
       <p className="om-admin-sub">
-        Scheduled / confirmed bookings between motorists and pros.
+        Scheduled / confirmed bookings between customers and pros.
       </p>
       {error ? <div className="om-admin-error">{error}</div> : null}
       <div className="om-admin-panel">
@@ -48,7 +48,7 @@ export default function AdminBookingsPage() {
             <tr>
               <th>Created</th>
               <th>Request</th>
-              <th>Motorist</th>
+              <th>Customer</th>
               <th>Pro</th>
               <th>Starts</th>
               <th>Notes</th>

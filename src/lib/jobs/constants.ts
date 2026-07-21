@@ -116,7 +116,7 @@ export const PRO_TRIP_STATUS_COPY: Partial<
     subtitle: "Waiting for motorist to confirm and release pay",
   },
   satisfied: {
-    title: "Motorist confirmed",
+    title: "Customer confirmed",
     subtitle: "Releasing your payout",
   },
   released: {

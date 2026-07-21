@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/lib/i18n";
 import { useApp } from "@/lib/store";
 import { MAX_RADIUS_KM } from "@/lib/matching";
 import { cn } from "@/lib/utils";
@@ -7,6 +8,7 @@ import { cn } from "@/lib/utils";
 /** Compact radius control in kilometers (0–10 km) */
 export function RadiusSlider() {
   const { radiusKm, setRadiusKm, theme } = useApp();
+  const t = useT();
   const isLight = theme === "light";
   const pct = (radiusKm / MAX_RADIUS_KM) * 100;
 
@@ -18,7 +20,7 @@ export function RadiusSlider() {
           isLight ? "text-[#7b8798]" : "text-white/65"
         )}
       >
-        Radius
+        {t("home.radius")}
       </span>
       <input
         type="range"
@@ -29,13 +31,11 @@ export function RadiusSlider() {
         onChange={(e) => setRadiusKm(Number(e.target.value))}
         className="radius-slider min-w-0 flex-1"
         style={{ ["--pct" as string]: `${pct}%` }}
-        aria-label="Search radius in kilometers"
+        aria-label={t("home.searchRadiusAria")}
       />
       <span
-        className={cn(
-          "shrink-0 tabular-nums text-[11px] font-bold",
-          isLight ? "text-[#1e293b]" : "text-white"
-        )}
+        className="shrink-0 tabular-nums text-[11px] font-bold"
+        style={{ color: "#FF6B35" }}
       >
         {radiusKm} km
       </span>

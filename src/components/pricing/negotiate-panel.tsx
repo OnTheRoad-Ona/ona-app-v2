@@ -79,7 +79,7 @@ export function NegotiatePanel({
         disabled={disabled}
         value={d}
         onChange={(e) => onChangeDiscount(Number(e.target.value))}
-        className="w-full accent-[var(--brand,#e85a12)]"
+        className="w-full accent-[var(--brand,#FF6B35)]"
         aria-label="Negotiate discount percent"
       />
 

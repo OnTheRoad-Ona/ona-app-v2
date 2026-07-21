@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
  *  - within MAX_RADIUS_KM (10 km) of the request lat/lng
  *    (motorist GPS or “help someone else” meet pin)
  *
- * Away pros and users switched to Motorist mode are hidden.
+ * Away pros and users switched to Customer mode are hidden.
  */
 export async function GET(req: Request) {
   if (!isSupabaseAdminConfigured()) {
@@ -37,40 +37,88 @@ export async function GET(req: Request) {
     const supabase = createServiceSupabase();
     // Live only — not suspended/rejected. Pending+approved both OK when Live.
     // Slim columns only: never pull certification_file_url / skills base64 (multi-MB thrash).
-    const { data: pros, error } = await supabase
+    const proColumns = [
+      "user_id",
+      "business_name",
+      "primary_service",
+      "services",
+      "status",
+      "is_online",
+      "rating_avg",
+      "rating_count",
+      "lat",
+      "lng",
+      "location_updated_at",
+      "service_radius_km",
+      "years_experience",
+      "bio",
+      "verified",
+      "labour_prices",
+      "pricing_currency",
+      "vehicle_focus",
+      "jobs_completed",
+      "avg_response_minutes",
+      "completion_rate",
+      "docs_status",
+      "face_liveness_verified",
+      "in_person_verified",
+      "visibility_tier",
+      "is_new_artisan",
+      "go_live_window_ends_at",
+    ].join(",");
+
+    let prosQuery = supabase
       .from("repair_pro_profiles")
-      .select(
-        [
-          "user_id",
-          "business_name",
-          "primary_service",
-          "services",
-          "status",
-          "is_online",
-          "rating_avg",
-          "rating_count",
-          "lat",
-          "lng",
-          "service_radius_km",
-          "years_experience",
-          "bio",
-          "verified",
-          "labour_prices",
-          "pricing_currency",
-          "vehicle_focus",
-          "jobs_completed",
-          "avg_response_minutes",
-          "completion_rate",
-          "docs_status",
-          "face_liveness_verified",
-          "in_person_verified",
-        ].join(",")
-      )
+      .select(proColumns)
       .eq("is_online", true)
       .neq("status", "suspended")
       .neq("status", "rejected")
+      // Tier 1 never appears (column added in 20260720_025 migration)
+      .gte("visibility_tier", 2)
       .order("rating_avg", { ascending: false })
       .limit(80);
+
+    let { data: pros, error } = await prosQuery;
+
+    // Pre-migration fallback: no visibility_tier column yet
+    if (error && /visibility_tier|location_updated_at|column/i.test(error.message)) {
+      const fallback = await supabase
+        .from("repair_pro_profiles")
+        .select(
+          [
+            "user_id",
+            "business_name",
+            "primary_service",
+            "services",
+            "status",
+            "is_online",
+            "rating_avg",
+            "rating_count",
+            "lat",
+            "lng",
+            "service_radius_km",
+            "years_experience",
+            "bio",
+            "verified",
+            "labour_prices",
+            "pricing_currency",
+            "vehicle_focus",
+            "jobs_completed",
+            "avg_response_minutes",
+            "completion_rate",
+            "docs_status",
+            "face_liveness_verified",
+            "in_person_verified",
+          ].join(",")
+        )
+        .eq("is_online", true)
+        .neq("status", "suspended")
+        .neq("status", "rejected")
+        .order("rating_avg", { ascending: false })
+        .limit(80);
+      pros = fallback.data;
+      error = fallback.error;
+    }
 
     if (error) return apiFail(error.message, 500);
 
@@ -104,6 +152,7 @@ export async function GET(req: Request) {
         return true;
       })
       .filter((p) => {
+        // Must have real backend coordinates to appear
         const plat = p.lat;
         const plng = p.lng;
         return (
@@ -114,10 +163,19 @@ export async function GET(req: Request) {
           !(plat === 0 && plng === 0)
         );
       })
+      .filter((p) => {
+        // Tier 2 30-day window: hide if Live window expired
+        const tier = Number(p.visibility_tier ?? 4);
+        if (tier === 2 && p.go_live_window_ends_at) {
+          const ends = Date.parse(String(p.go_live_window_ends_at));
+          if (Number.isFinite(ends) && ends < Date.now()) return false;
+        }
+        return true;
+      })
       .map((pro) =>
         mapProToTechnician(pro, byId.get(pro.user_id) ?? null, userCoords)
       )
-      // Pre-filter with haversine (cheap) before Google matrix
+      // Pre-filter with haversine + tier radius caps
       .filter((t) => {
         if (
           !t.hasLiveLocation ||
@@ -126,13 +184,16 @@ export async function GET(req: Request) {
         ) {
           return false;
         }
-        // Slightly wide pre-filter; matrix refines road distance
+        const tier = t.visibilityTier ?? 4;
+        const tierCap =
+          tier === 2 ? 1 : tier === 3 ? 3 : tier >= 4 ? MAX_RADIUS_KM : 0;
         const docsPending =
           t.docsStatus === "under_review" || t.docsStatus === "rejected";
-        const cap = docsPending
+        const docsCap = docsPending
           ? Math.min(MAX_RADIUS_KM, DOCS_PENDING_MAX_RADIUS_KM)
           : MAX_RADIUS_KM;
-        return t.distanceKm <= cap + 2;
+        const cap = Math.min(MAX_RADIUS_KM, tierCap || MAX_RADIUS_KM, docsCap);
+        return t.distanceKm <= cap + 0.5;
       });
 
     // DATA FIX: haversine only for marketplace list.

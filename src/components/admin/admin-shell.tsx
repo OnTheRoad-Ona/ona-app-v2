@@ -39,7 +39,7 @@ const NAV_GROUPS: {
   {
     label: "Directory",
     items: [
-      { href: "/admin/motorists", label: "Motorists" },
+      { href: "/admin/motorists", label: "Customers" },
       { href: "/admin/messages", label: "Messages" },
       { href: "/admin/reviews", label: "Reviews" },
     ],

@@ -24,7 +24,8 @@ npx vercel login
 ```
 
 Then follow `docs/VERCEL_DEPLOY.md` for the **primary** app:
-- https://ogamecho.vercel.app  
-- https://ogamecho.vercel.app/admin  
+- https://ona-mi.vercel.app  
+- https://ona-mi.vercel.app/admin  
+- https://ona-backend.vercel.app/admin  
 
 (`ogamecho-backend` is optional/legacy. If you see “deployment is temporarily paused”, the Hobby team is soft-blocked on fair-use transfer — unpause via Billing/Usage or upgrade; redeploy alone will not fix it.)

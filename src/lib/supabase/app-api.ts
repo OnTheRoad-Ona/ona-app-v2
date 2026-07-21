@@ -63,6 +63,8 @@ export async function backendSignUp(input: {
   plateNumber?: string;
   vehiclePhoto?: string;
   vehicleCommonIssues?: string[];
+  /** Unlimited motorist vehicles (JSON) */
+  vehicles?: import("@/lib/types").MotoristVehicle[];
   avatarUrl?: string;
   /** Identity (optional at signup) */
   nin?: string;
@@ -117,6 +119,7 @@ export async function backendSignUp(input: {
         plateNumber: input.plateNumber,
         vehiclePhoto: input.vehiclePhoto,
         vehicleCommonIssues: input.vehicleCommonIssues,
+        vehicles: input.vehicles,
         avatarUrl: input.avatarUrl,
         nin: input.nin,
         bvn: input.bvn,
@@ -160,6 +163,7 @@ export async function backendSignUp(input: {
         vehicleMake?: string;
         vehicleModel?: string;
         vehicleYear?: string;
+        vehicles?: import("@/lib/types").MotoristVehicle[];
         businessName?: string;
         primaryService?: string;
         bio?: string;
@@ -246,6 +250,10 @@ export async function backendSignUp(input: {
       vehicleMake: ex.vehicleMake || input.vehicleMake,
       vehicleModel: ex.vehicleModel || input.vehicleModel,
       vehicleYear: ex.vehicleYear || input.vehicleYear,
+      vehicles:
+        (Array.isArray(ex.vehicles) && ex.vehicles.length
+          ? ex.vehicles
+          : input.vehicles) || undefined,
       idNumber: ex.nin || (hasNin ? input.nin : undefined),
       bvn: ex.bvn || (hasBvn ? input.bvn : undefined),
       ninVerified: hasNin,
@@ -288,25 +296,33 @@ export async function backendUpdateProfile(
 export async function backendSaveIdentityVerification(input: {
   userId: string;
   accountType: AccountType;
-  nin: string;
-  bvn: string;
+  nin?: string;
+  bvn?: string;
+  /** Non-NG primary ID (any charset) — last4 stored if no digits */
+  primaryId?: string;
+  bankId?: string;
+  identityVerified?: boolean;
 }): Promise<string | null> {
   const sb = getAppSupabase();
   if (!sb) return "Server is not configured.";
-  const nin = input.nin.replace(/\D/g, "");
-  const bvn = input.bvn.replace(/\D/g, "");
+  const nin = (input.nin || input.primaryId || "").replace(/\D/g, "");
+  const bvn = (input.bvn || input.bankId || "").replace(/\D/g, "");
+  const primaryRaw = (input.primaryId || input.nin || "").trim();
+  const verified =
+    input.identityVerified ??
+    (nin.length === 11 && (bvn.length === 11 || !input.bvn));
   const payload = {
-    nin_last4: last4(nin),
+    nin_last4: last4(nin) || last4(primaryRaw.replace(/\W/g, "")),
     bvn_last4: last4(bvn),
-    nin_verified: nin.length === 11,
-    bvn_verified: bvn.length === 11,
+    nin_verified: Boolean(verified && (nin.length >= 4 || primaryRaw.length >= 4)),
+    bvn_verified: bvn.length === 11 ? true : Boolean(verified && !input.bvn && !input.bankId),
   };
   if (input.accountType === "professional") {
     const { error } = await sb
       .from("repair_pro_profiles")
       .update({
         ...payload,
-        verified: payload.nin_verified && payload.bvn_verified,
+        verified: payload.nin_verified,
       })
       .eq("user_id", input.userId);
     return error?.message ?? null;
@@ -315,10 +331,7 @@ export async function backendSaveIdentityVerification(input: {
     .from("motorist_profiles")
     .update({
       ...payload,
-      identity_verified_at:
-        payload.nin_verified && payload.bvn_verified
-          ? new Date().toISOString()
-          : null,
+      identity_verified_at: verified ? new Date().toISOString() : null,
     })
     .eq("user_id", input.userId);
   return error?.message ?? null;
@@ -1095,7 +1108,7 @@ export async function backendFetchConversations(
       c,
       msgsByConv.get(c.id) || [],
       {
-        motoristName: byId.get(c.motorist_id)?.full_name || "Motorist",
+        motoristName: byId.get(c.motorist_id)?.full_name || "Customer",
         technicianName: byId.get(c.repair_pro_id)?.full_name || "Repair Pro",
         serviceType: (c.request_id
           ? (jobById.get(c.request_id) as ProService | undefined)

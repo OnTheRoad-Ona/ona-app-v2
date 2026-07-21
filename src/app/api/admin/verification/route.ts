@@ -92,7 +92,7 @@ export async function GET() {
       email: profiles[m.user_id]?.email ?? null,
       label:
         [m.vehicle_make, m.vehicle_model].filter(Boolean).join(" ") ||
-        "Motorist",
+        "Customer",
       status: "—",
       verified: Boolean(m.nin_verified && m.bvn_verified),
       nin_verified: m.nin_verified,

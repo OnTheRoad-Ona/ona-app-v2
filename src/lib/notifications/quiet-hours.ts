@@ -1,11 +1,17 @@
 /**
  * Quiet Hours — suppress non-critical toasts overnight.
  * Critical / high (safety, new request, arrived) always break through.
+ *
+ * startHour / endHour use -1 for "Anytime" (no quiet window on that side
+ * → never suppress for the quiet-hours rule).
  */
+
+/** Sentinel: From or Until set to Anytime */
+export const QUIET_HOURS_ANYTIME = -1;
 
 export type QuietHoursConfig = {
   enabled: boolean;
-  /** Local hour 0–23 */
+  /** Local hour 0–23, or -1 = Anytime */
   startHour: number;
   endHour: number;
 };
@@ -18,6 +24,13 @@ const DEFAULT: QuietHoursConfig = {
 
 const KEY = "oga-mecho-quiet-hours";
 
+function normalizeHour(v: unknown, fallback: number): number {
+  const n = Number(v);
+  if (n === QUIET_HOURS_ANYTIME) return QUIET_HOURS_ANYTIME;
+  if (Number.isFinite(n) && n >= 0 && n <= 23) return n;
+  return fallback;
+}
+
 export function getQuietHours(): QuietHoursConfig {
   if (typeof window === "undefined") return DEFAULT;
   try {
@@ -26,8 +39,8 @@ export function getQuietHours(): QuietHoursConfig {
     const p = JSON.parse(raw) as Partial<QuietHoursConfig>;
     return {
       enabled: p.enabled !== false,
-      startHour: Number.isFinite(p.startHour) ? Number(p.startHour) : 22,
-      endHour: Number.isFinite(p.endHour) ? Number(p.endHour) : 7,
+      startHour: normalizeHour(p.startHour, 22),
+      endHour: normalizeHour(p.endHour, 7),
     };
   } catch {
     return DEFAULT;
@@ -46,6 +59,13 @@ export function setQuietHours(cfg: Partial<QuietHoursConfig>): QuietHoursConfig 
 
 export function isInQuietHours(cfg: QuietHoursConfig = getQuietHours()): boolean {
   if (!cfg.enabled) return false;
+  // Anytime on From or Until → no quiet window
+  if (
+    cfg.startHour === QUIET_HOURS_ANYTIME ||
+    cfg.endHour === QUIET_HOURS_ANYTIME
+  ) {
+    return false;
+  }
   const h = new Date().getHours();
   if (cfg.startHour === cfg.endHour) return false;
   if (cfg.startHour > cfg.endHour) {

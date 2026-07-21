@@ -44,10 +44,23 @@ export function scoreTechnician(tech: Technician, query: string): number {
   const verifiedBonus = tech.verified ? 10 : 0;
   const fastBonus = tech.fastResponse ? 8 : 0;
   const matchBoost = problemPriority(tech, query);
-  // New Artisan: lower ranking until 5 completed jobs (see artisan/status)
+  // New Artisan: lower ranking (Tier 1–2 badge)
   const newArtisanPenalty = tech.isNewArtisan ? 35 : 0;
+  // Visibility tier: (A) multiply by %, (C) soft penalty for incomplete visibility
+  const visPct =
+    typeof tech.visibilityPercent === "number"
+      ? tech.visibilityPercent
+      : tech.visibilityTier === 1
+        ? 0
+        : tech.visibilityTier === 2
+          ? 30
+          : tech.visibilityTier === 3
+            ? 70
+            : 100;
+  const visMult = Math.max(0, Math.min(100, visPct)) / 100;
+  const visSoftPenalty = Math.max(0, 100 - visPct) * 0.35;
 
-  return (
+  const base =
     distanceScore +
     ratingScore +
     availabilityScore +
@@ -56,8 +69,10 @@ export function scoreTechnician(tech: Technician, query: string): number {
     fastBonus +
     matchBoost -
     loadPenalty -
-    newArtisanPenalty
-  );
+    newArtisanPenalty -
+    visSoftPenalty;
+
+  return base * visMult;
 }
 
 /**
@@ -87,15 +102,36 @@ export function filterAndRankTechnicians(
   let list = technicians.filter((t) => {
     // Marketplace: Live only (Away / offline never listed)
     if (t.status !== "available") return false;
+    // Tier 1: not in search
+    const tier = t.visibilityTier ?? 4;
+    if (tier <= 1) return false;
+    const visPct =
+      typeof t.visibilityPercent === "number"
+        ? t.visibilityPercent
+        : tier === 2
+          ? 30
+          : tier === 3
+            ? 70
+            : 100;
+    if (visPct <= 0) return false;
+    // (B) appear chance by visibility %
+    if (visPct < 100) {
+      const hourBucket = Math.floor(Date.now() / (60 * 60 * 1000));
+      let h = 0;
+      const s = `${t.id}:${hourBucket}`;
+      for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+      if ((h % 10000) / 100 >= visPct) return false;
+    }
     const d = t.distanceKm;
     if (typeof d !== "number" || !Number.isFinite(d)) return false;
+    // Tier discovery radius caps (T2=1 · T3=3 · T4=10)
+    const tierCap =
+      tier === 2 ? 1 : tier === 3 ? 3 : tier >= 4 ? MAX_RADIUS_KM : 0;
     // Cert under review / rejected → only visible within 2 km
-    // "none" = no cert uploaded yet → full radius (signup without docs)
     const docsPending =
       t.docsStatus === "under_review" || t.docsStatus === "rejected";
-    const proCap = docsPending
-      ? Math.min(radius, DOCS_PENDING_MAX_RADIUS_KM)
-      : radius;
+    const docsCap = docsPending ? DOCS_PENDING_MAX_RADIUS_KM : MAX_RADIUS_KM;
+    const proCap = Math.min(radius, tierCap || MAX_RADIUS_KM, docsCap);
     return d <= proCap;
   });
 

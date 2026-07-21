@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { useJsApiLoader } from "@react-google-maps/api";
 import { ChevronLeft, MapPin, X } from "lucide-react";
 import { CategoryTabs } from "@/components/home/category-tabs";
-import { FilterChips } from "@/components/home/filter-chips";
+
 import { RadiusSlider } from "@/components/home/radius-slider";
 import { TechCard } from "@/components/technician/tech-card";
 import {
@@ -28,6 +28,7 @@ import {
   type KnownPlace,
 } from "@/lib/known-places";
 import { useMotoristJobsByPro } from "@/lib/jobs/use-motorist-jobs-by-pro";
+import { useT } from "@/lib/i18n";
 import { useApp } from "@/lib/store";
 import type { Technician } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -96,6 +97,7 @@ export function HomePanel({
   footer?: ReactNode;
 }) {
   const router = useRouter();
+  const t = useT();
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   /** Only the top strip swaps; list / radius / filters stay */
   const [helpMode, setHelpMode] = useState(false);
@@ -217,7 +219,7 @@ export function HomePanel({
         const place = ac.getPlace();
         const loc = place.geometry?.location;
         if (!loc) {
-          setHelpError("Pick a suggestion from the list.");
+          setHelpError(t("home.pickSuggestion"));
           return;
         }
         const lat = loc.lat();
@@ -250,12 +252,12 @@ export function HomePanel({
         autocompleteRef.current = null;
       }
     };
-  }, [helpMode, mapsLoaded, liveMaps]);
+  }, [helpMode, mapsLoaded, liveMaps, t]);
 
   const submitHelpAddress = async () => {
     const typed = helpAddress.trim();
     if (!typed) {
-      setHelpError("Type an address or pick a suggestion.");
+      setHelpError(t("home.typeAddress"));
       return;
     }
     setHelpBusy(true);
@@ -263,7 +265,7 @@ export function HomePanel({
     try {
       const geo = await geocodeAddress(typed);
       if (!geo) {
-        setHelpError("Could not find that place. Try a fuller address.");
+        setHelpError(t("home.couldNotFind"));
         return;
       }
       applyHelpLocation(geo.label, geo.lat, geo.lng);
@@ -324,9 +326,7 @@ export function HomePanel({
           role="button"
           tabIndex={0}
           aria-label={
-            expanded
-              ? "Scroll down to collapse panel"
-              : "Scroll up to expand panel"
+            expanded ? t("home.collapsePanel") : t("home.expandPanel")
           }
           onClick={onPillClick}
           onTouchStart={onPillTouchStart}
@@ -396,7 +396,7 @@ export function HomePanel({
                     }
                     closeHelpMode();
                   }}
-                  aria-label="Back to trades"
+                  aria-label={t("home.backToTrades")}
                   className={cn(
                     "inline-flex h-8 w-8 shrink-0 items-center justify-center border-0 bg-transparent p-0",
                     isLight ? "text-slate-600" : "text-white/70"
@@ -453,10 +453,10 @@ export function HomePanel({
                         closeHelpMode();
                       }
                     }}
-                    placeholder="Where are they?"
+                    placeholder={t("home.whereAreThey")}
                     autoComplete="off"
                     enterKeyHint="search"
-                    aria-label="Where are they? Address for someone else"
+                    aria-label={t("home.whereAreTheyAria")}
                     className={cn(
                       "om-help-where-input h-9 w-full border-0 border-b bg-transparent pl-5 pr-7 text-[13px] font-medium outline-none transition-colors",
                       isLight
@@ -513,7 +513,7 @@ export function HomePanel({
                   {(helpAddress || helpBusy) && (
                     <button
                       type="button"
-                      aria-label="Clear address and use my location"
+                      aria-label={t("home.clearAddress")}
                       disabled={helpBusy}
                       onClick={clearHelpingSomeone}
                       className={cn(
@@ -538,7 +538,7 @@ export function HomePanel({
                     isLight ? "text-slate-500" : "text-white/45"
                   )}
                 >
-                  Finding place…
+                  {t("home.findingPlace")}
                 </p>
               )}
             </div>
@@ -554,14 +554,13 @@ export function HomePanel({
           </>
         )}
 
-        {/* Radius + filters always with the Repair Pro list */}
+        {/* Radius only — filter chips removed */}
         <RadiusSlider />
-        <FilterChips />
       </div>
 
       {locationError && (
         <div
-          className="mx-3 mb-1 shrink-0 rounded-md bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-900"
+          className="mx-3 mb-1 shrink-0 rounded-md bg-[#FF6B35]/15 px-2.5 py-1.5 text-[11px] text-[#FF6B35]"
           role="status"
         >
           {locationError}{" "}
@@ -570,7 +569,7 @@ export function HomePanel({
             onClick={retryLocation}
             className="font-bold underline"
           >
-            Retry
+            {t("common.retry")}
           </button>
         </div>
       )}
@@ -592,12 +591,12 @@ export function HomePanel({
                 )}
               >
                 {filters.availableNow
-                  ? "No Pros Available"
+                  ? t("home.noProsAvailable")
                   : filters.rating45 ||
                       filters.verified ||
                       filters.fastResponse
-                    ? "No pros match these filters"
-                    : "No Repair Pros nearby"}
+                    ? t("home.noProsMatch")
+                    : t("home.noRepairPros")}
               </p>
               <button
                 type="button"
@@ -612,7 +611,7 @@ export function HomePanel({
                 }}
                 className="mt-2 border-0 bg-transparent text-[12px] font-bold text-brand disabled:opacity-60"
               >
-                {refreshingPros ? "Refreshing…" : "Refresh"}
+                {refreshingPros ? t("home.refreshing") : t("home.refresh")}
               </button>
             </div>
           ) : (
@@ -623,8 +622,8 @@ export function HomePanel({
                   isLight ? "text-slate-600" : "text-white/55"
                 )}
               >
-                {total} nearby
-                {filters.nearest ? " · nearest first" : ""}
+                {t("home.nearbyCount", { total })}
+                {filters.nearest ? t("home.nearestFirst") : ""}
               </p>
               {list.map((tech) => (
                 <div
@@ -665,7 +664,7 @@ export function HomePanel({
                       : "bg-transparent text-white/80 hover:bg-white/[0.04]"
                   )}
                 >
-                  See more ({list.length} of {total})
+                  {t("home.seeMore", { shown: list.length, total })}
                 </button>
               )}
 
@@ -676,7 +675,7 @@ export function HomePanel({
                     isLight ? "text-slate-400" : "text-white/45"
                   )}
                 >
-                  Showing all {total} within {radiusKm} km
+                  {t("home.showingAll", { total, km: radiusKm })}
                 </p>
               )}
             </>
@@ -689,7 +688,7 @@ export function HomePanel({
                 isLight ? "text-slate-400" : "text-white/45"
               )}
             >
-              Swipe up to expand · swipe down to collapse
+              {t("home.swipeHint")}
             </p>
           )}
         </div>

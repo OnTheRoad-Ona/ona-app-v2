@@ -156,10 +156,10 @@ export default function AdminMotoristDetailPage() {
           className="om-admin-btn ghost"
           style={{ textDecoration: "none" }}
         >
-          ← All motorists
+          ← All customers
         </Link>
       </div>
-      <h1 className="om-admin-h1">{u?.full_name || "Motorist"}</h1>
+      <h1 className="om-admin-h1">{u?.full_name || "Customer"}</h1>
       <p className="om-admin-sub">
         Full profile, identity, vehicle, and activity history from the live
         database.

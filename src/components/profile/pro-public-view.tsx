@@ -1,9 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import {
   Clock3,
-  MessageCircle,
   Navigation,
   Star,
   Zap,
@@ -119,21 +117,7 @@ export function ProPublicView({
                   : "bg-[#2c2c2e] text-white"
               }
             />
-            <Button
-              variant="secondary"
-              asChild
-              className={cn(
-                "h-11 border-0 shadow-none",
-                isLight
-                  ? "bg-black/8 text-slate-900"
-                  : "bg-[#2c2c2e] text-white"
-              )}
-            >
-              <Link href="/messages" onClick={(e) => e.stopPropagation()}>
-                <MessageCircle className="h-4 w-4" />
-                Chat
-              </Link>
-            </Button>
+            {/* Chat only after a request — Request CTA below */}
           </div>
           <Button
             size="lg"
@@ -219,8 +203,8 @@ export function ProPublicView({
                       : "text-emerald-400"
                     : tech.status === "busy"
                       ? isLight
-                        ? "text-amber-700"
-                        : "text-amber-400"
+                        ? "text-[#FF6B35]"
+                        : "text-[#FF6B35]"
                       : "text-brand"
                 )}
               >
@@ -295,8 +279,8 @@ export function ProPublicView({
                   <p className={cn("text-[12px] font-bold", t.ink)}>
                     {r.authorName}
                   </p>
-                  <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-amber-400">
-                    <Star className="h-3 w-3 fill-amber-400" />
+                  <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-[#FF6B35]">
+                    <Star className="h-3 w-3 fill-[#FF6B35]" />
                     {r.rating}
                   </span>
                 </div>

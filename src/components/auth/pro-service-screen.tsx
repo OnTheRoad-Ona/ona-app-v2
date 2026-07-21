@@ -104,7 +104,7 @@ export function ProServiceScreen() {
                   className={cn(
                     "flex w-full items-center gap-3 rounded-lg border-0 px-3 py-3 text-left transition-colors",
                     active
-                      ? "bg-[#e85a12] text-white shadow-lg shadow-orange-900/25"
+                      ? "bg-[#FF6B35] text-white shadow-lg shadow-orange-900/25"
                       : "bg-white/10 text-white hover:bg-white/15"
                   )}
                   aria-pressed={active}

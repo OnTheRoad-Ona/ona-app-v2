@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppConfigProvider } from "@/components/app-config-provider";
 import { AppFrame } from "@/components/layout/app-frame";
+import { I18nProvider } from "@/lib/i18n";
 import { AppProvider } from "@/lib/store";
 import "./globals.css";
 
@@ -63,16 +64,20 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full max-h-full overflow-hidden antialiased`}
       style={{ height: "100%", maxHeight: "100%" }}
     >
-      {/* Stage color comes from data-theme CSS vars; no white flash */}
+      {/* Inline stage color so first paint is never browser-default white */}
       <body
         className="h-full max-h-full overflow-hidden text-white"
         style={{
           overscrollBehavior: "none",
+          backgroundColor: "#060d0a",
+          margin: 0,
         }}
       >
         <AppConfigProvider>
           <AppProvider>
-            <AppFrame>{children}</AppFrame>
+            <I18nProvider>
+              <AppFrame>{children}</AppFrame>
+            </I18nProvider>
           </AppProvider>
         </AppConfigProvider>
       </body>

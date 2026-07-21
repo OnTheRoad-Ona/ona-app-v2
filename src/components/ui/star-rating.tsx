@@ -45,7 +45,7 @@ export function StarRatingDisplay({
                 dim,
                 filled
                   ? // Solid gold — readable on white / light gray / dark
-                    "fill-[#f59e0b] text-[#d97706]"
+                    "fill-[#FF6B35] text-[#FF6B35]"
                   : isLight
                     ? // Empty outline clearly visible on white/light wash
                       "fill-none text-slate-500"

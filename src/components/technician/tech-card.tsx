@@ -4,6 +4,7 @@ import Link from "next/link";
 import { BadgeCheck } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MapBadgeGlyph } from "@/components/profile/achievement-badges";
+import { NewAccountBadge } from "@/components/profile/new-account-badge";
 import { StarRatingDisplay } from "@/components/ui/star-rating";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import {
@@ -94,18 +95,13 @@ export function TechCard({
               )}
             >
               <span className="truncate">{tech.shortName}</span>
-              {tech.isNewArtisan ? (
-                <span
-                  className={cn(
-                    "shrink-0 rounded px-1 py-0.5 text-[8px] font-black uppercase tracking-wide",
-                    isLight
-                      ? "bg-amber-100 text-amber-900"
-                      : "bg-amber-500/25 text-amber-200"
-                  )}
-                >
-                  New
-                </span>
-              ) : null}
+              <NewAccountBadge
+                visibilityTier={
+                  tech.visibilityTier ?? (tech.isNewArtisan ? 1 : 4)
+                }
+                isProfessional
+                size="sm"
+              />
               {tech.verified && (
                 <BadgeCheck
                   className="h-3.5 w-3.5 shrink-0 fill-none text-sky-500"
@@ -131,7 +127,7 @@ export function TechCard({
                   tech.status === "available" &&
                     (isLight ? "text-emerald-700" : "text-emerald-400"),
                   tech.status === "busy" &&
-                    (isLight ? "text-amber-700" : "text-amber-400"),
+                    (isLight ? "text-[#FF6B35]" : "text-[#FF6B35]"),
                   tech.status === "nearby" &&
                     (isLight ? "text-sky-700" : "text-sky-400"),
                   tech.status === "offline" &&

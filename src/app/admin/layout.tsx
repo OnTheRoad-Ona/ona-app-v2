@@ -4,7 +4,7 @@ import "./admin.css";
 export const metadata: Metadata = {
   title: "OgaMecho Control Centre",
   description:
-    "Super Admin — full control of Motorist, Repair Pro, jobs, payments, content & features",
+    "Super Admin — full control of Customer, Repair Pro, jobs, payments, content & features",
 };
 
 /**

@@ -117,7 +117,7 @@ export async function careSearch(query: string): Promise<CareSearchHit[]> {
     hits.push({
       kind: "user",
       id: String(m.user_id),
-      title: prof?.full_name || "Motorist",
+      title: prof?.full_name || "Customer",
       subtitle: `Plate ${m.plate_number} · ${m.vehicle_make || ""} ${m.vehicle_model || ""}`.trim(),
       meta: { ...m, phone: prof?.phone, is_active: prof?.is_active },
     });

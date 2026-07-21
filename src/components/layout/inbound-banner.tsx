@@ -101,11 +101,11 @@ export function InboundBanner() {
     } | null = null;
 
     for (const th of messages) {
+      // Chat only with a real request — no orphan threads
+      if (!th.requestId || th.requestId.startsWith("chat-")) continue;
       // Closed job chats must never pop up as banners
-      if (th.requestId) {
-        const job = requests.find((r) => r.id === th.requestId);
-        if (job && CHAT_CLOSED_JOB_STATUSES.has(job.status)) continue;
-      }
+      const job = requests.find((r) => r.id === th.requestId);
+      if (job && CHAT_CLOSED_JOB_STATUSES.has(job.status)) continue;
       for (const m of th.messages) {
         if (m.sender === "system") continue;
         const mine =

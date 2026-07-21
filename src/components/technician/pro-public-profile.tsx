@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   BadgeCheck,
@@ -8,7 +7,6 @@ import {
   Car,
   Clock3,
   MapPin,
-  MessageCircle,
   Navigation,
   Pencil,
   Wrench,
@@ -17,6 +15,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { CallButton } from "@/components/call/in-app-call";
+import { NewAccountBadge } from "@/components/profile/new-account-badge";
 import { StarRatingDisplay } from "@/components/ui/star-rating";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { navigateBack } from "@/lib/navigation";
@@ -119,8 +118,20 @@ export function ProPublicProfile({
           ←
         </button>
         <div className="min-w-0 flex-1">
-          <p className={cn("truncate text-[14px] font-bold leading-none", ink)}>
-            {tech.name}
+          <p
+            className={cn(
+              "flex flex-wrap items-center gap-1.5 text-[14px] font-bold leading-none",
+              ink
+            )}
+          >
+            <span className="truncate">{tech.name}</span>
+            <NewAccountBadge
+              visibilityTier={
+                tech.visibilityTier ?? (tech.isNewArtisan ? 1 : 4)
+              }
+              isProfessional
+              size="sm"
+            />
           </p>
           <p className={cn("mt-0.5 truncate text-[11px] font-medium", muted)}>
             {skillLabel}
@@ -206,8 +217,8 @@ export function ProPublicProfile({
                           : "text-emerald-400"
                         : tech.status === "busy"
                           ? isLight
-                            ? "text-amber-700"
-                            : "text-amber-400"
+                            ? "text-[#FF6B35]"
+                            : "text-[#FF6B35]"
                           : muted
                     )}
                   >
@@ -387,16 +398,7 @@ export function ProPublicProfile({
                   }}
                   className={solidBtn}
                 />
-                <Button
-                  variant="secondary"
-                  asChild
-                  className={cn("h-11 border-0 shadow-none", solidBtn)}
-                >
-                  <Link href="/messages">
-                    <MessageCircle className="h-4 w-4" />
-                    Chat
-                  </Link>
-                </Button>
+                {/* Chat only after a request exists — use Request assistance */}
               </div>
               <Button size="lg" className="h-11 w-full" onClick={onRequest}>
                 <Zap className="h-4 w-4" />

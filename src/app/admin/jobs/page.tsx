@@ -76,7 +76,7 @@ export default function AdminJobsPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Jobs</h1>
       <p className="om-admin-sub">
-        Service requests between Motorists and Repair Pros.
+        Service requests between Customers and Repair Pros.
       </p>
       {msg ? (
         <div
@@ -91,7 +91,7 @@ export default function AdminJobsPage() {
           <thead>
             <tr>
               <th>Job</th>
-              <th>Motorist</th>
+              <th>Customer</th>
               <th>Pro</th>
               <th>Status</th>
               <th>Update (save)</th>

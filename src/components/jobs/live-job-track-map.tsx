@@ -279,7 +279,7 @@ function GoogleTrackMap({
     );
   }, [isLoaded, proPos?.lat, proPos?.lng, motoristPos.lat, motoristPos.lng]);
 
-  const motoristTitle = viewer === "motorist" ? "You" : "Motorist";
+  const motoristTitle = viewer === "motorist" ? "You" : "Customer";
   const proLabel = viewer === "repair_pro" ? "You" : "Repair Pro";
 
   const displayEtaMin = job.etaMinutes ?? routeEta?.minutes ?? null;

@@ -145,7 +145,7 @@ export default function AdminVerificationPage() {
       <div className="om-admin-cards">
         {[
           ["People", totals.total],
-          ["Motorists", totals.motorists],
+          ["Customers", totals.motorists],
           ["Pros", totals.pros],
           ["Docs pending", totals.docsPending],
           ["Fully verified", totals.fullyVerified],

@@ -221,7 +221,7 @@ function proSamples(userId: string) {
       category: "payments" as const,
       priority: "high" as const,
       title: "Escrow ready",
-      body: "Motorist paid. ₦18,000 held — start trip when ready.",
+      body: "Customer paid. ₦18,000 held — start trip when ready.",
       actionType: "open_job" as const,
       href: "/jobs",
     },

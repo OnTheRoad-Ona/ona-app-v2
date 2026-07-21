@@ -135,7 +135,7 @@ function RequestInner() {
     setError(null);
     const res = await apiCreateJob({
       motoristId: userId,
-      motoristName: userProfile?.fullName || "Motorist",
+      motoristName: userProfile?.fullName || "Customer",
       motoristPhoto: userProfile?.avatarUrl || null,
       repairProId: tech.id,
       repairProName: tech.name,

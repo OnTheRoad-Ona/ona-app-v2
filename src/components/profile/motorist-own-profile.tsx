@@ -126,7 +126,7 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
 
   if (!userProfile || userProfile.accountType !== "motorist") {
     return (
-      <ProfileShell isLight={isLight} title="My Profile" error="Sign in as a Motorist to view this profile." />
+      <ProfileShell isLight={isLight} title="My Profile" error="Sign in as a Customer to view this profile." />
     );
   }
 
@@ -395,7 +395,8 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
         <div className="space-y-3">
           {vehicles.length === 0 && !addingVehicle && (
             <p className={cn("text-[12px]", t.muted)}>
-              No vehicles yet. Add as many as you need — one step at a time.
+              Add at least one vehicle. You can add as many as you need — one
+              step at a time.
             </p>
           )}
 
@@ -441,6 +442,10 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
                 type="button"
                 aria-label="Remove vehicle"
                 onClick={() => {
+                  if (vehicles.length <= 1) {
+                    setErr("Keep at least one vehicle on your account.");
+                    return;
+                  }
                   const next = vehicles.filter((x) => x.id !== v.id);
                   persistVehicles(next);
                 }}

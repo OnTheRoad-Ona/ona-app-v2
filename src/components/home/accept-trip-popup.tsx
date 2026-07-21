@@ -140,7 +140,8 @@ export function AcceptTripPopup() {
             type="button"
             onClick={() => {
               setActiveId(null);
-              router.push("/messages");
+              // Chat only from the request/job — not a messages inbox
+              router.push(`/jobs/${req.id}`);
             }}
             className={cn(
               "flex w-full items-center justify-center gap-2 rounded-lg border-0 py-2.5 text-sm font-semibold",
@@ -148,7 +149,7 @@ export function AcceptTripPopup() {
             )}
           >
             <MessageCircle className="h-4 w-4" />
-            Open chat
+            Open job chat
           </button>
         </div>
       </div>

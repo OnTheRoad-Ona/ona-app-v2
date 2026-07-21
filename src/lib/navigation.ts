@@ -47,9 +47,13 @@ export function smartBackFallback(
   if (path === "/history") return home;
   if (path === "/requests") return home;
 
-  // Messages
-  if (/^\/messages\/[^/]+$/.test(path)) return "/messages";
-  if (path === "/messages") return home;
+  // Chat is request-scoped — no messages inbox
+  if (/^\/messages\/[^/]+$/.test(path)) {
+    return accountType === "professional" ? "/jobs" : "/requests";
+  }
+  if (path === "/messages") {
+    return accountType === "professional" ? "/jobs" : "/requests";
+  }
 
   // Profile / settings
   if (path === "/profile" || path === "/settings") return home;

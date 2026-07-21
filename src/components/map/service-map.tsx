@@ -17,6 +17,12 @@ import {
   userMapPinUrl,
 } from "@/lib/map-user-pin";
 import { tradeIconDataUrl } from "@/lib/map-trade-icons";
+import {
+  MAP_BG_DARK,
+  MAP_BG_LIGHT,
+  MAP_STYLES_DARK,
+  MAP_STYLES_LIGHT,
+} from "@/lib/map-theme";
 import { useApp } from "@/lib/store";
 import type { Technician } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -34,99 +40,6 @@ const OsmServiceMap = dynamic(
 );
 
 const MAP_ID_CONTAINER = { width: "100%", height: "100%" };
-
-/** Light toggle map: dark green mixed with black */
-const MAP_STYLES_LIGHT: google.maps.MapTypeStyle[] = [
-  { elementType: "geometry", stylers: [{ color: "#0f1f16" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#060d0a" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#a8c9b5" }] },
-  {
-    featureType: "administrative",
-    elementType: "geometry.stroke",
-    stylers: [{ color: "#1a3d2e" }],
-  },
-  {
-    featureType: "road",
-    elementType: "geometry",
-    stylers: [{ color: "#14281c" }],
-  },
-  {
-    featureType: "road",
-    elementType: "geometry.stroke",
-    stylers: [{ color: "#0a1610" }],
-  },
-  {
-    featureType: "road.highway",
-    elementType: "geometry",
-    stylers: [{ color: "#1e4030" }],
-  },
-  {
-    featureType: "water",
-    elementType: "geometry",
-    stylers: [{ color: "#060d0a" }],
-  },
-  {
-    featureType: "poi",
-    elementType: "geometry",
-    stylers: [{ color: "#0f1f16" }],
-  },
-  {
-    featureType: "landscape",
-    elementType: "geometry",
-    stylers: [{ color: "#0a1610" }],
-  },
-  { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
-  { featureType: "transit", stylers: [{ visibility: "off" }] },
-];
-
-/** Dark toggle map only: deep red mixed with black */
-const MAP_STYLES_DARK: google.maps.MapTypeStyle[] = [
-  { elementType: "geometry", stylers: [{ color: "#1a0808" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#0a0000" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#e8b4b0" }] },
-  {
-    featureType: "administrative",
-    elementType: "geometry.stroke",
-    stylers: [{ color: "#3d1515" }],
-  },
-  {
-    featureType: "road",
-    elementType: "geometry",
-    stylers: [{ color: "#2a1010" }],
-  },
-  {
-    featureType: "road",
-    elementType: "geometry.stroke",
-    stylers: [{ color: "#120606" }],
-  },
-  {
-    featureType: "road.highway",
-    elementType: "geometry",
-    stylers: [{ color: "#4a1414" }],
-  },
-  {
-    featureType: "water",
-    elementType: "geometry",
-    stylers: [{ color: "#050000" }],
-  },
-  {
-    featureType: "poi",
-    elementType: "geometry",
-    stylers: [{ color: "#1f0a0a" }],
-  },
-  {
-    featureType: "landscape",
-    elementType: "geometry",
-    stylers: [{ color: "#140606" }],
-  },
-  {
-    featureType: "landscape.natural",
-    elementType: "geometry",
-    stylers: [{ color: "#1a0808" }],
-  },
-  { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
-  { featureType: "transit", stylers: [{ visibility: "off" }] },
-];
 
 /** Solid Message-orange trade glyph only — no plate / glow */
 function proMarkerIconUrl(t: Technician, selected: boolean): string {
@@ -347,7 +260,7 @@ function GoogleServiceMap({
   const { location, selectedTechId, theme } = useApp();
   const isLight = theme === "light";
   const mapStyles = isLight ? MAP_STYLES_LIGHT : MAP_STYLES_DARK;
-  const mapBg = isLight ? "#0a1610" : "#0a0000";
+  const mapBg = isLight ? MAP_BG_LIGHT : MAP_BG_DARK;
   const [map, setMap] = useState<google.maps.Map | null>(null);
 
   const center = useMemo(

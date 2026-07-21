@@ -175,6 +175,65 @@ export function mapProToTechnician(
     pricingCurrency: (pro as {
       pricing_currency?: import("@/lib/pricing").AppCurrency;
     }).pricing_currency,
+    // Prefer backend visibility_tier columns; fall back to local artisan store
+    ...(() => {
+      const dbTier = Number(pro.visibility_tier);
+      if (dbTier >= 1 && dbTier <= 4) {
+        const pct =
+          dbTier === 1 ? 0 : dbTier === 2 ? 30 : dbTier === 3 ? 70 : 100;
+        const maxR =
+          dbTier === 1 ? 0 : dbTier === 2 ? 1 : dbTier === 3 ? 3 : 10;
+        return {
+          visibilityTier: dbTier as 1 | 2 | 3 | 4,
+          visibilityPercent: pct,
+          isNewArtisan:
+            pro.is_new_artisan != null
+              ? Boolean(pro.is_new_artisan)
+              : dbTier <= 2,
+          serviceRadiusKm: Math.min(pro.service_radius_km || 10, maxR || 10),
+        };
+      }
+      try {
+        if (typeof window === "undefined") {
+          return {
+            visibilityTier: 4 as const,
+            visibilityPercent: 100,
+            isNewArtisan: false,
+          };
+        }
+        const {
+          getArtisanProfile,
+        } = require("@/lib/artisan/local-store") as typeof import("@/lib/artisan/local-store");
+        const {
+          resolveVisibilityTier,
+          rulesForTier,
+        } = require("@/lib/artisan/visibility-tiers") as typeof import("@/lib/artisan/visibility-tiers");
+        const art = getArtisanProfile(pro.user_id);
+        if (!art) {
+          return {
+            visibilityTier: 4 as const,
+            visibilityPercent: 100,
+            isNewArtisan: false,
+          };
+        }
+        const tier = resolveVisibilityTier(art);
+        const rules = rulesForTier(tier);
+        return {
+          visibilityTier: tier,
+          visibilityPercent: rules.visibilityPercent,
+          isNewArtisan: rules.showNewBadge || art.isNewArtisan,
+          serviceRadiusKm: Math.min(
+            pro.service_radius_km || 10,
+            rules.maxRadiusKm || 10
+          ),
+        };
+      } catch {
+        return {
+          visibilityTier: 4 as const,
+          visibilityPercent: 100,
+        };
+      }
+    })(),
   };
 }
 

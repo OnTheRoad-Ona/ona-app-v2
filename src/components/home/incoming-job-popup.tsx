@@ -139,9 +139,11 @@ export function IncomingJobPopup() {
     };
 
     void poll();
+    // Slow poll — Realtime / visibility handle urgency (was 4s and flooded the network)
     const t = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
       void poll();
-    }, 4000);
+    }, 25_000);
     const onVis = () => {
       if (!document.hidden) void poll();
     };

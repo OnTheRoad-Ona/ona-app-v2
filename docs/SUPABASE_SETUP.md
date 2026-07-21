@@ -61,13 +61,13 @@ open http://localhost:4500/admin/login
 
 | Project | Domain | Notes |
 |---------|--------|--------|
-| **`ogamecho`** (primary) | https://ogamecho.vercel.app | Public app **and** `/admin` + all APIs |
-| `ogamecho-backend` (optional) | https://ogamecho-backend.vercel.app | Same codebase; avoid if possible (extra bandwidth) |
+| **`ogamecho`** (primary) | https://ona-mi.vercel.app | Public app **and** `/admin` + all APIs |
+| `ogamecho-backend` (optional) | https://ona-backend.vercel.app | Same codebase; avoid if possible (extra bandwidth) |
 
 Put the **same** Supabase + Maps env on `ogamecho`, including:
 
 - `SUPABASE_SERVICE_ROLE_KEY` (needed for server APIs and admin — not backend-only)
-- `NEXT_PUBLIC_APP_URL=https://ogamecho.vercel.app`
+- `NEXT_PUBLIC_APP_URL=https://ona-mi.vercel.app`
 
 If production shows **“This deployment is temporarily paused”**, the team is soft-blocked (Hobby fair use / Fast Origin Transfer) — see `docs/VERCEL_DEPLOY.md`. Local `npm run dev` / `npm run dev:admin` still works with `.env.local`.
 

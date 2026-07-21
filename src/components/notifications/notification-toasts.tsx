@@ -6,10 +6,13 @@
  * Swipe up to dismiss. Never navigates for finished jobs / closed chats.
  */
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  COPPER,
   MESSAGE_ORANGE,
+  CONVERSATION_ENDED_MESSAGE,
+  JOB_CLOSED_MESSAGE,
+  blockedActionMessage,
   isChatClosedForNotification,
   isJobFinishedStatus,
   isNavigationBlocked,
@@ -20,6 +23,11 @@ import {
   type AppNotification,
 } from "@/lib/notifications/types";
 import { useNotificationsOptional } from "@/components/notifications/notification-provider";
+import { ExpiredDialog } from "@/components/ui/expired-dialog";
+import {
+  messageThreadIdFromHref,
+  readOnlyChatHref,
+} from "@/lib/chat-expired";
 import { useApp } from "@/lib/store";
 
 export function NotificationToasts() {
@@ -27,24 +35,41 @@ export function NotificationToasts() {
   const { theme, accountType } = useApp();
   const router = useRouter();
   const isLight = theme === "light";
+  const [expiredOpen, setExpiredOpen] = useState(false);
+  const [expiredMsg, setExpiredMsg] = useState(CONVERSATION_ENDED_MESSAGE);
+  const [viewHref, setViewHref] = useState<string | null>(null);
   if (!ctx) return null;
   const { toasts, dismissToast, markRead, openCenter } = ctx;
 
   const visible = toasts.filter((t) =>
     shouldToastNotification(t.notification)
   );
-  if (!visible.length) return null;
 
   const solid = isLight ? SOFT_WHITE : CHARCOAL;
   const ink = isLight ? "#1a1b1e" : SOFT_WHITE;
   const muted = isLight ? "#6B7280" : "rgba(255,255,255,0.65)";
-  const accent = isLight ? MESSAGE_ORANGE : COPPER;
+  const accent = MESSAGE_ORANGE;
 
   const safePush = (n: AppNotification, tId: string) => {
     void markRead([n.id]);
     dismissToast(tId);
-    if (isNavigationBlocked(n) || isChatClosedForNotification(n) || isJobFinishedStatus(n.jobStatus)) {
-      openCenter();
+    if (
+      isNavigationBlocked(n) ||
+      isChatClosedForNotification(n) ||
+      isJobFinishedStatus(n.jobStatus)
+    ) {
+      const tid = messageThreadIdFromHref(n.href);
+      const jid =
+        n.jobId && !String(n.jobId).startsWith("demo-") ? n.jobId : null;
+      if (tid && !String(tid).startsWith("demo-")) {
+        setViewHref(readOnlyChatHref(tid));
+      } else if (jid) {
+        setViewHref(`/requests/${jid}`);
+      } else {
+        setViewHref(null);
+      }
+      setExpiredMsg(blockedActionMessage(n));
+      setExpiredOpen(true);
       return;
     }
     if (n.href) {
@@ -54,7 +79,10 @@ export function NotificationToasts() {
     }
   };
 
+  if (!visible.length && !expiredOpen) return null;
+
   return (
+    <>
     <div
       className="pointer-events-none absolute inset-x-0 top-2 z-[90] flex flex-col items-center gap-2 px-3 sm:items-end sm:pr-4"
       aria-live="polite"
@@ -124,39 +152,44 @@ export function NotificationToasts() {
                   {closed && n.messageText ? n.messageText : n.body}
                 </p>
                 <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1">
-                  {!blocked && n.actionType === "accept_request" ? (
+                  {n.actionType === "accept_request" ? (
                     <Action
                       label={
-                        accountType === "professional"
-                          ? "View request"
-                          : "View"
+                        blocked
+                          ? "View"
+                          : accountType === "professional"
+                            ? "View request"
+                            : "View"
                       }
                       accent={accent}
                       onClick={() => safePush(n, t.id)}
                     />
                   ) : null}
-                  {!blocked && n.actionType === "open_chat" && n.href ? (
+                  {n.actionType === "open_chat" ? (
                     <Action
-                      label="Open chat"
+                      label={blocked ? "View" : "Open chat"}
                       accent={accent}
                       onClick={() => safePush(n, t.id)}
                     />
                   ) : null}
-                  {!blocked && n.actionType === "view_tracking" ? (
+                  {n.actionType === "view_tracking" ? (
                     <Action
-                      label="Track"
+                      label={blocked ? "View" : "Track"}
                       accent={accent}
                       onClick={() => safePush(n, t.id)}
                     />
                   ) : null}
-                  {!blocked && n.actionType === "open_job" ? (
+                  {n.actionType === "open_job" ||
+                  (n.category === "requests" &&
+                    n.actionType !== "accept_request" &&
+                    n.actionType !== "view_tracking") ? (
                     <Action
-                      label="View job"
+                      label={blocked ? "View" : "View job"}
                       accent={accent}
                       onClick={() => safePush(n, t.id)}
                     />
                   ) : null}
-                  {!blocked && n.actionType === "view_payment" ? (
+                  {n.actionType === "view_payment" && !blocked ? (
                     <Action
                       label="Payments"
                       accent={accent}
@@ -186,6 +219,27 @@ export function NotificationToasts() {
         );
       })}
     </div>
+    <ExpiredDialog
+      open={expiredOpen}
+      isLight={isLight}
+      message={expiredMsg || JOB_CLOSED_MESSAGE}
+      onClose={() => {
+        setExpiredOpen(false);
+        setViewHref(null);
+      }}
+      // View only for job-closed (not conversation ended)
+      onView={
+        expiredMsg === JOB_CLOSED_MESSAGE && viewHref
+          ? () => {
+              const href = viewHref;
+              setExpiredOpen(false);
+              setViewHref(null);
+              router.push(href);
+            }
+          : undefined
+      }
+    />
+    </>
   );
 }
 

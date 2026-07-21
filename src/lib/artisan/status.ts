@@ -9,6 +9,7 @@ import {
   type ArtisanVerificationProfile,
   type TierCompletion,
 } from "@/lib/artisan/types";
+import { canGoLiveForVisibilityTier } from "@/lib/artisan/visibility-tiers";
 
 export function emptyTiers(): TierCompletion {
   return {
@@ -78,47 +79,11 @@ export function canSubmitForReview(
   return { ok: true };
 }
 
-/** Go Live / receive jobs only when approved and not suspended */
+/** Go Live — profile status + visibility tier (Tier 2 = 30-day window) */
 export function canGoLive(
   p: ArtisanVerificationProfile | null | undefined
 ): { allowed: true } | { allowed: false; message: string } {
-  if (!p) {
-    return {
-      allowed: false,
-      message:
-        "Complete artisan verification first. Submit your profile for review.",
-    };
-  }
-  switch (p.status) {
-    case "approved":
-      return { allowed: true };
-    case "draft":
-      return {
-        allowed: false,
-        message:
-          "Finish verification and submit for review before you can Go Live.",
-      };
-    case "pending_review":
-      return {
-        allowed: false,
-        message:
-          "Your profile is pending admin review. You cannot Go Live yet.",
-      };
-    case "rejected":
-      return {
-        allowed: false,
-        message: p.rejectReason
-          ? `Profile rejected: ${p.rejectReason}. Update and resubmit.`
-          : "Profile rejected. Update your details and resubmit for review.",
-      };
-    case "suspended":
-      return {
-        allowed: false,
-        message: "Account suspended. Contact Ona Care.",
-      };
-    default:
-      return { allowed: false, message: "Cannot Go Live right now." };
-  }
+  return canGoLiveForVisibilityTier(p);
 }
 
 export function recomputeNewArtisanFlag(
@@ -133,6 +98,16 @@ export function newArtisanScorePenalty(
 ): number {
   return isNewArtisan ? 35 : 0;
 }
+
+export {
+  resolveVisibilityTier,
+  rulesForTier,
+  tier2GoLiveWarning,
+  applyAdminTierPromotion,
+  TIER2_GO_LIVE_DAYS,
+  TIER2_WARN_DAYS_BEFORE,
+} from "@/lib/artisan/visibility-tiers";
+export type { VisibilityTier } from "@/lib/artisan/visibility-tiers";
 
 export function tierProgressPercent(tiers: TierCompletion): number {
   const keys: (keyof TierCompletion)[] = [

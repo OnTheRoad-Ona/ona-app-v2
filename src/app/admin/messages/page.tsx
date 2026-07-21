@@ -60,7 +60,7 @@ export default function AdminMessagesPage() {
             <thead>
               <tr>
                 <th>Created</th>
-                <th>Motorist</th>
+                <th>Customer</th>
                 <th>Pro</th>
               </tr>
             </thead>

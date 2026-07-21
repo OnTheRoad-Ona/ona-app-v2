@@ -1,11 +1,11 @@
 import type { UserProfile } from "@/lib/types";
 
 /**
- * Progressive post-signup verification funnel.
+ * Progressive post-signup verification funnel (Motorist).
  *
  * - Request 1: free (learn the app)
  * - Requests 2–4: allowed, with stronger warnings each time
- * - Request 5+: blocked until NIN + BVN verified in-app
+ * - Request 5+: blocked until country ID checks pass in-app
  */
 
 /** First action that shows a verification warning (1-based index). */
@@ -19,10 +19,12 @@ export const VERIFY_FREE_ACTIONS = VERIFY_BLOCK_AT - 1;
 
 export function isIdentityVerified(profile: UserProfile | null | undefined): boolean {
   if (!profile) return false;
-  if (profile.identityVerifiedAt && profile.ninVerified && profile.bvnVerified) {
-    return true;
-  }
-  return Boolean(profile.ninVerified && profile.bvnVerified);
+  if (profile.identityVerifiedAt) return true;
+  // Nigeria-style: NIN + BVN
+  if (profile.ninVerified && profile.bvnVerified) return true;
+  // Other countries: primary gov ID verified
+  if (profile.govIdVerified) return true;
+  return false;
 }
 
 export function getServiceActionCount(
@@ -109,7 +111,7 @@ export function evaluateServiceGate(
       allowed: false,
       nextIndex: next,
       remaining: 0,
-      message: `Please verify your NIN and BVN to ${action} more jobs. You have used your ${freeActions} free ${past} jobs. Finish verification to continue.`,
+      message: `Please verify your ID to ${action} more jobs. You have used your ${freeActions} free ${past} jobs. Finish verification to continue.`,
     };
   }
 
@@ -118,11 +120,11 @@ export function evaluateServiceGate(
     const left = freeActions - next + 1;
     const after = freeActions - next;
     if (next === warnFrom) {
-      warning = `Welcome. After ${freeActions} free jobs, you will need to verify NIN and BVN to keep ${action === "accept" ? "taking jobs" : "booking help"}. After this one, you have ${after} free ${after === 1 ? "job" : "jobs"} left.`;
+      warning = `Welcome. After ${freeActions} free jobs, you will need to verify your ID to keep ${action === "accept" ? "taking jobs" : "booking help"}. After this one, you have ${after} free ${after === 1 ? "job" : "jobs"} left.`;
     } else if (next === freeActions) {
-      warning = `This is your last free job before you must verify. After this, please verify your NIN and BVN so you can keep using OgaMecho.`;
+      warning = `This is your last free job before you must verify. After this, please verify your ID so you can keep using Ona.`;
     } else {
-      warning = `Reminder: you can still ${action} ${left} free job${left === 1 ? "" : "s"} (including this one). After that, you must verify NIN and BVN.`;
+      warning = `Reminder: you can still ${action} ${left} free job${left === 1 ? "" : "s"} (including this one). After that, you must verify your ID.`;
     }
   }
 

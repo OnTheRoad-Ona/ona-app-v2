@@ -2,6 +2,7 @@
 
 import { BrandHeroMotion } from "@/components/auth/brand-hero-motion";
 import { WHEEL_GRAY } from "@/components/auth/auth-plate";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 /**
@@ -10,6 +11,7 @@ import { cn } from "@/lib/utils";
  * - Top: WELCOME TO · Ona · tagline
  * - Bottom: Log In / Sign Up
  * - Optional Apple enter motion
+ * - All chrome strings follow in-app language
  */
 const TAGLINE_COLOR = "#000000";
 const LOGIN_BTN_BG = "#C8C9CD";
@@ -24,12 +26,14 @@ export function BrandEntryScreen({
   /** Play Apple enter motion on first paint */
   animateIn?: boolean;
 }) {
+  const t = useT();
+
   return (
     <div
       className="absolute inset-0 z-[300] overflow-hidden"
       style={{ backgroundColor: "#c97d47" }}
       role="dialog"
-      aria-label="Ona welcome"
+      aria-label={t("brand.name")}
     >
       {/* Confined to phone shell — cover crop, no full-window bleed */}
       <BrandHeroMotion
@@ -51,11 +55,11 @@ export function BrandEntryScreen({
             className="text-[11px] font-semibold uppercase tracking-[0.38em]"
             style={{ color: LOGIN_BTN_BG }}
           >
-            Welcome to
+            {t("auth.welcomeTo")}
           </p>
           <h1
             className="mt-2 text-[36px] font-black tracking-tight"
-            aria-label="Ona"
+            aria-label={t("brand.name")}
           >
             <span style={{ color: LOGIN_BTN_BG }}>O</span>
             <span style={{ color: "#C8C9CD" }}>na</span>
@@ -64,7 +68,7 @@ export function BrandEntryScreen({
             className="mx-auto mt-2.5 max-w-[300px] text-[12px] font-medium leading-relaxed tracking-[0.04em]"
             style={{ color: TAGLINE_COLOR }}
           >
-            Request help and offer roadside services
+            {t("auth.welcomeTagline")}
           </p>
         </div>
       </div>
@@ -87,7 +91,7 @@ export function BrandEntryScreen({
               boxShadow: "0 1px 3px rgba(0,0,0,0.14)",
             }}
           >
-            Log In
+            {t("auth.logIn")}
           </button>
 
           <button
@@ -99,7 +103,7 @@ export function BrandEntryScreen({
               boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
             }}
           >
-            Sign Up
+            {t("auth.signUp")}
           </button>
         </div>
       </div>

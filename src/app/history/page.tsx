@@ -9,6 +9,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { ExpiredDialog } from "@/components/ui/expired-dialog";
+import { JOB_CLOSED_MESSAGE } from "@/lib/chat-expired";
 import { apiListJobs } from "@/lib/jobs/client";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
@@ -114,6 +116,8 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [filter, setFilter] = useState<HistoryFilter>("all");
+  const [closedOpen, setClosedOpen] = useState(false);
+  const [viewHref, setViewHref] = useState<string | null>(null);
 
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-700" : "text-white/75";
@@ -161,7 +165,7 @@ export default function HistoryPage() {
   );
 
   return (
-    <div className={cn("flex h-full min-h-0 flex-col", stage)}>
+    <div className={cn("relative flex h-full min-h-0 flex-col", stage)}>
       <PageHeader
         title="History"
         subtitle="Past bookings · view only"
@@ -237,7 +241,10 @@ export default function HistoryPage() {
               <button
                 key={j.id}
                 type="button"
-                onClick={() => router.push(`/requests/${j.id}`)}
+                onClick={() => {
+                  setViewHref(`/requests/${j.id}`);
+                  setClosedOpen(true);
+                }}
                 className={cn(
                   "flex w-full items-start gap-3 border-0 border-b bg-transparent py-3.5 text-left last:border-b-0",
                   isLight ? "border-black/10" : "border-white/10"
@@ -289,6 +296,26 @@ export default function HistoryPage() {
             );
           })}
       </div>
+
+      <ExpiredDialog
+        open={closedOpen}
+        isLight={isLight}
+        message={JOB_CLOSED_MESSAGE}
+        onClose={() => {
+          setClosedOpen(false);
+          setViewHref(null);
+        }}
+        onView={
+          viewHref
+            ? () => {
+                const href = viewHref;
+                setClosedOpen(false);
+                setViewHref(null);
+                router.push(href);
+              }
+            : undefined
+        }
+      />
     </div>
   );
 }

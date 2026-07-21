@@ -97,7 +97,7 @@ export async function POST(req: Request) {
       .maybeSingle();
     if (!motRow) {
       return apiFail(
-        "You don't have a Motorist account yet.",
+        "You don't have a Customer account yet.",
         409,
         "needs_signup"
       );

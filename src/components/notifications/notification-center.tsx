@@ -21,7 +21,6 @@ import {
   isGroup,
 } from "@/lib/notifications/group";
 import {
-  COPPER,
   MESSAGE_ORANGE,
   CHARCOAL,
   blockedActionMessage,
@@ -33,6 +32,13 @@ import {
   type NotificationFilter,
 } from "@/lib/notifications/types";
 import { useNotifications } from "@/components/notifications/notification-provider";
+import { ExpiredDialog } from "@/components/ui/expired-dialog";
+import {
+  CONVERSATION_ENDED_MESSAGE,
+  JOB_CLOSED_MESSAGE,
+  messageThreadIdFromHref,
+  readOnlyChatHref,
+} from "@/lib/chat-expired";
 import { apiGetJob } from "@/lib/jobs/client";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -83,9 +89,10 @@ export function NotificationCenter() {
   const isLight = theme === "light";
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [blockMsg, setBlockMsg] = useState<string | null>(null);
+  const [viewHref, setViewHref] = useState<string | null>(null);
 
-  /** Light Notifications chrome: Message orange. Dark: copper. */
-  const accent = isLight ? MESSAGE_ORANGE : COPPER;
+  /** Notifications accent — always Message orange */
+  const accent = MESSAGE_ORANGE;
 
   const stage = isLight ? "#c8c9cd" : "#0a0a0a";
   // Light: blend with sheet (not pure white). Dark: charcoal card.
@@ -101,9 +108,39 @@ export function NotificationCenter() {
 
   if (!centerOpen) return null;
 
-  const showBlock = (msg: string) => {
-    setBlockMsg(msg);
-    window.setTimeout(() => setBlockMsg(null), 2800);
+  const showBlock = (n: AppNotification, msg: string) => {
+    setBlockMsg(msg || CONVERSATION_ENDED_MESSAGE);
+    // 4C: View → read-only chat, or process summary for jobs
+    const tid = messageThreadIdFromHref(n.href);
+    if (tid) {
+      setViewHref(readOnlyChatHref(String(tid)));
+      return;
+    }
+    const jid = n.jobId || null;
+    if (
+      jid &&
+      (n.category === "messages" ||
+        n.actionType === "open_chat" ||
+        n.category === "requests" ||
+        n.actionType === "open_job" ||
+        n.actionType === "view_tracking" ||
+        n.actionType === "accept_request")
+    ) {
+      setViewHref(`/requests/${jid}`);
+      return;
+    }
+    if (n.href?.includes("/jobs/")) {
+      const id = n.href.split("/jobs/")[1]?.split("?")[0];
+      if (id) {
+        setViewHref(`/requests/${id}`);
+        return;
+      }
+    }
+    if (n.href?.includes("/requests/")) {
+      setViewHref(n.href);
+      return;
+    }
+    setViewHref(null);
   };
 
   const runAction = async (n: AppNotification) => {
@@ -116,21 +153,16 @@ export function NotificationCenter() {
       return;
     }
 
-    if (n.actionType === "none" || !n.href) {
-      return;
-    }
-
-    // Closed chat / finished message: never navigate
-    if (isChatClosedForNotification(n) && (n.actionType === "open_chat" || n.category === "messages")) {
-      showBlock(blockedActionMessage(n));
+    if (n.actionType === "none") {
       return;
     }
 
     // Resolve live job status when we have a real id
     let liveStatus = n.jobStatus || null;
-    if (n.jobId && !n.jobId.startsWith("demo-")) {
+    const jobKey = n.jobId || null;
+    if (jobKey && !String(jobKey).startsWith("demo-")) {
       try {
-        const res = await apiGetJob(n.jobId);
+        const res = await apiGetJob(jobKey);
         if (res.ok && res.data?.job?.status) {
           liveStatus = res.data.job.status;
         }
@@ -139,37 +171,40 @@ export function NotificationCenter() {
       }
     }
 
-    // Hard gate: finished / inactive job & chat never open links
-    if (isNavigationBlocked(n, liveStatus)) {
-      showBlock(blockedActionMessage(n, liveStatus));
+    // Always gate finished / demo / closed — show popup, never live navigate
+    if (isNavigationBlocked(n, liveStatus) || isJobFinishedStatus(liveStatus) || isJobFinishedStatus(n.jobStatus)) {
+      showBlock(n, blockedActionMessage(n, liveStatus));
       return;
     }
 
-    // Stored finished status (even if live fetch failed)
-    if (isJobFinishedStatus(n.jobStatus) || isJobFinishedStatus(liveStatus)) {
+    // No href and blocked types — still popup rather than no-op silence
+    if (!n.href) {
       if (
         n.actionType === "open_chat" ||
         n.actionType === "open_job" ||
-        n.actionType === "view_tracking" ||
-        n.actionType === "accept_request" ||
         n.category === "messages" ||
         n.category === "requests"
       ) {
-        showBlock(blockedActionMessage(n, liveStatus || n.jobStatus));
-        return;
+        showBlock(n, blockedActionMessage(n, liveStatus));
       }
+      return;
     }
 
-    // Payments history list is OK without a live job; block terminal escrow job deep links
-    if (n.actionType === "view_payment" && n.jobId && liveStatus) {
-      if (
-        liveStatus === "released" ||
-        liveStatus === "refunded" ||
-        liveStatus === "satisfied"
-      ) {
-        showBlock(blockedActionMessage(n, liveStatus));
-        return;
-      }
+    // Payments tied to finished escrow
+    if (n.actionType === "view_payment" && n.jobId && isJobFinishedStatus(liveStatus)) {
+      showBlock(n, blockedActionMessage(n, liveStatus));
+      return;
+    }
+
+    // Sensitive deep links without confirmed live status + demo
+    if (
+      (n.href.includes("/jobs/") ||
+        n.href.includes("/messages/") ||
+        n.href.includes("/requests/")) &&
+      (/demo/i.test(n.href) || (n.jobId && /demo/i.test(n.jobId)))
+    ) {
+      showBlock(n, blockedActionMessage(n, liveStatus));
+      return;
     }
 
     closeCenter();
@@ -403,21 +438,27 @@ export function NotificationCenter() {
           </ul>
         </div>
 
-        {/* Blocked action popup */}
-        {blockMsg ? (
-          <div
-            className="pointer-events-none absolute inset-x-0 top-16 z-[20] flex justify-center px-4"
-            role="status"
-            aria-live="polite"
-          >
-            <div
-              className="max-w-[280px] rounded-md px-3.5 py-2.5 text-center text-[12px] font-semibold text-white"
-              style={{ backgroundColor: CHARCOAL }}
-            >
-              {blockMsg}
-            </div>
-          </div>
-        ) : null}
+        <ExpiredDialog
+          open={Boolean(blockMsg)}
+          isLight={isLight}
+          message={blockMsg || CONVERSATION_ENDED_MESSAGE}
+          onClose={() => {
+            setBlockMsg(null);
+            setViewHref(null);
+          }}
+          // View only for job-closed (not conversation ended)
+          onView={
+            blockMsg === JOB_CLOSED_MESSAGE && viewHref
+              ? () => {
+                  const href = viewHref;
+                  setBlockMsg(null);
+                  setViewHref(null);
+                  closeCenter();
+                  router.push(href);
+                }
+              : undefined
+          }
+        />
       </div>
     </div>
   );
@@ -491,9 +532,10 @@ function NotificationCardBody({
       ) : null}
 
       <div className="mt-2.5 flex flex-wrap gap-2">
-        {!navBlocked && n.actionType === "open_chat" ? (
+        {/* Always show primary action — blocked → popup (not silent hide) */}
+        {n.actionType === "open_chat" || n.category === "messages" ? (
           <SolidBtn
-            label="Open chat"
+            label={navBlocked ? "View" : "Open chat"}
             accent={accent}
             onClick={() => {
               onRead();
@@ -501,10 +543,14 @@ function NotificationCardBody({
             }}
           />
         ) : null}
-        {!navBlocked && n.actionType === "accept_request" ? (
+        {n.actionType === "accept_request" ? (
           <SolidBtn
             label={
-              accountType === "professional" ? "View request" : "View"
+              navBlocked
+                ? "View"
+                : accountType === "professional"
+                  ? "View request"
+                  : "View"
             }
             accent={accent}
             onClick={() => {
@@ -513,9 +559,9 @@ function NotificationCardBody({
             }}
           />
         ) : null}
-        {!navBlocked && n.actionType === "view_tracking" ? (
+        {n.actionType === "view_tracking" ? (
           <SolidBtn
-            label="Track"
+            label={navBlocked ? "View" : "Track"}
             accent={accent}
             onClick={() => {
               onRead();
@@ -523,9 +569,10 @@ function NotificationCardBody({
             }}
           />
         ) : null}
-        {!navBlocked && n.actionType === "open_job" ? (
+        {n.actionType === "open_job" ||
+        (n.category === "requests" && n.actionType !== "accept_request") ? (
           <SolidBtn
-            label="View job"
+            label={navBlocked ? "View" : "View job"}
             accent={accent}
             onClick={() => {
               onRead();
@@ -533,18 +580,7 @@ function NotificationCardBody({
             }}
           />
         ) : null}
-        {n.actionType === "view_payment" && !navBlocked ? (
-          <SolidBtn
-            label="Payments"
-            accent={accent}
-            onClick={() => {
-              onRead();
-              onAction();
-            }}
-          />
-        ) : null}
-        {/* Payments history (no finished job gate) still allowed when not job-linked blocked */}
-        {n.actionType === "view_payment" && navBlocked && !n.jobId ? (
+        {n.actionType === "view_payment" ? (
           <SolidBtn
             label="Payments"
             accent={accent}
@@ -557,6 +593,17 @@ function NotificationCardBody({
         {n.actionType === "rate" ? (
           <SolidBtn
             label="Rate"
+            accent={accent}
+            onClick={() => {
+              onRead();
+              onAction();
+            }}
+          />
+        ) : null}
+        {/* Generic href-only cards */}
+        {!n.actionType && n.href ? (
+          <SolidBtn
+            label={navBlocked ? "View" : "Open"}
             accent={accent}
             onClick={() => {
               onRead();

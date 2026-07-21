@@ -98,14 +98,22 @@ export type ArtisanVerificationProfile = {
   govIdBack?: ArtisanMedia | null;
   bvn?: string | null;
   bvnVerified?: boolean;
+  /** Last successful ID verify meta */
+  idVerifyProvider?: string | null;
+  idVerifyMode?: string | null;
+  idVerifyReference?: string | null;
+  idVerifiedAt?: string | null;
+  bvnVerifiedAt?: string | null;
 
   /** Tier 3 */
   selfie?: ArtisanMedia | null;
   livenessPassed?: boolean;
+  livenessPassedAt?: string | null;
 
   /** Tier 4 */
   skillProofType?: SkillProofType | null;
   skillProof?: ArtisanMedia | null;
+  skillProofStatus?: "none" | "uploaded" | "under_review" | "approved" | "rejected";
 
   /** Admin review */
   submittedAt?: string | null;
@@ -113,9 +121,22 @@ export type ArtisanVerificationProfile = {
   reviewedBy?: string | null;
   rejectReason?: string | null;
 
-  /** New Artisan badge — cleared after successful jobs threshold */
+  /** New Artisan badge — Tier 1–2 on; Tier 3–4 off */
   isNewArtisan: boolean;
   successfulJobsCount: number;
+
+  /**
+   * Marketplace visibility ladder (admin-approved).
+   * 1 = register only · 2 = 30% + 30-day Go Live · 3 = 70% + 3 km · 4 = 100% + 10 km
+   */
+  visibilityTier?: 1 | 2 | 3 | 4;
+  tier2ApprovedAt?: string | null;
+  tier3ApprovedAt?: string | null;
+  tier4ApprovedAt?: string | null;
+  /** Tier 2 Go Live deadline (ISO); null after Tier 3+ */
+  goLiveWindowEndsAt?: string | null;
+  /** Tier 4 one-star seed applied once when they already had ratings */
+  tier4OneStarSeeded?: boolean;
 
   createdAt: string;
   updatedAt: string;

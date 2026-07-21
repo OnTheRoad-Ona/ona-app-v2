@@ -20,12 +20,12 @@ export function VerificationWarningBanner({
       className={cn(
         "relative rounded-xl px-3 py-2.5 pr-9 text-[12px] leading-snug",
         isLight
-          ? "bg-amber-50 text-amber-950 ring-1 ring-amber-200"
-          : "bg-amber-500/15 text-amber-50 ring-1 ring-amber-400/30"
+          ? "bg-[#FF6B35]/15 text-[#FF6B35] ring-1 ring-[#FF6B35]/40"
+          : "bg-[#FF6B35]/150/15 text-[#FF6B35] ring-1 ring-[#FF6B35]/40/30"
       )}
     >
       <div className="flex gap-2">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#FF6B35]" />
         <div className="min-w-0">
           <p className="font-semibold">Verify soon to keep full access</p>
           <p className="mt-0.5 opacity-90">{message}</p>
@@ -33,7 +33,7 @@ export function VerificationWarningBanner({
             href="/verify"
             className="mt-1.5 inline-flex text-[12px] font-bold text-brand underline-offset-2 hover:underline"
           >
-            Verify NIN & BVN now
+            Verify your ID now
           </Link>
         </div>
       </div>
@@ -83,8 +83,8 @@ export function VerificationBlockedPanel({
       </h2>
       <p className="mt-1.5 text-[13px] leading-relaxed text-muted">{message}</p>
       <p className="mt-2 text-[12px] text-muted">
-        You explored the app freely. Confirm your NIN and BVN once to book and
-        accept requests without limits.
+        You explored the app freely. Verify your ID once to book without
+        limits.
       </p>
       <div className="mt-4 flex flex-col gap-2">
         <Link

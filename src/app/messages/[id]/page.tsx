@@ -1,11 +1,24 @@
 "use client";
 
-import { use, useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import {
+  Suspense,
+  use,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Lock, Mic, Send, Square } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { VoiceNotePlayer } from "@/components/jobs/voice-note-player";
 import { useNotificationsOptional } from "@/components/notifications/notification-provider";
+import { ExpiredDialog } from "@/components/ui/expired-dialog";
+import {
+  CONVERSATION_ENDED_MESSAGE,
+  isJobEndedStatus,
+  isReadOnlyChatUrl,
+} from "@/lib/chat-expired";
 import { apiGetJob } from "@/lib/jobs/client";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
@@ -18,15 +31,6 @@ import { createBrowserSupabase } from "@/lib/supabase/client";
 import { MESSAGE_ORANGE } from "@/lib/map-trade-icons";
 import { unlockAudio } from "@/lib/sound-tone";
 import type { ChatMessage } from "@/lib/types";
-
-/** Chat stays readable forever after job is done — send is locked */
-const CHAT_CLOSED_STATUSES = new Set([
-  "satisfied",
-  "released",
-  "cancelled",
-  "expired",
-  "refunded",
-]);
 
 function pickMime(): string {
   if (typeof MediaRecorder === "undefined") return "";
@@ -42,14 +46,35 @@ function pickMime(): string {
 /**
  * Single job chat: Motorist ↔ Repair Pro.
  * Polls + Realtime so both parties see each other's messages.
+ * Ended jobs: popup → View (read-only) or OK (leave list).
  */
 export default function ChatThreadPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full items-center justify-center bg-[#c8c9cd]">
+          <p className="text-sm font-semibold text-slate-700">Loading chat…</p>
+        </div>
+      }
+    >
+      <ChatThreadInner params={params} />
+    </Suspense>
+  );
+}
+
+function ChatThreadInner({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const intentionalViewOnly = isReadOnlyChatUrl(searchParams);
   const {
     visibleMessageThreads,
     sendChatMessage,
@@ -63,6 +88,14 @@ export default function ChatThreadPage({
   const isLight = theme === "light";
   const isPro = accountType === "professional";
   const thread = visibleMessageThreads.find((t) => t.id === id);
+  /** Back to the request/job — never a standalone messages inbox */
+  const requestBackHref = (() => {
+    const rid = thread?.requestId;
+    if (rid && !rid.startsWith("chat-") && !rid.startsWith("demo-")) {
+      return isPro ? `/jobs/${rid}` : `/jobs/${rid}`;
+    }
+    return isPro ? "/jobs" : "/requests";
+  })();
   const [draft, setDraft] = useState("");
   const [recording, setRecording] = useState(false);
   const [pendingVoice, setPendingVoice] = useState<{
@@ -71,8 +104,11 @@ export default function ChatThreadPage({
     mime: string;
   } | null>(null);
   const [recError, setRecError] = useState<string | null>(null);
-  /** After satisfied/released — history only, no new messages */
+  /** Job ended — no send */
   const [chatClosed, setChatClosed] = useState(false);
+  /** 2B mid-session end: popup until View (read-only) or OK (leave) */
+  const [expiredOpen, setExpiredOpen] = useState(false);
+  const promptedForEnd = useRef(false);
   /** Other party is typing (Realtime broadcast) */
   const [otherTyping, setOtherTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -113,22 +149,55 @@ export default function ChatThreadPage({
     }
   }, [id, thread?.id, thread?.messages.length, markThreadRead]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Lock send forever once the linked job is finished / closed
+  // Job ended: lock send. Without ?view=1 → popup (View = read-only, OK = leave).
   useEffect(() => {
     const rid = thread?.requestId;
-    if (!rid || rid.startsWith("chat-")) {
+    if (!rid || rid.startsWith("chat-") || rid.startsWith("demo-")) {
       setChatClosed(false);
       return;
     }
     let cancelled = false;
-    void apiGetJob(rid).then((res) => {
-      if (cancelled || !res.ok) return;
-      setChatClosed(CHAT_CLOSED_STATUSES.has(res.data.job.status));
-    });
+
+    const check = () => {
+      void apiGetJob(rid).then((res) => {
+        if (cancelled || !res.ok) return;
+        const ended = isJobEndedStatus(res.data.job.status);
+        if (!ended) {
+          setChatClosed(false);
+          promptedForEnd.current = false;
+          return;
+        }
+        setChatClosed(true);
+        // Intentional View (?view=1) → stay read-only, no kick
+        if (intentionalViewOnly) return;
+        // 2B: mid-session or deep-link without View → offer popup once
+        if (!promptedForEnd.current) {
+          promptedForEnd.current = true;
+          setExpiredOpen(true);
+        }
+      });
+    };
+
+    check();
+    const t = window.setInterval(() => {
+      if (document.hidden) return;
+      check();
+    }, 12_000);
     return () => {
       cancelled = true;
+      window.clearInterval(t);
     };
-  }, [thread?.requestId]);
+  }, [thread?.requestId, intentionalViewOnly]);
+
+  const onExpiredOk = useCallback(() => {
+    setExpiredOpen(false);
+    const rid = thread?.requestId;
+    if (rid && !rid.startsWith("chat-") && !rid.startsWith("demo-")) {
+      router.replace(isPro ? `/jobs/${rid}` : `/requests/${rid}`);
+      return;
+    }
+    router.replace(isPro ? "/jobs" : "/requests");
+  }, [router, thread?.requestId, isPro]);
 
   // Realtime inserts for this conversation (when id is a real UUID)
   useEffect(() => {
@@ -225,7 +294,10 @@ export default function ChatThreadPage({
           isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
-        <PageHeader title="Chat" backHref="/messages" />
+        <PageHeader
+          title="Chat"
+          backHref={isPro ? "/jobs" : "/requests"}
+        />
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-6">
           <p
             className={cn(
@@ -236,17 +308,18 @@ export default function ChatThreadPage({
             Loading chat…
           </p>
           <p className="text-center text-xs text-muted">
-            Syncing messages with the server.
+            Chat is tied to a request. Open Message from your job if it does
+            not appear.
           </p>
           <button
             type="button"
             className="mt-2 border-0 bg-transparent text-sm font-bold text-brand"
             onClick={() => {
               refreshCloudChats();
-              router.push("/messages");
+              router.push(isPro ? "/jobs" : "/requests");
             }}
           >
-            Back to messages
+            Back to {isPro ? "jobs" : "requests"}
           </button>
         </div>
       </div>
@@ -336,13 +409,13 @@ export default function ChatThreadPage({
   return (
     <div
       className={cn(
-        "flex h-full min-h-0 flex-col overflow-hidden",
+        "relative flex h-full min-h-0 flex-col overflow-hidden",
         isLight ? "bg-[#c8c9cd]" : "bg-black"
       )}
     >
-      <PageHeader title={title} subtitle={subtitle} backHref="/messages" />
+      <PageHeader title={title} subtitle={subtitle} backHref={requestBackHref} />
 
-      {chatClosed && (
+      {chatClosed && (intentionalViewOnly || !expiredOpen) && (
         <div
           className={cn(
             "flex shrink-0 items-start gap-2 px-3 py-2",
@@ -351,8 +424,7 @@ export default function ChatThreadPage({
         >
           <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#e07a3d]" />
           <p className="text-[11px] font-medium leading-snug">
-            This job is finished. Chat is closed forever — you can still read
-            messages, but you cannot send new ones.
+            {CONVERSATION_ENDED_MESSAGE}
           </p>
         </div>
       )}
@@ -520,6 +592,14 @@ export default function ChatThreadPage({
         </button>
       </div>
       )}
+
+      <ExpiredDialog
+        open={expiredOpen}
+        isLight={isLight}
+        message={CONVERSATION_ENDED_MESSAGE}
+        onClose={onExpiredOk}
+        okLabel="OK"
+      />
     </div>
   );
 }

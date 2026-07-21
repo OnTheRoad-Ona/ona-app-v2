@@ -42,6 +42,19 @@ const bodySchema = z.object({
   plateNumber: z.string().optional(),
   vehiclePhoto: z.string().optional(),
   vehicleCommonIssues: z.array(z.string()).optional(),
+  vehicles: z
+    .array(
+      z.object({
+        id: z.string(),
+        make: z.string(),
+        model: z.string(),
+        year: z.string().optional(),
+        plate: z.string().optional(),
+        photo: z.string().optional(),
+        commonIssues: z.array(z.string()).optional(),
+      })
+    )
+    .optional(),
   avatarUrl: z.string().optional(),
   nin: z.string().optional(),
   bvn: z.string().optional(),
@@ -360,20 +373,53 @@ export async function POST(req: Request) {
     if (!keepOther) {
       await supabase.from("repair_pro_profiles").delete().eq("user_id", userId);
     }
+    const vehiclesJson =
+      Array.isArray(input.vehicles) && input.vehicles.length > 0
+        ? input.vehicles
+        : input.vehicleMake || input.vehicleModel
+          ? [
+              {
+                id: `veh-${userId.slice(0, 8)}`,
+                make: input.vehicleMake || "",
+                model: input.vehicleModel || "",
+                year: input.vehicleYear || undefined,
+                plate: input.plateNumber || undefined,
+                photo: input.vehiclePhoto || undefined,
+                commonIssues: input.vehicleCommonIssues || undefined,
+              },
+            ]
+          : [];
+    const firstVeh = vehiclesJson[0] as
+      | {
+          make?: string;
+          model?: string;
+          year?: string;
+          plate?: string;
+          photo?: string;
+          commonIssues?: string[];
+        }
+      | undefined;
+
     const { error: motErr } = await supabase.from("motorist_profiles").upsert(
       {
         user_id: userId,
-        vehicle_make: input.vehicleMake || null,
-        vehicle_model: input.vehicleModel || null,
-        vehicle_year: input.vehicleYear || null,
-        plate_number: input.plateNumber || null,
-        vehicle_photo: input.vehiclePhoto || null,
-        vehicle_common_issues: input.vehicleCommonIssues || [],
+        vehicle_make: firstVeh?.make || input.vehicleMake || null,
+        vehicle_model: firstVeh?.model || input.vehicleModel || null,
+        vehicle_year: firstVeh?.year || input.vehicleYear || null,
+        plate_number: firstVeh?.plate || input.plateNumber || null,
+        vehicle_photo: firstVeh?.photo || input.vehiclePhoto || null,
+        vehicle_common_issues:
+          firstVeh?.commonIssues || input.vehicleCommonIssues || [],
+        vehicles: vehiclesJson,
         emergency_contact: input.emergencyContact || null,
         address_text:
           [input.area, input.city].filter(Boolean).join(", ") || null,
         default_lat: input.lat ?? null,
         default_lng: input.lng ?? null,
+        location_updated_at:
+          input.lat != null && input.lng != null
+            ? new Date().toISOString()
+            : null,
         nin_last4: last4(nin),
         bvn_last4: last4(bvn),
         nin_verified: hasNin,
@@ -392,7 +438,7 @@ export async function POST(req: Request) {
         meta: { stage: "motorist_profiles" },
       });
       return apiFail(
-        `Motorist profile failed: ${motErr.message}`,
+        `Customer profile failed: ${motErr.message}`,
         500,
         "motorist_profile_error"
       );
@@ -468,8 +514,16 @@ export async function POST(req: Request) {
         bio: input.bio || null,
         years_experience: input.yearsExperience || null,
         service_radius_km: input.serviceRadiusKm ?? 10,
+        // Home / signup pin (live pin updated again on Go Live)
         lat: input.lat ?? null,
         lng: input.lng ?? null,
+        location_updated_at:
+          input.lat != null && input.lng != null
+            ? new Date().toISOString()
+            : null,
+        // Visibility ladder: Tier 1 until admin promotes
+        visibility_tier: 1,
+        is_new_artisan: true,
         verified: hasNin && hasBvn,
         nin_last4: last4(nin),
         bvn_last4: last4(bvn),
@@ -568,6 +622,7 @@ export async function POST(req: Request) {
         vehicleMake: input.vehicleMake,
         vehicleModel: input.vehicleModel,
         vehicleYear: input.vehicleYear,
+        vehicles: input.vehicles,
         businessName: input.businessName,
         primaryService:
           input.primaryService ||
@@ -621,6 +676,7 @@ export async function POST(req: Request) {
       vehicleMake: input.vehicleMake,
       vehicleModel: input.vehicleModel,
       vehicleYear: input.vehicleYear,
+      vehicles: input.vehicles,
       businessName: input.businessName,
       primaryService: input.primaryService,
       bio: input.bio,

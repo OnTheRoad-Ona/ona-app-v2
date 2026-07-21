@@ -27,12 +27,30 @@ export function formatExperience(years?: string | null): string {
   return `${years} years`;
 }
 
+/** True when years of experience was never set (pro may set once from My Profile). */
+export function isExperienceUnset(years?: string | null): boolean {
+  if (years == null) return true;
+  const t = String(years).trim();
+  if (!t) return true;
+  if (t === "—" || t === "-" || t === "–" || t === "0" || t.toLowerCase() === "n/a")
+    return true;
+  return false;
+}
+
 /**
- * Service radius options in km.
- * Marketplace discovery still hard-caps at MAX_RADIUS_KM (10);
- * 25–100 are stored for future long-range / fleet jobs.
+ * Service radius options in km for Repair Pro My Profile.
+ * Hard max is 10 km for every pro (same as marketplace discovery).
  */
-export const SERVICE_RADIUS_OPTIONS_KM = [5, 10, 25, 50, 100] as const;
+export const PRO_MAX_SERVICE_RADIUS_KM = 10;
+export const SERVICE_RADIUS_OPTIONS_KM = [5, 10] as const;
+
+/** Clamp pro coverage radius to 1–10 km */
+export function clampProServiceRadiusKm(
+  km: number | null | undefined
+): number {
+  const n = typeof km === "number" && Number.isFinite(km) ? km : 10;
+  return Math.min(PRO_MAX_SERVICE_RADIUS_KM, Math.max(1, n));
+}
 
 // ── Verification tiers ───────────────────────────────────────────────
 
@@ -146,7 +164,7 @@ export const ACHIEVEMENT_BADGES: AchievementBadge[] = [
     id: "special",
     label: "Special",
     minJobs: 1440,
-    bg: "#e85a12",
+    bg: "#FF6B35",
     fg: "#fff7ed",
     ring: "#fdba74",
   },

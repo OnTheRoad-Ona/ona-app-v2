@@ -31,6 +31,12 @@ import {
   StageButton,
 } from "@/components/jobs/job-shell";
 import { VoiceNotePlayer } from "@/components/jobs/voice-note-player";
+import { ExpiredDialog } from "@/components/ui/expired-dialog";
+import {
+  CONVERSATION_ENDED_MESSAGE,
+  JOB_CLOSED_MESSAGE,
+  isJobEndedStatus,
+} from "@/lib/chat-expired";
 import {
   apiAcceptOffer,
   apiGetJob,
@@ -118,6 +124,11 @@ export function JobFlowScreen({
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const [locHint, setLocHint] = useState<string | null>(null);
+  /** Ended-chat gate: OK stay / View read-only */
+  const [chatGateOpen, setChatGateOpen] = useState(false);
+  const [chatGateViewHref, setChatGateViewHref] = useState<string | null>(
+    null
+  );
   /** Repair Pro must confirm they can fix the job before negotiating */
   const [proCanFixAccepted, setProCanFixAccepted] = useState(false);
   /** Arrived / Work in progress: home-style swipe sheet */
@@ -127,6 +138,22 @@ export function JobFlowScreen({
   /** Open (or create) cloud job chat so both parties share one conversation */
   const openJobChat = useCallback(
     async (j: JobRecord) => {
+      if (isJobEndedStatus(j.status)) {
+        const { readOnlyChatHref } = await import("@/lib/chat-expired");
+        const existing = visibleMessageThreads.find(
+          (t) =>
+            (t.requestId === j.id && !t.id.startsWith("chat-")) ||
+            t.id === `chat-${j.id}`
+        );
+        // Message on ended job → conversation copy; still gated
+        setChatGateViewHref(
+          existing && !existing.id.startsWith("chat-")
+            ? readOnlyChatHref(existing.id)
+            : `/requests/${j.id}`
+        );
+        setChatGateOpen(true);
+        return;
+      }
       const existing = visibleMessageThreads.find(
         (t) =>
           (t.requestId === j.id && !t.id.startsWith("chat-")) ||
@@ -200,7 +227,7 @@ export function JobFlowScreen({
         name: j.motoristName,
         phone,
         photo: j.motoristPhoto || undefined,
-        roleLabel: "Motorist",
+        roleLabel: "Customer",
         userId: peerId || undefined,
         jobId: j.id,
       });
@@ -455,6 +482,34 @@ export function JobFlowScreen({
         )}
       </JobShell>
     );
+  }
+
+  /* Ended jobs: process history only — never stay on live job shell */
+  if (
+    isJobEndedStatus(job.status) &&
+    job.status !== "disputed" &&
+    job.status !== "under_appeal"
+  ) {
+    // Rating / satisfaction still on process page; live trip UI is wrong here
+    if (typeof window !== "undefined") {
+      const path = window.location.pathname || "";
+      if (path.startsWith("/jobs/")) {
+        router.replace(`/requests/${job.id}`);
+        return (
+          <JobShell
+            isLight={isLight}
+            title="Job closed"
+            compactHeader
+            onBack={goJobsList}
+          >
+            <p className={cn("px-0.5 pt-4 text-[14px] font-medium", ink)}>
+              {JOB_CLOSED_MESSAGE}
+            </p>
+            <p className={cn("mt-2 text-[12px]", muted)}>Opening summary…</p>
+          </JobShell>
+        );
+      }
+    }
   }
 
   /* ─── EXPIRED — pure history, no action buttons ─── */
@@ -756,7 +811,7 @@ export function JobFlowScreen({
                     >
                       <span className={cn("text-[12px] font-medium", muted)}>
                         #{o.offerIndex}{" "}
-                        {o.side === "repair_pro" ? "Repair Pro" : "Motorist"}
+                        {o.side === "repair_pro" ? "Repair Pro" : "Customer"}
                       </span>
                       <span
                         className={cn(
@@ -825,7 +880,7 @@ export function JobFlowScreen({
     const counterpartLabel =
       viewer === "motorist"
         ? PRO_SERVICE_LABELS[job.serviceType]
-        : "Motorist";
+        : "Customer";
 
     return (
       <JobShell
@@ -1040,7 +1095,7 @@ export function JobFlowScreen({
       >
         {viewer === "motorist"
           ? PRO_SERVICE_LABELS[job.serviceType]
-          : "Motorist"}
+          : "Customer"}
       </span>
     );
 
@@ -1130,9 +1185,7 @@ export function JobFlowScreen({
       </>
     );
 
-    const chatClosedForever = ["satisfied", "released", "cancelled", "expired", "refunded"].includes(
-      job.status
-    );
+    const chatClosedForever = isJobEndedStatus(job.status);
 
     /**
      * Icon-only Call / Message — elite Swiss-minimal line marks.
@@ -1220,7 +1273,16 @@ export function JobFlowScreen({
     );
 
     const footerBlock = (
-      <div className="space-y-2">
+      <div className="relative space-y-2">
+        <ExpiredDialog
+          open={chatGateOpen}
+          isLight={isLight}
+          message={CONVERSATION_ENDED_MESSAGE}
+          onClose={() => {
+            setChatGateOpen(false);
+            setChatGateViewHref(null);
+          }}
+        />
         {flash && (
           <p className="text-center text-[12px] font-bold text-[#e07a3d]">
             {flash}
@@ -1782,7 +1844,7 @@ export function JobFlowScreen({
               <>
                 <p className={cn("mb-3 text-center text-[14px] font-bold", ink)}>
                   {viewer === "repair_pro"
-                    ? "Motorist rating"
+                    ? "Customer rating"
                     : "Your review of the Repair Pro"}
                 </p>
                 {starRow(displayRating, false)}
@@ -1876,7 +1938,7 @@ export function JobFlowScreen({
         compactHeader
         onBack={goJobsList}
       >
-        <div className="mb-3 flex items-center gap-2 rounded-2xl bg-amber-500/15 px-3 py-3 text-amber-700 dark:text-amber-300">
+        <div className="mb-3 flex items-center gap-2 rounded-2xl bg-[#FF6B35]/150/15 px-3 py-3 text-[#FF6B35] dark:text-[#FF6B35]">
           <ShieldAlert className="h-5 w-5 shrink-0" />
           <p className="text-[13px] font-bold">
             Admin review in progress. Chat remains open. You may add evidence.
@@ -1907,10 +1969,21 @@ export function JobFlowScreen({
         <GhostButton
           isLight={isLight}
           className="mt-3"
-          onClick={() => openJobChat(job)}
+          onClick={() => void openJobChat(job)}
         >
           Open chat
         </GhostButton>
+        <div className="relative min-h-0">
+          <ExpiredDialog
+            open={chatGateOpen}
+            isLight={isLight}
+            message={CONVERSATION_ENDED_MESSAGE}
+            onClose={() => {
+              setChatGateOpen(false);
+              setChatGateViewHref(null);
+            }}
+          />
+        </div>
       </JobShell>
     );
   }
@@ -1967,7 +2040,7 @@ function StatusPill({
 }) {
   const cls =
     tone === "amber"
-      ? "bg-amber-500/20 text-amber-800 dark:text-amber-300"
+      ? "bg-[#FF6B35]/150/20 text-[#FF6B35] dark:text-[#FF6B35]"
       : tone === "copper"
         ? "bg-[#e07a3d]/20 text-[#e07a3d]"
         : "bg-black/10 text-slate-700 dark:bg-white/10 dark:text-white/70";

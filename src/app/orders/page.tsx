@@ -299,9 +299,9 @@ function OrderCard({
           <CallButton
             label="Call motorist"
             target={{
-              name: job.technicianName || "Motorist",
+              name: job.technicianName || "Customer",
               phone: "",
-              roleLabel: "Motorist",
+              roleLabel: "Customer",
             }}
             className={cn(
               "h-9 flex-none rounded-lg px-3 text-[11px]",

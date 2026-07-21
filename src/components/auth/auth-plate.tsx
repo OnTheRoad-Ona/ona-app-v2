@@ -51,11 +51,11 @@ export function AuthPlate({
  * #E2E3E7 fill · #9A9EA6 border · h-10 · rounded-md · 13px
  */
 export const authFieldClass =
-  "om-auth-field h-10 w-full rounded-md border !border-[#9A9EA6] !bg-[#E2E3E7] px-3 text-[13px] font-medium !text-[#0f172a] outline-none placeholder:!text-[#c5cbd4] placeholder:opacity-70 shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:!border-[#6B7280] focus:!bg-[#E8E9ED] focus:ring-0";
+  "om-auth-field h-10 w-full rounded-md border !border-[#9A9EA6] !bg-[#E2E3E7] px-3 text-[13px] font-medium !text-[#0f172a] outline-none placeholder:!text-[#64748b] placeholder:opacity-100 shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:!border-[#6B7280] focus:!bg-[#E8E9ED] focus:ring-0";
 
 /** Same as authFieldClass with left padding for an icon */
 export const authFieldIconClass =
-  "om-auth-field h-10 w-full rounded-md border !border-[#9A9EA6] !bg-[#E2E3E7] py-0 pl-9 pr-3 text-[13px] font-medium !text-[#0f172a] outline-none placeholder:!text-[#c5cbd4] placeholder:opacity-70 shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:!border-[#6B7280] focus:!bg-[#E8E9ED] focus:ring-0";
+  "om-auth-field h-10 w-full rounded-md border !border-[#9A9EA6] !bg-[#E2E3E7] py-0 pl-9 pr-3 text-[13px] font-medium !text-[#0f172a] outline-none placeholder:!text-[#64748b] placeholder:opacity-100 shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:!border-[#6B7280] focus:!bg-[#E8E9ED] focus:ring-0";
 
 /** Country / select sibling of Motorist phone row */
 export const authSelectClass =
@@ -63,7 +63,7 @@ export const authSelectClass =
 
 /** Multiline field matching login wells */
 export const authTextareaClass =
-  "om-auth-field min-h-[72px] w-full resize-none rounded-md border !border-[#9A9EA6] !bg-[#E2E3E7] px-3 py-2.5 text-[13px] font-medium leading-relaxed !text-[#0f172a] outline-none placeholder:!text-[#c5cbd4] placeholder:opacity-70 shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:!border-[#6B7280] focus:!bg-[#E8E9ED] focus:ring-0";
+  "om-auth-field min-h-[72px] w-full resize-none rounded-md border !border-[#9A9EA6] !bg-[#E2E3E7] px-3 py-2.5 text-[13px] font-medium leading-relaxed !text-[#0f172a] outline-none placeholder:!text-[#64748b] placeholder:opacity-100 shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] focus:!border-[#6B7280] focus:!bg-[#E8E9ED] focus:ring-0";
 
 /** Inline style twin — use when a field still paints white */
 export const authFieldStyle: CSSProperties = {

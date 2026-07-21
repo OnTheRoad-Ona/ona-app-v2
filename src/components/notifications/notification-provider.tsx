@@ -172,7 +172,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     primed.current = false;
     knownIds.current = new Set();
     void refresh();
-  }, [refresh]);
+    // Depend on session identity only — not `refresh` fn identity (avoids fetch storms)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backendUserId, isAuthenticated, role]);
 
   // Poll backup every 5 min when visible (Realtime is primary)
   useEffect(() => {

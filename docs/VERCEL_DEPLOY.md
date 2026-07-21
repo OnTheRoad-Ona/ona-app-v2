@@ -1,4 +1,4 @@
-# OgaMecho — Vercel deploy
+# Ona — Vercel deploy
 
 You must be logged in first:
 
@@ -9,33 +9,33 @@ npx vercel login
 
 ## Important: one app, one project (recommended)
 
-OgaMecho is a **single Next.js app** (public UI + `/admin` + all `/api/*` routes).
+Ona is a **single Next.js app** (public UI + `/admin` + all `/api/*` routes).
 
-| Surface | Local | Production (current team **wit7**) |
+| Surface | Local | Production (team **wit7**) |
 |---------|-------|-------------------------------------|
-| Public app | http://localhost:3000 | **https://ogamecho-mi.vercel.app** |
-| Admin / backend | http://localhost:4500/admin | **https://ogamecho-backend-mi.vercel.app/admin** |
+| Public app | http://localhost:3000 | **https://ona-mi.vercel.app** |
+| Admin / backend | http://localhost:4500/admin | **https://ona-backend.vercel.app/admin** |
 
 **Account:** `oluwatosinabdullahime@gmail.com` · team **WIT** (`wit7`)
 
 | Project | Domain | Role |
 |---------|--------|------|
-| `ogamecho` | https://ogamecho-mi.vercel.app | Public consumer app |
-| `ogamecho-backend` | https://ogamecho-backend-mi.vercel.app | Admin + APIs (same codebase, service role env) |
+| `ona-mi` (was `ogamecho`) | https://ona-mi.vercel.app | Public consumer app |
+| `ona-backend` (was `ogamecho-backend`) | https://ona-backend.vercel.app | Admin + APIs (same codebase, service role env) |
 
 Local project links: `.vercel` → app · `.vercel-backend` → backend  
 
-The old domains `ogamecho.vercel.app` / `ogamecho-backend.vercel.app` belong to the blocked **Wavers Initiative Team** Hobby account — do not use them until that team is unblocked.
+Legacy aliases (may still resolve): `ogamecho-mi.vercel.app`, `ogamecho-backend-mi.vercel.app`.
 
-## Project A — `ogamecho` (primary)
+## Project A — frontend (`ogamecho` → ona-mi)
 
 ```bash
-npx vercel --yes --name ogamecho
-# Only when you explicitly want production:
-# npx vercel --prod --yes --name ogamecho
+npx vercel --prod --yes
+# Assign / confirm production domain:
+npx vercel alias set <deployment-url> ona-mi.vercel.app
 ```
 
-Alias: **https://ogamecho.vercel.app**
+Production URL: **https://ona-mi.vercel.app**
 
 ### Required env (Production)
 
@@ -48,46 +48,32 @@ Alias: **https://ogamecho.vercel.app**
 | `SUPABASE_SECRET_KEY` | Optional alias for service key |
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Maps |
 | `NEXT_PUBLIC_USE_LIVE_MAPS` | `true` |
-| `NEXT_PUBLIC_APP_URL` | `https://ogamecho.vercel.app` (payments, emails) |
+| `NEXT_PUBLIC_APP_URL` | `https://ona-mi.vercel.app` (payments, emails) |
 
 Optional: payment / SMS / Resend keys as in `.env.example`.
 
-## Project B — `ogamecho-backend` (optional / legacy)
+## Project B — backend (`ogamecho-backend` → ona-backend)
 
 ```bash
-npx vercel --yes --name ogamecho-backend
+npx vercel --prod --yes --cwd . --local-config .vercel-backend
+# or deploy with backend project link, then:
+npx vercel alias set <deployment-url> ona-backend.vercel.app
 ```
 
-Alias: **https://ogamecho-backend.vercel.app**  
-Same env as primary (including service role). Prefer routing staff to **ogamecho.vercel.app/admin** instead.
+Production URL: **https://ona-backend.vercel.app**  
+Same env as primary (including service role). Staff can also use **https://ona-mi.vercel.app/admin**.
 
-## “This deployment is temporarily paused”
+## After deploy
 
-If both domains return **HTTP 402** / `DEPLOYMENT_DISABLED`:
-
-1. Open [Vercel Dashboard](https://vercel.com/dashboard) → team **Wavers Initiative Team**
-2. Check **Usage** / **Billing** — Hobby soft-block is often:
-   - **`FAIR_USE_LIMITS_EXCEEDED`**
-   - overage type **`fastOriginTransfer`** (Fast Origin Transfer)
-3. Fix options:
-   - Wait for the **monthly usage cycle** to reset, or  
-   - **Upgrade** the team plan (Pro), or  
-   - Reduce transfer (fewer production deploys, single project, less polling / large media)
-4. Redeploying **will not** unpause while the team is soft-blocked.
-
-Code and env can be correct while the **whole team** is paused.
-
-## After the pause lifts
-
-1. Open https://ogamecho.vercel.app  
-2. Admin: https://ogamecho.vercel.app/admin/login  
+1. Open https://ona-mi.vercel.app  
+2. Admin: https://ona-backend.vercel.app/admin/login (or https://ona-mi.vercel.app/admin/login)  
 3. Restrict Google Maps key referrers to production domains  
 
 ## Local ports
 
 | Surface | URL |
 |---------|-----|
-| Public OgaMecho | http://localhost:3000 |
+| Public Ona | http://localhost:3000 |
 | Admin (same codebase) | http://localhost:4500/admin |
 
 ```bash

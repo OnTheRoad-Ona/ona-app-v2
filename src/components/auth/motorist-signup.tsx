@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  Check,
   ChevronLeft,
   ChevronRight,
   Lock,
@@ -36,28 +37,40 @@ import {
   getPhoneCodeOptions,
   splitStoredPhone,
 } from "@/lib/phone-codes";
+import {
+  filterIdInput,
+  getCountryIdPack,
+  validateIdFormat,
+} from "@/lib/country-id-rules";
 import { getVaultProfile } from "@/lib/profiles-vault";
 import { verifySignupIds } from "@/lib/ng-id-verify-client";
 import {
-  bvnError,
   emailError,
   fullNameError,
   isValidEmail,
   isValidFullName,
   isValidPassword,
-  ninError,
   confirmPasswordError,
   passwordError,
   passwordRules,
   phoneNationalError,
 } from "@/lib/signup-validation";
+import {
+  filterOptions,
+  getAllMakes,
+  getModelsForMake,
+  getYearsForMakeModel,
+} from "@/lib/vehicle-catalog";
+import { VEHICLE_TYPES } from "@/lib/vehicle-focus";
 import { useApp } from "@/lib/store";
-import type { UserProfile } from "@/lib/types";
+import type { MotoristVehicle, UserProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+type VehiclePickerKey = "vehicleType" | "make" | "model" | "year";
 
 type Step = 1 | 2 | 3;
 /**
- * Full Motorist signup — polished account step + reduced corner radius.
+ * Full Customer signup — polished account step + reduced corner radius.
  * Menu dual-signup: locks identity from Repair Pro, lands on Motorist home.
  */
 export function MotoristSignup() {
@@ -76,6 +89,18 @@ export function MotoristSignup() {
 
   const [fullName, setFullName] = useState("");
   const [phoneIso, setPhoneIso] = useState(DEFAULT_PHONE_ISO);
+  const idPack = useMemo(() => getCountryIdPack(phoneIso), [phoneIso]);
+  const primaryDoc = useMemo(
+    () =>
+      idPack.docs.find((d) => d.kind === "national_id" && d.requiredForVerify) ||
+      idPack.docs.find((d) => d.requiredForVerify) ||
+      idPack.docs[0],
+    [idPack]
+  );
+  const bankDoc = useMemo(
+    () => idPack.docs.find((d) => d.kind === "bank_id"),
+    [idPack]
+  );
   const [phoneDial, setPhoneDial] = useState(DEFAULT_PHONE_DIAL);
   const [phoneNational, setPhoneNational] = useState("");
   const [email, setEmail] = useState("");
@@ -86,11 +111,26 @@ export function MotoristSignup() {
   const [city, setCity] = useState("Lagos");
   const [area, setArea] = useState("");
   const [pickedLoc, setPickedLoc] = useState<PickedLocation | null>(null);
-  const [vehicleMake, setVehicleMake] = useState("");
-  const [vehicleModel, setVehicleModel] = useState("");
-  const [vehicleYear, setVehicleYear] = useState("");
-  /** Identity locked from existing Repair Pro account (menu dual-signup) */
-  const [identityLocked, setIdentityLocked] = useState(false);
+  /** Optional vehicles — customer can skip (other services need no car) */
+  const [vehicles, setVehicles] = useState<MotoristVehicle[]>([]);
+  const [draftVehicleType, setDraftVehicleType] = useState("Any");
+  const [draftMake, setDraftMake] = useState("Any");
+  const [draftModel, setDraftModel] = useState("Any");
+  const [draftYear, setDraftYear] = useState("Any");
+  const [vehiclePicker, setVehiclePicker] = useState<VehiclePickerKey | null>(
+    null
+  );
+  const [pickerQuery, setPickerQuery] = useState("");
+  /**
+   * Dual-role signup: prefill from Repair Pro, but only dim/lock fields
+   * that already have values. Empty NIN/BVN stay fully editable (not dimmed).
+   */
+  const [dualSignup, setDualSignup] = useState(false);
+  const [nameLocked, setNameLocked] = useState(false);
+  const [phoneLocked, setPhoneLocked] = useState(false);
+  const [emailLocked, setEmailLocked] = useState(false);
+  const [ninLocked, setNinLocked] = useState(false);
+  const [bvnLocked, setBvnLocked] = useState(false);
 
   const fromMenu = searchParams.get("from") === "menu";
   const nextPath =
@@ -100,23 +140,66 @@ export function MotoristSignup() {
 
   const fullPhone = formatInternationalPhone(phoneDial, phoneNational);
 
-  // Prefill + lock identity from existing Repair Pro (vault + live session)
+  // Prefill from existing Repair Pro — lock only fields that already have values
   useEffect(() => {
     const vaultPro = getVaultProfile("professional");
     const livePro =
       userProfile?.accountType === "professional" ? userProfile : null;
-    // Dual signup from menu: any authenticated non-motorist session is the source
+    // Dual signup from menu: any authenticated non-customer session is the source
     const sessionSource =
       isAuthenticated && userProfile && userProfile.accountType !== "motorist"
         ? userProfile
         : null;
     const pro = vaultPro || livePro || sessionSource;
-    if (!pro) return;
-    setIdentityLocked(true);
-    setFullName(pro.fullName || vaultPro?.fullName || "");
-    setEmail(pro.email || vaultPro?.email || "");
-    setIdNumber(pro.idNumber || vaultPro?.idNumber || "");
-    setBvn(pro.bvn || vaultPro?.bvn || "");
+    if (!pro) {
+      setDualSignup(false);
+      setNameLocked(false);
+      setPhoneLocked(false);
+      setEmailLocked(false);
+      setNinLocked(false);
+      setBvnLocked(false);
+      return;
+    }
+
+    setDualSignup(true);
+
+    const name = (pro.fullName || vaultPro?.fullName || "").trim();
+    const em = (pro.email || vaultPro?.email || "").trim();
+    const nin = (pro.idNumber || vaultPro?.idNumber || "").trim();
+    const bankId = (pro.bvn || vaultPro?.bvn || "").trim();
+    const phoneRaw = (pro.phone || vaultPro?.phone || "").trim();
+
+    if (name) {
+      setFullName(name);
+      setNameLocked(true);
+    } else {
+      setNameLocked(false);
+    }
+    if (em) {
+      setEmail(em);
+      setEmailLocked(true);
+    } else {
+      setEmailLocked(false);
+    }
+    // NIN/BVN: only lock + dim when a full 11-digit value exists.
+    // Empty / never-filled / last4-only → stay fully editable (not dimmed).
+    const ninDigits = nin.replace(/\D/g, "");
+    const bvnDigits = bankId.replace(/\D/g, "");
+    if (ninDigits.length === 11) {
+      setIdNumber(ninDigits);
+      setNinLocked(true);
+    } else {
+      setIdNumber("");
+      setNinLocked(false);
+    }
+    if (bvnDigits.length === 11) {
+      setBvn(bvnDigits);
+      setBvnLocked(true);
+    } else {
+      setBvn("");
+      setBvnLocked(false);
+    }
+
     setCity(pro.city || vaultPro?.city || "Lagos");
     setArea(pro.area || vaultPro?.area || "");
     // Prefill same password if we still have it locally (user can edit)
@@ -125,10 +208,15 @@ export function MotoristSignup() {
       setPassword(pwd);
       setConfirmPassword(pwd);
     }
-    const split = splitStoredPhone(pro.phone || vaultPro?.phone || "");
-    setPhoneIso(split.iso);
-    setPhoneDial(split.dial);
-    setPhoneNational(split.national);
+    if (phoneRaw) {
+      const split = splitStoredPhone(phoneRaw);
+      setPhoneIso(split.iso);
+      setPhoneDial(split.dial);
+      setPhoneNational(split.national);
+      setPhoneLocked(true);
+    } else {
+      setPhoneLocked(false);
+    }
   }, [userProfile, isAuthenticated]);
 
   const onLocationPicked = (loc: PickedLocation) => {
@@ -152,31 +240,141 @@ export function MotoristSignup() {
   /** Dual signup: reuse existing password (min 6 for server), not a new-password checklist */
   const dualPasswordOk = password.trim().length >= 6;
 
-  const step1Ok = identityLocked
+  /** Optional at signup — if filled, must match this country’s rules */
+  const optionalIdError = (): string | null => {
+    if (idNumber.trim() && primaryDoc) {
+      const r = validateIdFormat(idNumber.trim(), primaryDoc);
+      if (!r.ok) return r.message;
+    }
+    if (bvn.trim() && bankDoc) {
+      const r = validateIdFormat(bvn.trim(), bankDoc);
+      if (!r.ok) return r.message;
+    }
+    return null;
+  };
+
+  const step1Ok = dualSignup
     ? isValidFullName(fullName) &&
       !phoneNationalError(phoneNational) &&
       isValidEmail(email) &&
       dualPasswordOk &&
-      !ninError(idNumber) &&
-      !bvnError(bvn)
+      !optionalIdError()
     : isValidFullName(fullName) &&
       !phoneNationalError(phoneNational) &&
       isValidEmail(email) &&
       isValidPassword(password) &&
       confirmPassword === password &&
       confirmPassword.length > 0 &&
-      !ninError(idNumber) &&
-      !bvnError(bvn);
+      !optionalIdError();
   const step2Ok = city.trim().length >= 2 && area.trim().length >= 2;
 
+  const isAny = (v: string) => !v.trim() || v.trim().toLowerCase() === "any";
+
+  /** Real vehicle only when make + model are chosen (not ANY) */
+  const draftReady =
+    !isAny(draftMake) && !isAny(draftModel);
+
+  /** Vehicles optional — always can finish step 3 */
+  const step3Ok = true;
+
+  const resetDraft = () => {
+    setDraftVehicleType("Any");
+    setDraftMake("Any");
+    setDraftModel("Any");
+    setDraftYear("Any");
+  };
+
+  const addDraftVehicle = (): boolean => {
+    if (!draftReady) return false;
+    const v: MotoristVehicle = {
+      id: `veh-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      vehicleType: isAny(draftVehicleType) ? undefined : draftVehicleType.trim(),
+      make: draftMake.trim(),
+      model: draftModel.trim(),
+      year: isAny(draftYear) ? undefined : draftYear.trim(),
+    };
+    setVehicles((prev) => [...prev, v]);
+    resetDraft();
+    return true;
+  };
+
+  const makeOptions = useMemo(() => {
+    const makes = getAllMakes();
+    return ["Any", ...makes];
+  }, []);
+
+  const modelOptions = useMemo(() => {
+    if (isAny(draftMake)) return ["Any"];
+    return ["Any", ...getModelsForMake(draftMake)];
+  }, [draftMake]);
+
+  const yearOptions = useMemo(() => {
+    if (isAny(draftMake) || isAny(draftModel)) return ["Any"];
+    const years = getYearsForMakeModel(draftMake, draftModel).map(String);
+    return ["Any", ...years];
+  }, [draftMake, draftModel]);
+
+  const vehicleTypeOptions = useMemo(
+    () =>
+      VEHICLE_TYPES.includes("Any")
+        ? [...VEHICLE_TYPES]
+        : ["Any", ...VEHICLE_TYPES],
+    []
+  );
+
+  const pickerOptions = useMemo(() => {
+    if (!vehiclePicker) return [] as string[];
+    if (vehiclePicker === "vehicleType") return vehicleTypeOptions;
+    if (vehiclePicker === "make") return makeOptions;
+    if (vehiclePicker === "model") return modelOptions;
+    return yearOptions;
+  }, [
+    vehiclePicker,
+    vehicleTypeOptions,
+    makeOptions,
+    modelOptions,
+    yearOptions,
+  ]);
+
+  const filteredPickerOptions = useMemo(
+    () => filterOptions(pickerOptions, pickerQuery, 120),
+    [pickerOptions, pickerQuery]
+  );
+
+  const openVehiclePicker = (key: VehiclePickerKey) => {
+    setPickerQuery("");
+    setVehiclePicker(key);
+  };
+
+  const pickVehicleValue = (value: string) => {
+    if (!vehiclePicker) return;
+    if (vehiclePicker === "vehicleType") {
+      setDraftVehicleType(value);
+      // Keep make/model unless they clear to Any
+    } else if (vehiclePicker === "make") {
+      setDraftMake(value);
+      setDraftModel("Any");
+      setDraftYear("Any");
+    } else if (vehiclePicker === "model") {
+      setDraftModel(value);
+      setDraftYear("Any");
+    } else {
+      setDraftYear(value);
+    }
+    setVehiclePicker(null);
+    setPickerQuery("");
+  };
+
+  const displayVal = (v: string) =>
+    isAny(v) ? "ANY" : v.toUpperCase();
+
   const validateStep1 = (): string | null => {
-    if (identityLocked) {
+    if (dualSignup) {
       const base =
         fullNameError(fullName) ||
         phoneNationalError(phoneNational) ||
         emailError(email) ||
-        ninError(idNumber) ||
-        bvnError(bvn);
+        optionalIdError();
       if (base) return base;
       if (!dualPasswordOk) {
         return "Enter the same password you use for your Repair Pro account.";
@@ -187,8 +385,7 @@ export function MotoristSignup() {
       fullNameError(fullName) ||
       phoneNationalError(phoneNational) ||
       emailError(email) ||
-      ninError(idNumber) ||
-      bvnError(bvn) ||
+      optionalIdError() ||
       passwordError(password) ||
       confirmPasswordError(password, confirmPassword)
     );
@@ -208,7 +405,7 @@ export function MotoristSignup() {
 
   const guardIdentity = (): string | null => {
     // Dual role (same person): Motorist + Repair Pro share one phone/email/NIN/BVN
-    if (identityLocked) return null;
+    if (dualSignup) return null;
     const check = checkIdentityAvailable({
       phone: fullPhone,
       email: email.trim(),
@@ -219,7 +416,7 @@ export function MotoristSignup() {
     return check.ok ? null : check.message;
   };
 
-  const finish = async () => {
+  const finish = async (opts?: { skipVehicle?: boolean }) => {
     if (busy) return;
     const v = validateStep1();
     if (v) {
@@ -227,6 +424,35 @@ export function MotoristSignup() {
       setStep(1);
       return;
     }
+    if (!step2Ok) {
+      setFormError("Please set your location.");
+      setStep(2);
+      return;
+    }
+
+    // Skip: register without vehicles. Create account: save draft if filled.
+    let list = vehicles;
+    if (!opts?.skipVehicle && draftReady) {
+      const next: MotoristVehicle = {
+        id: `veh-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        vehicleType: isAny(draftVehicleType)
+          ? undefined
+          : draftVehicleType.trim(),
+        make: draftMake.trim(),
+        model: draftModel.trim(),
+        year: isAny(draftYear) ? undefined : draftYear.trim(),
+      };
+      list = [...vehicles, next];
+      setVehicles(list);
+      resetDraft();
+    }
+    if (opts?.skipVehicle) {
+      list = [];
+      setVehicles([]);
+      resetDraft();
+    }
+    // Vehicles optional — empty list is fine for non-car services
+
     setBusy(true);
     setFormError("");
 
@@ -238,18 +464,26 @@ export function MotoristSignup() {
       return;
     }
 
-    const verified = await verifySignupIds({
-      nin: idNumber.trim() || undefined,
-      bvn: bvn.trim() || undefined,
-      requireBoth: false,
-    });
-    if (!verified.ok) {
-      setFormError(verified.message);
-      setBusy(false);
-      setStep(1);
-      return;
+    // Live number checks only for countries that support them (e.g. NG NIN/BVN)
+    if (
+      (primaryDoc?.api === "nin" && idNumber.trim()) ||
+      (bankDoc?.api === "bvn" && bvn.trim())
+    ) {
+      const verified = await verifySignupIds({
+        nin:
+          primaryDoc?.api === "nin" ? idNumber.trim() || undefined : undefined,
+        bvn: bankDoc?.api === "bvn" ? bvn.trim() || undefined : undefined,
+        requireBoth: false,
+      });
+      if (!verified.ok) {
+        setFormError(verified.message);
+        setBusy(false);
+        setStep(1);
+        return;
+      }
     }
 
+    const first = list[0];
     const profile: UserProfile = {
       accountType: "motorist",
       fullName: fullName.trim(),
@@ -260,9 +494,12 @@ export function MotoristSignup() {
       area: area.trim(),
       idNumber: idNumber.trim() || undefined,
       bvn: bvn.trim() || undefined,
-      vehicleMake: vehicleMake.trim() || undefined,
-      vehicleModel: vehicleModel.trim() || undefined,
-      vehicleYear: vehicleYear.trim() || undefined,
+      identityCountryIso: phoneIso,
+      govIdKind: primaryDoc?.kind,
+      vehicles: list.length ? list : undefined,
+      vehicleMake: first?.make,
+      vehicleModel: first?.model,
+      vehicleYear: first?.year,
       registeredAt: new Date().toISOString(),
     };
 
@@ -289,13 +526,107 @@ export function MotoristSignup() {
   const titles: Record<Step, string> = {
     1: "Your account",
     2: "Where are you?",
-    3: "Your vehicle",
+    3: "Your vehicles",
   };
   const subtitles: Record<Step, string> = {
     1: "Create your car owner profile so you can ask for help nearby",
     2: "We use this to find repair people close to you",
-    3: "Not required. It helps the repair person prepare for your car",
+    3: "Optional — skip if you do not need vehicle services",
   };
+
+  const vehicleRows: {
+    key: VehiclePickerKey;
+    label: string;
+    value: string;
+  }[] = [
+    { key: "vehicleType", label: "Vehicle", value: draftVehicleType },
+    { key: "make", label: "Make", value: draftMake },
+    { key: "model", label: "Model", value: draftModel },
+    { key: "year", label: "Year", value: draftYear },
+  ];
+
+  // Full-screen picker for vehicle rows (image-style list → options sheet)
+  if (vehiclePicker) {
+    const titleMap: Record<VehiclePickerKey, string> = {
+      vehicleType: "Vehicle",
+      make: "Make",
+      model: "Model",
+      year: "Year",
+    };
+    return (
+      <AuthPlate exiting={exiting}>
+        <div className="flex min-h-0 flex-1 flex-col px-3 pb-3 pt-3">
+          <div className="relative flex items-center justify-center pb-1">
+            <button
+              type="button"
+              onClick={() => {
+                setVehiclePicker(null);
+                setPickerQuery("");
+              }}
+              className="absolute left-0 inline-flex h-8 items-center gap-0.5 rounded-md border-0 bg-transparent px-0 text-[12px] font-semibold text-[#1e293b]"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.25} />
+              Back
+            </button>
+            <h1 className="text-[15px] font-bold tracking-tight text-[#1c1c1e]">
+              {titleMap[vehiclePicker]}
+            </h1>
+          </div>
+          <div className="mt-2">
+            <input
+              type="search"
+              value={pickerQuery}
+              onChange={(e) => setPickerQuery(e.target.value)}
+              placeholder="Search"
+              className={fieldClass}
+              autoFocus
+            />
+          </div>
+          <ul className="mt-2 min-h-0 flex-1 list-none space-y-0.5 overflow-y-auto overscroll-contain scrollbar-hide">
+            {filteredPickerOptions.map((opt) => {
+              const selected =
+                vehiclePicker === "vehicleType"
+                  ? draftVehicleType === opt
+                  : vehiclePicker === "make"
+                    ? draftMake === opt
+                    : vehiclePicker === "model"
+                      ? draftModel === opt
+                      : draftYear === opt;
+              return (
+                <li key={opt}>
+                  <button
+                    type="button"
+                    onClick={() => pickVehicleValue(opt)}
+                    className={cn(
+                      "flex w-full items-center justify-between gap-2 rounded-lg border-0 px-3 py-2.5 text-left",
+                      selected
+                        ? "bg-[#FF6B35]/15 text-[#9a3412]"
+                        : "bg-transparent text-[#1e293b] active:bg-black/[0.04]"
+                    )}
+                  >
+                    <span className="min-w-0 flex-1 text-[13px] font-semibold uppercase tracking-[0.01em]">
+                      {opt}
+                    </span>
+                    {selected ? (
+                      <Check
+                        className="h-3.5 w-3.5 shrink-0 text-[#FF6B35]"
+                        strokeWidth={2.5}
+                      />
+                    ) : null}
+                  </button>
+                </li>
+              );
+            })}
+            {filteredPickerOptions.length === 0 && (
+              <li className="py-8 text-center text-[12px] text-[#64748b]">
+                No matches
+              </li>
+            )}
+          </ul>
+        </div>
+      </AuthPlate>
+    );
+  }
 
   return (
     <AuthPlate exiting={exiting}>
@@ -329,7 +660,7 @@ export function MotoristSignup() {
               key={n}
               className={cn(
                 "h-0.5 flex-1 rounded-sm transition-colors",
-                n <= step ? "bg-[#e85a12]" : "bg-black/10"
+                n <= step ? "bg-[#FF6B35]" : "bg-black/10"
               )}
             />
           ))}
@@ -349,12 +680,9 @@ export function MotoristSignup() {
                   Your details
                 </p>
 
-                {identityLocked && (
+                {dualSignup && (
                   <p className="rounded-md bg-[#e8e9ed] px-2.5 py-2 text-[11px] leading-snug text-[#334155]">
-                    Name, phone, email, NIN and BVN are filled from your Repair
-                    Pro account and dimmed (locked). Use the{" "}
-                    <span className="font-semibold">same password</span> as that
-                    account below, then finish the Motorist steps.
+                    Continue from your Repair Pro account
                   </p>
                 )}
 
@@ -364,14 +692,14 @@ export function MotoristSignup() {
                     <input
                       className={cn(
                         fieldIconClass,
-                        identityLocked && authLockedFieldClass
+                        nameLocked && authLockedFieldClass
                       )}
-                      style={identityLocked ? authLockedFieldStyle : undefined}
+                      style={nameLocked ? authLockedFieldStyle : undefined}
                       value={fullName}
-                      readOnly={identityLocked}
-                      tabIndex={identityLocked ? -1 : undefined}
+                      readOnly={nameLocked}
+                      tabIndex={nameLocked ? -1 : undefined}
                       onChange={(e) => {
-                        if (identityLocked) return;
+                        if (nameLocked) return;
                         setFullName(e.target.value);
                         setFieldError("fullName", null);
                       }}
@@ -391,18 +719,23 @@ export function MotoristSignup() {
                       className={cn(
                         selectClass,
                         "max-w-[42%]",
-                        identityLocked && authLockedFieldClass
+                        phoneLocked && authLockedFieldClass
                       )}
-                      style={identityLocked ? authLockedFieldStyle : undefined}
+                      style={phoneLocked ? authLockedFieldStyle : undefined}
                       value={phoneIso}
                       aria-label="Country code"
-                      disabled={identityLocked}
+                      disabled={phoneLocked}
                       onChange={(e) => {
-                        if (identityLocked) return;
+                        if (phoneLocked) return;
                         const iso = e.target.value;
                         setPhoneIso(iso);
                         const opt = phoneCodes.find((c) => c.iso === iso);
                         if (opt) setPhoneDial(opt.dial);
+                        // Country change → clear IDs and force re-entry
+                        setIdNumber("");
+                        setBvn("");
+                        setFieldError("nin", null);
+                        setFieldError("bvn", null);
                       }}
                     >
                       {phoneCodes.map((c) => (
@@ -415,14 +748,14 @@ export function MotoristSignup() {
                       className={cn(
                         fieldClass,
                         "min-w-0 flex-1",
-                        identityLocked && authLockedFieldClass
+                        phoneLocked && authLockedFieldClass
                       )}
-                      style={identityLocked ? authLockedFieldStyle : undefined}
+                      style={phoneLocked ? authLockedFieldStyle : undefined}
                       value={phoneNational}
-                      readOnly={identityLocked}
-                      tabIndex={identityLocked ? -1 : undefined}
+                      readOnly={phoneLocked}
+                      tabIndex={phoneLocked ? -1 : undefined}
                       onChange={(e) => {
-                        if (identityLocked) return;
+                        if (phoneLocked) return;
                         setPhoneNational(
                           e.target.value.replace(/\D/g, "").slice(0, 15)
                         );
@@ -449,14 +782,14 @@ export function MotoristSignup() {
                     <input
                       className={cn(
                         fieldIconClass,
-                        identityLocked && authLockedFieldClass
+                        emailLocked && authLockedFieldClass
                       )}
-                      style={identityLocked ? authLockedFieldStyle : undefined}
+                      style={emailLocked ? authLockedFieldStyle : undefined}
                       value={email}
-                      readOnly={identityLocked}
-                      tabIndex={identityLocked ? -1 : undefined}
+                      readOnly={emailLocked}
+                      tabIndex={emailLocked ? -1 : undefined}
                       onChange={(e) => {
-                        if (identityLocked) return;
+                        if (emailLocked) return;
                         setEmail(e.target.value);
                         setFieldError("email", null);
                       }}
@@ -469,53 +802,82 @@ export function MotoristSignup() {
                   <FieldHint message={fieldErrors.email} />
                 </Field>
 
-                <Field label="NIN">
-                  <input
-                    className={cn(
-                      fieldClass,
-                      identityLocked && authLockedFieldClass
-                    )}
-                    style={identityLocked ? authLockedFieldStyle : undefined}
-                    value={idNumber}
-                    readOnly={identityLocked}
-                    tabIndex={identityLocked ? -1 : undefined}
-                    onChange={(e) => {
-                      if (identityLocked) return;
-                      setIdNumber(e.target.value.replace(/\D/g, "").slice(0, 11));
-                      setFieldError("nin", null);
-                    }}
-                    onBlur={() => setFieldError("nin", ninError(idNumber))}
-                    placeholder="NIN"
-                    inputMode="numeric"
-                    maxLength={11}
-                  />
-                  <FieldHint message={fieldErrors.nin} />
-                </Field>
+                {primaryDoc ? (
+                  <Field label={primaryDoc.label}>
+                    <input
+                      className={cn(
+                        fieldClass,
+                        ninLocked && authLockedFieldClass
+                      )}
+                      style={ninLocked ? authLockedFieldStyle : undefined}
+                      value={idNumber}
+                      readOnly={ninLocked}
+                      tabIndex={ninLocked ? -1 : undefined}
+                      onChange={(e) => {
+                        if (ninLocked) return;
+                        setIdNumber(filterIdInput(e.target.value, primaryDoc));
+                        setFieldError("nin", null);
+                      }}
+                      onBlur={() => {
+                        if (!idNumber.trim()) {
+                          setFieldError("nin", null);
+                          return;
+                        }
+                        const r = validateIdFormat(idNumber, primaryDoc);
+                        setFieldError("nin", r.ok ? null : r.message);
+                      }}
+                      placeholder={primaryDoc.placeholder}
+                      inputMode={
+                        primaryDoc.charset === "digits" ? "numeric" : "text"
+                      }
+                      maxLength={primaryDoc.maxLen}
+                    />
+                    <p className="mt-0.5 text-[10px] font-medium text-[#64748b]">
+                      {idPack.countryName}: {primaryDoc.hint} You can finish
+                      this later in Verify.
+                    </p>
+                    <FieldHint message={fieldErrors.nin} />
+                  </Field>
+                ) : null}
 
-                <Field label="BVN">
-                  <input
-                    className={cn(
-                      fieldClass,
-                      identityLocked && authLockedFieldClass
-                    )}
-                    style={identityLocked ? authLockedFieldStyle : undefined}
-                    value={bvn}
-                    readOnly={identityLocked}
-                    tabIndex={identityLocked ? -1 : undefined}
-                    onChange={(e) => {
-                      if (identityLocked) return;
-                      setBvn(e.target.value.replace(/\D/g, "").slice(0, 11));
-                      setFieldError("bvn", null);
-                    }}
-                    onBlur={() => setFieldError("bvn", bvnError(bvn))}
-                    placeholder="BVN"
-                    inputMode="numeric"
-                    maxLength={11}
-                  />
-                  <FieldHint message={fieldErrors.bvn} />
-                </Field>
+                {bankDoc ? (
+                  <Field label={bankDoc.label}>
+                    <input
+                      className={cn(
+                        fieldClass,
+                        bvnLocked && authLockedFieldClass
+                      )}
+                      style={bvnLocked ? authLockedFieldStyle : undefined}
+                      value={bvn}
+                      readOnly={bvnLocked}
+                      tabIndex={bvnLocked ? -1 : undefined}
+                      onChange={(e) => {
+                        if (bvnLocked) return;
+                        setBvn(filterIdInput(e.target.value, bankDoc));
+                        setFieldError("bvn", null);
+                      }}
+                      onBlur={() => {
+                        if (!bvn.trim()) {
+                          setFieldError("bvn", null);
+                          return;
+                        }
+                        const r = validateIdFormat(bvn, bankDoc);
+                        setFieldError("bvn", r.ok ? null : r.message);
+                      }}
+                      placeholder={bankDoc.placeholder}
+                      inputMode={
+                        bankDoc.charset === "digits" ? "numeric" : "text"
+                      }
+                      maxLength={bankDoc.maxLen}
+                    />
+                    <p className="mt-0.5 text-[10px] font-medium text-[#64748b]">
+                      {bankDoc.hint}
+                    </p>
+                    <FieldHint message={fieldErrors.bvn} />
+                  </Field>
+                ) : null}
 
-                {identityLocked ? (
+                {dualSignup ? (
                   <Field label="Same password as your Repair Pro account" required>
                     <div className="relative">
                       <Lock className="pointer-events-none absolute left-2.5 top-1/2 z-[1] h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8]" />
@@ -618,8 +980,8 @@ export function MotoristSignup() {
               </div>
 
               <p className="shrink-0 text-center text-[10px] leading-snug text-[#64748b]">
-                {identityLocked
-                  ? "Dimmed details stay the same as Repair Pro. Same password. After signup you open as Motorist."
+                {dualSignup
+                  ? "Empty NIN/BVN stay editable · opens as Customer"
                   : IDENTITY_RULE_COPY}
               </p>
             </div>
@@ -649,34 +1011,79 @@ export function MotoristSignup() {
 
           {step === 3 && (
             <div className="flex flex-col gap-3">
-              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#64748b]">
-                Vehicle (optional)
-              </p>
-              <Field label="Make">
-                <input
-                  className={fieldClass}
-                  value={vehicleMake}
-                  onChange={(e) => setVehicleMake(e.target.value)}
-                  placeholder="Toyota"
-                />
-              </Field>
-              <Field label="Model">
-                <input
-                  className={fieldClass}
-                  value={vehicleModel}
-                  onChange={(e) => setVehicleModel(e.target.value)}
-                  placeholder="Corolla"
-                />
-              </Field>
-              <Field label="Year">
-                <input
-                  className={fieldClass}
-                  value={vehicleYear}
-                  onChange={(e) => setVehicleYear(e.target.value)}
-                  placeholder="2018"
-                  inputMode="numeric"
-                />
-              </Field>
+              {vehicles.length > 0 && (
+                <ul className="flex flex-col gap-1.5">
+                  {vehicles.map((v) => (
+                    <li
+                      key={v.id}
+                      className="flex items-center justify-between gap-2 rounded-md border border-[#9A9EA6]/50 bg-white/60 px-2.5 py-2 text-[12px] text-[#0f172a]"
+                    >
+                      <span className="min-w-0 flex-1 font-semibold">
+                        {[v.vehicleType, v.make, v.model, v.year]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                      <button
+                        type="button"
+                        className="shrink-0 border-0 bg-transparent text-[11px] font-semibold text-red-600"
+                        onClick={() =>
+                          setVehicles((prev) =>
+                            prev.filter((x) => x.id !== v.id)
+                          )
+                        }
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Image-style preference rows: Vehicle → Make → Model → Year */}
+              <div className="overflow-hidden rounded-xl bg-[#f2f3f5] shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]">
+                {vehicleRows.map((row, i) => (
+                  <button
+                    key={row.key}
+                    type="button"
+                    onClick={() => openVehiclePicker(row.key)}
+                    className={cn(
+                      "flex w-full items-center justify-between gap-3 border-0 bg-transparent px-4 py-3.5 text-left",
+                      i > 0 && "border-t border-black/[0.06]"
+                    )}
+                  >
+                    <span className="text-[14px] font-semibold text-[#1e293b]">
+                      {row.label}
+                    </span>
+                    <span className="inline-flex min-w-0 max-w-[55%] items-center gap-1">
+                      <span className="truncate text-[13px] font-medium uppercase tracking-[0.02em] text-[#64748b]">
+                        {displayVal(row.value)}
+                      </span>
+                      <ChevronRight
+                        className="h-4 w-4 shrink-0 text-[#94a3b8]"
+                        strokeWidth={2}
+                      />
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                className={cn(
+                  authSecondaryBtnClass,
+                  "text-[12px] font-semibold"
+                )}
+                disabled={!draftReady}
+                onClick={() => {
+                  if (!addDraftVehicle()) {
+                    setFormError("Pick make and model to add a vehicle.");
+                    return;
+                  }
+                  setFormError("");
+                }}
+              >
+                + Add another vehicle
+              </button>
             </div>
           )}
         </div>
@@ -742,54 +1149,55 @@ export function MotoristSignup() {
               />
             </button>
           ) : (
-            <button
-              type="button"
-              className="om-cta-dark-gray"
-              style={{
-                WebkitAppearance: "none",
-                appearance: "none",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: "100%",
-                height: 44,
-                margin: 0,
-                border: "none",
-                borderRadius: 6,
-                background: "#323231",
-                backgroundColor: "#323231",
-                backgroundImage: "none",
-                color: "#ffffff",
-                fontSize: 14,
-                fontWeight: 600,
-                boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
-                cursor: busy ? "wait" : "pointer",
-                opacity: 1,
-              }}
-              onClick={finish}
-            >
-              {busy ? "Please wait…" : "Create my account"}
-            </button>
-          )}
-          {step === 3 && (
-            <button
-              type="button"
-              className={authSecondaryBtnClass}
-              onClick={finish}
-              disabled={busy || !step1Ok || !step2Ok}
-            >
-              Skip vehicle. Finish
-            </button>
+            <>
+              <button
+                type="button"
+                className="om-cta-dark-gray"
+                style={{
+                  WebkitAppearance: "none",
+                  appearance: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "100%",
+                  height: 44,
+                  margin: 0,
+                  border: "none",
+                  borderRadius: 6,
+                  background: "#323231",
+                  backgroundColor: "#323231",
+                  backgroundImage: "none",
+                  color: "#ffffff",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+                  cursor: busy ? "wait" : "pointer",
+                  opacity: 1,
+                }}
+                disabled={busy}
+                onClick={() => finish()}
+              >
+                {busy ? "Please wait…" : "Create my account"}
+              </button>
+              <button
+                type="button"
+                className={authSecondaryBtnClass}
+                disabled={busy}
+                onClick={() => finish({ skipVehicle: true })}
+              >
+                Skip vehicle. Finish
+              </button>
+            </>
           )}
         </div>
       </div>
 
       <RegistrationComplete
         open={done}
-        accountLabel="Motorist"
+        accountLabel="Customer"
         onContinue={() => {
-          // Land on Motorist home (or ?next= from menu dual-signup)
-          router.replace(nextPath || "/");
+          // Customer home map — lower panel opens collapsed
+          router.replace("/");
         }}
       />
     </AuthPlate>

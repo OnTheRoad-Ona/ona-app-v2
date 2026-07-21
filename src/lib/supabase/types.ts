@@ -37,6 +37,8 @@ export interface ProfileRow {
   avatar_url: string | null;
   city: string | null;
   area: string | null;
+  /** App UI language (en, pcm, yo, …) */
+  preferred_locale?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -71,8 +73,18 @@ export interface RepairProRow {
   is_online: boolean;
   rating_avg: number;
   rating_count: number;
+  /** Live GPS pin (required for marketplace discovery) */
   lat: number | null;
   lng: number | null;
+  location_updated_at?: string | null;
+  /** Admin visibility ladder 1–4 */
+  visibility_tier?: number | null;
+  tier2_approved_at?: string | null;
+  tier3_approved_at?: string | null;
+  tier4_approved_at?: string | null;
+  go_live_window_ends_at?: string | null;
+  is_new_artisan?: boolean | null;
+  tier4_one_star_seeded?: boolean | null;
   service_radius_km: number;
   years_experience: string | null;
   bio: string | null;

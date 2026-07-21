@@ -205,7 +205,7 @@ export default function CareDeskPage() {
         {(
           [
             ["Users", dash?.users, "/admin/users"],
-            ["Motorists", dash?.motorists, "/admin/motorists"],
+            ["Customers", dash?.motorists, "/admin/motorists"],
             ["Repair Pros", dash?.repairPros, "/admin/pros"],
             ["Pending Pros", dash?.pendingPros, "/admin/pros"],
             ["Open jobs", dash?.openJobs ?? board?.jobs.length, "/admin/jobs"],

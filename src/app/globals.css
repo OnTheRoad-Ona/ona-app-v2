@@ -59,13 +59,13 @@ body {
   --border-strong: #a3a4ab;
   --app-bg: #c8c9cd;
 
-  --brand: #e85a12;
-  --brand-bright: #f0651a;
-  --brand-mid: #d14f0e;
-  --brand-deep: #c2480c;
-  --brand-dark: #a83d0a;
-  --brand-soft: #fff0e8;
-  --brand-solid: #e85a12;
+  --brand: #ff6b35;
+  --brand-bright: #ff7d4d;
+  --brand-mid: #f05a28;
+  --brand-deep: #e04e1e;
+  --brand-dark: #c94418;
+  --brand-soft: #fff0eb;
+  --brand-solid: #ff6b35;
 
   --accent-blue: #6ba3e0;
   --navy: #1e293b;
@@ -74,7 +74,7 @@ body {
 
   --map-bg: #0a1610;
   --success: #10b981;
-  --warning: #f59e0b;
+  --warning: #ff6b35;
   --danger: #ef4444;
   --info: #6ba3e0;
   --teal: #14b8a6;
@@ -117,13 +117,13 @@ body {
   --border-strong: #3a221a;
   --app-bg: #120a08;
 
-  --brand: #e85a12;
-  --brand-bright: #f0651a;
-  --brand-mid: #d14f0e;
-  --brand-deep: #c2480c;
-  --brand-dark: #a83d0a;
-  --brand-soft: rgba(255, 140, 60, 0.16);
-  --brand-solid: #e85a12;
+  --brand: #ff6b35;
+  --brand-bright: #ff7d4d;
+  --brand-mid: #f05a28;
+  --brand-deep: #e04e1e;
+  --brand-dark: #c94418;
+  --brand-soft: rgba(255, 107, 53, 0.16);
+  --brand-solid: #ff6b35;
 
   --accent-blue: #60a5fa;
   --navy: #120a08;
@@ -133,7 +133,7 @@ body {
   /* Dark map: deep red mixed with black */
   --map-bg: #0a0000;
   --success: #34d399;
-  --warning: #fbbf24;
+  --warning: #ff6b35;
   --danger: #f87171;
   --info: #38bdf8;
   --teal: #2dd4bf;
@@ -230,7 +230,7 @@ body {
 
 /* Matte metallic orange — solid, soft metal face, low radius */
 .metallic-orange {
-  background-color: #e85a12;
+  background-color: #ff6b35;
   background-image: linear-gradient(
     165deg,
     rgba(255, 255, 255, 0.14) 0%,
@@ -255,7 +255,7 @@ body {
   background-image: none;
 }
 .metallic-orange-text {
-  color: #e85a12;
+  color: #ff6b35;
 }
 
 /**
@@ -286,7 +286,7 @@ body {
   border: none;
   outline: none;
   /* ~0.5px hairline — thinner than 1px solid */
-  box-shadow: 0 0 0 0.5px #e85a12;
+  box-shadow: 0 0 0 0.5px #ff6b35;
 }
 
 .card-surface {
@@ -311,16 +311,17 @@ body {
   border: 1px solid var(--border);
 }
 
-/* Thin orange radius track */
+/* Search radius track — filled line + thumb always #FF6B35 */
 .radius-slider {
   -webkit-appearance: none;
   appearance: none;
-  height: 2px;
+  height: 3px;
   border-radius: 999px;
+  accent-color: #ff6b35;
   background: linear-gradient(
     to right,
-    var(--brand-solid) 0%,
-    var(--brand-solid) var(--pct, 25%),
+    #ff6b35 0%,
+    #ff6b35 var(--pct, 25%),
     var(--surface-3) var(--pct, 25%),
     var(--surface-3) 100%
   );
@@ -329,39 +330,45 @@ body {
 [data-theme="dark"] .radius-slider {
   background: linear-gradient(
     to right,
-    var(--brand-solid) 0%,
-    var(--brand-solid) var(--pct, 25%),
-    var(--surface-3) var(--pct, 25%),
-    var(--surface-3) 100%
+    #ff6b35 0%,
+    #ff6b35 var(--pct, 25%),
+    rgba(255, 255, 255, 0.18) var(--pct, 25%),
+    rgba(255, 255, 255, 0.18) 100%
   );
 }
 .radius-slider::-webkit-slider-runnable-track {
-  height: 2px;
+  height: 3px;
   border-radius: 999px;
+  background: transparent;
 }
 .radius-slider::-moz-range-track {
-  height: 2px;
+  height: 3px;
   border-radius: 999px;
   background: transparent;
   border: none;
 }
+.radius-slider::-moz-range-progress {
+  height: 3px;
+  border-radius: 999px;
+  background: #ff6b35;
+}
 .radius-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 12px;
-  height: 12px;
-  margin-top: -5px;
+  width: 14px;
+  height: 14px;
+  margin-top: -5.5px;
   border-radius: 50%;
-  background: var(--brand-solid);
+  background: #ff6b35;
   border: 1.5px solid #fff;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 .radius-slider::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  background: var(--brand-solid);
+  background: #ff6b35;
   border: 1.5px solid #fff;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
@@ -647,34 +654,47 @@ select.om-auth-field:-webkit-autofill {
 }
 /*
  * Placeholders (pretext) — app-wide.
- * Lighter / softer than typed text so empty fields never look filled-in.
+ * Softer than typed text, but dark enough to read on light wells.
  */
 input::placeholder,
 textarea::placeholder,
 select::placeholder {
-  color: #c5cbd4 !important;
-  opacity: 0.7 !important;
+  color: #64748b !important;
+  opacity: 1 !important;
   font-weight: 400 !important;
-  -webkit-text-fill-color: #c5cbd4 !important;
+  -webkit-text-fill-color: #64748b !important;
 }
 
 [data-theme="dark"] input::placeholder,
 [data-theme="dark"] textarea::placeholder,
 [data-theme="dark"] select::placeholder {
-  color: rgba(255, 255, 255, 0.28) !important;
+  color: rgba(255, 255, 255, 0.45) !important;
   opacity: 1 !important;
-  -webkit-text-fill-color: rgba(255, 255, 255, 0.28) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.45) !important;
 }
 
-/* Auth wells + pro signup (same dim pretext) */
+/*
+ * Auth wells + pro signup always use light-gray fields (#E2E3E7),
+ * even when the app theme is dark — never white placeholders.
+ */
 .om-auth-field::placeholder,
+input.om-auth-field::placeholder,
+textarea.om-auth-field::placeholder,
+select.om-auth-field::placeholder,
 .om-pro-signup-fields input::placeholder,
 .om-pro-signup-fields textarea::placeholder,
-.om-pro-signup-fields select::placeholder {
-  color: #c5cbd4 !important;
-  opacity: 0.7 !important;
+.om-pro-signup-fields select::placeholder,
+[data-theme="dark"] .om-auth-field::placeholder,
+[data-theme="dark"] input.om-auth-field::placeholder,
+[data-theme="dark"] textarea.om-auth-field::placeholder,
+[data-theme="dark"] select.om-auth-field::placeholder,
+[data-theme="dark"] .om-pro-signup-fields input::placeholder,
+[data-theme="dark"] .om-pro-signup-fields textarea::placeholder,
+[data-theme="dark"] .om-pro-signup-fields select::placeholder {
+  color: #64748b !important;
+  opacity: 1 !important;
   font-weight: 400 !important;
-  -webkit-text-fill-color: #c5cbd4 !important;
+  -webkit-text-fill-color: #64748b !important;
 }
 
 /* Repair Pro signup shell — same sheet gray as Motorist Your account */
@@ -782,7 +802,7 @@ button.om-cta-dark-gray:disabled,
   border-radius: 999px;
 }
 .auth-apple-progress-fill {
-  background: #e85a12;
+  background: #FF6B35;
   border-radius: 999px;
 }
 
@@ -790,7 +810,7 @@ button.om-cta-dark-gray:disabled,
 .auth-apple-tile-active,
 .auth-metal-tile-active {
   border-color: transparent !important;
-  background: #e85a12 !important;
+  background: #FF6B35 !important;
   color: #fff !important;
   box-shadow: 0 4px 14px rgba(232, 90, 18, 0.25) !important;
 }

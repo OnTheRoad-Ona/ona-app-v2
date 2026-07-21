@@ -19,6 +19,8 @@ import {
   resolveKnownPlace,
   type KnownPlace,
 } from "@/lib/known-places";
+import { mapThemeForApp } from "@/lib/map-theme";
+import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 const OsmLocationPicker = dynamic(
@@ -103,6 +105,9 @@ export function LocationPickerMap({
   className,
   compact = false,
 }: Props) {
+  const { theme } = useApp();
+  const isLight = theme === "light";
+  const mapTheme = mapThemeForApp(isLight);
   const mapH = compact ? "h-36" : "h-52";
   const apiKey = getGoogleMapsApiKey();
   const live = shouldUseLiveMaps();
@@ -113,6 +118,16 @@ export function LocationPickerMap({
   });
 
   const mapRef = useRef<google.maps.Map | null>(null);
+
+  // Match home/dashboard map when light ↔ dark toggles
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    map.setOptions({
+      styles: mapTheme.styles,
+      backgroundColor: mapTheme.backgroundColor,
+    });
+  }, [mapTheme.styles, mapTheme.backgroundColor]);
   const [center, setCenter] = useState({
     lat: value?.lat ?? DEFAULT_USER_LOCATION.coordinates.lat,
     lng: value?.lng ?? DEFAULT_USER_LOCATION.coordinates.lng,
@@ -463,10 +478,11 @@ export function LocationPickerMap({
     return (
       <div
         className={cn(
-          "flex items-center justify-center rounded-md bg-[#d4d5db] text-[12px] font-medium text-[#475569]",
+          "flex items-center justify-center rounded-md text-[12px] font-medium text-[#a8c9b5]",
           mapH,
           className
         )}
+        style={{ backgroundColor: mapTheme.backgroundColor }}
       >
         Loading live map…
       </div>
@@ -481,7 +497,7 @@ export function LocationPickerMap({
   return (
     <div className={cn("flex flex-col gap-2", className)}>
       <div className="relative">
-        <MapPin className="pointer-events-none absolute left-2.5 top-1/2 z-20 h-3.5 w-3.5 -translate-y-1/2 text-[#e85a12]" />
+        <MapPin className="pointer-events-none absolute left-2.5 top-1/2 z-20 h-3.5 w-3.5 -translate-y-1/2 text-[#FF6B35]" />
         <input
           ref={inputRef}
           type="search"
@@ -527,7 +543,7 @@ export function LocationPickerMap({
                   onClick={() => applyKnown(p)}
                 >
                   <Building2
-                    className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#e85a12]"
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#FF6B35]"
                     strokeWidth={2.2}
                   />
                   <span className="min-w-0">
@@ -570,16 +586,24 @@ export function LocationPickerMap({
 
       <div
         className={cn(
-          "relative overflow-hidden rounded-md border border-[#9A9EA6] bg-[#c8c9cd] shadow-[inset_0_1px_2px_rgba(15,23,42,0.06)]",
+          "relative overflow-hidden rounded-md border border-black/30 shadow-[inset_0_1px_2px_rgba(0,0,0,0.25)]",
           mapH
         )}
+        style={{ backgroundColor: mapTheme.backgroundColor }}
       >
         <GoogleMap
-          mapContainerStyle={mapContainerStyle}
+          mapContainerStyle={{
+            ...mapContainerStyle,
+            backgroundColor: mapTheme.backgroundColor,
+          }}
           center={center}
           zoom={15}
           onLoad={(map) => {
             mapRef.current = map;
+            map.setOptions({
+              styles: mapTheme.styles,
+              backgroundColor: mapTheme.backgroundColor,
+            });
           }}
           onClick={(e) => {
             const lat = e.latLng?.lat();
@@ -594,6 +618,8 @@ export function LocationPickerMap({
             streetViewControl: false,
             fullscreenControl: false,
             clickableIcons: false,
+            styles: mapTheme.styles,
+            backgroundColor: mapTheme.backgroundColor,
           }}
         >
           <Marker

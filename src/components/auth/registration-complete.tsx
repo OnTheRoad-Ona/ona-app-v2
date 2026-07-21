@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import {
   AUTH_BG,
@@ -10,45 +10,57 @@ import {
 import { playAppSound, unlockAudio } from "@/lib/sound-tone";
 import { cn } from "@/lib/utils";
 
-/** Success dialog — concise copy + smooth open/close */
+/** Success dialog — Continue or auto-dismiss after 3s → dashboard */
 export function RegistrationComplete({
   open,
   accountLabel,
   onContinue,
+  autoContinueMs = 3000,
 }: {
   open: boolean;
   accountLabel: string;
   onContinue: () => void;
+  /** Auto-dismiss and continue if user does not tap (default 3s) */
+  autoContinueMs?: number;
 }) {
   const [visible, setVisible] = useState(false);
   const [exiting, setExiting] = useState(false);
+  const doneRef = useRef(false);
+  const onContinueRef = useRef(onContinue);
+  onContinueRef.current = onContinue;
+
+  const handleContinue = useCallback(() => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    setExiting(true);
+    setVisible(false);
+    window.setTimeout(() => {
+      setExiting(false);
+      onContinueRef.current();
+    }, 220);
+  }, []);
 
   useEffect(() => {
     if (!open) {
       setVisible(false);
       setExiting(false);
+      doneRef.current = false;
       return;
     }
+    doneRef.current = false;
     unlockAudio();
     playAppSound("signup_complete");
-    // Next frame so CSS enter transition runs
     const t = window.requestAnimationFrame(() => setVisible(true));
-    return () => window.cancelAnimationFrame(t);
-  }, [open]);
-
-  if (!open && !exiting) return null;
-
-  const handleContinue = () => {
-    setExiting(true);
-    setVisible(false);
-    window.setTimeout(() => {
-      setExiting(false);
-      onContinue();
-    }, 220);
-  };
+    const auto = window.setTimeout(() => {
+      handleContinue();
+    }, autoContinueMs);
+    return () => {
+      window.cancelAnimationFrame(t);
+      window.clearTimeout(auto);
+    };
+  }, [open, autoContinueMs, handleContinue]);
 
   const show = open || exiting;
-
   if (!show) return null;
 
   return (

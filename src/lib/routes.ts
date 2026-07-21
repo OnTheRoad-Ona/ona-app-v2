@@ -2,7 +2,7 @@ import type { AccountType } from "@/lib/types";
 
 /**
  * Client (Motorist) vs Professional route access.
- * Pros stay on pro pages unless they registered as Motorist.
+ * Pros stay on pro pages unless they registered as Customer.
  */
 
 const PUBLIC_PREFIXES = ["/login", "/signup", "/logout", "/admin"];

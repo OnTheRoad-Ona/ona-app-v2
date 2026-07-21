@@ -1,39 +1,47 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/home/app-header";
 import { HomePanel } from "@/components/home/home-panel";
 import { SearchBar } from "@/components/home/search-bar";
-import { ServiceMap } from "@/components/map/service-map";
 import { useAppConfig } from "@/components/app-config-provider";
 import { useApp } from "@/lib/store";
 import { MAX_TECHNICIANS } from "@/lib/matching";
 import { cn } from "@/lib/utils";
 
 /**
- * Map 40% / panel 60% initially (slightly taller lower sheet for trades).
- * Expand/collapse: flip pill + service category axis only.
- * Live GPS lives in the hamburger menu (not under search).
+ * Data-saver home:
+ * - List sheet first (no map tiles / Google JS until user opens map)
+ * - Map loads only on demand (tap “Show map”)
+ * - Nearby pros refresh lives in AppProvider (slow poll), not on every open
  */
+const ServiceMap = dynamic(
+  () =>
+    import("@/components/map/service-map").then((m) => m.ServiceMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full w-full items-center justify-center bg-[#0a1610] text-sm text-[#a8c9b5]">
+        Loading map…
+      </div>
+    ),
+  }
+);
+
 export function HomeScreen() {
   const {
     visibleTechnicians,
     setSelectedTechId,
     selectedTechId,
     theme,
-    accountType,
-    refreshNearbyPros,
   } = useApp();
   const { config } = useAppConfig();
   const isLight = theme === "light";
+  /** Open with lower panel down (collapsed) — map on top, sheet ~60% bottom */
   const [sheetExpanded, setSheetExpanded] = useState(false);
-
-  // Motorist: one light pros refresh on open (GPS already starts in AppProvider)
-  useEffect(() => {
-    if (accountType === "professional") return;
-    const t = window.setTimeout(() => refreshNearbyPros(), 600);
-    return () => window.clearTimeout(t);
-  }, [accountType, refreshNearbyPros]);
+  /** Map loads with collapsed panel so home is map-first on open */
+  const [mapEnabled, setMapEnabled] = useState(true);
 
   useEffect(() => {
     if (
@@ -70,7 +78,12 @@ export function HomeScreen() {
   const sheetBg = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const mapTechs = visibleTechnicians
     .filter((t) => t.status !== "offline")
-    .slice(0, Math.min(8, MAX_TECHNICIANS));
+    .slice(0, Math.min(6, MAX_TECHNICIANS));
+
+  const openMap = () => {
+    setMapEnabled(true);
+    setSheetExpanded(false);
+  };
 
   return (
     <div
@@ -92,7 +105,23 @@ export function HomeScreen() {
               : "flex-[0_0_40%] opacity-100"
           )}
         >
-          <ServiceMap technicians={mapTechs} onSelect={setSelectedTechId} />
+          {mapEnabled && !sheetExpanded ? (
+            <ServiceMap technicians={mapTechs} onSelect={setSelectedTechId} />
+          ) : (
+            <button
+              type="button"
+              onClick={openMap}
+              className={cn(
+                "flex h-full w-full flex-col items-center justify-center gap-1 border-0 px-4 text-center",
+                isLight ? "bg-[#b8b9be] text-slate-800" : "bg-[#0a1610] text-[#a8c9b5]"
+              )}
+            >
+              <span className="text-[13px] font-semibold">Show map</span>
+              <span className="text-[11px] opacity-80">
+                Loads map only when you need it
+              </span>
+            </button>
+          )}
         </div>
 
         <div
@@ -109,7 +138,10 @@ export function HomeScreen() {
           <HomePanel
             expanded={sheetExpanded}
             onExpand={() => setSheetExpanded(true)}
-            onCollapse={() => setSheetExpanded(false)}
+            onCollapse={() => {
+              setMapEnabled(true);
+              setSheetExpanded(false);
+            }}
             className="min-h-0 flex-1 bg-transparent pb-[max(0.5rem,env(safe-area-inset-bottom))]"
           />
         </div>

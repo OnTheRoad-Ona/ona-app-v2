@@ -102,8 +102,16 @@ export function ProSignup() {
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  /** Identity locked from existing Motorist account on this device */
-  const [identityLocked, setIdentityLocked] = useState(false);
+  /**
+   * Dual-role signup: prefill from Customer, but only dim/lock fields
+   * that already have values. Empty NIN/BVN stay fully editable (not dimmed).
+   */
+  const [dualSignup, setDualSignup] = useState(false);
+  const [nameLocked, setNameLocked] = useState(false);
+  const [phoneLocked, setPhoneLocked] = useState(false);
+  const [emailLocked, setEmailLocked] = useState(false);
+  const [ninLocked, setNinLocked] = useState(false);
+  const [bvnLocked, setBvnLocked] = useState(false);
   /** After signup → artisan verification onboarding (Go Live gated until approved) */
   const nextPath =
     searchParams.get("next")?.startsWith("/")
@@ -137,13 +145,18 @@ export function ProSignup() {
   const fullPhone = formatInternationalPhone(phoneDial, phoneNational);
 
   /**
-   * Dim/lock identity ONLY when adding Repair Pro from an existing Motorist
-   * account (menu / profile dual-role). Fresh guest signup stays fully editable.
+   * Prefill from existing Customer — lock only fields that already have values.
+   * Empty NIN/BVN are never dimmed.
    */
   useEffect(() => {
     const dualRole = fromMenu || fromProfile;
     if (!dualRole || !isAuthenticated) {
-      setIdentityLocked(false);
+      setDualSignup(false);
+      setNameLocked(false);
+      setPhoneLocked(false);
+      setEmailLocked(false);
+      setNinLocked(false);
+      setBvnLocked(false);
       return;
     }
     const vaultMot = getVaultProfile("motorist");
@@ -155,14 +168,54 @@ export function ProSignup() {
         : null;
     const motorist = liveMot || sessionSource || vaultMot;
     if (!motorist) {
-      setIdentityLocked(false);
+      setDualSignup(false);
+      setNameLocked(false);
+      setPhoneLocked(false);
+      setEmailLocked(false);
+      setNinLocked(false);
+      setBvnLocked(false);
       return;
     }
-    setIdentityLocked(true);
-    setFullName(motorist.fullName || vaultMot?.fullName || "");
-    setEmail(motorist.email || vaultMot?.email || "");
-    setIdNumber(motorist.idNumber || vaultMot?.idNumber || "");
-    setBvn(motorist.bvn || vaultMot?.bvn || "");
+
+    setDualSignup(true);
+
+    const name = (motorist.fullName || vaultMot?.fullName || "").trim();
+    const em = (motorist.email || vaultMot?.email || "").trim();
+    const nin = (motorist.idNumber || vaultMot?.idNumber || "").trim();
+    const bankId = (motorist.bvn || vaultMot?.bvn || "").trim();
+    const phoneRaw = (motorist.phone || vaultMot?.phone || "").trim();
+
+    if (name) {
+      setFullName(name);
+      setNameLocked(true);
+    } else {
+      setNameLocked(false);
+    }
+    if (em) {
+      setEmail(em);
+      setEmailLocked(true);
+    } else {
+      setEmailLocked(false);
+    }
+    // NIN/BVN: only lock + dim when a full 11-digit value exists.
+    // Empty / never-filled / last4-only → stay fully editable (not dimmed).
+    const ninDigits = nin.replace(/\D/g, "");
+    const bvnDigits = bankId.replace(/\D/g, "");
+    if (ninDigits.length === 11) {
+      setIdNumber(ninDigits);
+      setNinLocked(true);
+    } else {
+      setIdNumber("");
+      setNinLocked(false);
+    }
+    if (bvnDigits.length === 11) {
+      setBvn(bvnDigits);
+      setBvnLocked(true);
+    } else {
+      setBvn("");
+      setBvnLocked(false);
+    }
+
     setCity(motorist.city || vaultMot?.city || "Lagos");
     setArea(motorist.area || vaultMot?.area || "");
     const pwd = (vaultMot?.password || motorist.password || "").trim();
@@ -170,10 +223,15 @@ export function ProSignup() {
       setPassword(pwd);
       setConfirmPassword(pwd);
     }
-    const split = splitStoredPhone(motorist.phone || vaultMot?.phone || "");
-    setPhoneIso(split.iso);
-    setPhoneDial(split.dial);
-    setPhoneNational(split.national);
+    if (phoneRaw) {
+      const split = splitStoredPhone(phoneRaw);
+      setPhoneIso(split.iso);
+      setPhoneDial(split.dial);
+      setPhoneNational(split.national);
+      setPhoneLocked(true);
+    } else {
+      setPhoneLocked(false);
+    }
   }, [userProfile, isAuthenticated, fromMenu, fromProfile]);
 
   const setFieldError = (key: string, msg: string | null) => {
@@ -403,10 +461,10 @@ export function ProSignup() {
     yearsExperience.trim().length > 0 &&
     bio.trim().length >= 2 &&
     bio.trim().length <= BIO_MAX;
-  /** Dual signup: reuse existing Motorist password (min 6 for server) */
+  /** Dual signup: reuse existing Customer password (min 6 for server) */
   const dualPasswordOk = password.trim().length >= 6;
 
-  const step5Ok = identityLocked
+  const step5Ok = dualSignup
     ? !phoneNationalError(phoneNational) &&
       isValidEmail(email) &&
       !ninError(idNumber) &&
@@ -434,7 +492,7 @@ export function ProSignup() {
   };
 
   const validateStep5 = (): string | null => {
-    if (identityLocked) {
+    if (dualSignup) {
       const base =
         phoneNationalError(phoneNational) ||
         emailError(email) ||
@@ -442,7 +500,7 @@ export function ProSignup() {
         bvnError(bvn);
       if (base) return base;
       if (!dualPasswordOk) {
-        return "Enter the same password you use for your Motorist account.";
+        return "Enter the same password you use for your Customer account.";
       }
       return null;
     }
@@ -467,8 +525,8 @@ export function ProSignup() {
     setBusy(true);
     setFormError("");
 
-    // Dual role: same phone/email as Motorist is intentional — do not block
-    if (!identityLocked) {
+    // Dual role: same phone/email as Customer is intentional — do not block
+    if (!dualSignup) {
       const identity = checkIdentityAvailable({
         phone: fullPhone,
         email: email.trim(),
@@ -645,7 +703,7 @@ export function ProSignup() {
           "flex w-full items-center justify-between gap-2 rounded-lg border-0 px-2 text-left transition-colors",
           isVehicleType ? "py-1.5" : "py-2",
           selected
-            ? "bg-[#e85a12]/18 text-[#9a3412] ring-1 ring-[#e85a12]/45"
+            ? "bg-[#FF6B35]/18 text-[#9a3412] ring-1 ring-[#FF6B35]/45"
             : "bg-transparent text-[#1e293b] active:bg-black/[0.04]",
           disabled && "opacity-40"
         )}
@@ -661,7 +719,7 @@ export function ProSignup() {
         </span>
         {selected && (
           <Check
-            className="h-3.5 w-3.5 shrink-0 text-[#e85a12]"
+            className="h-3.5 w-3.5 shrink-0 text-[#FF6B35]"
             strokeWidth={2.5}
           />
         )}
@@ -898,7 +956,7 @@ export function ProSignup() {
                             className={cn(
                               "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border transition-colors",
                               active
-                                ? "border-[#e85a12] bg-[#e85a12] text-[8px] font-bold text-white"
+                                ? "border-[#FF6B35] bg-[#FF6B35] text-[8px] font-bold text-white"
                                 : "border-[#8b8e96]/50 bg-transparent"
                             )}
                             aria-hidden
@@ -913,7 +971,7 @@ export function ProSignup() {
               </div>
               <p className="mt-2 shrink-0 text-center text-[11px] text-[#3a3a3c]/70">
                 Choose only{" "}
-                <span className="font-semibold text-[#e85a12]">one</span> trade,
+                <span className="font-semibold text-[#FF6B35]">one</span> trade,
                 then pick your focus
               </p>
             </>
@@ -949,8 +1007,8 @@ export function ProSignup() {
                           className={cn(
                             "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[15px] font-black",
                             on
-                              ? "bg-[#e85a12] text-white"
-                              : "bg-white/80 text-[#e85a12]"
+                              ? "bg-[#FF6B35] text-white"
+                              : "bg-white/80 text-[#FF6B35]"
                           )}
                         >
                           {s.charAt(0)}
@@ -977,7 +1035,7 @@ export function ProSignup() {
                           className={cn(
                             "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[12px] font-bold",
                             on
-                              ? "bg-[#e85a12] text-white"
+                              ? "bg-[#FF6B35] text-white"
                               : "border border-[#9A9EA6]/60 bg-transparent text-transparent"
                           )}
                         >
@@ -1020,18 +1078,16 @@ export function ProSignup() {
                     <input
                       className={cn(
                         authFieldIconClass,
-                        identityLocked && authLockedFieldClass
+                        nameLocked && authLockedFieldClass
                       )}
                       style={
-                        identityLocked
-                          ? authLockedFieldStyle
-                          : authFieldStyle
+                        nameLocked ? authLockedFieldStyle : authFieldStyle
                       }
                       value={fullName}
-                      readOnly={identityLocked}
-                      tabIndex={identityLocked ? -1 : undefined}
+                      readOnly={nameLocked}
+                      tabIndex={nameLocked ? -1 : undefined}
                       onChange={(e) => {
-                        if (!identityLocked) setFullName(e.target.value);
+                        if (!nameLocked) setFullName(e.target.value);
                       }}
                       placeholder="e.g. Adaobi Okeke"
                       autoComplete="name"
@@ -1140,7 +1196,7 @@ export function ProSignup() {
                     className={cn(
                       "text-[11px] font-semibold tabular-nums",
                       bio.length > BIO_MAX * 0.9
-                        ? "text-[#e85a12]"
+                        ? "text-[#FF6B35]"
                         : "text-[#94a3b8]"
                     )}
                   >
@@ -1163,12 +1219,9 @@ export function ProSignup() {
 
           {step === 5 && (
             <div className="flex flex-col gap-1.5">
-              {identityLocked ? (
+              {dualSignup ? (
                 <p className="rounded-md bg-[#e8e9ed] px-2.5 py-2 text-center text-[11px] leading-snug text-[#334155]">
-                  Name, phone, email, NIN and BVN are filled from your Motorist
-                  account and dimmed (locked). Use the{" "}
-                  <span className="font-semibold">same password</span> as that
-                  account below — no new password.
+                  Continue from your Customer account
                 </p>
               ) : (
                 <p className="text-center text-[10px] leading-snug text-[#475569]">
@@ -1189,16 +1242,16 @@ export function ProSignup() {
                     className={cn(
                       authSelectClass,
                       "max-w-[42%]",
-                      identityLocked && authLockedFieldClass
+                      phoneLocked && authLockedFieldClass
                     )}
                     style={
-                      identityLocked ? authLockedFieldStyle : authFieldStyle
+                      phoneLocked ? authLockedFieldStyle : authFieldStyle
                     }
                     value={phoneIso}
                     aria-label="Country code"
-                    disabled={identityLocked}
+                    disabled={phoneLocked}
                     onChange={(e) => {
-                      if (identityLocked) return;
+                      if (phoneLocked) return;
                       const iso = e.target.value;
                       setPhoneIso(iso);
                       const opt = phoneCodes.find((c) => c.iso === iso);
@@ -1215,16 +1268,16 @@ export function ProSignup() {
                     className={cn(
                       authFieldClass,
                       "min-w-0 flex-1",
-                      identityLocked && authLockedFieldClass
+                      phoneLocked && authLockedFieldClass
                     )}
                     style={
-                      identityLocked ? authLockedFieldStyle : authFieldStyle
+                      phoneLocked ? authLockedFieldStyle : authFieldStyle
                     }
                     value={phoneNational}
-                    readOnly={identityLocked}
-                    tabIndex={identityLocked ? -1 : undefined}
+                    readOnly={phoneLocked}
+                    tabIndex={phoneLocked ? -1 : undefined}
                     onChange={(e) => {
-                      if (identityLocked) return;
+                      if (phoneLocked) return;
                       setPhoneNational(
                         e.target.value.replace(/\D/g, "").slice(0, 15)
                       );
@@ -1244,16 +1297,16 @@ export function ProSignup() {
                 <input
                   className={cn(
                     authFieldClass,
-                    identityLocked && authLockedFieldClass
+                    emailLocked && authLockedFieldClass
                   )}
                   style={
-                    identityLocked ? authLockedFieldStyle : authFieldStyle
+                    emailLocked ? authLockedFieldStyle : authFieldStyle
                   }
                   value={email}
-                  readOnly={identityLocked}
-                  tabIndex={identityLocked ? -1 : undefined}
+                  readOnly={emailLocked}
+                  tabIndex={emailLocked ? -1 : undefined}
                   onChange={(e) => {
-                    if (identityLocked) return;
+                    if (emailLocked) return;
                     setEmail(e.target.value);
                     setFieldError("email", null);
                   }}
@@ -1267,16 +1320,16 @@ export function ProSignup() {
                 <input
                   className={cn(
                     authFieldClass,
-                    identityLocked && authLockedFieldClass
+                    ninLocked && authLockedFieldClass
                   )}
                   style={
-                    identityLocked ? authLockedFieldStyle : authFieldStyle
+                    ninLocked ? authLockedFieldStyle : authFieldStyle
                   }
                   value={idNumber}
-                  readOnly={identityLocked}
-                  tabIndex={identityLocked ? -1 : undefined}
+                  readOnly={ninLocked}
+                  tabIndex={ninLocked ? -1 : undefined}
                   onChange={(e) => {
-                    if (identityLocked) return;
+                    if (ninLocked) return;
                     setIdNumber(e.target.value.replace(/\D/g, "").slice(0, 11));
                     setFieldError("nin", null);
                   }}
@@ -1291,16 +1344,16 @@ export function ProSignup() {
                 <input
                   className={cn(
                     authFieldClass,
-                    identityLocked && authLockedFieldClass
+                    bvnLocked && authLockedFieldClass
                   )}
                   style={
-                    identityLocked ? authLockedFieldStyle : authFieldStyle
+                    bvnLocked ? authLockedFieldStyle : authFieldStyle
                   }
                   value={bvn}
-                  readOnly={identityLocked}
-                  tabIndex={identityLocked ? -1 : undefined}
+                  readOnly={bvnLocked}
+                  tabIndex={bvnLocked ? -1 : undefined}
                   onChange={(e) => {
-                    if (identityLocked) return;
+                    if (bvnLocked) return;
                     setBvn(e.target.value.replace(/\D/g, "").slice(0, 11));
                     setFieldError("bvn", null);
                   }}
@@ -1311,9 +1364,9 @@ export function ProSignup() {
                 />
                 <FieldHint message={fieldErrors.bvn} />
               </Field>
-              {identityLocked ? (
+              {dualSignup ? (
                 <Field
-                  label="Same password as your Motorist account"
+                  label="Same password as your Customer account"
                   required
                 >
                   <PasswordField
@@ -1328,7 +1381,7 @@ export function ProSignup() {
                       if (!dualPasswordOk) {
                         setFieldError(
                           "password",
-                          "Enter the same password as your Motorist account."
+                          "Enter the same password as your Customer account."
                         );
                       }
                     }}
@@ -1423,7 +1476,7 @@ export function ProSignup() {
                   step={0.5}
                   value={serviceRadiusKm}
                   onChange={(e) => setServiceRadiusKm(Number(e.target.value))}
-                  className="mt-2 w-full accent-[#e85a12]"
+                  className="mt-2 w-full accent-[#FF6B35]"
                 />
               </Field>
             </>
@@ -1567,8 +1620,7 @@ export function ProSignup() {
         open={done}
         accountLabel="Repair Pro"
         onContinue={() => {
-          // Artisan verification → Pending Review → admin approve → Go Live
-          router.replace(nextPath || "/artisan/onboarding");
+          router.replace("/dashboard");
         }}
       />
     </AuthPlate>

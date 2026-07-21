@@ -133,7 +133,7 @@ export async function POST(req: Request) {
     profileRow.role === "motorist"
   ) {
     return apiFail(
-      "This phone is a Motorist account. Choose Motorist to log in.",
+      "This phone is a Customer account. Choose Motorist to log in.",
       403
     );
   }

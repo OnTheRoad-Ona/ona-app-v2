@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import {
   Bell,
@@ -11,102 +11,31 @@ import {
   MapPin,
   Moon,
   Shield,
-  SlidersHorizontal,
   Sun,
-  Volume2,
-  VolumeX,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
-import { NotificationSettings } from "@/components/notifications/notification-settings";
+import { getLocaleMeta, useI18n } from "@/lib/i18n";
 import { MAX_RADIUS_KM } from "@/lib/matching";
 import { useApp } from "@/lib/store";
-import type { AppFilters } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const SETTINGS_KEY = "oga-mecho-app-settings";
-
-type AppSettingsLocal = {
-  soundsOn: boolean;
-};
-
-function readLocalSettings(): AppSettingsLocal {
-  if (typeof window === "undefined") {
-    return { soundsOn: true };
-  }
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return { soundsOn: true };
-    const p = JSON.parse(raw) as Partial<AppSettingsLocal & { notifyOn?: boolean }>;
-    return {
-      soundsOn: p.soundsOn !== false,
-    };
-  } catch {
-    return { soundsOn: true };
-  }
-}
-
-function writeLocalSettings(s: AppSettingsLocal) {
-  try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
-  } catch {
-    /* ignore */
-  }
-}
-
-const FILTER_ROWS: {
-  key: keyof AppFilters;
-  label: string;
-  detail: string;
-}[] = [
-  { key: "nearest", label: "Nearest first", detail: "Sort map & list by distance" },
-  { key: "rating45", label: "4.5+ rating", detail: "Hide lower-rated pros" },
-  {
-    key: "availableNow",
-    label: "Available (Live GPS)",
-    detail: "Only pros with a live location pin",
-  },
-  { key: "verified", label: "Verified only", detail: "NIN / docs verified" },
-  {
-    key: "fastResponse",
-    label: "Fast reply",
-    detail: "Pros that typically reply quickly",
-  },
-];
-
 /**
- * OgaMecho app settings — appearance, discovery, notifications, account.
+ * Ona app settings — menu rows open real pages where needed.
  */
 export default function SettingsPage() {
   const {
     theme,
     toggleTheme,
-    retryLocation,
-    isLocating,
     location,
     displayName,
     isAuthenticated,
     radiusKm,
     setRadiusKm,
-    filters,
-    toggleFilter,
     accountType,
   } = useApp();
+  const { t, locale } = useI18n();
   const isLight = theme === "light";
-  const [local, setLocal] = useState<AppSettingsLocal>({
-    soundsOn: true,
-  });
-
-  useEffect(() => {
-    setLocal(readLocalSettings());
-  }, []);
-
-  const patchLocal = useCallback((partial: Partial<AppSettingsLocal>) => {
-    setLocal((prev) => {
-      const next = { ...prev, ...partial };
-      writeLocalSettings(next);
-      return next;
-    });
-  }, []);
+  const langMeta = getLocaleMeta(locale);
 
   const row = (opts: {
     icon: typeof Bell;
@@ -114,7 +43,7 @@ export default function SettingsPage() {
     detail?: string;
     onClick?: () => void;
     href?: string;
-    trailing?: React.ReactNode;
+    trailing?: ReactNode;
   }) => {
     const Icon = opts.icon;
     const body = (
@@ -181,23 +110,6 @@ export default function SettingsPage() {
     );
   };
 
-  const toggleSwitch = (on: boolean) => (
-    <span
-      className={cn(
-        "relative h-6 w-11 shrink-0 rounded-full transition-colors",
-        on ? "bg-brand" : isLight ? "bg-black/20" : "bg-white/20"
-      )}
-      aria-hidden
-    >
-      <span
-        className={cn(
-          "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform",
-          on ? "left-5" : "left-0.5"
-        )}
-      />
-    </span>
-  );
-
   const sectionTitle = (label: string) => (
     <p
       className={cn(
@@ -217,37 +129,33 @@ export default function SettingsPage() {
       )}
     >
       <PageHeader
-        title="Settings"
-        subtitle="Ona app"
+        title={t("settings.title")}
+        subtitle={t("settings.subtitle")}
         backHref={accountType === "professional" ? "/dashboard" : "/"}
       />
 
       <div className="flex-1 overflow-y-auto px-3 pb-6 scrollbar-hide">
-        {sectionTitle("Appearance")}
+        {sectionTitle(t("settings.appearance"))}
         {row({
           icon: isLight ? Moon : Sun,
-          label: isLight ? "Dark mode" : "Light mode",
+          label: isLight ? t("settings.darkMode") : t("settings.lightMode"),
           detail: isAuthenticated
-            ? `Saved for ${displayName || "your account"}`
-            : "Device preference · sign in to save per account",
+            ? t("settings.themeSaved", {
+                name: displayName || "you",
+              })
+            : t("settings.themeDevice"),
           onClick: () => toggleTheme(),
         })}
 
-        {sectionTitle("Notifications & sound")}
-        <div className="px-0.5 pb-1">
-          <NotificationSettings />
-        </div>
+        {sectionTitle(t("settings.alerts"))}
         {row({
-          icon: local.soundsOn ? Volume2 : VolumeX,
-          label: "App sounds",
-          detail: local.soundsOn
-            ? "Job, chat, and Live tones"
-            : "Muted on this device",
-          onClick: () => patchLocal({ soundsOn: !local.soundsOn }),
-          trailing: toggleSwitch(local.soundsOn),
+          icon: Bell,
+          label: t("settings.notificationsSound"),
+          detail: t("settings.notificationsDetail"),
+          href: "/settings/notifications",
         })}
 
-        {sectionTitle("Discovery (home map & list)")}
+        {sectionTitle(t("settings.discovery"))}
         <div className="px-2 py-2">
           <div className="mb-1 flex items-center justify-between">
             <span
@@ -256,9 +164,12 @@ export default function SettingsPage() {
                 isLight ? "text-slate-900" : "text-white"
               )}
             >
-              Search radius
+              {t("settings.searchRadius")}
             </span>
-            <span className="text-[12px] font-bold text-brand">
+            <span
+              className="text-[12px] font-bold tabular-nums"
+              style={{ color: "#FF6B35" }}
+            >
               {radiusKm.toFixed(radiusKm < 10 ? 1 : 0)} km
             </span>
           </div>
@@ -269,8 +180,13 @@ export default function SettingsPage() {
             step={0.5}
             value={radiusKm}
             onChange={(e) => setRadiusKm(Number(e.target.value))}
-            className="w-full accent-[#e85a12]"
-            aria-label="Search radius in kilometres"
+            className="radius-slider w-full"
+            style={
+              {
+                ["--pct" as string]: `${(radiusKm / MAX_RADIUS_KM) * 100}%`,
+              } as CSSProperties
+            }
+            aria-label={t("settings.searchRadius")}
           />
           <p
             className={cn(
@@ -278,65 +194,43 @@ export default function SettingsPage() {
               isLight ? "text-slate-600" : "text-white/55"
             )}
           >
-            Max {MAX_RADIUS_KM} km · applies to map pins and the pro list
+            {t("settings.radiusHelp", { max: MAX_RADIUS_KM })}
           </p>
         </div>
 
-        <div className="mt-1">
-          {FILTER_ROWS.map((f) =>
-            row({
-              icon: SlidersHorizontal,
-              label: f.label,
-              detail: f.detail,
-              onClick: () => toggleFilter(f.key),
-              trailing: toggleSwitch(filters[f.key]),
-            })
-          )}
-        </div>
-
-        {sectionTitle("Location")}
+        {sectionTitle(t("settings.location"))}
         {row({
           icon: MapPin,
-          label: "Refresh my location",
-          detail: isLocating
-            ? "Updating…"
-            : location.label || "Getting address…",
-          onClick: () => retryLocation(),
+          label: t("settings.myLocation"),
+          detail: location.label || t("settings.myLocationDetail"),
+          href: "/settings/location",
         })}
 
-        {sectionTitle("Account & privacy")}
-        {row({
-          icon: Shield,
-          label: "Profile & verification",
-          detail:
-            accountType === "professional"
-              ? "Repair Pro profile, docs, prices"
-              : "Motorist profile, vehicles, identity",
-          href: "/profile",
-        })}
+        {sectionTitle(t("settings.accountPrivacy"))}
         {accountType === "professional"
           ? row({
               icon: Shield,
-              label: "Artisan verification tiers",
-              detail: "Phone, ID, BVN, liveness, skill proof",
+              label: t("settings.artisanTiers"),
+              detail: t("settings.artisanTiersDetail"),
               href: "/artisan/verification",
             })
           : null}
         {row({
           icon: HelpCircle,
-          label: "Help",
-          detail: "How Ona works",
+          label: t("settings.help"),
+          detail: t("settings.helpDetail"),
           href: "/profile",
         })}
         {row({
           icon: Languages,
-          label: "Language",
-          detail: "English (EN)",
+          label: t("settings.language"),
+          detail: `${langMeta.nativeName} (${langMeta.code.toUpperCase()})`,
+          href: "/settings/language",
         })}
         {row({
           icon: Info,
-          label: "About Ona",
-          detail: "Version 0.1 · roadside help nearby",
+          label: t("settings.about"),
+          detail: t("settings.aboutDetail"),
         })}
       </div>
     </div>

@@ -118,7 +118,7 @@ function rowToJob(row: Record<string, unknown>): JobRecord {
   return {
     id: String(row.id),
     motoristId: String(row.motorist_id),
-    motoristName: String(row.motorist_name || "Motorist"),
+    motoristName: String(row.motorist_name || "Customer"),
     motoristPhoto: row.motorist_photo ? String(row.motorist_photo) : null,
     repairProId: String(row.repair_pro_id || ""),
     repairProName: String(row.repair_pro_name || "Repair Pro"),
@@ -483,9 +483,9 @@ async function hydrateJobPhones(job: JobRecord): Promise<JobRecord> {
             next.motoristPhoto ||
             (row.avatar_url ? String(row.avatar_url) : null),
           motoristName:
-            next.motoristName && next.motoristName !== "Motorist"
+            next.motoristName && next.motoristName !== "Customer"
               ? next.motoristName
-              : String(row.full_name || next.motoristName || "Motorist"),
+              : String(row.full_name || next.motoristName || "Customer"),
           motoristVehicle: next.motoristVehicle || vehicle,
         };
       }

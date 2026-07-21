@@ -15,20 +15,20 @@ import {
   X,
 } from "lucide-react";
 import { useNotificationsOptional } from "@/components/notifications/notification-provider";
+import { NewAccountBadge } from "@/components/profile/new-account-badge";
+import { getArtisanProfile } from "@/lib/artisan/local-store";
+import { useT } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { MESSAGE_ORANGE } from "@/lib/map-trade-icons";
 import { defaultBackHref, resetNavStack } from "@/lib/navigation";
 import { useApp } from "@/lib/store";
-import {
-  isProService,
-  PRO_SERVICE_LABELS,
-  PRO_TRADE_OPTIONS,
-} from "@/lib/services";
+import { isProService, PRO_TRADE_OPTIONS } from "@/lib/services";
 import type { AccountType, ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /** Trade glyph + orange accents (My Service) */
-const TRADE_ICON_GLYPH = "#e85a12";
-const LINE_ACCENT = "#e85a12";
+const TRADE_ICON_GLYPH = "#FF6B35";
+const LINE_ACCENT = "#FF6B35";
 
 function TradeIcon({ service }: { service: ProService }) {
   const opt = PRO_TRADE_OPTIONS.find((t) => t.id === service);
@@ -47,21 +47,45 @@ function TradeIcon({ service }: { service: ProService }) {
  *  Messages removed from ☰ — chat only via active request/job.
  *  Notifications opens the Notification Center (text + unread badge).
  */
-const CLIENT_NAV = [
-  { href: "/", label: "Dashboard", icon: Home },
-  { href: "/history", label: "History", icon: History },
-  { href: "/profile", label: "Profile", icon: UserRound },
-  { href: "/settings", label: "Settings", icon: Settings },
-] as const;
+const CLIENT_NAV: {
+  href: string;
+  labelKey: MessageKey;
+  icon: typeof Home;
+}[] = [
+  { href: "/", labelKey: "nav.dashboard", icon: Home },
+  { href: "/history", labelKey: "nav.history", icon: History },
+  { href: "/profile", labelKey: "nav.profile", icon: UserRound },
+  { href: "/settings", labelKey: "menu.settings", icon: Settings },
+];
 
-const PRO_NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: Wrench },
-  { href: "/jobs", label: "Jobs", icon: Clock3 },
-  { href: "/profile", label: "Profile", icon: UserRound },
-  { href: "/settings", label: "Settings", icon: Settings },
-] as const;
+const PRO_NAV: {
+  href: string;
+  labelKey: MessageKey;
+  icon: typeof Home;
+}[] = [
+  { href: "/dashboard", labelKey: "nav.dashboard", icon: Wrench },
+  { href: "/jobs", labelKey: "nav.jobs", icon: Clock3 },
+  { href: "/profile", labelKey: "nav.profile", icon: UserRound },
+  { href: "/settings", labelKey: "menu.settings", icon: Settings },
+];
 
-const SERVICE_LABELS = PRO_SERVICE_LABELS;
+/** Map pro trade id → i18n key so My Service follows chosen language */
+const TRADE_LABEL_KEY: Record<ProService, MessageKey> = {
+  mechanic: "trade.mechanic",
+  vulcanizer: "trade.vulcanizer",
+  towing: "trade.towing",
+  battery: "trade.battery",
+  ac: "trade.ac",
+  body: "trade.body",
+  electrical: "trade.electrical",
+  diagnostics: "trade.diagnostics",
+  wash: "trade.wash",
+  plumber: "trade.plumber",
+  carpenter: "trade.carpenter",
+  painter: "trade.painter",
+  solar: "trade.solar",
+  generator: "trade.generator",
+};
 
 function homeForRole(type: AccountType): string {
   return type === "professional" ? "/dashboard" : "/";
@@ -76,6 +100,7 @@ export function AppMenu({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const t = useT();
   const {
     theme,
     location,
@@ -88,6 +113,7 @@ export function AppMenu({
     isAuthenticated,
     displayName,
     userProfile,
+    backendUserId,
     isLocating,
   } = useApp();
   const isLight = theme === "light";
@@ -108,9 +134,9 @@ export function AppMenu({
 
   const timeGreeting = (() => {
     const h = new Date().getHours();
-    if (h < 12) return "Good Morning";
-    if (h < 17) return "Good Afternoon";
-    return "Good Evening";
+    if (h < 12) return t("menu.goodMorning");
+    if (h < 17) return t("menu.goodAfternoon");
+    return t("menu.goodEvening");
   })();
 
   useEffect(() => {
@@ -133,7 +159,7 @@ export function AppMenu({
     }
 
     if (!isAuthenticated) {
-      setWarn("Log in to switch between Motorist and Repair Pro.");
+      setWarn(t("menu.needLogin"));
       setSignupTarget(null);
       return;
     }
@@ -141,14 +167,12 @@ export function AppMenu({
     // Must complete signup for the target role before switching
     if (type === "motorist" && !hasMotoristAccount) {
       setSignupTarget("motorist");
-      setWarn("You don't have a Motorist account yet.");
+      setWarn(t("menu.noMotorist"));
       return;
     }
     if (type === "professional" && !hasProAccount) {
       setSignupTarget("professional");
-      setWarn(
-        "You don't have a Repair Pro account yet. Finish signup to go Live and receive jobs."
-      );
+      setWarn(t("menu.noPro"));
       return;
     }
 
@@ -165,19 +189,17 @@ export function AppMenu({
         return;
       }
       if (result === "needs_login") {
-        setWarn("Log in to switch between Motorist and Repair Pro.");
+        setWarn(t("menu.needLogin"));
         return;
       }
       if (result === "needs_signup") {
         setSignupTarget(type);
         setWarn(
-          type === "professional"
-            ? "You don't have a Repair Pro account yet. Finish signup to go Live and receive jobs."
-            : "You don't have a Motorist account yet."
+          type === "professional" ? t("menu.noPro") : t("menu.noMotorist")
         );
         return;
       }
-      setWarn(typeof result === "string" ? result : "Could not switch.");
+      setWarn(typeof result === "string" ? result : t("menu.couldNotSwitch"));
     } finally {
       setSwitching(false);
     }
@@ -207,7 +229,7 @@ export function AppMenu({
       <button
         type="button"
         className="absolute inset-0 border-0 bg-black/45 transition-opacity duration-200"
-        aria-label="Close menu"
+        aria-label={t("menu.closeMenu")}
         onClick={onClose}
       />
       <aside
@@ -231,17 +253,33 @@ export function AppMenu({
                 </p>
                 <p
                   className={cn(
-                    "truncate text-[13px] font-semibold leading-snug",
+                    "flex flex-wrap items-center gap-1.5 text-[13px] font-semibold leading-snug",
                     isLight ? "text-slate-700" : "text-white/75"
                   )}
                 >
-                  {fullNameDisplay}
+                  <span className="truncate">{fullNameDisplay}</span>
+                  {isPro ? (
+                    <NewAccountBadge
+                      visibilityTier={
+                        getArtisanProfile(
+                          userProfile?.identityId || backendUserId || ""
+                        )?.visibilityTier ?? 1
+                      }
+                      status={
+                        getArtisanProfile(
+                          userProfile?.identityId || backendUserId || ""
+                        )?.status
+                      }
+                      isProfessional
+                      size="sm"
+                    />
+                  ) : null}
                 </p>
               </div>
             ) : (
               <p
                 className="whitespace-nowrap text-[28px] font-black tracking-tight leading-none"
-                aria-label="Ona"
+                aria-label={t("brand.name")}
               >
                 <span className="text-[#FF6B35]">O</span>
                 <span className={isLight ? "text-black" : "text-[#C8C9CD]"}>
@@ -257,8 +295,8 @@ export function AppMenu({
                 )}
               >
                 {isLocating
-                  ? "Updating location…"
-                  : placeLine || "Getting your address…"}
+                  ? t("menu.updatingLocation")
+                  : placeLine || t("menu.gettingAddress")}
               </p>
             </div>
           </div>
@@ -269,23 +307,26 @@ export function AppMenu({
               "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-0 bg-transparent",
               isLight ? "text-black" : "text-white"
             )}
-            aria-label="Close"
+            aria-label={t("common.close")}
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
-          {nav.map(({ href, label, icon: Icon }) => {
+          {nav.map(({ href, labelKey, icon: Icon }) => {
+            const label = t(labelKey);
             const roleHome = defaultBackHref(accountType);
             const isHomeItem =
               href === "/" || href === "/dashboard" || href === roleHome;
+            const isDashboard =
+              labelKey === "nav.dashboard" || labelKey === "dashboard.title";
             const active = isHomeItem
               ? pathname === "/" || pathname === "/dashboard"
               : pathname === href || pathname.startsWith(`${href}/`);
             return (
               <button
-                key={href + label}
+                key={href + labelKey}
                 type="button"
                 onClick={() => {
                   onClose();
@@ -300,17 +341,28 @@ export function AppMenu({
                 }}
                 className={cn(
                   "flex w-full items-center gap-3 rounded-lg border-0 bg-transparent px-3 py-2.5 text-left text-sm font-semibold transition-colors",
-                  active
-                    ? isLight
-                      ? "text-[#e85a12]"
-                      : "text-[#ffb07a]"
-                    : isLight
-                      ? "text-slate-700"
-                      : "text-white/90"
+                  isDashboard
+                    ? "text-[#FF6B35]"
+                    : active
+                      ? isLight
+                        ? "text-[#FF6B35]"
+                        : "text-[#ffb07a]"
+                      : isLight
+                        ? "text-slate-700"
+                        : "text-white/90"
                 )}
               >
-                <Icon className="h-4 w-4 shrink-0" strokeWidth={2.2} />
-                {label}
+                <Icon
+                  className={cn(
+                    "h-4 w-4 shrink-0",
+                    isDashboard && "text-[#FF6B35]"
+                  )}
+                  strokeWidth={2.2}
+                  style={isDashboard ? { color: "#FF6B35" } : undefined}
+                />
+                <span style={isDashboard ? { color: "#FF6B35" } : undefined}>
+                  {label}
+                </span>
               </button>
             );
           })}
@@ -328,7 +380,7 @@ export function AppMenu({
             )}
           >
             <Bell className="h-4 w-4 shrink-0" strokeWidth={2.2} />
-            <span className="min-w-0 flex-1">Notifications</span>
+            <span className="min-w-0 flex-1">{t("menu.notifications")}</span>
             {unread > 0 ? (
               <span
                 className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-bold text-white"
@@ -359,7 +411,7 @@ export function AppMenu({
                   )}
                 >
                   <Briefcase className="h-4 w-4 shrink-0" strokeWidth={2.2} />
-                  <span className="min-w-0 flex-1">My Service</span>
+                  <span className="min-w-0 flex-1">{t("menu.myService")}</span>
                 </div>
                 {/* Line 2: trade name + skill icon far right (glassy soft orange plate) */}
                 <div className="mt-0.5 flex w-full items-center gap-3 px-3 py-1.5">
@@ -369,7 +421,9 @@ export function AppMenu({
                       isLight ? "text-slate-900" : "text-white"
                     )}
                   >
-                    {SERVICE_LABELS[proServices[0]] ?? proServices[0]}
+                    {isProService(proServices[0])
+                      ? t(TRADE_LABEL_KEY[proServices[0]])
+                      : proServices[0]}
                   </span>
                   {isProService(proServices[0]) ? (
                     <TradeIcon service={proServices[0]} />
@@ -385,7 +439,7 @@ export function AppMenu({
                 isLight ? "text-slate-700" : "text-white/70"
               )}
             >
-              Use as
+              {t("menu.useAs")}
             </p>
             <div
               className={cn(
@@ -394,7 +448,7 @@ export function AppMenu({
                 switching && "opacity-70 pointer-events-none"
               )}
               role="group"
-              aria-label="Switch account type"
+              aria-label={t("menu.switchRole")}
               aria-busy={switching}
             >
               <button
@@ -404,7 +458,9 @@ export function AppMenu({
                 className={useAsBtnClass(accountType === "motorist")}
                 aria-current={accountType === "motorist" ? "true" : undefined}
               >
-                {switching && accountType !== "motorist" ? "…" : "Motorist"}
+                {switching && accountType !== "motorist"
+                  ? "…"
+                  : t("auth.motorist")}
               </button>
               <button
                 type="button"
@@ -417,14 +473,14 @@ export function AppMenu({
               >
                 {switching && accountType !== "professional"
                   ? "…"
-                  : "Repair Pro"}
+                  : t("auth.pro")}
               </button>
             </div>
             {warn ? (
               <div
                 className={cn(
                   "mt-2 rounded-lg px-2.5 py-2 text-[11px] font-medium leading-snug",
-                  // Same solid stage as Motorist / Repair Pro app chrome
+                  // Same solid stage as Customer / Repair Pro app chrome
                   isLight
                     ? "bg-[#c8c9cd] text-slate-900"
                     : "bg-black text-white"
@@ -441,7 +497,7 @@ export function AppMenu({
                 {signupTarget && (
                   <button
                     type="button"
-                    className="mt-1.5 border-0 bg-transparent p-0 text-[11px] font-bold text-[#e85a12] underline"
+                    className="mt-1.5 border-0 bg-transparent p-0 text-[11px] font-bold text-[#FF6B35] underline"
                     onClick={() => {
                       onClose();
                       router.push(
@@ -451,19 +507,19 @@ export function AppMenu({
                       );
                     }}
                   >
-                    Sign Up here
+                    {t("menu.signUpHere")}
                   </button>
                 )}
-                {warn.includes("Log in") && (
+                {warn === t("menu.needLogin") && (
                   <button
                     type="button"
-                    className="mt-1.5 border-0 bg-transparent p-0 text-[11px] font-bold text-[#e85a12] underline"
+                    className="mt-1.5 border-0 bg-transparent p-0 text-[11px] font-bold text-[#FF6B35] underline"
                     onClick={() => {
                       onClose();
                       router.push("/login/signin");
                     }}
                   >
-                    Log in
+                    {t("menu.logIn")}
                   </button>
                 )}
               </div>
@@ -474,7 +530,7 @@ export function AppMenu({
                   isLight ? "text-slate-700" : "text-white/70"
                 )}
               >
-                Tap to Switch
+                {t("menu.tapToSwitch")}
               </p>
             )}
           </div>
@@ -496,7 +552,7 @@ export function AppMenu({
             )}
           >
             <LogOut className="h-4 w-4" />
-            Log out
+            {t("menu.logOut")}
           </button>
         </div>
       </aside>

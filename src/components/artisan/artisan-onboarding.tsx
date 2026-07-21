@@ -2,8 +2,7 @@
 
 /**
  * Post-signup artisan onboarding (multi-step).
- * Tier 1 phone compulsory; essentials + portfolio before Pending Review.
- * TODO(api): POST /api/artisan/* real OTP SMS+WhatsApp, media upload, submit.
+ * Real verification: OTP (timed), Prembly NIN/BVN APIs, camera liveness, skill proof → admin.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -21,6 +20,7 @@ import {
   Video,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { FaceLiveness } from "@/components/profile/face-liveness";
 import {
   ARTISAN_TRADE_CATALOG,
   COMMON_TOOLS_SUGGESTIONS,
@@ -31,8 +31,6 @@ import {
 import {
   ensureArtisanDraft,
   getArtisanProfile,
-  mockSendOtp,
-  mockVerifyOtp,
   saveArtisanProfile,
 } from "@/lib/artisan/local-store";
 import {
@@ -44,6 +42,12 @@ import {
   statusLabel,
   tierProgressPercent,
 } from "@/lib/artisan/status";
+import {
+  runBvnVerification,
+  runNinVerification,
+  sendArtisanOtp,
+  verifyArtisanOtp,
+} from "@/lib/artisan/verification";
 import type {
   ArtisanMedia,
   ArtisanOnboardingStep,
@@ -135,8 +139,8 @@ export function ArtisanOnboarding({
     ? "bg-emerald-50 text-emerald-800"
     : "bg-emerald-950/40 text-emerald-300";
   const warnBox = isLight
-    ? "bg-amber-50 text-amber-900"
-    : "bg-amber-950/40 text-amber-200";
+    ? "bg-[#FF6B35]/15 text-[#FF6B35]"
+    : "bg-amber-950/40 text-[#FF6B35]";
   const tipBox = isLight
     ? "bg-[#fff7ed] text-[#9a3412]"
     : "bg-[#3a2010] text-[#fdba74]";
@@ -166,7 +170,11 @@ export function ArtisanOnboarding({
   );
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
+  /** Shown once after send so you can complete the flow without SMS */
+  const [otpDemoCode, setOtpDemoCode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [idBusy, setIdBusy] = useState<"nin" | "bvn" | null>(null);
+  const [showLiveness, setShowLiveness] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [toolDraft, setToolDraft] = useState("");
@@ -245,16 +253,23 @@ export function ArtisanOnboarding({
       setErr("Enter your phone number first.");
       return;
     }
-    // TODO(api): POST /api/auth/phone/send-otp (SMS + WhatsApp)
-    const res = mockSendOtp(profile.phone.trim());
+    const res = sendArtisanOtp(profile.phone.trim());
+    if (!res.ok) {
+      setErr(res.error);
+      return;
+    }
     setOtpSent(true);
-    setMsg(`Demo OTP sent via SMS + WhatsApp. Use code ${res.demoCode}.`);
+    setOtpDemoCode(res.demoCode);
+    setOtp("");
+    setMsg(
+      `OTP sent. Code expires in ${Math.floor(res.expiresInSec / 60)} minutes. (No SMS keys → code shown below.)`
+    );
     setErr(null);
   };
 
   const verifyOtp = () => {
     if (!profile) return;
-    const res = mockVerifyOtp(profile.phone.trim(), otp);
+    const res = verifyArtisanOtp(profile.phone.trim(), otp);
     if (!res.ok) {
       setErr(res.error);
       return;
@@ -262,8 +277,86 @@ export function ArtisanOnboarding({
     patch({
       tiers: { ...profile.tiers, tier1_phone: true },
     });
-    setMsg("Phone verified.");
+    setOtpDemoCode(null);
+    setMsg("Phone verified. Tier 1 complete.");
     setErr(null);
+  };
+
+  const verifyGovId = async () => {
+    if (!profile) return;
+    if (!profile.govIdType || !profile.govIdNumber?.trim()) {
+      setErr("Pick ID type and enter the ID number.");
+      return;
+    }
+    setIdBusy("nin");
+    setErr(null);
+    setMsg(null);
+    try {
+      const number = profile.govIdNumber.trim();
+      if (profile.govIdType === "nin") {
+        const res = await runNinVerification(number);
+        if (!res.ok) {
+          setErr(res.message);
+          patch({ tiers: { ...profile.tiers, tier2_govId: false } });
+          return;
+        }
+        patch({
+          tiers: { ...profile.tiers, tier2_govId: true },
+          idVerifyProvider: res.provider || null,
+          idVerifyMode: res.mode || null,
+          idVerifyReference: res.reference || null,
+          idVerifiedAt: new Date().toISOString(),
+          fullName: res.fullName || profile.fullName,
+        });
+        setMsg(res.message);
+        return;
+      }
+      // Driver’s licence / voter’s card / passport — format gate until Prembly doc endpoints
+      if (number.length < 6) {
+        setErr("ID number looks too short.");
+        return;
+      }
+      patch({
+        tiers: { ...profile.tiers, tier2_govId: true },
+        idVerifyProvider: "local",
+        idVerifyMode: "format",
+        idVerifiedAt: new Date().toISOString(),
+      });
+      setMsg(
+        `${profile.govIdType.replace(/_/g, " ")} accepted (format check). Use NIN for Prembly live verify.`
+      );
+    } finally {
+      setIdBusy(null);
+    }
+  };
+
+  const verifyBvn = async () => {
+    if (!profile) return;
+    setIdBusy("bvn");
+    setErr(null);
+    setMsg(null);
+    try {
+      const res = await runBvnVerification(profile.bvn || "");
+      if (!res.ok) {
+        setErr(res.message);
+        patch({
+          tiers: { ...profile.tiers, tier2_bvn: false },
+          bvnVerified: false,
+        });
+        return;
+      }
+      patch({
+        tiers: { ...profile.tiers, tier2_bvn: true },
+        bvnVerified: true,
+        bvnVerifiedAt: new Date().toISOString(),
+        idVerifyProvider: res.provider || profile.idVerifyProvider,
+        idVerifyMode: res.mode || profile.idVerifyMode,
+        idVerifyReference: res.reference || profile.idVerifyReference,
+      });
+      setMsg(res.message);
+    } finally {
+      setIdBusy(null);
+    }
   };
 
   const submitReview = () => {
@@ -292,7 +385,7 @@ export function ArtisanOnboarding({
         className="flex h-full items-center justify-center"
         style={{ backgroundColor: sheetBg }}
       >
-        <Loader2 className="h-6 w-6 animate-spin text-[#e85a12]" />
+        <Loader2 className="h-6 w-6 animate-spin text-[#FF6B35]" />
       </div>
     );
   }
@@ -302,11 +395,11 @@ export function ArtisanOnboarding({
       <div className="flex h-full flex-col" style={{ backgroundColor: sheetBg }}>
         <PageHeader
           title="Pending Review"
-          subtitle="Artisan verification"
+          subtitle="Verification"
           backHref="/dashboard"
         />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-          <Shield className="h-10 w-10 text-[#e85a12]" />
+          <Shield className="h-10 w-10 text-[#FF6B35]" />
           <p className={cn("text-[16px] font-bold", ink)}>
             Profile under review
           </p>
@@ -461,7 +554,7 @@ export function ArtisanOnboarding({
                         }
                         className={cn(
                           "rounded-md border-0 px-2.5 py-1.5 text-[11px] font-bold",
-                          on ? "bg-[#e85a12] text-white" : chipOff
+                          on ? "bg-[#FF6B35] text-white" : chipOff
                         )}
                       >
                         {s}
@@ -575,7 +668,7 @@ export function ArtisanOnboarding({
                               }}
                               className={cn(
                                 "rounded-md border-0 px-2.5 py-1.5 text-[11px] font-bold",
-                                on ? "bg-[#e85a12] text-white" : chipOff
+                                on ? "bg-[#FF6B35] text-white" : chipOff
                               )}
                             >
                               {opt}
@@ -595,21 +688,33 @@ export function ArtisanOnboarding({
         {step === "phone" && (
           <section className="space-y-3">
             <div className="flex items-center gap-2">
-              <Phone className="h-5 w-5 text-[#e85a12]" />
+              <Phone className="h-5 w-5 text-[#FF6B35]" />
               <h2 className={cn("text-[15px] font-bold", ink)}>
                 Tier 1 · Phone verification
               </h2>
             </div>
-            <p className={cn("text-[12px]", muted)}>
-              Compulsory. OTP via SMS + WhatsApp (demo uses code 123456).
-            </p>
+            <div className={cn("rounded-md px-3 py-2.5 text-[11px] font-medium leading-snug", tipBox)}>
+              <p className="font-bold">How this works</p>
+              <ol className="mt-1 list-decimal space-y-0.5 pl-4">
+                <li>Enter your phone → Send OTP (new random 6-digit code).</li>
+                <li>Code expires in 10 minutes · max 5 tries · 45s resend wait.</li>
+                <li>Enter the code → Verify. Wrong codes fail until you resend.</li>
+              </ol>
+            </div>
             <label className={cn("block text-[11px] font-bold", soft)}>
               Phone number
               <input
                 value={profile.phone}
-                onChange={(e) => patch({ phone: e.target.value })}
+                onChange={(e) =>
+                  patch({
+                    phone: e.target.value,
+                    ...(profile.tiers.tier1_phone
+                      ? { tiers: { ...profile.tiers, tier1_phone: false } }
+                      : {}),
+                  })
+                }
                 className={cn("mt-1", fieldClass)}
-                placeholder="+234…"
+                placeholder="+234 801 234 5678"
                 inputMode="tel"
               />
             </label>
@@ -620,21 +725,38 @@ export function ArtisanOnboarding({
                   onClick={sendOtp}
                   className="h-10 w-full rounded-md border-0 bg-[#323231] text-[13px] font-bold text-white"
                 >
-                  {otpSent ? "Resend OTP" : "Send OTP (SMS + WhatsApp)"}
+                  {otpSent ? "Resend OTP" : "Send OTP"}
                 </button>
+                {otpDemoCode ? (
+                  <div
+                    className={cn(
+                      "rounded-md px-3 py-2 text-center",
+                      isLight ? "bg-[#fff7ed]" : "bg-[#3a2010]"
+                    )}
+                  >
+                    <p className={cn("text-[10px] font-semibold uppercase tracking-wide", muted)}>
+                      Your code (shown because SMS is not configured)
+                    </p>
+                    <p className={cn("mt-0.5 text-[22px] font-black tracking-[0.2em]", ink)}>
+                      {otpDemoCode}
+                    </p>
+                  </div>
+                ) : null}
                 {otpSent ? (
                   <div className="flex gap-2">
                     <input
                       value={otp}
-                      onChange={(e) => setOtp(e.target.value)}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                       className={cn("min-w-0 flex-1 font-bold tracking-widest", fieldClass)}
                       placeholder="6-digit code"
                       inputMode="numeric"
+                      maxLength={6}
                     />
                     <button
                       type="button"
                       onClick={verifyOtp}
-                      className="h-10 shrink-0 rounded-md border-0 bg-[#e85a12] px-4 text-[13px] font-bold text-white"
+                      disabled={otp.length !== 6}
+                      className="h-10 shrink-0 rounded-md border-0 bg-[#FF6B35] px-4 text-[13px] font-bold text-white disabled:opacity-50"
                     >
                       Verify
                     </button>
@@ -648,7 +770,7 @@ export function ArtisanOnboarding({
                   isLight ? "text-emerald-700" : "text-emerald-400"
                 )}
               >
-                <Check className="h-4 w-4" /> Phone verified
+                <Check className="h-4 w-4" /> Phone verified · Tier 1 done
               </p>
             )}
           </section>
@@ -726,7 +848,7 @@ export function ArtisanOnboarding({
                       }}
                       className={cn(
                         "rounded-md border-0 px-2 py-1 text-[10px] font-bold",
-                        on ? "bg-[#e85a12] text-white" : chipOff
+                        on ? "bg-[#FF6B35] text-white" : chipOff
                       )}
                     >
                       {c}
@@ -855,7 +977,7 @@ export function ArtisanOnboarding({
         {step === "portfolio" && (
           <section className="space-y-3">
             <div className="flex items-center gap-2">
-              <Camera className="h-5 w-5 text-[#e85a12]" />
+              <Camera className="h-5 w-5 text-[#FF6B35]" />
               <h2 className={cn("text-[15px] font-bold", ink)}>
                 Portfolio (compulsory)
               </h2>
@@ -912,7 +1034,7 @@ export function ArtisanOnboarding({
         {step === "video" && (
           <section className="space-y-3">
             <div className="flex items-center gap-2">
-              <Video className="h-5 w-5 text-[#e85a12]" />
+              <Video className="h-5 w-5 text-[#FF6B35]" />
               <h2 className={cn("text-[15px] font-bold", ink)}>
                 Video introduction
               </h2>
@@ -972,25 +1094,83 @@ export function ArtisanOnboarding({
         {/* —— OPTIONAL TIERS 2–4 —— */}
         {(step === "optional_tiers" || mode === "settings") && (
           <section className="space-y-4">
-            <h2 className={cn("text-[15px] font-bold", ink)}>
-              Optional verification (complete later)
-            </h2>
+            <div className={cn("rounded-md px-3 py-2.5 text-[11px] font-medium leading-snug", tipBox)}>
+              <p className="font-bold">How verification works</p>
+              <ol className="mt-1 list-decimal space-y-0.5 pl-4">
+                <li>
+                  <span className="font-semibold">ID &amp; bank</span> — We
+                  check your government ID and bank number for your country.
+                </li>
+                <li>
+                  <span className="font-semibold">Face check</span> — Look at
+                  the camera, turn left, turn right, then blink.
+                </li>
+                <li>
+                  <span className="font-semibold">Skill proof</span> — Upload
+                  your certificate. Our team reviews it.
+                </li>
+                <li>
+                  <span className="font-semibold">Go live</span> — After admin
+                  approves, you can turn on Live and take jobs.
+                </li>
+              </ol>
+            </div>
+
+            {/* Status strip */}
+            <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  ["Phone", profile.tiers.tier1_phone],
+                  ["Gov ID", profile.tiers.tier2_govId],
+                  ["BVN", profile.tiers.tier2_bvn],
+                  ["Liveness", profile.tiers.tier3_liveness],
+                  ["Skill", profile.tiers.tier4_skillProof],
+                ] as const
+              ).map(([label, ok]) => (
+                <span
+                  key={label}
+                  className={cn(
+                    "rounded-md px-2 py-1 text-[10px] font-bold",
+                    ok
+                      ? isLight
+                        ? "bg-emerald-100 text-emerald-800"
+                        : "bg-emerald-900/50 text-emerald-300"
+                      : isLight
+                        ? "bg-black/10 text-slate-600"
+                        : "bg-[#2c2c2e] text-[#a1a1a6]"
+                  )}
+                >
+                  {ok ? "✓" : "·"} {label}
+                </span>
+              ))}
+            </div>
 
             <div className={panelClass}>
               <p className={cn("flex items-center gap-2 text-[13px] font-bold", ink)}>
-                <FileText className="h-4 w-4" /> Tier 2 · Government ID + BVN
+                <FileText className="h-4 w-4 shrink-0 text-[#FF6B35]" />{" "}
+                Tier 2 · Government ID + BVN
+              </p>
+              <p className={cn("mt-1 text-[10px] font-medium", muted)}>
+                {profile.tiers.tier2_govId || profile.tiers.tier2_bvn
+                  ? `Verified${profile.idVerifyMode ? ` · ${profile.idVerifyMode}` : ""}${
+                      profile.idVerifyProvider
+                        ? ` · ${profile.idVerifyProvider}`
+                        : ""
+                    }`
+                  : "Not verified yet"}
               </p>
               <select
                 value={profile.govIdType || ""}
                 onChange={(e) =>
                   patch({
                     govIdType: (e.target.value || null) as GovIdType | null,
+                    tiers: { ...profile.tiers, tier2_govId: false },
                   })
                 }
                 className={cn("mt-2", selectClass)}
               >
                 <option value="">ID type…</option>
-                <option value="nin">NIN</option>
+                <option value="nin">NIN (Prembly / format)</option>
                 <option value="drivers_licence">Driver’s Licence</option>
                 <option value="voters_card">Voter’s Card</option>
                 <option value="international_passport">
@@ -999,88 +1179,132 @@ export function ArtisanOnboarding({
               </select>
               <input
                 value={profile.govIdNumber || ""}
-                onChange={(e) => patch({ govIdNumber: e.target.value })}
-                placeholder="ID number"
+                onChange={(e) =>
+                  patch({
+                    govIdNumber: e.target.value,
+                    tiers: { ...profile.tiers, tier2_govId: false },
+                  })
+                }
+                placeholder={
+                  profile.govIdType === "nin"
+                    ? "11-digit NIN"
+                    : "ID number"
+                }
                 className={cn("mt-2", fieldClass)}
-              />
-              <input
-                value={profile.bvn || ""}
-                onChange={(e) => patch({ bvn: e.target.value })}
-                placeholder="BVN"
-                className={cn("mt-2", fieldClass)}
-                inputMode="numeric"
+                inputMode={profile.govIdType === "nin" ? "numeric" : "text"}
               />
               <button
                 type="button"
-                className="mt-2 h-9 w-full rounded-md border-0 bg-[#323231] text-[12px] font-bold text-white"
-                onClick={() => {
-                  // TODO(api): Prembly NIN/BVN verify
-                  const ok =
-                    Boolean(profile.govIdType && profile.govIdNumber) ||
-                    Boolean(profile.bvn && profile.bvn.length >= 11);
-                  if (!ok) {
-                    setErr("Enter ID and/or BVN.");
-                    return;
-                  }
-                  patch({
-                    tiers: {
-                      ...profile.tiers,
-                      tier2_govId: Boolean(
-                        profile.govIdType && profile.govIdNumber
-                      ),
-                      tier2_bvn: Boolean(
-                        profile.bvn && profile.bvn.replace(/\D/g, "").length === 11
-                      ),
-                    },
-                    bvnVerified: Boolean(
-                      profile.bvn && profile.bvn.replace(/\D/g, "").length === 11
-                    ),
-                  });
-                  setMsg("Tier 2 saved (mock verification).");
-                  setErr(null);
-                }}
+                disabled={idBusy === "nin"}
+                className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[12px] font-bold text-white disabled:opacity-60"
+                onClick={() => void verifyGovId()}
               >
-                Save Tier 2 (mock verify)
+                {idBusy === "nin" ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking
+                    ID…
+                  </>
+                ) : profile.tiers.tier2_govId ? (
+                  <>
+                    <Check className="h-3.5 w-3.5" /> ID verified · Re-check
+                  </>
+                ) : (
+                  "Verify government ID"
+                )}
+              </button>
+              <input
+                value={profile.bvn || ""}
+                onChange={(e) =>
+                  patch({
+                    bvn: e.target.value.replace(/\D/g, "").slice(0, 11),
+                    tiers: { ...profile.tiers, tier2_bvn: false },
+                    bvnVerified: false,
+                  })
+                }
+                placeholder="11-digit BVN"
+                className={cn("mt-3", fieldClass)}
+                inputMode="numeric"
+                maxLength={11}
+              />
+              <button
+                type="button"
+                disabled={idBusy === "bvn"}
+                className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[12px] font-bold text-white disabled:opacity-60"
+                onClick={() => void verifyBvn()}
+              >
+                {idBusy === "bvn" ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking
+                    BVN…
+                  </>
+                ) : profile.tiers.tier2_bvn ? (
+                  <>
+                    <Check className="h-3.5 w-3.5" /> BVN verified · Re-check
+                  </>
+                ) : (
+                  "Verify BVN"
+                )}
               </button>
             </div>
 
             <div className={panelClass}>
               <p className={cn("text-[13px] font-bold", ink)}>
-                Tier 3 · Selfie + liveness
+                Tier 3 · Face liveness
               </p>
-              <label className={cn("mt-2 h-16", uploadInlineClass)}>
-                {profile.selfie ? "Selfie uploaded" : "Upload live selfie"}
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="user"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const f = e.target.files?.[0];
-                    if (!f) return;
-                    const url = await fileToDataUrl(f);
-                    patch({
-                      selfie: {
-                        id: uid(),
-                        url,
-                        kind: "selfie",
-                        name: f.name,
-                        mime: f.type,
-                        createdAt: new Date().toISOString(),
-                      },
-                      // TODO(api): real liveness + face match to ID
-                      livenessPassed: true,
-                      tiers: { ...profile.tiers, tier3_liveness: true },
-                    });
-                    setMsg("Liveness passed (mock).");
+              <p className={cn("mt-1 text-[10px] font-medium", muted)}>
+                {profile.tiers.tier3_liveness
+                  ? `Passed${profile.livenessPassedAt ? ` · ${new Date(profile.livenessPassedAt).toLocaleString()}` : ""}`
+                  : "Camera required · 4 gesture steps"}
+              </p>
+              {showLiveness ? (
+                <div className="mt-2">
+                  <FaceLiveness
+                    isLight={isLight}
+                    onCancel={() => setShowLiveness(false)}
+                    onPassed={() => {
+                      patch({
+                        livenessPassed: true,
+                        livenessPassedAt: new Date().toISOString(),
+                        tiers: { ...profile.tiers, tier3_liveness: true },
+                        selfie: profile.selfie || {
+                          id: uid(),
+                          url: "",
+                          kind: "selfie",
+                          name: "liveness-pass",
+                          createdAt: new Date().toISOString(),
+                        },
+                      });
+                      setShowLiveness(false);
+                      setMsg("Face liveness passed. Tier 3 complete.");
+                      setErr(null);
+                    }}
+                  />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#FF6B35] text-[12px] font-bold text-white"
+                  onClick={() => {
+                    setShowLiveness(true);
+                    setErr(null);
                   }}
-                />
-              </label>
+                >
+                  <Camera className="h-4 w-4" />
+                  {profile.tiers.tier3_liveness
+                    ? "Run liveness again"
+                    : "Start face liveness"}
+                </button>
+              )}
             </div>
 
             <div className={panelClass}>
               <p className={cn("text-[13px] font-bold", ink)}>
                 Tier 4 · Proof of skill
+              </p>
+              <p className={cn("mt-1 text-[10px] font-medium", muted)}>
+                {profile.skillProof
+                  ? `Uploaded · ${profile.skillProofStatus || "under_review"} · admin must approve`
+                  : "Upload trade certificate or evidence"}
               </p>
               <select
                 value={profile.skillProofType || ""}
@@ -1102,7 +1326,9 @@ export function ArtisanOnboarding({
                 <option value="other_evidence">Other evidence</option>
               </select>
               <label className={cn("mt-2 h-14", uploadInlineClass)}>
-                {profile.skillProof ? "Proof uploaded" : "Upload certificate"}
+                {profile.skillProof
+                  ? `Uploaded: ${profile.skillProof.name || "file"}`
+                  : "Upload certificate"}
                 <input
                   type="file"
                   accept="image/*,.pdf"
@@ -1110,19 +1336,34 @@ export function ArtisanOnboarding({
                   onChange={async (e) => {
                     const f = e.target.files?.[0];
                     if (!f) return;
-                    const url = await fileToDataUrl(f);
-                    patch({
-                      skillProof: {
-                        id: uid(),
-                        url,
-                        kind: "skill_proof",
-                        name: f.name,
-                        mime: f.type,
-                        createdAt: new Date().toISOString(),
-                      },
-                      tiers: { ...profile.tiers, tier4_skillProof: true },
-                    });
-                    setMsg("Skill proof saved.");
+                    if (!profile.skillProofType) {
+                      setErr("Pick a certificate type first.");
+                      return;
+                    }
+                    setBusy(true);
+                    try {
+                      const url = await fileToDataUrl(f);
+                      patch({
+                        skillProof: {
+                          id: uid(),
+                          url,
+                          kind: "skill_proof",
+                          name: f.name,
+                          mime: f.type,
+                          createdAt: new Date().toISOString(),
+                        },
+                        skillProofStatus: "under_review",
+                        tiers: { ...profile.tiers, tier4_skillProof: true },
+                      });
+                      setMsg(
+                        "Skill proof uploaded and marked under review for admin."
+                      );
+                      setErr(null);
+                    } catch {
+                      setErr("Could not read file.");
+                    } finally {
+                      setBusy(false);
+                    }
                   }}
                 />
               </label>
@@ -1192,7 +1433,7 @@ export function ArtisanOnboarding({
               type="button"
               disabled={busy}
               onClick={submitReview}
-              className="h-11 w-full rounded-md border-0 bg-[#e85a12] text-[14px] font-bold text-white disabled:opacity-50"
+              className="h-11 w-full rounded-md border-0 bg-[#FF6B35] text-[14px] font-bold text-white disabled:opacity-50"
             >
               Submit for review
             </button>

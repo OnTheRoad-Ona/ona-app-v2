@@ -67,10 +67,10 @@ export async function sendSignupConfirmationEmail(input: {
   accountType: "motorist" | "professional";
 }): Promise<{ ok: true; id?: string } | { ok: false; error: string }> {
   const roleLabel =
-    input.accountType === "professional" ? "Repair Pro" : "Motorist";
+    input.accountType === "professional" ? "Repair Pro" : "Customer";
   const first = input.fullName.trim().split(/\s+/)[0] || "there";
   const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://ogamecho.vercel.app";
+    process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://ona-mi.vercel.app";
 
   const subject = `Welcome to OgaMecho — your ${roleLabel} account is ready`;
   const text = [
@@ -88,7 +88,7 @@ export async function sendSignupConfirmationEmail(input: {
   const html = `
   <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#0f172a">
     <p style="font-size:22px;font-weight:800;margin:0 0 4px">
-      <span style="color:#e85a12">Oga</span>Mecho
+      <span style="color:#FF6B35">Oga</span>Mecho
     </p>
     <p style="color:#64748b;margin:0 0 20px;font-size:13px">Roadside help when you need it</p>
     <h1 style="font-size:18px;margin:0 0 12px">Account confirmed</h1>

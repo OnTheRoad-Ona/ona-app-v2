@@ -33,7 +33,8 @@ npm run dev
      | Referrer | Purpose |
      |----------|---------|
      | `http://localhost:3000/*` | Local public app |
-     | `https://ogamecho.vercel.app/*` | Production public app |
+     | `https://ona-mi.vercel.app/*` | Production public app |
+     | `https://ona-backend.vercel.app/*` | Production backend / admin |
      | `https://ogamecho-backend.vercel.app/*` | Production admin backend |
 
      Optional (only if you need them later):
@@ -60,7 +61,8 @@ npm run dev
 
 ```
 http://localhost:3000/*
-https://ogamecho.vercel.app/*
+https://ona-mi.vercel.app/*
+https://ona-backend.vercel.app/*
 https://ogamecho-backend.vercel.app/*
 ```
 

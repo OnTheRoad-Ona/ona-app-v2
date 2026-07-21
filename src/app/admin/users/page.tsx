@@ -113,7 +113,7 @@ export default function AdminUsersPage() {
       <p className="om-admin-sub">
         All people on OgaMecho: admin · motorist · repair_pro. Live from
         Supabase (Vercel signups appear here). For full motorist tools use{" "}
-        <a href="/admin/motorists">Motorists</a>.
+        <a href="/admin/motorists">Customers</a>.
       </p>
       {msg ? (
         <div
@@ -175,7 +175,7 @@ export default function AdminUsersPage() {
                         mot?.vehicle_year,
                       ]
                         .filter(Boolean)
-                        .join(" ") || "Motorist"
+                        .join(" ") || "Customer"
                     : u.role === "repair_pro"
                       ? `${pro?.primary_service || "pro"} · ${pro?.status || "—"}`
                       : "Admin";

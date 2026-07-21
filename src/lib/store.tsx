@@ -26,6 +26,7 @@ import {
   readProfilesVault,
   saveProfileToVault,
 } from "@/lib/profiles-vault";
+import { isExperienceUnset } from "@/lib/profile-system";
 import { isProService, PRO_SERVICE_LABELS } from "@/lib/services";
 import type {
   AccountType,
@@ -306,8 +307,16 @@ interface AppState {
    * Returns error message or null on success.
    */
   completeIdentityVerification: (input: {
-    nin: string;
-    bvn: string;
+    nin?: string;
+    bvn?: string;
+    primaryId?: string;
+    bankId?: string;
+    countryIso?: string;
+    govIdKind?: string;
+    govIdFrontUrl?: string;
+    govIdBackUrl?: string;
+    govIdVerified?: boolean;
+    bankIdVerified?: boolean;
   }) => Promise<string | null>;
   /**
    * Edit signed-in profile (name, bio, area, vehicles you serve, etc.).
@@ -715,7 +724,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       setServerSessionReady(true);
       setAuthReady(true);
-    }, 3500);
+    }, 1200);
 
     return () => {
       cancelled = true;
@@ -851,9 +860,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
       storedPrimary ||
       primaryAccountType ||
       profile.accountType;
+    // Pros: keep only first/primary signup skill; clamp service radius to 10 km
+    const proServicesLocked =
+      profile.accountType === "professional"
+        ? (profile.services ?? []).filter(isProService).slice(0, 1)
+        : profile.services;
+    const proRadiusLocked =
+      profile.accountType === "professional"
+        ? Math.min(
+            MAX_RADIUS_KM,
+            Math.max(1, profile.serviceRadiusKm ?? DEFAULT_RADIUS_KM)
+          )
+        : profile.serviceRadiusKm;
     const withPrimary: UserProfile = {
       ...profile,
       primaryAccountType: primary,
+      ...(profile.accountType === "professional"
+        ? {
+            services: proServicesLocked?.length
+              ? proServicesLocked
+              : profile.services,
+            serviceRadiusKm: proRadiusLocked,
+          }
+        : {}),
     };
     setUserProfile(withPrimary);
     setDisplayName(name);
@@ -885,26 +914,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
         /* ignore */
       }
     } else {
-      const services = (profile.services ?? []).filter(isProService).slice(0, 1);
-      const primary = services[0] ?? "mechanic";
-      setProServicesState([primary]);
-      setRegisteredAsState(primary);
+      const primarySvc =
+        (withPrimary.services ?? []).filter(isProService)[0] ?? "mechanic";
+      setProServicesState([primarySvc]);
+      setRegisteredAsState(primarySvc);
       setUserModeState("professional");
       try {
         localStorage.setItem(MODE_KEY, "professional");
-        localStorage.setItem(ROLE_KEY, primary);
-        localStorage.setItem(SERVICES_KEY, JSON.stringify([primary]));
+        localStorage.setItem(ROLE_KEY, primarySvc);
+        localStorage.setItem(SERVICES_KEY, JSON.stringify([primarySvc]));
       } catch {
         /* ignore */
       }
-      if (profile.serviceRadiusKm != null) {
-        setRadiusKmState(
-          Math.min(
-            MAX_RADIUS_KM,
-            Math.max(0.5, profile.serviceRadiusKm ?? DEFAULT_RADIUS_KM)
-          )
-        );
-      }
+      setRadiusKmState(
+        Math.min(
+          MAX_RADIUS_KM,
+          Math.max(1, withPrimary.serviceRadiusKm ?? DEFAULT_RADIUS_KM)
+        )
+      );
     }
 
     // Profile area is a label only — never overwrite live GPS with a fixed city
@@ -1033,43 +1060,69 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!isAppBackendOnline()) {
         return "Server is unavailable. Log in requires a live OgaMecho account.";
       }
+      if (preferType !== "motorist" && preferType !== "professional") {
+        return "Pick Customer or Repair Pro.";
+      }
       const res = await backendSignIn(email.trim().toLowerCase(), password);
       if (res.error || !res.profile || !res.userId) {
         return res.error || "Email or password is incorrect.";
       }
-      // Prefer tab is a hint only — always open the real account type on the server
-      if (preferType && res.profile.accountType !== preferType) {
-        console.info(
-          `[auth] preferType=${preferType} but account is ${res.profile.accountType}`
-        );
+
+      const flags = await backendDualRoleFlags(res.userId).catch(() => ({
+        hasMotorist: res.profile!.accountType === "motorist",
+        hasPro: res.profile!.accountType === "professional",
+        primaryAccountType: res.profile!.primaryAccountType,
+      }));
+      const hasMotorist =
+        flags.hasMotorist || res.profile.accountType === "motorist";
+      const hasPro =
+        flags.hasPro || res.profile.accountType === "professional";
+
+      if (preferType === "motorist" && !hasMotorist) {
+        await backendSignOut().catch(() => undefined);
+        return "No Customer account for this login.";
       }
-      setBackendUserId(res.userId);
-      const withPrimary: UserProfile = {
+      if (preferType === "professional" && !hasPro) {
+        await backendSignOut().catch(() => undefined);
+        return "No Repair Pro account for this login.";
+      }
+
+      let sessionProfile: UserProfile = {
         ...res.profile,
         primaryAccountType:
-          res.profile.primaryAccountType || res.profile.accountType,
+          res.profile.primaryAccountType ||
+          flags.primaryAccountType ||
+          res.profile.accountType,
       };
-      saveProfileToVault(withPrimary);
-      applySession(withPrimary);
-      setServerSessionReady(true);
-      void backendDualRoleFlags(res.userId).then((flags) => {
-        setHasMotoristAccount(
-          flags.hasMotorist || res.profile!.accountType === "motorist"
-        );
-        setHasProAccount(
-          flags.hasPro || res.profile!.accountType === "professional"
-        );
-        // Server timestamps win for primary (original signup)
-        if (flags.primaryAccountType) {
-          setPrimaryAccountType(flags.primaryAccountType);
-          writeStoredPrimaryAccount(flags.primaryAccountType);
-          setUserProfile((prev) =>
-            prev
-              ? { ...prev, primaryAccountType: flags.primaryAccountType }
-              : prev
-          );
+      let sessionUserId = res.userId;
+
+      // Force session into the role they picked (dual-role safe)
+      if (sessionProfile.accountType !== preferType) {
+        const switched = await backendSwitchRole(preferType).catch(() => null);
+        if (switched?.profile && switched.userId) {
+          sessionProfile = {
+            ...switched.profile,
+            primaryAccountType:
+              switched.primaryAccountType ||
+              switched.profile.primaryAccountType ||
+              sessionProfile.primaryAccountType,
+          };
+          sessionUserId = switched.userId;
+        } else {
+          sessionProfile = { ...sessionProfile, accountType: preferType };
         }
-      });
+      }
+
+      setBackendUserId(sessionUserId);
+      saveProfileToVault(sessionProfile);
+      applySession(sessionProfile);
+      setServerSessionReady(true);
+      setHasMotoristAccount(hasMotorist);
+      setHasProAccount(hasPro);
+      if (flags.primaryAccountType) {
+        setPrimaryAccountType(flags.primaryAccountType);
+        writeStoredPrimaryAccount(flags.primaryAccountType);
+      }
       return null;
     },
     [applySession]
@@ -1092,6 +1145,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!isAppBackendOnline()) {
         return "Server is unavailable.";
       }
+      if (preferType !== "motorist" && preferType !== "professional") {
+        return "Pick Customer or Repair Pro.";
+      }
       const res = await backendSignInWithPhoneOtp({
         phone,
         code,
@@ -1100,32 +1156,61 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (res.error || !res.profile || !res.userId) {
         return res.error || "Invalid code.";
       }
-      setBackendUserId(res.userId);
-      const withPrimary: UserProfile = {
+
+      const flags = await backendDualRoleFlags(res.userId).catch(() => ({
+        hasMotorist: res.profile!.accountType === "motorist",
+        hasPro: res.profile!.accountType === "professional",
+        primaryAccountType: res.profile!.primaryAccountType,
+      }));
+      const hasMotorist =
+        flags.hasMotorist || res.profile.accountType === "motorist";
+      const hasPro =
+        flags.hasPro || res.profile.accountType === "professional";
+
+      if (preferType === "motorist" && !hasMotorist) {
+        await backendSignOut().catch(() => undefined);
+        return "No Customer account for this login.";
+      }
+      if (preferType === "professional" && !hasPro) {
+        await backendSignOut().catch(() => undefined);
+        return "No Repair Pro account for this login.";
+      }
+
+      let sessionProfile: UserProfile = {
         ...res.profile,
         primaryAccountType:
-          res.profile.primaryAccountType || res.profile.accountType,
+          res.profile.primaryAccountType ||
+          flags.primaryAccountType ||
+          res.profile.accountType,
       };
-      saveProfileToVault(withPrimary);
-      applySession(withPrimary);
-      setServerSessionReady(true);
-      void backendDualRoleFlags(res.userId).then((flags) => {
-        setHasMotoristAccount(
-          flags.hasMotorist || res.profile!.accountType === "motorist"
-        );
-        setHasProAccount(
-          flags.hasPro || res.profile!.accountType === "professional"
-        );
-        if (flags.primaryAccountType) {
-          setPrimaryAccountType(flags.primaryAccountType);
-          writeStoredPrimaryAccount(flags.primaryAccountType);
-          setUserProfile((prev) =>
-            prev
-              ? { ...prev, primaryAccountType: flags.primaryAccountType }
-              : prev
-          );
+      let sessionUserId = res.userId;
+
+      if (sessionProfile.accountType !== preferType) {
+        const switched = await backendSwitchRole(preferType).catch(() => null);
+        if (switched?.profile && switched.userId) {
+          sessionProfile = {
+            ...switched.profile,
+            primaryAccountType:
+              switched.primaryAccountType ||
+              switched.profile.primaryAccountType ||
+              sessionProfile.primaryAccountType,
+          };
+          sessionUserId = switched.userId;
+        } else {
+          sessionProfile = { ...sessionProfile, accountType: preferType };
         }
-      });
+      }
+
+      setBackendUserId(sessionUserId);
+      saveProfileToVault(sessionProfile);
+      applySession(sessionProfile);
+      setServerSessionReady(true);
+      setHasMotoristAccount(hasMotorist);
+      setHasProAccount(hasPro);
+      if (flags.primaryAccountType) {
+        setPrimaryAccountType(flags.primaryAccountType);
+        writeStoredPrimaryAccount(flags.primaryAccountType);
+      }
       return null;
     },
     [applySession]
@@ -1145,31 +1230,71 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const completeIdentityVerification = useCallback(
-    async (input: { nin: string; bvn: string }): Promise<string | null> => {
+    async (input: {
+      nin?: string;
+      bvn?: string;
+      primaryId?: string;
+      bankId?: string;
+      countryIso?: string;
+      govIdKind?: string;
+      govIdFrontUrl?: string;
+      govIdBackUrl?: string;
+      govIdVerified?: boolean;
+      bankIdVerified?: boolean;
+    }): Promise<string | null> => {
       if (!userProfile) return "Sign in to verify your identity.";
-      const nin = input.nin.replace(/\D/g, "");
-      const bvn = input.bvn.replace(/\D/g, "");
-      if (nin.length !== 11) return "NIN must be exactly 11 digits.";
-      if (bvn.length !== 11) return "BVN must be exactly 11 digits.";
+      if (userProfile.accountType !== "motorist") {
+        return "This check is for Customer accounts only.";
+      }
+
+      const primary =
+        (input.primaryId || input.nin || "").trim();
+      const bank = (input.bankId || input.bvn || "").trim();
+      const iso = (input.countryIso || userProfile.identityCountryIso || "NG").toUpperCase();
+      const isNg = iso === "NG";
+
+      if (isNg) {
+        const nin = primary.replace(/\D/g, "");
+        const bvn = bank.replace(/\D/g, "");
+        if (nin.length !== 11) return "NIN must be exactly 11 digits.";
+        if (bvn.length !== 11) return "BVN must be exactly 11 digits.";
+      } else if (!primary) {
+        return "Enter your ID number to continue.";
+      }
 
       if (isAppBackendOnline() && backendUserId) {
         const err = await backendSaveIdentityVerification({
           userId: backendUserId,
           accountType: userProfile.accountType,
-          nin,
-          bvn,
+          primaryId: primary,
+          bankId: bank || undefined,
+          nin: isNg ? primary.replace(/\D/g, "") : undefined,
+          bvn: isNg ? bank.replace(/\D/g, "") : undefined,
+          identityVerified: true,
         });
         if (err) return err;
       } else if (isAppBackendOnline() && !backendUserId) {
         return "Session not linked to server. Sign in again, then verify.";
       }
 
+      const ninOk = isNg
+        ? primary.replace(/\D/g, "").length === 11
+        : Boolean(input.govIdVerified ?? true);
+      const bvnOk = isNg
+        ? bank.replace(/\D/g, "").length === 11
+        : Boolean(input.bankIdVerified ?? true);
+
       const saved: UserProfile = {
         ...userProfile,
-        idNumber: nin,
-        bvn,
-        ninVerified: true,
-        bvnVerified: true,
+        idNumber: primary,
+        bvn: bank || userProfile.bvn,
+        identityCountryIso: iso,
+        govIdKind: input.govIdKind || userProfile.govIdKind,
+        govIdFrontUrl: input.govIdFrontUrl || userProfile.govIdFrontUrl,
+        govIdBackUrl: input.govIdBackUrl || userProfile.govIdBackUrl,
+        govIdVerified: true,
+        ninVerified: ninOk,
+        bvnVerified: bvnOk,
         identityVerifiedAt: new Date().toISOString(),
       };
       persistProfile(saved);
@@ -1180,8 +1305,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           accountType: saved.accountType,
           phone: saved.phone,
           email: saved.email,
-          nin,
-          bvn,
+          nin: primary,
+          bvn: bank || undefined,
           fullName: saved.fullName,
           createdAt: saved.registeredAt || new Date().toISOString(),
         });
@@ -1220,12 +1345,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       if (next.accountType === "professional") {
-        const services = (next.services ?? userProfile.services ?? []).filter(
-          isProService
-        );
-        next.services = services.length > 0 ? services : userProfile.services;
+        // Locked after signup: personal name + single trade skill
+        next.fullName = (userProfile.fullName || "").trim();
+        // Years: allow set only once if unset at signup
+        if (!isExperienceUnset(userProfile.yearsExperience)) {
+          next.yearsExperience = userProfile.yearsExperience;
+        } else if (
+          fields.yearsExperience != null &&
+          !isExperienceUnset(fields.yearsExperience)
+        ) {
+          next.yearsExperience = String(fields.yearsExperience).trim();
+        } else {
+          next.yearsExperience = userProfile.yearsExperience;
+        }
+        const lockedSkill =
+          (userProfile.services ?? []).filter(isProService)[0] ??
+          (next.services ?? []).filter(isProService)[0];
+        next.services = lockedSkill ? [lockedSkill] : userProfile.services;
+        // Service radius hard-cap 10 km
+        if (next.serviceRadiusKm != null) {
+          next.serviceRadiusKm = Math.min(
+            MAX_RADIUS_KM,
+            Math.max(1, next.serviceRadiusKm)
+          );
+        }
         if (next.services?.[0]) {
-          setProServicesState(next.services.filter(isProService));
+          setProServicesState([next.services[0]]);
           setRegisteredAsState(next.services[0]);
         }
       }
@@ -1244,17 +1389,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
               ? (await sb.auth.getSession()).data.session
               : null;
             if (!session?.access_token) return;
+            const isPro = next.accountType === "professional";
             await backendUpdateProfile(session.access_token, {
-              fullName: next.fullName,
+              // Pros cannot change full name via profile edit
+              fullName: isPro ? undefined : next.fullName,
               phone: next.phone,
               city: next.city,
               area: next.area,
               avatarUrl: next.avatarUrl,
               businessName: next.businessName,
               bio: next.bio,
-              yearsExperience: next.yearsExperience,
+              // Pros: send years only when setting for the first time (or non-pro)
+              yearsExperience: isPro
+                ? isExperienceUnset(userProfile.yearsExperience) &&
+                  !isExperienceUnset(next.yearsExperience)
+                  ? next.yearsExperience
+                  : undefined
+                : next.yearsExperience,
               serviceRadiusKm: next.serviceRadiusKm,
-              services: next.services,
+              // Pros: only primary signup skill (server also enforces)
+              services: isPro
+                ? next.services?.slice(0, 1)
+                : next.services,
               labourPrices: next.servicePrices,
               pricingCurrency: next.pricingCurrency,
               vehicleMake: next.vehicleMake,
@@ -1365,6 +1521,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         plateNumber: normalized.vehiclePlate,
         vehiclePhoto: normalized.vehiclePhoto,
         vehicleCommonIssues: normalized.vehicleCommonIssues,
+        vehicles: normalized.vehicles,
         avatarUrl: normalized.avatarUrl,
         nin: normalized.idNumber,
         bvn: normalized.bvn,
@@ -1434,6 +1591,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         servedCountry: normalized.servedCountry ?? res.profile.servedCountry,
         servedLocation:
           normalized.servedLocation ?? res.profile.servedLocation,
+        vehicles: res.profile.vehicles ?? normalized.vehicles,
+        vehicleMake: res.profile.vehicleMake ?? normalized.vehicleMake,
+        vehicleModel: res.profile.vehicleModel ?? normalized.vehicleModel,
+        vehicleYear: res.profile.vehicleYear ?? normalized.vehicleYear,
       };
       if (!existingPrimary) {
         writeStoredPrimaryAccount(res.profile.accountType);
@@ -1808,8 +1969,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           technicianName: req.technicianName,
           motoristName:
             accountType === "motorist"
-              ? displayName || "Motorist"
-              : "Motorist",
+              ? displayName || "Customer"
+              : "Customer",
           serviceType: req.serviceType,
           lastMessage: `Job: ${req.problem}`,
           time: "now",
@@ -2238,8 +2399,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const refreshCloudPros = useCallback(() => {
     // Motorist marketplace only — pros never load "nearby" discovery feed
-    if (accountType === "professional") {
-      setCloudTechs([]);
+    // Guests / login screens must not burn mobile data on map lists
+    if (!isAuthenticated || accountType === "professional") {
+      setCloudTechs(accountType === "professional" ? [] : null);
       return;
     }
     // /api/pros returns only Live Repair Pros (online + pro role + range)
@@ -2247,7 +2409,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // [] is valid: no one is Live right now (do not re-show demo seeds)
       setCloudTechs(list);
     });
-  }, [userLat, userLng, accountType]);
+  }, [userLat, userLng, accountType, isAuthenticated]);
 
   /** Public: motorist empty-state Refresh — pros list only */
   const refreshNearbyPros = useCallback(() => {
@@ -2270,22 +2432,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, [backendUserId, accountType]);
 
-  // Pros: load once; poll every 8 min when tab visible (data saver)
+  // Pros: load once when signed-in motorist; poll every 30 min (bare-minimum data)
   useEffect(() => {
-    refreshCloudPros();
+    if (!isAuthenticated || accountType === "professional") {
+      if (accountType === "professional") setCloudTechs([]);
+      return;
+    }
+    // Delay first fetch so splash/login never compete for bandwidth
+    const first = window.setTimeout(() => refreshCloudPros(), 3500);
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudPros();
-    }, 480_000);
-    return () => window.clearInterval(poll);
-  }, [refreshCloudPros]);
+    }, 1_800_000);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(poll);
+    };
+  }, [refreshCloudPros, isAuthenticated, accountType]);
 
   useEffect(() => {
-    refreshCloudJobs();
-    // Chats only after idle delay — not on every job refresh
-    const t = window.setTimeout(() => refreshCloudChats(), 45_000);
-    return () => window.clearTimeout(t);
-  }, [refreshCloudJobs, refreshCloudChats]);
+    if (!isAuthenticated) return;
+    // Jobs after idle; chats much later (messages page can still refresh on open)
+    const jobsT = window.setTimeout(() => refreshCloudJobs(), 4000);
+    const chatsT = window.setTimeout(() => refreshCloudChats(), 300_000);
+    return () => {
+      window.clearTimeout(jobsT);
+      window.clearTimeout(chatsT);
+    };
+  }, [refreshCloudJobs, refreshCloudChats, isAuthenticated]);
 
   // Jobs Realtime only (no pros Realtime storm) — heavy debounce
   useEffect(() => {
@@ -2294,7 +2468,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Do not subscribe to all pros updates — map uses slow poll only
     const unsubJobs = backendSubscribeJobs(backendUserId, () => {
       if (jobsTimer) clearTimeout(jobsTimer);
-      jobsTimer = setTimeout(() => refreshCloudJobs(), 25_000);
+      // Heavy debounce — avoid refetch storms that freeze the UI (white/blank feel)
+      jobsTimer = setTimeout(() => refreshCloudJobs(), 45_000);
     });
     return () => {
       if (jobsTimer) clearTimeout(jobsTimer);
@@ -2389,8 +2564,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [accountType, backendUserId, proLive]);
 
-  /** Refresh GPS every 5 minutes while the app tab is open/visible */
-  const LOCATION_REFRESH_MS = 5 * 60 * 1000;
+  /** Refresh GPS every 20 minutes while the app tab is open/visible */
+  const LOCATION_REFRESH_MS = 20 * 60 * 1000;
 
   /** Map browser GPS errors to clear, actionable copy (not raw "User denied Geolocation"). */
   const friendlyGeolocationError = useCallback(
@@ -2453,7 +2628,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const hasFull =
         lastFullAddressRef.current.includes(",") &&
         lastFullAddressRef.current.length > 12;
-      if (hasFull && now - lastGeocodeAt.current < 90_000) {
+      // 10 min throttle — reverse-geocode is the heaviest mobile data cost on boot
+      if (hasFull && now - lastGeocodeAt.current < 600_000) {
         try {
           localStorage.setItem(
             LAST_GPS_KEY,
@@ -2523,8 +2699,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, [applyGpsFix, friendlyGeolocationError]);
 
-  // Boot: GPS first (high accuracy soon after), never pin Ikeja
+  // GPS only after auth — login/signup must not burn GPS + reverse-geocode
   useEffect(() => {
+    if (!isAuthenticated) return;
     if (typeof navigator === "undefined" || !navigator.geolocation) return;
     let cancelled = false;
     setIsLocating(true);
@@ -2545,29 +2722,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
         },
         {
+          // Prefer cached fix first (low data / battery); refine later if needed
           enableHighAccuracy: highAccuracy,
-          timeout: highAccuracy ? 12_000 : 6000,
-          // Fresh enough for Island vs Ikeja; avoid multi-hour stale cache
-          maximumAge: highAccuracy ? 15_000 : 60_000,
+          timeout: highAccuracy ? 10_000 : 5000,
+          maximumAge: highAccuracy ? 60_000 : 180_000,
         }
       );
     };
 
-    pull(false, true);
-    const refine = window.setTimeout(() => pull(true, true), 2000);
+    // Single network-light pull only — no high-accuracy refine (saves GPS + geocode data)
+    pull(false, false);
     const intervalId = window.setInterval(
       () => {
         if (document.hidden || manualPinRef.current) return;
-        pull(true, true);
+        pull(true, false);
       },
       LOCATION_REFRESH_MS
     );
     return () => {
       cancelled = true;
-      window.clearTimeout(refine);
       window.clearInterval(intervalId);
     };
-  }, [applyGpsFix, friendlyGeolocationError]);
+  }, [applyGpsFix, friendlyGeolocationError, isAuthenticated]);
 
   const setManualLocation = useCallback(
     (label: string, coords?: { lat: number; lng: number }) => {

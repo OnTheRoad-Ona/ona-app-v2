@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Radio } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { AchievementBadgesRow } from "@/components/profile/achievement-badges";
 import { BioField } from "@/components/profile/bio-field";
 import { FaceLiveness } from "@/components/profile/face-liveness";
+import { NewAccountBadge } from "@/components/profile/new-account-badge";
 import {
   ProfileSection,
   ProfileShell,
@@ -18,30 +19,42 @@ import {
   TierProgress,
   VerificationMark,
 } from "@/components/profile/verification-mark";
+import { getArtisanProfile } from "@/lib/artisan/local-store";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { compressImageFile } from "@/lib/image-compress";
 import {
+  clampProServiceRadiusKm,
   EXP_YEARS,
   formatExperience,
   hasVerificationMark,
+  isExperienceUnset,
   memberSinceLabel,
   profileTheme,
   SERVICE_RADIUS_OPTIONS_KM,
 } from "@/lib/profile-system";
 import { useApp } from "@/lib/store";
-import { ServicePriceEditor } from "@/components/pricing/service-price-editor";
-import { StarRatingDisplay } from "@/components/ui/star-rating";
-import {
-  detectCurrency,
-  type AppCurrency,
-} from "@/lib/pricing";
 import { isProService } from "@/lib/services";
 import { DOCS_PENDING_MAX_RADIUS_KM } from "@/lib/skill-questions";
 import type { ProService, UserProfile } from "@/lib/types";
+import { StarRatingDisplay } from "@/components/ui/star-rating";
 import { cn } from "@/lib/utils";
 
+/** First / primary signup skill only — never multi-trade on My Profile */
+function primarySkill(
+  profile: UserProfile | null | undefined,
+  proServices: ProService[]
+): ProService[] {
+  const fromProfile = (profile?.services || []).filter(isProService);
+  if (fromProfile[0]) return [fromProfile[0]];
+  const fromState = (proServices || []).filter(isProService);
+  if (fromState[0]) return [fromState[0]];
+  return [];
+}
+
 /**
- * 3. Repair Pro own profile — editable only by the pro.
+ * Repair Pro own profile.
+ * Locked after signup: full name, single skill; years only if already set.
+ * Edit via header pencil. Labour prices not on My Profile.
  */
 export function ProOwnProfile({ isLight }: { isLight: boolean }) {
   const router = useRouter();
@@ -55,22 +68,33 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
   const t = profileTheme(isLight);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const lockedSkills = useMemo(
+    () => primarySkill(userProfile, proServices),
+    [userProfile, proServices]
+  );
+  const artisan = useMemo(
+    () =>
+      userProfile?.identityId
+        ? getArtisanProfile(userProfile.identityId)
+        : null,
+    [userProfile?.identityId]
+  );
+  const canSetExperience = isExperienceUnset(userProfile?.yearsExperience);
+
   const [editing, setEditing] = useState(false);
   const [showLiveness, setShowLiveness] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [liveBusy, setLiveBusy] = useState(false);
 
-  const [fullName, setFullName] = useState(userProfile?.fullName || "");
   const [businessName, setBusinessName] = useState(
     userProfile?.businessName || ""
   );
   const [bio, setBio] = useState(userProfile?.bio || "");
-  const [years, setYears] = useState(userProfile?.yearsExperience || "3");
-  const [skills, setSkills] = useState<ProService[]>(
-    (userProfile?.services || proServices || []).filter(isProService)
+  const [years, setYears] = useState(userProfile?.yearsExperience || "");
+  const [radiusKm, setRadiusKm] = useState(
+    clampProServiceRadiusKm(userProfile?.serviceRadiusKm)
   );
-  const [radiusKm, setRadiusKm] = useState(userProfile?.serviceRadiusKm ?? 10);
   const [avatarUrl, setAvatarUrl] = useState(userProfile?.avatarUrl || "");
   const [bankName, setBankName] = useState(userProfile?.bankName || "");
   const [bankAccountName, setBankAccountName] = useState(
@@ -78,13 +102,6 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
   );
   const [bankAccountNumber, setBankAccountNumber] = useState(
     userProfile?.bankAccountNumber || ""
-  );
-  const [servicePrices, setServicePrices] = useState<
-    Partial<Record<ProService, number | string>>
-  >(userProfile?.servicePrices || {});
-  const [pricingCurrency, setPricingCurrency] = useState<AppCurrency>(
-    userProfile?.pricingCurrency ||
-      detectCurrency({ countryName: userProfile?.servedCountry })
   );
   const [cacName, setCacName] = useState(userProfile?.cacDocumentName || "");
   const [cacData, setCacData] = useState(userProfile?.cacDocumentDataUrl || "");
@@ -103,23 +120,22 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
   const field = isLight
     ? "h-10 w-full border-0 border-b border-black/15 bg-transparent px-0 text-[13px] font-medium text-slate-900 outline-none"
     : "h-10 w-full rounded-xl border-0 bg-[#2c2c2e] px-3 text-[13px] font-medium text-white outline-none";
+  const lockedField = isLight
+    ? "text-[13px] font-semibold text-slate-900"
+    : "text-[13px] font-semibold text-white";
+  const lockedHint = isLight
+    ? "text-[10px] font-medium text-slate-500"
+    : "text-[10px] font-medium text-white/45";
 
   const sync = (p: UserProfile) => {
-    setFullName(p.fullName || "");
     setBusinessName(p.businessName || "");
     setBio(p.bio || "");
-    setYears(p.yearsExperience || "3");
-    setSkills((p.services || []).filter(isProService));
-    setRadiusKm(p.serviceRadiusKm ?? 10);
+    setYears(p.yearsExperience || "");
+    setRadiusKm(clampProServiceRadiusKm(p.serviceRadiusKm));
     setAvatarUrl(p.avatarUrl || "");
     setBankName(p.bankName || "");
     setBankAccountName(p.bankAccountName || "");
     setBankAccountNumber(p.bankAccountNumber || "");
-    setServicePrices(p.servicePrices || {});
-    setPricingCurrency(
-      p.pricingCurrency ||
-        detectCurrency({ countryName: p.servedCountry })
-    );
     setCacName(p.cacDocumentName || "");
     setCacData(p.cacDocumentDataUrl || "");
   };
@@ -127,26 +143,21 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
   const save = () => {
     setErr(null);
     setMsg(null);
-    // Keep prices only for selected skills
-    const cleaned: Partial<Record<ProService, number | string>> = {};
-    for (const s of skills) {
-      if (servicePrices[s] != null && servicePrices[s] !== "") {
-        cleaned[s] = servicePrices[s]!;
-      }
-    }
+    const skill = lockedSkills[0];
+    const expUnset = isExperienceUnset(userProfile.yearsExperience);
     const e = updateUserProfile({
-      fullName: fullName.trim(),
       businessName: businessName.trim() || undefined,
       bio: bio.slice(0, 144) || undefined,
-      yearsExperience: years,
-      services: skills.length ? skills : userProfile.services,
-      serviceRadiusKm: Math.min(100, Math.max(1, radiusKm)),
+      // One-time: only if still unset and user picked a value
+      ...(expUnset && !isExperienceUnset(years)
+        ? { yearsExperience: years.trim() }
+        : {}),
+      services: skill ? [skill] : userProfile.services,
+      serviceRadiusKm: clampProServiceRadiusKm(radiusKm),
       avatarUrl: avatarUrl || undefined,
       bankName: bankName.trim() || undefined,
       bankAccountName: bankAccountName.trim() || undefined,
       bankAccountNumber: bankAccountNumber.trim() || undefined,
-      servicePrices: cleaned,
-      pricingCurrency,
       cacDocumentName: cacName || undefined,
       cacDocumentDataUrl: cacData || undefined,
     });
@@ -166,6 +177,10 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
       setLiveBusy(false);
     }
   };
+
+  const displayRadius = clampProServiceRadiusKm(
+    editing ? radiusKm : userProfile.serviceRadiusKm
+  );
 
   return (
     <ProfileShell
@@ -203,27 +218,15 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
             </button>
           </div>
         ) : (
-          <>
-            <Button
-              size="lg"
-              className="h-11 w-full"
-              onClick={() => {
-                sync(userProfile);
-                setEditing(true);
-              }}
-            >
-              Edit Profile
-            </Button>
-            <Button
-              size="lg"
-              className="h-11 w-full"
-              disabled={liveBusy}
-              onClick={() => void toggleLive()}
-            >
-              <Radio className="h-4 w-4" />
-              {proLive ? "Go Offline" : "Go Online"}
-            </Button>
-          </>
+          <Button
+            size="lg"
+            className="h-11 w-full"
+            disabled={liveBusy}
+            onClick={() => void toggleLive()}
+          >
+            <Radio className="h-4 w-4" />
+            {proLive ? "Go Offline" : "Go Online"}
+          </Button>
         )
       }
     >
@@ -238,7 +241,6 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
         </p>
       )}
 
-      {/* D1: Under review — pro own profile only */}
       {(userProfile.docsStatus === "under_review" ||
         userProfile.docsStatus === "none" ||
         userProfile.docsStatus === "rejected") && (
@@ -248,8 +250,8 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
             userProfile.docsStatus === "rejected"
               ? "bg-red-500/15 text-red-500"
               : isLight
-                ? "bg-amber-500/15 text-amber-800"
-                : "bg-amber-500/20 text-amber-300"
+                ? "bg-[#FF6B35]/150/15 text-[#FF6B35]"
+                : "bg-[#FF6B35]/150/20 text-[#FF6B35]"
           )}
         >
           <p className="font-black uppercase tracking-wide">
@@ -260,7 +262,7 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
           <p className="mt-0.5 font-medium opacity-90">
             {userProfile.docsStatus === "rejected"
               ? "Your certification was not approved. Re-upload or contact support."
-              : `Your documents are being checked. You stay visible only within ${DOCS_PENDING_MAX_RADIUS_KM} km until approved. After approval you get +1 star once.`}
+              : `Your documents are being checked. You stay visible only within ${DOCS_PENDING_MAX_RADIUS_KM} km until approved. After Tier 4 verification and approval you get +1 star instantly.`}
           </p>
           {userProfile.certificationFileName ? (
             <p className="mt-1 text-[11px] opacity-80">
@@ -281,11 +283,11 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
             <Avatar className="h-16 w-16 overflow-hidden rounded-full">
               <AvatarImage
                 src={avatarUrl || DEFAULT_VENDOR_PHOTO}
-                alt={fullName}
+                alt={userProfile.fullName}
                 className="object-cover"
               />
               <AvatarFallback className="bg-brand font-bold text-white">
-                {avatarInitials(fullName || userProfile.fullName)}
+                {avatarInitials(userProfile.fullName)}
               </AvatarFallback>
             </Avatar>
             {editing && (
@@ -310,33 +312,35 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
             }}
           />
           <div className="min-w-0 flex-1">
+            {/* Full name — always locked */}
+            <p
+              className={cn(
+                "flex flex-wrap items-center gap-1.5 text-[17px] font-black",
+                t.ink
+              )}
+            >
+              <span className="truncate">{userProfile.fullName}</span>
+              <VerificationMark profile={userProfile} />
+              <NewAccountBadge
+                visibilityTier={artisan?.visibilityTier ?? 1}
+                status={artisan?.status}
+                isProfessional
+                size="md"
+              />
+            </p>
             {editing ? (
-              <>
-                <input
-                  className={field}
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Full name"
-                />
-                <input
-                  className={cn(field, "mt-1")}
-                  value={businessName}
-                  onChange={(e) => setBusinessName(e.target.value)}
-                  placeholder="Business / workshop name"
-                />
-              </>
+              <input
+                className={cn(field, "mt-1.5")}
+                value={businessName}
+                onChange={(e) => setBusinessName(e.target.value)}
+                placeholder="Business / workshop name"
+              />
             ) : (
-              <>
-                <p className={cn("flex items-center gap-1 text-[17px] font-black", t.ink)}>
-                  <span className="truncate">{userProfile.fullName}</span>
-                  <VerificationMark profile={userProfile} />
+              userProfile.businessName && (
+                <p className={cn("text-[12px] font-semibold", t.soft)}>
+                  {userProfile.businessName}
                 </p>
-                {userProfile.businessName && (
-                  <p className={cn("text-[12px] font-semibold", t.soft)}>
-                    {userProfile.businessName}
-                  </p>
-                )}
-              </>
+              )
             )}
             <p className={cn("mt-1 text-[11px]", t.muted)}>
               Member since {memberSinceLabel(userProfile.registeredAt)}
@@ -378,12 +382,13 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
       </ProfileSection>
 
       <ProfileSection title="Experience" isLight={isLight}>
-        {editing ? (
+        {editing && canSetExperience ? (
           <select
             className={field}
             value={years}
             onChange={(e) => setYears(e.target.value)}
           >
+            <option value="">Select years…</option>
             {EXP_YEARS.map((y) => (
               <option key={y} value={y}>
                 {formatExperience(y)}
@@ -391,51 +396,17 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
             ))}
           </select>
         ) : (
-          <p className={cn("text-[13px] font-semibold", t.ink)}>
+          <p className={lockedField}>
             {formatExperience(userProfile.yearsExperience)}
           </p>
         )}
       </ProfileSection>
 
-      <ProfileSection title="Skills" isLight={isLight}>
+      <ProfileSection title="Skill" isLight={isLight}>
         <SkillsChips
-          selected={editing ? skills : (userProfile.services || []).filter(isProService)}
+          selected={lockedSkills}
           isLight={isLight}
-          editable={editing}
-          onToggle={(s) =>
-            setSkills((prev) =>
-              prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
-            )
-          }
-        />
-      </ProfileSection>
-
-      <ProfileSection title="Labour prices" isLight={isLight}>
-        <ServicePriceEditor
-          skills={
-            editing
-              ? skills
-              : (userProfile.services || []).filter(isProService)
-          }
-          prices={editing ? servicePrices : userProfile.servicePrices || {}}
-          currency={
-            editing
-              ? pricingCurrency
-              : userProfile.pricingCurrency ||
-                detectCurrency({ countryName: userProfile.servedCountry })
-          }
-          countryName={userProfile.servedCountry}
-          isLight={isLight}
-          editing={editing}
-          onChangeCurrency={setPricingCurrency}
-          onChangePrice={(service, major) => {
-            setServicePrices((prev) => {
-              const next = { ...prev };
-              if (major == null) delete next[service];
-              else next[service] = major;
-              return next;
-            });
-          }}
+          editable={false}
         />
       </ProfileSection>
 
@@ -450,8 +421,11 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
       </ProfileSection>
 
       <ProfileSection title="Service radius" isLight={isLight}>
+        <p className={cn("mb-2 text-[12px] font-semibold", t.ink)}>
+          {displayRadius} km coverage
+        </p>
         {editing ? (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="mb-2 flex flex-wrap gap-1.5">
             {SERVICE_RADIUS_OPTIONS_KM.map((km) => (
               <button
                 key={km}
@@ -470,15 +444,12 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
               </button>
             ))}
           </div>
-        ) : (
-          <p className={cn("mb-2 text-[12px] font-semibold", t.ink)}>
-            {userProfile.serviceRadiusKm ?? 10} km coverage
-          </p>
-        )}
+        ) : null}
+        {/* Always show radius map (view + edit) */}
         <RadiusMapPreview
-          radiusKm={editing ? radiusKm : userProfile.serviceRadiusKm ?? 10}
+          radiusKm={displayRadius}
           isLight={isLight}
-          className="mt-2"
+          className="mt-1"
         />
       </ProfileSection>
 
@@ -562,7 +533,12 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
           </div>
         )}
         {hasVerificationMark(userProfile) && (
-          <p className={cn("mt-2 flex items-center gap-1 text-[12px] font-semibold", t.ink)}>
+          <p
+            className={cn(
+              "mt-2 flex items-center gap-1 text-[12px] font-semibold",
+              t.ink
+            )}
+          >
             <VerificationMark profile={userProfile} /> Verification Mark active
           </p>
         )}
@@ -591,7 +567,12 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
                 onChange={(e) => setBankAccountNumber(e.target.value)}
               />
               <label className="block">
-                <span className={cn("mb-1 block text-[11px] font-semibold", t.muted)}>
+                <span
+                  className={cn(
+                    "mb-1 block text-[11px] font-semibold",
+                    t.muted
+                  )}
+                >
                   Business registration / CAC (optional)
                 </span>
                 <input
@@ -607,10 +588,13 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
                     setCacName(f.name);
                     try {
                       if (f.type.startsWith("image/")) {
-                        setCacData(await compressImageFile(f, { maxEdge: 1200 }));
+                        setCacData(
+                          await compressImageFile(f, { maxEdge: 1200 })
+                        );
                       } else {
                         const reader = new FileReader();
-                        reader.onload = () => setCacData(String(reader.result || ""));
+                        reader.onload = () =>
+                          setCacData(String(reader.result || ""));
                         reader.readAsDataURL(f);
                       }
                     } catch {

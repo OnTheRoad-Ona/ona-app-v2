@@ -26,8 +26,9 @@ type BrandHeroProps = {
 };
 
 /**
- * Brand background — true full-bleed metallic photograph.
+ * Brand background — full-bleed metallic photograph.
  * Confined by overflow:hidden parent (#oga-mecho-phone).
+ * Image loads once (lazy when not intro); copper plate shows first to cut data.
  */
 export function BrandHeroMotion({
   className,
@@ -44,6 +45,7 @@ export function BrandHeroMotion({
           motion && "om-apple-motion-sharp",
           className
         )}
+        style={{ backgroundColor: BRAND_COPPER }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -51,13 +53,14 @@ export function BrandHeroMotion({
           alt="Ona"
           width={BRAND_W}
           height={BRAND_H}
-          key={BRAND_SRC}
           className={cn(
             "om-brand-img absolute inset-0 h-full w-full",
             BRAND_FOCUS
           )}
           style={{ filter: "none" }}
           draggable={false}
+          loading="lazy"
+          decoding="async"
         />
       </div>
     );
@@ -76,14 +79,14 @@ export function BrandHeroMotion({
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        key={BRAND_SRC}
         src={BRAND_SRC}
         alt=""
         width={BRAND_W}
         height={BRAND_H}
         decoding="async"
-        fetchPriority="high"
-        loading="eager"
+        // Welcome only: one high-priority load. Never re-key the img (avoids re-fetch loops).
+        fetchPriority={introMotion ? "high" : "low"}
+        loading={introMotion ? "eager" : "lazy"}
         draggable={false}
         sizes="390px"
         className={cn(

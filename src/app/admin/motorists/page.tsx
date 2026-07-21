@@ -91,7 +91,7 @@ export default function AdminMotoristsPage() {
       setError(res.message);
       return;
     }
-    setMsg(is_active ? "Motorist activated" : "Motorist deactivated");
+    setMsg(is_active ? "Customer activated" : "Customer deactivated");
     await load();
   }
 
@@ -133,7 +133,7 @@ export default function AdminMotoristsPage() {
 
   return (
     <AdminShell adminName={adminName}>
-      <h1 className="om-admin-h1">Motorists</h1>
+      <h1 className="om-admin-h1">Customers</h1>
       <p className="om-admin-sub">
         Car owners who signed up on OgaMecho. Live from Supabase — every Vercel
         signup appears here.
@@ -196,7 +196,7 @@ export default function AdminMotoristsPage() {
         <table className="om-admin-table">
           <thead>
             <tr>
-              <th>Motorist</th>
+              <th>Customer</th>
               <th>Vehicle</th>
               <th>Location</th>
               <th>Identity</th>
@@ -209,7 +209,7 @@ export default function AdminMotoristsPage() {
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={7} className="om-admin-muted">
-                  No motorists yet. When someone signs up as Motorist on
+                  No customers yet. When someone signs up as Customer on
                   ogamecho.vercel.app they appear here instantly.
                 </td>
               </tr>

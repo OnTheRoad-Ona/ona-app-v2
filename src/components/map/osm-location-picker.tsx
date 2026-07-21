@@ -14,6 +14,8 @@ import {
   resolveKnownPlace,
   type KnownPlace,
 } from "@/lib/known-places";
+import { mapThemeForApp } from "@/lib/map-theme";
+import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { PickedLocation } from "./location-picker-map";
 
@@ -54,6 +56,9 @@ export function OsmLocationPicker({
   className?: string;
   compact?: boolean;
 }) {
+  const { theme } = useApp();
+  const isLight = theme === "light";
+  const mapTheme = mapThemeForApp(isLight);
   const [center, setCenter] = useState({
     lat: value?.lat ?? DEFAULT_USER_LOCATION.coordinates.lat,
     lng: value?.lng ?? DEFAULT_USER_LOCATION.coordinates.lng,
@@ -246,16 +251,24 @@ export function OsmLocationPicker({
         ) : null}
       </div>
 
-      <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl ring-1 ring-slate-200">
+      <div
+        className="relative min-h-0 flex-1 overflow-hidden rounded-xl ring-1 ring-black/40"
+        style={{ backgroundColor: mapTheme.backgroundColor }}
+      >
         <MapContainer
           center={[center.lat, center.lng]}
           zoom={15}
           className="h-full w-full"
-          style={{ height: "100%", minHeight: 220 }}
+          style={{
+            height: "100%",
+            minHeight: 220,
+            background: mapTheme.backgroundColor,
+            filter: mapTheme.osmFilter,
+          }}
           zoomControl={false}
           attributionControl={false}
         >
-          <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+          <TileLayer url={mapTheme.osmTileUrl} />
           <ClickHandler onPick={(lat, lng) => placePin(lat, lng)} />
           <Marker
             position={[pin.lat, pin.lng]}
@@ -269,10 +282,10 @@ export function OsmLocationPicker({
             type="button"
             onClick={useMyLocation}
             disabled={busy}
-            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border-0 bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow disabled:opacity-60"
+            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border-0 bg-[#323231] px-3 py-2 text-xs font-bold text-white shadow disabled:opacity-60"
           >
             <Navigation className="h-3.5 w-3.5" />
-            Use my location
+            My location
           </button>
           <button
             type="button"
@@ -287,7 +300,7 @@ export function OsmLocationPicker({
       </div>
 
       {status && (
-        <p className="text-[11px] font-medium text-amber-700">{status}</p>
+        <p className="text-[11px] font-medium text-[#FF6B35]">{status}</p>
       )}
       {busy && (
         <p className="text-[11px] font-medium text-slate-500">

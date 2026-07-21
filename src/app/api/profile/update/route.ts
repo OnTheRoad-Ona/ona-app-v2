@@ -24,6 +24,22 @@ const bodySchema = z.object({
   city: z.string().optional(),
   area: z.string().optional(),
   avatarUrl: z.string().optional(),
+  /** UI language: en | pcm | yo | ig | ha | fr | pt | ar | es | sw | zh */
+  preferredLocale: z
+    .enum([
+      "en",
+      "pcm",
+      "yo",
+      "ig",
+      "ha",
+      "fr",
+      "pt",
+      "ar",
+      "es",
+      "sw",
+      "zh",
+    ])
+    .optional(),
   businessName: z.string().optional(),
   bio: z.string().max(144).optional(),
   yearsExperience: z.string().optional(),
@@ -111,20 +127,27 @@ export async function POST(req: Request) {
 
   const { data: profile } = await admin
     .from("profiles")
-    .select("role")
+    .select("role, full_name")
     .eq("id", userId)
     .maybeSingle();
 
   const role = profile?.role as string | undefined;
+  const isRepairPro = role === "repair_pro";
 
+  // Repair Pros cannot change personal full name after signup (business name is separate)
   await admin
     .from("profiles")
     .update({
-      ...(b.fullName != null ? { full_name: b.fullName } : {}),
+      ...(b.fullName != null && !isRepairPro
+        ? { full_name: b.fullName }
+        : {}),
       ...(b.phone != null ? { phone: b.phone } : {}),
       ...(b.city != null ? { city: b.city } : {}),
       ...(b.area != null ? { area: b.area } : {}),
       ...(b.avatarUrl != null ? { avatar_url: b.avatarUrl } : {}),
+      ...(b.preferredLocale != null
+        ? { preferred_locale: b.preferredLocale }
+        : {}),
       updated_at: new Date().toISOString(),
     })
     .eq("id", userId);
@@ -173,9 +196,46 @@ export async function POST(req: Request) {
         if (Number.isFinite(n) && n > 0) labourPrices[k] = n;
       }
     }
-    const services = b.services
-      ?.filter((s): s is ProService => isProService(s))
-      .slice(0, 9);
+
+    // Existing pro row — lock skill + years; clamp radius to 10 km
+    const { data: existingPro } = await admin
+      .from("repair_pro_profiles")
+      .select("services, primary_service, years_experience, service_radius_km")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    const existingServices = Array.isArray(existingPro?.services)
+      ? (existingPro!.services as string[]).filter((s): s is ProService =>
+          isProService(s)
+        )
+      : [];
+    const lockedPrimary: ProService | undefined =
+      (existingPro?.primary_service &&
+      isProService(String(existingPro.primary_service))
+        ? (String(existingPro.primary_service) as ProService)
+        : undefined) || existingServices[0];
+
+    // Pros may not change trade skills after signup (single primary only)
+    const services: ProService[] | undefined = isRepairPro
+      ? lockedPrimary
+        ? [lockedPrimary]
+        : b.services
+            ?.filter((s): s is ProService => isProService(s))
+            .slice(0, 1)
+      : b.services
+          ?.filter((s): s is ProService => isProService(s))
+          .slice(0, 9);
+
+    // Hard max 10 km for all pros
+    const PRO_MAX_RADIUS = 10;
+    const clampedRadius =
+      b.serviceRadiusKm !== undefined
+        ? Math.min(
+            PRO_MAX_RADIUS,
+            Math.max(1, Number(b.serviceRadiusKm) || 10)
+          )
+        : undefined;
+
     const vehicleFocus: Record<string, unknown> = {};
     if (b.servedVehicleType) vehicleFocus.servedVehicleType = b.servedVehicleType;
     if (b.servedBrand) vehicleFocus.servedBrand = b.servedBrand;
@@ -190,11 +250,25 @@ export async function POST(req: Request) {
           ? { business_name: b.businessName || null }
           : {}),
         ...(b.bio !== undefined ? { bio: b.bio || null } : {}),
-        ...(b.yearsExperience !== undefined
-          ? { years_experience: b.yearsExperience || null }
-          : {}),
-        ...(b.serviceRadiusKm !== undefined
-          ? { service_radius_km: b.serviceRadiusKm }
+        // Pros: years only if never set (one-time from My Profile)
+        ...(() => {
+          if (b.yearsExperience === undefined) return {};
+          if (!isRepairPro) {
+            return { years_experience: b.yearsExperience || null };
+          }
+          const raw = existingPro?.years_experience;
+          const unset =
+            raw == null ||
+            String(raw).trim() === "" ||
+            String(raw).trim() === "0" ||
+            String(raw).trim() === "—";
+          if (!unset) return {};
+          const next = String(b.yearsExperience).trim();
+          if (!next) return {};
+          return { years_experience: next };
+        })(),
+        ...(clampedRadius !== undefined
+          ? { service_radius_km: clampedRadius }
           : {}),
         ...(services?.length
           ? {

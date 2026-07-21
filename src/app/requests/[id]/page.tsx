@@ -18,6 +18,11 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { VoiceNotePlayer } from "@/components/jobs/voice-note-player";
+import { ExpiredDialog } from "@/components/ui/expired-dialog";
+import {
+  CONVERSATION_ENDED_MESSAGE,
+  readOnlyChatHref,
+} from "@/lib/chat-expired";
 import { apiGetJob } from "@/lib/jobs/client";
 import type { JobFlowStatus, JobOffer, JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
@@ -42,7 +47,7 @@ function stepTitle(s: JobFlowStatus, isPro: boolean): string {
     case "completed":
       return "Work marked complete";
     case "satisfied":
-      return "Motorist confirmed satisfaction";
+      return "Customer confirmed satisfaction";
     case "released":
       return "Payment released";
     case "cancelled":
@@ -134,7 +139,7 @@ function hasReached(job: JobRecord, status: JobFlowStatus): boolean {
 
 function offerSideLabel(side: JobOffer["side"], isPro: boolean): string {
   if (side === "repair_pro") return isPro ? "You" : "Repair Pro";
-  return isPro ? "Motorist" : "You";
+  return isPro ? "Customer" : "You";
 }
 
 function Section({
@@ -210,6 +215,7 @@ export default function RequestProcessPage({
   const [job, setJob] = useState<JobRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [expiredOpen, setExpiredOpen] = useState(false);
 
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-700" : "text-white/75";
@@ -327,7 +333,7 @@ export default function RequestProcessPage({
   const chatPreview = chatMessages.slice(-6);
 
   return (
-    <div className={cn("flex h-full min-h-0 flex-col", stage)}>
+    <div className={cn("relative flex h-full min-h-0 flex-col", stage)}>
       <PageHeader title="Job details" backHref={backHref} />
 
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-4 pb-8 scrollbar-hide">
@@ -616,7 +622,7 @@ export default function RequestProcessPage({
             muted={muted}
           />
           <DetailRow
-            label="Motorist confirmed"
+            label="Customer confirmed"
             value={
               satisfiedAt || hasReached(job, "satisfied")
                 ? formatWhen(satisfiedAt) || "Yes"
@@ -695,15 +701,16 @@ export default function RequestProcessPage({
                       ))}
                     </ul>
                   )}
-                  <Link
-                    href={`/messages/${chatThread.id}`}
+                  <button
+                    type="button"
+                    onClick={() => setExpiredOpen(true)}
                     className={cn(
-                      "mt-3 inline-flex items-center gap-1 text-[13px] font-semibold text-[#e07a3d]"
+                      "mt-3 inline-flex items-center gap-1 border-0 bg-transparent p-0 text-[13px] font-semibold text-[#e07a3d]"
                     )}
                   >
                     Open chat history
                     <ChevronRight className="h-3.5 w-3.5" />
-                  </Link>
+                  </button>
                 </>
               ) : (
                 <p className={cn("text-[13px] font-medium leading-snug", muted)}>
@@ -717,7 +724,7 @@ export default function RequestProcessPage({
 
         {/* Rating */}
         {(job.rating != null && job.rating > 0) || job.ratingNote?.trim() ? (
-          <Section title="Motorist rating" muted={muted}>
+          <Section title="Customer rating" muted={muted}>
             {job.rating != null && job.rating > 0 && (
               <div className="flex items-center gap-1">
                 {[1, 2, 3, 4, 5].map((n) => (
@@ -782,6 +789,21 @@ export default function RequestProcessPage({
           </ol>
         </Section>
       </div>
+
+      <ExpiredDialog
+        open={expiredOpen}
+        isLight={isLight}
+        message={CONVERSATION_ENDED_MESSAGE}
+        onClose={() => setExpiredOpen(false)}
+        onView={
+          chatThread
+            ? () => {
+                setExpiredOpen(false);
+                router.push(readOnlyChatHref(chatThread.id));
+              }
+            : undefined
+        }
+      />
     </div>
   );
 }

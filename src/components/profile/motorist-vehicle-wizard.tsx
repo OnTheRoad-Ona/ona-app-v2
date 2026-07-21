@@ -1,25 +1,25 @@
 "use client";
 
 /**
- * Add one motorist vehicle — one field group per step, unlimited vehicles.
+ * Add one motorist vehicle — cascade Make/Model/Year then extras.
+ * Unlimited vehicles on profile.
  */
 
 import { useState } from "react";
 import { Camera, ChevronLeft, ChevronRight } from "lucide-react";
+import { VehicleCascadeFields } from "@/components/vehicles/vehicle-cascade-fields";
 import { compressImageFile } from "@/lib/image-compress";
 import { COMMON_VEHICLE_ISSUES } from "@/lib/profile-system";
 import type { MotoristVehicle } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type Step = 1 | 2 | 3 | 4 | 5 | 6;
+type Step = 1 | 2 | 3 | 4;
 
 const STEP_TITLES: Record<Step, string> = {
-  1: "Make",
-  2: "Model",
-  3: "Year",
-  4: "Plate number",
-  5: "Photo (optional)",
-  6: "Common issues (optional)",
+  1: "Vehicle",
+  2: "Plate number",
+  3: "Photo (optional)",
+  4: "Common issues (optional)",
 };
 
 export function MotoristVehicleWizard({
@@ -41,15 +41,14 @@ export function MotoristVehicleWizard({
   const [err, setErr] = useState<string | null>(null);
 
   const field = isLight
-    ? "h-11 w-full rounded-md border-0 bg-black/8 px-3 text-[14px] font-medium text-slate-900 outline-none"
-    : "h-11 w-full rounded-md border-0 bg-[#2c2c2e] px-3 text-[14px] font-medium text-white outline-none";
+    ? "h-11 w-full rounded-md border-0 bg-black/8 px-3 text-[14px] font-medium text-slate-900 outline-none placeholder:text-slate-500 placeholder:opacity-100"
+    : "h-11 w-full rounded-md border-0 bg-[#2c2c2e] px-3 text-[14px] font-medium text-white outline-none placeholder:text-white/50 placeholder:opacity-100";
 
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-600" : "text-white/70";
 
   const canNext = () => {
-    if (step === 1) return make.trim().length >= 1;
-    if (step === 2) return model.trim().length >= 1;
+    if (step === 1) return make.trim().length >= 1 && model.trim().length >= 1;
     return true;
   };
 
@@ -73,10 +72,10 @@ export function MotoristVehicleWizard({
   const goNext = () => {
     setErr(null);
     if (!canNext()) {
-      setErr(step === 1 ? "Enter the make." : "Enter the model.");
+      setErr("Pick make and model from the lists.");
       return;
     }
-    if (step < 6) setStep((s) => (s + 1) as Step);
+    if (step < 4) setStep((s) => (s + 1) as Step);
     else finish();
   };
 
@@ -95,7 +94,7 @@ export function MotoristVehicleWizard({
     >
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className={cn("text-[12px] font-bold", ink)}>
-          Add vehicle · Step {step} of 6
+          Add vehicle · Step {step} of 4
         </p>
         <button
           type="button"
@@ -110,34 +109,18 @@ export function MotoristVehicleWizard({
       </p>
 
       {step === 1 && (
-        <input
-          className={field}
-          placeholder="e.g. Toyota"
-          value={make}
-          onChange={(e) => setMake(e.target.value)}
-          autoFocus
+        <VehicleCascadeFields
+          variant="profile"
+          isLight={isLight}
+          make={make}
+          model={model}
+          year={year}
+          onMakeChange={setMake}
+          onModelChange={setModel}
+          onYearChange={setYear}
         />
       )}
       {step === 2 && (
-        <input
-          className={field}
-          placeholder="e.g. Corolla"
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-          autoFocus
-        />
-      )}
-      {step === 3 && (
-        <input
-          className={field}
-          placeholder="e.g. 2018"
-          value={year}
-          onChange={(e) => setYear(e.target.value)}
-          inputMode="numeric"
-          autoFocus
-        />
-      )}
-      {step === 4 && (
         <input
           className={field}
           placeholder="Plate number"
@@ -146,7 +129,7 @@ export function MotoristVehicleWizard({
           autoFocus
         />
       )}
-      {step === 5 && (
+      {step === 3 && (
         <label className="flex cursor-pointer items-center gap-3">
           <span
             className={cn(
@@ -180,7 +163,7 @@ export function MotoristVehicleWizard({
           />
         </label>
       )}
-      {step === 6 && (
+      {step === 4 && (
         <div className="flex flex-wrap gap-1.5">
           {COMMON_VEHICLE_ISSUES.map((issue) => {
             const on = issues.includes(issue);
@@ -230,8 +213,8 @@ export function MotoristVehicleWizard({
           onClick={goNext}
           className="inline-flex h-10 flex-1 items-center justify-center gap-1 rounded-md border-0 bg-[#323231] text-[13px] font-semibold text-white"
         >
-          {step === 6 ? "Save vehicle" : "Next"}
-          {step < 6 && <ChevronRight className="h-4 w-4" />}
+          {step === 4 ? "Save vehicle" : "Next"}
+          {step < 4 && <ChevronRight className="h-4 w-4" />}
         </button>
       </div>
     </div>

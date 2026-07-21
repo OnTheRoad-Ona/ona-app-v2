@@ -17,7 +17,7 @@ export type LiveReviewRow = {
   authorName: string;
 };
 
-function shortName(full: string | null | undefined, fallback = "Motorist"): string {
+function shortName(full: string | null | undefined, fallback = "Customer"): string {
   const n = (full || "").trim();
   if (!n) return fallback;
   const parts = n.split(/\s+/).filter(Boolean);
@@ -157,7 +157,7 @@ export async function listProReviews(
       rating: Number(r.rating) || 0,
       comment: r.comment != null ? String(r.comment) : null,
       createdAt: String(r.created_at),
-      authorName: nameById.get(String(r.motorist_id)) || "Motorist",
+      authorName: nameById.get(String(r.motorist_id)) || "Customer",
     }));
   } catch (e) {
     console.error("listProReviews", e);

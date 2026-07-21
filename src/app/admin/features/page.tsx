@@ -10,7 +10,7 @@ import type { AppConfig, FeaturesSection } from "@/lib/app-config";
 const FLAGS: { key: keyof FeaturesSection; label: string; help: string }[] = [
   {
     key: "signupMotorist",
-    label: "Motorist signup",
+    label: "Customer signup",
     help: "Allow new vehicle-owner accounts",
   },
   {

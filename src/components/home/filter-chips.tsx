@@ -66,11 +66,11 @@ export function FilterChips() {
                     "h-2.5 w-2.5 shrink-0",
                     active
                       ? isLight
-                        ? "fill-[#f59e0b] text-[#d97706]"
-                        : "fill-amber-400 text-amber-400"
+                        ? "fill-[#FF6B35] text-[#FF6B35]"
+                        : "fill-[#FF6B35] text-[#FF6B35]"
                       : isLight
-                        ? "fill-[#f59e0b] text-[#b45309]"
-                        : "fill-amber-400 text-amber-400"
+                        ? "fill-[#FF6B35] text-[#FF6B35]"
+                        : "fill-[#FF6B35] text-[#FF6B35]"
                   )}
                   strokeWidth={2.25}
                 />

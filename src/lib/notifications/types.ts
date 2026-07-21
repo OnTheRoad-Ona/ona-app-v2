@@ -3,6 +3,15 @@
  * Solid fills only; copper #C5A46E accents; no borders/glows/gradients.
  */
 
+import {
+  CONVERSATION_ENDED_MESSAGE,
+  JOB_CLOSED_MESSAGE,
+  JOB_LIVE_CHAT_STATUSES,
+  closedOpenMessage,
+  isJobEndedStatus,
+  shouldBlockLiveOpen,
+} from "@/lib/chat-expired";
+
 export type NotificationCategory =
   | "requests"
   | "messages"
@@ -66,23 +75,22 @@ export const CHAT_CLOSED_JOB_STATUSES = new Set([
   "cancelled",
   "expired",
   "refunded",
-]);
-
-/** Terminal job statuses — never open job / track / chat links */
-export const JOB_FINISHED_STATUSES = CHAT_CLOSED_JOB_STATUSES;
-
-/** Active / ongoing job (user may open request, track, chat) */
-export const JOB_ACTIVE_STATUSES = new Set([
-  "negotiating",
-  "accepted",
-  "agreed",
-  "paid_booked",
-  "en_route",
-  "arrived",
-  "in_progress",
   "disputed",
   "under_appeal",
 ]);
+
+/** Terminal / ended (5C: anything not live mid-job) — use isJobFinishedStatus */
+export const JOB_FINISHED_STATUSES = CHAT_CLOSED_JOB_STATUSES;
+
+/** Active / ongoing job — live chat only */
+export const JOB_ACTIVE_STATUSES = JOB_LIVE_CHAT_STATUSES;
+
+export {
+  CONVERSATION_ENDED_MESSAGE,
+  JOB_CLOSED_MESSAGE,
+  closedOpenMessage,
+  isJobEndedStatus,
+};
 
 /** Human-readable status for blocked-open popups (no dashes) */
 export function jobStatusLabel(status: string | null | undefined): string {
@@ -107,12 +115,11 @@ export function jobStatusLabel(status: string | null | undefined): string {
 }
 
 export function isJobFinishedStatus(status: string | null | undefined): boolean {
-  if (!status) return false;
-  return JOB_FINISHED_STATUSES.has(String(status).toLowerCase());
+  return isJobEndedStatus(status);
 }
 
 export function isChatClosedForNotification(n: AppNotification): boolean {
-  if (n.jobStatus && JOB_FINISHED_STATUSES.has(String(n.jobStatus).toLowerCase())) {
+  if (n.jobStatus && isJobEndedStatus(n.jobStatus)) {
     return n.category === "messages" || n.actionType === "open_chat";
   }
   if (n.category !== "messages" && n.actionType !== "open_chat") return false;
@@ -121,96 +128,42 @@ export function isChatClosedForNotification(n: AppNotification): boolean {
   return false;
 }
 
-/** True when this notification must not navigate to job / chat / track links */
+/** True when this notification must not navigate live to job / chat / track */
 export function isNavigationBlocked(
   n: AppNotification,
   liveStatus?: string | null
 ): boolean {
-  const status = (liveStatus || n.jobStatus || "").toLowerCase() || null;
-
   if (n.actionType === "rate") return false;
-  if (n.actionType === "none" || !n.actionType) return true;
+  if (n.actionType === "none") return true;
+  // Missing action but has sensitive href — still evaluate
+  if (!n.actionType && !n.href) return true;
 
-  // Closed / finished chat
-  if (
-    n.actionType === "open_chat" ||
-    n.category === "messages"
-  ) {
-    if (isChatClosedForNotification(n) || isJobFinishedStatus(status)) {
-      return true;
-    }
-  }
-
-  // Job / request / tracking
-  const jobLike =
-    n.actionType === "open_job" ||
-    n.actionType === "view_tracking" ||
-    n.actionType === "accept_request" ||
-    n.category === "requests";
-
-  if (jobLike) {
-    if (isJobFinishedStatus(status)) return true;
-    if (status && !JOB_ACTIVE_STATUSES.has(status)) return true;
-  }
-
-  // Payments tied to a finished escrow job
-  if (
-    n.actionType === "view_payment" &&
-    n.jobId &&
-    (status === "released" || status === "refunded" || status === "satisfied")
-  ) {
-    return true;
-  }
-
-  // href heuristic: never open finished job/message deep links
-  const href = n.href || "";
-  if (
-    isJobFinishedStatus(status) &&
-    (href.includes("/jobs/") ||
-      href.includes("/messages/") ||
-      href.includes("/requests/"))
-  ) {
-    return true;
-  }
-
-  return false;
+  return shouldBlockLiveOpen({
+    href: n.href,
+    jobId: n.jobId,
+    jobStatus: n.jobStatus,
+    liveStatus: liveStatus ?? n.jobStatus,
+    actionType: n.actionType,
+    category: n.category,
+    actionPayload: n.actionPayload,
+    allowRate: true,
+  });
 }
 
 /**
  * Concise popup when user can't open a notification target.
- * No em dashes; simple sentence.
+ * Chat → conversation ended; View job → job closed.
  */
 export function blockedActionMessage(
-  n: AppNotification,
-  liveStatus?: string | null
+  n?: AppNotification,
+  _liveStatus?: string | null
 ): string {
-  const status = liveStatus || n.jobStatus || null;
-  const label = jobStatusLabel(status);
-
-  if (n.category === "requests" || n.actionType === "open_job" || n.actionType === "view_tracking" || n.actionType === "accept_request") {
-    if (isJobFinishedStatus(status) || !status) {
-      return `Job ${label}. Can't open.`;
-    }
-    if (status && !JOB_ACTIVE_STATUSES.has(status)) {
-      return `Job ${label}. Can't open.`;
-    }
-  }
-  if (n.category === "messages" || n.actionType === "open_chat") {
-    if (isChatClosedForNotification(n) || isJobFinishedStatus(status)) {
-      return `Chat closed. Job ${label}.`;
-    }
-  }
-  if (n.category === "payments" || n.actionType === "view_payment") {
-    if (status === "released" || status === "refunded" || status === "satisfied") {
-      return `Payment ${label}. Can't open.`;
-    }
-  }
-  if (n.category === "system") {
-    if (isJobFinishedStatus(status) && n.actionType && n.actionType !== "none") {
-      return `This is ${label}. Can't open.`;
-    }
-  }
-  return "This is no longer active. Can't open.";
+  if (!n) return CONVERSATION_ENDED_MESSAGE;
+  return closedOpenMessage({
+    href: n.href,
+    actionType: n.actionType,
+    category: n.category,
+  });
 }
 
 /** Center list: hide closed-chat rows that have no full message text */

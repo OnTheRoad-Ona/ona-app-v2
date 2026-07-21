@@ -18,6 +18,7 @@ import {
   Wrench,
   Zap,
 } from "lucide-react";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { useApp } from "@/lib/store";
 import { CarBattery } from "@/lib/services";
 import type { ServiceCategory } from "@/lib/types";
@@ -25,24 +26,24 @@ import { cn } from "@/lib/utils";
 
 const ALL_TABS: {
   id: ServiceCategory;
-  label: string;
+  labelKey: MessageKey;
   icon: typeof Wrench;
 }[] = [
-  { id: "mechanic", label: "Mechanic", icon: Wrench },
-  { id: "vulcanizer", label: "Vulcanizer", icon: CircleDot },
-  { id: "towing", label: "Tow", icon: Car },
-  { id: "battery", label: "Battery", icon: CarBattery },
-  { id: "ac", label: "A/C", icon: Fan },
-  { id: "body", label: "Body", icon: Paintbrush },
-  { id: "electrical", label: "Electric", icon: Plug },
-  { id: "diagnostics", label: "Scan", icon: Cpu },
-  { id: "wash", label: "Wash", icon: Droplets },
-  { id: "plumber", label: "Plumber", icon: ShowerHead },
-  { id: "carpenter", label: "Carpenter", icon: Hammer },
-  { id: "painter", label: "Painter", icon: PaintRoller },
-  { id: "solar", label: "Solar", icon: Sun },
-  { id: "generator", label: "Generator", icon: Zap },
-  { id: "all", label: "All", icon: Grid2x2 },
+  { id: "mechanic", labelKey: "trade.mechanic", icon: Wrench },
+  { id: "vulcanizer", labelKey: "trade.vulcanizer", icon: CircleDot },
+  { id: "towing", labelKey: "trade.towing", icon: Car },
+  { id: "battery", labelKey: "trade.battery", icon: CarBattery },
+  { id: "ac", labelKey: "trade.ac", icon: Fan },
+  { id: "body", labelKey: "trade.body", icon: Paintbrush },
+  { id: "electrical", labelKey: "trade.electrical", icon: Plug },
+  { id: "diagnostics", labelKey: "trade.diagnostics", icon: Cpu },
+  { id: "wash", labelKey: "trade.wash", icon: Droplets },
+  { id: "plumber", labelKey: "trade.plumber", icon: ShowerHead },
+  { id: "carpenter", labelKey: "trade.carpenter", icon: Hammer },
+  { id: "painter", labelKey: "trade.painter", icon: PaintRoller },
+  { id: "solar", labelKey: "trade.solar", icon: Sun },
+  { id: "generator", labelKey: "trade.generator", icon: Zap },
+  { id: "all", labelKey: "trade.all", icon: Grid2x2 },
 ];
 
 /**
@@ -64,6 +65,7 @@ export function CategoryTabs({
   onOpenHelp?: () => void;
 }) {
   const { category, setCategory, theme } = useApp();
+  const t = useT();
   const isLight = theme === "light";
   const start = useRef<{ x: number; y: number } | null>(null);
   const moved = useRef(false);
@@ -160,7 +162,7 @@ export function CategoryTabs({
     >
       <div
         role="tablist"
-        aria-label="Service category"
+        aria-label={t("home.serviceCategory")}
         className={cn(
           "relative grid grid-cols-5 gap-0 rounded-xl p-0.5",
           isLight
@@ -168,7 +170,7 @@ export function CategoryTabs({
             : "bg-gradient-to-b from-[#1a1a1a] to-[#141414]"
         )}
       >
-        {tabs.map(({ id, label, icon: Icon }) => {
+        {tabs.map(({ id, labelKey, icon: Icon }) => {
           const active = category === id;
           return (
             <button
@@ -197,7 +199,7 @@ export function CategoryTabs({
                 )}
                 strokeWidth={active ? 2.4 : 2}
               />
-              <span className="truncate leading-none">{label}</span>
+              <span className="truncate leading-none">{t(labelKey)}</span>
             </button>
           );
         })}
@@ -210,7 +212,7 @@ export function CategoryTabs({
               e.stopPropagation();
               onOpenHelp();
             }}
-            aria-label="Help someone else get help"
+            aria-label={t("home.helpSomeone")}
             className={cn(
               "absolute right-0.5 top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center border-0 bg-transparent p-0"
             )}

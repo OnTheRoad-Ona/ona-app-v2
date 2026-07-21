@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { useAppConfig } from "@/components/app-config-provider";
+import { useT } from "@/lib/i18n";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +14,7 @@ export function SearchBar() {
   const router = useRouter();
   const { query, setQuery, theme } = useApp();
   const { config } = useAppConfig();
+  const t = useT();
   const isLight = theme === "light";
 
   const goSearch = () => {
@@ -34,9 +36,9 @@ export function SearchBar() {
         onDoubleClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <span className="sr-only">Search</span>
+        <span className="sr-only">{t("common.search")}</span>
         <Search
-          className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-[#e85a12]"
+          className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-[#FF6B35]"
           aria-hidden
         />
         <input
@@ -55,7 +57,7 @@ export function SearchBar() {
           onMouseDown={(e) => e.stopPropagation()}
           placeholder={
             config.content.homeSearchPlaceholder ||
-            "Search problem, technician, service..."
+            t("home.searchPlaceholder")
           }
           autoComplete="off"
           autoCorrect="off"

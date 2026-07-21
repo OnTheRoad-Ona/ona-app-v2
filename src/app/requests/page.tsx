@@ -14,6 +14,8 @@ import {
   VerificationWarningBanner,
 } from "@/components/auth/verification-gate-banner";
 import { PageHeader } from "@/components/layout/page-header";
+import { ExpiredDialog } from "@/components/ui/expired-dialog";
+import { JOB_CLOSED_MESSAGE } from "@/lib/chat-expired";
 import { apiListJobs } from "@/lib/jobs/client";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
@@ -102,6 +104,8 @@ export default function RequestsPage() {
   const [err, setErr] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [blocked, setBlocked] = useState<string | null>(null);
+  const [closedOpen, setClosedOpen] = useState(false);
+  const [viewHref, setViewHref] = useState<string | null>(null);
 
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-700" : "text-white/75";
@@ -163,8 +167,9 @@ export default function RequestsPage() {
       router.push(`/jobs/${j.id}`);
       return;
     }
-    // Past: view-only compiled process (no chat)
-    router.push(`/requests/${j.id}`);
+    // Past / closed: popup first, View opens process summary
+    setViewHref(`/requests/${j.id}`);
+    setClosedOpen(true);
   };
 
   const Row = ({ j }: { j: JobRecord }) => {
@@ -230,7 +235,7 @@ export default function RequestsPage() {
   };
 
   return (
-    <div className={cn("flex h-full min-h-0 flex-col", stage)}>
+    <div className={cn("relative flex h-full min-h-0 flex-col", stage)}>
       <PageHeader title="Requests" subtitle="Live help & dispatch" />
       <div className="px-4 pb-1">
         <Link
@@ -330,6 +335,26 @@ export default function RequestsPage() {
           </section>
         )}
       </div>
+
+      <ExpiredDialog
+        open={closedOpen}
+        isLight={isLight}
+        message={JOB_CLOSED_MESSAGE}
+        onClose={() => {
+          setClosedOpen(false);
+          setViewHref(null);
+        }}
+        onView={
+          viewHref
+            ? () => {
+                const href = viewHref;
+                setClosedOpen(false);
+                setViewHref(null);
+                router.push(href);
+              }
+            : undefined
+        }
+      />
     </div>
   );
 }

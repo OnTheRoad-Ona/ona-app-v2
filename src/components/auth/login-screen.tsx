@@ -7,10 +7,11 @@ import {
   WHEEL_GRAY,
 } from "@/components/auth/auth-plate";
 import { useAuthNavigate } from "@/components/auth/auth-transition";
+import { useT } from "@/lib/i18n";
 import type { AccountType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const ACCENT = "#e85a12";
+const ACCENT = "#FF6B35";
 
 /**
  * Role selection — professional account-type step before signup.
@@ -18,6 +19,7 @@ const ACCENT = "#e85a12";
  */
 export function LoginScreen() {
   const { exiting, go } = useAuthNavigate();
+  const t = useT();
   /** No default — user must pick Motorist or Repair Pro */
   const [accountType, setAccountType] = useState<AccountType | null>(null);
 
@@ -63,7 +65,7 @@ export function LoginScreen() {
             <span className="text-black">na</span>
           </h1>
           <p className="mx-auto mt-1.5 max-w-[280px] text-[13px] leading-relaxed text-[#475569]">
-            Choose how you&apos;ll use the app
+            {t("auth.chooseHow")}
           </p>
         </div>
 
@@ -80,14 +82,14 @@ export function LoginScreen() {
             <RoleCard
               active={accountType === "motorist"}
               icon={Car}
-              title="Motorist"
+              title={t("auth.motorist")}
               subtitle="I have a car and need help on the road"
               onClick={() => setAccountType("motorist")}
             />
             <RoleCard
               active={accountType === "professional"}
               icon={Wrench}
-              title="Repair Pro"
+              title={t("auth.pro")}
               subtitle="I fix cars and want customers"
               onClick={() => setAccountType("professional")}
             />
@@ -178,7 +180,7 @@ function RoleCard({
       onClick={onClick}
       className={cn(
         "flex w-full gap-3 rounded-md px-3.5 py-3.5 text-left transition-all duration-150",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e85a12]/45",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B35]/45",
         /* Unselected: flat sheet tone — no white “highlight” until user taps */
         active
           ? "border border-transparent bg-white shadow-[0_4px_18px_rgba(15,23,42,0.10)]"
@@ -188,7 +190,7 @@ function RoleCard({
       <Icon
         className={cn(
           "mt-0.5 h-[18px] w-[18px] shrink-0",
-          active ? "text-[#e85a12]" : "text-[#64748b]"
+          active ? "text-[#FF6B35]" : "text-[#64748b]"
         )}
         strokeWidth={2.1}
       />
@@ -224,7 +226,7 @@ function RoleCard({
         className={cn(
           "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
           active
-            ? "border-[#e85a12] bg-[#e85a12]"
+            ? "border-[#FF6B35] bg-[#FF6B35]"
             : "border-[#94a3b8] bg-transparent"
         )}
         aria-hidden

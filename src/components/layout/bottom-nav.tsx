@@ -6,23 +6,29 @@ import {
   Briefcase,
   Clock3,
   Home,
-  MessageCircle,
   UserRound,
 } from "lucide-react";
+import { useT } from "@/lib/i18n";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import type { MessageKey } from "@/lib/i18n/messages";
 
-const items = [
-  { href: "/", label: "Home", icon: Home },
-  { href: "/jobs", label: "Jobs", icon: Briefcase },
-  { href: "/requests", label: "Requests", icon: Clock3 },
-  { href: "/messages", label: "Messages", icon: MessageCircle },
-  { href: "/profile", label: "Profile", icon: UserRound },
-] as const;
+/** No Messages tab — chat only from an active request/job. */
+const items: {
+  href: string;
+  labelKey: MessageKey;
+  icon: typeof Home;
+}[] = [
+  { href: "/", labelKey: "nav.home", icon: Home },
+  { href: "/jobs", labelKey: "nav.jobs", icon: Briefcase },
+  { href: "/requests", labelKey: "nav.requests", icon: Clock3 },
+  { href: "/profile", labelKey: "nav.profile", icon: UserRound },
+];
 
 export function BottomNav() {
   const pathname = usePathname();
   const { theme } = useApp();
+  const t = useT();
   const isLight = theme === "light";
 
   return (
@@ -34,7 +40,7 @@ export function BottomNav() {
       aria-label="Main navigation"
     >
       <ul className="flex items-stretch justify-between">
-        {items.map(({ href, label, icon: Icon }) => {
+        {items.map(({ href, labelKey, icon: Icon }) => {
           const active =
             href === "/" ? pathname === "/" : pathname.startsWith(href);
           return (
@@ -55,7 +61,7 @@ export function BottomNav() {
                   className={cn("h-5 w-5", active && "fill-brand/15")}
                   strokeWidth={active ? 2.4 : 2}
                 />
-                {label}
+                {t(labelKey)}
               </Link>
             </li>
           );

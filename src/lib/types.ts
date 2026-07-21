@@ -58,6 +58,8 @@ export type MotoristVehicle = {
   make: string;
   model: string;
   year?: string;
+  /** e.g. Automobile / Passenger Car */
+  vehicleType?: string;
   plate?: string;
   photo?: string;
   commonIssues?: string[];
@@ -124,17 +126,28 @@ export interface UserProfile {
   bankName?: string;
   cacDocumentName?: string;
   cacDocumentDataUrl?: string;
-  /** National Identification Number (unique across all accounts) */
+  /** National / primary ID number (country-specific) */
   idNumber?: string;
-  /** Bank Verification Number (unique across all accounts) */
+  /** Bank / secondary ID (e.g. BVN in Nigeria) */
   bvn?: string;
   /**
-   * Post-signup identity verification (NIN + BVN APIs).
-   * Users can explore the app first; verification unlocks unlimited
+   * Phone-country ISO that locks which IDs are allowed
+   * (same as the country on the user’s phone number).
+   */
+  identityCountryIso?: string;
+  /** Selected primary document kind for this country */
+  govIdKind?: string;
+  govIdFrontUrl?: string;
+  govIdBackUrl?: string;
+  /**
+   * Post-signup identity verification (country ID rules).
+   * Users can explore first; verification unlocks unlimited
    * book / accept after free trial requests.
    */
   ninVerified?: boolean;
   bvnVerified?: boolean;
+  /** True when all required docs for identityCountryIso passed */
+  govIdVerified?: boolean;
   identityVerifiedAt?: string;
   phoneVerified?: boolean;
   emailVerified?: boolean;
@@ -250,8 +263,12 @@ export interface Technician {
   docsRatingBoostApplied?: boolean;
   /** Jobs completed (for achievement badges) */
   jobsCompleted?: number;
-  /** New Artisan badge — lower ranking until 5 successful jobs */
+  /** New Artisan badge — lower ranking (Tier 1–2) */
   isNewArtisan?: boolean;
+  /** Admin visibility ladder 1–4 */
+  visibilityTier?: 1 | 2 | 3 | 4;
+  /** 0–100 marketplace weight */
+  visibilityPercent?: number;
   servicePrices?: Partial<Record<ProService, number | string>>;
   pricingCurrency?: import("@/lib/pricing").AppCurrency;
   skillAnswers?: Record<
@@ -318,7 +335,7 @@ export interface ChatMessage {
 }
 
 /**
- * One job/booking conversation between a Motorist and a Repair Pro.
+ * One job/booking conversation between a Customer and a Repair Pro.
  * Threads never mix roles or jobs.
  */
 export interface MessageThread {

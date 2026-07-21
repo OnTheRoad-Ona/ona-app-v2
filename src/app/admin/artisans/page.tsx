@@ -1,9 +1,8 @@
 "use client";
 
 /**
- * Dedicated admin queue: Approve / Reject artisan profiles.
- * Reads mock localStorage via API-shaped client helpers (demo).
- * TODO(api): GET /api/admin/artisans from Supabase artisan_profiles.
+ * Admin: Approve Repair Pros on the visibility ladder (Tier 2 → 3 → 4).
+ * Tier 1 = registered only. Approvals are admin-only.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -13,9 +12,16 @@ import {
   listArtisanProfiles,
   saveArtisanProfile,
 } from "@/lib/artisan/local-store";
-import { canTransition, statusLabel } from "@/lib/artisan/status";
+import {
+  canTransition,
+  statusLabel,
+  resolveVisibilityTier,
+  applyAdminTierPromotion,
+  rulesForTier,
+} from "@/lib/artisan/status";
 import type { ArtisanVerificationProfile } from "@/lib/artisan/types";
 import { tradeDef } from "@/lib/artisan/catalog";
+import { maybeSeedTier4OneStar } from "@/lib/artisan/visibility-tiers";
 
 export default function AdminArtisansPage() {
   const router = useRouter();
@@ -27,8 +33,6 @@ export default function AdminArtisansPage() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    // Client-side mock store (browser). Server-rendered admin still works
-    // after hydration when Care opens this page on the same device as pros.
     setRows(listArtisanProfiles());
   }, []);
 
@@ -49,23 +53,67 @@ export default function AdminArtisansPage() {
     filter === "all" ? true : r.status === filter
   );
 
-  function approve(p: ArtisanVerificationProfile) {
-    if (!canTransition(p.status, "approved")) {
-      setMsg(`Cannot approve from ${p.status}`);
+  function promote(p: ArtisanVerificationProfile, target: 2 | 3 | 4) {
+    const current = resolveVisibilityTier(p);
+    if (p.status === "suspended") {
+      setMsg("Unsuspend before promoting.");
       return;
     }
-    // TODO(api): POST /api/admin/artisans/[id]/approve
-    const next: ArtisanVerificationProfile = {
-      ...p,
-      status: "approved",
-      isNewArtisan: true,
-      reviewedAt: new Date().toISOString(),
-      reviewedBy: adminName,
-      rejectReason: null,
-    };
+    if (p.status === "draft") {
+      setMsg("Pro must submit for review before Tier 2 approval.");
+      return;
+    }
+    if (p.status === "rejected") {
+      setMsg("Rejected profiles must resubmit first.");
+      return;
+    }
+    if (current >= target) {
+      setMsg(`Already at Tier ${current} or higher.`);
+      return;
+    }
+    // Sequential: 1→2→3→4 only
+    if (target !== current + 1 && !(current === 1 && target === 2)) {
+      setMsg(
+        current === 1
+          ? "Start with Tier 2 approval."
+          : `Promote to Tier ${current + 1} first.`
+      );
+      return;
+    }
+    if (target === 2 && p.status === "pending_review") {
+      if (!canTransition(p.status, "approved")) {
+        setMsg(`Cannot approve from ${p.status}`);
+        return;
+      }
+    }
+
+    let next = applyAdminTierPromotion(p, target, adminName);
+
+    if (target === 4 && !p.tier4OneStarSeeded) {
+      const seed = maybeSeedTier4OneStar({
+        alreadySeeded: false,
+        ratingCount: Math.max(0, p.successfulJobsCount),
+        ratingAvg: 4,
+      });
+      if (seed) {
+        next = { ...next, tier4OneStarSeeded: true };
+        setMsg(
+          `Promoted ${p.fullName} to Tier 4 · 100% · 10 km · 1★ seed (had prior ratings).`
+        );
+      } else {
+        setMsg(
+          `Promoted ${p.fullName} to Tier 4 · 100% · 10 km (no 1★ seed — no prior ratings).`
+        );
+      }
+    } else {
+      const r = rulesForTier(target);
+      setMsg(
+        `Promoted ${p.fullName} to Tier ${target} · ${r.visibilityPercent}% visibility · max ${r.maxRadiusKm} km`
+      );
+    }
+
     saveArtisanProfile(next);
     load();
-    setMsg(`Approved ${p.fullName}`);
   }
 
   function reject(p: ArtisanVerificationProfile) {
@@ -77,10 +125,10 @@ export default function AdminArtisansPage() {
       setMsg(`Cannot reject from ${p.status}`);
       return;
     }
-    // TODO(api): POST /api/admin/artisans/[id]/reject { reason }
     const next: ArtisanVerificationProfile = {
       ...p,
       status: "rejected",
+      visibilityTier: 1,
       reviewedAt: new Date().toISOString(),
       reviewedBy: adminName,
       rejectReason: reason.trim(),
@@ -95,9 +143,10 @@ export default function AdminArtisansPage() {
   return (
     <AdminShell adminName={adminName} roleLabel="Care">
       <div className="om-admin-page">
-        <h1 className="om-admin-h1">Artisan review</h1>
+        <h1 className="om-admin-h1">Artisan review · visibility tiers</h1>
         <p className="om-admin-sub">
-          Manual approval before Go Live. Pending profiles cannot receive jobs.
+          Admin-only ladder: Tier 1 register → Tier 2 (30% · 30-day Live) → Tier
+          3 (70% · 3 km · badge off) → Tier 4 (100% · 10 km).
         </p>
 
         {msg ? <div className="om-admin-banner">{msg}</div> : null}
@@ -119,18 +168,15 @@ export default function AdminArtisansPage() {
               }
               onClick={() => setFilter(f)}
             >
-              {f === "all" ? "All" : statusLabel(f as ArtisanVerificationProfile["status"])}
+              {f === "all"
+                ? "All"
+                : statusLabel(f as ArtisanVerificationProfile["status"])}
             </button>
           ))}
           <button type="button" className="om-admin-btn" onClick={load}>
             Refresh
           </button>
         </div>
-
-        <p className="om-admin-muted" style={{ marginTop: 8 }}>
-          Demo store is browser localStorage. Open this admin tab on the same
-          browser that submitted artisan onboarding to see the queue.
-        </p>
 
         <div className="om-admin-table-wrap" style={{ marginTop: 16 }}>
           <table className="om-admin-table">
@@ -139,7 +185,7 @@ export default function AdminArtisansPage() {
                 <th>Artisan</th>
                 <th>Trade</th>
                 <th>Status</th>
-                <th>Tiers</th>
+                <th>Visibility</th>
                 <th>Portfolio</th>
                 <th>Submitted</th>
                 <th>Actions</th>
@@ -155,6 +201,8 @@ export default function AdminArtisansPage() {
               ) : (
                 visible.map((p) => {
                   const t = tradeDef(p.trade.service);
+                  const vt = resolveVisibilityTier(p);
+                  const rules = rulesForTier(vt);
                   return (
                     <tr key={p.userId}>
                       <td>
@@ -171,10 +219,15 @@ export default function AdminArtisansPage() {
                       </td>
                       <td>{statusLabel(p.status)}</td>
                       <td className="om-admin-muted">
-                        P{p.tiers.tier1_phone ? "1" : "–"}
-                        {p.tiers.tier2_govId || p.tiers.tier2_bvn ? "2" : ""}
-                        {p.tiers.tier3_liveness ? "3" : ""}
-                        {p.tiers.tier4_skillProof ? "4" : ""}
+                        <strong>T{vt}</strong> · {rules.visibilityPercent}% ·{" "}
+                        {rules.maxRadiusKm} km
+                        {p.isNewArtisan ? " · New" : ""}
+                        {p.goLiveWindowEndsAt ? (
+                          <div>
+                            Live until{" "}
+                            {new Date(p.goLiveWindowEndsAt).toLocaleDateString()}
+                          </div>
+                        ) : null}
                       </td>
                       <td>{p.portfolio.length} photos</td>
                       <td className="om-admin-muted">
@@ -183,19 +236,47 @@ export default function AdminArtisansPage() {
                           : "—"}
                       </td>
                       <td>
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        <div
+                          style={{ display: "flex", gap: 6, flexWrap: "wrap" }}
+                        >
                           <button
                             type="button"
                             className="om-admin-btn om-admin-btn-primary"
-                            disabled={p.status !== "pending_review"}
-                            onClick={() => approve(p)}
+                            disabled={
+                              vt >= 2 ||
+                              (p.status !== "pending_review" &&
+                                p.status !== "approved")
+                            }
+                            onClick={() => promote(p, 2)}
+                            title="30% visibility · Go Live 30 days · New Badge"
                           >
-                            Approve
+                            Approve T2
+                          </button>
+                          <button
+                            type="button"
+                            className="om-admin-btn om-admin-btn-primary"
+                            disabled={vt < 2 || vt >= 3}
+                            onClick={() => promote(p, 3)}
+                            title="70% visibility · 3 km · remove New Badge"
+                          >
+                            Approve T3
+                          </button>
+                          <button
+                            type="button"
+                            className="om-admin-btn om-admin-btn-primary"
+                            disabled={vt < 3 || vt >= 4}
+                            onClick={() => promote(p, 4)}
+                            title="100% · 10 km · optional 1★ seed"
+                          >
+                            Approve T4
                           </button>
                           <button
                             type="button"
                             className="om-admin-btn"
-                            disabled={p.status !== "pending_review"}
+                            disabled={
+                              p.status !== "pending_review" &&
+                              p.status !== "approved"
+                            }
                             onClick={() => {
                               setRejectId(p.userId);
                               setReason("");
@@ -224,7 +305,10 @@ export default function AdminArtisansPage() {
                           </div>
                         ) : null}
                         {p.rejectReason ? (
-                          <div className="om-admin-muted" style={{ marginTop: 4 }}>
+                          <div
+                            className="om-admin-muted"
+                            style={{ marginTop: 4 }}
+                          >
                             Reason: {p.rejectReason}
                           </div>
                         ) : null}
