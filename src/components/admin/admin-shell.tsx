@@ -32,7 +32,7 @@ const NAV_GROUPS: {
       { href: "/admin/pros", label: "Repair Pros" },
       { href: "/admin/artisans", label: "Artisan review" },
       { href: "/admin/users", label: "Users" },
-      { href: "/admin/verification", label: "Verification" },
+      { href: "/admin/verification", label: "Verification hub" },
       { href: "/admin/audit", label: "Audit trail" },
     ],
   },

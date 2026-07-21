@@ -91,8 +91,9 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     minRatingFilter: 0,
   },
   verification: {
-    warnFrom: 2,
-    blockAt: 5,
+    warnFrom: 3,
+    /** 7th request blocked → 6 free with phone-only (Tier 1) */
+    blockAt: 7,
     requireNin: true,
     requireBvn: true,
   },

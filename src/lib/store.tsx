@@ -318,7 +318,10 @@ interface AppState {
     govIdBackUrl?: string;
     govIdVerified?: boolean;
     bankIdVerified?: boolean;
+    mode?: "submit" | "approve";
   }) => Promise<string | null>;
+  /** Customer Tier 1 — phone OTP (demo code 336699) */
+  verifyCustomerPhoneOtp: (code: string) => Promise<string | null>;
   /**
    * Edit signed-in profile (name, bio, area, vehicles you serve, etc.).
    * Vehicles-you-serve fields may only change every 28 days.
@@ -1244,6 +1247,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setHasProAccount(Boolean(vault.professional));
   }, []);
 
+  const verifyCustomerPhoneOtp = useCallback(
+    async (code: string): Promise<string | null> => {
+      if (!userProfile) return "Sign in first.";
+      if (userProfile.accountType !== "motorist") {
+        return "Phone verify here is for Customer accounts.";
+      }
+      const dig = code.replace(/\D/g, "");
+      // Demo default OTP until Africa's Talking SMS is wired for customers
+      const { CUSTOMER_PHONE_OTP } = await import("@/lib/verification-gate");
+      if (dig !== CUSTOMER_PHONE_OTP) {
+        return `Invalid code. For now use ${CUSTOMER_PHONE_OTP}.`;
+      }
+      persistProfile({
+        ...userProfile,
+        phoneVerified: true,
+      });
+      return null;
+    },
+    [userProfile, persistProfile]
+  );
+
   const completeIdentityVerification = useCallback(
     async (input: {
       nin?: string;
@@ -1256,6 +1280,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       govIdBackUrl?: string;
       govIdVerified?: boolean;
       bankIdVerified?: boolean;
+      mode?: "submit" | "approve";
     }): Promise<string | null> => {
       if (!userProfile) return "Sign in to verify your identity.";
       if (userProfile.accountType !== "motorist") {
@@ -1266,50 +1291,64 @@ export function AppProvider({ children }: { children: ReactNode }) {
         (input.primaryId || input.nin || "").trim();
       const bank = (input.bankId || input.bvn || "").trim();
       const iso = (input.countryIso || userProfile.identityCountryIso || "NG").toUpperCase();
-      const isNg = iso === "NG";
+      const mode = input.mode || "submit";
 
-      if (isNg) {
-        const nin = primary.replace(/\D/g, "");
-        const bvn = bank.replace(/\D/g, "");
-        if (nin.length !== 11) return "NIN must be exactly 11 digits.";
-        if (bvn.length !== 11) return "BVN must be exactly 11 digits.";
-      } else if (!primary) {
+      if (!primary) {
         return "Enter your ID number to continue.";
       }
-
-      if (isAppBackendOnline() && backendUserId) {
-        const err = await backendSaveIdentityVerification({
-          userId: backendUserId,
-          accountType: userProfile.accountType,
-          primaryId: primary,
-          bankId: bank || undefined,
-          nin: isNg ? primary.replace(/\D/g, "") : undefined,
-          bvn: isNg ? bank.replace(/\D/g, "") : undefined,
-          identityVerified: true,
-        });
-        if (err) return err;
-      } else if (isAppBackendOnline() && !backendUserId) {
-        return "Session not linked to server. Sign in again, then verify.";
+      if (!input.govIdFrontUrl && !userProfile.govIdFrontUrl && mode === "submit") {
+        return "Upload a clear photo of your ID.";
       }
 
-      const ninOk = isNg
-        ? primary.replace(/\D/g, "").length === 11
-        : Boolean(input.govIdVerified ?? true);
-      const bvnOk = isNg
-        ? bank.replace(/\D/g, "").length === 11
-        : Boolean(input.bankIdVerified ?? true);
+      // Submit for review — do NOT mark verified until admin/care approves
+      if (mode === "submit") {
+        if (isAppBackendOnline() && backendUserId) {
+          const err = await backendSaveIdentityVerification({
+            userId: backendUserId,
+            accountType: userProfile.accountType,
+            primaryId: primary,
+            bankId: bank || undefined,
+            nin: iso === "NG" ? primary.replace(/\D/g, "") : undefined,
+            bvn: iso === "NG" && bank ? bank.replace(/\D/g, "") : undefined,
+            identityVerified: false,
+          });
+          if (err) return err;
+        } else if (isAppBackendOnline() && !backendUserId) {
+          return "Session not linked to server. Sign in again, then verify.";
+        }
 
+        const saved: UserProfile = {
+          ...userProfile,
+          idNumber: primary,
+          bvn: bank || userProfile.bvn,
+          identityCountryIso: iso,
+          govIdKind: input.govIdKind || userProfile.govIdKind,
+          govIdFrontUrl: input.govIdFrontUrl || userProfile.govIdFrontUrl,
+          govIdBackUrl: input.govIdBackUrl || userProfile.govIdBackUrl,
+          govIdVerified: false,
+          ninVerified: false,
+          bvnVerified: false,
+          identityReviewStatus: "submitted",
+          identitySubmittedAt: new Date().toISOString(),
+          identityVerifiedAt: undefined,
+        };
+        persistProfile(saved);
+        return null;
+      }
+
+      // Admin/care approve path (local session mirror)
       const saved: UserProfile = {
         ...userProfile,
-        idNumber: primary,
+        idNumber: primary || userProfile.idNumber,
         bvn: bank || userProfile.bvn,
         identityCountryIso: iso,
         govIdKind: input.govIdKind || userProfile.govIdKind,
         govIdFrontUrl: input.govIdFrontUrl || userProfile.govIdFrontUrl,
         govIdBackUrl: input.govIdBackUrl || userProfile.govIdBackUrl,
         govIdVerified: true,
-        ninVerified: ninOk,
-        bvnVerified: bvnOk,
+        ninVerified: true,
+        bvnVerified: Boolean(bank) || userProfile.bvnVerified,
+        identityReviewStatus: "approved",
         identityVerifiedAt: new Date().toISOString(),
       };
       persistProfile(saved);
@@ -2876,6 +2915,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       removeProService,
       completeSignup,
       completeIdentityVerification,
+      verifyCustomerPhoneOtp,
       updateUserProfile,
       login,
       logout,
@@ -2948,6 +2988,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       removeProService,
       completeSignup,
       completeIdentityVerification,
+      verifyCustomerPhoneOtp,
       updateUserProfile,
       login,
       logout,

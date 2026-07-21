@@ -1,30 +1,52 @@
 import type { UserProfile } from "@/lib/types";
 
 /**
- * Progressive post-signup verification funnel (Motorist).
+ * Customer progressive verification
  *
- * - Request 1: free (learn the app)
- * - Requests 2–4: allowed, with stronger warnings each time
- * - Request 5+: blocked until country ID checks pass in-app
+ * Tier 1 — Phone OTP verified
+ * Tier 2 — Country ID uploaded + admin/care approved
+ *
+ * With only Tier 1: up to 6 free requests, then blocked until Tier 2 approved.
  */
 
 /** First action that shows a verification warning (1-based index). */
-export const VERIFY_WARN_FROM = 2;
+export const VERIFY_WARN_FROM = 3;
 
-/** First action that is blocked without verification (1-based index). */
-export const VERIFY_BLOCK_AT = 5;
+/** Free requests allowed with phone-only (Tier 1). */
+export const VERIFY_FREE_ACTIONS = 6;
 
-/** How many free/warning actions before hard block (1..4 allowed). */
-export const VERIFY_FREE_ACTIONS = VERIFY_BLOCK_AT - 1;
+/** First action blocked without Tier 2 (1-based): 7th request. */
+export const VERIFY_BLOCK_AT = VERIFY_FREE_ACTIONS + 1;
 
-export function isIdentityVerified(profile: UserProfile | null | undefined): boolean {
+/** Demo / local OTP for customer phone verify (Africa's Talking later). */
+export const CUSTOMER_PHONE_OTP = "336699";
+
+export type IdentityReviewStatus =
+  | "none"
+  | "submitted"
+  | "approved"
+  | "rejected";
+
+export function isPhoneVerified(
+  profile: UserProfile | null | undefined
+): boolean {
+  return Boolean(profile?.phoneVerified);
+}
+
+/** Tier 2 complete — admin/care approved government ID */
+export function isIdentityVerified(
+  profile: UserProfile | null | undefined
+): boolean {
   if (!profile) return false;
-  if (profile.identityVerifiedAt) return true;
-  // Nigeria-style: NIN + BVN
-  if (profile.ninVerified && profile.bvnVerified) return true;
-  // Other countries: primary gov ID verified
-  if (profile.govIdVerified) return true;
+  if (profile.identityReviewStatus === "approved") return true;
+  if (profile.identityVerifiedAt && profile.govIdVerified) return true;
   return false;
+}
+
+export function isIdentityPending(
+  profile: UserProfile | null | undefined
+): boolean {
+  return profile?.identityReviewStatus === "submitted";
 }
 
 export function getServiceActionCount(
@@ -34,7 +56,9 @@ export function getServiceActionCount(
 }
 
 /** Next action index (1-based) if the user proceeds now. */
-export function nextActionIndex(profile: UserProfile | null | undefined): number {
+export function nextActionIndex(
+  profile: UserProfile | null | undefined
+): number {
   return getServiceActionCount(profile) + 1;
 }
 
@@ -62,7 +86,6 @@ export function remainingFreeActions(
 export type GateDecision =
   | {
       allowed: true;
-      /** null on first free action when verified or still under warn threshold */
       warning: string | null;
       nextIndex: number;
       remaining: number;
@@ -72,20 +95,11 @@ export type GateDecision =
       message: string;
       nextIndex: number;
       remaining: 0;
+      reason: "phone" | "id" | "suspended";
     };
 
-function roleVerb(accountType: UserProfile["accountType"] | null | undefined): {
-  action: string;
-  past: string;
-} {
-  if (accountType === "professional") {
-    return { action: "accept", past: "accepted" };
-  }
-  return { action: "book", past: "booked" };
-}
-
 /**
- * Evaluate whether the user may book (motorist) or accept (pro) one more request.
+ * Evaluate whether the customer may create one more request.
  */
 export function evaluateServiceGate(
   profile: UserProfile | null | undefined,
@@ -93,9 +107,29 @@ export function evaluateServiceGate(
   opts?: VerificationThresholds
 ): GateDecision {
   const type = accountType ?? profile?.accountType ?? "motorist";
-  const { action, past } = roleVerb(type);
   const next = nextActionIndex(profile);
   const { warnFrom, blockAt, freeActions } = thresholds(opts);
+
+  // Pros use separate artisan flow — only gate motorists here for request create
+  if (type === "professional") {
+    return {
+      allowed: true,
+      warning: null,
+      nextIndex: next,
+      remaining: Infinity,
+    };
+  }
+
+  if (!isPhoneVerified(profile)) {
+    return {
+      allowed: false,
+      nextIndex: next,
+      remaining: 0,
+      reason: "phone",
+      message:
+        "Verify your phone number first (Tier 1). Open Verify and enter the SMS code.",
+    };
+  }
 
   if (isIdentityVerified(profile)) {
     return {
@@ -106,12 +140,17 @@ export function evaluateServiceGate(
     };
   }
 
+  // After 6 free requests without Tier 2 approval → suspended for booking
   if (next >= blockAt) {
+    const pending = isIdentityPending(profile);
     return {
       allowed: false,
       nextIndex: next,
       remaining: 0,
-      message: `Please verify your ID to ${action} more jobs. You have used your ${freeActions} free ${past} jobs. Finish verification to continue.`,
+      reason: pending ? "id" : "suspended",
+      message: pending
+        ? "Your ID is under review by admin / customer care. You cannot create new requests until it is approved."
+        : `You have used your ${freeActions} free requests. Upload your government ID for review so admin / customer care can approve Tier 2 and restore booking.`,
     };
   }
 
@@ -120,11 +159,12 @@ export function evaluateServiceGate(
     const left = freeActions - next + 1;
     const after = freeActions - next;
     if (next === warnFrom) {
-      warning = `Welcome. After ${freeActions} free jobs, you will need to verify your ID to keep ${action === "accept" ? "taking jobs" : "booking help"}. After this one, you have ${after} free ${after === 1 ? "job" : "jobs"} left.`;
+      warning = `After ${freeActions} free requests you must upload your ID for admin approval. After this one, you have ${after} free request${after === 1 ? "" : "s"} left.`;
     } else if (next === freeActions) {
-      warning = `This is your last free job before you must verify. After this, please verify your ID so you can keep using Ona.`;
+      warning =
+        "This is your last free request. Next time you must upload ID and wait for admin / customer care approval.";
     } else {
-      warning = `Reminder: you can still ${action} ${left} free job${left === 1 ? "" : "s"} (including this one). After that, you must verify your ID.`;
+      warning = `You can still book ${left} free request${left === 1 ? "" : "s"} (including this one) before ID upload is required.`;
     }
   }
 
@@ -138,8 +178,17 @@ export function evaluateServiceGate(
 
 export function verificationStatusLabel(
   profile: UserProfile | null | undefined
-): "verified" | "partial" | "unverified" {
+): "verified" | "pending" | "phone_only" | "unverified" {
   if (isIdentityVerified(profile)) return "verified";
-  if (profile?.ninVerified || profile?.bvnVerified) return "partial";
+  if (isIdentityPending(profile)) return "pending";
+  if (isPhoneVerified(profile)) return "phone_only";
   return "unverified";
+}
+
+export function customerTierLabel(
+  profile: UserProfile | null | undefined
+): "Tier 0" | "Tier 1" | "Tier 2" {
+  if (isIdentityVerified(profile)) return "Tier 2";
+  if (isPhoneVerified(profile)) return "Tier 1";
+  return "Tier 0";
 }

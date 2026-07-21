@@ -146,9 +146,15 @@ export interface UserProfile {
    */
   ninVerified?: boolean;
   bvnVerified?: boolean;
-  /** True when all required docs for identityCountryIso passed */
+  /** True when admin/care approved Tier 2 government ID */
   govIdVerified?: boolean;
   identityVerifiedAt?: string;
+  /**
+   * Customer ID review queue (manual admin/care).
+   * submitted = uploaded, waiting · approved = Tier 2 · rejected = re-upload
+   */
+  identityReviewStatus?: "none" | "submitted" | "approved" | "rejected";
+  identitySubmittedAt?: string;
   phoneVerified?: boolean;
   emailVerified?: boolean;
   faceLivenessVerified?: boolean;

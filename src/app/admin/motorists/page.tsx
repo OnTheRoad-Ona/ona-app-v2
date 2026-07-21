@@ -95,6 +95,24 @@ export default function AdminMotoristsPage() {
     await load();
   }
 
+  async function approveIdentity(id: string, name: string) {
+    setMsg(null);
+    setError(null);
+    setBusyId(id);
+    const res = await api(`/api/admin/motorists/${id}/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "approve" }),
+    });
+    setBusyId(null);
+    if (!res.ok) {
+      setError(res.message);
+      return;
+    }
+    setMsg(`Tier 2 ID approved for ${name}`);
+    await load();
+  }
+
   async function hardDelete(id: string, name: string) {
     if (
       !window.confirm(
@@ -276,6 +294,17 @@ export default function AdminMotoristsPage() {
                       >
                         View
                       </Link>
+                      {m.verifyLevel !== "full" ? (
+                        <button
+                          type="button"
+                          className="om-admin-btn om-admin-btn-primary"
+                          disabled={busyId === m.id}
+                          onClick={() => void approveIdentity(m.id, m.full_name)}
+                          title="Approve Tier 2 government ID (unlock unlimited booking)"
+                        >
+                          Approve ID
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         className="om-admin-btn ghost"
