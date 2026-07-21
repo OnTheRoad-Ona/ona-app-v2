@@ -294,29 +294,31 @@ export default function VerifyIdentityPage() {
                   {otpMsg}
                 </p>
               ) : null}
-              <label className={cn(authLabelClass, "mt-4")}>OTP code</label>
-              <input
-                className={cn(authFieldClass, "mt-1.5")}
-                value={otp}
-                onChange={(e) =>
-                  setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
-                }
-                placeholder={CUSTOMER_PHONE_OTP}
-                inputMode="numeric"
-                maxLength={6}
-              />
-              <button
-                type="button"
-                disabled={otpBusy || otp.length < 4}
-                onClick={() => void confirmPhone()}
-                className={cn(
-                  authPrimaryBtnClass,
-                  "mt-7 h-11 disabled:opacity-50"
-                )}
-                style={authPrimaryBtnStyle}
-              >
-                {otpBusy ? "Checking…" : "Verify phone"}
-              </button>
+              {/* gap works: om-cta-dark-gray forces margin:0 so mt-* never shows */}
+              <div className="mt-4 flex flex-col gap-8">
+                <div>
+                  <label className={authLabelClass}>OTP code</label>
+                  <input
+                    className={cn(authFieldClass, "mt-1.5")}
+                    value={otp}
+                    onChange={(e) =>
+                      setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                    }
+                    placeholder={CUSTOMER_PHONE_OTP}
+                    inputMode="numeric"
+                    maxLength={6}
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={otpBusy || otp.length < 4}
+                  onClick={() => void confirmPhone()}
+                  className={cn(authPrimaryBtnClass, "disabled:opacity-50")}
+                  style={authPrimaryBtnStyle}
+                >
+                  {otpBusy ? "Checking…" : "Verify phone"}
+                </button>
+              </div>
             </>
           )}
         </section>
@@ -382,50 +384,50 @@ export default function VerifyIdentityPage() {
                 </p>
               ) : null}
 
-              <label
-                className={cn(
-                  "mt-5 flex h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border-0 text-[12px] font-bold",
-                  isLight
-                    ? "bg-black/10 text-slate-800"
-                    : "bg-[#2c2c2e] text-white",
-                  !phoneOk && "pointer-events-none opacity-50"
-                )}
-              >
-                <Upload className="h-3.5 w-3.5" />
-                {idFrontName || idFront
-                  ? `Photo: ${idFrontName || "uploaded"}`
-                  : "Upload ID photo"}
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  disabled={!phoneOk}
-                  onChange={async (e) => {
-                    const f = e.target.files?.[0];
-                    if (!f) return;
-                    try {
-                      setIdFront(await readFile(f));
-                      setIdFrontName(f.name);
-                      setError("");
-                    } catch {
-                      setError("Could not read photo.");
-                    }
-                  }}
-                />
-              </label>
+              {/* gap works: om-cta-dark-gray forces margin:0 so mt-* never shows */}
+              <div className="mt-5 flex flex-col gap-8">
+                <label
+                  className={cn(
+                    "flex h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border-0 text-[12px] font-bold",
+                    isLight
+                      ? "bg-black/10 text-slate-800"
+                      : "bg-[#2c2c2e] text-white",
+                    !phoneOk && "pointer-events-none opacity-50"
+                  )}
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  {idFrontName || idFront
+                    ? `Photo: ${idFrontName || "uploaded"}`
+                    : "Upload ID photo"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={!phoneOk}
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      try {
+                        setIdFront(await readFile(f));
+                        setIdFrontName(f.name);
+                        setError("");
+                      } catch {
+                        setError("Could not read photo.");
+                      }
+                    }}
+                  />
+                </label>
 
-              <button
-                type="button"
-                disabled={busy || !phoneOk}
-                onClick={() => void submitId()}
-                className={cn(
-                  authPrimaryBtnClass,
-                  "mt-7 h-11 disabled:opacity-50"
-                )}
-                style={authPrimaryBtnStyle}
-              >
-                {busy ? "Submitting…" : "Submit ID for review"}
-              </button>
+                <button
+                  type="button"
+                  disabled={busy || !phoneOk}
+                  onClick={() => void submitId()}
+                  className={cn(authPrimaryBtnClass, "disabled:opacity-50")}
+                  style={authPrimaryBtnStyle}
+                >
+                  {busy ? "Submitting…" : "Submit ID for review"}
+                </button>
+              </div>
             </>
           )}
         </section>
