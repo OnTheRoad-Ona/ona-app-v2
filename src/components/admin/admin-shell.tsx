@@ -31,6 +31,7 @@ const NAV_GROUPS: {
       { href: "/admin/payments", label: "Escrow & payments" },
       { href: "/admin/pros", label: "Repair Pros" },
       { href: "/admin/artisans", label: "Artisan review" },
+      { href: "/admin/customer-review", label: "Customer review" },
       { href: "/admin/users", label: "Users" },
       { href: "/admin/verification", label: "Verification hub" },
       { href: "/admin/audit", label: "Audit trail" },

@@ -125,19 +125,6 @@ export function isTrialExpired(
   return trialMsRemaining(profile, trialDays) <= 0;
 }
 
-/**
- * Whether home should show the verify lower panel every open.
- * True for customers who have not reached Tier 2.
- */
-export function shouldShowHomeVerifyPanel(
-  profile: UserProfile | null | undefined,
-  accountType?: UserProfile["accountType"] | null
-): boolean {
-  const type = accountType ?? profile?.accountType ?? "motorist";
-  if (type === "professional") return false;
-  return !isIdentityVerified(profile);
-}
-
 export type VerificationThresholds = {
   /** @deprecated count-based; ignored when trialDays is set */
   warnFrom?: number;
@@ -148,6 +135,29 @@ export type VerificationThresholds = {
 
 function resolveTrialDays(opts?: VerificationThresholds) {
   return opts?.trialDays ?? TIER1_TRIAL_DAYS;
+}
+
+/**
+ * Home lower-panel verify prompt (customers only).
+ *
+ * Shows every home open only when:
+ * - phone is NOT verified, and
+ * - the 30-day free window from the first request has ended.
+ *
+ * Hidden as soon as phone verification is complete (Tier 1).
+ * Does not apply to Repair Pros. Other screens keep their own gates.
+ */
+export function shouldShowHomeVerifyPanel(
+  profile: UserProfile | null | undefined,
+  accountType?: UserProfile["accountType"] | null,
+  opts?: VerificationThresholds
+): boolean {
+  const type = accountType ?? profile?.accountType ?? "motorist";
+  if (type === "professional") return false;
+  // Disappear once phone verification is completed
+  if (isPhoneVerified(profile)) return false;
+  // Only after 30 days from first request (no first request → no panel yet)
+  return isTrialExpired(profile, resolveTrialDays(opts));
 }
 
 /** Days left in free window (for UI). Infinity when T2. */
@@ -198,17 +208,6 @@ export function evaluateServiceGate(
     };
   }
 
-  if (!isPhoneVerified(profile)) {
-    return {
-      allowed: false,
-      nextIndex: next,
-      remaining: 0,
-      reason: "phone",
-      message:
-        "Verify your phone number to request help",
-    };
-  }
-
   if (isIdentityVerified(profile)) {
     return {
       allowed: true,
@@ -218,7 +217,18 @@ export function evaluateServiceGate(
     };
   }
 
-  // Trial clock started and expired without Tier 2
+  // After free window: phone required first (home lower panel uses the same rule)
+  if (!isPhoneVerified(profile) && isTrialExpired(profile, trialDays)) {
+    return {
+      allowed: false,
+      nextIndex: next,
+      remaining: 0,
+      reason: "phone",
+      message: "Verify your phone number to request help",
+    };
+  }
+
+  // Trial clock started and expired with phone but without Tier 2 ID approval
   if (isTrialExpired(profile, trialDays)) {
     const pending = isIdentityPending(profile);
     return {
@@ -232,9 +242,12 @@ export function evaluateServiceGate(
     };
   }
 
-  // Within trial — always soft-warn until T2 (home also shows panel every open)
+  // Within free window (or before first request) — booking allowed
   let warning: string | null = null;
-  if (!getFirstServiceAt(profile)) {
+  if (!isPhoneVerified(profile)) {
+    warning =
+      "You can request help during your free period. Verify your phone anytime for full access later.";
+  } else if (!getFirstServiceAt(profile)) {
     warning = `You get ${trialDays} free days of requests from your first booking. Verify your ID (Tier 2) for full access.`;
   } else if (daysLeft <= 7) {
     warning =

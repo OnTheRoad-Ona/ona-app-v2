@@ -34,10 +34,7 @@ import { useApp } from "@/lib/store";
 import type { Technician } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { MAX_TECHNICIANS } from "@/lib/matching";
-import {
-  evaluateServiceGate,
-  shouldShowHomeVerifyPanel,
-} from "@/lib/verification-gate";
+import { shouldShowHomeVerifyPanel } from "@/lib/verification-gate";
 
 /** Fallback geocode when Places is unavailable (curated places first). */
 async function geocodeAddress(
@@ -141,16 +138,15 @@ export function HomePanel({
     isAuthenticated &&
     (accountType === "motorist" || accountType == null);
 
-  /** Every home open until Tier 2 — ~25% lower-panel verify prompt */
+  /**
+   * Lower panel only: every home open when phone is still unverified
+   * after the 30-day free window from first request. Hidden once phone is verified.
+   */
   const showVerifyPanel =
     isMotorist && shouldShowHomeVerifyPanel(userProfile, accountType);
-  const verifyGate = showVerifyPanel
-    ? evaluateServiceGate(userProfile, "motorist")
+  const verifyMessage = showVerifyPanel
+    ? "Verify your phone number to request help"
     : null;
-  const verifyMessage =
-    verifyGate && !verifyGate.allowed
-      ? verifyGate.message
-      : verifyGate?.warning || null;
 
   const liveMaps = shouldUseLiveMaps();
   const apiKey = getGoogleMapsApiKey();

@@ -113,8 +113,8 @@ export function VerificationBlockedPanel({
 }
 
 /**
- * Home lower-panel verify prompt — shown every open until Tier 2.
- * Sized ~25% of the lower sheet.
+ * Home lower-panel only — phone verify nudge after free period ends.
+ * Parent controls visibility (hidden once phone is verified).
  */
 export function HomeVerifyPanel({
   message,
@@ -148,8 +148,7 @@ export function HomeVerifyPanel({
               isLight ? "text-slate-600" : "text-white/65"
             )}
           >
-            {message ||
-              "Free help for 30 days from your first request. Full access after ID submitted and admin-approved."}
+            {message || "Verify your phone number to request help"}
           </p>
           <Link
             href="/verify"

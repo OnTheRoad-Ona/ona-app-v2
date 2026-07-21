@@ -228,12 +228,12 @@ export default function VerifyIdentityPage() {
 
   return (
     <div className={cn("flex h-full min-h-0 flex-col", shell)}>
-      <div className="flex shrink-0 items-center gap-2 px-4 pb-3 pt-4">
+      <div className="flex shrink-0 items-center gap-1.5 px-3 pb-1.5 pt-2.5">
         <button
           type="button"
           onClick={() => navigateBack(router, defaultBackHref(accountType))}
           className={cn(
-            "inline-flex h-10 w-10 items-center justify-center border-0 bg-transparent",
+            "inline-flex h-9 w-9 items-center justify-center border-0 bg-transparent",
             ink
           )}
           aria-label="Back"
@@ -241,8 +241,10 @@ export default function VerifyIdentityPage() {
           <ChevronLeft className="h-5 w-5" />
         </button>
         <div className="min-w-0 flex-1">
-          <h1 className={cn("text-[16px] font-bold", ink)}>Verification</h1>
-          <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
+          <h1 className={cn("text-[15px] font-bold leading-tight", ink)}>
+            Verification
+          </h1>
+          <p className={cn("text-[10px] font-medium leading-snug", muted)}>
             {tier} · {pack.countryName}
             {phoneOk && daysLeft < Infinity
               ? trialStarted
@@ -251,55 +253,57 @@ export default function VerifyIdentityPage() {
               : ""}
           </p>
         </div>
-        <ShieldCheck className="h-5 w-5 shrink-0 text-[#FF6B35]" />
+        <ShieldCheck className="h-4 w-4 shrink-0 text-[#FF6B35]" />
       </div>
 
-      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-8 scrollbar-hide">
+      <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 pb-3 scrollbar-hide">
         {error ? (
-          <p className="rounded-xl bg-red-500/15 px-4 py-3 text-[12px] font-medium text-red-600">
+          <p className="rounded-lg bg-red-500/15 px-3 py-2 text-[11px] font-medium text-red-600">
             {error}
           </p>
         ) : null}
 
         {/* Tier 1 — Phone */}
-        <section className={cn("rounded-2xl px-4 py-5", card)}>
-          <p className={cn("flex items-center gap-2 text-[13px] font-bold", ink)}>
-            <Phone className="h-4 w-4 text-[#FF6B35]" />
+        <section className={cn("rounded-xl px-3 py-3", card)}>
+          <p className={cn("flex items-center gap-1.5 text-[12px] font-bold", ink)}>
+            <Phone className="h-3.5 w-3.5 text-[#FF6B35]" />
             Tier 1 · Phone
           </p>
-          <p className={cn("mt-2 text-[12px] leading-relaxed", muted)}>
+          <p className={cn("mt-1 text-[11px] leading-snug", muted)}>
             {phoneOk
               ? "Verified — free booking for 30 days from your first request."
               : "Confirm your phone with a one-time code."}
           </p>
           {phoneOk ? (
-            <p className="mt-4 flex items-center gap-1.5 text-[12px] font-semibold text-emerald-600">
-              <CheckCircle2 className="h-4 w-4" />{" "}
+            <p className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600">
+              <CheckCircle2 className="h-3.5 w-3.5" />{" "}
               {userProfile?.phone || "Phone verified"}
             </p>
           ) : (
             <>
-              <p className={cn("mt-4 text-[12px] font-medium", muted)}>
+              <p className={cn("mt-2 text-[11px] font-medium", muted)}>
                 {userProfile?.phone || "No phone on account"}
               </p>
               <button
                 type="button"
                 onClick={sendDemoOtp}
-                className="mt-3 text-[12px] font-bold text-[#FF6B35]"
+                className="mt-1.5 text-[11px] font-bold text-[#FF6B35]"
               >
                 Send code
               </button>
               {otpMsg ? (
-                <p className={cn("mt-2 text-[11px] leading-relaxed", muted)}>
+                <p className={cn("mt-1 text-[10px] leading-snug", muted)}>
                   {otpMsg}
                 </p>
               ) : null}
-              {/* gap works: om-cta-dark-gray forces margin:0 so mt-* never shows */}
-              <div className="mt-4 flex flex-col gap-3">
+              {/* gap: om-cta-dark-gray forces margin:0 */}
+              <div className="mt-2.5 flex flex-col gap-2">
                 <div>
-                  <label className={authLabelClass}>OTP code</label>
+                  <label className={cn(authLabelClass, "!mb-1 text-[11px]")}>
+                    OTP code
+                  </label>
                   <input
-                    className={cn(authFieldClass, "mt-1.5")}
+                    className={cn(authFieldClass, "h-9 text-[12px]")}
                     value={otp}
                     onChange={(e) =>
                       setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
@@ -313,7 +317,10 @@ export default function VerifyIdentityPage() {
                   type="button"
                   disabled={otpBusy || otp.length < 4}
                   onClick={() => void confirmPhone()}
-                  className={cn(authPrimaryBtnClass, "disabled:opacity-50")}
+                  className={cn(
+                    authPrimaryBtnClass,
+                    "!h-10 text-[13px] disabled:opacity-50"
+                  )}
                   style={authPrimaryBtnStyle}
                 >
                   {otpBusy ? "Checking…" : "Verify phone"}
@@ -324,71 +331,77 @@ export default function VerifyIdentityPage() {
         </section>
 
         {/* Tier 2 — Country ID */}
-        <section className={cn("rounded-2xl px-4 py-5", card)}>
-          <p className={cn("flex items-center gap-2 text-[13px] font-bold", ink)}>
-            <Upload className="h-4 w-4 text-[#FF6B35]" />
+        <section className={cn("rounded-xl px-3 py-3", card)}>
+          <p className={cn("flex items-center gap-1.5 text-[12px] font-bold", ink)}>
+            <Upload className="h-3.5 w-3.5 text-[#FF6B35]" />
             Tier 2 · Government ID
           </p>
-          <p className={cn("mt-2 text-[12px] leading-relaxed", muted)}>
+          <p className={cn("mt-1 text-[11px] leading-snug", muted)}>
             {submitted
               ? "Submitted — waiting for admin / customer care approval. Full access needs both: ID submitted and admin-approved."
               : "ID types for Nigeria. After your 30-day free period you need ID submitted and admin-approved to keep booking."}
           </p>
 
           {submitted ? (
-            <p className="mt-4 text-[12px] font-semibold leading-relaxed text-amber-600">
+            <p className="mt-2 text-[11px] font-semibold leading-snug text-amber-600">
               Under review · full booking unlocks when admin / customer care
               approves your ID
               {trialNote(userProfile)}
             </p>
           ) : (
-            <>
-              <label className={cn(authLabelClass, "mt-5")}>ID type</label>
-              <select
-                className={cn(authFieldClass, "mt-1.5")}
-                value={idType}
-                onChange={(e) => {
-                  setIdType(e.target.value);
-                  setIdNumber("");
-                  setIdFront("");
-                  setIdFrontName("");
-                }}
-                disabled={!phoneOk}
-              >
-                {idTypes.map((d) => (
-                  <option key={d.kind} value={d.kind}>
-                    {d.label}
-                  </option>
-                ))}
-              </select>
+            <div className="mt-2.5 flex flex-col gap-2.5">
+              <div>
+                <label className={cn(authLabelClass, "!mb-1 text-[11px]")}>
+                  ID type
+                </label>
+                <select
+                  className={cn(authFieldClass, "h-9 text-[12px]")}
+                  value={idType}
+                  onChange={(e) => {
+                    setIdType(e.target.value);
+                    setIdNumber("");
+                    setIdFront("");
+                    setIdFrontName("");
+                  }}
+                  disabled={!phoneOk}
+                >
+                  {idTypes.map((d) => (
+                    <option key={d.kind} value={d.kind}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-              <label className={cn(authLabelClass, "mt-5")}>
-                {selectedDoc?.label || "ID"} number
-              </label>
-              <input
-                className={cn(authFieldClass, "mt-1.5")}
-                value={idNumber}
-                onChange={(e) =>
-                  setIdNumber(
-                    selectedDoc
-                      ? filterIdInput(e.target.value, selectedDoc)
-                      : e.target.value
-                  )
-                }
-                placeholder={selectedDoc?.placeholder || "ID number"}
-                disabled={!phoneOk}
-              />
-              {selectedDoc?.hint ? (
-                <p className={cn("mt-2 text-[11px] leading-relaxed", muted)}>
-                  {selectedDoc.hint}
-                </p>
-              ) : null}
+              <div>
+                <label className={cn(authLabelClass, "!mb-1 text-[11px]")}>
+                  {selectedDoc?.label || "ID"} number
+                </label>
+                <input
+                  className={cn(authFieldClass, "h-9 text-[12px]")}
+                  value={idNumber}
+                  onChange={(e) =>
+                    setIdNumber(
+                      selectedDoc
+                        ? filterIdInput(e.target.value, selectedDoc)
+                        : e.target.value
+                    )
+                  }
+                  placeholder={selectedDoc?.placeholder || "ID number"}
+                  disabled={!phoneOk}
+                />
+                {selectedDoc?.hint ? (
+                  <p className={cn("mt-0.5 text-[10px] leading-snug", muted)}>
+                    {selectedDoc.hint}
+                  </p>
+                ) : null}
+              </div>
 
-              {/* gap works: om-cta-dark-gray forces margin:0 so mt-* never shows */}
-              <div className="mt-5 flex flex-col gap-3">
+              {/* gap: om-cta-dark-gray forces margin:0 */}
+              <div className="flex flex-col gap-2">
                 <label
                   className={cn(
-                    "flex h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border-0 text-[12px] font-bold",
+                    "flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border-0 text-[12px] font-bold",
                     isLight
                       ? "bg-black/10 text-slate-800"
                       : "bg-[#2c2c2e] text-white",
@@ -422,13 +435,16 @@ export default function VerifyIdentityPage() {
                   type="button"
                   disabled={busy || !phoneOk}
                   onClick={() => void submitId()}
-                  className={cn(authPrimaryBtnClass, "disabled:opacity-50")}
+                  className={cn(
+                    authPrimaryBtnClass,
+                    "!h-10 text-[13px] disabled:opacity-50"
+                  )}
                   style={authPrimaryBtnStyle}
                 >
                   {busy ? "Submitting…" : "Submit ID for review"}
                 </button>
               </div>
-            </>
+            </div>
           )}
         </section>
       </div>

@@ -279,7 +279,14 @@ export function profileToUserProfile(
     bvn?: string;
     ninVerified?: boolean;
     bvnVerified?: boolean;
+    govIdVerified?: boolean;
     identityVerifiedAt?: string;
+    identityReviewStatus?: UserProfile["identityReviewStatus"];
+    identitySubmittedAt?: string;
+    govIdKind?: string;
+    govIdFrontUrl?: string;
+    phoneVerified?: boolean;
+    firstServiceAt?: string;
     docsStatus?: UserProfile["docsStatus"];
     docsRatingBoostApplied?: boolean;
     certificationFileName?: string;
@@ -330,7 +337,14 @@ export function profileToUserProfile(
     bvn: extra?.bvn,
     ninVerified: extra?.ninVerified,
     bvnVerified: extra?.bvnVerified,
+    govIdVerified: extra?.govIdVerified,
     identityVerifiedAt: extra?.identityVerifiedAt,
+    identityReviewStatus: extra?.identityReviewStatus,
+    identitySubmittedAt: extra?.identitySubmittedAt,
+    govIdKind: extra?.govIdKind,
+    govIdFrontUrl: extra?.govIdFrontUrl,
+    phoneVerified: extra?.phoneVerified,
+    firstServiceAt: extra?.firstServiceAt,
     docsStatus: extra?.docsStatus,
     docsRatingBoostApplied: extra?.docsRatingBoostApplied,
     certificationFileName: extra?.certificationFileName,

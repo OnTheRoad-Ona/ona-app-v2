@@ -231,8 +231,10 @@ export default function AdminVerificationPage() {
           <>
             <p className="om-admin-muted" style={{ margin: "8px 0 12px", fontSize: 12 }}>
               <strong>T1 Phone</strong> — automatic (app OTP).{" "}
-              <strong>T2 Government ID</strong> — upload by customer; Approve
-              unlocks unlimited requests (after 6 free).
+              <strong>T2 Government ID</strong> — customer upload; Approve
+              unlocks full booking after free period. Prefer{" "}
+              <a href="/admin/customer-review">Customer review</a> for the full
+              queue + ID photo.
             </p>
             <table className="om-admin-table">
               <thead>

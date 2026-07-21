@@ -302,7 +302,45 @@ export async function backendSaveIdentityVerification(input: {
   primaryId?: string;
   bankId?: string;
   identityVerified?: boolean;
+  countryIso?: string;
+  govIdKind?: string;
+  govIdFrontUrl?: string;
+  govIdBackUrl?: string;
+  accessToken?: string | null;
 }): Promise<string | null> {
+  // Customer submit → dedicated API so admin Customer review always sees a row
+  if (
+    input.accountType === "motorist" &&
+    !input.identityVerified &&
+    input.accessToken
+  ) {
+    try {
+      const res = await fetch("/api/verify/customer-id", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          access_token: input.accessToken,
+          primaryId: input.primaryId || input.nin || "",
+          bankId: input.bankId || input.bvn || undefined,
+          countryIso: input.countryIso,
+          govIdKind: input.govIdKind,
+          govIdFrontUrl: input.govIdFrontUrl,
+          govIdBackUrl: input.govIdBackUrl,
+        }),
+      });
+      const json = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: { message?: string };
+      } | null;
+      if (!json?.ok) {
+        return json?.error?.message || "Could not submit ID for review.";
+      }
+      return null;
+    } catch {
+      return "Network error submitting ID.";
+    }
+  }
+
   const sb = getAppSupabase();
   if (!sb) return "Server is not configured.";
   const nin = (input.nin || input.primaryId || "").replace(/\D/g, "");
@@ -311,9 +349,15 @@ export async function backendSaveIdentityVerification(input: {
   const verified =
     input.identityVerified ??
     (nin.length === 11 && (bvn.length === 11 || !input.bvn));
+  const last4Any = (raw: string) => {
+    const d = last4(raw);
+    if (d) return d;
+    const alnum = raw.replace(/\W/g, "");
+    return alnum.length >= 4 ? alnum.slice(-4) : null;
+  };
   const payload = {
-    nin_last4: last4(nin) || last4(primaryRaw.replace(/\W/g, "")),
-    bvn_last4: last4(bvn),
+    nin_last4: last4(nin) || last4Any(primaryRaw),
+    bvn_last4: last4(bvn) || (input.bankId ? last4Any(input.bankId) : null),
     nin_verified: Boolean(verified && (nin.length >= 4 || primaryRaw.length >= 4)),
     bvn_verified: bvn.length === 11 ? true : Boolean(verified && !input.bvn && !input.bankId),
   };
@@ -327,14 +371,53 @@ export async function backendSaveIdentityVerification(input: {
       .eq("user_id", input.userId);
     return error?.message ?? null;
   }
-  const { error } = await sb
+  const now = new Date().toISOString();
+  const motoristPayload = {
+    ...payload,
+    identity_verified_at: verified ? now : null,
+    // Best-effort on columns that exist after migration 027
+    identity_review_status: verified ? "approved" : "submitted",
+    identity_submitted_at: now,
+    gov_id_kind: input.govIdKind || null,
+    gov_id_front_url: input.govIdFrontUrl || null,
+  };
+  const { data: updated, error } = await sb
     .from("motorist_profiles")
-    .update({
-      ...payload,
-      identity_verified_at: verified ? new Date().toISOString() : null,
-    })
-    .eq("user_id", input.userId);
-  return error?.message ?? null;
+    .update(motoristPayload)
+    .eq("user_id", input.userId)
+    .select("user_id");
+  if (error) {
+    // Retry without new columns if migration not applied yet
+    if (
+      error.message.includes("identity_review_status") ||
+      error.message.includes("gov_id")
+    ) {
+      const { error: e2 } = await sb
+        .from("motorist_profiles")
+        .update({
+          ...payload,
+          identity_verified_at: verified ? now : null,
+        })
+        .eq("user_id", input.userId);
+      return e2?.message ?? null;
+    }
+    return error.message;
+  }
+  if (!updated?.length) {
+    const { error: insErr } = await sb.from("motorist_profiles").insert({
+      user_id: input.userId,
+      ...motoristPayload,
+    });
+    if (insErr) {
+      const { error: e2 } = await sb.from("motorist_profiles").insert({
+        user_id: input.userId,
+        ...payload,
+        identity_verified_at: verified ? now : null,
+      });
+      return e2?.message ?? null;
+    }
+  }
+  return null;
 }
 
 /** Phone OTP login — session from server after Africa's Talking code verified */
@@ -668,9 +751,17 @@ export async function backendLoadUserProfile(
     vehicle_photo?: string | null;
     vehicle_common_issues?: string[] | null;
     vehicles?: UserProfile["vehicles"];
+    nin_last4?: string | null;
+    bvn_last4?: string | null;
     nin_verified?: boolean;
     bvn_verified?: boolean;
     identity_verified_at?: string | null;
+    identity_review_status?: string | null;
+    identity_submitted_at?: string | null;
+    gov_id_kind?: string | null;
+    gov_id_front_url?: string | null;
+    phone_verified?: boolean;
+    first_service_at?: string | null;
     created_at?: string;
   } | null;
   const pr = proRes.data as RepairProRow | null;
@@ -721,6 +812,13 @@ export async function backendLoadUserProfile(
     });
   }
 
+  const reviewStatus = (mot?.identity_review_status ||
+    (mot?.identity_verified_at
+      ? "approved"
+      : mot?.nin_last4 || mot?.bvn_last4
+        ? "submitted"
+        : "none")) as UserProfile["identityReviewStatus"];
+
   return profileToUserProfile(p, {
     accountType,
     primaryAccountType,
@@ -733,7 +831,15 @@ export async function backendLoadUserProfile(
     vehicles: Array.isArray(mot?.vehicles) ? mot.vehicles : undefined,
     ninVerified: Boolean(mot?.nin_verified),
     bvnVerified: Boolean(mot?.bvn_verified),
+    govIdVerified:
+      reviewStatus === "approved" || Boolean(mot?.identity_verified_at),
     identityVerifiedAt: mot?.identity_verified_at || undefined,
+    identityReviewStatus: reviewStatus,
+    identitySubmittedAt: mot?.identity_submitted_at || undefined,
+    govIdKind: mot?.gov_id_kind || undefined,
+    govIdFrontUrl: mot?.gov_id_front_url || undefined,
+    phoneVerified: Boolean(mot?.phone_verified),
+    firstServiceAt: mot?.first_service_at || undefined,
   });
 }
 

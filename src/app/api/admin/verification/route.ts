@@ -11,12 +11,200 @@ import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type MotRow = {
+  user_id: string;
+  vehicle_make?: string | null;
+  vehicle_model?: string | null;
+  nin_verified?: boolean | null;
+  bvn_verified?: boolean | null;
+  nin_last4?: string | null;
+  bvn_last4?: string | null;
+  identity_verified_at?: string | null;
+  identity_review_status?: string | null;
+  identity_submitted_at?: string | null;
+  gov_id_kind?: string | null;
+  gov_id_front_url?: string | null;
+  phone_verified?: boolean | null;
+  created_at?: string;
+};
+
+type ProRow = {
+  user_id: string;
+  business_name?: string | null;
+  status?: string | null;
+  verified?: boolean | null;
+  nin_verified?: boolean | null;
+  bvn_verified?: boolean | null;
+  nin_last4?: string | null;
+  bvn_last4?: string | null;
+  primary_service?: string | null;
+  docs_status?: string | null;
+  docs_rating_boost_applied?: boolean | null;
+  certification_file_name?: string | null;
+  certification_file_url?: string | null;
+  rating_avg?: number | null;
+  rating_count?: number | null;
+  visibility_tier?: number | null;
+  is_new_artisan?: boolean | null;
+  created_at?: string;
+};
+
+async function buildVerificationResponse(
+  supabase: ReturnType<typeof createServiceSupabase>,
+  pros: ProRow[],
+  mots: MotRow[]
+) {
+  const userIds = [
+    ...pros.map((p) => p.user_id),
+    ...mots.map((m) => m.user_id),
+  ];
+  const profiles: Record<
+    string,
+    { full_name: string; email: string | null; phone: string | null }
+  > = {};
+  if (userIds.length) {
+    const { data: rows } = await supabase
+      .from("profiles")
+      .select("id, full_name, email, phone")
+      .in("id", userIds);
+    for (const r of rows ?? []) {
+      profiles[r.id] = {
+        full_name: r.full_name,
+        email: r.email,
+        phone: r.phone ?? null,
+      };
+    }
+  }
+
+  const customers = mots.map((m) => {
+    const p = profiles[m.user_id];
+    const review = String(m.identity_review_status || "").toLowerCase();
+    const t2Approved =
+      review === "approved" ||
+      Boolean(m.identity_verified_at || (m.nin_verified && m.bvn_verified));
+    const t2Pending =
+      !t2Approved &&
+      (review === "submitted" ||
+        Boolean(m.nin_last4 || m.bvn_last4 || m.gov_id_front_url));
+    const t2Rejected = review === "rejected" && !t2Approved;
+
+    return {
+      kind: "customer" as const,
+      user_id: m.user_id,
+      full_name: p?.full_name ?? "—",
+      email: p?.email ?? null,
+      phone: p?.phone ?? null,
+      label:
+        [m.vehicle_make, m.vehicle_model].filter(Boolean).join(" ") ||
+        "Customer",
+      t1_phone: "auto" as const,
+      t1_label: m.phone_verified ? "Phone verified" : "Phone (automatic)",
+      t2_status: t2Approved
+        ? ("approved" as const)
+        : t2Pending
+          ? ("pending" as const)
+          : t2Rejected
+            ? ("rejected" as const)
+            : ("none" as const),
+      t2_label: t2Approved
+        ? "ID approved"
+        : t2Pending
+          ? "ID pending review"
+          : t2Rejected
+            ? "ID rejected"
+            : "No ID submitted",
+      nin_last4: m.nin_last4 ?? null,
+      bvn_last4: m.bvn_last4 ?? null,
+      nin_verified: Boolean(m.nin_verified),
+      bvn_verified: Boolean(m.bvn_verified),
+      identity_verified_at: m.identity_verified_at ?? null,
+      identity_submitted_at: m.identity_submitted_at ?? null,
+      gov_id_kind: m.gov_id_kind ?? null,
+      gov_id_front_url: m.gov_id_front_url ?? null,
+      needs_action: t2Pending,
+    };
+  });
+
+  const repairPros = pros.map((pr) => {
+    const p = profiles[pr.user_id];
+    const t2Ok = Boolean(pr.nin_verified && pr.bvn_verified);
+    const hasIdBits = Boolean(pr.nin_last4 || pr.bvn_last4 || pr.verified);
+    const t2Pending = hasIdBits && !t2Ok;
+    const docs = pr.docs_status || "none";
+    const t4Pending = docs === "under_review";
+    const t4Ok = docs === "approved";
+    const vis = Number(pr.visibility_tier) || 1;
+
+    return {
+      kind: "repair_pro" as const,
+      user_id: pr.user_id,
+      full_name: p?.full_name ?? "—",
+      email: p?.email ?? null,
+      phone: p?.phone ?? null,
+      label: pr.business_name || pr.primary_service || "Repair Pro",
+      status: pr.status,
+      t1_status: "auto" as const,
+      t1_label: "Phone (automatic)",
+      t2_status: t2Ok
+        ? ("approved" as const)
+        : t2Pending
+          ? ("pending" as const)
+          : ("none" as const),
+      t2_label: t2Ok
+        ? "ID + BVN approved"
+        : t2Pending
+          ? "ID / BVN pending"
+          : "No ID submitted",
+      nin_last4: pr.nin_last4,
+      bvn_last4: pr.bvn_last4,
+      nin_verified: Boolean(pr.nin_verified),
+      bvn_verified: Boolean(pr.bvn_verified),
+      t3_status: "auto" as const,
+      t3_label: "Liveness (automatic)",
+      t4_status: t4Ok
+        ? ("approved" as const)
+        : t4Pending
+          ? ("pending" as const)
+          : docs === "rejected"
+            ? ("rejected" as const)
+            : ("none" as const),
+      t4_label:
+        docs === "under_review"
+          ? "Skill docs under review"
+          : docs === "approved"
+            ? "Skill docs approved"
+            : docs === "rejected"
+              ? "Skill docs rejected"
+              : "No skill docs",
+      docs_status: docs,
+      certification_file_name: pr.certification_file_name ?? null,
+      certification_file_url: pr.certification_file_url ?? null,
+      docs_rating_boost_applied: Boolean(pr.docs_rating_boost_applied),
+      rating_avg: Number(pr.rating_avg) || 0,
+      rating_count: pr.rating_count ?? 0,
+      visibility_tier: vis as 1 | 2 | 3 | 4,
+      is_new_artisan: Boolean(pr.is_new_artisan),
+      needs_action: t2Pending || t4Pending,
+    };
+  });
+
+  const totals = {
+    customers: customers.length,
+    customerT2Pending: customers.filter((c) => c.t2_status === "pending")
+      .length,
+    customerT2Approved: customers.filter((c) => c.t2_status === "approved")
+      .length,
+    pros: repairPros.length,
+    proT2Pending: repairPros.filter((p) => p.t2_status === "pending").length,
+    proT4Pending: repairPros.filter((p) => p.t4_status === "pending").length,
+    proNeedsAction: repairPros.filter((p) => p.needs_action).length,
+  };
+
+  return apiOk({ customers, repairPros, totals });
+}
+
 /**
  * Unified verification hub data.
- *
- * Customers: T1 phone (automatic) · T2 government ID (manual)
- * Repair Pros: T1 phone auto · T2 ID/BVN manual · T3 liveness auto · T4 skill docs manual
- *              + visibility ladder (T2/T3/T4 promote)
  */
 export async function GET() {
   if (!isSupabaseAdminConfigured()) {
@@ -37,161 +225,40 @@ export async function GET() {
       supabase
         .from("motorist_profiles")
         .select(
-          "user_id, vehicle_make, vehicle_model, nin_verified, bvn_verified, nin_last4, bvn_last4, identity_verified_at, created_at"
+          "user_id, vehicle_make, vehicle_model, nin_verified, bvn_verified, nin_last4, bvn_last4, identity_verified_at, identity_review_status, identity_submitted_at, gov_id_kind, gov_id_front_url, phone_verified, created_at"
         )
         .order("created_at", { ascending: false })
         .limit(400),
     ]);
 
     if (prosRes.error) return apiFail(prosRes.error.message, 500);
-    if (motRes.error) return apiFail(motRes.error.message, 500);
-
-    const pros = prosRes.data ?? [];
-    const mots = motRes.data ?? [];
-    const userIds = [
-      ...pros.map((p) => p.user_id),
-      ...mots.map((m) => m.user_id),
-    ];
-    const profiles: Record<
-      string,
-      { full_name: string; email: string | null; phone: string | null }
-    > = {};
-    if (userIds.length) {
-      const { data: rows } = await supabase
-        .from("profiles")
-        .select("id, full_name, email, phone")
-        .in("id", userIds);
-      for (const r of rows ?? []) {
-        profiles[r.id] = {
-          full_name: r.full_name,
-          email: r.email,
-          phone: r.phone ?? null,
-        };
+    if (motRes.error) {
+      if (
+        motRes.error.message.includes("identity_review_status") ||
+        motRes.error.message.includes("does not exist")
+      ) {
+        const legacy = await supabase
+          .from("motorist_profiles")
+          .select(
+            "user_id, vehicle_make, vehicle_model, nin_verified, bvn_verified, nin_last4, bvn_last4, identity_verified_at, created_at"
+          )
+          .order("created_at", { ascending: false })
+          .limit(400);
+        if (legacy.error) return apiFail(legacy.error.message, 500);
+        return buildVerificationResponse(
+          supabase,
+          (prosRes.data ?? []) as ProRow[],
+          (legacy.data ?? []) as MotRow[]
+        );
       }
+      return apiFail(motRes.error.message, 500);
     }
 
-    const customers = mots.map((m) => {
-      const p = profiles[m.user_id];
-      const t2Approved = Boolean(
-        m.identity_verified_at || (m.nin_verified && m.bvn_verified)
-      );
-      const hasIdSubmission = Boolean(
-        m.nin_last4 || m.bvn_last4 || m.identity_verified_at
-      );
-      // Pending = has ID on file but not fully approved
-      const t2Pending = hasIdSubmission && !t2Approved;
-      return {
-        kind: "customer" as const,
-        user_id: m.user_id,
-        full_name: p?.full_name ?? "—",
-        email: p?.email ?? null,
-        phone: p?.phone ?? null,
-        label:
-          [m.vehicle_make, m.vehicle_model].filter(Boolean).join(" ") ||
-          "Customer",
-        /** T1 phone — automatic (client OTP); shown for context */
-        t1_phone: "auto" as const,
-        t1_label: "Phone (automatic)",
-        /** T2 ID — manual */
-        t2_status: t2Approved
-          ? ("approved" as const)
-          : t2Pending
-            ? ("pending" as const)
-            : ("none" as const),
-        t2_label: t2Approved
-          ? "ID approved"
-          : t2Pending
-            ? "ID pending review"
-            : "No ID submitted",
-        nin_last4: m.nin_last4,
-        bvn_last4: m.bvn_last4,
-        nin_verified: Boolean(m.nin_verified),
-        bvn_verified: Boolean(m.bvn_verified),
-        identity_verified_at: m.identity_verified_at,
-        needs_action: t2Pending,
-      };
-    });
-
-    const repairPros = pros.map((pr) => {
-      const p = profiles[pr.user_id];
-      const t2Ok = Boolean(pr.nin_verified && pr.bvn_verified);
-      const hasIdBits = Boolean(pr.nin_last4 || pr.bvn_last4 || pr.verified);
-      const t2Pending = hasIdBits && !t2Ok;
-      const docs = pr.docs_status || "none";
-      const t4Pending = docs === "under_review";
-      const t4Ok = docs === "approved";
-      const vis = Number(pr.visibility_tier) || 1;
-
-      return {
-        kind: "repair_pro" as const,
-        user_id: pr.user_id,
-        full_name: p?.full_name ?? "—",
-        email: p?.email ?? null,
-        phone: p?.phone ?? null,
-        label: pr.business_name || pr.primary_service || "Repair Pro",
-        status: pr.status,
-        /** T1 phone OTP — automatic */
-        t1_status: "auto" as const,
-        t1_label: "Phone (automatic)",
-        /** T2 Gov ID + BVN — manual */
-        t2_status: t2Ok
-          ? ("approved" as const)
-          : t2Pending
-            ? ("pending" as const)
-            : ("none" as const),
-        t2_label: t2Ok
-          ? "ID + BVN approved"
-          : t2Pending
-            ? "ID / BVN pending"
-            : "No ID submitted",
-        nin_last4: pr.nin_last4,
-        bvn_last4: pr.bvn_last4,
-        nin_verified: Boolean(pr.nin_verified),
-        bvn_verified: Boolean(pr.bvn_verified),
-        /** T3 liveness — automatic */
-        t3_status: "auto" as const,
-        t3_label: "Liveness (automatic)",
-        /** T4 skill proof — manual */
-        t4_status: t4Ok
-          ? ("approved" as const)
-          : t4Pending
-            ? ("pending" as const)
-            : docs === "rejected"
-              ? ("rejected" as const)
-              : ("none" as const),
-        t4_label:
-          docs === "under_review"
-            ? "Skill docs under review"
-            : docs === "approved"
-              ? "Skill docs approved"
-              : docs === "rejected"
-                ? "Skill docs rejected"
-                : "No skill docs",
-        docs_status: docs,
-        certification_file_name: pr.certification_file_name ?? null,
-        certification_file_url: pr.certification_file_url ?? null,
-        docs_rating_boost_applied: Boolean(pr.docs_rating_boost_applied),
-        rating_avg: Number(pr.rating_avg) || 0,
-        rating_count: pr.rating_count ?? 0,
-        visibility_tier: vis as 1 | 2 | 3 | 4,
-        is_new_artisan: Boolean(pr.is_new_artisan),
-        needs_action: t2Pending || t4Pending,
-      };
-    });
-
-    const totals = {
-      customers: customers.length,
-      customerT2Pending: customers.filter((c) => c.t2_status === "pending")
-        .length,
-      customerT2Approved: customers.filter((c) => c.t2_status === "approved")
-        .length,
-      pros: repairPros.length,
-      proT2Pending: repairPros.filter((p) => p.t2_status === "pending").length,
-      proT4Pending: repairPros.filter((p) => p.t4_status === "pending").length,
-      proNeedsAction: repairPros.filter((p) => p.needs_action).length,
-    };
-
-    return apiOk({ customers, repairPros, totals });
+    return buildVerificationResponse(
+      supabase,
+      (prosRes.data ?? []) as ProRow[],
+      (motRes.data ?? []) as MotRow[]
+    );
   } catch (e) {
     if (e instanceof AdminAuthError)
       return apiFail(e.message, e.status, "auth");
@@ -201,14 +268,7 @@ export async function GET() {
 
 const patchSchema = z.object({
   userId: z.string().uuid(),
-  /** Who is being reviewed */
   subject: z.enum(["customer", "repair_pro"]),
-  /**
-   * customer_t2 — approve/reject government ID (unlimited requests)
-   * pro_t2 — approve/reject ID + BVN (enables visibility ladder start)
-   * pro_t4 — approve/reject skill/cert docs (+1 star once)
-   * pro_visibility — set visibility tier 2|3|4
-   */
   action: z.enum([
     "customer_t2_approve",
     "customer_t2_reject",
@@ -237,17 +297,31 @@ export async function PATCH(req: Request) {
     const supabase = createServiceSupabase();
     const now = new Date().toISOString();
 
-    // ── Customer T2 ─────────────────────────────────────────────
     if (subject === "customer") {
       if (action === "customer_t2_approve") {
-        const { error } = await supabase
+        const payload: Record<string, unknown> = {
+          nin_verified: true,
+          bvn_verified: true,
+          identity_verified_at: now,
+          identity_review_status: "approved",
+          identity_reviewed_at: now,
+          identity_reviewed_by: session.userId,
+          identity_rejection_reason: null,
+        };
+        let { error } = await supabase
           .from("motorist_profiles")
-          .update({
-            nin_verified: true,
-            bvn_verified: true,
-            identity_verified_at: now,
-          })
+          .update(payload)
           .eq("user_id", userId);
+        if (error?.message.includes("identity_review_status")) {
+          ({ error } = await supabase
+            .from("motorist_profiles")
+            .update({
+              nin_verified: true,
+              bvn_verified: true,
+              identity_verified_at: now,
+            })
+            .eq("user_id", userId));
+        }
         if (error) return apiFail(error.message, 500);
         await logAdminAction(session.userId, "customer_t2_approve", userId, {});
         return apiOk({
@@ -257,14 +331,29 @@ export async function PATCH(req: Request) {
         });
       }
       if (action === "customer_t2_reject") {
-        const { error } = await supabase
+        const payload: Record<string, unknown> = {
+          nin_verified: false,
+          bvn_verified: false,
+          identity_verified_at: null,
+          identity_review_status: "rejected",
+          identity_reviewed_at: now,
+          identity_reviewed_by: session.userId,
+          identity_rejection_reason: "Rejected by admin",
+        };
+        let { error } = await supabase
           .from("motorist_profiles")
-          .update({
-            nin_verified: false,
-            bvn_verified: false,
-            identity_verified_at: null,
-          })
+          .update(payload)
           .eq("user_id", userId);
+        if (error?.message.includes("identity_review_status")) {
+          ({ error } = await supabase
+            .from("motorist_profiles")
+            .update({
+              nin_verified: false,
+              bvn_verified: false,
+              identity_verified_at: null,
+            })
+            .eq("user_id", userId));
+        }
         if (error) return apiFail(error.message, 500);
         await logAdminAction(session.userId, "customer_t2_reject", userId, {});
         return apiOk({
@@ -276,7 +365,6 @@ export async function PATCH(req: Request) {
       return apiFail("Invalid customer action", 400);
     }
 
-    // ── Repair Pro ──────────────────────────────────────────────
     if (action === "pro_t2_approve") {
       const { error } = await supabase
         .from("repair_pro_profiles")
@@ -284,7 +372,6 @@ export async function PATCH(req: Request) {
           nin_verified: true,
           bvn_verified: true,
           verified: true,
-          // Start visibility ladder at Tier 2 if still at 1
           visibility_tier: 2,
           is_new_artisan: true,
         })
@@ -361,7 +448,6 @@ export async function PATCH(req: Request) {
           rating_avg: nextAvg,
           docs_reviewed_at: now,
           docs_reviewed_by: session.userId,
-          // Approving T4 skill also lifts visibility to 4 when already ≥2
           visibility_tier: vis >= 2 ? 4 : vis,
           is_new_artisan: vis >= 3 ? false : vis <= 2,
         })

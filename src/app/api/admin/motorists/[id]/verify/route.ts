@@ -40,14 +40,32 @@ export async function POST(
     const now = new Date().toISOString();
     const approve = parsed.data.action === "approve";
 
-    const { error } = await supabase
+    const payload: Record<string, unknown> = {
+      nin_verified: approve,
+      bvn_verified: approve,
+      identity_verified_at: approve ? now : null,
+      identity_review_status: approve ? "approved" : "rejected",
+      identity_reviewed_at: now,
+      identity_reviewed_by: session.userId,
+      identity_rejection_reason: approve
+        ? null
+        : parsed.data.reason || "Rejected by admin",
+    };
+    let { error } = await supabase
       .from("motorist_profiles")
-      .update({
-        nin_verified: approve,
-        bvn_verified: approve,
-        identity_verified_at: approve ? now : null,
-      })
+      .update(payload)
       .eq("user_id", id);
+
+    if (error?.message.includes("identity_review_status")) {
+      ({ error } = await supabase
+        .from("motorist_profiles")
+        .update({
+          nin_verified: approve,
+          bvn_verified: approve,
+          identity_verified_at: approve ? now : null,
+        })
+        .eq("user_id", id));
+    }
 
     if (error) return apiFail(error.message, 500);
 

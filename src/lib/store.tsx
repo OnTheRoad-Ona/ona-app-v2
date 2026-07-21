@@ -1303,6 +1303,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Submit for review — do NOT mark verified until admin/care approves
       if (mode === "submit") {
         if (isAppBackendOnline() && backendUserId) {
+          let accessToken: string | null = null;
+          try {
+            const { getAppSupabase } = await import("@/lib/supabase/app-client");
+            const sb = getAppSupabase();
+            if (sb) {
+              const { data } = await sb.auth.getSession();
+              accessToken = data.session?.access_token ?? null;
+            }
+          } catch {
+            /* */
+          }
           const err = await backendSaveIdentityVerification({
             userId: backendUserId,
             accountType: userProfile.accountType,
@@ -1311,6 +1322,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
             nin: iso === "NG" ? primary.replace(/\D/g, "") : undefined,
             bvn: iso === "NG" && bank ? bank.replace(/\D/g, "") : undefined,
             identityVerified: false,
+            countryIso: iso,
+            govIdKind: input.govIdKind || userProfile.govIdKind,
+            govIdFrontUrl: input.govIdFrontUrl || userProfile.govIdFrontUrl,
+            govIdBackUrl: input.govIdBackUrl || userProfile.govIdBackUrl,
+            accessToken,
           });
           if (err) return err;
         } else if (isAppBackendOnline() && !backendUserId) {
