@@ -205,7 +205,7 @@ export function evaluateServiceGate(
       remaining: 0,
       reason: "phone",
       message:
-        "Verify your phone number first (Tier 1). Open Verify and enter the SMS code.",
+        "Verify your phone number to request help",
     };
   }
 

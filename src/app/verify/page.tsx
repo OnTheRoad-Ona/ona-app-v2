@@ -311,7 +311,7 @@ export default function VerifyIdentityPage() {
                 onClick={() => void confirmPhone()}
                 className={cn(
                   authPrimaryBtnClass,
-                  "mt-4 h-11 disabled:opacity-50"
+                  "mt-7 h-11 disabled:opacity-50"
                 )}
                 style={authPrimaryBtnStyle}
               >
@@ -330,7 +330,7 @@ export default function VerifyIdentityPage() {
           <p className={cn("mt-2 text-[12px] leading-relaxed", muted)}>
             {submitted
               ? "Submitted — waiting for admin / customer care approval. Full access needs both: ID submitted and admin-approved."
-              : `ID types for ${pack.countryName}. After your ${TIER1_TRIAL_DAYS}-day free period you need ID submitted and admin-approved to keep booking.`}
+              : "ID types for Nigeria. After your 30-day free period you need ID submitted and admin-approved to keep booking."}
           </p>
 
           {submitted ? (
@@ -420,7 +420,7 @@ export default function VerifyIdentityPage() {
                 onClick={() => void submitId()}
                 className={cn(
                   authPrimaryBtnClass,
-                  "mt-5 h-11 disabled:opacity-50"
+                  "mt-7 h-11 disabled:opacity-50"
                 )}
                 style={authPrimaryBtnStyle}
               >
@@ -429,17 +429,6 @@ export default function VerifyIdentityPage() {
             </>
           )}
         </section>
-
-        <p
-          className={cn(
-            "px-2 text-center text-[11px] leading-relaxed",
-            muted
-          )}
-        >
-          Tier 1 alone allows free requests for {TIER1_TRIAL_DAYS} days from
-          your first request. Full access requires ID submitted and approved by
-          admin / customer care (Tier 2).
-        </p>
       </div>
     </div>
   );
