@@ -22,7 +22,8 @@ export async function GET(req: Request) {
   try {
     await requireAdmin();
     const url = new URL(req.url);
-    const filter = url.searchParams.get("filter") || "needs_action";
+    // Default all registered pros so the queue is never empty when signups exist
+    const filter = url.searchParams.get("filter") || "all";
 
     const supabase = createServiceSupabase();
     const { data: pros, error } = await supabase

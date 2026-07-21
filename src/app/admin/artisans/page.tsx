@@ -1,350 +1,393 @@
 "use client";
 
 /**
- * Admin: Approve Repair Pros on the visibility ladder (Tier 2 → 3 → 4).
- * Tier 1 = registered only. Approvals are admin-only.
+ * Artisan review — DB-backed (repair_pro_profiles).
+ * Replaces empty localStorage-only queue so live signups appear.
  */
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
-import {
-  listArtisanProfiles,
-  saveArtisanProfile,
-} from "@/lib/artisan/local-store";
-import {
-  canTransition,
-  statusLabel,
-  resolveVisibilityTier,
-  applyAdminTierPromotion,
-  rulesForTier,
-} from "@/lib/artisan/status";
-import type { ArtisanVerificationProfile } from "@/lib/artisan/types";
-import { tradeDef } from "@/lib/artisan/catalog";
-import { maybeSeedTier4OneStar } from "@/lib/artisan/visibility-tiers";
+import { useAdminGate } from "@/components/admin/use-admin-gate";
+
+type ProRow = {
+  user_id: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  city: string | null;
+  business_name: string | null;
+  primary_service: string | null;
+  status: string;
+  pipeline_status: string | null;
+  needs_action: boolean;
+  levels: {
+    t1_phone: { status: string; verified: boolean; phone: string | null };
+    t2_id: {
+      status: string;
+      gov_id_kind: string | null;
+      gov_id_last4: string | null;
+      front_url: string | null;
+      review_status: string;
+      submitted_at: string | null;
+    };
+    t3_liveness: { status: string; verified: boolean };
+    t4_docs: {
+      status: string;
+      docs_status: string;
+      file_name: string | null;
+      file_url: string | null;
+    };
+    visibility: {
+      tier: number;
+      is_new_artisan: boolean;
+      rating_avg: number;
+      rating_count: number;
+    };
+  };
+  created_at?: string;
+};
+
+function badgeClass(s: string) {
+  if (s === "approved" || s === "verified" || s === "passed") return "approved";
+  if (s === "pending" || s === "submitted") return "pending";
+  if (s === "rejected" || s === "suspended") return "rejected";
+  return "";
+}
+
+function fmtDate(iso: string | null | undefined) {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString();
+  } catch {
+    return iso;
+  }
+}
 
 export default function AdminArtisansPage() {
   const router = useRouter();
-  const [adminName, setAdminName] = useState("Admin");
-  const [rows, setRows] = useState<ArtisanVerificationProfile[]>([]);
-  const [filter, setFilter] = useState<string>("pending_review");
-  const [rejectId, setRejectId] = useState<string | null>(null);
-  const [reason, setReason] = useState("");
+  const { adminName, ready, api } = useAdminGate();
+  const [filter, setFilter] = useState("all");
+  const [rows, setRows] = useState<ProRow[]>([]);
+  const [totals, setTotals] = useState({
+    total: 0,
+    needs_action: 0,
+    t2_pending: 0,
+    t4_pending: 0,
+  });
+  const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  const load = useCallback(() => {
-    setRows(listArtisanProfiles());
-  }, []);
+  const load = useCallback(async () => {
+    // Always load from DB — never admin browser localStorage
+    const res = await api<{
+      pros: ProRow[];
+      totals: typeof totals;
+    }>(`/api/admin/pro-review?filter=${encodeURIComponent(filter)}`);
+    if (!res.ok) {
+      setError(res.message);
+      return;
+    }
+    setError(null);
+    setRows(res.data.pros || []);
+    setTotals(res.data.totals);
+  }, [api, filter]);
 
   useEffect(() => {
-    (async () => {
-      const me = await fetch("/api/admin/auth/me");
-      const meJson = await me.json();
-      if (!meJson.ok) {
-        router.replace("/admin/login");
-        return;
-      }
-      setAdminName(meJson.data.fullName || meJson.data.email);
-      load();
-    })();
-  }, [load, router]);
+    if (!ready) return;
+    void load();
+  }, [ready, load]);
 
-  const visible = rows.filter((r) =>
-    filter === "all" ? true : r.status === filter
-  );
-
-  function promote(p: ArtisanVerificationProfile, target: 2 | 3 | 4) {
-    const current = resolveVisibilityTier(p);
-    if (p.status === "suspended") {
-      setMsg("Unsuspend before promoting.");
+  const act = async (
+    userId: string,
+    action: string,
+    extra?: { visibilityTier?: number; reason?: string }
+  ) => {
+    setBusyId(userId);
+    setMsg(null);
+    setError(null);
+    const res = await api<{ message?: string }>("/api/admin/pro-review", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, action, ...extra }),
+    });
+    setBusyId(null);
+    if (!res.ok) {
+      setError(res.message);
       return;
     }
-    if (p.status === "draft") {
-      setMsg("Pro must submit for review before Tier 2 approval.");
-      return;
-    }
-    if (p.status === "rejected") {
-      setMsg("Rejected profiles must resubmit first.");
-      return;
-    }
-    if (current >= target) {
-      setMsg(`Already at Tier ${current} or higher.`);
-      return;
-    }
-    // Sequential: 1→2→3→4 only
-    if (target !== current + 1 && !(current === 1 && target === 2)) {
-      setMsg(
-        current === 1
-          ? "Start with Tier 2 approval."
-          : `Promote to Tier ${current + 1} first.`
-      );
-      return;
-    }
-    if (target === 2 && p.status === "pending_review") {
-      if (!canTransition(p.status, "approved")) {
-        setMsg(`Cannot approve from ${p.status}`);
-        return;
-      }
-    }
-
-    let next = applyAdminTierPromotion(p, target, adminName);
-
-    if (target === 4 && !p.tier4OneStarSeeded) {
-      const seed = maybeSeedTier4OneStar({
-        alreadySeeded: false,
-        ratingCount: Math.max(0, p.successfulJobsCount),
-        ratingAvg: 4,
-      });
-      if (seed) {
-        next = { ...next, tier4OneStarSeeded: true };
-        setMsg(
-          `Promoted ${p.fullName} to Tier 4 · 100% · 10 km · 1★ seed (had prior ratings).`
-        );
-      } else {
-        setMsg(
-          `Promoted ${p.fullName} to Tier 4 · 100% · 10 km (no 1★ seed — no prior ratings).`
-        );
-      }
-    } else {
-      const r = rulesForTier(target);
-      setMsg(
-        `Promoted ${p.fullName} to Tier ${target} · ${r.visibilityPercent}% visibility · max ${r.maxRadiusKm} km`
-      );
-    }
-
-    saveArtisanProfile(next);
-    load();
-  }
-
-  function reject(p: ArtisanVerificationProfile) {
-    if (!reason.trim()) {
-      setMsg("Rejection reason is required.");
-      return;
-    }
-    if (!canTransition(p.status, "rejected")) {
-      setMsg(`Cannot reject from ${p.status}`);
-      return;
-    }
-    const next: ArtisanVerificationProfile = {
-      ...p,
-      status: "rejected",
-      visibilityTier: 1,
-      reviewedAt: new Date().toISOString(),
-      reviewedBy: adminName,
-      rejectReason: reason.trim(),
-    };
-    saveArtisanProfile(next);
-    setRejectId(null);
-    setReason("");
-    load();
-    setMsg(`Rejected ${p.fullName}`);
-  }
+    setMsg(res.data.message || "Updated.");
+    await load();
+  };
 
   return (
     <AdminShell adminName={adminName} roleLabel="Care">
-      <div className="om-admin-page">
-        <h1 className="om-admin-h1">Artisan review · visibility tiers</h1>
-        <p className="om-admin-sub">
-          Admin-only ladder: Tier 1 register → Tier 2 (30% · 30-day Live) → Tier
-          3 (70% · 3 km · badge off) → Tier 4 (100% · 10 km).
-        </p>
+      <h1 className="om-admin-h1">Artisan review · live database</h1>
+      <p className="om-admin-sub">
+        Shows every Repair Pro in Supabase (signups from the app). Promote
+        visibility T2→T4, approve ID / skill docs. Same data as Pro review.
+      </p>
 
-        {msg ? <div className="om-admin-banner">{msg}</div> : null}
+      {error ? <div className="om-admin-error">{error}</div> : null}
+      {msg ? (
+        <div
+          className="om-admin-error"
+          style={{
+            background: "rgba(16,185,129,0.12)",
+            color: "#059669",
+            borderColor: "rgba(16,185,129,0.3)",
+          }}
+        >
+          {msg}
+        </div>
+      ) : null}
 
+      <div className="om-admin-cards">
+        {(
+          [
+            ["All artisans", totals.total],
+            ["Needs action", totals.needs_action],
+            ["T2 ID pending", totals.t2_pending],
+            ["T4 docs pending", totals.t4_pending],
+          ] as const
+        ).map(([label, v]) => (
+          <div className="om-admin-card" key={label}>
+            <div className="label">{label}</div>
+            <div className="value">{v}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="om-admin-panel">
         <div className="om-admin-toolbar" style={{ gap: 8, flexWrap: "wrap" }}>
-          {[
-            "pending_review",
-            "draft",
-            "approved",
-            "rejected",
-            "suspended",
-            "all",
-          ].map((f) => (
+          {(
+            [
+              ["all", "All registered"],
+              ["needs_action", "Needs action"],
+              ["t2_pending", "T2 pending"],
+              ["t4_pending", "T4 pending"],
+            ] as const
+          ).map(([v, label]) => (
             <button
-              key={f}
+              key={v}
               type="button"
-              className={
-                filter === f ? "om-admin-btn om-admin-btn-primary" : "om-admin-btn"
-              }
-              onClick={() => setFilter(f)}
+              className={`om-admin-btn ${
+                filter === v ? "om-admin-btn-primary" : "ghost"
+              }`}
+              onClick={() => setFilter(v)}
             >
-              {f === "all"
-                ? "All"
-                : statusLabel(f as ArtisanVerificationProfile["status"])}
+              {label}
             </button>
           ))}
-          <button type="button" className="om-admin-btn" onClick={load}>
+          <button
+            type="button"
+            className="om-admin-btn ghost"
+            style={{ marginLeft: "auto" }}
+            onClick={() => void load()}
+          >
             Refresh
+          </button>
+          <button
+            type="button"
+            className="om-admin-btn ghost"
+            onClick={() => router.push("/admin/pro-review")}
+          >
+            Full Pro review →
           </button>
         </div>
 
-        <div className="om-admin-table-wrap" style={{ marginTop: 16 }}>
-          <table className="om-admin-table">
-            <thead>
+        <table className="om-admin-table">
+          <thead>
+            <tr>
+              <th>Artisan</th>
+              <th>Trade</th>
+              <th>Status</th>
+              <th>Tiers</th>
+              <th>Visibility</th>
+              <th>ID / Docs</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
               <tr>
-                <th>Artisan</th>
-                <th>Trade</th>
-                <th>Status</th>
-                <th>Visibility</th>
-                <th>Portfolio</th>
-                <th>ID / NIN</th>
-                <th>Submitted</th>
-                <th>Actions</th>
+                <td colSpan={7} className="om-admin-muted">
+                  {error
+                    ? "Could not load artisans."
+                    : "No Repair Pros in this filter. Check “All registered” — signups land in the database immediately."}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {visible.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="om-admin-muted">
-                    No artisans in this filter.
-                  </td>
-                </tr>
-              ) : (
-                visible.map((p) => {
-                  const t = tradeDef(p.trade.service);
-                  const vt = resolveVisibilityTier(p);
-                  const rules = rulesForTier(vt);
-                  return (
-                    <tr key={p.userId}>
-                      <td>
-                        <strong>{p.fullName}</strong>
-                        <div className="om-admin-muted">{p.phone}</div>
-                      </td>
-                      <td>
-                        {t?.label || p.trade.service}
-                        {p.trade.specialty ? (
-                          <div className="om-admin-muted">
-                            {p.trade.specialty}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td>{statusLabel(p.status)}</td>
-                      <td className="om-admin-muted">
-                        <strong>T{vt}</strong> · {rules.visibilityPercent}% ·{" "}
-                        {rules.maxRadiusKm} km
-                        {p.isNewArtisan ? " · New" : ""}
-                        {p.goLiveWindowEndsAt ? (
-                          <div>
-                            Live until{" "}
-                            {new Date(p.goLiveWindowEndsAt).toLocaleDateString()}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td>{p.portfolio.length} photos</td>
-                      <td className="om-admin-muted" style={{ fontSize: 11 }}>
-                        <div>
-                          ID:{" "}
-                          {p.tiers.tier2_govId
-                            ? "approved"
-                            : p.govIdReviewStatus === "submitted"
-                              ? "pending"
-                              : p.govIdType
-                                ? "draft"
-                                : "—"}
-                          {p.govIdNumber ? ` · ${p.govIdNumber.slice(0, 6)}…` : ""}
+            ) : (
+              rows.map((p) => {
+                const L = p.levels;
+                const vt = L.visibility.tier;
+                return (
+                  <tr key={p.user_id}>
+                    <td>
+                      <strong>{p.full_name}</strong>
+                      <div className="om-admin-muted">
+                        {p.business_name || "—"}
+                      </div>
+                      <div className="om-admin-muted" style={{ fontSize: 11 }}>
+                        {p.email || p.phone || p.user_id.slice(0, 8)}
+                      </div>
+                    </td>
+                    <td>{p.primary_service || "—"}</td>
+                    <td>
+                      <span className={`om-admin-badge ${badgeClass(p.status)}`}>
+                        {p.status}
+                      </span>
+                      {p.pipeline_status ? (
+                        <div className="om-admin-muted" style={{ fontSize: 10 }}>
+                          pipeline: {p.pipeline_status}
                         </div>
-                        <div>
-                          NIN:{" "}
-                          {p.tiers.tier2_nin
-                            ? "approved"
-                            : p.ninReviewStatus === "submitted"
-                              ? "pending"
-                              : p.nin
-                                ? "draft"
-                                : "—"}
-                          {p.nin ? ` · …${p.nin.slice(-4)}` : ""}
-                        </div>
-                      </td>
-                      <td className="om-admin-muted">
-                        {p.submittedAt
-                          ? new Date(p.submittedAt).toLocaleString()
-                          : "—"}
-                      </td>
-                      <td>
-                        <div
-                          style={{ display: "flex", gap: 6, flexWrap: "wrap" }}
+                      ) : null}
+                    </td>
+                    <td style={{ fontSize: 11 }}>
+                      <div>
+                        <span
+                          className={`om-admin-badge ${badgeClass(L.t1_phone.status)}`}
                         >
-                          <button
-                            type="button"
-                            className="om-admin-btn om-admin-btn-primary"
-                            disabled={
-                              vt >= 2 ||
-                              (p.status !== "pending_review" &&
-                                p.status !== "approved")
-                            }
-                            onClick={() => promote(p, 2)}
-                            title="30% visibility · Go Live 30 days · New Badge"
+                          T1
+                        </span>{" "}
+                        phone
+                      </div>
+                      <div>
+                        <span
+                          className={`om-admin-badge ${badgeClass(L.t2_id.status)}`}
+                        >
+                          T2
+                        </span>{" "}
+                        {L.t2_id.status}
+                      </div>
+                      <div>
+                        <span
+                          className={`om-admin-badge ${badgeClass(L.t3_liveness.status)}`}
+                        >
+                          T3
+                        </span>{" "}
+                        {L.t3_liveness.status}
+                      </div>
+                      <div>
+                        <span
+                          className={`om-admin-badge ${badgeClass(L.t4_docs.status)}`}
+                        >
+                          T4
+                        </span>{" "}
+                        {L.t4_docs.docs_status}
+                      </div>
+                    </td>
+                    <td className="om-admin-muted">
+                      <strong>T{vt}</strong>
+                      {L.visibility.is_new_artisan ? " · New" : ""}
+                      <div>
+                        ★ {Number(L.visibility.rating_avg).toFixed(1)} (
+                        {L.visibility.rating_count})
+                      </div>
+                    </td>
+                    <td className="om-admin-muted" style={{ fontSize: 11 }}>
+                      <div>
+                        ID: {L.t2_id.gov_id_kind || "—"}
+                        {L.t2_id.gov_id_last4
+                          ? ` …${L.t2_id.gov_id_last4}`
+                          : ""}
+                      </div>
+                      <div>
+                        Docs: {L.t4_docs.file_name || L.t4_docs.docs_status}
+                      </div>
+                      {L.t2_id.front_url ? (
+                        <a
+                          href={L.t2_id.front_url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          ID photo
+                        </a>
+                      ) : null}
+                      {L.t4_docs.file_url ? (
+                        <div>
+                          <a
+                            href={L.t4_docs.file_url}
+                            target="_blank"
+                            rel="noreferrer"
                           >
-                            Approve T2
-                          </button>
-                          <button
-                            type="button"
-                            className="om-admin-btn om-admin-btn-primary"
-                            disabled={vt < 2 || vt >= 3}
-                            onClick={() => promote(p, 3)}
-                            title="70% visibility · 3 km · remove New Badge"
-                          >
-                            Approve T3
-                          </button>
-                          <button
-                            type="button"
-                            className="om-admin-btn om-admin-btn-primary"
-                            disabled={vt < 3 || vt >= 4}
-                            onClick={() => promote(p, 4)}
-                            title="100% · 10 km · optional 1★ seed"
-                          >
-                            Approve T4
-                          </button>
-                          <button
-                            type="button"
-                            className="om-admin-btn"
-                            disabled={
-                              p.status !== "pending_review" &&
-                              p.status !== "approved"
-                            }
-                            onClick={() => {
-                              setRejectId(p.userId);
-                              setReason("");
-                            }}
-                          >
-                            Reject
-                          </button>
+                            Skill file
+                          </a>
                         </div>
-                        {rejectId === p.userId ? (
-                          <div style={{ marginTop: 8 }}>
-                            <textarea
-                              value={reason}
-                              onChange={(e) => setReason(e.target.value)}
-                              placeholder="Rejection reason (required)"
-                              rows={2}
-                              style={{ width: "100%", fontSize: 12 }}
-                            />
-                            <button
-                              type="button"
-                              className="om-admin-btn"
-                              style={{ marginTop: 4 }}
-                              onClick={() => reject(p)}
-                            >
-                              Confirm reject
-                            </button>
-                          </div>
-                        ) : null}
-                        {p.rejectReason ? (
-                          <div
-                            className="om-admin-muted"
-                            style={{ marginTop: 4 }}
-                          >
-                            Reason: {p.rejectReason}
-                          </div>
-                        ) : null}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                      ) : null}
+                      <div>Submitted: {fmtDate(L.t2_id.submitted_at)}</div>
+                    </td>
+                    <td>
+                      <div
+                        style={{ display: "flex", gap: 6, flexWrap: "wrap" }}
+                      >
+                        <button
+                          type="button"
+                          className="om-admin-btn om-admin-btn-primary"
+                          disabled={
+                            busyId === p.user_id || L.t2_id.status === "approved"
+                          }
+                          onClick={() => void act(p.user_id, "pro_t2_approve")}
+                          title="Approve government ID · start visibility T2"
+                        >
+                          Approve T2
+                        </button>
+                        <button
+                          type="button"
+                          className="om-admin-btn om-admin-btn-primary"
+                          disabled={busyId === p.user_id || vt >= 3 || vt < 2}
+                          onClick={() =>
+                            void act(p.user_id, "pro_visibility", {
+                              visibilityTier: 3,
+                            })
+                          }
+                        >
+                          Vis T3
+                        </button>
+                        <button
+                          type="button"
+                          className="om-admin-btn om-admin-btn-primary"
+                          disabled={
+                            busyId === p.user_id ||
+                            L.t4_docs.status === "approved"
+                          }
+                          onClick={() => void act(p.user_id, "pro_t4_approve")}
+                        >
+                          Approve T4
+                        </button>
+                        <button
+                          type="button"
+                          className="om-admin-btn ghost"
+                          disabled={busyId === p.user_id || vt >= 4}
+                          onClick={() =>
+                            void act(p.user_id, "pro_visibility", {
+                              visibilityTier: 4,
+                            })
+                          }
+                        >
+                          Vis T4
+                        </button>
+                        <button
+                          type="button"
+                          className="om-admin-btn ghost"
+                          disabled={busyId === p.user_id}
+                          onClick={() =>
+                            void act(p.user_id, "pro_t2_reject", {
+                              reason: "Rejected by care",
+                            })
+                          }
+                        >
+                          Reject T2
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
       </div>
     </AdminShell>
   );

@@ -112,7 +112,8 @@ function badgeClass(status: string) {
 
 export default function AdminCustomerReviewPage() {
   const { adminName, ready, api } = useAdminGate();
-  const [filter, setFilter] = useState("submitted");
+  // Show all registered customers by default (signups with status "none" too)
+  const [filter, setFilter] = useState("all");
   const [rows, setRows] = useState<CustomerReviewRow[]>([]);
   const [totals, setTotals] = useState<Totals>({
     submitted: 0,
@@ -219,10 +220,11 @@ export default function AdminCustomerReviewPage() {
       <div className="om-admin-cards">
         {(
           [
+            ["All registered", totals.total],
             ["Pending T2", totals.submitted],
             ["Approved", totals.approved],
+            ["No ID yet", totals.none ?? 0],
             ["Rejected", totals.rejected],
-            ["Listed", totals.total],
           ] as const
         ).map(([label, value]) => (
           <div className="om-admin-card" key={label}>
@@ -236,10 +238,11 @@ export default function AdminCustomerReviewPage() {
         <div className="om-admin-toolbar" style={{ gap: 8, flexWrap: "wrap" }}>
           {(
             [
-              ["submitted", "Pending review"],
-              ["approved", "Approved"],
-              ["rejected", "Rejected"],
-              ["all", "All customers"],
+              ["all", "All registered"],
+              ["submitted", "Pending T2 review"],
+              ["none", "Signed up · no ID"],
+              ["approved", "T2 approved"],
+              ["rejected", "T2 rejected"],
             ] as const
           ).map(([value, label]) => (
             <button
@@ -266,8 +269,10 @@ export default function AdminCustomerReviewPage() {
         {rows.length === 0 ? (
           <p className="om-admin-muted" style={{ padding: 16 }}>
             {filter === "submitted"
-              ? "No customers waiting for ID review. New submits from the app appear here with full numbers and photos."
-              : "No rows for this filter."}
+              ? "No customers with ID under review. Try “All registered” or “Signed up · no ID” — new signups appear there even before they upload ID."
+              : filter === "all"
+                ? "No customer (motorist) profiles in the database yet."
+                : "No rows for this filter."}
           </p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

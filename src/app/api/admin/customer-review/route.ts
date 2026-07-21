@@ -33,7 +33,8 @@ export async function GET(req: Request) {
   try {
     await requireAdmin();
     const url = new URL(req.url);
-    const filter = url.searchParams.get("status") || "submitted";
+    // Default "all" so registered customers always appear (not only T2 submitted)
+    const filter = url.searchParams.get("status") || "all";
     const detailId = url.searchParams.get("userId");
 
     const supabase = createServiceSupabase();
@@ -44,7 +45,7 @@ export async function GET(req: Request) {
     let q = supabase
       .from("motorist_profiles")
       .select(selectCols)
-      .order("identity_submitted_at", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false })
       .limit(400);
 
     if (detailId) {
@@ -53,9 +54,12 @@ export async function GET(req: Request) {
         .select(selectCols)
         .eq("user_id", detailId)
         .limit(1);
-    } else if (filter !== "all") {
+    } else if (filter === "submitted" || filter === "pending") {
+      q = q.eq("identity_review_status", "submitted");
+    } else if (filter === "approved" || filter === "rejected" || filter === "none") {
       q = q.eq("identity_review_status", filter);
     }
+    // filter === "all" → no status eq (every motorist signup)
 
     const { data: mots, error } = await q;
     if (error) {
@@ -240,7 +244,8 @@ export async function GET(req: Request) {
       };
     });
 
-    const totals = {
+    // When filtered, still compute global totals for the cards
+    let globalCounts = {
       submitted: customers.filter((c) => c.identity_review_status === "submitted")
         .length,
       approved: customers.filter((c) => c.identity_review_status === "approved")
@@ -250,8 +255,41 @@ export async function GET(req: Request) {
       none: customers.filter((c) => c.identity_review_status === "none").length,
       total: customers.length,
     };
+    if (filter !== "all" && !detailId) {
+      const { count: allC } = await supabase
+        .from("motorist_profiles")
+        .select("user_id", { count: "exact", head: true });
+      const { count: subC } = await supabase
+        .from("motorist_profiles")
+        .select("user_id", { count: "exact", head: true })
+        .eq("identity_review_status", "submitted");
+      const { count: appC } = await supabase
+        .from("motorist_profiles")
+        .select("user_id", { count: "exact", head: true })
+        .eq("identity_review_status", "approved");
+      const { count: rejC } = await supabase
+        .from("motorist_profiles")
+        .select("user_id", { count: "exact", head: true })
+        .eq("identity_review_status", "rejected");
+      const { count: noneC } = await supabase
+        .from("motorist_profiles")
+        .select("user_id", { count: "exact", head: true })
+        .eq("identity_review_status", "none");
+      globalCounts = {
+        total: allC ?? customers.length,
+        submitted: subC ?? 0,
+        approved: appC ?? 0,
+        rejected: rejC ?? 0,
+        none: noneC ?? 0,
+      };
+    }
 
-    return apiOk({ customers, totals, filter, detail: Boolean(detailId) });
+    return apiOk({
+      customers,
+      totals: globalCounts,
+      filter,
+      detail: Boolean(detailId),
+    });
   } catch (e) {
     if (e instanceof AdminAuthError)
       return apiFail(e.message, e.status, "auth");

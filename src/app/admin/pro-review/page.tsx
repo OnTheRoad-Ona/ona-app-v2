@@ -86,7 +86,7 @@ function badgeClass(s: string) {
 
 export default function AdminProReviewPage() {
   const { adminName, ready, api } = useAdminGate();
-  const [filter, setFilter] = useState("needs_action");
+  const [filter, setFilter] = useState("all");
   const [rows, setRows] = useState<ProRow[]>([]);
   const [totals, setTotals] = useState({
     total: 0,
