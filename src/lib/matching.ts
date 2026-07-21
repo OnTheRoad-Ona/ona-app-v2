@@ -93,9 +93,11 @@ export function filterAndRankTechnicians(
     category: ServiceCategory;
     query: string;
     filters: AppFilters;
+    /** When set, only pros listing this specialty (or no specialty list) */
+    specialtyFilter?: string | null;
   }
 ): Technician[] {
-  const { radiusKm, category, query, filters } = options;
+  const { radiusKm, category, query, filters, specialtyFilter } = options;
   // Always cap at 10 km — never show pros outside this (self or book-for-someone).
   const radius = Math.min(Math.max(radiusKm, 0), MAX_RADIUS_KM);
 
@@ -137,6 +139,19 @@ export function filterAndRankTechnicians(
 
   if (category !== "all") {
     list = list.filter((t) => matchesCategory(t, category));
+  }
+
+  if (specialtyFilter && specialtyFilter.trim()) {
+    const want = specialtyFilter.trim().toLowerCase();
+    list = list.filter((t) => {
+      const specs = Array.isArray(t.specialties) ? t.specialties : [];
+      // Pros with no specialty listed still appear (legacy profiles)
+      if (specs.length === 0) return true;
+      return specs.some((s) => {
+        const n = String(s).toLowerCase();
+        return n === want || n.includes(want) || want.includes(n);
+      });
+    });
   }
 
   // Available = Live with a real GPS pin (not a stale/offline placeholder)

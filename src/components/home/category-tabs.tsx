@@ -18,6 +18,7 @@ import {
   Wrench,
   Zap,
 } from "lucide-react";
+import { isSpecialtyPickerTrade } from "@/lib/artisan/catalog";
 import { useT, type MessageKey } from "@/lib/i18n";
 import { useApp } from "@/lib/store";
 import { CarBattery } from "@/lib/services";
@@ -64,7 +65,7 @@ export function CategoryTabs({
   onSwipeRight?: () => void;
   onOpenHelp?: () => void;
 }) {
-  const { category, setCategory, theme } = useApp();
+  const { category, setCategory, openSpecialtyPicker, theme } = useApp();
   const t = useT();
   const isLight = theme === "light";
   const start = useRef<{ x: number; y: number } | null>(null);
@@ -181,6 +182,11 @@ export function CategoryTabs({
               onClick={() => {
                 // Ignore click if this was a swipe
                 if (moved.current) return;
+                // Re-tap same specialty trade → show Home/Office/… strip again
+                if (id === category && isSpecialtyPickerTrade(id)) {
+                  openSpecialtyPicker();
+                  return;
+                }
                 setCategory(id);
               }}
               className={cn(

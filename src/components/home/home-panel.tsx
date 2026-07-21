@@ -11,8 +11,9 @@ import { useRouter } from "next/navigation";
 import { useJsApiLoader } from "@react-google-maps/api";
 import { ChevronLeft, MapPin, X } from "lucide-react";
 import { CategoryTabs } from "@/components/home/category-tabs";
-
+import { FilterChips } from "@/components/home/filter-chips";
 import { RadiusSlider } from "@/components/home/radius-slider";
+import { SpecialtyFilterBar } from "@/components/home/specialty-filter-bar";
 import { TechCard } from "@/components/technician/tech-card";
 import {
   getGoogleMapsApiKey,
@@ -117,6 +118,7 @@ export function HomePanel({
     visibleTechnicians,
     radiusKm,
     filters,
+    specialtyPickerOpen,
     setSelectedTechId,
     selectedTechId,
     locationError,
@@ -554,8 +556,11 @@ export function HomePanel({
           </>
         )}
 
-        {/* Radius only — filter chips removed */}
-        <RadiusSlider />
+        {/* Radius first (or specialty strip for Plumber/Carpenter/etc. until pick) */}
+        {specialtyPickerOpen ? <SpecialtyFilterBar /> : <RadiusSlider />}
+
+        {/* Nearest · 4.5+ · Available · Verified · Fast — live filter list/map */}
+        <FilterChips />
       </div>
 
       {locationError && (

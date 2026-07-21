@@ -73,6 +73,7 @@ import {
   backendUpdateJobStatus,
   isAppBackendOnline,
 } from "@/lib/supabase/app-api";
+import { isSpecialtyPickerTrade } from "@/lib/artisan/catalog";
 import { getVehiclesServedLock } from "@/lib/profile-edit";
 import { playPersonTone } from "@/lib/sound-tone";
 import { haversineKm } from "@/lib/supabase/mappers";
@@ -340,6 +341,13 @@ interface AppState {
   location: UserLocation;
   radiusKm: number;
   category: ServiceCategory;
+  /** Motorist specialty pick (Home / Office / …) for plumber etc. */
+  specialtyFilter: string | null;
+  /**
+   * When true, home sheet shows specialty chips instead of radius
+   * (plumber / carpenter / painter / solar / generator).
+   */
+  specialtyPickerOpen: boolean;
   query: string;
   filters: AppFilters;
   selectedTechId: string | null;
@@ -356,6 +364,9 @@ interface AppState {
   refreshNearbyPros: () => void;
   setRadiusKm: (n: number) => void;
   setCategory: (c: ServiceCategory) => void;
+  setSpecialtyFilter: (s: string | null) => void;
+  /** Open specialty strip again for current trade (re-tap trade) */
+  openSpecialtyPicker: () => void;
   setQuery: (q: string) => void;
   toggleFilter: (key: keyof AppFilters) => void;
   setSelectedTechId: (id: string | null) => void;
@@ -501,7 +512,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return DEFAULT_USER_LOCATION;
   });
   const [radiusKm, setRadiusKmState] = useState(DEFAULT_RADIUS_KM);
-  const [category, setCategory] = useState<ServiceCategory>("mechanic");
+  const [category, setCategoryState] = useState<ServiceCategory>("mechanic");
+  const [specialtyFilter, setSpecialtyFilterState] = useState<string | null>(
+    null
+  );
+  const [specialtyPickerOpen, setSpecialtyPickerOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<AppFilters>(defaultFilters);
   const [selectedTechId, setSelectedTechId] = useState<string | null>(null);
@@ -1909,13 +1924,60 @@ export function AppProvider({ children }: { children: ReactNode }) {
         category,
         query,
         filters,
+        specialtyFilter,
       }),
-    [technicians, radiusKm, category, query, filters]
+    [technicians, radiusKm, category, query, filters, specialtyFilter]
   );
 
   const toggleFilter = useCallback((key: keyof AppFilters) => {
     setFilters((prev) => ({ ...prev, [key]: !prev[key] }));
   }, []);
+
+  const specialtyHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+
+  const clearSpecialtyHideTimer = useCallback(() => {
+    if (specialtyHideTimerRef.current) {
+      clearTimeout(specialtyHideTimerRef.current);
+      specialtyHideTimerRef.current = null;
+    }
+  }, []);
+
+  const setCategory = useCallback(
+    (c: ServiceCategory) => {
+      clearSpecialtyHideTimer();
+      setCategoryState(c);
+      setSpecialtyFilterState(null);
+      // Plumber / Carpenter / etc. → show specialty strip instead of radius
+      setSpecialtyPickerOpen(isSpecialtyPickerTrade(c));
+    },
+    [clearSpecialtyHideTimer]
+  );
+
+  const setSpecialtyFilter = useCallback(
+    (s: string | null) => {
+      clearSpecialtyHideTimer();
+      setSpecialtyFilterState(s);
+      if (s) {
+        // Keep strip open so pick can highlight; hide after 2s, filter already applied
+        setSpecialtyPickerOpen(true);
+        specialtyHideTimerRef.current = setTimeout(() => {
+          setSpecialtyPickerOpen(false);
+          specialtyHideTimerRef.current = null;
+        }, 2000);
+      } else {
+        setSpecialtyPickerOpen(false);
+      }
+    },
+    [clearSpecialtyHideTimer]
+  );
+
+  const openSpecialtyPicker = useCallback(() => {
+    clearSpecialtyHideTimer();
+    setSpecialtyFilterState(null);
+    setSpecialtyPickerOpen(true);
+  }, [clearSpecialtyHideTimer]);
 
   const ensureChatForRequestAsync = useCallback(
     async (req: ServiceRequest): Promise<string> => {
@@ -2820,6 +2882,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       location,
       radiusKm,
       category,
+      specialtyFilter,
+      specialtyPickerOpen,
       query,
       filters,
       selectedTechId,
@@ -2834,6 +2898,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       refreshNearbyPros,
       setRadiusKm,
       setCategory,
+      setSpecialtyFilter,
+      openSpecialtyPicker,
       setQuery,
       toggleFilter,
       setSelectedTechId,
@@ -2888,6 +2954,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       location,
       radiusKm,
       category,
+      specialtyFilter,
+      specialtyPickerOpen,
       query,
       filters,
       selectedTechId,
@@ -2906,6 +2974,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       isLocating,
       refreshNearbyPros,
       toggleFilter,
+      setCategory,
+      setSpecialtyFilter,
+      openSpecialtyPicker,
       bookRequest,
       createRequest,
       updateRequestStatus,

@@ -233,11 +233,7 @@ export const PROFESSION_QUESTIONS: Record<ProService, ProfessionQuestion[]> = {
       label: "Which AC work do you cover?",
       type: "multiselect",
       required: true,
-      options: [
-        "Vehicle AC",
-        "Residential split units",
-        "Commercial / industrial HVAC",
-      ],
+      options: ["Vehicle", "Commercial", "Industrial"],
       maxSelect: 3,
     },
     {
@@ -269,13 +265,8 @@ export const PROFESSION_QUESTIONS: Record<ProService, ProfessionQuestion[]> = {
       label: "Which electrical work do you do?",
       type: "multiselect",
       required: true,
-      options: [
-        "House / building wiring",
-        "Auto electrical",
-        "Phones & electronics",
-        "Inverters & backup power",
-      ],
-      maxSelect: 4,
+      options: ["Vehicle", "Electronics", "Mobile"],
+      maxSelect: 3,
     },
   ]),
   diagnostics: bank("diagnostics", [

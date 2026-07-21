@@ -67,13 +67,8 @@ export const ARTISAN_TRADE_CATALOG: ArtisanTradeDef[] = [
     service: "ac",
     label: "A/C",
     homeLabel: "A/C",
-    description: "Vehicle, residential and commercial cooling",
-    specialties: [
-      "Vehicle AC",
-      "Residential AC (Homes)",
-      "Commercial AC (Offices)",
-      "Industrial HVAC",
-    ],
+    description: "Vehicle, commercial and industrial cooling",
+    specialties: ["Vehicle", "Commercial", "Industrial"],
   },
   {
     service: "body",
@@ -91,13 +86,8 @@ export const ARTISAN_TRADE_CATALOG: ArtisanTradeDef[] = [
     service: "electrical",
     label: "Electric",
     homeLabel: "Electric",
-    description: "House, auto, and mobile/electronics",
-    specialties: [
-      "House Electrician",
-      "Office / Building Wiring",
-      "Auto Electrician",
-      "Mobile & Electronics Technician",
-    ],
+    description: "Vehicle, electronics, and mobile electrical work",
+    specialties: ["Vehicle", "Electronics", "Mobile"],
   },
   {
     service: "diagnostics",
@@ -185,6 +175,44 @@ export const ARTISAN_TRADE_CATALOG: ArtisanTradeDef[] = [
     ],
   },
 ];
+
+/**
+ * Trades that prompt motorists for Home / Office / Industrial (etc.) specialty
+ * in place of the radius slider until one option is picked.
+ */
+export const SPECIALTY_PICKER_TRADES: ProService[] = [
+  "plumber",
+  "carpenter",
+  "painter",
+  "solar",
+  "generator",
+  "ac",
+  "electrical",
+];
+
+export function isSpecialtyPickerTrade(
+  service: string | null | undefined
+): boolean {
+  return SPECIALTY_PICKER_TRADES.includes(service as ProService);
+}
+
+/** Compact labels for home specialty strip */
+export function specialtyChipLabel(specialty: string): string {
+  const s = specialty.toLowerCase();
+  if (s.includes("residential") || s.includes("home")) return "Home";
+  if (s.includes("office")) return "Office";
+  if (s.includes("commercial")) return "Commercial";
+  if (s.includes("industrial")) return "Industrial";
+  if (s.includes("furniture") || s.includes("fit-out")) return "Furniture";
+  if (s.includes("exterior") || s.includes("facade")) return "Exterior";
+  if (s.includes("vehicle") || s === "auto" || s.includes("auto "))
+    return "Vehicle";
+  if (s.includes("electronics")) return "Electronics";
+  if (s.includes("mobile")) return "Mobile";
+  // Short catalog labels (Vehicle / Commercial / …) show as-is
+  if (specialty.length <= 14) return specialty;
+  return `${specialty.slice(0, 12)}…`;
+}
 
 /** True for trades where vehicle brand/model focus still makes sense */
 export function isAutomotiveTrade(service: ProService): boolean {
