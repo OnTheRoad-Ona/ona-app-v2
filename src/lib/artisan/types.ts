@@ -18,11 +18,20 @@ export type VerificationTierId = 1 | 2 | 3 | 4;
 
 export type TierCompletion = {
   tier1_phone: boolean;
+  /** Admin/care approved government ID upload */
   tier2_govId: boolean;
-  tier2_bvn: boolean;
+  /** Admin/care approved NIN number + document (replaces live BVN verify) */
+  tier2_nin: boolean;
   tier3_liveness: boolean;
   tier4_skillProof: boolean;
 };
+
+/** Manual review queue for identity docs */
+export type IdentityReviewStatus =
+  | "none"
+  | "submitted"
+  | "approved"
+  | "rejected";
 
 export type GovIdType =
   | "nin"
@@ -41,7 +50,14 @@ export type ArtisanMedia = {
   id: string;
   /** data URL or remote URL after upload */
   url: string;
-  kind: "portfolio" | "id_front" | "id_back" | "selfie" | "skill_proof" | "intro_video";
+  kind:
+    | "portfolio"
+    | "id_front"
+    | "id_back"
+    | "nin_doc"
+    | "selfie"
+    | "skill_proof"
+    | "intro_video";
   name?: string;
   mime?: string;
   createdAt: string;
@@ -91,14 +107,23 @@ export type ArtisanVerificationProfile = {
   portfolio: ArtisanMedia[];
   introVideo?: ArtisanMedia | null;
 
-  /** Tier 2 */
+  /** Tier 2 — government ID (manual admin/care review) */
   govIdType?: GovIdType | null;
   govIdNumber?: string | null;
   govIdFront?: ArtisanMedia | null;
   govIdBack?: ArtisanMedia | null;
+  govIdReviewStatus?: IdentityReviewStatus;
+  govIdSubmittedAt?: string | null;
+
+  /** Tier 2 — NIN number + document (manual admin/care review; no live BVN verify) */
+  nin?: string | null;
+  ninDoc?: ArtisanMedia | null;
+  ninReviewStatus?: IdentityReviewStatus;
+  ninSubmittedAt?: string | null;
+
+  /** @deprecated kept for older local drafts */
   bvn?: string | null;
   bvnVerified?: boolean;
-  /** Last successful ID verify meta */
   idVerifyProvider?: string | null;
   idVerifyMode?: string | null;
   idVerifyReference?: string | null;

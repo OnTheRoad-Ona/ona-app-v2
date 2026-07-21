@@ -15,7 +15,7 @@ export function emptyTiers(): TierCompletion {
   return {
     tier1_phone: false,
     tier2_govId: false,
-    tier2_bvn: false,
+    tier2_nin: false,
     tier3_liveness: false,
     tier4_skillProof: false,
   };
@@ -113,7 +113,7 @@ export function tierProgressPercent(tiers: TierCompletion): number {
   const keys: (keyof TierCompletion)[] = [
     "tier1_phone",
     "tier2_govId",
-    "tier2_bvn",
+    "tier2_nin",
     "tier3_liveness",
     "tier4_skillProof",
   ];

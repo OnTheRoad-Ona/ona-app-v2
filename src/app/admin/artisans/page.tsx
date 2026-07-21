@@ -187,6 +187,7 @@ export default function AdminArtisansPage() {
                 <th>Status</th>
                 <th>Visibility</th>
                 <th>Portfolio</th>
+                <th>ID / NIN</th>
                 <th>Submitted</th>
                 <th>Actions</th>
               </tr>
@@ -230,6 +231,30 @@ export default function AdminArtisansPage() {
                         ) : null}
                       </td>
                       <td>{p.portfolio.length} photos</td>
+                      <td className="om-admin-muted" style={{ fontSize: 11 }}>
+                        <div>
+                          ID:{" "}
+                          {p.tiers.tier2_govId
+                            ? "approved"
+                            : p.govIdReviewStatus === "submitted"
+                              ? "pending"
+                              : p.govIdType
+                                ? "draft"
+                                : "—"}
+                          {p.govIdNumber ? ` · ${p.govIdNumber.slice(0, 6)}…` : ""}
+                        </div>
+                        <div>
+                          NIN:{" "}
+                          {p.tiers.tier2_nin
+                            ? "approved"
+                            : p.ninReviewStatus === "submitted"
+                              ? "pending"
+                              : p.nin
+                                ? "draft"
+                                : "—"}
+                          {p.nin ? ` · …${p.nin.slice(-4)}` : ""}
+                        </div>
+                      </td>
                       <td className="om-admin-muted">
                         {p.submittedAt
                           ? new Date(p.submittedAt).toLocaleString()

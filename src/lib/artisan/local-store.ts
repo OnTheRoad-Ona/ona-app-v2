@@ -4,7 +4,10 @@
  */
 
 import { emptyTiers } from "@/lib/artisan/status";
-import type { ArtisanVerificationProfile } from "@/lib/artisan/types";
+import type {
+  ArtisanVerificationProfile,
+  TierCompletion,
+} from "@/lib/artisan/types";
 
 const KEY = "ona-artisan-profiles-v1";
 
@@ -27,25 +30,54 @@ function writeAll(map: Record<string, ArtisanVerificationProfile>) {
   }
 }
 
+/** Migrate older drafts that used tier2_bvn / live Prembly flags */
+function normalizeProfile(
+  p: ArtisanVerificationProfile
+): ArtisanVerificationProfile {
+  const raw = p.tiers as TierCompletion & { tier2_bvn?: boolean };
+  const tier2_nin =
+    typeof raw.tier2_nin === "boolean"
+      ? raw.tier2_nin
+      : Boolean(raw.tier2_bvn);
+  return {
+    ...p,
+    tiers: {
+      tier1_phone: Boolean(raw.tier1_phone),
+      tier2_govId: Boolean(raw.tier2_govId),
+      tier2_nin,
+      tier3_liveness: Boolean(raw.tier3_liveness),
+      tier4_skillProof: Boolean(raw.tier4_skillProof),
+    },
+    govIdReviewStatus: p.govIdReviewStatus || "none",
+    ninReviewStatus: p.ninReviewStatus || "none",
+  };
+}
+
 export function getArtisanProfile(
   userId: string
 ): ArtisanVerificationProfile | null {
-  return readAll()[userId] ?? null;
+  const p = readAll()[userId];
+  return p ? normalizeProfile(p) : null;
 }
 
 export function listArtisanProfiles(): ArtisanVerificationProfile[] {
-  return Object.values(readAll()).sort(
-    (a, b) =>
-      Date.parse(b.updatedAt || b.createdAt) -
-      Date.parse(a.updatedAt || a.createdAt)
-  );
+  return Object.values(readAll())
+    .map(normalizeProfile)
+    .sort(
+      (a, b) =>
+        Date.parse(b.updatedAt || b.createdAt) -
+        Date.parse(a.updatedAt || a.createdAt)
+    );
 }
 
 export function saveArtisanProfile(
   profile: ArtisanVerificationProfile
 ): ArtisanVerificationProfile {
   const map = readAll();
-  const next = { ...profile, updatedAt: new Date().toISOString() };
+  const next = normalizeProfile({
+    ...profile,
+    updatedAt: new Date().toISOString(),
+  });
   map[profile.userId] = next;
   writeAll(map);
   return next;

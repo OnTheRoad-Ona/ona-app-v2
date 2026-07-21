@@ -310,7 +310,7 @@ export function ArtisanOnboarding({
     if (!profile) return;
     const nin = (profile.nin || "").replace(/\D/g, "");
     if (nin.length !== 11) {
-      setErr("NIN must be exactly 11 digits.");
+      setErr("BVN must be exactly 11 digits.");
       return;
     }
     setIdBusy("nin");

@@ -287,10 +287,15 @@ export function applyAdminTierPromotion(
     ...p.tiers,
     tier1_phone: p.tiers.tier1_phone || true,
     tier2_govId: target >= 2 ? true : p.tiers.tier2_govId,
-    tier2_bvn: target >= 2 ? true : p.tiers.tier2_bvn,
+    tier2_nin: target >= 2 ? true : p.tiers.tier2_nin,
     tier3_liveness: target >= 3 ? true : p.tiers.tier3_liveness,
     tier4_skillProof: target >= 4 ? true : p.tiers.tier4_skillProof,
   };
+
+  if (target >= 2) {
+    next.govIdReviewStatus = "approved";
+    next.ninReviewStatus = "approved";
+  }
 
   return next;
 }
