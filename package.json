@@ -15,7 +15,8 @@
     "db:apply": "node scripts/apply-schema.mjs",
     "db:sync": "node scripts/sync-db-latest.mjs",
     "db:setup": "node scripts/apply-schema.mjs && node scripts/seed-admin.mjs && node scripts/sync-db-latest.mjs",
-    "vehicles:catalog": "node scripts/download-vehicle-catalog.mjs"
+    "vehicles:catalog": "node scripts/download-vehicle-catalog.mjs",
+    "deploy:prod": "vercel --prod && vercel alias set ona-mi.vercel.app ona-backend.vercel.app && vercel alias set ona-mi.vercel.app ona-backend-wit7.vercel.app"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^0.10.35",
