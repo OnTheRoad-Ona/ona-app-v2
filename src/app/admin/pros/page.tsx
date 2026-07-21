@@ -6,7 +6,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
 import {
@@ -153,10 +152,16 @@ type ProStatus = "pending" | "approved" | "suspended" | "rejected";
 
 export default function AdminProsHubPage() {
   const { adminName, ready, api } = useAdminGate();
-  const searchParams = useSearchParams();
-  const initialTab =
-    searchParams.get("tab") === "review" ? "review" : "directory";
-  const [tab, setTab] = useState<Tab>(initialTab);
+  const [tab, setTab] = useState<Tab>("directory");
+
+  useEffect(() => {
+    try {
+      const t = new URLSearchParams(window.location.search).get("tab");
+      if (t === "review") setTab("review");
+    } catch {
+      /* */
+    }
+  }, []);
   const [dirRows, setDirRows] = useState<DirRow[]>([]);
   const [reviewRows, setReviewRows] = useState<ReviewRow[]>([]);
   const [dirTotals, setDirTotals] = useState({

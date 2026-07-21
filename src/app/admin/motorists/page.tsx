@@ -6,7 +6,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
 import {
@@ -144,10 +143,16 @@ type Tab = "directory" | "id_review";
 
 export default function AdminCustomersHubPage() {
   const { adminName, ready, api } = useAdminGate();
-  const searchParams = useSearchParams();
-  const initialTab =
-    searchParams.get("tab") === "id_review" ? "id_review" : "directory";
-  const [tab, setTab] = useState<Tab>(initialTab);
+  const [tab, setTab] = useState<Tab>("directory");
+
+  useEffect(() => {
+    try {
+      const t = new URLSearchParams(window.location.search).get("tab");
+      if (t === "id_review") setTab("id_review");
+    } catch {
+      /* */
+    }
+  }, []);
   const [rows, setRows] = useState<MotoristRow[]>([]);
   const [reviewRows, setReviewRows] = useState<ReviewRow[]>([]);
   const [totals, setTotals] = useState({
