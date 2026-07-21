@@ -1,74 +1,113 @@
-# OgaMecho backend architecture
+# Ona backend architecture (modular monolith)
 
-Stack: **Next.js App Router API routes · TypeScript · Supabase (Postgres + Auth + Realtime)**
+**Product:** Ona — two-sided repair marketplace (Nigeria-first, multi-country ready)  
+**Runtime:** Next.js App Router API (`src/app/api/**`)  
+**Data:** Supabase Postgres = **single source of truth**  
+**Auth:** Supabase Auth + app JWT / admin session cookies  
+**Payments:** Flutterwave primary (Paystack retained as adapter)  
+
+This document supersedes earlier “OgaMecho-only” notes where they conflict.
+
+---
+
+## Principles
+
+1. **Preserve working product paths** — optimize, don’t delete.  
+2. **Backend validates everything sensitive** — no frontend-only authority for money, roles, verification, or status transitions.  
+3. **Modular monolith** — domain folders + services; not microservices.  
+4. **DB-backed config & RBAC** — permissions and settings live in Postgres.  
+5. **Audit critical actions** — admin + platform logs.  
+6. **Nigeria-first, extend later** — wallet/cards/multi-country behind flags.  
+
+---
 
 ## Module map
 
 ```
 src/lib/server/
-  admin-auth.ts              # Staff session, roles, sensitive gate
+  admin-auth.ts                 # Staff session (extend existing)
+  api-json.ts · health-service.ts · …
   modules/
-    index.ts                 # Public exports
-    security.ts              # Password 336699, timeouts, IP helpers
-    admin-roles.ts           # super_admin | customer_care | support
-    sensitive-unlock.ts      # Signed unlock cookie (10 min)
-    rate-limit.ts            # In-memory RL (swap Redis in multi-instance)
-    crypto-fields.ts         # AES-256-GCM for NIN/BVN/bank
-    audit.ts                 # admin_actions writer
-    care-service.ts          # Search, live board, one-click actions
-  jobs/job-store.ts          # Escrow job state machine I/O
-  payments/escrow-store.ts   # Payment / escrow records
-  reviews.ts · prembly.ts · africastalking.ts · resend.ts · …
+    index.ts                    # Stable exports
+    security.ts · rate-limit.ts · crypto-fields.ts
+    admin-roles.ts              # Code fallback map
+    rbac-service.ts             # DB RBAC load + hasPermission()
+    audit.ts · platform-audit.ts
+    care-service.ts
+    sensitive-unlock.ts
+    auth/                       # Session registration hooks (Phase B)
+    users/                      # Profiles, addresses, soft-delete
+    pros/                       # Pipeline, skills, docs
+    bookings/                   # Job transition guards (wrap state-machine)
+    payments/                   # Escrow + Flutterwave default
+    messaging/
+    notifications/
+    support/                    # Tickets CRM
+    moderation/
+    analytics/
+    settings/                   # app_settings + feature_flags
+    files/
+    wallet/                     # Stubs only until flag on
+  jobs/ · payments/ · reviews.ts · …
 ```
 
-Client job domain (shared pure logic):
+Shared pure domain (client-safe):
 
 ```
-src/lib/jobs/
-  state-machine.ts   # Negotiating → … → Released / Refunded
-  constants.ts       # 5% fee, timers, dispute reasons
-  types.ts · evidence.ts · client.ts
+src/lib/jobs/state-machine.ts   # Canonical job transitions
+src/lib/artisan/*               # Pro onboarding types (persist via API in Phase B)
 ```
 
-## API surface (production)
+---
 
-### App (motorist / pro)
+## Roles & RBAC
 
-| Area | Routes |
-|------|--------|
-| Auth | `/api/auth/*` |
-| Jobs | `/api/jobs`, `/api/jobs/[id]/*` (offer, pay, transition, location, dispute, appeal, rate) |
-| Escrow pay | `/api/payments/*` |
-| Pros | `/api/pros/*` |
-| Verify | `/api/verify/nin`, `/api/verify/bvn` |
-| Calls | `/api/call/signal` |
-| Config | `/api/config` |
+### Marketplace identities (`profiles.role`)
 
-### Customer Care / Admin
+| Role | Meaning |
+|------|---------|
+| `motorist` | Customer |
+| `repair_pro` | Repair Professional |
+| `admin` | Staff gate for `/admin` |
 
-| Area | Routes |
-|------|--------|
-| Login | `/api/admin/auth/*` |
-| **Care desk** | `/api/admin/care/status` |
-| | `/api/admin/care/unlock` |
-| | `/api/admin/care/search?q=` |
-| | `/api/admin/care/board` |
-| | `/api/admin/care/job/[id]` |
-| | `/api/admin/care/user/[id]?pii=1` |
-| | `/api/admin/care/action` |
-| Legacy ops | `/api/admin/dashboard`, `users`, `disputes`, `payments`, `settings`, … |
+### Staff roles (DB `rbac_roles` + `profiles.admin_role` bridge)
 
-## Security layers
+- Super Administrator  
+- Administrator  
+- Operations Manager  
+- Verification Officer  
+- Finance Officer  
+- Moderator  
+- Customer Support / Customer Care / Support (legacy aliases)  
 
-1. **Staff session** cookie `ogamecho_admin_session` (httpOnly, 8h hard / 30m idle)  
-2. **RBAC** via `profiles.admin_role`  
-3. **Sensitive password** `ADMIN_SENSITIVE_PASSWORD` or default **`336699`**  
-4. **Unlock cookie** `ogamecho_care_unlock` (HMAC signed, 10m)  
-5. **Rate limit** unlock + sensitive routes  
-6. **Audit** every sensitive action → `admin_actions`  
-7. **Field encryption** helpers for PII (`ADMIN_FIELD_ENCRYPTION_KEY`)
+Permissions live in **`rbac_permissions`** and are assigned via **`rbac_role_permissions`**.  
+Code fallback remains in `admin-roles.ts` if DB is unreachable.
 
-## Escrow state machine
+Sensitive ops still require temporary unlock password + audit (existing Care model).
+
+---
+
+## Domain capabilities (target state)
+
+| Domain | Backend owns |
+|--------|----------------|
+| Customer | Profile, addresses, privacy, credits, soft-delete grace |
+| Pro | Pipeline states, docs, skills, bank, coverage, liveness, skill proof |
+| Booking | Status machine, immutable events, cancel/dispute/refund |
+| Messaging | Threads, read state, moderation hooks, internal notes |
+| Support | Tickets, SLA, assignment, internal notes |
+| Reviews | Post-completion only, moderation |
+| Notifications | Templates, channels, queue/retry (Phase C) |
+| Payments | Escrow, Flutterwave charge/verify, refunds, commission |
+| Payouts | Pro bank accounts, payout queue |
+| Wallet | Schema ready, **disabled** |
+| Moderation | Reports, suspensions, shadow ban flags |
+| Analytics | Aggregates for admin dashboard (Phase C) |
+| Settings | Commission, radius, OTP, maintenance, feature flags |
+
+---
+
+## Job status (existing — preserve)
 
 ```
 negotiating → agreed → paid_booked → en_route → arrived
@@ -77,50 +116,95 @@ negotiating → agreed → paid_booked → en_route → arrived
                                     ↘ refunded / cancelled / expired
 ```
 
-Platform fee: **5%** (`PLATFORM_FEE_PERCENT` in `src/lib/jobs/constants.ts`).
+All transitions must go through API + `job_events` / history. Invalid transitions rejected server-side.
+
+---
+
+## API conventions
+
+- REST under `/api/v1/*` for **new** modules (Phase B); keep legacy `/api/*` working.  
+- Consistent JSON: `{ ok, data?, error? }` via `api-json.ts`.  
+- Pagination: `limit` + `cursor` or `page`.  
+- Auth: Supabase bearer / cookie; admin cookie session.  
+- Never trust client for role, status, or role elevation.  
+
+---
+
+## Security baseline
+
+| Control | Implementation |
+|---------|----------------|
+| Auth | Supabase Auth |
+| Admin session | httpOnly cookie, idle timeout |
+| Sensitive care | Temporary password + unlock cookie |
+| PII | AES helpers (`crypto-fields`) |
+| Rate limit | In-memory (→ Redis multi-instance) |
+| Audit | `admin_actions` + `platform_audit_logs` |
+| Uploads | Size limits enforced in app (2MB image / 10MB video) |
+
+---
 
 ## Database
 
-Migrations live in `supabase/migrations/`.  
-Care/security: **`20260716_019_care_security.sql`**  
-Apply with existing `npm run db:apply` / Supabase SQL editor.
+Migrations: `supabase/migrations/`  
 
-## Env (production)
+Foundation (Phase A):
+
+- **`20260721_026_platform_foundation_rbac.sql`**
+
+Apply: `npm run db:apply` or Supabase SQL editor.
+
+---
+
+## Payments
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=
-SUPABASE_SERVICE_ROLE_KEY=
-ADMIN_SENSITIVE_PASSWORD=336699          # change in production if desired
-ADMIN_FIELD_ENCRYPTION_KEY=             # 32-byte key (hex/base64)
-ADMIN_UNLOCK_SIGNING_SECRET=            # optional HMAC secret
+PAYMENT_PROVIDER=flutterwave   # preferred
+FLUTTERWAVE_SECRET_KEY=
+FLUTTERWAVE_PUBLIC_KEY=
+# Paystack remains secondary adapter
 ```
 
-## What was cleaned / kept
+`app_settings.payments.defaultProvider` = `flutterwave`.
 
-**Kept & improved**
+---
 
-- Full job escrow flow + 5% commission  
-- Live tracking endpoints  
-- Disputes / appeals + admin resolve  
-- Verification routes (NIN/BVN)  
-- In-app call signalling  
-- Reviews / badges on pro profiles  
-- Admin audit log  
+## Background jobs (Phase C)
 
-**Care-first UI**
+Queue (BullMQ / Supabase cron / Vercel cron):
 
-- `/admin` is the Customer Care desk (search + board + actions)  
-- Nav prioritises Care over deep config  
+- Notification delivery  
+- Booking expiry  
+- Document expiry reminders  
+- Analytics rollups  
+- Soft-delete purge after grace days  
 
-**Not deleted (still used by app)**
+---
 
-- Existing `/api/jobs/*` and payment providers  
-- Matching, maps, OTP, signup  
+## Observability
 
-Dead admin “feature island” pages remain as thin tools under **System** but daily work is the Care desk.
+- `app_health_logs` + `/api/health`  
+- Structured `console` + optional Sentry  
+- Liveness debug: `[ona-liveness]` (no frames)  
 
-## Extending
+---
 
-1. New Care action → add to `CareAction` + `executeCareAction` + UI button.  
-2. New permission → `admin-roles.ts` + `requireSensitiveAction` if money/PII.  
-3. Always `writeAuditLog` for irreversible ops.
+## What Phase A does **not** do
+
+- No microservices split  
+- No forced cutover of localStorage pro drafts (Phase B)  
+- No full wallet product  
+- No rewrite of working job/care routes  
+
+---
+
+## Extending safely
+
+1. Add table in a new migration.  
+2. Add service under `modules/<domain>/`.  
+3. Export from `modules/index.ts`.  
+4. Thin route handler in `app/api/…`.  
+5. `writeAuditLog` / `writePlatformAudit` for sensitive ops.  
+6. Permission check via `rbac-service.hasPermission`.  
+
+See **`BACKEND_MIGRATION_PLAN.md`** for phased delivery.

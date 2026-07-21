@@ -1,36 +1,154 @@
 /**
- * Artisan verification profile (mock).
- * TODO(api): Persist to Supabase artisan_profiles + storage; auth via session.
+ * Repair Pro pipeline + profile — Supabase-backed (Phase B).
+ * Client may still mirror local draft; DB is source of truth when configured.
  */
 
-import { NextResponse } from "next/server";
+import { z } from "zod";
+import { apiFail, apiOk } from "@/lib/server/api-json";
+import {
+  canTransitionPipeline,
+  type ProPipelineStatus,
+} from "@/lib/server/modules/pros/pipeline";
+import { writePlatformAudit } from "@/lib/server/modules/platform-audit";
+import { createServiceSupabase } from "@/lib/supabase/server";
+import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const patchSchema = z.object({
+  userId: z.string().uuid(),
+  businessName: z.string().optional(),
+  bio: z.string().optional(),
+  yearsExperience: z.union([z.string(), z.number()]).optional(),
+  serviceRadiusKm: z.number().optional(),
+  lat: z.number().optional().nullable(),
+  lng: z.number().optional().nullable(),
+  pipelineStatus: z.string().optional(),
+  guarantor: z.record(z.string(), z.unknown()).optional(),
+  tools: z.array(z.unknown()).optional(),
+  portfolio: z.array(z.unknown()).optional(),
+  govIdMeta: z.record(z.string(), z.unknown()).optional(),
+  skillProof: z.record(z.string(), z.unknown()).optional().nullable(),
+  livenessPassedAt: z.string().optional().nullable(),
+  pipelineNotes: z.string().optional(),
+  bankName: z.string().optional(),
+  bankCode: z.string().optional(),
+});
 
 export async function GET(req: Request) {
-  // Client uses localStorage via browser helpers; this route documents the contract.
   const userId = new URL(req.url).searchParams.get("userId");
-  if (!userId) {
-    return NextResponse.json(
-      { ok: false, error: "userId required" },
-      { status: 400 }
-    );
-  }
-  return NextResponse.json({
-    ok: true,
-    data: {
+  if (!userId) return apiFail("userId required", 400);
+
+  if (!isSupabaseAdminConfigured()) {
+    return apiOk({
       source: "client_local_store",
-      message:
-        "Browser reads/writes ona-artisan-profiles-v1. Replace with Supabase.",
+      message: "Supabase not configured — use local draft",
       userId,
-    },
+    });
+  }
+
+  const supabase = createServiceSupabase();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, full_name, phone, email, avatar_url, role")
+    .eq("id", userId)
+    .maybeSingle();
+  const { data: pro } = await supabase
+    .from("repair_pro_profiles")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  return apiOk({
+    source: "supabase",
+    profile,
+    pro,
   });
 }
 
-export async function PATCH() {
-  return NextResponse.json({
-    ok: true,
-    data: {
+export async function PATCH(req: Request) {
+  if (!isSupabaseAdminConfigured()) {
+    return apiOk({
       source: "client_local_store",
-      message: "PATCH body applied client-side until Supabase is wired.",
-    },
+      message: "Supabase not configured — client keeps local draft",
+    });
+  }
+
+  const parsed = patchSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return apiFail("Invalid body", 400, "invalid_body");
+  const b = parsed.data;
+  const supabase = createServiceSupabase();
+
+  const { data: existing } = await supabase
+    .from("repair_pro_profiles")
+    .select("pipeline_status")
+    .eq("user_id", b.userId)
+    .maybeSingle();
+
+  if (!existing) {
+    await supabase.from("repair_pro_profiles").upsert({
+      user_id: b.userId,
+      primary_service: "mechanic",
+      pipeline_status: "draft",
+    });
+  }
+
+  const patch: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+  if (b.businessName !== undefined) patch.business_name = b.businessName;
+  if (b.bio !== undefined) patch.bio = b.bio;
+  if (b.yearsExperience !== undefined)
+    patch.years_experience = String(b.yearsExperience);
+  if (b.serviceRadiusKm !== undefined)
+    patch.service_radius_km = b.serviceRadiusKm;
+  if (b.lat !== undefined) patch.lat = b.lat;
+  if (b.lng !== undefined) patch.lng = b.lng;
+  if (b.guarantor !== undefined) patch.guarantor = b.guarantor;
+  if (b.tools !== undefined) patch.tools = b.tools;
+  if (b.portfolio !== undefined) patch.portfolio = b.portfolio;
+  if (b.govIdMeta !== undefined) patch.gov_id_meta = b.govIdMeta;
+  if (b.skillProof !== undefined) patch.skill_proof = b.skillProof;
+  if (b.livenessPassedAt !== undefined)
+    patch.liveness_passed_at = b.livenessPassedAt;
+  if (b.pipelineNotes !== undefined) patch.pipeline_notes = b.pipelineNotes;
+  if (b.bankName !== undefined) patch.bank_name = b.bankName;
+  if (b.bankCode !== undefined) patch.bank_code = b.bankCode;
+
+  if (b.pipelineStatus) {
+    const from = (existing?.pipeline_status || "draft") as ProPipelineStatus;
+    const to = b.pipelineStatus as ProPipelineStatus;
+    if (!canTransitionPipeline(from, to) && from !== to) {
+      return apiFail(
+        `Invalid pipeline transition ${from} → ${to}`,
+        400,
+        "invalid_transition"
+      );
+    }
+    patch.pipeline_status = to;
+    if (to === "submitted") patch.submitted_at = new Date().toISOString();
+    if (to === "approved") patch.approved_at = new Date().toISOString();
+    if (to === "rejected") patch.rejected_at = new Date().toISOString();
+  }
+
+  const { data, error } = await supabase
+    .from("repair_pro_profiles")
+    .update(patch)
+    .eq("user_id", b.userId)
+    .select("*")
+    .single();
+
+  if (error) return apiFail(error.message, 500);
+
+  await writePlatformAudit({
+    actorId: b.userId,
+    actorRole: "repair_pro",
+    action: "pro.profile.patch",
+    targetType: "repair_pro_profiles",
+    targetId: b.userId,
+    newValue: { keys: Object.keys(patch) },
   });
+
+  return apiOk({ source: "supabase", pro: data });
 }

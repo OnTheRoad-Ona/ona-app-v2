@@ -1,6 +1,7 @@
 /**
- * Payment gateway adapters — Paystack + Flutterwave.
- * Escrow model: capture full amount on charge; release/refund via transfer APIs.
+ * Payment gateway adapters — Flutterwave (default) + Paystack.
+ * Escrow: capture full labour fee on charge; release/refund via transfer APIs.
+ * Split payments: optional Flutterwave subaccount split when configured.
  * When keys are missing, runs in mock mode for local/dev.
  */
 
@@ -16,6 +17,10 @@ export type InitChargeInput = {
   callbackUrl: string;
   metadata?: Record<string, unknown>;
   channels?: string[];
+  /** Pro Flutterwave subaccount id (RS_…) for split — optional */
+  proSubaccountId?: string | null;
+  /** Platform share percent (default 5) when split enabled */
+  platformFeePercent?: number;
 };
 
 export type InitChargeResult = {
@@ -23,6 +28,7 @@ export type InitChargeResult = {
   authorizationUrl: string;
   reference: string;
   accessCode?: string;
+  splitEnabled?: boolean;
 };
 
 export type VerifyChargeResult = {
@@ -43,14 +49,32 @@ function flutterwaveSecret(): string {
   return (process.env.FLUTTERWAVE_SECRET_KEY || "").trim();
 }
 
+export function flutterwavePublicKey(): string {
+  return (
+    process.env.NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY ||
+    process.env.FLUTTERWAVE_PUBLIC_KEY ||
+    ""
+  ).trim();
+}
+
+export function isFlutterwaveSplitEnabled(): boolean {
+  const v = (process.env.FLUTTERWAVE_SPLIT_ENABLED || "true").toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
+
 export function resolveProvider(
   preferred?: string | null
 ): PaymentProviderId {
-  const p = (preferred || process.env.PAYMENT_PROVIDER || "").toLowerCase();
+  // Ona default: Flutterwave (Nigeria-first). Paystack secondary.
+  const p = (
+    preferred ||
+    process.env.PAYMENT_PROVIDER ||
+    "flutterwave"
+  ).toLowerCase();
   if (p === "flutterwave" && flutterwaveSecret()) return "flutterwave";
   if (p === "paystack" && paystackSecret()) return "paystack";
-  if (paystackSecret()) return "paystack";
   if (flutterwaveSecret()) return "flutterwave";
+  if (paystackSecret()) return "paystack";
   return "mock";
 }
 
@@ -67,7 +91,6 @@ export async function initCharge(
     return initFlutterwave(input);
   }
 
-  // Mock: local/dev without keys
   const base =
     process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
     "http://localhost:3000";
@@ -77,6 +100,7 @@ export async function initCharge(
     authorizationUrl: `${base}/payments/mock-checkout?ref=${encodeURIComponent(
       input.reference
     )}&amount=${input.amountMinor}&currency=${input.currency}`,
+    splitEnabled: false,
   };
 }
 
@@ -101,7 +125,11 @@ async function initPaystack(input: InitChargeInput): Promise<InitChargeResult> {
   const json = (await res.json()) as {
     status?: boolean;
     message?: string;
-    data?: { authorization_url?: string; access_code?: string; reference?: string };
+    data?: {
+      authorization_url?: string;
+      access_code?: string;
+      reference?: string;
+    };
   };
   if (!res.ok || !json.status || !json.data?.authorization_url) {
     throw new Error(json.message || "Paystack initialize failed");
@@ -111,32 +139,83 @@ async function initPaystack(input: InitChargeInput): Promise<InitChargeResult> {
     authorizationUrl: json.data.authorization_url,
     reference: json.data.reference || input.reference,
     accessCode: json.data.access_code,
+    splitEnabled: false,
   };
 }
 
+/**
+ * Flutterwave standard payment + optional Split Payments.
+ * Platform subaccount: FLUTTERWAVE_PLATFORM_SUBACCOUNT (RS_…)
+ * Pro subaccount: input.proSubaccountId when pro is onboarded on Flutterwave.
+ * Without subaccounts, full amount settles to main Ona merchant (escrow ops).
+ */
 async function initFlutterwave(
   input: InitChargeInput
 ): Promise<InitChargeResult> {
   const secret = flutterwaveSecret();
+  const feePct = Math.min(
+    50,
+    Math.max(0, input.platformFeePercent ?? 5)
+  );
+  const splitOn = isFlutterwaveSplitEnabled();
+  const platformSub = (
+    process.env.FLUTTERWAVE_PLATFORM_SUBACCOUNT || ""
+  ).trim();
+  const proSub = (input.proSubaccountId || "").trim();
+
+  const body: Record<string, unknown> = {
+    tx_ref: input.reference,
+    amount: input.amountMinor / 100,
+    currency: input.currency,
+    redirect_url: input.callbackUrl,
+    customer: { email: input.email },
+    customizations: {
+      title: "Ona",
+      description: "Labour / service fee escrow",
+      logo: undefined as string | undefined,
+    },
+    meta: {
+      ...(input.metadata ?? {}),
+      labourOnly: true,
+      platformFeePercent: feePct,
+      splitEnabled: splitOn,
+    },
+    payment_options: "card,banktransfer,ussd,account",
+  };
+
+  // Split: platform fee % to platform subaccount; remainder to pro when both set
+  if (splitOn && platformSub && proSub) {
+    body.subaccounts = [
+      {
+        id: platformSub,
+        // Flutterwave: transaction_charge_type + transaction_charge
+        transaction_charge_type: "percentage",
+        transaction_charge: feePct,
+      },
+      {
+        id: proSub,
+        transaction_charge_type: "percentage",
+        transaction_charge: Math.max(0, 100 - feePct),
+      },
+    ];
+  } else if (splitOn && platformSub) {
+    // Only platform subaccount — take fee; rest stays on main until transfer
+    body.subaccounts = [
+      {
+        id: platformSub,
+        transaction_charge_type: "percentage",
+        transaction_charge: feePct,
+      },
+    ];
+  }
+
   const res = await fetch("https://api.flutterwave.com/v3/payments", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${secret}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      tx_ref: input.reference,
-      amount: input.amountMinor / 100,
-      currency: input.currency,
-      redirect_url: input.callbackUrl,
-      customer: { email: input.email },
-      customizations: {
-        title: "OgaMecho",
-        description: "Labour / service fee escrow",
-      },
-      meta: input.metadata ?? {},
-      payment_options: "card,banktransfer,ussd",
-    }),
+    body: JSON.stringify(body),
   });
   const json = (await res.json()) as {
     status?: string;
@@ -150,6 +229,9 @@ async function initFlutterwave(
     provider: "flutterwave",
     authorizationUrl: json.data.link,
     reference: input.reference,
+    splitEnabled: Boolean(
+      splitOn && (platformSub || proSub)
+    ),
   };
 }
 
@@ -222,7 +304,6 @@ export async function verifyCharge(
     };
   }
 
-  // Mock always succeeds when reference present
   return {
     success: true,
     reference,
@@ -234,8 +315,7 @@ export async function verifyCharge(
 }
 
 /**
- * Transfer to pro bank (release 95%). Requires recipient code / bank details
- * configured on the pro profile and gateway transfer API.
+ * Transfer to pro bank (release after escrow). Flutterwave Transfer API.
  */
 export async function releaseToPro(input: {
   amountMinor: number;
@@ -250,11 +330,57 @@ export async function releaseToPro(input: {
   if (provider === "mock") {
     return { ok: true, transferRef: `mock-xfer-${input.reference}` };
   }
-  // Production: wire Paystack Transfer / Flutterwave Transfer with recipient.
-  // Without full KYC recipient setup, mark as pending ops review.
+
+  if (
+    provider === "flutterwave" &&
+    input.bankCode &&
+    input.accountNumber &&
+    input.accountName
+  ) {
+    try {
+      const secret = flutterwaveSecret();
+      const res = await fetch("https://api.flutterwave.com/v3/transfers", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${secret}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          account_bank: input.bankCode,
+          account_number: input.accountNumber,
+          amount: input.amountMinor / 100,
+          currency: input.currency,
+          narration: input.reason.slice(0, 100),
+          reference: `ona_rel_${input.reference}`.slice(0, 50),
+          beneficiary_name: input.accountName,
+        }),
+      });
+      const json = (await res.json()) as {
+        status?: string;
+        message?: string;
+        data?: { id?: number; reference?: string };
+      };
+      if (json.status === "success") {
+        return {
+          ok: true,
+          transferRef: String(json.data?.reference || json.data?.id || ""),
+        };
+      }
+      return {
+        ok: false,
+        message: json.message || "Flutterwave transfer failed",
+      };
+    } catch (e) {
+      return {
+        ok: false,
+        message: e instanceof Error ? e.message : "Transfer error",
+      };
+    }
+  }
+
   return {
     ok: false,
     message:
-      "Configure Paystack/Flutterwave transfer recipients for automatic pro payout. Funds remain held in escrow.",
+      "Configure pro bank details + Flutterwave transfer. Funds remain held until release succeeds.",
   };
 }

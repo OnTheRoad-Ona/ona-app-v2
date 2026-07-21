@@ -1,31 +1,27 @@
-# Paste these after Supabase project is created
+# Ona payment keys (ops)
 
-Edit `.env.local` (already gitignored):
+## Flutterwave (production escrow — default)
 
-```bash
-NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
-```
+Set these in **Vercel → Project → Settings → Environment Variables** (Production + Preview).  
+**Never commit secret keys to git.**
 
-Then:
+| Variable | Value |
+|----------|--------|
+| `PAYMENT_PROVIDER` | `flutterwave` |
+| `FLUTTERWAVE_SECRET_KEY` | *(server only — from Flutterwave dashboard)* |
+| `FLUTTERWAVE_PUBLIC_KEY` | `FLWPUBK-…` |
+| `NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY` | same public key |
+| `FLUTTERWAVE_SPLIT_ENABLED` | `true` |
+| `FLUTTERWAVE_PLATFORM_SUBACCOUNT` | optional `RS_…` after creating platform subaccount |
 
-1. Run SQL from `supabase/migrations/20260714_001_init.sql` in Supabase SQL editor  
-2. `npm run db:seed-admin`  
-3. Open http://localhost:4500/admin/login  
-4. Login: `Oluwatosinabdullahime@gmail.com` / `Alliswell123$`
+### Split payments
+1. Flutterwave Dashboard → **Split Payments** → enable.  
+2. Create **platform subaccount** for Ona commission (5%).  
+3. Create **pro subaccounts** when pros verify bank (store `RS_` id on payout profile).  
+4. Until pro subaccounts exist, full charge hits main merchant; release via Transfer API.
 
-Reply in chat with the three Supabase values (or say “keys ready in .env.local”) and I will finish seed + verify login end-to-end.
+### Local
+Keys live in `.env.local` (gitignored).
 
-For Vercel:
-
-```bash
-npx vercel login
-```
-
-Then follow `docs/VERCEL_DEPLOY.md` for the **primary** app:
-- https://ona-mi.vercel.app  
-- https://ona-mi.vercel.app/admin  
-- https://ona-backend.vercel.app/admin  
-
-(`ogamecho-backend` is optional/legacy. If you see “deployment is temporarily paused”, the Hobby team is soft-blocked on fair-use transfer — unpause via Billing/Usage or upgrade; redeploy alone will not fix it.)
+### Rotate
+If a secret was ever pasted in chat or a ticket, **rotate it** in Flutterwave and update Vercel.
