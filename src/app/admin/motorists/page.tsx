@@ -59,6 +59,8 @@ type ReviewRow = {
   phone: string | null;
   city: string | null;
   area: string | null;
+  avatar_url?: string | null;
+  address_text?: string | null;
   identity_review_status: string;
   identity_submitted_at: string | null;
   gov_id_front_url: string | null;
@@ -71,8 +73,30 @@ type ReviewRow = {
   phone_verified: boolean;
   vehicle_make: string | null;
   vehicle_model: string | null;
+  vehicle_photo?: string | null;
   plate: string | null;
+  vehicles?: Array<{
+    id?: string;
+    make?: string;
+    model?: string;
+    year?: string;
+    plate?: string;
+    photo?: string;
+    commonIssues?: string[];
+  }> | null;
+  vehicle_common_issues?: string[] | null;
   jobs_count: number;
+  job_media?: Array<{
+    id: string;
+    status: string;
+    service_type: string | null;
+    motorist_photo: string | null;
+    repair_pro_photo: string | null;
+    photos: unknown;
+    evidence: unknown;
+    pickup_address: string | null;
+    created_at: string;
+  }>;
   levels?: {
     t1_phone: { status: string; verified: boolean; phone: string | null };
     t2_id: {
@@ -93,6 +117,28 @@ type ReviewRow = {
     };
   };
 };
+
+function mediaUrlsFromUnknown(v: unknown): string[] {
+  if (!v) return [];
+  if (typeof v === "string" && v.length > 8) return [v];
+  if (Array.isArray(v)) {
+    return v
+      .map((x) => {
+        if (typeof x === "string") return x;
+        if (x && typeof x === "object") {
+          const o = x as Record<string, unknown>;
+          return String(o.url || o.src || o.photo || o.dataUrl || "");
+        }
+        return "";
+      })
+      .filter((u) => u.length > 8);
+  }
+  if (typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    return mediaUrlsFromUnknown(o.url || o.urls || o.items || o.photos);
+  }
+  return [];
+}
 
 type Tab = "directory" | "id_review";
 
@@ -727,6 +773,13 @@ export default function AdminCustomersHubPage() {
           <>
             <div className="om-admin-section">
               <h3>Account</h3>
+              <div style={{ marginBottom: 10 }}>
+                <FileThumb
+                  label="Avatar"
+                  url={selectedReview.avatar_url}
+                  size="md"
+                />
+              </div>
               <DetailGrid>
                 <DetailField label="Phone" value={selectedReview.phone} />
                 <DetailField label="Email" value={selectedReview.email} />
@@ -737,7 +790,28 @@ export default function AdminCustomersHubPage() {
                     .join(", ")}
                 />
                 <DetailField
-                  label="Vehicle"
+                  label="Address"
+                  value={selectedReview.address_text}
+                />
+                <DetailField
+                  label="Jobs"
+                  value={String(selectedReview.jobs_count)}
+                />
+                <DetailField
+                  label="User ID"
+                  value={
+                    <code style={{ fontSize: 10 }}>
+                      {selectedReview.user_id}
+                    </code>
+                  }
+                />
+              </DetailGrid>
+            </div>
+            <div className="om-admin-section">
+              <h3>Vehicles</h3>
+              <DetailGrid>
+                <DetailField
+                  label="Primary"
                   value={[
                     selectedReview.vehicle_make,
                     selectedReview.vehicle_model,
@@ -747,10 +821,53 @@ export default function AdminCustomersHubPage() {
                     .join(" · ")}
                 />
                 <DetailField
-                  label="Jobs"
-                  value={String(selectedReview.jobs_count)}
+                  label="Common issues"
+                  value={
+                    Array.isArray(selectedReview.vehicle_common_issues)
+                      ? selectedReview.vehicle_common_issues.join(", ")
+                      : "—"
+                  }
                 />
               </DetailGrid>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  flexWrap: "wrap",
+                  marginTop: 8,
+                }}
+              >
+                <FileThumb
+                  label="Primary vehicle"
+                  url={selectedReview.vehicle_photo}
+                  size="md"
+                />
+                {(selectedReview.vehicles || []).map((v, i) => (
+                  <FileThumb
+                    key={v.id || i}
+                    label={
+                      [v.make, v.model].filter(Boolean).join(" ") ||
+                      `Vehicle ${i + 1}`
+                    }
+                    url={v.photo}
+                    size="md"
+                  />
+                ))}
+              </div>
+              {(selectedReview.vehicles || []).length > 0 ? (
+                <ul className="om-admin-muted" style={{ marginTop: 8 }}>
+                  {selectedReview.vehicles!.map((v, i) => (
+                    <li key={v.id || i}>
+                      {[v.make, v.model, v.year, v.plate]
+                        .filter(Boolean)
+                        .join(" · ") || `Vehicle ${i + 1}`}
+                      {v.commonIssues?.length
+                        ? ` — ${v.commonIssues.join(", ")}`
+                        : ""}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </div>
             <div className="om-admin-section">
               <h3>Tier 1 · Phone</h3>
@@ -838,7 +955,14 @@ export default function AdminCustomersHubPage() {
                   value={fmtDate(selectedReview.identity_submitted_at)}
                 />
               </DetailGrid>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  flexWrap: "wrap",
+                  marginTop: 8,
+                }}
+              >
                 <FileThumb
                   label="Front"
                   url={
@@ -877,6 +1001,50 @@ export default function AdminCustomersHubPage() {
                   }
                 />
               </DetailGrid>
+            </div>
+            <div className="om-admin-section">
+              <h3>Job media (live photos / evidence)</h3>
+              {(selectedReview.job_media || []).length === 0 ? (
+                <p className="om-admin-muted">No job media yet.</p>
+              ) : (
+                (selectedReview.job_media || []).map((j) => {
+                  const extra = [
+                    ...mediaUrlsFromUnknown(j.photos),
+                    ...mediaUrlsFromUnknown(j.evidence),
+                  ];
+                  return (
+                    <div key={j.id} style={{ marginBottom: 12 }}>
+                      <div className="om-admin-muted" style={{ marginBottom: 4 }}>
+                        {j.service_type || "Job"} · {j.status} ·{" "}
+                        {fmtDate(j.created_at)}
+                        {j.pickup_address ? ` · ${j.pickup_address}` : ""}
+                      </div>
+                      <div
+                        style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
+                      >
+                        <FileThumb
+                          label="Customer live"
+                          url={j.motorist_photo}
+                          size="md"
+                        />
+                        <FileThumb
+                          label="Pro live"
+                          url={j.repair_pro_photo}
+                          size="md"
+                        />
+                        {extra.map((u, i) => (
+                          <FileThumb
+                            key={i}
+                            label={`Media ${i + 1}`}
+                            url={u}
+                            size="md"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </>
         ) : null}

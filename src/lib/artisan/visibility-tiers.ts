@@ -134,7 +134,7 @@ export function canGoLiveForVisibilityTier(
     return {
       allowed: false,
       message:
-        "Complete artisan verification first. Submit your profile for review.",
+        "Complete your verification in settings first. Submit your profile for review.",
     };
   }
   if (p.status === "suspended") {
@@ -154,7 +154,7 @@ export function canGoLiveForVisibilityTier(
       message:
         p.status === "pending_review"
           ? "Your profile is pending admin review. You cannot Go Live yet."
-          : "Finish verification and submit for review before you can Go Live.",
+          : "Complete your verification in settings first. Submit your profile for review.",
     };
   }
 

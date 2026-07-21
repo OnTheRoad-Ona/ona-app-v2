@@ -29,7 +29,7 @@ export async function GET(req: Request) {
     const { data: pros, error } = await supabase
       .from("repair_pro_profiles")
       .select(
-        "user_id, business_name, status, verified, nin_verified, bvn_verified, nin_last4, bvn_last4, nin_encrypted, bvn_encrypted, primary_service, services, docs_status, docs_rating_boost_applied, certification_file_name, certification_file_url, docs_submitted_at, docs_reviewed_at, rating_avg, rating_count, visibility_tier, is_new_artisan, pipeline_status, pipeline_notes, submitted_at, approved_at, rejected_at, rejection_reason, guarantor, tools, portfolio, liveness_passed_at, skill_proof, gov_id_meta, gov_id_kind, gov_id_number, gov_id_front_url, gov_id_back_url, gov_id_review_status, gov_id_submitted_at, gov_id_reviewed_at, phone_verified, phone_verified_at, face_liveness_verified, face_liveness_at, face_liveness_selfie_url, bio, years_experience, service_radius_km, review_checklist, created_at, updated_at"
+        "user_id, business_name, status, verified, nin_verified, bvn_verified, nin_last4, bvn_last4, nin_encrypted, bvn_encrypted, primary_service, services, docs_status, docs_rating_boost_applied, certification_file_name, certification_file_url, docs_submitted_at, docs_reviewed_at, rating_avg, rating_count, visibility_tier, is_new_artisan, pipeline_status, pipeline_notes, submitted_at, approved_at, rejected_at, rejection_reason, guarantor, tools, portfolio, liveness_passed_at, skill_proof, gov_id_meta, gov_id_kind, gov_id_number, gov_id_front_url, gov_id_back_url, gov_id_review_status, gov_id_submitted_at, gov_id_reviewed_at, phone_verified, phone_verified_at, face_liveness_verified, face_liveness_at, face_liveness_selfie_url, bio, years_experience, service_radius_km, review_checklist, labour_prices, vehicle_focus, skills, cac_document_url, created_at, updated_at"
       )
       .order("created_at", { ascending: false })
       .limit(400);
@@ -69,13 +69,15 @@ async function buildProList(
       email: string | null;
       phone: string | null;
       city: string | null;
+      area: string | null;
+      avatar_url: string | null;
       created_at: string;
     }
   > = {};
   if (userIds.length) {
     const { data } = await supabase
       .from("profiles")
-      .select("id, full_name, email, phone, city, created_at")
+      .select("id, full_name, email, phone, city, area, avatar_url, created_at")
       .in("id", userIds);
     for (const p of data ?? []) {
       profiles[p.id] = {
@@ -83,8 +85,50 @@ async function buildProList(
         email: p.email,
         phone: p.phone ?? null,
         city: p.city ?? null,
+        area: (p as { area?: string | null }).area ?? null,
+        avatar_url: (p as { avatar_url?: string | null }).avatar_url ?? null,
         created_at: p.created_at,
       };
+    }
+  }
+
+  // Recent job media (evidence / live photos) — not star reviews
+  const jobMedia: Record<
+    string,
+    Array<{
+      id: string;
+      status: string;
+      service_type: string | null;
+      motorist_photo: string | null;
+      repair_pro_photo: string | null;
+      photos: unknown;
+      evidence: unknown;
+      created_at: string;
+    }>
+  > = {};
+  if (userIds.length) {
+    const { data: jobs } = await supabase
+      .from("service_requests")
+      .select(
+        "id, repair_pro_id, status, service_type, motorist_photo, repair_pro_photo, photos, evidence, created_at"
+      )
+      .in("repair_pro_id", userIds)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    for (const j of jobs ?? []) {
+      const pid = String(j.repair_pro_id);
+      if (!jobMedia[pid]) jobMedia[pid] = [];
+      if (jobMedia[pid].length >= 8) continue;
+      jobMedia[pid].push({
+        id: String(j.id),
+        status: String(j.status),
+        service_type: j.service_type ?? null,
+        motorist_photo: j.motorist_photo ?? null,
+        repair_pro_photo: j.repair_pro_photo ?? null,
+        photos: j.photos ?? null,
+        evidence: j.evidence ?? null,
+        created_at: String(j.created_at),
+      });
     }
   }
 
@@ -120,6 +164,8 @@ async function buildProList(
       email: p?.email ?? null,
       phone: p?.phone ?? null,
       city: p?.city ?? null,
+      area: p?.area ?? null,
+      avatar_url: p?.avatar_url ?? null,
       registered_at: p?.created_at ?? null,
       business_name: pr.business_name ?? null,
       primary_service: pr.primary_service ?? null,
@@ -132,6 +178,12 @@ async function buildProList(
       guarantor: pr.guarantor ?? null,
       tools: pr.tools ?? null,
       portfolio: pr.portfolio ?? null,
+      labour_prices: pr.labour_prices ?? null,
+      vehicle_focus: pr.vehicle_focus ?? null,
+      skills: pr.skills ?? null,
+      skill_proof: pr.skill_proof ?? null,
+      cac_document_url: pr.cac_document_url ?? null,
+      job_media: jobMedia[uid] ?? [],
       levels: {
         t1_phone: {
           label: "Tier 1 · Phone",

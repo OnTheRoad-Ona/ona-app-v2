@@ -49,10 +49,34 @@ type ReviewRow = {
   email: string | null;
   phone: string | null;
   city: string | null;
+  area?: string | null;
+  avatar_url?: string | null;
   business_name: string | null;
   primary_service: string | null;
+  services?: string[];
   status: string;
   pipeline_status: string | null;
+  bio?: string | null;
+  years_experience?: string | null;
+  service_radius_km?: number | null;
+  guarantor?: unknown;
+  tools?: unknown;
+  portfolio?: unknown;
+  labour_prices?: unknown;
+  vehicle_focus?: unknown;
+  skills?: unknown;
+  skill_proof?: unknown;
+  cac_document_url?: string | null;
+  job_media?: Array<{
+    id: string;
+    status: string;
+    service_type: string | null;
+    motorist_photo: string | null;
+    repair_pro_photo: string | null;
+    photos: unknown;
+    evidence: unknown;
+    created_at: string;
+  }>;
   needs_action: boolean;
   levels: {
     t1_phone: { status: string; verified: boolean; phone: string | null };
@@ -89,6 +113,40 @@ type ReviewRow = {
     };
   };
 };
+
+function portfolioUrls(v: unknown): { label: string; url: string }[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((item, i) => {
+      if (typeof item === "string") return { label: `Portfolio ${i + 1}`, url: item };
+      if (item && typeof item === "object") {
+        const o = item as Record<string, unknown>;
+        const url = String(o.url || o.src || "");
+        const label = String(o.kind || o.name || `Portfolio ${i + 1}`);
+        return url ? { label, url } : null;
+      }
+      return null;
+    })
+    .filter(Boolean) as { label: string; url: string }[];
+}
+
+function mediaUrlsFromUnknown(v: unknown): string[] {
+  if (!v) return [];
+  if (typeof v === "string" && v.length > 8) return [v];
+  if (Array.isArray(v)) {
+    return v
+      .map((x) => {
+        if (typeof x === "string") return x;
+        if (x && typeof x === "object") {
+          const o = x as Record<string, unknown>;
+          return String(o.url || o.src || o.photo || "");
+        }
+        return "";
+      })
+      .filter((u) => u.length > 8);
+  }
+  return [];
+}
 
 type Tab = "directory" | "review";
 type ProStatus = "pending" | "approved" | "suspended" | "rejected";
@@ -712,17 +770,176 @@ export default function AdminProsHubPage() {
           <>
             <div className="om-admin-section">
               <h3>Account</h3>
+              <div style={{ marginBottom: 10 }}>
+                <FileThumb
+                  label="Avatar"
+                  url={selectedReview.avatar_url}
+                  size="md"
+                />
+              </div>
               <DetailGrid>
                 <DetailField label="Business" value={selectedReview.business_name} />
                 <DetailField label="Trade" value={selectedReview.primary_service} />
+                <DetailField
+                  label="Services"
+                  value={
+                    Array.isArray(selectedReview.services)
+                      ? selectedReview.services.join(", ")
+                      : "—"
+                  }
+                />
                 <DetailField label="Email" value={selectedReview.email} />
                 <DetailField label="Phone" value={selectedReview.phone} />
-                <DetailField label="City" value={selectedReview.city} />
+                <DetailField
+                  label="City / area"
+                  value={[selectedReview.city, selectedReview.area]
+                    .filter(Boolean)
+                    .join(", ")}
+                />
+                <DetailField label="Bio" value={selectedReview.bio} />
+                <DetailField
+                  label="Experience"
+                  value={selectedReview.years_experience}
+                />
+                <DetailField
+                  label="Radius km"
+                  value={
+                    selectedReview.service_radius_km != null
+                      ? String(selectedReview.service_radius_km)
+                      : "—"
+                  }
+                />
                 <DetailField
                   label="Pipeline"
                   value={selectedReview.pipeline_status}
                 />
+                <DetailField
+                  label="User ID"
+                  value={
+                    <code style={{ fontSize: 10 }}>
+                      {selectedReview.user_id}
+                    </code>
+                  }
+                />
               </DetailGrid>
+            </div>
+            <div className="om-admin-section">
+              <h3>Skills · focus · pricing</h3>
+              <DetailGrid>
+                <DetailField
+                  label="Skills / answers"
+                  value={
+                    <pre
+                      style={{
+                        margin: 0,
+                        fontSize: 11,
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {JSON.stringify(selectedReview.skills ?? {}, null, 2)}
+                    </pre>
+                  }
+                />
+                <DetailField
+                  label="Vehicles served"
+                  value={
+                    <pre
+                      style={{
+                        margin: 0,
+                        fontSize: 11,
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {JSON.stringify(
+                        selectedReview.vehicle_focus ?? {},
+                        null,
+                        2
+                      )}
+                    </pre>
+                  }
+                />
+                <DetailField
+                  label="Labour prices"
+                  value={
+                    <pre
+                      style={{
+                        margin: 0,
+                        fontSize: 11,
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {JSON.stringify(
+                        selectedReview.labour_prices ?? {},
+                        null,
+                        2
+                      )}
+                    </pre>
+                  }
+                />
+                <DetailField
+                  label="Tools"
+                  value={
+                    Array.isArray(selectedReview.tools)
+                      ? (selectedReview.tools as string[]).join(", ")
+                      : JSON.stringify(selectedReview.tools ?? "—")
+                  }
+                />
+                <DetailField
+                  label="Guarantor"
+                  value={
+                    <pre
+                      style={{
+                        margin: 0,
+                        fontSize: 11,
+                        whiteSpace: "pre-wrap",
+                      }}
+                    >
+                      {JSON.stringify(selectedReview.guarantor ?? {}, null, 2)}
+                    </pre>
+                  }
+                />
+              </DetailGrid>
+            </div>
+            <div className="om-admin-section">
+              <h3>Portfolio & docs media</h3>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {portfolioUrls(selectedReview.portfolio).map((p) => (
+                  <FileThumb
+                    key={p.url + p.label}
+                    label={p.label}
+                    url={p.url}
+                    size="md"
+                  />
+                ))}
+                <FileThumb
+                  label="Skill cert"
+                  url={selectedReview.levels.t4_docs.file_url}
+                  size="md"
+                />
+                <FileThumb
+                  label="CAC"
+                  url={selectedReview.cac_document_url}
+                  size="md"
+                />
+                {mediaUrlsFromUnknown(selectedReview.skill_proof).map(
+                  (u, i) => (
+                    <FileThumb
+                      key={i}
+                      label={`Skill proof ${i + 1}`}
+                      url={u}
+                      size="md"
+                    />
+                  )
+                )}
+              </div>
+              {portfolioUrls(selectedReview.portfolio).length === 0 &&
+              !selectedReview.levels.t4_docs.file_url &&
+              !selectedReview.cac_document_url ? (
+                <p className="om-admin-muted">No portfolio/cert media.</p>
+              ) : null}
             </div>
             <div className="om-admin-section">
               <h3>Tier 2 · ID</h3>
@@ -867,6 +1084,52 @@ export default function AdminProsHubPage() {
                   value={`${Number(selectedReview.levels.visibility.rating_avg).toFixed(1)} (${selectedReview.levels.visibility.rating_count})`}
                 />
               </DetailGrid>
+            </div>
+            <div className="om-admin-section">
+              <h3>Job media (live photos / evidence)</h3>
+              {(selectedReview.job_media || []).length === 0 ? (
+                <p className="om-admin-muted">No job media yet.</p>
+              ) : (
+                (selectedReview.job_media || []).map((j) => {
+                  const extra = [
+                    ...mediaUrlsFromUnknown(j.photos),
+                    ...mediaUrlsFromUnknown(j.evidence),
+                  ];
+                  return (
+                    <div key={j.id} style={{ marginBottom: 12 }}>
+                      <div
+                        className="om-admin-muted"
+                        style={{ marginBottom: 4 }}
+                      >
+                        {j.service_type || "Job"} · {j.status} ·{" "}
+                        {fmtDate(j.created_at)}
+                      </div>
+                      <div
+                        style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
+                      >
+                        <FileThumb
+                          label="Customer live"
+                          url={j.motorist_photo}
+                          size="md"
+                        />
+                        <FileThumb
+                          label="Pro live"
+                          url={j.repair_pro_photo}
+                          size="md"
+                        />
+                        {extra.map((u, i) => (
+                          <FileThumb
+                            key={i}
+                            label={`Media ${i + 1}`}
+                            url={u}
+                            size="md"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </>
         ) : null}

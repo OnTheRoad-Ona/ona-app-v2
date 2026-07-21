@@ -40,7 +40,7 @@ export async function GET(req: Request) {
     const supabase = createServiceSupabase();
 
     const selectCols =
-      "user_id, vehicle_make, vehicle_model, vehicle_year, plate_number, vehicles, address_text, default_lat, default_lng, nin_last4, bvn_last4, nin_verified, bvn_verified, nin_encrypted, bvn_encrypted, identity_verified_at, identity_review_status, identity_submitted_at, identity_reviewed_at, identity_reviewed_by, identity_rejection_reason, gov_id_kind, gov_id_front_url, gov_id_back_url, gov_id_number, bank_id_number, identity_country_iso, gov_id_meta, review_checklist, phone_verified, phone_verified_at, first_service_at, created_at, updated_at";
+      "user_id, vehicle_make, vehicle_model, vehicle_year, vehicle_photo, plate_number, vehicles, vehicle_common_issues, address_text, default_lat, default_lng, nin_last4, bvn_last4, nin_verified, bvn_verified, nin_encrypted, bvn_encrypted, identity_verified_at, identity_review_status, identity_submitted_at, identity_reviewed_at, identity_reviewed_by, identity_rejection_reason, gov_id_kind, gov_id_front_url, gov_id_back_url, gov_id_number, bank_id_number, identity_country_iso, gov_id_meta, review_checklist, phone_verified, phone_verified_at, first_service_at, created_at, updated_at";
 
     let q = supabase
       .from("motorist_profiles")
@@ -109,16 +109,47 @@ export async function GET(req: Request) {
       }
     }
 
-    // Optional job counts
+    // Job counts + job media (photos/evidence) — not star reviews
     const jobCount: Record<string, number> = {};
+    const jobMedia: Record<
+      string,
+      Array<{
+        id: string;
+        status: string;
+        service_type: string | null;
+        motorist_photo: string | null;
+        repair_pro_photo: string | null;
+        photos: unknown;
+        evidence: unknown;
+        pickup_address: string | null;
+        created_at: string;
+      }>
+    > = {};
     if (userIds.length) {
       const { data: jobs } = await supabase
         .from("service_requests")
-        .select("motorist_id")
-        .in("motorist_id", userIds);
+        .select(
+          "id, motorist_id, status, service_type, motorist_photo, repair_pro_photo, photos, evidence, pickup_address, created_at"
+        )
+        .in("motorist_id", userIds)
+        .order("created_at", { ascending: false })
+        .limit(200);
       for (const j of jobs ?? []) {
         const id = String(j.motorist_id);
         jobCount[id] = (jobCount[id] || 0) + 1;
+        if (!jobMedia[id]) jobMedia[id] = [];
+        if (jobMedia[id].length >= 8) continue;
+        jobMedia[id].push({
+          id: String(j.id),
+          status: String(j.status),
+          service_type: j.service_type ?? null,
+          motorist_photo: j.motorist_photo ?? null,
+          repair_pro_photo: j.repair_pro_photo ?? null,
+          photos: j.photos ?? null,
+          evidence: j.evidence ?? null,
+          pickup_address: j.pickup_address ?? null,
+          created_at: String(j.created_at),
+        });
       }
     }
 
@@ -162,8 +193,11 @@ export async function GET(req: Request) {
         vehicle_make: m.vehicle_make ?? snap.vehicleMake ?? null,
         vehicle_model: m.vehicle_model ?? snap.vehicleModel ?? null,
         vehicle_year: m.vehicle_year ?? snap.vehicleYear ?? null,
+        vehicle_photo: m.vehicle_photo ?? null,
         plate: m.plate_number ?? snap.plate ?? null,
         vehicles: m.vehicles ?? null,
+        vehicle_common_issues: m.vehicle_common_issues ?? null,
+        job_media: jobMedia[m.user_id as string] ?? [],
         // T1 Phone
         levels: {
           t1_phone: {
