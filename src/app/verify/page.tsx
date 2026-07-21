@@ -295,7 +295,7 @@ export default function VerifyIdentityPage() {
                 </p>
               ) : null}
               {/* gap works: om-cta-dark-gray forces margin:0 so mt-* never shows */}
-              <div className="mt-4 flex flex-col gap-8">
+              <div className="mt-4 flex flex-col gap-3">
                 <div>
                   <label className={authLabelClass}>OTP code</label>
                   <input
@@ -385,7 +385,7 @@ export default function VerifyIdentityPage() {
               ) : null}
 
               {/* gap works: om-cta-dark-gray forces margin:0 so mt-* never shows */}
-              <div className="mt-5 flex flex-col gap-8">
+              <div className="mt-5 flex flex-col gap-3">
                 <label
                   className={cn(
                     "flex h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border-0 text-[12px] font-bold",
