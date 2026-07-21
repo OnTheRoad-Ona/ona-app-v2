@@ -39,7 +39,7 @@ export default function SettingsLanguagePage() {
 
         <ul
           className={cn(
-            "overflow-hidden rounded-xl",
+            "overflow-hidden rounded-md",
             isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]"
           )}
           role="listbox"
@@ -58,11 +58,7 @@ export default function SettingsLanguagePage() {
                     "flex w-full items-center gap-3 border-0 px-3 py-3 text-left transition-colors",
                     isLight
                       ? "bg-transparent hover:bg-black/[0.04]"
-                      : "bg-transparent hover:bg-white/[0.04]",
-                    i > 0 &&
-                      (isLight
-                        ? "border-t border-black/10"
-                        : "border-t border-white/10")
+                      : "bg-transparent hover:bg-white/[0.04]"
                   )}
                 >
                   <span className="min-w-0 flex-1">

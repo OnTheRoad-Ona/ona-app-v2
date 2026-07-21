@@ -22,7 +22,6 @@ import {
   shouldUseLiveMaps,
 } from "@/lib/google-maps";
 import {
-  knownPlaceNear,
   knownPlaceToPick,
   matchKnownPlaces,
   resolveKnownPlace,
@@ -62,11 +61,7 @@ async function geocodeAddress(
     if (!hit?.lat || !hit?.lon) return null;
     const lat = Number(hit.lat);
     const lng = Number(hit.lon);
-    const near = knownPlaceNear(lat, lng);
-    if (near) {
-      const p = knownPlaceToPick(near);
-      return { lat: p.lat, lng: p.lng, label: p.label };
-    }
+    // Real Nominatim label — do not snap coords to curated POI names
     return {
       lat,
       lng,
@@ -226,17 +221,7 @@ export function HomePanel({
         }
         const lat = loc.lat();
         const lng = loc.lng();
-        // Curated POI: keep business name on the map when address/name matches
-        const text = `${place.name || ""} ${place.formatted_address || ""}`;
-        const known =
-          resolveKnownPlace(text) ||
-          resolveKnownPlace(place.formatted_address || "") ||
-          knownPlaceNear(lat, lng);
-        if (known) {
-          const p = knownPlaceToPick(known);
-          applyPlaceRef.current(p.label, p.lat, p.lng);
-          return;
-        }
+        // Google suggestion → real address only (curated POI via typed search suggestions)
         const label =
           place.formatted_address ||
           place.name ||

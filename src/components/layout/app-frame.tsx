@@ -23,6 +23,21 @@ export function AppFrame({ children }: { children: ReactNode }) {
     installAudioUnlockOnce();
   }, []);
 
+  // Accessibility prefs (Settings → Accessibility) survive reloads
+  useEffect(() => {
+    try {
+      const scale = Number(localStorage.getItem("ona-a11y-font-scale") || "100");
+      if (scale >= 90 && scale <= 130 && scale !== 100) {
+        document.documentElement.style.fontSize = `${scale}%`;
+      }
+      if (localStorage.getItem("ona-a11y-font-scale-hc") === "1") {
+        document.documentElement.dataset.a11yHc = "1";
+      }
+    } catch {
+      /* private mode */
+    }
+  }, []);
+
   // Track path so Back returns to the immediate previous page
   useEffect(() => {
     if (isAdmin) return;

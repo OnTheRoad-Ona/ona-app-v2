@@ -75,7 +75,7 @@ export function RegistrationComplete({
     >
       <div
         className={cn(
-          "w-full max-w-[280px] rounded-3xl p-5 text-center shadow-[0_8px_30px_rgba(15,23,42,0.12)] ring-1 ring-black/10 transition-all duration-200 ease-out",
+          "w-full max-w-[280px] rounded-md p-5 text-center shadow-[0_8px_30px_rgba(15,23,42,0.12)] ring-1 ring-black/10 transition-all duration-200 ease-out",
           visible && !exiting
             ? "translate-y-0 scale-100 opacity-100"
             : "translate-y-3 scale-95 opacity-0"
@@ -98,7 +98,7 @@ export function RegistrationComplete({
         <button
           type="button"
           onClick={handleContinue}
-          className={`${authPrimaryBtnClass} mt-4 h-10 rounded-2xl text-[13px] font-bold transition-transform duration-150 active:scale-[0.98]`}
+          className={`${authPrimaryBtnClass} mt-4 h-10 rounded-md text-[13px] font-bold transition-transform duration-150 active:scale-[0.98]`}
           style={authPrimaryBtnStyle}
         >
           Continue

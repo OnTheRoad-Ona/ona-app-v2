@@ -8,14 +8,14 @@ import type {
 
 /**
  * App-wide map fallback when GPS is denied/unavailable and no last-known fix.
- * Anchored at 1st Price furniture Company — 31 Ikorodu Rd, Ajegunle, Lagos.
+ * Neutral Lagos corridor coords only — never a business name.
  * Live GPS / last-known / manual pin override this immediately.
+ * (1st Price Furniture is search-suggestion only, not a location label.)
  */
 export const DEFAULT_USER_LOCATION: UserLocation = {
-  label: "31 Ikorodu Rd, Ajegunle, Lagos",
+  label: "Lagos, Nigeria",
   city: "Lagos",
-  // Ajegunle · Ikorodu Rd corridor (OSM: Ajegunle PHC / Orelope Mosque anchors)
-  coordinates: { lat: 6.60685, lng: 3.43065 },
+  coordinates: { lat: 6.5244, lng: 3.3792 },
 };
 
 /** localStorage key for last successful GPS fix */

@@ -13,7 +13,6 @@ import {
 } from "@/lib/google-maps";
 import { DEFAULT_USER_LOCATION } from "@/lib/data/technicians";
 import {
-  knownPlaceNear,
   knownPlaceToPick,
   matchKnownPlaces,
   resolveKnownPlace,
@@ -86,18 +85,13 @@ function parseGeocodeResult(
     [area, city].filter(Boolean).join(", ") ||
     `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 
-  // Snap nearby reverse-geocode to curated business name
-  const near = knownPlaceNear(lat, lng);
-  if (near) {
-    return knownPlaceToPick(near);
-  }
-
+  // Real street address only — curated POIs are search suggestions, not snaps
   return { lat, lng, label, city, area: area || city };
 }
 
 /**
  * Live Google Map location picker for Motorist "Where are you?" and anywhere else.
- * Curated places (e.g. 1st Price Furniture Company) appear first in search.
+ * Curated places (e.g. 1st Price Furniture Company) appear only as search suggestions.
  */
 export function LocationPickerMap({
   value,
@@ -171,14 +165,7 @@ export function LocationPickerMap({
     async (lat: number, lng: number) => {
       setBusy(true);
       try {
-        // Curated POI near pin → keep business name on the map
-        const near = knownPlaceNear(lat, lng);
-        if (near) {
-          applyPick(knownPlaceToPick(near), 17);
-          setStatus(`${near.name} · nearby pin snapped`);
-          return;
-        }
-
+        // Always real reverse-geocode for pins / GPS — never snap to curated POI
         const rest = await reverseGeocodeLatLng(lat, lng);
         if (rest) {
           applyPick({
@@ -379,18 +366,7 @@ export function LocationPickerMap({
         }
         const lat = place.geometry.location.lat();
         const lng = place.geometry.location.lng();
-        const near = knownPlaceNear(lat, lng);
-        if (near) {
-          applyKnown(near);
-          return;
-        }
-        // Relabel if Google description matches our aliases
-        const text = `${place.name || ""} ${place.formatted_address || ""}`;
-        const known = resolveKnownPlace(text);
-        if (known) {
-          applyKnown(known);
-          return;
-        }
+        // Google suggestion → use Google address (curated POI only if user picked from known list)
         if (place.formatted_address) {
           applyPick({
             lat,

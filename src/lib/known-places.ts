@@ -1,7 +1,7 @@
 /**
- * Curated Lagos places that Google Places may not list (or list poorly).
- * Used by location pickers / meet-point search: custom suggestions first,
- * then normal Google / Nominatim results.
+ * Curated Lagos places for SEARCH SUGGESTIONS only.
+ * Never snap GPS / reverse-geocode / map pins to these names — only when
+ * the user explicitly picks a suggestion or types a matching query.
  */
 
 export type KnownPlace = {
@@ -182,24 +182,16 @@ export function metresBetween(
 }
 
 /**
- * If a pin is within `radiusM` of a known place, return that place
- * so reverse-geocode can keep the business name on the map.
+ * @deprecated Do not use for GPS or reverse-geocode labels.
+ * Curated places are search-suggestion only. Always returns null so callers
+ * cannot accidentally overwrite a real street address with a POI name.
  */
 export function knownPlaceNear(
-  lat: number,
-  lng: number,
-  radiusM = 120
+  _lat: number,
+  _lng: number,
+  _radiusM = 120
 ): KnownPlace | null {
-  let best: KnownPlace | null = null;
-  let bestD = Infinity;
-  for (const p of KNOWN_PLACES) {
-    const d = metresBetween({ lat, lng }, { lat: p.lat, lng: p.lng });
-    if (d <= radiusM && d < bestD) {
-      best = p;
-      bestD = d;
-    }
-  }
-  return best;
+  return null;
 }
 
 /** Map / session label for a known place (name stays on the pin). */

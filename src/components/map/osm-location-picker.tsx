@@ -8,7 +8,6 @@ import { Building2, Crosshair, MapPin, Navigation } from "lucide-react";
 import { reverseGeocodeLatLng } from "@/lib/google-maps";
 import { DEFAULT_USER_LOCATION } from "@/lib/data/technicians";
 import {
-  knownPlaceNear,
   knownPlaceToPick,
   matchKnownPlaces,
   resolveKnownPlace,
@@ -94,12 +93,7 @@ export function OsmLocationPicker({
     async (lat: number, lng: number) => {
       setBusy(true);
       try {
-        const near = knownPlaceNear(lat, lng);
-        if (near) {
-          applyPick(knownPlaceToPick(near));
-          setStatus(`${near.name} · nearby pin snapped`);
-          return;
-        }
+        // Real reverse-geocode only — curated POIs are search suggestions
         const rest = await reverseGeocodeLatLng(lat, lng);
         if (rest) {
           const picked: PickedLocation = {

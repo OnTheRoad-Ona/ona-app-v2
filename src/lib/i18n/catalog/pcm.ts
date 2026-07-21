@@ -104,7 +104,7 @@ export const PCM: MessageDict = {
   "settings.artisanTiers": "Verification",
   "settings.artisanTiersDetail": "Phone, ID, BVN, face, skill proof",
   "settings.help": "Help",
-  "settings.helpDetail": "How Ona dey work",
+  "settings.helpDetail": "Support & contact care",
   "settings.language": "Language",
   "settings.about": "About Ona",
   "settings.aboutDetail": "Version 0.1 · help near you",

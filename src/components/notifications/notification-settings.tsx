@@ -38,12 +38,16 @@ export type NotificationCategoryPref = {
   messages: boolean;
   payments: boolean;
   system: boolean;
+  /** Marketing / tips — OFF by default (polite) */
+  promotional: boolean;
 };
 
 export type NotificationDeliveryPref = {
   push: boolean;
   sms: boolean;
   email: boolean;
+  /** In-app inbox banners & center */
+  inApp: boolean;
 };
 
 export type NotificationSettingsState = {
@@ -56,15 +60,19 @@ export type NotificationSettingsState = {
 const DEFAULT_SETTINGS: NotificationSettingsState = {
   enabled: true,
   categories: {
+    // Transactional ON by default
     requests: true,
     messages: true,
     payments: true,
     system: true,
+    // Promotional OFF by default
+    promotional: false,
   },
   delivery: {
     push: true,
     sms: false,
     email: true,
+    inApp: true,
   },
   quietHours: {
     enabled: true,
@@ -89,11 +97,14 @@ function readSettings(userKey: string): NotificationSettingsState {
         messages: p.categories?.messages !== false,
         payments: p.categories?.payments !== false,
         system: p.categories?.system !== false,
+        // Promo defaults OFF unless user explicitly enabled
+        promotional: p.categories?.promotional === true,
       },
       delivery: {
         push: p.delivery?.push !== false,
         sms: p.delivery?.sms === true,
         email: p.delivery?.email !== false,
+        inApp: p.delivery?.inApp !== false,
       },
       quietHours: {
         enabled: p.quietHours?.enabled !== false,
@@ -137,27 +148,33 @@ const CATEGORY_ROWS: {
 }[] = [
   {
     key: "requests",
-    label: "Jobs & requests",
-    detail: "New jobs, en route, arrived, completed",
+    label: "Bookings & jobs",
+    detail: "Requests, confirmations, reschedules, cancellations",
     icon: Wrench,
   },
   {
     key: "messages",
-    label: "Messages",
-    detail: "Chat from motorists and Repair Pros",
+    label: "Chat",
+    detail: "Messages between customers and Repair Pros",
     icon: MessageSquare,
   },
   {
     key: "payments",
-    label: "Payments",
-    detail: "Escrow held, released, refunds",
+    label: "Payments & receipts",
+    detail: "Escrow, payouts, refunds, receipts",
     icon: Wallet,
   },
   {
     key: "system",
-    label: "System",
-    detail: "Docs, Live reminders, product updates",
+    label: "Reminders & account",
+    detail: "Appointment reminders, verification, Live status",
     icon: Settings2,
+  },
+  {
+    key: "promotional",
+    label: "Promotions & tips",
+    detail: "Offers, credits, product marketing (default off)",
+    icon: Bell,
   },
 ];
 
@@ -170,8 +187,14 @@ const DELIVERY_ROWS: {
   {
     key: "push",
     label: "Push",
-    detail: "In-app and device alerts",
+    detail: "Device alerts when the app is closed",
     icon: Smartphone,
+  },
+  {
+    key: "inApp",
+    label: "In-app",
+    detail: "Banners and notification center",
+    icon: Bell,
   },
   {
     key: "sms",

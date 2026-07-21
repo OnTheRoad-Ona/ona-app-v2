@@ -65,7 +65,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   app: {
     name: "Ona",
     tagline: "Help for your car when you need it",
-    supportEmail: "support@ogamecho.com",
+    supportEmail: "witcowavers@gmail.com",
     supportPhone: "",
     maintenanceMode: false,
     maintenanceMessage:

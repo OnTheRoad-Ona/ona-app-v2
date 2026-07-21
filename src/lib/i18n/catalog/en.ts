@@ -107,7 +107,7 @@ export const EN = {
   "settings.artisanTiers": "Verification",
   "settings.artisanTiersDetail": "Phone, ID, BVN, liveness, skill proof",
   "settings.help": "Help",
-  "settings.helpDetail": "How Ona works",
+  "settings.helpDetail": "Support & contact care",
   "settings.language": "Language",
   "settings.about": "About Ona",
   "settings.aboutDetail": "Version 0.1 · help nearby",
