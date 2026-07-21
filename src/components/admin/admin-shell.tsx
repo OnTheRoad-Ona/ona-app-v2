@@ -23,34 +23,36 @@ const NAV_GROUPS: {
   }[];
 }[] = [
   {
-    label: "Customer Care",
+    label: "Operations",
     items: [
       { href: "/admin", label: "Dashboard", exact: true },
       { href: "/admin/jobs", label: "Live jobs" },
       { href: "/admin/disputes", label: "Disputes & appeals" },
       { href: "/admin/payments", label: "Escrow & payments" },
-      { href: "/admin/pros", label: "Repair Pros" },
-      { href: "/admin/artisans", label: "Artisan review" },
-      { href: "/admin/customer-review", label: "Customer review" },
-      { href: "/admin/pro-review", label: "Pro review" },
-      { href: "/admin/users", label: "Users" },
-      { href: "/admin/verification", label: "Verification hub" },
-      { href: "/admin/audit", label: "Audit trail" },
     ],
   },
   {
-    label: "Directory",
+    label: "People",
     items: [
       { href: "/admin/motorists", label: "Customers" },
+      { href: "/admin/pros", label: "Repair Pros" },
+      { href: "/admin/users", label: "All users" },
+      { href: "/admin/verification", label: "Verification overview" },
+    ],
+  },
+  {
+    label: "Engagement",
+    items: [
       { href: "/admin/messages", label: "Messages" },
       { href: "/admin/reviews", label: "Reviews" },
+      { href: "/admin/signups", label: "Signups" },
+      { href: "/admin/audit", label: "Audit trail" },
     ],
   },
   {
     label: "System",
     items: [
       { href: "/admin/health", label: "Health" },
-      { href: "/admin/signups", label: "Signups" },
       { href: "/admin/settings", label: "Settings 🔒", password: true },
       { href: "/admin/features", label: "Features 🔒", password: true },
       { href: "/admin/services", label: "Services" },

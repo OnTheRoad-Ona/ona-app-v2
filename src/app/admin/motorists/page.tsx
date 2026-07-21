@@ -1,9 +1,25 @@
 "use client";
 
-import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+/**
+ * Customers hub — directory + ID review (merged, no duplicate pages).
+ * Clean table + file thumbs + full-detail drawer.
+ */
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
+import {
+  AdminTableWrap,
+  AdminTabs,
+  DetailDrawer,
+  DetailField,
+  DetailGrid,
+  FileThumb,
+  FileThumbRow,
+  StatusBadge,
+  fmtDate,
+} from "@/components/admin/admin-ui";
 
 type MotoristRow = {
   id: string;
@@ -26,42 +42,94 @@ type MotoristRow = {
     nin_verified: boolean;
     bvn_verified: boolean;
     identity_verified_at: string | null;
+    identity_review_status?: string | null;
+    identity_submitted_at?: string | null;
+    phone_verified?: boolean;
+    gov_id_front_url?: string | null;
+    gov_id_back_url?: string | null;
+    gov_id_kind?: string | null;
+    gov_id_number?: string | null;
   } | null;
 };
 
-type Totals = {
-  total: number;
-  active: number;
-  inactive: number;
-  fullyVerified: number;
-  partial: number;
-  unverified: number;
+type ReviewRow = {
+  user_id: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  city: string | null;
+  area: string | null;
+  identity_review_status: string;
+  identity_submitted_at: string | null;
+  gov_id_front_url: string | null;
+  gov_id_back_url: string | null;
+  gov_id_number: string | null;
+  bank_id_number: string | null;
+  gov_id_kind: string | null;
+  nin_last4: string | null;
+  bvn_last4: string | null;
+  phone_verified: boolean;
+  vehicle_make: string | null;
+  vehicle_model: string | null;
+  plate: string | null;
+  jobs_count: number;
+  levels?: {
+    t1_phone: { status: string; verified: boolean; phone: string | null };
+    t2_id: {
+      status: string;
+      gov_id_number: string | null;
+      gov_id_last4: string | null;
+      bank_id_number: string | null;
+      front_url: string | null;
+      back_url: string | null;
+      country_iso: string;
+      gov_id_kind: string | null;
+      rejection_reason: string | null;
+    };
+    trial: {
+      first_service_at: string | null;
+      days_left: number | null;
+      expired: boolean;
+    };
+  };
 };
 
-export default function AdminMotoristsPage() {
+type Tab = "directory" | "id_review";
+
+export default function AdminCustomersHubPage() {
   const { adminName, ready, api } = useAdminGate();
+  const searchParams = useSearchParams();
+  const initialTab =
+    searchParams.get("tab") === "id_review" ? "id_review" : "directory";
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [rows, setRows] = useState<MotoristRow[]>([]);
-  const [totals, setTotals] = useState<Totals>({
+  const [reviewRows, setReviewRows] = useState<ReviewRow[]>([]);
+  const [totals, setTotals] = useState({
     total: 0,
     active: 0,
-    inactive: 0,
     fullyVerified: 0,
     partial: 0,
     unverified: 0,
   });
+  const [reviewTotals, setReviewTotals] = useState({
+    total: 0,
+    submitted: 0,
+    approved: 0,
+    none: 0,
+    rejected: 0,
+  });
   const [q, setQ] = useState("");
-  const [active, setActive] = useState("");
-  const [verified, setVerified] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
+  const [reviewFilter, setReviewFilter] = useState("all");
   const [error, setError] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showFullId, setShowFullId] = useState(false);
 
-  const load = useCallback(async () => {
+  const loadDirectory = useCallback(async () => {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
-    if (active) params.set("active", active);
-    if (verified) params.set("verified", verified);
-    const res = await api<{ motorists: MotoristRow[]; totals: Totals }>(
+    const res = await api<{ motorists: MotoristRow[]; totals: typeof totals }>(
       `/api/admin/motorists?${params}`
     );
     if (!res.ok) {
@@ -71,15 +139,61 @@ export default function AdminMotoristsPage() {
     setError(null);
     setRows(res.data.motorists);
     setTotals(res.data.totals);
-  }, [api, q, active, verified]);
+  }, [api, q]);
+
+  const loadReview = useCallback(async () => {
+    const res = await api<{
+      customers: ReviewRow[];
+      totals: typeof reviewTotals;
+    }>(`/api/admin/customer-review?status=${encodeURIComponent(reviewFilter)}`);
+    if (!res.ok) {
+      setError(res.message);
+      return;
+    }
+    setError(null);
+    setReviewRows(res.data.customers);
+    setReviewTotals(res.data.totals);
+  }, [api, reviewFilter]);
 
   useEffect(() => {
     if (!ready) return;
-    void load();
-  }, [ready, load]);
+    if (tab === "directory") void loadDirectory();
+    else void loadReview();
+  }, [ready, tab, loadDirectory, loadReview]);
 
-  async function toggleActive(id: string, is_active: boolean) {
+  const selectedReview = useMemo(
+    () => reviewRows.find((r) => r.user_id === selectedId) || null,
+    [reviewRows, selectedId]
+  );
+  const selectedDir = useMemo(
+    () => rows.find((r) => r.id === selectedId) || null,
+    [rows, selectedId]
+  );
+
+  const actCustomer = async (
+    userId: string,
+    action: string,
+    body?: Record<string, unknown>
+  ) => {
+    setBusyId(userId);
     setMsg(null);
+    setError(null);
+    const res = await api<{ message?: string }>("/api/admin/customer-review", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, action, ...body }),
+    });
+    setBusyId(null);
+    if (!res.ok) {
+      setError(res.message);
+      return;
+    }
+    setMsg(res.data.message || "Updated");
+    await loadReview();
+    if (tab === "directory") await loadDirectory();
+  };
+
+  const toggleActive = async (id: string, is_active: boolean) => {
     setBusyId(id);
     const res = await api(`/api/admin/users/${id}/status`, {
       method: "PATCH",
@@ -92,244 +206,681 @@ export default function AdminMotoristsPage() {
       return;
     }
     setMsg(is_active ? "Customer activated" : "Customer deactivated");
-    await load();
-  }
-
-  async function approveIdentity(id: string, name: string) {
-    setMsg(null);
-    setError(null);
-    setBusyId(id);
-    const res = await api(`/api/admin/motorists/${id}/verify`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "approve" }),
-    });
-    setBusyId(null);
-    if (!res.ok) {
-      setError(res.message);
-      return;
-    }
-    setMsg(`Tier 2 ID approved for ${name}`);
-    await load();
-  }
-
-  async function hardDelete(id: string, name: string) {
-    if (
-      !window.confirm(
-        `Hard-delete motorist "${name}"?\n\nThis removes them from Auth + database. Jobs may be cancelled. This cannot be undone.`
-      )
-    ) {
-      return;
-    }
-    setMsg(null);
-    setBusyId(id);
-    const res = await api(`/api/admin/users/${id}`, { method: "DELETE" });
-    setBusyId(null);
-    if (!res.ok) {
-      setError(res.message);
-      await load();
-      return;
-    }
-    setMsg(`Deleted ${name}`);
-    await load();
-  }
-
-  function vehicleLabel(m: MotoristRow) {
-    const v = m.motorist;
-    if (!v) return "—";
-    const parts = [v.vehicle_make, v.vehicle_model, v.vehicle_year].filter(
-      Boolean
-    );
-    return parts.length ? parts.join(" ") : "—";
-  }
-
-  function verifyBadge(level: MotoristRow["verifyLevel"]) {
-    if (level === "full") return "approved";
-    if (level === "partial") return "pending";
-    return "rejected";
-  }
+    await loadDirectory();
+  };
 
   return (
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Customers</h1>
       <p className="om-admin-sub">
-        Car owners who signed up on OgaMecho. Live from Supabase — every Vercel
-        signup appears here.
+        Directory + ID review in one place. Open a row for full details, files,
+        and controls.
       </p>
-      {msg ? (
-        <div
-          className="om-admin-error"
-          style={{ background: "#14532d", color: "#bbf7d0", marginBottom: 12 }}
-        >
-          {msg}
-        </div>
-      ) : null}
+
       {error ? <div className="om-admin-error">{error}</div> : null}
+      {msg ? <div className="om-admin-success">{msg}</div> : null}
+
+      <AdminTabs
+        value={tab}
+        onChange={(id) => {
+          setTab(id as Tab);
+          setSelectedId(null);
+        }}
+        tabs={[
+          { id: "directory", label: "Directory", count: totals.total },
+          {
+            id: "id_review",
+            label: "ID review",
+            count: reviewTotals.submitted,
+          },
+        ]}
+      />
 
       <div className="om-admin-cards">
-        {(
-          [
-            ["Total", totals.total],
-            ["Active", totals.active],
-            ["Inactive", totals.inactive],
-            ["Fully verified", totals.fullyVerified],
-            ["Partial ID", totals.partial],
-            ["Unverified", totals.unverified],
-          ] as const
-        ).map(([label, value]) => (
-          <div className="om-admin-card" key={label}>
-            <div className="label">{label}</div>
-            <div className="value">{value}</div>
-          </div>
-        ))}
+        {tab === "directory" ? (
+          <>
+            {(
+              [
+                ["Registered", totals.total],
+                ["Active", totals.active],
+                ["T2 full", totals.fullyVerified],
+                ["Partial / pending", totals.partial],
+                ["No ID", totals.unverified],
+              ] as const
+            ).map(([l, v]) => (
+              <div className="om-admin-card" key={l}>
+                <div className="label">{l}</div>
+                <div className="value">{v}</div>
+              </div>
+            ))}
+          </>
+        ) : (
+          <>
+            {(
+              [
+                ["All", reviewTotals.total],
+                ["Pending T2", reviewTotals.submitted],
+                ["Approved", reviewTotals.approved],
+                ["No ID yet", reviewTotals.none],
+                ["Rejected", reviewTotals.rejected],
+              ] as const
+            ).map(([l, v]) => (
+              <div className="om-admin-card" key={l}>
+                <div className="label">{l}</div>
+                <div className="value">{v}</div>
+              </div>
+            ))}
+          </>
+        )}
       </div>
 
       <div className="om-admin-panel">
         <div className="om-admin-toolbar">
-          <input
-            placeholder="Search name, email, phone, city"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            style={{ minWidth: 240 }}
-          />
-          <select value={active} onChange={(e) => setActive(e.target.value)}>
-            <option value="">All status</option>
-            <option value="true">Active only</option>
-            <option value="false">Inactive only</option>
-          </select>
-          <select
-            value={verified}
-            onChange={(e) => setVerified(e.target.value)}
-          >
-            <option value="">All verification</option>
-            <option value="full">Fully verified</option>
-            <option value="partial">Partial</option>
-            <option value="none">Unverified</option>
-          </select>
-          <button type="button" className="om-admin-btn" onClick={() => load()}>
-            Refresh
-          </button>
+          {tab === "directory" ? (
+            <>
+              <input
+                placeholder="Search name, email, phone…"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+              <button
+                type="button"
+                className="om-admin-btn ghost"
+                onClick={() => void loadDirectory()}
+              >
+                Refresh
+              </button>
+            </>
+          ) : (
+            <>
+              {(
+                [
+                  ["all", "All"],
+                  ["submitted", "Pending T2"],
+                  ["none", "No ID"],
+                  ["approved", "Approved"],
+                  ["rejected", "Rejected"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`om-admin-btn ${
+                    reviewFilter === id ? "" : "ghost"
+                  }`}
+                  onClick={() => setReviewFilter(id)}
+                >
+                  {label}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="om-admin-btn ghost"
+                style={{ marginLeft: "auto" }}
+                onClick={() => void loadReview()}
+              >
+                Refresh
+              </button>
+            </>
+          )}
         </div>
 
-        <table className="om-admin-table">
-          <thead>
-            <tr>
-              <th>Customer</th>
-              <th>Vehicle</th>
-              <th>Location</th>
-              <th>Identity</th>
-              <th>Status</th>
-              <th>Joined</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="om-admin-muted">
-                  No customers yet. When someone signs up as Customer on
-                  ogamecho.vercel.app they appear here instantly.
-                </td>
-              </tr>
-            ) : (
-              rows.map((m) => (
-                <tr key={m.id}>
-                  <td>
-                    <div>
-                      <Link
-                        href={`/admin/motorists/${m.id}`}
-                        style={{ color: "inherit", fontWeight: 600 }}
-                      >
-                        {m.full_name || "—"}
-                      </Link>
-                    </div>
-                    <div className="om-admin-muted">{m.email || "—"}</div>
-                    <div className="om-admin-muted">{m.phone || ""}</div>
-                  </td>
-                  <td>
-                    <div>{vehicleLabel(m)}</div>
-                    <div className="om-admin-muted">
-                      {m.motorist?.plate_number || ""}
-                    </div>
-                  </td>
-                  <td>
-                    {[m.area, m.city].filter(Boolean).join(", ") ||
-                      m.motorist?.address_text ||
-                      "—"}
-                  </td>
-                  <td>
-                    <span
-                      className={`om-admin-badge ${verifyBadge(m.verifyLevel)}`}
-                    >
-                      {m.verifyLevel}
-                    </span>
-                    <div className="om-admin-muted" style={{ marginTop: 4 }}>
-                      NIN {m.motorist?.nin_verified ? "✓" : "—"} · BVN{" "}
-                      {m.motorist?.bvn_verified ? "✓" : "—"}
-                      {m.motorist?.nin_last4
-                        ? ` · …${m.motorist.nin_last4}`
-                        : ""}
-                    </div>
-                  </td>
-                  <td>
-                    <span
-                      className={`om-admin-badge ${
-                        m.is_active ? "approved" : "suspended"
-                      }`}
-                    >
-                      {m.is_active ? "active" : "inactive"}
-                    </span>
-                  </td>
-                  <td className="om-admin-muted">
-                    {m.created_at
-                      ? new Date(m.created_at).toLocaleString()
-                      : "—"}
-                  </td>
-                  <td>
-                    <div className="om-admin-row-actions">
-                      <Link
-                        href={`/admin/motorists/${m.id}`}
-                        className="om-admin-btn ghost"
-                        style={{ textDecoration: "none" }}
-                      >
-                        View
-                      </Link>
-                      {m.verifyLevel !== "full" ? (
-                        <button
-                          type="button"
-                          className="om-admin-btn om-admin-btn-primary"
-                          disabled={busyId === m.id}
-                          onClick={() => void approveIdentity(m.id, m.full_name)}
-                          title="Approve Tier 2 government ID (unlock unlimited booking)"
-                        >
-                          Approve ID
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        className="om-admin-btn ghost"
-                        disabled={busyId === m.id}
-                        onClick={() => toggleActive(m.id, !m.is_active)}
-                      >
-                        {m.is_active ? "Deactivate" : "Activate"}
-                      </button>
-                      <button
-                        type="button"
-                        className="om-admin-btn ghost"
-                        disabled={busyId === m.id}
-                        onClick={() => hardDelete(m.id, m.full_name || m.id)}
-                        style={{ color: "#b91c1c" }}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
+        {tab === "directory" ? (
+          <AdminTableWrap>
+            <table className="om-admin-table">
+              <thead>
+                <tr>
+                  <th>Customer</th>
+                  <th>Contact</th>
+                  <th>Vehicle</th>
+                  <th>ID status</th>
+                  <th>Files</th>
+                  <th>Joined</th>
+                  <th>Actions</th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="om-admin-muted">
+                      No customers found.
+                    </td>
+                  </tr>
+                ) : (
+                  rows.map((r) => {
+                    const m = r.motorist;
+                    const front =
+                      (m as { gov_id_front_url?: string } | null)
+                        ?.gov_id_front_url || null;
+                    return (
+                      <tr
+                        key={r.id}
+                        className={
+                          selectedId === r.id ? "om-admin-row-selected" : ""
+                        }
+                      >
+                        <td>
+                          <strong>{r.full_name}</strong>
+                          <div className="om-admin-muted">
+                            {[r.city, r.area].filter(Boolean).join(", ") || "—"}
+                          </div>
+                        </td>
+                        <td>
+                          <div>{r.phone || "—"}</div>
+                          <div className="om-admin-muted">{r.email || "—"}</div>
+                        </td>
+                        <td>
+                          {[m?.vehicle_make, m?.vehicle_model, m?.plate_number]
+                            .filter(Boolean)
+                            .join(" · ") || "—"}
+                        </td>
+                        <td>
+                          <StatusBadge status={r.verifyLevel}>
+                            {r.verifyLevel === "full"
+                              ? "T2 approved"
+                              : r.verifyLevel === "partial"
+                                ? "Partial / pending"
+                                : "No ID"}
+                          </StatusBadge>
+                          {m?.nin_last4 ? (
+                            <div className="om-admin-muted">
+                              …{m.nin_last4}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="om-admin-td-files">
+                          <FileThumbRow
+                            items={[{ label: "ID", url: front }]}
+                          />
+                        </td>
+                        <td className="om-admin-muted">
+                          {fmtDate(r.created_at)}
+                        </td>
+                        <td className="om-admin-td-actions">
+                          <div className="om-admin-actions">
+                            <button
+                              type="button"
+                              className="om-admin-btn ghost"
+                              onClick={() => {
+                                setSelectedId(r.id);
+                                setShowFullId(false);
+                              }}
+                            >
+                              Open
+                            </button>
+                            <button
+                              type="button"
+                              className="om-admin-btn ghost"
+                              disabled={busyId === r.id}
+                              onClick={() =>
+                                void toggleActive(r.id, !r.is_active)
+                              }
+                            >
+                              {r.is_active ? "Deactivate" : "Activate"}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </AdminTableWrap>
+        ) : (
+          <AdminTableWrap>
+            <table className="om-admin-table">
+              <thead>
+                <tr>
+                  <th>Customer</th>
+                  <th>T1 Phone</th>
+                  <th>T2 ID</th>
+                  <th>Files</th>
+                  <th>Submitted</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reviewRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="om-admin-muted">
+                      No customers in this filter.
+                    </td>
+                  </tr>
+                ) : (
+                  reviewRows.map((c) => (
+                    <tr
+                      key={c.user_id}
+                      className={
+                        selectedId === c.user_id
+                          ? "om-admin-row-selected"
+                          : ""
+                      }
+                    >
+                      <td>
+                        <strong>{c.full_name}</strong>
+                        <div className="om-admin-muted">
+                          {c.email || c.phone || "—"}
+                        </div>
+                      </td>
+                      <td>
+                        <StatusBadge
+                          status={
+                            c.levels?.t1_phone?.verified
+                              ? "verified"
+                              : "pending"
+                          }
+                        >
+                          {c.levels?.t1_phone?.verified
+                            ? "Verified"
+                            : "Unverified"}
+                        </StatusBadge>
+                      </td>
+                      <td>
+                        <StatusBadge status={c.identity_review_status}>
+                          {c.identity_review_status}
+                        </StatusBadge>
+                        <div className="om-admin-muted">
+                          {c.gov_id_kind || "—"}
+                          {c.nin_last4 ? ` · …${c.nin_last4}` : ""}
+                        </div>
+                      </td>
+                      <td className="om-admin-td-files">
+                        <FileThumbRow
+                          items={[
+                            { label: "Front", url: c.gov_id_front_url },
+                            { label: "Back", url: c.gov_id_back_url },
+                          ]}
+                        />
+                      </td>
+                      <td className="om-admin-muted">
+                        {fmtDate(c.identity_submitted_at)}
+                      </td>
+                      <td className="om-admin-td-actions">
+                        <div className="om-admin-actions">
+                          <button
+                            type="button"
+                            className="om-admin-btn ghost"
+                            onClick={() => {
+                              setSelectedId(c.user_id);
+                              setShowFullId(false);
+                            }}
+                          >
+                            Open
+                          </button>
+                          {c.identity_review_status !== "approved" ? (
+                            <button
+                              type="button"
+                              className="om-admin-btn"
+                              disabled={busyId === c.user_id}
+                              onClick={() =>
+                                void actCustomer(c.user_id, "approve_t2")
+                              }
+                            >
+                              Approve T2
+                            </button>
+                          ) : (
+                            <button type="button" className="om-admin-btn done" disabled>
+                              ✓ T2
+                            </button>
+                          )}
+                          {c.identity_review_status === "submitted" ||
+                          c.identity_review_status === "approved" ? (
+                            <button
+                              type="button"
+                              className="om-admin-btn ghost"
+                              disabled={busyId === c.user_id}
+                              onClick={() =>
+                                void actCustomer(c.user_id, "reject_t2", {
+                                  reason: "Rejected by care — re-submit ID",
+                                })
+                              }
+                            >
+                              Reject
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </AdminTableWrap>
+        )}
       </div>
+
+      {/* Detail drawer — directory */}
+      <DetailDrawer
+        open={Boolean(selectedDir && tab === "directory")}
+        title={selectedDir?.full_name || "Customer"}
+        subtitle={selectedDir?.email || selectedDir?.phone || undefined}
+        onClose={() => setSelectedId(null)}
+        footer={
+          selectedDir ? (
+            <>
+              <button
+                type="button"
+                className="om-admin-btn ghost"
+                disabled={busyId === selectedDir.id}
+                onClick={() =>
+                  void toggleActive(selectedDir.id, !selectedDir.is_active)
+                }
+              >
+                {selectedDir.is_active ? "Deactivate" : "Activate"}
+              </button>
+              {selectedDir.verifyLevel !== "full" ? (
+                <button
+                  type="button"
+                  className="om-admin-btn"
+                  disabled={busyId === selectedDir.id}
+                  onClick={() =>
+                    void actCustomer(selectedDir.id, "approve_t2")
+                  }
+                >
+                  Approve T2 ID
+                </button>
+              ) : null}
+            </>
+          ) : null
+        }
+      >
+        {selectedDir ? (
+          <>
+            <div className="om-admin-section">
+              <h3>Account</h3>
+              <DetailGrid>
+                <DetailField label="User ID" value={<code style={{ fontSize: 10 }}>{selectedDir.id}</code>} />
+                <DetailField
+                  label="Active"
+                  value={selectedDir.is_active ? "Yes" : "No"}
+                />
+                <DetailField label="Phone" value={selectedDir.phone} />
+                <DetailField label="Email" value={selectedDir.email} />
+                <DetailField
+                  label="City / area"
+                  value={[selectedDir.city, selectedDir.area]
+                    .filter(Boolean)
+                    .join(", ")}
+                />
+                <DetailField
+                  label="Joined"
+                  value={fmtDate(selectedDir.created_at)}
+                />
+              </DetailGrid>
+            </div>
+            <div className="om-admin-section">
+              <h3>Vehicle</h3>
+              <DetailGrid>
+                <DetailField
+                  label="Make / model"
+                  value={[
+                    selectedDir.motorist?.vehicle_make,
+                    selectedDir.motorist?.vehicle_model,
+                    selectedDir.motorist?.vehicle_year,
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                />
+                <DetailField
+                  label="Plate"
+                  value={selectedDir.motorist?.plate_number}
+                />
+                <DetailField
+                  label="Address"
+                  value={selectedDir.motorist?.address_text}
+                />
+              </DetailGrid>
+            </div>
+            <div className="om-admin-section">
+              <h3>Verification</h3>
+              <DetailGrid>
+                <DetailField
+                  label="Level"
+                  value={
+                    <StatusBadge status={selectedDir.verifyLevel}>
+                      {selectedDir.verifyLevel}
+                    </StatusBadge>
+                  }
+                />
+                <DetailField
+                  label="NIN last4"
+                  value={selectedDir.motorist?.nin_last4}
+                />
+                <DetailField
+                  label="BVN last4"
+                  value={selectedDir.motorist?.bvn_last4}
+                />
+                <DetailField
+                  label="Verified at"
+                  value={fmtDate(selectedDir.motorist?.identity_verified_at)}
+                />
+              </DetailGrid>
+            </div>
+          </>
+        ) : null}
+      </DetailDrawer>
+
+      {/* Detail drawer — ID review */}
+      <DetailDrawer
+        open={Boolean(selectedReview && tab === "id_review")}
+        title={selectedReview?.full_name || "ID review"}
+        subtitle={
+          selectedReview
+            ? `${selectedReview.identity_review_status} · ${selectedReview.phone || selectedReview.email || ""}`
+            : undefined
+        }
+        onClose={() => setSelectedId(null)}
+        width={460}
+        footer={
+          selectedReview ? (
+            <>
+              {!selectedReview.phone_verified &&
+              !selectedReview.levels?.t1_phone?.verified ? (
+                <button
+                  type="button"
+                  className="om-admin-btn ghost"
+                  disabled={busyId === selectedReview.user_id}
+                  onClick={() =>
+                    void actCustomer(
+                      selectedReview.user_id,
+                      "mark_phone_verified"
+                    )
+                  }
+                >
+                  Mark phone verified
+                </button>
+              ) : null}
+              {selectedReview.identity_review_status !== "approved" ? (
+                <button
+                  type="button"
+                  className="om-admin-btn"
+                  disabled={busyId === selectedReview.user_id}
+                  onClick={() =>
+                    void actCustomer(selectedReview.user_id, "approve_t2")
+                  }
+                >
+                  Approve T2
+                </button>
+              ) : (
+                <button type="button" className="om-admin-btn done" disabled>
+                  ✓ Approved
+                </button>
+              )}
+              <button
+                type="button"
+                className="om-admin-btn ghost"
+                disabled={busyId === selectedReview.user_id}
+                onClick={() =>
+                  void actCustomer(selectedReview.user_id, "reject_t2", {
+                    reason: "Rejected by care — re-submit ID",
+                  })
+                }
+              >
+                Reject T2
+              </button>
+            </>
+          ) : null
+        }
+      >
+        {selectedReview ? (
+          <>
+            <div className="om-admin-section">
+              <h3>Account</h3>
+              <DetailGrid>
+                <DetailField label="Phone" value={selectedReview.phone} />
+                <DetailField label="Email" value={selectedReview.email} />
+                <DetailField
+                  label="City"
+                  value={[selectedReview.city, selectedReview.area]
+                    .filter(Boolean)
+                    .join(", ")}
+                />
+                <DetailField
+                  label="Vehicle"
+                  value={[
+                    selectedReview.vehicle_make,
+                    selectedReview.vehicle_model,
+                    selectedReview.plate,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                />
+                <DetailField
+                  label="Jobs"
+                  value={String(selectedReview.jobs_count)}
+                />
+              </DetailGrid>
+            </div>
+            <div className="om-admin-section">
+              <h3>Tier 1 · Phone</h3>
+              <DetailGrid>
+                <DetailField
+                  label="Status"
+                  value={
+                    <StatusBadge
+                      status={
+                        selectedReview.levels?.t1_phone?.verified
+                          ? "verified"
+                          : "pending"
+                      }
+                    >
+                      {selectedReview.levels?.t1_phone?.verified
+                        ? "Verified"
+                        : "Unverified"}
+                    </StatusBadge>
+                  }
+                />
+                <DetailField
+                  label="Number"
+                  value={selectedReview.levels?.t1_phone?.phone}
+                />
+              </DetailGrid>
+            </div>
+            <div className="om-admin-section">
+              <h3>Tier 2 · Government ID</h3>
+              <DetailGrid>
+                <DetailField
+                  label="Status"
+                  value={
+                    <StatusBadge status={selectedReview.identity_review_status}>
+                      {selectedReview.identity_review_status}
+                    </StatusBadge>
+                  }
+                />
+                <DetailField
+                  label="Type"
+                  value={
+                    selectedReview.gov_id_kind ||
+                    selectedReview.levels?.t2_id?.gov_id_kind
+                  }
+                />
+                <DetailField
+                  label="Country"
+                  value={selectedReview.levels?.t2_id?.country_iso || "NG"}
+                />
+                <DetailField
+                  label="ID number"
+                  value={
+                    <>
+                      {showFullId
+                        ? selectedReview.gov_id_number ||
+                          selectedReview.levels?.t2_id?.gov_id_number ||
+                          "—"
+                        : selectedReview.nin_last4
+                          ? `••••${selectedReview.nin_last4}`
+                          : "—"}{" "}
+                      <button
+                        type="button"
+                        className="om-admin-btn ghost"
+                        style={{ padding: "2px 8px", fontSize: 11 }}
+                        onClick={() => setShowFullId((v) => !v)}
+                      >
+                        {showFullId ? "Hide" : "Reveal"}
+                      </button>
+                    </>
+                  }
+                />
+                <DetailField
+                  label="BVN / secondary"
+                  value={
+                    showFullId
+                      ? selectedReview.bank_id_number ||
+                        selectedReview.levels?.t2_id?.bank_id_number ||
+                        "—"
+                      : selectedReview.bvn_last4
+                        ? `••••${selectedReview.bvn_last4}`
+                        : "—"
+                  }
+                />
+                <DetailField
+                  label="Submitted"
+                  value={fmtDate(selectedReview.identity_submitted_at)}
+                />
+              </DetailGrid>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
+                <FileThumb
+                  label="Front"
+                  url={
+                    selectedReview.gov_id_front_url ||
+                    selectedReview.levels?.t2_id?.front_url
+                  }
+                  size="lg"
+                />
+                <FileThumb
+                  label="Back"
+                  url={
+                    selectedReview.gov_id_back_url ||
+                    selectedReview.levels?.t2_id?.back_url
+                  }
+                  size="lg"
+                />
+              </div>
+            </div>
+            <div className="om-admin-section">
+              <h3>Free period</h3>
+              <DetailGrid>
+                <DetailField
+                  label="First request"
+                  value={fmtDate(
+                    selectedReview.levels?.trial?.first_service_at
+                  )}
+                />
+                <DetailField
+                  label="Days left"
+                  value={
+                    selectedReview.levels?.trial?.days_left == null
+                      ? "Not started"
+                      : selectedReview.levels.trial.expired
+                        ? "Ended"
+                        : String(selectedReview.levels.trial.days_left)
+                  }
+                />
+              </DetailGrid>
+            </div>
+          </>
+        ) : null}
+      </DetailDrawer>
     </AdminShell>
   );
 }

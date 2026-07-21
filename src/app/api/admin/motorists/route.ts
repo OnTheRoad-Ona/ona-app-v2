@@ -28,7 +28,7 @@ export async function GET(req: Request) {
     const { data: mots, error: mErr } = await supabase
       .from("motorist_profiles")
       .select(
-        "user_id, vehicle_make, vehicle_model, vehicle_year, plate_number, address_text, default_lat, default_lng, nin_last4, bvn_last4, nin_verified, bvn_verified, identity_verified_at, identity_review_status, identity_submitted_at, phone_verified, created_at, updated_at"
+        "user_id, vehicle_make, vehicle_model, vehicle_year, plate_number, address_text, default_lat, default_lng, nin_last4, bvn_last4, nin_verified, bvn_verified, identity_verified_at, identity_review_status, identity_submitted_at, phone_verified, gov_id_front_url, gov_id_back_url, gov_id_kind, gov_id_number, created_at, updated_at"
       )
       .order("created_at", { ascending: false })
       .limit(500);
@@ -151,6 +151,10 @@ export async function GET(req: Request) {
               identity_review_status: mot.identity_review_status ?? null,
               identity_submitted_at: mot.identity_submitted_at ?? null,
               phone_verified: Boolean(mot.phone_verified),
+              gov_id_front_url: mot.gov_id_front_url ?? null,
+              gov_id_back_url: mot.gov_id_back_url ?? null,
+              gov_id_kind: mot.gov_id_kind ?? null,
+              gov_id_number: mot.gov_id_number ?? null,
             }
           : null,
         verifyLevel: verifyLevel as "full" | "partial" | "none",
