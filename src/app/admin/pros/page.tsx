@@ -49,17 +49,29 @@ export default function AdminProsPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [totals, setTotals] = useState<{
+    total: number;
+    pending: number;
+    approved: number;
+    online: number;
+  } | null>(null);
+
   const load = useCallback(async () => {
-    const res = await fetch("/api/admin/users?role=repair_pro");
+    // Load from repair_pro_profiles (not profiles.role only) so dual accounts show
+    const res = await fetch("/api/admin/pros");
     const json = await res.json();
     if (!json.ok) {
       if (res.status === 401) {
         router.replace("/admin/login");
         return;
       }
+      setLoadError(json.error?.message || "Failed to load Repair Pros");
       return;
     }
-    setUsers(json.data.users);
+    setLoadError(null);
+    setUsers(json.data.users || []);
+    if (json.data.totals) setTotals(json.data.totals);
   }, [router]);
 
   useEffect(() => {
@@ -119,10 +131,27 @@ export default function AdminProsPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Repair Pros</h1>
       <p className="om-admin-sub">
-        Approve, suspend, or reject. After Approve, the button turns into a
-        quiet &quot;Approved&quot; state — it will not stay lit as if you still
-        need to click it.
+        All pros from the database (including dual-account users). Approve,
+        suspend, or reject. After Approve, the button settles to a quiet state.
       </p>
+      {totals ? (
+        <div className="om-admin-cards">
+          {(
+            [
+              ["Total", totals.total],
+              ["Pending", totals.pending],
+              ["Approved", totals.approved],
+              ["Online now", totals.online],
+            ] as const
+          ).map(([label, value]) => (
+            <div className="om-admin-card" key={label}>
+              <div className="label">{label}</div>
+              <div className="value">{value}</div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {loadError ? <div className="om-admin-error">{loadError}</div> : null}
       {msg ? (
         <div
           className="om-admin-error"
@@ -132,6 +161,11 @@ export default function AdminProsPage() {
         </div>
       ) : null}
       <div className="om-admin-panel">
+        <div className="om-admin-toolbar">
+          <button type="button" className="om-admin-btn ghost" onClick={() => void load()}>
+            Refresh
+          </button>
+        </div>
         <table className="om-admin-table">
           <thead>
             <tr>
@@ -147,8 +181,9 @@ export default function AdminProsPage() {
             {users.length === 0 ? (
               <tr>
                 <td colSpan={6} className="om-admin-muted">
-                  No Repair Pros registered yet. When someone signs up as Repair
-                  Pro on ogamecho.vercel.app they appear here.
+                  {loadError
+                    ? "Could not load pros — see error above."
+                    : "No Repair Pros in the database yet. Sign-ups write to repair_pro_profiles and appear here after refresh."}
                 </td>
               </tr>
             ) : (

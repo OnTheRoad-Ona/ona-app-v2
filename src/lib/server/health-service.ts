@@ -62,6 +62,7 @@ export async function estimateStoragePct(): Promise<{
   live: boolean;
   connected: boolean;
   detail?: string;
+  registry?: { motoristProfiles: number; repairProProfiles: number };
 }> {
   if (!isSupabaseAdminConfigured()) {
     return { pct: 0, live: false, connected: false, detail: "Supabase not configured" };
@@ -106,11 +107,21 @@ export async function estimateStoragePct(): Promise<{
     const estimatedBytes = 50 * 1024 * 1024 + totalRows * 800;
     const pct = Math.min(99.9, (estimatedBytes / limitBytes) * 100);
 
+    // Registry health (admin list sources)
+    const [motC, proC] = await Promise.all([
+      sb.from("motorist_profiles").select("user_id", { count: "exact", head: true }),
+      sb.from("repair_pro_profiles").select("user_id", { count: "exact", head: true }),
+    ]);
+
     return {
       pct,
       live: false, // set true when using real pg_database_size
       connected: true,
-      detail: `Heuristic from ${totalRows} rows across core tables`,
+      detail: `Heuristic from ${totalRows} rows · motorists ${motC.count ?? 0} · pros ${proC.count ?? 0}`,
+      registry: {
+        motoristProfiles: motC.count ?? 0,
+        repairProProfiles: proC.count ?? 0,
+      },
     };
   } catch (e) {
     return {

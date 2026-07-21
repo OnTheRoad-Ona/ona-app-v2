@@ -23,16 +23,16 @@ export async function GET() {
       completedJobs,
       paymentsPaid,
       recentActions,
+      customerIdPending,
     ] = await Promise.all([
       supabase.from("profiles").select("id", { count: "exact", head: true }),
+      // Side tables are source of truth (dual accounts not missed)
       supabase
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .eq("role", "motorist"),
+        .from("motorist_profiles")
+        .select("user_id", { count: "exact", head: true }),
       supabase
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .eq("role", "repair_pro"),
+        .from("repair_pro_profiles")
+        .select("user_id", { count: "exact", head: true }),
       supabase
         .from("repair_pro_profiles")
         .select("user_id", { count: "exact", head: true })
@@ -60,6 +60,10 @@ export async function GET() {
         .select("id, action, target_user_id, meta, created_at, admin_id")
         .order("created_at", { ascending: false })
         .limit(12),
+      supabase
+        .from("motorist_profiles")
+        .select("user_id", { count: "exact", head: true })
+        .eq("identity_review_status", "submitted"),
     ]);
 
     const revenueKobo = (paymentsPaid.data ?? []).reduce(
@@ -73,6 +77,7 @@ export async function GET() {
         motorists: motorists.count ?? 0,
         repairPros: pros.count ?? 0,
         pendingPros: pendingPros.count ?? 0,
+        customerIdPending: customerIdPending.count ?? 0,
         openJobs: openJobs.count ?? 0,
         completedJobs: completedJobs.count ?? 0,
         revenueKobo,
