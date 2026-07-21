@@ -1724,18 +1724,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return null;
       }
 
-      // Artisan verification gate: only approved pros may Go Live
+      // Local draft gate only when an onboarding profile exists in this browser.
+      // Missing local artisan must NOT blank/block dashboard — server owns Live.
       if (live) {
         try {
           const { getArtisanProfile } = await import("@/lib/artisan/local-store");
           const { canGoLive } = await import("@/lib/artisan/status");
           const artisan = getArtisanProfile(backendUserId);
-          const gate = canGoLive(artisan);
-          if (!gate.allowed) {
-            return gate.message;
+          if (artisan) {
+            const gate = canGoLive(artisan);
+            if (!gate.allowed) {
+              return gate.message;
+            }
           }
         } catch {
-          /* if module fails, fall through — server should still enforce */
+          /* fall through — server enforces */
         }
       }
 

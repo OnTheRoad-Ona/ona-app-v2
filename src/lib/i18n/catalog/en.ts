@@ -210,7 +210,7 @@ export const EN = {
   "trade.generator": "Generator",
   "trade.all": "All",
   "gate.finishBeforeLive":
-    "Finish verification and submit for review before you can Go Live.",
+    "Complete your verification in settings first. Submit your profile for review.",
   "gate.continueVerification": "Continue verification",
   "gate.viewStatus": "View status",
   "status.draft": "Draft",

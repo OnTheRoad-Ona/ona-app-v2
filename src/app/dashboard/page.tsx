@@ -118,7 +118,16 @@ function splitPlaceAndArea(label: string): {
 }
 
 export default function TechnicianDashboardPage() {
-  const { theme, proLive, setProLive, backendUserId } = useApp();
+  const {
+    theme,
+    proLive,
+    setProLive,
+    backendUserId,
+    accountType,
+    isAuthenticated,
+    switchAccount,
+    hasProAccount,
+  } = useApp();
   const t = useT();
   const isLight = theme === "light";
   const [liveBusy, setLiveBusy] = useState(false);
@@ -130,13 +139,18 @@ export default function TechnicianDashboardPage() {
   const [artisan, setArtisan] = useState<ArtisanVerificationProfile | null>(
     null
   );
+  const [switchBusy, setSwitchBusy] = useState(false);
 
   useEffect(() => {
     if (!backendUserId) {
       setArtisan(null);
       return;
     }
-    setArtisan(getArtisanProfile(backendUserId));
+    try {
+      setArtisan(getArtisanProfile(backendUserId));
+    } catch {
+      setArtisan(null);
+    }
   }, [backendUserId, proLive, liveErr]);
 
   const stage = isLight ? "bg-[#c8c9cd]" : "bg-black";
@@ -228,6 +242,53 @@ export default function TechnicianDashboardPage() {
   const showIncoming = incoming.length > 0;
   /** Same for every trade: Recent always when finished jobs exist (not hidden by Incoming). */
   const showRecent = recent.length > 0;
+
+  // Always paint a shell — never blank when role/session is mid-switch
+  if (isAuthenticated && accountType !== "professional") {
+    return (
+      <div className={cn("flex h-full min-h-0 flex-col", stage)}>
+        <PageHeader title="Professional Dashboard" showBack={false} />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-5 text-center">
+          <p className={cn("text-[15px] font-bold", ink)}>
+            You are on Customer mode
+          </p>
+          <p className={cn("max-w-[280px] text-[12px] leading-relaxed", muted)}>
+            {hasProAccount
+              ? "Switch to Repair Pro to open this dashboard and Go Live."
+              : "Create a Repair Pro account from the menu (Use as · Repair Pro) to use the professional dashboard."}
+          </p>
+          {hasProAccount ? (
+            <button
+              type="button"
+              disabled={switchBusy}
+              className="mt-1 inline-flex h-11 items-center justify-center rounded-md bg-[#2c2c2e] px-5 text-[14px] font-semibold text-white disabled:opacity-50"
+              onClick={() => {
+                setSwitchBusy(true);
+                void switchAccount("professional").finally(() =>
+                  setSwitchBusy(false)
+                );
+              }}
+            >
+              {switchBusy ? "Switching…" : "Use as Repair Pro"}
+            </button>
+          ) : (
+            <Link
+              href="/signup/pro?from=profile&next=/dashboard"
+              className="mt-1 inline-flex h-11 items-center justify-center rounded-md bg-[#2c2c2e] px-5 text-[14px] font-semibold text-white"
+            >
+              Become a Repair Pro
+            </Link>
+          )}
+          <Link
+            href="/"
+            className={cn("text-[12px] font-bold text-[#FF6B35]", "mt-1")}
+          >
+            Back to customer home
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("flex h-full min-h-0 flex-col", stage)}>
