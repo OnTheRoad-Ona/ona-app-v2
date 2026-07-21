@@ -2,7 +2,7 @@
 
 /**
  * Post-signup artisan onboarding (multi-step).
- * Real verification: OTP (timed), Prembly NIN/BVN APIs, camera liveness, skill proof → admin.
+ * Phone OTP · Gov ID + NIN upload for admin/care review · liveness · skill proof.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -42,12 +42,7 @@ import {
   statusLabel,
   tierProgressPercent,
 } from "@/lib/artisan/status";
-import {
-  runBvnVerification,
-  runNinVerification,
-  sendArtisanOtp,
-  verifyArtisanOtp,
-} from "@/lib/artisan/verification";
+import { sendArtisanOtp, verifyArtisanOtp } from "@/lib/artisan/verification";
 import type {
   ArtisanMedia,
   ArtisanOnboardingStep,
@@ -173,7 +168,7 @@ export function ArtisanOnboarding({
   /** Shown once after send so you can complete the flow without SMS */
   const [otpDemoCode, setOtpDemoCode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [idBusy, setIdBusy] = useState<"nin" | "bvn" | null>(null);
+  const [idBusy, setIdBusy] = useState<"gov" | "nin" | null>(null);
   const [showLiveness, setShowLiveness] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -282,81 +277,59 @@ export function ArtisanOnboarding({
     setErr(null);
   };
 
-  const verifyGovId = async () => {
+  /** Government ID: type + number + photo → queue for admin/care (no live verify) */
+  const submitGovIdForReview = () => {
     if (!profile) return;
-    if (!profile.govIdType || !profile.govIdNumber?.trim()) {
-      setErr("Pick ID type and enter the ID number.");
+    if (!profile.govIdType) {
+      setErr("Pick an ID type.");
+      return;
+    }
+    if (!profile.govIdNumber?.trim() || profile.govIdNumber.trim().length < 5) {
+      setErr("Enter the ID number.");
+      return;
+    }
+    if (!profile.govIdFront?.url) {
+      setErr("Upload a clear photo of the selected ID.");
+      return;
+    }
+    setIdBusy("gov");
+    setErr(null);
+    patch({
+      tiers: { ...profile.tiers, tier2_govId: false },
+      govIdReviewStatus: "submitted",
+      govIdSubmittedAt: new Date().toISOString(),
+    });
+    setMsg(
+      "Government ID submitted for review. Admin / customer care will approve it."
+    );
+    setIdBusy(null);
+  };
+
+  /** NIN number under BVN panel → queue for admin/care (no document upload) */
+  const submitNinForReview = () => {
+    if (!profile) return;
+    const nin = (profile.nin || "").replace(/\D/g, "");
+    if (nin.length !== 11) {
+      setErr("NIN must be exactly 11 digits.");
       return;
     }
     setIdBusy("nin");
     setErr(null);
-    setMsg(null);
-    try {
-      const number = profile.govIdNumber.trim();
-      if (profile.govIdType === "nin") {
-        const res = await runNinVerification(number);
-        if (!res.ok) {
-          setErr(res.message);
-          patch({ tiers: { ...profile.tiers, tier2_govId: false } });
-          return;
-        }
-        patch({
-          tiers: { ...profile.tiers, tier2_govId: true },
-          idVerifyProvider: res.provider || null,
-          idVerifyMode: res.mode || null,
-          idVerifyReference: res.reference || null,
-          idVerifiedAt: new Date().toISOString(),
-          fullName: res.fullName || profile.fullName,
-        });
-        setMsg(res.message);
-        return;
-      }
-      // Driver’s licence / voter’s card / passport — format gate until Prembly doc endpoints
-      if (number.length < 6) {
-        setErr("ID number looks too short.");
-        return;
-      }
-      patch({
-        tiers: { ...profile.tiers, tier2_govId: true },
-        idVerifyProvider: "local",
-        idVerifyMode: "format",
-        idVerifiedAt: new Date().toISOString(),
-      });
-      setMsg(
-        `${profile.govIdType.replace(/_/g, " ")} accepted (format check). Use NIN for Prembly live verify.`
-      );
-    } finally {
-      setIdBusy(null);
-    }
+    patch({
+      nin,
+      tiers: { ...profile.tiers, tier2_nin: false },
+      ninReviewStatus: "submitted",
+      ninSubmittedAt: new Date().toISOString(),
+    });
+    setMsg("Submitted for review. Admin / customer care will verify it.");
+    setIdBusy(null);
   };
 
-  const verifyBvn = async () => {
-    if (!profile) return;
-    setIdBusy("bvn");
-    setErr(null);
-    setMsg(null);
-    try {
-      const res = await runBvnVerification(profile.bvn || "");
-      if (!res.ok) {
-        setErr(res.message);
-        patch({
-          tiers: { ...profile.tiers, tier2_bvn: false },
-          bvnVerified: false,
-        });
-        return;
-      }
-      patch({
-        tiers: { ...profile.tiers, tier2_bvn: true },
-        bvnVerified: true,
-        bvnVerifiedAt: new Date().toISOString(),
-        idVerifyProvider: res.provider || profile.idVerifyProvider,
-        idVerifyMode: res.mode || profile.idVerifyMode,
-        idVerifyReference: res.reference || profile.idVerifyReference,
-      });
-      setMsg(res.message);
-    } finally {
-      setIdBusy(null);
-    }
+  const reviewLabel = (s?: string | null) => {
+    if (s === "submitted") return "Pending review";
+    if (s === "approved") return "Approved";
+    if (s === "rejected") return "Rejected — re-upload";
+    return "Not submitted";
   };
 
   const submitReview = () => {
@@ -1098,8 +1071,8 @@ export function ArtisanOnboarding({
               <p className="font-bold">How verification works</p>
               <ol className="mt-1 list-decimal space-y-0.5 pl-4">
                 <li>
-                  <span className="font-semibold">ID &amp; bank</span> — We
-                  check your government ID and bank number for your country.
+                  <span className="font-semibold">ID &amp; NIN</span> — Upload
+                  your government ID and NIN. Our team reviews them.
                 </li>
                 <li>
                   <span className="font-semibold">Face check</span> — Look at
@@ -1122,7 +1095,7 @@ export function ArtisanOnboarding({
                 [
                   ["Phone", profile.tiers.tier1_phone],
                   ["Gov ID", profile.tiers.tier2_govId],
-                  ["BVN", profile.tiers.tier2_bvn],
+                  ["NIN", profile.tiers.tier2_nin],
                   ["Liveness", profile.tiers.tier3_liveness],
                   ["Skill", profile.tiers.tier4_skillProof],
                 ] as const
@@ -1148,16 +1121,12 @@ export function ArtisanOnboarding({
             <div className={panelClass}>
               <p className={cn("flex items-center gap-2 text-[13px] font-bold", ink)}>
                 <FileText className="h-4 w-4 shrink-0 text-[#FF6B35]" />{" "}
-                Tier 2 · Government ID + BVN
+                Tier 2 · Government ID
               </p>
               <p className={cn("mt-1 text-[10px] font-medium", muted)}>
-                {profile.tiers.tier2_govId || profile.tiers.tier2_bvn
-                  ? `Verified${profile.idVerifyMode ? ` · ${profile.idVerifyMode}` : ""}${
-                      profile.idVerifyProvider
-                        ? ` · ${profile.idVerifyProvider}`
-                        : ""
-                    }`
-                  : "Not verified yet"}
+                {profile.tiers.tier2_govId
+                  ? "Approved by admin / care"
+                  : reviewLabel(profile.govIdReviewStatus)}
               </p>
               <select
                 value={profile.govIdType || ""}
@@ -1165,12 +1134,13 @@ export function ArtisanOnboarding({
                   patch({
                     govIdType: (e.target.value || null) as GovIdType | null,
                     tiers: { ...profile.tiers, tier2_govId: false },
+                    govIdReviewStatus: "none",
                   })
                 }
                 className={cn("mt-2", selectClass)}
               >
                 <option value="">ID type…</option>
-                <option value="nin">NIN (Prembly / format)</option>
+                <option value="nin">National ID (NIN card)</option>
                 <option value="drivers_licence">Driver’s Licence</option>
                 <option value="voters_card">Voter’s Card</option>
                 <option value="international_passport">
@@ -1183,66 +1153,109 @@ export function ArtisanOnboarding({
                   patch({
                     govIdNumber: e.target.value,
                     tiers: { ...profile.tiers, tier2_govId: false },
+                    govIdReviewStatus: "none",
                   })
                 }
-                placeholder={
-                  profile.govIdType === "nin"
-                    ? "11-digit NIN"
-                    : "ID number"
-                }
+                placeholder="ID number on the document"
                 className={cn("mt-2", fieldClass)}
-                inputMode={profile.govIdType === "nin" ? "numeric" : "text"}
               />
+              <label className={cn("mt-2 h-14", uploadInlineClass)}>
+                <Upload className="h-3.5 w-3.5 shrink-0" />
+                {profile.govIdFront
+                  ? `Uploaded: ${profile.govIdFront.name || "ID photo"}`
+                  : "Upload photo of selected ID"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    setBusy(true);
+                    try {
+                      const url = await fileToDataUrl(f);
+                      patch({
+                        govIdFront: {
+                          id: uid(),
+                          url,
+                          kind: "id_front",
+                          name: f.name,
+                          mime: f.type,
+                          createdAt: new Date().toISOString(),
+                        },
+                        tiers: { ...profile.tiers, tier2_govId: false },
+                        govIdReviewStatus: "none",
+                      });
+                      setErr(null);
+                    } catch {
+                      setErr("Could not read ID photo.");
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                />
+              </label>
               <button
                 type="button"
-                disabled={idBusy === "nin"}
+                disabled={idBusy === "gov" || profile.tiers.tier2_govId}
                 className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[12px] font-bold text-white disabled:opacity-60"
-                onClick={() => void verifyGovId()}
+                onClick={submitGovIdForReview}
               >
-                {idBusy === "nin" ? (
+                {idBusy === "gov" ? (
                   <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking
-                    ID…
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
                   </>
                 ) : profile.tiers.tier2_govId ? (
                   <>
-                    <Check className="h-3.5 w-3.5" /> ID verified · Re-check
+                    <Check className="h-3.5 w-3.5" /> ID approved
                   </>
+                ) : profile.govIdReviewStatus === "submitted" ? (
+                  "Resubmit ID for review"
                 ) : (
-                  "Verify government ID"
+                  "Submit ID for review"
                 )}
               </button>
+            </div>
+
+            <div className={panelClass}>
+              <p className={cn("flex items-center gap-2 text-[13px] font-bold", ink)}>
+                <FileText className="h-4 w-4 shrink-0 text-[#FF6B35]" /> BVN
+              </p>
+              <p className={cn("mt-1 text-[10px] font-medium", muted)}>
+                {profile.tiers.tier2_nin
+                  ? "Approved by admin / care"
+                  : reviewLabel(profile.ninReviewStatus)}
+              </p>
               <input
-                value={profile.bvn || ""}
+                value={profile.nin || ""}
                 onChange={(e) =>
                   patch({
-                    bvn: e.target.value.replace(/\D/g, "").slice(0, 11),
-                    tiers: { ...profile.tiers, tier2_bvn: false },
-                    bvnVerified: false,
+                    nin: e.target.value.replace(/\D/g, "").slice(0, 11),
+                    tiers: { ...profile.tiers, tier2_nin: false },
+                    ninReviewStatus: "none",
                   })
                 }
                 placeholder="11-digit BVN"
-                className={cn("mt-3", fieldClass)}
+                className={cn("mt-2", fieldClass)}
                 inputMode="numeric"
                 maxLength={11}
               />
               <button
                 type="button"
-                disabled={idBusy === "bvn"}
+                disabled={idBusy === "nin" || profile.tiers.tier2_nin}
                 className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[12px] font-bold text-white disabled:opacity-60"
-                onClick={() => void verifyBvn()}
+                onClick={submitNinForReview}
               >
-                {idBusy === "bvn" ? (
+                {idBusy === "nin" ? (
                   <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking
-                    BVN…
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
                   </>
-                ) : profile.tiers.tier2_bvn ? (
+                ) : profile.tiers.tier2_nin ? (
                   <>
-                    <Check className="h-3.5 w-3.5" /> BVN verified · Re-check
+                    <Check className="h-3.5 w-3.5" /> Approved
                   </>
                 ) : (
-                  "Verify BVN"
+                  "Submit"
                 )}
               </button>
             </div>
@@ -1419,8 +1432,8 @@ export function ArtisanOnboarding({
               </li>
               <li>
                 Optional tiers: ID{" "}
-                {profile.tiers.tier2_govId ? "✓" : "—"} · BVN{" "}
-                {profile.tiers.tier2_bvn ? "✓" : "—"} · Liveness{" "}
+                {profile.tiers.tier2_govId ? "✓" : "—"} · NIN{" "}
+                {profile.tiers.tier2_nin ? "✓" : "—"} · Liveness{" "}
                 {profile.tiers.tier3_liveness ? "✓" : "—"} · Skill{" "}
                 {profile.tiers.tier4_skillProof ? "✓" : "—"}
               </li>
