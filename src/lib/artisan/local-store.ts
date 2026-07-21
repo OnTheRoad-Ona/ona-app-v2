@@ -89,9 +89,25 @@ export function ensureArtisanDraft(input: {
   phone: string;
   email?: string;
   service?: ArtisanVerificationProfile["trade"]["service"];
+  countryCode?: string;
+  countryName?: string;
 }): ArtisanVerificationProfile {
   const existing = getArtisanProfile(input.userId);
-  if (existing) return existing;
+  if (existing) {
+    // Lock country from signup if missing on older drafts
+    if (!existing.serviceArea?.countryCode && input.countryCode) {
+      const next = {
+        ...existing,
+        serviceArea: {
+          ...existing.serviceArea,
+          countryCode: input.countryCode,
+          countryName: input.countryName,
+        },
+      };
+      return saveArtisanProfile(next);
+    }
+    return existing;
+  }
   const now = new Date().toISOString();
   const draft: ArtisanVerificationProfile = {
     userId: input.userId,
@@ -105,7 +121,13 @@ export function ensureArtisanDraft(input: {
       specialty: null,
     },
     yearsExperience: 1,
-    serviceArea: { states: [], cities: [], lgas: [] },
+    serviceArea: {
+      countryCode: input.countryCode || "NG",
+      countryName: input.countryName || "Nigeria",
+      states: [],
+      cities: [],
+      lgas: [],
+    },
     toolsOwned: [],
     guarantor: { fullName: "", phone: "" },
     portfolio: [],

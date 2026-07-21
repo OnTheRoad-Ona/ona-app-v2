@@ -59,6 +59,14 @@ export function smartBackFallback(
   if (path === "/profile" || path === "/settings") return home;
   if (path.startsWith("/payments")) return "/profile";
 
+  // Artisan setup — previous page if stack empty → pro dashboard
+  if (path.startsWith("/artisan/onboarding")) {
+    return accountType === "professional" ? "/dashboard" : home;
+  }
+  if (path.startsWith("/artisan/")) {
+    return accountType === "professional" ? "/dashboard" : home;
+  }
+
   // Motorist flows
   if (path.startsWith("/technician/")) return "/";
   if (path === "/request" || path === "/search" || path === "/verify")

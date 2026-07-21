@@ -85,8 +85,9 @@ export function BrandHeroMotion({
         height={BRAND_H}
         decoding="async"
         // Welcome only: one high-priority load. Never re-key the img (avoids re-fetch loops).
-        fetchPriority={introMotion ? "high" : "low"}
-        loading={introMotion ? "eager" : "lazy"}
+        // Splash + intro: eager brand photo so reload never stays copper-only
+        fetchPriority={introMotion || size === "splash" ? "high" : "low"}
+        loading={introMotion || size === "splash" ? "eager" : "lazy"}
         draggable={false}
         sizes="390px"
         className={cn(

@@ -76,24 +76,47 @@ export function PhoneShell({
 }) {
   const { theme, toggleTheme } = useApp();
   const isLight = theme === "light";
+  /** Phone frame interior — explicit colors avoid browser class lag */
+  const phoneInterior = isLight ? "#c8c9cd" : "#000000";
   const lastTapRef = useRef(0);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
   const toggleThemeRef = useRef(toggleTheme);
   toggleThemeRef.current = toggleTheme;
+  /** Suppress synthetic dblclick after touch double-tap (browser inconsistency) */
+  const ignoreDblClickUntilRef = useRef(0);
+  const togglingRef = useRef(false);
 
   useEffect(() => {
-    // Single root only — stage wraps the phone; dual listeners would toggle twice
-    const root = document.getElementById("oga-mecho-stage");
-    if (!root) return;
+    // Listen on phone interior only — theme chrome inside the frame
+    const phone = document.getElementById("oga-mecho-phone");
+    if (!phone) return;
+
+    const runToggle = () => {
+      // Coalesce rapid double fires (touch + mouse) so interior doesn't land wrong
+      if (togglingRef.current) return;
+      togglingRef.current = true;
+      toggleThemeRef.current();
+      window.setTimeout(() => {
+        togglingRef.current = false;
+      }, 350);
+    };
 
     const onDblClick = (e: MouseEvent) => {
+      if (Date.now() < ignoreDblClickUntilRef.current) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       if (isBlockedTarget(e.target)) return;
+      // Only when click is inside phone frame
+      if (!phone.contains(e.target as Node)) return;
       const sel = window.getSelection()?.toString();
       if (sel && sel.length > 0) {
         window.getSelection()?.removeAllRanges();
       }
       e.preventDefault();
-      toggleThemeRef.current();
+      e.stopPropagation();
+      runToggle();
     };
 
     const onTouchEnd = (e: TouchEvent) => {
@@ -102,6 +125,7 @@ export function PhoneShell({
         lastPointRef.current = null;
         return;
       }
+      if (!phone.contains(e.target as Node)) return;
       // Multi-touch / pinch → ignore
       if (e.touches.length > 0 || e.changedTouches.length !== 1) {
         lastTapRef.current = 0;
@@ -123,9 +147,11 @@ export function PhoneShell({
       if (gap < 400 && gap > 25 && near) {
         lastTapRef.current = 0;
         lastPointRef.current = null;
-        // Stop iOS double-tap zoom when we own free-space gesture
+        // Block the synthetic dblclick some browsers fire after double-tap
+        ignoreDblClickUntilRef.current = now + 500;
         e.preventDefault();
-        toggleThemeRef.current();
+        e.stopPropagation();
+        runToggle();
         return;
       }
 
@@ -133,15 +159,28 @@ export function PhoneShell({
       lastPointRef.current = { x: t.clientX, y: t.clientY };
     };
 
-    // Capture + non-passive so Motorist map taps reach us and preventDefault works
+    // Capture + non-passive so map taps reach us and preventDefault works
     const opts: AddEventListenerOptions = { capture: true, passive: false };
-    root.addEventListener("dblclick", onDblClick, opts);
-    root.addEventListener("touchend", onTouchEnd, opts);
+    phone.addEventListener("dblclick", onDblClick, opts);
+    phone.addEventListener("touchend", onTouchEnd, opts);
     return () => {
-      root.removeEventListener("dblclick", onDblClick, opts);
-      root.removeEventListener("touchend", onTouchEnd, opts);
+      phone.removeEventListener("dblclick", onDblClick, opts);
+      phone.removeEventListener("touchend", onTouchEnd, opts);
     };
   }, []);
+
+  // Keep phone data-theme + paint in lockstep with React theme
+  useEffect(() => {
+    const phone = document.getElementById("oga-mecho-phone");
+    if (!phone) return;
+    phone.dataset.theme = theme;
+    phone.style.backgroundColor = phoneInterior;
+    // Inner content root inherits solid fill so pages don't flash wrong stage
+    const inner = phone.firstElementChild as HTMLElement | null;
+    if (inner) {
+      inner.style.backgroundColor = phoneInterior;
+    }
+  }, [theme, phoneInterior]);
 
   return (
     <div
@@ -157,13 +196,13 @@ export function PhoneShell({
     >
       <div
         id="oga-mecho-phone"
+        data-theme={theme}
         className={cn(
           "relative box-border flex flex-col overflow-hidden",
           "w-[390px] max-w-[calc(100vw-1.5rem)]",
           "h-[min(844px,calc(100dvh-1.5rem))] max-h-[min(844px,calc(100dvh-1.5rem))]",
           "h-[min(844px,calc(100svh-1.5rem))] max-h-[min(844px,calc(100svh-1.5rem))]",
           "shadow-[0_24px_48px_rgba(0,0,0,0.55)]",
-          isLight ? "bg-[#c8c9cd]" : "bg-black",
           className
         )}
         style={{
@@ -173,9 +212,13 @@ export function PhoneShell({
           maxHeight: "min(844px, calc(100dvh - 1.5rem))",
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
           paddingTop: "env(safe-area-inset-top, 0px)",
+          backgroundColor: phoneInterior,
         }}
       >
-        <div className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
+        <div
+          className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden"
+          style={{ backgroundColor: phoneInterior }}
+        >
           {children}
           <AcceptTripPopup />
           <IncomingJobPopup />

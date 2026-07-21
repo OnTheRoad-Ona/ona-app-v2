@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { BrandEntryScreen } from "@/components/auth/brand-entry-screen";
-import { BRAND_COPPER } from "@/components/auth/brand-hero-motion";
+import {
+  BrandHeroMotion,
+  BRAND_COPPER,
+} from "@/components/auth/brand-hero-motion";
 import {
   canAccessPath,
   homePathForAccount,
@@ -14,7 +17,7 @@ import { useApp } from "@/lib/store";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-/** Minimal solid splash — no photo so first open is instant */
+/** Brief branded splash (photo + Loading Ona) before Welcome / app */
 const SPLASH_MIN_MS = 100;
 /** Soft crossfade splash → Welcome */
 const HANDOFF_MS = 100;
@@ -325,7 +328,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     </div>
   );
 
-  // Solid copper only — no brand JPG on splash
+  // Brand portrait (auth-bg-v31) + Loading text — not the Welcome intro page
   const splashLayer = (
     <div
       className={cn(
@@ -334,11 +337,18 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       )}
       style={{ backgroundColor: BRAND_COPPER }}
       aria-hidden={splashExiting}
+      aria-label={t("common.loading")}
     >
+      <BrandHeroMotion
+        size="splash"
+        bottomFade={false}
+        motion
+        introMotion
+      />
       <p
         className={cn(
           "pointer-events-none absolute inset-x-0 bottom-10 z-10 text-center text-[12px] font-medium transition-opacity duration-200",
-          splashExiting ? "opacity-0" : "opacity-70"
+          splashExiting ? "opacity-0" : "opacity-90"
         )}
         style={{ color: "#C8C9CD" }}
       >

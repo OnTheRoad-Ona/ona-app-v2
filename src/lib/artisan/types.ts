@@ -69,11 +69,14 @@ export type ArtisanGuarantor = {
 };
 
 export type ArtisanServiceArea = {
-  /** e.g. Lagos */
+  /** ISO 3166-1 alpha-2 from signup — locked in onboarding */
+  countryCode?: string;
+  countryName?: string;
+  /** Single selected state (array kept for storage compatibility, max 1 in UI) */
   states: string[];
-  /** e.g. Ikeja, Lekki */
+  /** Multiple cities within the selected state */
   cities: string[];
-  /** e.g. Eti-Osa */
+  /** Multiple LGAs (Nigeria); empty for countries without LGA data */
   lgas: string[];
 };
 
@@ -174,9 +177,13 @@ export const NEW_ARTISAN_JOBS_THRESHOLD = 5;
 export const PORTFOLIO_MIN = 4;
 export const PORTFOLIO_MAX = 6;
 
-/** Intro video length guidance (seconds) */
-export const INTRO_VIDEO_MIN_SEC = 30;
-export const INTRO_VIDEO_MAX_SEC = 60;
+/** Max size per portfolio / ID image (bytes) */
+export const IMAGE_MAX_BYTES = 2 * 1024 * 1024; // 2 MB
+
+/** Intro video limits */
+export const INTRO_VIDEO_MIN_SEC = 1;
+export const INTRO_VIDEO_MAX_SEC = 30;
+export const INTRO_VIDEO_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 
 export type ArtisanOnboardingStep =
   | "trade"

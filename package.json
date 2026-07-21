@@ -18,6 +18,7 @@
     "vehicles:catalog": "node scripts/download-vehicle-catalog.mjs"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.35",
     "@radix-ui/react-avatar": "^1.2.2",
     "@radix-ui/react-dialog": "^1.1.19",
     "@radix-ui/react-scroll-area": "^1.2.14",
@@ -36,6 +37,7 @@
     "leaflet": "^1.9.4",
     "lucide-react": "^1.24.0",
     "next": "16.2.10",
+    "nigeria-state-lga-data": "^1.1.5",
     "pg": "^8.22.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",

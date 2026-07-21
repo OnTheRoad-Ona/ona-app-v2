@@ -22,7 +22,7 @@ export const EN = {
   "common.done": "Done",
   "common.edit": "Edit",
   "common.delete": "Delete",
-  "common.loading": "Loading…",
+  "common.loading": "Loading Ona…",
   "common.retry": "Retry",
   "common.search": "Search",
   "common.settings": "Settings",

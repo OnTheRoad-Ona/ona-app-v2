@@ -5,8 +5,9 @@
  * Phone OTP · Gov ID + NIN upload for admin/care review · liveness · skill proof.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Camera,
   Check,
@@ -18,22 +19,20 @@ import {
   Shield,
   Upload,
   Video,
+  X,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { FaceLiveness } from "@/components/profile/face-liveness";
-import {
-  ARTISAN_TRADE_CATALOG,
-  COMMON_TOOLS_SUGGESTIONS,
-  LAGOS_CITIES,
-  NG_STATES,
-  tradeDef,
-} from "@/lib/artisan/catalog";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { ARTISAN_TRADE_CATALOG, tradeDef } from "@/lib/artisan/catalog";
 import {
   ensureArtisanDraft,
   getArtisanProfile,
   saveArtisanProfile,
 } from "@/lib/artisan/local-store";
 import {
+  OTHER_OPTION,
+  otherAnswerKey,
   professionAnswersValid,
   professionQuestionsFor,
 } from "@/lib/artisan/profession-questions";
@@ -42,6 +41,16 @@ import {
   statusLabel,
   tierProgressPercent,
 } from "@/lib/artisan/status";
+import {
+  canAccessBvn,
+  canAccessLiveness,
+  canAccessSkillProof,
+  isBvnComplete,
+  isGovIdComplete,
+  isLivenessComplete,
+  isSkillComplete,
+  lockMessageForSection,
+} from "@/lib/artisan/verification-order";
 import { sendArtisanOtp, verifyArtisanOtp } from "@/lib/artisan/verification";
 import type {
   ArtisanMedia,
@@ -51,11 +60,19 @@ import type {
   SkillProofType,
 } from "@/lib/artisan/types";
 import {
+  IMAGE_MAX_BYTES,
+  INTRO_VIDEO_MAX_BYTES,
   INTRO_VIDEO_MAX_SEC,
   INTRO_VIDEO_MIN_SEC,
   PORTFOLIO_MAX,
   PORTFOLIO_MIN,
 } from "@/lib/artisan/types";
+import {
+  ARTISAN_STEP_KEY,
+  countryName,
+  resolveSignupCountryIso,
+  supportsLga,
+} from "@/lib/geo/service-area";
 import { profileTheme } from "@/lib/profile-system";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -84,6 +101,34 @@ async function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
+function formatMb(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Read video duration in seconds (rejects if unreadable) */
+function getVideoDurationSec(file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement("video");
+    v.preload = "metadata";
+    v.onloadedmetadata = () => {
+      const d = v.duration;
+      URL.revokeObjectURL(url);
+      if (!Number.isFinite(d) || d <= 0) reject(new Error("duration"));
+      else resolve(d);
+    };
+    v.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("meta"));
+    };
+    v.src = url;
+  });
+}
+
+function ReqStar() {
+  return <span className="text-red-600"> *</span>;
+}
+
 export function ArtisanOnboarding({
   mode = "full",
 }: {
@@ -91,6 +136,7 @@ export function ArtisanOnboarding({
   mode?: "full" | "settings";
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const {
     backendUserId,
     displayName,
@@ -142,15 +188,11 @@ export function ArtisanOnboarding({
   const navBack = isLight
     ? "bg-[#d4d5d9] text-slate-900"
     : "bg-[#2c2c2e] text-white";
-  const stepIdle = isLight
-    ? "bg-black/10 text-slate-700"
-    : "bg-[#2c2c2e] text-[#a1a1a6]";
-  const stepDone = isLight
-    ? "bg-emerald-600/20 text-emerald-800"
-    : "bg-emerald-900/40 text-emerald-300";
   const tradeOff = isLight
     ? "bg-[#d4d5d9] text-slate-900"
     : "bg-[#1c1c1e] text-white";
+  /** Selected chips — brand orange for all Yes/No and option picks */
+  const chipOn = "bg-[#FF6B35] text-white";
   const userId =
     backendUserId ||
     (typeof window !== "undefined"
@@ -173,28 +215,106 @@ export function ArtisanOnboarding({
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [toolDraft, setToolDraft] = useState("");
+  /** Soft popup when pro tries to change locked primary trade */
+  const [tradeLockOpen, setTradeLockOpen] = useState(false);
+  /** Soft grey square popup for verification step locks */
+  const [gatePopup, setGatePopup] = useState<string | null>(null);
+  const skillSectionRef = useRef<HTMLDivElement>(null);
 
+  /** Signup primary trade — locked for life of this onboarding/profile */
+  const lockedPrimaryTrade = useMemo(() => {
+    const fromProfile = userProfile?.services?.[0];
+    if (fromProfile && ARTISAN_TRADE_CATALOG.some((t) => t.service === fromProfile)) {
+      return fromProfile;
+    }
+    return null;
+  }, [userProfile?.services]);
+
+  // Hydrate draft once per user — re-read local store when returning from sub-pages
   useEffect(() => {
-    const p = ensureArtisanDraft({
+    const iso = resolveSignupCountryIso(userProfile?.identityCountryIso);
+    const primary =
+      lockedPrimaryTrade ||
+      userProfile?.services?.[0] ||
+      undefined;
+    let next = ensureArtisanDraft({
       userId,
       fullName: userProfile?.fullName || displayName || "Artisan",
       phone: userProfile?.phone || "",
       email: userProfile?.email,
-      service: userProfile?.services?.[0],
+      service: primary,
+      countryCode: iso,
+      countryName: countryName(iso),
     });
-    // Prefill specialty from pro signup if present
-    const spec = userProfile?.skillAnswers?.specialty;
-    if (typeof spec === "string" && spec.trim() && !p.trade.specialty) {
-      const next = {
-        ...p,
-        trade: { ...p.trade, specialty: spec.trim() },
+
+    // Always re-read latest (state/city/LGA pickers write to the same store)
+    const fresh = getArtisanProfile(userId);
+    if (fresh) next = fresh;
+
+    let dirty = false;
+    // Force primary trade from signup when known (lock)
+    if (primary && next.trade.service !== primary) {
+      next = {
+        ...next,
+        trade: { service: primary, specialty: next.trade.specialty },
       };
-      saveArtisanProfile(next);
-      setProfile(next);
-      return;
+      dirty = true;
     }
-    setProfile(p);
-  }, [userId, userProfile, displayName]);
+    const spec = userProfile?.skillAnswers?.specialty;
+    if (typeof spec === "string" && spec.trim() && !next.trade.specialty) {
+      next = {
+        ...next,
+        trade: { ...next.trade, specialty: spec.trim() },
+      };
+      dirty = true;
+    }
+    if (
+      next.serviceArea.countryCode !== iso ||
+      !next.serviceArea.countryName
+    ) {
+      next = {
+        ...next,
+        serviceArea: {
+          ...next.serviceArea,
+          countryCode: iso,
+          countryName: countryName(iso),
+        },
+      };
+      dirty = true;
+    }
+    if (dirty) saveArtisanProfile(next);
+    setProfile(next);
+
+    if (mode === "full") {
+      try {
+        const saved = sessionStorage.getItem(ARTISAN_STEP_KEY);
+        if (saved && STEPS.some((s) => s.id === saved)) {
+          setStep(saved as ArtisanOnboardingStep);
+          sessionStorage.removeItem(ARTISAN_STEP_KEY);
+        }
+      } catch {
+        /* */
+      }
+    }
+    // Only re-run when identity/user changes — not every profile field tick
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, lockedPrimaryTrade, mode]);
+
+  // Back from state/city/LGA routes — re-read vault + restore Profile step
+  useEffect(() => {
+    if (pathname !== "/artisan/onboarding") return;
+    const fresh = getArtisanProfile(userId);
+    if (fresh) setProfile(fresh);
+    try {
+      const saved = sessionStorage.getItem(ARTISAN_STEP_KEY);
+      if (saved && STEPS.some((s) => s.id === saved)) {
+        setStep(saved as ArtisanOnboardingStep);
+        sessionStorage.removeItem(ARTISAN_STEP_KEY);
+      }
+    } catch {
+      /* */
+    }
+  }, [pathname, userId]);
 
   const patch = useCallback((partial: Partial<ArtisanVerificationProfile>) => {
     setProfile((prev) => {
@@ -225,6 +345,12 @@ export function ArtisanOnboarding({
       for (const f of Array.from(files)) {
         if (next.length >= PORTFOLIO_MAX) break;
         if (!f.type.startsWith("image/")) continue;
+        if (f.size > IMAGE_MAX_BYTES) {
+          setErr(
+            `Each image must be ${formatMb(IMAGE_MAX_BYTES)} or less. “${f.name}” is ${formatMb(f.size)}.`
+          );
+          continue;
+        }
         const url = await fileToDataUrl(f);
         next.push({
           id: uid(),
@@ -236,11 +362,68 @@ export function ArtisanOnboarding({
         });
       }
       patch({ portfolio: next });
+      if (next.length >= PORTFOLIO_MIN) setMsg(null);
     } catch {
       setErr("Could not read photo. Try a smaller image.");
     } finally {
       setBusy(false);
     }
+  };
+
+  /** Block Next until step requirements are met */
+  const stepGateError = (): string | null => {
+    if (!profile) return "Loading…";
+    if (step === "trade") {
+      if (!profile.trade.service) return "Select your primary trade";
+      if (!profile.trade.specialty?.trim()) return "Select a specialty";
+      return null;
+    }
+    if (step === "profession") {
+      if (
+        !professionAnswersValid(
+          profile.trade.service,
+          profile.professionAnswers || {}
+        )
+      ) {
+        return "Answer all required questions (include text if you pick Other)";
+      }
+      return null;
+    }
+    if (step === "phone") {
+      if (!profile.tiers.tier1_phone) return "Verify your phone to continue";
+      return null;
+    }
+    if (step === "essentials") {
+      if (!profile.yearsExperience || profile.yearsExperience < 1) {
+        return "Enter years of experience";
+      }
+      if (!profile.serviceArea.states?.length) return "Pick your service state";
+      if (!profile.serviceArea.cities?.length) {
+        return "Pick at least one city";
+      }
+      if (!profile.toolsOwned?.length) return "Add at least one tool";
+      if (!profile.guarantor.fullName?.trim() || !profile.guarantor.phone?.trim()) {
+        return "Guarantor name and phone are required";
+      }
+      return null;
+    }
+    if (step === "portfolio") {
+      if (profile.portfolio.length < PORTFOLIO_MIN) {
+        return `Upload at least ${PORTFOLIO_MIN} photos`;
+      }
+      return null;
+    }
+    return null;
+  };
+
+  const goNext = () => {
+    const gate = stepGateError();
+    if (gate) {
+      setErr(gate);
+      return;
+    }
+    setErr(null);
+    setStep(STEPS[Math.min(STEPS.length - 1, stepIndex + 1)].id);
   };
 
   const sendOtp = () => {
@@ -421,39 +604,56 @@ export function ArtisanOnboarding({
 
   return (
     <div
-      className="flex h-full min-h-0 flex-col"
+      className="relative flex h-full min-h-0 flex-col overflow-hidden"
       style={{ backgroundColor: sheetBg }}
     >
-      <PageHeader
-        title={mode === "settings" ? "Verification" : "Artisan setup"}
-        subtitle={`${statusLabel(profile.status)} · ${progress}% tiers`}
-        backHref={mode === "settings" ? "/profile" : "/dashboard"}
-      />
+      <div className="shrink-0">
+        <PageHeader
+          title={mode === "settings" ? "Verification" : "Repair Pro Setup"}
+          subtitle={`${statusLabel(profile.status)} · ${progress}% verified`}
+          // Stack previous page when available; else dashboard (pro) / profile
+          backHref={mode === "settings" ? "/profile" : "/dashboard"}
+        />
 
-      {/* Progress steps */}
-      {mode === "full" ? (
-        <div className="flex gap-1 overflow-x-auto px-3 pb-2 scrollbar-hide">
-          {STEPS.map((s, i) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => setStep(s.id)}
+        {/* Progress — full onboarding only */}
+        {mode === "full" ? (
+          <div className="px-3 pb-2">
+            <div
               className={cn(
-                "shrink-0 rounded-md border-0 px-2 py-1 text-[10px] font-bold",
-                step === s.id
-                  ? "bg-[#323231] text-white"
-                  : i < stepIndex
-                    ? stepDone
-                    : stepIdle
+                "h-1 w-full overflow-hidden rounded-full",
+                isLight ? "bg-black/10" : "bg-white/15"
               )}
             >
-              {i + 1}. {s.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
+              <div
+                className="h-full rounded-full bg-[#FF6B35] transition-all duration-300"
+                style={{
+                  width: `${((stepIndex + 1) / STEPS.length) * 100}%`,
+                }}
+              />
+            </div>
+            <p
+              className={cn(
+                "mt-2 text-[11px] font-semibold tracking-wide",
+                muted
+              )}
+            >
+              {STEPS[stepIndex]?.label}{" "}
+              <span className={cn("font-medium", soft)}>
+                Step {stepIndex + 1} of {STEPS.length}
+              </span>
+            </p>
+          </div>
+        ) : null}
+      </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-6 scrollbar-hide">
+      {/* Scrollable body — must stay scrollable on mobile */}
+      <div
+        className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 pb-4"
+        style={{
+          WebkitOverflowScrolling: "touch",
+          touchAction: "pan-y",
+        }}
+      >
         {err ? (
           <p className={cn("mb-2 rounded-md px-3 py-2 text-[12px] font-semibold", errBox)}>
             {err}
@@ -472,7 +672,9 @@ export function ArtisanOnboarding({
               Your primary trade
             </h2>
             <p className={cn("text-[12px]", muted)}>
-              Pick one main skill, then a required specialty.
+              {lockedPrimaryTrade
+                ? "Pre-selected from signup. Specialty can still be set below."
+                : "Pick one main skill, then a required specialty."}
             </p>
             <div className="grid grid-cols-2 gap-2">
               {ARTISAN_TRADE_CATALOG.map((t) => {
@@ -481,22 +683,31 @@ export function ArtisanOnboarding({
                   <button
                     key={t.service}
                     type="button"
-                    onClick={() =>
+                    onClick={() => {
+                      const locked =
+                        lockedPrimaryTrade || profile.trade.service;
+                      // Always locked once a primary trade exists (signup or draft)
+                      if (locked && t.service !== locked) {
+                        setTradeLockOpen(true);
+                        return;
+                      }
+                      if (locked && t.service === locked) return;
                       patch({
                         trade: { service: t.service, specialty: null },
                         professionAnswers: {},
-                      })
-                    }
+                      });
+                    }}
                     className={cn(
                       "rounded-md border-0 px-2.5 py-2.5 text-left text-[12px] font-bold",
-                      on ? "bg-[#323231] text-white" : tradeOff
+                      on ? "bg-[#FF6B35] text-white" : tradeOff,
+                      lockedPrimaryTrade && !on && "opacity-55"
                     )}
                   >
                     {t.label}
                     <span
                       className={cn(
                         "mt-0.5 block text-[10px] font-medium",
-                        on ? "text-white/70" : muted
+                        on ? "text-white/80" : muted
                       )}
                     >
                       {t.description}
@@ -505,6 +716,7 @@ export function ArtisanOnboarding({
                 );
               })}
             </div>
+
             {trade?.specialties?.length ? (
               <div>
                 <p className={cn("mb-1.5 text-[12px] font-bold", soft)}>
@@ -607,7 +819,7 @@ export function ArtisanOnboarding({
                               }
                               className={cn(
                                 "rounded-md border-0 px-2.5 py-1.5 text-[11px] font-bold",
-                                on ? "bg-[#323231] text-white" : chipOff
+                                on ? chipOn : chipOff
                               )}
                             >
                               {opt}
@@ -617,37 +829,71 @@ export function ArtisanOnboarding({
                       </div>
                     ) : null}
                     {q.type === "multiselect" && q.options ? (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {q.options.map((opt) => {
-                          const arr = Array.isArray(val) ? val : [];
-                          const on = arr.includes(opt);
-                          return (
-                            <button
-                              key={opt}
-                              type="button"
-                              onClick={() => {
-                                let next = on
-                                  ? arr.filter((x) => x !== opt)
-                                  : [...arr, opt];
-                                const max = q.maxSelect ?? 6;
-                                if (next.length > max)
-                                  next = next.slice(0, max);
-                                patch({
-                                  professionAnswers: {
+                      <div className="mt-2 space-y-2">
+                        <div className="flex flex-wrap gap-1.5">
+                          {q.options.map((opt) => {
+                            const arr = Array.isArray(val) ? val : [];
+                            const on = arr.includes(opt);
+                            return (
+                              <button
+                                key={opt}
+                                type="button"
+                                onClick={() => {
+                                  let next = on
+                                    ? arr.filter((x) => x !== opt)
+                                    : [...arr, opt];
+                                  const max = q.maxSelect ?? 6;
+                                  // Other doesn't count against max the same way — allow +1
+                                  const maxAllow =
+                                    opt === OTHER_OPTION ? max + 1 : max;
+                                  if (next.length > maxAllow)
+                                    next = next.slice(0, maxAllow);
+                                  const nextAnswers: Record<
+                                    string,
+                                    string | string[]
+                                  > = {
                                     ...answers,
                                     [q.id]: next,
-                                  },
-                                });
-                              }}
-                              className={cn(
-                                "rounded-md border-0 px-2.5 py-1.5 text-[11px] font-bold",
-                                on ? "bg-[#FF6B35] text-white" : chipOff
-                              )}
-                            >
-                              {opt}
-                            </button>
-                          );
-                        })}
+                                  };
+                                  if (
+                                    opt === OTHER_OPTION &&
+                                    on
+                                  ) {
+                                    // Deselected Other → clear custom text
+                                    delete nextAnswers[otherAnswerKey(q.id)];
+                                  }
+                                  patch({ professionAnswers: nextAnswers });
+                                }}
+                                className={cn(
+                                  "rounded-md border-0 px-2.5 py-1.5 text-[11px] font-bold",
+                                  on ? chipOn : chipOff
+                                )}
+                              >
+                                {opt}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {Array.isArray(val) && val.includes(OTHER_OPTION) ? (
+                          <input
+                            className={fieldClass}
+                            value={
+                              typeof answers[otherAnswerKey(q.id)] === "string"
+                                ? (answers[otherAnswerKey(q.id)] as string)
+                                : ""
+                            }
+                            onChange={(e) =>
+                              patch({
+                                professionAnswers: {
+                                  ...answers,
+                                  [otherAnswerKey(q.id)]: e.target.value,
+                                },
+                              })
+                            }
+                            placeholder="Type your answer"
+                            maxLength={120}
+                          />
+                        ) : null}
                       </div>
                     ) : null}
                   </div>
@@ -663,15 +909,15 @@ export function ArtisanOnboarding({
             <div className="flex items-center gap-2">
               <Phone className="h-5 w-5 text-[#FF6B35]" />
               <h2 className={cn("text-[15px] font-bold", ink)}>
-                Tier 1 · Phone verification
+                Phone verification
               </h2>
             </div>
             <div className={cn("rounded-md px-3 py-2.5 text-[11px] font-medium leading-snug", tipBox)}>
-              <p className="font-bold">How this works</p>
-              <ol className="mt-1 list-decimal space-y-0.5 pl-4">
-                <li>Enter your phone → Send OTP (new random 6-digit code).</li>
-                <li>Code expires in 10 minutes · max 5 tries · 45s resend wait.</li>
-                <li>Enter the code → Verify. Wrong codes fail until you resend.</li>
+              <p className="font-bold">Tier 1 required</p>
+              <ol className="mt-1 list-decimal space-y-1 pl-4">
+                <li>Enter your phone and send a code</li>
+                <li>Code expires in 10 minutes (5 tries, 45s resend)</li>
+                <li>Enter the code to verify</li>
               </ol>
             </div>
             <label className={cn("block text-[11px] font-bold", soft)}>
@@ -743,7 +989,7 @@ export function ArtisanOnboarding({
                   isLight ? "text-emerald-700" : "text-emerald-400"
                 )}
               >
-                <Check className="h-4 w-4" /> Phone verified · Tier 1 done
+                <Check className="h-4 w-4" /> Phone verified (Tier 1)
               </p>
             )}
           </section>
@@ -753,10 +999,11 @@ export function ArtisanOnboarding({
         {step === "essentials" && (
           <section className="space-y-3">
             <h2 className={cn("text-[15px] font-bold", ink)}>
-              Compulsory profile details
+              Profile details
             </h2>
             <label className={cn("block text-[11px] font-bold", soft)}>
-              Years of experience (min 1)
+              Years of experience
+              <ReqStar />
               <input
                 type="number"
                 min={1}
@@ -769,119 +1016,130 @@ export function ArtisanOnboarding({
               />
             </label>
 
-            <div>
-              <p className={cn("mb-1 text-[11px] font-bold", soft)}>
-                Service area · States
+            {/* Country locked from signup */}
+            <div className={panelClass}>
+              <p className={cn("text-[11px] font-bold", soft)}>
+                Service area country
               </p>
-              <div className="flex flex-wrap gap-1.5">
-                {NG_STATES.map((st) => {
-                  const on = profile.serviceArea.states.includes(st);
-                  return (
-                    <button
-                      key={st}
-                      type="button"
-                      onClick={() => {
-                        const states = on
-                          ? profile.serviceArea.states.filter((x) => x !== st)
-                          : [...profile.serviceArea.states, st];
-                        patch({
-                          serviceArea: { ...profile.serviceArea, states },
-                        });
-                      }}
-                      className={cn(
-                        "rounded-md border-0 px-2 py-1 text-[10px] font-bold",
-                        on ? "bg-[#323231] text-white" : chipOff
-                      )}
-                    >
-                      {st}
-                    </button>
-                  );
-                })}
-              </div>
+              <p className={cn("mt-1 text-[14px] font-semibold", ink)}>
+                {profile.serviceArea.countryName ||
+                  countryName(profile.serviceArea.countryCode || "NG")}
+              </p>
+              <p className={cn("mt-0.5 text-[10px] font-medium", muted)}>
+                From your signup and cannot be changed
+              </p>
+            </div>
+
+            {/* State / Cities / LGA navigation rows */}
+            <div
+              className={cn(
+                "overflow-hidden rounded-md",
+                isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]"
+              )}
+            >
+              <Link
+                href="/artisan/onboarding/states"
+                onClick={() => {
+                  try {
+                    sessionStorage.setItem(ARTISAN_STEP_KEY, "essentials");
+                  } catch {
+                    /* */
+                  }
+                }}
+                className="flex w-full items-center gap-2 border-0 px-3 py-3 no-underline"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className={cn("block text-[13px] font-bold", ink)}>
+                    Service area states
+                    <ReqStar />
+                  </span>
+                  <span className={cn("block text-[11px] font-medium", muted)}>
+                    {profile.serviceArea.states[0] || "Pick one state"}
+                  </span>
+                </span>
+                <ChevronRight
+                  className={cn("h-4 w-4 shrink-0", muted)}
+                />
+              </Link>
+              <Link
+                href="/artisan/onboarding/cities"
+                onClick={() => {
+                  try {
+                    sessionStorage.setItem(ARTISAN_STEP_KEY, "essentials");
+                  } catch {
+                    /* */
+                  }
+                }}
+                className="flex w-full items-center gap-2 border-0 px-3 py-3 no-underline"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className={cn("block text-[13px] font-bold", ink)}>
+                    Cities
+                    <ReqStar />
+                  </span>
+                  <span className={cn("block text-[11px] font-medium", muted)}>
+                    {profile.serviceArea.cities.length
+                      ? profile.serviceArea.cities.join(", ")
+                      : profile.serviceArea.states[0]
+                        ? "Pick cities you serve"
+                        : "Choose a state first"}
+                  </span>
+                </span>
+                <ChevronRight
+                  className={cn("h-4 w-4 shrink-0", muted)}
+                />
+              </Link>
+              {supportsLga(profile.serviceArea.countryCode || "NG") ? (
+                <Link
+                  href="/artisan/onboarding/lgas"
+                  onClick={() => {
+                    try {
+                      sessionStorage.setItem(ARTISAN_STEP_KEY, "essentials");
+                    } catch {
+                      /* */
+                    }
+                  }}
+                  className="flex w-full items-center gap-2 border-0 px-3 py-3 no-underline"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className={cn("block text-[13px] font-bold", ink)}>
+                      LGA
+                    </span>
+                    <span className={cn("block text-[11px] font-medium", muted)}>
+                      {profile.serviceArea.lgas.length
+                        ? profile.serviceArea.lgas.join(", ")
+                        : profile.serviceArea.states[0]
+                          ? "Pick LGAs (optional)"
+                          : "Choose a state first"}
+                    </span>
+                  </span>
+                  <ChevronRight
+                    className={cn("h-4 w-4 shrink-0", muted)}
+                  />
+                </Link>
+              ) : null}
             </div>
 
             <div>
-              <p className={cn("mb-1 text-[11px] font-bold", soft)}>
-                Cities (Lagos examples)
+              <p className={cn("mb-1.5 text-[11px] font-bold", soft)}>
+                Tools
+                <ReqStar />
               </p>
-              <div className="flex flex-wrap gap-1.5">
-                {LAGOS_CITIES.map((c) => {
-                  const on = profile.serviceArea.cities.includes(c);
-                  return (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => {
-                        const cities = on
-                          ? profile.serviceArea.cities.filter((x) => x !== c)
-                          : [...profile.serviceArea.cities, c];
-                        patch({
-                          serviceArea: { ...profile.serviceArea, cities },
-                        });
-                      }}
-                      className={cn(
-                        "rounded-md border-0 px-2 py-1 text-[10px] font-bold",
-                        on ? "bg-[#FF6B35] text-white" : chipOff
-                      )}
-                    >
-                      {c}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <label className={cn("block text-[11px] font-bold", soft)}>
-              LGAs (comma-separated)
-              <input
-                value={profile.serviceArea.lgas.join(", ")}
-                onChange={(e) =>
-                  patch({
-                    serviceArea: {
-                      ...profile.serviceArea,
-                      lgas: e.target.value
-                        .split(",")
-                        .map((s) => s.trim())
-                        .filter(Boolean),
-                    },
-                  })
-                }
-                className={cn("mt-1", fieldClass)}
-                placeholder="e.g. Eti-Osa, Ikeja"
-              />
-            </label>
-
-            <div>
-              <p className={cn("mb-1 text-[11px] font-bold", soft)}>
-                Tools owned
-              </p>
-              <div className="mb-2 flex flex-wrap gap-1.5">
-                {COMMON_TOOLS_SUGGESTIONS.map((t) => {
-                  const on = profile.toolsOwned.includes(t);
-                  return (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => {
-                        const toolsOwned = on
-                          ? profile.toolsOwned.filter((x) => x !== t)
-                          : [...profile.toolsOwned, t];
-                        patch({ toolsOwned });
-                      }}
-                      className={cn(
-                        "rounded-md border-0 px-2 py-1 text-[10px] font-bold",
-                        on ? "bg-[#323231] text-white" : chipOff
-                      )}
-                    >
-                      {t}
-                    </button>
-                  );
-                })}
-              </div>
               <div className="flex gap-2">
                 <input
                   value={toolDraft}
                   onChange={(e) => setToolDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      const t = toolDraft.trim();
+                      if (!t) return;
+                      if (!profile.toolsOwned.includes(t)) {
+                        patch({ toolsOwned: [...profile.toolsOwned, t] });
+                      }
+                      setToolDraft("");
+                    }
+                  }}
                   className={cn("min-w-0 flex-1", fieldClass)}
                   placeholder="Add custom tool"
                 />
@@ -895,24 +1153,45 @@ export function ArtisanOnboarding({
                     }
                     setToolDraft("");
                   }}
-                  className="h-10 rounded-md border-0 bg-[#323231] px-3 text-[12px] font-bold text-white"
+                  className="h-10 rounded-md border-0 bg-[#FF6B35] px-3 text-[12px] font-bold text-white"
                 >
                   Add
                 </button>
               </div>
               {profile.toolsOwned.length ? (
-                <p className={cn("mt-1 text-[11px]", muted)}>
-                  Selected: {profile.toolsOwned.join(" · ")}
-                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {profile.toolsOwned.map((t) => (
+                    <span
+                      key={t}
+                      className="inline-flex items-center gap-1 rounded-md bg-[#FF6B35] px-2 py-1 text-[11px] font-bold text-white"
+                    >
+                      {t}
+                      <button
+                        type="button"
+                        aria-label={`Remove ${t}`}
+                        onClick={() =>
+                          patch({
+                            toolsOwned: profile.toolsOwned.filter((x) => x !== t),
+                          })
+                        }
+                        className="border-0 bg-transparent p-0 text-white"
+                      >
+                        <X className="h-3.5 w-3.5" strokeWidth={2.5} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
               ) : null}
             </div>
 
             <div className={panelClass}>
               <p className={cn("mb-2 text-[12px] font-bold", ink)}>
                 Guarantor
+                <ReqStar />
               </p>
               <label className={cn("mb-2 block text-[11px] font-bold", soft)}>
                 Full name
+                <ReqStar />
                 <input
                   value={profile.guarantor.fullName}
                   onChange={(e) =>
@@ -928,6 +1207,7 @@ export function ArtisanOnboarding({
               </label>
               <label className={cn("block text-[11px] font-bold", soft)}>
                 Phone
+                <ReqStar />
                 <input
                   value={profile.guarantor.phone}
                   onChange={(e) =>
@@ -952,12 +1232,13 @@ export function ArtisanOnboarding({
             <div className="flex items-center gap-2">
               <Camera className="h-5 w-5 text-[#FF6B35]" />
               <h2 className={cn("text-[15px] font-bold", ink)}>
-                Portfolio (compulsory)
+                Portfolio
+                <ReqStar />
               </h2>
             </div>
             <p className={cn("text-[12px]", muted)}>
               Upload {PORTFOLIO_MIN}–{PORTFOLIO_MAX} clear photos of previous
-              jobs. This filters out non-professionals.
+              jobs. Each image max {formatMb(IMAGE_MAX_BYTES)}.
             </p>
             <label
               className={cn(
@@ -1013,9 +1294,9 @@ export function ArtisanOnboarding({
               </h2>
             </div>
             <div className={cn("rounded-md px-3 py-2.5 text-[12px] font-medium leading-snug", tipBox)}>
-              Strongly recommended. A {INTRO_VIDEO_MIN_SEC}–{INTRO_VIDEO_MAX_SEC}
-              s video of you and your tools helps admins approve you faster and
-              builds customer trust. Optional for now.
+              Optional. Max {INTRO_VIDEO_MAX_SEC}s and{" "}
+              {formatMb(INTRO_VIDEO_MAX_BYTES)}. A short video of you and your
+              tools helps admins approve you faster.
             </div>
             <label className={cn("h-20", uploadClass)}>
               <span className={cn("text-[12px] font-bold", soft)}>
@@ -1030,9 +1311,28 @@ export function ArtisanOnboarding({
                 className="hidden"
                 onChange={async (e) => {
                   const f = e.target.files?.[0];
+                  e.target.value = "";
                   if (!f) return;
                   setBusy(true);
+                  setErr(null);
                   try {
+                    if (f.size > INTRO_VIDEO_MAX_BYTES) {
+                      setErr(
+                        `Video must be ${formatMb(INTRO_VIDEO_MAX_BYTES)} or less. This file is ${formatMb(f.size)}.`
+                      );
+                      return;
+                    }
+                    const dur = await getVideoDurationSec(f);
+                    if (dur > INTRO_VIDEO_MAX_SEC + 0.25) {
+                      setErr(
+                        `Video must be ${INTRO_VIDEO_MAX_SEC} seconds or less. This one is ${Math.ceil(dur)}s.`
+                      );
+                      return;
+                    }
+                    if (dur < INTRO_VIDEO_MIN_SEC) {
+                      setErr("Video is too short to use.");
+                      return;
+                    }
                     const url = await fileToDataUrl(f);
                     const media: ArtisanMedia = {
                       id: uid(),
@@ -1043,9 +1343,9 @@ export function ArtisanOnboarding({
                       createdAt: new Date().toISOString(),
                     };
                     patch({ introVideo: media });
-                    setMsg("Intro video saved (local demo).");
+                    setMsg("Intro video saved.");
                   } catch {
-                    setErr("Could not load video.");
+                    setErr("Could not read video. Try another file.");
                   } finally {
                     setBusy(false);
                   }
@@ -1064,40 +1364,31 @@ export function ArtisanOnboarding({
           </section>
         )}
 
-        {/* —— OPTIONAL TIERS 2–4 —— */}
+        {/* —— OPTIONAL TIERS 2–4 (strict order) —— */}
         {(step === "optional_tiers" || mode === "settings") && (
           <section className="space-y-4">
             <div className={cn("rounded-md px-3 py-2.5 text-[11px] font-medium leading-snug", tipBox)}>
-              <p className="font-bold">How verification works</p>
-              <ol className="mt-1 list-decimal space-y-0.5 pl-4">
-                <li>
-                  <span className="font-semibold">ID &amp; NIN</span> — Upload
-                  your government ID and NIN. Our team reviews them.
-                </li>
-                <li>
-                  <span className="font-semibold">Face check</span> — Look at
-                  the camera, turn left, turn right, then blink.
-                </li>
-                <li>
-                  <span className="font-semibold">Skill proof</span> — Upload
-                  your certificate. Our team reviews it.
-                </li>
-                <li>
-                  <span className="font-semibold">Go live</span> — After admin
-                  approves, you can turn on Live and take jobs.
-                </li>
+              <p className="font-bold">Verification order</p>
+              <ol className="mt-1 list-decimal space-y-1 pl-4">
+                <li>Government ID — submit anytime for review</li>
+                <li>BVN after ID</li>
+                <li>Face liveness after ID (complete before skill)</li>
+                <li>Proof of skill — upload then submit for review</li>
               </ol>
+              <p className="mt-2 font-medium">
+                Profile Submit does not require Tier 2–4
+              </p>
             </div>
 
-            {/* Status strip */}
+            {/* Status strip — complete = submitted or approved / passed */}
             <div className="flex flex-wrap gap-1.5">
               {(
                 [
                   ["Phone", profile.tiers.tier1_phone],
-                  ["Gov ID", profile.tiers.tier2_govId],
-                  ["NIN", profile.tiers.tier2_nin],
-                  ["Liveness", profile.tiers.tier3_liveness],
-                  ["Skill", profile.tiers.tier4_skillProof],
+                  ["Gov ID", isGovIdComplete(profile)],
+                  ["BVN", isBvnComplete(profile)],
+                  ["Liveness", isLivenessComplete(profile)],
+                  ["Skill", isSkillComplete(profile)],
                 ] as const
               ).map(([label, ok]) => (
                 <span
@@ -1118,16 +1409,52 @@ export function ArtisanOnboarding({
               ))}
             </div>
 
-            <div className={panelClass}>
-              <p className={cn("flex items-center gap-2 text-[13px] font-bold", ink)}>
-                <FileText className="h-4 w-4 shrink-0 text-[#FF6B35]" />{" "}
-                Tier 2 · Government ID
-              </p>
-              <p className={cn("mt-1 text-[10px] font-medium", muted)}>
-                {profile.tiers.tier2_govId
-                  ? "Approved by admin / care"
-                  : reviewLabel(profile.govIdReviewStatus)}
-              </p>
+            {/* Soft grey square lock popup */}
+            {gatePopup ? (
+              <div
+                className="absolute inset-0 z-[120] flex items-center justify-center px-6"
+                role="dialog"
+                aria-modal="true"
+              >
+                <button
+                  type="button"
+                  className="absolute inset-0 border-0 bg-black/20"
+                  aria-label="Close"
+                  onClick={() => setGatePopup(null)}
+                />
+                <div
+                  className={cn(
+                    "relative z-[1] flex aspect-square w-[min(100%,260px)] max-h-[260px]",
+                    "flex-col items-center justify-center rounded-[0.65rem] px-5 py-6 text-center",
+                    "border-0 shadow-none",
+                    // Soft grey that blends light + dark shells
+                    isLight ? "bg-[#b8b9be] text-slate-900" : "bg-[#3a3a3c] text-[#f2f2f7]"
+                  )}
+                >
+                  <p className="text-[14px] font-bold leading-snug">{gatePopup}</p>
+                  <button
+                    type="button"
+                    onClick={() => setGatePopup(null)}
+                    className="mt-5 h-10 w-full rounded-[0.5rem] border-0 bg-[#FF6B35] text-[13px] font-bold text-white"
+                  >
+                    Got it
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            <div className={cn(panelClass, "space-y-2.5")}>
+              <div>
+                <p className={cn("flex items-center gap-2 text-[13px] font-bold", ink)}>
+                  <FileText className="h-4 w-4 shrink-0 text-[#FF6B35]" />{" "}
+                  Government ID
+                </p>
+                <p className={cn("mt-1 text-[10px] font-medium", muted)}>
+                  {profile.tiers.tier2_govId
+                    ? "Approved by admin / care"
+                    : reviewLabel(profile.govIdReviewStatus)}
+                </p>
+              </div>
               <select
                 value={profile.govIdType || ""}
                 onChange={(e) =>
@@ -1137,7 +1464,7 @@ export function ArtisanOnboarding({
                     govIdReviewStatus: "none",
                   })
                 }
-                className={cn("mt-2", selectClass)}
+                className={selectClass}
               >
                 <option value="">ID type…</option>
                 <option value="nin">National ID (NIN card)</option>
@@ -1157,20 +1484,38 @@ export function ArtisanOnboarding({
                   })
                 }
                 placeholder="ID number on the document"
-                className={cn("mt-2", fieldClass)}
+                className={fieldClass}
               />
-              <label className={cn("mt-2 h-14", uploadInlineClass)}>
-                <Upload className="h-3.5 w-3.5 shrink-0" />
-                {profile.govIdFront
-                  ? `Uploaded: ${profile.govIdFront.name || "ID photo"}`
-                  : "Upload photo of selected ID"}
+              {/* Full-width upload — no lap / overlap */}
+              <label
+                className={cn(
+                  "flex w-full min-h-[48px] cursor-pointer flex-col items-center justify-center gap-1 rounded-md px-3 py-3",
+                  isLight ? "bg-[#E2E3E7] text-slate-800" : "bg-[#2c2c2e] text-white"
+                )}
+              >
+                <span className="flex items-center gap-2 text-[12px] font-bold">
+                  <Upload className="h-4 w-4 shrink-0 text-[#FF6B35]" />
+                  {profile.govIdFront
+                    ? `Uploaded: ${profile.govIdFront.name || "ID photo"}`
+                    : "Upload photo of selected ID"}
+                </span>
+                <span className={cn("text-[10px] font-medium", muted)}>
+                  Max {formatMb(IMAGE_MAX_BYTES)} · image only
+                </span>
                 <input
                   type="file"
                   accept="image/*"
                   className="hidden"
                   onChange={async (e) => {
                     const f = e.target.files?.[0];
+                    e.target.value = "";
                     if (!f) return;
+                    if (f.size > IMAGE_MAX_BYTES) {
+                      setErr(
+                        `ID photo must be ${formatMb(IMAGE_MAX_BYTES)} or less.`
+                      );
+                      return;
+                    }
                     setBusy(true);
                     try {
                       const url = await fileToDataUrl(f);
@@ -1197,8 +1542,12 @@ export function ArtisanOnboarding({
               </label>
               <button
                 type="button"
-                disabled={idBusy === "gov" || profile.tiers.tier2_govId}
-                className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[12px] font-bold text-white disabled:opacity-60"
+                disabled={
+                  idBusy === "gov" ||
+                  profile.tiers.tier2_govId ||
+                  profile.govIdReviewStatus === "submitted"
+                }
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[12px] font-bold text-white disabled:opacity-60"
                 onClick={submitGovIdForReview}
               >
                 {idBusy === "gov" ? (
@@ -1210,249 +1559,490 @@ export function ArtisanOnboarding({
                     <Check className="h-3.5 w-3.5" /> ID approved
                   </>
                 ) : profile.govIdReviewStatus === "submitted" ? (
-                  "Resubmit ID for review"
+                  "ID currently in review"
                 ) : (
                   "Submit ID for review"
                 )}
               </button>
             </div>
 
-            <div className={panelClass}>
-              <p className={cn("flex items-center gap-2 text-[13px] font-bold", ink)}>
-                <FileText className="h-4 w-4 shrink-0 text-[#FF6B35]" /> BVN
-              </p>
-              <p className={cn("mt-1 text-[10px] font-medium", muted)}>
-                {profile.tiers.tier2_nin
-                  ? "Approved by admin / care"
-                  : reviewLabel(profile.ninReviewStatus)}
-              </p>
-              <input
-                value={profile.nin || ""}
-                onChange={(e) =>
-                  patch({
-                    nin: e.target.value.replace(/\D/g, "").slice(0, 11),
-                    tiers: { ...profile.tiers, tier2_nin: false },
-                    ninReviewStatus: "none",
-                  })
-                }
-                placeholder="11-digit BVN"
-                className={cn("mt-2", fieldClass)}
-                inputMode="numeric"
-                maxLength={11}
-              />
-              <button
-                type="button"
-                disabled={idBusy === "nin" || profile.tiers.tier2_nin}
-                className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[12px] font-bold text-white disabled:opacity-60"
-                onClick={submitNinForReview}
-              >
-                {idBusy === "nin" ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
-                  </>
-                ) : profile.tiers.tier2_nin ? (
-                  <>
-                    <Check className="h-3.5 w-3.5" /> Approved
-                  </>
-                ) : (
-                  "Submit"
-                )}
-              </button>
-            </div>
-
-            <div className={panelClass}>
-              <p className={cn("text-[13px] font-bold", ink)}>
-                Tier 3 · Face liveness
-              </p>
-              <p className={cn("mt-1 text-[10px] font-medium", muted)}>
-                {profile.tiers.tier3_liveness
-                  ? `Passed${profile.livenessPassedAt ? ` · ${new Date(profile.livenessPassedAt).toLocaleString()}` : ""}`
-                  : "Camera required · 4 gesture steps"}
-              </p>
-              {showLiveness ? (
-                <div className="mt-2">
-                  <FaceLiveness
-                    isLight={isLight}
-                    onCancel={() => setShowLiveness(false)}
-                    onPassed={() => {
-                      patch({
-                        livenessPassed: true,
-                        livenessPassedAt: new Date().toISOString(),
-                        tiers: { ...profile.tiers, tier3_liveness: true },
-                        selfie: profile.selfie || {
-                          id: uid(),
-                          url: "",
-                          kind: "selfie",
-                          name: "liveness-pass",
-                          createdAt: new Date().toISOString(),
-                        },
-                      });
-                      setShowLiveness(false);
-                      setMsg("Face liveness passed. Tier 3 complete.");
-                      setErr(null);
-                    }}
-                  />
-                </div>
-              ) : (
+            {/* BVN — after Government ID */}
+            <div
+              className={cn(
+                "relative",
+                !canAccessBvn(profile) && "opacity-45"
+              )}
+            >
+              {!canAccessBvn(profile) ? (
                 <button
                   type="button"
-                  className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#FF6B35] text-[12px] font-bold text-white"
+                  className="absolute inset-0 z-[2] border-0 bg-transparent"
+                  aria-label={lockMessageForSection("bvn")}
+                  onClick={() =>
+                    setGatePopup(lockMessageForSection("bvn"))
+                  }
+                />
+              ) : null}
+              <div
+                className={cn(
+                  panelClass,
+                  !canAccessBvn(profile) && "pointer-events-none"
+                )}
+              >
+                <p className={cn("flex items-center gap-2 text-[13px] font-bold", ink)}>
+                  <FileText className="h-4 w-4 shrink-0 text-[#FF6B35]" /> BVN
+                </p>
+                <p className={cn("mt-1 text-[10px] font-medium", muted)}>
+                  {profile.tiers.tier2_nin
+                    ? "Approved by admin / care"
+                    : reviewLabel(profile.ninReviewStatus)}
+                </p>
+                <input
+                  value={profile.nin || ""}
+                  onChange={(e) =>
+                    patch({
+                      nin: e.target.value.replace(/\D/g, "").slice(0, 11),
+                      tiers: { ...profile.tiers, tier2_nin: false },
+                      ninReviewStatus: "none",
+                    })
+                  }
+                  placeholder="11-digit BVN"
+                  className={cn("mt-2", fieldClass)}
+                  inputMode="numeric"
+                  maxLength={11}
+                />
+                <button
+                  type="button"
+                  disabled={
+                    idBusy === "nin" ||
+                    profile.tiers.tier2_nin ||
+                    profile.ninReviewStatus === "submitted"
+                  }
+                  className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[12px] font-bold text-white disabled:opacity-60"
+                  onClick={submitNinForReview}
+                >
+                  {idBusy === "nin" ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
+                    </>
+                  ) : profile.tiers.tier2_nin ? (
+                    <>
+                      <Check className="h-3.5 w-3.5" /> Approved
+                    </>
+                  ) : profile.ninReviewStatus === "submitted" ? (
+                    "BVN currently in review"
+                  ) : (
+                    "Submit"
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Face liveness — after Government ID */}
+            <div
+              className={cn(
+                "relative",
+                !canAccessLiveness(profile) && "opacity-45"
+              )}
+            >
+              {!canAccessLiveness(profile) ? (
+                <button
+                  type="button"
+                  className="absolute inset-0 z-[2] border-0 bg-transparent"
+                  aria-label={lockMessageForSection("liveness")}
+                  onClick={() =>
+                    setGatePopup(lockMessageForSection("liveness"))
+                  }
+                />
+              ) : null}
+              <div
+                className={cn(
+                  panelClass,
+                  !canAccessLiveness(profile) && "pointer-events-none"
+                )}
+              >
+                <p className={cn("text-[13px] font-bold", ink)}>
+                  Face liveness
+                </p>
+                <p className={cn("mt-1 text-[10px] font-medium", muted)}>
+                  {profile.tiers.tier3_liveness
+                    ? `Passed${profile.livenessPassedAt ? ` ${new Date(profile.livenessPassedAt).toLocaleString()}` : ""}`
+                    : "Live video check · 5–8s · no recording saved"}
+                </p>
+                {showLiveness ? (
+                  <div className="mt-2">
+                    <FaceLiveness
+                      isLight={isLight}
+                      userKey={
+                        backendUserId ||
+                        userProfile?.email ||
+                        userProfile?.phone ||
+                        "guest"
+                      }
+                      onCancel={() => setShowLiveness(false)}
+                      onPassed={() => {
+                        patch({
+                          livenessPassed: true,
+                          livenessPassedAt: new Date().toISOString(),
+                          tiers: { ...profile.tiers, tier3_liveness: true },
+                          selfie: profile.selfie || {
+                            id: uid(),
+                            url: "",
+                            kind: "selfie",
+                            name: "liveness-pass",
+                            createdAt: new Date().toISOString(),
+                          },
+                        });
+                        setShowLiveness(false);
+                        setMsg("Face liveness passed. Continue to proof of skill.");
+                        setErr(null);
+                        // Auto-advance UI to Proof of skill
+                        window.setTimeout(() => {
+                          skillSectionRef.current?.scrollIntoView({
+                            behavior: "smooth",
+                            block: "start",
+                          });
+                        }, 200);
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#FF6B35] text-[12px] font-bold text-white"
+                    onClick={() => {
+                      setShowLiveness(true);
+                      setErr(null);
+                    }}
+                  >
+                    <Camera className="h-4 w-4" />
+                    {profile.tiers.tier3_liveness
+                      ? "Run liveness again"
+                      : "Start face liveness"}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Proof of skill — after BVN + liveness */}
+            <div
+              ref={skillSectionRef}
+              className={cn(
+                "relative",
+                !canAccessSkillProof(profile) && "opacity-45"
+              )}
+            >
+              {!canAccessSkillProof(profile) ? (
+                <button
+                  type="button"
+                  className="absolute inset-0 z-[2] border-0 bg-transparent"
+                  aria-label={lockMessageForSection("skill")}
+                  onClick={() =>
+                    setGatePopup(lockMessageForSection("skill"))
+                  }
+                />
+              ) : null}
+              <div
+                className={cn(
+                  panelClass,
+                  "space-y-2.5",
+                  !canAccessSkillProof(profile) && "pointer-events-none"
+                )}
+              >
+                <div>
+                  <p className={cn("text-[13px] font-bold", ink)}>
+                    Proof of skill
+                  </p>
+                  <p className={cn("mt-1 text-[10px] font-medium", muted)}>
+                    {profile.skillProof
+                      ? profile.skillProofStatus === "under_review" ||
+                        profile.tiers.tier4_skillProof
+                        ? "Submitted for review"
+                        : `Ready: ${profile.skillProof.name || "file"}`
+                      : "Upload certificate, then submit for review"}
+                  </p>
+                </div>
+                <select
+                  value={profile.skillProofType || ""}
+                  onChange={(e) =>
+                    patch({
+                      skillProofType: (e.target.value ||
+                        null) as SkillProofType | null,
+                    })
+                  }
+                  className={selectClass}
+                >
+                  <option value="">Certificate type…</option>
+                  <option value="trade_test">Trade Test</option>
+                  <option value="nabteb">NABTEB</option>
+                  <option value="itf">ITF</option>
+                  <option value="apprenticeship_letter">
+                    Apprenticeship letter
+                  </option>
+                  <option value="other_evidence">Other evidence</option>
+                </select>
+                <label
+                  className={cn(
+                    "flex w-full min-h-[48px] cursor-pointer flex-col items-center justify-center gap-1 rounded-md px-3 py-3",
+                    isLight
+                      ? "bg-[#E2E3E7] text-slate-800"
+                      : "bg-[#2c2c2e] text-white"
+                  )}
+                >
+                  <span className="flex items-center gap-2 text-[12px] font-bold">
+                    <Upload className="h-4 w-4 shrink-0 text-[#FF6B35]" />
+                    {profile.skillProof
+                      ? `File: ${profile.skillProof.name || "certificate"}`
+                      : "Upload certificate"}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = "";
+                      if (!f) return;
+                      if (!canAccessSkillProof(profile)) {
+                        setGatePopup(lockMessageForSection("skill"));
+                        return;
+                      }
+                      if (!profile.skillProofType) {
+                        setErr("Pick a certificate type first.");
+                        return;
+                      }
+                      if (
+                        f.type.startsWith("image/") &&
+                        f.size > IMAGE_MAX_BYTES
+                      ) {
+                        setErr(
+                          `Image must be ${formatMb(IMAGE_MAX_BYTES)} or less.`
+                        );
+                        return;
+                      }
+                      setBusy(true);
+                      try {
+                        const url = await fileToDataUrl(f);
+                        // Draft only — submit button sends for review
+                        patch({
+                          skillProof: {
+                            id: uid(),
+                            url,
+                            kind: "skill_proof",
+                            name: f.name,
+                            mime: f.type,
+                            createdAt: new Date().toISOString(),
+                          },
+                          skillProofStatus: "uploaded",
+                          tiers: {
+                            ...profile.tiers,
+                            tier4_skillProof: false,
+                          },
+                        });
+                        setMsg("Certificate saved. Submit for review below.");
+                        setErr(null);
+                      } catch {
+                        setErr("Could not read file.");
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={
+                    busy ||
+                    !profile.skillProof ||
+                    profile.tiers.tier4_skillProof ||
+                    profile.skillProofStatus === "under_review"
+                  }
+                  className="flex h-11 w-full items-center justify-center rounded-md border-0 bg-[#323231] text-[12px] font-bold text-white disabled:opacity-60"
                   onClick={() => {
-                    setShowLiveness(true);
+                    if (!canAccessSkillProof(profile)) {
+                      setGatePopup(lockMessageForSection("skill"));
+                      return;
+                    }
+                    if (!profile.skillProof || !profile.skillProofType) {
+                      setErr("Upload a certificate first.");
+                      return;
+                    }
+                    patch({
+                      skillProofStatus: "under_review",
+                      tiers: { ...profile.tiers, tier4_skillProof: true },
+                    });
+                    setMsg("Skill proof submitted for review.");
                     setErr(null);
                   }}
                 >
-                  <Camera className="h-4 w-4" />
-                  {profile.tiers.tier3_liveness
-                    ? "Run liveness again"
-                    : "Start face liveness"}
+                  {profile.tiers.tier4_skillProof ||
+                  profile.skillProofStatus === "under_review"
+                    ? "Skill currently in review"
+                    : "Submit skill for review"}
                 </button>
-              )}
-            </div>
-
-            <div className={panelClass}>
-              <p className={cn("text-[13px] font-bold", ink)}>
-                Tier 4 · Proof of skill
-              </p>
-              <p className={cn("mt-1 text-[10px] font-medium", muted)}>
-                {profile.skillProof
-                  ? `Uploaded · ${profile.skillProofStatus || "under_review"} · admin must approve`
-                  : "Upload trade certificate or evidence"}
-              </p>
-              <select
-                value={profile.skillProofType || ""}
-                onChange={(e) =>
-                  patch({
-                    skillProofType: (e.target.value ||
-                      null) as SkillProofType | null,
-                  })
-                }
-                className={cn("mt-2", selectClass)}
-              >
-                <option value="">Certificate type…</option>
-                <option value="trade_test">Trade Test</option>
-                <option value="nabteb">NABTEB</option>
-                <option value="itf">ITF</option>
-                <option value="apprenticeship_letter">
-                  Apprenticeship letter
-                </option>
-                <option value="other_evidence">Other evidence</option>
-              </select>
-              <label className={cn("mt-2 h-14", uploadInlineClass)}>
-                {profile.skillProof
-                  ? `Uploaded: ${profile.skillProof.name || "file"}`
-                  : "Upload certificate"}
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const f = e.target.files?.[0];
-                    if (!f) return;
-                    if (!profile.skillProofType) {
-                      setErr("Pick a certificate type first.");
-                      return;
-                    }
-                    setBusy(true);
-                    try {
-                      const url = await fileToDataUrl(f);
-                      patch({
-                        skillProof: {
-                          id: uid(),
-                          url,
-                          kind: "skill_proof",
-                          name: f.name,
-                          mime: f.type,
-                          createdAt: new Date().toISOString(),
-                        },
-                        skillProofStatus: "under_review",
-                        tiers: { ...profile.tiers, tier4_skillProof: true },
-                      });
-                      setMsg(
-                        "Skill proof uploaded and marked under review for admin."
-                      );
-                      setErr(null);
-                    } catch {
-                      setErr("Could not read file.");
-                    } finally {
-                      setBusy(false);
-                    }
-                  }}
-                />
-              </label>
+              </div>
             </div>
           </section>
         )}
 
-        {/* —— REVIEW —— */}
+        {/* —— REVIEW —— single clean summary card */}
         {step === "review" && (
-          <section className="space-y-3">
-            <h2 className={cn("text-[15px] font-bold", ink)}>
-              Review & submit
-            </h2>
-            <ul className={cn("space-y-1.5 text-[12px] font-medium", soft)}>
-              <li>
-                Trade: {trade?.label}
-                {profile.trade.specialty
-                  ? ` · ${profile.trade.specialty}`
-                  : ""}
-              </li>
-              <li>
-                Profession Qs:{" "}
-                {professionAnswersValid(
-                  profile.trade.service,
-                  profile.professionAnswers || {}
-                )
-                  ? "Complete"
-                  : "Incomplete"}
-              </li>
-              <li>
-                Phone OTP:{" "}
-                {profile.tiers.tier1_phone ? "Verified" : "Missing"}
-              </li>
-              <li>Experience: {profile.yearsExperience} year(s)</li>
-              <li>
-                Areas:{" "}
-                {[
-                  ...profile.serviceArea.states,
-                  ...profile.serviceArea.cities,
-                  ...profile.serviceArea.lgas,
-                ].join(", ") || "—"}
-              </li>
-              <li>Tools: {profile.toolsOwned.length}</li>
-              <li>
-                Guarantor: {profile.guarantor.fullName || "—"} /{" "}
-                {profile.guarantor.phone || "—"}
-              </li>
-              <li>
-                Portfolio: {profile.portfolio.length} photo(s)
-              </li>
-              <li>
-                Intro video: {profile.introVideo ? "Yes" : "No (optional)"}
-              </li>
-              <li>
-                Optional tiers: ID{" "}
-                {profile.tiers.tier2_govId ? "✓" : "—"} · NIN{" "}
-                {profile.tiers.tier2_nin ? "✓" : "—"} · Liveness{" "}
-                {profile.tiers.tier3_liveness ? "✓" : "—"} · Skill{" "}
-                {profile.tiers.tier4_skillProof ? "✓" : "—"}
-              </li>
-            </ul>
-            <p className={cn("text-[11px] font-medium leading-snug", muted)}>
-              After submit your status becomes Pending Review. An admin must
-              approve before you can Go Live or receive jobs.
+          <section className="space-y-4">
+            <div>
+              <h2 className={cn("text-[17px] font-bold tracking-tight", ink)}>
+                Review & submit
+              </h2>
+              <p className={cn("mt-1 text-[12px] font-medium", muted)}>
+                Confirm your details, then send for admin approval
+              </p>
+            </div>
+
+            <div
+              className={cn(
+                "overflow-hidden rounded-md",
+                isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]"
+              )}
+            >
+              {(
+                [
+                  [
+                    "Trade",
+                    `${trade?.label || "—"}${
+                      profile.trade.specialty
+                        ? ` · ${profile.trade.specialty}`
+                        : ""
+                    }`,
+                  ],
+                  [
+                    "Skills",
+                    professionAnswersValid(
+                      profile.trade.service,
+                      profile.professionAnswers || {}
+                    )
+                      ? "Complete"
+                      : "Incomplete",
+                  ],
+                  [
+                    "Phone",
+                    profile.tiers.tier1_phone ? "Verified" : "Not verified",
+                  ],
+                  ["Experience", `${profile.yearsExperience} yr`],
+                  [
+                    "Service area",
+                    [
+                      profile.serviceArea.countryName ||
+                        profile.serviceArea.countryCode,
+                      ...profile.serviceArea.states,
+                      ...profile.serviceArea.cities,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "—",
+                  ],
+                  ["Tools", String(profile.toolsOwned.length)],
+                  [
+                    "Guarantor",
+                    [profile.guarantor.fullName, profile.guarantor.phone]
+                      .filter(Boolean)
+                      .join(" · ") || "—",
+                  ],
+                  ["Portfolio", `${profile.portfolio.length} photos`],
+                  ["Intro video", profile.introVideo ? "Yes" : "No"],
+                ] as const
+              ).map(([label, value], i) => (
+                <div
+                  key={label}
+                  className={cn(
+                    "flex items-start justify-between gap-3 px-3.5 py-2.5",
+                    i > 0 &&
+                      (isLight
+                        ? "border-t border-black/[0.06]"
+                        : "border-t border-white/[0.06]")
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "shrink-0 text-[11px] font-semibold uppercase tracking-wide",
+                      muted
+                    )}
+                  >
+                    {label}
+                  </span>
+                  <span
+                    className={cn(
+                      "min-w-0 text-right text-[13px] font-semibold leading-snug",
+                      ink
+                    )}
+                  >
+                    {value}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Verification chips — compact */}
+            <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  ["ID", isGovIdComplete(profile)],
+                  ["BVN", isBvnComplete(profile)],
+                  ["Liveness", isLivenessComplete(profile)],
+                  ["Skill", isSkillComplete(profile)],
+                ] as const
+              ).map(([label, ok]) => (
+                <span
+                  key={label}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 text-[10px] font-bold",
+                    ok
+                      ? "bg-[#FF6B35]/15 text-[#FF6B35]"
+                      : isLight
+                        ? "bg-black/8 text-slate-600"
+                        : "bg-white/10 text-white/55"
+                  )}
+                >
+                  {ok ? "✓" : "·"} {label}
+                </span>
+              ))}
+            </div>
+
+            <p className={cn("text-center text-[11px] font-medium leading-snug", muted)}>
+              Status becomes Pending Review. An admin must approve before Go
+              Live.
             </p>
+
             <button
               type="button"
               disabled={busy}
               onClick={submitReview}
-              className="h-11 w-full rounded-md border-0 bg-[#FF6B35] text-[14px] font-bold text-white disabled:opacity-50"
+              className="h-12 w-full rounded-md border-0 bg-[#FF6B35] text-[14px] font-bold text-white disabled:opacity-50"
             >
               Submit for review
             </button>
           </section>
         )}
       </div>
+
+      {/* Trade lock sheet — portal; outside scroll so page can always scroll */}
+      {mode === "full" ? (
+        <BottomSheet
+          open={tradeLockOpen}
+          onClose={() => setTradeLockOpen(false)}
+          titleId="trade-lock-title"
+        >
+          <p id="trade-lock-title" className={cn("text-[16px] font-bold", ink)}>
+            Primary trade locked
+          </p>
+          <p className={cn("mt-2 text-[13px] font-medium leading-relaxed", muted)}>
+            You can&apos;t change primary trade. Contact Customer care at{" "}
+            <a
+              href="mailto:witcowavers@gmail.com"
+              className="font-bold text-[#FF6B35] no-underline"
+            >
+              witcowavers@gmail.com
+            </a>
+          </p>
+        </BottomSheet>
+      ) : null}
 
       {/* Nav */}
       {mode === "full" ? (
@@ -1474,9 +2064,7 @@ export function ArtisanOnboarding({
           <button
             type="button"
             disabled={stepIndex >= STEPS.length - 1}
-            onClick={() =>
-              setStep(STEPS[Math.min(STEPS.length - 1, stepIndex + 1)].id)
-            }
+            onClick={goNext}
             className="inline-flex h-11 flex-1 items-center justify-center gap-1 rounded-md border-0 bg-[#323231] text-[13px] font-bold text-white disabled:opacity-40"
           >
             Next <ChevronRight className="h-4 w-4" />

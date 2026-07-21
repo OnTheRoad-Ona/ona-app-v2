@@ -56,10 +56,16 @@ export function canSubmitForReview(
     return { ok: false, reason: "Years of experience must be at least 1." };
   }
   const area = p.serviceArea;
-  if (!area?.states?.length && !area?.cities?.length && !area?.lgas?.length) {
+  if (!area?.states?.length) {
     return {
       ok: false,
-      reason: "Add at least one service area (state, city or LGA).",
+      reason: "Pick your service state",
+    };
+  }
+  if (!area?.cities?.length) {
+    return {
+      ok: false,
+      reason: "Pick at least one city you serve",
     };
   }
   if (!p.toolsOwned?.length) {
@@ -76,6 +82,7 @@ export function canSubmitForReview(
       reason: `Upload at least ${PORTFOLIO_MIN} clear photos of previous jobs.`,
     };
   }
+  // Tier 2+ optional for profile Submit — ID can still be sent on its own
   return { ok: true };
 }
 

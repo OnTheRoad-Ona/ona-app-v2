@@ -1,6 +1,6 @@
 /**
- * Category-specific profession questions for artisan onboarding.
- * Never mix auto questions into non-auto trades (e.g. Painter ≠ cars).
+ * Real-world profession questions for artisan onboarding.
+ * Trade-specific only — never mix auto questions into home trades.
  */
 
 import type { ProService } from "@/lib/types";
@@ -18,136 +18,145 @@ export type ProfessionQuestion = {
 
 const YES_NO = ["Yes", "No"];
 
-/** Core focus / strongholds — per trade only */
+/** Multiselect option for free-text when list has no match */
+export const OTHER_OPTION = "Other";
+
+export function otherAnswerKey(questionId: string): string {
+  return `${questionId}__other`;
+}
+
+/** Core focus / strongholds — how pros actually describe their work */
 export const PROFESSION_FOCUS: Record<ProService, string[]> = {
   mechanic: [
-    "Engine",
-    "Brakes",
-    "Suspension",
-    "Transmission",
-    "Electrical (auto)",
-    "General service",
-    "Roadside repair",
+    "Engine overhaul & diagnostics",
+    "Brakes & suspension",
+    "Gearbox / clutch",
+    "Auto electrical",
+    "Routine service & oil",
+    "Roadside / breakdown",
   ],
   vulcanizer: [
-    "Puncture repair",
-    "Tyre change",
-    "Wheel balancing",
+    "Puncture & patch",
+    "Tyre change & fitment",
+    "Balancing",
     "Alignment",
-    "Tubeless",
-    "Spare fitment",
+    "Tubeless repair",
+    "Spare & emergency callout",
   ],
   towing: [
     "Light vehicle tow",
-    "Heavy recovery",
+    "SUV / 4x4 recovery",
     "Accident recovery",
-    "Winch",
-    "Flatbed",
+    "Winch pull-out",
+    "Flatbed haul",
     "Highway assist",
   ],
   battery: [
     "Jump start",
-    "Battery replace",
-    "Charging system",
-    "Terminal service",
-    "AGM / deep cycle",
+    "Battery test & replace",
+    "Alternator / charging",
+    "Terminal clean & cable",
+    "AGM / deep-cycle",
   ],
   ac: [
-    "Vehicle AC gas",
-    "Vehicle compressor",
+    "Car AC regas",
+    "Compressor & leak find",
     "Split unit install",
-    "Commercial HVAC",
-    "Leak diagnosis",
-    "Maintenance",
+    "Office / shop HVAC",
+    "Routine service",
   ],
   body: [
-    "Dent repair",
-    "Panel beating",
-    "Spray paint",
-    "Bumper work",
+    "Dent & panel beating",
+    "Spray painting",
+    "Bumper & plastic repair",
     "Rust treatment",
-    "Polish",
+    "Polish & detailing finish",
   ],
   electrical: [
-    "House wiring",
-    "Auto electrical",
-    "Phones / gadgets",
-    "Inverter wiring",
-    "Lighting",
-    "Fault finding",
+    "House wiring & rewire",
+    "Fault finding & sockets",
+    "Inverter / transfer",
+    "Lighting install",
+    "Auto electrical jobs",
   ],
   diagnostics: [
-    "OBD scan",
+    "OBD / ECU scan",
     "Check-engine diagnosis",
-    "ABS / airbag codes",
-    "Live data",
-    "Pre-purchase scan",
+    "ABS & airbag codes",
+    "Live data & sensors",
+    "Pre-purchase inspection",
   ],
   wash: [
     "Exterior wash",
-    "Interior detail",
+    "Interior clean",
     "Full detail",
-    "Polish / wax",
-    "Mobile wash",
+    "Polish & wax",
+    "Mobile home / office wash",
   ],
   plumber: [
-    "Pipe leaks",
-    "Drainage",
-    "Commercial fittings",
-    "Industrial lines",
-    "Water heaters",
-    "Pump systems",
+    "Burst pipes & leaks",
+    "Blocked drains",
+    "Toilet / bathroom fittings",
+    "Water heater & pump",
+    "New piping install",
   ],
   carpenter: [
     "Doors & frames",
-    "Furniture",
-    "Cabinets",
-    "Roof / timber",
-    "Commercial fit-out",
-    "Industrial woodwork",
+    "Kitchen cabinets",
+    "Furniture repair / build",
+    "Roof timber",
+    "Office / shop fit-out",
   ],
   painter: [
-    "Interior walls",
-    "Exterior walls",
-    "Industrial coatings",
-    "Commercial sites",
-    "Ceiling",
-    "Surface prep",
+    "Room interiors",
+    "Building exteriors",
+    "Ceiling & POP finish",
+    "Metal / gate paint",
+    "Surface prep & filling",
   ],
   solar: [
-    "Panel install",
+    "Panel mount & wiring",
     "Inverter setup",
     "Battery bank",
-    "Hybrid systems",
-    "Maintenance",
-    "Commercial plant",
+    "Hybrid home systems",
+    "Service & fault find",
   ],
   generator: [
-    "Petrol gensets",
-    "Diesel gensets",
-    "Service / oil",
-    "Repair",
-    "Installation",
-    "ATS / transfer",
+    "Petrol genset service",
+    "Diesel genset repair",
+    "Oil & filter service",
+    "Install & changeover",
+    "ATS / transfer switch",
   ],
 };
+
+function withOther(options: string[]): string[] {
+  if (options.includes(OTHER_OPTION)) return options;
+  return [...options, OTHER_OPTION];
+}
 
 function bank(
   service: ProService,
   extras: ProfessionQuestion[]
 ): ProfessionQuestion[] {
   const focus = PROFESSION_FOCUS[service];
+  // Every multiselect gets "Other" + free-text when selected
+  const extrasWithOther = extras.map((q) =>
+    q.type === "multiselect" && q.options
+      ? { ...q, options: withOther(q.options) }
+      : q
+  );
   return [
     {
       id: "core_focus",
-      label: "Your main strengths in this trade",
-      hint: "Pick what you do best. By proceeding you accept to being able to do all work in this profession.",
+      label: "What do customers usually call you for?",
+      hint: "Pick your real strengths. Customers will match you on these.",
       type: "multiselect",
       required: true,
-      options: focus,
+      options: withOther(focus),
       maxSelect: service === "mechanic" ? 6 : 4,
     },
-    ...extras,
+    ...extrasWithOther,
     {
       id: "night_weekend",
       label: "Can you work nights or weekends?",
@@ -165,29 +174,27 @@ function bank(
   ];
 }
 
-/**
- * Full question set per profession — no cross-category leakage.
- */
 export const PROFESSION_QUESTIONS: Record<ProService, ProfessionQuestion[]> = {
   mechanic: bank("mechanic", [
     {
       id: "mobile_tools",
-      label: "Do you bring a full toolbox to the customer?",
+      label: "Do you arrive with tools ready for the job?",
+      hint: "Customers expect you to start work without borrowing their tools.",
       type: "select",
       required: true,
       options: YES_NO,
     },
     {
       id: "vehicle_scope",
-      label: "What do you usually work on?",
+      label: "Which vehicles do you handle most days?",
       type: "multiselect",
       required: true,
       options: [
-        "Saloon / SUV",
+        "Saloon & hatchback",
+        "SUV & 4x4",
         "Buses",
-        "Trucks",
+        "Light trucks",
         "Motorcycles",
-        "Any light vehicle",
       ],
       maxSelect: 4,
     },
@@ -195,33 +202,33 @@ export const PROFESSION_QUESTIONS: Record<ProService, ProfessionQuestion[]> = {
   vulcanizer: bank("vulcanizer", [
     {
       id: "has_compressor",
-      label: "Do you have a compressor (air machine)?",
+      label: "Do you work with your own air compressor?",
       type: "select",
       required: true,
       options: YES_NO,
     },
     {
       id: "service_mode",
-      label: "How do you usually serve customers?",
+      label: "How do customers usually reach you?",
       type: "select",
       required: true,
-      options: ["Roadside mobile", "Fixed workshop", "Both"],
+      options: ["I come to them (mobile)", "They come to my bay", "Both"],
     },
   ]),
   towing: bank("towing", [
     {
       id: "tow_equipment",
-      label: "What recovery equipment do you use?",
+      label: "What do you use for recovery jobs?",
       type: "multiselect",
       required: true,
-      options: ["Wheel-lift", "Flatbed", "Winch", "Crane assist"],
+      options: ["Wheel-lift truck", "Flatbed", "Winch", "Crane assist"],
       maxSelect: 4,
     },
   ]),
   battery: bank("battery", [
     {
       id: "stock_batteries",
-      label: "Do you carry replacement batteries?",
+      label: "Do you carry replacement batteries on call-outs?",
       type: "select",
       required: true,
       options: YES_NO,
@@ -230,15 +237,15 @@ export const PROFESSION_QUESTIONS: Record<ProService, ProfessionQuestion[]> = {
   ac: bank("ac", [
     {
       id: "ac_scope",
-      label: "Which AC work do you cover?",
+      label: "Where do you mostly fix AC?",
       type: "multiselect",
       required: true,
-      options: ["Vehicle", "Commercial", "Industrial"],
+      options: ["Cars & buses", "Homes (split units)", "Shops & offices"],
       maxSelect: 3,
     },
     {
       id: "has_gauge_set",
-      label: "Do you have gauges / vacuum pump for gas work?",
+      label: "Do you have gauges and a vacuum pump for gas work?",
       type: "select",
       required: true,
       options: YES_NO,
@@ -247,12 +254,12 @@ export const PROFESSION_QUESTIONS: Record<ProService, ProfessionQuestion[]> = {
   body: bank("body", [
     {
       id: "body_scope",
-      label: "What body work do you offer?",
+      label: "What body jobs are you comfortable taking?",
       type: "multiselect",
       required: true,
       options: [
-        "Dent / panel",
-        "Spray painting",
+        "Dent & panel",
+        "Spray paint",
         "Bumper repair",
         "Full respray",
       ],
@@ -262,32 +269,37 @@ export const PROFESSION_QUESTIONS: Record<ProService, ProfessionQuestion[]> = {
   electrical: bank("electrical", [
     {
       id: "electric_scope",
-      label: "Which electrical work do you do?",
+      label: "Where do you mostly work?",
       type: "multiselect",
       required: true,
-      options: ["Vehicle", "Electronics", "Mobile"],
+      options: [
+        "Homes & flats",
+        "Shops & offices",
+        "Vehicles",
+        "Phones & gadgets",
+      ],
       maxSelect: 3,
     },
   ]),
   diagnostics: bank("diagnostics", [
     {
       id: "scan_tools",
-      label: "What scan tools do you use?",
+      label: "Which scan tool do you use on the job?",
       type: "text",
       required: true,
-      placeholder: "e.g. Launch, Autel, dealer-level tool",
+      placeholder: "e.g. Launch X431, Autel, dealer laptop",
     },
     {
       id: "scan_scope",
-      label: "What do you diagnose?",
+      label: "What systems do you diagnose?",
       type: "multiselect",
       required: true,
       options: [
         "Engine / ECU",
-        "ABS / brakes",
+        "ABS & brakes",
         "Airbag",
         "Transmission",
-        "Full vehicle health check",
+        "Full health check",
       ],
       maxSelect: 5,
     },
@@ -295,53 +307,53 @@ export const PROFESSION_QUESTIONS: Record<ProService, ProfessionQuestion[]> = {
   wash: bank("wash", [
     {
       id: "wash_mode",
-      label: "Where do you wash?",
+      label: "Where do you wash vehicles?",
       type: "select",
       required: true,
-      options: ["At customer location", "Fixed bay", "Both"],
+      options: ["At the customer’s place", "Fixed wash bay", "Both"],
     },
   ]),
   plumber: bank("plumber", [
     {
       id: "plumb_scope",
-      label: "What plumbing work do you handle?",
+      label: "What plumbing calls do you take most?",
       type: "multiselect",
       required: true,
       options: [
-        "Commercial plumbing",
-        "Industrial plumbing",
-        "Leak repair",
-        "Drainage",
-        "New install",
+        "Emergency leaks",
+        "Blocked drains",
+        "Bathroom & kitchen fittings",
+        "Water pumps & heaters",
+        "New install / re-pipe",
       ],
       maxSelect: 5,
     },
     {
       id: "plumb_tools",
-      label: "Key plumbing tools you own",
+      label: "Name the main tools you bring to a job",
       type: "text",
       required: true,
-      placeholder: "e.g. pipe wrench, threader, pressure tester",
+      placeholder: "e.g. pipe wrench, plunger set, threader",
     },
   ]),
   carpenter: bank("carpenter", [
     {
       id: "carp_scope",
-      label: "What carpentry work do you handle?",
+      label: "What woodwork jobs do you take most?",
       type: "multiselect",
       required: true,
       options: [
-        "Industrial carpentry",
-        "Commercial fit-out",
-        "Doors & windows",
+        "Doors & frames",
+        "Cabinets & wardrobes",
         "Furniture",
         "Roof timber",
+        "Shop / office fit-out",
       ],
       maxSelect: 5,
     },
     {
       id: "carp_tools",
-      label: "Key woodworking tools you own",
+      label: "Name the main tools you bring to a job",
       type: "text",
       required: true,
       placeholder: "e.g. circular saw, planer, drill set",
@@ -350,21 +362,21 @@ export const PROFESSION_QUESTIONS: Record<ProService, ProfessionQuestion[]> = {
   painter: bank("painter", [
     {
       id: "paint_scope",
-      label: "What painting work do you handle?",
+      label: "What painting jobs do you take most?",
       type: "multiselect",
       required: true,
       options: [
-        "Industrial painting",
-        "Commercial painting",
-        "Interior residential",
-        "Exterior walls",
-        "Specialty coatings",
+        "Room interiors",
+        "Building exteriors",
+        "Ceilings",
+        "Metal / gates",
+        "Full site prep & paint",
       ],
       maxSelect: 5,
     },
     {
       id: "paint_surfaces",
-      label: "Surfaces you paint",
+      label: "Which surfaces do you paint regularly?",
       type: "multiselect",
       required: true,
       options: ["Walls", "Ceilings", "Metal", "Wood", "Concrete"],
@@ -372,30 +384,30 @@ export const PROFESSION_QUESTIONS: Record<ProService, ProfessionQuestion[]> = {
     },
     {
       id: "paint_tools",
-      label: "Key painting tools / equipment you own",
+      label: "Name the main equipment you use",
       type: "text",
       required: true,
-      placeholder: "e.g. rollers, spray gun, scaffolding access",
+      placeholder: "e.g. rollers, spray gun, ladders",
     },
   ]),
   solar: bank("solar", [
     {
       id: "solar_scope",
-      label: "What solar work do you handle?",
+      label: "What solar work do you handle day to day?",
       type: "multiselect",
       required: true,
       options: [
-        "Industrial solar",
-        "Commercial solar",
-        "Inverter install",
+        "Home panel install",
+        "Inverter setup",
         "Battery systems",
-        "Maintenance",
+        "Shop / office plant",
+        "Maintenance & repair",
       ],
       maxSelect: 5,
     },
     {
       id: "solar_tools",
-      label: "Key solar tools / meters you own",
+      label: "Name the main tools and meters you carry",
       type: "text",
       required: true,
       placeholder: "e.g. clamp meter, crimp tools, multimeter",
@@ -404,24 +416,24 @@ export const PROFESSION_QUESTIONS: Record<ProService, ProfessionQuestion[]> = {
   generator: bank("generator", [
     {
       id: "gen_scope",
-      label: "What generator work do you handle?",
+      label: "What generator jobs do you take most?",
       type: "multiselect",
       required: true,
       options: [
-        "Commercial generators",
-        "Industrial generators",
+        "Home petrol gensets",
+        "Shop diesel sets",
         "Service & oil change",
         "Major repair",
-        "Installation / ATS",
+        "Install & ATS",
       ],
       maxSelect: 5,
     },
     {
       id: "gen_tools",
-      label: "Key tools for generator work",
+      label: "Name the main tools you use for genset work",
       type: "text",
       required: true,
-      placeholder: "e.g. diagnostic kit, torque tools, load tester",
+      placeholder: "e.g. torque tools, multimeter, load tester",
     },
   ]),
 };
@@ -441,6 +453,11 @@ export function professionAnswersValid(
     const v = answers[q.id];
     if (q.type === "multiselect") {
       if (!Array.isArray(v) || v.length === 0) return false;
+      // Other selected → custom text required
+      if (v.includes(OTHER_OPTION)) {
+        const other = answers[otherAnswerKey(q.id)];
+        if (typeof other !== "string" || !other.trim()) return false;
+      }
       continue;
     }
     if (typeof v !== "string" || !v.trim()) return false;
