@@ -16,6 +16,7 @@ type CareStatus = {
   roleLabel: string;
   fullName: string;
   email: string;
+  sensitiveUnlocked?: boolean;
 };
 
 type SearchHit = {
@@ -58,7 +59,14 @@ type DashboardTotals = {
 };
 
 export default function CareDeskPage() {
-  const { adminName, ready, api, error: gateError } = useAdminGate();
+  const {
+    adminName,
+    adminRole,
+    roleLabel: gateRoleLabel,
+    ready,
+    api,
+    error: gateError,
+  } = useAdminGate();
   const [status, setStatus] = useState<CareStatus | null>(null);
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
@@ -222,7 +230,11 @@ export default function CareDeskPage() {
 
   if (!ready) {
     return (
-      <AdminShell adminName={adminName}>
+      <AdminShell
+        adminName={adminName}
+        adminRole={adminRole}
+        roleLabel={gateRoleLabel}
+      >
         <h1 className="om-admin-h1">Dashboard</h1>
         <p className="om-admin-muted">
           {gateError || "Loading admin session…"}
@@ -234,7 +246,8 @@ export default function CareDeskPage() {
   return (
     <AdminShell
       adminName={status?.fullName || adminName}
-      roleLabel={status?.roleLabel}
+      adminRole={status?.adminRole || adminRole}
+      roleLabel={status?.roleLabel || gateRoleLabel}
     >
       <h1 className="om-admin-h1">Dashboard</h1>
       <p className="om-admin-sub">

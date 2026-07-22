@@ -2,16 +2,24 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
 import {
   isPasswordGatedPath,
   promptSensitivePassword,
   SensitivePasswordHost,
 } from "@/components/admin/sensitive-unlock";
+import {
+  adminRoleTheme,
+  canAccessAdminPathUi,
+  navGroupsForRoleUi,
+  normalizeAdminRoleUi,
+  type AdminRoleUi,
+} from "@/lib/admin-role-ui";
 
 /**
- * Customer Care–first navigation.
- * 🔒 routes open a password popup *before* navigation.
+ * Control centre navigation.
+ * 🔒 routes open a password popup before navigation.
+ * Groups filtered by staff role (Super Admin / Care / Support).
  */
 const NAV_GROUPS: {
   label: string;
@@ -38,6 +46,15 @@ const NAV_GROUPS: {
       { href: "/admin/pros", label: "Repair Pros" },
       { href: "/admin/users", label: "All users" },
       { href: "/admin/verification", label: "Verification overview" },
+    ],
+  },
+  {
+    label: "Care tools",
+    items: [
+      { href: "/admin/customer-review", label: "Customer ID review" },
+      { href: "/admin/pro-review", label: "Pro ID review" },
+      { href: "/admin/verification", label: "Verification board" },
+      { href: "/admin/health", label: "Service health" },
     ],
   },
   {
@@ -68,10 +85,12 @@ export function AdminShell({
   children,
   adminName,
   roleLabel,
+  adminRole: adminRoleProp,
 }: {
   children: ReactNode;
   adminName?: string;
   roleLabel?: string;
+  adminRole?: string | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -80,6 +99,12 @@ export function AdminShell({
     customers: number;
     pros: number;
   }>({ customers: 0, pros: 0 });
+  const [resolvedRole, setResolvedRole] =
+    useState<AdminRoleUi>("super_admin");
+
+  const role = normalizeAdminRoleUi(adminRoleProp || resolvedRole);
+  const roleUi = adminRoleTheme(role);
+  const displayRole = roleLabel || roleUi.label;
 
   useEffect(() => {
     const saved = localStorage.getItem(THEME_KEY) as "light" | "dark" | null;
@@ -88,7 +113,36 @@ export function AdminShell({
     document.querySelector(".om-admin-root")?.setAttribute("data-theme", next);
   }, []);
 
-  // A BOTH: light-up pending counts on Customers / Repair Pros nav
+  // Resolve role from session if parent didn't pass it
+  useEffect(() => {
+    if (adminRoleProp) {
+      setResolvedRole(normalizeAdminRoleUi(adminRoleProp));
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/admin/auth/me", {
+          credentials: "include",
+          cache: "no-store",
+        });
+        const json = await res.json();
+        if (cancelled || !json?.ok) return;
+        setResolvedRole(normalizeAdminRoleUi(json.data?.adminRole));
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [adminRoleProp]);
+
+  useEffect(() => {
+    const root = document.querySelector(".om-admin-root");
+    root?.setAttribute("data-admin-role", role);
+  }, [role]);
+
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -118,6 +172,14 @@ export function AdminShell({
     };
   }, [pathname]);
 
+  const visibleGroups = useMemo(() => {
+    const allowed = new Set(navGroupsForRoleUi(role));
+    return NAV_GROUPS.map((g) => ({
+      ...g,
+      items: g.items.filter((item) => canAccessAdminPathUi(role, item.href)),
+    })).filter((g) => allowed.has(g.label) && g.items.length > 0);
+  }, [role]);
+
   function applyTheme(next: "light" | "dark") {
     setTheme(next);
     localStorage.setItem(THEME_KEY, next);
@@ -126,7 +188,9 @@ export function AdminShell({
 
   async function logout() {
     await fetch("/api/admin/auth/logout", { method: "POST" });
-    await fetch("/api/admin/care/unlock", { method: "DELETE" }).catch(() => null);
+    await fetch("/api/admin/care/unlock", { method: "DELETE" }).catch(
+      () => null
+    );
     router.replace("/admin/login");
     router.refresh();
   }
@@ -137,7 +201,6 @@ export function AdminShell({
     needsPassword?: boolean
   ) {
     if (!needsPassword && !isPasswordGatedPath(href)) return;
-    // Already on that page — allow
     if (pathname === href || pathname.startsWith(`${href}/`)) return;
 
     e.preventDefault();
@@ -158,21 +221,33 @@ export function AdminShell({
   }
 
   return (
-    <div className="om-admin-shell">
+    <div className="om-admin-shell" data-admin-role={role}>
       <SensitivePasswordHost />
       <aside className="om-admin-nav">
         <div className="om-admin-brand">
-          Ona Care
+          <span className="om-admin-brand-mark" aria-hidden />
+          {roleUi.brandTitle}
         </div>
-        <p
-          className="om-admin-muted"
-          style={{ margin: "0 0.35rem 0.75rem", fontSize: 12 }}
-        >
-          Customer Care desk
-        </p>
-        {NAV_GROUPS.map((group) => (
+        <p className="om-admin-nav-tagline">{roleUi.brandSub}</p>
+
+        <div className="om-admin-role-chip" title={displayRole}>
+          <span className="om-admin-role-dot" aria-hidden />
+          {displayRole}
+        </div>
+
+        {visibleGroups.map((group) => (
           <div key={group.label}>
-            <div className="om-admin-nav-label">{group.label}</div>
+            <div
+              className={
+                group.label === "Care tools" || group.label === "System"
+                  ? `om-admin-nav-label om-admin-nav-label--${
+                      group.label === "Care tools" ? "care" : "system"
+                    }`
+                  : "om-admin-nav-label"
+              }
+            >
+              {group.label}
+            </div>
             {group.items.map((item) => {
               const active = item.exact
                 ? pathname === item.href
@@ -181,7 +256,7 @@ export function AdminShell({
               const count = badgeFor(item.href);
               return (
                 <Link
-                  key={item.href}
+                  key={`${group.label}-${item.href}-${item.label}`}
                   href={item.href}
                   className={active ? "active" : undefined}
                   onClick={(e) =>
@@ -191,7 +266,10 @@ export function AdminShell({
                   <span className="om-admin-nav-link-row">
                     <span>{item.label}</span>
                     {count > 0 ? (
-                      <span className="om-admin-nav-count" title="Open care items">
+                      <span
+                        className="om-admin-nav-count"
+                        title="Open care items"
+                      >
                         {count > 99 ? "99+" : count}
                       </span>
                     ) : null}
@@ -219,21 +297,29 @@ export function AdminShell({
               Dark
             </button>
           </div>
-          <p className="om-admin-muted" style={{ margin: 0, padding: "0 0.35rem" }}>
+          <p
+            className="om-admin-muted"
+            style={{ margin: 0, padding: "0 0.35rem" }}
+          >
             {adminName || "Staff"}
-            {roleLabel ? (
-              <>
-                <br />
-                <span style={{ fontSize: 11 }}>{roleLabel}</span>
-              </>
-            ) : null}
           </p>
           <button type="button" className="om-admin-btn ghost" onClick={logout}>
             Log out
           </button>
         </div>
       </aside>
-      <main className="om-admin-main">{children}</main>
+      <main className="om-admin-main">
+        <div className="om-admin-main-rolebar">
+          <span className="om-admin-role-chip om-admin-role-chip--inline">
+            <span className="om-admin-role-dot" aria-hidden />
+            {displayRole}
+          </span>
+          <span className="om-admin-muted" style={{ fontSize: 12 }}>
+            Controls the live Ona app
+          </span>
+        </div>
+        {children}
+      </main>
     </div>
   );
 }

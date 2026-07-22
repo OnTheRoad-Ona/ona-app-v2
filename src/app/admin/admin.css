@@ -1,5 +1,6 @@
-/* ── Ona Super Admin — light / dark grey console ─────────────────────── */
-/* Easy, high-contrast greys. No navy. Orange brand accent only. */
+/* ── Ona Control Centre — light / dark grey console ──────────────────── */
+/* Role accents: Super Admin slate · Care teal · Support blue.
+   Ona orange (#FF6B35) only for customer-facing urgency chips. */
 
 .om-admin-root {
   --om-bg: #e8e9ed;
@@ -24,6 +25,10 @@
   --om-danger-bg: #fee2e2;
   --om-warn: #a16207;
   --om-warn-bg: #fef3c7;
+  /* Default role = Super Admin (slate) */
+  --om-role: #1a1b1e;
+  --om-role-soft: #e5e7eb;
+  --om-role-text: #ffffff;
   --om-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 4px 12px rgba(15, 23, 42, 0.04);
   --om-radius: 0.5rem;
   --om-font: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
@@ -60,6 +65,48 @@
   --om-danger-bg: #450a0a;
   --om-warn-bg: #422006;
   --om-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+/* Super Admin — deep slate */
+.om-admin-root[data-admin-role="super_admin"],
+.om-admin-shell[data-admin-role="super_admin"] {
+  --om-role: #1a1b1e;
+  --om-role-soft: #e5e7eb;
+  --om-role-text: #ffffff;
+}
+
+/* Customer Care — teal */
+.om-admin-root[data-admin-role="customer_care"],
+.om-admin-shell[data-admin-role="customer_care"] {
+  --om-role: #0f766e;
+  --om-role-soft: #ccfbf1;
+  --om-role-text: #ffffff;
+  --om-nav-active: color-mix(in srgb, #0f766e 22%, var(--om-nav));
+}
+
+/* Support — blue */
+.om-admin-root[data-admin-role="support"],
+.om-admin-shell[data-admin-role="support"] {
+  --om-role: #1d4ed8;
+  --om-role-soft: #dbeafe;
+  --om-role-text: #ffffff;
+  --om-nav-active: color-mix(in srgb, #1d4ed8 22%, var(--om-nav));
+}
+
+.om-admin-root[data-theme="dark"][data-admin-role="super_admin"] {
+  --om-role: #e5e7eb;
+  --om-role-soft: #2a2b31;
+  --om-role-text: #111;
+}
+.om-admin-root[data-theme="dark"][data-admin-role="customer_care"] {
+  --om-role: #2dd4bf;
+  --om-role-soft: #134e4a;
+  --om-role-text: #042f2e;
+}
+.om-admin-root[data-theme="dark"][data-admin-role="support"] {
+  --om-role: #60a5fa;
+  --om-role-soft: #1e3a8a;
+  --om-role-text: #0b1e4a;
 }
 
 .om-admin-shell {
@@ -170,16 +217,74 @@
 }
 
 .om-admin-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
   font-weight: 800;
   font-size: 1.05rem;
   color: var(--om-text);
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.15rem;
   letter-spacing: -0.01em;
   padding: 0 0.45rem;
 }
 
+.om-admin-brand-mark {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: var(--om-role);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--om-role) 25%, transparent);
+  flex-shrink: 0;
+}
+
 .om-admin-brand span {
   color: var(--om-accent);
+}
+
+.om-admin-nav-tagline {
+  margin: 0 0.45rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--om-text-faint);
+}
+
+.om-admin-role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0.35rem 0.75rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: var(--om-role);
+  color: var(--om-role-text);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  width: fit-content;
+  max-width: calc(100% - 0.7rem);
+}
+
+.om-admin-role-chip--inline {
+  margin: 0;
+}
+
+.om-admin-role-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
+.om-admin-main-rolebar {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin: 0 0 0.85rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--om-border-soft);
 }
 
 .om-admin-nav-label {
@@ -189,6 +294,28 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--om-text-faint);
+}
+
+.om-admin-nav-label--care {
+  color: #0f766e;
+}
+
+.om-admin-nav-label--system {
+  color: #1a1b1e;
+}
+
+.om-admin-root[data-theme="dark"] .om-admin-nav-label--care {
+  color: #2dd4bf;
+}
+.om-admin-root[data-theme="dark"] .om-admin-nav-label--system {
+  color: #e5e7eb;
+}
+
+.om-admin-nav a.active {
+  background: var(--om-nav-active);
+  color: var(--om-text);
+  font-weight: 700;
+  box-shadow: inset 3px 0 0 var(--om-role);
 }
 
 .om-admin-nav a {
@@ -269,12 +396,7 @@
   color: var(--om-text);
 }
 
-.om-admin-nav a.active {
-  background: var(--om-nav-active);
-  color: var(--om-text);
-  font-weight: 700;
-  box-shadow: inset 3px 0 0 var(--om-accent);
-}
+/* Active state uses --om-role (defined earlier); keep hover only here */
 
 .om-admin-nav-spacer {
   flex: 1;
