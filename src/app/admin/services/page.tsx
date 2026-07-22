@@ -59,7 +59,7 @@ export default function AdminServicesPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Services catalog</h1>
       <p className="om-admin-sub">
-        Enable or disable trades shown on home and Repair Pro signup.
+        Service catalog (trades) offered on Ona. Keep labels aligned with signup and home filters.
       </p>
       {error ? <div className="om-admin-error">{error}</div> : null}
       {msg ? <div className="om-admin-success">{msg}</div> : null}

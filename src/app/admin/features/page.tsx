@@ -109,7 +109,7 @@ export default function AdminFeaturesPage() {
       <SensitivePageGate pageName="Features">
       <h1 className="om-admin-h1">Feature flags</h1>
       <p className="om-admin-sub">
-        Turn major Ona capabilities on or off without a code deploy.
+        Feature flags for the live app. Turn modules on/off without a redeploy (Super Admin).
       </p>
       {error ? <div className="om-admin-error">{error}</div> : null}
       {msg ? <div className="om-admin-success">{msg}</div> : null}

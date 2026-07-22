@@ -46,9 +46,7 @@ export default function AdminSignupsPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Signup events</h1>
       <p className="om-admin-sub">
-        Live log of every registration attempt — successes write to the database;
-        failures show the exact error so you can fix them. Fake local-only
-        “signups” never appear here.
+        Recent signup events from the live app (Customer and Repair Pro). Useful for onboarding and fraud checks.
       </p>
       {error ? <div className="om-admin-error">{error}</div> : null}
 

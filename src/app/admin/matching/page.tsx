@@ -62,7 +62,7 @@ export default function AdminMatchingPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Map & matching</h1>
       <p className="om-admin-sub">
-        Radius limits, technician caps, and identity verification funnel.
+        Map radius and matching rules that decide which pros customers see on the live map.
       </p>
       {error ? <div className="om-admin-error">{error}</div> : null}
       {msg ? <div className="om-admin-success">{msg}</div> : null}

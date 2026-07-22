@@ -25,8 +25,29 @@ export function SensitivePageGate({
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // Super Admin: no temporary password
+      const me = await fetch("/api/admin/auth/me", {
+        credentials: "include",
+        cache: "no-store",
+      })
+        .then((r) => r.json())
+        .catch(() => null);
+      if (cancelled) return;
+      if (
+        me?.ok &&
+        (me.data?.adminRole === "super_admin" ||
+          me.data?.role === "admin" ||
+          me.data?.role === "super_admin")
+      ) {
+        setAllowed(true);
+        setChecking(false);
+        return;
+      }
+
       // If already unlocked (just navigated via shell popup), allow
-      const status = await fetch("/api/admin/care/status")
+      const status = await fetch("/api/admin/care/status", {
+        credentials: "include",
+      })
         .then((r) => r.json())
         .catch(() => null);
       if (cancelled) return;
@@ -37,7 +58,7 @@ export function SensitivePageGate({
       }
       const ok = await promptSensitivePassword({
         title: "Password required",
-        detail: `Enter the temporary password to open ${pageName}.`,
+        detail: `Enter the temporary staff password to open ${pageName}. Super Admin does not need this.`,
       });
       if (cancelled) return;
       if (ok) {
@@ -50,7 +71,7 @@ export function SensitivePageGate({
     })();
     return () => {
       cancelled = true;
-      // Leaving the page ends sensitive access
+      // Leaving the page ends sensitive access (Care/Support only)
       void clearSensitiveUnlock();
     };
   }, [pageName, router]);

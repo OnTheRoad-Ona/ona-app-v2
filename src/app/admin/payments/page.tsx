@@ -66,7 +66,7 @@ export default function AdminPaymentsPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Payments</h1>
       <p className="om-admin-sub">
-        Manual settlement for v1 (Paystack can plug in later).
+        Escrow holds, releases, and refunds for live jobs. Track Flutterwave references and platform fee vs pro payout.
       </p>
       {msg ? (
         <div

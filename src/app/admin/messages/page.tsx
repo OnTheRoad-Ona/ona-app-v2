@@ -47,7 +47,7 @@ export default function AdminMessagesPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Messages</h1>
       <p className="om-admin-sub">
-        Conversations and latest messages across the app.
+        Job chats between customers and repair pros. Support Care when investigating disputes.
       </p>
       {error ? <div className="om-admin-error">{error}</div> : null}
 

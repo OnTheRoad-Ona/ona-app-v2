@@ -59,8 +59,7 @@ export default function AdminVerificationOverview() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Verification overview</h1>
       <p className="om-admin-sub">
-        Queues live under Customers and Repair Pros (merged). Use the cards
-        below — no duplicate review pages.
+        At-a-glance verification: pending customer IDs and pro documents waiting for Care review.
       </p>
       {error ? <div className="om-admin-error">{error}</div> : null}
 

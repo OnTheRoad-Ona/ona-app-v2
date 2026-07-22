@@ -34,7 +34,7 @@ export default function AdminAuditPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Audit log</h1>
       <p className="om-admin-sub">
-        Every admin action — roles, pro status, settings, payments.
+        Staff action log: who approved, froze, released escrow, or changed roles. Use for compliance and disputes.
       </p>
       {error ? <div className="om-admin-error">{error}</div> : null}
       <div className="om-admin-panel">

@@ -286,8 +286,7 @@ export default function AdminCustomersHubPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Customers</h1>
       <p className="om-admin-sub">
-        Directory + ID review in one place. Open a row for full details, files,
-        and controls.
+        Customer accounts from the live app. Review IDs, verification, banks, and account status. Approve or freeze customers here.
       </p>
 
       {error ? <div className="om-admin-error">{error}</div> : null}

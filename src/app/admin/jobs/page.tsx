@@ -76,7 +76,7 @@ export default function AdminJobsPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Jobs</h1>
       <p className="om-admin-sub">
-        Service requests between Customers and Repair Pros.
+        All service jobs from the live app — negotiation, booked, en route, complete. Open a job to inspect parties, escrow, and timeline.
       </p>
       {msg ? (
         <div

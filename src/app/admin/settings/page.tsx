@@ -63,7 +63,7 @@ export default function AdminSettingsPage() {
       <SensitivePageGate pageName="Settings">
       <h1 className="om-admin-h1">App settings</h1>
       <p className="om-admin-sub">
-        Branding, support, maintenance mode, default theme for the public app.
+        Global app settings stored in Supabase. Changes here control the live Ona app (fees, features, copy).
       </p>
       {error ? <div className="om-admin-error">{error}</div> : null}
       {msg ? <div className="om-admin-success">{msg}</div> : null}

@@ -251,9 +251,7 @@ export default function CareDeskPage() {
     >
       <h1 className="om-admin-h1">Dashboard</h1>
       <p className="om-admin-sub">
-        Overview + Customer Care tools. Search cases, watch live jobs, one-click
-        escrow / freeze / dispute. Platform fee{" "}
-        {board?.platformFeePercent ?? 5}% on release.
+        Live overview of Ona: totals, open jobs, and Care tools. Search people or jobs, watch the board, and run escrow / freeze / dispute from here.
       </p>
 
       {/* Always-visible totals dashboard */}
@@ -284,8 +282,9 @@ export default function CareDeskPage() {
       </div>
 
       <p className="om-admin-muted" style={{ marginBottom: "1rem", fontSize: 12 }}>
-        Sensitive actions (escrow, freeze, dispute) ask for the temporary password
-        in a popup only when you click them — not on the whole dashboard.
+        Super Admin can release escrow, freeze users, and resolve disputes without
+        a second password. Customer Care may still see a temporary staff password
+        popup on those actions only.
       </p>
 
       {/* Local BackUp — money fallout protection */}

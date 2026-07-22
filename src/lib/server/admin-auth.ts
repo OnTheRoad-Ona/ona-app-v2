@@ -164,8 +164,8 @@ export async function requirePermission(
 }
 
 /**
- * Require sensitive unlock (password 336699) for gated actions.
- * Also enforces role permission + rate limit.
+ * Require temporary staff unlock for gated Care/Support actions.
+ * Super Admin skips unlock. Also enforces role permission + rate limit.
  */
 export async function requireSensitiveAction(
   perm: CarePermission,
@@ -191,11 +191,16 @@ export async function requireSensitiveAction(
     );
   }
 
-  if (PASSWORD_GATED.includes(perm)) {
+  // Super Admin has full control — no second password.
+  // Care / Support still need temporary unlock for money & freeze actions.
+  if (
+    PASSWORD_GATED.includes(perm) &&
+    ctx.adminRole !== "super_admin"
+  ) {
     const unlock = await readUnlockFromCookies(ctx.session.userId);
     if (!unlock.unlocked) {
       throw new AdminAuthError(
-        "Sensitive action locked. Enter temporary password 336699 to unlock.",
+        "Sensitive action locked. Enter the temporary staff password to unlock.",
         403,
         "sensitive_locked"
       );

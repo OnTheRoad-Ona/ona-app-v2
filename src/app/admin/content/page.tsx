@@ -56,7 +56,7 @@ export default function AdminContentPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Content & copy</h1>
       <p className="om-admin-sub">
-        Control what motorists see: search placeholder, problem list, banners.
+        Help text and content blocks shown in the live app. Edit carefully — customers see this.
       </p>
       {error ? <div className="om-admin-error">{error}</div> : null}
       {msg ? <div className="om-admin-success">{msg}</div> : null}

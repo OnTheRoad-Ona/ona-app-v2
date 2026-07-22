@@ -200,6 +200,8 @@ export function AdminShell({
     href: string,
     needsPassword?: boolean
   ) {
+    // Super Admin never needs temporary password on navigation
+    if (role === "super_admin") return;
     if (!needsPassword && !isPasswordGatedPath(href)) return;
     if (pathname === href || pathname.startsWith(`${href}/`)) return;
 
@@ -207,7 +209,7 @@ export function AdminShell({
     const pageName = href.split("/").pop() || "page";
     const ok = await promptSensitivePassword({
       title: `Password required`,
-      detail: `Enter the temporary password before opening ${pageName}. This page is restricted.`,
+      detail: `Enter the temporary staff password before opening ${pageName}. Super Admin does not need this.`,
     });
     if (ok) {
       router.push(href);

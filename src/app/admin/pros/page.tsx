@@ -430,8 +430,7 @@ export default function AdminProsHubPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Repair Pros</h1>
       <p className="om-admin-sub">
-        Directory + verification review merged. Thumbnails show uploaded ID /
-        skill files; open a row for full control.
+        Repair Pro accounts from the live app. Review onboarding, documents, Live status, and payout banks. Approve or suspend pros here.
       </p>
 
       {error ? <div className="om-admin-error">{error}</div> : null}

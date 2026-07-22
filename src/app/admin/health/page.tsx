@@ -103,8 +103,8 @@ export default function AdminHealthPage() {
             System health
           </h1>
           <p className="om-admin-sub" style={{ marginBottom: 0 }}>
-            Proactive monitoring — Auth, DB storage, Maps, API & frontend.
-          </p>
+        Backend health: Supabase, payments, maps, and error signals. Use when the live app misbehaves.
+      </p>
         </div>
         <button
           type="button"

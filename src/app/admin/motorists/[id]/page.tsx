@@ -161,8 +161,9 @@ export default function AdminMotoristDetailPage() {
       </div>
       <h1 className="om-admin-h1">{u?.full_name || "Customer"}</h1>
       <p className="om-admin-sub">
-        Full profile, identity, vehicle, and activity history from the live
-        database.
+        Single customer record: profile, identity, vehicle, bank, and job
+        history from the live Ona database. Approve ID or freeze the account
+        here.
       </p>
       {msg ? (
         <div

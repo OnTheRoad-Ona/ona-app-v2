@@ -111,8 +111,8 @@ export default function AdminUsersPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Users & roles</h1>
       <p className="om-admin-sub">
-        All people on Ona: admin · motorist · repair_pro. Live from
-        Supabase (Vercel signups appear here). For full motorist tools use{" "}
+        All people on Ona: admin · customer · repair pro. Live from Supabase
+        (new signups on Vercel show here). Full customer tools: open{" "}
         <a href="/admin/motorists">Customers</a>.
       </p>
       {msg ? (

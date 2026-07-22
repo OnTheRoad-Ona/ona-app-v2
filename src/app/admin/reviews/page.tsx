@@ -35,7 +35,7 @@ export default function AdminReviewsPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Reviews</h1>
       <p className="om-admin-sub">
-        Ratings left after completed jobs.
+        Ratings and reviews after completed jobs. Spot spam or abuse and support quality on the marketplace.
       </p>
       {error ? <div className="om-admin-error">{error}</div> : null}
       <div className="om-admin-panel">

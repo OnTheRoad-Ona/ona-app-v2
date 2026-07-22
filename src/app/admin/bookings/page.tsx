@@ -36,7 +36,7 @@ export default function AdminBookingsPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Bookings</h1>
       <p className="om-admin-sub">
-        Scheduled / confirmed bookings between customers and pros.
+        Booking records linked to jobs and escrow. Cross-check status with Live jobs and Payments.
       </p>
       {error ? <div className="om-admin-error">{error}</div> : null}
       <div className="om-admin-panel">

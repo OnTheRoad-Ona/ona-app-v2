@@ -75,8 +75,7 @@ export default function AdminDisputesPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Disputes & appeals</h1>
       <p className="om-admin-sub">
-        Review evidence scores, resolve within 24h, handle one appeal per
-        dispute (48h window). Escrow stays locked until decision.
+        Jobs in dispute or appeal. Review evidence, lock funds in escrow, and resolve or escalate for Customer Care.
       </p>
       {error ? <div className="om-admin-error">{error}</div> : null}
       {flash ? (

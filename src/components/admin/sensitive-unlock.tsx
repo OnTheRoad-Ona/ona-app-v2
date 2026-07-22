@@ -21,6 +21,25 @@ export function isPasswordGatedPath(href: string): boolean {
   );
 }
 
+/** Super Admin skips the temporary password entirely. */
+async function isSuperAdminSession(): Promise<boolean> {
+  try {
+    const res = await fetch("/api/admin/auth/me", {
+      credentials: "include",
+      cache: "no-store",
+    });
+    const json = await res.json().catch(() => null);
+    return Boolean(
+      json?.ok &&
+        (json.data?.adminRole === "super_admin" ||
+          json.data?.role === "admin" ||
+          json.data?.role === "super_admin")
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function postUnlock(password: string): Promise<
   | { ok: true; expiresAt: number | null }
   | { ok: false; message: string }
@@ -66,10 +85,12 @@ let openPrompt:
   | ((opts: { title: string; detail?: string }) => Promise<boolean>)
   | null = null;
 
-export function promptSensitivePassword(opts: {
+export async function promptSensitivePassword(opts: {
   title: string;
   detail?: string;
 }): Promise<boolean> {
+  // Super Admin: no temporary password gate
+  if (await isSuperAdminSession()) return true;
   if (!openPrompt) {
     console.warn("[sensitive] Password modal not mounted");
     return Promise.resolve(false);
@@ -79,11 +100,16 @@ export function promptSensitivePassword(opts: {
 
 /**
  * Unlock with popup, run fn, then re-lock (one-shot for money/freeze actions).
+ * Super Admin runs fn immediately without popup.
  */
 export async function withSensitivePassword(
   opts: { title: string; detail?: string },
   fn: () => Promise<void>
 ): Promise<boolean> {
+  if (await isSuperAdminSession()) {
+    await fn();
+    return true;
+  }
   const ok = await promptSensitivePassword(opts);
   if (!ok) return false;
   try {
@@ -112,7 +138,7 @@ export function SensitivePasswordHost() {
           title: opts.title,
           detail:
             opts.detail ||
-            "Enter the temporary Customer Care password to continue.",
+            "Enter the temporary staff password to continue. Super Admin does not need this.",
           resolve,
         });
       });
