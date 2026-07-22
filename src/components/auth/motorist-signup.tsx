@@ -137,7 +137,6 @@ export function MotoristSignup() {
   const [dualSignup, setDualSignup] = useState(false);
   const [nameLocked, setNameLocked] = useState(false);
   const [genderLocked, setGenderLocked] = useState(false);
-  const [dobLocked, setDobLocked] = useState(false);
   const [phoneLocked, setPhoneLocked] = useState(false);
   const [emailLocked, setEmailLocked] = useState(false);
   const [ninLocked, setNinLocked] = useState(false);
@@ -166,7 +165,7 @@ export function MotoristSignup() {
       setDualSignup(false);
       setNameLocked(false);
       setGenderLocked(false);
-      setDobLocked(false);
+      setDateOfBirth("");
       setPhoneLocked(false);
       setEmailLocked(false);
       setNinLocked(false);
@@ -182,7 +181,6 @@ export function MotoristSignup() {
     const bankId = (pro.bvn || vaultPro?.bvn || "").trim();
     const phoneRaw = (pro.phone || vaultPro?.phone || "").trim();
     const g = (pro.gender || vaultPro?.gender || "") as SignupGender | "";
-    const dob = (pro.dateOfBirth || vaultPro?.dateOfBirth || "").slice(0, 10);
 
     if (name) {
       setFullName(name);
@@ -196,12 +194,9 @@ export function MotoristSignup() {
     } else {
       setGenderLocked(false);
     }
-    if (dob && /^\d{4}-\d{2}-\d{2}$/.test(dob)) {
-      setDateOfBirth(dob);
-      setDobLocked(true);
-    } else {
-      setDobLocked(false);
-    }
+    // Customer DOB: never pre-fill (user must pick the date themselves)
+    setDateOfBirth("");
+    setFieldError("dob", null);
     if (em) {
       setEmail(em);
       setEmailLocked(true);
@@ -524,7 +519,7 @@ export function MotoristSignup() {
       accountType: "motorist",
       fullName: fullName.trim(),
       gender: gender as SignupGender,
-      dateOfBirth: normalizeDobIso(dateOfBirth) || dateOfBirth.trim(),
+      dateOfBirth: normalizeDobIso(dateOfBirth) || "",
       phone: fullPhone,
       email: email.trim(),
       password,
@@ -783,21 +778,16 @@ export function MotoristSignup() {
                   <Field label="Date of birth" required>
                     <input
                       type="date"
-                      className={cn(
-                        fieldClass,
-                        dobLocked && authLockedFieldClass
-                      )}
-                      style={dobLocked ? authLockedFieldStyle : undefined}
+                      className={fieldClass}
                       value={dateOfBirth}
-                      readOnly={dobLocked}
-                      tabIndex={dobLocked ? -1 : undefined}
                       min={dobInputMin()}
                       max={dobInputMax()}
+                      autoComplete="off"
+                      // Empty until the customer picks a date — no pre-filled value
+                      placeholder=""
                       onChange={(e) => {
-                        if (dobLocked) return;
-                        setDateOfBirth(
-                          normalizeDobIso(e.target.value) || e.target.value
-                        );
+                        const v = e.target.value;
+                        setDateOfBirth(normalizeDobIso(v) || v);
                         setFieldError("dob", null);
                       }}
                       onBlur={() =>

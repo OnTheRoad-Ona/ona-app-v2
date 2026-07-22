@@ -238,7 +238,7 @@ export default function SettingsProfilePage() {
           <SettingsField
             label="Date of birth *"
             isLight={isLight}
-            hint="Same format as signup (YYYY-MM-DD). Must be 16+."
+            hint="Pick your birth date (must be 16+). Leave empty only if not set yet, then choose a date."
           >
             <input
               className={settingsInputClass(isLight)}
@@ -246,7 +246,10 @@ export default function SettingsProfilePage() {
               value={dateOfBirth}
               min={dobInputMin()}
               max={dobInputMax()}
-              onChange={(e) => setDateOfBirth(e.target.value)}
+              autoComplete="off"
+              onChange={(e) =>
+                setDateOfBirth(normalizeDobIso(e.target.value) || e.target.value)
+              }
               required
             />
           </SettingsField>
