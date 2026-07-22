@@ -68,6 +68,14 @@ Same env as primary (including service role). Staff can also use **https://ona-m
 1. Open https://ona-mi.vercel.app  
 2. Admin: https://ona-backend.vercel.app/admin/login (or https://ona-mi.vercel.app/admin/login)  
 3. Restrict Google Maps key referrers to production domains  
+4. For a clean user slate, see **[CLEAN_START_TESTING.md](./CLEAN_START_TESTING.md)**  
+   (phone-only login, email required at signup, bank panel, pay)  
+
+```bash
+# Wipe test users (keeps settings + re-seed admin)
+node scripts/wipe-user-data.mjs && npm run db:seed-admin
+```
+
 
 ## Local ports
 
