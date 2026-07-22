@@ -1,4 +1,4 @@
--- Escrow + labour pricing fields for OgaMecho payments / requests
+-- Escrow + labour pricing fields for Ona payments / requests
 
 -- Extend payment_status for escrow lifecycle (idempotent)
 do $$

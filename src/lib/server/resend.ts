@@ -1,6 +1,6 @@
 /**
  * Resend email helper (free tier: https://resend.com)
- * Env: RESEND_API_KEY, RESEND_FROM_EMAIL (e.g. OgaMecho <onboarding@resend.dev>)
+ * Env: RESEND_API_KEY, RESEND_FROM_EMAIL (e.g. Ona <onboarding@resend.dev>)
  */
 
 export function isResendConfigured(): boolean {
@@ -10,7 +10,7 @@ export function isResendConfigured(): boolean {
 export function getResendFrom(): string {
   return (
     process.env.RESEND_FROM_EMAIL?.trim() ||
-    "OgaMecho <onboarding@resend.dev>"
+    "Ona <onboarding@resend.dev>"
   );
 }
 
@@ -72,17 +72,17 @@ export async function sendSignupConfirmationEmail(input: {
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://ona-mi.vercel.app";
 
-  const subject = `Welcome to OgaMecho — your ${roleLabel} account is ready`;
+  const subject = `Welcome to Ona — your ${roleLabel} account is ready`;
   const text = [
     `Hi ${first},`,
     ``,
-    `Your OgaMecho ${roleLabel} account is registered and saved on our servers.`,
+    `Your Ona ${roleLabel} account is registered and saved on our servers.`,
     ``,
     `Log in: ${appUrl}/login/signin`,
     ``,
-    `If you did not create this account, contact support@ogamecho.com.`,
+    `If you did not create this account, contact support@ona.com.`,
     ``,
-    `— OgaMecho`,
+    `— Ona`,
   ].join("\n");
 
   const html = `
@@ -94,16 +94,16 @@ export async function sendSignupConfirmationEmail(input: {
     <h1 style="font-size:18px;margin:0 0 12px">Account confirmed</h1>
     <p style="font-size:14px;line-height:1.5;margin:0 0 12px">Hi ${escapeHtml(first)},</p>
     <p style="font-size:14px;line-height:1.5;margin:0 0 12px">
-      Your <strong>${roleLabel}</strong> account is registered on OgaMecho and will appear in our admin systems.
+      Your <strong>${roleLabel}</strong> account is registered on Ona and will appear in our admin systems.
     </p>
     <p style="margin:20px 0">
       <a href="${appUrl}/login/signin"
          style="display:inline-block;background:#323231;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700;font-size:14px">
-        Log in to OgaMecho
+        Log in to Ona
       </a>
     </p>
     <p style="font-size:12px;color:#64748b;line-height:1.4">
-      If you did not create this account, ignore this email or contact support@ogamecho.com.
+      If you did not create this account, ignore this email or contact support@ona.com.
     </p>
   </div>`;
 

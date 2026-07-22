@@ -239,6 +239,15 @@ export async function updateEscrow(
   if (patch.amountMinor != null) dbPatch.amount_kobo = patch.amountMinor;
   if (patch.meta) dbPatch.meta = patch.meta;
 
+  const moneyTouch =
+    patch.status != null ||
+    patch.escrowStatus != null ||
+    patch.paidAt !== undefined ||
+    patch.releasedAt !== undefined ||
+    patch.refundedAt !== undefined;
+
+  let result: EscrowPayment | null = null;
+
   if (isSupabaseAdminConfigured()) {
     try {
       const sb = createServiceSupabase();
@@ -248,42 +257,61 @@ export async function updateEscrow(
         .eq("id", id)
         .select("*")
         .single();
-      if (data) return rowToEscrow(data as Record<string, unknown>);
+      if (data) result = rowToEscrow(data as Record<string, unknown>);
     } catch {
       /* memory */
     }
   }
 
-  const existing = memory.get(id);
-  if (!existing) return null;
-  const next: EscrowPayment = {
-    ...existing,
-    status: patch.status ?? existing.status,
-    escrowStatus: patch.escrowStatus ?? existing.escrowStatus,
-    paidAt: patch.paidAt !== undefined ? patch.paidAt : existing.paidAt,
-    releasedAt:
-      patch.releasedAt !== undefined ? patch.releasedAt : existing.releasedAt,
-    refundedAt:
-      patch.refundedAt !== undefined ? patch.refundedAt : existing.refundedAt,
-    motoristCompletedAt:
-      patch.motoristCompletedAt !== undefined
-        ? patch.motoristCompletedAt
-        : existing.motoristCompletedAt,
-    proCompletedAt:
-      patch.proCompletedAt !== undefined
-        ? patch.proCompletedAt
-        : existing.proCompletedAt,
-    providerChannel:
-      patch.providerChannel !== undefined
-        ? patch.providerChannel
-        : existing.providerChannel,
-    amountMinor: patch.amountMinor ?? existing.amountMinor,
-    meta: patch.meta ?? existing.meta,
-    updatedAt: nowIso(),
-  };
-  memory.set(id, next);
-  if (next.providerRef) memory.set(`ref:${next.providerRef}`, next);
-  return next;
+  if (!result) {
+    const existing = memory.get(id);
+    if (!existing) return null;
+    const next: EscrowPayment = {
+      ...existing,
+      status: patch.status ?? existing.status,
+      escrowStatus: patch.escrowStatus ?? existing.escrowStatus,
+      paidAt: patch.paidAt !== undefined ? patch.paidAt : existing.paidAt,
+      releasedAt:
+        patch.releasedAt !== undefined ? patch.releasedAt : existing.releasedAt,
+      refundedAt:
+        patch.refundedAt !== undefined ? patch.refundedAt : existing.refundedAt,
+      motoristCompletedAt:
+        patch.motoristCompletedAt !== undefined
+          ? patch.motoristCompletedAt
+          : existing.motoristCompletedAt,
+      proCompletedAt:
+        patch.proCompletedAt !== undefined
+          ? patch.proCompletedAt
+          : existing.proCompletedAt,
+      providerChannel:
+        patch.providerChannel !== undefined
+          ? patch.providerChannel
+          : existing.providerChannel,
+      amountMinor: patch.amountMinor ?? existing.amountMinor,
+      meta: patch.meta ?? existing.meta,
+      updatedAt: nowIso(),
+    };
+    memory.set(id, next);
+    if (next.providerRef) memory.set(`ref:${next.providerRef}`, next);
+    result = next;
+  }
+
+  // Local BackUp snapshot after money-relevant escrow changes (debounced)
+  if (result && moneyTouch) {
+    try {
+      const { triggerBackupAfterPaymentChange, isMoneyEscrowStatus } =
+        await import("@/lib/server/local-backup-trigger");
+      if (isMoneyEscrowStatus(result.status, result.escrowStatus)) {
+        triggerBackupAfterPaymentChange(
+          `payment_${result.escrowStatus || result.status}`
+        );
+      }
+    } catch {
+      /* never block payments on backup */
+    }
+  }
+
+  return result;
 }
 
 export async function listEscrowForUser(

@@ -495,6 +495,52 @@ const OVERRIDES: Record<string, () => CountryIdPack> = {
 
 const packCache = new Map<string, CountryIdPack>();
 
+/**
+ * Product photo rules (all countries):
+ * - Passport + national ID (NIN / Ghana Card / Aadhaar / etc.) → front only
+ * - Driver’s licence + voter’s card → front and back
+ * - Bank / tax IDs with no photo requirement stay unchanged
+ */
+export function applyPhotoSideRules(doc: CountryIdDoc): CountryIdDoc {
+  if (doc.kind === "drivers_licence" || doc.kind === "voters_card") {
+    return {
+      ...doc,
+      needsFront: true,
+      needsBack: true,
+      hint:
+        doc.hint?.includes("front") || doc.hint?.includes("back")
+          ? doc.hint
+          : `${doc.hint || doc.label}. Front and back photos.`,
+    };
+  }
+  if (doc.kind === "passport") {
+    return {
+      ...doc,
+      needsFront: true,
+      needsBack: false,
+      hint:
+        doc.hint ||
+        "Photo of the main page with your picture and number.",
+    };
+  }
+  if (doc.kind === "national_id") {
+    // Keep number-only national IDs (e.g. UK NI) with no photo slots
+    if (!doc.needsFront && !doc.needsBack) return doc;
+    return {
+      ...doc,
+      needsFront: true,
+      needsBack: false,
+      hint: (doc.hint || doc.label)
+        .replace(/\s*[Ff]ront and back photos?\.?/g, "")
+        .replace(/\s*[Pp]hotos of front and back\.?/g, "")
+        .trim()
+        .replace(/\.$/, "")
+        + ". Front photo only.",
+    };
+  }
+  return doc;
+}
+
 /** All ISO codes we know (from phone / world list) */
 export function getAllCountryIsos(): string[] {
   try {
@@ -510,7 +556,11 @@ export function getCountryIdPack(iso: string): CountryIdPack {
   const hit = packCache.get(code);
   if (hit) return hit;
   const build = OVERRIDES[code];
-  const pack = build ? build() : defaultPack(code);
+  const raw = build ? build() : defaultPack(code);
+  const pack: CountryIdPack = {
+    ...raw,
+    docs: raw.docs.map(applyPhotoSideRules),
+  };
   packCache.set(code, pack);
   return pack;
 }

@@ -143,6 +143,7 @@ export function ArtisanOnboarding({
     userProfile,
     accountType,
     theme,
+    updateUserProfile,
   } = useApp();
   const isLight = theme === "light";
   const tokens = profileTheme(isLight);
@@ -196,7 +197,7 @@ export function ArtisanOnboarding({
   const userId =
     backendUserId ||
     (typeof window !== "undefined"
-      ? localStorage.getItem("oga-mecho-user-id") || "local-pro"
+      ? localStorage.getItem("ona-user-id") || "local-pro"
       : "local-pro");
 
   const [step, setStep] = useState<ArtisanOnboardingStep>(
@@ -230,8 +231,9 @@ export function ArtisanOnboarding({
     return null;
   }, [userProfile?.services]);
 
-  // Hydrate draft once per user — re-read local store when returning from sub-pages
+  // Hydrate draft + reconcile with server (care reset must unlock re-verify)
   useEffect(() => {
+    let cancelled = false;
     const iso = resolveSignupCountryIso(userProfile?.identityCountryIso);
     const primary =
       lockedPrimaryTrade ||
@@ -285,6 +287,211 @@ export function ArtisanOnboarding({
     if (dirty) saveArtisanProfile(next);
     setProfile(next);
 
+    // Server is truth for care reset / approval — unlock local "pending_review" wall
+    const syncFromServer = async () => {
+      try {
+        const res = await fetch(
+          `/api/artisan/profile?userId=${encodeURIComponent(userId)}`,
+          { cache: "no-store" }
+        );
+        const json = (await res.json().catch(() => null)) as {
+          ok?: boolean;
+          data?: {
+            pro?: {
+              status?: string;
+              pipeline_status?: string | null;
+              pipeline_notes?: string | null;
+              rejection_reason?: string | null;
+              gov_id_review_status?: string | null;
+              docs_status?: string | null;
+              visibility_tier?: number | null;
+              verified?: boolean | null;
+              nin_verified?: boolean | null;
+              face_liveness_verified?: boolean | null;
+              tier2_approved_at?: string | null;
+              tier3_approved_at?: string | null;
+              tier4_approved_at?: string | null;
+              go_live_window_ends_at?: string | null;
+            } | null;
+          };
+        } | null;
+        if (cancelled || !json?.ok || !json.data?.pro) return;
+        const pro = json.data.pro;
+        const local = getArtisanProfile(userId) || next;
+        let merged = { ...local };
+        let changed = false;
+
+        const gov = String(pro.gov_id_review_status || "none");
+        const docs = String(pro.docs_status || "none");
+        const pipe = String(pro.pipeline_status || "");
+        const careReset =
+          pipe === "needs_resubmit" ||
+          /re-?\s*submit/i.test(String(pro.rejection_reason || "")) ||
+          /re-?\s*submit/i.test(String(pro.pipeline_notes || ""));
+        const t2Approved =
+          gov === "approved" ||
+          Boolean(pro.verified) ||
+          Boolean(pro.nin_verified);
+        const vis = Number(pro.visibility_tier) || 1;
+        const proStatus = String(pro.status || "");
+
+        // Immediately apply care approval → ID approved + T2 privileges + %
+        if (t2Approved) {
+          const nextTiers = {
+            ...merged.tiers,
+            tier2_govId: true,
+            tier2_nin:
+              Boolean(pro.nin_verified) ||
+              gov === "approved" ||
+              merged.tiers.tier2_nin,
+            tier3_liveness: Boolean(pro.face_liveness_verified),
+            tier4_skillProof:
+              docs === "approved" || merged.tiers.tier4_skillProof,
+          };
+          const fullyApproved =
+            proStatus === "approved" || (t2Approved && vis >= 2);
+          if (
+            merged.govIdReviewStatus !== "approved" ||
+            !merged.tiers.tier2_govId ||
+            (fullyApproved && merged.status !== "approved") ||
+            merged.visibilityTier !== vis
+          ) {
+            merged = {
+              ...merged,
+              status: fullyApproved ? "approved" : merged.status,
+              rejectReason: fullyApproved ? null : merged.rejectReason,
+              govIdReviewStatus: "approved",
+              ninReviewStatus:
+                Boolean(pro.nin_verified) || gov === "approved"
+                  ? "approved"
+                  : merged.ninReviewStatus,
+              tiers: nextTiers,
+              visibilityTier: vis as 1 | 2 | 3 | 4,
+              tier2ApprovedAt:
+                pro.tier2_approved_at ||
+                merged.tier2ApprovedAt ||
+                new Date().toISOString(),
+              tier3ApprovedAt:
+                pro.tier3_approved_at || merged.tier3ApprovedAt,
+              tier4ApprovedAt:
+                pro.tier4_approved_at || merged.tier4ApprovedAt,
+              goLiveWindowEndsAt:
+                pro.go_live_window_ends_at || merged.goLiveWindowEndsAt,
+              isNewArtisan: vis <= 2,
+            };
+            changed = true;
+          }
+        } else if (careReset || gov === "rejected") {
+          // Care reset / reject: unlock form so pro can re-verify
+          if (
+            merged.status === "pending_review" ||
+            merged.status === "approved" ||
+            merged.govIdReviewStatus === "submitted" ||
+            merged.govIdReviewStatus === "approved" ||
+            merged.tiers.tier2_govId
+          ) {
+            merged = {
+              ...merged,
+              status: "rejected",
+              rejectReason:
+                pro.rejection_reason ||
+                pro.pipeline_notes ||
+                "Care asked you to re-submit verification.",
+              govIdReviewStatus: gov === "rejected" ? "rejected" : "none",
+              ninReviewStatus: "none",
+              tiers: {
+                ...merged.tiers,
+                tier2_govId: false,
+                tier2_nin: false,
+                tier3_liveness: Boolean(pro.face_liveness_verified),
+                tier4_skillProof: docs === "approved",
+              },
+              visibilityTier: (vis >= 1 && vis <= 4 ? vis : 1) as 1 | 2 | 3 | 4,
+            };
+            changed = true;
+          }
+        } else if (gov === "submitted") {
+          if (merged.govIdReviewStatus !== "submitted") {
+            merged = {
+              ...merged,
+              govIdReviewStatus: "submitted",
+              status:
+                merged.status === "draft" ? "pending_review" : merged.status,
+            };
+            changed = true;
+          }
+        } else if (gov === "none" && merged.govIdReviewStatus === "submitted") {
+          // Server cleared submitted (rare) — unlock
+          merged = {
+            ...merged,
+            govIdReviewStatus: "none",
+            status: merged.status === "pending_review" ? "draft" : merged.status,
+          };
+          changed = true;
+        }
+
+        // Sync visibility ladder from server when not already handled
+        if (vis !== merged.visibilityTier) {
+          merged = {
+            ...merged,
+            visibilityTier: vis as 1 | 2 | 3 | 4,
+            tier2ApprovedAt: pro.tier2_approved_at || merged.tier2ApprovedAt,
+            tier3ApprovedAt: pro.tier3_approved_at || merged.tier3ApprovedAt,
+            tier4ApprovedAt: pro.tier4_approved_at || merged.tier4ApprovedAt,
+            goLiveWindowEndsAt:
+              pro.go_live_window_ends_at || merged.goLiveWindowEndsAt,
+            isNewArtisan: vis <= 2,
+          };
+          changed = true;
+        }
+
+        if (docs === "under_review" && merged.skillProofStatus !== "under_review") {
+          merged = {
+            ...merged,
+            skillProofStatus: "under_review",
+            tiers: { ...merged.tiers, tier4_skillProof: true },
+          };
+          changed = true;
+        }
+        if (docs === "approved" && !merged.tiers.tier4_skillProof) {
+          merged = {
+            ...merged,
+            skillProofStatus: "approved",
+            tiers: { ...merged.tiers, tier4_skillProof: true },
+          };
+          changed = true;
+        }
+
+        if (changed) {
+          saveArtisanProfile(merged);
+          if (!cancelled) {
+            setProfile(merged);
+            if (t2Approved && (gov === "approved" || Boolean(pro.verified))) {
+              setMsg(
+                "Government ID approved. Tier 2 privileges unlocked."
+              );
+              setErr(null);
+            } else if (careReset || gov === "rejected") {
+              setMsg(
+                pro.rejection_reason ||
+                  pro.pipeline_notes ||
+                  "Care reset your verification. Re-submit ID / skill docs below."
+              );
+            }
+          }
+        }
+      } catch {
+        /* offline — keep local draft */
+      }
+    };
+
+    void syncFromServer();
+    // Poll while page open so approval flips without leaving the screen
+    const pollId = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      void syncFromServer();
+    }, 4000);
+
     if (mode === "full") {
       try {
         const saved = sessionStorage.getItem(ARTISAN_STEP_KEY);
@@ -296,6 +503,10 @@ export function ArtisanOnboarding({
         /* */
       }
     }
+    return () => {
+      cancelled = true;
+      window.clearInterval(pollId);
+    };
     // Only re-run when identity/user changes — not every profile field tick
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, lockedPrimaryTrade, mode]);
@@ -455,13 +666,57 @@ export function ArtisanOnboarding({
     patch({
       tiers: { ...profile.tiers, tier1_phone: true },
     });
+    // Mirror Tier 1 onto app profile so bank gate + refunds/payouts unlock rules apply
+    if (userProfile && !userProfile.phoneVerified) {
+      updateUserProfile({ phoneVerified: true });
+    }
     setOtpDemoCode(null);
-    setMsg("Phone verified. Tier 1 complete.");
+    setMsg("Phone verified. Tier 1 complete. Next: add your bank account.");
     setErr(null);
   };
 
-  /** Government ID: type + number + photo → queue for admin/care (no live verify) */
-  const submitGovIdForReview = () => {
+  const getAccessToken = async (): Promise<string | null> => {
+    try {
+      const { getAppSupabase } = await import("@/lib/supabase/app-client");
+      const sb = getAppSupabase();
+      if (!sb) return null;
+      const { data } = await sb.auth.getSession();
+      return data.session?.access_token ?? null;
+    } catch {
+      return null;
+    }
+  };
+
+  const postProVerify = async (
+    body: Record<string, unknown>
+  ): Promise<string | null> => {
+    const token = await getAccessToken();
+    if (!token) return "Sign in again to submit for review.";
+    try {
+      const res = await fetch("/api/verify/pro-id", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ access_token: token, ...body }),
+      });
+      const json = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: { message?: string };
+      } | null;
+      if (!json?.ok) {
+        return json?.error?.message || "Could not submit to server.";
+      }
+      return null;
+    } catch {
+      return "Network error submitting for review.";
+    }
+  };
+
+  /** NIN / passport = front only; driver’s licence / voter’s card = front + back */
+  const govIdNeedsBack = (type: GovIdType | null | undefined) =>
+    type === "drivers_licence" || type === "voters_card";
+
+  /** Government ID: type + number + photo → server queue for admin/care */
+  const submitGovIdForReview = async () => {
     if (!profile) return;
     if (!profile.govIdType) {
       setErr("Pick an ID type.");
@@ -472,11 +727,35 @@ export function ArtisanOnboarding({
       return;
     }
     if (!profile.govIdFront?.url) {
-      setErr("Upload a clear photo of the selected ID.");
+      setErr(
+        govIdNeedsBack(profile.govIdType)
+          ? "Upload a clear photo of the front of the ID."
+          : "Upload a clear photo of the selected ID."
+      );
+      return;
+    }
+    if (govIdNeedsBack(profile.govIdType) && !profile.govIdBack?.url) {
+      setErr("Upload a clear photo of the back of the ID.");
       return;
     }
     setIdBusy("gov");
     setErr(null);
+    const apiErr = await postProVerify({
+      kind: "gov_id",
+      govIdKind: profile.govIdType,
+      govIdNumber: profile.govIdNumber.trim(),
+      govIdFrontUrl: profile.govIdFront.url,
+      govIdBackUrl: govIdNeedsBack(profile.govIdType)
+        ? profile.govIdBack?.url
+        : undefined,
+      primaryService: profile.trade?.service,
+      businessName: profile.fullName,
+    });
+    if (apiErr) {
+      setErr(apiErr);
+      setIdBusy(null);
+      return;
+    }
     patch({
       tiers: { ...profile.tiers, tier2_govId: false },
       govIdReviewStatus: "submitted",
@@ -488,8 +767,8 @@ export function ArtisanOnboarding({
     setIdBusy(null);
   };
 
-  /** NIN number under BVN panel → queue for admin/care (no document upload) */
-  const submitNinForReview = () => {
+  /** NIN/BVN number → server queue for admin/care */
+  const submitNinForReview = async () => {
     if (!profile) return;
     const nin = (profile.nin || "").replace(/\D/g, "");
     if (nin.length !== 11) {
@@ -498,6 +777,12 @@ export function ArtisanOnboarding({
     }
     setIdBusy("nin");
     setErr(null);
+    const apiErr = await postProVerify({ kind: "nin", nin });
+    if (apiErr) {
+      setErr(apiErr);
+      setIdBusy(null);
+      return;
+    }
     patch({
       nin,
       tiers: { ...profile.tiers, tier2_nin: false },
@@ -511,18 +796,29 @@ export function ArtisanOnboarding({
   const reviewLabel = (s?: string | null) => {
     if (s === "submitted") return "Pending review";
     if (s === "approved") return "Approved";
-    if (s === "rejected") return "Rejected — re-upload";
+    if (s === "rejected") return "Rejected · re-upload";
     return "Not submitted";
   };
 
-  const submitReview = () => {
+  const submitReview = async () => {
     if (!profile) return;
     const gate = canSubmitForReview(profile);
     if (!gate.ok) {
       setErr(gate.reason);
       return;
     }
-    // TODO(api): POST /api/artisan/submit → status pending_review
+    setBusy(true);
+    setErr(null);
+    const apiErr = await postProVerify({
+      kind: "profile_submit",
+      primaryService: profile.trade?.service,
+      businessName: profile.fullName,
+    });
+    if (apiErr) {
+      setErr(apiErr);
+      setBusy(false);
+      return;
+    }
     const next: ArtisanVerificationProfile = {
       ...profile,
       status: "pending_review",
@@ -532,7 +828,7 @@ export function ArtisanOnboarding({
     saveArtisanProfile(next);
     setProfile(next);
     setMsg("Submitted for admin review. You cannot Go Live until approved.");
-    setErr(null);
+    setBusy(false);
   };
 
   if (!profile) {
@@ -546,34 +842,16 @@ export function ArtisanOnboarding({
     );
   }
 
-  if (accountType === "professional" && profile.status === "pending_review") {
-    return (
-      <div className="flex h-full flex-col" style={{ backgroundColor: sheetBg }}>
-        <PageHeader
-          title="Pending Review"
-          subtitle="Verification"
-          backHref="/dashboard"
-        />
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-          <Shield className="h-10 w-10 text-[#FF6B35]" />
-          <p className={cn("text-[16px] font-bold", ink)}>
-            Profile under review
-          </p>
-          <p className={cn("max-w-xs text-[13px] font-medium", muted)}>
-            Ona Care is checking your details. You cannot Go Live or receive
-            jobs until an admin approves you.
-          </p>
-          <button
-            type="button"
-            onClick={() => router.push("/dashboard")}
-            className="mt-2 h-11 rounded-md border-0 bg-[#323231] px-5 text-[13px] font-bold text-white"
-          >
-            Back to Dashboard
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // Soft wait state only — never hard-lock the whole page after care reset.
+  // When ID is submitted and waiting, show banner + still allow reading tiers.
+  const waitingCareId =
+    profile.status === "pending_review" &&
+    profile.govIdReviewStatus === "submitted" &&
+    !profile.rejectReason;
+  const needsResubmit =
+    profile.status === "rejected" ||
+    profile.govIdReviewStatus === "rejected" ||
+    Boolean(profile.rejectReason);
 
   if (profile.status === "approved" && mode === "full") {
     return (
@@ -614,6 +892,38 @@ export function ArtisanOnboarding({
           // Stack previous page when available; else dashboard (pro) / profile
           backHref={mode === "settings" ? "/profile" : "/dashboard"}
         />
+
+        {needsResubmit ? (
+          <div
+            className={cn(
+              "mx-3 mb-2 rounded-md border-0 px-3 py-2.5",
+              isLight ? "bg-[#d8d9df]" : "bg-[#32333a]"
+            )}
+          >
+            <p className={cn("text-[12px] font-bold", ink)}>
+              Care asked you to re-verify
+            </p>
+            <p className={cn("mt-0.5 text-[11px] font-medium leading-snug", muted)}>
+              {profile.rejectReason ||
+                "Re-submit government ID and any skill documents below. You are not locked out."}
+            </p>
+          </div>
+        ) : waitingCareId ? (
+          <div
+            className={cn(
+              "mx-3 mb-2 rounded-md border-0 px-3 py-2.5",
+              isLight ? "bg-[#d8d9df]" : "bg-[#32333a]"
+            )}
+          >
+            <p className={cn("text-[12px] font-bold", ink)}>
+              ID under review
+            </p>
+            <p className={cn("mt-0.5 text-[11px] font-medium leading-snug", muted)}>
+              Ona Care is checking your details. You can still update other
+              tiers. Go Live unlocks after T2 ID is approved.
+            </p>
+          </div>
+        ) : null}
 
         {/* Progress — full onboarding only */}
         {mode === "full" ? (
@@ -1427,8 +1737,8 @@ export function ArtisanOnboarding({
                     "relative z-[1] flex aspect-square w-[min(100%,260px)] max-h-[260px]",
                     "flex-col items-center justify-center rounded-[0.65rem] px-5 py-6 text-center",
                     "border-0 shadow-none",
-                    // Soft grey that blends light + dark shells
-                    isLight ? "bg-[#b8b9be] text-slate-900" : "bg-[#3a3a3c] text-[#f2f2f7]"
+                    // Match phone shell grey exactly
+                    isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-[#f2f2f7]"
                   )}
                 >
                   <p className="text-[14px] font-bold leading-snug">{gatePopup}</p>
@@ -1460,11 +1770,17 @@ export function ArtisanOnboarding({
                 onChange={(e) =>
                   patch({
                     govIdType: (e.target.value || null) as GovIdType | null,
+                    govIdFront: null,
+                    govIdBack: null,
                     tiers: { ...profile.tiers, tier2_govId: false },
                     govIdReviewStatus: "none",
                   })
                 }
                 className={selectClass}
+                disabled={
+                  profile.tiers.tier2_govId ||
+                  profile.govIdReviewStatus === "submitted"
+                }
               >
                 <option value="">ID type…</option>
                 <option value="nin">National ID (NIN card)</option>
@@ -1485,67 +1801,111 @@ export function ArtisanOnboarding({
                 }
                 placeholder="ID number on the document"
                 className={fieldClass}
+                disabled={
+                  profile.tiers.tier2_govId ||
+                  profile.govIdReviewStatus === "submitted"
+                }
               />
-              {/* Full-width upload — no lap / overlap */}
-              <label
-                className={cn(
-                  "flex w-full min-h-[48px] cursor-pointer flex-col items-center justify-center gap-1 rounded-md px-3 py-3",
-                  isLight ? "bg-[#E2E3E7] text-slate-800" : "bg-[#2c2c2e] text-white"
-                )}
-              >
-                <span className="flex items-center gap-2 text-[12px] font-bold">
-                  <Upload className="h-4 w-4 shrink-0 text-[#FF6B35]" />
-                  {profile.govIdFront
-                    ? `Uploaded: ${profile.govIdFront.name || "ID photo"}`
-                    : "Upload photo of selected ID"}
-                </span>
-                <span className={cn("text-[10px] font-medium", muted)}>
-                  Max {formatMb(IMAGE_MAX_BYTES)} · image only
-                </span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const f = e.target.files?.[0];
-                    e.target.value = "";
-                    if (!f) return;
-                    if (f.size > IMAGE_MAX_BYTES) {
-                      setErr(
-                        `ID photo must be ${formatMb(IMAGE_MAX_BYTES)} or less.`
-                      );
-                      return;
+              {/* Front (always) + Back (licence / voters only) */}
+              {(
+                [
+                  {
+                    side: "front" as const,
+                    label: govIdNeedsBack(profile.govIdType)
+                      ? "Upload front of ID"
+                      : "Upload photo of selected ID",
+                    media: profile.govIdFront,
+                    kind: "id_front" as const,
+                  },
+                  ...(govIdNeedsBack(profile.govIdType)
+                    ? [
+                        {
+                          side: "back" as const,
+                          label: "Upload back of ID",
+                          media: profile.govIdBack,
+                          kind: "id_back" as const,
+                        },
+                      ]
+                    : []),
+                ] as const
+              ).map((slot) => (
+                <label
+                  key={slot.side}
+                  className={cn(
+                    "flex w-full min-h-[48px] cursor-pointer flex-col items-center justify-center gap-1 rounded-md px-3 py-3",
+                    isLight
+                      ? "bg-[#E2E3E7] text-slate-800"
+                      : "bg-[#2c2c2e] text-white",
+                    (profile.tiers.tier2_govId ||
+                      profile.govIdReviewStatus === "submitted") &&
+                      "pointer-events-none opacity-60"
+                  )}
+                >
+                  <span className="flex items-center gap-2 text-[12px] font-bold">
+                    <Upload className="h-4 w-4 shrink-0 text-[#FF6B35]" />
+                    {slot.media
+                      ? `Uploaded: ${slot.media.name || slot.side}`
+                      : slot.label}
+                  </span>
+                  <span className={cn("text-[10px] font-medium", muted)}>
+                    Max {formatMb(IMAGE_MAX_BYTES)} · image only
+                    {govIdNeedsBack(profile.govIdType)
+                      ? ` · ${slot.side}`
+                      : " · front only"}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={
+                      profile.tiers.tier2_govId ||
+                      profile.govIdReviewStatus === "submitted"
                     }
-                    setBusy(true);
-                    try {
-                      const url = await fileToDataUrl(f);
-                      patch({
-                        govIdFront: {
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = "";
+                      if (!f) return;
+                      if (f.size > IMAGE_MAX_BYTES) {
+                        setErr(
+                          `ID photo must be ${formatMb(IMAGE_MAX_BYTES)} or less.`
+                        );
+                        return;
+                      }
+                      setBusy(true);
+                      try {
+                        const url = await fileToDataUrl(f);
+                        const media = {
                           id: uid(),
                           url,
-                          kind: "id_front",
+                          kind: slot.kind,
                           name: f.name,
                           mime: f.type,
                           createdAt: new Date().toISOString(),
-                        },
-                        tiers: { ...profile.tiers, tier2_govId: false },
-                        govIdReviewStatus: "none",
-                      });
-                      setErr(null);
-                    } catch {
-                      setErr("Could not read ID photo.");
-                    } finally {
-                      setBusy(false);
-                    }
-                  }}
-                />
-              </label>
+                        };
+                        patch({
+                          ...(slot.side === "front"
+                            ? { govIdFront: media }
+                            : { govIdBack: media }),
+                          tiers: { ...profile.tiers, tier2_govId: false },
+                          govIdReviewStatus: "none",
+                        });
+                        setErr(null);
+                      } catch {
+                        setErr("Could not read ID photo.");
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                  />
+                </label>
+              ))}
               <button
                 type="button"
                 disabled={
                   idBusy === "gov" ||
                   profile.tiers.tier2_govId ||
-                  profile.govIdReviewStatus === "submitted"
+                  profile.govIdReviewStatus === "submitted" ||
+                  profile.govIdReviewStatus === "approved"
                 }
                 className="flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[12px] font-bold text-white disabled:opacity-60"
                 onClick={submitGovIdForReview}
@@ -1554,7 +1914,8 @@ export function ArtisanOnboarding({
                   <>
                     <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
                   </>
-                ) : profile.tiers.tier2_govId ? (
+                ) : profile.tiers.tier2_govId ||
+                  profile.govIdReviewStatus === "approved" ? (
                   <>
                     <Check className="h-3.5 w-3.5" /> ID approved
                   </>
@@ -1681,21 +2042,52 @@ export function ArtisanOnboarding({
                       }
                       onCancel={() => setShowLiveness(false)}
                       onPassed={() => {
+                        const passedAt = new Date().toISOString();
                         patch({
                           livenessPassed: true,
-                          livenessPassedAt: new Date().toISOString(),
+                          livenessPassedAt: passedAt,
                           tiers: { ...profile.tiers, tier3_liveness: true },
                           selfie: profile.selfie || {
                             id: uid(),
                             url: "",
                             kind: "selfie",
                             name: "liveness-pass",
-                            createdAt: new Date().toISOString(),
+                            createdAt: passedAt,
                           },
                         });
                         setShowLiveness(false);
-                        setMsg("Face liveness passed. Continue to proof of skill.");
+                        setMsg(
+                          "Face liveness passed. With BVN + ID approved, search reach becomes T3 (~3 km)."
+                        );
                         setErr(null);
+                        // Persist liveness + auto-promote visibility T3 on server
+                        void (async () => {
+                          try {
+                            if (backendUserId) {
+                              await fetch("/api/artisan/profile", {
+                                method: "PATCH",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                },
+                                body: JSON.stringify({
+                                  userId: backendUserId,
+                                  livenessPassedAt: passedAt,
+                                }),
+                              });
+                              await fetch("/api/profile/update", {
+                                method: "POST",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                },
+                                body: JSON.stringify({
+                                  faceLivenessVerified: true,
+                                }),
+                              }).catch(() => null);
+                            }
+                          } catch {
+                            /* local still saved */
+                          }
+                        })();
                         // Auto-advance UI to Proof of skill
                         window.setTimeout(() => {
                           skillSectionRef.current?.scrollIntoView({
@@ -1867,12 +2259,28 @@ export function ArtisanOnboarding({
                       setErr("Upload a certificate first.");
                       return;
                     }
-                    patch({
-                      skillProofStatus: "under_review",
-                      tiers: { ...profile.tiers, tier4_skillProof: true },
-                    });
-                    setMsg("Skill proof submitted for review.");
-                    setErr(null);
+                    void (async () => {
+                      setBusy(true);
+                      setErr(null);
+                      const apiErr = await postProVerify({
+                        kind: "skill_docs",
+                        skillProofType: profile.skillProofType,
+                        skillProofName: profile.skillProof?.name,
+                        skillProofUrl: profile.skillProof?.url,
+                        primaryService: profile.trade?.service,
+                      });
+                      if (apiErr) {
+                        setErr(apiErr);
+                        setBusy(false);
+                        return;
+                      }
+                      patch({
+                        skillProofStatus: "under_review",
+                        tiers: { ...profile.tiers, tier4_skillProof: true },
+                      });
+                      setMsg("Skill proof submitted for review.");
+                      setBusy(false);
+                    })();
                   }}
                 >
                   {profile.tiers.tier4_skillProof ||
@@ -1907,7 +2315,7 @@ export function ArtisanOnboarding({
                 [
                   [
                     "Trade",
-                    `${trade?.label || "—"}${
+                    `${trade?.label || "Trade"}${
                       profile.trade.specialty
                         ? ` · ${profile.trade.specialty}`
                         : ""
@@ -1936,28 +2344,22 @@ export function ArtisanOnboarding({
                       ...profile.serviceArea.cities,
                     ]
                       .filter(Boolean)
-                      .join(" · ") || "—",
+                      .join(" · ") || "Not set",
                   ],
                   ["Tools", String(profile.toolsOwned.length)],
                   [
                     "Guarantor",
                     [profile.guarantor.fullName, profile.guarantor.phone]
                       .filter(Boolean)
-                      .join(" · ") || "—",
+                      .join(" · ") || "Not set",
                   ],
                   ["Portfolio", `${profile.portfolio.length} photos`],
                   ["Intro video", profile.introVideo ? "Yes" : "No"],
                 ] as const
-              ).map(([label, value], i) => (
+              ).map(([label, value]) => (
                 <div
                   key={label}
-                  className={cn(
-                    "flex items-start justify-between gap-3 px-3.5 py-2.5",
-                    i > 0 &&
-                      (isLight
-                        ? "border-t border-black/[0.06]"
-                        : "border-t border-white/[0.06]")
-                  )}
+                  className="flex items-start justify-between gap-3 px-3.5 py-2.5"
                 >
                   <span
                     className={cn(

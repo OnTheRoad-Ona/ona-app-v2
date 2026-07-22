@@ -1,5 +1,5 @@
 /**
- * OgaMecho Complete Profiles System — types, badges, tiers, constants.
+ * Ona Complete Profiles System — types, badges, tiers, constants.
  */
 
 import type { AccountType, ProService, UserProfile } from "@/lib/types";

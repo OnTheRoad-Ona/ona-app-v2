@@ -10,7 +10,7 @@ import type { AccountType } from "@/lib/types";
  * They cannot match two Motorist accounts or two Repair Pro accounts.
  */
 
-const REGISTRY_KEY = "oga-mecho-account-registry";
+const REGISTRY_KEY = "ona-account-registry";
 
 export type IdentityClaim = {
   id: string;

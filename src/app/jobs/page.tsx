@@ -79,7 +79,7 @@ function statusLabel(s: JobFlowStatus): string {
     case "agreed":
       return "Agreed";
     case "paid_booked":
-      return "Paid · Booked";
+      return "Booked";
     case "en_route":
       return "On the road";
     case "arrived":
@@ -175,6 +175,13 @@ function ProJobsPage({
   const hairline = isLight ? "border-black/10" : "border-white/10";
 
   const load = useCallback(async () => {
+    // Backup: auto-cancel Booked jobs past 6h (server enforces + refunds)
+    try {
+      const { apiExpireStaleBookedJobs } = await import("@/lib/jobs/client");
+      await apiExpireStaleBookedJobs();
+    } catch {
+      /* ignore */
+    }
     if (!backendUserId) {
       setActive([]);
       setPast([]);
@@ -249,7 +256,7 @@ function ProJobsPage({
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 scrollbar-hide">
         {loading && (
           <div className="flex justify-center py-16">
-            <Loader2 className="h-6 w-6 animate-spin text-[#e07a3d]" />
+            <Loader2 className="h-6 w-6 animate-spin text-[#FF6B35]" />
           </div>
         )}
         {err && (
@@ -466,6 +473,13 @@ function MotoristJobsPage({
     }
     let cancelled = false;
     const load = async () => {
+      try {
+        const { apiExpireStaleBookedJobs } = await import("@/lib/jobs/client");
+        await apiExpireStaleBookedJobs();
+      } catch {
+        /* ignore */
+      }
+      if (cancelled) return;
       const res = await apiListJobs(backendUserId, "motorist");
       if (cancelled) return;
       if (!res.ok) {
@@ -515,7 +529,7 @@ function MotoristJobsPage({
     <JobShell isLight={isLight} title="My jobs" onBack={onBack}>
       {loading && (
         <div className="flex justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-[#e07a3d]" />
+          <Loader2 className="h-6 w-6 animate-spin text-[#FF6B35]" />
         </div>
       )}
       {err && (

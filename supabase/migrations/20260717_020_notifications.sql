@@ -1,4 +1,4 @@
--- OgaMecho in-app notifications (Realtime-ready)
+-- Ona in-app notifications (Realtime-ready)
 -- Idempotent
 
 create table if not exists public.notifications (

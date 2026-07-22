@@ -1,6 +1,6 @@
 /**
  * Controllable app config — source of truth for Super Admin backend.
- * Defaults match current OgaMecho behaviour; DB overrides via app_settings.
+ * Defaults match current Ona behaviour; DB overrides via app_settings.
  */
 
 export type AppSection = {

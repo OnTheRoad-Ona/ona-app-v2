@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
+import { BankForcePanel } from "@/components/auth/bank-force-panel";
 import { AppHeader } from "@/components/home/app-header";
 import { HomePanel } from "@/components/home/home-panel";
 import { SearchBar } from "@/components/home/search-bar";
@@ -89,7 +90,7 @@ export function HomeScreen() {
   return (
     <div
       data-theme-toggle-ok
-      className={cn("flex h-full min-h-0 flex-col", sheetBg)}
+      className={cn("relative flex h-full min-h-0 flex-col overflow-hidden", sheetBg)}
     >
       <div className={cn("z-20 shrink-0", sheetBg)}>
         <AppHeader />
@@ -147,6 +148,8 @@ export function HomeScreen() {
           />
         </div>
       </div>
+      {/* Last child + high z so Customer bank sheet is never covered by home list */}
+      <BankForcePanel surface="home" />
     </div>
   );
 }

@@ -36,6 +36,12 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# DB transfer dumps (contain PII — never commit)
+/tmp-db-transfer/
+
+# Local BackUp snapshots (payments / PII / bank — never commit)
+/Local BackUp/snapshots/
+
 # vercel
 .vercel
 

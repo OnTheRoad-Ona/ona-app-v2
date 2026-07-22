@@ -21,8 +21,8 @@ export const ADMIN_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 export const SENSITIVE_UNLOCK_TTL_MS = 3 * 60 * 1000;
 
 /** Cookie names */
-export const ADMIN_SESSION_COOKIE = "ogamecho_admin_session";
-export const SENSITIVE_UNLOCK_COOKIE = "ogamecho_care_unlock";
+export const ADMIN_SESSION_COOKIE = "ona_admin_session";
+export const SENSITIVE_UNLOCK_COOKIE = "ona_care_unlock";
 
 export type SensitiveAction =
   | "escrow_release"

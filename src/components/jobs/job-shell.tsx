@@ -151,7 +151,7 @@ export function CopperButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "inline-flex h-12 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#e07a3d] text-[15px] font-black text-white transition active:scale-[0.99] disabled:opacity-50",
+        "inline-flex h-12 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#FF6B35] text-[15px] font-black text-white transition active:scale-[0.99] disabled:opacity-50",
         className
       )}
     >

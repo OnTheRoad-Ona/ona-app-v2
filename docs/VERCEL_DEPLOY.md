@@ -3,7 +3,7 @@
 You must be logged in first:
 
 ```bash
-cd "/Users/mac/Desktop/Code/OGA MECHO"
+cd "/Users/mac/Desktop/Code/Ona"
 npx vercel login
 ```
 

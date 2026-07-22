@@ -27,7 +27,7 @@ type BrandHeroProps = {
 
 /**
  * Brand background — full-bleed metallic photograph.
- * Confined by overflow:hidden parent (#oga-mecho-phone).
+ * Confined by overflow:hidden parent (#ona-phone).
  * Image loads once (lazy when not intro); copper plate shows first to cut data.
  */
 export function BrandHeroMotion({

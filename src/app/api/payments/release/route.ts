@@ -6,6 +6,8 @@ import {
 } from "@/lib/server/payments/escrow-store";
 import { releaseToPro } from "@/lib/server/payments/providers";
 import type { AppCurrency } from "@/lib/pricing";
+import { createServiceSupabase } from "@/lib/supabase/server";
+import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,9 +18,30 @@ const bodySchema = z.object({
   userId: z.string().min(1),
 });
 
+async function loadProBank(repairProId: string | null) {
+  if (!repairProId || !isSupabaseAdminConfigured()) return null;
+  try {
+    const sb = createServiceSupabase();
+    const { data } = await sb
+      .from("repair_pro_profiles")
+      .select("bank_name, bank_account_name, bank_account_number, bank_code")
+      .eq("user_id", repairProId)
+      .maybeSingle();
+    if (!data) return null;
+    return {
+      bankName: (data.bank_name as string) || "",
+      accountName: (data.bank_account_name as string) || "",
+      accountNumber: String(data.bank_account_number || "").replace(/\D/g, ""),
+      bankCode: String(data.bank_code || "").trim(),
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Dual completion: each party marks complete.
- * When both done → release 95% to pro, keep 5% platform.
+ * When both done → release 95% to pro (Flutterwave transfer + bank code).
  */
 export async function POST(req: Request) {
   try {
@@ -66,11 +89,27 @@ export async function POST(req: Request) {
         escrowStatus: "release_pending",
       });
 
+      const proBank = await loadProBank(payment.repairProId);
+      if (
+        !proBank?.bankCode ||
+        !proBank.accountNumber ||
+        !proBank.accountName
+      ) {
+        return apiFail(
+          "Repair Pro must save bank details (with bank code) before payout.",
+          400,
+          "pro_bank_required"
+        );
+      }
+
       const xfer = await releaseToPro({
         amountMinor: payment.proPayoutMinor,
         currency: payment.currency as AppCurrency,
         reference: `rel_${payment.providerRef || payment.id}`,
-        reason: "OgaMecho job completion payout (95% labour fee)",
+        reason: "Ona job completion payout (95% labour fee)",
+        bankCode: proBank.bankCode,
+        accountNumber: proBank.accountNumber,
+        accountName: proBank.accountName,
       });
 
       updated = await updateEscrow(payment.id, {
@@ -82,6 +121,8 @@ export async function POST(req: Request) {
           releaseAttempt: xfer,
           platformFeeMinor: payment.platformFeeMinor,
           proPayoutMinor: payment.proPayoutMinor,
+          proBankCode: proBank.bankCode,
+          proBankName: proBank.bankName,
         },
       });
 

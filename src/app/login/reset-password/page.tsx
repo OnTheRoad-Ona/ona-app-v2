@@ -105,7 +105,7 @@ export default function ResetPasswordPage() {
           Set new password
         </h1>
         <p className="mt-1 text-[13px] text-[#475569]">
-          Choose a new password for your OgaMecho account.
+          Choose a new password for your Ona account.
         </p>
 
         <form

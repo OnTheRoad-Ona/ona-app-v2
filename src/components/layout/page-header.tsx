@@ -8,7 +8,7 @@ import { AppMenu } from "@/components/layout/app-menu";
 import {
   clearPageExitClass,
   navigateBack,
-  smartBackFallback,
+  resolveBackHref,
 } from "@/lib/navigation";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -26,13 +26,13 @@ export function PageHeader({
   title: string;
   subtitle?: string;
   /**
-   * Fallback when there is no useful previous page in the stack.
-   * Defaults from current route + role (e.g. Job details → /jobs).
+   * Optional override for hierarchical parent.
+   * Default = smart parent of this route (never browser history).
    */
   backHref?: string;
   /** Hide back control (e.g. Professional Dashboard home) */
   showBack?: boolean;
-  /** Back opens the ☰ three-line menu list instead of history back */
+  /** Back opens the ☰ menu instead of leaving the page */
   backOpensMenu?: boolean;
   /** Optional title color/class (e.g. brand orange for Dashboard) */
   titleClassName?: string;
@@ -45,12 +45,10 @@ export function PageHeader({
   const [menuOpen, setMenuOpen] = useState(false);
   const [mount, setMount] = useState<HTMLElement | null>(null);
 
-  const fallback =
-    backHref?.trim() ||
-    smartBackFallback(pathname, accountType);
+  const parentHref = resolveBackHref(pathname, accountType, backHref);
 
   useEffect(() => {
-    setMount(document.getElementById("oga-mecho-phone"));
+    setMount(document.getElementById("ona-phone"));
     // Never leave shell dimmed/shifted if a prior back animation was interrupted
     clearPageExitClass();
   }, []);
@@ -62,7 +60,7 @@ export function PageHeader({
       setMenuOpen(true);
       return;
     }
-    navigateBack(router, fallback, accountType);
+    navigateBack(router, parentHref, accountType);
   };
 
   return (
@@ -119,14 +117,18 @@ export function PageHeader({
           onClick={() => setMenuOpen(true)}
           className={cn(
             "flex h-8 w-8 items-center justify-center rounded-lg border-0",
-            isLight ? "bg-[#c8c9cd] text-black" : "bg-black text-white"
+            isLight ? "bg-[#c8c9cd]" : "bg-black"
           )}
           style={{
             backgroundColor: isLight ? "#c8c9cd" : "#000000",
           }}
           aria-label="Open menu"
         >
-          <Menu className="h-5 w-5" strokeWidth={2.25} />
+          <Menu
+            className="h-5 w-5"
+            strokeWidth={2.25}
+            style={{ color: "#FF6B35" }}
+          />
         </button>
       </header>
 

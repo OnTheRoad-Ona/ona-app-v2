@@ -1,5 +1,5 @@
 /**
- * Pure health-check helpers for OgaMecho ops dashboard.
+ * Pure health-check helpers for Ona ops dashboard.
  * Plug real metrics at the marked INTEGRATION points.
  */
 

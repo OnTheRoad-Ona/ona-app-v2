@@ -1,4 +1,4 @@
-# OgaMecho
+# Ona
 
 Live mechanic discovery and dispatch platform — find nearby mechanics, vulcanizers, and tow trucks within 0–100 miles.
 

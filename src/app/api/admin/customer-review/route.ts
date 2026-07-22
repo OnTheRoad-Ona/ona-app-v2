@@ -158,6 +158,14 @@ export async function GET(req: Request) {
       const meta = asMeta(m.gov_id_meta);
       const snap = asMeta(meta.accountSnapshot);
       const status = String(m.identity_review_status || "none");
+      const submitKey = String(m.identity_submitted_at || "");
+      const attendedKey = String(meta.care_attended_submit_at || "");
+      // Attended = care opened/acted on this submission; new re-submit clears it
+      const care_attended =
+        status !== "submitted"
+          ? true
+          : Boolean(attendedKey && submitKey && attendedKey === submitKey);
+      const unattended = status === "submitted" && !care_attended;
       const firstService = m.first_service_at as string | null;
       let trialDaysLeft: number | null = null;
       let trialExpired = false;
@@ -270,9 +278,12 @@ export async function GET(req: Request) {
         gov_id_number: fullId,
         bank_id_number: fullBank,
         has_photo: Boolean(m.gov_id_front_url || meta.hasPhoto),
+        has_bvn: Boolean(fullBank || m.bvn_last4),
         phone_verified: Boolean(m.phone_verified),
         identity_verified_at: m.identity_verified_at,
         jobs_count: jobCount[m.user_id as string] || 0,
+        care_attended,
+        unattended,
         created_at: m.created_at,
         updated_at: m.updated_at,
       };
@@ -282,6 +293,7 @@ export async function GET(req: Request) {
     let globalCounts = {
       submitted: customers.filter((c) => c.identity_review_status === "submitted")
         .length,
+      unattended: customers.filter((c) => c.unattended).length,
       approved: customers.filter((c) => c.identity_review_status === "approved")
         .length,
       rejected: customers.filter((c) => c.identity_review_status === "rejected")
@@ -312,15 +324,36 @@ export async function GET(req: Request) {
       globalCounts = {
         total: allC ?? customers.length,
         submitted: subC ?? 0,
+        unattended: customers.filter((c) => c.unattended).length,
         approved: appC ?? 0,
         rejected: rejC ?? 0,
         none: noneC ?? 0,
       };
     }
 
+    // Queue # only for unattended pending (earliest submit = #1)
+    const unattendedSorted = [...customers]
+      .filter((c) => c.unattended)
+      .map((c) => ({
+        user_id: c.user_id as string,
+        earliest: c.identity_submitted_at
+          ? new Date(String(c.identity_submitted_at)).getTime()
+          : 0,
+      }))
+      .sort((a, b) => a.earliest - b.earliest);
+    const sequence: Record<string, number> = {};
+    unattendedSorted.forEach((c, i) => {
+      sequence[c.user_id] = i + 1;
+    });
+    const withSeq = customers.map((c) => ({
+      ...c,
+      queue_number: sequence[c.user_id as string] ?? null,
+    }));
+
     return apiOk({
-      customers,
+      customers: withSeq,
       totals: globalCounts,
+      sequence,
       filter,
       detail: Boolean(detailId),
     });
@@ -496,6 +529,10 @@ const patchSchema = z.object({
     "reject_t2",
     "mark_phone_verified",
     "save_checklist",
+    /** Care opened the row — mark read until a new re-submit */
+    "mark_attended",
+    /** Clear unapproved T2 so customer can re-submit ID from the app */
+    "reset_t2",
   ]),
   reason: z.string().max(500).optional(),
   checklist: z.record(z.string(), z.boolean()).optional(),
@@ -528,6 +565,34 @@ export async function PATCH(req: Request) {
       return apiOk({ message: "Checklist saved." });
     }
 
+    if (action === "mark_attended") {
+      const { data: row } = await supabase
+        .from("motorist_profiles")
+        .select("identity_submitted_at, gov_id_meta, identity_review_status")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (!row) return apiFail("Customer not found", 404);
+      const meta = asMeta(row.gov_id_meta);
+      const submitAt = String(row.identity_submitted_at || now);
+      const nextMeta = {
+        ...meta,
+        care_attended_at: now,
+        care_attended_submit_at: submitAt,
+        care_attended_by: session.userId,
+      };
+      const { error } = await supabase
+        .from("motorist_profiles")
+        .update({ gov_id_meta: nextMeta, updated_at: now })
+        .eq("user_id", userId);
+      if (error) {
+        if (error.message.includes("gov_id_meta")) {
+          return apiOk({ message: "Marked attended (meta column missing)." });
+        }
+        return apiFail(error.message, 500);
+      }
+      return apiOk({ message: "Marked attended / read." });
+    }
+
     if (action === "mark_phone_verified") {
       const { error } = await supabase
         .from("motorist_profiles")
@@ -549,11 +614,132 @@ export async function PATCH(req: Request) {
       return apiOk({ message: "Tier 1 phone marked verified." });
     }
 
+    if (action === "reset_t2") {
+      const { data: row } = await supabase
+        .from("motorist_profiles")
+        .select("identity_review_status, nin_verified, identity_verified_at")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (!row) return apiFail("Customer not found", 404);
+      const approved =
+        row.identity_review_status === "approved" ||
+        Boolean(row.identity_verified_at) ||
+        Boolean(row.nin_verified);
+      if (approved) {
+        return apiOk({
+          message:
+            "Tier 2 is already approved — care cannot reset an approved ID. Reject first if a re-check is required.",
+        });
+      }
+      const note =
+        reason ||
+        "Care reset. Please re-submit your government ID from the app.";
+      const { error } = await supabase
+        .from("motorist_profiles")
+        .update({
+          identity_review_status: "none",
+          identity_submitted_at: null,
+          identity_reviewed_at: null,
+          identity_reviewed_by: null,
+          identity_rejection_reason: note,
+          identity_verified_at: null,
+          nin_verified: false,
+          bvn_verified: false,
+          gov_id_front_url: null,
+          gov_id_back_url: null,
+          gov_id_number: null,
+          gov_id_kind: null,
+          bank_id_number: null,
+          nin_encrypted: null,
+          bvn_encrypted: null,
+          nin_last4: null,
+          bvn_last4: null,
+          gov_id_meta: {},
+          updated_at: now,
+        })
+        .eq("user_id", userId);
+      if (error) {
+        // Slim fallback if some columns missing
+        const { error: e2 } = await supabase
+          .from("motorist_profiles")
+          .update({
+            identity_review_status: "none",
+            identity_rejection_reason: note,
+            nin_verified: false,
+            bvn_verified: false,
+            identity_verified_at: null,
+            updated_at: now,
+          })
+          .eq("user_id", userId);
+        if (e2) return apiFail(e2.message, 500);
+      }
+      await logAdminAction(session.userId, "customer_t2_reset", userId, {
+        reason: note,
+      });
+      return apiOk({
+        message:
+          "Tier 2 ID reset. Customer can re-submit government ID from Verification in the app.",
+      });
+    }
+
     const approve =
       action === "approve" || action === "approve_t2";
     const reject =
       action === "reject" || action === "reject_t2";
     if (!approve && !reject) return apiFail("Unknown action", 400);
+
+    // T2 package = Government ID + BVN (both required to approve)
+    if (approve) {
+      const { data: row } = await supabase
+        .from("motorist_profiles")
+        .select(
+          "gov_id_number, gov_id_front_url, bank_id_number, bvn_encrypted, bvn_last4, nin_encrypted, nin_last4, gov_id_meta, identity_submitted_at"
+        )
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (!row) return apiFail("Customer not found", 404);
+      const meta = asMeta(row.gov_id_meta);
+      const hasId = Boolean(
+        row.gov_id_number ||
+          row.nin_encrypted ||
+          row.nin_last4 ||
+          meta.primaryId ||
+          row.gov_id_front_url
+      );
+      const hasBvn = Boolean(
+        row.bank_id_number ||
+          row.bvn_encrypted ||
+          row.bvn_last4 ||
+          meta.bankId
+      );
+      if (!hasId) {
+        return apiFail(
+          "Cannot approve T2 — government ID number/photo is missing.",
+          400
+        );
+      }
+      if (!hasBvn) {
+        return apiFail(
+          "Cannot approve T2 — BVN / bank ID must be filled with government ID. Ask customer to re-submit with BVN.",
+          400
+        );
+      }
+    }
+
+    const { data: before } = await supabase
+      .from("motorist_profiles")
+      .select("gov_id_meta, identity_submitted_at")
+      .eq("user_id", userId)
+      .maybeSingle();
+    const prevMeta = asMeta(before?.gov_id_meta);
+    const attendedMeta = {
+      ...prevMeta,
+      care_attended_at: now,
+      care_attended_submit_at: String(
+        before?.identity_submitted_at || now
+      ),
+      care_attended_by: session.userId,
+    };
 
     const base: Record<string, unknown> = {
       nin_verified: approve,
@@ -565,6 +751,7 @@ export async function PATCH(req: Request) {
       identity_rejection_reason: approve
         ? null
         : reason || "Rejected by admin / customer care",
+      gov_id_meta: attendedMeta,
       updated_at: now,
     };
 
@@ -596,8 +783,8 @@ export async function PATCH(req: Request) {
       userId,
       action: approve ? "approve" : "reject",
       message: approve
-        ? "Tier 2 approved — ID, number and documents accepted. Full booking unlocked."
-        : "Tier 2 rejected — customer must re-submit ID.",
+        ? "Tier 2 approved — Government ID + BVN accepted. Full booking unlocked."
+        : "Tier 2 rejected — customer must re-submit ID and BVN.",
     });
   } catch (e) {
     if (e instanceof AdminAuthError)

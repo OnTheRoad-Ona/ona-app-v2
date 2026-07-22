@@ -1,5 +1,5 @@
 {
-  "name": "oga-mecho",
+  "name": "ona",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -15,7 +15,14 @@
     "db:apply": "node scripts/apply-schema.mjs",
     "db:sync": "node scripts/sync-db-latest.mjs",
     "db:setup": "node scripts/apply-schema.mjs && node scripts/seed-admin.mjs && node scripts/sync-db-latest.mjs",
+    "backup:local": "node \"Local BackUp/scripts/backup-db.mjs\"",
+    "backup:local:watch": "node \"Local BackUp/scripts/schedule-24h.mjs\"",
     "vehicles:catalog": "node scripts/download-vehicle-catalog.mjs",
+    "vercel": "vercel",
+    "vercel:login": "vercel login",
+    "vercel:link": "vercel link",
+    "vercel:env": "vercel env pull .env.vercel.local",
+    "deploy:app": "vercel --prod --yes",
     "deploy:prod": "vercel --prod && vercel alias set ona-mi.vercel.app ona-backend.vercel.app && vercel alias set ona-mi.vercel.app ona-backend-wit7.vercel.app"
   },
   "dependencies": {
@@ -58,6 +65,7 @@
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
     "tsx": "^4.23.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vercel": "^56.5.0"
   }
 }

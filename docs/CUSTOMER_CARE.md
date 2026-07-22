@@ -1,4 +1,4 @@
-# OgaMecho Customer Care guide
+# Ona Customer Care guide
 
 **Who this is for:** Customer Care, Support, Super Admin  
 **Where:** https://ona-backend.vercel.app/admin or https://ona-mi.vercel.app/admin (local: http://localhost:4500/admin)  

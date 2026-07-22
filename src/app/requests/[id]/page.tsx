@@ -271,7 +271,7 @@ export default function RequestProcessPage({
       <div className={cn("flex h-full flex-col", stage)}>
         <PageHeader title="Job details" backHref={backHref} />
         <div className="flex flex-1 items-center justify-center">
-          <Loader2 className="h-7 w-7 animate-spin text-[#e07a3d]" />
+          <Loader2 className="h-7 w-7 animate-spin text-[#FF6B35]" />
         </div>
       </div>
     );
@@ -665,7 +665,7 @@ export default function RequestProcessPage({
         {/* Chat — read-only summary + open thread */}
         <Section title="Chat" muted={muted}>
           <div className="flex items-start gap-2.5">
-            <MessageCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#e07a3d]" />
+            <MessageCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#FF6B35]" />
             <div className="min-w-0 flex-1">
               {chatThread ? (
                 <>
@@ -705,7 +705,7 @@ export default function RequestProcessPage({
                     type="button"
                     onClick={() => setExpiredOpen(true)}
                     className={cn(
-                      "mt-3 inline-flex items-center gap-1 border-0 bg-transparent p-0 text-[13px] font-semibold text-[#e07a3d]"
+                      "mt-3 inline-flex items-center gap-1 border-0 bg-transparent p-0 text-[13px] font-semibold text-[#FF6B35]"
                     )}
                   >
                     Open chat history
@@ -733,7 +733,7 @@ export default function RequestProcessPage({
                     className={cn(
                       "h-4 w-4",
                       n <= Number(job.rating)
-                        ? "fill-[#e07a3d] text-[#e07a3d]"
+                        ? "fill-[#FF6B35] text-[#FF6B35]"
                         : isLight
                           ? "text-slate-400"
                           : "text-white/30"
@@ -763,7 +763,7 @@ export default function RequestProcessPage({
                 className="relative flex gap-3 pb-5 last:pb-0"
               >
                 <div className="flex flex-col items-center">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#e07a3d] text-white">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#FF6B35] text-white">
                     <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2.5} />
                   </span>
                   {i < timeline.length - 1 && (

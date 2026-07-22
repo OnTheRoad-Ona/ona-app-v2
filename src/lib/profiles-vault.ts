@@ -5,9 +5,9 @@
 
 import type { AccountType, UserProfile } from "@/lib/types";
 
-export const PROFILES_VAULT_KEY = "oga-mecho-profiles-v2";
+export const PROFILES_VAULT_KEY = "ona-profiles-v2";
 /** Legacy single-profile key (migrated on read) */
-export const LEGACY_PROFILE_KEY = "oga-mecho-profile";
+export const LEGACY_PROFILE_KEY = "ona-profile";
 
 export type ProfilesVault = {
   motorist?: UserProfile;

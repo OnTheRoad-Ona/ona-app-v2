@@ -104,6 +104,68 @@ export function fullNameError(name: string, emptyOk = false): FieldError {
   return null;
 }
 
+export type SignupGender = "male" | "female" | "prefer_not_to_say";
+
+export const SIGNUP_GENDER_OPTIONS: {
+  value: SignupGender;
+  label: string;
+}[] = [
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
+  { value: "prefer_not_to_say", label: "Prefer not to say" },
+];
+
+export function genderError(gender: string, emptyOk = false): FieldError {
+  if (!gender.trim()) return emptyOk ? null : "Please select your gender.";
+  if (!["male", "female", "prefer_not_to_say"].includes(gender)) {
+    return "Please select a valid gender option.";
+  }
+  return null;
+}
+
+/** Minimum age for signup (customers + pros). */
+export const SIGNUP_MIN_AGE = 16;
+
+export function isValidDob(isoDate: string, minAge = SIGNUP_MIN_AGE): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return false;
+  const dob = new Date(`${isoDate}T12:00:00`);
+  if (Number.isNaN(dob.getTime())) return false;
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const m = today.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age -= 1;
+  if (age < minAge) return false;
+  if (age > 120) return false;
+  // No future dates
+  if (dob.getTime() > today.getTime()) return false;
+  return true;
+}
+
+export function dobError(
+  isoDate: string,
+  emptyOk = false,
+  minAge = SIGNUP_MIN_AGE
+): FieldError {
+  if (!isoDate.trim()) return emptyOk ? null : "Please enter your date of birth.";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+    return "Use a valid date of birth.";
+  }
+  const dob = new Date(`${isoDate}T12:00:00`);
+  if (Number.isNaN(dob.getTime())) return "Use a valid date of birth.";
+  if (dob.getTime() > Date.now()) return "Date of birth cannot be in the future.";
+  if (!isValidDob(isoDate, minAge)) {
+    return `You must be at least ${minAge} years old to sign up.`;
+  }
+  return null;
+}
+
+export function formatGenderLabel(gender?: string | null): string {
+  if (gender === "male") return "Male";
+  if (gender === "female") return "Female";
+  if (gender === "prefer_not_to_say") return "Prefer not to say";
+  return "—";
+}
+
 export type PasswordRuleId = "length" | "upper" | "digit";
 
 export function passwordRules(

@@ -33,7 +33,7 @@ export async function POST(req: Request) {
 
   const email = parsed.data.email.trim().toLowerCase();
   const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://ogamecho.vercel.app";
+    process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://ona.vercel.app";
   const redirectTo = `${appUrl}/login/reset-password`;
 
   const supabase = createServiceSupabase();

@@ -4,7 +4,7 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
-# OgaMecho agent rules (mandatory)
+# Ona agent rules (mandatory)
 
 Before changing **call**, **messages**, **navigation**, **job flow**, **dashboard/jobs list**, or **negotiation/pricing**, read and obey:
 
@@ -20,7 +20,7 @@ Before changing **call**, **messages**, **navigation**, **job flow**, **dashboar
 
 ### Phone shell layout
 
-Consumer UI is a fixed phone frame (`#oga-mecho-phone`). Preserve `h-full min-h-0` flex chains. Overlays (call, menus, popups) portal **into** the shell.
+Consumer UI is a fixed phone frame (`#ona-phone`). Preserve `h-full min-h-0` flex chains. Overlays (call, menus, popups) portal **into** the shell.
 
 ### After related edits
 

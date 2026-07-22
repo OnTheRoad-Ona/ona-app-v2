@@ -1,4 +1,4 @@
--- OgaMecho Customer Care + multi-layer security
+-- Ona Customer Care + multi-layer security
 -- Idempotent — safe to re-run
 
 -- Admin panel role (profiles.role stays staff gate; admin_role narrows perms)

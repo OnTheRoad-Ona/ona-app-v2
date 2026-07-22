@@ -121,6 +121,6 @@ export async function sendLoginOtpSms(input: {
   to: string;
   code: string;
 }): Promise<{ ok: true; messageId?: string } | { ok: false; error: string }> {
-  const message = `OgaMecho login code: ${input.code}. Valid for 10 minutes. Do not share this code.`;
+  const message = `Ona login code: ${input.code}. Valid for 10 minutes. Do not share this code.`;
   return sendAfricaTalkingSms({ to: input.to, message });
 }

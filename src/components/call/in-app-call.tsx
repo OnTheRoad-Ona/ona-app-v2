@@ -161,7 +161,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
     useApp();
   const isLight = theme === "light";
   const myName =
-    userProfile?.fullName?.trim() || displayName || "OgaMecho user";
+    userProfile?.fullName?.trim() || displayName || "Ona user";
   const myPhoto = userProfile?.avatarUrl || "";
   const myRole =
     accountType === "professional" ? "Repair Pro" : "Customer";
@@ -210,7 +210,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
   }, [backendUserId]);
 
   useEffect(() => {
-    setMount(document.getElementById("oga-mecho-phone") || document.body);
+    setMount(document.getElementById("ona-phone") || document.body);
   }, []);
 
   const clearTimers = useCallback(() => {
@@ -566,7 +566,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
         if (p === "granted" || canNotify()) {
           showAppNotification({
             title: "Incoming call",
-            body: `${fromName} is calling on OgaMecho`,
+            body: `${fromName} is calling on Ona`,
             tag: `call-${callId}`,
             requireInteraction: true,
           });
@@ -576,7 +576,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       if (canNotify()) {
         showAppNotification({
           title: "Incoming call",
-          body: `${fromName} is calling on OgaMecho`,
+          body: `${fromName} is calling on Ona`,
           tag: `call-${callId}`,
           requireInteraction: true,
         });
@@ -1034,7 +1034,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
         await waitIceGathering(pc, 2000);
 
         setPhase("ringing");
-        setStatusHint("Ringing… they can pick up on any OgaMecho screen");
+        setStatusHint("Ringing… they can pick up on any Ona screen");
         playPersonTone(t.userId, "call_ring");
         ringTimerRef.current = window.setInterval(() => {
           if (phaseRef.current === "ringing") {
@@ -1074,7 +1074,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
             if (!answeredRef.current) {
               if (!fallToPhone("No answer in-app — opening phone dialer")) {
                 setStatusHint(
-                  "No answer. Ask them to open OgaMecho, or use Message."
+                  "No answer. Ask them to open Ona, or use Message."
                 );
               }
             }
@@ -1273,7 +1273,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
                   <button
                     type="button"
                     onClick={() => startPhoneCall(target)}
-                    className="mt-5 rounded-md border-0 bg-[#e07a3d] px-4 py-2.5 text-[12px] font-bold text-white"
+                    className="mt-5 rounded-md border-0 bg-[#FF6B35] px-4 py-2.5 text-[12px] font-bold text-white"
                   >
                     Call on phone line now
                   </button>

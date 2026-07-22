@@ -29,11 +29,23 @@ export function VoiceNotePlayer({
 
   useEffect(() => {
     const audio = new Audio();
-    audio.preload = "metadata";
+    // auto helps first play feel snappy after record
+    audio.preload = "auto";
     audio.src = url;
     audioRef.current = audio;
+    setPlaying(false);
+    setCurrent(0);
+    setError(null);
+    if (durationSec) setDuration(durationSec);
 
-    const onTime = () => setCurrent(audio.currentTime || 0);
+    let lastPaint = 0;
+    const onTime = () => {
+      // Throttle React updates (~4/s) so chat doesn't lag while playing
+      const now = performance.now();
+      if (now - lastPaint < 250) return;
+      lastPaint = now;
+      setCurrent(audio.currentTime || 0);
+    };
     const onMeta = () => {
       if (Number.isFinite(audio.duration) && audio.duration > 0) {
         setDuration(Math.round(audio.duration));
@@ -75,8 +87,13 @@ export function VoiceNotePlayer({
         setPlaying(false);
         return;
       }
-      await audio.play();
+      // Seek to start if ended; play() may throw if not ready — retry once
+      if (audio.ended || audio.currentTime >= (audio.duration || 0) - 0.05) {
+        audio.currentTime = 0;
+      }
+      const p = audio.play();
       setPlaying(true);
+      await p;
     } catch {
       setError("Tap play again or check sound is on");
       setPlaying(false);
@@ -99,7 +116,7 @@ export function VoiceNotePlayer({
         <button
           type="button"
           onClick={() => void toggle()}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 bg-[#e07a3d] text-white"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 bg-[#FF6B35] text-white"
           aria-label={playing ? "Pause voice note" : "Play voice note"}
         >
           {playing ? (
@@ -124,7 +141,7 @@ export function VoiceNotePlayer({
             )}
           >
             <div
-              className="h-full rounded-full bg-[#e07a3d] transition-[width] duration-150"
+              className="h-full rounded-full bg-[#FF6B35] transition-[width] duration-150"
               style={{ width: `${pct}%` }}
             />
           </div>

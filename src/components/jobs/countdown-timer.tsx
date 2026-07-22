@@ -50,7 +50,7 @@ export function CountdownTimer({
     const r = (size - stroke) / 2;
     const c = 2 * Math.PI * r;
     const dash = (pct / 100) * c;
-    const strokeColor = urgent ? "#ef4444" : "#e07a3d";
+    const strokeColor = urgent ? "#ef4444" : "#FF6B35";
     // Visible track on both light/dark stages (not washed-out gray)
     const trackColor = urgent
       ? "rgba(239,68,68,0.28)"
@@ -119,7 +119,7 @@ export function CountdownTimer({
   return (
     <div className={cn("w-full", className)}>
       <div className="mb-1 flex items-center justify-between gap-2">
-        <p className="text-[10px] font-medium tracking-wide text-[#e07a3d]">
+        <p className="text-[10px] font-medium tracking-wide text-[#FF6B35]">
           Time left
         </p>
         <p
@@ -135,7 +135,7 @@ export function CountdownTimer({
         <div
           className={cn(
             "h-full rounded-full transition-all duration-300",
-            urgent ? "bg-red-500" : "bg-[#e07a3d]"
+            urgent ? "bg-red-500" : "bg-[#FF6B35]"
           )}
           style={{ width: `${pct}%` }}
         />

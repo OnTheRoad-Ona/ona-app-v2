@@ -4,6 +4,7 @@ import {
   getEscrowByRef,
   updateEscrow,
 } from "@/lib/server/payments/escrow-store";
+import { markJobPaidFromReference } from "@/lib/server/jobs/job-store";
 import { verifyCharge } from "@/lib/server/payments/providers";
 
 export const runtime = "nodejs";
@@ -14,7 +15,7 @@ const bodySchema = z.object({
   provider: z.enum(["paystack", "flutterwave", "mock"]).optional(),
 });
 
-/** Verify gateway charge and mark escrow as held. */
+/** Verify gateway charge, mark escrow held, job → Booked. */
 export async function POST(req: Request) {
   try {
     const parsed = bodySchema.safeParse(await req.json());
@@ -24,7 +25,12 @@ export async function POST(req: Request) {
     if (!payment) return apiFail("Payment not found", 404, "not_found");
 
     if (payment.escrowStatus === "held" || payment.escrowStatus === "released") {
-      return apiOk({ payment, alreadySettled: true });
+      const booked = await markJobPaidFromReference(parsed.data.reference);
+      return apiOk({
+        payment,
+        alreadySettled: true,
+        job: "job" in booked ? booked.job : null,
+      });
     }
 
     const verified = await verifyCharge(
@@ -32,12 +38,13 @@ export async function POST(req: Request) {
       parsed.data.provider || payment.provider
     );
 
-    // Mock may return amount 0 — trust stored amount
-    const ok =
-      verified.success &&
-      (verified.amountMinor === 0 ||
-        verified.amountMinor === payment.amountMinor ||
-        payment.provider === "mock");
+    // Allow small gateway rounding; mock may return amount 0
+    const amountOk =
+      verified.amountMinor === 0 ||
+      payment.provider === "mock" ||
+      Math.abs(verified.amountMinor - payment.amountMinor) <= 100;
+
+    const ok = verified.success && amountOk;
 
     if (!ok) {
       await updateEscrow(payment.id, {
@@ -54,8 +61,12 @@ export async function POST(req: Request) {
       providerChannel: verified.channel || null,
     });
 
+    const booked = await markJobPaidFromReference(parsed.data.reference);
+
     return apiOk({
       payment: updated,
+      job: "job" in booked ? booked.job : null,
+      jobError: "error" in booked ? booked.error : null,
       receipt: {
         reference: payment.providerRef,
         amountMinor: payment.amountMinor,
@@ -66,7 +77,7 @@ export async function POST(req: Request) {
         proPayoutMinor: payment.proPayoutMinor,
         status: "held",
         message:
-          "Funds held in escrow. Released when both parties mark the job complete.",
+          "Funds held in escrow. Job is Booked. Released when both parties mark the job complete.",
       },
     });
   } catch (e) {

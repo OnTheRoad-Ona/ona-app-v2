@@ -3,6 +3,7 @@ import { apiFail, apiOk } from "@/lib/server/api-json";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { sendSignupConfirmationEmail } from "@/lib/server/resend";
+import { canonicalPhone } from "@/lib/server/phone-match";
 import { isProService } from "@/lib/services";
 import type { ProService } from "@/lib/types";
 import type { UserRole } from "@/lib/supabase/types";
@@ -26,6 +27,12 @@ const bodySchema = z.object({
   fullName: z.string().min(2).max(120),
   phone: z.string().min(7).max(32),
   accountType: z.enum(["motorist", "professional"]),
+  /** Required for new signups */
+  gender: z.enum(["male", "female", "prefer_not_to_say"]),
+  /** ISO date YYYY-MM-DD */
+  dateOfBirth: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date of birth"),
   city: z.string().optional(),
   area: z.string().optional(),
   businessName: z.string().optional(),
@@ -209,8 +216,14 @@ export async function POST(req: Request) {
 
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
+    const msg = parsed.error.issues
+      .map((i) => i.message)
+      .filter(Boolean)
+      .slice(0, 2)
+      .join(" ");
     return apiFail(
-      "Please check your name, email, phone and password.",
+      msg ||
+        "Please check your name, gender, date of birth, email, phone and password.",
       400,
       "validation"
     );
@@ -218,6 +231,17 @@ export async function POST(req: Request) {
 
   const input = parsed.data;
   const email = input.email.trim().toLowerCase();
+  // Store canonical phone so login must match the same signup number
+  const phoneCanonical = canonicalPhone(input.phone);
+  if (!phoneCanonical) {
+    return apiFail(
+      "Enter a valid phone number (e.g. +234 801…).",
+      400,
+      "validation"
+    );
+  }
+  // Normalize in-place for all profile writes below
+  input.phone = phoneCanonical;
   const role: UserRole =
     input.accountType === "professional" ? "repair_pro" : "motorist";
   const nin = (input.nin || "").replace(/\D/g, "");
@@ -225,12 +249,30 @@ export async function POST(req: Request) {
   const hasNin = nin.length === 11;
   const hasBvn = bvn.length === 11;
 
+  // Age gate: at least 16 years
+  {
+    const dob = new Date(`${input.dateOfBirth}T12:00:00`);
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const m = today.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age -= 1;
+    if (Number.isNaN(dob.getTime()) || dob.getTime() > today.getTime() || age < 16 || age > 120) {
+      return apiFail(
+        "You must be at least 16 years old to create an account.",
+        400,
+        "validation"
+      );
+    }
+  }
+
   const supabase = createServiceSupabase();
   const eventBase = {
     email,
     full_name: input.fullName,
     phone: input.phone,
     account_type: input.accountType,
+    gender: input.gender,
+    date_of_birth: input.dateOfBirth,
   };
 
   // Phone uniqueness across different accounts (same user dual-role reuses their phone)
@@ -258,7 +300,7 @@ export async function POST(req: Request) {
         error_message: "phone_exists",
       });
       return apiFail(
-        "This phone number is already used on another OgaMecho account. Use a different number or log in.",
+        "This phone number is already used on another Ona account. Use a different number or log in.",
         409,
         "phone_exists"
       );
@@ -277,6 +319,8 @@ export async function POST(req: Request) {
       role,
       full_name: input.fullName,
       phone: input.phone,
+      gender: input.gender,
+      date_of_birth: input.dateOfBirth,
     },
   });
 
@@ -343,6 +387,8 @@ export async function POST(req: Request) {
         city: input.city || null,
         area: input.area || null,
         avatar_url: input.avatarUrl || null,
+        gender: input.gender,
+        date_of_birth: input.dateOfBirth,
         role,
         is_active: true,
         updated_at: new Date().toISOString(),
@@ -350,18 +396,54 @@ export async function POST(req: Request) {
       { onConflict: "id" }
     );
   if (profileErr) {
-    await logSignupEvent(supabase, {
-      ...eventBase,
-      success: false,
-      error_message: profileErr.message,
-      user_id: userId,
-      meta: { stage: "profile" },
-    });
-    return apiFail(
-      `Account saved but profile failed: ${profileErr.message}`,
-      500,
-      "profile_error"
-    );
+    // Retry without gender/DOB if columns not migrated yet
+    if (
+      /gender|date_of_birth/i.test(profileErr.message) ||
+      profileErr.message.includes("does not exist")
+    ) {
+      const { error: e2 } = await supabase.from("profiles").upsert(
+        {
+          id: userId,
+          full_name: input.fullName,
+          phone: input.phone || null,
+          email,
+          city: input.city || null,
+          area: input.area || null,
+          avatar_url: input.avatarUrl || null,
+          role,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      );
+      if (e2) {
+        await logSignupEvent(supabase, {
+          ...eventBase,
+          success: false,
+          error_message: e2.message,
+          user_id: userId,
+          meta: { stage: "profile" },
+        });
+        return apiFail(
+          `Account saved but profile failed: ${e2.message}`,
+          500,
+          "profile_error"
+        );
+      }
+    } else {
+      await logSignupEvent(supabase, {
+        ...eventBase,
+        success: false,
+        error_message: profileErr.message,
+        user_id: userId,
+        meta: { stage: "profile" },
+      });
+      return apiFail(
+        `Account saved but profile failed: ${profileErr.message}`,
+        500,
+        "profile_error"
+      );
+    }
   }
 
   // 3) Role-specific tables
@@ -464,14 +546,36 @@ export async function POST(req: Request) {
         if (Number.isFinite(n) && n > 0) labourPrices[k] = n;
       }
     }
-    const vehicleFocus = {
-      ...(input.vehicleFocus || {}),
-      servedVehicleType: input.servedVehicleType,
-      servedBrand: input.servedBrand,
-      servedModel: input.servedModel,
-      servedCountry: input.servedCountry,
-      servedLocation: input.servedLocation,
-    };
+    // Only real vehicle trades store make/model-style focus.
+    // Home trades (painter, plumber, …) only keep service country/area — never copy specialty into “vehicles”.
+    const vehicleTrades = new Set([
+      "mechanic",
+      "vulcanizer",
+      "towing",
+      "battery",
+      "panel",
+      "ac",
+    ]);
+    const isVehicleTrade = vehicleTrades.has(svc);
+    const vehicleFocus = isVehicleTrade
+      ? {
+          ...(input.vehicleFocus || {}),
+          servedVehicleType: input.servedVehicleType || null,
+          servedBrand: input.servedBrand || null,
+          servedModel: input.servedModel || null,
+          servedCountry: input.servedCountry || null,
+          servedLocation: input.servedLocation || null,
+        }
+      : {
+          trade: svc,
+          specialty:
+            (input.skillAnswers as { specialty?: string } | undefined)
+              ?.specialty ||
+            input.servedVehicleType ||
+            null,
+          servedCountry: input.servedCountry || null,
+          servedLocation: input.servedLocation || null,
+        };
     // Cert upload at signup → under_review (2 km discovery until admin approves)
     const certFromSkills = (() => {
       const sa = input.skillAnswers as
@@ -502,13 +606,20 @@ export async function POST(req: Request) {
       input.skillAnswers as Record<string, unknown> | undefined
     );
 
+    const nowIso = new Date().toISOString();
+    // Care must review — never auto-approve ID/account from raw NIN/BVN digits alone
     const { error: proErr } = await supabase.from("repair_pro_profiles").upsert(
       {
         user_id: userId,
         business_name: input.businessName || null,
         primary_service: svc,
         services: servicesList.length ? servicesList : [svc],
-        status: "approved",
+        status: "pending",
+        pipeline_status: hasCert
+          ? "pending_document_review"
+          : hasNin || hasBvn
+            ? "pending_verification"
+            : "draft",
         // Stay Away until the pro taps Live on the dashboard
         is_online: false,
         bio: input.bio || null,
@@ -518,21 +629,34 @@ export async function POST(req: Request) {
         lat: input.lat ?? null,
         lng: input.lng ?? null,
         location_updated_at:
-          input.lat != null && input.lng != null
-            ? new Date().toISOString()
-            : null,
+          input.lat != null && input.lng != null ? nowIso : null,
         // Visibility ladder: Tier 1 until admin promotes
         visibility_tier: 1,
         is_new_artisan: true,
-        verified: hasNin && hasBvn,
+        verified: false,
         nin_last4: last4(nin),
         bvn_last4: last4(bvn),
-        nin_verified: hasNin,
-        bvn_verified: hasBvn,
+        nin_encrypted: hasNin ? nin : null,
+        bvn_encrypted: hasBvn ? bvn : null,
+        // Digits collected ≠ care-approved
+        nin_verified: false,
+        bvn_verified: false,
+        gov_id_number: hasNin ? nin : null,
+        gov_id_review_status: hasNin || hasBvn ? "submitted" : "none",
+        gov_id_submitted_at: hasNin || hasBvn ? nowIso : null,
         labour_prices: labourPrices,
         pricing_currency: input.pricingCurrency || "NGN",
         vehicle_focus: vehicleFocus,
         skills: skillsSlim,
+        skill_proof: hasCert
+          ? {
+              type: "certification",
+              name: certName,
+              url: certUrl,
+              submittedAt: nowIso,
+              status: "under_review",
+            }
+          : null,
         bank_name: input.bankName || null,
         bank_account_name: input.bankAccountName || null,
         bank_account_number: input.bankAccountNumber || null,
@@ -541,7 +665,8 @@ export async function POST(req: Request) {
         certification_file_name: certName,
         // Prefer slim URL; if oversized, keep name only so signup still succeeds
         certification_file_url: certUrl,
-        docs_submitted_at: hasCert ? new Date().toISOString() : null,
+        docs_submitted_at: hasCert ? nowIso : null,
+        submitted_at: nowIso,
       },
       { onConflict: "user_id" }
     );
@@ -613,6 +738,8 @@ export async function POST(req: Request) {
         email,
         city: input.city || null,
         area: input.area || null,
+        gender: input.gender,
+        date_of_birth: input.dateOfBirth,
         is_active: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -667,6 +794,8 @@ export async function POST(req: Request) {
       email,
       city: input.city || null,
       area: input.area || null,
+      gender: input.gender,
+      date_of_birth: input.dateOfBirth,
       is_active: true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

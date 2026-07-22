@@ -107,8 +107,12 @@ export function JobFlowScreen({
 }) {
   const router = useRouter();
   const { startCall } = useInAppCall();
-  const { technicians, ensureChatForRequestAsync, visibleMessageThreads } =
-    useApp();
+  const {
+    technicians,
+    ensureChatForRequestAsync,
+    visibleMessageThreads,
+    userProfile,
+  } = useApp();
   const [job, setJob] = useState<JobRecord | null>(null);
   const jobRef = useRef<JobRecord | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -267,6 +271,30 @@ export function JobFlowScreen({
     commitJob(res.data.job);
     setErr(null);
   }, [jobId, commitJob]);
+
+  // Client backup: sweep overdue Booked jobs (6h) when this screen is open
+  useEffect(() => {
+    let cancelled = false;
+    const sweep = async () => {
+      try {
+        const { apiExpireStaleBookedJobs } = await import("@/lib/jobs/client");
+        if (cancelled) return;
+        await apiExpireStaleBookedJobs();
+        if (!cancelled) await load();
+      } catch {
+        /* ignore */
+      }
+    };
+    void sweep();
+    const t = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      void sweep();
+    }, 120_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
+  }, [load]);
 
   // Poll job state; slower during tracking so GPS + UI never thrash
   useEffect(() => {
@@ -473,7 +501,7 @@ export function JobFlowScreen({
         onBack={goJobsList}
       >
         <div className="flex items-center justify-center py-24">
-          <Loader2 className="h-8 w-8 animate-spin text-[#e07a3d]" />
+          <Loader2 className="h-8 w-8 animate-spin text-[#FF6B35]" />
         </div>
         {err && (
           <p className="text-center text-[13px] font-semibold text-red-500">
@@ -599,7 +627,7 @@ export function JobFlowScreen({
             </p>
             <p className={cn("text-[14px] font-medium leading-relaxed", ink)}>
               By tapping{" "}
-              <span className="font-semibold text-[#e07a3d]">I can fix this</span>
+              <span className="font-semibold text-[#FF6B35]">I can fix this</span>
               , you are saying you have the skill and tools for this job. Only
               continue if you can complete the work. If you cannot, cancel so
               the motorist can find someone else.
@@ -684,8 +712,8 @@ export function JobFlowScreen({
                     className={cn(
                       "h-11 flex-1 rounded-md border-0 bg-transparent px-3 text-[14px] font-medium outline-none ring-1",
                       isLight
-                        ? "text-slate-900 ring-black/20 placeholder:text-slate-500 focus:ring-[#e07a3d]/55"
-                        : "text-white ring-white/25 placeholder:text-white/40 focus:ring-[#e07a3d]/55"
+                        ? "text-slate-900 ring-black/20 placeholder:text-slate-500 focus:ring-[#FF6B35]/55"
+                        : "text-white ring-white/25 placeholder:text-white/40 focus:ring-[#FF6B35]/55"
                     )}
                     aria-label="Labour price offer"
                   />
@@ -712,7 +740,7 @@ export function JobFlowScreen({
                         return res;
                       })
                     }
-                    className="h-11 shrink-0 rounded-md border-0 bg-[#e07a3d] px-4 text-[13px] font-semibold text-white disabled:opacity-40"
+                    className="h-11 shrink-0 rounded-md border-0 bg-[#FF6B35] px-4 text-[13px] font-semibold text-white disabled:opacity-40"
                   >
                     Send
                   </button>
@@ -890,22 +918,96 @@ export function JobFlowScreen({
         onBack={goJobsList}
         footer={
           viewer === "motorist" ? (
-            <StageButton
-              isLight={isLight}
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  const res = await apiPayJob({
-                    jobId: job.id,
-                    motoristId: actorId,
-                    email,
-                  });
-                  return res;
-                })
-              }
-            >
-              {busy ? "Processing…" : "Pay now to book"}
-            </StageButton>
+            <div className="flex w-full flex-col gap-2">
+              {err && (
+                <p className="text-center text-[12px] font-semibold text-red-500">
+                  {err}
+                </p>
+              )}
+              <StageButton
+                isLight={isLight}
+                disabled={busy}
+                onClick={() =>
+                  void (async () => {
+                    setBusy(true);
+                    setErr(null);
+                    try {
+                      const payEmail = (
+                        email ||
+                        userProfile?.email ||
+                        ""
+                      ).trim();
+                      if (!payEmail.includes("@")) {
+                        setErr(
+                          "Add a valid email on your profile before paying."
+                        );
+                        setBusy(false);
+                        return;
+                      }
+                      if (
+                        !actorId ||
+                        actorId === "local-user" ||
+                        actorId.includes("@")
+                      ) {
+                        setErr(
+                          "Session not ready. Pull to refresh or log in again, then pay."
+                        );
+                        setBusy(false);
+                        return;
+                      }
+                      const res = await apiPayJob({
+                        jobId: job.id,
+                        motoristId: actorId,
+                        email: payEmail,
+                        customerName:
+                          job.motoristName ||
+                          userProfile?.fullName ||
+                          undefined,
+                        customerPhone:
+                          job.motoristPhone || userProfile?.phone || undefined,
+                      });
+                      if (!res.ok) {
+                        setErr(res.message || "Could not start payment.");
+                        setBusy(false);
+                        return;
+                      }
+                      const url = res.data.authorizationUrl?.trim();
+                      // Always open checkout (Flutterwave or mock-checkout) — never silent book
+                      if (url) {
+                        // assign is more reliable than href on some mobile browsers
+                        window.location.assign(url);
+                        return;
+                      }
+                      // Legacy mock auto-book — should not happen with current API
+                      if (res.data.job) {
+                        applyJob(res.data.job);
+                        try {
+                          const { playAppSound } = await import(
+                            "@/lib/sound-tone"
+                          );
+                          playAppSound("payment_success");
+                        } catch {
+                          /* */
+                        }
+                        setBusy(false);
+                        return;
+                      }
+                      setErr(
+                        "Checkout link missing. Check Flutterwave keys and try again."
+                      );
+                    } catch (e) {
+                      setErr(
+                        e instanceof Error ? e.message : "Payment failed"
+                      );
+                    } finally {
+                      setBusy(false);
+                    }
+                  })()
+                }
+              >
+                {busy ? "Opening checkout…" : "Pay now to book"}
+              </StageButton>
+            </div>
           ) : (
             <p
               className={cn(
@@ -971,8 +1073,8 @@ export function JobFlowScreen({
       };
     const statusLabel: Record<string, string> = {
       paid_booked: "Booked",
-      // Pro: ON THE ROAD (not “on the way”). Motorist keeps friendly wording.
-      en_route: viewer === "repair_pro" ? "On the road" : "On the way",
+      // Exact product label — do not uppercase in CSS (would become ONTHEROAD)
+      en_route: "OnTheRoad",
       arrived: "Arrived",
       in_progress: "Working",
     };
@@ -1058,28 +1160,38 @@ export function JobFlowScreen({
       }
     };
 
-    // Ready to go (paid_booked): no map. En route: fixed map strip.
-    // Arrived + Work in progress: home-style map + swipe sheet + expand pill.
+    // Ready to go (paid_booked): no map.
+    // En route / arrived / WIP: map + solid lower panel (details never float on map).
+    // Map-only chrome: grey Time · Distance · Escrow Held bar.
     const showMap = job.status !== "paid_booked";
     const isReadyToGo = job.status === "paid_booked";
     const isSwipeTrip =
+      job.status === "en_route" ||
+      job.status === "arrived" ||
+      job.status === "in_progress";
+    const isPostArrival =
       job.status === "arrived" || job.status === "in_progress";
 
+    // Status / skill / name / ₦ — solid lower panel only (never map overlay).
+    // en_route uses mixed-case "OnTheRoad" — no CSS uppercase.
     const statusChip = (
       <span
         className={cn(
-          "rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-white",
+          "rounded px-1.5 py-0.5 text-[9px] font-black text-white",
+          job.status === "en_route"
+            ? "tracking-normal"
+            : "uppercase tracking-wide",
           job.status === "paid_booked"
             ? "bg-emerald-600"
             : job.status === "en_route" || job.status === "in_progress"
-              ? "bg-[#e07a3d]"
+              ? "bg-[#FF6B35]"
               : isLight
                 ? "bg-slate-800"
                 : "bg-[#3a3a3c]"
         )}
       >
         {job.status === "paid_booked"
-          ? "Paid Booked"
+          ? "Booked"
           : statusLabel[job.status] || job.status}
       </span>
     );
@@ -1099,11 +1211,11 @@ export function JobFlowScreen({
       </span>
     );
 
-    // Arrived / WIP: clean sheet — no ARRIVED/Mechanic chips, no address block
+    // Lower-panel meta row only (map keeps ETA + ESCROW Held exclusively)
     const tripMetaHeader = (
       <div className="flex flex-wrap items-center gap-1.5">
-        {!isSwipeTrip && statusChip}
-        {!isSwipeTrip && skillChip}
+        {statusChip}
+        {skillChip}
         <p className={cn("min-w-0 flex-1 truncate text-[16px] font-black", ink)}>
           {viewer === "motorist" ? job.repairProName : job.motoristName}
         </p>
@@ -1111,7 +1223,6 @@ export function JobFlowScreen({
           <p
             className={cn(
               "shrink-0 text-[15px] font-black tabular-nums",
-              // Amount: black on light sheet, white on dark — not orange
               isLight ? "text-black" : "text-white"
             )}
           >
@@ -1144,26 +1255,20 @@ export function JobFlowScreen({
           </div>
         )}
 
-        {/* Address / live distance — only before arrival (not on arrived WIP sheet) */}
-        {!isReadyToGo && !isSwipeTrip && (
+        {/*
+          Address + “live on map” block:
+          — Hidden for customer (motorist) entirely
+          — Pro still sees navigate cue while en route (not after arrival)
+        */}
+        {viewer === "repair_pro" && !isReadyToGo && !isPostArrival && (
           <div className="flex items-start gap-2">
-            <Navigation className="mt-0.5 h-4 w-4 shrink-0 text-[#e07a3d]" />
+            <Navigation className="mt-0.5 h-4 w-4 shrink-0 text-[#FF6B35]" />
             <div className="min-w-0">
               <p className={cn("text-[13px] font-semibold break-words", ink)}>
                 {job.locationLabel || "Location on map"}
               </p>
               <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
-                {viewer === "motorist"
-                  ? job.proLocation
-                    ? "Repair Pro live on map"
-                    : "Waiting for Repair Pro GPS"
-                  : "Navigate to motorist pin"}
-                {job.distanceKm != null &&
-                  ` ${
-                    job.distanceKm < 0.1
-                      ? "<0.1 km"
-                      : `${job.distanceKm.toFixed(1)} km`
-                  }`}
+                Navigate to motorist pin
               </p>
             </div>
           </div>
@@ -1220,7 +1325,7 @@ export function JobFlowScreen({
             {/* Gold accent — short detail on earpiece */}
             <path
               d="M9.4 5.6l1.4.6"
-              stroke="#C5A46E"
+              stroke="#FF6B35"
               strokeWidth="1.45"
               strokeLinecap="round"
             />
@@ -1257,7 +1362,7 @@ export function JobFlowScreen({
             />
             <path
               d="M8.4 10h5.6"
-              stroke="#C5A46E"
+              stroke="#FF6B35"
               strokeWidth="1.4"
               strokeLinecap="round"
             />
@@ -1284,7 +1389,7 @@ export function JobFlowScreen({
           }}
         />
         {flash && (
-          <p className="text-center text-[12px] font-bold text-[#e07a3d]">
+          <p className="text-center text-[12px] font-bold text-[#FF6B35]">
             {flash}
           </p>
         )}
@@ -1330,8 +1435,8 @@ export function JobFlowScreen({
               isLight ? "text-slate-700" : "text-[#c8c9cd]"
             )}
           >
-            Repair Pro is on the way
-            {job.etaMinutes != null ? ` ETA ${job.etaMinutes} min` : ""}
+            Repair Pro is OnTheRoad
+            {job.etaMinutes != null ? ` · ETA ${job.etaMinutes} min` : ""}
           </p>
         )}
         {viewer === "motorist" && job.status === "paid_booked" && (
@@ -1515,8 +1620,14 @@ export function JobFlowScreen({
                 </div>
               </div>
 
-              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-3 pb-3 scrollbar-hide">
-                <div className="space-y-3">
+              <div
+                className={cn(
+                  "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-3 pb-3 scrollbar-hide",
+                  isLight ? "bg-[#c8c9cd]" : "bg-black"
+                )}
+              >
+                {/* Meta (OnTheRoad · skill · name · ₦) lives only in this solid sheet */}
+                <div className="space-y-3 pt-0.5">
                   {tripMetaHeader}
                   {tripDetails}
                 </div>
@@ -1542,28 +1653,16 @@ export function JobFlowScreen({
       );
     }
 
-    /* ── Ready to go / On the road (unchanged flat layout) ── */
+    /* ── Ready to go only (no map) — details stay on solid stage panel ── */
     return (
       <JobShell
         isLight={isLight}
         title={copy.title}
         compactHeader
         onBack={goJobsList}
-        fullBleed={showMap}
         footer={footerBlock}
       >
-        {showMap && (
-          <div className="relative mx-0 h-[38vh] min-h-[220px] max-h-[320px] overflow-hidden">
-            <LiveJobTrackMap job={job} isLight={isLight} viewer={viewer} />
-          </div>
-        )}
-
-        <div
-          className={cn(
-            "space-y-4",
-            showMap ? "relative z-10 -mt-4 px-3 pb-2" : "px-0 pb-2 pt-1"
-          )}
-        >
+        <div className="space-y-4 px-0 pb-2 pt-1">
           {tripMetaHeader}
           {tripDetails}
           {callMessageRow}
@@ -1701,7 +1800,7 @@ export function JobFlowScreen({
                 className={cn(
                   "h-8 w-8",
                   on
-                    ? "fill-[#e07a3d] text-[#e07a3d]"
+                    ? "fill-[#FF6B35] text-[#FF6B35]"
                     : isLight
                       ? "fill-transparent text-slate-400"
                       : "fill-transparent text-white/35"
@@ -1726,7 +1825,7 @@ export function JobFlowScreen({
                 className={cn(
                   "h-9 w-9",
                   on
-                    ? "fill-[#e07a3d] text-[#e07a3d]"
+                    ? "fill-[#FF6B35] text-[#FF6B35]"
                     : isLight
                       ? "fill-transparent text-slate-400"
                       : "fill-transparent text-white/35"
@@ -1826,14 +1925,14 @@ export function JobFlowScreen({
                     className={cn(
                       "w-full resize-none rounded-md border-0 px-3 py-2.5 text-[13px] font-medium outline-none ring-1 transition placeholder:opacity-50",
                       isLight
-                        ? "bg-transparent text-slate-900 ring-black/15 focus:ring-[#e07a3d]/50"
-                        : "bg-transparent text-white ring-white/20 focus:ring-[#e07a3d]/50"
+                        ? "bg-transparent text-slate-900 ring-black/15 focus:ring-[#FF6B35]/50"
+                        : "bg-transparent text-white ring-white/20 focus:ring-[#FF6B35]/50"
                     )}
                   />
                   <p
                     className={cn(
                       "mt-1 text-right text-[11px] font-semibold tabular-nums",
-                      reviewChars >= REVIEW_MAX ? "text-[#e07a3d]" : muted
+                      reviewChars >= REVIEW_MAX ? "text-[#FF6B35]" : muted
                     )}
                   >
                     {reviewChars}/{REVIEW_MAX}
@@ -1894,7 +1993,7 @@ export function JobFlowScreen({
             )}
 
             {flash && (
-              <p className="mt-2 text-center text-[12px] font-bold text-[#e07a3d]">
+              <p className="mt-2 text-center text-[12px] font-bold text-[#FF6B35]">
                 {flash}
               </p>
             )}
@@ -1909,7 +2008,7 @@ export function JobFlowScreen({
         {job.dispute?.decision && !job.dispute.appeal && (
           <button
             type="button"
-            className="mt-8 w-full text-center text-[12px] font-bold text-[#e07a3d]"
+            className="mt-8 w-full text-center text-[12px] font-bold text-[#FF6B35]"
             onClick={() =>
               void run(() =>
                 apiOpenAppeal({
@@ -2022,8 +2121,10 @@ export function JobFlowScreen({
       <JobCard isLight={isLight}>
         <p className={cn("text-[14px] font-medium", muted)}>
           {flash ||
-            (job.status === "cancelled"
-              ? "This job was cancelled. If escrow was held, the full amount returns to the motorist."
+            (job.status === "cancelled" || job.status === "refunded"
+              ? job.escrowStatus === "refunded" || job.status === "refunded"
+                ? "This job was cancelled. The full amount was refunded to the customer. Booked jobs must be completed within 6 hours of payment."
+                : "This job was cancelled. If escrow was held, the full amount returns to the customer."
               : "This job has ended.")}
         </p>
       </JobCard>
@@ -2042,7 +2143,7 @@ function StatusPill({
     tone === "amber"
       ? "bg-[#FF6B35]/150/20 text-[#FF6B35] dark:text-[#FF6B35]"
       : tone === "copper"
-        ? "bg-[#e07a3d]/20 text-[#e07a3d]"
+        ? "bg-[#FF6B35]/20 text-[#FF6B35]"
         : "bg-black/10 text-slate-700 dark:bg-white/10 dark:text-white/70";
   return (
     <span
@@ -2099,7 +2200,7 @@ function DisputeSheet({
         >
           Money stays locked until admin resolves (within 24h).
         </p>
-        <label className="mt-4 block text-[11px] font-bold uppercase tracking-wide text-[#e07a3d]">
+        <label className="mt-4 block text-[11px] font-bold uppercase tracking-wide text-[#FF6B35]">
           Reason
         </label>
         <select

@@ -6,7 +6,7 @@
 **Auth:** Supabase Auth + app JWT / admin session cookies  
 **Payments:** Flutterwave primary (Paystack retained as adapter)  
 
-This document supersedes earlier “OgaMecho-only” notes where they conflict.
+This document supersedes earlier “Ona-only” notes where they conflict.
 
 ---
 

@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Clock3, Loader2, Radio, Shield } from "lucide-react";
+import { BankForcePanel } from "@/components/auth/bank-force-panel";
 import { PageHeader } from "@/components/layout/page-header";
 import { getArtisanProfile } from "@/lib/artisan/local-store";
 import {
@@ -151,6 +152,118 @@ export default function TechnicianDashboardPage() {
     } catch {
       setArtisan(null);
     }
+
+    // Hydrate + poll care approval so dashboard tier flips without leaving
+    let cancelled = false;
+    const sync = async () => {
+      try {
+        const res = await fetch(
+          `/api/artisan/profile?userId=${encodeURIComponent(backendUserId)}`,
+          { cache: "no-store" }
+        );
+        const json = (await res.json().catch(() => null)) as {
+          ok?: boolean;
+          data?: {
+            pro?: {
+              status?: string;
+              gov_id_review_status?: string | null;
+              visibility_tier?: number | null;
+              verified?: boolean | null;
+              nin_verified?: boolean | null;
+              face_liveness_verified?: boolean | null;
+              docs_status?: string | null;
+              tier2_approved_at?: string | null;
+              tier3_approved_at?: string | null;
+              tier4_approved_at?: string | null;
+              go_live_window_ends_at?: string | null;
+            } | null;
+          };
+        } | null;
+        if (cancelled || !json?.ok || !json.data?.pro) return;
+        const pro = json.data.pro;
+        const local = getArtisanProfile(backendUserId);
+        if (!local) return;
+        const gov = String(pro.gov_id_review_status || "none");
+        const t2 =
+          gov === "approved" ||
+          Boolean(pro.verified) ||
+          Boolean(pro.nin_verified);
+        const vis = Number(pro.visibility_tier) || local.visibilityTier || 1;
+        const docs = String(pro.docs_status || "none");
+        if (!t2 && gov !== "submitted" && gov !== "rejected") {
+          // Still refresh visibility if server moved ladder
+          if (vis !== local.visibilityTier) {
+            const next = {
+              ...local,
+              visibilityTier: vis as 1 | 2 | 3 | 4,
+              isNewArtisan: vis <= 2,
+            };
+            const { saveArtisanProfile } = await import(
+              "@/lib/artisan/local-store"
+            );
+            saveArtisanProfile(next);
+            if (!cancelled) setArtisan(next);
+          }
+          return;
+        }
+        const fully = String(pro.status) === "approved" || (t2 && vis >= 2);
+        const next = {
+          ...local,
+          status: fully
+            ? ("approved" as const)
+            : gov === "rejected"
+              ? ("rejected" as const)
+              : gov === "submitted"
+                ? ("pending_review" as const)
+                : local.status,
+          rejectReason: fully ? null : local.rejectReason,
+          govIdReviewStatus: t2
+            ? ("approved" as const)
+            : gov === "rejected"
+              ? ("rejected" as const)
+              : gov === "submitted"
+                ? ("submitted" as const)
+                : local.govIdReviewStatus,
+          tiers: {
+            ...local.tiers,
+            tier2_govId: t2 || local.tiers.tier2_govId,
+            tier2_nin:
+              Boolean(pro.nin_verified) || t2 || local.tiers.tier2_nin,
+            tier3_liveness:
+              Boolean(pro.face_liveness_verified) ||
+              local.tiers.tier3_liveness,
+            tier4_skillProof:
+              docs === "approved" || local.tiers.tier4_skillProof,
+          },
+          visibilityTier: vis as 1 | 2 | 3 | 4,
+          tier2ApprovedAt:
+            pro.tier2_approved_at || local.tier2ApprovedAt,
+          tier3ApprovedAt:
+            pro.tier3_approved_at || local.tier3ApprovedAt,
+          tier4ApprovedAt:
+            pro.tier4_approved_at || local.tier4ApprovedAt,
+          goLiveWindowEndsAt:
+            pro.go_live_window_ends_at || local.goLiveWindowEndsAt,
+          isNewArtisan: vis <= 2,
+        };
+        const { saveArtisanProfile } = await import(
+          "@/lib/artisan/local-store"
+        );
+        saveArtisanProfile(next);
+        if (!cancelled) setArtisan(next);
+      } catch {
+        /* offline */
+      }
+    };
+    void sync();
+    const poll = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      void sync();
+    }, 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(poll);
+    };
   }, [backendUserId, proLive, liveErr]);
 
   const stage = isLight ? "bg-[#c8c9cd]" : "bg-black";
@@ -291,7 +404,8 @@ export default function TechnicianDashboardPage() {
   }
 
   return (
-    <div className={cn("flex h-full min-h-0 flex-col", stage)}>
+    <div className={cn("relative flex h-full min-h-0 flex-col", stage)}>
+      <BankForcePanel surface="dashboard" />
       <div className={cn("z-20 shrink-0", stage)}>
         <PageHeader
           title="Professional Dashboard"
@@ -325,7 +439,7 @@ export default function TechnicianDashboardPage() {
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 pb-4 scrollbar-hide">
         {/* Artisan verification / visibility tier gate */}
-        {artisan && artisan.status !== "approved" ? (
+        {artisan ? (
           <section
             className={cn(
               "rounded-md px-3 py-3",
@@ -335,77 +449,59 @@ export default function TechnicianDashboardPage() {
             <div className="flex items-start gap-2">
               <Shield className="mt-0.5 h-4 w-4 shrink-0 text-[#FF6B35]" />
               <div className="min-w-0 flex-1">
-                <p className={cn("text-[13px] font-bold", ink)}>
-                  Tier {resolveVisibilityTier(artisan)}
-                </p>
-                <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
-                  {(() => {
-                    if (artisan.status === "draft") {
-                      return t("gate.finishBeforeLive");
-                    }
-                    const g = canGoLive(artisan);
-                    return g.allowed ? "" : g.message;
-                  })()}
-                </p>
-                <Link
-                  href={
-                    artisan.status === "draft" ||
-                    artisan.status === "rejected"
-                      ? "/artisan/onboarding"
-                      : "/artisan/verification"
-                  }
-                  className="mt-2 inline-flex text-[12px] font-bold text-[#FF6B35]"
-                >
-                  {artisan.status === "pending_review"
-                    ? t("gate.viewStatus")
-                    : t("gate.continueVerification")}
-                </Link>
+                {(() => {
+                  const tier = resolveVisibilityTier(artisan);
+                  const rules = rulesForTier(tier);
+                  const g = canGoLive(artisan);
+                  const warn =
+                    artisan.status === "approved"
+                      ? tier2GoLiveWarning(artisan)
+                      : null;
+                  return (
+                    <>
+                      <p className={cn("text-[13px] font-bold", ink)}>
+                        Tier {tier}
+                      </p>
+                      <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
+                        {artisan.status !== "approved"
+                          ? artisan.status === "draft"
+                            ? t("gate.finishBeforeLive")
+                            : g.allowed
+                              ? ""
+                              : g.message
+                          : `${rules.visibilityPercent}% visibility · max ${rules.maxRadiusKm} km`}
+                      </p>
+                      {warn ? (
+                        <p
+                          className={cn(
+                            "mt-1.5 text-[11px] font-semibold",
+                            "text-[#FF6B35]"
+                          )}
+                        >
+                          {warn}
+                        </p>
+                      ) : null}
+                      {artisan.status !== "approved" ? (
+                        <Link
+                          href={
+                            artisan.status === "draft" ||
+                            artisan.status === "rejected"
+                              ? "/artisan/onboarding"
+                              : "/artisan/verification"
+                          }
+                          className="mt-2 inline-flex text-[12px] font-bold text-[#FF6B35]"
+                        >
+                          {artisan.status === "pending_review"
+                            ? t("gate.viewStatus")
+                            : t("gate.continueVerification")}
+                        </Link>
+                      ) : null}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </section>
-        ) : artisan ? (
-          <>
-            {(() => {
-              const warn = tier2GoLiveWarning(artisan);
-              if (!warn) return null;
-              return (
-                <p
-                  className={cn(
-                    "rounded-md px-3 py-2 text-[11px] font-semibold",
-                    isLight
-                      ? "bg-[#FF6B35]/15 text-[#FF6B35]"
-                      : "bg-[#FF6B35]/20 text-[#FF6B35]"
-                  )}
-                >
-                  {warn}
-                </p>
-              );
-            })()}
-            {(() => {
-              const tier = resolveVisibilityTier(artisan);
-              const rules = rulesForTier(tier);
-              const g = canGoLive(artisan);
-              if (g.allowed && !rules.showNewBadge) return null;
-              return (
-                <p
-                  className={cn(
-                    "rounded-md px-3 py-2 text-[11px] font-semibold",
-                    isLight ? "bg-[#d4d5d9] text-slate-800" : "bg-white/10 text-white/90"
-                  )}
-                >
-                  {!g.allowed ? (
-                    <>{g.message}</>
-                  ) : (
-                    <>
-                      Tier {tier} · {rules.visibilityPercent}% visibility · max{" "}
-                      {rules.maxRadiusKm} km
-                      {rules.showNewBadge ? " · New Badge on" : ""}
-                    </>
-                  )}
-                </p>
-              );
-            })()}
-          </>
         ) : null}
 
         <section className={cn("border-b pb-4", hairline)}>
@@ -452,7 +548,7 @@ export default function TechnicianDashboardPage() {
 
         {jobsLoading && (
           <div className="flex justify-center py-6">
-            <Loader2 className="h-5 w-5 animate-spin text-[#e07a3d]" />
+            <Loader2 className="h-5 w-5 animate-spin text-[#FF6B35]" />
           </div>
         )}
 

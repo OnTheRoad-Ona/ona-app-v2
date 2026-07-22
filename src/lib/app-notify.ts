@@ -48,7 +48,7 @@ export function showAppNotification(opts: AppNotifyOpts): void {
     // Avoid stacking identical tags
     const n = new Notification(opts.title, {
       body: opts.body,
-      tag: opts.tag || "ogamecho",
+      tag: opts.tag || "ona",
       requireInteraction: opts.requireInteraction ?? false,
       silent: false,
     });

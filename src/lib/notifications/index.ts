@@ -1,5 +1,5 @@
 /**
- * OgaMecho notification system — public exports.
+ * Ona notification system — public exports.
  *
  * Usage (already wired in AppFrame):
  *   <NotificationProvider>

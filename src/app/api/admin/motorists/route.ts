@@ -28,7 +28,7 @@ export async function GET(req: Request) {
     const { data: mots, error: mErr } = await supabase
       .from("motorist_profiles")
       .select(
-        "user_id, vehicle_make, vehicle_model, vehicle_year, plate_number, address_text, default_lat, default_lng, nin_last4, bvn_last4, nin_verified, bvn_verified, identity_verified_at, identity_review_status, identity_submitted_at, phone_verified, gov_id_front_url, gov_id_back_url, gov_id_kind, gov_id_number, created_at, updated_at"
+        "user_id, vehicle_make, vehicle_model, vehicle_year, plate_number, address_text, default_lat, default_lng, nin_last4, bvn_last4, nin_verified, bvn_verified, identity_verified_at, identity_review_status, identity_submitted_at, phone_verified, gov_id_front_url, gov_id_back_url, gov_id_kind, gov_id_number, bank_id_number, gov_id_meta, created_at, updated_at"
       )
       .order("created_at", { ascending: false })
       .limit(500);
@@ -50,6 +50,8 @@ export async function GET(req: Request) {
         is_active: boolean;
         created_at: string;
         updated_at: string;
+        gender: string | null;
+        date_of_birth: string | null;
       }
     > = {};
 
@@ -57,7 +59,7 @@ export async function GET(req: Request) {
       const { data: profs, error: pErr } = await supabase
         .from("profiles")
         .select(
-          "id, role, full_name, phone, email, city, area, is_active, created_at, updated_at"
+          "id, role, full_name, phone, email, city, area, is_active, created_at, updated_at, gender, date_of_birth"
         )
         .in("id", userIds);
       if (pErr) return apiFail(pErr.message, 500);
@@ -73,6 +75,9 @@ export async function GET(req: Request) {
           is_active: p.is_active !== false,
           created_at: p.created_at,
           updated_at: p.updated_at,
+          gender: (p as { gender?: string | null }).gender ?? null,
+          date_of_birth:
+            (p as { date_of_birth?: string | null }).date_of_birth ?? null,
         };
       }
     }
@@ -81,7 +86,7 @@ export async function GET(req: Request) {
     const { data: roleOnly } = await supabase
       .from("profiles")
       .select(
-        "id, role, full_name, phone, email, city, area, is_active, created_at, updated_at"
+        "id, role, full_name, phone, email, city, area, is_active, created_at, updated_at, gender, date_of_birth"
       )
       .eq("role", "motorist")
       .limit(500);
@@ -99,6 +104,9 @@ export async function GET(req: Request) {
           is_active: p.is_active !== false,
           created_at: p.created_at,
           updated_at: p.updated_at,
+          gender: (p as { gender?: string | null }).gender ?? null,
+          date_of_birth:
+            (p as { date_of_birth?: string | null }).date_of_birth ?? null,
         };
       }
     }
@@ -115,6 +123,19 @@ export async function GET(req: Request) {
       const ninOk = Boolean(mot?.nin_verified);
       const bvnOk = Boolean(mot?.bvn_verified);
       const review = String(mot?.identity_review_status || "");
+      const meta =
+        mot?.gov_id_meta &&
+        typeof mot.gov_id_meta === "object" &&
+        !Array.isArray(mot.gov_id_meta)
+          ? (mot.gov_id_meta as Record<string, unknown>)
+          : {};
+      const submitKey = String(mot?.identity_submitted_at || "");
+      const attendedKey = String(meta.care_attended_submit_at || "");
+      const care_attended =
+        review !== "submitted"
+          ? true
+          : Boolean(attendedKey && submitKey && attendedKey === submitKey);
+      const unattended = review === "submitted" && !care_attended;
       const verifyLevel =
         ninOk && bvnOk
           ? "full"
@@ -134,6 +155,10 @@ export async function GET(req: Request) {
         is_active: p?.is_active !== false,
         created_at: p?.created_at || mot?.created_at || null,
         updated_at: p?.updated_at || mot?.updated_at || null,
+        gender: p?.gender ?? null,
+        date_of_birth: p?.date_of_birth ?? null,
+        care_attended,
+        unattended,
         motorist: mot
           ? {
               vehicle_make: mot.vehicle_make,
@@ -155,11 +180,32 @@ export async function GET(req: Request) {
               gov_id_back_url: mot.gov_id_back_url ?? null,
               gov_id_kind: mot.gov_id_kind ?? null,
               gov_id_number: mot.gov_id_number ?? null,
+              bank_id_number: (mot as { bank_id_number?: string | null })
+                .bank_id_number ?? null,
             }
           : null,
         verifyLevel: verifyLevel as "full" | "partial" | "none",
       };
     });
+
+    // Queue # for unattended pending only (directory + ID review)
+    const unattendedSorted = motorists
+      .filter((m) => m.unattended)
+      .map((m) => ({
+        id: m.id,
+        earliest: m.motorist?.identity_submitted_at
+          ? new Date(String(m.motorist.identity_submitted_at)).getTime()
+          : 0,
+      }))
+      .sort((a, b) => a.earliest - b.earliest);
+    const dirSeq: Record<string, number> = {};
+    unattendedSorted.forEach((m, i) => {
+      dirSeq[m.id] = i + 1;
+    });
+    motorists = motorists.map((m) => ({
+      ...m,
+      queue_number: dirSeq[m.id] ?? null,
+    }));
 
     if (active === "true") {
       motorists = motorists.filter((m) => m.is_active);

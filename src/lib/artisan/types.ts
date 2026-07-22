@@ -1,5 +1,5 @@
 /**
- * Artisan Registration & Verification domain (Ona / OgaMecho).
+ * Artisan Registration & Verification domain (Ona / Ona).
  * Status machine: draft → pending_review → approved | rejected → suspended
  */
 

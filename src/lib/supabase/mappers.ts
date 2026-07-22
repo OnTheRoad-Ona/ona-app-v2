@@ -177,7 +177,11 @@ export function mapProToTechnician(
     }).pricing_currency,
     // Prefer backend visibility_tier columns; fall back to local artisan store
     ...(() => {
-      const dbTier = Number(pro.visibility_tier);
+      let dbTier = Number(pro.visibility_tier);
+      // Null tier but T2-approved/verified → treat as T2 so customers can find them
+      if ((!Number.isFinite(dbTier) || dbTier < 1) && Boolean(pro.verified)) {
+        dbTier = 2;
+      }
       if (dbTier >= 1 && dbTier <= 4) {
         const pct =
           dbTier === 1 ? 0 : dbTier === 2 ? 30 : dbTier === 3 ? 70 : 100;
@@ -301,6 +305,10 @@ export function profileToUserProfile(
     servedModel?: string;
     servedCountry?: string;
     servedLocation?: string;
+    bankName?: string;
+    bankAccountName?: string;
+    bankAccountNumber?: string;
+    bankCode?: string;
   }
 ): UserProfile {
   const accountType =
@@ -317,6 +325,15 @@ export function profileToUserProfile(
     phone: profile.phone || "",
     email: profile.email || "",
     password: extra?.password || "",
+    gender:
+      profile.gender === "male" ||
+      profile.gender === "female" ||
+      profile.gender === "prefer_not_to_say"
+        ? profile.gender
+        : undefined,
+    dateOfBirth: profile.date_of_birth
+      ? String(profile.date_of_birth).slice(0, 10)
+      : undefined,
     city: profile.city || "",
     area: profile.area || "",
     vehicleMake: extra?.vehicleMake,
@@ -359,6 +376,10 @@ export function profileToUserProfile(
     servedModel: extra?.servedModel,
     servedCountry: extra?.servedCountry,
     servedLocation: extra?.servedLocation,
+    bankName: extra?.bankName,
+    bankAccountName: extra?.bankAccountName,
+    bankAccountNumber: extra?.bankAccountNumber,
+    bankCode: extra?.bankCode,
     serviceActionCount: 0,
   };
 }
@@ -446,6 +467,18 @@ function parseChatBody(m: MessageRow, conv: ConversationRow): ChatMessage {
   };
 }
 
+/** Auto system spam we never show (legacy rows + never re-insert). */
+function isAutoChatOpenedBody(body: string | null | undefined): boolean {
+  const t = (body || "").trim().toLowerCase();
+  if (!t) return false;
+  return (
+    t === "chat opened for this job." ||
+    t === "chat opened for this job" ||
+    t.startsWith("chat opened ·") ||
+    t.startsWith("chat opened.")
+  );
+}
+
 export function mapConversationToThread(
   conv: ConversationRow,
   msgs: MessageRow[],
@@ -457,9 +490,15 @@ export function mapConversationToThread(
   },
   myUserId: string
 ): MessageThread {
-  const last = msgs[msgs.length - 1];
-  const chatMsgs: ChatMessage[] = msgs.map((m) => parseChatBody(m, conv));
-  const unread = msgs.filter(
+  // Accept newest-first or oldest-first; normalize chronological for UI
+  const sorted = [...msgs].sort(
+    (a, b) =>
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
+  const filtered = sorted.filter((m) => !isAutoChatOpenedBody(m.body));
+  const last = filtered[filtered.length - 1];
+  const chatMsgs: ChatMessage[] = filtered.map((m) => parseChatBody(m, conv));
+  const unread = filtered.filter(
     (m) => !m.read_at && m.sender_id !== myUserId
   ).length;
   const lastPreview = chatMsgs[chatMsgs.length - 1];

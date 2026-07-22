@@ -54,6 +54,10 @@ import {
   passwordError,
   passwordRules,
   phoneNationalError,
+  genderError,
+  dobError,
+  SIGNUP_GENDER_OPTIONS,
+  type SignupGender,
 } from "@/lib/signup-validation";
 import {
   filterOptions,
@@ -88,6 +92,8 @@ export function MotoristSignup() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [fullName, setFullName] = useState("");
+  const [gender, setGender] = useState<SignupGender | "">("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
   const [phoneIso, setPhoneIso] = useState(DEFAULT_PHONE_ISO);
   const idPack = useMemo(() => getCountryIdPack(phoneIso), [phoneIso]);
   const primaryDoc = useMemo(
@@ -127,6 +133,8 @@ export function MotoristSignup() {
    */
   const [dualSignup, setDualSignup] = useState(false);
   const [nameLocked, setNameLocked] = useState(false);
+  const [genderLocked, setGenderLocked] = useState(false);
+  const [dobLocked, setDobLocked] = useState(false);
   const [phoneLocked, setPhoneLocked] = useState(false);
   const [emailLocked, setEmailLocked] = useState(false);
   const [ninLocked, setNinLocked] = useState(false);
@@ -154,6 +162,8 @@ export function MotoristSignup() {
     if (!pro) {
       setDualSignup(false);
       setNameLocked(false);
+      setGenderLocked(false);
+      setDobLocked(false);
       setPhoneLocked(false);
       setEmailLocked(false);
       setNinLocked(false);
@@ -168,12 +178,26 @@ export function MotoristSignup() {
     const nin = (pro.idNumber || vaultPro?.idNumber || "").trim();
     const bankId = (pro.bvn || vaultPro?.bvn || "").trim();
     const phoneRaw = (pro.phone || vaultPro?.phone || "").trim();
+    const g = (pro.gender || vaultPro?.gender || "") as SignupGender | "";
+    const dob = (pro.dateOfBirth || vaultPro?.dateOfBirth || "").slice(0, 10);
 
     if (name) {
       setFullName(name);
       setNameLocked(true);
     } else {
       setNameLocked(false);
+    }
+    if (g === "male" || g === "female" || g === "prefer_not_to_say") {
+      setGender(g);
+      setGenderLocked(true);
+    } else {
+      setGenderLocked(false);
+    }
+    if (dob && /^\d{4}-\d{2}-\d{2}$/.test(dob)) {
+      setDateOfBirth(dob);
+      setDobLocked(true);
+    } else {
+      setDobLocked(false);
     }
     if (em) {
       setEmail(em);
@@ -253,13 +277,18 @@ export function MotoristSignup() {
     return null;
   };
 
+  const genderDobOk =
+    !genderError(gender) && !dobError(dateOfBirth);
+
   const step1Ok = dualSignup
     ? isValidFullName(fullName) &&
+      genderDobOk &&
       !phoneNationalError(phoneNational) &&
       isValidEmail(email) &&
       dualPasswordOk &&
       !optionalIdError()
     : isValidFullName(fullName) &&
+      genderDobOk &&
       !phoneNationalError(phoneNational) &&
       isValidEmail(email) &&
       isValidPassword(password) &&
@@ -372,6 +401,8 @@ export function MotoristSignup() {
     if (dualSignup) {
       const base =
         fullNameError(fullName) ||
+        genderError(gender) ||
+        dobError(dateOfBirth) ||
         phoneNationalError(phoneNational) ||
         emailError(email) ||
         optionalIdError();
@@ -383,6 +414,8 @@ export function MotoristSignup() {
     }
     return (
       fullNameError(fullName) ||
+      genderError(gender) ||
+      dobError(dateOfBirth) ||
       phoneNationalError(phoneNational) ||
       emailError(email) ||
       optionalIdError() ||
@@ -487,6 +520,8 @@ export function MotoristSignup() {
     const profile: UserProfile = {
       accountType: "motorist",
       fullName: fullName.trim(),
+      gender: gender as SignupGender,
+      dateOfBirth: dateOfBirth.trim(),
       phone: fullPhone,
       email: email.trim(),
       password,
@@ -713,6 +748,61 @@ export function MotoristSignup() {
                   <FieldHint message={fieldErrors.fullName} />
                 </Field>
 
+                <div className="grid grid-cols-2 gap-1.5">
+                  <Field label="Gender" required>
+                    <select
+                      className={cn(
+                        selectClass,
+                        genderLocked && authLockedFieldClass
+                      )}
+                      style={genderLocked ? authLockedFieldStyle : undefined}
+                      value={gender}
+                      disabled={genderLocked}
+                      onChange={(e) => {
+                        if (genderLocked) return;
+                        setGender(e.target.value as SignupGender | "");
+                        setFieldError("gender", null);
+                      }}
+                      onBlur={() =>
+                        setFieldError("gender", genderError(gender))
+                      }
+                      required
+                    >
+                      <option value="">Select</option>
+                      {SIGNUP_GENDER_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                    <FieldHint message={fieldErrors.gender} />
+                  </Field>
+                  <Field label="Date of birth" required>
+                    <input
+                      type="date"
+                      className={cn(
+                        fieldClass,
+                        dobLocked && authLockedFieldClass
+                      )}
+                      style={dobLocked ? authLockedFieldStyle : undefined}
+                      value={dateOfBirth}
+                      readOnly={dobLocked}
+                      tabIndex={dobLocked ? -1 : undefined}
+                      max={new Date().toISOString().slice(0, 10)}
+                      onChange={(e) => {
+                        if (dobLocked) return;
+                        setDateOfBirth(e.target.value);
+                        setFieldError("dob", null);
+                      }}
+                      onBlur={() =>
+                        setFieldError("dob", dobError(dateOfBirth))
+                      }
+                      required
+                    />
+                    <FieldHint message={fieldErrors.dob} />
+                  </Field>
+                </div>
+
                 <Field label="Phone" required>
                   <div className="flex gap-1.5">
                     <select
@@ -797,6 +887,7 @@ export function MotoristSignup() {
                       placeholder="you@email.com"
                       type="email"
                       autoComplete="email"
+                      required
                     />
                   </div>
                   <FieldHint message={fieldErrors.email} />

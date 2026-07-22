@@ -22,7 +22,7 @@ export function AppHeader() {
   const [showOnTheRoad, setShowOnTheRoad] = useState(false);
 
   useEffect(() => {
-    setMount(document.getElementById("oga-mecho-phone"));
+    setMount(document.getElementById("ona-phone"));
   }, []);
 
   useEffect(() => {
@@ -91,7 +91,7 @@ export function AppHeader() {
             onClick={() => setMenuOpen(true)}
             className={cn(
               "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border-0",
-              isLight ? "bg-[#c8c9cd] text-black" : "bg-black text-white"
+              isLight ? "bg-[#c8c9cd]" : "bg-black"
             )}
             style={{
               backgroundColor: isLight ? "#c8c9cd" : "#000000",
@@ -99,7 +99,11 @@ export function AppHeader() {
             aria-label={t("home.openMenu")}
             aria-expanded={menuOpen}
           >
-            <Menu className="h-[18px] w-[18px]" strokeWidth={2.35} />
+            <Menu
+              className="h-[18px] w-[18px]"
+              strokeWidth={2.35}
+              style={{ color: "#FF6B35" }}
+            />
           </button>
         </div>
       </header>

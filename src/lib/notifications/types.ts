@@ -1,6 +1,6 @@
 /**
- * OgaMecho notification domain — premium minimalist system.
- * Solid fills only; copper #C5A46E accents; no borders/glows/gradients.
+ * Ona notification domain — premium minimalist system.
+ * Solid fills only; copper #FF6B35 accents; no borders/glows/gradients.
  */
 
 import {
@@ -58,7 +58,7 @@ export type NotificationFilter =
   | "system";
 
 /** Spec palette */
-export const COPPER = "#C5A46E";
+export const COPPER = "#FF6B35";
 /** Message / glassy orange — light-theme Notifications chrome only */
 export const MESSAGE_ORANGE = "#FF6B35";
 export const CHARCOAL = "#1c1c1e";

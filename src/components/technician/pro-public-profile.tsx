@@ -106,7 +106,7 @@ export function ProPublicProfile({
       >
         <button
           type="button"
-          onClick={() => navigateBack(router, backHref || "/", null)}
+          onClick={() => navigateBack(router, backHref || "/", null /* parent only */)}
           className={cn(
             "flex h-8 w-8 items-center justify-center rounded-lg border-0 text-base leading-none",
             solidBtn,

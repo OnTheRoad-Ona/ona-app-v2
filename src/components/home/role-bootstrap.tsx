@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useApp } from "@/lib/store";
 
-const SESSION_KEY = "oga-mecho-first-open-done";
+const SESSION_KEY = "ona-first-open-done";
 
 /**
  * On first app open per browser session, land on the screen

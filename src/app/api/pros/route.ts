@@ -67,16 +67,16 @@ export async function GET(req: Request) {
       "go_live_window_ends_at",
     ].join(",");
 
+    // Live + not suspended/rejected. Tier filter applied in JS so null tier
+    // after T2 approve (or lag) still appears when verified/approved.
     let prosQuery = supabase
       .from("repair_pro_profiles")
       .select(proColumns)
       .eq("is_online", true)
       .neq("status", "suspended")
       .neq("status", "rejected")
-      // Tier 1 never appears (column added in 20260720_025 migration)
-      .gte("visibility_tier", 2)
       .order("rating_avg", { ascending: false })
-      .limit(80);
+      .limit(40);
 
     let { data: pros, error } = await prosQuery;
 
@@ -122,9 +122,19 @@ export async function GET(req: Request) {
 
     if (error) return apiFail(error.message, 500);
 
-    const list = ((pros ?? []) as unknown as RepairProRow[]).filter(
-      (p) => p.status !== "suspended" && p.status !== "rejected"
-    );
+    const list = ((pros ?? []) as unknown as RepairProRow[]).filter((p) => {
+      if (p.status === "suspended" || p.status === "rejected") return false;
+      const tier = Number(p.visibility_tier);
+      // T1 never appears. Null tier + approved/verified counts as marketplace-ready (T2+)
+      if (Number.isFinite(tier) && tier >= 1 && tier < 2) return false;
+      if (!Number.isFinite(tier) || tier < 1) {
+        const verified = Boolean(p.verified);
+        const okStatus = p.status === "approved" || p.status === "pending";
+        if (!verified && p.status !== "approved") return false;
+        if (!okStatus && !verified) return false;
+      }
+      return true;
+    });
     if (!list.length) {
       return apiOk({ technicians: [], count: 0 });
     }

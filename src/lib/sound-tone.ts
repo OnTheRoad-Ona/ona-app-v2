@@ -1,5 +1,5 @@
 /**
- * OgaMecho sounds — pure Web Audio API (no audio files, zero network cost).
+ * Ona sounds — pure Web Audio API (no audio files, zero network cost).
  * Person-specific tones for messages/calls + unique system motifs for key events.
  */
 

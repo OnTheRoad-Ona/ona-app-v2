@@ -1,5 +1,5 @@
 /**
- * Server-side health aggregation for OgaMecho.
+ * Server-side health aggregation for Ona.
  * INTEGRATION: swap storage estimate for real Supabase/Postgres size queries.
  */
 

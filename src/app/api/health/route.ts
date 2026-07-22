@@ -17,7 +17,7 @@ export async function GET(req: Request) {
   if (searchParams.get("public") === "1") {
     return apiOk({
       ok: true,
-      service: "ogamecho",
+      service: "ona",
       ts: new Date().toISOString(),
     });
   }

@@ -8,6 +8,8 @@ import {
 import { createEscrowPayment } from "@/lib/server/payments/escrow-store";
 import { initCharge } from "@/lib/server/payments/providers";
 import type { ProService } from "@/lib/types";
+import { createServiceSupabase } from "@/lib/supabase/server";
+import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -68,6 +70,31 @@ export async function POST(req: Request) {
       reference
     )}`;
 
+    // Attach bank codes for audit / later payout & refund (not required to charge)
+    let motoristBankCode: string | null = null;
+    let proBankCode: string | null = null;
+    if (isSupabaseAdminConfigured()) {
+      try {
+        const sb = createServiceSupabase();
+        const [mot, pro] = await Promise.all([
+          sb
+            .from("motorist_profiles")
+            .select("bank_code")
+            .eq("user_id", b.motoristId)
+            .maybeSingle(),
+          sb
+            .from("repair_pro_profiles")
+            .select("bank_code")
+            .eq("user_id", b.repairProId)
+            .maybeSingle(),
+        ]);
+        motoristBankCode = (mot.data?.bank_code as string) || null;
+        proBankCode = (pro.data?.bank_code as string) || null;
+      } catch {
+        /* optional */
+      }
+    }
+
     const charge = await initCharge(
       {
         amountMinor: snap.agreedAmountMinor,
@@ -82,7 +109,12 @@ export async function POST(req: Request) {
           serviceType: b.serviceType,
           labourOnly: true,
           discountPercent: snap.discountPercent,
+          motoristBankCode,
+          proBankCode,
+          platformFeePercent: 5,
         },
+        proSubaccountId: null,
+        platformFeePercent: 5,
         channels: ["card", "bank", "ussd", "bank_transfer"],
       },
       b.provider
@@ -105,6 +137,8 @@ export async function POST(req: Request) {
         labourOnly: true,
         disclaimer:
           "Labour / service fee only. Does not include spare parts or motor parts.",
+        motoristBankCode,
+        proBankCode,
       },
     });
 

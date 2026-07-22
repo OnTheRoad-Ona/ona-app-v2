@@ -1,4 +1,4 @@
--- Proactive health / ops event log for OgaMecho Control Centre
+-- Proactive health / ops event log for Ona Control Centre
 create table if not exists public.app_health_logs (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),

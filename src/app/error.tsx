@@ -37,7 +37,7 @@ export default function AppError({
       </button>
       <a
         href="/"
-        className="text-[13px] font-semibold text-[#e07a3d] no-underline"
+        className="text-[13px] font-semibold text-[#FF6B35] no-underline"
       >
         Go home
       </a>

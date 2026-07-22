@@ -7,7 +7,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * Popup when user taps a finished chat/job.
- * Portals into #oga-mecho-phone so it stays inside the device frame.
+ * Portals into #ona-phone so it stays inside the device frame.
+ * Matches phone shell grey (#c8c9cd light / black dark) — no border, no heavy shadow.
  * View → read-only / summary; OK → dismiss.
  */
 export function ExpiredDialog({
@@ -31,7 +32,7 @@ export function ExpiredDialog({
 
   useEffect(() => {
     setMount(
-      document.getElementById("oga-mecho-phone") ||
+      document.getElementById("ona-phone") ||
         document.body
     );
   }, []);
@@ -47,14 +48,14 @@ export function ExpiredDialog({
     >
       <button
         type="button"
-        className="absolute inset-0 border-0 bg-black/50"
+        className="absolute inset-0 border-0 bg-black/35"
         aria-label="Dismiss"
         onClick={onClose}
       />
       <div
         className={cn(
-          "relative z-10 w-full max-w-[280px] rounded-xl px-4 py-4 text-center shadow-lg",
-          isLight ? "bg-[#d4d5d9] text-slate-900" : "bg-[#1c1c1e] text-white"
+          "relative z-10 w-full max-w-[280px] rounded-xl border-0 px-4 py-4 text-center",
+          isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white"
         )}
       >
         <p

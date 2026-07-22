@@ -56,10 +56,8 @@ const MAP_STYLES: google.maps.MapTypeStyle[] = [
 ];
 
 /**
- * Trip stats bar — solid fills only (no glass/gradient).
- * Time + distance: values only; text white or black from theme.
- * Escrow Held: same solid #FF6B35 + rounded-lg as Message button.
- * Raised above Google attribution; left-aligned clear of zoom.
+ * Map-only chrome: Time · Distance · Escrow Held.
+ * Name / amount / problem stay in the lower job panel — never overlaid here.
  */
 function TripMapStatsBar({
   time,
@@ -70,10 +68,8 @@ function TripMapStatsBar({
   distance: string;
   isLight: boolean;
 }) {
-  // Amount (time/distance) — blend with track: black on light gray, white on dark
-  const amountClass = isLight
-    ? "text-[#111111]"
-    : "text-white";
+  const amountClass = isLight ? "text-[#111111]" : "text-white";
+  const labelClass = isLight ? "text-[#555555]" : "text-white/55";
 
   return (
     <div
@@ -82,16 +78,23 @@ function TripMapStatsBar({
     >
       <div
         className={cn(
-          "flex max-w-full items-center rounded-lg border-0 px-1 py-1",
+          "flex max-w-full items-stretch rounded-lg border-0 px-1 py-1",
           isLight ? "bg-[#E8E8E8]" : "bg-[#2c2c2e]"
         )}
         style={{ border: "none", boxShadow: "none" }}
       >
-        {/* Time value only */}
-        <div className="min-w-0 max-w-[5.5rem] px-2.5 py-1.5 text-center">
+        <div className="min-w-0 max-w-[5.75rem] px-2.5 py-1.5 text-center">
           <p
             className={cn(
-              "truncate text-[13px] font-bold tabular-nums leading-none",
+              "text-[8px] font-semibold uppercase tracking-[0.1em] leading-none",
+              labelClass
+            )}
+          >
+            Time
+          </p>
+          <p
+            className={cn(
+              "mt-1 truncate text-[13px] font-bold tabular-nums leading-none",
               amountClass
             )}
             title={time}
@@ -99,11 +102,18 @@ function TripMapStatsBar({
             {time}
           </p>
         </div>
-        {/* Distance value only */}
-        <div className="min-w-0 max-w-[5.5rem] px-2.5 py-1.5 text-center">
+        <div className="min-w-0 max-w-[5.75rem] px-2.5 py-1.5 text-center">
           <p
             className={cn(
-              "truncate text-[13px] font-bold tabular-nums leading-none",
+              "text-[8px] font-semibold uppercase tracking-[0.1em] leading-none",
+              labelClass
+            )}
+          >
+            Distance
+          </p>
+          <p
+            className={cn(
+              "mt-1 truncate text-[13px] font-bold tabular-nums leading-none",
               amountClass
             )}
             title={distance}
@@ -111,12 +121,13 @@ function TripMapStatsBar({
             {distance}
           </p>
         </div>
-        {/* Escrow Held — Message button language: solid #FF6B35, soft rounded-lg */}
         <div className="shrink-0 rounded-lg border-0 bg-[#FF6B35] px-2.5 py-1.5 text-center shadow-none">
           <p className="text-[8px] font-semibold uppercase tracking-[0.12em] text-white">
             Escrow
           </p>
-          <p className="text-[12px] font-bold leading-none text-white">Held</p>
+          <p className="mt-0.5 text-[12px] font-bold leading-none text-white">
+            Held
+          </p>
         </div>
       </div>
     </div>
@@ -235,36 +246,71 @@ function GoogleTrackMap({
     mapRef.current = map;
   }, []);
 
-  // Directions: pro → motorist when both known
+  // Directions: pro → motorist when both known.
+  // If Directions API is denied/unavailable, fall back to straight-line ETA
+  // so the trip UI never hangs on REQUEST_DENIED noise.
   useEffect(() => {
-    if (!isLoaded || !proPos || !window.google?.maps) {
+    if (!proPos) {
       setDirections(null);
       return;
     }
+
+    const applyHaversineEta = () => {
+      const R = 6371;
+      const dLat = ((motoristPos.lat - proPos.lat) * Math.PI) / 180;
+      const dLng = ((motoristPos.lng - proPos.lng) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos((proPos.lat * Math.PI) / 180) *
+          Math.cos((motoristPos.lat * Math.PI) / 180) *
+          Math.sin(dLng / 2) ** 2;
+      const km =
+        Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 100) /
+        100;
+      // ~25 km/h city crawl estimate
+      const minutes = Math.max(1, Math.round((km / 25) * 60));
+      setRouteEta({
+        minutes,
+        distanceKm: km,
+        durationText: `${minutes} min`,
+        distanceText: km < 1 ? `${Math.round(km * 1000)} m` : `${km} km`,
+      });
+      setDirections(null);
+      try {
+        const bounds = new google.maps.LatLngBounds();
+        bounds.extend(proPos);
+        bounds.extend(motoristPos);
+        mapRef.current?.fitBounds(bounds, 56);
+      } catch {
+        /* map not ready */
+      }
+    };
+
+    if (!isLoaded || !window.google?.maps?.DirectionsService) {
+      applyHaversineEta();
+      return;
+    }
+
+    let cancelled = false;
     const svc = new google.maps.DirectionsService();
     svc.route(
       {
         origin: proPos,
         destination: motoristPos,
         travelMode: google.maps.TravelMode.DRIVING,
-        drivingOptions: {
-          departureTime: new Date(),
-          trafficModel: google.maps.TrafficModel.BEST_GUESS,
-        },
       },
       (result, status) => {
+        if (cancelled) return;
         if (status === "OK" && result) {
           setDirections(result);
           const leg = result.routes[0]?.legs[0];
           if (leg) {
-            const sec =
-              leg.duration_in_traffic?.value ?? leg.duration?.value ?? 0;
+            const sec = leg.duration?.value ?? 0;
             const meters = leg.distance?.value ?? 0;
             setRouteEta({
               minutes: Math.max(1, Math.round(sec / 60)),
               distanceKm: Math.round((meters / 1000) * 100) / 100,
-              durationText:
-                leg.duration_in_traffic?.text || leg.duration?.text,
+              durationText: leg.duration?.text,
               distanceText: leg.distance?.text,
             });
           }
@@ -273,10 +319,14 @@ function GoogleTrackMap({
           bounds.extend(motoristPos);
           mapRef.current?.fitBounds(bounds, 56);
         } else {
-          setDirections(null);
+          // REQUEST_DENIED / ZERO_RESULTS / OVER_QUERY_LIMIT → still show ETA
+          applyHaversineEta();
         }
       }
     );
+    return () => {
+      cancelled = true;
+    };
   }, [isLoaded, proPos?.lat, proPos?.lng, motoristPos.lat, motoristPos.lng]);
 
   const motoristTitle = viewer === "motorist" ? "You" : "Customer";
@@ -328,7 +378,7 @@ function GoogleTrackMap({
             options={{
               suppressMarkers: true,
               polylineOptions: {
-                strokeColor: "#e07a3d",
+                strokeColor: "#FF6B35",
                 strokeWeight: 5,
                 strokeOpacity: 0.92,
               },

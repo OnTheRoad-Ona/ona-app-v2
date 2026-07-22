@@ -45,9 +45,10 @@ export function NotificationToasts() {
     shouldToastNotification(t.notification)
   );
 
-  const solid = isLight ? SOFT_WHITE : CHARCOAL;
+  // Match phone shell (#c8c9cd / black) — seamless, no bordered card look
+  const solid = isLight ? "#c8c9cd" : "#000000";
   const ink = isLight ? "#1a1b1e" : SOFT_WHITE;
-  const muted = isLight ? "#6B7280" : "rgba(255,255,255,0.65)";
+  const muted = isLight ? "#4b5563" : "rgba(255,255,255,0.65)";
   const accent = MESSAGE_ORANGE;
 
   const safePush = (n: AppNotification, tId: string) => {
@@ -98,7 +99,7 @@ export function NotificationToasts() {
         return (
           <div
             key={t.id}
-            className="pointer-events-auto w-full max-w-[360px] animate-[om-toast-in_0.28s_ease-out]"
+            className="pointer-events-auto w-full max-w-[360px] animate-[om-toast-in_0.28s_ease-out] rounded-xl border-0"
             style={{ backgroundColor: solid }}
             onTouchStart={(e) => {
               const y0 = e.touches[0]?.clientY ?? 0;
@@ -189,15 +190,34 @@ export function NotificationToasts() {
                       onClick={() => safePush(n, t.id)}
                     />
                   ) : null}
-                  {n.actionType === "view_payment" && !blocked ? (
+                  {n.actionType === "view_payment" ? (
                     <Action
                       label="Payments"
                       accent={accent}
                       onClick={() => {
+                        if (blocked) {
+                          safePush(n, t.id);
+                          return;
+                        }
                         void markRead([n.id]);
                         dismissToast(t.id);
                         router.push(n.href || "/payments/history");
                       }}
+                    />
+                  ) : null}
+                  {n.actionType === "rate" ? (
+                    <Action
+                      label="Rate"
+                      accent={accent}
+                      onClick={() => safePush(n, t.id)}
+                    />
+                  ) : null}
+                  {/* Generic href cards without a typed action */}
+                  {!n.actionType && n.href ? (
+                    <Action
+                      label={blocked ? "View" : "Open"}
+                      accent={accent}
+                      onClick={() => safePush(n, t.id)}
                     />
                   ) : null}
                   <button
@@ -227,9 +247,9 @@ export function NotificationToasts() {
         setExpiredOpen(false);
         setViewHref(null);
       }}
-      // View only for job-closed (not conversation ended)
+      // View whenever a read-only target was resolved
       onView={
-        expiredMsg === JOB_CLOSED_MESSAGE && viewHref
+        viewHref
           ? () => {
               const href = viewHref;
               setExpiredOpen(false);

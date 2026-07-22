@@ -1,4 +1,4 @@
-/* ── OgaMecho Super Admin — light / dark grey console ─────────────────────── */
+/* ── Ona Super Admin — light / dark grey console ─────────────────────── */
 /* Easy, high-contrast greys. No navy. Orange brand accent only. */
 
 .om-admin-root {
@@ -16,7 +16,7 @@
   --om-nav-active: #b8bac2;
   --om-input: #e2e3e7;
   --om-input-focus: #e8e9ed;
-  --om-accent: #ea580c;
+  --om-accent: #FF6B35;
   --om-accent-soft: #ffedd5;
   --om-success: #15803d;
   --om-success-bg: #dcfce7;
@@ -204,6 +204,64 @@
   text-align: left;
   cursor: pointer;
   width: 100%;
+}
+
+.om-admin-nav-link-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.om-admin-nav-count {
+  flex-shrink: 0;
+  min-width: 1.35rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--om-accent);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.25rem;
+  text-align: center;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--om-accent) 40%, transparent);
+}
+
+.om-admin-queue-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.55rem;
+  height: 1.35rem;
+  padding: 0 0.4rem;
+  margin-right: 0.4rem;
+  border-radius: 0.35rem;
+  background: #ff6b35;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  vertical-align: middle;
+}
+
+.om-admin-queue-num.muted {
+  background: var(--om-border);
+  color: var(--om-text-muted);
+}
+
+.om-admin-flag-resubmit {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: var(--om-warn-bg);
+  color: var(--om-warn);
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  vertical-align: middle;
 }
 
 .om-admin-nav a:hover {
@@ -464,7 +522,7 @@
 .om-admin-table td {
   padding: 0.65rem 0.75rem;
   text-align: left;
-  border-bottom: 1px solid var(--om-border-soft);
+  border-bottom: none;
   vertical-align: top;
   word-break: break-word;
   overflow-wrap: anywhere;
@@ -687,7 +745,7 @@
   justify-content: space-between;
   gap: 0.75rem;
   padding: 1rem 1rem 0.75rem;
-  border-bottom: 1px solid var(--om-border-soft);
+  border-bottom: none;
   flex-shrink: 0;
 }
 
@@ -714,7 +772,7 @@
 .om-admin-drawer-foot {
   flex-shrink: 0;
   padding: 0.85rem 1rem;
-  border-top: 1px solid var(--om-border-soft);
+  border-top: none;
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
@@ -757,13 +815,39 @@
 
 .om-admin-section {
   margin-bottom: 1.1rem;
-  padding-bottom: 0.85rem;
-  border-bottom: 1px solid var(--om-border-soft);
+  padding-bottom: 0.35rem;
+  border-bottom: none;
 }
 
 .om-admin-section:last-child {
   border-bottom: none;
   margin-bottom: 0;
+}
+
+/* Soft empty placeholder — no dash glyphs */
+.om-admin-empty {
+  color: var(--om-text-faint);
+  font-weight: 500;
+  font-style: normal;
+}
+
+/* Blended notice (care callouts / re-verify) — no border, theme-safe grey */
+.om-admin-notice {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--om-nav) 72%, var(--om-panel-2));
+  color: var(--om-text);
+  font-weight: 650;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.om-admin-notice strong {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-weight: 800;
 }
 
 .om-admin-section h3 {
@@ -819,26 +903,56 @@
 }
 .om-admin-badge.pending,
 .om-admin-badge.draft,
-.om-admin-badge.requested {
-  background: var(--om-warn-bg);
-  color: var(--om-warn);
+.om-admin-badge.requested,
+.om-admin-badge.submitted {
+  background: #fef3c7;
+  color: #b45309;
   border-color: transparent;
+  font-weight: 700;
+}
+.om-admin-root[data-theme="dark"] .om-admin-badge.pending,
+.om-admin-root[data-theme="dark"] .om-admin-badge.submitted {
+  background: #78350f;
+  color: #fcd34d;
 }
 .om-admin-badge.approved,
 .om-admin-badge.paid,
 .om-admin-badge.completed,
 .om-admin-badge.available {
-  background: var(--om-success-bg);
-  color: var(--om-success);
+  background: #d1fae5;
+  color: #047857;
   border-color: transparent;
+  font-weight: 700;
+}
+.om-admin-root[data-theme="dark"] .om-admin-badge.approved {
+  background: #064e3b;
+  color: #6ee7b7;
 }
 .om-admin-badge.suspended,
 .om-admin-badge.rejected,
 .om-admin-badge.failed,
 .om-admin-badge.cancelled {
-  background: var(--om-danger-bg);
-  color: var(--om-danger);
+  background: #fee2e2;
+  color: #b91c1c;
   border-color: transparent;
+  font-weight: 700;
+}
+.om-admin-root[data-theme="dark"] .om-admin-badge.rejected,
+.om-admin-root[data-theme="dark"] .om-admin-badge.suspended {
+  background: #7f1d1d;
+  color: #fca5a5;
+}
+.om-admin-badge.neutral {
+  background: #e5e7eb;
+  color: #4b5563;
+  border-color: transparent;
+}
+.om-admin-root[data-theme="dark"] .om-admin-badge.neutral {
+  background: #374151;
+  color: #d1d5db;
+}
+.om-admin-row-unattended {
+  box-shadow: inset 3px 0 0 #ff6b35;
 }
 
 .om-admin-login {

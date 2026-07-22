@@ -3,7 +3,7 @@
 /**
  * NotificationCenter — icon filter tabs, gated job/chat/payment open,
  * soft light chrome, near-square cards.
- * Light theme accents: Message orange #FF6B35. Dark: copper #C5A46E.
+ * Light theme accents: Message orange #FF6B35. Dark: copper #FF6B35.
  */
 
 import { useMemo, useState } from "react";
@@ -35,7 +35,6 @@ import { useNotifications } from "@/components/notifications/notification-provid
 import { ExpiredDialog } from "@/components/ui/expired-dialog";
 import {
   CONVERSATION_ENDED_MESSAGE,
-  JOB_CLOSED_MESSAGE,
   messageThreadIdFromHref,
   readOnlyChatHref,
 } from "@/lib/chat-expired";
@@ -446,9 +445,9 @@ export function NotificationCenter() {
             setBlockMsg(null);
             setViewHref(null);
           }}
-          // View only for job-closed (not conversation ended)
+          // View when we have a read-only target (job summary or closed chat)
           onView={
-            blockMsg === JOB_CLOSED_MESSAGE && viewHref
+            viewHref
               ? () => {
                   const href = viewHref;
                   setBlockMsg(null);

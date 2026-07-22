@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Seed the single Super Admin for OgaMecho.
+ * Seed the single Super Admin for Ona.
  * Requires SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY in env (.env.local).
  *
  * Usage: node scripts/seed-admin.mjs

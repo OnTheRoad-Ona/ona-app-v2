@@ -1,7 +1,7 @@
 import type { DisputeReason, JobFlowStatus } from "@/lib/jobs/types";
 
 /** Copper brand accent used in job UI */
-export const JOB_COPPER = "#e07a3d";
+export const JOB_COPPER = "#FF6B35";
 export const JOB_NAVY = "#0f172a";
 
 /**
@@ -25,6 +25,75 @@ export const ARRIVAL_DISTANCE_METERS = 150;
 
 /** Appeal window after first dispute decision */
 export const APPEAL_WINDOW_MS = 48 * 60 * 60 * 1000;
+
+/**
+ * After payment (Booked), job must reach completed within this window.
+ * Otherwise auto-cancel + full refund to customer.
+ * Timer starts at paidAt (PAYMENT_SUCCESS → paid_booked).
+ */
+export const BOOKED_COMPLETION_WINDOW_MS = 6 * 60 * 60 * 1000;
+
+/** Statuses that are still “open” after payment and subject to the 6h rule */
+export const BOOKED_AUTO_CANCEL_STATUSES = [
+  "paid_booked",
+  "en_route",
+  "arrived",
+  "in_progress",
+] as const;
+
+export type BookedAutoCancelStatus =
+  (typeof BOOKED_AUTO_CANCEL_STATUSES)[number];
+
+export function isBookedAutoCancelStatus(
+  status: string | null | undefined
+): status is BookedAutoCancelStatus {
+  return (BOOKED_AUTO_CANCEL_STATUSES as readonly string[]).includes(
+    String(status || "")
+  );
+}
+
+/**
+ * When payment hit the clock for the 6h completion window.
+ * Prefer paidAt; else first paid_booked history entry.
+ */
+export function bookedPaymentStartMs(job: {
+  paidAt?: string | null;
+  status?: string;
+  updatedAt?: string;
+  createdAt?: string;
+  statusHistory?: { status: string; at: string }[];
+}): number | null {
+  if (job.paidAt) {
+    const t = new Date(job.paidAt).getTime();
+    if (Number.isFinite(t)) return t;
+  }
+  const hit = job.statusHistory?.find((h) => h.status === "paid_booked");
+  if (hit?.at) {
+    const t = new Date(hit.at).getTime();
+    if (Number.isFinite(t)) return t;
+  }
+  // Legacy rows without paid_at: only if still sitting on Booked
+  if (job.status === "paid_booked" && job.updatedAt) {
+    const t = new Date(job.updatedAt).getTime();
+    if (Number.isFinite(t)) return t;
+  }
+  return null;
+}
+
+/** True when paid job is still mid-trip and past 6h from payment */
+export function isBookedPastCompletionDeadline(
+  job: {
+    status: string;
+    paidAt?: string | null;
+    statusHistory?: { status: string; at: string }[];
+  },
+  nowMs: number = Date.now()
+): boolean {
+  if (!isBookedAutoCancelStatus(job.status)) return false;
+  const start = bookedPaymentStartMs(job);
+  if (start == null) return false;
+  return nowMs - start >= BOOKED_COMPLETION_WINDOW_MS;
+}
 
 /** Platform / pro split on release */
 export const PLATFORM_FEE_PERCENT = 5;
@@ -50,7 +119,7 @@ export const TRIP_STATUS_COPY: Partial<
     subtitle: "Repair Pro will start the trip soon",
   },
   en_route: {
-    title: "Repair Pro is on the way",
+    title: "Repair Pro is OnTheRoad",
     subtitle: "Heading to your location",
   },
   arrived: {
@@ -100,8 +169,8 @@ export const PRO_TRIP_STATUS_COPY: Partial<
     subtitle: "Start trip when you leave for the motorist",
   },
   en_route: {
-    title: "On the road",
-    subtitle: "Drive to the motorist mark arrived when there",
+    title: "OnTheRoad",
+    subtitle: "Drive to the motorist · mark arrived when there",
   },
   arrived: {
     title: "You’ve arrived",

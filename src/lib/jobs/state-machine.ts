@@ -1,6 +1,6 @@
 /**
  * Pure escrow job state machine — no I/O.
- * Enforces legal transitions for OgaMecho premium job flow.
+ * Enforces legal transitions for Ona premium job flow.
  */
 
 import type { JobFlowStatus, OfferSide } from "@/lib/jobs/types";
@@ -54,10 +54,13 @@ const ALLOWED: Record<JobFlowStatus, Partial<Record<TransitionEvent["type"], Job
   arrived: {
     START_WORK: "in_progress",
     OPEN_DISPUTE: "disputed",
+    /** System 6h auto-cancel or motorist cancel → full refund */
+    CANCEL: "cancelled",
   },
   in_progress: {
     MARK_COMPLETED: "completed",
     OPEN_DISPUTE: "disputed",
+    CANCEL: "cancelled",
   },
   completed: {
     SATISFIED: "satisfied",
@@ -115,8 +118,14 @@ export function nextStatus(
     if (event.outcome === "refund") return "refunded";
     return "released"; // full release or split still ends as released (split stored on dispute)
   }
-  if (event.type === "CANCEL" && (from === "paid_booked" || from === "en_route")) {
-    // Money returns to motorist
+  if (
+    event.type === "CANCEL" &&
+    (from === "paid_booked" ||
+      from === "en_route" ||
+      from === "arrived" ||
+      from === "in_progress")
+  ) {
+    // Money returns to motorist (full refund path in job-store)
     return "cancelled";
   }
   if (event.type === "OPEN_DISPUTE") return "disputed";
@@ -254,7 +263,13 @@ export function actorMay(
     case "EXPIRE_NEGOTIATION":
       return actor === "system" || actor === "motorist" || actor === "admin";
     case "CANCEL":
-      return actor === "motorist" || actor === "repair_pro" || actor === "admin";
+      // system = 6h booked auto-cancel + refund
+      return (
+        actor === "motorist" ||
+        actor === "repair_pro" ||
+        actor === "admin" ||
+        actor === "system"
+      );
     case "OPEN_DISPUTE":
       return actor === "motorist" || actor === "repair_pro";
     case "RESOLVE_DISPUTE":

@@ -11,13 +11,20 @@ function CallbackInner() {
   const params = useSearchParams();
   const { theme } = useApp();
   const isLight = theme === "light";
+
+  // Flutterwave returns tx_ref / status; we also pass ref= on redirect_url
   const ref =
     params.get("ref") ||
+    params.get("tx_ref") ||
     params.get("reference") ||
     params.get("trxref") ||
     "";
+  const jobId = params.get("jobId") || "";
+  const flwStatus = (params.get("status") || "").toLowerCase();
+
   const [status, setStatus] = useState<"loading" | "ok" | "fail">("loading");
   const [message, setMessage] = useState("Verifying payment…");
+  const [bookedJobId, setBookedJobId] = useState<string | null>(jobId || null);
 
   useEffect(() => {
     if (!ref) {
@@ -25,6 +32,12 @@ function CallbackInner() {
       setMessage("Missing payment reference.");
       return;
     }
+    if (flwStatus === "cancelled" || flwStatus === "failed") {
+      setStatus("fail");
+      setMessage("Payment was cancelled or failed. You can try again from the job.");
+      return;
+    }
+
     let cancelled = false;
     (async () => {
       try {
@@ -37,8 +50,14 @@ function CallbackInner() {
         if (cancelled) return;
         if (json?.ok) {
           setStatus("ok");
+          const jid =
+            json.data?.job?.id ||
+            jobId ||
+            json.data?.payment?.requestId ||
+            null;
+          setBookedJobId(jid);
           setMessage(
-            "Payment held in escrow. Funds release when both you and the Repair Pro mark the job complete."
+            "Payment held in escrow. Job is Booked. Funds release when the job is completed."
           );
         } else {
           setStatus("fail");
@@ -54,7 +73,7 @@ function CallbackInner() {
     return () => {
       cancelled = true;
     };
-  }, [ref]);
+  }, [ref, flwStatus, jobId]);
 
   const sheet = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const ink = isLight ? "text-slate-900" : "text-white";
@@ -74,9 +93,18 @@ function CallbackInner() {
       )}
       {status === "fail" && <XCircle className="h-12 w-12 text-red-500" />}
       <p className={cn("text-[15px] font-bold", ink)}>{message}</p>
-      {ref && (
+      {ref ? (
         <p className="text-[11px] text-brand">Ref · {ref}</p>
-      )}
+      ) : null}
+      {status === "ok" && bookedJobId ? (
+        <button
+          type="button"
+          onClick={() => router.replace(`/jobs/${bookedJobId}`)}
+          className="mt-2 rounded-xl border-0 bg-[#FF6B35] px-4 py-2.5 text-[13px] font-bold text-white"
+        >
+          Open booked job
+        </button>
+      ) : null}
       <button
         type="button"
         onClick={() => router.push("/requests")}

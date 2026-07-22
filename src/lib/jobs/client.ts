@@ -34,6 +34,22 @@ export async function apiGetJob(id: string) {
   return parse<{ job: JobRecord }>(res);
 }
 
+/**
+ * Server sweep: Booked jobs not completed within 6h of payment →
+ * cancel + full refund. Safe no-op when none are overdue.
+ */
+export async function apiExpireStaleBookedJobs() {
+  const res = await fetch("/api/jobs/expire-stale", {
+    method: "POST",
+    cache: "no-store",
+  });
+  return parse<{
+    checked: number;
+    cancelled: number;
+    ids: string[];
+  }>(res);
+}
+
 export async function apiListJobs(
   userId: string,
   role: "motorist" | "repair_pro"
@@ -83,17 +99,35 @@ export async function apiPayJob(input: {
   jobId: string;
   motoristId: string;
   email?: string;
+  customerName?: string;
+  customerPhone?: string;
+  /** Force mock (dev only). Default: live Flutterwave when keys exist */
+  provider?: "mock" | "flutterwave" | "paystack";
 }) {
+  const returnOrigin =
+    typeof window !== "undefined" ? window.location.origin : undefined;
   const res = await fetch(`/api/jobs/${input.jobId}/pay`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       motoristId: input.motoristId,
       email: input.email,
-      provider: "mock",
+      customerName: input.customerName,
+      customerPhone: input.customerPhone,
+      provider: input.provider,
+      returnOrigin,
     }),
   });
-  return parse<{ job: JobRecord; reference: string; message?: string }>(res);
+  return parse<{
+    job?: JobRecord;
+    jobId?: string;
+    reference: string;
+    message?: string;
+    provider?: string;
+    /** Present for real Flutterwave — client must redirect */
+    authorizationUrl?: string;
+    platformSubaccount?: string | null;
+  }>(res);
 }
 
 export async function apiTransition(input: {

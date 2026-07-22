@@ -227,7 +227,7 @@ export const EN = {
   "requests.new": "New request",
   "job.status.requested": "Requested",
   "job.status.accepted": "Accepted",
-  "job.status.enRoute": "On the way",
+  "job.status.enRoute": "OnTheRoad",
   "job.status.inProgress": "In progress",
   "job.status.completed": "Completed",
   "job.status.cancelled": "Cancelled",

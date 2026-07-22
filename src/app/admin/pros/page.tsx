@@ -5,7 +5,13 @@
  * Clean table, file thumbs in row, detail drawer for everything.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
 import {
@@ -28,6 +34,8 @@ type DirRow = {
   role: string;
   is_active: boolean;
   created_at: string;
+  gender?: string | null;
+  date_of_birth?: string | null;
   repair_pro_profiles: {
     status: string;
     primary_service: string;
@@ -77,6 +85,17 @@ type ReviewRow = {
     created_at: string;
   }>;
   needs_action: boolean;
+  /** Entry-order queue # among open care items (earliest = 1) */
+  queue_number?: number | null;
+  needs_resubmit?: boolean;
+  rejection_reason?: string | null;
+  specialty?: string | null;
+  care_gaps?: {
+    missing_id_media?: boolean;
+    missing_id_number?: boolean;
+    missing_skill_doc?: boolean;
+    missing_liveness?: boolean;
+  };
   levels: {
     t1_phone: { status: string; verified: boolean; phone: string | null };
     t2_id: {
@@ -144,7 +163,147 @@ function mediaUrlsFromUnknown(v: unknown): string[] {
       })
       .filter((u) => u.length > 8);
   }
+  if (typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    return mediaUrlsFromUnknown(o.url || o.src || o.dataUrl || o.photo);
+  }
   return [];
+}
+
+function humanizeKey(k: string): string {
+  return k
+    .replace(/([A-Z])/g, " $1")
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^./, (c) => c.toUpperCase());
+}
+
+/** Human labels for skill / focus maps — never dump raw JSON to care. */
+function formatAnswerValue(v: unknown): string {
+  if (v == null || v === "" || v === "—" || v === "-") return "";
+  if (typeof v === "boolean") return v ? "Yes" : "No";
+  if (typeof v === "number") return String(v);
+  if (typeof v === "string") {
+    if (v.startsWith("data:") || v.length > 200) return "File attached";
+    return v;
+  }
+  if (Array.isArray(v)) {
+    if (!v.length) return "";
+    return v
+      .map((x) => formatAnswerValue(x))
+      .filter(Boolean)
+      .join(", ");
+  }
+  if (typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    if (o.name || o.hasFile || o.dataUrl || o.url) {
+      return String(o.name || "File uploaded");
+    }
+    const parts = Object.entries(o)
+      .filter(([key]) => !["dataUrl", "mime", "hasFile"].includes(key))
+      .map(([key, val]) => {
+        const fv = formatAnswerValue(val);
+        return fv ? `${humanizeKey(key)}: ${fv}` : "";
+      })
+      .filter(Boolean);
+    return parts.length ? parts.join(" · ") : "";
+  }
+  return String(v);
+}
+
+function skillRows(skills: unknown): { label: string; value: string }[] {
+  if (!skills || typeof skills !== "object" || Array.isArray(skills)) return [];
+  return Object.entries(skills as Record<string, unknown>)
+    .filter(([k]) => k !== "certificationUpload") // shown in media section
+    .map(([k, v]) => ({ label: humanizeKey(k), value: formatAnswerValue(v) }));
+}
+
+function focusRows(
+  focus: unknown,
+  trade?: string | null
+): { label: string; value: string }[] {
+  if (!focus || typeof focus !== "object" || Array.isArray(focus)) return [];
+  const o = focus as Record<string, unknown>;
+  const vehicleTrades = new Set([
+    "mechanic",
+    "vulcanizer",
+    "towing",
+    "battery",
+    "panel",
+    "ac",
+  ]);
+  const isVehicle = trade ? vehicleTrades.has(trade) : false;
+  const preferred = isVehicle
+    ? [
+        "servedVehicleType",
+        "servedBrand",
+        "servedModel",
+        "servedCountry",
+        "servedLocation",
+      ]
+    : ["specialty", "trade", "servedCountry", "servedLocation"];
+  const rows: { label: string; value: string }[] = [];
+  const used = new Set<string>();
+  for (const k of preferred) {
+    if (o[k] != null && o[k] !== "") {
+      const label =
+        k === "servedVehicleType"
+          ? "Vehicle type"
+          : k === "servedBrand"
+            ? "Brand"
+            : k === "servedModel"
+              ? "Model"
+              : k === "servedCountry"
+                ? "Country"
+                : k === "servedLocation"
+                  ? "Area"
+                  : humanizeKey(k);
+      // Skip duplicate specialty-as-vehicle noise for home trades
+      if (
+        !isVehicle &&
+        (k === "servedVehicleType" ||
+          k === "servedBrand" ||
+          k === "servedModel") &&
+        String(o[k]) === String(o.specialty || "")
+      ) {
+        continue;
+      }
+      rows.push({ label, value: formatAnswerValue(o[k]) });
+      used.add(k);
+    }
+  }
+  for (const [k, v] of Object.entries(o)) {
+    if (used.has(k)) continue;
+    if (
+      !isVehicle &&
+      ["servedVehicleType", "servedBrand", "servedModel", "servedMake"].includes(
+        k
+      )
+    ) {
+      // Hide polluted vehicle fields on home trades when they equal specialty
+      if (String(v) === String(o.specialty || "")) continue;
+    }
+    rows.push({ label: humanizeKey(k), value: formatAnswerValue(v) });
+  }
+  return rows;
+}
+
+function priceRows(prices: unknown): { label: string; value: string }[] {
+  if (!prices || typeof prices !== "object" || Array.isArray(prices)) return [];
+  return Object.entries(prices as Record<string, unknown>)
+    .filter(([, v]) => v != null && v !== "")
+    .map(([k, v]) => ({
+      label: humanizeKey(k),
+      value:
+        typeof v === "number"
+          ? `₦${v.toLocaleString()}`
+          : formatAnswerValue(v),
+    }));
+}
+
+function CareCallout({ children }: { children: ReactNode }) {
+  return <div className="om-admin-notice">{children}</div>;
 }
 
 type Tab = "directory" | "review";
@@ -338,6 +497,7 @@ export default function AdminProsHubPage() {
                 [
                   ["all", "All"],
                   ["needs_action", "Needs action"],
+                  ["resubmit", "Re-submit"],
                   ["t2_pending", "T2 pending"],
                   ["t4_pending", "T4 pending"],
                 ] as const
@@ -400,13 +560,13 @@ export default function AdminProsHubPage() {
                         <td>
                           <strong>{u.full_name}</strong>
                           <div className="om-admin-muted">
-                            {p?.business_name || "—"}
+                            {p?.business_name || ""}
                           </div>
                           <div className="om-admin-muted">
                             {u.email || u.phone || ""}
                           </div>
                         </td>
-                        <td>{p?.primary_service || "—"}</td>
+                        <td>{p?.primary_service || ""}</td>
                         <td>
                           <StatusBadge
                             status={p?.is_online ? "online" : "inactive"}
@@ -486,6 +646,7 @@ export default function AdminProsHubPage() {
             <table className="om-admin-table">
               <thead>
                 <tr>
+                  <th>#</th>
                   <th>Pro</th>
                   <th>Trade</th>
                   <th>Tiers</th>
@@ -497,7 +658,7 @@ export default function AdminProsHubPage() {
               <tbody>
                 {reviewRows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="om-admin-muted">
+                    <td colSpan={7} className="om-admin-muted">
                       No pros in this filter.
                     </td>
                   </tr>
@@ -514,15 +675,32 @@ export default function AdminProsHubPage() {
                         }
                       >
                         <td>
+                          {p.queue_number != null ? (
+                            <span
+                              className="om-admin-queue-num"
+                              title="Entry sequence (earliest open item = #1)"
+                            >
+                              #{p.queue_number}
+                            </span>
+                          ) : (
+                            <span className="om-admin-empty"> </span>
+                          )}
+                        </td>
+                        <td>
                           <strong>{p.full_name}</strong>
+                          {p.needs_resubmit ? (
+                            <span className="om-admin-flag-resubmit">
+                              Re-submit
+                            </span>
+                          ) : null}
                           <div className="om-admin-muted">
-                            {p.business_name || "—"}
+                            {p.business_name || ""}
                           </div>
                           <div className="om-admin-muted">
                             {p.email || p.phone || ""}
                           </div>
                         </td>
-                        <td>{p.primary_service || "—"}</td>
+                        <td>{p.primary_service || ""}</td>
                         <td style={{ fontSize: 11, maxWidth: "none" }}>
                           <StatusBadge status={L.t2_id.status}>T2</StatusBadge>{" "}
                           <StatusBadge status={L.t3_liveness.status}>
@@ -530,7 +708,7 @@ export default function AdminProsHubPage() {
                           </StatusBadge>{" "}
                           <StatusBadge status={L.t4_docs.status}>T4</StatusBadge>
                           <div className="om-admin-muted">
-                            {p.status} · {p.pipeline_status || "—"}
+                            {p.status} · {p.pipeline_status || ""}
                           </div>
                         </td>
                         <td className="om-admin-td-files">
@@ -588,6 +766,25 @@ export default function AdminProsHubPage() {
                             >
                               Approve T4
                             </button>
+                            {!p.needs_resubmit ? (
+                              <button
+                                type="button"
+                                className="om-admin-btn ghost"
+                                disabled={busyId === p.user_id}
+                                onClick={() =>
+                                  void actReview(
+                                    p.user_id,
+                                    "pro_request_resubmit",
+                                    {
+                                      reason:
+                                        "Care: please re-submit ID and skill documents.",
+                                    }
+                                  )
+                                }
+                              >
+                                Flag re-submit
+                              </button>
+                            ) : null}
                           </div>
                         </td>
                       </tr>
@@ -652,6 +849,26 @@ export default function AdminProsHubPage() {
             <h3>Account</h3>
             <DetailGrid>
               <DetailField label="Name" value={selectedDir.full_name} />
+              <DetailField
+                label="Gender"
+                value={
+                  selectedDir.gender === "male"
+                    ? "Male"
+                    : selectedDir.gender === "female"
+                      ? "Female"
+                      : selectedDir.gender === "prefer_not_to_say"
+                        ? "Prefer not to say"
+                        : ""
+                }
+              />
+              <DetailField
+                label="Date of birth"
+                value={
+                  selectedDir.date_of_birth
+                    ? String(selectedDir.date_of_birth).slice(0, 10)
+                    : ""
+                }
+              />
               <DetailField label="Email" value={selectedDir.email} />
               <DetailField label="Phone" value={selectedDir.phone} />
               <DetailField
@@ -703,7 +920,7 @@ export default function AdminProsHubPage() {
         title={selectedReview?.full_name || "Review"}
         subtitle={
           selectedReview
-            ? `${selectedReview.primary_service || "—"} · ${selectedReview.status}`
+            ? `${selectedReview.primary_service || ""} · ${selectedReview.status}`
             : undefined
         }
         onClose={() => setSelectedId(null)}
@@ -737,24 +954,6 @@ export default function AdminProsHubPage() {
               >
                 Approve T4 docs
               </button>
-              {([2, 3, 4] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  className="om-admin-btn ghost"
-                  disabled={
-                    busyId === selectedReview.user_id ||
-                    selectedReview.levels.visibility.tier >= t
-                  }
-                  onClick={() =>
-                    void actReview(selectedReview.user_id, "pro_visibility", {
-                      visibilityTier: t,
-                    })
-                  }
-                >
-                  Vis T{t}
-                </button>
-              ))}
               <button
                 type="button"
                 className="om-admin-btn ghost"
@@ -766,6 +965,74 @@ export default function AdminProsHubPage() {
                 }
               >
                 Reject T2
+              </button>
+              {selectedReview.levels.t2_id.status !== "approved" ? (
+                <button
+                  type="button"
+                  className="om-admin-btn ghost"
+                  disabled={busyId === selectedReview.user_id}
+                  title="Clear unapproved ID so pro can re-upload from the app"
+                  onClick={() => {
+                    if (
+                      !window.confirm(
+                        "Reset Tier 2 ID for this pro? They must re-submit ID from the app. Already-approved tiers are not touched."
+                      )
+                    )
+                      return;
+                    void actReview(selectedReview.user_id, "pro_t2_reset", {
+                      reason:
+                        "Care reset T2. Please re-submit government ID in the app.",
+                    });
+                  }}
+                >
+                  Reset T2 (re-verify)
+                </button>
+              ) : null}
+              {selectedReview.levels.t4_docs.status !== "approved" ? (
+                <button
+                  type="button"
+                  className="om-admin-btn ghost"
+                  disabled={busyId === selectedReview.user_id}
+                  title="Clear unapproved skill docs so pro can re-upload"
+                  onClick={() => {
+                    if (
+                      !window.confirm(
+                        "Reset Tier 4 skill docs? They must re-submit skill proof from the app."
+                      )
+                    )
+                      return;
+                    void actReview(selectedReview.user_id, "pro_t4_reset", {
+                      reason:
+                        "Care reset T4. Please re-submit skill documents in the app.",
+                    });
+                  }}
+                >
+                  Reset T4 (re-verify)
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="om-admin-btn ghost"
+                disabled={busyId === selectedReview.user_id}
+                title="Reset every verification step that is not yet approved"
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      "Reset all unapproved verification tiers? Approved tiers stay. Pro can start those steps again in the app."
+                    )
+                  )
+                    return;
+                  void actReview(
+                    selectedReview.user_id,
+                    "pro_reset_unapproved",
+                    {
+                      reason:
+                        "Care reset unapproved tiers. Complete verification again in the app.",
+                    }
+                  );
+                }}
+              >
+                Reset all unapproved
               </button>
             </>
           ) : null
@@ -790,7 +1057,7 @@ export default function AdminProsHubPage() {
                   value={
                     Array.isArray(selectedReview.services)
                       ? selectedReview.services.join(", ")
-                      : "—"
+                      : ""
                   }
                 />
                 <DetailField label="Email" value={selectedReview.email} />
@@ -811,7 +1078,7 @@ export default function AdminProsHubPage() {
                   value={
                     selectedReview.service_radius_km != null
                       ? String(selectedReview.service_radius_km)
-                      : "—"
+                      : ""
                   }
                 />
                 <DetailField
@@ -828,88 +1095,122 @@ export default function AdminProsHubPage() {
                 />
               </DetailGrid>
             </div>
+            {(selectedReview.care_gaps?.missing_id_media ||
+              selectedReview.care_gaps?.missing_skill_doc ||
+              selectedReview.needs_resubmit) && (
+              <div className="om-admin-section">
+                <h3>Care action needed</h3>
+                {selectedReview.care_gaps?.missing_id_media ? (
+                  <CareCallout>
+                    No ID photo on the server. Ask this pro to open Verification
+                    → re-upload government ID (front photo). Status alone is not
+                    enough to approve.
+                  </CareCallout>
+                ) : null}
+                {selectedReview.care_gaps?.missing_skill_doc ? (
+                  <CareCallout>
+                    Skill document missing. Ask them to submit skill proof from
+                    artisan Verification / onboarding.
+                  </CareCallout>
+                ) : null}
+                {selectedReview.needs_resubmit ? (
+                  <CareCallout>
+                    Flagged for re-submit
+                    {selectedReview.rejection_reason
+                      ? `: ${selectedReview.rejection_reason}`
+                      : "."}
+                  </CareCallout>
+                ) : null}
+              </div>
+            )}
+
             <div className="om-admin-section">
-              <h3>Skills · focus · pricing</h3>
-              <DetailGrid>
-                <DetailField
-                  label="Skills / answers"
-                  value={
-                    <pre
-                      style={{
-                        margin: 0,
-                        fontSize: 11,
-                        whiteSpace: "pre-wrap",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {JSON.stringify(selectedReview.skills ?? {}, null, 2)}
-                    </pre>
-                  }
-                />
-                <DetailField
-                  label="Vehicles served"
-                  value={
-                    <pre
-                      style={{
-                        margin: 0,
-                        fontSize: 11,
-                        whiteSpace: "pre-wrap",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {JSON.stringify(
-                        selectedReview.vehicle_focus ?? {},
-                        null,
-                        2
-                      )}
-                    </pre>
-                  }
-                />
-                <DetailField
-                  label="Labour prices"
-                  value={
-                    <pre
-                      style={{
-                        margin: 0,
-                        fontSize: 11,
-                        whiteSpace: "pre-wrap",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {JSON.stringify(
-                        selectedReview.labour_prices ?? {},
-                        null,
-                        2
-                      )}
-                    </pre>
-                  }
-                />
-                <DetailField
-                  label="Tools"
-                  value={
-                    Array.isArray(selectedReview.tools)
-                      ? (selectedReview.tools as string[]).join(", ")
-                      : JSON.stringify(selectedReview.tools ?? "—")
-                  }
-                />
-                <DetailField
-                  label="Guarantor"
-                  value={
-                    <pre
-                      style={{
-                        margin: 0,
-                        fontSize: 11,
-                        whiteSpace: "pre-wrap",
-                      }}
-                    >
-                      {JSON.stringify(selectedReview.guarantor ?? {}, null, 2)}
-                    </pre>
-                  }
-                />
-              </DetailGrid>
+              <h3>Skills & specialty</h3>
+              {selectedReview.specialty ? (
+                <DetailGrid>
+                  <DetailField
+                    label="Specialty"
+                    value={selectedReview.specialty}
+                  />
+                </DetailGrid>
+              ) : null}
+              {skillRows(selectedReview.skills).length === 0 ? (
+                <p className="om-admin-muted">No skill answers on file.</p>
+              ) : (
+                <DetailGrid>
+                  {skillRows(selectedReview.skills).map((r) => (
+                    <DetailField key={r.label} label={r.label} value={r.value} />
+                  ))}
+                </DetailGrid>
+              )}
             </div>
+
             <div className="om-admin-section">
-              <h3>Portfolio & docs media</h3>
+              <h3>
+                {["mechanic", "vulcanizer", "towing", "battery", "panel", "ac"].includes(
+                  String(selectedReview.primary_service || "")
+                )
+                  ? "Vehicles & area"
+                  : "Service focus & area"}
+              </h3>
+              {focusRows(
+                selectedReview.vehicle_focus,
+                selectedReview.primary_service
+              ).length === 0 ? (
+                <p className="om-admin-muted">No focus details on file.</p>
+              ) : (
+                <DetailGrid>
+                  {focusRows(
+                    selectedReview.vehicle_focus,
+                    selectedReview.primary_service
+                  ).map((r) => (
+                    <DetailField key={r.label} label={r.label} value={r.value} />
+                  ))}
+                </DetailGrid>
+              )}
+            </div>
+
+            <div className="om-admin-section">
+              <h3>Labour prices</h3>
+              {priceRows(selectedReview.labour_prices).length === 0 ? (
+                <p className="om-admin-muted">
+                  No labour prices set yet (optional at signup).
+                </p>
+              ) : (
+                <DetailGrid>
+                  {priceRows(selectedReview.labour_prices).map((r) => (
+                    <DetailField key={r.label} label={r.label} value={r.value} />
+                  ))}
+                </DetailGrid>
+              )}
+              {Array.isArray(selectedReview.tools) &&
+              (selectedReview.tools as unknown[]).length > 0 ? (
+                <DetailGrid>
+                  <DetailField
+                    label="Tools"
+                    value={(selectedReview.tools as string[]).join(", ")}
+                  />
+                </DetailGrid>
+              ) : null}
+              {selectedReview.guarantor &&
+              typeof selectedReview.guarantor === "object" &&
+              Object.keys(selectedReview.guarantor as object).length > 0 ? (
+                <DetailGrid>
+                  {Object.entries(
+                    selectedReview.guarantor as Record<string, unknown>
+                  ).map(([k, v]) => (
+                    <DetailField
+                      key={k}
+                      label={humanizeKey(k)}
+                      value={formatAnswerValue(v)}
+                    />
+                  ))}
+                </DetailGrid>
+              ) : null}
+            </div>
+
+            <div className="om-admin-section">
+              <h3>Documents & media</h3>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {portfolioUrls(selectedReview.portfolio).map((p) => (
                   <FileThumb
@@ -942,10 +1243,23 @@ export default function AdminProsHubPage() {
               </div>
               {portfolioUrls(selectedReview.portfolio).length === 0 &&
               !selectedReview.levels.t4_docs.file_url &&
-              !selectedReview.cac_document_url ? (
-                <p className="om-admin-muted">No portfolio/cert media.</p>
+              !selectedReview.cac_document_url &&
+              mediaUrlsFromUnknown(selectedReview.skill_proof).length === 0 ? (
+                <p className="om-admin-muted" style={{ marginTop: 8 }}>
+                  No portfolio / cert media on the server yet.
+                </p>
+              ) : null}
+              {selectedReview.levels.t4_docs.file_name &&
+              !selectedReview.levels.t4_docs.file_url ? (
+                <p className="om-admin-muted" style={{ marginTop: 6 }}>
+                  File name on record:{" "}
+                  <strong>{selectedReview.levels.t4_docs.file_name}</strong>.
+                  image bytes missing (too large or never uploaded). Ask for
+                  re-upload.
+                </p>
               ) : null}
             </div>
+
             <div className="om-admin-section">
               <h3>Tier 2 · ID</h3>
               <DetailGrid>
@@ -960,17 +1274,17 @@ export default function AdminProsHubPage() {
                 />
                 <DetailField
                   label="Type"
-                  value={selectedReview.levels.t2_id.gov_id_kind}
+                  value={selectedReview.levels.t2_id.gov_id_kind || ""}
                 />
                 <DetailField
                   label="ID number"
                   value={
                     <>
                       {showFull
-                        ? selectedReview.levels.t2_id.gov_id_number || "—"
+                        ? selectedReview.levels.t2_id.gov_id_number || ""
                         : selectedReview.levels.t2_id.gov_id_last4
                           ? `••••${selectedReview.levels.t2_id.gov_id_last4}`
-                          : "—"}{" "}
+                          : ""}{" "}
                       <button
                         type="button"
                         className="om-admin-btn ghost"
@@ -983,13 +1297,13 @@ export default function AdminProsHubPage() {
                   }
                 />
                 <DetailField
-                  label="BVN"
+                  label="BVN / bank ID"
                   value={
                     showFull
-                      ? selectedReview.levels.t2_id.bank_id_number || "—"
+                      ? selectedReview.levels.t2_id.bank_id_number || ""
                       : selectedReview.levels.t2_id.bank_id_last4
                         ? `••••${selectedReview.levels.t2_id.bank_id_last4}`
-                        : "—"
+                        : ""
                   }
                 />
                 <DetailField
@@ -997,6 +1311,13 @@ export default function AdminProsHubPage() {
                   value={fmtDate(selectedReview.levels.t2_id.submitted_at)}
                 />
               </DetailGrid>
+              {!selectedReview.levels.t2_id.front_url &&
+              !selectedReview.levels.t2_id.back_url ? (
+                <CareCallout>
+                  No ID photos. Do not approve T2 until front (and back if
+                  needed) are visible below after re-upload.
+                </CareCallout>
+              ) : null}
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <FileThumb
                   label="ID front"
@@ -1010,6 +1331,7 @@ export default function AdminProsHubPage() {
                 />
               </div>
             </div>
+
             <div className="om-admin-section">
               <h3>Tier 3 · Liveness</h3>
               <DetailGrid>
@@ -1035,7 +1357,13 @@ export default function AdminProsHubPage() {
                 url={selectedReview.levels.t3_liveness.selfie_url}
                 size="md"
               />
+              {!selectedReview.levels.t3_liveness.selfie_url ? (
+                <p className="om-admin-muted" style={{ marginTop: 6 }}>
+                  No selfie yet (optional until pro completes liveness in app).
+                </p>
+              ) : null}
             </div>
+
             <div className="om-admin-section">
               <h3>Tier 4 · Skill docs</h3>
               <DetailGrid>
@@ -1049,7 +1377,7 @@ export default function AdminProsHubPage() {
                 />
                 <DetailField
                   label="File"
-                  value={selectedReview.levels.t4_docs.file_name}
+                  value={selectedReview.levels.t4_docs.file_name || ""}
                 />
                 <DetailField
                   label="Submitted"
@@ -1057,24 +1385,70 @@ export default function AdminProsHubPage() {
                 />
               </DetailGrid>
               {selectedReview.levels.t4_docs.file_url ? (
-                <a
-                  className="om-admin-file-link"
-                  href={selectedReview.levels.t4_docs.file_url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open skill document
-                </a>
+                <div style={{ marginTop: 8 }}>
+                  <FileThumb
+                    label="Skill document"
+                    url={selectedReview.levels.t4_docs.file_url}
+                    size="lg"
+                  />
+                  <a
+                    className="om-admin-file-link"
+                    href={selectedReview.levels.t4_docs.file_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ display: "inline-block", marginTop: 6 }}
+                  >
+                    Open full size
+                  </a>
+                </div>
               ) : (
-                <span className="om-admin-muted">No skill file</span>
+                <CareCallout>
+                  No skill file on the server. Pro must use Verification → Submit
+                  skill for review (now saves to the queue).
+                </CareCallout>
               )}
             </div>
             <div className="om-admin-section">
-              <h3>Visibility</h3>
+              <h3>Search visibility (automatic · read-only)</h3>
+              <p className="om-admin-muted" style={{ marginBottom: 10 }}>
+                Care never sets this manually. Ladder:
+                <br />
+                <strong>T1</strong>: not in search
+                <br />
+                <strong>T2</strong>: after you <strong>Approve T2 ID</strong>{" "}
+                (limited · ~30% · 1 km · 30-day Go Live window)
+                <br />
+                <strong>T3</strong>: after pro passes{" "}
+                <strong>face liveness + BVN</strong> (wider · ~70% · 3 km · New
+                badge off · unlimited Go Live)
+                <br />
+                <strong>T4</strong>: after you{" "}
+                <strong>Approve T4 skill docs</strong>, only if T3 already
+                passed (full · 100% · 10 km)
+              </p>
               <DetailGrid>
                 <DetailField
-                  label="Tier"
-                  value={`T${selectedReview.levels.visibility.tier}`}
+                  label="Current reach"
+                  value={`T${selectedReview.levels.visibility.tier} · ${
+                    selectedReview.levels.visibility.tier === 1
+                      ? "Hidden (needs T2 ID approval)"
+                      : selectedReview.levels.visibility.tier === 2
+                        ? "Limited · ~30% · 1 km"
+                        : selectedReview.levels.visibility.tier === 3
+                          ? "Wider · ~70% · 3 km (liveness + BVN)"
+                          : "Full · 100% · 10 km"
+                  }`}
+                />
+                <DetailField
+                  label="T3 ready?"
+                  value={
+                    selectedReview.levels.t3_liveness?.verified &&
+                    selectedReview.levels.t2_id?.status === "approved"
+                      ? "Yes · liveness done · BVN with T2 package"
+                      : selectedReview.levels.t3_liveness?.verified
+                        ? "Liveness yes · needs T2/BVN"
+                        : "Waiting face liveness (+ BVN)"
+                  }
                 />
                 <DetailField
                   label="New badge"

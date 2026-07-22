@@ -50,9 +50,9 @@ function statusLabel(s: JobFlowStatus, isPro: boolean): string {
     case "agreed":
       return "Agreed";
     case "paid_booked":
-      return "Paid · Booked";
+      return "Booked";
     case "en_route":
-      return isPro ? "On the road" : "On the way";
+      return "OnTheRoad";
     case "arrived":
       return "Arrived";
     case "in_progress":
@@ -116,6 +116,12 @@ export default function RequestsPage() {
       setJobs([]);
       setLoading(false);
       return;
+    }
+    try {
+      const { apiExpireStaleBookedJobs } = await import("@/lib/jobs/client");
+      await apiExpireStaleBookedJobs();
+    } catch {
+      /* ignore */
     }
     const res = await apiListJobs(backendUserId, viewer);
     if (!res.ok) {
@@ -197,7 +203,7 @@ export default function RequestsPage() {
               className={cn(
                 "rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
                 isOpen
-                  ? "bg-[#e07a3d] text-white"
+                  ? "bg-[#FF6B35] text-white"
                   : isLight
                     ? "bg-transparent text-slate-700 ring-1 ring-black/15"
                     : "bg-transparent text-white/80 ring-1 ring-white/25"
@@ -240,7 +246,7 @@ export default function RequestsPage() {
       <div className="px-4 pb-1">
         <Link
           href="/jobs"
-          className="text-[12px] font-semibold text-[#e07a3d]"
+          className="text-[12px] font-semibold text-[#FF6B35]"
         >
           Open jobs inbox →
         </Link>
@@ -264,7 +270,7 @@ export default function RequestsPage() {
 
         {loading && (
           <div className="flex justify-center py-16">
-            <Loader2 className="h-6 w-6 animate-spin text-[#e07a3d]" />
+            <Loader2 className="h-6 w-6 animate-spin text-[#FF6B35]" />
           </div>
         )}
 
@@ -287,7 +293,7 @@ export default function RequestsPage() {
             {!isPro && (
               <Link
                 href="/"
-                className="mt-4 inline-flex h-11 items-center justify-center rounded-md bg-[#e07a3d] px-5 text-[13px] font-semibold text-white"
+                className="mt-4 inline-flex h-11 items-center justify-center rounded-md bg-[#FF6B35] px-5 text-[13px] font-semibold text-white"
               >
                 Find help nearby
               </Link>

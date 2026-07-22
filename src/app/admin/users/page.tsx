@@ -111,7 +111,7 @@ export default function AdminUsersPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Users & roles</h1>
       <p className="om-admin-sub">
-        All people on OgaMecho: admin · motorist · repair_pro. Live from
+        All people on Ona: admin · motorist · repair_pro. Live from
         Supabase (Vercel signups appear here). For full motorist tools use{" "}
         <a href="/admin/motorists">Customers</a>.
       </p>

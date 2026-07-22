@@ -19,7 +19,7 @@ export const DEFAULT_USER_LOCATION: UserLocation = {
 };
 
 /** localStorage key for last successful GPS fix */
-export const LAST_GPS_KEY = "oga-mecho-last-gps";
+export const LAST_GPS_KEY = "ona-last-gps";
 
 /** Pros within ~10 km (includes nearby car wash for Wash tab) */
 export const TECHNICIANS: Technician[] = [

@@ -45,6 +45,8 @@ export async function backendSignUp(input: {
   fullName: string;
   phone: string;
   accountType: AccountType;
+  gender: "male" | "female" | "prefer_not_to_say";
+  dateOfBirth: string;
   city?: string;
   area?: string;
   /** Repair pro */
@@ -103,6 +105,8 @@ export async function backendSignUp(input: {
         fullName: input.fullName,
         phone: input.phone,
         accountType: input.accountType,
+        gender: input.gender,
+        dateOfBirth: input.dateOfBirth,
         city: input.city,
         area: input.area,
         businessName: input.businessName,
@@ -235,6 +239,8 @@ export async function backendSignUp(input: {
       avatar_url: p.avatar_url ?? null,
       city: p.city,
       area: p.area,
+      gender: p.gender ?? input.gender,
+      date_of_birth: p.date_of_birth ?? input.dateOfBirth,
       is_active: p.is_active ?? true,
       created_at: p.created_at || new Date().toISOString(),
       updated_at: p.updated_at || new Date().toISOString(),
@@ -284,9 +290,17 @@ export async function backendUpdateProfile(
     });
     const json = (await res.json().catch(() => null)) as {
       ok?: boolean;
-      error?: { message?: string };
+      error?: { message?: string; code?: string };
     } | null;
-    if (!json?.ok) return json?.error?.message || "Could not save profile";
+    if (!json?.ok) {
+      if (json?.error?.code === "bank_account_in_use") {
+        return (
+          json.error.message ||
+          "This bank account is already linked to another Ona account."
+        );
+      }
+      return json?.error?.message || "Could not save profile";
+    }
     return null;
   } catch {
     return "Network error saving profile";
@@ -420,18 +434,20 @@ export async function backendSaveIdentityVerification(input: {
   return null;
 }
 
-/** Phone OTP login — session from server after Africa's Talking code verified */
-export async function backendSignInWithPhoneOtp(input: {
-  phone: string;
+/** Phone/email OTP login — session after code verified (demo 336699 always ok). */
+export async function backendSignInWithOtp(input: {
+  channel: "phone" | "email";
+  target: string;
   code: string;
   preferType?: AccountType;
 }): Promise<{ error: string | null; profile?: UserProfile; userId?: string }> {
   try {
-    const res = await fetch("/api/auth/phone/verify-otp", {
+    const res = await fetch("/api/auth/otp/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        phone: input.phone,
+        channel: input.channel,
+        target: input.target,
         code: input.code,
         preferType: input.preferType,
       }),
@@ -450,7 +466,7 @@ export async function backendSignInWithPhoneOtp(input: {
       return {
         error:
           json?.error?.message ||
-          "Phone login failed. Check the code and try again.",
+          "Login failed. Check the code and try again.",
       };
     }
 
@@ -472,36 +488,72 @@ export async function backendSignInWithPhoneOtp(input: {
       profile: json.data.userProfile,
     };
   } catch {
-    return { error: "Network error during phone login." };
+    return { error: "Network error during code login." };
+  }
+}
+
+/** @deprecated use backendSignInWithOtp */
+export async function backendSignInWithPhoneOtp(input: {
+  phone: string;
+  code: string;
+  preferType?: AccountType;
+}): Promise<{ error: string | null; profile?: UserProfile; userId?: string }> {
+  return backendSignInWithOtp({
+    channel: "phone",
+    target: input.phone,
+    code: input.code,
+    preferType: input.preferType,
+  });
+}
+
+export async function backendSendOtp(input: {
+  channel: "phone" | "email";
+  target: string;
+}): Promise<{ error: string | null; message?: string; demoCode?: string }> {
+  try {
+    const res = await fetch("/api/auth/otp/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        channel: input.channel,
+        target: input.target,
+      }),
+    });
+    const json = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      error?: { message?: string };
+      data?: { message?: string; demoCode?: string };
+    } | null;
+    if (!json?.ok) {
+      return { error: json?.error?.message || "Could not send code." };
+    }
+    return {
+      error: null,
+      message: json.data?.message,
+      demoCode: json.data?.demoCode,
+    };
+  } catch {
+    return { error: "Network error sending code." };
   }
 }
 
 export async function backendSendPhoneOtp(
   phone: string
-): Promise<{ error: string | null }> {
-  try {
-    const res = await fetch("/api/auth/phone/send-otp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone }),
-    });
-    const json = (await res.json().catch(() => null)) as {
-      ok?: boolean;
-      error?: { message?: string };
-    } | null;
-    if (!json?.ok) {
-      return { error: json?.error?.message || "Could not send code." };
-    }
-    return { error: null };
-  } catch {
-    return { error: "Network error sending SMS code." };
-  }
+): Promise<{ error: string | null; message?: string }> {
+  return backendSendOtp({ channel: "phone", target: phone });
 }
 
 export async function backendSignIn(
   email: string,
   password: string
-): Promise<{ error: string | null; profile?: UserProfile; userId?: string }> {
+): Promise<{
+  error: string | null;
+  profile?: UserProfile;
+  userId?: string;
+  hasMotorist?: boolean;
+  hasPro?: boolean;
+  primaryAccountType?: AccountType;
+}> {
   const cleanEmail = email.trim().toLowerCase();
 
   // Prefer server login (service-role profile + repair) — fixes Vercel/RLS login failures
@@ -517,6 +569,9 @@ export async function backendSignIn(
       data?: {
         userId?: string;
         profile?: UserProfile;
+        hasMotorist?: boolean;
+        hasPro?: boolean;
+        primaryAccountType?: AccountType;
         access_token?: string;
         refresh_token?: string;
       };
@@ -537,6 +592,9 @@ export async function backendSignIn(
         error: null,
         profile: json.data.profile,
         userId: json.data.userId,
+        hasMotorist: json.data.hasMotorist,
+        hasPro: json.data.hasPro,
+        primaryAccountType: json.data.primaryAccountType,
       };
     }
 
@@ -763,8 +821,17 @@ export async function backendLoadUserProfile(
     phone_verified?: boolean;
     first_service_at?: string | null;
     created_at?: string;
+    bank_name?: string | null;
+    bank_account_name?: string | null;
+    bank_account_number?: string | null;
+    bank_code?: string | null;
   } | null;
-  const pr = proRes.data as RepairProRow | null;
+  const pr = proRes.data as (RepairProRow & {
+    bank_name?: string | null;
+    bank_account_name?: string | null;
+    bank_account_number?: string | null;
+    bank_code?: string | null;
+  }) | null;
   const primaryAccountType = resolvePrimaryAccountType({
     hasMotorist: Boolean(mot),
     hasPro: Boolean(pr),
@@ -809,6 +876,14 @@ export async function backendLoadUserProfile(
       servedModel: vf.servedModel,
       servedCountry: vf.servedCountry,
       servedLocation: vf.servedLocation,
+      bankName: pr?.bank_name || undefined,
+      bankAccountName: pr?.bank_account_name || undefined,
+      bankAccountNumber: pr?.bank_account_number || undefined,
+      bankCode: pr?.bank_code || undefined,
+      phoneVerified:
+        Boolean(
+          (p as { phone_verified?: boolean }).phone_verified
+        ) || Boolean(mot?.phone_verified),
     });
   }
 
@@ -838,8 +913,14 @@ export async function backendLoadUserProfile(
     identitySubmittedAt: mot?.identity_submitted_at || undefined,
     govIdKind: mot?.gov_id_kind || undefined,
     govIdFrontUrl: mot?.gov_id_front_url || undefined,
-    phoneVerified: Boolean(mot?.phone_verified),
+    phoneVerified:
+      Boolean((p as { phone_verified?: boolean }).phone_verified) ||
+      Boolean(mot?.phone_verified),
     firstServiceAt: mot?.first_service_at || undefined,
+    bankName: mot?.bank_name || undefined,
+    bankAccountName: mot?.bank_account_name || undefined,
+    bankAccountNumber: mot?.bank_account_number || undefined,
+    bankCode: mot?.bank_code || undefined,
   });
 }
 
@@ -871,27 +952,30 @@ export async function backendFetchPros(userCoords: {
   const sb = getAppSupabase();
   if (!sb) return [];
 
-  // Client fallback: same rules as /api/pros (Live + GPS + range)
+  // Client fallback: slim columns only (never pull cert base64 / skills blobs)
   const { data: pros, error } = await sb
     .from("repair_pro_profiles")
-    .select("*")
+    .select(
+      "user_id, business_name, primary_service, services, status, is_online, rating_avg, rating_count, lat, lng, location_updated_at, service_radius_km, years_experience, bio, verified, labour_prices, pricing_currency, vehicle_focus, jobs_completed, docs_status, face_liveness_verified, in_person_verified, visibility_tier, is_new_artisan, go_live_window_ends_at"
+    )
     .eq("is_online", true)
-    .limit(200);
+    .limit(60);
 
   if (error || !pros?.length) return [];
 
-  const ids = pros.map((p) => (p as RepairProRow).user_id);
+  const slimPros = pros as unknown as RepairProRow[];
+  const ids = slimPros.map((p) => p.user_id);
   const { data: profiles } = await sb
     .from("profiles")
-    .select("*")
+    .select("id, full_name, avatar_url, phone, role, is_active")
     .in("id", ids)
     .eq("is_active", true);
 
   const byId = new Map(
-    (profiles as ProfileRow[] | null)?.map((p) => [p.id, p]) ?? []
+    (profiles as unknown as ProfileRow[] | null)?.map((p) => [p.id, p]) ?? []
   );
 
-  return (pros as RepairProRow[])
+  return slimPros
     .filter((pro) => {
       if (pro.status === "suspended" || pro.status === "rejected") return false;
       const profile = byId.get(pro.user_id);
@@ -1079,7 +1163,7 @@ export async function backendFetchJobsForUser(
   if (role === "motorist") q = q.eq("motorist_id", userId);
   else q = q.or(`repair_pro_id.eq.${userId},status.in.(requested,matched)`);
 
-  const { data, error } = await q.limit(50);
+  const { data, error } = await q.limit(30);
   if (error || !data) return [];
 
   const proIds = [
@@ -1135,11 +1219,8 @@ export async function backendEnsureConversation(input: {
     .single();
   if (error || !data) return { error: error?.message || "Chat create failed" };
 
-  await sb.from("messages").insert({
-    conversation_id: data.id,
-    sender_id: input.motoristId,
-    body: "Chat opened for this job.",
-  });
+  // Empty thread only — never insert system "Chat opened…" spam.
+  // First real message appears when a user actually sends one.
 
   return { error: null, conversationId: data.id as string };
 }
@@ -1157,7 +1238,7 @@ export async function backendFetchConversations(
     .select("*")
     .eq(col, userId)
     .order("last_message_at", { ascending: false, nullsFirst: false })
-    .limit(40);
+    .limit(20);
   if (error || !convs?.length) return [];
 
   const convList = convs as ConversationRow[];
@@ -1169,15 +1250,16 @@ export async function backendFetchConversations(
     .map((c) => c.request_id)
     .filter(Boolean) as string[];
 
-  // Batch-fetch related rows (avoids N+1 lag)
+  // Batch-fetch related rows (avoids N+1 lag).
+  // Slim columns + low message cap — list only needs recent preview, not full history.
   const [{ data: allMsgs }, { data: names }, { data: jobs }] =
     await Promise.all([
       sb
         .from("messages")
-        .select("*")
+        .select("id, conversation_id, sender_id, body, created_at, read_at")
         .in("conversation_id", convIds)
-        .order("created_at", { ascending: true })
-        .limit(500),
+        .order("created_at", { ascending: false })
+        .limit(200),
       sb
         .from("profiles")
         .select("id, full_name, avatar_url")

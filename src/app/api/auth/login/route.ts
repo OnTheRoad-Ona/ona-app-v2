@@ -50,7 +50,11 @@ async function loadOrRepairProfile(
   userId: string,
   email: string,
   meta: Record<string, unknown> | undefined
-): Promise<UserProfile | null> {
+): Promise<{
+  profile: UserProfile;
+  hasMotorist: boolean;
+  hasPro: boolean;
+} | null> {
   if (!isSupabaseAdminConfigured()) return null;
   const admin = createServiceSupabase();
 
@@ -112,11 +116,20 @@ async function loadOrRepairProfile(
   const accountType: AccountType =
     p.role === "repair_pro" ? "professional" : "motorist";
 
+  // Slim selects — login only needs identity fields, not full side tables
   const [motRes, proRes] = await Promise.all([
-    admin.from("motorist_profiles").select("*").eq("user_id", userId).maybeSingle(),
+    admin
+      .from("motorist_profiles")
+      .select(
+        "vehicle_make, vehicle_model, vehicle_year, plate_number, vehicle_photo, vehicle_common_issues, vehicles, nin_verified, bvn_verified, identity_verified_at, created_at"
+      )
+      .eq("user_id", userId)
+      .maybeSingle(),
     admin
       .from("repair_pro_profiles")
-      .select("*")
+      .select(
+        "user_id, business_name, primary_service, services, years_experience, bio, service_radius_km, nin_verified, bvn_verified, docs_status, docs_rating_boost_applied, certification_file_name, certification_file_url, skills, rating_avg, jobs_completed, labour_prices, pricing_currency, vehicle_focus, created_at"
+      )
       .eq("user_id", userId)
       .maybeSingle(),
   ]);
@@ -144,6 +157,9 @@ async function loadOrRepairProfile(
     activeAccountType: accountType,
   });
 
+  const hasMotorist = Boolean(mot) || accountType === "motorist";
+  const hasPro = Boolean(pr) || accountType === "professional";
+
   if (accountType === "professional") {
     const proExtra = pr as
       | (RepairProRow & {
@@ -157,49 +173,57 @@ async function loadOrRepairProfile(
       string,
       string | undefined
     >;
-    return profileToUserProfile(p, {
-      accountType,
-      primaryAccountType,
-      services:
-        (pr?.services as ProService[]) ||
-        (pr?.primary_service ? [pr.primary_service as ProService] : []),
-      businessName: pr?.business_name || undefined,
-      bio: pr?.bio || undefined,
-      yearsExperience: pr?.years_experience || undefined,
-      serviceRadiusKm: pr?.service_radius_km,
-      ninVerified: pr?.nin_verified,
-      bvnVerified: pr?.bvn_verified,
-      docsStatus: (pr?.docs_status as UserProfile["docsStatus"]) || "approved",
-      docsRatingBoostApplied: Boolean(pr?.docs_rating_boost_applied),
-      certificationFileName: pr?.certification_file_name || undefined,
-      certificationFileDataUrl: pr?.certification_file_url || undefined,
-      skillAnswers: (pr?.skills as UserProfile["skillAnswers"]) || undefined,
-      averageRating: pr ? Number(pr.rating_avg) || undefined : undefined,
-      jobsCompleted: proExtra?.jobs_completed,
-      servicePrices: proExtra?.labour_prices,
-      pricingCurrency: proExtra?.pricing_currency,
-      servedVehicleType: vf.servedVehicleType,
-      servedBrand: vf.servedBrand,
-      servedModel: vf.servedModel,
-      servedCountry: vf.servedCountry,
-      servedLocation: vf.servedLocation,
-    });
+    return {
+      profile: profileToUserProfile(p, {
+        accountType,
+        primaryAccountType,
+        services:
+          (pr?.services as ProService[]) ||
+          (pr?.primary_service ? [pr.primary_service as ProService] : []),
+        businessName: pr?.business_name || undefined,
+        bio: pr?.bio || undefined,
+        yearsExperience: pr?.years_experience || undefined,
+        serviceRadiusKm: pr?.service_radius_km,
+        ninVerified: pr?.nin_verified,
+        bvnVerified: pr?.bvn_verified,
+        docsStatus: (pr?.docs_status as UserProfile["docsStatus"]) || "approved",
+        docsRatingBoostApplied: Boolean(pr?.docs_rating_boost_applied),
+        certificationFileName: pr?.certification_file_name || undefined,
+        certificationFileDataUrl: pr?.certification_file_url || undefined,
+        skillAnswers: (pr?.skills as UserProfile["skillAnswers"]) || undefined,
+        averageRating: pr ? Number(pr.rating_avg) || undefined : undefined,
+        jobsCompleted: proExtra?.jobs_completed,
+        servicePrices: proExtra?.labour_prices,
+        pricingCurrency: proExtra?.pricing_currency,
+        servedVehicleType: vf.servedVehicleType,
+        servedBrand: vf.servedBrand,
+        servedModel: vf.servedModel,
+        servedCountry: vf.servedCountry,
+        servedLocation: vf.servedLocation,
+      }),
+      hasMotorist,
+      hasPro,
+    };
   }
 
-  return profileToUserProfile(p, {
-    accountType,
-    primaryAccountType,
-    vehicleMake: mot?.vehicle_make || undefined,
-    vehicleModel: mot?.vehicle_model || undefined,
-    vehicleYear: mot?.vehicle_year || undefined,
-    vehiclePlate: mot?.plate_number || undefined,
-    vehiclePhoto: mot?.vehicle_photo || undefined,
-    vehicleCommonIssues: mot?.vehicle_common_issues || undefined,
-    vehicles: Array.isArray(mot?.vehicles) ? mot.vehicles : undefined,
-    ninVerified: Boolean(mot?.nin_verified),
-    bvnVerified: Boolean(mot?.bvn_verified),
-    identityVerifiedAt: mot?.identity_verified_at || undefined,
-  });
+  return {
+    profile: profileToUserProfile(p, {
+      accountType,
+      primaryAccountType,
+      vehicleMake: mot?.vehicle_make || undefined,
+      vehicleModel: mot?.vehicle_model || undefined,
+      vehicleYear: mot?.vehicle_year || undefined,
+      vehiclePlate: mot?.plate_number || undefined,
+      vehiclePhoto: mot?.vehicle_photo || undefined,
+      vehicleCommonIssues: mot?.vehicle_common_issues || undefined,
+      vehicles: Array.isArray(mot?.vehicles) ? mot.vehicles : undefined,
+      ninVerified: Boolean(mot?.nin_verified),
+      bvnVerified: Boolean(mot?.bvn_verified),
+      identityVerifiedAt: mot?.identity_verified_at || undefined,
+    }),
+    hasMotorist,
+    hasPro,
+  };
 }
 
 export async function POST(req: Request) {
@@ -232,22 +256,27 @@ export async function POST(req: Request) {
     }
 
     const userId = data.user.id;
-    const profile = await loadOrRepairProfile(
+    const loaded = await loadOrRepairProfile(
       userId,
       email,
       (data.user.user_metadata || {}) as Record<string, unknown>
     );
 
-    if (!profile) {
+    if (!loaded?.profile) {
       return apiFail(
         "Account exists but profile could not be loaded. Contact support.",
         500
       );
     }
 
+    const { profile, hasMotorist, hasPro } = loaded;
+
     return apiOk({
       userId,
       profile,
+      hasMotorist,
+      hasPro,
+      primaryAccountType: profile.primaryAccountType,
       access_token: data.session.access_token,
       refresh_token: data.session.refresh_token,
       expires_at: data.session.expires_at,

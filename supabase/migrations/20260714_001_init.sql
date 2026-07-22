@@ -1,4 +1,4 @@
--- OgaMecho backend schema
+-- Ona backend schema
 -- Roles: admin | motorist | repair_pro (one role per user)
 
 create extension if not exists "pgcrypto";

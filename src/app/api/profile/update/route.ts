@@ -13,6 +13,75 @@ import type { ProService } from "@/lib/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type AdminClient = ReturnType<typeof createServiceSupabase>;
+
+/** True if another user already saved this bank code + NUBAN */
+async function isBankAccountTakenByOtherUser(
+  admin: AdminClient,
+  userId: string,
+  bankCode: string,
+  accountNumber: string
+): Promise<boolean> {
+  const code = bankCode.trim();
+  const num = accountNumber.replace(/\D/g, "");
+  if (!code || num.length !== 10) return false;
+
+  const matchRow = (row: {
+    user_id?: string;
+    bank_code?: string | null;
+    bank_account_number?: string | null;
+  }) => {
+    if (!row || row.user_id === userId) return false;
+    const rCode = String(row.bank_code || "").trim();
+    const rNum = String(row.bank_account_number || "").replace(/\D/g, "");
+    return rCode === code && rNum === num;
+  };
+
+  try {
+    // Filter by account number first (most selective); code checked in JS
+    const [motRes, proRes] = await Promise.all([
+      admin
+        .from("motorist_profiles")
+        .select("user_id, bank_code, bank_account_number")
+        .eq("bank_account_number", num)
+        .neq("user_id", userId)
+        .limit(20),
+      admin
+        .from("repair_pro_profiles")
+        .select("user_id, bank_code, bank_account_number")
+        .eq("bank_account_number", num)
+        .neq("user_id", userId)
+        .limit(20),
+    ]);
+
+    const motHits = (motRes.data || []).some(matchRow);
+    const proHits = (proRes.data || []).some(matchRow);
+    if (motHits || proHits) return true;
+
+    // Fallback: some rows may store number with spaces/dashes — scan by bank_code
+    const [motByCode, proByCode] = await Promise.all([
+      admin
+        .from("motorist_profiles")
+        .select("user_id, bank_code, bank_account_number")
+        .eq("bank_code", code)
+        .neq("user_id", userId)
+        .limit(50),
+      admin
+        .from("repair_pro_profiles")
+        .select("user_id, bank_code, bank_account_number")
+        .eq("bank_code", code)
+        .neq("user_id", userId)
+        .limit(50),
+    ]);
+    return (
+      (motByCode.data || []).some(matchRow) ||
+      (proByCode.data || []).some(matchRow)
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Persist profile fields from the app (labour prices, vehicle, bank, etc.).
  * Auth: Bearer access_token in body.
@@ -86,7 +155,9 @@ const bodySchema = z.object({
   bankName: z.string().optional(),
   bankAccountName: z.string().optional(),
   bankAccountNumber: z.string().optional(),
+  bankCode: z.string().optional(),
   faceLivenessVerified: z.boolean().optional(),
+  phoneVerified: z.boolean().optional(),
   servedVehicleType: z.string().optional(),
   servedBrand: z.string().optional(),
   servedModel: z.string().optional(),
@@ -148,11 +219,85 @@ export async function POST(req: Request) {
       ...(b.preferredLocale != null
         ? { preferred_locale: b.preferredLocale }
         : {}),
+      ...(b.phoneVerified != null
+        ? {
+            phone_verified: b.phoneVerified,
+            ...(b.phoneVerified
+              ? { phone_verified_at: new Date().toISOString() }
+              : {}),
+          }
+        : {}),
       updated_at: new Date().toISOString(),
     })
     .eq("id", userId);
 
-  if (role === "motorist" || b.vehicleMake != null || b.plateNumber != null) {
+  const hasBankPatch =
+    b.bankName !== undefined ||
+    b.bankAccountName !== undefined ||
+    b.bankAccountNumber !== undefined ||
+    b.bankCode !== undefined;
+
+  // One bank account (code + NUBAN) may only belong to one Ona user
+  if (hasBankPatch && (b.bankAccountNumber !== undefined || b.bankCode !== undefined)) {
+    let bankCode = (b.bankCode || "").trim();
+    let accountNumber = (b.bankAccountNumber || "").replace(/\D/g, "");
+
+    // Merge with existing profile bank if patch is partial
+    if (!bankCode || accountNumber.length !== 10) {
+      try {
+        const [motB, proB] = await Promise.all([
+          admin
+            .from("motorist_profiles")
+            .select("bank_code, bank_account_number")
+            .eq("user_id", userId)
+            .maybeSingle(),
+          admin
+            .from("repair_pro_profiles")
+            .select("bank_code, bank_account_number")
+            .eq("user_id", userId)
+            .maybeSingle(),
+        ]);
+        const existing = isRepairPro ? proB.data : motB.data;
+        if (!bankCode) bankCode = String(existing?.bank_code || "").trim();
+        if (accountNumber.length !== 10) {
+          accountNumber = String(existing?.bank_account_number || "").replace(
+            /\D/g,
+            ""
+          );
+          if (b.bankAccountNumber !== undefined) {
+            accountNumber = String(b.bankAccountNumber).replace(/\D/g, "");
+          }
+        }
+      } catch {
+        /* proceed with provided fields */
+      }
+    }
+
+    if (bankCode && accountNumber.length === 10) {
+      const taken = await isBankAccountTakenByOtherUser(
+        admin,
+        userId,
+        bankCode,
+        accountNumber
+      );
+      if (taken) {
+        return apiFail(
+          "This bank account is already linked to another Ona account. Use a different account.",
+          409,
+          "bank_account_in_use"
+        );
+      }
+    }
+  }
+
+  // Motorist vehicle + bank (refunds)
+  if (
+    role === "motorist" ||
+    !isRepairPro ||
+    b.vehicleMake != null ||
+    b.plateNumber != null ||
+    (hasBankPatch && !isRepairPro)
+  ) {
     await admin.from("motorist_profiles").upsert(
       {
         user_id: userId,
@@ -181,13 +326,34 @@ export async function POST(req: Request) {
         ...(b.savedLocations !== undefined
           ? { saved_locations: b.savedLocations }
           : {}),
+        ...(!isRepairPro
+          ? {
+              ...(b.bankName !== undefined
+                ? { bank_name: b.bankName || null }
+                : {}),
+              ...(b.bankAccountName !== undefined
+                ? { bank_account_name: b.bankAccountName || null }
+                : {}),
+              ...(b.bankAccountNumber !== undefined
+                ? { bank_account_number: b.bankAccountNumber || null }
+                : {}),
+              ...(b.bankCode !== undefined
+                ? { bank_code: b.bankCode || null }
+                : {}),
+            }
+          : {}),
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id" }
     );
   }
 
-  if (role === "repair_pro" || b.labourPrices || b.businessName != null) {
+  if (
+    role === "repair_pro" ||
+    b.labourPrices ||
+    b.businessName != null ||
+    (hasBankPatch && isRepairPro)
+  ) {
     const labourPrices: Record<string, number> = {};
     if (b.labourPrices) {
       for (const [k, v] of Object.entries(b.labourPrices)) {
@@ -291,10 +457,14 @@ export async function POST(req: Request) {
         ...(b.bankAccountNumber !== undefined
           ? { bank_account_number: b.bankAccountNumber || null }
           : {}),
+        ...(b.bankCode !== undefined ? { bank_code: b.bankCode || null } : {}),
         ...(b.faceLivenessVerified != null
           ? {
               face_liveness_verified: b.faceLivenessVerified,
               face_liveness_at: b.faceLivenessVerified
+                ? new Date().toISOString()
+                : null,
+              liveness_passed_at: b.faceLivenessVerified
                 ? new Date().toISOString()
                 : null,
             }
@@ -303,6 +473,18 @@ export async function POST(req: Request) {
       },
       { onConflict: "user_id" }
     );
+
+    // Auto visibility: liveness + BVN (with T2) → T3; + skill docs → T4
+    if (b.faceLivenessVerified) {
+      try {
+        const { recomputeProVisibility } = await import(
+          "@/lib/server/pro-visibility"
+        );
+        await recomputeProVisibility(admin, userId);
+      } catch {
+        /* non-fatal */
+      }
+    }
   }
 
   return apiOk({ updated: true });

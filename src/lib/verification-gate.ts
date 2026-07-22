@@ -23,8 +23,9 @@ export const VERIFY_FREE_ACTIONS = TIER1_TRIAL_DAYS;
 /** @deprecated Prefer time-based trial */
 export const VERIFY_BLOCK_AT = TIER1_TRIAL_DAYS + 1;
 
-/** Demo / local OTP for customer phone verify (Africa's Talking later). */
-export const CUSTOMER_PHONE_OTP = "336699";
+/** Demo / local OTP for customer phone/email verify (real SMS/email later). */
+export { DEMO_OTP_CODE as CUSTOMER_PHONE_OTP } from "@/lib/auth/demo-otp";
+export { DEMO_OTP_CODE } from "@/lib/auth/demo-otp";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 

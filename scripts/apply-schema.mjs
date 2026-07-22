@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Apply OgaMecho schema + seed Super Admin directly on Postgres.
+ * Apply Ona schema + seed Super Admin directly on Postgres.
  *
  * Requires one of:
  *   DATABASE_URL=postgresql://postgres:...@db.<ref>.supabase.co:5432/postgres

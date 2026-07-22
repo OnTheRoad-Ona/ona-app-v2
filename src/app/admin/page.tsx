@@ -72,6 +72,8 @@ export default function CareDeskPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [latestBackup, setLatestBackup] = useState<string | null>(null);
 
   const refreshStatus = useCallback(async () => {
     const res = await api<CareStatus>("/api/admin/care/status");
@@ -89,17 +91,58 @@ export default function CareDeskPage() {
     if (res.ok) setDash(res.data.totals);
   }, [api]);
 
+  const refreshLatestBackup = useCallback(async () => {
+    const res = await api<{ latest: string | null }>("/api/admin/backup");
+    if (res.ok) setLatestBackup(res.data.latest);
+  }, [api]);
+
+  const runBackupNow = async () => {
+    setErr(null);
+    setMsg(null);
+    setBackupBusy(true);
+    try {
+      const res = await api<{
+        message?: string;
+        id?: string;
+        path?: string;
+        payments?: number;
+      }>("/api/admin/backup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) {
+        setErr(res.message);
+        return;
+      }
+      const parts = [
+        res.data.message ||
+          (res.data.id ? `Backup saved: ${res.data.id}` : "Backup saved"),
+      ];
+      if (res.data.payments != null) {
+        parts.push(`${res.data.payments} payment rows`);
+      }
+      setMsg(parts.join(" · "));
+      if (res.data.id) setLatestBackup(res.data.id);
+      void refreshLatestBackup();
+    } catch {
+      setErr("Backup network error");
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
   useEffect(() => {
     if (!ready) return;
     void refreshStatus();
     void refreshBoard();
     void refreshDash();
+    void refreshLatestBackup();
     const t = window.setInterval(() => {
       void refreshBoard();
       void refreshDash();
     }, 20_000);
     return () => window.clearInterval(t);
-  }, [ready, refreshBoard, refreshStatus, refreshDash]);
+  }, [ready, refreshBoard, refreshStatus, refreshDash, refreshLatestBackup]);
 
   useEffect(() => {
     if (!ready || query.trim().length < 2) {
@@ -231,6 +274,55 @@ export default function CareDeskPage() {
         Sensitive actions (escrow, freeze, dispute) ask for the temporary password
         in a popup only when you click them — not on the whole dashboard.
       </p>
+
+      {/* Local BackUp — money fallout protection */}
+      <div
+        className="om-admin-panel"
+        style={{
+          marginBottom: "1rem",
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: "0.75rem",
+          justifyContent: "space-between",
+        }}
+      >
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>Local BackUp</div>
+          <p className="om-admin-muted" style={{ margin: "4px 0 0", fontSize: 12 }}>
+            Saves payments + jobs + banks to{" "}
+            <code>Local BackUp/snapshots/</code> on this machine. Also runs
+            automatically after payment status changes (held / released / refunded).
+            {latestBackup ? (
+              <>
+                {" "}
+                Latest: <strong>{latestBackup}</strong>
+              </>
+            ) : (
+              " No snapshot yet."
+            )}
+          </p>
+        </div>
+        <button
+          type="button"
+          className="om-admin-btn"
+          disabled={backupBusy || busy}
+          onClick={() => void runBackupNow()}
+          style={{
+            background: "#FF6B35",
+            color: "#fff",
+            border: "none",
+            borderRadius: 8,
+            padding: "10px 16px",
+            fontWeight: 700,
+            fontSize: 13,
+            cursor: backupBusy ? "wait" : "pointer",
+            opacity: backupBusy ? 0.7 : 1,
+          }}
+        >
+          {backupBusy ? "Backing up…" : "Backup now"}
+        </button>
+      </div>
 
       {err ? <div className="om-admin-error">{err}</div> : null}
       {msg ? (

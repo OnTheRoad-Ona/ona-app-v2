@@ -1,4 +1,4 @@
-# OgaMecho: real Google Map on homepage
+# Ona: real Google Map on homepage
 
 The app is already wired for **live Google Maps** on the home screen (your GPS pin, radius circle, nearby pros).
 
@@ -28,21 +28,20 @@ npm run dev
    - **Places API** (optional: address search autocomplete)
 5. **APIs & Services → Credentials** → click **your API key** (not only Library):
    - **Application restrictions:** **HTTP referrers** (websites)
-   - **Website restrictions — allow ONLY these** (OgaMecho):
+   - **Website restrictions — allow ONLY these** (Ona):
 
      | Referrer | Purpose |
      |----------|---------|
      | `http://localhost:3000/*` | Local public app |
      | `https://ona-mi.vercel.app/*` | Production public app |
      | `https://ona-backend.vercel.app/*` | Production backend / admin |
-     | `https://ogamecho-backend.vercel.app/*` | Production admin backend |
 
      Optional (only if you need them later):
      - `http://127.0.0.1:3000/*` — same as localhost via IP
      - `http://localhost:4500/*` — local admin (`npm run dev:admin`)
 
    - Google needs the `/*` suffix so all paths under each site work (home, signup, admin, etc.).
-   - **Do not** leave “None” if you want the key locked to OgaMecho only.
+   - **Do not** leave “None” if you want the key locked to Ona only.
    - **API restrictions (this is the usual fix for ApiTargetBlockedMapError):**
      - Either **Don't restrict key**, or
      - **Restrict key** and **include** at least:
@@ -54,7 +53,7 @@ npm run dev
 ### Restrict key in Console (click path)
 
 1. Open: https://console.cloud.google.com/apis/credentials  
-2. Select the **project** that owns the OgaMecho Maps key  
+2. Select the **project** that owns the Ona Maps key  
 3. Under **API keys**, open your key  
 4. **Application restrictions** → **HTTP referrers (web sites)**  
 5. **Add an item** for each line exactly:
@@ -63,7 +62,6 @@ npm run dev
 http://localhost:3000/*
 https://ona-mi.vercel.app/*
 https://ona-backend.vercel.app/*
-https://ogamecho-backend.vercel.app/*
 ```
 
 6. **Save**

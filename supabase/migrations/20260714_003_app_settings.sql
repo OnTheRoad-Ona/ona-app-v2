@@ -25,12 +25,12 @@ insert into public.app_settings (key, value) values
 (
   'app',
   '{
-    "name": "OgaMecho",
+    "name": "Ona",
     "tagline": "Roadside help when you need it",
-    "supportEmail": "support@ogamecho.com",
+    "supportEmail": "support@ona.com",
     "supportPhone": "",
     "maintenanceMode": false,
-    "maintenanceMessage": "We are upgrading OgaMecho. Please try again shortly.",
+    "maintenanceMessage": "We are upgrading Ona. Please try again shortly.",
     "defaultTheme": "light",
     "forceTheme": null
   }'::jsonb

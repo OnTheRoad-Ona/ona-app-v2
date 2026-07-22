@@ -37,6 +37,10 @@ export interface ProfileRow {
   avatar_url: string | null;
   city: string | null;
   area: string | null;
+  /** male | female | prefer_not_to_say */
+  gender?: string | null;
+  /** YYYY-MM-DD */
+  date_of_birth?: string | null;
   /** App UI language (en, pcm, yo, …) */
   preferred_locale?: string | null;
   is_active: boolean;

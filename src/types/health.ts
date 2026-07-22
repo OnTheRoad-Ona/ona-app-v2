@@ -1,5 +1,5 @@
 /**
- * OgaMecho backend health monitoring types.
+ * Ona backend health monitoring types.
  * Used by admin dashboard, health-checks lib, and API routes.
  */
 

@@ -16,7 +16,6 @@ export function AcceptTripPopup() {
     requests,
     accountType,
     theme,
-    ensureChatForRequest,
     isAuthenticated,
   } = useApp();
   const isLight = theme === "light";
@@ -53,7 +52,7 @@ export function AcceptTripPopup() {
 
       if (becameAccepted) {
         setActiveId(r.id);
-        ensureChatForRequest(r);
+        // Do not pre-open chat or inject system messages — user opens chat when they want
         break;
       }
     }
@@ -62,7 +61,7 @@ export function AcceptTripPopup() {
     for (const r of requests) {
       prevStatus.current.set(r.id, r.status);
     }
-  }, [requests, accountType, isAuthenticated, ensureChatForRequest]);
+  }, [requests, accountType, isAuthenticated]);
 
   // Reset prime when user logs out so next session re-baselines
   useEffect(() => {
@@ -87,8 +86,8 @@ export function AcceptTripPopup() {
     >
       <div
         className={cn(
-          "w-full max-w-sm rounded-2xl p-4 shadow-xl",
-          isLight ? "bg-[#c8c9cd]" : "bg-neutral-950"
+          "w-full max-w-sm rounded-2xl border-0 p-4",
+          isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
         <div className="flex items-start justify-between gap-2">
@@ -109,7 +108,7 @@ export function AcceptTripPopup() {
               )}
             >
               <strong>{req.technicianName}</strong> accepted your request for{" "}
-              {req.problem}. Chat is ready — track their trip until they arrive.
+              {req.problem}. Track their trip until they arrive.
             </p>
           </div>
           <button

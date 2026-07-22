@@ -185,7 +185,7 @@ function RequestInner() {
         isLight={isLight}
         title="Describe the problem"
         compactHeader
-        onBack={() => router.push("/")}
+        onBack={() => router.push(techId ? `/technician/${techId}` : "/")}
         footer={
           <button
             type="button"
@@ -208,7 +208,7 @@ function RequestInner() {
       isLight={isLight}
       title="Describe the problem"
       compactHeader
-      onBack={() => router.back()}
+      onBack={() => router.push(techId ? `/technician/${techId}` : "/")}
       footer={
         <button
           type="button"
@@ -290,7 +290,7 @@ function RequestInner() {
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="inline-flex items-center gap-1 border-0 bg-transparent text-[12px] font-bold text-[#e07a3d]"
+              className="inline-flex items-center gap-1 border-0 bg-transparent text-[12px] font-bold text-[#FF6B35]"
             >
               <ImagePlus className="h-4 w-4" />
               Add

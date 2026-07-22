@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * OgaMecho Control Centre — Backend Health Monitoring
+ * Ona Control Centre — Backend Health Monitoring
  * Protected admin-only page. Auto-refreshes every 60s.
  * INTEGRATION: POST /api/log-error from map onError, API catch, error boundaries.
  */

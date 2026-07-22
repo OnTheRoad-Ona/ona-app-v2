@@ -122,19 +122,23 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       setNotifications([]);
       return;
     }
-    setLoading(true);
+    // Only show loading on first prime — avoids list flicker on poll/realtime
+    if (!primed.current) setLoading(true);
     try {
       const res = await fetch(
         `/api/notifications?userId=${encodeURIComponent(backendUserId)}`,
-        { cache: "no-store" }
+        { cache: "default" }
       );
       const json = await res.json();
       if (json?.ok && Array.isArray(json.data?.notifications)) {
         let list = json.data.notifications as AppNotification[];
-        // Never auto-seed the server (wastes data + pollutes production DB).
-        // Empty / missing table → local samples only for UI demo.
+        // Never seed production with demo chat/toasts (random popups).
+        // Samples only in local development when the API is empty.
         if (list.length === 0 || json.data?.tableMissing) {
-          list = localSampleNotifications(backendUserId, role);
+          list =
+            process.env.NODE_ENV === "development"
+              ? localSampleNotifications(backendUserId, role)
+              : [];
         }
         const surface = list.filter(shouldListNotification);
         setNotifications(surface);
@@ -142,7 +146,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           knownIds.current = new Set(list.map((n) => n.id));
           primed.current = true;
         }
-      } else {
+      } else if (process.env.NODE_ENV === "development" && backendUserId) {
         const local = localSampleNotifications(backendUserId, role).filter(
           shouldListNotification
         );
@@ -151,9 +155,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           knownIds.current = new Set(local.map((n) => n.id));
           primed.current = true;
         }
+      } else {
+        setNotifications([]);
       }
     } catch {
-      if (backendUserId) {
+      if (process.env.NODE_ENV === "development" && backendUserId) {
         const local = localSampleNotifications(backendUserId, role).filter(
           shouldListNotification
         );
@@ -162,6 +168,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           knownIds.current = new Set(local.map((n) => n.id));
           primed.current = true;
         }
+      } else {
+        setNotifications([]);
       }
     } finally {
       setLoading(false);

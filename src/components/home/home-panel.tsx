@@ -631,7 +631,6 @@ export function HomePanel({
                 )}
               >
                 {t("home.nearbyCount", { total })}
-                {filters.nearest ? t("home.nearestFirst") : ""}
               </p>
               {list.map((tech) => (
                 <div

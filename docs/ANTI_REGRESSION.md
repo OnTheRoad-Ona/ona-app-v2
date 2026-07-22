@@ -1,10 +1,10 @@
-# OgaMecho — anti-regression rules (do not reintroduce)
+# Ona — anti-regression rules (do not reintroduce)
 
 These bugs already shipped once. **Never reintroduce them.** Agents and humans must treat this file as mandatory.
 
 ## 1. Phone shell must never collapse
 
-The consumer app lives inside `#oga-mecho-phone` (fixed max height, flex column).
+The consumer app lives inside `#ona-phone` (fixed max height, flex column).
 
 **Never:**
 - Set `window.location.href` / `location.assign` / `location.replace` to `tel:`, `sms:`, `mailto:`, or other external schemes
@@ -32,17 +32,19 @@ On job / profile surfaces:
 - Chat → open `/messages/{threadId}` via `ensureChatForRequest` (or existing thread for that job)
 - If phone is missing, show a flash and prefer Chat — do not blank the UI
 
-## 3. Back navigation must always work
+## 3. Back navigation = hierarchical parent only
 
 **Never:**
-- Depend only on browser history after `tel:` / dialer / camera / maps handoff
-- Stack-duplicate the same path so Back loops on the same screen
-- Leave Back without a sensible `backHref` fallback on secondary pages
+- `router.back()` / `history.back()` / browser “previous page”
+- Session visit stacks that send users to random earlier screens
+- Cross-role hops via Back (only menu **Use as** switches roles)
+- Leave secondary pages without a logical parent
 
 **Always:**
-- `recordNavigation` on each consumer route (`AppFrame`)
-- `navigateBack` pops the in-app stack and `router.push` to the previous path
-- Thread chat: `backHref="/messages"`; inbox: role home (`/` or `/dashboard`)
+- `navigateBack(router, backHref?, accountType)` → `router.push` to **logical parent**
+- Parent comes from explicit `backHref` or `smartBackFallback(pathname, role)`
+- Examples: Settings child → `/settings` → role home; Job detail → `/jobs`; Request detail → `/history` (customer) or `/jobs` (pro); Chat thread → jobs/requests list
+- Multi-step **wizards** (signup steps) use local step state for in-flow Back — not browser history
 
 ## 4. Repair Pro multi-request (always notify)
 
@@ -78,7 +80,7 @@ body:   min-h-0 flex-1 overflow-y-auto overscroll-contain
 footer: shrink-0 (if any)
 ```
 
-Portals for menus/call sheets must mount on `#oga-mecho-phone`, not `document.body` alone when that would break the shell.
+Portals for menus/call sheets must mount on `#ona-phone`, not `document.body` alone when that would break the shell.
 
 ## 7. Mobile data — never reintroduce these burners
 

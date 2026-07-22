@@ -13,6 +13,10 @@ export type InitChargeInput = {
   amountMinor: number;
   currency: AppCurrency;
   email: string;
+  /** Customer full name — Flutterwave hosted checkout prefers this */
+  customerName?: string | null;
+  /** Customer phone — Flutterwave hosted checkout prefers this */
+  customerPhone?: string | null;
   reference: string;
   callbackUrl: string;
   metadata?: Record<string, unknown>;
@@ -66,13 +70,22 @@ export function resolveProvider(
   preferred?: string | null
 ): PaymentProviderId {
   // Ona default: Flutterwave (Nigeria-first). Paystack secondary.
-  const p = (
+  // Prefer live keys whenever present — never fall through to mock just because
+  // PAYMENT_PROVIDER is unset/typo'd (that caused silent mock-book with no checkout).
+  const raw = (
     preferred ||
     process.env.PAYMENT_PROVIDER ||
     "flutterwave"
-  ).toLowerCase();
-  if (p === "flutterwave" && flutterwaveSecret()) return "flutterwave";
-  if (p === "paystack" && paystackSecret()) return "paystack";
+  )
+    .toLowerCase()
+    .trim();
+
+  if (raw === "mock") return "mock";
+
+  if (raw === "paystack" && paystackSecret()) return "paystack";
+  if (raw === "flutterwave" && flutterwaveSecret()) return "flutterwave";
+
+  // Keys win over misconfigured PAYMENT_PROVIDER
   if (flutterwaveSecret()) return "flutterwave";
   if (paystackSecret()) return "paystack";
   return "mock";
@@ -163,16 +176,28 @@ async function initFlutterwave(
   ).trim();
   const proSub = (input.proSubaccountId || "").trim();
 
+  const customerName =
+    (input.customerName || "").trim() ||
+    input.email.split("@")[0] ||
+    "Ona customer";
+  // Flutterwave accepts local NG numbers; strip spaces
+  const customerPhone = (input.customerPhone || "")
+    .replace(/\s+/g, "")
+    .trim() || "08000000000";
+
   const body: Record<string, unknown> = {
     tx_ref: input.reference,
-    amount: input.amountMinor / 100,
+    amount: Number((input.amountMinor / 100).toFixed(2)),
     currency: input.currency,
     redirect_url: input.callbackUrl,
-    customer: { email: input.email },
+    customer: {
+      email: input.email,
+      name: customerName,
+      phonenumber: customerPhone,
+    },
     customizations: {
       title: "Ona",
       description: "Labour / service fee escrow",
-      logo: undefined as string | undefined,
     },
     meta: {
       ...(input.metadata ?? {}),

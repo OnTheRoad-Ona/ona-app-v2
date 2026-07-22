@@ -1,4 +1,4 @@
--- OgaMecho: full schema (safe to re-run) + seed Super Admin profile
+-- Ona: full schema (safe to re-run) + seed Super Admin profile
 -- Run in Supabase SQL Editor on project akasyjovvyhtmzpkliay
 -- Then reply "tables ready"
 

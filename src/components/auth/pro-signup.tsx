@@ -42,6 +42,11 @@ import {
   passwordError,
   passwordRules,
   phoneNationalError,
+  genderError,
+  dobError,
+  formatGenderLabel,
+  SIGNUP_GENDER_OPTIONS,
+  type SignupGender,
 } from "@/lib/signup-validation";
 import { compressImageFile } from "@/lib/image-compress";
 import {
@@ -108,6 +113,8 @@ export function ProSignup() {
    */
   const [dualSignup, setDualSignup] = useState(false);
   const [nameLocked, setNameLocked] = useState(false);
+  const [genderLocked, setGenderLocked] = useState(false);
+  const [dobLocked, setDobLocked] = useState(false);
   const [phoneLocked, setPhoneLocked] = useState(false);
   const [emailLocked, setEmailLocked] = useState(false);
   const [ninLocked, setNinLocked] = useState(false);
@@ -127,6 +134,8 @@ export function ProSignup() {
     Record<string, SkillAnswerValue>
   >({});
   const [fullName, setFullName] = useState("");
+  const [gender, setGender] = useState<SignupGender | "">("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [yearsExperience, setYearsExperience] = useState("");
   const [bio, setBio] = useState("");
@@ -153,6 +162,8 @@ export function ProSignup() {
     if (!dualRole || !isAuthenticated) {
       setDualSignup(false);
       setNameLocked(false);
+      setGenderLocked(false);
+      setDobLocked(false);
       setPhoneLocked(false);
       setEmailLocked(false);
       setNinLocked(false);
@@ -170,6 +181,8 @@ export function ProSignup() {
     if (!motorist) {
       setDualSignup(false);
       setNameLocked(false);
+      setGenderLocked(false);
+      setDobLocked(false);
       setPhoneLocked(false);
       setEmailLocked(false);
       setNinLocked(false);
@@ -184,12 +197,29 @@ export function ProSignup() {
     const nin = (motorist.idNumber || vaultMot?.idNumber || "").trim();
     const bankId = (motorist.bvn || vaultMot?.bvn || "").trim();
     const phoneRaw = (motorist.phone || vaultMot?.phone || "").trim();
+    const g = (motorist.gender || vaultMot?.gender || "") as SignupGender | "";
+    const dob = (motorist.dateOfBirth || vaultMot?.dateOfBirth || "").slice(
+      0,
+      10
+    );
 
     if (name) {
       setFullName(name);
       setNameLocked(true);
     } else {
       setNameLocked(false);
+    }
+    if (g === "male" || g === "female" || g === "prefer_not_to_say") {
+      setGender(g);
+      setGenderLocked(true);
+    } else {
+      setGenderLocked(false);
+    }
+    if (dob && /^\d{4}-\d{2}-\d{2}$/.test(dob)) {
+      setDateOfBirth(dob);
+      setDobLocked(true);
+    } else {
+      setDobLocked(false);
     }
     if (em) {
       setEmail(em);
@@ -457,6 +487,8 @@ export function ProSignup() {
   const step3Ok = true; // no vehicle step in account signup
   const step4Ok =
     fullName.trim().length >= 2 &&
+    !genderError(gender) &&
+    !dobError(dateOfBirth) &&
     businessName.trim().length >= 2 &&
     yearsExperience.trim().length > 0 &&
     bio.trim().length >= 2 &&
@@ -484,6 +516,8 @@ export function ProSignup() {
 
   const validateStep4 = (): string | null => {
     if (fullNameError(fullName)) return fullNameError(fullName);
+    if (genderError(gender)) return genderError(gender);
+    if (dobError(dateOfBirth)) return dobError(dateOfBirth);
     if (businessName.trim().length < 2) return "Please enter your business or workshop name.";
     if (!yearsExperience.trim()) return "Please pick how many years you have worked.";
     if (bio.trim().length < 2) return "Please write a short bio.";
@@ -565,6 +599,8 @@ export function ProSignup() {
     const profile: UserProfile = {
       accountType: "professional",
       fullName: fullName.trim(),
+      gender: gender as SignupGender,
+      dateOfBirth: dateOfBirth.trim(),
       businessName: businessName.trim(),
       phone: fullPhone,
       email: email.trim(),
@@ -591,11 +627,14 @@ export function ProSignup() {
         ? String(certUpload?.dataUrl || "")
         : undefined,
       averageRating: 5,
-      // Specialty / scope — never force car brands on non-auto trades
-      servedVehicleType: specialty || "General",
-      servedBrand: specialty || "General",
-      servedMake: specialty || "General",
-      servedModel: specialty || "General",
+      // Real vehicle prefs only — never copy specialty into vehicle fields
+      servedVehicleType: vehicleType || undefined,
+      servedBrand: vehicleBrands[0] || undefined,
+      servedMake: vehicleBrands[0] || undefined,
+      servedModel:
+        vehicleBrands[0] && vehicleModelsByBrand[vehicleBrands[0]]?.length
+          ? vehicleModelsByBrand[vehicleBrands[0]].join(", ")
+          : undefined,
       servedCountry: prefCountry,
       servedLocation: prefLocation,
       vehiclesServedUpdatedAt: new Date().toISOString(),
@@ -1096,6 +1135,69 @@ export function ProSignup() {
                   </div>
                 </label>
 
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="mb-1.5 block text-[12px] font-semibold text-[#475569]">
+                      Gender
+                      <span
+                        className="ml-0.5 font-bold text-red-600"
+                        aria-label="required"
+                      >
+                        *
+                      </span>
+                    </span>
+                    <select
+                      className={cn(
+                        authSelectClass,
+                        genderLocked && authLockedFieldClass
+                      )}
+                      style={
+                        genderLocked ? authLockedFieldStyle : authFieldStyle
+                      }
+                      value={gender}
+                      disabled={genderLocked}
+                      onChange={(e) =>
+                        setGender(e.target.value as SignupGender | "")
+                      }
+                      required
+                    >
+                      <option value="">Select</option>
+                      {SIGNUP_GENDER_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-[12px] font-semibold text-[#475569]">
+                      Date of birth
+                      <span
+                        className="ml-0.5 font-bold text-red-600"
+                        aria-label="required"
+                      >
+                        *
+                      </span>
+                    </span>
+                    <input
+                      type="date"
+                      className={cn(
+                        authFieldClass,
+                        dobLocked && authLockedFieldClass
+                      )}
+                      style={dobLocked ? authLockedFieldStyle : authFieldStyle}
+                      value={dateOfBirth}
+                      readOnly={dobLocked}
+                      tabIndex={dobLocked ? -1 : undefined}
+                      max={new Date().toISOString().slice(0, 10)}
+                      onChange={(e) => {
+                        if (!dobLocked) setDateOfBirth(e.target.value);
+                      }}
+                      required
+                    />
+                  </label>
+                </div>
+
                 <label className="block">
                   <span className="mb-1.5 block text-[12px] font-semibold text-[#475569]">
                     Business / workshop
@@ -1313,6 +1415,8 @@ export function ProSignup() {
                   onBlur={() => setFieldError("email", emailError(email))}
                   placeholder="pro@email.com"
                   type="email"
+                  autoComplete="email"
+                  required
                 />
                 <FieldHint message={fieldErrors.email} />
               </Field>
@@ -1485,6 +1589,8 @@ export function ProSignup() {
           {step === 7 && (
             <div className="space-y-0 text-[12px]">
               <Row k="Name" v={fullName} />
+              <Row k="Gender" v={formatGenderLabel(gender)} />
+              <Row k="Date of birth" v={dateOfBirth || "—"} />
               <Row k="Business" v={businessName} />
               <Row k="Trade" v={skill ? PRO_SERVICE_LABELS[skill] : "Not set"} />
               <Row k="Focus" v={specialty || "Not set"} />

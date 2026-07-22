@@ -139,11 +139,11 @@ export function IncomingJobPopup() {
     };
 
     void poll();
-    // Slow poll — Realtime / visibility handle urgency (was 4s and flooded the network)
+    // Slow poll — Realtime / visibility handle urgency (data saver)
     const t = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void poll();
-    }, 25_000);
+    }, 45_000);
     const onVis = () => {
       if (!document.hidden) void poll();
     };
@@ -182,7 +182,7 @@ export function IncomingJobPopup() {
             "absolute right-3 top-[max(0.6rem,env(safe-area-inset-top))] z-[160] flex items-center gap-1.5 rounded-full border-0 px-2.5 py-1.5 text-[11px] font-bold shadow-md",
             isLight
               ? "bg-slate-900 text-white"
-              : "bg-[#e07a3d] text-white"
+              : "bg-[#FF6B35] text-white"
           )}
         >
           <Briefcase className="h-3.5 w-3.5" />
@@ -192,20 +192,20 @@ export function IncomingJobPopup() {
 
       {alertJob && (
         <div
-          className="absolute inset-0 z-[180] flex items-end justify-center bg-black/50 p-3 pb-[max(1rem,env(safe-area-inset-bottom))]"
+          className="absolute inset-0 z-[180] flex items-end justify-center bg-black/35 p-3 pb-[max(1rem,env(safe-area-inset-bottom))]"
           role="dialog"
           aria-modal
           aria-label="New request"
         >
           <div
             className={cn(
-              "w-full max-w-[360px] rounded-2xl p-4 shadow-xl",
-              isLight ? "bg-white text-slate-900" : "bg-[#1c1c1e] text-white"
+              "w-full max-w-[360px] rounded-2xl border-0 p-4",
+              isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white"
             )}
           >
             <div className="mb-2 flex items-start justify-between gap-2">
               <div>
-                <p className="text-[11px] font-black uppercase tracking-wide text-[#e07a3d]">
+                <p className="text-[11px] font-black uppercase tracking-wide text-[#FF6B35]">
                   Job request
                 </p>
                 <p className="mt-0.5 text-[16px] font-black leading-tight">
@@ -261,7 +261,7 @@ export function IncomingJobPopup() {
                   setAlertJob(null);
                   router.push(`/jobs/${id}`);
                 }}
-                className="h-11 rounded-xl border-0 bg-[#e07a3d] text-[13px] font-bold text-white"
+                className="h-11 rounded-xl border-0 bg-[#FF6B35] text-[13px] font-bold text-white"
               >
                 Open job request
               </button>

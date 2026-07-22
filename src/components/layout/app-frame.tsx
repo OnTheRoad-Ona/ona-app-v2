@@ -38,13 +38,11 @@ export function AppFrame({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Track path so Back returns to the immediate previous page
+  // Clear exit animation; Back is hierarchical (no history stack)
   useEffect(() => {
     if (isAdmin) return;
     clearPageExitClass();
-    const qs =
-      typeof window !== "undefined" ? window.location.search || "" : "";
-    recordNavigation(`${pathname}${qs}`);
+    recordNavigation(pathname);
   }, [pathname, isAdmin]);
 
   if (isAdmin) {

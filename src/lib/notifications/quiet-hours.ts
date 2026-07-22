@@ -22,7 +22,7 @@ const DEFAULT: QuietHoursConfig = {
   endHour: 7,
 };
 
-const KEY = "oga-mecho-quiet-hours";
+const KEY = "ona-quiet-hours";
 
 function normalizeHour(v: unknown, fallback: number): number {
   const n = Number(v);

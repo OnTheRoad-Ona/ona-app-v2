@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils";
 /** Icons, on-toggles, and primary buttons — never yellow/copper */
 const ACCENT = "#FF6B35";
 
-const STORAGE_KEY = "oga-mecho-notification-settings";
+const STORAGE_KEY = "ona-notification-settings";
 
 export type NotificationCategoryPref = {
   requests: boolean;
@@ -576,8 +576,11 @@ export function NotificationSettings({ className, onSaved }: Props) {
           aria-live="polite"
         >
           <div
-            className="rounded-md px-3 py-2 text-center text-[12px] font-semibold text-white shadow-lg"
-            style={{ backgroundColor: isLight ? "#1c1c1e" : accent }}
+            className="rounded-md border-0 px-3 py-2 text-center text-[12px] font-semibold"
+            style={{
+              backgroundColor: isLight ? "#c8c9cd" : "#000000",
+              color: isLight ? "#1a1b1e" : "#f5f5f5",
+            }}
           >
             {toast}
           </div>

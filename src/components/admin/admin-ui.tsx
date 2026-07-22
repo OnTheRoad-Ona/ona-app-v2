@@ -13,11 +13,11 @@ import {
 import { cn } from "@/lib/utils";
 
 export function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "";
   try {
     return new Date(iso).toLocaleString();
   } catch {
-    return iso;
+    return iso || "";
   }
 }
 
@@ -205,10 +205,17 @@ export function DetailField({
   label: string;
   value: ReactNode;
 }) {
+  const empty =
+    value == null ||
+    value === "" ||
+    value === "—" ||
+    value === "-";
   return (
     <div className="om-admin-detail-field">
       <div className="om-admin-detail-label">{label}</div>
-      <div className="om-admin-detail-value">{value ?? "—"}</div>
+      <div className="om-admin-detail-value">
+        {empty ? <span className="om-admin-empty">Not set</span> : value}
+      </div>
     </div>
   );
 }
@@ -220,30 +227,35 @@ export function StatusBadge({
   status?: string;
   children: ReactNode;
 }) {
-  const s = (status || "").toLowerCase();
+  const s = (status || "").toLowerCase().replace(/\s+/g, "_");
+  // Customer approval colors: Approved green · Pending amber · Rejected red
+  const tone =
+    s === "approved" ||
+    s === "verified" ||
+    s === "passed" ||
+    s === "active" ||
+    s === "online" ||
+    s === "full" ||
+    s === "t2_approved"
+      ? "approved"
+      : s === "pending" ||
+          s === "submitted" ||
+          s === "under_review" ||
+          s === "draft" ||
+          s === "partial" ||
+          s === "partial_/_pending" ||
+          s === "unattended"
+        ? "pending"
+        : s === "rejected" ||
+            s === "suspended" ||
+            s === "failed" ||
+            s === "inactive"
+          ? "rejected"
+          : s === "none" || s === "no_id" || s === "attended" || s === "read"
+            ? "neutral"
+            : "";
   return (
-    <span
-      className={cn(
-        "om-admin-badge",
-        s === "approved" ||
-          s === "verified" ||
-          s === "passed" ||
-          s === "active" ||
-          s === "online"
-          ? "approved"
-          : s === "pending" ||
-              s === "submitted" ||
-              s === "under_review" ||
-              s === "draft"
-            ? "pending"
-            : s === "rejected" ||
-                s === "suspended" ||
-                s === "failed" ||
-                s === "inactive"
-              ? "rejected"
-              : ""
-      )}
-    >
+    <span className={cn("om-admin-badge", tone)}>
       {children}
     </span>
   );

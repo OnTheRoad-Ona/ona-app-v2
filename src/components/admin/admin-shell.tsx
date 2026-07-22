@@ -62,7 +62,7 @@ const NAV_GROUPS: {
   },
 ];
 
-const THEME_KEY = "ogamecho-admin-theme";
+const THEME_KEY = "ona-admin-theme";
 
 export function AdminShell({
   children,
@@ -76,6 +76,10 @@ export function AdminShell({
   const pathname = usePathname();
   const router = useRouter();
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [navCounts, setNavCounts] = useState<{
+    customers: number;
+    pros: number;
+  }>({ customers: 0, pros: 0 });
 
   useEffect(() => {
     const saved = localStorage.getItem(THEME_KEY) as "light" | "dark" | null;
@@ -83,6 +87,36 @@ export function AdminShell({
     setTheme(next);
     document.querySelector(".om-admin-root")?.setAttribute("data-theme", next);
   }, []);
+
+  // A BOTH: light-up pending counts on Customers / Repair Pros nav
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch("/api/admin/pending-counts", {
+          credentials: "include",
+          cache: "no-store",
+        });
+        const json = (await res.json().catch(() => null)) as {
+          ok?: boolean;
+          data?: { nav?: { customers?: number; pros?: number } };
+        } | null;
+        if (cancelled || !json?.ok || !json.data?.nav) return;
+        setNavCounts({
+          customers: Number(json.data.nav.customers) || 0,
+          pros: Number(json.data.nav.pros) || 0,
+        });
+      } catch {
+        /* ignore */
+      }
+    };
+    void load();
+    const t = window.setInterval(() => void load(), 45_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
+  }, [pathname]);
 
   function applyTheme(next: "light" | "dark") {
     setTheme(next);
@@ -117,6 +151,12 @@ export function AdminShell({
     }
   }
 
+  function badgeFor(href: string): number {
+    if (href === "/admin/motorists") return navCounts.customers;
+    if (href === "/admin/pros") return navCounts.pros;
+    return 0;
+  }
+
   return (
     <div className="om-admin-shell">
       <SensitivePasswordHost />
@@ -138,6 +178,7 @@ export function AdminShell({
                 ? pathname === item.href
                 : pathname === item.href ||
                   pathname.startsWith(`${item.href}/`);
+              const count = badgeFor(item.href);
               return (
                 <Link
                   key={item.href}
@@ -147,7 +188,14 @@ export function AdminShell({
                     void onNavClick(e, item.href, item.password)
                   }
                 >
-                  {item.label}
+                  <span className="om-admin-nav-link-row">
+                    <span>{item.label}</span>
+                    {count > 0 ? (
+                      <span className="om-admin-nav-count" title="Open care items">
+                        {count > 99 ? "99+" : count}
+                      </span>
+                    ) : null}
+                  </span>
                 </Link>
               );
             })}

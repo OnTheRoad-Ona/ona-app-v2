@@ -1,5 +1,5 @@
 /**
- * Brand assets for OgaMecho.
+ * Brand assets for Ona.
  * Default avatar: gear ring sits edge-to-edge in a square (no orange padding).
  * Use object-cover in a circular frame so the ring fills the profile hole.
  * Cache-bust query forces CDN/clients to load the latest crop.
@@ -17,7 +17,7 @@ export const ONA_INTRO_IMAGE = "/brand/ona-intro-v1.jpg";
 /** Initials for avatar fallback rings (e.g. "Oluwatosin Olanrewaju" → "OO"). */
 export function avatarInitials(
   name: string | null | undefined,
-  fallback = "OM"
+  fallback = "ON"
 ): string {
   const parts = (name || "")
     .trim()

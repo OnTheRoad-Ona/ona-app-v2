@@ -88,7 +88,7 @@ export function PhoneShell({
 
   useEffect(() => {
     // Listen on phone interior only — theme chrome inside the frame
-    const phone = document.getElementById("oga-mecho-phone");
+    const phone = document.getElementById("ona-phone");
     if (!phone) return;
 
     const runToggle = () => {
@@ -171,7 +171,7 @@ export function PhoneShell({
 
   // Keep phone data-theme + paint in lockstep with React theme
   useEffect(() => {
-    const phone = document.getElementById("oga-mecho-phone");
+    const phone = document.getElementById("ona-phone");
     if (!phone) return;
     phone.dataset.theme = theme;
     phone.style.backgroundColor = phoneInterior;
@@ -184,7 +184,7 @@ export function PhoneShell({
 
   return (
     <div
-      id="oga-mecho-stage"
+      id="ona-stage"
       className={cn(
         "box-border flex w-full items-center justify-center overflow-hidden",
         "h-[100vh] max-h-[100vh]",
@@ -195,7 +195,7 @@ export function PhoneShell({
       )}
     >
       <div
-        id="oga-mecho-phone"
+        id="ona-phone"
         data-theme={theme}
         className={cn(
           "relative box-border flex flex-col overflow-hidden",

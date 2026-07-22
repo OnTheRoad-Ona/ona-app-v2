@@ -101,7 +101,8 @@ export function filterAndRankTechnicians(
   // Always cap at 10 km — never show pros outside this (self or book-for-someone).
   const radius = Math.min(Math.max(radiusKm, 0), MAX_RADIUS_KM);
 
-  let list = technicians.filter((t) => {
+  // Pass 1: hard gates only (Live · tier · distance · trade later)
+  let eligible = technicians.filter((t) => {
     // Marketplace: Live only (Away / offline never listed)
     if (t.status !== "available") return false;
     // Tier 1: not in search
@@ -116,14 +117,6 @@ export function filterAndRankTechnicians(
             ? 70
             : 100;
     if (visPct <= 0) return false;
-    // (B) appear chance by visibility %
-    if (visPct < 100) {
-      const hourBucket = Math.floor(Date.now() / (60 * 60 * 1000));
-      let h = 0;
-      const s = `${t.id}:${hourBucket}`;
-      for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-      if ((h % 10000) / 100 >= visPct) return false;
-    }
     const d = t.distanceKm;
     if (typeof d !== "number" || !Number.isFinite(d)) return false;
     // Tier discovery radius caps (T2=1 · T3=3 · T4=10)
@@ -136,6 +129,30 @@ export function filterAndRankTechnicians(
     const proCap = Math.min(radius, tierCap || MAX_RADIUS_KM, docsCap);
     return d <= proCap;
   });
+
+  // Pass 2: visibility % lottery — skip when few nearby (common empty-list blocker)
+  // Sparse markets: always show every Live T2+ in range so customers can find pros.
+  const SPARSE_SKIP_LOTTERY = 5;
+  let list =
+    eligible.length <= SPARSE_SKIP_LOTTERY
+      ? eligible
+      : eligible.filter((t) => {
+          const tier = t.visibilityTier ?? 4;
+          const visPct =
+            typeof t.visibilityPercent === "number"
+              ? t.visibilityPercent
+              : tier === 2
+                ? 30
+                : tier === 3
+                  ? 70
+                  : 100;
+          if (visPct >= 100) return true;
+          const hourBucket = Math.floor(Date.now() / (60 * 60 * 1000));
+          let h = 0;
+          const s = `${t.id}:${hourBucket}`;
+          for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+          return (h % 10000) / 100 < visPct;
+        });
 
   if (category !== "all") {
     list = list.filter((t) => matchesCategory(t, category));

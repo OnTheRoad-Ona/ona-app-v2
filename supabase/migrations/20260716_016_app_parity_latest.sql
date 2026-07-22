@@ -1,4 +1,4 @@
--- OgaMecho latest app parity (jobs, dual live tracking, reviews)
+-- Ona latest app parity (jobs, dual live tracking, reviews)
 -- Idempotent — safe to re-run
 
 do $$

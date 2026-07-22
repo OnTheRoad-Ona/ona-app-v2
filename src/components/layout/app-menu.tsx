@@ -163,18 +163,8 @@ export function AppMenu({
       return;
     }
 
-    // Must complete signup for the target role before switching
-    if (type === "motorist" && !hasMotoristAccount) {
-      setSignupTarget("motorist");
-      setWarn(t("menu.noMotorist"));
-      return;
-    }
-    if (type === "professional" && !hasProAccount) {
-      setSignupTarget("professional");
-      setWarn(t("menu.noPro"));
-      return;
-    }
-
+    // Do not block on client-only dual flags here — switchAccount refreshes
+    // from the server (vault alone was falsely saying "no Repair Pro account").
     setWarn(null);
     setSignupTarget(null);
     setSwitching(true);
@@ -318,11 +308,14 @@ export function AppMenu({
             const roleHome = defaultBackHref(accountType);
             const isHomeItem =
               href === "/" || href === "/dashboard" || href === roleHome;
-            const isDashboard =
-              labelKey === "nav.dashboard" || labelKey === "dashboard.title";
+            // Only the current page lights orange — never force Dashboard always-on
             const active = isHomeItem
-              ? pathname === "/" || pathname === "/dashboard"
+              ? pathname === "/" ||
+                pathname === "/dashboard" ||
+                pathname === roleHome
               : pathname === href || pathname.startsWith(`${href}/`);
+            const activeColor = isLight ? "text-[#FF6B35]" : "text-[#ffb07a]";
+            const idleColor = isLight ? "text-slate-700" : "text-white/90";
             return (
               <button
                 key={href + labelKey}
@@ -340,28 +333,17 @@ export function AppMenu({
                 }}
                 className={cn(
                   "flex w-full items-center gap-3 rounded-lg border-0 bg-transparent px-3 py-2.5 text-left text-sm font-semibold transition-colors",
-                  isDashboard
-                    ? "text-[#FF6B35]"
-                    : active
-                      ? isLight
-                        ? "text-[#FF6B35]"
-                        : "text-[#ffb07a]"
-                      : isLight
-                        ? "text-slate-700"
-                        : "text-white/90"
+                  active ? activeColor : idleColor
                 )}
               >
                 <Icon
                   className={cn(
                     "h-4 w-4 shrink-0",
-                    isDashboard && "text-[#FF6B35]"
+                    active ? activeColor : idleColor
                   )}
                   strokeWidth={2.2}
-                  style={isDashboard ? { color: "#FF6B35" } : undefined}
                 />
-                <span style={isDashboard ? { color: "#FF6B35" } : undefined}>
-                  {label}
-                </span>
+                <span>{label}</span>
               </button>
             );
           })}

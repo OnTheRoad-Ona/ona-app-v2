@@ -24,6 +24,7 @@ import {
 import { defaultBackHref, navigateBack } from "@/lib/navigation";
 import { splitStoredPhone } from "@/lib/phone-codes";
 import { useApp } from "@/lib/store";
+import { backendLoadUserProfile } from "@/lib/supabase/app-api";
 import {
   CUSTOMER_PHONE_OTP,
   customerTierLabel,
@@ -48,8 +49,10 @@ export default function VerifyIdentityPage() {
     isAuthenticated,
     userProfile,
     accountType,
+    backendUserId,
     completeIdentityVerification,
     verifyCustomerPhoneOtp,
+    updateUserProfile,
   } = useApp();
   const isLight = theme === "light";
 
@@ -72,14 +75,23 @@ export default function VerifyIdentityPage() {
       ),
     [pack]
   );
+  /** BVN / bank ID is part of T2 package when the country requires it */
+  const bankDoc = useMemo(
+    () => pack.docs.find((d) => d.kind === "bank_id") || null,
+    [pack]
+  );
+  const bvnRequired = Boolean(bankDoc?.requiredForVerify);
 
   const [otp, setOtp] = useState("");
   const [otpBusy, setOtpBusy] = useState(false);
   const [otpMsg, setOtpMsg] = useState<string | null>(null);
   const [idType, setIdType] = useState("");
   const [idNumber, setIdNumber] = useState("");
+  const [bvnNumber, setBvnNumber] = useState("");
   const [idFront, setIdFront] = useState("");
   const [idFrontName, setIdFrontName] = useState("");
+  const [idBack, setIdBack] = useState("");
+  const [idBackName, setIdBackName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -104,8 +116,10 @@ export default function VerifyIdentityPage() {
   useEffect(() => {
     setSubmitted(pending || tier2Ok);
     if (userProfile?.idNumber) setIdNumber(userProfile.idNumber);
+    if (userProfile?.bvn) setBvnNumber(userProfile.bvn);
     if (userProfile?.govIdKind) setIdType(userProfile.govIdKind);
     if (userProfile?.govIdFrontUrl) setIdFront(userProfile.govIdFrontUrl);
+    if (userProfile?.govIdBackUrl) setIdBack(userProfile.govIdBackUrl);
   }, [userProfile, pending, tier2Ok]);
 
   const selectedDoc: CountryIdDoc | undefined = useMemo(
@@ -116,6 +130,58 @@ export default function VerifyIdentityPage() {
   useEffect(() => {
     if (!idType && idTypes[0]) setIdType(idTypes[0].kind);
   }, [idTypes, idType]);
+
+  // Poll server while ID is in review — flip to approved immediately
+  useEffect(() => {
+    if (!pending || tier2Ok || !backendUserId) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const p = await backendLoadUserProfile(backendUserId);
+        if (cancelled || !p) return;
+        if (
+          p.identityReviewStatus === "approved" ||
+          p.govIdVerified ||
+          p.identityVerifiedAt
+        ) {
+          updateUserProfile({
+            identityReviewStatus: "approved",
+            govIdVerified: true,
+            ninVerified: true,
+            identityVerifiedAt:
+              p.identityVerifiedAt || new Date().toISOString(),
+            idNumber: p.idNumber || userProfile?.idNumber,
+            govIdKind: p.govIdKind || userProfile?.govIdKind,
+          });
+          setSubmitted(true);
+        } else if (p.identityReviewStatus === "rejected") {
+          updateUserProfile({
+            identityReviewStatus: "rejected",
+            govIdVerified: false,
+          });
+          setSubmitted(false);
+        }
+      } catch {
+        /* offline */
+      }
+    };
+    void tick();
+    const id = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      void tick();
+    }, 4000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [
+    pending,
+    tier2Ok,
+    backendUserId,
+    updateUserProfile,
+    userProfile?.idNumber,
+    userProfile?.govIdKind,
+  ]);
 
   const readFile = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
@@ -166,18 +232,45 @@ export default function VerifyIdentityPage() {
       setError(fmt.message);
       return;
     }
-    if (!idFront) {
-      setError(`Upload a clear photo of your ${doc.label}.`);
+    if (doc.needsFront && !idFront) {
+      setError(
+        doc.needsBack
+          ? `Upload a clear front photo of your ${doc.label}.`
+          : `Upload a clear photo of your ${doc.label}.`
+      );
       return;
+    }
+    if (doc.needsBack && !idBack) {
+      setError(`Upload a clear back photo of your ${doc.label}.`);
+      return;
+    }
+    // T2 package always includes BVN when country requires bank ID (e.g. NG)
+    let bankVal = "";
+    if (bankDoc) {
+      bankVal = filterIdInput(bvnNumber, bankDoc);
+      const bankFmt = validateIdFormat(bankVal, bankDoc);
+      if (bvnRequired || bankVal) {
+        if (!bankFmt.ok) {
+          setError(bankFmt.message);
+          return;
+        }
+      }
+      if (bvnRequired && !bankVal) {
+        setError(`Enter your ${bankDoc.label} — required with government ID.`);
+        return;
+      }
     }
     setBusy(true);
     try {
       const err = await completeIdentityVerification({
         primaryId: val,
         nin: doc.api === "nin" ? val : undefined,
+        bvn: bankVal || undefined,
+        bankId: bankVal || undefined,
         countryIso,
         govIdKind: doc.kind,
-        govIdFrontUrl: idFront,
+        govIdFrontUrl: idFront || undefined,
+        govIdBackUrl: doc.needsBack ? idBack || undefined : undefined,
         mode: "submit",
       });
       if (err) {
@@ -231,7 +324,9 @@ export default function VerifyIdentityPage() {
       <div className="flex shrink-0 items-center gap-1.5 px-3 pb-1.5 pt-2.5">
         <button
           type="button"
-          onClick={() => navigateBack(router, defaultBackHref(accountType))}
+          onClick={() =>
+            navigateBack(router, defaultBackHref(accountType), accountType)
+          }
           className={cn(
             "inline-flex h-9 w-9 items-center justify-center border-0 bg-transparent",
             ink
@@ -362,6 +457,8 @@ export default function VerifyIdentityPage() {
                     setIdNumber("");
                     setIdFront("");
                     setIdFrontName("");
+                    setIdBack("");
+                    setIdBackName("");
                   }}
                   disabled={!phoneOk}
                 >
@@ -397,39 +494,100 @@ export default function VerifyIdentityPage() {
                 ) : null}
               </div>
 
+              {bankDoc ? (
+                <div>
+                  <label className={cn(authLabelClass, "!mb-1 text-[11px]")}>
+                    {bankDoc.label}
+                    {bvnRequired ? " · required with T2" : " · optional"}
+                  </label>
+                  <input
+                    className={cn(authFieldClass, "h-9 text-[12px]")}
+                    value={bvnNumber}
+                    onChange={(e) =>
+                      setBvnNumber(filterIdInput(e.target.value, bankDoc))
+                    }
+                    placeholder={bankDoc.placeholder}
+                    disabled={!phoneOk}
+                  />
+                  {bankDoc.hint ? (
+                    <p className={cn("mt-0.5 text-[10px] leading-snug", muted)}>
+                      {bankDoc.hint}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
               {/* gap: om-cta-dark-gray forces margin:0 */}
               <div className="flex flex-col gap-2">
-                <label
-                  className={cn(
-                    "flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border-0 text-[12px] font-bold",
-                    isLight
-                      ? "bg-black/10 text-slate-800"
-                      : "bg-[#2c2c2e] text-white",
-                    !phoneOk && "pointer-events-none opacity-50"
-                  )}
-                >
-                  <Upload className="h-3.5 w-3.5" />
-                  {idFrontName || idFront
-                    ? `Photo: ${idFrontName || "uploaded"}`
-                    : "Upload ID photo"}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    disabled={!phoneOk}
-                    onChange={async (e) => {
-                      const f = e.target.files?.[0];
-                      if (!f) return;
-                      try {
-                        setIdFront(await readFile(f));
-                        setIdFrontName(f.name);
-                        setError("");
-                      } catch {
-                        setError("Could not read photo.");
-                      }
-                    }}
-                  />
-                </label>
+                {selectedDoc?.needsFront !== false ? (
+                  <label
+                    className={cn(
+                      "flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border-0 text-[12px] font-bold",
+                      isLight
+                        ? "bg-black/10 text-slate-800"
+                        : "bg-[#2c2c2e] text-white",
+                      !phoneOk && "pointer-events-none opacity-50"
+                    )}
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    {idFrontName || idFront
+                      ? `${selectedDoc?.needsBack ? "Front" : "Photo"}: ${idFrontName || "uploaded"}`
+                      : selectedDoc?.needsBack
+                        ? "Upload front of ID"
+                        : "Upload ID photo (front only)"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={!phoneOk}
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        try {
+                          setIdFront(await readFile(f));
+                          setIdFrontName(f.name);
+                          setError("");
+                        } catch {
+                          setError("Could not read photo.");
+                        }
+                      }}
+                    />
+                  </label>
+                ) : null}
+
+                {selectedDoc?.needsBack ? (
+                  <label
+                    className={cn(
+                      "flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border-0 text-[12px] font-bold",
+                      isLight
+                        ? "bg-black/10 text-slate-800"
+                        : "bg-[#2c2c2e] text-white",
+                      !phoneOk && "pointer-events-none opacity-50"
+                    )}
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    {idBackName || idBack
+                      ? `Back: ${idBackName || "uploaded"}`
+                      : "Upload back of ID"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={!phoneOk}
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        try {
+                          setIdBack(await readFile(f));
+                          setIdBackName(f.name);
+                          setError("");
+                        } catch {
+                          setError("Could not read photo.");
+                        }
+                      }}
+                    />
+                  </label>
+                ) : null}
 
                 <button
                   type="button"

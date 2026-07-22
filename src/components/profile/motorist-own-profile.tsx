@@ -113,10 +113,7 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
       router.replace("/dashboard");
       return;
     }
-    if (type === "professional" && !hasProAccount) {
-      router.push("/signup/pro?from=profile&next=/dashboard");
-      return;
-    }
+    // Let switchAccount refresh dual-role from server — local hasProAccount can be stale.
     setSwitching(true);
     setErr(null);
     try {

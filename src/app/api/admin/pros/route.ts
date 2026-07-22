@@ -53,13 +53,17 @@ export async function GET(req: Request) {
         role: string;
         is_active: boolean;
         created_at: string;
+        gender: string | null;
+        date_of_birth: string | null;
       }
     > = {};
 
     if (userIds.length) {
       const { data: profs, error: pErr } = await supabase
         .from("profiles")
-        .select("id, full_name, email, phone, role, is_active, created_at")
+        .select(
+          "id, full_name, email, phone, role, is_active, created_at, gender, date_of_birth"
+        )
         .in("id", userIds);
       if (pErr) return apiFail(pErr.message, 500);
       for (const p of profs ?? []) {
@@ -71,6 +75,9 @@ export async function GET(req: Request) {
           role: p.role,
           is_active: p.is_active !== false,
           created_at: p.created_at,
+          gender: (p as { gender?: string | null }).gender ?? null,
+          date_of_birth:
+            (p as { date_of_birth?: string | null }).date_of_birth ?? null,
         };
       }
     }
@@ -85,6 +92,8 @@ export async function GET(req: Request) {
         role: p?.role || "repair_pro",
         is_active: p?.is_active !== false,
         created_at: p?.created_at || pr.created_at,
+        gender: p?.gender ?? null,
+        date_of_birth: p?.date_of_birth ?? null,
         repair_pro_profiles: {
           status: pr.status,
           primary_service: pr.primary_service,

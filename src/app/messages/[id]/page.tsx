@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Lock, Mic, Send, Square } from "lucide-react";
+import { Loader2, Lock, Mic, Send, Square } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { VoiceNotePlayer } from "@/components/jobs/voice-note-player";
 import { useNotificationsOptional } from "@/components/notifications/notification-provider";
@@ -30,18 +30,13 @@ import {
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { MESSAGE_ORANGE } from "@/lib/map-trade-icons";
 import { unlockAudio } from "@/lib/sound-tone";
+import {
+  blobToDataUrl,
+  createMediaRecorder,
+  getMicStream,
+  waitRecorderStart,
+} from "@/lib/voice-record";
 import type { ChatMessage } from "@/lib/types";
-
-function pickMime(): string {
-  if (typeof MediaRecorder === "undefined") return "";
-  const candidates = [
-    "audio/webm;codecs=opus",
-    "audio/webm",
-    "audio/mp4",
-    "audio/ogg;codecs=opus",
-  ];
-  return candidates.find((m) => MediaRecorder.isTypeSupported(m)) || "";
-}
 
 /**
  * Single job chat: Motorist ↔ Repair Pro.
@@ -97,7 +92,12 @@ function ChatThreadInner({
     return isPro ? "/jobs" : "/requests";
   })();
   const [draft, setDraft] = useState("");
-  const [recording, setRecording] = useState(false);
+  /** idle | arming | recording | saving */
+  const [recPhase, setRecPhase] = useState<
+    "idle" | "arming" | "recording" | "saving"
+  >("idle");
+  const recording = recPhase === "recording";
+  const recBusy = recPhase === "arming" || recPhase === "saving";
   const [pendingVoice, setPendingVoice] = useState<{
     url: string;
     durationSec: number;
@@ -113,20 +113,22 @@ function ChatThreadInner({
   const [otherTyping, setOtherTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const mediaRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const chunks = useRef<Blob[]>([]);
   const startedAt = useRef(0);
+  const stopLock = useRef(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const typingChannelRef = useRef<any>(null);
   const typingStopTimer = useRef<number | null>(null);
   const lastTypingSent = useRef(0);
 
-  // Pull server messages; Realtime handles inserts — slow poll is backup only
+  // Pull server messages once open; Realtime handles inserts — rare poll backup
   useEffect(() => {
     refreshCloudChats();
     const t = window.setInterval(() => {
       if (document.hidden) return;
       refreshCloudChats();
-    }, 60_000);
+    }, 120_000);
     return () => window.clearInterval(t);
   }, [refreshCloudChats, id]);
 
@@ -182,7 +184,7 @@ function ChatThreadInner({
     const t = window.setInterval(() => {
       if (document.hidden) return;
       check();
-    }, 12_000);
+    }, 45_000);
     return () => {
       cancelled = true;
       window.clearInterval(t);
@@ -331,68 +333,120 @@ function ChatThreadInner({
     ? `${PRO_SERVICE_LABELS[thread.serviceType] ?? thread.serviceType} · read only`
     : `${PRO_SERVICE_LABELS[thread.serviceType] ?? thread.serviceType} · job chat`;
 
+  const releaseMic = () => {
+    streamRef.current?.getTracks().forEach((t) => {
+      try {
+        t.stop();
+      } catch {
+        /* */
+      }
+    });
+    streamRef.current = null;
+  };
+
   const startRec = async () => {
-    if (chatClosed) return;
+    if (chatClosed || recPhase !== "idle" || stopLock.current) return;
     setRecError(null);
-    if (
-      !navigator.mediaDevices?.getUserMedia ||
-      typeof MediaRecorder === "undefined"
-    ) {
+    setRecPhase("arming");
+    if (typeof MediaRecorder === "undefined") {
       setRecError("Voice not supported on this device");
+      setRecPhase("idle");
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mime = pickMime();
-      const rec = mime
-        ? new MediaRecorder(stream, { mimeType: mime })
-        : new MediaRecorder(stream);
+      const stream = await getMicStream();
+      streamRef.current = stream;
+      const rec = createMediaRecorder(stream);
       chunks.current = [];
       rec.ondataavailable = (e) => {
         if (e.data?.size) chunks.current.push(e.data);
       };
-      rec.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const blobType = rec.mimeType || mime || "audio/webm";
-        const blob = new Blob(chunks.current, { type: blobType });
-        if (!blob.size) {
-          setRecError("No audio captured");
-          setRecording(false);
-          return;
-        }
-        const durationSec = Math.max(
-          1,
-          Math.round((Date.now() - startedAt.current) / 1000)
-        );
-        const url = await new Promise<string>((resolve, reject) => {
-          const r = new FileReader();
-          r.onload = () => resolve(String(r.result));
-          r.onerror = () => reject(new Error("read failed"));
-          r.readAsDataURL(blob);
-        });
-        setPendingVoice({ url, durationSec, mime: blobType });
-        setRecording(false);
+      rec.onerror = () => {
+        setRecError("Recording failed");
+        releaseMic();
+        mediaRef.current = null;
+        setRecPhase("idle");
       };
       mediaRef.current = rec;
+      // 1s timeslice — less main-thread work than 200ms chunks
+      rec.start(1000);
+      await waitRecorderStart(rec);
       startedAt.current = Date.now();
-      rec.start(200);
-      setRecording(true);
+      setRecPhase("recording");
     } catch {
+      releaseMic();
+      mediaRef.current = null;
       setRecError("Allow microphone to send a voice note");
+      setRecPhase("idle");
     }
   };
 
   const stopRec = () => {
+    if (stopLock.current) return;
     const rec = mediaRef.current;
     if (!rec || rec.state === "inactive") {
-      setRecording(false);
+      setRecPhase("idle");
       return;
     }
+    stopLock.current = true;
+    // Leave recording UI immediately so Stop does not feel stuck while encoding
+    setRecPhase("saving");
+    const blobType = rec.mimeType || "audio/webm";
+    const durationSec = Math.max(
+      1,
+      Math.round((Date.now() - startedAt.current) / 1000)
+    );
+
+    rec.onstop = () => {
+      releaseMic();
+      mediaRef.current = null;
+      void (async () => {
+        try {
+          const blob = new Blob(chunks.current, { type: blobType });
+          if (!blob.size) {
+            setRecError("No audio captured");
+            setRecPhase("idle");
+            return;
+          }
+          // Yield so "Saving" paints before FileReader work
+          await new Promise((r) => window.setTimeout(r, 0));
+          const url = await blobToDataUrl(blob);
+          setPendingVoice({ url, durationSec, mime: blobType });
+          setRecPhase("idle");
+        } catch {
+          setRecError("Could not save voice note");
+          setRecPhase("idle");
+        } finally {
+          stopLock.current = false;
+        }
+      })();
+    };
+
     try {
-      if (rec.state === "recording") rec.requestData();
-      rec.stop();
+      if (rec.state === "recording") {
+        try {
+          rec.requestData();
+        } catch {
+          /* */
+        }
+        rec.stop();
+      } else {
+        // Already stopped — finish via the same onstop path
+        const handler = rec.onstop;
+        if (typeof handler === "function") {
+          handler.call(rec, new Event("stop"));
+        } else {
+          releaseMic();
+          mediaRef.current = null;
+          setRecPhase("idle");
+          stopLock.current = false;
+        }
+      }
     } catch {
-      setRecording(false);
+      releaseMic();
+      mediaRef.current = null;
+      setRecPhase("idle");
+      stopLock.current = false;
     }
   };
 
@@ -422,7 +476,7 @@ function ChatThreadInner({
             isLight ? "text-slate-800" : "text-white/85"
           )}
         >
-          <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#e07a3d]" />
+          <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#FF6B35]" />
           <p className="text-[11px] font-medium leading-snug">
             {CONVERSATION_ENDED_MESSAGE}
           </p>
@@ -512,7 +566,7 @@ function ChatThreadInner({
           <button
             type="button"
             onClick={() => setPendingVoice(null)}
-            className="mt-1 border-0 bg-transparent text-[11px] font-bold text-[#e07a3d]"
+            className="mt-1 border-0 bg-transparent text-[11px] font-bold text-[#FF6B35]"
           >
             Discard voice
           </button>
@@ -544,14 +598,27 @@ function ChatThreadInner({
       >
         <button
           type="button"
+          disabled={recBusy}
           onClick={() => (recording ? stopRec() : void startRec())}
           className={cn(
-            "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 text-white",
-            recording ? "bg-red-500" : "bg-[#e07a3d]"
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 text-white disabled:opacity-70",
+            recording || recPhase === "saving"
+              ? "bg-red-500"
+              : "bg-[#FF6B35]"
           )}
-          aria-label={recording ? "Stop recording" : "Record voice note"}
+          aria-label={
+            recording
+              ? "Stop recording"
+              : recPhase === "arming"
+                ? "Starting microphone"
+                : recPhase === "saving"
+                  ? "Saving voice note"
+                  : "Record voice note"
+          }
         >
-          {recording ? (
+          {recPhase === "arming" || recPhase === "saving" ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : recording ? (
             <Square className="h-4 w-4 fill-current" />
           ) : (
             <Mic className="h-4 w-4" />
@@ -572,8 +639,16 @@ function ChatThreadInner({
               send();
             }
           }}
-          placeholder={recording ? "Recording…" : "Type a message…"}
-          disabled={recording}
+          placeholder={
+            recPhase === "arming"
+              ? "Starting mic…"
+              : recording
+                ? "Recording…"
+                : recPhase === "saving"
+                  ? "Saving voice…"
+                  : "Type a message…"
+          }
+          disabled={recording || recBusy}
           className={cn(
             "h-10 min-w-0 flex-1 rounded-full border-0 px-4 text-[13px] outline-none",
             isLight
@@ -584,7 +659,9 @@ function ChatThreadInner({
         <button
           type="button"
           onClick={send}
-          disabled={recording || (!draft.trim() && !pendingVoice)}
+          disabled={
+            recording || recBusy || (!draft.trim() && !pendingVoice)
+          }
           className="flex h-10 w-10 items-center justify-center rounded-full border-0 bg-brand text-white disabled:opacity-40"
           aria-label="Send"
         >

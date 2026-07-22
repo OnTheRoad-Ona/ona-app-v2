@@ -65,7 +65,7 @@ function MockInner() {
       </button>
       <button
         type="button"
-        onClick={() => router.back()}
+        onClick={() => router.push("/settings/payments")}
         className={cn(
           "text-[12px] font-bold",
           isLight ? "text-slate-700" : "text-white/70"

@@ -48,19 +48,21 @@ export function InboundBanner() {
   const primed = useRef(false);
   const hideTimer = useRef<number | null>(null);
 
-  // Chat sync backup (Realtime + open-thread poll handle active chat)
+  // Chat sync backup — rare; open thread + Realtime handle active chat
   useEffect(() => {
     if (!isAuthenticated || !backendUserId || !accountType) return;
-    refreshCloudChats();
+    // Defer first pull so login/home bandwidth stays free
+    const first = window.setTimeout(() => refreshCloudChats(), 12_000);
     const id = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudChats();
-    }, 60_000);
+    }, 180_000);
     const onVis = () => {
       if (!document.hidden) refreshCloudChats();
     };
     document.addEventListener("visibilitychange", onVis);
     return () => {
+      window.clearTimeout(first);
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
     };
@@ -161,7 +163,7 @@ export function InboundBanner() {
       });
       if (canNotify()) {
         showAppNotification({
-          title: latest.name || "OgaMecho",
+          title: latest.name || "Ona",
           body: latest.text.slice(0, 140),
           tag: `msg-${latest.threadId}`,
           href: `/messages/${latest.threadId}`,
@@ -170,7 +172,7 @@ export function InboundBanner() {
         void ensureNotifyPermission().then((p) => {
           if (p === "granted") {
             showAppNotification({
-              title: latest.name || "OgaMecho",
+              title: latest.name || "Ona",
               body: latest.text.slice(0, 140),
               tag: `msg-${latest.threadId}`,
               href: `/messages/${latest.threadId}`,

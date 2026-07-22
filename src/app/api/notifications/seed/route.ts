@@ -146,7 +146,7 @@ function motoristSamples(userId: string) {
       userId,
       category: "system" as const,
       priority: "normal" as const,
-      title: "Welcome to OgaMecho",
+      title: "Welcome to Ona",
       body: "Roadside help when you need it. Stay safe.",
       actionType: "none" as const,
     },
@@ -247,7 +247,7 @@ function proSamples(userId: string) {
       category: "system" as const,
       priority: "low" as const,
       title: "Documents under review",
-      body: "Your certificate is being checked by OgaMecho Care.",
+      body: "Your certificate is being checked by Ona Care.",
       actionType: "none" as const,
     },
     {

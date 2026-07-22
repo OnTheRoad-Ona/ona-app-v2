@@ -18,11 +18,11 @@ import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 /** Brief branded splash (photo + Loading Ona) before Welcome / app */
-const SPLASH_MIN_MS = 100;
+const SPLASH_MIN_MS = 120;
 /** Soft crossfade splash → Welcome */
 const HANDOFF_MS = 100;
-/** Absolute max splash time even if auth hangs */
-const SPLASH_FAILSAFE_MS = 700;
+/** Absolute max splash — long enough for session restore to win over guest flash */
+const SPLASH_FAILSAFE_MS = 2800;
 
 /** Exact welcome routes only — not /login/signin or /login/role */
 function isWelcomeRoute(pathname: string) {
@@ -410,6 +410,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // Bank force is a lower panel on dashboard/home (BankForcePanel) — not a hard block
   return (
     <div
       className={cn(frame)}

@@ -1,5 +1,5 @@
 /**
- * OgaMecho labour/service pricing.
+ * Ona labour/service pricing.
  * Does NOT include spare parts — labour fee only.
  * Currency follows market/geo: ₦ NG, £ UK, R ZA, etc.
  */

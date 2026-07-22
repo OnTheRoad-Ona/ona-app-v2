@@ -29,7 +29,13 @@ type MotoristRow = {
   area: string | null;
   is_active: boolean;
   created_at: string;
+  gender?: string | null;
+  date_of_birth?: string | null;
   verifyLevel: "full" | "partial" | "none";
+  /** Queue # among unattended pending T2 only */
+  queue_number?: number | null;
+  unattended?: boolean;
+  care_attended?: boolean;
   motorist: {
     vehicle_make: string | null;
     vehicle_model: string | null;
@@ -48,6 +54,7 @@ type MotoristRow = {
     gov_id_back_url?: string | null;
     gov_id_kind?: string | null;
     gov_id_number?: string | null;
+    bank_id_number?: string | null;
   } | null;
 };
 
@@ -62,6 +69,11 @@ type ReviewRow = {
   address_text?: string | null;
   identity_review_status: string;
   identity_submitted_at: string | null;
+  /** Queue # among unattended pending only */
+  queue_number?: number | null;
+  unattended?: boolean;
+  care_attended?: boolean;
+  has_bvn?: boolean;
   gov_id_front_url: string | null;
   gov_id_back_url: string | null;
   gov_id_number: string | null;
@@ -165,6 +177,7 @@ export default function AdminCustomersHubPage() {
   const [reviewTotals, setReviewTotals] = useState({
     total: 0,
     submitted: 0,
+    unattended: 0,
     approved: 0,
     none: 0,
     rejected: 0,
@@ -239,9 +252,18 @@ export default function AdminCustomersHubPage() {
       setError(res.message);
       return;
     }
-    setMsg(res.data.message || "Updated");
+    if (action !== "mark_attended") {
+      setMsg(res.data.message || "Updated");
+    }
     await loadReview();
     if (tab === "directory") await loadDirectory();
+  };
+
+  const openCustomer = (userId: string) => {
+    setSelectedId(userId);
+    setShowFullId(false);
+    // Mark attended/read until a new re-submit
+    void actCustomer(userId, "mark_attended");
   };
 
   const toggleActive = async (id: string, is_active: boolean) => {
@@ -310,6 +332,7 @@ export default function AdminCustomersHubPage() {
             {(
               [
                 ["All", reviewTotals.total],
+                ["Unattended", reviewTotals.unattended ?? reviewTotals.submitted],
                 ["Pending T2", reviewTotals.submitted],
                 ["Approved", reviewTotals.approved],
                 ["No ID yet", reviewTotals.none],
@@ -381,6 +404,7 @@ export default function AdminCustomersHubPage() {
             <table className="om-admin-table">
               <thead>
                 <tr>
+                  <th>#</th>
                   <th>Customer</th>
                   <th>Contact</th>
                   <th>Vehicle</th>
@@ -393,7 +417,7 @@ export default function AdminCustomersHubPage() {
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="om-admin-muted">
+                    <td colSpan={8} className="om-admin-muted">
                       No customers found.
                     </td>
                   </tr>
@@ -403,39 +427,66 @@ export default function AdminCustomersHubPage() {
                     const front =
                       (m as { gov_id_front_url?: string } | null)
                         ?.gov_id_front_url || null;
+                    const idStatus =
+                      r.verifyLevel === "full"
+                        ? "approved"
+                        : r.unattended
+                          ? "pending"
+                          : r.verifyLevel === "partial"
+                            ? "pending"
+                            : "none";
                     return (
                       <tr
                         key={r.id}
                         className={
-                          selectedId === r.id ? "om-admin-row-selected" : ""
+                          selectedId === r.id
+                            ? "om-admin-row-selected"
+                            : r.unattended
+                              ? "om-admin-row-unattended"
+                              : ""
                         }
                       >
                         <td>
+                          {r.queue_number != null ? (
+                            <span
+                              className="om-admin-queue-num"
+                              title="Unattended queue #"
+                            >
+                              #{r.queue_number}
+                            </span>
+                          ) : (
+                            <span className="om-admin-empty">—</span>
+                          )}
+                        </td>
+                        <td>
                           <strong>{r.full_name}</strong>
                           <div className="om-admin-muted">
-                            {[r.city, r.area].filter(Boolean).join(", ") || "—"}
+                            {[r.city, r.area].filter(Boolean).join(", ") || ""}
                           </div>
                         </td>
                         <td>
-                          <div>{r.phone || "—"}</div>
-                          <div className="om-admin-muted">{r.email || "—"}</div>
+                          <div>{r.phone || ""}</div>
+                          <div className="om-admin-muted">{r.email || ""}</div>
                         </td>
                         <td>
                           {[m?.vehicle_make, m?.vehicle_model, m?.plate_number]
                             .filter(Boolean)
-                            .join(" · ") || "—"}
+                            .join(" · ") || ""}
                         </td>
                         <td>
-                          <StatusBadge status={r.verifyLevel}>
+                          <StatusBadge status={idStatus}>
                             {r.verifyLevel === "full"
-                              ? "T2 approved"
-                              : r.verifyLevel === "partial"
-                                ? "Partial / pending"
-                                : "No ID"}
+                              ? "Approved"
+                              : r.unattended
+                                ? "Unattended"
+                                : r.verifyLevel === "partial"
+                                  ? "Pending"
+                                  : "No ID"}
                           </StatusBadge>
-                          {m?.nin_last4 ? (
+                          {m?.nin_last4 || m?.bvn_last4 ? (
                             <div className="om-admin-muted">
-                              …{m.nin_last4}
+                              {m?.nin_last4 ? `ID …${m.nin_last4}` : ""}
+                              {m?.bvn_last4 ? ` · BVN …${m.bvn_last4}` : ""}
                             </div>
                           ) : null}
                         </td>
@@ -452,10 +503,7 @@ export default function AdminCustomersHubPage() {
                             <button
                               type="button"
                               className="om-admin-btn ghost"
-                              onClick={() => {
-                                setSelectedId(r.id);
-                                setShowFullId(false);
-                              }}
+                              onClick={() => openCustomer(r.id)}
                             >
                               Open
                             </button>
@@ -483,6 +531,7 @@ export default function AdminCustomersHubPage() {
             <table className="om-admin-table">
               <thead>
                 <tr>
+                  <th>#</th>
                   <th>Customer</th>
                   <th>T1 Phone</th>
                   <th>T2 ID</th>
@@ -494,7 +543,7 @@ export default function AdminCustomersHubPage() {
               <tbody>
                 {reviewRows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="om-admin-muted">
+                    <td colSpan={7} className="om-admin-muted">
                       No customers in this filter.
                     </td>
                   </tr>
@@ -505,13 +554,27 @@ export default function AdminCustomersHubPage() {
                       className={
                         selectedId === c.user_id
                           ? "om-admin-row-selected"
-                          : ""
+                          : c.unattended
+                            ? "om-admin-row-unattended"
+                            : ""
                       }
                     >
                       <td>
+                        {c.queue_number != null ? (
+                          <span
+                            className="om-admin-queue-num"
+                            title="Unattended queue (earliest = #1)"
+                          >
+                            #{c.queue_number}
+                          </span>
+                        ) : (
+                          <span className="om-admin-empty">—</span>
+                        )}
+                      </td>
+                      <td>
                         <strong>{c.full_name}</strong>
                         <div className="om-admin-muted">
-                          {c.email || c.phone || "—"}
+                          {c.email || c.phone || ""}
                         </div>
                       </td>
                       <td>
@@ -528,12 +591,35 @@ export default function AdminCustomersHubPage() {
                         </StatusBadge>
                       </td>
                       <td>
-                        <StatusBadge status={c.identity_review_status}>
-                          {c.identity_review_status}
+                        <StatusBadge
+                          status={
+                            c.identity_review_status === "approved"
+                              ? "approved"
+                              : c.identity_review_status === "rejected"
+                                ? "rejected"
+                                : c.unattended
+                                  ? "pending"
+                                  : c.identity_review_status === "submitted"
+                                    ? "attended"
+                                    : c.identity_review_status || "none"
+                          }
+                        >
+                          {c.identity_review_status === "approved"
+                            ? "Approved"
+                            : c.identity_review_status === "rejected"
+                              ? "Rejected"
+                              : c.unattended
+                                ? "Unattended"
+                                : c.identity_review_status === "submitted"
+                                  ? "Attended"
+                                  : c.identity_review_status || "none"}
                         </StatusBadge>
                         <div className="om-admin-muted">
-                          {c.gov_id_kind || "—"}
-                          {c.nin_last4 ? ` · …${c.nin_last4}` : ""}
+                          {c.gov_id_kind || ""}
+                          {c.nin_last4 ? ` · ID …${c.nin_last4}` : ""}
+                          {c.bvn_last4 || c.bank_id_number
+                            ? ` · BVN …${c.bvn_last4 || "on file"}`
+                            : " · BVN missing"}
                         </div>
                       </td>
                       <td className="om-admin-td-files">
@@ -552,10 +638,7 @@ export default function AdminCustomersHubPage() {
                           <button
                             type="button"
                             className="om-admin-btn ghost"
-                            onClick={() => {
-                              setSelectedId(c.user_id);
-                              setShowFullId(false);
-                            }}
+                            onClick={() => openCustomer(c.user_id)}
                           >
                             Open
                           </button>
@@ -583,7 +666,7 @@ export default function AdminCustomersHubPage() {
                               disabled={busyId === c.user_id}
                               onClick={() =>
                                 void actCustomer(c.user_id, "reject_t2", {
-                                  reason: "Rejected by care — re-submit ID",
+                                  reason: "Rejected by care. Re-submit ID.",
                                 })
                               }
                             >
@@ -648,6 +731,26 @@ export default function AdminCustomersHubPage() {
                 />
                 <DetailField label="Phone" value={selectedDir.phone} />
                 <DetailField label="Email" value={selectedDir.email} />
+                <DetailField
+                  label="Gender"
+                  value={
+                    selectedDir.gender === "male"
+                      ? "Male"
+                      : selectedDir.gender === "female"
+                        ? "Female"
+                        : selectedDir.gender === "prefer_not_to_say"
+                          ? "Prefer not to say"
+                          : ""
+                  }
+                />
+                <DetailField
+                  label="Date of birth"
+                  value={
+                    selectedDir.date_of_birth
+                      ? String(selectedDir.date_of_birth).slice(0, 10)
+                      : ""
+                  }
+                />
                 <DetailField
                   label="City / area"
                   value={[selectedDir.city, selectedDir.area]
@@ -770,6 +873,28 @@ export default function AdminCustomersHubPage() {
               >
                 Reject T2
               </button>
+              {selectedReview.identity_review_status !== "approved" ? (
+                <button
+                  type="button"
+                  className="om-admin-btn ghost"
+                  disabled={busyId === selectedReview.user_id}
+                  title="Clear unapproved ID so customer can re-submit from the app"
+                  onClick={() => {
+                    if (
+                      !window.confirm(
+                        "Reset Tier 2 ID for this customer? They must re-submit government ID from Verification. Approved IDs cannot be reset this way."
+                      )
+                    )
+                      return;
+                    void actCustomer(selectedReview.user_id, "reset_t2", {
+                      reason:
+                        "Care reset. Please re-submit your government ID from the app.",
+                    });
+                  }}
+                >
+                  Reset T2 (re-verify)
+                </button>
+              ) : null}
             </>
           ) : null
         }
@@ -830,7 +955,7 @@ export default function AdminCustomersHubPage() {
                   value={
                     Array.isArray(selectedReview.vehicle_common_issues)
                       ? selectedReview.vehicle_common_issues.join(", ")
-                      : "—"
+                      : ""
                   }
                 />
               </DetailGrid>
@@ -928,10 +1053,10 @@ export default function AdminCustomersHubPage() {
                       {showFullId
                         ? selectedReview.gov_id_number ||
                           selectedReview.levels?.t2_id?.gov_id_number ||
-                          "—"
+                          ""
                         : selectedReview.nin_last4
                           ? `••••${selectedReview.nin_last4}`
-                          : "—"}{" "}
+                          : ""}{" "}
                       <button
                         type="button"
                         className="om-admin-btn ghost"
@@ -949,10 +1074,10 @@ export default function AdminCustomersHubPage() {
                     showFullId
                       ? selectedReview.bank_id_number ||
                         selectedReview.levels?.t2_id?.bank_id_number ||
-                        "—"
+                        ""
                       : selectedReview.bvn_last4
                         ? `••••${selectedReview.bvn_last4}`
-                        : "—"
+                        : ""
                   }
                 />
                 <DetailField

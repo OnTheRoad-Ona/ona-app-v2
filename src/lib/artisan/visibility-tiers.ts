@@ -1,14 +1,82 @@
 /**
- * Repair Pro visibility tiers (admin-approved ladder).
+ * Repair Pro search-visibility ladder (automatic only — care never sets Vis manually).
  *
- * Tier 1 — register & stay; profile setup; no search; no Go Live; New Badge
- * Tier 2 — 30% visibility (rank + appear chance + soft penalty); Go Live 30 days;
- *          warn at 5 days left; New Badge kept; discovery max 1 km (until T3 radius)
- * Tier 3 — 70% visibility; 3 km discovery; New Badge off; full Go Live (no 30-day cap)
- * Tier 4 — 100% visibility; 10 km discovery; optional +1★ seed if already has ratings
+ * Product lock:
+ *  T1 — registered; hidden from search; no Go Live
+ *  T2 — after care approves government ID → limited search (~30% · 1 km · 30-day Go Live window)
+ *  T3 — after face liveness + BVN verified (and T2 done) → wider search (~70% · 3 km · no 30-day cap · New badge off)
+ *  T4 — after skill docs approved, and only if T3 already passed → full (~100% · 10 km)
  *
- * Motorists are not on this ladder (pros only). Approvals: admin panel only.
+ * Motorists are not on this ladder (pros only).
  */
+
+/** Pure auto ladder from verification flags (source of truth for tier number). */
+export function resolveAutoVisibilityTier(input: {
+  /** Care approved government ID (T2) */
+  govIdApproved: boolean;
+  /** BVN verified (required with liveness for T3) */
+  bvnVerified: boolean;
+  /** Face liveness passed */
+  faceLiveness: boolean;
+  /** Care approved skill documents (T4) */
+  skillDocsApproved: boolean;
+}): VisibilityTier {
+  const t2 = Boolean(input.govIdApproved);
+  const t3 = t2 && Boolean(input.bvnVerified) && Boolean(input.faceLiveness);
+  const t4 = t3 && Boolean(input.skillDocsApproved);
+  if (t4) return 4;
+  if (t3) return 3;
+  if (t2) return 2;
+  return 1;
+}
+
+/** DB row shape → auto tier */
+export function autoVisibilityFromProRow(pro: {
+  gov_id_review_status?: string | null;
+  verified?: boolean | null;
+  nin_verified?: boolean | null;
+  bvn_verified?: boolean | null;
+  face_liveness_verified?: boolean | null;
+  liveness_passed_at?: string | null;
+  docs_status?: string | null;
+}): VisibilityTier {
+  const govIdApproved =
+    pro.gov_id_review_status === "approved" ||
+    Boolean(pro.verified) ||
+    Boolean(pro.nin_verified);
+  return resolveAutoVisibilityTier({
+    govIdApproved,
+    bvnVerified: Boolean(pro.bvn_verified),
+    faceLiveness: Boolean(
+      pro.face_liveness_verified || pro.liveness_passed_at
+    ),
+    skillDocsApproved: pro.docs_status === "approved",
+  });
+}
+
+/** Patch fields when auto-promoting visibility (timestamps, new badge, go-live window). */
+export function visibilityPromotionPatch(
+  nextTier: VisibilityTier,
+  nowIso: string
+): Record<string, unknown> {
+  const patch: Record<string, unknown> = {
+    visibility_tier: nextTier,
+    is_new_artisan: nextTier <= 2,
+    updated_at: nowIso,
+  };
+  if (nextTier >= 2) {
+    patch.tier2_approved_at = nowIso; // caller may overwrite if already set
+  }
+  if (nextTier >= 3) {
+    patch.tier3_approved_at = nowIso;
+    patch.go_live_window_ends_at = null; // unlimited Go Live from T3
+  }
+  if (nextTier >= 4) {
+    patch.tier4_approved_at = nowIso;
+    patch.go_live_window_ends_at = null;
+  }
+  return patch;
+}
 
 import type { ArtisanVerificationProfile } from "@/lib/artisan/types";
 

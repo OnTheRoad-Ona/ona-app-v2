@@ -33,7 +33,7 @@ export function LoginScreen() {
 
   const goBack = () => {
     try {
-      sessionStorage.removeItem("oga-mecho-entry-done");
+      sessionStorage.removeItem("ona-entry-done");
     } catch {
       /* ignore */
     }

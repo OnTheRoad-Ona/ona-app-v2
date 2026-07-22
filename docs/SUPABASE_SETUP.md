@@ -1,10 +1,10 @@
-# OgaMecho — Supabase setup (new project)
+# Ona — Supabase setup (new project)
 
 ## 1. Create project
 
 1. Open https://supabase.com/dashboard
 2. **New project**
-   - Name: `oga-mecho`
+   - Name: `ona`
    - Database password: generate and **save it**
    - Region: closest available (e.g. `eu-west-1` or `eu-central-1`)
 3. Wait until the project is **Healthy**
@@ -40,7 +40,7 @@ Paste into `.env.local` (never commit).
 ## 5. Seed Super Admin
 
 ```bash
-cd "/Users/mac/Desktop/Code/OGA MECHO"
+cd "/Users/mac/Desktop/Code/Ona"
 npm run db:seed-admin
 ```
 
@@ -61,10 +61,10 @@ open http://localhost:4500/admin/login
 
 | Project | Domain | Notes |
 |---------|--------|--------|
-| **`ogamecho`** (primary) | https://ona-mi.vercel.app | Public app **and** `/admin` + all APIs |
-| `ogamecho-backend` (optional) | https://ona-backend.vercel.app | Same codebase; avoid if possible (extra bandwidth) |
+| **`ona`** (primary) | https://ona-mi.vercel.app | Public app **and** `/admin` + all APIs |
+| `ona-backend` (optional) | https://ona-backend.vercel.app | Same codebase; avoid if possible (extra bandwidth) |
 
-Put the **same** Supabase + Maps env on `ogamecho`, including:
+Put the **same** Supabase + Maps env on `ona`, including:
 
 - `SUPABASE_SERVICE_ROLE_KEY` (needed for server APIs and admin — not backend-only)
 - `NEXT_PUBLIC_APP_URL=https://ona-mi.vercel.app`

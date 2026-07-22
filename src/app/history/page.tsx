@@ -206,7 +206,7 @@ export default function HistoryPage() {
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 scrollbar-hide">
         {loading && (
           <div className="flex justify-center py-16">
-            <Loader2 className="h-6 w-6 animate-spin text-[#e07a3d]" />
+            <Loader2 className="h-6 w-6 animate-spin text-[#FF6B35]" />
           </div>
         )}
         {err && (

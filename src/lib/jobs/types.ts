@@ -1,5 +1,5 @@
 /**
- * OgaMecho premium job / escrow domain types.
+ * Ona premium job / escrow domain types.
  */
 
 import type { AppCurrency } from "@/lib/pricing";

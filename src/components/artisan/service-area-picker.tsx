@@ -38,7 +38,7 @@ export function ServiceAreaPicker({ mode }: { mode: ServiceAreaPickerMode }) {
   const userId =
     backendUserId ||
     (typeof window !== "undefined"
-      ? localStorage.getItem("oga-mecho-user-id") || "local-pro"
+      ? localStorage.getItem("ona-user-id") || "local-pro"
       : "local-pro");
 
   const [ready, setReady] = useState(false);

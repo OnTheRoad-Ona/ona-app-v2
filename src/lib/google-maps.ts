@@ -4,7 +4,7 @@
  */
 
 /** Bump when the Maps API key or libraries change so the JS loader reloads cleanly. */
-export const GOOGLE_MAPS_LOADER_ID = "oga-mecho-google-maps-v3-places";
+export const GOOGLE_MAPS_LOADER_ID = "ona-google-maps-v3-places";
 
 /**
  * Places is required for Uber-style address suggestions
@@ -190,7 +190,7 @@ async function reverseGeocodeNominatim(
     const res = await fetch(url, {
       headers: {
         Accept: "application/json",
-        "User-Agent": "OgaMecho/1.0 (https://ogamecho.app; maps street labels)",
+        "User-Agent": "Ona/1.0 (https://ona.app; maps street labels)",
       },
     });
     if (!res.ok) return null;

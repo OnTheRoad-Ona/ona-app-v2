@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Sync Supabase Postgres schema to the latest OgaMecho app migrations.
+ * Sync Supabase Postgres schema to the latest Ona app migrations.
  *
  * Usage:
  *   npm run db:sync
@@ -139,7 +139,7 @@ async function main() {
       console.error(`[db:sync] ${missing} required column(s) still missing`);
       process.exit(1);
     }
-    console.log("[db:sync] Database matches latest OgaMecho app schema.");
+    console.log("[db:sync] Database matches latest Ona app schema.");
   } finally {
     await client.end();
   }

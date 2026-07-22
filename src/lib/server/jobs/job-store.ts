@@ -4,6 +4,7 @@
  */
 
 import {
+  isBookedPastCompletionDeadline,
   MAX_NEGOTIATION_OFFERS,
   NEGOTIATE_WINDOW_MS,
   PLATFORM_FEE_PERCENT,
@@ -33,9 +34,14 @@ import {
 } from "@/lib/pricing";
 import {
   createEscrowPayment,
+  getEscrowByRef,
   getEscrowByRequest,
   updateEscrow,
 } from "@/lib/server/payments/escrow-store";
+import {
+  initCharge,
+  resolveProvider,
+} from "@/lib/server/payments/providers";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { createServiceSupabase } from "@/lib/supabase/server";
 
@@ -536,9 +542,84 @@ export async function getJob(id: string): Promise<JobRecord | null> {
 }
 
 async function maybeExpire(job: JobRecord): Promise<JobRecord> {
-  if (job.status !== "negotiating") return job;
-  if (Date.now() <= new Date(job.negotiateEndsAt).getTime()) return job;
-  return applyEvent(job, { type: "EXPIRE_NEGOTIATION" }, "system");
+  // 1) Negotiation timer
+  if (job.status === "negotiating") {
+    if (Date.now() <= new Date(job.negotiateEndsAt).getTime()) return job;
+    return applyEvent(job, { type: "EXPIRE_NEGOTIATION" }, "system");
+  }
+
+  // 2) Booked but not completed within 6h of payment → cancel + full refund
+  if (isBookedPastCompletionDeadline(job)) {
+    try {
+      return await applyEvent(
+        job,
+        { type: "CANCEL", by: "system" },
+        "system"
+      );
+    } catch (e) {
+      console.error("auto-cancel booked job failed", job.id, e);
+      return job;
+    }
+  }
+
+  return job;
+}
+
+/**
+ * Batch sweep for overdue booked jobs (cron / client backup).
+ * Returns how many were cancelled + refunded.
+ */
+export async function expireOverdueBookedJobs(limit = 40): Promise<{
+  checked: number;
+  cancelled: number;
+  ids: string[];
+}> {
+  const ids: string[] = [];
+  let checked = 0;
+  const statuses = [
+    "paid_booked",
+    "en_route",
+    "arrived",
+    "in_progress",
+  ] as const;
+
+  // Memory first
+  for (const j of memory.values()) {
+    if (!isBookedPastCompletionDeadline(j)) continue;
+    checked += 1;
+    const next = await maybeExpire(j);
+    if (next.status === "cancelled" || next.escrowStatus === "refunded") {
+      ids.push(next.id);
+    }
+  }
+
+  if (isSupabaseAdminConfigured()) {
+    try {
+      const sb = createServiceSupabase();
+      const { data } = await sb
+        .from("service_requests")
+        .select("*")
+        .in("flow_status", [...statuses])
+        .order("updated_at", { ascending: true })
+        .limit(limit);
+      for (const row of data || []) {
+        checked += 1;
+        const job = rowToJob(row as Record<string, unknown>);
+        if (!isBookedPastCompletionDeadline(job)) continue;
+        const next = await maybeExpire(job);
+        if (
+          (next.status === "cancelled" || next.status === "refunded") &&
+          !ids.includes(next.id)
+        ) {
+          ids.push(next.id);
+        }
+      }
+    } catch (e) {
+      console.error("expireOverdueBookedJobs", e);
+    }
+  }
+
+  return { checked, cancelled: ids.length, ids };
 }
 
 export async function listJobsForUser(
@@ -850,6 +931,191 @@ export async function mockPayJob(input: {
   };
   updated = await applyEvent(updated, { type: "PAYMENT_SUCCESS" }, "system");
   return { job: updated, reference };
+}
+
+/**
+ * Start real Flutterwave (or configured provider) escrow charge for a job.
+ * Returns checkout URL — job becomes Booked only after verify + markJobPaidFromReference.
+ */
+export async function startJobEscrowPayment(input: {
+  jobId: string;
+  motoristId: string;
+  email: string;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  callbackUrl: string;
+  provider?: string | null;
+}): Promise<
+  | {
+      authorizationUrl: string;
+      reference: string;
+      provider: string;
+      jobId: string;
+    }
+  | { error: string }
+> {
+  const job = await getJob(input.jobId);
+  if (!job) return { error: "Job not found" };
+  if (job.motoristId !== input.motoristId) {
+    return { error: "Only the customer on this job can pay." };
+  }
+  if (job.status !== "agreed") {
+    return { error: "Job must be in Agreed status before payment." };
+  }
+  if (job.agreedMajor == null || job.agreedMajor <= 0) {
+    return { error: "No agreed price." };
+  }
+
+  const amountMinor = toMinorUnits(job.agreedMajor, job.currency);
+  const split = splitMinor(amountMinor);
+  const reference = `ona_${job.id.replace(/-/g, "").slice(0, 12)}_${Date.now().toString(36)}`;
+
+  let motoristBankCode: string | null = null;
+  let proBankCode: string | null = null;
+  if (isSupabaseAdminConfigured()) {
+    try {
+      const sb = createServiceSupabase();
+      const [mot, pro] = await Promise.all([
+        sb
+          .from("motorist_profiles")
+          .select("bank_code")
+          .eq("user_id", job.motoristId)
+          .maybeSingle(),
+        sb
+          .from("repair_pro_profiles")
+          .select("bank_code")
+          .eq("user_id", job.repairProId)
+          .maybeSingle(),
+      ]);
+      motoristBankCode = (mot.data?.bank_code as string) || null;
+      proBankCode = (pro.data?.bank_code as string) || null;
+    } catch {
+      /* optional meta */
+    }
+  }
+
+  try {
+    // Include ref on callback so verify works even if Flutterwave omits query params
+    const callbackUrl = input.callbackUrl.includes("ref=")
+      ? input.callbackUrl
+      : `${input.callbackUrl}${input.callbackUrl.includes("?") ? "&" : "?"}ref=${encodeURIComponent(reference)}`;
+
+    const charge = await initCharge(
+      {
+        amountMinor,
+        currency: job.currency,
+        email: input.email,
+        customerName:
+          input.customerName || job.motoristName || null,
+        customerPhone:
+          input.customerPhone || job.motoristPhone || null,
+        reference,
+        callbackUrl,
+        platformFeePercent: PLATFORM_FEE_PERCENT,
+        metadata: {
+          requestId: job.id,
+          jobId: job.id,
+          motoristId: job.motoristId,
+          repairProId: job.repairProId,
+          serviceType: job.serviceType,
+          labourOnly: true,
+          motoristBankCode,
+          proBankCode,
+          platformSubaccount: process.env.FLUTTERWAVE_PLATFORM_SUBACCOUNT || null,
+        },
+      },
+      input.provider
+    );
+
+    await createEscrowPayment({
+      requestId: job.id,
+      motoristId: job.motoristId,
+      repairProId: job.repairProId,
+      amountMinor,
+      baseAmountMinor: toMinorUnits(
+        job.proBaseMajor ?? job.agreedMajor,
+        job.currency
+      ),
+      discountPercent: 0,
+      platformFeeMinor: split.platformFeeMinor,
+      proPayoutMinor: split.proPayoutMinor,
+      currency: job.currency,
+      provider: charge.provider,
+      providerRef: charge.reference,
+      serviceType: job.serviceType,
+      meta: {
+        labourOnly: true,
+        platformSubaccount:
+          process.env.FLUTTERWAVE_PLATFORM_SUBACCOUNT || null,
+        motoristBankCode,
+        proBankCode,
+        email: input.email,
+      },
+    });
+
+    return {
+      authorizationUrl: charge.authorizationUrl,
+      reference: charge.reference,
+      provider: charge.provider,
+      jobId: job.id,
+    };
+  } catch (e) {
+    return {
+      error: e instanceof Error ? e.message : "Could not start payment",
+    };
+  }
+}
+
+/**
+ * After gateway verify: mark escrow held (if needed) and job Booked (paid_booked).
+ */
+export async function markJobPaidFromReference(
+  reference: string
+): Promise<
+  | { job: JobRecord; paymentId: string; alreadyBooked?: boolean }
+  | { error: string }
+> {
+  const payment = await getEscrowByRef(reference);
+  if (!payment) return { error: "Payment not found for this reference." };
+
+  if (payment.escrowStatus !== "held" && payment.escrowStatus !== "released") {
+    await updateEscrow(payment.id, {
+      status: "paid",
+      escrowStatus: "held",
+      paidAt: nowIso(),
+    });
+  }
+
+  const job = await getJob(payment.requestId);
+  if (!job) return { error: "Job not found for this payment." };
+
+  if (job.status === "paid_booked" || job.status === "en_route" || job.status === "arrived" || job.status === "in_progress" || job.status === "completed" || job.status === "satisfied" || job.status === "released") {
+    return { job, paymentId: payment.id, alreadyBooked: true };
+  }
+
+  if (job.status !== "agreed") {
+    return {
+      error: `Job is ${job.status}; expected agreed before booking payment.`,
+    };
+  }
+
+  let updated: JobRecord = {
+    ...job,
+    paymentId: payment.id,
+    paymentReference: payment.providerRef || reference,
+    amountMinor: payment.amountMinor,
+    platformFeeMinor: payment.platformFeeMinor,
+    proPayoutMinor: payment.proPayoutMinor,
+    escrowStatus: "held",
+  };
+  try {
+    updated = await applyEvent(updated, { type: "PAYMENT_SUCCESS" }, "system");
+  } catch (e) {
+    return {
+      error: e instanceof Error ? e.message : "Could not mark job Booked",
+    };
+  }
+  return { job: updated, paymentId: payment.id };
 }
 
 export async function transitionJob(input: {

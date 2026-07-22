@@ -78,6 +78,10 @@ export interface UserProfile {
   email: string;
   /** Stored for demo session only — not a production password store */
   password: string;
+  /** male | female | prefer_not_to_say — collected at signup */
+  gender?: "male" | "female" | "prefer_not_to_say";
+  /** ISO date YYYY-MM-DD — collected at signup */
+  dateOfBirth?: string;
   city: string;
   area: string;
   /** Motorist optional vehicle (legacy single — kept as first of `vehicles`) */
@@ -120,10 +124,12 @@ export interface UserProfile {
   serviceRadiusKm?: number;
   yearsExperience?: string;
   bio?: string;
-  /** Tier 3 payout / business docs */
+  /** Payout (pro) / refund (customer) bank — required after Tier 1 phone */
   bankAccountName?: string;
   bankAccountNumber?: string;
   bankName?: string;
+  /** Flutterwave account_bank code (e.g. 058 for GTBank) */
+  bankCode?: string;
   cacDocumentName?: string;
   cacDocumentDataUrl?: string;
   /** National / primary ID number (country-specific) */

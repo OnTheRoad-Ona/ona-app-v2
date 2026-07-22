@@ -13,15 +13,17 @@ function isBackendHost(host: string): boolean {
     return port === "4500";
   }
   return (
-    h.includes("ogamecho-backend") ||
-    h.startsWith("ogamecho-backend") ||
     h.includes("ona-backend") ||
     h.startsWith("ona-backend") ||
+    h.includes("ogamecho-backend") ||
+    h.startsWith("ogamecho-backend") ||
+    h === "ona-backend-mi.vercel.app" ||
+    h === "ona-backend-two.vercel.app" ||
+    h === "ona-backend-wit7.vercel.app" ||
+    h === "ona-backend.vercel.app" ||
     h === "ogamecho-backend-mi.vercel.app" ||
     h === "ogamecho-backend-two.vercel.app" ||
-    h === "ogamecho-backend-wit7.vercel.app" ||
-    h === "ona-backend.vercel.app" ||
-    h === "ona-backend-mi.vercel.app"
+    h === "ogamecho-backend-wit7.vercel.app"
   );
 }
 

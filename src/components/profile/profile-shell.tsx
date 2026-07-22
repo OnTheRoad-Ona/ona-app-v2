@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Pencil } from "lucide-react";
-import { navigateBack } from "@/lib/navigation";
+import { defaultBackHref, navigateBack } from "@/lib/navigation";
 import { profileTheme } from "@/lib/profile-system";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -42,11 +42,7 @@ export function ProfileShell({
         <button
           type="button"
           onClick={() =>
-            navigateBack(
-              router,
-              accountType === "professional" ? "/dashboard" : "/",
-              accountType
-            )
+            navigateBack(router, defaultBackHref(accountType), accountType)
           }
           className={cn(
             "flex h-8 w-8 items-center justify-center rounded-lg border-0",

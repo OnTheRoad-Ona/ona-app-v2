@@ -8,7 +8,7 @@ import { useT } from "@/lib/i18n";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
-const SETTINGS_KEY = "oga-mecho-app-settings";
+const SETTINGS_KEY = "ona-app-settings";
 
 type AppSettingsLocal = { soundsOn: boolean };
 

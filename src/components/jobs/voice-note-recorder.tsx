@@ -1,28 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Mic, RotateCcw, Square } from "lucide-react";
+import { Loader2, Mic, RotateCcw, Square } from "lucide-react";
 import { VoiceNotePlayer } from "@/components/jobs/voice-note-player";
+import {
+  VOICE_MAX_SEC,
+  blobToDataUrl,
+  createMediaRecorder,
+  extForMime,
+  getMicStream,
+  waitRecorderStart,
+} from "@/lib/voice-record";
 import { cn } from "@/lib/utils";
 import type { JobMedia } from "@/lib/jobs/types";
 
-const MAX_SEC = 60;
-
-function pickMime(): string {
-  if (typeof MediaRecorder === "undefined") return "";
-  const candidates = [
-    "audio/webm;codecs=opus",
-    "audio/webm",
-    "audio/mp4",
-    "audio/ogg;codecs=opus",
-    "audio/ogg",
-  ];
-  return candidates.find((m) => MediaRecorder.isTypeSupported(m)) || "";
-}
+type Phase = "idle" | "arming" | "recording" | "saving";
 
 /**
  * Browser MediaRecorder voice note — record, listen back, re-record.
- * Stores as data URL so sender + receiver can play without storage bucket.
+ * Tuned to avoid UI lag: instant button feedback, low bitrate, less re-render.
  */
 export function VoiceNoteRecorder({
   value,
@@ -35,7 +31,7 @@ export function VoiceNoteRecorder({
   userId: string;
   isLight: boolean;
 }) {
-  const [recording, setRecording] = useState(false);
+  const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const mediaRef = useRef<MediaRecorder | null>(null);
@@ -43,42 +39,64 @@ export function VoiceNoteRecorder({
   const chunks = useRef<Blob[]>([]);
   const startedAt = useRef(0);
   const timer = useRef<number | null>(null);
+  const elapsedEl = useRef<HTMLSpanElement | null>(null);
+  const stopLock = useRef(false);
+
+  const clearTimer = () => {
+    if (timer.current != null) {
+      window.clearInterval(timer.current);
+      timer.current = null;
+    }
+  };
+
+  const releaseStream = () => {
+    streamRef.current?.getTracks().forEach((t) => {
+      try {
+        t.stop();
+      } catch {
+        /* */
+      }
+    });
+    streamRef.current = null;
+  };
 
   useEffect(() => {
     return () => {
-      if (timer.current) window.clearInterval(timer.current);
+      clearTimer();
       try {
         mediaRef.current?.stop();
       } catch {
         /* */
       }
-      streamRef.current?.getTracks().forEach((t) => t.stop());
+      releaseStream();
     };
   }, []);
 
-  const start = async () => {
-    setError(null);
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError("This browser cannot record audio. Try Chrome or Safari.");
-      return;
+  const paintElapsed = (sec: number) => {
+    setElapsed(sec);
+    if (elapsedEl.current) {
+      elapsedEl.current.textContent = `${sec}s`;
     }
+  };
+
+  const start = async () => {
+    if (phase !== "idle" || stopLock.current) return;
+    setError(null);
+    setPhase("arming");
+    paintElapsed(0);
+
     if (typeof MediaRecorder === "undefined") {
       setError("Voice recording is not supported on this device.");
+      setPhase("idle");
       return;
     }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
-      });
+      const stream = await getMicStream();
       streamRef.current = stream;
-      const mime = pickMime();
-      const rec = mime
-        ? new MediaRecorder(stream, { mimeType: mime })
-        : new MediaRecorder(stream);
+      const rec = createMediaRecorder(stream);
       chunks.current = [];
+      stopLock.current = false;
 
       rec.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) chunks.current.push(e.data);
@@ -86,93 +104,134 @@ export function VoiceNoteRecorder({
 
       rec.onerror = () => {
         setError("Recording failed. Try again.");
-        setRecording(false);
-        stream.getTracks().forEach((t) => t.stop());
+        clearTimer();
+        releaseStream();
+        mediaRef.current = null;
+        setPhase("idle");
       };
 
-      rec.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        streamRef.current = null;
-        if (timer.current) {
-          window.clearInterval(timer.current);
-          timer.current = null;
-        }
-
-        const blobType = rec.mimeType || mime || "audio/webm";
-        const blob = new Blob(chunks.current, { type: blobType });
-        if (!blob.size) {
-          setError("No audio captured. Hold closer and try again.");
-          setRecording(false);
-          return;
-        }
-        const durationSec = Math.max(
-          1,
-          Math.min(MAX_SEC, Math.round((Date.now() - startedAt.current) / 1000))
-        );
-        try {
-          const dataUrl = await blobToDataUrl(blob);
-          const ext = blobType.includes("mp4")
-            ? "m4a"
-            : blobType.includes("ogg")
-              ? "ogg"
-              : "webm";
-          onChange({
-            id: `voice_${Date.now()}`,
-            kind: "voice",
-            url: dataUrl,
-            name: `voice-${durationSec}s.${ext}`,
-            mime: blobType,
-            durationSec,
-            createdAt: new Date().toISOString(),
-            uploadedBy: userId,
-          });
-        } catch {
-          setError("Could not save voice note. Try again.");
-        }
-        setRecording(false);
+      rec.onstop = () => {
+        // Handled in stop() after requestData — keep handler light
       };
 
       mediaRef.current = rec;
+      // 1s timeslice: fewer callbacks than 200ms (was a source of main-thread lag)
+      rec.start(1000);
+      await waitRecorderStart(rec);
       startedAt.current = Date.now();
-      setElapsed(0);
-      // timeslice so data arrives on all browsers (not only at stop)
-      rec.start(200);
-      setRecording(true);
+      setPhase("recording");
+      paintElapsed(0);
+
+      clearTimer();
+      // 250ms is enough for a smooth counter without thrashing React
       timer.current = window.setInterval(() => {
-        const sec = Math.round((Date.now() - startedAt.current) / 1000);
-        setElapsed(sec);
-        if (sec >= MAX_SEC) {
+        const sec = Math.floor((Date.now() - startedAt.current) / 1000);
+        paintElapsed(sec);
+        if (sec >= VOICE_MAX_SEC) {
+          void finishRecording();
+        }
+      }, 250);
+    } catch {
+      releaseStream();
+      mediaRef.current = null;
+      setError("Allow microphone access to record a voice note.");
+      setPhase("idle");
+    }
+  };
+
+  const finishRecording = async () => {
+    if (stopLock.current) return;
+    const rec = mediaRef.current;
+    if (!rec || rec.state === "inactive") {
+      setPhase("idle");
+      return;
+    }
+    stopLock.current = true;
+    clearTimer();
+    // Leave "recording" UI immediately so Stop doesn't feel stuck
+    setPhase("saving");
+
+    const blobType = rec.mimeType || "audio/webm";
+    const durationSec = Math.max(
+      1,
+      Math.min(
+        VOICE_MAX_SEC,
+        Math.round((Date.now() - startedAt.current) / 1000)
+      )
+    );
+
+    const blob = await new Promise<Blob>((resolve) => {
+      const finalize = () => {
+        resolve(new Blob(chunks.current, { type: blobType }));
+      };
+      rec.onstop = () => {
+        releaseStream();
+        mediaRef.current = null;
+        finalize();
+      };
+      try {
+        if (rec.state === "recording") {
           try {
-            rec.stop();
+            rec.requestData();
           } catch {
             /* */
           }
+          rec.stop();
+        } else {
+          releaseStream();
+          mediaRef.current = null;
+          finalize();
         }
-      }, 200);
+      } catch {
+        releaseStream();
+        mediaRef.current = null;
+        finalize();
+      }
+    });
+
+    if (!blob.size) {
+      setError("No audio captured. Hold closer and try again.");
+      setPhase("idle");
+      stopLock.current = false;
+      return;
+    }
+
+    try {
+      // Yield so the "Saving…" paint lands before heavy FileReader work
+      await new Promise((r) => window.setTimeout(r, 0));
+      const dataUrl = await blobToDataUrl(blob);
+      const ext = extForMime(blobType);
+      onChange({
+        id: `voice_${Date.now()}`,
+        kind: "voice",
+        url: dataUrl,
+        name: `voice-${durationSec}s.${ext}`,
+        mime: blobType,
+        durationSec,
+        createdAt: new Date().toISOString(),
+        uploadedBy: userId,
+      });
+      setPhase("idle");
     } catch {
-      setError("Allow microphone access to record a voice note.");
+      setError("Could not save voice note. Try again.");
+      setPhase("idle");
+    } finally {
+      stopLock.current = false;
     }
   };
 
   const stop = () => {
-    const rec = mediaRef.current;
-    if (!rec || rec.state === "inactive") {
-      setRecording(false);
-      return;
-    }
-    try {
-      if (rec.state === "recording") rec.requestData();
-      rec.stop();
-    } catch {
-      setRecording(false);
-    }
+    void finishRecording();
   };
 
   const reset = () => {
     onChange(null);
-    setElapsed(0);
+    paintElapsed(0);
     setError(null);
   };
+
+  const recording = phase === "recording";
+  const busy = phase === "arming" || phase === "saving";
 
   return (
     <div className="py-1">
@@ -185,26 +244,43 @@ export function VoiceNoteRecorder({
         >
           Voice note
         </p>
-        {(recording || value) && (
-          <span className="text-[12px] font-black tabular-nums text-[#e07a3d]">
-            {recording
-              ? `${elapsed}s`
-              : value?.durationSec
-                ? `${value.durationSec}s`
-                : ""}
+        {(phase !== "idle" || value) && (
+          <span
+            ref={elapsedEl}
+            className="text-[12px] font-black tabular-nums text-[#FF6B35]"
+          >
+            {phase === "arming"
+              ? "…"
+              : phase === "saving"
+                ? "Saving"
+                : recording
+                  ? `${elapsed}s`
+                  : value?.durationSec
+                    ? `${value.durationSec}s`
+                    : ""}
           </span>
         )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        {!value && !recording && (
+        {!value && phase === "idle" && (
           <button
             type="button"
             onClick={() => void start()}
-            className="inline-flex h-11 items-center gap-2 rounded-md border-0 bg-[#e07a3d] px-4 text-[13px] font-bold text-white"
+            className="inline-flex h-11 items-center gap-2 rounded-md border-0 bg-[#FF6B35] px-4 text-[13px] font-bold text-white"
           >
             <Mic className="h-4 w-4" />
             Record
+          </button>
+        )}
+        {phase === "arming" && (
+          <button
+            type="button"
+            disabled
+            className="inline-flex h-11 items-center gap-2 rounded-md border-0 bg-[#FF6B35]/80 px-4 text-[13px] font-bold text-white"
+          >
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Starting…
           </button>
         )}
         {recording && (
@@ -217,7 +293,17 @@ export function VoiceNoteRecorder({
             Stop
           </button>
         )}
-        {value && !recording && (
+        {phase === "saving" && (
+          <button
+            type="button"
+            disabled
+            className="inline-flex h-11 items-center gap-2 rounded-md border-0 bg-red-500/80 px-4 text-[13px] font-bold text-white"
+          >
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Saving…
+          </button>
+        )}
+        {value && !busy && !recording && (
           <button
             type="button"
             onClick={reset}
@@ -232,8 +318,7 @@ export function VoiceNoteRecorder({
         )}
       </div>
 
-      {/* Sender listens back with same player receivers use */}
-      {value?.url && !recording && (
+      {value?.url && phase === "idle" && (
         <div className="mt-3">
           <VoiceNotePlayer
             url={value.url}
@@ -253,18 +338,9 @@ export function VoiceNoteRecorder({
           isLight ? "text-slate-500" : "text-white/45"
         )}
       >
-        Optional. Describe the problem out loud (max {MAX_SEC}s). Play it back
-        before you send.
+        Optional. Describe the problem out loud (max {VOICE_MAX_SEC}s). Play it
+        back before you send.
       </p>
     </div>
   );
-}
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result));
-    r.onerror = () => reject(new Error("read failed"));
-    r.readAsDataURL(blob);
-  });
 }
