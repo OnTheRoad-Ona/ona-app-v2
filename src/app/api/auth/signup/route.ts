@@ -231,11 +231,18 @@ export async function POST(req: Request) {
 
   const input = parsed.data;
   const email = input.email.trim().toLowerCase();
+  if (!email || !email.includes("@")) {
+    return apiFail(
+      "Email is required for Customer and Repair Pro signup.",
+      400,
+      "validation"
+    );
+  }
   // Store canonical phone so login must match the same signup number
   const phoneCanonical = canonicalPhone(input.phone);
   if (!phoneCanonical) {
     return apiFail(
-      "Enter a valid phone number (e.g. +234 801…).",
+      "Phone number is required for Customer and Repair Pro signup (e.g. +234 801…).",
       400,
       "validation"
     );

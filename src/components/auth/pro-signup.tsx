@@ -522,6 +522,9 @@ export function ProSignup() {
     if (fullNameError(fullName)) return fullNameError(fullName);
     if (genderError(gender)) return genderError(gender);
     if (dobError(dateOfBirth)) return dobError(dateOfBirth);
+    if (phoneNationalError(phoneNational)) {
+      return phoneNationalError(phoneNational);
+    }
     if (businessName.trim().length < 2) return "Please enter your business or workshop name.";
     if (!yearsExperience.trim()) return "Please pick how many years you have worked.";
     if (bio.trim().length < 2) return "Please write a short bio.";
@@ -1173,16 +1176,7 @@ export function ProSignup() {
                       ))}
                     </select>
                   </label>
-                  <label className="block">
-                    <span className="mb-1.5 block text-[12px] font-semibold text-[#475569]">
-                      Date of birth
-                      <span
-                        className="ml-0.5 font-bold text-red-600"
-                        aria-label="required"
-                      >
-                        *
-                      </span>
-                    </span>
+                  <Field label="Date of birth" required>
                     <input
                       type="date"
                       className={cn(
@@ -1208,14 +1202,10 @@ export function ProSignup() {
                       required
                     />
                     <FieldHint message={fieldErrors.dob} />
-                  </label>
+                  </Field>
                 </div>
 
-                <Field label="Phone (login number)" required>
-                  <p className="mb-1.5 text-[11px] font-medium leading-snug text-[#64748b]">
-                    You will log in with this exact phone number (same as
-                    Customer).
-                  </p>
+                <Field label="Phone" required>
                   <div className="flex gap-1.5">
                     <select
                       className={cn(
@@ -1271,6 +1261,7 @@ export function ProSignup() {
                       placeholder="8012345678"
                       type="tel"
                       inputMode="numeric"
+                      autoComplete="tel-national"
                       required
                     />
                   </div>
