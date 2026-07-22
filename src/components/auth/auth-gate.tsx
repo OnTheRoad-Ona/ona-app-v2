@@ -212,21 +212,20 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   const finishEntry = useCallback(
     (path: string) => {
-      if (entryExiting) return;
+      // One tap must open the next page (Vercel cold starts felt like double-click)
+      if (navigatingAwayRef.current) return;
       navigatingAwayRef.current = true;
       leftSplashRef.current = true;
       setEntryExiting(true);
-      // Soft fade out Welcome, then navigate (Log In / Sign Up)
+      setPhase("ready");
+      // Navigate immediately — fade is visual only, not a second required click
+      router.replace(path);
       window.setTimeout(() => {
-        setPhase("ready");
-        router.replace(path);
         setEntryExiting(false);
-        window.setTimeout(() => {
-          navigatingAwayRef.current = false;
-        }, 800);
-      }, AUTH_TRANSITION_MS);
+        navigatingAwayRef.current = false;
+      }, Math.max(AUTH_TRANSITION_MS, 200) + 100);
     },
-    [entryExiting, router]
+    [router]
   );
 
   // Signed-in → leave login; allow dual-role signup when the other account is missing

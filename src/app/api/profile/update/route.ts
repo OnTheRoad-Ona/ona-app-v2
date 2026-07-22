@@ -158,6 +158,12 @@ const bodySchema = z.object({
   bankCode: z.string().optional(),
   faceLivenessVerified: z.boolean().optional(),
   phoneVerified: z.boolean().optional(),
+  gender: z.enum(["male", "female", "prefer_not_to_say"]).optional(),
+  /** ISO YYYY-MM-DD */
+  dateOfBirth: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   servedVehicleType: z.string().optional(),
   servedBrand: z.string().optional(),
   servedModel: z.string().optional(),
@@ -213,6 +219,10 @@ export async function POST(req: Request) {
         ? { full_name: b.fullName }
         : {}),
       ...(b.phone != null ? { phone: b.phone } : {}),
+      ...(b.gender != null ? { gender: b.gender } : {}),
+      ...(b.dateOfBirth != null
+        ? { date_of_birth: b.dateOfBirth }
+        : {}),
       ...(b.city != null ? { city: b.city } : {}),
       ...(b.area != null ? { area: b.area } : {}),
       ...(b.avatarUrl != null ? { avatar_url: b.avatarUrl } : {}),

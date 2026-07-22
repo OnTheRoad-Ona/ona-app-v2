@@ -1578,6 +1578,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
               // Pros cannot change full name via profile edit
               fullName: isPro ? undefined : next.fullName,
               phone: next.phone,
+              gender: next.gender,
+              dateOfBirth: next.dateOfBirth,
               city: next.city,
               area: next.area,
               avatarUrl: next.avatarUrl,

@@ -56,6 +56,9 @@ import {
   phoneNationalError,
   genderError,
   dobError,
+  dobInputMax,
+  dobInputMin,
+  normalizeDobIso,
   SIGNUP_GENDER_OPTIONS,
   type SignupGender,
 } from "@/lib/signup-validation";
@@ -521,7 +524,7 @@ export function MotoristSignup() {
       accountType: "motorist",
       fullName: fullName.trim(),
       gender: gender as SignupGender,
-      dateOfBirth: dateOfBirth.trim(),
+      dateOfBirth: normalizeDobIso(dateOfBirth) || dateOfBirth.trim(),
       phone: fullPhone,
       email: email.trim(),
       password,
@@ -788,10 +791,13 @@ export function MotoristSignup() {
                       value={dateOfBirth}
                       readOnly={dobLocked}
                       tabIndex={dobLocked ? -1 : undefined}
-                      max={new Date().toISOString().slice(0, 10)}
+                      min={dobInputMin()}
+                      max={dobInputMax()}
                       onChange={(e) => {
                         if (dobLocked) return;
-                        setDateOfBirth(e.target.value);
+                        setDateOfBirth(
+                          normalizeDobIso(e.target.value) || e.target.value
+                        );
                         setFieldError("dob", null);
                       }}
                       onBlur={() =>

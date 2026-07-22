@@ -84,11 +84,13 @@ export function BrandEntryScreen({
           <button
             type="button"
             onClick={onLogIn}
-            className="h-11 w-full rounded-md border-0 text-[14px] font-semibold transition-colors active:brightness-95"
+            className="relative z-20 h-11 w-full rounded-md border-0 text-[14px] font-semibold transition-colors active:brightness-95"
             style={{
               backgroundColor: LOGIN_BTN_BG,
               color: WHEEL_GRAY,
               boxShadow: "0 1px 3px rgba(0,0,0,0.14)",
+              // Instant tap response (avoids 300ms delay / double-tap feel)
+              touchAction: "manipulation",
             }}
           >
             {t("auth.logIn")}
@@ -97,10 +99,11 @@ export function BrandEntryScreen({
           <button
             type="button"
             onClick={onSignUp}
-            className="h-11 w-full rounded-md border-0 text-[14px] font-semibold text-white transition-colors active:brightness-95"
+            className="relative z-20 h-11 w-full rounded-md border-0 text-[14px] font-semibold text-white transition-colors active:brightness-95"
             style={{
               backgroundColor: WHEEL_GRAY,
               boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+              touchAction: "manipulation",
             }}
           >
             {t("auth.signUp")}

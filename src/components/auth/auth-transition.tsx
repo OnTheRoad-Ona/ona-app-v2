@@ -20,12 +20,10 @@ export function useAuthNavigate() {
     (path: string, opts?: { replace?: boolean }) => {
       if (exiting) return;
       setExiting(true);
-      window.setTimeout(() => {
-        if (opts?.replace) router.replace(path);
-        else router.push(path);
-        // Reset if we stay mounted (rare)
-        window.setTimeout(() => setExiting(false), 50);
-      }, AUTH_TRANSITION_MS);
+      // Navigate immediately so one tap always works (esp. on Vercel)
+      if (opts?.replace) router.replace(path);
+      else router.push(path);
+      window.setTimeout(() => setExiting(false), AUTH_TRANSITION_MS + 50);
     },
     [exiting, router]
   );

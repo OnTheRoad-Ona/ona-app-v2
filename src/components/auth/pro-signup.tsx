@@ -44,7 +44,10 @@ import {
   phoneNationalError,
   genderError,
   dobError,
+  dobInputMax,
+  dobInputMin,
   formatGenderLabel,
+  normalizeDobIso,
   SIGNUP_GENDER_OPTIONS,
   type SignupGender,
 } from "@/lib/signup-validation";
@@ -489,6 +492,7 @@ export function ProSignup() {
     fullName.trim().length >= 2 &&
     !genderError(gender) &&
     !dobError(dateOfBirth) &&
+    !phoneNationalError(phoneNational) &&
     businessName.trim().length >= 2 &&
     yearsExperience.trim().length > 0 &&
     bio.trim().length >= 2 &&
@@ -600,7 +604,7 @@ export function ProSignup() {
       accountType: "professional",
       fullName: fullName.trim(),
       gender: gender as SignupGender,
-      dateOfBirth: dateOfBirth.trim(),
+      dateOfBirth: normalizeDobIso(dateOfBirth) || dateOfBirth.trim(),
       businessName: businessName.trim(),
       phone: fullPhone,
       email: email.trim(),
@@ -1189,14 +1193,89 @@ export function ProSignup() {
                       value={dateOfBirth}
                       readOnly={dobLocked}
                       tabIndex={dobLocked ? -1 : undefined}
-                      max={new Date().toISOString().slice(0, 10)}
+                      min={dobInputMin()}
+                      max={dobInputMax()}
                       onChange={(e) => {
-                        if (!dobLocked) setDateOfBirth(e.target.value);
+                        if (dobLocked) return;
+                        setDateOfBirth(
+                          normalizeDobIso(e.target.value) || e.target.value
+                        );
+                        setFieldError("dob", null);
                       }}
+                      onBlur={() =>
+                        setFieldError("dob", dobError(dateOfBirth))
+                      }
                       required
                     />
+                    <FieldHint message={fieldErrors.dob} />
                   </label>
                 </div>
+
+                <Field label="Phone (login number)" required>
+                  <p className="mb-1.5 text-[11px] font-medium leading-snug text-[#64748b]">
+                    You will log in with this exact phone number (same as
+                    Customer).
+                  </p>
+                  <div className="flex gap-1.5">
+                    <select
+                      className={cn(
+                        authSelectClass,
+                        "max-w-[42%]",
+                        phoneLocked && authLockedFieldClass
+                      )}
+                      style={
+                        phoneLocked ? authLockedFieldStyle : authFieldStyle
+                      }
+                      value={phoneIso}
+                      aria-label="Country code"
+                      disabled={phoneLocked}
+                      onChange={(e) => {
+                        if (phoneLocked) return;
+                        const iso = e.target.value;
+                        setPhoneIso(iso);
+                        const opt = phoneCodes.find((c) => c.iso === iso);
+                        if (opt) setPhoneDial(opt.dial);
+                      }}
+                    >
+                      {phoneCodes.map((c) => (
+                        <option key={`${c.iso}-${c.dial}`} value={c.iso}>
+                          {c.label} {c.name}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      className={cn(
+                        authFieldClass,
+                        "min-w-0 flex-1",
+                        phoneLocked && authLockedFieldClass
+                      )}
+                      style={
+                        phoneLocked ? authLockedFieldStyle : authFieldStyle
+                      }
+                      value={phoneNational}
+                      readOnly={phoneLocked}
+                      tabIndex={phoneLocked ? -1 : undefined}
+                      onChange={(e) => {
+                        if (phoneLocked) return;
+                        setPhoneNational(
+                          e.target.value.replace(/\D/g, "").slice(0, 15)
+                        );
+                        setFieldError("phone", null);
+                      }}
+                      onBlur={() =>
+                        setFieldError(
+                          "phone",
+                          phoneNationalError(phoneNational)
+                        )
+                      }
+                      placeholder="8012345678"
+                      type="tel"
+                      inputMode="numeric"
+                      required
+                    />
+                  </div>
+                  <FieldHint message={fieldErrors.phone} />
+                </Field>
 
                 <label className="block">
                   <span className="mb-1.5 block text-[12px] font-semibold text-[#475569]">

@@ -9,7 +9,15 @@ import {
   settingsInputClass,
 } from "@/components/settings/settings-ui";
 import { compressImageFile } from "@/lib/image-compress";
-import { isValidEmail } from "@/lib/signup-validation";
+import {
+  dobError,
+  dobInputMax,
+  dobInputMin,
+  isValidEmail,
+  normalizeDobIso,
+  SIGNUP_GENDER_OPTIONS,
+  type SignupGender,
+} from "@/lib/signup-validation";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +35,8 @@ export default function SettingsProfilePage() {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [gender, setGender] = useState<SignupGender | "">("");
   const [avatar, setAvatar] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [bio, setBio] = useState("");
@@ -41,6 +51,14 @@ export default function SettingsProfilePage() {
     setLastName(parts.slice(1).join(" ") || "");
     setEmail(userProfile.email || "");
     setPhone(userProfile.phone || "");
+    setDateOfBirth(normalizeDobIso(userProfile.dateOfBirth) || "");
+    setGender(
+      userProfile.gender === "male" ||
+        userProfile.gender === "female" ||
+        userProfile.gender === "prefer_not_to_say"
+        ? userProfile.gender
+        : ""
+    );
     setAvatar(userProfile.avatarUrl || "");
     setBusinessName(userProfile.businessName || "");
     setBio(userProfile.bio || "");
@@ -65,6 +83,11 @@ export default function SettingsProfilePage() {
       setErr("Phone number with country code is required.");
       return;
     }
+    const dobMsg = dobError(dateOfBirth);
+    if (dobMsg) {
+      setErr(dobMsg);
+      return;
+    }
     const emailChanged =
       email.trim().toLowerCase() !== (userProfile?.email || "").toLowerCase();
     const phoneChanged =
@@ -76,6 +99,8 @@ export default function SettingsProfilePage() {
       fullName,
       email: email.trim(),
       phone: phone.trim(),
+      dateOfBirth: normalizeDobIso(dateOfBirth) || undefined,
+      gender: gender || undefined,
       avatarUrl: avatar || undefined,
       ...(isPro
         ? {
@@ -195,7 +220,11 @@ export default function SettingsProfilePage() {
           <SettingsField
             label="Phone (with country code) *"
             isLight={isLight}
-            hint="Change requires OTP — use Verify after saving."
+            hint={
+              isPro
+                ? "You log in with this phone number. Change requires OTP under Verify."
+                : "Change requires OTP — use Verify after saving."
+            }
           >
             <input
               className={settingsInputClass(isLight)}
@@ -205,6 +234,38 @@ export default function SettingsProfilePage() {
               autoComplete="tel"
               placeholder="+234…"
             />
+          </SettingsField>
+          <SettingsField
+            label="Date of birth *"
+            isLight={isLight}
+            hint="Same format as signup (YYYY-MM-DD). Must be 16+."
+          >
+            <input
+              className={settingsInputClass(isLight)}
+              type="date"
+              value={dateOfBirth}
+              min={dobInputMin()}
+              max={dobInputMax()}
+              onChange={(e) => setDateOfBirth(e.target.value)}
+              required
+            />
+          </SettingsField>
+          <SettingsField label="Gender *" isLight={isLight}>
+            <select
+              className={settingsInputClass(isLight)}
+              value={gender}
+              onChange={(e) =>
+                setGender(e.target.value as SignupGender | "")
+              }
+              required
+            >
+              <option value="">Select</option>
+              {SIGNUP_GENDER_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
           </SettingsField>
           {isPro ? (
             <>

@@ -166,6 +166,50 @@ export function formatGenderLabel(gender?: string | null): string {
   return "—";
 }
 
+/** Always store/display as YYYY-MM-DD (or empty). */
+export function normalizeDobIso(
+  raw: string | null | undefined
+): string | null {
+  if (!raw) return null;
+  const s = String(raw).trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  return s;
+}
+
+/** Human-readable DOB for UI (consistent across app + admin). */
+export function formatDobLabel(raw: string | null | undefined): string {
+  const iso = normalizeDobIso(raw);
+  if (!iso) return "—";
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  const months = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+  return `${d} ${months[m - 1]} ${y}`;
+}
+
+/** Max attribute for date inputs (today). */
+export function dobInputMax(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** Min attribute (~120 years ago) for date inputs. */
+export function dobInputMin(minAge = SIGNUP_MIN_AGE): string {
+  const y = new Date().getFullYear() - 120;
+  return `${y}-01-01`;
+}
+
 export type PasswordRuleId = "length" | "upper" | "digit";
 
 export function passwordRules(
