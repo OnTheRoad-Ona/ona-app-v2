@@ -951,6 +951,7 @@ async function applyEvent(
       ],
       updatedAt: ts,
     };
+    await bumpProJobsCompleted(job.repairProId);
     return persist(released);
   }
   if (next === "released") {
@@ -1092,6 +1093,29 @@ async function releaseJobEscrow(
   });
 
   return { ok: true, transferRef: transfer.transferRef };
+}
+
+/** Count completed trades when customer taps I am Satisfied (successful release). */
+async function bumpProJobsCompleted(repairProId: string) {
+  if (!repairProId || !isSupabaseAdminConfigured()) return;
+  try {
+    const sb = createServiceSupabase();
+    const { data } = await sb
+      .from("repair_pro_profiles")
+      .select("jobs_completed")
+      .eq("user_id", repairProId)
+      .maybeSingle();
+    const prev = Number(data?.jobs_completed) || 0;
+    await sb
+      .from("repair_pro_profiles")
+      .update({
+        jobs_completed: prev + 1,
+        updated_at: nowIso(),
+      })
+      .eq("user_id", repairProId);
+  } catch {
+    /* non-fatal */
+  }
 }
 
 async function loadProPayoutBank(repairProId: string): Promise<{

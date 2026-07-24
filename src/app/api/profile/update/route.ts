@@ -276,6 +276,27 @@ export async function POST(req: Request) {
     })
     .eq("id", userId);
 
+  // Mirror Tier 1 phone flag onto role tables (admin Care reads motorist_profiles.phone_verified)
+  if (b.phoneVerified === true) {
+    const ts = new Date().toISOString();
+    try {
+      await admin
+        .from("motorist_profiles")
+        .update({ phone_verified: true, phone_verified_at: ts })
+        .eq("user_id", userId);
+    } catch {
+      /* column may be missing on old DBs */
+    }
+    try {
+      await admin
+        .from("repair_pro_profiles")
+        .update({ phone_verified: true })
+        .eq("user_id", userId);
+    } catch {
+      /* optional */
+    }
+  }
+
   const hasBankPatch =
     b.bankName !== undefined ||
     b.bankAccountName !== undefined ||

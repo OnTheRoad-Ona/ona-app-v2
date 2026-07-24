@@ -15,9 +15,9 @@ import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { compressImageFile } from "@/lib/image-compress";
 import { apiCreateJob } from "@/lib/jobs/client";
 import type { JobMedia } from "@/lib/jobs/types";
+import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import {
   detectCurrency,
-  detectCurrencyFromGeolocation,
   formatMoney,
   getBaseLabourPrice,
   LABOUR_FEE_DISCLAIMER,
@@ -25,6 +25,7 @@ import {
 } from "@/lib/pricing";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
+import type { ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const MAX_PHOTOS = 6;
@@ -98,22 +99,66 @@ function RequestInner() {
     if (!v) return null;
     return [v.vehicleType, v.make, v.model, v.year].filter(Boolean).join(" ");
   }, [profileVehicles, selectedVehicleId]);
-  const [currency, setCurrency] = useState<AppCurrency>(() =>
-    detectCurrency({
-      countryName: userProfile?.servedCountry || location.city,
-    })
-  );
-
-  // Resolve ₦ / £ / R / $ from GPS + reverse geocode (default NGN)
-  useEffect(() => {
-    let cancelled = false;
-    void detectCurrencyFromGeolocation().then((c) => {
-      if (!cancelled) setCurrency(c);
+  // Prefer currency from profile / pro pricing (signup market) — never force GBP from browser locale
+  const [currency, setCurrency] = useState<AppCurrency>(() => {
+    const fromProfile = userProfile?.pricingCurrency;
+    if (
+      fromProfile === "NGN" ||
+      fromProfile === "USD" ||
+      fromProfile === "GBP" ||
+      fromProfile === "ZAR" ||
+      fromProfile === "GHS" ||
+      fromProfile === "KES" ||
+      fromProfile === "EUR"
+    ) {
+      return fromProfile;
+    }
+    return detectCurrency({
+      countryName:
+        userProfile?.servedCountry ||
+        userProfile?.city ||
+        location.city ||
+        "Nigeria",
+      countryCode: "NG",
     });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  });
+
+  useEffect(() => {
+    const techCur = tech?.pricingCurrency;
+    if (
+      techCur === "NGN" ||
+      techCur === "USD" ||
+      techCur === "GBP" ||
+      techCur === "ZAR" ||
+      techCur === "GHS" ||
+      techCur === "KES" ||
+      techCur === "EUR"
+    ) {
+      setCurrency(techCur);
+      return;
+    }
+    const fromProfile = userProfile?.pricingCurrency;
+    if (
+      fromProfile === "NGN" ||
+      fromProfile === "USD" ||
+      fromProfile === "GBP" ||
+      fromProfile === "ZAR" ||
+      fromProfile === "GHS" ||
+      fromProfile === "KES" ||
+      fromProfile === "EUR"
+    ) {
+      setCurrency(fromProfile);
+      return;
+    }
+    // Default marketplace Nigeria unless profile/geo clearly elsewhere
+    setCurrency(
+      detectCurrency({
+        countryName:
+          userProfile?.servedCountry || userProfile?.city || "Nigeria",
+        countryCode: "NG",
+      })
+    );
+  }, [tech?.pricingCurrency, userProfile?.pricingCurrency, userProfile?.servedCountry, userProfile?.city]);
 
   const base =
     tech && tech.servicePrices
@@ -176,7 +221,10 @@ function RequestInner() {
       motoristId: userId,
       motoristName: userProfile?.fullName || "Customer",
       motoristPhoto: userProfile?.avatarUrl || null,
-      motoristVehicle: selectedVehicleLabel || null,
+      motoristVehicle:
+        tech && isAutomotiveTrade(tech.serviceType as ProService)
+          ? selectedVehicleLabel || null
+          : null,
       repairProId: tech.id,
       repairProName: tech.name,
       repairProPhoto: tech.photo,
@@ -296,8 +344,9 @@ function RequestInner() {
         </div>
       </div>
 
-      {/* Vehicle needing help */}
-      {profileVehicles.length > 0 ? (
+      {/* Context asset — vehicles only for auto trades; skip for solar/plumber/etc. */}
+      {profileVehicles.length > 0 &&
+      isAutomotiveTrade(tech.serviceType as ProService) ? (
         <section className="mb-5">
           <label className={cn("mb-2 block text-[13px] font-bold", ink)}>
             Which vehicle needs help?

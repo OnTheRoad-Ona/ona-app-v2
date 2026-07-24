@@ -205,12 +205,34 @@ async function initFlutterwave(
     .replace(/\s+/g, "")
     .trim() || "08000000000";
 
+  // Flutterwave NG collections: keep NGN when merchant is NG (avoids “method not available”)
+  let payCurrency = input.currency || "NGN";
+  if (
+    payCurrency !== "NGN" &&
+    payCurrency !== "USD" &&
+    payCurrency !== "GHS" &&
+    payCurrency !== "KES" &&
+    payCurrency !== "ZAR" &&
+    payCurrency !== "EUR" &&
+    payCurrency !== "GBP"
+  ) {
+    payCurrency = "NGN";
+  }
+  // If secret is standard FLW_NG and currency was wrongly GBP/USD from browser, prefer NGN for Ona NG
+  if (
+    (payCurrency === "GBP" || payCurrency === "USD" || payCurrency === "EUR") &&
+    process.env.FLUTTERWAVE_FORCE_NGN !== "false"
+  ) {
+    // Default product market is Nigeria; only keep foreign currency when explicitly forced off
+    payCurrency = "NGN";
+  }
+
   const amountMajor = Number((input.amountMinor / 100).toFixed(2));
 
   const body: Record<string, unknown> = {
     tx_ref: input.reference,
     amount: amountMajor,
-    currency: input.currency,
+    currency: payCurrency,
     redirect_url: input.callbackUrl,
     customer: {
       email: input.email,
@@ -229,7 +251,8 @@ async function initFlutterwave(
       splitEnabled: false,
       escrowMode: "main_merchant",
     },
-    payment_options: "card,banktransfer,ussd,account",
+    // Keep options Flutterwave NG merchants commonly enable (avoid "method not available")
+    payment_options: "card,banktransfer,ussd,mobilemoney",
   };
 
   /**

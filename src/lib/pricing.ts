@@ -102,24 +102,13 @@ export function detectCurrency(opts?: {
     (typeof navigator !== "undefined" ? navigator.language : "en-NG")
   ).toLowerCase();
 
-  if (locale.startsWith("en-gb") || locale === "en-uk") return "GBP";
-  if (locale.startsWith("en-za") || locale.startsWith("af-za")) return "ZAR";
-  if (locale.startsWith("en-us")) return "USD";
-  if (locale.startsWith("en-ng") || locale.startsWith("ha-ng") || locale.startsWith("yo-ng") || locale.startsWith("ig-ng"))
+  // Prefer Nigeria market defaults — do not infer GBP/EUR from browser language alone
+  // (many Nigerian devices report en-GB / en-US and wrongly priced in £).
+  if (locale.startsWith("en-ng") || locale.startsWith("ha-ng") || locale.startsWith("yo-ng") || locale.startsWith("ig-ng") || locale.startsWith("pcm"))
     return "NGN";
+  if (locale.startsWith("en-za") || locale.startsWith("af-za")) return "ZAR";
   if (locale.startsWith("en-gh")) return "GHS";
   if (locale.startsWith("en-ke") || locale.startsWith("sw-ke")) return "KES";
-  if (locale.startsWith("en-ca") || locale.startsWith("fr-ca")) return "CAD";
-  if (locale.startsWith("en-au")) return "AUD";
-  if (
-    locale.startsWith("de") ||
-    locale.startsWith("fr") ||
-    locale.startsWith("nl") ||
-    locale.startsWith("es") ||
-    locale.startsWith("it") ||
-    locale.startsWith("pt")
-  )
-    return "EUR";
 
   // Primary market default
   return "NGN";

@@ -356,4 +356,6 @@ export const HA: MessageDict = {
   "common.customer": "Abokin ciniki",
   "common.repairPro": "Repair Pro",
   "common.codeSent": "An aika lambar. Shigar da ita a ƙasa.",
+  "settings.hub.profileInner": "Bayani",
+  "settings.hub.profileInnerDetail": "Suna hoto tuntuɓa",
 };

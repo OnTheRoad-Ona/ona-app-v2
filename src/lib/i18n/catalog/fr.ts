@@ -356,4 +356,6 @@ export const FR: MessageDict = {
   "common.customer": "Client",
   "common.repairPro": "Repair Pro",
   "common.codeSent": "Code envoyé. Saisissez-le ci-dessous.",
+  "settings.hub.profileInner": "Profil",
+  "settings.hub.profileInnerDetail": "Nom photo contact",
 };

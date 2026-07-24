@@ -252,10 +252,10 @@ export function AppMenu({
           <div className="min-w-0 flex-1 pr-2">
             {/* Signed-in: greeting + full name only (no street address). Guest: Ona brand */}
             {isAuthenticated && fullNameDisplay ? (
-              <div className="min-w-0 space-y-1">
+              <div className="min-w-0 space-y-0.5">
                 <p
                   className={cn(
-                    "text-[22px] font-black leading-tight tracking-tight",
+                    "text-[15px] font-bold leading-tight tracking-tight",
                     isLight ? "text-black" : "text-white"
                   )}
                 >
@@ -263,7 +263,7 @@ export function AppMenu({
                 </p>
                 <p
                   className={cn(
-                    "flex flex-wrap items-center gap-1.5 text-[17px] font-semibold leading-snug",
+                    "flex flex-wrap items-center gap-1 text-[13px] font-semibold leading-snug",
                     isLight ? "text-slate-700" : "text-white/80"
                   )}
                 >

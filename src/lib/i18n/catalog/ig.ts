@@ -356,4 +356,6 @@ export const IG: MessageDict = {
   "common.customer": "Customer",
   "common.repairPro": "Repair Pro",
   "common.codeSent": "E zigara koodu. Tinye ya n'okpuru.",
+  "settings.hub.profileInner": "Profaịlụ",
+  "settings.hub.profileInnerDetail": "Aha foto kọntaktị",
 };

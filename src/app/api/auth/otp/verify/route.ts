@@ -249,13 +249,24 @@ export async function POST(req: Request) {
   }
 
   if (channel === "phone") {
+    const ts = new Date().toISOString();
     await supabase
       .from("profiles")
       .update({
         phone_verified: true,
-        updated_at: new Date().toISOString(),
+        phone_verified_at: ts,
+        updated_at: ts,
       })
       .eq("id", profileRow.id);
+    // Admin Care Tier 1 badge reads motorist_profiles.phone_verified
+    try {
+      await supabase
+        .from("motorist_profiles")
+        .update({ phone_verified: true, phone_verified_at: ts })
+        .eq("user_id", profileRow.id);
+    } catch {
+      /* optional columns */
+    }
   }
 
   let role = profileRow.role;

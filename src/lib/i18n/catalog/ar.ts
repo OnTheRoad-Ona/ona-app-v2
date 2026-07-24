@@ -356,4 +356,6 @@ export const AR: MessageDict = {
   "common.customer": "عميل",
   "common.repairPro": "Repair Pro",
   "common.codeSent": "تم إرسال الرمز. أدخله أدناه.",
+  "settings.hub.profileInner": "الملف",
+  "settings.hub.profileInnerDetail": "الاسم والصورة والاتصال",
 };

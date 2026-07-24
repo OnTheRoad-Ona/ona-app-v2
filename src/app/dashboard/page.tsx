@@ -162,6 +162,7 @@ export default function TechnicianDashboardPage() {
     null
   );
   const [switchBusy, setSwitchBusy] = useState(false);
+  const [jobsCompletedCount, setJobsCompletedCount] = useState(0);
 
   const dashboardTitle = useMemo(() => {
     const fromArtisan = artisan?.trade?.service;
@@ -173,12 +174,36 @@ export default function TechnicianDashboardPage() {
   useEffect(() => {
     if (!backendUserId) {
       setArtisan(null);
+      setJobsCompletedCount(0);
       return;
     }
     try {
       setArtisan(getArtisanProfile(backendUserId));
     } catch {
       setArtisan(null);
+    }
+    // Jobs completed = times customers tapped I am Satisfied (released)
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await apiListJobs(backendUserId, "repair_pro");
+        if (cancelled || !res.ok) return;
+        const n = (res.data.jobs || []).filter((j) =>
+          ["satisfied", "released"].includes(j.status)
+        ).length;
+        setJobsCompletedCount(n);
+      } catch {
+        /* keep 0 */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [backendUserId]);
+
+  useEffect(() => {
+    if (!backendUserId) {
+      return;
     }
 
     // Hydrate + poll care approval so dashboard tier flips without leaving
@@ -680,6 +705,24 @@ export default function TechnicianDashboardPage() {
             })}
           </ul>
         )}
+
+        {/* Mid-bottom: jobs completed when customers tap I am Satisfied */}
+        <div
+          className={cn(
+            "mt-6 mb-2 rounded-xl px-4 py-3 text-center",
+            isLight ? "bg-black/[0.06]" : "bg-white/[0.06]"
+          )}
+        >
+          <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
+            Jobs completed
+          </p>
+          <p className={cn("mt-0.5 text-[28px] font-black tabular-nums", ink)}>
+            {jobsCompletedCount}
+          </p>
+          <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
+            Counted when a customer taps I am Satisfied
+          </p>
+        </div>
       </div>
     </div>
   );

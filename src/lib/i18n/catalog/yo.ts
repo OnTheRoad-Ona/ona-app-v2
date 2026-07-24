@@ -356,4 +356,6 @@ export const YO: MessageDict = {
   "common.customer": "Oníbàárà",
   "common.repairPro": "Repair Pro",
   "common.codeSent": "Wọ́n ti fi kóòdù ránṣẹ́. Tẹ ẹ́ nísàlẹ̀.",
+  "settings.hub.profileInner": "Profaili",
+  "settings.hub.profileInnerDetail": "Orúkọ fọ́tò ìbáraẹnisọ̀rọ̀",
 };

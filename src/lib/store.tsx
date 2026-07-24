@@ -1377,31 +1377,61 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return "Phone verify here is for Customer accounts.";
       }
       const dig = code.replace(/\D/g, "");
-      // Demo default OTP until Africa's Talking SMS is wired for customers
+      if (dig.length < 4) return "Enter the 6-digit code.";
+
       const { CUSTOMER_PHONE_OTP } = await import("@/lib/verification-gate");
-      if (dig !== CUSTOMER_PHONE_OTP) {
-        return `Invalid code. For now use ${CUSTOMER_PHONE_OTP}.`;
+      const { DEMO_OTP_CODE } = await import("@/lib/auth/demo-otp");
+      const isDemo =
+        dig === CUSTOMER_PHONE_OTP || dig === DEMO_OTP_CODE || dig === "336699";
+
+      // Real SMS OTP via same path as login (demo 336699 also accepted server-side)
+      if (!isDemo) {
+        if (!isAppBackendOnline() || !userProfile.phone) {
+          return "Invalid code. Try again.";
+        }
+        try {
+          const r = await fetch("/api/auth/otp/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              channel: "phone",
+              target: userProfile.phone,
+              code: dig,
+              preferType: "motorist",
+            }),
+          });
+          const json = (await r.json().catch(() => null)) as {
+            ok?: boolean;
+            error?: { message?: string };
+          } | null;
+          if (!json?.ok) {
+            return json?.error?.message || "Invalid code. Try again.";
+          }
+        } catch {
+          return "Could not verify code. Check network and try again.";
+        }
       }
+
       const next = { ...userProfile, phoneVerified: true };
       persistProfile(next);
-      // Persist Tier 1 so bank gate + reload keep phone verified
+      setUserProfile(next);
+      // Persist Tier 1 so bank gate + reload + admin Care show Verified
       if (isAppBackendOnline()) {
-        void (async () => {
-          try {
-            const sb = (
-              await import("@/lib/supabase/app-client")
-            ).getAppSupabase();
-            const session = sb
-              ? (await sb.auth.getSession()).data.session
-              : null;
-            if (!session?.access_token) return;
+        try {
+          const sb = (
+            await import("@/lib/supabase/app-client")
+          ).getAppSupabase();
+          const session = sb
+            ? (await sb.auth.getSession()).data.session
+            : null;
+          if (session?.access_token) {
             await backendUpdateProfile(session.access_token, {
               phoneVerified: true,
             });
-          } catch {
-            /* local already set */
           }
-        })();
+        } catch {
+          /* local already set */
+        }
       }
       return null;
     },

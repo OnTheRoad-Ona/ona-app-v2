@@ -623,9 +623,18 @@ export default function AdminCustomersHubPage() {
                       </td>
                       <td className="om-admin-td-files">
                         <FileThumbRow
+                          userId={c.user_id}
                           items={[
-                            { label: "Front", url: c.gov_id_front_url },
-                            { label: "Back", url: c.gov_id_back_url },
+                            {
+                              label: "Front",
+                              url: c.gov_id_front_url,
+                              kind: "front",
+                            },
+                            {
+                              label: "Back",
+                              url: c.gov_id_back_url,
+                              kind: "back",
+                            },
                           ]}
                         />
                       </td>
@@ -1099,6 +1108,8 @@ export default function AdminCustomersHubPage() {
                     selectedReview.levels?.t2_id?.front_url
                   }
                   size="lg"
+                  userId={selectedReview.user_id}
+                  kind="front"
                 />
                 <FileThumb
                   label="Back"
@@ -1107,6 +1118,8 @@ export default function AdminCustomersHubPage() {
                     selectedReview.levels?.t2_id?.back_url
                   }
                   size="lg"
+                  userId={selectedReview.user_id}
+                  kind="back"
                 />
               </div>
             </div>

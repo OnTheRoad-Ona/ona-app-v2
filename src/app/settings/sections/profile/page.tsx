@@ -32,8 +32,8 @@ export default function SettingsProfileSectionPage() {
               first
               isLight={isLight}
               icon={UserRound}
-              label="Profile & business"
-              detail="Name, photo, bio, skills"
+              label={t("settings.hub.profileInner")}
+              detail="Name photo bio skills"
               href="/settings/profile"
             />
             <SettingsRow
@@ -57,22 +57,22 @@ export default function SettingsProfileSectionPage() {
               first
               isLight={isLight}
               icon={UserRound}
-              label="Profile & account"
-              detail="Name, email, phone, photo"
+              label={t("settings.hub.profileInner")}
+              detail="Name email phone photo"
               href="/settings/profile"
             />
             <SettingsRow
               isLight={isLight}
               icon={Shield}
               label="Verification"
-              detail="Phone · government ID (Tier 1–2)"
+              detail="Phone government ID Tier 1 2"
               href="/verify"
             />
             <SettingsRow
               isLight={isLight}
               icon={MapPin}
               label="Addresses & location"
-              detail="Home, Work, service pin"
+              detail="Home Work service pin"
               href="/settings/location"
             />
             <SettingsRow

@@ -433,14 +433,13 @@ export default function VerifyIdentityPage() {
           </p>
           <p className={cn("mt-1 text-[11px] leading-snug", muted)}>
             {submitted
-              ? "Submitted — waiting for admin / customer care approval. Full access needs both: ID submitted and admin-approved."
-              : "ID types for Nigeria. After your 30-day free period you need ID submitted and admin-approved to keep booking."}
+              ? "Submitted for Care review Full booking unlocks after approval"
+              : "Upload a clear government ID for Care review"}
           </p>
 
           {submitted ? (
             <p className="mt-2 text-[11px] font-semibold leading-snug text-amber-600">
-              Under review · full booking unlocks when admin / customer care
-              approves your ID
+              Under review Full booking unlocks when Care approves your ID
               {trialNote(userProfile)}
             </p>
           ) : (

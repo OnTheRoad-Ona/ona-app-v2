@@ -356,4 +356,6 @@ export const ZH: MessageDict = {
   "common.customer": "客户",
   "common.repairPro": "技工",
   "common.codeSent": "验证码已发送。请在下方输入。",
+  "settings.hub.profileInner": "资料",
+  "settings.hub.profileInnerDetail": "姓名照片联系方式",
 };

@@ -356,4 +356,6 @@ export const SW: MessageDict = {
   "common.customer": "Mteja",
   "common.repairPro": "Repair Pro",
   "common.codeSent": "Msimbo umetumwa. Ingiza hapa chini.",
+  "settings.hub.profileInner": "Wasifu",
+  "settings.hub.profileInnerDetail": "Jina picha mawasiliano",
 };

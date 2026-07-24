@@ -61,30 +61,59 @@ async function readCachedDoc(url: string): Promise<string | null> {
   });
 }
 
-/** Download once online and store for offline viewing. */
-async function cacheDocUrl(url: string): Promise<string | null> {
-  if (!url || url.startsWith("data:") || url.startsWith("blob:")) return url;
-  try {
-    const res = await fetch(url, { mode: "cors", credentials: "omit" });
-    if (!res.ok) return null;
-    const blob = await res.blob();
-    const db = await openDocDb();
-    if (db) {
-      await new Promise<void>((resolve) => {
-        try {
-          const tx = db.transaction(DOC_CACHE_STORE, "readwrite");
-          tx.objectStore(DOC_CACHE_STORE).put(blob, cacheKey(url));
-          tx.oncomplete = () => resolve();
-          tx.onerror = () => resolve();
-        } catch {
-          resolve();
-        }
-      });
-    }
-    return URL.createObjectURL(blob);
-  } catch {
-    return null;
+/** Prefer admin proxy for private storage / CORS; fall back to direct URL. */
+function proxyDocUrl(url: string, userId?: string | null, kind?: string): string {
+  if (!url) return url;
+  if (url.startsWith("data:") || url.startsWith("blob:")) return url;
+  const q = new URLSearchParams();
+  if (userId && kind) {
+    q.set("userId", userId);
+    q.set("kind", kind);
+  } else {
+    q.set("url", url);
   }
+  return `/api/admin/docs?${q.toString()}`;
+}
+
+/** Download once online and store for offline viewing. */
+async function cacheDocUrl(
+  url: string,
+  opts?: { userId?: string | null; kind?: string }
+): Promise<string | null> {
+  if (!url || url.startsWith("data:") || url.startsWith("blob:")) return url;
+  const candidates = [
+    proxyDocUrl(url, opts?.userId, opts?.kind),
+    url,
+  ];
+  for (const fetchUrl of candidates) {
+    try {
+      const res = await fetch(fetchUrl, {
+        mode: "cors",
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      if (!res.ok) continue;
+      const blob = await res.blob();
+      if (!blob || blob.size < 8) continue;
+      const db = await openDocDb();
+      if (db) {
+        await new Promise<void>((resolve) => {
+          try {
+            const tx = db.transaction(DOC_CACHE_STORE, "readwrite");
+            tx.objectStore(DOC_CACHE_STORE).put(blob, cacheKey(url));
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => resolve();
+          } catch {
+            resolve();
+          }
+        });
+      }
+      return URL.createObjectURL(blob);
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
 }
 
 export function fmtDate(iso: string | null | undefined): string {
@@ -134,43 +163,62 @@ export function FileThumb({
   label,
   url,
   size = "sm",
+  userId,
+  kind,
 }: {
   label: string;
   url: string | null | undefined;
   size?: "sm" | "md" | "lg";
+  /** When set with kind, admin proxy loads from DB even if raw URL fails */
+  userId?: string | null;
+  kind?: "front" | "back" | "pro_front" | "pro_back" | "skill";
 }) {
   const dim = size === "lg" ? 160 : size === "md" ? 96 : 48;
   const [src, setSrc] = useState<string | null>(url || null);
   const [offline, setOffline] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    if (!url) {
+    if (!url && !(userId && kind)) {
       setSrc(null);
       return;
     }
     let cancelled = false;
-    setSrc(url);
+    setFailed(false);
+    const initial =
+      url && (url.startsWith("data:") || url.startsWith("blob:"))
+        ? url
+        : url
+          ? proxyDocUrl(url, userId, kind)
+          : userId && kind
+            ? `/api/admin/docs?userId=${encodeURIComponent(userId)}&kind=${encodeURIComponent(kind)}`
+            : null;
+    setSrc(initial);
     void (async () => {
-      const cached = await readCachedDoc(url);
-      if (cancelled) return;
-      if (cached) {
-        setSrc(cached);
-        setOffline(true);
-        return;
+      if (url) {
+        const cached = await readCachedDoc(url);
+        if (cancelled) return;
+        if (cached) {
+          setSrc(cached);
+          setOffline(true);
+          return;
+        }
       }
-      const fresh = await cacheDocUrl(url);
+      const fresh = await cacheDocUrl(url || "", { userId, kind });
       if (cancelled) return;
       if (fresh) {
         setSrc(fresh);
         setOffline(true);
+      } else if (!initial) {
+        setFailed(true);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [url]);
+  }, [url, userId, kind]);
 
-  if (!url) {
+  if (!url && !(userId && kind)) {
     return (
       <div
         className="om-admin-file-empty"
@@ -181,27 +229,44 @@ export function FileThumb({
       </div>
     );
   }
-  const view = src || url;
+  const view =
+    src ||
+    (url
+      ? proxyDocUrl(url, userId, kind)
+      : userId && kind
+        ? `/api/admin/docs?userId=${encodeURIComponent(userId)}&kind=${encodeURIComponent(kind)}`
+        : "");
   const isImage =
     view.startsWith("data:image") ||
     view.startsWith("blob:") ||
-    /\.(jpe?g|png|gif|webp|heic)(\?|$)/i.test(url) ||
-    url.includes("image");
+    (url &&
+      (/\.(jpe?g|png|gif|webp|heic)(\?|$)/i.test(url) ||
+        url.includes("image") ||
+        url.startsWith("data:image")));
 
-  if (!isImage && !url.startsWith("data:")) {
+  if (failed && !view) {
+    return (
+      <div
+        className="om-admin-file-empty"
+        style={{ width: dim, height: Math.round(dim * 0.72) }}
+      >
+        <span>{label} failed</span>
+      </div>
+    );
+  }
+
+  if (!isImage && view && !view.startsWith("data:image")) {
     return (
       <a
         className="om-admin-file-link"
         href={view}
         target="_blank"
         rel="noreferrer"
-        title={offline ? `${label} (saved offline)` : label}
-        onClick={() => {
-          void cacheDocUrl(url);
-        }}
+        download
+        title={offline ? `${label} (saved offline)` : `Open ${label}`}
       >
         📄 {label}
-        {offline ? " · offline" : ""}
+        {offline ? " · offline" : " · open"}
       </a>
     );
   }
@@ -212,14 +277,25 @@ export function FileThumb({
       href={view}
       target="_blank"
       rel="noreferrer"
-      title={`${label}${offline ? " · saved offline" : " — open full"}`}
+      download
+      title={`${label}${offline ? " · saved offline" : " · open / download"}`}
       style={{ width: dim, height: Math.round(dim * 0.72) }}
-      onClick={() => {
-        void cacheDocUrl(url);
-      }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={view} alt={label} />
+      <img
+        src={view}
+        alt={label}
+        onError={() => {
+          // Last resort: try proxy by userId
+          if (userId && kind) {
+            setSrc(
+              `/api/admin/docs?userId=${encodeURIComponent(userId)}&kind=${encodeURIComponent(kind)}&t=${Date.now()}`
+            );
+          } else {
+            setFailed(true);
+          }
+        }}
+      />
       <span className="om-admin-file-caption">
         {label}
         {offline ? " · offline" : ""}
@@ -230,8 +306,14 @@ export function FileThumb({
 
 export function FileThumbRow({
   items,
+  userId,
 }: {
-  items: { label: string; url: string | null | undefined }[];
+  items: {
+    label: string;
+    url: string | null | undefined;
+    kind?: "front" | "back" | "pro_front" | "pro_back" | "skill";
+  }[];
+  userId?: string | null;
 }) {
   const hasAny = items.some((i) => i.url);
   if (!hasAny) {
@@ -241,7 +323,17 @@ export function FileThumbRow({
     <div className="om-admin-file-row">
       {items.map((i) =>
         i.url ? (
-          <FileThumb key={i.label} label={i.label} url={i.url} size="sm" />
+          <FileThumb
+            key={i.label}
+            label={i.label}
+            url={i.url}
+            size="sm"
+            userId={userId}
+            kind={
+              i.kind ||
+              (i.label.toLowerCase().includes("back") ? "back" : "front")
+            }
+          />
         ) : null
       )}
     </div>
