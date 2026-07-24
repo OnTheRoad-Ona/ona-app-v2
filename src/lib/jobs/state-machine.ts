@@ -53,6 +53,8 @@ const ALLOWED: Record<JobFlowStatus, Partial<Record<TransitionEvent["type"], Job
   },
   arrived: {
     START_WORK: "in_progress",
+    /** Allow finish without separate “Start work” so customer gets I’m Satisfied sooner */
+    MARK_COMPLETED: "completed",
     OPEN_DISPUTE: "disputed",
     /** System 6h auto-cancel or motorist cancel → full refund */
     CANCEL: "cancelled",

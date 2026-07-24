@@ -40,6 +40,7 @@ import {
 } from "@/lib/server/payments/escrow-store";
 import {
   initCharge,
+  releaseToPro,
   resolveProvider,
   verifyCharge,
 } from "@/lib/server/payments/providers";
@@ -931,7 +932,14 @@ async function applyEvent(
   }
   if (next === "satisfied") {
     updated.satisfiedAt = ts;
-    // Customer confirmation immediately releases escrow (95% pro / 5% platform)
+    // Customer “I am satisfied” → transfer 95% to pro bank, keep 5% platform
+    const payout = await releaseJobEscrow(updated);
+    if (!payout.ok) {
+      throw new Error(
+        payout.message ||
+          "Could not pay the Repair Pro. Funds stay held until release succeeds. Try again."
+      );
+    }
     const released: JobRecord = {
       ...updated,
       status: "released",
@@ -943,13 +951,18 @@ async function applyEvent(
       ],
       updatedAt: ts,
     };
-    await releaseJobEscrow(released);
     return persist(released);
   }
   if (next === "released") {
     updated.releasedAt = ts;
+    const payout = await releaseJobEscrow(updated);
+    if (!payout.ok) {
+      throw new Error(
+        payout.message ||
+          "Could not release payout to Repair Pro. Funds still held."
+      );
+    }
     updated.escrowStatus = "released";
-    await releaseJobEscrow(updated);
   }
   if (next === "refunded") {
     updated.escrowStatus = "refunded";
@@ -970,16 +983,145 @@ async function refundJobEscrow(job: JobRecord) {
   }
 }
 
-async function releaseJobEscrow(job: JobRecord) {
+/**
+ * Pay Repair Pro 95% (proPayoutMinor) via Flutterwave Transfer from merchant balance.
+ * Platform 5% stays in Witco/Ona merchant account. Never mark released unless transfer ok
+ * (mock provider always succeeds).
+ */
+async function releaseJobEscrow(
+  job: JobRecord
+): Promise<{ ok: boolean; message?: string; transferRef?: string }> {
   const esc = await getEscrowByRequest(job.id);
-  if (esc) {
-    await updateEscrow(esc.id, {
-      status: "released",
-      escrowStatus: "released",
+  if (!esc) {
+    // No escrow row (edge/demo) — allow status advance without transfer
+    if (resolveProvider() === "mock") return { ok: true, transferRef: "mock-no-escrow" };
+    return {
+      ok: false,
+      message: "No held payment found for this job. Contact support.",
+    };
+  }
+
+  // Already paid out successfully
+  const meta = (esc.meta || {}) as Record<string, unknown>;
+  if (
+    esc.escrowStatus === "released" &&
+    (meta.proTransferRef || meta.proTransferOk === true)
+  ) {
+    return {
+      ok: true,
+      transferRef: String(meta.proTransferRef || ""),
+    };
+  }
+
+  const total =
+    job.amountMinor ??
+    esc.amountMinor ??
+    (job.agreedMajor != null
+      ? toMinorUnits(job.agreedMajor, job.currency)
+      : 0);
+  if (!total || total <= 0) {
+    return { ok: false, message: "Invalid job amount for release." };
+  }
+
+  let proPayout =
+    job.proPayoutMinor ??
+    esc.proPayoutMinor ??
+    0;
+  if (!proPayout || proPayout <= 0) {
+    // 95% default platform fee
+    const platform = Math.round((total * PLATFORM_FEE_PERCENT) / 100);
+    proPayout = total - platform;
+  }
+  // Never send more than held
+  proPayout = Math.min(proPayout, total);
+
+  const bank = await loadProPayoutBank(job.repairProId);
+  const currency = (job.currency || esc.currency || "NGN") as AppCurrency;
+  const reference = String(
+    esc.providerRef || job.paymentReference || job.id
+  ).slice(0, 40);
+
+  const transfer = await releaseToPro({
+    amountMinor: proPayout,
+    currency,
+    reference,
+    reason: `Ona job payout 95% · ${job.repairProName || "Repair Pro"} · ${job.id.slice(0, 8)}`,
+    bankCode: bank.bankCode || undefined,
+    accountNumber: bank.accountNumber || undefined,
+    accountName: bank.accountName || undefined,
+  });
+
+  if (!transfer.ok) {
+    // Keep escrow held so funds stay in merchant until fixed
+    try {
+      await updateEscrow(esc.id, {
+        status: esc.status,
+        escrowStatus: "held",
+        meta: {
+          ...meta,
+          lastReleaseError: transfer.message || "transfer_failed",
+          lastReleaseAt: nowIso(),
+          attemptedProPayoutMinor: proPayout,
+        },
+      });
+    } catch {
+      /* */
+    }
+    return {
+      ok: false,
+      message:
+        transfer.message ||
+        "Could not transfer 95% to Repair Pro bank. Funds remain held.",
+    };
+  }
+
+  await updateEscrow(esc.id, {
+    status: "released",
+    escrowStatus: "released",
+    releasedAt: nowIso(),
+    motoristCompletedAt: job.satisfiedAt || nowIso(),
+    proCompletedAt: nowIso(),
+    meta: {
+      ...meta,
+      proTransferOk: true,
+      proTransferRef: transfer.transferRef || null,
+      proPayoutMinor: proPayout,
+      platformKeptMinor: total - proPayout,
       releasedAt: nowIso(),
-      motoristCompletedAt: job.satisfiedAt || nowIso(),
-      proCompletedAt: nowIso(),
-    });
+    },
+  });
+
+  return { ok: true, transferRef: transfer.transferRef };
+}
+
+async function loadProPayoutBank(repairProId: string): Promise<{
+  bankCode: string | null;
+  accountNumber: string | null;
+  accountName: string | null;
+}> {
+  if (!repairProId || !isSupabaseAdminConfigured()) {
+    return { bankCode: null, accountNumber: null, accountName: null };
+  }
+  try {
+    const sb = createServiceSupabase();
+    const { data } = await sb
+      .from("repair_pro_profiles")
+      .select("bank_code, bank_account_number, bank_account_name, bank_name")
+      .eq("user_id", repairProId)
+      .maybeSingle();
+    if (!data) {
+      return { bankCode: null, accountNumber: null, accountName: null };
+    }
+    return {
+      bankCode: (data.bank_code as string) || null,
+      accountNumber: (data.bank_account_number as string) || null,
+      accountName:
+        (data.bank_account_name as string) ||
+        (data.bank_name as string) ||
+        null,
+    };
+  } catch {
+    return { bankCode: null, accountNumber: null, accountName: null };
   }
 }
 

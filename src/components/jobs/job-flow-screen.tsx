@@ -1247,11 +1247,12 @@ export function JobFlowScreen({
       { when: ["en_route"], event: "MARK_ARRIVED", label: "I’ve arrived" },
       { when: ["arrived"], event: "START_WORK", label: "Start work" },
       {
-        when: ["in_progress"],
+        when: ["in_progress", "arrived"],
         event: "MARK_COMPLETED",
         label: "Mark job complete",
       },
     ];
+    // Prefer earliest unfinished step (Start trip → … → Mark complete)
     const nextPro = proActions.find((a) => a.when.includes(job.status));
 
     const proAdvance = async (
@@ -1868,45 +1869,47 @@ export function JobFlowScreen({
 
   /* ─── COMPLETED → customer must confirm to release pay ─── */
   if (job.status === "completed") {
+    // Job party wins over “Use as” role (dual-account devices)
+    const isCustomerParty =
+      Boolean(actorId) &&
+      (job.motoristId === actorId || viewer === "motorist");
+    const showSatisfiedCta = isCustomerParty;
+
+    const onSatisfied = () =>
+      void run(async () => {
+        const res = await apiTransition({
+          jobId: job.id,
+          event: "SATISFIED",
+          actor: "motorist",
+          actorId,
+        });
+        if (res.ok) {
+          try {
+            const { playAppSound } = await import("@/lib/sound-tone");
+            playAppSound("payment_success");
+          } catch {
+            /* */
+          }
+        }
+        return res;
+      });
+
     return (
       <JobShell
         isLight={isLight}
         title={
-          viewer === "motorist" ? "Confirm & release pay" : "Job completed"
+          showSatisfiedCta ? "Confirm & release pay" : "Job completed"
         }
         compactHeader
         onBack={goJobsList}
         footer={
-          viewer === "motorist" ? (
+          showSatisfiedCta ? (
             <div className="flex w-full flex-col gap-2">
-              <CopperButton
-                disabled={busy}
-                onClick={() =>
-                  void run(async () => {
-                    const res = await apiTransition({
-                      jobId: job.id,
-                      event: "SATISFIED",
-                      actor: "motorist",
-                      actorId,
-                    });
-                    if (res.ok) {
-                      try {
-                        const { playAppSound } = await import(
-                          "@/lib/sound-tone"
-                        );
-                        playAppSound("payment_success");
-                      } catch {
-                        /* */
-                      }
-                    }
-                    return res;
-                  })
-                }
-              >
-                I am satisfied — release pay
+              <CopperButton disabled={busy} onClick={onSatisfied}>
+                I&apos;M SATISFIED
               </CopperButton>
               <p className={cn("text-center text-[11px] font-medium", muted)}>
-                Releases escrow to {job.repairProName} (95%)
+                Releases 95% to {job.repairProName} · 5% platform
               </p>
             </div>
           ) : (
@@ -1919,13 +1922,13 @@ export function JobFlowScreen({
         <JobCard isLight={isLight} className="text-center">
           <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-500" />
           <p className={cn("mt-3 text-[18px] font-black", ink)}>
-            {viewer === "motorist"
+            {showSatisfiedCta
               ? "Work is done — confirm to release money"
               : "Work marked complete"}
           </p>
           <p className={cn("mt-1 text-[13px] leading-snug", muted)}>
-            {viewer === "motorist"
-              ? `Tap I am satisfied to release payment to ${job.repairProName}.`
+            {showSatisfiedCta
+              ? `Tap I’M SATISFIED to send 95% to ${job.repairProName} (5% stays with the platform).`
               : "Escrow releases only after the customer confirms."}
           </p>
           {job.agreedMajor != null && (
@@ -1933,8 +1936,18 @@ export function JobFlowScreen({
               {formatMoney(job.agreedMajor, job.currency)}
             </p>
           )}
+          {showSatisfiedCta ? (
+            <div className="mt-5 space-y-2">
+              <CopperButton disabled={busy} onClick={onSatisfied}>
+                I&apos;M SATISFIED
+              </CopperButton>
+              <p className={cn("text-[11px] font-medium", muted)}>
+                {LABOUR_SPLIT_LINE || "95% Repair Pro · 5% platform"}
+              </p>
+            </div>
+          ) : null}
         </JobCard>
-        {viewer === "motorist" ? (
+        {showSatisfiedCta ? (
           <button
             type="button"
             onClick={() => setDisputeOpen(true)}
@@ -1956,7 +1969,7 @@ export function JobFlowScreen({
               void run(async () => {
                 const res = await apiOpenDispute({
                   jobId: job.id,
-                  by: viewer,
+                  by: "motorist",
                   reason: disputeReason,
                   description: disputeDesc,
                 });

@@ -539,7 +539,7 @@ function MotoristJobsPage({
           void ensureNotifyPermission();
           showAppNotification({
             title: "Confirm & release pay",
-            body: "Tap I am satisfied to release payment to your Repair Pro.",
+            body: "Tap I’M SATISFIED to send 95% to your Repair Pro (5% platform).",
             tag: `job-complete-${needsConfirm.id}`,
             href: `/jobs/${needsConfirm.id}`,
             requireInteraction: true,

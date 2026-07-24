@@ -1,8 +1,9 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { JobFlowScreen } from "@/components/jobs/job-flow-screen";
+import { apiGetJob } from "@/lib/jobs/client";
 import { useApp } from "@/lib/store";
 
 function JobPageInner() {
@@ -11,7 +12,6 @@ function JobPageInner() {
   const { theme, userProfile, accountType, backendUserId } = useApp();
   const isLight = theme === "light";
 
-  const viewer = accountType === "professional" ? "repair_pro" : "motorist";
   const actorId = useMemo(
     () =>
       backendUserId ||
@@ -20,6 +20,34 @@ function JobPageInner() {
       "local-user",
     [backendUserId, userProfile]
   );
+
+  /**
+   * Prefer job membership over current “Use as” role so dual-role users
+   * who are still on Repair Pro still see Customer “I am satisfied”.
+   */
+  const [viewer, setViewer] = useState<"motorist" | "repair_pro">(
+    accountType === "professional" ? "repair_pro" : "motorist"
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!id || !actorId) return;
+    void (async () => {
+      const res = await apiGetJob(id);
+      if (cancelled || !res.ok) return;
+      const j = res.data.job;
+      if (j.motoristId && j.motoristId === actorId) {
+        setViewer("motorist");
+      } else if (j.repairProId && j.repairProId === actorId) {
+        setViewer("repair_pro");
+      } else {
+        setViewer(accountType === "professional" ? "repair_pro" : "motorist");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, actorId, accountType]);
 
   if (!id) {
     return (
