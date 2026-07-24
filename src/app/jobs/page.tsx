@@ -465,6 +465,7 @@ function MotoristJobsPage({
   backendUserId: string | null | undefined;
   onBack: () => void;
 }) {
+  const router = useRouter();
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
