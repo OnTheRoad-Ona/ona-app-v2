@@ -25,7 +25,7 @@ import { useApp } from "@/lib/store";
 
 /**
  * Row inside the continuous professional list banner.
- * Request → Open (accepted) → Booked (working); Open/Booked open live job.
+ * Request (default, incl. after past jobs) → Booked only while en route / working.
  */
 export function TechCard({
   tech,
@@ -163,13 +163,9 @@ export function TechCard({
                   ? isLight
                     ? "text-emerald-800"
                     : "text-emerald-400"
-                  : cta === "open"
-                    ? isLight
-                      ? "text-sky-800"
-                      : "text-sky-300"
-                    : isLight
-                      ? "text-brand hover:text-brand-deep"
-                      : "text-[#ffb07a] hover:text-white"
+                  : isLight
+                    ? "text-brand hover:text-brand-deep"
+                    : "text-[#ffb07a] hover:text-white"
               )}
             >
               {label}

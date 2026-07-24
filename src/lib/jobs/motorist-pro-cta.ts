@@ -1,70 +1,46 @@
 /**
- * Motorist CTA for a Repair Pro row / profile:
- * - request → no active job with this pro
- * - open    → pro accepted / job in pipeline (negotiate → paid)
- * - booked  → pro is on the way or working
+ * Customer CTA for a Repair Pro row / profile:
+ * - request → default; always available to request again (incl. after past jobs)
+ * - booked  → pro is on the way or working (en_route / arrived / in_progress only)
+ *
+ * "Open" is intentionally removed — past / early pipeline jobs live in History
+ * (or Jobs for live trip via Booked). Pros stay on the discovery list.
  */
 
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
 
-export type ProCtaKind = "request" | "open" | "booked";
+export type ProCtaKind = "request" | "booked";
 
-/** Jobs that still link motorist ↔ this pro (not finished/cancelled) */
-const ACTIVE: JobFlowStatus[] = [
-  "negotiating",
-  "agreed",
-  "paid_booked",
-  "en_route",
-  "arrived",
-  "in_progress",
-  "completed",
-  "disputed",
-  "under_appeal",
-];
-
-const OPEN: JobFlowStatus[] = [
-  "negotiating",
-  "agreed",
-  "paid_booked",
-  "completed",
-  "disputed",
-  "under_appeal",
-];
-
+/** Mid-trip only — customer can open the live job; button label "Booked" */
 const BOOKED: JobFlowStatus[] = ["en_route", "arrived", "in_progress"];
 
 const RANK: Partial<Record<JobFlowStatus, number>> = {
-  negotiating: 1,
-  agreed: 2,
-  paid_booked: 3,
-  en_route: 4,
-  arrived: 5,
-  in_progress: 6,
-  completed: 7,
-  disputed: 8,
-  under_appeal: 9,
+  en_route: 1,
+  arrived: 2,
+  in_progress: 3,
 };
 
+/** True only while the pro is on the way or working this job */
 export function isActiveJobWithPro(job: JobRecord): boolean {
   return (
-    Boolean(job.repairProId) && ACTIVE.includes(job.status as JobFlowStatus)
+    Boolean(job.repairProId) && BOOKED.includes(job.status as JobFlowStatus)
   );
 }
 
 export function proCtaKind(job: JobRecord | null | undefined): ProCtaKind {
   if (!job || !isActiveJobWithPro(job)) return "request";
-  if (BOOKED.includes(job.status as JobFlowStatus)) return "booked";
-  if (OPEN.includes(job.status as JobFlowStatus)) return "open";
-  return "request";
+  return "booked";
 }
 
 export function proCtaLabel(kind: ProCtaKind, profile = false): string {
-  if (kind === "open") return "Open";
   if (kind === "booked") return "Booked";
   return profile ? "Request Help" : "Request";
 }
 
-/** Prefer the furthest-along active job per pro */
+/**
+ * Index mid-trip jobs by pro only (not finished / negotiate / completed).
+ * Finished work belongs in History; list CTA stays Request so customers can book again.
+ */
 export function indexJobsByProId(jobs: JobRecord[]): Record<string, JobRecord> {
   const map: Record<string, JobRecord> = {};
   for (const j of jobs) {

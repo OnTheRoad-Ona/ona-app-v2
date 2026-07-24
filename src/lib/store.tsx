@@ -2199,22 +2199,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!cancelled) setDiscoveryDemoteProIds([]);
       }
 
-      if (!backendUserId || accountType === "professional") {
-        if (!cancelled) setDiscoveryExcludeProIds([]);
-        return;
-      }
-      try {
-        const { apiListJobs } = await import("@/lib/jobs/client");
-        const { indexJobsByProId } = await import(
-          "@/lib/jobs/motorist-pro-cta"
-        );
-        const res = await apiListJobs(backendUserId, "motorist");
-        if (cancelled || !res.ok) return;
-        const byPro = indexJobsByProId(res.data.jobs || []);
-        if (!cancelled) setDiscoveryExcludeProIds(Object.keys(byPro));
-      } catch {
-        if (!cancelled) setDiscoveryExcludeProIds([]);
-      }
+      // Never hide previously requested pros from the list — customer can
+      // Request again. Mid-trip shows "Booked" on the card; past jobs → History.
+      if (!cancelled) setDiscoveryExcludeProIds([]);
     };
     void refreshDiscoveryPriority();
     const onVis = () => {

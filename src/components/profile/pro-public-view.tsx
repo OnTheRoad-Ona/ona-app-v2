@@ -46,9 +46,9 @@ export function ProPublicView({
   isLight: boolean;
   reviews?: ProfileReview[];
   onRequest: () => void;
-  /** Request Help | Open | Booked */
+  /** Request Help | Booked (mid-trip only) */
   ctaLabel?: string;
-  ctaKind?: "request" | "open" | "booked";
+  ctaKind?: "request" | "booked";
 }) {
   const t = profileTheme(isLight);
   const jobs = tech.jobsCompleted ?? tech.reviewCount ?? 0;
@@ -126,9 +126,7 @@ export function ProPublicView({
               "h-12 w-full border-0 shadow-none",
               ctaKind === "booked"
                 ? "bg-emerald-700 text-white hover:bg-emerald-800"
-                : ctaKind === "open"
-                  ? "bg-sky-700 text-white hover:bg-sky-800"
-                  : undefined
+                : undefined
             )}
             onClick={onRequest}
           >
