@@ -74,7 +74,7 @@ export default function SettingsNotificationsPage() {
           onClick={() => patchLocal({ soundsOn: !local.soundsOn })}
           className={cn(
             "mt-3 flex w-full items-center gap-2 rounded-xl border-0 px-3 py-3 text-left",
-            isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]"
+            "bg-transparent"
           )}
         >
           <span className="flex h-9 w-9 items-center justify-center">

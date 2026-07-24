@@ -121,12 +121,14 @@ export async function apiPayJob(input: {
   return parse<{
     job?: JobRecord;
     jobId?: string;
-    reference: string;
+    reference?: string;
     message?: string;
     provider?: string;
     /** Present for real Flutterwave — client must redirect */
     authorizationUrl?: string;
     platformSubaccount?: string | null;
+    /** True when escrow already held / job already booked */
+    alreadyPaid?: boolean;
   }>(res);
 }
 

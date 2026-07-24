@@ -167,7 +167,7 @@ export default function ProOrdersPage() {
               No {filter === "open" ? "active" : ""} orders yet
             </p>
             <p className="mt-1 text-[12px] text-muted">
-              When motorists request help in your trades, jobs appear here.
+              When customers request help in your trades, jobs appear here.
             </p>
           </div>
         ) : (

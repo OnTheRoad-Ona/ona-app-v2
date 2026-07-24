@@ -64,23 +64,32 @@ import {
   publicSkillRows,
   type SkillAnswerValue,
 } from "@/lib/skill-questions";
+import {
+  filterOptions,
+  getAllMakes,
+  getModelsForMake,
+  getYearsForMakeModel,
+} from "@/lib/vehicle-catalog";
 import { useApp } from "@/lib/store";
-import type { ProService, UserProfile } from "@/lib/types";
+import type { MotoristVehicle, ProService, UserProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import type { PrefKey } from "@/lib/vehicle-focus";
 import {
   PREF_ROWS,
+  VEHICLE_TYPES,
   optionsForPref,
   syncBrandForVehicleType,
   syncLocationForCountry,
 } from "@/lib/vehicle-focus";
 
+type VehiclePickerKey = "vehicleType" | "make" | "model" | "year";
+
 /**
- * Account signup: trade → specialty page → about → contact → area → review.
+ * Account signup: trade → specialty → vehicles you fix → about → contact → area → review.
  * Profession-specific questions: /artisan/onboarding.
  */
-type Step = 1 | 2 | 4 | 5 | 6 | 7;
-const FLOW_STEPS: Step[] = [1, 2, 4, 5, 6, 7];
+type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+const FLOW_STEPS: Step[] = [1, 2, 3, 4, 5, 6, 7];
 
 /** Selected value accent (matches reference gold check style) */
 
@@ -290,6 +299,16 @@ export function ProSignup() {
   const [prefLocation, setPrefLocation] = useState("Any");
   const [pickerKey, setPickerKey] = useState<PrefKey | null>(null);
   const [pickerQuery, setPickerQuery] = useState("");
+  /** Vehicles this pro can fix (Customer-style cascade list) */
+  const [vehiclesCanFix, setVehiclesCanFix] = useState<MotoristVehicle[]>([]);
+  const [draftVehicleType, setDraftVehicleType] = useState("Any");
+  const [draftMake, setDraftMake] = useState("Any");
+  const [draftModel, setDraftModel] = useState("Any");
+  const [draftYear, setDraftYear] = useState("Any");
+  const [vehiclePicker, setVehiclePicker] = useState<VehiclePickerKey | null>(
+    null
+  );
+  const [vehiclePickerQuery, setVehiclePickerQuery] = useState("");
 
   const brandLabel =
     vehicleBrands.length === 0
@@ -487,7 +506,11 @@ export function ProSignup() {
 
   const step1Ok = skill != null; // specialty selected on step 2
   const step2Ok = Boolean(specialty?.trim());
-  const step3Ok = true; // no vehicle step in account signup
+  const isAny = (v: string) => !v || v === "Any";
+  const draftVehicleReady =
+    !isAny(draftMake) && !isAny(draftModel);
+  /** Vehicles step is optional — pro can skip and add later */
+  const step3Ok = true;
   const step4Ok =
     fullName.trim().length >= 2 &&
     !genderError(gender) &&
@@ -620,10 +643,6 @@ export function ProSignup() {
       bio: bio.trim() || undefined,
       idNumber: idNumber.trim() || undefined,
       bvn: bvn.trim() || undefined,
-      skillAnswers: {
-        ...skillAnswers,
-        specialty: specialty || "",
-      },
       // Only under_review when a cert was uploaded; no cert → full radius (admin can still verify)
       docsStatus: hasCert ? "under_review" : "none",
       docsRatingBoostApplied: false,
@@ -633,18 +652,33 @@ export function ProSignup() {
       certificationFileDataUrl: hasCert
         ? String(certUpload?.dataUrl || "")
         : undefined,
-      averageRating: 5,
-      // Real vehicle prefs only — never copy specialty into vehicle fields
-      servedVehicleType: vehicleType || undefined,
-      servedBrand: vehicleBrands[0] || undefined,
-      servedMake: vehicleBrands[0] || undefined,
+      averageRating: 0,
+      // Vehicles they can fix (Customer-style list) + legacy single focus fields
+      servedVehicleType:
+        vehiclesCanFix[0]?.vehicleType || vehicleType || undefined,
+      servedBrand: vehiclesCanFix[0]?.make || vehicleBrands[0] || undefined,
+      servedMake: vehiclesCanFix[0]?.make || vehicleBrands[0] || undefined,
       servedModel:
-        vehicleBrands[0] && vehicleModelsByBrand[vehicleBrands[0]]?.length
+        vehiclesCanFix[0]?.model ||
+        (vehicleBrands[0] && vehicleModelsByBrand[vehicleBrands[0]]?.length
           ? vehicleModelsByBrand[vehicleBrands[0]].join(", ")
-          : undefined,
+          : undefined),
       servedCountry: prefCountry,
       servedLocation: prefLocation,
       vehiclesServedUpdatedAt: new Date().toISOString(),
+      skillAnswers: {
+        ...skillAnswers,
+        specialty: specialty || "",
+        // Serialized list of vehicles this pro can fix (type/make/model/year)
+        vehiclesCanFixJson: JSON.stringify(
+          vehiclesCanFix.map((v) => ({
+            vehicleType: v.vehicleType,
+            make: v.make,
+            model: v.model,
+            year: v.year,
+          }))
+        ),
+      },
       registeredAt: new Date().toISOString(),
     };
     const err = await completeSignup(profile);
@@ -660,13 +694,18 @@ export function ProSignup() {
   };
 
   const goBack = () => {
+    if (vehiclePicker) {
+      setVehiclePicker(null);
+      setVehiclePickerQuery("");
+      return;
+    }
     if (pickerKey) {
       closePicker();
       return;
     }
     if (step === 1) {
       if (fromMenu) {
-        // Dual-signup from ☰ — return to Motorist home
+        // Dual-signup from ☰ — return to Customer home
         router.replace("/");
         return;
       }
@@ -686,10 +725,72 @@ export function ProSignup() {
     2: skill
       ? `Your ${PRO_SERVICE_LABELS[skill] || "trade"} focus`
       : "Choose your focus",
+    3: "Vehicles you fix",
     4: "About you",
     5: "Contact & security",
     6: "Service area",
     7: "Review & create",
+  };
+
+  const displayVal = (v: string) => (isAny(v) ? "ANY" : v.toUpperCase());
+  const openVehiclePicker = (key: VehiclePickerKey) => {
+    setVehiclePickerQuery("");
+    setVehiclePicker(key);
+  };
+  const vehicleOptionsFor = (key: VehiclePickerKey): string[] => {
+    if (key === "vehicleType")
+      return filterOptions(
+        ["Any", ...VEHICLE_TYPES.filter((t) => t !== "Any")],
+        vehiclePickerQuery
+      );
+    if (key === "make") {
+      return filterOptions(["Any", ...getAllMakes()], vehiclePickerQuery);
+    }
+    if (key === "model") {
+      if (isAny(draftMake)) return ["Any"];
+      return filterOptions(
+        ["Any", ...getModelsForMake(draftMake)],
+        vehiclePickerQuery
+      );
+    }
+    if (isAny(draftMake) || isAny(draftModel)) return ["Any"];
+    const years = getYearsForMakeModel(draftMake, draftModel);
+    return filterOptions(["Any", ...years.map(String)], vehiclePickerQuery);
+  };
+  const applyVehiclePick = (key: VehiclePickerKey, value: string) => {
+    if (key === "vehicleType") {
+      setDraftVehicleType(value);
+      setDraftMake("Any");
+      setDraftModel("Any");
+      setDraftYear("Any");
+    } else if (key === "make") {
+      setDraftMake(value);
+      setDraftModel("Any");
+      setDraftYear("Any");
+    } else if (key === "model") {
+      setDraftModel(value);
+      setDraftYear("Any");
+    } else {
+      setDraftYear(value);
+    }
+    setVehiclePicker(null);
+    setVehiclePickerQuery("");
+  };
+  const addVehicleCanFix = () => {
+    if (!draftVehicleReady && isAny(draftMake)) return;
+    const next: MotoristVehicle = {
+      id: `pro-veh-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      vehicleType: isAny(draftVehicleType) ? undefined : draftVehicleType.trim(),
+      make: isAny(draftMake) ? "" : draftMake.trim(),
+      model: isAny(draftModel) ? "" : draftModel.trim(),
+      year: isAny(draftYear) ? undefined : draftYear.trim(),
+    };
+    if (!next.make && !next.model) return;
+    setVehiclesCanFix((prev) => [...prev, next]);
+    setDraftVehicleType("Any");
+    setDraftMake("Any");
+    setDraftModel("Any");
+    setDraftYear("Any");
   };
 
   const specialtyOptions = skill
@@ -707,6 +808,72 @@ export function ProSignup() {
   const pickerLabel = pickerKey
     ? PREF_ROWS.find((r) => r.key === pickerKey)?.label ?? ""
     : "";
+
+  /* Full-page vehicle cascade picker (Vehicles you fix) */
+  if (vehiclePicker) {
+    const titleMap: Record<VehiclePickerKey, string> = {
+      vehicleType: "Vehicle",
+      make: "Make",
+      model: "Model",
+      year: "Year",
+    };
+    const opts = vehicleOptionsFor(vehiclePicker);
+    return (
+      <AuthPlate exiting={exiting}>
+        <div className="flex min-h-0 flex-1 flex-col px-3 pb-3 pt-3">
+          <div className="relative flex items-center justify-center pb-1">
+            <button
+              type="button"
+              onClick={() => {
+                setVehiclePicker(null);
+                setVehiclePickerQuery("");
+              }}
+              className="absolute left-0 inline-flex h-8 items-center gap-0.5 rounded-md border-0 bg-transparent px-0 text-[12px] font-semibold text-[#1e293b]"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.25} />
+              Back
+            </button>
+            <h1 className="text-[15px] font-bold tracking-tight text-[#1c1c1e]">
+              {titleMap[vehiclePicker]}
+            </h1>
+          </div>
+          <div className="mt-2">
+            <input
+              type="search"
+              value={vehiclePickerQuery}
+              onChange={(e) => setVehiclePickerQuery(e.target.value)}
+              placeholder="Search"
+              className={authFieldClass}
+              style={authFieldStyle}
+              autoFocus
+            />
+          </div>
+          <ul className="mt-1.5 min-h-0 flex-1 list-none space-y-1 overflow-y-auto scrollbar-hide">
+            {opts.map((opt) => (
+              <li key={opt}>
+                <button
+                  type="button"
+                  onClick={() => applyVehiclePick(vehiclePicker, opt)}
+                  className="flex w-full items-center justify-between rounded-md border-0 bg-white/70 px-3 py-3 text-left text-[13px] font-semibold text-[#0f172a]"
+                >
+                  {opt}
+                  {(vehiclePicker === "vehicleType"
+                    ? draftVehicleType
+                    : vehiclePicker === "make"
+                      ? draftMake
+                      : vehiclePicker === "model"
+                        ? draftModel
+                        : draftYear) === opt ? (
+                    <Check className="h-4 w-4 text-[#FF6B35]" />
+                  ) : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </AuthPlate>
+    );
+  }
 
   /* Full-page skill picker (same AuthPlate background + enter/exit motion) */
   if (pickerKey) {
@@ -1196,8 +1363,11 @@ export function ProSignup() {
                         );
                         setFieldError("dob", null);
                       }}
-                      onBlur={() =>
-                        setFieldError("dob", dobError(dateOfBirth))
+                      onBlur={(e) =>
+                        setFieldError(
+                          "dob",
+                          dobError(e.target.value || dateOfBirth)
+                        )
                       }
                       required
                     />
@@ -1622,6 +1792,82 @@ export function ProSignup() {
             </div>
           )}
 
+          {step === 3 && (
+            <div className="flex flex-col gap-3">
+              <p className="text-[12px] font-medium leading-snug text-[#475569]">
+                Add vehicle types you fix best (type, make, model, year).
+              </p>
+              {vehiclesCanFix.length > 0 && (
+                <ul className="flex flex-col gap-1.5">
+                  {vehiclesCanFix.map((v) => (
+                    <li
+                      key={v.id}
+                      className="flex items-center justify-between gap-2 rounded-md border border-[#9A9EA6]/50 bg-white/60 px-2.5 py-2 text-[12px] text-[#0f172a]"
+                    >
+                      <span className="min-w-0 flex-1 font-semibold">
+                        {[v.vehicleType, v.make, v.model, v.year]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                      <button
+                        type="button"
+                        className="shrink-0 border-0 bg-transparent text-[11px] font-semibold text-red-600"
+                        onClick={() =>
+                          setVehiclesCanFix((prev) =>
+                            prev.filter((x) => x.id !== v.id)
+                          )
+                        }
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="overflow-hidden rounded-xl bg-[#f2f3f5] shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]">
+                {(
+                  [
+                    { key: "vehicleType" as const, label: "Vehicle", value: draftVehicleType },
+                    { key: "make" as const, label: "Make", value: draftMake },
+                    { key: "model" as const, label: "Model", value: draftModel },
+                    { key: "year" as const, label: "Year", value: draftYear },
+                  ] as const
+                ).map((row, i) => (
+                  <button
+                    key={row.key}
+                    type="button"
+                    onClick={() => openVehiclePicker(row.key)}
+                    className={cn(
+                      "flex w-full items-center justify-between gap-3 border-0 bg-transparent px-4 py-3.5 text-left",
+                      i > 0 && "border-t border-black/[0.06]"
+                    )}
+                  >
+                    <span className="text-[14px] font-semibold text-[#1e293b]">
+                      {row.label}
+                    </span>
+                    <span className="inline-flex min-w-0 max-w-[55%] items-center gap-1">
+                      <span className="truncate text-[13px] font-medium uppercase tracking-[0.02em] text-[#64748b]">
+                        {displayVal(row.value)}
+                      </span>
+                      <ChevronRight
+                        className="h-4 w-4 shrink-0 text-[#94a3b8]"
+                        strokeWidth={2}
+                      />
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                disabled={!draftVehicleReady}
+                onClick={addVehicleCanFix}
+                className="h-11 w-full rounded-md border-0 bg-[#FF6B35] text-[13px] font-bold text-white disabled:opacity-40"
+              >
+                Add vehicle
+              </button>
+            </div>
+          )}
+
           {step === 6 && (
             <>
               <Field label="City">
@@ -1633,7 +1879,7 @@ export function ProSignup() {
                   placeholder="Lagos"
                 />
               </Field>
-              <Field label="Area or street">
+              <Field label="Area">
                 <input
                   className={authFieldClass}
                       style={authFieldStyle}
@@ -1642,7 +1888,7 @@ export function ProSignup() {
                   placeholder="e.g. Yaba"
                 />
               </Field>
-              <Field label={`How far you can go: ${serviceRadiusKm} km`}>
+              <Field label={`Service radius: ${serviceRadiusKm} km`}>
                 <input
                   type="range"
                   min={1}
@@ -1670,6 +1916,18 @@ export function ProSignup() {
               <Row k="BVN" v={bvn ? "••••" + bvn.slice(-4) : "Not set"} />
               <Row k="Area" v={`${area}, ${city}`} />
               <Row k="Radius" v={`${serviceRadiusKm} km`} />
+              {vehiclesCanFix.length > 0 && (
+                <Row
+                  k="Vehicles you fix"
+                  v={vehiclesCanFix
+                    .map((v) =>
+                      [v.vehicleType, v.make, v.model, v.year]
+                        .filter(Boolean)
+                        .join(" ")
+                    )
+                    .join(" · ")}
+                />
+              )}
               {yearsExperience && (
                 <Row k="Experience" v={experienceLabel(yearsExperience)} />
               )}

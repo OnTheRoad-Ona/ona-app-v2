@@ -37,6 +37,7 @@ const createSchema = z.object({
   locationLabel: z.string().optional().default("Near you"),
   lat: z.number(),
   lng: z.number(),
+  motoristVehicle: z.string().max(200).optional().nullable(),
 });
 
 export async function POST(req: Request) {
@@ -53,6 +54,7 @@ export async function POST(req: Request) {
       motoristId: b.motoristId,
       motoristName: b.motoristName,
       motoristPhoto: b.motoristPhoto || null,
+      motoristVehicle: b.motoristVehicle || null,
       repairProId: b.repairProId,
       repairProName: b.repairProName,
       repairProPhoto: b.repairProPhoto,

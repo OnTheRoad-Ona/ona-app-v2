@@ -27,36 +27,40 @@ export function StarRatingDisplay({
   const isLight = theme === "light";
   const r = Math.max(0, Math.min(max, Number(rating) || 0));
   const full = Math.floor(r + 1e-9);
+  const hasRating = r > 0;
   const dim =
     size === "lg" ? "h-4 w-4" : size === "sm" ? "h-3 w-3" : "h-3.5 w-3.5";
 
   return (
     <span
       className={cn("inline-flex items-center gap-1", className)}
-      aria-label={`${r.toFixed(1)} out of ${max} stars`}
+      aria-label={
+        hasRating
+          ? `${r.toFixed(1)} out of ${max} stars`
+          : `No ratings yet · ${max} empty stars`
+      }
     >
       <span className="inline-flex items-center gap-0.5" aria-hidden>
         {Array.from({ length: max }, (_, i) => {
-          const filled = i < full;
+          const filled = hasRating && i < full;
           return (
             <Star
               key={i}
               className={cn(
                 dim,
                 filled
-                  ? // Solid gold — readable on white / light gray / dark
-                    "fill-[#FF6B35] text-[#FF6B35]"
+                  ? "fill-[#FF6B35] text-[#FF6B35]"
                   : isLight
-                    ? // Empty outline clearly visible on white/light wash
-                      "fill-none text-slate-500"
-                    : "fill-none text-white/55"
+                    ? // Empty / transparent outline until users rate
+                      "fill-transparent text-slate-400/55"
+                    : "fill-transparent text-white/30"
               )}
-              strokeWidth={2.25}
+              strokeWidth={1.75}
             />
           );
         })}
       </span>
-      {showNumeric && !starsOnly && (
+      {showNumeric && !starsOnly && hasRating && (
         <span
           className={cn(
             "font-bold tabular-nums leading-none",

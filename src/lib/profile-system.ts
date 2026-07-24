@@ -93,10 +93,19 @@ export function verificationTierLabel(tier: VerificationTier): string {
   return `Tier ${tier}`;
 }
 
+/**
+ * Blue tick / verification mark:
+ * - Repair Pros: Tier 4 only (skill docs approved)
+ * - Customers: in-person / high identity tier (unchanged ladder)
+ */
 export function hasVerificationMark(
   profile: UserProfile | null | undefined
 ): boolean {
-  return Boolean(profile?.inPersonVerified) || resolveVerificationTier(profile) >= 3;
+  if (!profile) return false;
+  if (profile.accountType === "professional") {
+    return profile.docsStatus === "approved";
+  }
+  return Boolean(profile.inPersonVerified) || resolveVerificationTier(profile) >= 3;
 }
 
 // ── Achievement badges (completed jobs for Motorists / pro jobs done) ─

@@ -162,15 +162,15 @@ export const PRO_TRIP_STATUS_COPY: Partial<
   },
   agreed: {
     title: "Price agreed",
-    subtitle: "Waiting for motorist payment",
+    subtitle: "Waiting for customer payment",
   },
   paid_booked: {
     title: "Ready to go",
-    subtitle: "Start trip when you leave for the motorist",
+    subtitle: "",
   },
   en_route: {
     title: "OnTheRoad",
-    subtitle: "Drive to the motorist · mark arrived when there",
+    subtitle: "Drive to the customer · mark arrived when there",
   },
   arrived: {
     title: "You’ve arrived",
@@ -182,7 +182,7 @@ export const PRO_TRIP_STATUS_COPY: Partial<
   },
   completed: {
     title: "Job marked complete",
-    subtitle: "Waiting for motorist to confirm and release pay",
+    subtitle: "Waiting for customer to confirm and release pay",
   },
   satisfied: {
     title: "Customer confirmed",

@@ -86,6 +86,22 @@ function matchesCategory(tech: Technician, category: ServiceCategory): boolean {
   return tech.serviceType === category;
 }
 
+/** True when free-text search matches this pro (name, trade, specialty, problem). */
+export function technicianMatchesQuery(
+  tech: Technician,
+  query: string
+): boolean {
+  const q = query.toLowerCase().trim();
+  if (!q) return true;
+  if (tech.name.toLowerCase().includes(q)) return true;
+  if (tech.roleLabel.toLowerCase().includes(q)) return true;
+  if (tech.serviceType.toLowerCase().includes(q)) return true;
+  if (tech.specialties?.some((s) => s.toLowerCase().includes(q))) return true;
+  // Problem-keyword map (flat tyre → vulcanizer, etc.)
+  if (problemPriority(tech, q) > 0) return true;
+  return false;
+}
+
 export function filterAndRankTechnicians(
   technicians: Technician[],
   options: {
@@ -95,14 +111,41 @@ export function filterAndRankTechnicians(
     filters: AppFilters;
     /** When set, only pros listing this specialty (or no specialty list) */
     specialtyFilter?: string | null;
+    /**
+     * Pros with an active job for this customer — hide from discovery
+     * (they stay on History / active job; reappear for a new request later).
+     */
+    excludeProIds?: Iterable<string> | null;
+    /**
+     * Recently booked by this customer — 50% less radius ranking priority
+     * so other pros surface first (effective distance ×2 for sort/score).
+     */
+    radiusDemoteProIds?: Iterable<string> | null;
   }
 ): Technician[] {
-  const { radiusKm, category, query, filters, specialtyFilter } = options;
+  const {
+    radiusKm,
+    category,
+    query,
+    filters,
+    specialtyFilter,
+    excludeProIds,
+    radiusDemoteProIds,
+  } = options;
   // Always cap at 10 km — never show pros outside this (self or book-for-someone).
   const radius = Math.min(Math.max(radiusKm, 0), MAX_RADIUS_KM);
+  const exclude = new Set(
+    Array.from(excludeProIds || []).map((id) => String(id))
+  );
+  const demote = new Set(
+    Array.from(radiusDemoteProIds || []).map((id) => String(id))
+  );
+  const rankDistance = (t: Technician) =>
+    demote.has(String(t.id)) ? t.distanceKm * 2 : t.distanceKm;
 
   // Pass 1: hard gates only (Live · tier · distance · trade later)
   let eligible = technicians.filter((t) => {
+    if (exclude.has(String(t.id))) return false;
     // Marketplace: Live only (Away / offline never listed)
     if (t.status !== "available") return false;
     // Tier 1: not in search
@@ -171,6 +214,11 @@ export function filterAndRankTechnicians(
     });
   }
 
+  // Free-text search: only matching pros (name / trade / specialty / problem)
+  if (query.trim()) {
+    list = list.filter((t) => technicianMatchesQuery(t, query));
+  }
+
   // Available = Live with a real GPS pin (not a stale/offline placeholder)
   if (filters.availableNow) {
     list = list.filter(
@@ -197,16 +245,21 @@ export function filterAndRankTechnicians(
 
   list = [...list].sort((a, b) => {
     // Nearest: pure distance first (chip on by default)
+    // Recently booked pros use 2× distance (50% less radius priority).
     if (filters.nearest) {
-      const d = a.distanceKm - b.distanceKm;
+      const d = rankDistance(a) - rankDistance(b);
       if (Math.abs(d) > 0.02) return d;
       // Tie-break by score when nearly equal distance
       return scoreTechnician(b, query) - scoreTechnician(a, query);
     }
-    // Nearest off: rank by overall score, then distance
-    const scoreDiff = scoreTechnician(b, query) - scoreTechnician(a, query);
+    // Nearest off: rank by overall score, then distance (demoted last among peers)
+    const scoreA =
+      scoreTechnician(a, query) * (demote.has(String(a.id)) ? 0.5 : 1);
+    const scoreB =
+      scoreTechnician(b, query) * (demote.has(String(b.id)) ? 0.5 : 1);
+    const scoreDiff = scoreB - scoreA;
     if (Math.abs(scoreDiff) > 0.5) return scoreDiff;
-    return a.distanceKm - b.distanceKm;
+    return rankDistance(a) - rankDistance(b);
   });
 
   // Strict radius only — empty list means no Live pros within radius

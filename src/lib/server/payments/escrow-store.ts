@@ -169,20 +169,47 @@ export async function createEscrowPayment(input: {
 export async function getEscrowByRef(
   reference: string
 ): Promise<EscrowPayment | null> {
+  const raw = (reference || "").trim();
+  if (!raw) return null;
+  // Flutterwave may return tx_ref variants (suffixes, case)
+  const candidates = Array.from(
+    new Set([
+      raw,
+      raw.replace(/_m$/i, ""),
+      decodeURIComponent(raw),
+    ])
+  );
+
   if (isSupabaseAdminConfigured()) {
     try {
       const sb = createServiceSupabase();
-      const { data } = await sb
-        .from("payments")
-        .select("*")
-        .eq("provider_ref", reference)
-        .maybeSingle();
-      if (data) return rowToEscrow(data as Record<string, unknown>);
+      for (const ref of candidates) {
+        const { data } = await sb
+          .from("payments")
+          .select("*")
+          .eq("provider_ref", ref)
+          .maybeSingle();
+        if (data) return rowToEscrow(data as Record<string, unknown>);
+      }
+      // Prefix match for truncated / mutated refs
+      if (raw.length >= 12) {
+        const { data: list } = await sb
+          .from("payments")
+          .select("*")
+          .ilike("provider_ref", `${raw.slice(0, 20)}%`)
+          .order("created_at", { ascending: false })
+          .limit(3);
+        if (list?.[0]) return rowToEscrow(list[0] as Record<string, unknown>);
+      }
     } catch {
       /* memory */
     }
   }
-  return memory.get(`ref:${reference}`) || null;
+  for (const ref of candidates) {
+    const hit = memory.get(`ref:${ref}`);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 export async function getEscrowByRequest(

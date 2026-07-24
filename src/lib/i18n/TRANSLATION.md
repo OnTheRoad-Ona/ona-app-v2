@@ -44,10 +44,14 @@ console.log(assertCatalogParity()); // [] when perfect
 
 ## Coverage today
 
-- Settings, Language, Notifications, Location pages  
-- Bottom nav, radius label  
-- Auth role labels  
-- Catalog keys for Jobs, Messages, Profile, Verify, Signup, Dashboard, Menu (ready to wire)
+- Settings hub (all 9 categories + Danger zone) + Appearance  
+- Language, Notifications, Location pages  
+- Bottom nav, radius label, ☰ menu (greetings, use-as, tap to close)  
+- Auth role labels & signup hints (Customer / Repair Pro)  
+- Search empty states (home + `/search`)  
+- Catalog keys for Jobs, Messages, Profile, Verify, Signup, Dashboard, Menu  
+
+**11 locales keep full key parity** with English master (`assertCatalogParity()` → `[]`).
 
 ## Wiring more screens
 
@@ -62,4 +66,4 @@ export function MyScreen() {
 }
 ```
 
-Expand `catalog/en.ts` first whenever you add new UI copy.
+Expand `catalog/en.ts` first whenever you add new UI copy, then add the same key to every locale file.

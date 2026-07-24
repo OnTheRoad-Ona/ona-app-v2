@@ -10,7 +10,7 @@ import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 /**
- * “New Account” badge for Repair Pros on visibility Tier 1–2 only.
+ * “New” badge for Repair Pros on visibility Tier 1–2 only.
  * Off at Tier 3+ (admin ladder). Customers never show this badge.
  */
 export function shouldShowNewAccountBadge(
@@ -51,11 +51,8 @@ export function NewAccountBadge({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center rounded-full font-bold uppercase tracking-wide",
-        size === "md"
-          ? "px-2 py-0.5 text-[10px]"
-          : "px-1.5 py-0.5 text-[9px]",
-        "bg-[#FF6B35]/20 text-[#FF6B35]",
+        "inline-flex shrink-0 items-center font-bold uppercase tracking-wide text-[#FF6B35]",
+        size === "md" ? "text-[10px]" : "text-[9px]",
         className
       )}
       aria-label={t("badge.newAccount")}

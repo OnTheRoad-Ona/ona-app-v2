@@ -121,17 +121,24 @@ export function mapProToTechnician(
     roleLabel: PRO_SERVICE_LABELS[serviceType] ?? serviceType,
     // Empty photo → map/UI uses DEFAULT_VENDOR_PHOTO (Repair Pro brand icon)
     photo: (profile?.avatar_url || "").trim(),
-    rating: Number(pro.rating_avg) || 4.5,
+    // Real ratings only — start at 0 (no mock 4.5 seed)
+    rating: Number(pro.rating_avg) > 0 ? Number(pro.rating_avg) : 0,
     reviewCount: pro.rating_count || 0,
     distanceKm: Math.round(distanceKm * 10) / 10,
     etaMinutes,
     // Live only → available. Away is never "nearby" on the motorist map.
     status: pro.is_online ? "available" : "offline",
-    verified: Boolean(pro.verified || pro.nin_verified),
-    // Fast: Live + solid rating (or explicit high response score below)
+    // Blue tick only for Tier 4 (skill docs approved ladder)
+    verified: (() => {
+      const t = Number(pro.visibility_tier);
+      if (t === 4) return true;
+      // Fallback when visibility_tier column missing: skill docs approved
+      return pro.docs_status === "approved";
+    })(),
+    // Fast: Live + has real ratings (or Tier 4)
     fastResponse:
       Boolean(pro.is_online) &&
-      (Number(pro.rating_avg) >= 4.3 || Boolean(pro.verified)),
+      (Number(pro.rating_avg) >= 4.3 || Number(pro.visibility_tier) === 4),
     specialties: (() => {
       const skills = pro.skills as Technician["skillAnswers"] | undefined;
       const core = skills?.specialties;
@@ -158,7 +165,8 @@ export function mapProToTechnician(
     hasLiveLocation,
     responseSpeedScore: (() => {
       if (!pro.is_online) return 0.35;
-      const r = Number(pro.rating_avg) || 4.5;
+      const r = Number(pro.rating_avg) || 0;
+      if (r <= 0) return 0.55;
       // 4.0 → ~0.7, 4.5 → ~0.8, 5.0 → ~0.9
       return Math.min(0.98, 0.45 + r * 0.1);
     })(),

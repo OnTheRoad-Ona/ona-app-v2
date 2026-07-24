@@ -235,7 +235,7 @@ export default function SettingsSecurityPage() {
     }
   };
 
-  const card = isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]";
+  const card = "bg-transparent";
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-600" : "text-white/60";
 

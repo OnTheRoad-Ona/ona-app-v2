@@ -117,7 +117,16 @@ export async function POST(
       callbackUrl: callbackBaseUrl,
       provider: resolved,
     });
-    if ("error" in res) return apiFail(res.error, 400);
+    if ("error" in res) {
+      if (res.error === "ALREADY_PAID") {
+        return apiOk({
+          alreadyPaid: true,
+          jobId: id,
+          message: "Payment already received. Job is booked.",
+        });
+      }
+      return apiFail(res.error, 400);
+    }
 
     if (!res.authorizationUrl) {
       return apiFail(

@@ -7,6 +7,7 @@ import { Search } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { TechCard } from "@/components/technician/tech-card";
 import { useMotoristJobsByPro } from "@/lib/jobs/use-motorist-jobs-by-pro";
+import { useT } from "@/lib/i18n";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +15,7 @@ function SearchResultsBody() {
   const router = useRouter();
   const params = useSearchParams();
   const qParam = params.get("q") ?? "";
+  const t = useT();
   const {
     query,
     setQuery,
@@ -40,7 +42,7 @@ function SearchResultsBody() {
         isLight ? "bg-[#c8c9cd]" : "bg-black"
       )}
     >
-      <PageHeader title="Search" subtitle="Nearby skilled workers" />
+      <PageHeader title={t("search.title")} subtitle={t("search.subtitle")} />
 
       <div className="px-3 pb-2">
         <label className="relative flex items-center">
@@ -59,7 +61,7 @@ function SearchResultsBody() {
                 );
               }
             }}
-            placeholder="Search problem, technician, service…"
+            placeholder={t("search.placeholder")}
             className={cn(
               "h-10 w-full rounded-md border-0 pl-8 pr-3 text-[13px] font-medium outline-none",
               isLight
@@ -74,27 +76,25 @@ function SearchResultsBody() {
             isLight ? "text-slate-500" : "text-white/55"
           )}
         >
-          Within {radiusKm} km · {list.length} result
-          {list.length === 1 ? "" : "s"}
-          {query.trim() ? ` for “${query.trim()}”` : ""}
+          {list.length === 1
+            ? t("search.withinKm", { km: radiusKm, count: list.length })
+            : t("search.withinKmPlural", { km: radiusKm, count: list.length })}
+          {query.trim() ? t("search.forQuery", { q: query.trim() }) : ""}
         </p>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-6 scrollbar-hide">
         {list.length === 0 ? (
-          <div
-            className={cn(
-              "rounded-xl px-4 py-8 text-center",
-              isLight ? "bg-[#d4d5d9]" : "bg-neutral-950"
-            )}
-          >
+          <div className="px-4 py-8 text-center bg-transparent">
             <p
               className={cn(
                 "text-sm font-semibold",
                 isLight ? "text-slate-800" : "text-white"
               )}
             >
-              No matches nearby
+              {query.trim()
+                ? t("search.noResultsFor", { q: query.trim() })
+                : t("search.noMatchesNearby")}
             </p>
             <p
               className={cn(
@@ -102,22 +102,17 @@ function SearchResultsBody() {
                 isLight ? "text-slate-500" : "text-white/60"
               )}
             >
-              Try another word, or open Home to browse.
+              {query.trim() ? t("search.tryAnother") : t("search.tryBrowse")}
             </p>
             <Link
               href="/"
               className="mt-3 inline-block text-[12px] font-bold text-brand"
             >
-              Back home
+              {t("search.backHome")}
             </Link>
           </div>
         ) : (
-          <div
-            className={cn(
-              "overflow-hidden rounded-xl",
-              isLight ? "bg-[#d8dce4]/90" : "bg-neutral-950"
-            )}
-          >
+          <div className="overflow-hidden bg-transparent">
             {list.map((tech) => (
               <div
                 key={tech.id}

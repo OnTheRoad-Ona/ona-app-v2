@@ -171,16 +171,16 @@ export function profileToTechnician(profile: UserProfile): Technician | null {
     serviceType: primary,
     roleLabel: label,
     photo: profile.avatarUrl || "/technicians/t1.jpg",
-    rating: profile.averageRating ?? 5,
+    rating: profile.averageRating && profile.averageRating > 0
+      ? profile.averageRating
+      : 0,
     reviewCount: profile.jobsCompleted ?? 0,
     jobsCompleted: profile.jobsCompleted ?? 0,
     distanceKm: 0.2,
     etaMinutes: 6,
     status: "available",
-    verified: Boolean(
-      profile.inPersonVerified ||
-        (profile.ninVerified && profile.bvnVerified)
-    ),
+    // Blue tick only Tier 4 skill-verified pros
+    verified: profile.docsStatus === "approved",
     fastResponse: true,
     specialties:
       specialtiesFromSignup.length > 0
@@ -627,9 +627,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setRoleReady(true);
 
-    // Hard gate: never trust local AUTH_KEY alone — ghosts like "Stephen King"
-    // must not open the homepage without a real server session.
-    // Cap wait so Supabase hang never leaves the app on a black splash forever.
+    // Restore session without logging the user out on slow networks / timeouts.
+    // Only clear auth when the server confirms there is no session (or user logs out).
     const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> =>
       new Promise((resolve, reject) => {
         const t = window.setTimeout(
@@ -648,34 +647,73 @@ export function AppProvider({ children }: { children: ReactNode }) {
         );
       });
 
+    /** Optimistic restore from last saved profile so refresh never flashes Guest */
+    const restoreLocalSessionOptimistic = (): boolean => {
+      try {
+        if (localStorage.getItem(AUTH_KEY) !== "1") return false;
+        const raw = localStorage.getItem(PROFILE_KEY);
+        if (!raw) return false;
+        const p = JSON.parse(raw) as UserProfile;
+        if (!p?.fullName && !p?.email && !p?.phone) return false;
+        applySession(p);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
     void (async () => {
+      const hadOptimistic = restoreLocalSessionOptimistic();
       try {
         if (!isAppBackendOnline()) {
-          clearLocalAuth();
+          // Offline: keep local session if we had one; do not force logout
+          if (!hadOptimistic) clearLocalAuth();
           return;
         }
-        // Tight timeouts + parallel profile/flags so boot is not 8s+8s+6s
-        const uid = await withTimeout(backendGetSessionUserId(), 4000);
+        let uid: string | null = null;
+        try {
+          uid = await withTimeout(backendGetSessionUserId(), 12000);
+        } catch {
+          // Timeout / network — keep optimistic session; never logout
+          return;
+        }
         if (cancelled) return;
         if (!uid) {
+          // Server confirmed no session → real logout state
           clearLocalAuth();
           return;
         }
         setBackendUserId(uid);
         applyAccountTheme(uid);
 
-        const [profile, flags] = await Promise.all([
-          withTimeout(backendLoadUserProfile(uid), 4500),
-          withTimeout(backendDualRoleFlags(uid), 3500).catch(() => ({
-            hasMotorist: false,
-            hasPro: false,
-            primaryAccountType: undefined as AccountType | undefined,
-          })),
-        ]);
+        let profile: UserProfile | null = null;
+        let flags: {
+          hasMotorist: boolean;
+          hasPro: boolean;
+          primaryAccountType?: AccountType;
+        } = {
+          hasMotorist: false,
+          hasPro: false,
+          primaryAccountType: undefined,
+        };
+        try {
+          const [p, f] = await Promise.all([
+            withTimeout(backendLoadUserProfile(uid), 12000),
+            withTimeout(backendDualRoleFlags(uid), 8000).catch(() => ({
+              hasMotorist: false,
+              hasPro: false,
+              primaryAccountType: undefined as AccountType | undefined,
+            })),
+          ]);
+          profile = p;
+          flags = f;
+        } catch {
+          // Profile load failed — keep optimistic local session (no sign-out)
+          return;
+        }
         if (cancelled) return;
         if (!profile) {
-          clearLocalAuth();
-          await backendSignOut().catch(() => undefined);
+          // Session exists but profile missing: keep optimistic; do NOT sign out
           return;
         }
         const bootHasMotorist =
@@ -710,7 +748,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ) {
             const switched = await withTimeout(
               backendSwitchRole(preferred),
-              4500
+              8000
             ).catch(() => null);
             if (switched?.profile && switched.userId) {
               sessionProfile = {
@@ -743,7 +781,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setHasMotoristAccount((prev) => prev || bootHasMotorist);
         setHasProAccount((prev) => prev || bootHasPro);
       } catch {
-        if (!cancelled) clearLocalAuth();
+        // Never force logout on unexpected errors if we restored locally
+        if (!cancelled && !hadOptimistic) clearLocalAuth();
       } finally {
         if (!cancelled) {
           setServerSessionReady(true);
@@ -753,12 +792,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })();
 
     // Absolute safety: never block boot forever on slow networks.
-    // Keep high enough that real session restore can finish before guest UI flashes.
     const hardCap = window.setTimeout(() => {
       if (cancelled) return;
       setServerSessionReady(true);
       setAuthReady(true);
-    }, 4500);
+    }, 14000);
 
     return () => {
       cancelled = true;
@@ -1122,7 +1160,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return "Server is unavailable. Log in requires a live Ona account.";
       }
       if (preferType !== "motorist" && preferType !== "professional") {
-        return "Pick Motorist or Repair Pro.";
+        return "Pick Customer or Repair Pro.";
       }
       const res = await backendSignIn(email.trim().toLowerCase(), password);
       if (res.error || !res.profile || !res.userId) {
@@ -1148,11 +1186,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (preferType === "motorist" && !hasMotorist) {
         await backendSignOut().catch(() => undefined);
-        return "No Motorist account for this login. Choose Repair Pro, or sign up as Motorist.";
+        return "No Customer account for this login. Choose Repair Pro, or sign up as Customer.";
       }
       if (preferType === "professional" && !hasPro) {
         await backendSignOut().catch(() => undefined);
-        return "No Repair Pro account for this login. Choose Motorist, or sign up as Repair Pro.";
+        return "No Repair Pro account for this login. Choose Customer, or sign up as Repair Pro.";
       }
 
       let sessionProfile: UserProfile = {
@@ -1230,7 +1268,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return "Server is unavailable.";
       }
       if (preferType !== "motorist" && preferType !== "professional") {
-        return "Pick Motorist or Repair Pro.";
+        return "Pick Customer or Repair Pro.";
       }
       const res = await backendSignInWithOtp({
         channel,
@@ -1253,11 +1291,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (preferType === "motorist" && !hasMotorist) {
         await backendSignOut().catch(() => undefined);
-        return "No Motorist account for this login. Choose Repair Pro, or sign up as Motorist.";
+        return "No Customer account for this login. Choose Repair Pro, or sign up as Customer.";
       }
       if (preferType === "professional" && !hasPro) {
         await backendSignOut().catch(() => undefined);
-        return "No Repair Pro account for this login. Choose Motorist, or sign up as Repair Pro.";
+        return "No Repair Pro account for this login. Choose Customer, or sign up as Repair Pro.";
       }
 
       let sessionProfile: UserProfile = {
@@ -1788,7 +1826,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           normalized.certificationFileDataUrl ??
           res.profile.certificationFileDataUrl,
         averageRating:
-          normalized.averageRating ?? res.profile.averageRating ?? 5,
+          normalized.averageRating ?? res.profile.averageRating ?? 0,
         servedVehicleType:
           normalized.servedVehicleType ?? res.profile.servedVehicleType,
         servedBrand: normalized.servedBrand ?? res.profile.servedBrand,
@@ -1851,7 +1889,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       if (!backendUserId || !isAppBackendOnline()) {
         // Never flip local Away while server stays Live — require server for both
-        return "Server offline. Connect to go Live or Away so motorists stay in sync.";
+        return "Server offline. Connect to go Live or Away so customers stay in sync.";
       }
       if (accountType !== "professional") {
         await backendSetProOnline(backendUserId, false);
@@ -2110,6 +2148,60 @@ export function AppProvider({ children }: { children: ReactNode }) {
     backendUserId,
   ]);
 
+  /** Recently booked → 50% less radius priority; active jobs → hide from list */
+  const [discoveryExcludeProIds, setDiscoveryExcludeProIds] = useState<
+    string[]
+  >([]);
+  const [discoveryDemoteProIds, setDiscoveryDemoteProIds] = useState<string[]>(
+    []
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const refreshDiscoveryPriority = async () => {
+      try {
+        const { getRadiusDemoteProIds } = await import(
+          "@/lib/jobs/booked-pro-priority"
+        );
+        if (!cancelled) setDiscoveryDemoteProIds(getRadiusDemoteProIds());
+      } catch {
+        if (!cancelled) setDiscoveryDemoteProIds([]);
+      }
+
+      if (!backendUserId || accountType === "professional") {
+        if (!cancelled) setDiscoveryExcludeProIds([]);
+        return;
+      }
+      try {
+        const { apiListJobs } = await import("@/lib/jobs/client");
+        const { indexJobsByProId } = await import(
+          "@/lib/jobs/motorist-pro-cta"
+        );
+        const res = await apiListJobs(backendUserId, "motorist");
+        if (cancelled || !res.ok) return;
+        const byPro = indexJobsByProId(res.data.jobs || []);
+        if (!cancelled) setDiscoveryExcludeProIds(Object.keys(byPro));
+      } catch {
+        if (!cancelled) setDiscoveryExcludeProIds([]);
+      }
+    };
+    void refreshDiscoveryPriority();
+    const onVis = () => {
+      if (document.visibilityState === "visible") {
+        void refreshDiscoveryPriority();
+      }
+    };
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVis);
+    }
+    return () => {
+      cancelled = true;
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVis);
+      }
+    };
+  }, [backendUserId, accountType]);
+
   const visibleTechnicians = useMemo(
     () =>
       filterAndRankTechnicians(technicians, {
@@ -2118,8 +2210,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
         query,
         filters,
         specialtyFilter,
+        excludeProIds: discoveryExcludeProIds,
+        // Demote even while excluded so when job closes ranking stays soft
+        radiusDemoteProIds: discoveryDemoteProIds,
       }),
-    [technicians, radiusKm, category, query, filters, specialtyFilter]
+    [
+      technicians,
+      radiusKm,
+      category,
+      query,
+      filters,
+      specialtyFilter,
+      discoveryExcludeProIds,
+      discoveryDemoteProIds,
+    ]
   );
 
   const toggleFilter = useCallback((key: keyof AppFilters) => {
@@ -2714,19 +2818,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [refreshCloudJobs, refreshCloudChats, isAuthenticated]);
 
-  // Jobs Realtime only (no pros Realtime storm) — heavy debounce
+  // Jobs Realtime — near-instant customer ↔ pro job updates
   useEffect(() => {
     if (!isAppBackendOnline() || !backendUserId) return;
     let jobsTimer: ReturnType<typeof setTimeout> | null = null;
-    // Do not subscribe to all pros updates — map uses slow poll only
     const unsubJobs = backendSubscribeJobs(backendUserId, () => {
       if (jobsTimer) clearTimeout(jobsTimer);
-      // Heavy debounce — avoid refetch storms that freeze the UI (white/blank feel)
-      jobsTimer = setTimeout(() => refreshCloudJobs(), 60_000);
+      // Short debounce only (coalesce burst events) — was 60s and felt broken
+      jobsTimer = setTimeout(() => refreshCloudJobs(), 400);
     });
+    // Fast backup poll so pros still see new requests if Realtime drops
+    const poll = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      refreshCloudJobs();
+    }, 4_000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") refreshCloudJobs();
+    };
+    document.addEventListener("visibilitychange", onVis);
     return () => {
       if (jobsTimer) clearTimeout(jobsTimer);
       unsubJobs?.();
+      window.clearInterval(poll);
+      document.removeEventListener("visibilitychange", onVis);
     };
   }, [backendUserId, refreshCloudJobs]);
 
@@ -2802,7 +2916,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [backendUserId, accountType, userLat, userLng, proLive]);
 
-  // Leaving pro mode → Away (so motorists don't see them while on Motorist)
+  // Leaving pro mode → Away (so motorists don't see them while on Customer)
   useEffect(() => {
     if (accountType === "professional") return;
     if (!backendUserId || !isAppBackendOnline()) return;

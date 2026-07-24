@@ -91,7 +91,7 @@ export default function SettingsPricingPage() {
         <div
           className={cn(
             "overflow-hidden rounded-md",
-            isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]"
+            "bg-transparent"
           )}
         >
           {skills.length === 0 ? (

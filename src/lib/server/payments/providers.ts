@@ -61,8 +61,13 @@ export function flutterwavePublicKey(): string {
   ).trim();
 }
 
+/**
+ * Split-on-collection is OFF by default for escrow.
+ * Escrow holds full labour on the main Ona merchant, then Transfer API pays pros.
+ * Opt-in only: FLUTTERWAVE_SPLIT_ENABLED=true
+ */
 export function isFlutterwaveSplitEnabled(): boolean {
-  const v = (process.env.FLUTTERWAVE_SPLIT_ENABLED || "true").toLowerCase();
+  const v = (process.env.FLUTTERWAVE_SPLIT_ENABLED || "false").toLowerCase();
   return v === "1" || v === "true" || v === "yes";
 }
 
@@ -112,7 +117,11 @@ export async function initCharge(
     reference: input.reference,
     authorizationUrl: `${base}/payments/mock-checkout?ref=${encodeURIComponent(
       input.reference
-    )}&amount=${input.amountMinor}&currency=${input.currency}`,
+    )}&amount=${input.amountMinor}&currency=${input.currency}${
+      input.metadata?.jobId
+        ? `&jobId=${encodeURIComponent(String(input.metadata.jobId))}`
+        : ""
+    }`,
     splitEnabled: false,
   };
 }
@@ -157,10 +166,19 @@ async function initPaystack(input: InitChargeInput): Promise<InitChargeResult> {
 }
 
 /**
- * Flutterwave standard payment + optional Split Payments.
- * Platform subaccount: FLUTTERWAVE_PLATFORM_SUBACCOUNT (RS_…)
- * Pro subaccount: input.proSubaccountId when pro is onboarded on Flutterwave.
- * Without subaccounts, full amount settles to main Ona merchant (escrow ops).
+ * Flutterwave standard payment.
+ *
+ * ESCROW RULE: always charge the full labour amount to the main Ona merchant.
+ * Do NOT attach subaccounts on collection — that caused:
+ *   "The total subaccount transaction charge cannot be greater than the amount…"
+ *
+ * Why it failed before:
+ * - Flutterwave percentage commission uses fractions (0.05 = 5%), not 5
+ * - Platform subaccount default split_value + per-tx charge stacked over the amount
+ * - Dual subaccount "fees" of 5% + 95% were interpreted as charges, not shares
+ *
+ * Platform 5% / pro 95% is applied later via Transfer API on job release.
+ * Opt-in split-on-collection only if FLUTTERWAVE_SPLIT_ENABLED=true (advanced).
  */
 async function initFlutterwave(
   input: InitChargeInput
@@ -170,6 +188,8 @@ async function initFlutterwave(
     50,
     Math.max(0, input.platformFeePercent ?? 5)
   );
+  // Fraction form required by Flutterwave (5% → 0.05), never pass 5
+  const feeFraction = Math.round(feePct * 100) / 10000;
   const splitOn = isFlutterwaveSplitEnabled();
   const platformSub = (
     process.env.FLUTTERWAVE_PLATFORM_SUBACCOUNT || ""
@@ -185,9 +205,11 @@ async function initFlutterwave(
     .replace(/\s+/g, "")
     .trim() || "08000000000";
 
+  const amountMajor = Number((input.amountMinor / 100).toFixed(2));
+
   const body: Record<string, unknown> = {
     tx_ref: input.reference,
-    amount: Number((input.amountMinor / 100).toFixed(2)),
+    amount: amountMajor,
     currency: input.currency,
     redirect_url: input.callbackUrl,
     customer: {
@@ -203,36 +225,28 @@ async function initFlutterwave(
       ...(input.metadata ?? {}),
       labourOnly: true,
       platformFeePercent: feePct,
-      splitEnabled: splitOn,
+      // Escrow: hold full amount on main account unless explicit split opt-in
+      splitEnabled: false,
+      escrowMode: "main_merchant",
     },
     payment_options: "card,banktransfer,ussd,account",
   };
 
-  // Split: platform fee % to platform subaccount; remainder to pro when both set
-  if (splitOn && platformSub && proSub) {
-    body.subaccounts = [
-      {
-        id: platformSub,
-        // Flutterwave: transaction_charge_type + transaction_charge
-        transaction_charge_type: "percentage",
-        transaction_charge: feePct,
-      },
-      {
-        id: proSub,
-        transaction_charge_type: "percentage",
-        transaction_charge: Math.max(0, 100 - feePct),
-      },
-    ];
-  } else if (splitOn && platformSub) {
-    // Only platform subaccount — take fee; rest stays on main until transfer
-    body.subaccounts = [
-      {
-        id: platformSub,
-        transaction_charge_type: "percentage",
-        transaction_charge: feePct,
-      },
-    ];
-  }
+  /**
+   * HARD RULE for Ona escrow collections:
+   * Never send `subaccounts` on payment init.
+   * Full amount → main Flutterwave merchant account (held as escrow).
+   * Platform fee + pro payout run later via Transfer API on job release.
+   *
+   * (splitOn / platformSub kept for future opt-in; intentionally unused here)
+   */
+  void splitOn;
+  void platformSub;
+  void proSub;
+  void feeFraction;
+
+  // Guarantee no residual subaccount keys
+  delete body.subaccounts;
 
   const res = await fetch("https://api.flutterwave.com/v3/payments", {
     method: "POST",
@@ -250,13 +264,12 @@ async function initFlutterwave(
   if (!res.ok || json.status !== "success" || !json.data?.link) {
     throw new Error(json.message || "Flutterwave initialize failed");
   }
+
   return {
     provider: "flutterwave",
     authorizationUrl: json.data.link,
     reference: input.reference,
-    splitEnabled: Boolean(
-      splitOn && (platformSub || proSub)
-    ),
+    splitEnabled: false,
   };
 }
 

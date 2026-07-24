@@ -90,6 +90,20 @@ function homeForRole(type: AccountType): string {
   return type === "professional" ? "/dashboard" : "/";
 }
 
+/**
+ * ☰ header: first + last name only (drop middle names).
+ * "Chinedu James Okafor" → "Chinedu Okafor"; single token stays as-is.
+ */
+function firstAndLastName(full: string): string {
+  const parts = full
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} ${parts[parts.length - 1]}`;
+}
+
 export function AppMenu({
   open,
   onClose,
@@ -102,7 +116,6 @@ export function AppMenu({
   const t = useT();
   const {
     theme,
-    location,
     userMode,
     accountType,
     proServices,
@@ -113,7 +126,6 @@ export function AppMenu({
     displayName,
     userProfile,
     backendUserId,
-    isLocating,
   } = useApp();
   const isLight = theme === "light";
   const isPro =
@@ -125,11 +137,9 @@ export function AppMenu({
   const [warn, setWarn] = useState<string | null>(null);
   const [signupTarget, setSignupTarget] = useState<AccountType | null>(null);
 
-  const fullNameDisplay = (
-    userProfile?.fullName ||
-    displayName ||
-    ""
-  ).trim();
+  const fullNameDisplay = firstAndLastName(
+    userProfile?.fullName || displayName || ""
+  );
 
   const timeGreeting = (() => {
     const h = new Date().getHours();
@@ -196,9 +206,6 @@ export function AppMenu({
 
   if (!open) return null;
 
-  // Immediate place name only (e.g. "Dr. Frank Okafor Cl, Lekki, Lagos")
-  const placeLine = (location.label || "").trim();
-
   const useAsBtnClass = (active: boolean) =>
     cn(
       "rounded-lg border-0 px-2 py-2.5 text-[12px] font-bold transition-colors",
@@ -215,26 +222,40 @@ export function AppMenu({
       role="dialog"
       aria-modal
     >
+      {/* Free ~20% stage (right): soft dim + brand mark — tap closes */}
       <button
         type="button"
-        className="absolute inset-0 border-0 bg-black/45 transition-opacity duration-200"
+        className="absolute inset-0 border-0 bg-black/50 transition-opacity duration-200"
         aria-label={t("menu.closeMenu")}
         onClick={onClose}
       />
+      <div
+        className="pointer-events-none absolute inset-y-0 right-0 z-[5] flex w-[20%] flex-col items-center justify-center gap-3 px-1"
+        aria-hidden
+      >
+        <span className="select-none text-[22px] font-black tracking-tight leading-none opacity-90">
+          <span className="text-[#FF6B35]">O</span>
+          <span className="text-white/80">na</span>
+        </span>
+        <span className="max-w-[4.5rem] text-center text-[10px] font-semibold leading-snug text-white/55">
+          {t("menu.tapToClose")}
+        </span>
+      </div>
+      {/* 80% width drawer (X-style left rail); free 20% stays dimmed stage */}
       <aside
         className={cn(
-          "relative z-10 flex h-full max-h-full w-[min(75%,300px)] max-w-full flex-col overflow-hidden animate-[om-sheet-up_0.22s_ease-out]",
+          "relative z-10 flex h-full max-h-full w-[80%] max-w-full flex-col overflow-hidden animate-[om-sheet-up_0.22s_ease-out]",
           isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
-        <div className="flex items-start justify-between px-4 pb-3 pt-4">
+        <div className="flex items-start justify-between px-4 pb-4 pt-5">
           <div className="min-w-0 flex-1 pr-2">
-            {/* Signed-in: greeting + full name. Guest: Ona brand */}
+            {/* Signed-in: greeting + full name only (no street address). Guest: Ona brand */}
             {isAuthenticated && fullNameDisplay ? (
-              <div className="min-w-0 space-y-0.5">
+              <div className="min-w-0 space-y-1">
                 <p
                   className={cn(
-                    "text-[16px] font-black leading-tight tracking-tight",
+                    "text-[22px] font-black leading-tight tracking-tight",
                     isLight ? "text-black" : "text-white"
                   )}
                 >
@@ -242,8 +263,8 @@ export function AppMenu({
                 </p>
                 <p
                   className={cn(
-                    "flex flex-wrap items-center gap-1.5 text-[13px] font-semibold leading-snug",
-                    isLight ? "text-slate-700" : "text-white/75"
+                    "flex flex-wrap items-center gap-1.5 text-[17px] font-semibold leading-snug",
+                    isLight ? "text-slate-700" : "text-white/80"
                   )}
                 >
                   <span className="truncate">{fullNameDisplay}</span>
@@ -267,7 +288,7 @@ export function AppMenu({
               </div>
             ) : (
               <p
-                className="whitespace-nowrap text-[28px] font-black tracking-tight leading-none"
+                className="whitespace-nowrap text-[32px] font-black tracking-tight leading-none"
                 aria-label={t("brand.name")}
               >
                 <span className="text-[#FF6B35]">O</span>
@@ -276,33 +297,21 @@ export function AppMenu({
                 </span>
               </p>
             )}
-            <div className="mt-2.5 min-w-0">
-              <p
-                className={cn(
-                  "min-w-0 text-[11px] font-semibold leading-snug",
-                  isLight ? "text-slate-800" : "text-white/85"
-                )}
-              >
-                {isLocating
-                  ? t("menu.updatingLocation")
-                  : placeLine || t("menu.gettingAddress")}
-              </p>
-            </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             className={cn(
-              "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-0 bg-transparent",
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 bg-transparent",
               isLight ? "text-black" : "text-white"
             )}
             aria-label={t("common.close")}
           >
-            <X className="h-4 w-4" />
+            <X className="h-6 w-6" strokeWidth={2.2} />
           </button>
         </div>
 
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
+        <nav className="flex-1 space-y-1 overflow-y-auto px-2 pb-2">
           {nav.map(({ href, labelKey, icon: Icon }) => {
             const label = t(labelKey);
             const roleHome = defaultBackHref(accountType);
@@ -332,16 +341,16 @@ export function AppMenu({
                   router.push(href);
                 }}
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-lg border-0 bg-transparent px-3 py-2.5 text-left text-sm font-semibold transition-colors",
+                  "flex w-full items-center gap-3.5 rounded-xl border-0 bg-transparent px-3 py-3.5 text-left text-[17px] font-semibold transition-colors",
                   active ? activeColor : idleColor
                 )}
               >
                 <Icon
                   className={cn(
-                    "h-4 w-4 shrink-0",
+                    "h-6 w-6 shrink-0",
                     active ? activeColor : idleColor
                   )}
-                  strokeWidth={2.2}
+                  strokeWidth={2}
                 />
                 <span>{label}</span>
               </button>
@@ -356,11 +365,11 @@ export function AppMenu({
               notif?.openCenter();
             }}
             className={cn(
-              "flex w-full items-center gap-3 rounded-lg border-0 bg-transparent px-3 py-2.5 text-left text-sm font-semibold transition-colors",
+              "flex w-full items-center gap-3.5 rounded-xl border-0 bg-transparent px-3 py-3.5 text-left text-[17px] font-semibold transition-colors",
               isLight ? "text-slate-700" : "text-white/90"
             )}
           >
-            <Bell className="h-4 w-4 shrink-0" strokeWidth={2.2} />
+            <Bell className="h-6 w-6 shrink-0" strokeWidth={2} />
             <span className="min-w-0 flex-1">{t("menu.notifications")}</span>
             {unread > 0 ? (
               <span
@@ -382,11 +391,11 @@ export function AppMenu({
                 {/* Line 1: same size as Dashboard / Jobs / Profile */}
                 <div
                   className={cn(
-                    "flex w-full items-center gap-3 rounded-lg border-0 px-3 py-2.5 text-sm font-semibold",
+                    "flex w-full items-center gap-3.5 rounded-xl border-0 px-3 py-3.5 text-[17px] font-semibold",
                     isLight ? "text-slate-700" : "text-white/90"
                   )}
                 >
-                  <Briefcase className="h-4 w-4 shrink-0" strokeWidth={2.2} />
+                  <Briefcase className="h-6 w-6 shrink-0" strokeWidth={2} />
                   <span className="min-w-0 flex-1">{t("menu.myService")}</span>
                 </div>
                 {/* Line 2: trade name + skill icon far right (glassy soft orange plate) */}

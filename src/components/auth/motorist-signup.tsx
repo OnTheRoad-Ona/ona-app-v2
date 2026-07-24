@@ -23,10 +23,6 @@ import { useAuthNavigate } from "@/components/auth/auth-transition";
 import { PasswordField } from "@/components/auth/password-field";
 import { RegistrationComplete } from "@/components/auth/registration-complete";
 import {
-  LocationPickerMap,
-  type PickedLocation,
-} from "@/components/map/location-picker-map";
-import {
   checkIdentityAvailable,
   IDENTITY_RULE_COPY,
 } from "@/lib/account-registry";
@@ -119,7 +115,6 @@ export function MotoristSignup() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [city, setCity] = useState("Lagos");
   const [area, setArea] = useState("");
-  const [pickedLoc, setPickedLoc] = useState<PickedLocation | null>(null);
   /** Optional vehicles — customer can skip (other services need no car) */
   const [vehicles, setVehicles] = useState<MotoristVehicle[]>([]);
   const [draftVehicleType, setDraftVehicleType] = useState("Any");
@@ -165,7 +160,8 @@ export function MotoristSignup() {
       setDualSignup(false);
       setNameLocked(false);
       setGenderLocked(false);
-      setDateOfBirth("");
+      // Do not touch dateOfBirth — stays empty until the customer picks it.
+      // Clearing here would wipe a DOB the user already chose if this effect re-runs.
       setPhoneLocked(false);
       setEmailLocked(false);
       setNinLocked(false);
@@ -194,9 +190,8 @@ export function MotoristSignup() {
     } else {
       setGenderLocked(false);
     }
-    // Customer DOB: never pre-fill (user must pick the date themselves)
-    setDateOfBirth("");
-    setFieldError("dob", null);
+    // Customer DOB: never pre-fill from Repair Pro / vault (initial state is "").
+    // Intentionally do not call setDateOfBirth — re-runs must not wipe user input.
     if (em) {
       setEmail(em);
       setEmailLocked(true);
@@ -240,12 +235,6 @@ export function MotoristSignup() {
       setPhoneLocked(false);
     }
   }, [userProfile, isAuthenticated]);
-
-  const onLocationPicked = (loc: PickedLocation) => {
-    setPickedLoc(loc);
-    setCity(loc.city || loc.label);
-    setArea(loc.area || loc.label);
-  };
 
   const setFieldError = (key: string, msg: string | null) => {
     setFieldErrors((prev) => {
@@ -456,7 +445,7 @@ export function MotoristSignup() {
       return;
     }
     if (!step2Ok) {
-      setFormError("Please set your location.");
+      setFormError("Enter your city and area.");
       setStep(2);
       return;
     }
@@ -536,12 +525,10 @@ export function MotoristSignup() {
       registeredAt: new Date().toISOString(),
     };
 
-    // Apply live map pin (GPS / Places) to the home map session
-    if (pickedLoc) {
-      setManualLocation(pickedLoc.label || `${pickedLoc.area}, ${pickedLoc.city}`, {
-        lat: pickedLoc.lat,
-        lng: pickedLoc.lng,
-      });
+    // Service area text → home map session label (Lagos default coords until GPS)
+    const areaLabel = [area.trim(), city.trim()].filter(Boolean).join(", ");
+    if (areaLabel) {
+      setManualLocation(areaLabel, { lat: 6.5244, lng: 3.3792 });
     }
     const err = await completeSignup(profile);
     if (err) {
@@ -558,12 +545,12 @@ export function MotoristSignup() {
 
   const titles: Record<Step, string> = {
     1: "Your account",
-    2: "Where are you?",
+    2: "Service area",
     3: "Your vehicles",
   };
   const subtitles: Record<Step, string> = {
     1: "Create your car owner profile so you can ask for help nearby",
-    2: "We use this to find repair people close to you",
+    2: "City and area where you usually need help",
     3: "Optional — skip if you do not need vehicle services",
   };
 
@@ -790,8 +777,11 @@ export function MotoristSignup() {
                         setDateOfBirth(normalizeDobIso(v) || v);
                         setFieldError("dob", null);
                       }}
-                      onBlur={() =>
-                        setFieldError("dob", dobError(dateOfBirth))
+                      onBlur={(e) =>
+                        setFieldError(
+                          "dob",
+                          dobError(e.target.value || dateOfBirth)
+                        )
                       }
                       required
                     />
@@ -1076,23 +1066,24 @@ export function MotoristSignup() {
 
           {step === 2 && (
             <div className="flex flex-col gap-2.5">
-              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#64748b]">
-                Your location on the map
-              </p>
-              <p className="text-[11px] leading-snug text-[#475569]">
-                Use live location or search. You can also tap the map or drag
-                the pin to fix the place.
-              </p>
-              <LocationPickerMap
-                value={pickedLoc}
-                onChange={onLocationPicked}
-              />
-              {(city || area) && (
-                <div className="rounded-md border border-[#9A9EA6]/70 bg-white/50 px-2.5 py-2 text-[11px] leading-snug text-[#334155]">
-                  <span className="font-semibold text-[#0f172a]">Selected: </span>
-                  {[area, city].filter(Boolean).join(", ") || pickedLoc?.label}
-                </div>
-              )}
+              <Field label="City" required>
+                <input
+                  className={fieldClass}
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="Lagos"
+                  autoComplete="address-level2"
+                />
+              </Field>
+              <Field label="Area" required>
+                <input
+                  className={fieldClass}
+                  value={area}
+                  onChange={(e) => setArea(e.target.value)}
+                  placeholder="e.g. Yaba, Lekki"
+                  autoComplete="address-level3"
+                />
+              </Field>
             </div>
           )}
 

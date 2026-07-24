@@ -41,6 +41,7 @@ import {
 import {
   initCharge,
   resolveProvider,
+  verifyCharge,
 } from "@/lib/server/payments/providers";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { createServiceSupabase } from "@/lib/supabase/server";
@@ -126,6 +127,11 @@ function rowToJob(row: Record<string, unknown>): JobRecord {
     motoristId: String(row.motorist_id),
     motoristName: String(row.motorist_name || "Customer"),
     motoristPhoto: row.motorist_photo ? String(row.motorist_photo) : null,
+    motoristVehicle: row.motorist_vehicle
+      ? String(row.motorist_vehicle).trim() || null
+      : row.vehicle_label
+        ? String(row.vehicle_label).trim() || null
+        : null,
     repairProId: String(row.repair_pro_id || ""),
     repairProName: String(row.repair_pro_name || "Repair Pro"),
     repairProPhoto: row.repair_pro_photo
@@ -234,6 +240,7 @@ function jobToDbPatch(job: JobRecord): Record<string, unknown> {
     max_offers: job.maxOffers,
     motorist_name: job.motoristName,
     motorist_photo: job.motoristPhoto || null,
+    motorist_vehicle: job.motoristVehicle?.trim() || null,
     repair_pro_name: job.repairProName,
     repair_pro_photo: job.repairProPhoto || null,
     // Live motorist pin uses pickup coords (updated on motorist GPS pings)
@@ -370,6 +377,7 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
     motoristId: input.motoristId,
     motoristName: input.motoristName,
     motoristPhoto,
+    motoristVehicle: input.motoristVehicle?.trim() || null,
     repairProId: input.repairProId,
     repairProName: input.repairProName,
     repairProPhoto: input.repairProPhoto,
@@ -416,12 +424,59 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
         .single();
       if (!error && data) {
         const mapped = rowToJob(data as Record<string, unknown>);
-        // preserve client-generated media if DB stripped
+        // preserve client-generated media / vehicle if DB stripped columns
         mapped.photos = job.photos;
         mapped.voiceNote = job.voiceNote;
         mapped.motoristPhoto = mapped.motoristPhoto || motoristPhoto;
+        mapped.motoristVehicle =
+          mapped.motoristVehicle || job.motoristVehicle || null;
         memory.set(mapped.id, mapped);
         return mapped;
+      }
+      // Insert may fail if motorist_vehicle column missing — retry without it
+      if (error) {
+        const { motorist_vehicle: _mv, ...rest } = {
+          motorist_id: input.motoristId,
+          repair_pro_id: input.repairProId,
+          service_type: input.serviceType,
+          status: "requested",
+          description: input.problem,
+          pickup_lat: input.motoristLocation.lat,
+          pickup_lng: input.motoristLocation.lng,
+          pickup_address: input.locationLabel,
+          radius_km: 10,
+          ...jobToDbPatch(job),
+          flow_status: "negotiating",
+          created_at: ts,
+        } as Record<string, unknown>;
+        void _mv;
+        const retry = await sb
+          .from("service_requests")
+          .insert(rest)
+          .select("*")
+          .single();
+        if (!retry.error && retry.data) {
+          const mapped = rowToJob(retry.data as Record<string, unknown>);
+          mapped.photos = job.photos;
+          mapped.voiceNote = job.voiceNote;
+          mapped.motoristPhoto = mapped.motoristPhoto || motoristPhoto;
+          mapped.motoristVehicle = job.motoristVehicle || null;
+          // Best-effort store vehicle in problem_text prefix is avoided;
+          // hydrateMotoristVehicle will fill from profile if needed
+          memory.set(mapped.id, mapped);
+          // Try update with vehicle only (if column exists)
+          if (job.motoristVehicle) {
+            try {
+              await sb
+                .from("service_requests")
+                .update({ motorist_vehicle: job.motoristVehicle })
+                .eq("id", mapped.id);
+            } catch {
+              /* column may not exist yet */
+            }
+          }
+          return mapped;
+        }
       }
     } catch {
       /* memory */
@@ -456,58 +511,55 @@ async function hydrateJobPhones(job: JobRecord): Promise<JobRecord> {
   if (!isSupabaseAdminConfigured()) return job;
   const needPhones =
     !job.motoristPhone?.trim() || !job.repairProPhone?.trim();
-  const needVehicle = !job.motoristVehicle?.trim();
-  if (!needPhones && !needVehicle) return job;
+  if (!needPhones && job.motoristVehicle?.trim()) return job;
   try {
     const sb = createServiceSupabase();
     const ids = [job.motoristId, job.repairProId].filter(Boolean);
     if (!ids.length) return job;
     const { data } = await sb
       .from("profiles")
-      .select("id, phone, avatar_url, full_name, vehicle_make, vehicle_model")
+      .select("id, phone, avatar_url, full_name")
       .in("id", ids);
-    if (!data?.length) return job;
     let next = { ...job };
-    for (const row of data as {
-      id: string;
-      phone?: string | null;
-      avatar_url?: string | null;
-      full_name?: string | null;
-      vehicle_make?: string | null;
-      vehicle_model?: string | null;
-    }[]) {
-      const phone = (row.phone || "").trim() || null;
-      if (row.id === job.motoristId) {
-        const make = (row.vehicle_make || "").trim();
-        const model = (row.vehicle_model || "").trim();
-        const vehicle =
-          [make, model].filter(Boolean).join(" ").trim() || null;
-        next = {
-          ...next,
-          motoristPhone: next.motoristPhone || phone,
-          motoristPhoto:
-            next.motoristPhoto ||
-            (row.avatar_url ? String(row.avatar_url) : null),
-          motoristName:
-            next.motoristName && next.motoristName !== "Customer"
-              ? next.motoristName
-              : String(row.full_name || next.motoristName || "Customer"),
-          motoristVehicle: next.motoristVehicle || vehicle,
-        };
+    if (data?.length) {
+      for (const row of data as {
+        id: string;
+        phone?: string | null;
+        avatar_url?: string | null;
+        full_name?: string | null;
+      }[]) {
+        const phone = (row.phone || "").trim() || null;
+        if (row.id === job.motoristId) {
+          next = {
+            ...next,
+            motoristPhone: next.motoristPhone || phone,
+            motoristPhoto:
+              next.motoristPhoto ||
+              (row.avatar_url ? String(row.avatar_url) : null),
+            motoristName:
+              next.motoristName && next.motoristName !== "Customer"
+                ? next.motoristName
+                : String(row.full_name || next.motoristName || "Customer"),
+          };
+        }
+        if (row.id === job.repairProId) {
+          next = {
+            ...next,
+            repairProPhone: next.repairProPhone || phone,
+            repairProPhoto:
+              next.repairProPhoto ||
+              (row.avatar_url ? String(row.avatar_url) : undefined),
+            repairProName:
+              next.repairProName && next.repairProName !== "Repair Pro"
+                ? next.repairProName
+                : String(row.full_name || next.repairProName || "Repair Pro"),
+          };
+        }
       }
-      if (row.id === job.repairProId) {
-        next = {
-          ...next,
-          repairProPhone: next.repairProPhone || phone,
-          repairProPhoto:
-            next.repairProPhoto ||
-            (row.avatar_url ? String(row.avatar_url) : undefined),
-          repairProName:
-            next.repairProName && next.repairProName !== "Repair Pro"
-              ? next.repairProName
-              : String(row.full_name || next.repairProName || "Repair Pro"),
-        };
-      }
+    }
+    // Vehicle lives on motorist_profiles (not profiles)
+    if (!next.motoristVehicle?.trim() && job.motoristId) {
+      next = await hydrateMotoristVehicle(next);
     }
     return next;
   } catch {
@@ -515,8 +567,105 @@ async function hydrateJobPhones(job: JobRecord): Promise<JobRecord> {
   }
 }
 
-export async function getJob(id: string): Promise<JobRecord | null> {
-  // Prefer Supabase so offers update across serverless instances (not stale memory)
+/** Fill motoristVehicle from motorist_profiles when job row has none */
+async function hydrateMotoristVehicle(job: JobRecord): Promise<JobRecord> {
+  if (job.motoristVehicle?.trim() || !job.motoristId) return job;
+  if (!isSupabaseAdminConfigured()) return job;
+  try {
+    const sb = createServiceSupabase();
+    const { data } = await sb
+      .from("motorist_profiles")
+      .select("vehicle_make, vehicle_model, vehicle_year, vehicles")
+      .eq("user_id", job.motoristId)
+      .maybeSingle();
+    if (!data) return job;
+    const vehicles = Array.isArray(data.vehicles) ? data.vehicles : [];
+    const first =
+      vehicles.find(
+        (v: { make?: string; model?: string }) =>
+          v && (v.make || v.model)
+      ) || null;
+    let label = "";
+    if (first && typeof first === "object") {
+      const f = first as {
+        vehicleType?: string;
+        make?: string;
+        model?: string;
+        year?: string;
+      };
+      label = [f.vehicleType, f.make, f.model, f.year]
+        .filter((x) => x && String(x).trim() && String(x) !== "Any")
+        .join(" ");
+    }
+    if (!label) {
+      label = [
+        data.vehicle_make,
+        data.vehicle_model,
+        data.vehicle_year,
+      ]
+        .filter((x) => x && String(x).trim())
+        .join(" ");
+    }
+    if (!label.trim()) return job;
+    return { ...job, motoristVehicle: label.trim() };
+  } catch {
+    return job;
+  }
+}
+
+/**
+ * If money is already held/successful but job still says "agreed",
+ * flip to paid_booked so UI never shows "Pay now to book" again.
+ */
+export async function reconcileJobPayment(
+  job: JobRecord
+): Promise<JobRecord> {
+  if (job.status !== "agreed") return job;
+
+  const payment = await getEscrowByRequest(job.id);
+  if (!payment?.providerRef) return job;
+
+  // Already held in escrow DB → book the job
+  if (
+    payment.escrowStatus === "held" ||
+    payment.escrowStatus === "released" ||
+    payment.status === "paid"
+  ) {
+    const booked = await markJobPaidFromReference(payment.providerRef);
+    if ("job" in booked) return booked.job;
+    return job;
+  }
+
+  // Pending row but Flutterwave already collected — verify live
+  if (
+    payment.escrowStatus === "pending_payment" ||
+    payment.escrowStatus === "none"
+  ) {
+    try {
+      const verified = await verifyCharge(
+        payment.providerRef,
+        String(payment.provider)
+      );
+      if (verified.success) {
+        await updateEscrow(payment.id, {
+          status: "paid",
+          escrowStatus: "held",
+          paidAt: verified.paidAt || nowIso(),
+          providerChannel: verified.channel || null,
+        });
+        const booked = await markJobPaidFromReference(payment.providerRef);
+        if ("job" in booked) return booked.job;
+      }
+    } catch {
+      /* keep agreed until verify succeeds */
+    }
+  }
+
+  return job;
+}
+
+/** Load job without payment reconciliation (avoids getJob ↔ markPaid loops). */
+async function getJobRaw(id: string): Promise<JobRecord | null> {
   if (isSupabaseAdminConfigured()) {
     try {
       const sb = createServiceSupabase();
@@ -527,18 +676,34 @@ export async function getJob(id: string): Promise<JobRecord | null> {
         .maybeSingle();
       if (data) {
         let job = rowToJob(data as Record<string, unknown>);
+        // Keep vehicle from memory if DB column empty (pre-migration jobs)
+        const memHit = memory.get(id);
+        if (!job.motoristVehicle?.trim() && memHit?.motoristVehicle) {
+          job = { ...job, motoristVehicle: memHit.motoristVehicle };
+        }
         job = await hydrateMotoristPhoto(job);
         job = await hydrateJobPhones(job);
+        job = await hydrateMotoristVehicle(job);
         memory.set(id, job);
-        return maybeExpire(job);
+        return job;
       }
     } catch {
-      /* fall through to memory */
+      /* memory */
     }
   }
   const mem = memory.get(id);
   if (!mem) return null;
-  return maybeExpire(await hydrateJobPhones(mem));
+  let job = await hydrateJobPhones(mem);
+  job = await hydrateMotoristVehicle(job);
+  return job;
+}
+
+export async function getJob(id: string): Promise<JobRecord | null> {
+  // Prefer Supabase so offers update across serverless instances (not stale memory)
+  const job = await getJobRaw(id);
+  if (!job) return null;
+  const synced = await reconcileJobPayment(job);
+  return maybeExpire(synced);
 }
 
 async function maybeExpire(job: JobRecord): Promise<JobRecord> {
@@ -741,8 +906,45 @@ async function applyEvent(
     updated.paidAt = ts;
     updated.escrowStatus = "held";
   }
+  if (next === "completed") {
+    // Prompt customer to confirm and release pay
+    try {
+      const { insertNotification } = await import(
+        "@/lib/server/notifications"
+      );
+      await insertNotification({
+        userId: job.motoristId,
+        category: "payments",
+        priority: "critical",
+        title: "Confirm job & release pay",
+        body: `${job.repairProName} marked the job complete. Tap I am satisfied to release payment.`,
+        href: `/jobs/${job.id}`,
+        actionType: "open_job",
+        actionPayload: { jobId: job.id },
+        jobId: job.id,
+        jobStatus: "completed",
+        groupKey: `job-complete-${job.id}`,
+      });
+    } catch {
+      /* notifications optional */
+    }
+  }
   if (next === "satisfied") {
     updated.satisfiedAt = ts;
+    // Customer confirmation immediately releases escrow (95% pro / 5% platform)
+    const released: JobRecord = {
+      ...updated,
+      status: "released",
+      releasedAt: ts,
+      escrowStatus: "released",
+      statusHistory: [
+        ...updated.statusHistory,
+        { status: "released", at: ts, by: "system" },
+      ],
+      updatedAt: ts,
+    };
+    await releaseJobEscrow(released);
+    return persist(released);
   }
   if (next === "released") {
     updated.releasedAt = ts;
@@ -954,10 +1156,26 @@ export async function startJobEscrowPayment(input: {
     }
   | { error: string }
 > {
-  const job = await getJob(input.jobId);
+  let job = await getJob(input.jobId);
   if (!job) return { error: "Job not found" };
   if (job.motoristId !== input.motoristId) {
     return { error: "Only the customer on this job can pay." };
+  }
+  // Reconcile first — user may have already paid on Flutterwave
+  job = await reconcileJobPayment(job);
+  if (
+    job.status === "paid_booked" ||
+    job.status === "en_route" ||
+    job.status === "arrived" ||
+    job.status === "in_progress" ||
+    job.status === "completed" ||
+    job.status === "satisfied" ||
+    job.status === "released"
+  ) {
+    return {
+      error: "ALREADY_PAID",
+      jobId: job.id,
+    } as { error: string; jobId: string };
   }
   if (job.status !== "agreed") {
     return { error: "Job must be in Agreed status before payment." };
@@ -1086,7 +1304,8 @@ export async function markJobPaidFromReference(
     });
   }
 
-  const job = await getJob(payment.requestId);
+  // Use raw load — getJob() reconciles payment and would recurse
+  const job = await getJobRaw(payment.requestId);
   if (!job) return { error: "Job not found for this payment." };
 
   if (job.status === "paid_booked" || job.status === "en_route" || job.status === "arrived" || job.status === "in_progress" || job.status === "completed" || job.status === "satisfied" || job.status === "released") {

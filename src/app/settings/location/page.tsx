@@ -158,7 +158,7 @@ export default function SettingsLocationPage() {
           <div
             className={cn(
               "mt-3 space-y-2 rounded-md px-3 py-3",
-              isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]"
+              "bg-transparent"
             )}
           >
             <p

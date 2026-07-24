@@ -128,6 +128,7 @@ export function HomePanel({
     helpingSomeoneElse,
     setHelpingSomeoneElse,
     userProfile,
+    query,
   } = useApp();
   const isLight = theme === "light";
   const [refreshingPros, setRefreshingPros] = useState(false);
@@ -598,13 +599,15 @@ export function HomePanel({
                   isLight ? "text-slate-800" : "text-white"
                 )}
               >
-                {filters.availableNow
-                  ? t("home.noProsAvailable")
-                  : filters.rating45 ||
-                      filters.verified ||
-                      filters.fastResponse
-                    ? t("home.noProsMatch")
-                    : t("home.noRepairPros")}
+                {query.trim()
+                  ? t("search.noResultsFor", { q: query.trim() })
+                  : filters.availableNow
+                    ? t("home.noProsAvailable")
+                    : filters.rating45 ||
+                        filters.verified ||
+                        filters.fastResponse
+                      ? t("home.noProsMatch")
+                      : t("home.noRepairPros")}
               </p>
               <button
                 type="button"

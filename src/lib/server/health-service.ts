@@ -117,7 +117,7 @@ export async function estimateStoragePct(): Promise<{
       pct,
       live: false, // set true when using real pg_database_size
       connected: true,
-      detail: `Heuristic from ${totalRows} rows · motorists ${motC.count ?? 0} · pros ${proC.count ?? 0}`,
+      detail: `Heuristic from ${totalRows} rows · customers ${motC.count ?? 0} · pros ${proC.count ?? 0}`,
       registry: {
         motoristProfiles: motC.count ?? 0,
         repairProProfiles: proC.count ?? 0,

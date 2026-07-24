@@ -60,7 +60,7 @@ export default function SettingsAccessibilityPage() {
         <div
           className={cn(
             "rounded-md px-3 py-3",
-            isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]"
+            "bg-transparent"
           )}
         >
           <p
@@ -110,7 +110,7 @@ export default function SettingsAccessibilityPage() {
         <div
           className={cn(
             "flex items-center justify-between gap-3 rounded-md px-3 py-3",
-            isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]"
+            "bg-transparent"
           )}
         >
           <div>

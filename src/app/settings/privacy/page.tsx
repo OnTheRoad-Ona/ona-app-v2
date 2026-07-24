@@ -124,7 +124,7 @@ export default function SettingsPrivacyPage() {
         <div
           className={cn(
             "overflow-hidden rounded-md",
-            isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]"
+            "bg-transparent"
           )}
         >
           {!isPro ? (

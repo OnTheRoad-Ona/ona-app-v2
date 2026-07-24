@@ -6,7 +6,7 @@
  * - Recent: Uber place + area only (never problem text / demo address)
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Clock3, Loader2, Radio, Shield } from "lucide-react";
 import { BankForcePanel } from "@/components/auth/bank-force-panel";
@@ -15,14 +15,15 @@ import { getArtisanProfile } from "@/lib/artisan/local-store";
 import {
   canGoLive,
   resolveVisibilityTier,
-  rulesForTier,
   tier2GoLiveWarning,
 } from "@/lib/artisan/status";
 import type { ArtisanVerificationProfile } from "@/lib/artisan/types";
 import { apiListJobs } from "@/lib/jobs/client";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
 import { useT } from "@/lib/i18n";
+import { isProService, PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
+import type { ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /** New Request only — leaves dashboard after Accept */
@@ -118,6 +119,24 @@ function splitPlaceAndArea(label: string): {
   return { title: raw, subtitle: null };
 }
 
+/** e.g. Mechanic → "Mechanic Dashboard"; unknown → "Repair Pro Dashboard" */
+function skillDashboardTitle(skill: ProService | string | null | undefined): string {
+  const raw = String(skill || "").trim().toLowerCase();
+  if (raw && isProService(raw)) {
+    return `${PRO_SERVICE_LABELS[raw]} Dashboard`;
+  }
+  // Specialty-only strings sometimes stored without catalog id
+  if (raw) {
+    const pretty = raw
+      .split(/[\s_/|-]+/)
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+    if (pretty) return `${pretty} Dashboard`;
+  }
+  return "Repair Pro Dashboard";
+}
+
 export default function TechnicianDashboardPage() {
   const {
     theme,
@@ -128,6 +147,8 @@ export default function TechnicianDashboardPage() {
     isAuthenticated,
     switchAccount,
     hasProAccount,
+    userProfile,
+    proServices,
   } = useApp();
   const t = useT();
   const isLight = theme === "light";
@@ -141,6 +162,13 @@ export default function TechnicianDashboardPage() {
     null
   );
   const [switchBusy, setSwitchBusy] = useState(false);
+
+  const dashboardTitle = useMemo(() => {
+    const fromArtisan = artisan?.trade?.service;
+    const fromProfile = userProfile?.services?.[0];
+    const fromProList = proServices?.[0];
+    return skillDashboardTitle(fromArtisan || fromProfile || fromProList);
+  }, [artisan?.trade?.service, userProfile?.services, proServices]);
 
   useEffect(() => {
     if (!backendUserId) {
@@ -360,7 +388,7 @@ export default function TechnicianDashboardPage() {
   if (isAuthenticated && accountType !== "professional") {
     return (
       <div className={cn("flex h-full min-h-0 flex-col", stage)}>
-        <PageHeader title="Professional Dashboard" showBack={false} />
+        <PageHeader title={dashboardTitle} showBack={false} />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-5 text-center">
           <p className={cn("text-[15px] font-bold", ink)}>
             You are on Customer mode
@@ -408,7 +436,7 @@ export default function TechnicianDashboardPage() {
       <BankForcePanel surface="dashboard" />
       <div className={cn("z-20 shrink-0", stage)}>
         <PageHeader
-          title="Professional Dashboard"
+          title={dashboardTitle}
           showBack={false}
         />
         <div className="flex items-center justify-end gap-2 px-3 pb-2">
@@ -451,26 +479,29 @@ export default function TechnicianDashboardPage() {
               <div className="min-w-0 flex-1">
                 {(() => {
                   const tier = resolveVisibilityTier(artisan);
-                  const rules = rulesForTier(tier);
                   const g = canGoLive(artisan);
                   const warn =
                     artisan.status === "approved"
                       ? tier2GoLiveWarning(artisan)
                       : null;
+                  const statusLine =
+                    artisan.status !== "approved"
+                      ? artisan.status === "draft"
+                        ? t("gate.finishBeforeLive")
+                        : g.allowed
+                          ? ""
+                          : g.message
+                      : "";
                   return (
                     <>
                       <p className={cn("text-[13px] font-bold", ink)}>
                         Tier {tier}
                       </p>
+                      {statusLine ? (
                       <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
-                        {artisan.status !== "approved"
-                          ? artisan.status === "draft"
-                            ? t("gate.finishBeforeLive")
-                            : g.allowed
-                              ? ""
-                              : g.message
-                          : `${rules.visibilityPercent}% visibility · max ${rules.maxRadiusKm} km`}
+                        {statusLine}
                       </p>
+                      ) : null}
                       {warn ? (
                         <p
                           className={cn(

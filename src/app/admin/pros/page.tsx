@@ -807,14 +807,6 @@ export default function AdminProsHubPage() {
             <>
               <button
                 type="button"
-                className="om-admin-btn"
-                disabled={busyId === selectedDir.id}
-                onClick={() => void setStatus(selectedDir.id, "approved")}
-              >
-                Approve account
-              </button>
-              <button
-                type="button"
                 className="om-admin-btn ghost"
                 disabled={busyId === selectedDir.id}
                 onClick={() => void setStatus(selectedDir.id, "suspended")}

@@ -208,8 +208,7 @@ export function ArtisanOnboarding({
   );
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
-  /** Shown once after send so you can complete the flow without SMS */
-  const [otpDemoCode, setOtpDemoCode] = useState<string | null>(null);
+
   const [busy, setBusy] = useState(false);
   const [idBusy, setIdBusy] = useState<"gov" | "nin" | null>(null);
   const [showLiveness, setShowLiveness] = useState(false);
@@ -648,10 +647,9 @@ export function ArtisanOnboarding({
       return;
     }
     setOtpSent(true);
-    setOtpDemoCode(res.demoCode);
     setOtp("");
     setMsg(
-      `OTP sent. Code expires in ${Math.floor(res.expiresInSec / 60)} minutes. (No SMS keys → code shown below.)`
+      `OTP sent. Code expires in ${Math.floor(res.expiresInSec / 60)} minutes.`
     );
     setErr(null);
   };
@@ -670,7 +668,6 @@ export function ArtisanOnboarding({
     if (userProfile && !userProfile.phoneVerified) {
       updateUserProfile({ phoneVerified: true });
     }
-    setOtpDemoCode(null);
     setMsg("Phone verified. Tier 1 complete. Next: add your bank account.");
     setErr(null);
   };
@@ -1256,21 +1253,7 @@ export function ArtisanOnboarding({
                 >
                   {otpSent ? "Resend OTP" : "Send OTP"}
                 </button>
-                {otpDemoCode ? (
-                  <div
-                    className={cn(
-                      "rounded-md px-3 py-2 text-center",
-                      isLight ? "bg-[#fff7ed]" : "bg-[#3a2010]"
-                    )}
-                  >
-                    <p className={cn("text-[10px] font-semibold uppercase tracking-wide", muted)}>
-                      Your code (shown because SMS is not configured)
-                    </p>
-                    <p className={cn("mt-0.5 text-[22px] font-black tracking-[0.2em]", ink)}>
-                      {otpDemoCode}
-                    </p>
-                  </div>
-                ) : null}
+                {/* Demo / SMS-config codes are never shown in the UI */}
                 {otpSent ? (
                   <div className="flex gap-2">
                     <input

@@ -11,7 +11,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
-  reference: z.string().min(3),
+  reference: z.string().min(3).optional(),
+  /** Flutterwave also sends transaction_id */
+  transactionId: z.union([z.string(), z.number()]).optional(),
+  jobId: z.string().optional(),
   provider: z.enum(["paystack", "flutterwave", "mock"]).optional(),
 });
 
@@ -21,11 +24,25 @@ export async function POST(req: Request) {
     const parsed = bodySchema.safeParse(await req.json());
     if (!parsed.success) return apiFail("Invalid body", 400);
 
-    const payment = await getEscrowByRef(parsed.data.reference);
+    const refRaw = (parsed.data.reference || "").trim();
+    if (!refRaw && !parsed.data.jobId) {
+      return apiFail("reference or jobId required", 400);
+    }
+
+    let payment = refRaw ? await getEscrowByRef(refRaw) : null;
+    // Fallback: latest escrow row for this job (iframe may drop ref)
+    if (!payment && parsed.data.jobId) {
+      const { getEscrowByRequest } = await import(
+        "@/lib/server/payments/escrow-store"
+      );
+      payment = await getEscrowByRequest(parsed.data.jobId);
+    }
     if (!payment) return apiFail("Payment not found", 404, "not_found");
 
+    const verifyRef = payment.providerRef || refRaw;
+
     if (payment.escrowStatus === "held" || payment.escrowStatus === "released") {
-      const booked = await markJobPaidFromReference(parsed.data.reference);
+      const booked = await markJobPaidFromReference(verifyRef);
       return apiOk({
         payment,
         alreadySettled: true,
@@ -34,7 +51,7 @@ export async function POST(req: Request) {
     }
 
     const verified = await verifyCharge(
-      parsed.data.reference,
+      verifyRef,
       parsed.data.provider || payment.provider
     );
 
@@ -61,14 +78,14 @@ export async function POST(req: Request) {
       providerChannel: verified.channel || null,
     });
 
-    const booked = await markJobPaidFromReference(parsed.data.reference);
+    const booked = await markJobPaidFromReference(verifyRef);
 
     return apiOk({
       payment: updated,
       job: "job" in booked ? booked.job : null,
       jobError: "error" in booked ? booked.error : null,
       receipt: {
-        reference: payment.providerRef,
+        reference: payment.providerRef || verifyRef,
         amountMinor: payment.amountMinor,
         currency: payment.currency,
         labourOnly: true,

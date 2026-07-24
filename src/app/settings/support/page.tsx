@@ -73,7 +73,7 @@ export default function SettingsSupportPage() {
 
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-600" : "text-white/65";
-  const card = isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]";
+  const card = "bg-transparent";
   const field = isLight
     ? "w-full rounded-md border-0 bg-black/[0.06] px-3 py-2.5 text-[13px] font-medium text-slate-900 outline-none placeholder:text-slate-500"
     : "w-full rounded-md border-0 bg-white/[0.08] px-3 py-2.5 text-[13px] font-medium text-white outline-none placeholder:text-white/40";

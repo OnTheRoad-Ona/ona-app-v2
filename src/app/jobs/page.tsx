@@ -242,11 +242,19 @@ function ProJobsPage({
 
   useEffect(() => {
     void load();
+    // Fast poll so new customer requests appear quickly for Repair Pros
     const t = window.setInterval(() => {
       if (document.hidden) return;
       void load();
-    }, 90_000);
-    return () => window.clearInterval(t);
+    }, 3_000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.clearInterval(t);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, [load]);
 
   return (
@@ -503,8 +511,15 @@ function MotoristJobsPage({
           return true;
         })
         .sort((a, b) => {
+          // Needs “I am satisfied” first
           const rank = (s: string) =>
-            s === "negotiating" ? 0 : s === "agreed" ? 1 : 2;
+            s === "completed"
+              ? 0
+              : s === "negotiating"
+                ? 1
+                : s === "agreed"
+                  ? 2
+                  : 3;
           const d = rank(a.status) - rank(b.status);
           if (d !== 0) return d;
           return (
@@ -513,17 +528,37 @@ function MotoristJobsPage({
         });
       setJobs(list);
       setLoading(false);
+      // Auto-open satisfaction screen when pro finished the job
+      const needsConfirm = list.find((j) => j.status === "completed");
+      if (needsConfirm && !cancelled) {
+        try {
+          const { showAppNotification, ensureNotifyPermission } = await import(
+            "@/lib/app-notify"
+          );
+          void ensureNotifyPermission();
+          showAppNotification({
+            title: "Confirm & release pay",
+            body: "Tap I am satisfied to release payment to your Repair Pro.",
+            tag: `job-complete-${needsConfirm.id}`,
+            href: `/jobs/${needsConfirm.id}`,
+            requireInteraction: true,
+          });
+        } catch {
+          /* */
+        }
+        router.replace(`/jobs/${needsConfirm.id}`);
+      }
     };
     void load();
     const t = window.setInterval(() => {
       if (document.hidden) return;
       void load();
-    }, 120_000);
+    }, 3_000);
     return () => {
       cancelled = true;
       window.clearInterval(t);
     };
-  }, [backendUserId]);
+  }, [backendUserId, router]);
 
   return (
     <JobShell isLight={isLight} title="My jobs" onBack={onBack}>
@@ -548,20 +583,28 @@ function MotoristJobsPage({
             j.agreedMajor != null
               ? formatMoney(j.agreedMajor, j.currency)
               : null;
+          const needsSatisfied = j.status === "completed";
           return (
             <li key={j.id}>
               <Link
                 href={`/jobs/${j.id}`}
                 className={cn(
                   "flex items-center gap-2.5 rounded-lg px-3 py-3",
-                  row
+                  needsSatisfied
+                    ? "bg-[#FF6B35] text-white"
+                    : row
                 )}
               >
                 <div className="min-w-0 flex-1">
+                  {needsSatisfied ? (
+                    <p className="text-[11px] font-black uppercase tracking-wide text-white/90">
+                      Tap to confirm — release pay
+                    </p>
+                  ) : null}
                   <p
                     className={cn(
                       "truncate text-[15px] font-black leading-tight",
-                      ink
+                      needsSatisfied ? "text-white" : ink
                     )}
                   >
                     {j.repairProName}
@@ -570,14 +613,19 @@ function MotoristJobsPage({
                     <p
                       className={cn(
                         "mt-1.5 line-clamp-1 text-[12px] font-medium",
-                        muted
+                        needsSatisfied ? "text-white/85" : muted
                       )}
                     >
                       {j.problem}
                     </p>
                   )}
                   {price && (
-                    <p className={cn("mt-1 text-[13px] font-black tabular-nums", ink)}>
+                    <p
+                      className={cn(
+                        "mt-1 text-[13px] font-black tabular-nums",
+                        needsSatisfied ? "text-white" : ink
+                      )}
+                    >
                       {price}
                     </p>
                   )}
@@ -585,7 +633,11 @@ function MotoristJobsPage({
                 <ChevronRight
                   className={cn(
                     "h-4 w-4 shrink-0",
-                    isLight ? "text-slate-500" : "text-[#6b6b6b]"
+                    needsSatisfied
+                      ? "text-white"
+                      : isLight
+                        ? "text-slate-500"
+                        : "text-[#6b6b6b]"
                   )}
                 />
               </Link>

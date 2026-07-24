@@ -180,6 +180,8 @@ export type CreateJobInput = {
   motoristId: string;
   motoristName: string;
   motoristPhoto?: string | null;
+  /** e.g. "Toyota Camry 2018" — which vehicle needs help */
+  motoristVehicle?: string | null;
   repairProId: string;
   repairProName: string;
   repairProPhoto?: string;

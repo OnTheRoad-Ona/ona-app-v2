@@ -25,7 +25,7 @@ export default function SettingsAboutPage() {
         <div
           className={cn(
             "rounded-md px-3 py-4 text-center",
-            isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]"
+            "bg-transparent"
           )}
         >
           <p

@@ -211,6 +211,41 @@ export async function POST(req: Request) {
   const role = profile?.role as string | undefined;
   const isRepairPro = role === "repair_pro";
 
+  // DOB age gate (same rules as signup) when client sends a date
+  if (b.dateOfBirth != null) {
+    const raw = b.dateOfBirth;
+    const dob = new Date(`${raw}T12:00:00`);
+    const today = new Date();
+    if (Number.isNaN(dob.getTime())) {
+      return apiFail("Use a valid date of birth.", 400, "validation");
+    }
+    const [y, month, day] = raw.split("-").map(Number);
+    if (
+      dob.getFullYear() !== y ||
+      dob.getMonth() + 1 !== month ||
+      dob.getDate() !== day
+    ) {
+      return apiFail("Use a valid date of birth.", 400, "validation");
+    }
+    if (dob.getTime() > today.getTime()) {
+      return apiFail(
+        "Date of birth cannot be in the future.",
+        400,
+        "validation"
+      );
+    }
+    let age = today.getFullYear() - dob.getFullYear();
+    const m = today.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age -= 1;
+    if (age < 16 || age > 120) {
+      return apiFail(
+        "You must be at least 16 years old.",
+        400,
+        "validation"
+      );
+    }
+  }
+
   // Repair Pros cannot change personal full name after signup (business name is separate)
   await admin
     .from("profiles")

@@ -157,9 +157,7 @@ export function BankForcePanel({
                   muted
                 )}
               >
-                {isPro
-                  ? "Pick bank + enter account number — name fills like a bank app. Used for payouts after escrow release."
-                  : "Pick bank + enter account number — name fills like a bank app. Used for refunds if a job is cancelled."}
+                {isPro ? "Bank for payouts" : "Bank for refunds"}
               </p>
             </div>
             <button

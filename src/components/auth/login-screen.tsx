@@ -83,24 +83,24 @@ export function LoginScreen() {
               active={accountType === "motorist"}
               icon={Car}
               title={t("auth.motorist")}
-              subtitle="I have a car and need help on the road"
+              subtitle={t("auth.motoristHint")}
               onClick={() => setAccountType("motorist")}
             />
             <RoleCard
               active={accountType === "professional"}
               icon={Wrench}
               title={t("auth.pro")}
-              subtitle="I fix cars and want customers"
+              subtitle={t("auth.proHint")}
               onClick={() => setAccountType("professional")}
             />
           </div>
 
           <p className="mt-4 px-0.5 text-center text-[11px] leading-relaxed text-[#64748b]">
             {!accountType
-              ? "Tap Motorist or Repair Pro to continue"
+              ? t("auth.tapRole")
               : accountType === "professional"
-                ? "About 2 minutes to finish"
-                : "About 1 minute to finish"}
+                ? t("auth.about2min")
+                : t("auth.about1min")}
           </p>
 
           <div className="mt-auto pt-5">

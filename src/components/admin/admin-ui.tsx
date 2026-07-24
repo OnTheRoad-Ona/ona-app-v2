@@ -7,10 +7,85 @@
 
 import {
   useEffect,
+  useState,
   type CSSProperties,
   type ReactNode,
 } from "react";
 import { cn } from "@/lib/utils";
+
+const DOC_CACHE_DB = "ona-admin-docs";
+const DOC_CACHE_STORE = "files";
+
+function cacheKey(url: string) {
+  return url.slice(0, 500);
+}
+
+async function openDocDb(): Promise<IDBDatabase | null> {
+  if (typeof indexedDB === "undefined") return null;
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.open(DOC_CACHE_DB, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(DOC_CACHE_STORE)) {
+          db.createObjectStore(DOC_CACHE_STORE);
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+/** Read cached blob URL for offline reopen; null if missing. */
+async function readCachedDoc(url: string): Promise<string | null> {
+  if (url.startsWith("data:") || url.startsWith("blob:")) return url;
+  const db = await openDocDb();
+  if (!db) return null;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(DOC_CACHE_STORE, "readonly");
+      const store = tx.objectStore(DOC_CACHE_STORE);
+      const g = store.get(cacheKey(url));
+      g.onsuccess = () => {
+        const blob = g.result as Blob | undefined;
+        if (blob instanceof Blob) resolve(URL.createObjectURL(blob));
+        else resolve(null);
+      };
+      g.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+/** Download once online and store for offline viewing. */
+async function cacheDocUrl(url: string): Promise<string | null> {
+  if (!url || url.startsWith("data:") || url.startsWith("blob:")) return url;
+  try {
+    const res = await fetch(url, { mode: "cors", credentials: "omit" });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    const db = await openDocDb();
+    if (db) {
+      await new Promise<void>((resolve) => {
+        try {
+          const tx = db.transaction(DOC_CACHE_STORE, "readwrite");
+          tx.objectStore(DOC_CACHE_STORE).put(blob, cacheKey(url));
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => resolve();
+        } catch {
+          resolve();
+        }
+      });
+    }
+    return URL.createObjectURL(blob);
+  } catch {
+    return null;
+  }
+}
 
 export function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "";
@@ -54,7 +129,7 @@ export function AdminTabs({
   );
 }
 
-/** Thumbnail for uploaded ID / cert / portfolio — opens full size */
+/** Thumbnail for uploaded ID / cert / portfolio — caches on open for offline view */
 export function FileThumb({
   label,
   url,
@@ -65,6 +140,36 @@ export function FileThumb({
   size?: "sm" | "md" | "lg";
 }) {
   const dim = size === "lg" ? 160 : size === "md" ? 96 : 48;
+  const [src, setSrc] = useState<string | null>(url || null);
+  const [offline, setOffline] = useState(false);
+
+  useEffect(() => {
+    if (!url) {
+      setSrc(null);
+      return;
+    }
+    let cancelled = false;
+    setSrc(url);
+    void (async () => {
+      const cached = await readCachedDoc(url);
+      if (cancelled) return;
+      if (cached) {
+        setSrc(cached);
+        setOffline(true);
+        return;
+      }
+      const fresh = await cacheDocUrl(url);
+      if (cancelled) return;
+      if (fresh) {
+        setSrc(fresh);
+        setOffline(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
   if (!url) {
     return (
       <div
@@ -76,8 +181,10 @@ export function FileThumb({
       </div>
     );
   }
+  const view = src || url;
   const isImage =
-    url.startsWith("data:image") ||
+    view.startsWith("data:image") ||
+    view.startsWith("blob:") ||
     /\.(jpe?g|png|gif|webp|heic)(\?|$)/i.test(url) ||
     url.includes("image");
 
@@ -85,12 +192,16 @@ export function FileThumb({
     return (
       <a
         className="om-admin-file-link"
-        href={url}
+        href={view}
         target="_blank"
         rel="noreferrer"
-        title={label}
+        title={offline ? `${label} (saved offline)` : label}
+        onClick={() => {
+          void cacheDocUrl(url);
+        }}
       >
         📄 {label}
+        {offline ? " · offline" : ""}
       </a>
     );
   }
@@ -98,15 +209,21 @@ export function FileThumb({
   return (
     <a
       className="om-admin-file-thumb"
-      href={url}
+      href={view}
       target="_blank"
       rel="noreferrer"
-      title={`${label} — open full`}
+      title={`${label}${offline ? " · saved offline" : " — open full"}`}
       style={{ width: dim, height: Math.round(dim * 0.72) }}
+      onClick={() => {
+        void cacheDocUrl(url);
+      }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={url} alt={label} />
-      <span className="om-admin-file-caption">{label}</span>
+      <img src={view} alt={label} />
+      <span className="om-admin-file-caption">
+        {label}
+        {offline ? " · offline" : ""}
+      </span>
     </a>
   );
 }

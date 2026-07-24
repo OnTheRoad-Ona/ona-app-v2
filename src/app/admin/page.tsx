@@ -498,7 +498,7 @@ export default function CareDeskPage() {
                 <br />
                 Status: <strong>{String(job?.status || flow)}</strong>
                 <br />
-                Motorist: {String(job?.motoristName || job?.motorist_name || "—")}
+                Customer: {String(job?.motoristName || job?.motorist_name || "—")}
                 <br />
                 Pro: {String(job?.repairProName || job?.repair_pro_name || "—")}
                 <br />

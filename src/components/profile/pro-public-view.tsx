@@ -14,6 +14,7 @@ import { ProfileSection, ProfileShell } from "@/components/profile/profile-shell
 import { RadiusMapPreview } from "@/components/profile/radius-map-preview";
 import { SkillsChips } from "@/components/profile/skills-chips";
 import { VerificationMark } from "@/components/profile/verification-mark";
+import { OnlineStatusDot } from "@/components/ui/online-status-dot";
 import { StarRatingDisplay } from "@/components/ui/star-rating";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import {
@@ -85,7 +86,7 @@ export function ProPublicView({
     "Repair Pro";
   const statusText =
     tech.status === "available"
-      ? "Available now"
+      ? null
       : tech.status === "busy"
         ? "Busy"
         : tech.status === "offline"
@@ -178,13 +179,15 @@ export function ProPublicView({
         >
           <div className="flex justify-center">
             <StarRatingDisplay
-              rating={tech.rating}
+              rating={tech.rating > 0 ? tech.rating : 0}
               size="sm"
               className={cn("justify-center font-bold", t.ink)}
             />
           </div>
           <p className={cn("mt-0.5 text-center text-[10px]", t.muted)}>
-            {tech.reviewCount} reviews
+            {tech.reviewCount > 0
+              ? `${tech.reviewCount} reviews`
+              : "0 reviews"}
           </p>
           <div className="mt-1.5 grid grid-cols-2 gap-1 text-center">
             <div>
@@ -193,23 +196,19 @@ export function ProPublicView({
               </p>
               <p className={cn("text-[10px]", t.muted)}>Jobs done</p>
             </div>
-            <div>
-              <p
-                className={cn(
-                  "text-[12px] font-bold",
-                  tech.status === "available"
-                    ? isLight
-                      ? "text-emerald-700"
-                      : "text-emerald-400"
-                    : tech.status === "busy"
-                      ? isLight
-                        ? "text-[#FF6B35]"
-                        : "text-[#FF6B35]"
-                      : "text-brand"
-                )}
-              >
-                {statusText}
-              </p>
+            <div className="flex flex-col items-center justify-center">
+              {tech.status === "available" ? (
+                <OnlineStatusDot status="available" />
+              ) : (
+                <p
+                  className={cn(
+                    "text-[12px] font-bold",
+                    tech.status === "busy" ? "text-[#FF6B35]" : "text-brand"
+                  )}
+                >
+                  {statusText}
+                </p>
+              )}
               <p className={cn("text-[10px]", t.muted)}>Status</p>
             </div>
           </div>
@@ -262,7 +261,7 @@ export function ProPublicView({
       <ProfileSection title="Recent reviews" isLight={isLight}>
         {liveReviews.length === 0 ? (
           <p className={cn("text-[12px] font-medium leading-snug", t.muted)}>
-            No reviews yet. Ratings from motorists after completed jobs will
+            No reviews yet. Ratings from customers after completed jobs will
             show here.
           </p>
         ) : (

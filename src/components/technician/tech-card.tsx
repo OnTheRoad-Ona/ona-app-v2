@@ -5,6 +5,7 @@ import { BadgeCheck } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MapBadgeGlyph } from "@/components/profile/achievement-badges";
 import { NewAccountBadge } from "@/components/profile/new-account-badge";
+import { OnlineStatusDot } from "@/components/ui/online-status-dot";
 import { StarRatingDisplay } from "@/components/ui/star-rating";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import {
@@ -106,7 +107,7 @@ export function TechCard({
                 <BadgeCheck
                   className="h-3.5 w-3.5 shrink-0 fill-none text-sky-500"
                   strokeWidth={2.25}
-                  aria-label="Verified"
+                  aria-label="Verified Tier 4"
                 />
               )}
               <MapBadgeGlyph
@@ -115,33 +116,33 @@ export function TechCard({
             </Link>
             <p
               className={cn(
-                "truncate text-[10px]",
+                "flex items-center gap-1.5 truncate text-[10px]",
                 isLight ? "text-slate-600" : "text-[#a8a8a8]"
               )}
             >
               {tech.roleLabel}
-              <span className="mx-1 opacity-40">·</span>
-              <span
-                className={cn(
-                  "font-bold",
-                  tech.status === "available" &&
-                    (isLight ? "text-emerald-700" : "text-emerald-400"),
-                  tech.status === "busy" &&
-                    (isLight ? "text-[#FF6B35]" : "text-[#FF6B35]"),
-                  tech.status === "nearby" &&
-                    (isLight ? "text-sky-700" : "text-sky-400"),
-                  tech.status === "offline" &&
-                    (isLight ? "text-slate-500" : "text-[#999]")
-                )}
-              >
-                {tech.status === "available"
-                  ? "Available"
-                  : tech.status === "busy"
+              <span className="opacity-40">·</span>
+              {tech.status === "available" ? (
+                <OnlineStatusDot status="available" />
+              ) : (
+                <span
+                  className={cn(
+                    "font-bold",
+                    tech.status === "busy" &&
+                      (isLight ? "text-[#FF6B35]" : "text-[#FF6B35]"),
+                    tech.status === "nearby" &&
+                      (isLight ? "text-sky-700" : "text-sky-400"),
+                    tech.status === "offline" &&
+                      (isLight ? "text-slate-500" : "text-[#999]")
+                  )}
+                >
+                  {tech.status === "busy"
                     ? "Busy"
                     : tech.status === "nearby"
                       ? "Nearby"
                       : "Offline"}
-              </span>
+                </span>
+              )}
             </p>
           </div>
 
@@ -183,7 +184,7 @@ export function TechCard({
           )}
         >
           <StarRatingDisplay
-            rating={tech.rating}
+            rating={tech.rating > 0 ? tech.rating : 0}
             size="sm"
             className="font-semibold"
           />

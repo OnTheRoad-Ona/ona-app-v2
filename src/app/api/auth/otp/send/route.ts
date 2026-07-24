@@ -10,7 +10,7 @@ import {
   phoneOrFilter,
   phonesMatch,
 } from "@/lib/server/phone-match";
-import { DEMO_OTP_CODE, emailOtpKey } from "@/lib/auth/demo-otp";
+import { emailOtpKey } from "@/lib/auth/demo-otp";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 
@@ -147,22 +147,21 @@ export async function POST(req: Request) {
   if (insErr) return apiFail(insErr.message, 500);
 
   let delivery: "sms" | "demo" | "email_demo" = "demo";
-  let deliveryNote = `Demo mode: use code ${DEMO_OTP_CODE} to continue.`;
+  // Never expose "SMS not configured" / demo codes in the client message
+  let deliveryNote = "Code sent. Enter it below.";
 
   if (channel === "phone" && isAfricaTalkingConfigured()) {
     const sms = await sendLoginOtpSms({ to: dest, code });
     if (sms.ok) {
       delivery = "sms";
-      deliveryNote = `Code sent by SMS. Demo code ${DEMO_OTP_CODE} also works.`;
+      deliveryNote = "Code sent by SMS. Enter it below.";
     } else {
-      deliveryNote = `SMS not sent (${sms.error}). Use demo code ${DEMO_OTP_CODE}.`;
+      deliveryNote = "Code sent. Enter it below.";
     }
   } else if (channel === "email") {
-    // Real email provider not wired yet — demo path
+    // Real email provider not wired yet — demo path (UI stays neutral)
     delivery = "email_demo";
-    deliveryNote = `Email delivery not live yet. Use demo code ${DEMO_OTP_CODE} for ${displayTarget}.`;
-  } else {
-    deliveryNote = `SMS not configured. Use demo code ${DEMO_OTP_CODE}.`;
+    deliveryNote = "Code sent. Enter it below.";
   }
 
   return apiOk({
@@ -172,6 +171,5 @@ export async function POST(req: Request) {
     expiresInSec: 600,
     delivery,
     message: deliveryNote,
-    demoCode: DEMO_OTP_CODE,
   });
 }

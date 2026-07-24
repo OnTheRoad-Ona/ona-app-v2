@@ -59,6 +59,45 @@ function RequestInner() {
   const [photos, setPhotos] = useState<JobMedia[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const profileVehicles = useMemo(() => {
+    const list = userProfile?.vehicles?.filter(
+      (v) => v.make || v.model || v.vehicleType
+    );
+    if (list?.length) return list;
+    if (userProfile?.vehicleMake || userProfile?.vehicleModel) {
+      return [
+        {
+          id: "primary",
+          vehicleType: undefined,
+          make: userProfile.vehicleMake || "",
+          model: userProfile.vehicleModel || "",
+          year: userProfile.vehicleYear,
+        },
+      ];
+    }
+    return [];
+  }, [userProfile]);
+
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>("");
+
+  useEffect(() => {
+    if (!profileVehicles.length) {
+      setSelectedVehicleId("");
+      return;
+    }
+    setSelectedVehicleId((prev) =>
+      prev && profileVehicles.some((v) => v.id === prev)
+        ? prev
+        : profileVehicles[0].id
+    );
+  }, [profileVehicles]);
+
+  const selectedVehicleLabel = useMemo(() => {
+    const v = profileVehicles.find((x) => x.id === selectedVehicleId);
+    if (!v) return null;
+    return [v.vehicleType, v.make, v.model, v.year].filter(Boolean).join(" ");
+  }, [profileVehicles, selectedVehicleId]);
   const [currency, setCurrency] = useState<AppCurrency>(() =>
     detectCurrency({
       countryName: userProfile?.servedCountry || location.city,
@@ -137,6 +176,7 @@ function RequestInner() {
       motoristId: userId,
       motoristName: userProfile?.fullName || "Customer",
       motoristPhoto: userProfile?.avatarUrl || null,
+      motoristVehicle: selectedVehicleLabel || null,
       repairProId: tech.id,
       repairProName: tech.name,
       repairProPhoto: tech.photo,
@@ -162,6 +202,15 @@ function RequestInner() {
         /* */
       }
       return;
+    }
+    // Discovery: demote this pro 50% radius priority; hide while job is active
+    try {
+      const { recordBookedPro } = await import(
+        "@/lib/jobs/booked-pro-priority"
+      );
+      recordBookedPro(tech.id);
+    } catch {
+      /* */
     }
     try {
       const { playAppSound } = await import("@/lib/sound-tone");
@@ -246,6 +295,46 @@ function RequestInner() {
           </p>
         </div>
       </div>
+
+      {/* Vehicle needing help */}
+      {profileVehicles.length > 0 ? (
+        <section className="mb-5">
+          <label className={cn("mb-2 block text-[13px] font-bold", ink)}>
+            Which vehicle needs help?
+          </label>
+          {profileVehicles.length === 1 ? (
+            <p className={cn("text-[14px] font-semibold", ink)}>
+              {selectedVehicleLabel}
+            </p>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {profileVehicles.map((v) => {
+                const label = [v.vehicleType, v.make, v.model, v.year]
+                  .filter(Boolean)
+                  .join(" ");
+                const on = v.id === selectedVehicleId;
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => setSelectedVehicleId(v.id)}
+                    className={cn(
+                      "rounded-xl border-0 px-3.5 py-3 text-left text-[14px] font-semibold transition",
+                      on
+                        ? "bg-[#FF6B35] text-white"
+                        : isLight
+                          ? "bg-black/10 text-slate-900"
+                          : "bg-white/10 text-white"
+                    )}
+                  >
+                    {label || "Vehicle"}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      ) : null}
 
       {/* Problem */}
       <section className="mb-5">

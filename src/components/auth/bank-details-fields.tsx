@@ -136,22 +136,12 @@ export function BankDetailsFields({
           res.accountName,
           signupFullName
         );
-        if (!match.ok && signupFullName?.trim()) {
-          setBankAccountName(res.accountName);
-          setResolveMsg(match.error);
-          emit({
-            bankCode: code,
-            bankName: bankName || bankNameForCode(code, banks),
-            bankAccountName: res.accountName,
-            bankAccountNumber: number,
-          });
-          return;
-        }
         setBankAccountName(res.accountName);
+        // Success look-up only here; name-match rules run on Save (no duplicate orange copy)
         setResolveMsg(
-          match.ok
-            ? "Account name verified (matches your signup name)"
-            : "Account name verified"
+          match.ok || !signupFullName?.trim()
+            ? "Name verified"
+            : null
         );
         emit({
           bankCode: code,
@@ -320,20 +310,15 @@ export function BankDetailsFields({
           <p
             className={cn(
               "mt-1 text-[11px] font-semibold",
-              resolveMsg.includes("matches your signup") ||
-                resolveMsg === "Account name verified"
+              resolveMsg === "Name verified" ||
+                resolveMsg.toLowerCase().includes("verified")
                 ? "text-emerald-600"
-                : "text-[#FF6B35]"
+                : "text-red-500"
             )}
           >
             {resolveMsg}
           </p>
-        ) : (
-          <p className={cn("mt-1 text-[10px] font-medium", muted)}>
-            Name loads after 10 digits. It must match at least 2 names from
-            signup.
-          </p>
-        )}
+        ) : null}
       </label>
     </div>
   );

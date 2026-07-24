@@ -256,14 +256,33 @@ export async function POST(req: Request) {
   const hasNin = nin.length === 11;
   const hasBvn = bvn.length === 11;
 
-  // Age gate: at least 16 years
+  // Age gate: real calendar date, not future, 16–120 years
   {
-    const dob = new Date(`${input.dateOfBirth}T12:00:00`);
+    const raw = input.dateOfBirth;
+    const dob = new Date(`${raw}T12:00:00`);
     const today = new Date();
+    if (Number.isNaN(dob.getTime())) {
+      return apiFail("Use a valid date of birth.", 400, "validation");
+    }
+    const [y, month, day] = raw.split("-").map(Number);
+    if (
+      dob.getFullYear() !== y ||
+      dob.getMonth() + 1 !== month ||
+      dob.getDate() !== day
+    ) {
+      return apiFail("Use a valid date of birth.", 400, "validation");
+    }
+    if (dob.getTime() > today.getTime()) {
+      return apiFail(
+        "Date of birth cannot be in the future.",
+        400,
+        "validation"
+      );
+    }
     let age = today.getFullYear() - dob.getFullYear();
     const m = today.getMonth() - dob.getMonth();
     if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age -= 1;
-    if (Number.isNaN(dob.getTime()) || dob.getTime() > today.getTime() || age < 16 || age > 120) {
+    if (age < 16 || age > 120) {
       return apiFail(
         "You must be at least 16 years old to create an account.",
         400,

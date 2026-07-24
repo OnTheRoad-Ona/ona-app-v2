@@ -126,10 +126,27 @@ export function genderError(gender: string, emptyOk = false): FieldError {
 /** Minimum age for signup (customers + pros). */
 export const SIGNUP_MIN_AGE = 16;
 
+/** Local YYYY-MM-DD (avoids UTC day shift from toISOString). */
+function localIsoDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function isValidDob(isoDate: string, minAge = SIGNUP_MIN_AGE): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return false;
   const dob = new Date(`${isoDate}T12:00:00`);
   if (Number.isNaN(dob.getTime())) return false;
+  // Reject rolled calendar dates (e.g. 2020-02-30 → Mar 1)
+  const [y, month, day] = isoDate.split("-").map(Number);
+  if (
+    dob.getFullYear() !== y ||
+    dob.getMonth() + 1 !== month ||
+    dob.getDate() !== day
+  ) {
+    return false;
+  }
   const today = new Date();
   let age = today.getFullYear() - dob.getFullYear();
   const m = today.getMonth() - dob.getMonth();
@@ -152,7 +169,23 @@ export function dobError(
   }
   const dob = new Date(`${isoDate}T12:00:00`);
   if (Number.isNaN(dob.getTime())) return "Use a valid date of birth.";
+  const [y, month, day] = isoDate.split("-").map(Number);
+  if (
+    dob.getFullYear() !== y ||
+    dob.getMonth() + 1 !== month ||
+    dob.getDate() !== day
+  ) {
+    return "Use a valid date of birth.";
+  }
   if (dob.getTime() > Date.now()) return "Date of birth cannot be in the future.";
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const mo = today.getMonth() - dob.getMonth();
+  if (mo < 0 || (mo === 0 && today.getDate() < dob.getDate())) age -= 1;
+  if (age > 120) return "Use a valid date of birth.";
+  if (age < minAge) {
+    return `You must be at least ${minAge} years old to sign up.`;
+  }
   if (!isValidDob(isoDate, minAge)) {
     return `You must be at least ${minAge} years old to sign up.`;
   }
@@ -199,15 +232,21 @@ export function formatDobLabel(raw: string | null | undefined): string {
   return `${d} ${months[m - 1]} ${y}`;
 }
 
-/** Max attribute for date inputs (today). */
-export function dobInputMax(): string {
-  return new Date().toISOString().slice(0, 10);
+/**
+ * Max attribute for date inputs: latest allowed birth date (today − minAge).
+ * Prevents picking under-16 dates that would only fail on submit.
+ */
+export function dobInputMax(minAge = SIGNUP_MIN_AGE): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - minAge);
+  return localIsoDate(d);
 }
 
 /** Min attribute (~120 years ago) for date inputs. */
-export function dobInputMin(minAge = SIGNUP_MIN_AGE): string {
-  const y = new Date().getFullYear() - 120;
-  return `${y}-01-01`;
+export function dobInputMin(_minAge = SIGNUP_MIN_AGE): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 120);
+  return localIsoDate(d);
 }
 
 export type PasswordRuleId = "length" | "upper" | "digit";

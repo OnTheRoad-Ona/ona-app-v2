@@ -185,7 +185,7 @@ export default function SettingsProfilePage() {
         <div
           className={cn(
             "mx-3 overflow-hidden rounded-md",
-            isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]"
+            "bg-transparent"
           )}
         >
           <SettingsField label="First name *" isLight={isLight}>
@@ -329,7 +329,7 @@ export default function SettingsProfilePage() {
         <div
           className={cn(
             "mx-3 mt-3 overflow-hidden rounded-md",
-            isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]"
+            "bg-transparent"
           )}
         >
           <p
@@ -355,7 +355,7 @@ export default function SettingsProfilePage() {
           <div
             className={cn(
               "mx-3 mt-3 overflow-hidden rounded-md",
-              isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]"
+              "bg-transparent"
             )}
           >
             <p

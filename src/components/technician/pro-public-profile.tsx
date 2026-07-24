@@ -16,6 +16,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { CallButton } from "@/components/call/in-app-call";
 import { NewAccountBadge } from "@/components/profile/new-account-badge";
+import { OnlineStatusDot } from "@/components/ui/online-status-dot";
 import { StarRatingDisplay } from "@/components/ui/star-rating";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { navigateBack } from "@/lib/navigation";
@@ -70,7 +71,7 @@ export function ProPublicProfile({
 
   const statusText =
     tech.status === "available"
-      ? "Available now"
+      ? null
       : tech.status === "nearby"
         ? "Nearby"
         : tech.status === "busy"
@@ -207,24 +208,27 @@ export function ProPublicProfile({
                   {skillLabel}
                 </p>
 
-                <p className={cn("mt-0.5 text-[11px] font-semibold", muted)}>
-                  <span
-                    className={cn(
-                      "font-bold",
-                      tech.status === "available"
-                        ? isLight
-                          ? "text-emerald-700"
-                          : "text-emerald-400"
-                        : tech.status === "busy"
-                          ? isLight
-                            ? "text-[#FF6B35]"
-                            : "text-[#FF6B35]"
-                          : muted
-                    )}
-                  >
-                    {statusText}
-                  </span>
-                  {tech.verified ? " · Verified" : ""}
+                <p
+                  className={cn(
+                    "mt-0.5 flex items-center gap-1.5 text-[11px] font-semibold",
+                    muted
+                  )}
+                >
+                  {tech.status === "available" ? (
+                    <OnlineStatusDot status="available" />
+                  ) : (
+                    <span
+                      className={cn(
+                        "font-bold",
+                        tech.status === "busy" && "text-[#FF6B35]"
+                      )}
+                    >
+                      {statusText}
+                    </span>
+                  )}
+                  {tech.verified ? (
+                    <span className="text-sky-500"> · Verified</span>
+                  ) : null}
                   {tech.fastResponse ? " · Fast reply" : ""}
                 </p>
               </div>
@@ -240,10 +244,14 @@ export function ProPublicProfile({
             >
               <Stat
                 isLight={isLight}
-                label={`${tech.reviewCount} reviews`}
+                label={
+                  tech.reviewCount > 0
+                    ? `${tech.reviewCount} reviews`
+                    : "Reviews"
+                }
                 value={
                   <StarRatingDisplay
-                    rating={tech.rating}
+                    rating={tech.rating > 0 ? tech.rating : 0}
                     size="sm"
                     className="justify-center"
                   />

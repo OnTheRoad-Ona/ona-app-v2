@@ -24,7 +24,7 @@ export default function SettingsLanguagePage() {
       <PageHeader
         title={t("language.title")}
         subtitle={t("language.subtitle")}
-        backHref="/settings"
+        backHref="/settings/appearance"
       />
 
       <div className="flex-1 overflow-y-auto px-3 pb-6 scrollbar-hide">
@@ -40,7 +40,7 @@ export default function SettingsLanguagePage() {
         <ul
           className={cn(
             "overflow-hidden rounded-md",
-            isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]"
+            "bg-transparent"
           )}
           role="listbox"
           aria-label={t("language.title")}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useApp } from "@/lib/store";
 import { formatMoneyMinor, type AppCurrency } from "@/lib/pricing";
@@ -18,6 +18,8 @@ function MockInner() {
   const ref = params.get("ref") || "";
   const amount = Number(params.get("amount") || 0);
   const currency = (params.get("currency") || "NGN") as AppCurrency;
+  const jobId = params.get("jobId") || params.get("job") || "";
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   const pay = async () => {
     await fetch("/api/payments/verify", {
@@ -25,13 +27,17 @@ function MockInner() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ reference: ref, provider: "mock" }),
     });
-    router.replace(`/payments/callback?ref=${encodeURIComponent(ref)}`);
+    router.replace(
+      `/payments/callback?ref=${encodeURIComponent(ref)}${
+        jobId ? `&jobId=${encodeURIComponent(jobId)}` : ""
+      }`
+    );
   };
 
   return (
     <div
       className={cn(
-        "flex h-full flex-col justify-center gap-4 px-5",
+        "relative flex h-full flex-col justify-center gap-4 px-5",
         isLight ? "bg-[#c8c9cd]" : "bg-black"
       )}
     >
@@ -65,14 +71,72 @@ function MockInner() {
       </button>
       <button
         type="button"
-        onClick={() => router.push("/settings/payments")}
+        onClick={() => setCancelOpen(true)}
         className={cn(
-          "text-[12px] font-bold",
-          isLight ? "text-slate-700" : "text-white/70"
+          "rounded-xl border-0 py-3 text-[13px] font-bold",
+          isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white"
         )}
       >
         Cancel
       </button>
+
+      {cancelOpen ? (
+        <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/50 p-3">
+          <div
+            className={cn(
+              "w-full max-w-md overflow-hidden rounded-2xl",
+              isLight ? "bg-white" : "bg-[#1c1c1e]"
+            )}
+          >
+            <p
+              className={cn(
+                "px-4 pt-4 text-center text-[15px] font-black",
+                isLight ? "text-slate-900" : "text-white"
+              )}
+            >
+              Cancel
+            </p>
+            <button
+              type="button"
+              onClick={() =>
+                router.push(jobId ? `/jobs/${jobId}` : "/jobs")
+              }
+              className={cn(
+                "mt-2 flex h-12 w-full items-center justify-center border-0 border-t text-[14px] font-bold",
+                isLight
+                  ? "border-black/10 text-slate-900"
+                  : "border-white/10 text-white"
+              )}
+            >
+              Cancel payment
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                router.push(jobId ? `/jobs/${jobId}` : "/jobs")
+              }
+              className={cn(
+                "flex h-12 w-full items-center justify-center border-0 border-t text-[14px] font-bold text-red-500",
+                isLight ? "border-black/10" : "border-white/10"
+              )}
+            >
+              Cancel request
+            </button>
+            <button
+              type="button"
+              onClick={() => setCancelOpen(false)}
+              className={cn(
+                "flex h-11 w-full items-center justify-center border-0 border-t text-[13px] font-semibold",
+                isLight
+                  ? "border-black/10 text-slate-500"
+                  : "border-white/10 text-white/50"
+              )}
+            >
+              Keep paying
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

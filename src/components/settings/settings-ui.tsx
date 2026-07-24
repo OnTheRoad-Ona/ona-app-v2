@@ -15,23 +15,17 @@ export function SettingsSection({
   children: ReactNode;
 }) {
   return (
-    <section className="mb-2">
+    <section className="mb-1">
       <p
         className={cn(
-          "px-2 pb-1.5 pt-3 text-[10px] font-bold uppercase tracking-[0.14em]",
+          "px-2 pb-1 pt-2.5 text-[10px] font-bold uppercase tracking-[0.14em]",
           isLight ? "text-slate-600" : "text-white/55"
         )}
       >
         {title}
       </p>
-      <div
-        className={cn(
-          "overflow-hidden rounded-md",
-          isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]"
-        )}
-      >
-        {children}
-      </div>
+      {/* Flat on main page stage — no intermediate card fill */}
+      <div className="overflow-hidden bg-transparent">{children}</div>
     </section>
   );
 }
@@ -107,12 +101,10 @@ export function SettingsRow({
     </>
   );
 
-  // No row dividers — clean stacked rows inside soft cards
+  // Compact rows on main toggle background (no card chrome)
   const className = cn(
-    "flex w-full items-center gap-2 border-0 px-2.5 py-3 text-left",
-    isLight
-      ? "bg-transparent hover:bg-black/[0.04]"
-      : "bg-transparent hover:bg-white/[0.04]"
+    "flex w-full items-center gap-2 border-0 px-2 py-2.5 text-left bg-transparent",
+    isLight ? "hover:bg-black/[0.04]" : "hover:bg-white/[0.04]"
   );
 
   if (href) {
@@ -188,8 +180,8 @@ export function SettingsComingSoon({
   return (
     <div
       className={cn(
-        "rounded-md px-3 py-4 text-center text-[12px] font-medium",
-        isLight ? "bg-black/[0.04] text-slate-600" : "bg-white/[0.06] text-white/60"
+        "px-3 py-4 text-center text-[12px] font-medium bg-transparent",
+        isLight ? "text-slate-600" : "text-white/60"
       )}
     >
       {title} — coming soon

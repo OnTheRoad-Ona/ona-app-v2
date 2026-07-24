@@ -8,7 +8,7 @@ export function BioField({
   onChange,
   isLight,
   disabled,
-  placeholder = "Tell motorists about your work…",
+  placeholder = "Tell customers about your work…",
 }: {
   value: string;
   onChange?: (v: string) => void;

@@ -3,25 +3,43 @@
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { useAppConfig } from "@/components/app-config-provider";
+import {
+  knownPlaceToPick,
+  matchKnownPlaces,
+  resolveKnownPlace,
+} from "@/lib/known-places";
 import { useT } from "@/lib/i18n";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 /**
- * Search submits on Enter / Done → search results page (theme-aware).
+ * Live search: filters pros on the home list as you type.
+ * Enter also tries places (known POI / geocode) then opens /search for full results.
  */
 export function SearchBar() {
   const router = useRouter();
-  const { query, setQuery, theme } = useApp();
+  const { query, setQuery, theme, setManualLocation, visibleTechnicians } =
+    useApp();
   const { config } = useAppConfig();
   const t = useT();
   const isLight = theme === "light";
 
-  const goSearch = () => {
+  const goSearch = async () => {
     const q = query.trim();
     if (!q) return;
+
+    // Places first when the query looks like an address / known POI
+    const known = resolveKnownPlace(q) || matchKnownPlaces(q, 1)[0]?.place;
+    if (known) {
+      const pick = knownPlaceToPick(known);
+      setManualLocation(pick.label, { lat: pick.lat, lng: pick.lng });
+    }
+
     router.push(`/search?q=${encodeURIComponent(q)}`);
   };
+
+  const q = query.trim();
+  const showInlineEmpty = q.length >= 2 && visibleTechnicians.length === 0;
 
   return (
     <div className="shrink-0 px-3 pb-1.5 pt-2">
@@ -50,7 +68,7 @@ export function SearchBar() {
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
-              goSearch();
+              void goSearch();
             }
           }}
           onDoubleClick={(e) => e.stopPropagation()}
@@ -72,6 +90,17 @@ export function SearchBar() {
           )}
         />
       </label>
+      {showInlineEmpty ? (
+        <p
+          className={cn(
+            "mt-1.5 px-0.5 text-[11px] font-semibold",
+            isLight ? "text-slate-600" : "text-white/65"
+          )}
+          role="status"
+        >
+          {t("home.searchNoResults", { q })}
+        </p>
+      ) : null}
     </div>
   );
 }

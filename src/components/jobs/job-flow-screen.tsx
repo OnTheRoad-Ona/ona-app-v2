@@ -42,7 +42,6 @@ import {
   apiGetJob,
   apiOpenAppeal,
   apiOpenDispute,
-  apiPayJob,
   apiPlaceOffer,
   apiPushTripLocation,
   apiRateJob,
@@ -138,6 +137,8 @@ export function JobFlowScreen({
   /** Arrived / Work in progress: home-style swipe sheet */
   const [tripSheetExpanded, setTripSheetExpanded] = useState(false);
   const tripGestureY = useRef<number | null>(null);
+  /** Pay screen: single Cancel → choose payment vs request */
+  const [payCancelOpen, setPayCancelOpen] = useState(false);
 
   /** Open (or create) cloud job chat so both parties share one conversation */
   const openJobChat = useCallback(
@@ -296,7 +297,37 @@ export function JobFlowScreen({
     };
   }, [load]);
 
-  // Poll job state; slower during tracking so GPS + UI never thrash
+  // When job flips to completed for motorist, surface satisfaction UI immediately
+  const prevStatusRef = useRef<string | null>(null);
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = job?.status || null;
+    if (
+      viewer === "motorist" &&
+      job?.status === "completed" &&
+      prev &&
+      prev !== "completed"
+    ) {
+      try {
+        void import("@/lib/app-notify").then(({ showAppNotification }) => {
+          showAppNotification({
+            title: "Confirm & release pay",
+            body: "Job complete — tap I am satisfied to release payment.",
+            tag: `job-complete-${job.id}`,
+            href: `/jobs/${job.id}`,
+            requireInteraction: true,
+          });
+        });
+        void import("@/lib/sound-tone").then(({ playAppSound }) => {
+          playAppSound("success_soft");
+        });
+      } catch {
+        /* */
+      }
+    }
+  }, [job?.status, job?.id, viewer]);
+
+  // Poll job state; faster while trip active / awaiting satisfaction
   useEffect(() => {
     let cancelled = false;
     const tick = async () => {
@@ -304,17 +335,19 @@ export function JobFlowScreen({
       await load();
     };
     void tick();
-    // Low data: negotiate 18s, active trip 40s; post-pay 20s; idle 45s
+    // Real-time feel: negotiate/agreed fast; trip moderate; completed fast for customer
     const ms =
       job?.status === "negotiating" || job?.status === "agreed"
-        ? 18_000
-        : ["paid_booked", "en_route", "arrived", "in_progress"].includes(
-              job?.status || ""
-            )
-          ? 40_000
-          : job?.status === "released" || job?.status === "satisfied"
-            ? 20_000
-            : 45_000;
+        ? 2_500
+        : job?.status === "completed"
+          ? 2_000
+          : ["paid_booked", "en_route", "arrived", "in_progress"].includes(
+                job?.status || ""
+              )
+            ? 5_000
+            : job?.status === "released" || job?.status === "satisfied"
+              ? 12_000
+              : 20_000;
     const id = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void tick();
@@ -625,29 +658,49 @@ export function JobFlowScreen({
             <p className={cn("text-[15px] font-semibold leading-snug", ink)}>
               Read this before you accept this request
             </p>
-            <p className={cn("text-[14px] font-medium leading-relaxed", ink)}>
-              By tapping{" "}
-              <span className="font-semibold text-[#FF6B35]">I can fix this</span>
-              , you are saying you have the skill and tools for this job. Only
-              continue if you can complete the work. If you cannot, cancel so
-              the motorist can find someone else.
-            </p>
-            <div>
-              <p className={cn("text-[11px] font-medium", muted)}>Problem</p>
-              <p className={cn("mt-1 text-[14px] font-medium leading-relaxed", ink)}>
-                {job.problem}
-              </p>
+            <div className="space-y-3">
+              {job.motoristVehicle ? (
+                <div>
+                  <p className={cn("text-[11px] font-medium uppercase", muted)}>
+                    Vehicle
+                  </p>
+                  <p className={cn("mt-1 text-[14px] font-semibold", ink)}>
+                    {job.motoristVehicle}
+                  </p>
+                </div>
+              ) : null}
+              <div>
+                <p className={cn("text-[11px] font-medium uppercase", muted)}>
+                  Service
+                </p>
+                <p className={cn("mt-1 text-[14px] font-semibold", ink)}>
+                  {PRO_SERVICE_LABELS[job.serviceType] || job.serviceType}
+                </p>
+              </div>
+              <div>
+                <p className={cn("text-[11px] font-medium uppercase", muted)}>
+                  I ADMIT TO FIX IT
+                </p>
+                <p className={cn("mt-1 text-[14px] font-medium leading-relaxed", ink)}>
+                  {job.problem}
+                </p>
+              </div>
               {job.voiceNote?.url && (
-                <div className="mt-3">
+                <div className="mt-1">
                   <VoiceNotePlayer
                     url={job.voiceNote.url}
                     durationSec={job.voiceNote.durationSec}
                     isLight={isLight}
-                    label="Motorist voice note"
+                    label="Customer voice note"
                   />
                 </div>
               )}
             </div>
+            <p className={cn("text-[13px] font-medium leading-relaxed", muted)}>
+              By tapping{" "}
+              <span className="font-semibold text-[#FF6B35]">I can fix this</span>
+              , you confirm you can complete this job.
+            </p>
             {err && (
               <p className="text-center text-[12px] font-semibold text-red-500">
                 {err}
@@ -773,43 +826,105 @@ export function JobFlowScreen({
           </div>
         }
       >
-        {/* Top: problem + offers · Middle: ring timer · no gray panels */}
+        {/* Top: vehicle/service/problem + offers · Middle: ring timer */}
         <div className="flex min-h-0 flex-col bg-transparent px-0.5 pt-1">
           <div className="shrink-0 space-y-4 bg-transparent">
-            <div className="bg-transparent">
-              <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
-                Problem
-              </p>
-              <p
-                className={cn(
-                  "mt-1 text-[15px] font-medium leading-relaxed",
-                  ink
-                )}
-              >
-                {job.problem}
-              </p>
-              {job.voiceNote?.url && (
-                <div className="mt-2.5">
-                  <VoiceNotePlayer
-                    url={job.voiceNote.url}
-                    durationSec={job.voiceNote.durationSec}
-                    isLight={isLight}
-                    label={
-                      viewer === "motorist"
-                        ? "Your voice note"
-                        : "Motorist voice note"
-                    }
-                  />
+            {viewer === "repair_pro" ? (
+              <div className="space-y-3 bg-transparent">
+                {job.motoristVehicle ? (
+                  <div>
+                    <p
+                      className={cn(
+                        "text-[11px] font-semibold uppercase tracking-wide",
+                        muted
+                      )}
+                    >
+                      Vehicle
+                    </p>
+                    <p className={cn("mt-1 text-[15px] font-semibold", ink)}>
+                      {job.motoristVehicle}
+                    </p>
+                  </div>
+                ) : null}
+                <div>
+                  <p
+                    className={cn(
+                      "text-[11px] font-semibold uppercase tracking-wide",
+                      muted
+                    )}
+                  >
+                    Service
+                  </p>
+                  <p className={cn("mt-1 text-[15px] font-semibold", ink)}>
+                    {PRO_SERVICE_LABELS[job.serviceType] || job.serviceType}
+                  </p>
                 </div>
-              )}
-            </div>
+                <div>
+                  <p
+                    className={cn(
+                      "text-[11px] font-semibold uppercase tracking-wide",
+                      muted
+                    )}
+                  >
+                    I ADMIT TO FIX IT
+                  </p>
+                  <p
+                    className={cn(
+                      "mt-1 text-[15px] font-medium leading-relaxed",
+                      ink
+                    )}
+                  >
+                    {job.problem}
+                  </p>
+                </div>
+                {job.voiceNote?.url && (
+                  <div className="mt-1">
+                    <VoiceNotePlayer
+                      url={job.voiceNote.url}
+                      durationSec={job.voiceNote.durationSec}
+                      isLight={isLight}
+                      label="Customer voice note"
+                    />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-transparent">
+                <p
+                  className={cn(
+                    "text-[11px] font-semibold uppercase tracking-wide",
+                    muted
+                  )}
+                >
+                  I ADMIT TO FIX IT
+                </p>
+                <p
+                  className={cn(
+                    "mt-1 text-[15px] font-medium leading-relaxed",
+                    ink
+                  )}
+                >
+                  {job.problem}
+                </p>
+                {job.voiceNote?.url && (
+                  <div className="mt-2.5">
+                    <VoiceNotePlayer
+                      url={job.voiceNote.url}
+                      durationSec={job.voiceNote.durationSec}
+                      isLight={isLight}
+                      label="Your voice note"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
             {theirOffer && (
               <div className="bg-transparent">
                 <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
                   {theirOffer.side === "repair_pro"
                     ? "Repair Pro offered"
-                    : "Motorist offered"}
+                    : "Customer offered"}
                 </p>
                 <p className={cn("mt-0.5 text-[22px] font-semibold tabular-nums", ink)}>
                   {formatMoney(theirOffer.amountMajor, job.currency)}
@@ -927,86 +1042,25 @@ export function JobFlowScreen({
               <StageButton
                 isLight={isLight}
                 disabled={busy}
-                onClick={() =>
-                  void (async () => {
-                    setBusy(true);
-                    setErr(null);
-                    try {
-                      const payEmail = (
-                        email ||
-                        userProfile?.email ||
-                        ""
-                      ).trim();
-                      if (!payEmail.includes("@")) {
-                        setErr(
-                          "Add a valid email on your profile before paying."
-                        );
-                        setBusy(false);
-                        return;
-                      }
-                      if (
-                        !actorId ||
-                        actorId === "local-user" ||
-                        actorId.includes("@")
-                      ) {
-                        setErr(
-                          "Session not ready. Pull to refresh or log in again, then pay."
-                        );
-                        setBusy(false);
-                        return;
-                      }
-                      const res = await apiPayJob({
-                        jobId: job.id,
-                        motoristId: actorId,
-                        email: payEmail,
-                        customerName:
-                          job.motoristName ||
-                          userProfile?.fullName ||
-                          undefined,
-                        customerPhone:
-                          job.motoristPhone || userProfile?.phone || undefined,
-                      });
-                      if (!res.ok) {
-                        setErr(res.message || "Could not start payment.");
-                        setBusy(false);
-                        return;
-                      }
-                      const url = res.data.authorizationUrl?.trim();
-                      // Always open checkout (Flutterwave or mock-checkout) — never silent book
-                      if (url) {
-                        // assign is more reliable than href on some mobile browsers
-                        window.location.assign(url);
-                        return;
-                      }
-                      // Legacy mock auto-book — should not happen with current API
-                      if (res.data.job) {
-                        applyJob(res.data.job);
-                        try {
-                          const { playAppSound } = await import(
-                            "@/lib/sound-tone"
-                          );
-                          playAppSound("payment_success");
-                        } catch {
-                          /* */
-                        }
-                        setBusy(false);
-                        return;
-                      }
-                      setErr(
-                        "Checkout link missing. Check Flutterwave keys and try again."
-                      );
-                    } catch (e) {
-                      setErr(
-                        e instanceof Error ? e.message : "Payment failed"
-                      );
-                    } finally {
-                      setBusy(false);
-                    }
-                  })()
-                }
+                onClick={() => {
+                  router.push(`/payments/checkout?jobId=${encodeURIComponent(job.id)}`);
+                }}
               >
-                {busy ? "Opening checkout…" : "Pay now to book"}
+                Pay now to book
               </StageButton>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setPayCancelOpen(true)}
+                className={cn(
+                  "inline-flex h-11 w-full items-center justify-center rounded-md border-0 text-[13px] font-semibold",
+                  isLight
+                    ? "bg-black/10 text-slate-900"
+                    : "bg-[#2c2c2e] text-white"
+                )}
+              >
+                Cancel
+              </button>
             </div>
           ) : (
             <p
@@ -1015,7 +1069,7 @@ export function JobFlowScreen({
                 isLight ? "text-slate-700" : "text-[#c8c9cd]"
               )}
             >
-              Waiting for motorist to pay into escrow…
+              Waiting for customer to pay into escrow…
             </p>
           )
         }
@@ -1030,32 +1084,138 @@ export function JobFlowScreen({
             {LABOUR_SPLIT_LINE}
           </p>
         </div>
-        <JobCard isLight={isLight}>
-          <div className="flex items-center gap-3">
-            <Avatar className="h-12 w-12 rounded-full">
-              <AvatarImage
-                src={counterpartPhoto}
-                className="object-cover"
-              />
-              <AvatarFallback>
-                {avatarInitials(counterpartName)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0">
-              <p className={cn("truncate text-[15px] font-black", ink)}>
-                {counterpartName}
+        {viewer === "motorist" ? (
+          <JobCard isLight={isLight}>
+            <div className="flex items-center gap-3">
+              <Avatar className="h-12 w-12 rounded-full">
+                <AvatarImage
+                  src={counterpartPhoto}
+                  className="object-cover"
+                />
+                <AvatarFallback>
+                  {avatarInitials(counterpartName)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <p className={cn("truncate text-[15px] font-black", ink)}>
+                  {counterpartName}
+                </p>
+                <p className={cn("text-[12px] font-semibold", muted)}>
+                  {counterpartLabel}
+                </p>
+              </div>
+            </div>
+          </JobCard>
+        ) : (
+          <JobCard isLight={isLight}>
+            <div className="space-y-2">
+              {job.motoristVehicle ? (
+                <p className={cn("text-[14px] font-semibold", ink)}>
+                  <span className={cn("text-[11px] uppercase", muted)}>
+                    Vehicle ·{" "}
+                  </span>
+                  {job.motoristVehicle}
+                </p>
+              ) : null}
+              <p className={cn("text-[14px] font-semibold", ink)}>
+                <span className={cn("text-[11px] uppercase", muted)}>
+                  Service ·{" "}
+                </span>
+                {PRO_SERVICE_LABELS[job.serviceType] || job.serviceType}
               </p>
-              <p className={cn("text-[12px] font-semibold", muted)}>
-                {counterpartLabel}
+              <p className={cn("text-[14px] font-medium", ink)}>
+                <span className={cn("text-[11px] uppercase", muted)}>
+                  I ADMIT TO FIX IT ·{" "}
+                </span>
+                {job.problem}
               </p>
             </div>
-          </div>
-        </JobCard>
+          </JobCard>
+        )}
         {err && (
           <p className="mt-3 text-center text-[12px] font-semibold text-red-500">
             {err}
           </p>
         )}
+        {payCancelOpen ? (
+          <div className="fixed inset-0 z-[500] flex items-end justify-center bg-black/50 p-3">
+            <div
+              className={cn(
+                "w-full max-w-md overflow-hidden rounded-2xl shadow-2xl",
+                isLight ? "bg-white" : "bg-[#1c1c1e]"
+              )}
+              role="dialog"
+              aria-label="Cancel options"
+            >
+              <div className="px-4 pb-2 pt-4">
+                <p
+                  className={cn(
+                    "text-center text-[15px] font-black",
+                    isLight ? "text-slate-900" : "text-white"
+                  )}
+                >
+                  Cancel
+                </p>
+                <p
+                  className={cn(
+                    "mt-1 text-center text-[12px] font-medium",
+                    isLight ? "text-slate-500" : "text-white/55"
+                  )}
+                >
+                  Choose what you want to cancel
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPayCancelOpen(false);
+                  goJobsList();
+                }}
+                className={cn(
+                  "flex h-12 w-full items-center justify-center border-0 border-t text-[14px] font-bold",
+                  isLight
+                    ? "border-black/10 text-slate-900"
+                    : "border-white/10 text-white"
+                )}
+              >
+                Cancel payment
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setPayCancelOpen(false);
+                  void run(() =>
+                    apiTransition({
+                      jobId: job.id,
+                      event: "CANCEL",
+                      actor: "motorist",
+                      actorId,
+                    })
+                  );
+                }}
+                className={cn(
+                  "flex h-12 w-full items-center justify-center border-0 border-t text-[14px] font-bold text-red-500",
+                  isLight ? "border-black/10" : "border-white/10"
+                )}
+              >
+                Cancel request
+              </button>
+              <button
+                type="button"
+                onClick={() => setPayCancelOpen(false)}
+                className={cn(
+                  "flex h-11 w-full items-center justify-center border-0 border-t text-[13px] font-semibold",
+                  isLight
+                    ? "border-black/10 text-slate-500"
+                    : "border-white/10 text-white/50"
+                )}
+              >
+                Keep paying
+              </button>
+            </div>
+          </div>
+        ) : null}
       </JobShell>
     );
   }
@@ -1205,30 +1365,67 @@ export function JobFlowScreen({
             : "bg-[#2c2c2e] text-white"
         )}
       >
-        {viewer === "motorist"
-          ? PRO_SERVICE_LABELS[job.serviceType]
-          : "Customer"}
+        {PRO_SERVICE_LABELS[job.serviceType] || job.serviceType}
       </span>
     );
 
+    // Pro: vehicle details (not customer name). Customer: pro name.
+    const vehicleLabel = (job.motoristVehicle || "").trim();
+
     // Lower-panel meta row only (map keeps ETA + ESCROW Held exclusively)
+    // Customer: skill (Mechanic) + pro name only — no BOOKED chip
+    // Pro: status + skill + vehicle card
     const tripMetaHeader = (
-      <div className="flex flex-wrap items-center gap-1.5">
-        {statusChip}
-        {skillChip}
-        <p className={cn("min-w-0 flex-1 truncate text-[16px] font-black", ink)}>
-          {viewer === "motorist" ? job.repairProName : job.motoristName}
-        </p>
-        {job.agreedMajor != null && (
-          <p
+      <div className="flex flex-col gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {viewer === "repair_pro" ? statusChip : null}
+          {skillChip}
+          {viewer === "motorist" ? (
+            <p
+              className={cn(
+                "min-w-0 flex-1 truncate text-[16px] font-black",
+                ink
+              )}
+            >
+              {job.repairProName}
+            </p>
+          ) : null}
+          {job.agreedMajor != null && (
+            <p
+              className={cn(
+                "ml-auto shrink-0 text-[15px] font-black tabular-nums",
+                isLight ? "text-black" : "text-white"
+              )}
+            >
+              {formatMoney(job.agreedMajor, job.currency)}
+            </p>
+          )}
+        </div>
+        {viewer === "repair_pro" ? (
+          <div
             className={cn(
-              "shrink-0 text-[15px] font-black tabular-nums",
-              isLight ? "text-black" : "text-white"
+              "rounded-xl px-3 py-2.5",
+              isLight ? "bg-black/[0.05]" : "bg-white/[0.06]"
             )}
           >
-            {formatMoney(job.agreedMajor, job.currency)}
-          </p>
-        )}
+            <p
+              className={cn(
+                "text-[10px] font-bold uppercase tracking-[0.08em]",
+                muted
+              )}
+            >
+              Vehicle
+            </p>
+            <p
+              className={cn(
+                "mt-0.5 text-[15px] font-black leading-snug tracking-tight",
+                ink
+              )}
+            >
+              {vehicleLabel || "Vehicle details not set"}
+            </p>
+          </div>
+        ) : null}
       </div>
     );
 
@@ -1242,7 +1439,7 @@ export function JobFlowScreen({
                 muted
               )}
             >
-              Problem
+              I ADMIT TO FIX IT
             </p>
             <p
               className={cn(
@@ -1268,21 +1465,14 @@ export function JobFlowScreen({
                 {job.locationLabel || "Location on map"}
               </p>
               <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
-                Navigate to motorist pin
+                Navigate to pin
               </p>
             </div>
           </div>
         )}
 
-        {isReadyToGo && (
-          <p className={cn("text-[12px] font-medium", muted)}>
-            {viewer === "repair_pro"
-              ? "Start trip when you leave for the motorist"
-              : "Repair Pro will start the trip soon"}
-          </p>
-        )}
-
-        {!isSwipeTrip && copy.subtitle ? (
+        {/* Customer: keep only the lower status line (from TRIP_STATUS_COPY) */}
+        {!isSwipeTrip && copy.subtitle && viewer === "motorist" ? (
           <p className={cn("text-[12px] font-medium leading-snug", muted)}>
             {copy.subtitle}
           </p>
@@ -1657,7 +1847,11 @@ export function JobFlowScreen({
     return (
       <JobShell
         isLight={isLight}
-        title={copy.title}
+        title={
+          viewer === "motorist"
+            ? PRO_SERVICE_LABELS[job.serviceType] || "Booked"
+            : copy.title
+        }
         compactHeader
         onBack={goJobsList}
         footer={footerBlock}
@@ -1672,34 +1866,52 @@ export function JobFlowScreen({
     );
   }
 
-  /* ─── COMPLETED → satisfied ─── */
+  /* ─── COMPLETED → customer must confirm to release pay ─── */
   if (job.status === "completed") {
     return (
       <JobShell
         isLight={isLight}
-        title="Job completed"
+        title={
+          viewer === "motorist" ? "Confirm & release pay" : "Job completed"
+        }
         compactHeader
         onBack={goJobsList}
         footer={
           viewer === "motorist" ? (
-            <CopperButton
-              disabled={busy}
-              onClick={() =>
-                void run(() =>
-                  apiTransition({
-                    jobId: job.id,
-                    event: "SATISFIED",
-                    actor: "motorist",
-                    actorId,
+            <div className="flex w-full flex-col gap-2">
+              <CopperButton
+                disabled={busy}
+                onClick={() =>
+                  void run(async () => {
+                    const res = await apiTransition({
+                      jobId: job.id,
+                      event: "SATISFIED",
+                      actor: "motorist",
+                      actorId,
+                    });
+                    if (res.ok) {
+                      try {
+                        const { playAppSound } = await import(
+                          "@/lib/sound-tone"
+                        );
+                        playAppSound("payment_success");
+                      } catch {
+                        /* */
+                      }
+                    }
+                    return res;
                   })
-                )
-              }
-            >
-              I am satisfied
-            </CopperButton>
+                }
+              >
+                I am satisfied — release pay
+              </CopperButton>
+              <p className={cn("text-center text-[11px] font-medium", muted)}>
+                Releases escrow to {job.repairProName} (95%)
+              </p>
+            </div>
           ) : (
             <p className={cn("text-center text-[13px] font-semibold", muted)}>
-              Waiting for motorist confirmation…
+              Waiting for customer to confirm “I am satisfied”…
             </p>
           )
         }
@@ -1707,10 +1919,14 @@ export function JobFlowScreen({
         <JobCard isLight={isLight} className="text-center">
           <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-500" />
           <p className={cn("mt-3 text-[18px] font-black", ink)}>
-            Work marked complete
+            {viewer === "motorist"
+              ? "Work is done — confirm to release money"
+              : "Work marked complete"}
           </p>
-          <p className={cn("mt-1 text-[13px]", muted)}>
-            Escrow releases 95% to {job.repairProName} only after you confirm.
+          <p className={cn("mt-1 text-[13px] leading-snug", muted)}>
+            {viewer === "motorist"
+              ? `Tap I am satisfied to release payment to ${job.repairProName}.`
+              : "Escrow releases only after the customer confirms."}
           </p>
           {job.agreedMajor != null && (
             <p className={cn("mt-4 text-[24px] font-black tabular-nums", ink)}>
@@ -1718,13 +1934,15 @@ export function JobFlowScreen({
             </p>
           )}
         </JobCard>
-        <button
-          type="button"
-          onClick={() => setDisputeOpen(true)}
-          className="mt-4 w-full text-center text-[12px] font-bold text-red-500"
-        >
-          Open dispute instead
-        </button>
+        {viewer === "motorist" ? (
+          <button
+            type="button"
+            onClick={() => setDisputeOpen(true)}
+            className="mt-4 w-full text-center text-[12px] font-bold text-red-500"
+          >
+            Open dispute instead
+          </button>
+        ) : null}
         {disputeOpen && (
           <DisputeSheet
             isLight={isLight}
