@@ -162,9 +162,9 @@ export function filterAndRankTechnicians(
     if (visPct <= 0) return false;
     const d = t.distanceKm;
     if (typeof d !== "number" || !Number.isFinite(d)) return false;
-    // Tier discovery radius caps (T2=1 · T3=3 · T4=10)
+    // Tier discovery radius (aligned with visibility-tiers: T2=5 · T3=8 · T4=10)
     const tierCap =
-      tier === 2 ? 1 : tier === 3 ? 3 : tier >= 4 ? MAX_RADIUS_KM : 0;
+      tier === 2 ? 5 : tier === 3 ? 8 : tier >= 4 ? MAX_RADIUS_KM : 0;
     // Cert under review / rejected → only visible within 2 km
     const docsPending =
       t.docsStatus === "under_review" || t.docsStatus === "rejected";
@@ -173,29 +173,9 @@ export function filterAndRankTechnicians(
     return d <= proCap;
   });
 
-  // Pass 2: visibility % lottery — skip when few nearby (common empty-list blocker)
-  // Sparse markets: always show every Live T2+ in range so customers can find pros.
-  const SPARSE_SKIP_LOTTERY = 5;
-  let list =
-    eligible.length <= SPARSE_SKIP_LOTTERY
-      ? eligible
-      : eligible.filter((t) => {
-          const tier = t.visibilityTier ?? 4;
-          const visPct =
-            typeof t.visibilityPercent === "number"
-              ? t.visibilityPercent
-              : tier === 2
-                ? 30
-                : tier === 3
-                  ? 70
-                  : 100;
-          if (visPct >= 100) return true;
-          const hourBucket = Math.floor(Date.now() / (60 * 60 * 1000));
-          let h = 0;
-          const s = `${t.id}:${hourBucket}`;
-          for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-          return (h % 10000) / 100 < visPct;
-        });
+  // No hard visibility lottery — Live T2+ pros in range always appear.
+  // Lower tiers still rank softer via scoreTechnician() visMult / soft penalty.
+  let list = eligible;
 
   if (category !== "all") {
     list = list.filter((t) => matchesCategory(t, category));

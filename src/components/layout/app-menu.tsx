@@ -34,8 +34,8 @@ function TradeIcon({ service }: { service: ProService }) {
   const Icon = opt?.icon ?? Wrench;
   return (
     <Icon
-      className="h-4 w-4 shrink-0"
-      strokeWidth={2.2}
+      className="h-3.5 w-3.5 shrink-0"
+      strokeWidth={2}
       style={{ color: TRADE_ICON_GLYPH }}
       aria-hidden
     />
@@ -282,6 +282,7 @@ export function AppMenu({
                       }
                       isProfessional
                       size="sm"
+                      className="text-[8px] leading-none tracking-normal"
                     />
                   ) : null}
                 </p>
@@ -387,22 +388,20 @@ export function AppMenu({
           {/* Role block — no divider line (app-wide clean cards) */}
           <div className="mt-5 px-1 pt-3">
             {isPro && proServices.length > 0 && (
-              <div className="mb-4">
-                {/* Line 1: same size as Dashboard / Jobs / Profile */}
+              <div className="mb-3">
                 <div
                   className={cn(
-                    "flex w-full items-center gap-3.5 rounded-xl border-0 px-3 py-3.5 text-[17px] font-semibold",
+                    "flex w-full items-center gap-2 rounded-lg border-0 px-3 py-2 text-[13px] font-semibold",
                     isLight ? "text-slate-700" : "text-white/90"
                   )}
                 >
-                  <Briefcase className="h-6 w-6 shrink-0" strokeWidth={2} />
+                  <Briefcase className="h-4 w-4 shrink-0" strokeWidth={2} />
                   <span className="min-w-0 flex-1">{t("menu.myService")}</span>
                 </div>
-                {/* Line 2: trade name + skill icon far right (glassy soft orange plate) */}
-                <div className="mt-0.5 flex w-full items-center gap-3 px-3 py-1.5">
+                <div className="mt-0.5 flex w-full items-center gap-2 px-3 py-1">
                   <span
                     className={cn(
-                      "min-w-0 flex-1 text-sm font-semibold",
+                      "min-w-0 flex-1 text-[12px] font-medium",
                       isLight ? "text-slate-900" : "text-white"
                     )}
                   >

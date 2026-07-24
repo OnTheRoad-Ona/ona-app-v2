@@ -84,9 +84,9 @@ export type VisibilityTier = 1 | 2 | 3 | 4;
 
 export const TIER2_GO_LIVE_DAYS = 30;
 export const TIER2_WARN_DAYS_BEFORE = 5;
-/** Tier 2 limited discovery until Tier 3 radius rules apply */
-export const TIER2_MAX_RADIUS_KM = 1;
-export const TIER3_MAX_RADIUS_KM = 3;
+/** Tier 2 discovery radius — wide enough that Live pros are findable (was 1 km, too strict) */
+export const TIER2_MAX_RADIUS_KM = 5;
+export const TIER3_MAX_RADIUS_KM = 8;
 export const TIER4_MAX_RADIUS_KM = 10;
 
 export type VisibilityTierRules = {

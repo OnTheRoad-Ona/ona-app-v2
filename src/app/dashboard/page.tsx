@@ -490,7 +490,7 @@ export default function TechnicianDashboardPage() {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 pb-4 scrollbar-hide">
+      <div className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto px-3 pb-4 scrollbar-hide">
         {/* Artisan verification / visibility tier gate */}
         {artisan ? (
           <section
@@ -706,21 +706,13 @@ export default function TechnicianDashboardPage() {
           </ul>
         )}
 
-        {/* Mid-bottom: jobs completed when customers tap I am Satisfied */}
-        <div
-          className={cn(
-            "mt-6 mb-2 rounded-xl px-4 py-3 text-center",
-            isLight ? "bg-black/[0.06]" : "bg-white/[0.06]"
-          )}
-        >
-          <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
-            Jobs completed
+        {/* Bottom: problem solved count (no gray plate) */}
+        <div className="mt-auto pt-8 pb-3 text-center">
+          <p className={cn("text-[12px] font-semibold", muted)}>
+            Problem Solved
           </p>
-          <p className={cn("mt-0.5 text-[28px] font-black tabular-nums", ink)}>
+          <p className={cn("mt-0.5 text-[20px] font-bold tabular-nums", ink)}>
             {jobsCompletedCount}
-          </p>
-          <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
-            Counted when a customer taps I am Satisfied
           </p>
         </div>
       </div>

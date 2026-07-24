@@ -158,7 +158,9 @@ export async function GET(req: Request) {
         const profile = byId.get(p.user_id);
         // Hide only if profile missing/inactive; role may lag behind Live toggle
         if (!profile) return false;
-        if (profile.role === "motorist") return false;
+        // Prefer repair_pro role, but if they are Live (is_online) still show
+        // even when role lag/switch briefly says motorist — reduces empty lists.
+        if (profile.role === "motorist" && !p.is_online) return false;
         return true;
       })
       .filter((p) => {
@@ -195,15 +197,16 @@ export async function GET(req: Request) {
           return false;
         }
         const tier = t.visibilityTier ?? 4;
+        // Match client matching: T2=5 · T3=8 · T4=10 (Live pros must be findable)
         const tierCap =
-          tier === 2 ? 1 : tier === 3 ? 3 : tier >= 4 ? MAX_RADIUS_KM : 0;
+          tier === 2 ? 5 : tier === 3 ? 8 : tier >= 4 ? MAX_RADIUS_KM : 0;
         const docsPending =
           t.docsStatus === "under_review" || t.docsStatus === "rejected";
         const docsCap = docsPending
           ? Math.min(MAX_RADIUS_KM, DOCS_PENDING_MAX_RADIUS_KM)
           : MAX_RADIUS_KM;
         const cap = Math.min(MAX_RADIUS_KM, tierCap || MAX_RADIUS_KM, docsCap);
-        return t.distanceKm <= cap + 0.5;
+        return t.distanceKm <= cap + 0.75;
       });
 
     // DATA FIX: haversine only for marketplace list.
