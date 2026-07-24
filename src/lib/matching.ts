@@ -1,5 +1,4 @@
 import { PROBLEM_MATCHES } from "@/lib/data/technicians";
-import { DOCS_PENDING_MAX_RADIUS_KM } from "@/lib/skill-questions";
 import type { AppFilters, ServiceCategory, Technician } from "@/lib/types";
 
 /** Max techs returned in any search (keep load reasonable) */
@@ -162,19 +161,12 @@ export function filterAndRankTechnicians(
     if (visPct <= 0) return false;
     const d = t.distanceKm;
     if (typeof d !== "number" || !Number.isFinite(d)) return false;
-    // Tier discovery radius (aligned with visibility-tiers: T2=5 · T3=8 · T4=10)
-    const tierCap =
-      tier === 2 ? 5 : tier === 3 ? 8 : tier >= 4 ? MAX_RADIUS_KM : 0;
-    // Cert under review / rejected → only visible within 2 km
-    const docsPending =
-      t.docsStatus === "under_review" || t.docsStatus === "rejected";
-    const docsCap = docsPending ? DOCS_PENDING_MAX_RADIUS_KM : MAX_RADIUS_KM;
-    const proCap = Math.min(radius, tierCap || MAX_RADIUS_KM, docsCap);
-    return d <= proCap;
+    // Live + in customer radius (≤10 km). Tier still gates T1 above;
+    // ranking (not hard hide) softens lower tiers via scoreTechnician.
+    return d <= radius + 0.75;
   });
 
-  // No hard visibility lottery — Live T2+ pros in range always appear.
-  // Lower tiers still rank softer via scoreTechnician() visMult / soft penalty.
+  // No lottery / no second radius gate — empty lists were too common.
   let list = eligible;
 
   if (category !== "all") {

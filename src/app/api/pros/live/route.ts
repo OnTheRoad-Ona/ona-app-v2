@@ -140,17 +140,6 @@ export async function POST(req: Request) {
         "tier1_no_live"
       );
     }
-    if (visTier === 2 && proRow.go_live_window_ends_at) {
-      const ends = Date.parse(String(proRow.go_live_window_ends_at));
-      if (Number.isFinite(ends) && ends < Date.now()) {
-        return apiFail(
-          "Your Tier 2 Go Live window (30 days) has ended. Complete Tier 3 approval to Go Live again.",
-          403,
-          "tier2_window_expired"
-        );
-      }
-    }
-
     const lat = b.lat;
     const lng = b.lng;
     const hasGps =
@@ -159,10 +148,17 @@ export async function POST(req: Request) {
       Number.isFinite(lat) &&
       Number.isFinite(lng) &&
       !(lat === 0 && lng === 0);
+    const hasStoredPin =
+      typeof proRow.lat === "number" &&
+      typeof proRow.lng === "number" &&
+      Number.isFinite(Number(proRow.lat)) &&
+      Number.isFinite(Number(proRow.lng)) &&
+      !(Number(proRow.lat) === 0 && Number(proRow.lng) === 0);
 
-    if (!hasGps && proRow.lat == null) {
+    // Without a pin, customers always see an empty list for this pro
+    if (!hasGps && !hasStoredPin) {
       return apiFail(
-        "Location required to go Live. Enable GPS and try again.",
+        "Location required to go Live. Enable GPS and try again so customers can find you.",
         400,
         "gps_required"
       );
@@ -173,11 +169,22 @@ export async function POST(req: Request) {
       is_online: true,
       updated_at: nowIso,
     };
+    // Always refresh pin when client sends GPS (critical for discovery)
     if (hasGps) {
       patch.lat = lat;
       patch.lng = lng;
-      // Only set if column exists (migration applied) — ignore if update fails later
       patch.location_updated_at = nowIso;
+    }
+    // Soft-extend T2 window on successful Live so pros are not locked out mid-market
+    if (visTier === 2) {
+      const ends = proRow.go_live_window_ends_at
+        ? Date.parse(String(proRow.go_live_window_ends_at))
+        : NaN;
+      if (!Number.isFinite(ends) || ends < Date.now()) {
+        patch.go_live_window_ends_at = new Date(
+          Date.now() + 30 * 24 * 60 * 60 * 1000
+        ).toISOString();
+      }
     }
     if (proRow.status === "pending" || !proRow.status) {
       patch.status = "approved";

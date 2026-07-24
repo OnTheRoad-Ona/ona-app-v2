@@ -1972,16 +1972,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // Without a real pin, customers never see this pro (API requires lat/lng).
       if (
         live &&
-        !gotGps &&
         (!Number.isFinite(lat) ||
           !Number.isFinite(lng) ||
-          (lat === 0 && lng === 0) ||
-          // Default Lagos seed without real GPS is weak for discovery
-          false)
+          (lat === 0 && lng === 0))
       ) {
-        // still try last known
+        return "Turn on location and try Go Live again so customers can find you.";
+      }
+      if (live && !gotGps) {
+        // Warn soft but still allow last-known pin if valid
       }
 
       const err = await backendSetProOnline(backendUserId, live, {
@@ -2819,21 +2820,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, [backendUserId, accountType]);
 
-  // Pros: load once when signed-in motorist; poll every 30 min (bare-minimum data)
+  // Customer marketplace: load soon + refresh often so Live pros appear quickly
   useEffect(() => {
     if (!isAuthenticated || accountType === "professional") {
       if (accountType === "professional") setCloudTechs([]);
       return;
     }
-    // Short delay so splash/login paint first, then fill map quickly
-    const first = window.setTimeout(() => refreshCloudPros(), 600);
+    const first = window.setTimeout(() => refreshCloudPros(), 400);
+    // Was 30 minutes — empty lists stayed empty while pros went Live
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudPros();
-    }, 1_800_000);
+    }, 20_000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") refreshCloudPros();
+    };
+    document.addEventListener("visibilitychange", onVis);
     return () => {
       window.clearTimeout(first);
       window.clearInterval(poll);
+      document.removeEventListener("visibilitychange", onVis);
     };
   }, [refreshCloudPros, isAuthenticated, accountType]);
 

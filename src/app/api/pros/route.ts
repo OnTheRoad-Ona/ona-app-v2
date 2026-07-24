@@ -76,7 +76,7 @@ export async function GET(req: Request) {
       .neq("status", "suspended")
       .neq("status", "rejected")
       .order("rating_avg", { ascending: false })
-      .limit(40);
+      .limit(120);
 
     let { data: pros, error } = await prosQuery;
 
@@ -175,19 +175,12 @@ export async function GET(req: Request) {
           !(plat === 0 && plng === 0)
         );
       })
-      .filter((p) => {
-        // Tier 2 30-day window: hide if Live window expired
-        const tier = Number(p.visibility_tier ?? 4);
-        if (tier === 2 && p.go_live_window_ends_at) {
-          const ends = Date.parse(String(p.go_live_window_ends_at));
-          if (Number.isFinite(ends) && ends < Date.now()) return false;
-        }
-        return true;
-      })
+      // Live + GPS: show within marketplace radius (10 km).
+      // Do NOT hard-hide on go_live_window expiry while is_online — that caused
+      // "I'm Live but customers see empty" after the 30-day T2 window.
       .map((pro) =>
         mapProToTechnician(pro, byId.get(pro.user_id) ?? null, userCoords)
       )
-      // Pre-filter with haversine + tier radius caps
       .filter((t) => {
         if (
           !t.hasLiveLocation ||
@@ -196,36 +189,13 @@ export async function GET(req: Request) {
         ) {
           return false;
         }
-        const tier = t.visibilityTier ?? 4;
-        // Match client matching: T2=5 · T3=8 · T4=10 (Live pros must be findable)
-        const tierCap =
-          tier === 2 ? 5 : tier === 3 ? 8 : tier >= 4 ? MAX_RADIUS_KM : 0;
-        const docsPending =
-          t.docsStatus === "under_review" || t.docsStatus === "rejected";
-        const docsCap = docsPending
-          ? Math.min(MAX_RADIUS_KM, DOCS_PENDING_MAX_RADIUS_KM)
-          : MAX_RADIUS_KM;
-        const cap = Math.min(MAX_RADIUS_KM, tierCap || MAX_RADIUS_KM, docsCap);
-        return t.distanceKm <= cap + 0.75;
+        // One simple rule: Live + real pin + within 10 km of customer
+        return t.distanceKm <= MAX_RADIUS_KM + 0.75;
       });
 
-    // DATA FIX: haversine only for marketplace list.
-    // Google Distance Matrix on every home refresh was a top mobile-data consumer.
-    // Road ETA can be added later on single-pro detail if needed.
     const techniciansFinal = technicians
-      .filter((t) => {
-        if (typeof t.distanceKm !== "number" || !Number.isFinite(t.distanceKm)) {
-          return false;
-        }
-        const docsPending =
-          t.docsStatus === "under_review" || t.docsStatus === "rejected";
-        const cap = docsPending
-          ? Math.min(MAX_RADIUS_KM, DOCS_PENDING_MAX_RADIUS_KM)
-          : MAX_RADIUS_KM;
-        return t.distanceKm <= cap;
-      })
       .sort((a, b) => (a.distanceKm ?? 99) - (b.distanceKm ?? 99))
-      .slice(0, 16);
+      .slice(0, 40);
 
     return apiOk({
       technicians: techniciansFinal,
