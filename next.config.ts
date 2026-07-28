@@ -4,7 +4,30 @@ import { fileURLToPath } from "url";
 
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 
+const apiProxyTarget = process.env.API_PROXY_TARGET;
+const isBackend = process.env.IS_BACKEND === "true";
+
 const nextConfig: NextConfig = {
+  async rewrites() {
+    if (apiProxyTarget) {
+      return [
+        { source: "/api/:path*", destination: `${apiProxyTarget}/api/:path*` },
+      ];
+    }
+    return [];
+  },
+  async redirects() {
+    if (isBackend) {
+      return [
+        {
+          source: "/:path((?!api).*)",
+          destination: "https://ona-mi.vercel.app/:path",
+          permanent: false,
+        },
+      ];
+    }
+    return [];
+  },
   // Separate dist for admin dev server (port 4500) vs public (3000)
   distDir: process.env.NEXT_DIST_DIR || ".next",
   // Allow both localhost and 127.0.0.1 during local dev (fixes blank UI / blocked HMR)
