@@ -316,128 +316,164 @@ export function NotificationCenter() {
                     className="overflow-hidden rounded-md"
                     style={{ backgroundColor: card }}
                     onMouseEnter={() => markStackRead(ids)}
-                    onClick={() => {
-                      markStackRead(ids);
-                      setExpanded((e) => ({ ...e, [item.key]: !open }));
-                    }}
                   >
-                    <div className="flex gap-0">
-                      {high && !stackRead ? (
-                        <div
-                          className="w-1 shrink-0 self-stretch"
-                          style={{ backgroundColor: accent }}
-                        />
-                      ) : null}
-                      <div className="min-w-0 flex-1 px-3 py-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <p
-                            className={cn(
-                              "text-[13px] font-bold leading-snug",
-                              !stackRead && "font-black"
-                            )}
-                            style={{ color: ink }}
-                          >
-                            {head.title}
-                            {item.unread > 0 ? (
-                              <span
-                                className="ml-1.5 inline-flex min-w-[1.15rem] items-center justify-center rounded-sm px-1 text-[9px] font-bold text-white"
-                                style={{ backgroundColor: accent }}
-                              >
-                                {item.unread}
-                              </span>
-                            ) : (
-                              <span
-                                className="ml-1.5 text-[10px] font-semibold"
-                                style={{ color: muted }}
-                              >
-                                {item.items.length}
-                              </span>
-                            )}
-                          </p>
+                    {/* Stack header — type label + count + time */}
+                    <div
+                      className="flex cursor-pointer items-center justify-between gap-2 px-3 py-2.5 active:opacity-80"
+                      onClick={() => {
+                        markStackRead(ids);
+                        setExpanded((e) => ({ ...e, [item.key]: !open }));
+                      }}
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        {high && !stackRead ? (
                           <span
-                            className="shrink-0 text-[10px] font-medium"
-                            style={{ color: muted }}
-                          >
-                            {formatWhen(head.createdAt)}
-                          </span>
-                        </div>
+                            className="h-2 w-2 shrink-0 rounded-full"
+                            style={{ backgroundColor: accent }}
+                          />
+                        ) : null}
                         <p
-                          className="mt-1 text-[12px] font-medium leading-snug"
+                          className="truncate text-[13px] font-bold leading-snug"
+                          style={{ color: ink }}
+                        >
+                          {item.typeLabel}
+                        </p>
+                        <span
+                          className={cn(
+                            "inline-flex min-w-[1.15rem] items-center justify-center rounded-sm px-1 text-[9px] font-bold",
+                            item.unread > 0
+                              ? "text-white"
+                              : "text-[10px] font-semibold"
+                          )}
+                          style={{
+                            backgroundColor:
+                              item.unread > 0 ? accent : "transparent",
+                            color:
+                              item.unread > 0
+                                ? "#fff"
+                                : muted,
+                          }}
+                        >
+                          {item.items.length}
+                        </span>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span
+                          className="text-[10px] font-medium"
                           style={{ color: muted }}
                         >
-                          {head.body}
-                        </p>
-                        <p
-                          className="mt-1.5 text-[11px] font-bold"
-                          style={{ color: accent }}
+                          {formatWhen(head.createdAt)}
+                        </span>
+                        <span
+                          className="text-[10px] font-bold transition-transform"
+                          style={{
+                            color: accent,
+                            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+                          }}
                         >
-                          {open
-                            ? "Hide stack"
-                            : `Show ${item.items.length} updates`}
-                        </p>
-
-                        {/* Cascade stack — Twitter-style nested list */}
-                        {open ? (
-                          <ul
-                            className="mt-3 space-y-1 pl-0"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {item.items.map((n, idx) => (
-                              <li
-                                key={n.id}
-                                className="rounded-md px-2.5 py-2.5"
-                                style={{
-                                  backgroundColor: isLight
-                                    ? "rgba(0,0,0,0.04)"
-                                    : "rgba(255,255,255,0.05)",
-                                }}
-                                onMouseEnter={() => markStackRead([n.id])}
-                              >
-                                <p
-                                  className="mb-1 text-[10px] font-bold uppercase tracking-wide"
-                                  style={{ color: muted }}
-                                >
-                                  Update {idx + 1} of {item.items.length}
-                                </p>
-                                <NotificationCardBody
-                                  n={n}
-                                  ink={ink}
-                                  muted={muted}
-                                  isLight={isLight}
-                                  accountType={accountType}
-                                  showMeta
-                                  stacked
-                                  stackIndex={idx}
-                                  onAction={() => void runAction(n)}
-                                  onRead={() => markStackRead([n.id])}
-                                />
-                              </li>
-                            ))}
-                          </ul>
-                        ) : null}
-
-                        {!open ? (
-                          <div
-                            className="mt-2.5"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <ActionBtn
-                              label={
-                                isReleasePayPendingStatus(head.jobStatus)
-                                  ? "Confirm Job & Release Payment"
-                                  : "Open"
-                              }
-                              read={stackRead}
-                              isLight={isLight}
-                              onClick={() => {
-                                markStackRead(ids);
-                                void runAction(head);
-                              }}
-                            />
-                          </div>
-                        ) : null}
+                          ▼
+                        </span>
                       </div>
                     </div>
+
+                    {/* Cascade stack — X/Twitter-style nested items */}
+                    {open ? (
+                      <ul
+                        className="border-t pl-0"
+                        style={{
+                          borderColor: isLight
+                            ? "rgba(0,0,0,0.06)"
+                            : "rgba(255,255,255,0.06)",
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {item.items.map((n, idx) => {
+                          const isLast = idx === item.items.length - 1;
+                          return (
+                            <li
+                              key={n.id}
+                              className={cn(
+                                "cursor-pointer px-3 py-2.5 transition-colors",
+                                !isLast &&
+                                  "border-b"
+                              )}
+                              style={{
+                                backgroundColor: "transparent",
+                                borderColor: isLight
+                                  ? "rgba(0,0,0,0.04)"
+                                  : "rgba(255,255,255,0.04)",
+                              }}
+                              onMouseEnter={() => markStackRead([n.id])}
+                              onClick={() => {
+                                markStackRead([n.id]);
+                                void runAction(n);
+                              }}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <p
+                                  className="text-[12px] font-semibold leading-snug"
+                                  style={{ color: ink }}
+                                >
+                                  {n.title}
+                                </p>
+                                <span
+                                  className="shrink-0 text-[9px] font-medium"
+                                  style={{ color: muted }}
+                                >
+                                  {formatWhen(n.createdAt)}
+                                </span>
+                              </div>
+                              <p
+                                className="mt-0.5 text-[11px] font-medium leading-snug"
+                                style={{ color: muted }}
+                              >
+                                {n.body}
+                              </p>
+                              {n.jobId && !n.jobId.startsWith("demo-") ? (
+                                <p
+                                  className="mt-1 text-[9px] font-semibold uppercase tracking-wide"
+                                  style={{ color: accent }}
+                                >
+                                  Job #{n.jobId.slice(-6)}
+                                </p>
+                              ) : null}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : (
+                      <div
+                        className="border-t px-3 py-2.5"
+                        style={{
+                          borderColor: isLight
+                            ? "rgba(0,0,0,0.06)"
+                            : "rgba(255,255,255,0.06)",
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p
+                            className="min-w-0 flex-1 text-[12px] font-medium leading-snug"
+                            style={{ color: muted }}
+                          >
+                            {head.body}
+                          </p>
+                          <ActionBtn
+                            label={
+                              isReleasePayPendingStatus(head.jobStatus)
+                                ? "Release"
+                                : "Open"
+                            }
+                            read={stackRead}
+                            isLight={isLight}
+                            onClick={() => {
+                              markStackRead(ids);
+                              void runAction(head);
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </li>
                 );
               }
@@ -451,26 +487,39 @@ export function NotificationCenter() {
                   className="overflow-hidden rounded-md"
                   style={{ backgroundColor: card }}
                   onMouseEnter={() => markStackRead([n.id])}
-                  onClick={() => markStackRead([n.id])}
+                  onClick={() => {
+                    markStackRead([n.id]);
+                    void runAction(n);
+                  }}
                 >
-                  <div className="flex gap-0">
+                  <div className="flex cursor-pointer items-start gap-2 px-3 py-2.5 active:opacity-80">
                     {high && !isRead ? (
-                      <div
-                        className="w-1 shrink-0 self-stretch"
+                      <span
+                        className="mt-1 h-2 w-2 shrink-0 rounded-full"
                         style={{ backgroundColor: accent }}
                       />
                     ) : null}
-                    <div className="min-w-0 flex-1 px-3 py-3">
-                      <NotificationCardBody
-                        n={n}
-                        ink={ink}
-                        muted={muted}
-                        isLight={isLight}
-                        accountType={accountType}
-                        showMeta
-                        onAction={() => void runAction(n)}
-                        onRead={() => markStackRead([n.id])}
-                      />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p
+                          className="text-[13px] font-bold leading-snug"
+                          style={{ color: ink }}
+                        >
+                          {n.title}
+                        </p>
+                        <span
+                          className="shrink-0 text-[10px] font-medium"
+                          style={{ color: muted }}
+                        >
+                          {formatWhen(n.createdAt)}
+                        </span>
+                      </div>
+                      <p
+                        className="mt-0.5 text-[12px] font-medium leading-snug"
+                        style={{ color: muted }}
+                      >
+                        {n.body}
+                      </p>
                     </div>
                   </div>
                 </li>

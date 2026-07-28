@@ -9,6 +9,7 @@ export const ES: MessageDict = {
   "nav.dashboard": "Panel",
   "nav.settings": "Ajustes",
   "nav.history": "Historial",
+  "nav.wallet": "Wallet/Credit",
   "nav.main": "Navegación principal",
   "common.back": "Atrás",
   "common.next": "Siguiente",

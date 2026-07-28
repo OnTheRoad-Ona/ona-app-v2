@@ -1543,9 +1543,16 @@ async function releaseJobEscrow(
 
 async function notifyPayoutReleased(job: JobRecord) {
   try {
-    const { insertNotification } = await import(
+    const { insertNotification, markNotificationsByGroupKey } = await import(
       "@/lib/server/notifications"
     );
+    // Close the old "Confirm Job & Release Payment" notification
+    if (job.motoristId) {
+      await markNotificationsByGroupKey(job.motoristId, `job-complete-${job.id}`);
+    }
+    if (job.repairProId) {
+      await markNotificationsByGroupKey(job.repairProId, `job-complete-${job.id}`);
+    }
     // group_key dedupe — one notification per user per job even if called twice
     if (job.motoristId) {
       await insertNotification({
@@ -1584,9 +1591,16 @@ async function notifyPayoutReleased(job: JobRecord) {
 
 async function notifyPayoutPendingSettlement(job: JobRecord) {
   try {
-    const { insertNotification } = await import(
+    const { insertNotification, markNotificationsByGroupKey } = await import(
       "@/lib/server/notifications"
     );
+    // Close the old "Confirm Job & Release Payment" notification
+    if (job.motoristId) {
+      await markNotificationsByGroupKey(job.motoristId, `job-complete-${job.id}`);
+    }
+    if (job.repairProId) {
+      await markNotificationsByGroupKey(job.repairProId, `job-complete-${job.id}`);
+    }
     const body =
       "Payout processing — auto-retry every 10 minutes for up to 24 hours. You’ll be notified when payment is released.";
     if (job.motoristId) {

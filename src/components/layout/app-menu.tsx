@@ -11,6 +11,7 @@ import {
   LogOut,
   Settings,
   UserRound,
+  Wallet,
   Wrench,
   X,
 } from "lucide-react";
@@ -56,6 +57,7 @@ const CLIENT_NAV: {
   { href: "/", labelKey: "nav.dashboard", icon: Home },
   { href: "/history", labelKey: "nav.history", icon: History },
   { href: "/profile", labelKey: "nav.profile", icon: UserRound },
+  { href: "/wallet", labelKey: "nav.wallet", icon: Wallet },
   { href: "/settings", labelKey: "menu.settings", icon: Settings },
 ];
 
@@ -67,6 +69,7 @@ const PRO_NAV: {
   { href: "/dashboard", labelKey: "nav.dashboard", icon: Wrench },
   { href: "/jobs", labelKey: "nav.jobs", icon: Clock3 },
   { href: "/profile", labelKey: "nav.profile", icon: UserRound },
+  { href: "/wallet", labelKey: "nav.wallet", icon: Wallet },
   { href: "/settings", labelKey: "menu.settings", icon: Settings },
 ];
 

@@ -71,6 +71,28 @@ export async function insertNotification(
   }
 }
 
+/**
+ * Mark all unread notifications for a user matching a groupKey prefix as read.
+ * Used to auto-dismiss superseded notifications (e.g. close "Confirm job" when payout released).
+ */
+export async function markNotificationsByGroupKey(
+  userId: string,
+  groupKeyPrefix: string
+): Promise<void> {
+  try {
+    const sb = createServiceSupabase();
+    const now = new Date().toISOString();
+    await sb
+      .from("notifications")
+      .update({ read_at: now })
+      .eq("user_id", userId)
+      .like("group_key", `${groupKeyPrefix}%`)
+      .is("read_at", null);
+  } catch {
+    /* best-effort */
+  }
+}
+
 export function mapNotificationRow(row: Record<string, unknown>) {
   return {
     id: String(row.id),

@@ -9,6 +9,7 @@ export const YO: MessageDict = {
   "nav.dashboard": "Pẹpẹ",
   "nav.settings": "Ètò",
   "nav.history": "Ìtàn",
+  "nav.wallet": "Wallet/Credit",
   "nav.main": "Lílọ kiri",
   "common.back": "Padà",
   "common.next": "Tókàn",

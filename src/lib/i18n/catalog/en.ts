@@ -12,6 +12,7 @@ export const EN = {
   "nav.dashboard": "Dashboard",
   "nav.settings": "Settings",
   "nav.history": "History",
+  "nav.wallet": "Wallet/Credit",
   "nav.main": "Main navigation",
   "common.back": "Back",
   "common.next": "Next",

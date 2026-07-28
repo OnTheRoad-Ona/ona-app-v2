@@ -24,10 +24,10 @@ export async function GET(req: Request) {
   const sb = createServiceSupabase();
   const { data, error } = await sb
     .from("notifications")
-    .select("*")
+    .select("id,user_id,category,priority,title,body,href,action_type,group_key,job_id,job_status,message_text,read_at,created_at")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
-    .limit(100);
+    .limit(50);
 
   if (error) {
     if (
