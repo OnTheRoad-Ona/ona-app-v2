@@ -772,15 +772,7 @@ export default function TechnicianDashboardPage() {
         {/* Last 6 finished jobs — vertical listing (Uber/inDrive style), place + area only */}
         {!jobsLoading && showRecent && (
           <section aria-label="Recent jobs">
-            <p
-              className={cn(
-                "mb-1 flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.12em]",
-                muted
-              )}
-            >
-              <Clock className="h-3.5 w-3.5" />
-              Recent
-            </p>
+            <div className={cn("my-2 h-px", muted.replace(/text-/, "bg-"))} />
             <ul className="space-y-0">
               {recent.map((j) => {
                 const addr = meetAddress(j);
@@ -793,6 +785,7 @@ export default function TechnicianDashboardPage() {
                       href={`/jobs/${j.id}`}
                       className="flex items-center gap-2 py-3 active:opacity-90"
                     >
+                      <Clock className="h-3.5 w-3.5 shrink-0" />
                       <div className="min-w-0 flex-1">
                         <p
                           className={cn(

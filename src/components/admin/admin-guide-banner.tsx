@@ -40,9 +40,14 @@ const GUIDES: Record<string, GuideEntry> = {
     use: "Review the details carefully. Use the buttons at the bottom to take action: 'Refund customer' to send money back, 'Force payout to pro' if the payment is stuck, or 'Stop processing' to pause things. Always write a note explaining why you're taking action.",
   },
   security: {
-    what: "This page is the control center for keeping Ona safe and managing credits. It has 8 different sections: an overview dashboard, contact change approvals, referral tracking, credit wallets, cashout requests, fraud flags, an audit trail, and system settings.",
-    how: "Click any tab at the top to switch sections. The Overview shows counts of everything pending. Contact Changes lets you approve or reject when someone wants to change their phone or email. Referrals lets you reward people who invited friends. Credits shows who has how much credit. Cashouts is where people request to turn credits into real money. Fraud Review shows suspicious activity. Audit Trail logs every action. Settings controls how the system behaves.",
-    use: "Start with Overview to see what needs attention. For contact changes, check the details and Approve or Reject. For referrals, approve legitimate invites. For cashouts, verify the person's identity before approving. Mark fraud flags as 'reviewing' while you investigate. Never approve something you're unsure about — ask another admin.",
+    what: "This is the Security Control page. It helps you keep Ona safe by monitoring user sessions, phone/email changes, fraud attempts, and every action admins take. Think of it as the security camera room for the app.",
+    how: "The page has 4 sections. Overview shows counts of pending items. Contact Changes lets you approve or reject when someone wants to change their phone number or email. Fraud Review shows suspicious activity that might be someone trying to cheat the system. Audit Trail records every action every admin takes, so you can always see who did what.",
+    use: "Check Overview first to see if anything needs attention. For contact changes, look at the details and click Approve (if it looks real) or Reject (if it looks suspicious). For fraud flags, investigate the user and mark as reviewed. The Audit Trail is a log you can check when something goes wrong.",
+  },
+  "credit-control": {
+    what: "This is the Credit & Rewards Control page. It manages all the money-related parts of Ona — referral rewards, credit balances, cashout requests, and system settings. Think of it as the bank teller window.",
+    how: "The page has 5 sections. Overview shows totals (rewards given, credits earned, pending cashouts). Referrals shows people who invited friends and are waiting for their reward. Credits shows every credit transaction and lets you manually adjust balances. Cashouts shows requests from people who want to turn their credits into real money. Settings controls how the system behaves (reward amounts, fees, minimums).",
+    use: "Start with Overview to see the big picture. For referrals, approve legitimate invites and reject suspicious ones. For cashouts, verify the person's identity before clicking Approve, then Mark Paid once the money is sent. Use the Adjust Balance tool carefully — it adds or removes credits from a user's wallet. Never change settings without understanding what they do.",
   },
   customers: {
     what: "This page lists every customer on Ona. A customer is someone who requests services (like car repair or towing). You can find anyone who has ever signed up.",

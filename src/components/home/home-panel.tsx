@@ -9,7 +9,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { useJsApiLoader } from "@react-google-maps/api";
-import { ChevronLeft, MapPin, X } from "lucide-react";
+import { ChevronLeft, Clock, Hammer, MapPin, Paintbrush, Wrench, X } from "lucide-react";
 import { CategoryTabs } from "@/components/home/category-tabs";
 import { FilterChips } from "@/components/home/filter-chips";
 import { RadiusSlider } from "@/components/home/radius-slider";
@@ -115,6 +115,7 @@ export function HomePanel({
     visibleTechnicians,
     radiusKm,
     filters,
+    category,
     specialtyPickerOpen,
     setSelectedTechId,
     selectedTechId,
@@ -129,6 +130,9 @@ export function HomePanel({
     setHelpingSomeoneElse,
     userProfile,
     query,
+    setRadiusKm,
+    setCategory,
+    toggleFilter,
   } = useApp();
   const isLight = theme === "light";
   const [refreshingPros, setRefreshingPros] = useState(false);
@@ -360,236 +364,189 @@ export function HomePanel({
         </div>
 
         {/*
-          Default: trade strip only.
-          Help mode: quiet “Where are they?” on top.
-          After confirm: address stays + trade strip below (no chip).
+          Help mode: quiet "Where are they?" on top.
+          After confirm: address stays + trade sidebar below.
         */}
-        {!helpMode ? (
-          <CategoryTabs
-            expanded={expanded}
-            onExpand={onExpand}
-            onCollapse={onCollapse}
-            onSwipeLeft={isMotorist ? openHelpSomeone : undefined}
-            onOpenHelp={isMotorist ? openHelpSomeone : undefined}
-          />
-        ) : (
-          <>
-            <div
-              className="px-3 pb-1 pt-1"
-              onTouchStart={(e) => {
-                gestureY.current = e.touches[0].clientX;
-              }}
-              onTouchEnd={(e) => {
-                if (gestureY.current == null) return;
-                const dx = e.changedTouches[0].clientX - gestureY.current;
-                gestureY.current = null;
-                // Swipe right → leave help mode (back to trades-only top)
-                if (dx > 40) closeHelpMode();
-              }}
-              style={{ touchAction: "manipulation" }}
-            >
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (addressConfirmed) {
-                      clearHelpingSomeone();
-                    }
-                    closeHelpMode();
-                  }}
-                  aria-label={t("home.backToTrades")}
-                  className={cn(
-                    "inline-flex h-8 w-8 shrink-0 items-center justify-center border-0 bg-transparent p-0",
-                    isLight ? "text-slate-600" : "text-white/70"
-                  )}
-                >
-                  <ChevronLeft className="h-4 w-4" strokeWidth={2.25} />
-                </button>
-
-                <div className="relative min-w-0 flex-1">
-                  <MapPin
-                    className={cn(
-                      "pointer-events-none absolute left-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2",
-                      isLight ? "text-slate-400" : "text-white/40"
-                    )}
-                    strokeWidth={2}
-                  />
-                  <input
-                    ref={helpInputRef}
-                    type="text"
-                    value={helpAddress}
-                    onChange={(e) => {
-                      const next = e.target.value;
-                      setHelpAddress(next);
-                      setHelpError(null);
-                      const hits = matchKnownPlaces(next, 4).map((r) => r.place);
-                      setHelpKnownHits(hits);
-                      setHelpSuggestOpen(hits.length > 0 && next.trim().length >= 2);
-                      // Clearing the field restores my location
-                      if (!next.trim() && addressConfirmed) {
-                        clearHelpingSomeone();
-                      }
-                    }}
-                    onFocus={() => {
-                      const hits = matchKnownPlaces(helpAddress, 4).map(
-                        (r) => r.place
-                      );
-                      setHelpKnownHits(hits);
-                      setHelpSuggestOpen(
-                        hits.length > 0 && helpAddress.trim().length >= 2
-                      );
-                    }}
-                    onBlur={() => {
-                      window.setTimeout(() => setHelpSuggestOpen(false), 180);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        setHelpSuggestOpen(false);
-                        void submitHelpAddress();
-                      }
-                      if (e.key === "Escape") {
-                        e.preventDefault();
-                        if (addressConfirmed) clearHelpingSomeone();
-                        closeHelpMode();
-                      }
-                    }}
-                    placeholder={t("home.whereAreThey")}
-                    autoComplete="off"
-                    enterKeyHint="search"
-                    aria-label={t("home.whereAreTheyAria")}
-                    className={cn(
-                      "om-help-where-input h-9 w-full border-0 border-b bg-transparent pl-5 pr-7 text-[13px] font-medium outline-none transition-colors",
-                      isLight
-                        ? "border-slate-400/50 text-slate-900 placeholder:text-slate-400 focus:border-brand/60"
-                        : "border-white/20 text-white placeholder:text-white/40 focus:border-brand/50"
-                    )}
-                  />
-                  {helpSuggestOpen && helpKnownHits.length > 0 ? (
-                    <ul
-                      className={cn(
-                        "absolute left-0 right-0 top-[calc(100%+4px)] z-40 max-h-44 overflow-y-auto rounded-md border-0",
-                        isLight ? "bg-[#c8c9cd]" : "bg-black"
-                      )}
-                      role="listbox"
-                    >
-                      {helpKnownHits.map((p) => (
-                        <li key={p.id} role="option">
-                          <button
-                            type="button"
-                            className={cn(
-                              "flex w-full flex-col items-start border-0 bg-transparent px-2.5 py-2 text-left",
-                              isLight
-                                ? "hover:bg-[#d4d5db]"
-                                : "hover:bg-white/10"
-                            )}
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => {
-                              const pick = knownPlaceToPick(p);
-                              applyHelpLocation(pick.label, pick.lat, pick.lng);
-                              setHelpSuggestOpen(false);
-                            }}
-                          >
-                            <span
-                              className={cn(
-                                "text-[12px] font-bold",
-                                isLight ? "text-slate-900" : "text-white"
-                              )}
-                            >
-                              {p.name}
-                            </span>
-                            <span
-                              className={cn(
-                                "text-[10px] font-medium",
-                                isLight ? "text-slate-600" : "text-white/55"
-                              )}
-                            >
-                              {p.address}
-                            </span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                  {(helpAddress || helpBusy) && (
-                    <button
-                      type="button"
-                      aria-label={t("home.clearAddress")}
-                      disabled={helpBusy}
-                      onClick={clearHelpingSomeone}
-                      className={cn(
-                        "absolute right-0 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center border-0 bg-transparent p-0",
-                        isLight ? "text-slate-400" : "text-white/40"
-                      )}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-              {helpError && (
-                <p className="mt-1 pl-9 text-[10px] font-medium text-red-500">
-                  {helpError}
-                </p>
-              )}
-              {helpBusy && (
-                <p
-                  className={cn(
-                    "mt-1 pl-9 text-[10px]",
-                    isLight ? "text-slate-500" : "text-white/45"
-                  )}
-                >
-                  {t("home.findingPlace")}
-                </p>
-              )}
-            </div>
-
-            {/* After address confirm: trade options under the address field */}
-            {addressConfirmed && (
-              <CategoryTabs
-                expanded={expanded}
-                onExpand={onExpand}
-                onCollapse={onCollapse}
-              />
-            )}
-          </>
-        )}
-
-        {/* Radius first (or specialty strip for Plumber/Carpenter/etc. until pick) */}
-        {specialtyPickerOpen ? <SpecialtyFilterBar /> : <RadiusSlider />}
-
-        {/* Nearest · 4.5+ · Available · Verified · Fast — live filter list/map */}
-        <FilterChips />
-      </div>
-
-      {locationError && (
-        <div
-          className="mx-3 mb-1 shrink-0 rounded-md bg-[#FF6B35]/15 px-2.5 py-1.5 text-[11px] text-[#FF6B35]"
-          role="status"
-        >
-          {locationError}{" "}
-          <button
-            type="button"
-            onClick={retryLocation}
-            className="font-bold underline"
+        {helpMode ? (
+          <div
+            className="px-3 pb-1 pt-1"
+            onTouchStart={(e) => {
+              gestureY.current = e.touches[0].clientX;
+            }}
+            onTouchEnd={(e) => {
+              if (gestureY.current == null) return;
+              const dx = e.changedTouches[0].clientX - gestureY.current;
+              gestureY.current = null;
+              if (dx > 40) closeHelpMode();
+            }}
+            style={{ touchAction: "manipulation" }}
           >
-            {t("common.retry")}
-          </button>
-        </div>
-      )}
-
-      {/* Repair Pro list — always shown; updates with radius / filters / help pin */}
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-0 scrollbar-hide">
-        {showVerifyPanel ? (
-          <div className="mb-2 shrink-0">
-            <HomeVerifyPanel message={verifyMessage} isLight={isLight} />
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  if (addressConfirmed) clearHelpingSomeone();
+                  closeHelpMode();
+                }}
+                aria-label={t("home.backToTrades")}
+                className={cn(
+                  "inline-flex h-8 w-8 shrink-0 items-center justify-center border-0 bg-transparent p-0",
+                  isLight ? "text-slate-600" : "text-white/70"
+                )}
+              >
+                <ChevronLeft className="h-4 w-4" strokeWidth={2.25} />
+              </button>
+              <div className="relative min-w-0 flex-1">
+                <MapPin
+                  className={cn(
+                    "pointer-events-none absolute left-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2",
+                    isLight ? "text-slate-400" : "text-white/40"
+                  )}
+                  strokeWidth={2}
+                />
+                <input
+                  ref={helpInputRef}
+                  type="text"
+                  value={helpAddress}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setHelpAddress(next);
+                    setHelpError(null);
+                    const hits = matchKnownPlaces(next, 4).map((r) => r.place);
+                    setHelpKnownHits(hits);
+                    setHelpSuggestOpen(hits.length > 0 && next.trim().length >= 2);
+                    if (!next.trim() && addressConfirmed) clearHelpingSomeone();
+                  }}
+                  onFocus={() => {
+                    const hits = matchKnownPlaces(helpAddress, 4).map((r) => r.place);
+                    setHelpKnownHits(hits);
+                    setHelpSuggestOpen(hits.length > 0 && helpAddress.trim().length >= 2);
+                  }}
+                  onBlur={() => window.setTimeout(() => setHelpSuggestOpen(false), 180)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); setHelpSuggestOpen(false); void submitHelpAddress(); }
+                    if (e.key === "Escape") { e.preventDefault(); if (addressConfirmed) clearHelpingSomeone(); closeHelpMode(); }
+                  }}
+                  placeholder={t("home.whereAreThey")}
+                  autoComplete="off"
+                  enterKeyHint="search"
+                  aria-label={t("home.whereAreTheyAria")}
+                  className={cn(
+                    "om-help-where-input h-9 w-full border-0 border-b bg-transparent pl-5 pr-7 text-[13px] font-medium outline-none transition-colors",
+                    isLight ? "border-slate-400/50 text-slate-900 placeholder:text-slate-400 focus:border-brand/60" : "border-white/20 text-white placeholder:text-white/40 focus:border-brand/50"
+                  )}
+                />
+                {helpSuggestOpen && helpKnownHits.length > 0 ? (
+                  <ul className={cn("absolute left-0 right-0 top-[calc(100%+4px)] z-40 max-h-44 overflow-y-auto rounded-md border-0", isLight ? "bg-[#c8c9cd]" : "bg-black")} role="listbox">
+                    {helpKnownHits.map((p) => (
+                      <li key={p.id} role="option">
+                        <button type="button" className={cn("flex w-full flex-col items-start border-0 bg-transparent px-2.5 py-2 text-left", isLight ? "hover:bg-[#d4d5db]" : "hover:bg-white/10")}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { const pick = knownPlaceToPick(p); applyHelpLocation(pick.label, pick.lat, pick.lng); setHelpSuggestOpen(false); }}
+                        >
+                          <span className={cn("text-[12px] font-bold", isLight ? "text-slate-900" : "text-white")}>{p.name}</span>
+                          <span className={cn("text-[10px] font-medium", isLight ? "text-slate-600" : "text-white/55")}>{p.address}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {(helpAddress || helpBusy) && (
+                  <button type="button" aria-label={t("home.clearAddress")} disabled={helpBusy}
+                    onClick={clearHelpingSomeone}
+                    className={cn("absolute right-0 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center border-0 bg-transparent p-0", isLight ? "text-slate-400" : "text-white/40")}
+                  ><X className="h-3.5 w-3.5" /></button>
+                )}
+              </div>
+            </div>
+            {helpError && <p className="mt-1 pl-9 text-[10px] font-medium text-red-500">{helpError}</p>}
+            {helpBusy && <p className={cn("mt-1 pl-9 text-[10px]", isLight ? "text-slate-500" : "text-white/45")}>{t("home.findingPlace")}</p>}
           </div>
         ) : null}
-        <div
-          className={cn(
-            "min-h-full overflow-hidden rounded-t-lg",
-            isLight ? "bg-[#d8dce4]/90 backdrop-blur-sm" : "bg-black"
+      </div>
+
+      {/* Two-column layout: trade sidebar (left) + tech list (right) */}
+      <div className="flex min-h-0 flex-1">
+        {/* Left trade sidebar */}
+        <div className={cn("flex w-[88px] shrink-0 flex-col gap-2 overflow-y-auto px-2 py-2", isLight ? "bg-[#c8c9cd]" : "bg-black")}>
+          {[
+            { id: "mechanic" as const, label: "Mechanic", icon: Wrench },
+            { id: "body" as const, label: "Body", icon: Paintbrush },
+            { id: "carpenter" as const, label: "Carpenter", icon: Hammer },
+          ].map(({ id, label, icon: Icon }) => {
+            const active = category === id;
+            return (
+              <button key={id} type="button" onClick={() => setCategory(active ? "all" : id)}
+                className={cn(
+                  "flex flex-col items-center gap-1 rounded-lg border-0 px-1 py-2 text-[10px] font-bold transition-colors",
+                  active
+                    ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white"
+                    : isLight ? "bg-transparent text-slate-700 hover:bg-white/50" : "bg-transparent text-white/80 hover:bg-white/10"
+                )}
+              >
+                <Icon className="h-5 w-5" strokeWidth={2} />
+                <span className="leading-tight text-center">{label}</span>
+              </button>
+            );
+          })}
+
+          {/* Divider */}
+          <div className={cn("h-px", isLight ? "bg-slate-400/30" : "bg-white/15")} />
+
+          {/* Radius label + value */}
+          <div className="px-1">
+            <p className={cn("text-[9px] font-bold uppercase tracking-wide", isLight ? "text-slate-600" : "text-white/50")}>Radius</p>
+            <p className={cn("text-[11px] font-bold tabular-nums", isLight ? "text-slate-900" : "text-white")}>{radiusKm} km</p>
+            <input type="range" min={2} max={50} value={radiusKm}
+              onChange={(e) => setRadiusKm(parseFloat(e.target.value))}
+              className="mt-1 w-full accent-[#FF6B35]" />
+          </div>
+
+          {/* Nearest toggle */}
+          <button type="button" onClick={() => toggleFilter("nearest")}
+            className={cn(
+              "flex items-center justify-center gap-1 rounded-lg border-0 px-1 py-2 text-[10px] font-bold transition-colors",
+              filters.nearest
+                ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white"
+                : isLight ? "bg-transparent text-slate-700 hover:bg-white/50" : "bg-transparent text-white/80 hover:bg-white/10"
+            )}
+          >
+            <Clock className="h-3.5 w-3.5" strokeWidth={2} />
+            <span>Nearest</span>
+          </button>
+        </div>
+
+        {/* Right column */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* Location error */}
+          {locationError && (
+            <div
+              className="mx-3 mb-1 shrink-0 rounded-md bg-[#FF6B35]/15 px-2.5 py-1.5 text-[11px] text-[#FF6B35]"
+              role="status"
+            >
+              {locationError}{" "}
+              <button
+                type="button"
+                onClick={retryLocation}
+                className="font-bold underline"
+              >
+                {t("common.retry")}
+              </button>
+            </div>
           )}
+
+          {/* Repair Pro list — always shown; updates with radius / filters / help pin */}
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-0 scrollbar-hide">
+            {showVerifyPanel ? (
+              <div className="mb-2 shrink-0">
+                <HomeVerifyPanel message={verifyMessage} isLight={isLight} />
+              </div>
+            ) : null}
+            <div
+              className={cn(
+                "min-h-full overflow-hidden rounded-t-lg",
+                isLight ? "bg-[#d8dce4]/90 backdrop-blur-sm" : "bg-black"
+              )}
         >
           {list.length === 0 ? (
             <div className="p-4 text-center">
@@ -701,6 +658,8 @@ export function HomePanel({
               {t("home.swipeHint")}
             </p>
           )}
+            </div>
+          </div>
         </div>
       </div>
 
