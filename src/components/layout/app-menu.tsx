@@ -335,7 +335,7 @@ export function AppMenu({
                 pathname === "/dashboard" ||
                 pathname === roleHome
               : pathname === href || pathname.startsWith(`${href}/`);
-            const navColor = active ? "text-[#FF6B35] font-black" : "text-[#FF6B35]";
+            const idleColor = isLight ? "text-slate-700" : "text-white/90";
             return (
               <button
                 key={href + labelKey}
@@ -351,11 +351,11 @@ export function AppMenu({
                 }}
                 className={cn(
                   "flex w-full items-center gap-3.5 rounded-xl border-0 bg-transparent px-3 py-1.5 text-left text-[17px] font-semibold transition-colors",
-                  navColor
+                  active ? "text-[#FF6B35] font-black" : idleColor
                 )}
               >
                 <Icon
-                  className={cn("h-6 w-6 shrink-0", navColor)}
+                  className={cn("h-6 w-6 shrink-0", active ? "text-[#FF6B35]" : idleColor)}
                   strokeWidth={2}
                 />
                 <span>{label}</span>
@@ -370,7 +370,10 @@ export function AppMenu({
               onClose();
               notif?.openCenter();
             }}
-            className="flex w-full items-center gap-3.5 rounded-xl border-0 bg-transparent px-3 py-1.5 text-left text-[17px] font-semibold text-[#FF6B35] transition-colors"
+            className={cn(
+              "flex w-full items-center gap-3.5 rounded-xl border-0 bg-transparent px-3 py-1.5 text-left text-[17px] font-semibold transition-colors",
+              isLight ? "text-slate-700" : "text-white/90"
+            )}
           >
             <Bell className="h-6 w-6 shrink-0" strokeWidth={2} />
             <span className="min-w-0 flex-1">{t("menu.notifications")}</span>
