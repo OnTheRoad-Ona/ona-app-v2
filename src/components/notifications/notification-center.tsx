@@ -302,7 +302,7 @@ export function NotificationCenter() {
             </div>
           )}
 
-          <ul className="space-y-2">
+          <ul className="list-none space-y-2">
             {grouped.map((item) => {
               if (isGroup(item)) {
                 const open = expanded[item.key];
