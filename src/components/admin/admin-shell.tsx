@@ -36,7 +36,7 @@ const NAV_GROUPS: {
       { href: "/admin", label: "Dashboard", exact: true },
       { href: "/admin/jobs", label: "Live jobs" },
       { href: "/admin/disputes", label: "Disputes & appeals" },
-      { href: "/admin/payments", label: "Escrow & payments" },
+      { href: "/admin/payments/control-center", label: "Payment Control Center" },
     ],
   },
   {
