@@ -324,7 +324,6 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
               <NewAccountBadge
                 visibilityTier={artisan?.visibilityTier ?? 1}
                 status={artisan?.status}
-                isProfessional
                 size="md"
               />
             </p>

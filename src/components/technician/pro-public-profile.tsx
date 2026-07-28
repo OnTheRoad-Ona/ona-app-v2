@@ -130,7 +130,6 @@ export function ProPublicProfile({
               visibilityTier={
                 tech.visibilityTier ?? (tech.isNewArtisan ? 1 : 4)
               }
-              isProfessional
               size="sm"
             />
           </p>

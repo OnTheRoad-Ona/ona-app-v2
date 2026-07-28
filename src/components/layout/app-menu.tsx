@@ -16,7 +16,9 @@ import {
 } from "lucide-react";
 import { useNotificationsOptional } from "@/components/notifications/notification-provider";
 import { NewAccountBadge } from "@/components/profile/new-account-badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getArtisanProfile } from "@/lib/artisan/local-store";
+import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { useT } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n";
 import { MESSAGE_ORANGE } from "@/lib/map-trade-icons";
@@ -104,25 +106,6 @@ function firstAndLastName(full: string): string {
   return `${parts[0]} ${parts[parts.length - 1]}`;
 }
 
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0][0].toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
-const AVATAR_COLORS = [
-  "#F87171", "#FB923C", "#FBBF24", "#A3E635", "#34D399",
-  "#22D3EE", "#60A5FA", "#818CF8", "#A78BFA", "#E879F9",
-];
-
-function avatarColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
 
 export function AppMenu({
   open,
@@ -270,16 +253,19 @@ export function AppMenu({
       >
         <div className="flex items-start justify-between px-4 pb-4 pt-5">
           <div className="min-w-0 flex-1 pr-2">
-            {/* Signed-in: avatar row (initals circle + greeting + name). Guest: Ona brand */}
+            {/* Signed-in: avatar (Ona default or user photo) + greeting + name. Guest: Ona brand */}
             {isAuthenticated && fullNameDisplay ? (
               <div className="flex items-center gap-3">
-                <div
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-[15px] font-bold text-white"
-                  style={{ background: avatarColor(fullNameDisplay) }}
-                  aria-hidden
-                >
-                  {getInitials(fullNameDisplay)}
-                </div>
+                <Avatar className="h-12 w-12 shrink-0 overflow-hidden rounded-full">
+                  <AvatarImage
+                    src={userProfile?.avatarUrl || DEFAULT_VENDOR_PHOTO}
+                    alt={fullNameDisplay}
+                    className="object-cover"
+                  />
+                  <AvatarFallback className="bg-brand text-[13px] font-bold text-white">
+                    {avatarInitials(fullNameDisplay)}
+                  </AvatarFallback>
+                </Avatar>
                 <div className="min-w-0">
                   <p
                     className={cn(
@@ -296,23 +282,20 @@ export function AppMenu({
                     )}
                   >
                     <span className="truncate">{fullNameDisplay}</span>
-                    {isPro ? (
-                      <NewAccountBadge
-                        visibilityTier={
-                          getArtisanProfile(
-                            userProfile?.identityId || backendUserId || ""
-                          )?.visibilityTier ?? 1
-                        }
-                        status={
-                          getArtisanProfile(
-                            userProfile?.identityId || backendUserId || ""
-                          )?.status
-                        }
-                        isProfessional
-                        size="sm"
-                        className="text-[8px] leading-none tracking-normal"
-                      />
-                    ) : null}
+                    <NewAccountBadge
+                      visibilityTier={
+                        getArtisanProfile(
+                          userProfile?.identityId || backendUserId || ""
+                        )?.visibilityTier ?? 1
+                      }
+                      status={
+                        getArtisanProfile(
+                          userProfile?.identityId || backendUserId || ""
+                        )?.status
+                      }
+                      size="sm"
+                      className="text-[8px] leading-none tracking-normal"
+                    />
                   </p>
                 </div>
               </div>

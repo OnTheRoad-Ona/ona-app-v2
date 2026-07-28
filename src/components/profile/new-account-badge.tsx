@@ -10,14 +10,13 @@ import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 /**
- * “New” badge for Repair Pros on visibility Tier 1–2 only.
- * Off at Tier 3+ (admin ladder). Customers never show this badge.
+ * “New” badge for accounts on visibility Tier 1–2 only.
+ * Off at Tier 3+ (admin ladder).
  */
 export function shouldShowNewAccountBadge(
   visibilityTier: number | null | undefined,
-  opts?: { isProfessional?: boolean; status?: string | null }
+  opts?: { status?: string | null }
 ): boolean {
-  if (opts?.isProfessional === false) return false;
   const tier = resolveVisibilityTier({
     visibilityTier: visibilityTier as VisibilityTier | undefined,
     status: (opts?.status as ArtisanVerificationProfile["status"]) || "draft",
@@ -28,24 +27,17 @@ export function shouldShowNewAccountBadge(
 export function NewAccountBadge({
   visibilityTier,
   status,
-  isProfessional = true,
   size = "sm",
   className,
 }: {
-  /** 1–4 artisan visibility tier (Repair Pro only) */
+  /** 1–4 artisan visibility tier */
   visibilityTier?: number | null;
   status?: string | null;
-  isProfessional?: boolean;
   size?: "sm" | "md";
   className?: string;
 }) {
   const t = useT();
-  if (
-    !shouldShowNewAccountBadge(visibilityTier, {
-      isProfessional,
-      status,
-    })
-  ) {
+  if (!shouldShowNewAccountBadge(visibilityTier, { status })) {
     return null;
   }
   return (

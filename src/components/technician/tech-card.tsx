@@ -101,7 +101,6 @@ export function TechCard({
                 visibilityTier={
                   tech.visibilityTier ?? (tech.isNewArtisan ? 1 : 4)
                 }
-                isProfessional
                 size="sm"
               />
               {tech.verified && (
