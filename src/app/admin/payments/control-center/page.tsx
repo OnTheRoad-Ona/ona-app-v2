@@ -54,17 +54,17 @@ function effectiveOf(p: Payment): string {
 }
 
 function badgeStyle(type: string): React.CSSProperties {
-  const m: Record<string, { bg: string; fg: string }> = {
-    released: { bg: "#d1fae5", fg: "#065f46" },
-    held: { bg: "#fed7aa", fg: "#9a3412" },
-    pending: { bg: "#fde68a", fg: "#92400e" },
-    failed: { bg: "#fecaca", fg: "#991b1b" },
-    refunded: { bg: "#e2e8f0", fg: "#475569" },
-    disputed: { bg: "#fef08a", fg: "#854d0e" },
-    cancelled: { bg: "#f3f4f6", fg: "#374151" },
+  const m: Record<string, [string, string]> = {
+    released: ["var(--om-success)", "var(--om-success-bg)"],
+    held: ["#9a3412", "#fed7aa"],
+    pending: ["#92400e", "#fde68a"],
+    failed: ["var(--om-danger)", "var(--om-danger-bg)"],
+    refunded: ["var(--om-text-muted)", "var(--om-panel)"],
+    disputed: ["#854d0e", "#fef08a"],
+    cancelled: ["var(--om-text-muted)", "var(--om-panel)"],
   };
-  const s = m[type] || { bg: "#f3f4f6", fg: "#374151" };
-  return { display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: s.bg, color: s.fg };
+  const [fg, bg] = m[type] || ["var(--om-text-muted)", "var(--om-panel)"];
+  return { display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: bg, color: fg };
 }
 
 export default function PaymentControlCenter() {
@@ -217,23 +217,23 @@ export default function PaymentControlCenter() {
   const flwTransfers = (detail?.flwTransfers || []) as { id?: string; reference?: string; status?: string; amount?: number; bank_name?: string; account_number?: string; created_at?: string }[];
 
   const s: Record<string, React.CSSProperties> = {
-    card: { background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: "14px 16px", cursor: "pointer", transition: "box-shadow 0.1s" },
-    cardLabel: { fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 2 },
-    cardVal: { fontSize: 20, fontWeight: 700 },
-    cardSub: { fontSize: 11, color: "#9ca3af", marginTop: 2 },
-    panel: { background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: 16, marginBottom: 16 },
+    card: { background: "var(--om-panel-2)", border: "1px solid var(--om-border-soft)", borderRadius: 8, padding: "14px 16px", cursor: "pointer", transition: "box-shadow 0.1s", color: "var(--om-text)" },
+    cardLabel: { fontSize: 11, color: "var(--om-text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 2 },
+    cardVal: { fontSize: 20, fontWeight: 700, color: "var(--om-text)" },
+    cardSub: { fontSize: 11, color: "var(--om-text-faint)", marginTop: 2 },
+    panel: { background: "var(--om-panel-2)", border: "1px solid var(--om-border-soft)", borderRadius: 8, padding: 16, marginBottom: 16, color: "var(--om-text)" },
     table: { width: "100%", borderCollapse: "collapse" as const, fontSize: 12 },
-    th: { textAlign: "left" as const, padding: "8px 10px", borderBottom: "2px solid #e5e7eb", color: "#6b7280", fontSize: 10, textTransform: "uppercase" as const, letterSpacing: "0.5px", whiteSpace: "nowrap" as const },
-    td: { padding: "8px 10px", borderBottom: "1px solid #f3f4f6", fontSize: 12, verticalAlign: "top" as const },
-    btn: { padding: "5px 12px", borderRadius: 6, border: "1px solid #d1d5db", background: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 500, whiteSpace: "nowrap" as const },
-    btnP: { padding: "5px 12px", borderRadius: 6, border: "none", background: "#2563eb", color: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 600 },
-    btnD: { padding: "5px 12px", borderRadius: 6, border: "1px solid #fca5a5", background: "#fff", color: "#b91c1c", cursor: "pointer", fontSize: 11, fontWeight: 500 },
-    muted: { fontSize: 11, color: "#9ca3af" },
-    link: { color: "#2563eb", cursor: "pointer", fontSize: 11 },
-    inp: { padding: "6px 10px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: 13, width: "100%", boxSizing: "border-box" as const },
-    ta: { padding: "6px 10px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: 13, width: "100%", boxSizing: "border-box" as const, fontFamily: "inherit" },
-    err: { padding: "8px 14px", borderRadius: 6, background: "#fef2f2", color: "#991b1b", border: "1px solid #fecaca", fontSize: 13, marginBottom: 12 },
-    ok: { padding: "8px 14px", borderRadius: 6, background: "#f0fdf4", color: "#065f46", border: "1px solid #bbf7d0", fontSize: 13, marginBottom: 12 },
+    th: { textAlign: "left" as const, padding: "8px 10px", borderBottom: "2px solid var(--om-border)", color: "var(--om-text-muted)", fontSize: 10, textTransform: "uppercase" as const, letterSpacing: "0.5px", whiteSpace: "nowrap" as const },
+    td: { padding: "8px 10px", borderBottom: "1px solid var(--om-border-soft)", fontSize: 12, verticalAlign: "top" as const, color: "var(--om-text)" },
+    btn: { padding: "5px 12px", borderRadius: 6, border: "1px solid var(--om-border)", background: "var(--om-panel-2)", cursor: "pointer", fontSize: 11, fontWeight: 500, whiteSpace: "nowrap" as const, color: "var(--om-text)" },
+    btnP: { padding: "5px 12px", borderRadius: 6, border: "none", background: "var(--om-accent)", color: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 600 },
+    btnD: { padding: "5px 12px", borderRadius: 6, border: "1px solid var(--om-danger)", background: "var(--om-panel-2)", color: "var(--om-danger)", cursor: "pointer", fontSize: 11, fontWeight: 500 },
+    muted: { fontSize: 11, color: "var(--om-text-muted)" },
+    link: { color: "var(--om-accent)", cursor: "pointer", fontSize: 11 },
+    inp: { padding: "6px 10px", borderRadius: 6, border: "1px solid var(--om-border)", background: "var(--om-input)", color: "var(--om-text)", fontSize: 13, width: "100%", boxSizing: "border-box" as const },
+    ta: { padding: "6px 10px", borderRadius: 6, border: "1px solid var(--om-border)", background: "var(--om-input)", color: "var(--om-text)", fontSize: 13, width: "100%", boxSizing: "border-box" as const, fontFamily: "inherit" },
+    err: { padding: "8px 14px", borderRadius: 6, background: "var(--om-danger-bg)", color: "var(--om-danger)", border: "1px solid var(--om-danger)", fontSize: 13, marginBottom: 12 },
+    ok: { padding: "8px 14px", borderRadius: 6, background: "var(--om-success-bg)", color: "var(--om-success)", border: "1px solid var(--om-success)", fontSize: 13, marginBottom: 12 },
   };
 
   const summaryCards = [
@@ -268,8 +268,8 @@ export default function PaymentControlCenter() {
       {msg ? <div style={s.ok}>{msg}</div> : null}
 
       {showPassword && (
-        <div style={{ ...s.panel, background: "#fffbeb", borderColor: "#fde68a", marginBottom: 12 }}>
-          <p style={{ fontSize: 12, fontWeight: 600, margin: "0 0 8px" }}>Sensitive action requires temporary access code</p>
+        <div style={{ ...s.panel, background: "var(--om-warn-bg)", borderColor: "var(--om-warn)", marginBottom: 12 }}>
+          <p style={{ fontSize: 12, fontWeight: 600, margin: "0 0 8px", color: "var(--om-text)" }}>Sensitive action requires temporary access code</p>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <input style={{ ...s.inp, width: 200 }} type="password" placeholder="Enter code" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && pendingAction) void withPassword(pendingAction); }} autoFocus />
             <button style={s.btnP} disabled={busy} onClick={() => { if (pendingAction) void withPassword(pendingAction); }}>Confirm</button>
@@ -280,7 +280,7 @@ export default function PaymentControlCenter() {
 
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         {(["payments", "disputes", "audit", "failed", "commission"] as TabKey[]).map(t => (
-          <button key={t} style={{ ...s.btn, fontWeight: tab === t ? 700 : 400, background: tab === t ? "#eff6ff" : "#fff", borderColor: tab === t ? "#93c5fd" : "#d1d5db" }} onClick={() => { setTab(t); setSelectedId(null); }}>
+          <button key={t} style={{ ...s.btn, fontWeight: tab === t ? 700 : 400, background: tab === t ? "var(--om-nav-active)" : "var(--om-panel-2)", borderColor: tab === t ? "var(--om-role)" : "var(--om-border)" }} onClick={() => { setTab(t); setSelectedId(null); }}>
             {t === "payments" ? "Payments" : t === "disputes" ? "Disputes" : t === "audit" ? "Audit" : t === "failed" ? "Failed Payouts" : "Commission"}
           </button>
         ))}
@@ -336,7 +336,7 @@ export default function PaymentControlCenter() {
                     const proShare = Number(pm.pro_payout_kobo || 0);
                     const sel = selectedId === String(pm.id);
                     return (
-                      <tr key={String(pm.id)} style={{ background: sel ? "#eff6ff" : undefined, cursor: "pointer" }} onClick={() => setSelectedId(sel ? null : String(pm.id))}>
+                      <tr key={String(pm.id)} style={{ background: sel ? "var(--om-nav-hover)" : undefined, cursor: "pointer" }} onClick={() => setSelectedId(sel ? null : String(pm.id))}>
                         <td style={{ ...s.td, ...s.muted, maxWidth: 60, overflow: "hidden", textOverflow: "ellipsis" }}>{String(pm.id).slice(0, 8)}</td>
                         <td style={s.td}><strong>{naira(amt)}</strong></td>
                         <td style={s.td}><span style={badgeStyle(e)}>{String(pm.display_status || e)}</span></td>
@@ -360,43 +360,43 @@ export default function PaymentControlCenter() {
             </div>
 
             {selectedId && (
-              <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 12, marginTop: 4 }}>
+              <div style={{ borderTop: "1px solid var(--om-border-soft)", paddingTop: 12, marginTop: 4 }}>
                 {detailLoading ? <p style={s.muted}>Loading detail...</p> : !detail ? <p style={s.muted}>Loading...</p> : (
                   <>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12, fontSize: 12 }}>
-                      <div style={{ background: "#f9fafb", padding: 12, borderRadius: 6 }}>
-                        <div style={{ fontWeight: 600, fontSize: 11, color: "#6b7280", marginBottom: 4 }}>CUSTOMER (PAYER)</div>
-                        <div style={{ fontWeight: 700 }}>{parties?.customer?.name || "—"}</div>
+                      <div style={{ background: "var(--om-bg-elevated)", padding: 12, borderRadius: 6 }}>
+                        <div style={{ fontWeight: 600, fontSize: 11, color: "var(--om-text-muted)", marginBottom: 4 }}>CUSTOMER (PAYER)</div>
+                        <div style={{ fontWeight: 700, color: "var(--om-text)" }}>{parties?.customer?.name || "—"}</div>
                         <div style={s.muted}>{parties?.customer?.phone || ""}{parties?.customer?.email ? ` · ${parties.customer.email}` : ""}</div>
                         <div style={{ marginTop: 4 }}>Paid <strong>{naira(Number(p?.amount_kobo || 0))}</strong></div>
                       </div>
-                      <div style={{ background: "#f9fafb", padding: 12, borderRadius: 6 }}>
-                        <div style={{ fontWeight: 600, fontSize: 11, color: "#6b7280", marginBottom: 4 }}>REPAIR PRO (PAYEE)</div>
-                        <div style={{ fontWeight: 700 }}>{parties?.pro?.name || "—"}</div>
+                      <div style={{ background: "var(--om-bg-elevated)", padding: 12, borderRadius: 6 }}>
+                        <div style={{ fontWeight: 600, fontSize: 11, color: "var(--om-text-muted)", marginBottom: 4 }}>REPAIR PRO (PAYEE)</div>
+                        <div style={{ fontWeight: 700, color: "var(--om-text)" }}>{parties?.pro?.name || "—"}</div>
                         <div style={s.muted}>{parties?.pro?.bank?.bankName || ""} · {parties?.pro?.bank?.accountName || "—"} · ****{parties?.pro?.bank?.accountLast4 || "????"}</div>
                         <div style={{ marginTop: 4 }}>Pro share <strong>{p?.pro_payout_kobo != null ? naira(Number(p.pro_payout_kobo)) : "—"}</strong></div>
                       </div>
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: "4px 12px", fontSize: 12, background: "#f9fafb", padding: 12, borderRadius: 6, marginBottom: 12 }}>
-                      <span style={s.muted}>Escrow status</span><span><span style={badgeStyle(esc)}>{esc}</span> · {String(p?.status)}</span>
-                      <span style={s.muted}>Payment ID</span><span style={{ wordBreak: "break-all", fontSize: 10 }}>{String(p?.id)}</span>
-                      <span style={s.muted}>Job / request</span><span style={{ wordBreak: "break-all", fontSize: 10 }}>{String(p?.request_id || "—")}</span>
-                      <span style={s.muted}>FLW ref</span><span style={{ fontSize: 10 }}>{String(p?.provider_ref || "—")}</span>
-                      <span style={s.muted}>Payout ref</span><span style={{ fontSize: 10 }}>{String(detail?.idempotent_transfer_ref || meta.idempotentTransferRef || "—")}</span>
-                      <span style={s.muted}>Last error</span><span style={{ color: "#b91c1c" }}>{String(meta.lastReleaseError || "—")}</span>
+                    <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: "4px 12px", fontSize: 12, background: "var(--om-bg-elevated)", padding: 12, borderRadius: 6, marginBottom: 12 }}>
+                      <span style={s.muted}>Escrow status</span><span style={{ color: "var(--om-text)" }}><span style={badgeStyle(esc)}>{esc}</span> · {String(p?.status)}</span>
+                      <span style={s.muted}>Payment ID</span><span style={{ wordBreak: "break-all", fontSize: 10, color: "var(--om-text)" }}>{String(p?.id)}</span>
+                      <span style={s.muted}>Job / request</span><span style={{ wordBreak: "break-all", fontSize: 10, color: "var(--om-text)" }}>{String(p?.request_id || "—")}</span>
+                      <span style={s.muted}>FLW ref</span><span style={{ fontSize: 10, color: "var(--om-text)" }}>{String(p?.provider_ref || "—")}</span>
+                      <span style={s.muted}>Payout ref</span><span style={{ fontSize: 10, color: "var(--om-text)" }}>{String(detail?.idempotent_transfer_ref || meta.idempotentTransferRef || "—")}</span>
+                      <span style={s.muted}>Last error</span><span style={{ color: "var(--om-danger)" }}>{String(meta.lastReleaseError || "—")}</span>
                       <span style={s.muted}>Retries</span><span>{meta.payoutRetryCount != null ? String(meta.payoutRetryCount) : "—"}{meta.nextRetryAt ? ` · next ${new Date(String(meta.nextRetryAt)).toLocaleString()}` : ""}</span>
                       <span style={s.muted}>Ona commission</span><span>{p?.platform_fee_kobo != null ? naira(Number(p.platform_fee_kobo)) : "—"}</span>
                       <span style={s.muted}>Pro payout</span><span>{p?.pro_payout_kobo != null ? naira(Number(p.pro_payout_kobo)) : "—"}</span>
-                      {detail?.doublePayRisk ? <span style={{ color: "#b91c1c", gridColumn: "1 / -1", fontWeight: 600 }}>{String(detail.doublePayRisk)}</span> : null}
+                      {detail?.doublePayRisk ? <span style={{ color: "var(--om-danger)", gridColumn: "1 / -1", fontWeight: 600 }}>{String(detail.doublePayRisk)}</span> : null}
                     </div>
 
                     {alreadyPaid && <div style={s.ok}>Pro payout already completed. Do not force a second transfer.</div>}
 
-                    {!detail?.parties && <p style={s.muted}>Full party details require view_payment_full permission.</p>}
+                    {!detail?.parties && <p style={{ ...s.muted, fontSize: 11 }}>Full party details require view_payment_full permission.</p>}
 
                     <div style={{ marginBottom: 8 }}>
-                      <p style={{ fontSize: 11, color: "#6b7280", margin: "0 0 4px" }}>Reason note (required for sensitive actions):</p>
+                      <p style={{ fontSize: 11, color: "var(--om-text-muted)", margin: "0 0 4px" }}>Reason note (required for sensitive actions):</p>
                       <textarea style={s.ta} rows={2} placeholder="e.g. Force payout, customer refund..." value={reason} onChange={e => setReason(e.target.value)} />
                     </div>
 
@@ -424,7 +424,7 @@ export default function PaymentControlCenter() {
                       )}
                     </div>
 
-                    {!canForce && !canCancel && <p style={{ ...s.muted, marginTop: 8 }}>Read-only view. Force/refund requires L3+.</p>}
+                    {!canForce && !canCancel && <p style={{ ...s.muted, marginTop: 8, color: "var(--om-text-muted)" }}>Read-only view. Force/refund requires L3+.</p>}
 
                     {ledger.length > 0 && (
                       <div style={{ marginTop: 12 }}>
@@ -466,8 +466,8 @@ export default function PaymentControlCenter() {
           </div>
 
           {modal && (
-            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-              <div style={{ background: "#fff", borderRadius: 12, padding: 24, maxWidth: 480, width: "90%", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+            <div style={{ position: "fixed", inset: 0, background: "rgba(15,17,23,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+              <div style={{ background: "var(--om-panel-2)", borderRadius: 12, padding: 24, maxWidth: 480, width: "90%", boxShadow: "var(--om-shadow)", color: "var(--om-text)" }}>
                 {modal === "force" && (
                   <>
                     <h3 style={{ margin: "0 0 8px" }}>Force Payout</h3>
@@ -545,7 +545,7 @@ export default function PaymentControlCenter() {
                     const ev = (j.evidence || {}) as Record<string, unknown>;
                     const sel = disputeDetailId === String(j.id);
                     return (
-                      <tr key={String(j.id)} style={{ background: sel ? "#fffbeb" : undefined, cursor: "pointer" }} onClick={() => setDisputeDetailId(sel ? null : String(j.id))}>
+                      <tr key={String(j.id)} style={{ background: sel ? "var(--om-warn-bg)" : undefined, cursor: "pointer" }} onClick={() => setDisputeDetailId(sel ? null : String(j.id))}>
                         <td style={s.td}>
                           <strong>{String(j.id).slice(0, 9)}</strong>
                         </td>
@@ -560,7 +560,7 @@ export default function PaymentControlCenter() {
                         </td>
                         <td style={{ ...s.td, ...s.muted, fontSize: 11, maxWidth: 100 }}>
                           {String(d.reason || "—")}
-                          {d.description ? <div style={{ fontSize: 9, color: "#9ca3af", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 100 }}>{(d.description as string).slice(0, 40)}</div> : null}
+                          {d.description ? <div style={{ fontSize: 9, color: "var(--om-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 100 }}>{(d.description as string).slice(0, 40)}</div> : null}
                         </td>
                         <td style={s.td}>
                           {ev.composite != null ? (
@@ -571,13 +571,13 @@ export default function PaymentControlCenter() {
                         <td style={s.td}>{j.agreed_major != null ? `₦${Number(j.agreed_major).toLocaleString("en-NG")}` : "—"}</td>
                         <td style={s.td}>
                           <div style={{ display: "flex", gap: 3, flexWrap: "wrap", alignItems: "center" }}>
-                            <select style={{ fontSize: 10, padding: "2px 4px", borderRadius: 4, border: "1px solid #d1d5db", maxWidth: 90 }} value={disputeOutcome} onChange={e => {
+                            <select style={{ fontSize: 10, padding: "2px 4px", borderRadius: 4, border: "1px solid var(--om-border)", background: "var(--om-input)", color: "var(--om-text)", maxWidth: 90 }} value={disputeOutcome} onChange={e => {
                               setDisputeOutcome(e.target.value);
                             }}>
                               {DISPUTE_OUTCOMES.map(o => <option key={o} value={o}>{o.replace(/_/g, " ").replace("pro", "→ Pro").replace("motorist", "→ Cust")}</option>)}
                             </select>
                             {disputeOutcome === "partial_split" && (
-                              <input type="number" min={0} max={100} value={splitPct[String(j.id)] ?? 70} onChange={e => setSplitPct(p => ({ ...p, [String(j.id)]: Number(e.target.value) }))} style={{ width: 44, fontSize: 10, padding: "2px 4px", borderRadius: 4, border: "1px solid #d1d5db" }} title="Pro %" />
+                              <input type="number" min={0} max={100} value={splitPct[String(j.id)] ?? 70} onChange={e => setSplitPct(p => ({ ...p, [String(j.id)]: Number(e.target.value) }))} style={{ width: 44, fontSize: 10, padding: "2px 4px", borderRadius: 4, border: "1px solid var(--om-border)", background: "var(--om-input)", color: "var(--om-text)" }} title="Pro %" />
                             )}
                             <input style={{ ...s.inp, width: 80, fontSize: 10, padding: "2px 4px" }} placeholder="Note" value={disputeNote} onChange={e => setDisputeNote(e.target.value)} />
                             <button style={{ ...s.btn, fontSize: 9, padding: "2px 6px" }} onClick={async (evt) => {
@@ -609,10 +609,10 @@ export default function PaymentControlCenter() {
                 const decision = (d.decision || {}) as Record<string, unknown>;
                 const appeal = (d.appeal || {}) as Record<string, unknown>;
                 return (
-                  <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 12, marginTop: 4, fontSize: 12 }}>
-                    <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 8px" }}>Dispute Detail — {String(j.id).slice(0, 12)}</h3>
-                    <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "4px 12px", background: "#f9fafb", padding: 12, borderRadius: 6, marginBottom: 8 }}>
-                      <span style={s.muted}>Opened by</span><span>{String(d.openedBy || "—")}</span>
+                  <div style={{ borderTop: "1px solid var(--om-border-soft)", paddingTop: 12, marginTop: 4, fontSize: 12 }}>
+                    <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 8px", color: "var(--om-text)" }}>Dispute Detail — {String(j.id).slice(0, 12)}</h3>
+                    <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "4px 12px", background: "var(--om-bg-elevated)", padding: 12, borderRadius: 6, marginBottom: 8 }}>
+                      <span style={s.muted}>Opened by</span><span style={{ color: "var(--om-text)" }}>{String(d.openedBy || "—")}</span>
                       <span style={s.muted}>Opened at</span><span>{d.openedAt ? new Date(String(d.openedAt)).toLocaleString() : "—"}</span>
                       <span style={s.muted}>Reason</span><span>{String(d.reason || "—")}</span>
                       {d.description ? <><span style={s.muted}>Description</span><span>{String(d.description)}</span></> : null}
@@ -632,8 +632,8 @@ export default function PaymentControlCenter() {
                     </div>
 
                     {Object.keys(decision).length > 0 && (
-                      <div style={{ background: "#f0fdf4", padding: 12, borderRadius: 6, marginBottom: 8 }}>
-                        <div style={{ fontWeight: 600, fontSize: 11, color: "#065f46", marginBottom: 4 }}>FIRST DECISION</div>
+                      <div style={{ background: "var(--om-success-bg)", padding: 12, borderRadius: 6, marginBottom: 8 }}>
+                        <div style={{ fontWeight: 600, fontSize: 11, color: "var(--om-success)", marginBottom: 4 }}>FIRST DECISION</div>
                         <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "4px 12px" }}>
                           <span style={s.muted}>Outcome</span><span><strong>{String(decision.outcome || "—")}</strong></span>
                           {decision.proPercent != null && <span style={s.muted}>Split</span>}<span>{decision.proPercent != null ? `Pro ${Number(decision.proPercent)}% / Cust ${Number(decision.motoristPercent || 0)}%` : ""}</span>
@@ -644,17 +644,17 @@ export default function PaymentControlCenter() {
                     )}
 
                     {Object.keys(appeal).length > 0 && (
-                      <div style={{ background: "#fef2f2", padding: 12, borderRadius: 6, marginBottom: 8 }}>
-                        <div style={{ fontWeight: 600, fontSize: 11, color: "#991b1b", marginBottom: 4 }}>APPEAL</div>
+                      <div style={{ background: "var(--om-danger-bg)", padding: 12, borderRadius: 6, marginBottom: 8 }}>
+                        <div style={{ fontWeight: 600, fontSize: 11, color: "var(--om-danger)", marginBottom: 4 }}>APPEAL</div>
                         <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "4px 12px" }}>
-                          <span style={s.muted}>By</span><span>{String(appeal.openedBy || "—")}</span>
-                          <span style={s.muted}>Reason</span><span>{String(appeal.reason || "—")}</span>
-                          <span style={s.muted}>Opened at</span><span>{appeal.openedAt ? new Date(String(appeal.openedAt)).toLocaleString() : "—"}</span>
-                          {(appeal.media as unknown[]) && Array.isArray(appeal.media) && (appeal.media as unknown[]).length > 0 ? <><span style={s.muted}>Media</span><span>{String((appeal.media as unknown[]).length)} file(s)</span></> : null}
+                          <span style={s.muted}>By</span><span style={{ color: "var(--om-text)" }}>{String(appeal.openedBy || "—")}</span>
+                          <span style={s.muted}>Reason</span><span style={{ color: "var(--om-text)" }}>{String(appeal.reason || "—")}</span>
+                          <span style={s.muted}>Opened at</span><span style={{ color: "var(--om-text)" }}>{appeal.openedAt ? new Date(String(appeal.openedAt)).toLocaleString() : "—"}</span>
+                          {(appeal.media as unknown[]) && Array.isArray(appeal.media) && (appeal.media as unknown[]).length > 0 ? <><span style={s.muted}>Media</span><span style={{ color: "var(--om-text)" }}>{String((appeal.media as unknown[]).length)} file(s)</span></> : null}
                         </div>
                         {(appeal.decision || {}) && Object.keys(appeal.decision || {}).length > 0 && (
-                          <div style={{ marginTop: 6, padding: 8, background: "#fef2f2", borderRadius: 4 }}>
-                            <div style={{ fontWeight: 600, fontSize: 10, color: "#991b1b" }}>APPEAL DECISION (FINAL)</div>
+                          <div style={{ marginTop: 6, padding: 8, background: "var(--om-danger-bg)", borderRadius: 4 }}>
+                            <div style={{ fontWeight: 600, fontSize: 10, color: "var(--om-danger)" }}>APPEAL DECISION (FINAL)</div>
                             <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "2px 12px", fontSize: 11 }}>
                               <span style={s.muted}>Outcome</span><span><strong>{String((appeal.decision as Record<string, unknown>).outcome || "—")}</strong></span>
                               <span style={s.muted}>Note</span><span>{String((appeal.decision as Record<string, unknown>).note || "—")}</span>
@@ -696,7 +696,7 @@ export default function PaymentControlCenter() {
                       <td style={s.td}><span style={badgeStyle("held")}>{String(a.action || "—")}</span></td>
                       <td style={{ ...s.td, ...s.muted, fontSize: 10 }}>{String(a.target_user_id || a.target_id || "").slice(0, 8) || "—"}</td>
                       <td style={{ ...s.td, ...s.muted, fontSize: 10, maxWidth: 200 }}>{String(actMeta.reason || actMeta.note || a.details || "—").slice(0, 60)}</td>
-                      <td style={s.td}>{a.error ? <span style={{ color: "#b91c1c" }}>Failed</span> : <span style={{ color: "#065f46" }}>Success</span>}</td>
+                      <td style={s.td}>{a.error ? <span style={{ color: "var(--om-danger)" }}>Failed</span> : <span style={{ color: "var(--om-success)" }}>Success</span>}</td>
                     </tr>
                   );
                 })}</tbody>
@@ -876,7 +876,7 @@ function ManualPayoutForm({ api, onDone, s, btn, btnP, btnD, muted, inp }: {
     <>
       <h3 style={{ margin: "0 0 8px" }}>Manual Standalone Payout</h3>
       <p style={muted}>Not tied to a job. Unique ref prevents double pay. L4+.</p>
-      {err ? <div style={{ color: "#b91c1c", fontSize: 12, marginBottom: 8 }}>{err}</div> : null}
+      {err ? <div style={{ color: "var(--om-danger)", fontSize: 12, marginBottom: 8 }}>{err}</div> : null}
       <div style={{ display: "grid", gap: 8 }}>
         <input style={inp} placeholder="Amount (₦)" type="number" value={amount} onChange={e => setAmount(e.target.value)} />
         <input style={inp} placeholder="Bank code (e.g. 058)" value={bankCode} onChange={e => setBankCode(e.target.value)} />
