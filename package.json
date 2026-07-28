@@ -24,8 +24,9 @@
     "vercel:login": "vercel login",
     "vercel:link": "vercel link",
     "vercel:env": "vercel env pull .env.vercel.local",
-    "deploy:app": "vercel --prod --yes",
-    "deploy:prod": "vercel --prod && vercel alias set ona-mi.vercel.app ona-backend.vercel.app && vercel alias set ona-mi.vercel.app ona-backend-wit7.vercel.app"
+    "deploy:frontend": "vercel --prod --yes --project ona-mi",
+    "deploy:backend": "vercel --prod --yes --project ona-backend",
+    "deploy:both": "npm run deploy:backend && npm run deploy:frontend"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^0.10.35",
