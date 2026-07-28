@@ -139,7 +139,7 @@ export function MotoristVehicleWizard({
           >
             {photo ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={photo} alt="" className="h-full w-full object-cover" />
+              <img src={photo} alt="" loading="lazy" className="h-full w-full object-cover" />
             ) : (
               <Camera className="h-5 w-5 text-brand" />
             )}

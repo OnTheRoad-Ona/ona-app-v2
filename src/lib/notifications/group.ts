@@ -17,8 +17,7 @@ function stackKey(n: AppNotification): string {
   const title = (n.title || "").trim().toLowerCase().replace(/\s+/g, " ");
   const cat = n.category || "system";
   const job = n.jobId || "";
-  const action = n.actionType || "";
-  return `st:${cat}|${job}|${action}|${title}`;
+  return `st:${cat}|${job}|${title}`;
 }
 
 /**

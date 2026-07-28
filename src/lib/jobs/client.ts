@@ -59,23 +59,115 @@ export async function apiListJobs(
   return parse<{ jobs: JobRecord[] }>(res);
 }
 
+/** Retry a fetch up to `tries` times with exponential backoff. */
+async function retryFetch(
+  url: string,
+  init: RequestInit,
+  tries = 3
+): Promise<Response> {
+  for (let i = 0; i < tries; i++) {
+    try {
+      const res = await fetch(url, init);
+      if (res.ok || i === tries - 1) return res;
+    } catch {
+      if (i === tries - 1) throw new Error("Network offline");
+    }
+    await new Promise((r) => setTimeout(r, 1000 * 2 ** i));
+  }
+  throw new Error("Retry exhausted");
+}
+
+const OFFER_QUEUE_KEY = "om-pending-offers";
+
+function enqueuePendingOffer(input: {
+  jobId: string;
+  side: "repair_pro" | "motorist";
+  actorId: string;
+  amountMajor: number;
+}) {
+  try {
+    const raw = localStorage.getItem(OFFER_QUEUE_KEY);
+    const queue = raw ? JSON.parse(raw) : [];
+    queue.push({ ...input, ts: Date.now() });
+    localStorage.setItem(OFFER_QUEUE_KEY, JSON.stringify(queue));
+  } catch {
+    /* localStorage unavailable */
+  }
+}
+
+export async function processPendingOffers(): Promise<void> {
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(OFFER_QUEUE_KEY);
+  } catch {
+    return;
+  }
+  if (!raw) return;
+  let queue: Array<{
+    jobId: string;
+    side: "repair_pro" | "motorist";
+    actorId: string;
+    amountMajor: number;
+    ts: number;
+  }> = [];
+  try {
+    queue = JSON.parse(raw);
+  } catch {
+    localStorage.removeItem(OFFER_QUEUE_KEY);
+    return;
+  }
+  if (!queue.length) return;
+  const remaining: typeof queue = [];
+  for (const item of queue) {
+    try {
+      const res = await retryFetch(`/api/jobs/${item.jobId}/offer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "place",
+          side: item.side,
+          actorId: item.actorId,
+          amountMajor: item.amountMajor,
+        }),
+      });
+      if (!res.ok) remaining.push(item);
+    } catch {
+      remaining.push(item);
+    }
+  }
+  if (remaining.length) {
+    localStorage.setItem(OFFER_QUEUE_KEY, JSON.stringify(remaining));
+  } else {
+    localStorage.removeItem(OFFER_QUEUE_KEY);
+  }
+}
+
 export async function apiPlaceOffer(input: {
   jobId: string;
   side: "repair_pro" | "motorist";
   actorId: string;
   amountMajor: number;
 }) {
-  const res = await fetch(`/api/jobs/${input.jobId}/offer`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      action: "place",
-      side: input.side,
-      actorId: input.actorId,
-      amountMajor: input.amountMajor,
-    }),
-  });
-  return parse<{ job: JobRecord }>(res);
+  try {
+    const res = await retryFetch(`/api/jobs/${input.jobId}/offer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "place",
+        side: input.side,
+        actorId: input.actorId,
+        amountMajor: input.amountMajor,
+      }),
+    });
+    return parse<{ job: JobRecord }>(res);
+  } catch {
+    enqueuePendingOffer(input);
+    return {
+      ok: false as const,
+      message:
+        "Offer queued — will be sent when connection is restored.",
+    };
+  }
 }
 
 export async function apiAcceptOffer(input: {

@@ -806,9 +806,9 @@ function CheckoutInner() {
             <p className={cn("text-[11px] font-bold uppercase tracking-wide", muted)}>
               Method
             </p>
-            <div className="mt-2 flex w-full items-center justify-between rounded-xl border-0 bg-[#FF6B35] px-3 py-3 text-left text-[13px] font-bold text-white">
+            <div className={cn("mt-2 flex w-full items-center justify-between rounded-xl border-0 px-3 py-3 text-left text-[13px] font-bold", card)}>
               <span>Bank transfer</span>
-              <span className="text-[11px] font-semibold text-white/90">
+              <span className={cn("text-[11px] font-semibold", muted)}>
                 Only
               </span>
             </div>

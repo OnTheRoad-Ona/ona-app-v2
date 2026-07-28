@@ -150,22 +150,13 @@ export function NotificationToasts() {
                 />
               ) : null}
               <div className="min-w-0 flex-1 px-3.5 py-3">
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2">
                   <p
                     className="text-[13px] font-bold leading-snug"
                     style={{ color: ink }}
                   >
                     {n.title}
                   </p>
-                  <button
-                    type="button"
-                    aria-label="Dismiss"
-                    className="shrink-0 border-0 bg-transparent p-0 text-[11px] font-semibold"
-                    style={{ color: muted }}
-                    onClick={() => dismissToast(t.id)}
-                  >
-                    ✕
-                  </button>
                 </div>
                 <p
                   className="mt-1 text-[12px] font-medium leading-snug"

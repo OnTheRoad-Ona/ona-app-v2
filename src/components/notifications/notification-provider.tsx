@@ -98,30 +98,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const pushToast = useCallback((n: AppNotification) => {
     if (!shouldToastNotification(n)) return;
     if (!shouldShowToast(n.priority)) return;
-    const st = String(n.jobStatus || "").toLowerCase();
-    const titleLow = `${n.title} ${n.body}`.toLowerCase();
-    // “I’m Satisfied / release payment” alerts: auto-hide after 2 seconds
-    const isSatisfiedAlert =
-      st === "completed" ||
-      (n.actionType === "open_job" &&
-        (titleLow.includes("satisfied") ||
-          titleLow.includes("release pay") ||
-          titleLow.includes("confirm job") ||
-          titleLow.includes("confirm & release")));
     const isMessage = n.category === "messages" || n.actionType === "open_chat";
-    // Messages stay a bit longer so user can tap; satisfied toast is 2s
-    const sticky =
-      !isSatisfiedAlert &&
-      !isMessage &&
-      (n.priority === "critical" || n.priority === "high");
-    const ttlMs = isSatisfiedAlert ? 2000 : isMessage ? 6000 : 5500;
     const id = `toast-${n.id}-${Date.now()}`;
     setToasts((prev) =>
       [
         {
           id,
           notification: n,
-          expiresAt: sticky ? Number.POSITIVE_INFINITY : Date.now() + ttlMs,
+          expiresAt: Date.now() + 2000,
         },
         ...prev,
       ].slice(0, 4)

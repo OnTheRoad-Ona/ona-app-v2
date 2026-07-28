@@ -48,7 +48,10 @@ import {
   apiRateJob,
   apiTransition,
   getCurrentPosition,
+  processPendingOffers,
 } from "@/lib/jobs/client";
+import { isAutomotiveTrade } from "@/lib/artisan/catalog";
+import { SwipeToRelease } from "@/components/jobs/motorist-release-pay-gate";
 import {
   canOpenDisputeNow,
   COMPLETED_AUTO_RELEASE_WINDOW_MS,
@@ -299,6 +302,11 @@ export function JobFlowScreen({
     }
   }, [jobId, commitJob, stickyReleaseErr]);
 
+  // Replay any offers that failed due to network (offline queue)
+  useEffect(() => {
+    void processPendingOffers();
+  }, []);
+
   // Client backup: sweep overdue jobs + retry PENDING_SETTLEMENT payouts while open
   useEffect(() => {
     let cancelled = false;
@@ -487,17 +495,11 @@ export function JobFlowScreen({
     sample();
     const poll = window.setInterval(sample, 45_000);
 
-    setLocHint(
-      viewer === "repair_pro"
-        ? "Sharing location for this trip"
-        : "Sharing your pin so Repair Pro can find you"
-    );
-    const hintClear = window.setTimeout(() => setLocHint(null), 4000);
+    setLocHint(null);
 
     return () => {
       cancelled = true;
       window.clearInterval(poll);
-      window.clearTimeout(hintClear);
     };
   }, [viewer, job?.id, job?.status, actorId]);
 
@@ -710,17 +712,19 @@ export function JobFlowScreen({
         >
           <div className="space-y-4 px-0.5 pt-2">
             <p className={cn("text-[15px] font-semibold leading-snug", ink)}>
-              Service Request — vehicle &amp; issues only
+              Service Request — {isAutomotiveTrade(job.serviceType) ? "vehicle & issues only" : "issues only"}
             </p>
             <div className="space-y-3">
-              <div>
-                <p className={cn("text-[11px] font-medium uppercase", muted)}>
-                  Vehicle
-                </p>
-                <p className={cn("mt-1 text-[14px] font-semibold", ink)}>
-                  {job.motoristVehicle?.trim() || "Vehicle details on request"}
-                </p>
-              </div>
+              {isAutomotiveTrade(job.serviceType) ? (
+                <div>
+                  <p className={cn("text-[11px] font-medium uppercase", muted)}>
+                    Vehicle
+                  </p>
+                  <p className={cn("mt-1 text-[14px] font-semibold", ink)}>
+                    {job.motoristVehicle?.trim() || "Vehicle details on request"}
+                  </p>
+                </div>
+              ) : null}
               <div>
                 <p className={cn("text-[11px] font-medium uppercase", muted)}>
                   Common issues
@@ -889,19 +893,21 @@ export function JobFlowScreen({
             {viewer === "repair_pro" ? (
               <div className="space-y-3 bg-transparent">
                 {/* Pro request: vehicle details + matching skills only — no customer PII */}
-                <div>
-                  <p
-                    className={cn(
-                      "text-[11px] font-semibold uppercase tracking-wide",
-                      muted
-                    )}
-                  >
-                    Vehicle
-                  </p>
-                  <p className={cn("mt-1 text-[15px] font-semibold", ink)}>
-                    {job.motoristVehicle?.trim() || "Vehicle details on request"}
-                  </p>
-                </div>
+                {isAutomotiveTrade(job.serviceType) ? (
+                  <div>
+                    <p
+                      className={cn(
+                        "text-[11px] font-semibold uppercase tracking-wide",
+                        muted
+                      )}
+                    >
+                      Vehicle
+                    </p>
+                    <p className={cn("mt-1 text-[15px] font-semibold", ink)}>
+                      {job.motoristVehicle?.trim() || "Vehicle details on request"}
+                    </p>
+                  </div>
+                ) : null}
                 <div>
                   <p
                     className={cn(
@@ -991,17 +997,11 @@ export function JobFlowScreen({
               </div>
             )}
 
-            <div className="bg-transparent">
-              <p className={cn("mb-1.5 text-[11px] font-semibold uppercase tracking-wide", muted)}>
-                Offer history
-              </p>
-              {job.offers.length === 0 ? (
-                <p className={cn("text-[13px] font-medium leading-snug", ink)}>
-                  {viewer === "repair_pro"
-                    ? "Set your labour price to start. Spare parts are never included."
-                    : "Waiting for Repair Pro to open with a labour price…"}
+            {job.offers.length > 0 ? (
+              <div className="bg-transparent">
+                <p className={cn("mb-1.5 text-[11px] font-semibold uppercase tracking-wide", muted)}>
+                  Offer history
                 </p>
-              ) : (
                 <ul className="space-y-2">
                   {job.offers.map((o) => (
                     <li
@@ -1023,8 +1023,8 @@ export function JobFlowScreen({
                     </li>
                   ))}
                 </ul>
-              )}
-            </div>
+              </div>
+            ) : null}
           </div>
 
           {/* Ring mid-page — only after pro armed the negotiate clock */}
@@ -1051,20 +1051,7 @@ export function JobFlowScreen({
                   : "Waiting for Repair Pro to accept this request…"}
               </p>
             )}
-            <p
-              className={cn(
-                "mt-3 text-center text-[12px] font-medium",
-                ink
-              )}
-            >
-              {negStatus === "waiting"
-                ? "Waiting for a reply"
-                : negStatus === "countered"
-                  ? "Counter offer on the table"
-                  : String(negStatus)}
-              {" · "}
-              {job.offers.length}/{job.maxOffers} offers
-            </p>
+
           </div>
         </div>
         {err && (
@@ -1204,7 +1191,7 @@ export function JobFlowScreen({
         ) : (
           <JobCard isLight={isLight}>
             <div className="space-y-2">
-              {job.motoristVehicle ? (
+              {isAutomotiveTrade(job.serviceType) && job.motoristVehicle ? (
                 <p className={cn("text-[14px] font-semibold", ink)}>
                   <span className={cn("text-[11px] uppercase", muted)}>
                     Vehicle ·{" "}
@@ -1492,7 +1479,7 @@ export function JobFlowScreen({
             </p>
           )}
         </div>
-        {viewer === "repair_pro" ? (
+        {viewer === "repair_pro" && isAutomotiveTrade(job.serviceType) ? (
           <div
             className={cn(
               "rounded-xl px-3 py-2.5",
@@ -2175,12 +2162,10 @@ export function JobFlowScreen({
                   </div>
                 </div>
               ) : null}
-              <CopperButton
-                disabled={busy || !motoristActor}
-                onClick={onSatisfied}
-              >
-                {busy ? "Confirming…" : "I am Satisfied · Release"}
-              </CopperButton>
+              <SwipeToRelease
+                onRelease={onSatisfied}
+                busy={busy || !motoristActor}
+              />
               <button
                 type="button"
                 disabled={busy}

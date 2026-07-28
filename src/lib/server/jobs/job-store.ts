@@ -1007,24 +1007,11 @@ async function expireOpenPaymentWindow(job: JobRecord): Promise<JobRecord> {
     }
 
     try {
-      const { insertNotification } = await import(
-        "@/lib/server/notifications"
-      );
-      const body = `Payment was not completed within ${MAX_PAYMENT_ATTEMPTS} timed windows (20 min each). This booking is cancelled.`;
-      await insertNotification({
-        userId: job.motoristId,
-        category: "payments",
-        priority: "high",
-        title: "Booking cancelled — payment not completed",
-        body,
-        href: `/requests/${job.id}`,
-        actionType: "open_job",
-        actionPayload: { jobId: job.id },
-        jobId: job.id,
-        jobStatus: "cancelled",
-        groupKey: `pay-cancel-${job.id}`,
-      });
       if (job.repairProId) {
+        const { insertNotification } = await import(
+          "@/lib/server/notifications"
+        );
+        const body = `Payment was not completed within ${MAX_PAYMENT_ATTEMPTS} timed windows (20 min each). This booking is cancelled.`;
         await insertNotification({
           userId: job.repairProId,
           category: "payments",

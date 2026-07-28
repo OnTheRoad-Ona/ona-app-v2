@@ -8,7 +8,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Loader2, Radio, Shield } from "lucide-react";
+import { ChevronRight, Clock, Loader2, Radio, Shield } from "lucide-react";
+import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { BankForcePanel } from "@/components/auth/bank-force-panel";
 import { PageHeader } from "@/components/layout/page-header";
 import { getArtisanProfile } from "@/lib/artisan/local-store";
@@ -676,7 +677,9 @@ export default function TechnicianDashboardPage() {
                             ink
                           )}
                         >
-                          {j.motoristVehicle?.trim() || "Service Request"}
+                          {isAutomotiveTrade(j.serviceType) && j.motoristVehicle?.trim()
+                            ? j.motoristVehicle.trim()
+                            : PRO_SERVICE_LABELS[j.serviceType] || "Service Request"}
                         </p>
                         {addr ? (
                           <p
@@ -735,9 +738,9 @@ export default function TechnicianDashboardPage() {
                             ink
                           )}
                         >
-                          {j.motoristVehicle?.trim() ||
-                            PRO_SERVICE_LABELS[j.serviceType] ||
-                            "Job"}
+                          {isAutomotiveTrade(j.serviceType) && j.motoristVehicle?.trim()
+                            ? j.motoristVehicle.trim()
+                            : PRO_SERVICE_LABELS[j.serviceType] || "Job"}
                         </p>
                         <p
                           className={cn(
@@ -769,6 +772,15 @@ export default function TechnicianDashboardPage() {
         {/* Last 6 finished jobs — vertical listing (Uber/inDrive style), place + area only */}
         {!jobsLoading && showRecent && (
           <section aria-label="Recent jobs">
+            <p
+              className={cn(
+                "mb-1 flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.12em]",
+                muted
+              )}
+            >
+              <Clock className="h-3.5 w-3.5" />
+              Recent
+            </p>
             <ul className="space-y-0">
               {recent.map((j) => {
                 const addr = meetAddress(j);

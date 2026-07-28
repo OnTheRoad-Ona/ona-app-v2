@@ -157,7 +157,7 @@ export default function SettingsProfilePage() {
           >
             {avatar ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={avatar} alt="" className="h-full w-full object-cover" />
+              <img src={avatar} alt="" loading="lazy" className="h-full w-full object-cover" />
             ) : (
               <Camera className="mx-auto h-6 w-6 text-brand" />
             )}
@@ -325,31 +325,6 @@ export default function SettingsProfilePage() {
             profile.
           </p>
         )}
-
-        <div
-          className={cn(
-            "mx-3 mt-3 overflow-hidden rounded-md",
-            "bg-transparent"
-          )}
-        >
-          <p
-            className={cn(
-              "px-3 pt-3 text-[12px] font-bold",
-              isLight ? "text-slate-900" : "text-white"
-            )}
-          >
-            Linked accounts
-          </p>
-          <p
-            className={cn(
-              "px-3 pb-3 pt-1 text-[11px] font-medium leading-snug",
-              isLight ? "text-slate-600" : "text-white/55"
-            )}
-          >
-            Connect or unlink Google and Facebook — coming soon. Password login
-            remains available.
-          </p>
-        </div>
 
         {!isPro ? (
           <div

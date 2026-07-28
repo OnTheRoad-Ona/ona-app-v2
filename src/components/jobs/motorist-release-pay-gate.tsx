@@ -12,7 +12,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { CheckCircle2, Loader2, X } from "lucide-react";
+import { CheckCircle2, ChevronRight, Loader2, X } from "lucide-react";
 import {
   canNotify,
   ensureNotifyPermission,
@@ -104,6 +104,73 @@ function writeLastBuzz(id: string, ts: number) {
   } catch {
     /* */
   }
+}
+
+export function SwipeToRelease({
+  onRelease,
+  busy,
+}: {
+  onRelease: () => void;
+  busy: boolean;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [progress, setProgress] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const released = useRef(false);
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (busy || released.current) return;
+    setDragging(true);
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragging || !trackRef.current) return;
+    const rect = trackRef.current.getBoundingClientRect();
+    const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    setProgress(x / rect.width);
+  };
+
+  const onPointerUp = () => {
+    if (!dragging) return;
+    setDragging(false);
+    if (progress >= 0.85 && !released.current) {
+      released.current = true;
+      setProgress(1);
+      onRelease();
+    } else {
+      setProgress(0);
+    }
+  };
+
+  return (
+    <div
+      ref={trackRef}
+      className="relative mt-5 h-14 w-full select-none overflow-hidden rounded-full border-0 bg-[#FF6B35]/20"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      style={{ touchAction: "none" }}
+    >
+      {/* Background text */}
+      <span className="absolute inset-0 flex items-center justify-center text-[12px] font-bold tracking-wide text-[#FF6B35]">
+        {busy ? "Confirming…" : "I am Satisfied Release Payment"}
+      </span>
+
+      {/* Slider knob */}
+      <div
+        className="absolute inset-y-1 flex items-center justify-center rounded-full bg-[#FF6B35] text-white shadow-lg transition-shadow active:shadow-xl"
+        style={{
+          left: 4,
+          width: `${Math.max(progress * 100, busy ? 100 : 14)}%`,
+          minWidth: 56,
+        }}
+      >
+        <ChevronRight className="h-5 w-5" strokeWidth={3} />
+      </div>
+    </div>
+  );
 }
 
 function needsRelease(j: JobRecord, motoristId: string): boolean {
@@ -387,16 +454,12 @@ export function MotoristReleasePayGate() {
           note: "Release processing…",
         });
       }
-      setSuccess(true);
       unlockAudio();
       playAppSound("payment_success");
-      window.setTimeout(() => {
-        setPending(null);
-        setSuccess(false);
-        setReceipt(null);
-        // Customer goes to dashboard after confirm (payout may still be settling)
-        router.replace("/dashboard");
-      }, 1800);
+      setPending(null);
+      setSuccess(false);
+      setReceipt(null);
+      router.replace("/dashboard");
     } catch (e) {
       markDone(pending.id);
       setErr(e instanceof Error ? e.message : "Release failed");
@@ -579,21 +642,10 @@ export function MotoristReleasePayGate() {
           </div>
         ) : null}
 
-        <button
-          type="button"
-          disabled={busy || !backendUserId}
-          onClick={() => void onSatisfied()}
-          className="mt-5 w-full rounded-xl border-0 bg-[#FF6B35] px-4 py-3.5 text-[13px] font-black tracking-wide text-white active:opacity-90 disabled:opacity-50"
-        >
-          {busy ? (
-            <span className="inline-flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Confirming…
-            </span>
-          ) : (
-            "I am Satisfied · Release"
-          )}
-        </button>
+        <SwipeToRelease
+          onRelease={() => void onSatisfied()}
+          busy={busy || !backendUserId}
+        />
 
       </div>
     </div>
