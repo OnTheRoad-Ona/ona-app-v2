@@ -146,12 +146,15 @@ export function FaceLiveness({
   onPassed,
   onCancel,
   userKey = "guest",
+  userId,
 }: {
   isLight: boolean;
   onPassed: () => void;
   onCancel: () => void;
   /** For lockout storage — email / backend id */
   userKey?: string;
+  /** When set, reports pass to backend `/api/liveness/verify` */
+  userId?: string;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -373,18 +376,32 @@ export function FaceLiveness({
     setPhase("success");
     setFeedback("Verified");
     setProgress(100);
+    const challenges = challengesRef.current.map((c) => c.id);
+    const durationMs = performance.now() - sessionStartedRef.current;
     livenessLog("info", "session_pass", {
-      // Future server re-check payload (no media)
       hook: "POST /api/liveness/verify",
-      challenges: challengesRef.current.map((c) => c.id),
-      durationMs: performance.now() - sessionStartedRef.current,
+      challenges,
+      durationMs,
     });
-    // TODO(api): fetch("/api/liveness/verify", { method: "POST", body: JSON.stringify({ challenges, clientScore }) })
+    // Report pass to backend (no frames/media). Never blocks local success.
+    if (userId) {
+      void fetch("/api/liveness/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          passed: true,
+          challenges,
+          durationMs: Math.round(durationMs),
+          clientScore: 1,
+        }),
+      }).catch(() => undefined);
+    }
     window.setTimeout(() => {
       stopCamera();
       onPassed();
     }, 1400);
-  }, [onPassed, stopCamera, userKey]);
+  }, [onPassed, stopCamera, userKey, userId]);
 
   // Detection loop
   useEffect(() => {

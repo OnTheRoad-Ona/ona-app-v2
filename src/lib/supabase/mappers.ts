@@ -74,6 +74,64 @@ export function appStatusToJob(s: RequestStatus): JobStatus {
   }
 }
 
+/**
+ * Pull discovery specialties from every shape used at signup / settings:
+ * - skills.specialties[] (skill multiselect)
+ * - skills.specialty string (pro signup Home/Office/…)
+ * - vehicle_focus.specialty (home trades)
+ * - services[] labels as last resort
+ */
+export function extractProSpecialties(pro: RepairProRow): string[] {
+  const out: string[] = [];
+  const add = (v: unknown) => {
+    if (v == null) return;
+    if (Array.isArray(v)) {
+      for (const x of v) add(x);
+      return;
+    }
+    if (typeof v === "object") return;
+    const s = String(v).trim();
+    if (!s) return;
+    if (out.some((o) => o.toLowerCase() === s.toLowerCase())) return;
+    out.push(s);
+  };
+
+  const skills =
+    pro.skills && typeof pro.skills === "object"
+      ? (pro.skills as Record<string, unknown>)
+      : null;
+  if (skills) {
+    add(skills.specialties);
+    add(skills.specialty);
+    // Profession-question multiselects often stored as solar_scope etc.
+    for (const [k, v] of Object.entries(skills)) {
+      if (
+        /scope|specialt|focus|segment|segment_type/i.test(k) &&
+        k !== "specialty" &&
+        k !== "specialties"
+      ) {
+        add(v);
+      }
+    }
+  }
+
+  const vf =
+    pro.vehicle_focus && typeof pro.vehicle_focus === "object"
+      ? (pro.vehicle_focus as Record<string, unknown>)
+      : null;
+  if (vf) {
+    add(vf.specialty);
+    add(vf.specialties);
+  }
+
+  if (out.length === 0 && Array.isArray(pro.services)) {
+    for (const s of pro.services) {
+      add(PRO_SERVICE_LABELS[s as ProService] ?? s);
+    }
+  }
+  return out;
+}
+
 export function mapProToTechnician(
   pro: RepairProRow,
   profile: ProfileRow | null,
@@ -139,16 +197,7 @@ export function mapProToTechnician(
     fastResponse:
       Boolean(pro.is_online) &&
       (Number(pro.rating_avg) >= 4.3 || Number(pro.visibility_tier) === 4),
-    specialties: (() => {
-      const skills = pro.skills as Technician["skillAnswers"] | undefined;
-      const core = skills?.specialties;
-      if (Array.isArray(core) && core.length) {
-        return core.map(String);
-      }
-      return Array.isArray(pro.services)
-        ? pro.services.map((s) => PRO_SERVICE_LABELS[s as ProService] ?? s)
-        : [];
-    })(),
+    specialties: extractProSpecialties(pro),
     description: pro.bio || "",
     phone: profile?.phone || "",
     serviceRadiusKm: (() => {

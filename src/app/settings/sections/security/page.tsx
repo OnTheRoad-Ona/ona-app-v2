@@ -1,6 +1,6 @@
 "use client";
 
-import { Lock } from "lucide-react";
+import { BellRing, Lock, MonitorSmartphone } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { SettingsRow } from "@/components/settings/settings-ui";
 import { useT } from "@/lib/i18n";
@@ -30,11 +30,27 @@ export default function SettingsSecuritySectionPage() {
           first
           isLight={isLight}
           icon={Lock}
-          label="Security"
+          label="Password & 2FA"
           detail={
-            isPro ? "Password, 2FA, sessions" : "Password, 2FA, devices"
+            isPro
+              ? "Password and two-factor authentication"
+              : "Password and two-factor authentication"
           }
           href="/settings/security"
+        />
+        <SettingsRow
+          isLight={isLight}
+          icon={MonitorSmartphone}
+          label="Login sessions & devices"
+          detail="See connected browsers and sign out others"
+          href="/settings/sessions"
+        />
+        <SettingsRow
+          isLight={isLight}
+          icon={BellRing}
+          label="Security alerts"
+          detail="New logins, password changes, device sign-outs"
+          href="/settings/security-alerts"
         />
       </div>
     </div>

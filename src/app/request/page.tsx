@@ -15,12 +15,13 @@ import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { compressImageFile } from "@/lib/image-compress";
 import { apiCreateJob } from "@/lib/jobs/client";
 import type { JobMedia } from "@/lib/jobs/types";
-import { isAutomotiveTrade } from "@/lib/artisan/catalog";
+import { showsVehicleOnRequest } from "@/lib/artisan/catalog";
 import {
   detectCurrency,
   formatMoney,
   getBaseLabourPrice,
-  LABOUR_FEE_DISCLAIMER,
+  labourFeeDisclaimerForTrade,
+  problemPlaceholderForTrade,
   type AppCurrency,
 } from "@/lib/pricing";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
@@ -222,7 +223,11 @@ function RequestInner() {
       motoristName: userProfile?.fullName || "Customer",
       motoristPhoto: userProfile?.avatarUrl || null,
       motoristVehicle:
-        tech && isAutomotiveTrade(tech.serviceType as ProService)
+        tech &&
+        showsVehicleOnRequest(
+          tech.serviceType as ProService,
+          tech.specialties
+        )
           ? selectedVehicleLabel || null
           : null,
       repairProId: tech.id,
@@ -344,9 +349,12 @@ function RequestInner() {
         </div>
       </div>
 
-      {/* Context asset — vehicles only for auto trades; skip for solar/plumber/etc. */}
+      {/* Vehicle only for auto trades / vehicle AC-Electric specialty */}
       {profileVehicles.length > 0 &&
-      isAutomotiveTrade(tech.serviceType as ProService) ? (
+      showsVehicleOnRequest(
+        tech.serviceType as ProService,
+        tech.specialties
+      ) ? (
         <section className="mb-5">
           <label className={cn("mb-2 block text-[13px] font-bold", ink)}>
             Which vehicle needs help?
@@ -356,31 +364,25 @@ function RequestInner() {
               {selectedVehicleLabel}
             </p>
           ) : (
-            <div className="flex flex-col gap-1.5">
+            <select
+              value={selectedVehicleId}
+              onChange={(e) => setSelectedVehicleId(e.target.value)}
+              className={cn(
+                "h-11 w-full rounded-xl border-0 px-3.5 text-[14px] font-semibold outline-none",
+                field
+              )}
+            >
               {profileVehicles.map((v) => {
                 const label = [v.vehicleType, v.make, v.model, v.year]
                   .filter(Boolean)
                   .join(" ");
-                const on = v.id === selectedVehicleId;
                 return (
-                  <button
-                    key={v.id}
-                    type="button"
-                    onClick={() => setSelectedVehicleId(v.id)}
-                    className={cn(
-                      "rounded-xl border-0 px-3.5 py-3 text-left text-[14px] font-semibold transition",
-                      on
-                        ? "bg-[#FF6B35] text-white"
-                        : isLight
-                          ? "bg-black/10 text-slate-900"
-                          : "bg-white/10 text-white"
-                    )}
-                  >
+                  <option key={v.id} value={v.id}>
                     {label || "Vehicle"}
-                  </button>
+                  </option>
                 );
               })}
-            </div>
+            </select>
           )}
         </section>
       ) : null}
@@ -394,14 +396,14 @@ function RequestInner() {
           value={problem}
           onChange={(e) => setProblem(e.target.value)}
           rows={5}
-          placeholder="e.g. Engine overheating on the expressway, steam from the bonnet"
+          placeholder={problemPlaceholderForTrade(tech.serviceType)}
           className={cn(
             "w-full resize-y rounded-2xl border-0 p-3.5 text-[15px] font-medium leading-relaxed outline-none",
             field
           )}
         />
         <p className={cn("mt-2 text-[11px] font-medium leading-snug", muted)}>
-          {LABOUR_FEE_DISCLAIMER}
+          {labourFeeDisclaimerForTrade(tech.serviceType)}
         </p>
       </section>
 

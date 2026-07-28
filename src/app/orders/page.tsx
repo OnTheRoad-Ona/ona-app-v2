@@ -21,7 +21,7 @@ import type { RequestStatus, ServiceRequest } from "@/lib/types";
 import { cn, formatDistance, formatEta } from "@/lib/utils";
 
 const STATUS_LABEL: Record<RequestStatus, string> = {
-  pending: "New request",
+  pending: "Service Request",
   accepted: "Accepted",
   en_route: "En route",
   arrived: "Arrived",

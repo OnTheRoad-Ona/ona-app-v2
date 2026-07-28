@@ -5,6 +5,17 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/** First token of a full name (e.g. "Oluwatosin Temitope" → "Oluwatosin") */
+export function firstNameOnly(
+  full: string | null | undefined,
+  fallback = "Customer"
+): string {
+  const t = String(full || "").trim();
+  if (!t) return fallback;
+  const first = t.split(/\s+/)[0];
+  return first || fallback;
+}
+
 export function kmToMeters(km: number) {
   return km * 1000;
 }

@@ -1663,10 +1663,10 @@ export function ArtisanOnboarding({
             <div className={cn("rounded-md px-3 py-2.5 text-[11px] font-medium leading-snug", tipBox)}>
               <p className="font-bold">Verification order</p>
               <ol className="mt-1 list-decimal space-y-1 pl-4">
-                <li>Government ID — submit anytime for review</li>
-                <li>BVN after ID</li>
-                <li>Face liveness after ID (complete before skill)</li>
-                <li>Proof of skill — upload then submit for review</li>
+                <li>Government ID (Tier 2) — submit anytime for review</li>
+                <li>Face liveness (Tier 3) after ID</li>
+                <li>BVN (Tier 3) after ID — with liveness before skill</li>
+                <li>Proof of skill (Tier 4) — upload then submit for review</li>
               </ol>
               <p className="mt-2 font-medium">
                 Profile Submit does not require Tier 2–4
@@ -1775,15 +1775,25 @@ export function ArtisanOnboarding({
               </select>
               <input
                 value={profile.govIdNumber || ""}
-                onChange={(e) =>
+                onChange={(e) => {
+                  let v = e.target.value;
+                  if (profile.govIdType === "nin") {
+                    v = v.replace(/\D/g, "").slice(0, 11);
+                  }
                   patch({
-                    govIdNumber: e.target.value,
+                    govIdNumber: v,
                     tiers: { ...profile.tiers, tier2_govId: false },
                     govIdReviewStatus: "none",
-                  })
+                  });
+                }}
+                placeholder={
+                  profile.govIdType === "nin"
+                    ? "11-digit NIN"
+                    : "ID number on the document"
                 }
-                placeholder="ID number on the document"
                 className={fieldClass}
+                inputMode={profile.govIdType === "nin" ? "numeric" : "text"}
+                maxLength={profile.govIdType === "nin" ? 11 : undefined}
                 disabled={
                   profile.tiers.tier2_govId ||
                   profile.govIdReviewStatus === "submitted"
@@ -1910,79 +1920,7 @@ export function ArtisanOnboarding({
               </button>
             </div>
 
-            {/* BVN — after Government ID */}
-            <div
-              className={cn(
-                "relative",
-                !canAccessBvn(profile) && "opacity-45"
-              )}
-            >
-              {!canAccessBvn(profile) ? (
-                <button
-                  type="button"
-                  className="absolute inset-0 z-[2] border-0 bg-transparent"
-                  aria-label={lockMessageForSection("bvn")}
-                  onClick={() =>
-                    setGatePopup(lockMessageForSection("bvn"))
-                  }
-                />
-              ) : null}
-              <div
-                className={cn(
-                  panelClass,
-                  !canAccessBvn(profile) && "pointer-events-none"
-                )}
-              >
-                <p className={cn("flex items-center gap-2 text-[13px] font-bold", ink)}>
-                  <FileText className="h-4 w-4 shrink-0 text-[#FF6B35]" /> BVN
-                </p>
-                <p className={cn("mt-1 text-[10px] font-medium", muted)}>
-                  {profile.tiers.tier2_nin
-                    ? "Approved by admin / care"
-                    : reviewLabel(profile.ninReviewStatus)}
-                </p>
-                <input
-                  value={profile.nin || ""}
-                  onChange={(e) =>
-                    patch({
-                      nin: e.target.value.replace(/\D/g, "").slice(0, 11),
-                      tiers: { ...profile.tiers, tier2_nin: false },
-                      ninReviewStatus: "none",
-                    })
-                  }
-                  placeholder="11-digit BVN"
-                  className={cn("mt-2", fieldClass)}
-                  inputMode="numeric"
-                  maxLength={11}
-                />
-                <button
-                  type="button"
-                  disabled={
-                    idBusy === "nin" ||
-                    profile.tiers.tier2_nin ||
-                    profile.ninReviewStatus === "submitted"
-                  }
-                  className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[12px] font-bold text-white disabled:opacity-60"
-                  onClick={submitNinForReview}
-                >
-                  {idBusy === "nin" ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
-                    </>
-                  ) : profile.tiers.tier2_nin ? (
-                    <>
-                      <Check className="h-3.5 w-3.5" /> Approved
-                    </>
-                  ) : profile.ninReviewStatus === "submitted" ? (
-                    "BVN currently in review"
-                  ) : (
-                    "Submit"
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Face liveness — after Government ID */}
+            {/* Face liveness — Tier 3 (after Government ID) */}
             <div
               className={cn(
                 "relative",
@@ -2006,7 +1944,7 @@ export function ArtisanOnboarding({
                 )}
               >
                 <p className={cn("text-[13px] font-bold", ink)}>
-                  Face liveness
+                  Face liveness · Tier 3
                 </p>
                 <p className={cn("mt-1 text-[10px] font-medium", muted)}>
                   {profile.tiers.tier3_liveness
@@ -2023,6 +1961,7 @@ export function ArtisanOnboarding({
                         userProfile?.phone ||
                         "guest"
                       }
+                      userId={backendUserId || undefined}
                       onCancel={() => setShowLiveness(false)}
                       onPassed={() => {
                         const passedAt = new Date().toISOString();
@@ -2040,7 +1979,7 @@ export function ArtisanOnboarding({
                         });
                         setShowLiveness(false);
                         setMsg(
-                          "Face liveness passed. With BVN + ID approved, search reach becomes T3 (~3 km)."
+                          "Face liveness passed. Complete BVN (Tier 3) for full T3 search reach."
                         );
                         setErr(null);
                         // Persist liveness + auto-promote visibility T3 on server
@@ -2071,13 +2010,6 @@ export function ArtisanOnboarding({
                             /* local still saved */
                           }
                         })();
-                        // Auto-advance UI to Proof of skill
-                        window.setTimeout(() => {
-                          skillSectionRef.current?.scrollIntoView({
-                            behavior: "smooth",
-                            block: "start",
-                          });
-                        }, 200);
                       }}
                     />
                   </div>
@@ -2096,6 +2028,80 @@ export function ArtisanOnboarding({
                       : "Start face liveness"}
                   </button>
                 )}
+              </div>
+            </div>
+
+            {/* BVN — Tier 3 (after Government ID; not part of T2) */}
+            <div
+              className={cn(
+                "relative",
+                !canAccessBvn(profile) && "opacity-45"
+              )}
+            >
+              {!canAccessBvn(profile) ? (
+                <button
+                  type="button"
+                  className="absolute inset-0 z-[2] border-0 bg-transparent"
+                  aria-label={lockMessageForSection("bvn")}
+                  onClick={() =>
+                    setGatePopup(lockMessageForSection("bvn"))
+                  }
+                />
+              ) : null}
+              <div
+                className={cn(
+                  panelClass,
+                  !canAccessBvn(profile) && "pointer-events-none"
+                )}
+              >
+                <p className={cn("flex items-center gap-2 text-[13px] font-bold", ink)}>
+                  <FileText className="h-4 w-4 shrink-0 text-[#FF6B35]" /> BVN
+                  · Tier 3
+                </p>
+                <p className={cn("mt-1 text-[10px] font-medium", muted)}>
+                  {profile.tiers.tier2_nin
+                    ? "Approved by admin / care"
+                    : reviewLabel(profile.ninReviewStatus)}
+                </p>
+                <input
+                  value={profile.nin || ""}
+                  onChange={(e) =>
+                    patch({
+                      nin: e.target.value.replace(/\D/g, "").slice(0, 11),
+                      tiers: { ...profile.tiers, tier2_nin: false },
+                      ninReviewStatus: "none",
+                    })
+                  }
+                  placeholder="11-digit BVN"
+                  className={cn("mt-2", fieldClass)}
+                  inputMode="numeric"
+                  maxLength={11}
+                  pattern="[0-9]{11}"
+                />
+                <button
+                  type="button"
+                  disabled={
+                    idBusy === "nin" ||
+                    profile.tiers.tier2_nin ||
+                    profile.ninReviewStatus === "submitted"
+                  }
+                  className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[12px] font-bold text-white disabled:opacity-60"
+                  onClick={submitNinForReview}
+                >
+                  {idBusy === "nin" ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
+                    </>
+                  ) : profile.tiers.tier2_nin ? (
+                    <>
+                      <Check className="h-3.5 w-3.5" /> Approved
+                    </>
+                  ) : profile.ninReviewStatus === "submitted" ? (
+                    "BVN currently in review"
+                  ) : (
+                    "Submit"
+                  )}
+                </button>
               </div>
             </div>
 

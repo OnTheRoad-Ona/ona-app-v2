@@ -24,6 +24,8 @@ export type OtpSession = {
 const OTP_KEY = "ona-artisan-otp-v2";
 const OTP_TTL_MS = 10 * 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
+/** Resend cooldown only after this many failed verifies */
+const OTP_FAILS_BEFORE_COOLDOWN = 4;
 const OTP_RESEND_MS = 45_000;
 
 function digits(v: string): string {
@@ -90,7 +92,7 @@ export function sendArtisanOtp(phone: string): {
   demoCode: string;
   expiresInSec: number;
   resendInSec: number;
-} | { ok: false; error: string } {
+} | { ok: false; error: string; waitSec?: number } {
   const p = phone.trim();
   if (digits(p).length < 10) {
     return { ok: false, error: "Enter a valid phone number first." };
@@ -98,9 +100,17 @@ export function sendArtisanOtp(phone: string): {
   const existing = readOtpSession();
   if (existing && existing.phone === normalizePhoneKey(p)) {
     const age = Date.now() - existing.sentAt;
-    if (age < OTP_RESEND_MS) {
+    // Cooldown only after 4 failed attempts (not on every resend)
+    if (
+      existing.attempts >= OTP_FAILS_BEFORE_COOLDOWN &&
+      age < OTP_RESEND_MS
+    ) {
       const wait = Math.ceil((OTP_RESEND_MS - age) / 1000);
-      return { ok: false, error: `Wait ${wait}s before requesting another code.` };
+      return {
+        ok: false,
+        error: `Please wait ${wait}s before requesting another code.`,
+        waitSec: wait,
+      };
     }
   }
   const code = createOtpCode();

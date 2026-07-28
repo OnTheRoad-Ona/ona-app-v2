@@ -17,13 +17,14 @@ export type LiveReviewRow = {
   authorName: string;
 };
 
+/** Public reviews show first name only (never full name or “Motorist”). */
 function shortName(full: string | null | undefined, fallback = "Customer"): string {
   const n = (full || "").trim();
   if (!n) return fallback;
-  const parts = n.split(/\s+/).filter(Boolean);
-  if (parts.length === 1) return parts[0];
-  const last = parts[parts.length - 1];
-  return `${parts[0]} ${last.charAt(0).toUpperCase()}.`;
+  const first = n.split(/\s+/).filter(Boolean)[0] || fallback;
+  // Never surface role labels as author
+  if (/^motorist$/i.test(first) || /^customer$/i.test(first)) return fallback;
+  return first;
 }
 
 function relativeAgo(iso: string): string {

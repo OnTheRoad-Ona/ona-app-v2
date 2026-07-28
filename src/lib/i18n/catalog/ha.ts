@@ -220,7 +220,7 @@ export const HA: MessageDict = {
   "jobs.past": "Past",
   "requests.title": "Requests",
   "requests.empty": "No requests yet",
-  "requests.new": "New request",
+  "requests.new": "Service Request",
   "job.status.requested": "Requested",
   "job.status.accepted": "Accepted",
   "job.status.enRoute": "On the way",
@@ -358,4 +358,6 @@ export const HA: MessageDict = {
   "common.codeSent": "An aika lambar. Shigar da ita a ƙasa.",
   "settings.hub.profileInner": "Bayani",
   "settings.hub.profileInnerDetail": "Suna hoto tuntuɓa",
+  "settings.hub.verification": "Verification",
+  "settings.hub.verificationDetail": "ID, tiers & documents",
 };

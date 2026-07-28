@@ -1,12 +1,12 @@
 /**
- * Hierarchical Back navigation for the phone shell.
+ * Back navigation for the phone shell.
  *
- * RULE (always):
- *   Back goes to the logical parent of the current screen.
- *   Never browser history. Never “where you came from” stacks.
+ * RULE:
+ *   Prefer the true previous page (browser history) when available.
+ *   If there is no history entry, fall back to the logical parent route.
  *
- * Explicit `backHref` on a page wins; otherwise `smartBackFallback(path, role)`.
- * Role homes (`/` / `/dashboard`) never show a back loop.
+ * Explicit `backHref` is used only as that fallback parent.
+ * Role homes (`/` / `/dashboard`) still resolve to role home when no history.
  */
 
 import { canAccessPath } from "@/lib/routes";
@@ -130,8 +130,7 @@ export function clearPageExitClass(): void {
 }
 
 /**
- * Back = hierarchical parent only.
- * Never uses browser history or an in-app visit stack.
+ * Back = previous page when history exists; else hierarchical parent fallback.
  */
 export function navigateBack(
   router: RouterLike,
@@ -144,6 +143,15 @@ export function navigateBack(
 
   const go = () => {
     clearPageExitClass();
+    // True previous page first (settings → verification → back returns to settings, etc.)
+    if (
+      typeof window !== "undefined" &&
+      typeof router.back === "function" &&
+      window.history.length > 1
+    ) {
+      router.back();
+      return;
+    }
     router.push(target);
   };
 

@@ -22,16 +22,24 @@ function MockInner() {
   const [cancelOpen, setCancelOpen] = useState(false);
 
   const pay = async () => {
+    // Works in-app (iframe) or full page — promote to Ona shell after verify
     await fetch("/api/payments/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ reference: ref, provider: "mock" }),
     });
-    router.replace(
-      `/payments/callback?ref=${encodeURIComponent(ref)}${
-        jobId ? `&jobId=${encodeURIComponent(jobId)}` : ""
-      }`
-    );
+    const dest = `/payments/callback?ref=${encodeURIComponent(ref)}${
+      jobId ? `&jobId=${encodeURIComponent(jobId)}` : ""
+    }`;
+    try {
+      if (window.top && window.top !== window.self) {
+        window.top.location.replace(dest);
+        return;
+      }
+    } catch {
+      /* */
+    }
+    router.replace(dest);
   };
 
   return (
@@ -55,7 +63,7 @@ function MockInner() {
           isLight ? "text-slate-600" : "text-white/60"
         )}
       >
-        Card · Bank transfer · USSD (simulated). Labour fee only — no spare
+        Bank transfer only (simulated). Labour fee only — no spare
         parts. Funds held in escrow.
       </p>
       <p className="text-[22px] font-black text-brand">

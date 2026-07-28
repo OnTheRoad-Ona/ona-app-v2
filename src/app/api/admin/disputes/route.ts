@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
   AdminAuthError,
   logAdminAction,
-  requireAdmin,
+  requirePermission,
   requireSensitiveAction,
 } from "@/lib/server/admin-auth";
 import { apiFail, apiOk } from "@/lib/server/api-json";
@@ -21,7 +21,8 @@ export async function GET() {
     // Still allow memory-backed disputes in local/dev
   }
   try {
-    await requireAdmin();
+    // L1+ can view disputes; resolve is gated on PATCH
+    await requirePermission("view_disputes");
     const jobs = await listDisputedJobs();
     // Also surface recently resolved with disputes for appeal window visibility
     return apiOk({

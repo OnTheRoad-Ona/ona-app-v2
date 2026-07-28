@@ -26,9 +26,24 @@ export type CreateNotificationInput = {
 
 export async function insertNotification(
   input: CreateNotificationInput
-): Promise<{ id: string } | { error: string }> {
+): Promise<{ id: string } | { error: string; skipped?: boolean }> {
   try {
     const sb = createServiceSupabase();
+
+    // Dedupe: same user + group_key → never spam (e.g. payout-released-*)
+    if (input.groupKey) {
+      const { data: existing } = await sb
+        .from("notifications")
+        .select("id")
+        .eq("user_id", input.userId)
+        .eq("group_key", input.groupKey)
+        .limit(1)
+        .maybeSingle();
+      if (existing?.id) {
+        return { id: String(existing.id), skipped: true };
+      }
+    }
+
     const { data, error } = await sb
       .from("notifications")
       .insert({

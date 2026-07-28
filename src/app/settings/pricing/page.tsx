@@ -53,8 +53,10 @@ export default function SettingsPricingPage() {
         continue;
       }
       const n = Number(raw);
-      if (!Number.isFinite(n) || n <= 0) {
-        setErr(`Enter a valid price for ${PRO_SERVICE_LABELS[s]}.`);
+      if (!Number.isFinite(n) || n < 120) {
+        setErr(
+          `${PRO_SERVICE_LABELS[s]}: minimum labour price is ₦120 so payouts can complete.`
+        );
         return;
       }
       servicePrices[s] = n;

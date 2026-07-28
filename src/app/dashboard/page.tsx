@@ -2,13 +2,13 @@
 
 /**
  * Pro dashboard — Uber-style list under Live (no section titles):
- * - Incoming: New Request only, real meet address (never “Current location”)
+ * - Incoming: Service Request only, real meet address (never “Current location”)
  * - Recent: Uber place + area only (never problem text / demo address)
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Clock3, Loader2, Radio, Shield } from "lucide-react";
+import { ChevronRight, Loader2, Radio, Shield } from "lucide-react";
 import { BankForcePanel } from "@/components/auth/bank-force-panel";
 import { PageHeader } from "@/components/layout/page-header";
 import { getArtisanProfile } from "@/lib/artisan/local-store";
@@ -26,12 +26,21 @@ import { useApp } from "@/lib/store";
 import type { ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-/** New Request only — leaves dashboard after Accept */
+/** Service Request only — leaves dashboard after Accept */
 const INCOMING_STATUSES = new Set<JobFlowStatus>(["negotiating"]);
+
+/** Active work the pro can open quickly (agreed → in progress → awaiting customer) */
+const ONGOING_STATUSES = new Set<JobFlowStatus>([
+  "agreed",
+  "paid_booked",
+  "en_route",
+  "arrived",
+  "in_progress",
+  "completed",
+]);
 
 /** Past / closed jobs for Recent — same set for every trade (Battery, Vulcanizer, …) */
 const RECENT_STATUSES = new Set<JobFlowStatus>([
-  "completed",
   "satisfied",
   "released",
   "cancelled",
@@ -40,6 +49,25 @@ const RECENT_STATUSES = new Set<JobFlowStatus>([
   "under_appeal",
   "refunded",
 ]);
+
+function ongoingStatusLabel(st: JobFlowStatus): string {
+  switch (st) {
+    case "agreed":
+      return "Awaiting payment";
+    case "paid_booked":
+      return "Booked · start trip";
+    case "en_route":
+      return "En route";
+    case "arrived":
+      return "Arrived";
+    case "in_progress":
+      return "In progress";
+    case "completed":
+      return "Awaiting customer confirm";
+    default:
+      return st;
+  }
+}
 
 /** Common city / area tokens for subtitle line */
 const AREA_HINT =
@@ -155,6 +183,7 @@ export default function TechnicianDashboardPage() {
   const [liveBusy, setLiveBusy] = useState(false);
   const [liveErr, setLiveErr] = useState<string | null>(null);
   const [incoming, setIncoming] = useState<JobRecord[]>([]);
+  const [ongoing, setOngoing] = useState<JobRecord[]>([]);
   const [recent, setRecent] = useState<JobRecord[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
   const [awayLabel, setAwayLabel] = useState(() => liveAwayButtonLabel());
@@ -327,6 +356,7 @@ export default function TechnicianDashboardPage() {
   const loadJobs = useCallback(async () => {
     if (!backendUserId) {
       setIncoming([]);
+      setOngoing([]);
       setRecent([]);
       setJobsLoading(false);
       return;
@@ -356,6 +386,14 @@ export default function TechnicianDashboardPage() {
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
 
+      const active = mine
+        .filter((j) => ONGOING_STATUSES.has(j.status))
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt || b.createdAt).getTime() -
+            new Date(a.updatedAt || a.createdAt).getTime()
+        );
+
       const finished = mine
         .filter((j) => RECENT_STATUSES.has(j.status))
         .sort(
@@ -363,12 +401,14 @@ export default function TechnicianDashboardPage() {
             new Date(b.updatedAt || b.createdAt).getTime() -
             new Date(a.updatedAt || a.createdAt).getTime()
         )
-        .slice(0, 20);
+        .slice(0, 6);
 
       setIncoming(open);
+      setOngoing(active);
       setRecent(finished);
     } else {
       setIncoming([]);
+      setOngoing([]);
       setRecent([]);
     }
     setJobsLoading(false);
@@ -406,6 +446,7 @@ export default function TechnicianDashboardPage() {
   };
 
   const showIncoming = incoming.length > 0;
+  const showOngoing = ongoing.length > 0;
   /** Same for every trade: Recent always when finished jobs exist (not hidden by Incoming). */
   const showRecent = recent.length > 0;
 
@@ -560,7 +601,7 @@ export default function TechnicianDashboardPage() {
           </section>
         ) : null}
 
-        <section className={cn("border-b pb-4", hairline)}>
+        <section className="pb-4">
           <div className="flex items-center gap-3">
             <Radio
               className={cn(
@@ -608,102 +649,168 @@ export default function TechnicianDashboardPage() {
           </div>
         )}
 
-        {/* Incoming — live request only, real meet address (no labels) */}
+        {/* Incoming requests */}
         {!jobsLoading && showIncoming && (
-          <ul className="space-y-0">
-            {incoming.map((j) => {
-              const addr = meetAddress(j);
-              return (
-                <li key={j.id}>
-                  <Link
-                    href={`/jobs/${j.id}`}
-                    className={cn(
-                      "flex items-center gap-3 border-0 border-b bg-transparent py-3.5 active:opacity-90",
-                      isLight ? "border-black/10" : "border-white/10"
-                    )}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className={cn(
-                          "truncate text-[15px] font-semibold",
-                          ink
-                        )}
-                      >
-                        {j.motoristName}
-                      </p>
-                      {addr ? (
+          <section>
+            <p
+              className={cn(
+                "mb-1 text-[11px] font-black uppercase tracking-[0.12em]",
+                muted
+              )}
+            >
+              Incoming requests
+            </p>
+            <ul className="space-y-0">
+              {incoming.map((j) => {
+                const addr = meetAddress(j);
+                return (
+                  <li key={j.id}>
+                    <Link
+                      href={`/jobs/${j.id}`}
+                      className="flex items-center gap-3 border-0 bg-transparent py-3.5 active:opacity-90"
+                    >
+                      <div className="min-w-0 flex-1">
                         <p
                           className={cn(
-                            "mt-0.5 truncate text-[12px] font-medium",
-                            muted
+                            "truncate text-[15px] font-semibold",
+                            ink
                           )}
                         >
-                          {addr}
+                          {j.motoristVehicle?.trim() || "Service Request"}
                         </p>
-                      ) : null}
-                      {j.problem?.trim() ? (
-                        <p
-                          className={cn(
-                            "mt-0.5 line-clamp-1 text-[12px] font-medium",
-                            muted
-                          )}
-                        >
-                          {j.problem}
-                        </p>
-                      ) : null}
-                    </div>
-                    <ChevronRight className={cn("h-4 w-4 shrink-0", muted)} />
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+                        {addr ? (
+                          <p
+                            className={cn(
+                              "mt-0.5 truncate text-[12px] font-medium",
+                              muted
+                            )}
+                          >
+                            {addr}
+                          </p>
+                        ) : null}
+                        {j.problem?.trim() ? (
+                          <p
+                            className={cn(
+                              "mt-0.5 line-clamp-1 text-[12px] font-medium",
+                              muted
+                            )}
+                          >
+                            {j.problem}
+                          </p>
+                        ) : null}
+                      </div>
+                      <ChevronRight className={cn("h-4 w-4 shrink-0", muted)} />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
         )}
 
-        {/* Recent — Uber place + area only (no problem text, no demo fallbacks) */}
-        {!jobsLoading && showRecent && (
-          <ul className="space-y-3">
-            {recent.map((j) => {
-              const addr = meetAddress(j);
-              if (!addr) return null;
-              const { title, subtitle } = splitPlaceAndArea(addr);
-              if (!title) return null;
-              return (
-                <li
-                  key={j.id}
-                  className="flex items-start gap-2.5 border-0 bg-transparent py-0.5"
-                >
-                  <Clock3
-                    className={cn(
-                      "mt-0.5 h-3.5 w-3.5 shrink-0",
-                      isLight ? "text-slate-600" : "text-white/60"
-                    )}
-                    aria-hidden
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className={cn(
-                        "text-[13px] font-semibold leading-snug",
-                        ink
-                      )}
+        {/* Ongoing jobs — easy navigation for active work */}
+        {!jobsLoading && showOngoing && (
+          <section>
+            <p
+              className={cn(
+                "mb-1 text-[11px] font-black uppercase tracking-[0.12em]",
+                muted
+              )}
+            >
+              Ongoing jobs
+            </p>
+            <ul className="space-y-0">
+              {ongoing.map((j) => {
+                const addr = meetAddress(j);
+                return (
+                  <li key={j.id}>
+                    <Link
+                      href={`/jobs/${j.id}`}
+                      className="flex items-center gap-3 border-0 bg-transparent py-3.5 active:opacity-90"
                     >
-                      {title}
-                    </p>
-                    {subtitle ? (
-                      <p
-                        className={cn(
-                          "mt-0.5 text-[11px] font-medium leading-snug",
-                          muted
-                        )}
-                      >
-                        {subtitle}
-                      </p>
-                    ) : null}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className={cn(
+                            "truncate text-[15px] font-semibold",
+                            ink
+                          )}
+                        >
+                          {j.motoristVehicle?.trim() ||
+                            PRO_SERVICE_LABELS[j.serviceType] ||
+                            "Job"}
+                        </p>
+                        <p
+                          className={cn(
+                            "mt-0.5 text-[11px] font-bold text-[#FF6B35]"
+                          )}
+                        >
+                          {ongoingStatusLabel(j.status)}
+                        </p>
+                        {addr ? (
+                          <p
+                            className={cn(
+                              "mt-0.5 truncate text-[12px] font-medium",
+                              muted
+                            )}
+                          >
+                            {addr}
+                          </p>
+                        ) : null}
+                      </div>
+                      <ChevronRight className={cn("h-4 w-4 shrink-0", muted)} />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+
+        {/* Last 6 finished jobs — vertical listing (Uber/inDrive style), place + area only */}
+        {!jobsLoading && showRecent && (
+          <section aria-label="Recent jobs">
+            <ul className="space-y-0">
+              {recent.map((j) => {
+                const addr = meetAddress(j);
+                if (!addr) return null;
+                const { title, subtitle } = splitPlaceAndArea(addr);
+                if (!title) return null;
+                return (
+                  <li key={j.id}>
+                    <Link
+                      href={`/jobs/${j.id}`}
+                      className="flex items-center gap-2 py-3 active:opacity-90"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className={cn(
+                            "truncate text-[13px] font-semibold leading-snug",
+                            ink
+                          )}
+                        >
+                          {title}
+                        </p>
+                        {subtitle ? (
+                          <p
+                            className={cn(
+                              "mt-0.5 truncate text-[11px] font-medium leading-snug",
+                              muted
+                            )}
+                          >
+                            {subtitle}
+                          </p>
+                        ) : null}
+                      </div>
+                      <ChevronRight
+                        className={cn("h-4 w-4 shrink-0", muted)}
+                        aria-hidden
+                      />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
         )}
 
         {/* Bottom: problem solved count (no gray plate) */}

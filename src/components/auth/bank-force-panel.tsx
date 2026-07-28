@@ -179,6 +179,7 @@ export function BankForcePanel({
               initial={details}
               onChange={setDetails}
               signupFullName={userProfile?.fullName}
+              countryIso={userProfile?.identityCountryIso || "NG"}
             />
           </div>
 

@@ -33,12 +33,8 @@ export function SensitivePageGate({
         .then((r) => r.json())
         .catch(() => null);
       if (cancelled) return;
-      if (
-        me?.ok &&
-        (me.data?.adminRole === "super_admin" ||
-          me.data?.role === "admin" ||
-          me.data?.role === "super_admin")
-      ) {
+      // Only L5 Super Admin skips temporary access code on page entry
+      if (me?.ok && me.data?.adminRole === "super_admin") {
         setAllowed(true);
         setChecking(false);
         return;

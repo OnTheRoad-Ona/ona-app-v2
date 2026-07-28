@@ -75,7 +75,7 @@ function statusLabel(s: JobFlowStatus): string {
     case "refunded":
       return "Refunded";
     case "negotiating":
-      return "New request";
+      return "Service Request";
     case "agreed":
       return "Agreed";
     case "paid_booked":
@@ -294,10 +294,7 @@ function ProJobsPage({
                   <li key={j.id}>
                     <Link
                       href={`/jobs/${j.id}`}
-                      className={cn(
-                        "flex items-start gap-2.5 border-0 border-b bg-transparent py-3.5 active:opacity-90",
-                        hairline
-                      )}
+                      className="flex items-start gap-2.5 border-0 bg-transparent py-3.5 active:opacity-90"
                     >
                       <div className="min-w-0 flex-1">
                         <p className={cn("text-[10px] font-bold uppercase", muted)}>
@@ -309,7 +306,7 @@ function ProJobsPage({
                             ink
                           )}
                         >
-                          {j.motoristName}
+                          {j.motoristVehicle?.trim() || "Service Request"}
                         </p>
                         {j.problem?.trim() ? (
                           <p
@@ -363,8 +360,7 @@ function ProJobsPage({
                           setClosedOpen(true);
                         }}
                         className={cn(
-                          "flex w-full items-start gap-2.5 border-0 border-b bg-transparent py-3.5 text-left active:opacity-90",
-                          hairline
+                          "flex w-full items-start gap-2.5 border-0 bg-transparent py-3.5 text-left active:opacity-90"
                         )}
                       >
                         <div className="min-w-0 flex-1">
@@ -391,7 +387,7 @@ function ProJobsPage({
                               ink
                             )}
                           >
-                            {j.motoristName}
+                            {j.motoristVehicle?.trim() || "Service Request"}
                           </p>
                           {j.problem?.trim() ? (
                             <p
@@ -529,25 +525,36 @@ function MotoristJobsPage({
         });
       setJobs(list);
       setLoading(false);
-      // Auto-open satisfaction screen when pro finished the job
-      const needsConfirm = list.find((j) => j.status === "completed");
+      // Auto-open only when customer still must confirm (not if already confirmed / released)
+      const { needsCustomerReleaseConfirm } = await import(
+        "@/lib/jobs/constants"
+      );
+      const needsConfirm = list.find((j) => needsCustomerReleaseConfirm(j));
       if (needsConfirm && !cancelled) {
+        // Do not force-navigate every poll — once per session max
         try {
-          const { showAppNotification, ensureNotifyPermission } = await import(
-            "@/lib/app-notify"
-          );
-          void ensureNotifyPermission();
-          showAppNotification({
-            title: "Confirm & release pay",
-            body: "Tap I’M SATISFIED to send 95% to your Repair Pro (5% platform).",
-            tag: `job-complete-${needsConfirm.id}`,
-            href: `/jobs/${needsConfirm.id}`,
-            requireInteraction: true,
-          });
+          const key = "om-jobs-auto-open-release";
+          const seen = sessionStorage.getItem(key) || "";
+          if (!seen.includes(needsConfirm.id)) {
+            sessionStorage.setItem(
+              key,
+              `${seen},${needsConfirm.id}`.slice(-200)
+            );
+            const { showAppNotification, ensureNotifyPermission } =
+              await import("@/lib/app-notify");
+            void ensureNotifyPermission();
+            showAppNotification({
+              title: "Confirm Job & Release Payment",
+              body: "Confirm satisfaction to release escrow to your Repair Pro.",
+              tag: `job-complete-${needsConfirm.id}`,
+              href: `/jobs/${needsConfirm.id}`,
+              requireInteraction: true,
+            });
+            router.replace(`/jobs/${needsConfirm.id}`);
+          }
         } catch {
           /* */
         }
-        router.replace(`/jobs/${needsConfirm.id}`);
       }
     };
     void load();
@@ -584,7 +591,11 @@ function MotoristJobsPage({
             j.agreedMajor != null
               ? formatMoney(j.agreedMajor, j.currency)
               : null;
-          const needsSatisfied = j.status === "completed";
+          const needsSatisfied =
+            j.status === "completed" &&
+            !j.satisfiedAt &&
+            !j.releasedAt &&
+            j.escrowStatus !== "released";
           return (
             <li key={j.id}>
               <Link

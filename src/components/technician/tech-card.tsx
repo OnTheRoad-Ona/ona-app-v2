@@ -25,7 +25,8 @@ import { useApp } from "@/lib/store";
 
 /**
  * Row inside the continuous professional list banner.
- * Request (default, incl. after past jobs) → Booked only while en route / working.
+ * Open = live job with this pro (pay / booked / trip / confirm).
+ * Request = only when no open job (or last job already ended).
  */
 export function TechCard({
   tech,
@@ -38,7 +39,7 @@ export function TechCard({
   onRequest?: (tech: Technician) => void;
   compact?: boolean;
   selected?: boolean;
-  /** Active job with this pro (if any) */
+  /** Open (non-terminal) job with this pro, if any */
   activeJob?: JobRecord | null;
   onOpenJob?: (jobId: string) => void;
 }) {
@@ -48,7 +49,7 @@ export function TechCard({
   const label = proCtaLabel(cta, false);
   const showAction =
     Boolean(onRequest || onOpenJob) &&
-    (tech.status !== "offline" || cta !== "request");
+    (tech.status !== "offline" || cta === "open");
 
   return (
     <article
@@ -151,7 +152,7 @@ export function TechCard({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                if (cta !== "request" && activeJob?.id) {
+                if (cta === "open" && activeJob?.id) {
                   onOpenJob?.(activeJob.id);
                   return;
                 }
@@ -159,7 +160,7 @@ export function TechCard({
               }}
               className={cn(
                 "shrink-0 border-0 bg-transparent px-1 py-1 text-[12px] font-bold",
-                cta === "booked"
+                cta === "open"
                   ? isLight
                     ? "text-emerald-800"
                     : "text-emerald-400"

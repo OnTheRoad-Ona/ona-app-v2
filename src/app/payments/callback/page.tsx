@@ -6,11 +6,14 @@ import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
+/**
+ * Flutterwave may finish inside the in-app checkout iframe.
+ * Promote callback to the top Ona shell so the user never stays trapped in the frame.
+ */
 function breakOutOfIframe() {
   if (typeof window === "undefined") return false;
   try {
     if (window.top && window.top !== window.self) {
-      // Flutterwave finishes inside the checkout iframe — pop full app to top
       window.top.location.replace(window.location.href);
       return true;
     }
@@ -53,18 +56,64 @@ function CallbackInner() {
   const [message, setMessage] = useState("Verifying payment…");
   const [bookedJobId, setBookedJobId] = useState<string | null>(jobId || null);
 
-  // Immediately leave Flutterwave iframe → full Ona shell
+  // In-app pay: promote callback from iframe → Ona phone shell
   useEffect(() => {
     breakOutOfIframe();
   }, []);
 
   useEffect(() => {
-    // Still inside iframe? keep trying to escape while verifying
+    // Still inside iframe? escape first so verify UI paints in the shell
     if (breakOutOfIframe()) return;
 
+    const goCheckout = (jid: string) => {
+      const dest = `/payments/checkout?jobId=${encodeURIComponent(jid)}`;
+      try {
+        if (window.top && window.top !== window.self) {
+          window.top.location.replace(dest);
+          return;
+        }
+      } catch {
+        /* */
+      }
+      router.replace(dest);
+    };
+    const goJob = (jid: string) => {
+      const dest = `/jobs/${jid}`;
+      try {
+        if (window.top && window.top !== window.self) {
+          window.top.location.replace(dest);
+          return;
+        }
+      } catch {
+        /* */
+      }
+      router.replace(dest);
+    };
+
+    // Closed Flutterwave without paying → reset 20‑min timer (not an attempt)
     if (flwStatus === "cancelled" || flwStatus === "failed") {
       setStatus("fail");
-      setMessage("Payment was cancelled or failed. You can try again from the job.");
+      setMessage(
+        "Payment cancelled. Timer reset — Pay again for a fresh 20 minutes."
+      );
+      if (jobId) {
+        void (async () => {
+          try {
+            // Best-effort: clear open session so next Pay starts a new window
+            await fetch(`/api/jobs/${encodeURIComponent(jobId)}/pay`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "cancel",
+                motoristId: "callback",
+              }),
+            });
+          } catch {
+            /* ignore — checkout still works */
+          }
+          window.setTimeout(() => goCheckout(jobId), 700);
+        })();
+      }
       return;
     }
     if (!ref && !jobId && !transactionId) {
@@ -87,7 +136,6 @@ function CallbackInner() {
         });
         const json = await res.json();
         if (cancelled) return;
-        // Also force job reload reconciliation path
         if (jobId) {
           await fetch(`/api/jobs/${encodeURIComponent(jobId)}`, {
             cache: "no-store",
@@ -102,25 +150,12 @@ function CallbackInner() {
             null;
           setBookedJobId(jid);
           setMessage(
-            "Payment held in escrow. Job is Booked. Funds release when the job is completed."
+            "Payment held in escrow. Job is Booked."
           );
-          // After success, open the job in the full app (not iframe)
           if (jid) {
-            const dest = `/jobs/${jid}`;
-            try {
-              if (window.top && window.top !== window.self) {
-                window.top.location.replace(dest);
-                return;
-              }
-            } catch {
-              /* fall through */
-            }
-            window.setTimeout(() => {
-              router.replace(dest);
-            }, 600);
+            window.setTimeout(() => goJob(jid), 600);
           }
         } else if (jobId) {
-          // Verify API may fail on ref mismatch — job GET still reconciles held pay
           const jr = await fetch(`/api/jobs/${encodeURIComponent(jobId)}`, {
             cache: "no-store",
           });
@@ -135,11 +170,16 @@ function CallbackInner() {
             setStatus("ok");
             setBookedJobId(jobId);
             setMessage("Payment received. Job is Booked.");
-            router.replace(`/jobs/${jobId}`);
+            goJob(jobId);
             return;
           }
+          // Unpaid / verify failed → always return to checkout shell
           setStatus("fail");
-          setMessage(json?.error?.message || "Verification failed.");
+          setMessage(
+            json?.error?.message ||
+              "Payment not confirmed yet. You can Pay again from checkout."
+          );
+          window.setTimeout(() => goCheckout(jobId), 900);
         } else {
           setStatus("fail");
           setMessage(json?.error?.message || "Verification failed.");
@@ -148,6 +188,9 @@ function CallbackInner() {
         if (!cancelled) {
           setStatus("fail");
           setMessage("Could not verify payment.");
+          if (jobId) {
+            window.setTimeout(() => goCheckout(jobId), 900);
+          }
         }
       }
     })();
@@ -197,22 +240,45 @@ function CallbackInner() {
           Open booked job
         </button>
       ) : null}
+      {status === "fail" && jobId ? (
+        <button
+          type="button"
+          onClick={() => {
+            const dest = `/payments/checkout?jobId=${encodeURIComponent(jobId)}`;
+            try {
+              if (window.top && window.top !== window.self) {
+                window.top.location.replace(dest);
+                return;
+              }
+            } catch {
+              /* */
+            }
+            router.replace(dest);
+          }}
+          className="mt-2 rounded-xl border-0 bg-[#FF6B35] px-4 py-2.5 text-[13px] font-bold text-white"
+        >
+          Back to checkout
+        </button>
+      ) : null}
       <button
         type="button"
         onClick={() => {
+          const dest = jobId
+            ? `/payments/checkout?jobId=${encodeURIComponent(jobId)}`
+            : "/requests";
           try {
             if (window.top && window.top !== window.self) {
-              window.top.location.replace("/requests");
+              window.top.location.replace(dest);
               return;
             }
           } catch {
             /* */
           }
-          router.push("/requests");
+          router.push(dest);
         }}
         className="mt-2 rounded-xl border-0 bg-[#323231] px-4 py-2.5 text-[13px] font-bold text-white"
       >
-        View requests
+        {jobId ? "Pay again" : "View requests"}
       </button>
       <button
         type="button"

@@ -48,22 +48,16 @@ export function InboundBanner() {
   const primed = useRef(false);
   const hideTimer = useRef<number | null>(null);
 
-  // Chat sync backup — rare; open thread + Realtime handle active chat
+  // Initial chat pull so inbound detection has a baseline quickly
   useEffect(() => {
     if (!isAuthenticated || !backendUserId || !accountType) return;
-    // Defer first pull so login/home bandwidth stays free
-    const first = window.setTimeout(() => refreshCloudChats(), 12_000);
-    const id = window.setInterval(() => {
-      if (typeof document !== "undefined" && document.hidden) return;
-      refreshCloudChats();
-    }, 180_000);
+    const first = window.setTimeout(() => refreshCloudChats(), 1_500);
     const onVis = () => {
       if (!document.hidden) refreshCloudChats();
     };
     document.addEventListener("visibilitychange", onVis);
     return () => {
       window.clearTimeout(first);
-      window.clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
     };
   }, [isAuthenticated, backendUserId, accountType, refreshCloudChats]);
@@ -87,7 +81,8 @@ export function InboundBanner() {
   const showBanner = useCallback((b: NonNullable<Banner>) => {
     setBanner(b);
     if (hideTimer.current) window.clearTimeout(hideTimer.current);
-    hideTimer.current = window.setTimeout(() => setBanner(null), 8000);
+    // Stay visible long enough to tap; message toast is the primary alert
+    hideTimer.current = window.setTimeout(() => setBanner(null), 6000);
   }, []);
 
   // Detect new inbound messages → tone + system notify + in-app banner

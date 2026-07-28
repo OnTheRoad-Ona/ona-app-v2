@@ -82,6 +82,10 @@ export default function CareDeskPage() {
   const [busy, setBusy] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
   const [latestBackup, setLatestBackup] = useState<string | null>(null);
+  const [backupSearch, setBackupSearch] = useState("");
+  const [backupSnaps, setBackupSnaps] = useState<
+    { id: string; fileCount: number; files: { name: string; size: number }[] }[]
+  >([]);
 
   const refreshStatus = useCallback(async () => {
     const res = await api<CareStatus>("/api/admin/care/status");
@@ -100,9 +104,22 @@ export default function CareDeskPage() {
   }, [api]);
 
   const refreshLatestBackup = useCallback(async () => {
-    const res = await api<{ latest: string | null }>("/api/admin/backup");
-    if (res.ok) setLatestBackup(res.data.latest);
-  }, [api]);
+    const q = backupSearch.trim()
+      ? `?q=${encodeURIComponent(backupSearch.trim())}`
+      : "";
+    const res = await api<{
+      latest: string | null;
+      snapshots?: {
+        id: string;
+        fileCount: number;
+        files: { name: string; size: number }[];
+      }[];
+    }>(`/api/admin/backup${q}`);
+    if (res.ok) {
+      setLatestBackup(res.data.latest);
+      setBackupSnaps(res.data.snapshots || []);
+    }
+  }, [api, backupSearch]);
 
   const runBackupNow = async () => {
     setErr(null);
@@ -151,6 +168,15 @@ export default function CareDeskPage() {
     }, 20_000);
     return () => window.clearInterval(t);
   }, [ready, refreshBoard, refreshStatus, refreshDash, refreshLatestBackup]);
+
+  // Fast re-filter when searching backup directories
+  useEffect(() => {
+    if (!ready) return;
+    const t = window.setTimeout(() => {
+      void refreshLatestBackup();
+    }, 180);
+    return () => window.clearTimeout(t);
+  }, [ready, backupSearch, refreshLatestBackup]);
 
   useEffect(() => {
     if (!ready || query.trim().length < 2) {
@@ -334,6 +360,53 @@ export default function CareDeskPage() {
         >
           {backupBusy ? "Backing up…" : "Backup now"}
         </button>
+        <div style={{ width: "100%", marginTop: 8 }}>
+          <input
+            type="search"
+            value={backupSearch}
+            onChange={(e) => setBackupSearch(e.target.value)}
+            placeholder="Search backup directories & files…"
+            style={{
+              width: "100%",
+              maxWidth: 360,
+              height: 34,
+              border: "none",
+              borderRadius: 8,
+              padding: "0 10px",
+              fontSize: 12,
+              fontWeight: 600,
+              background: "var(--om-admin-chip-bg, rgba(0,0,0,0.06))",
+            }}
+          />
+          {backupSnaps.length > 0 ? (
+            <ul
+              style={{
+                margin: "8px 0 0",
+                padding: 0,
+                listStyle: "none",
+                maxHeight: 160,
+                overflow: "auto",
+                fontSize: 12,
+              }}
+            >
+              {backupSnaps.slice(0, 12).map((s) => (
+                <li key={s.id} style={{ padding: "4px 0" }}>
+                  <strong>{s.id}</strong>
+                  <span className="om-admin-muted">
+                    {" "}
+                    · {s.fileCount} files
+                    {s.files?.[0]
+                      ? ` · e.g. ${s.files
+                          .slice(0, 3)
+                          .map((f) => f.name)
+                          .join(", ")}`
+                      : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
       </div>
 
       {err ? <div className="om-admin-error">{err}</div> : null}

@@ -8,6 +8,7 @@
 
 import { useEffect, useRef } from "react";
 import {
+  BadgeCheck,
   Banknote,
   Bell,
   Briefcase,
@@ -128,18 +129,35 @@ export default function SettingsPage() {
         onScroll={() => saveSettingsScroll(scrollRef.current)}
       >
         <div className="space-y-0.5 py-1">
-          {HUB_SECTIONS.map((item, i) => (
-            <SettingsRow
-              key={item.href}
-              first={i === 0}
-              isLight={isLight}
-              icon={item.icon}
-              label={t(item.labelKey)}
-              detail={t(item.detailKey)}
-              href={item.href}
-              onClick={rememberScroll}
-            />
-          ))}
+          {HUB_SECTIONS.flatMap((item, i) => {
+            const rows = [
+              <SettingsRow
+                key={item.href}
+                first={i === 0}
+                isLight={isLight}
+                icon={item.icon}
+                label={t(item.labelKey)}
+                detail={t(item.detailKey)}
+                href={item.href}
+                onClick={rememberScroll}
+              />,
+            ];
+            // Verification as its own top-level menu (not nested under Profile)
+            if (item.href === "/settings/sections/profile") {
+              rows.push(
+                <SettingsRow
+                  key="settings-verification"
+                  isLight={isLight}
+                  icon={BadgeCheck}
+                  label={t("settings.hub.verification")}
+                  detail={t("settings.hub.verificationDetail")}
+                  href={isPro ? "/artisan/verification" : "/verify"}
+                  onClick={rememberScroll}
+                />
+              );
+            }
+            return rows;
+          })}
         </div>
 
         <SettingsSection title={t("settings.dangerZone")} isLight={isLight}>

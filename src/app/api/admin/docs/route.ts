@@ -1,26 +1,64 @@
 /**
- * Care document download proxy — serves gov ID / skill docs with service role
- * so admin can open/download even when storage is private or CORS blocks browser fetch.
+ * Care document proxy — Admin + Customer Care only.
+ * View in-browser (inline). Download is blocked for everyone else.
+ * Support role cannot access review / ID / skill files.
  *
  * GET ?userId=&kind=front|back|pro_front|pro_back|skill
  * GET ?url=   (absolute http(s) or data: URL — re-fetched server-side when http)
  */
+import { AdminAuthError, requireAdmin } from "@/lib/server/admin-auth";
 import { apiFail } from "@/lib/server/api-json";
+import { roleHasPermission } from "@/lib/server/modules/admin-roles";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function canViewReviewFiles(role: string | undefined): boolean {
+  // Super Admin + Customer Care only (view_pii). Support cannot open docs.
+  if (role === "support") return false;
+  if (role === "customer_care" || role === "super_admin") {
+    return roleHasPermission(role, "view_pii");
+  }
+  // Legacy admin without role → treat as super admin
+  return true;
+}
+
 export async function GET(req: Request) {
   if (!isSupabaseAdminConfigured()) {
     return apiFail("Server not configured", 503);
+  }
+
+  try {
+    const { adminRole } = await requireAdmin();
+    if (!canViewReviewFiles(adminRole)) {
+      return apiFail(
+        "Only Admin and Customer Care can view review documents.",
+        403,
+        "docs_forbidden"
+      );
+    }
+  } catch (e) {
+    if (e instanceof AdminAuthError) {
+      return apiFail(e.message, e.status, e.code || "auth");
+    }
+    return apiFail("Unauthorized", 401);
   }
 
   const { searchParams } = new URL(req.url);
   const userId = (searchParams.get("userId") || "").trim();
   const kind = (searchParams.get("kind") || "front").trim();
   const rawUrl = (searchParams.get("url") || "").trim();
+  // Never allow attachment/download for public scrapers — inline view only
+  const forceDownload = searchParams.get("download") === "1";
+  if (forceDownload) {
+    return apiFail(
+      "Downloading review or backend identity files is not allowed. View only for Admin and Customer Care.",
+      403,
+      "download_forbidden"
+    );
+  }
 
   let target: string | null = rawUrl || null;
 
@@ -67,6 +105,15 @@ export async function GET(req: Request) {
     return apiFail("Document not found", 404, "not_found");
   }
 
+  const viewHeaders = (mime: string, ext: string) => ({
+    "Content-Type": mime,
+    // Inline only — no attachment (blocks “Save as / download” intent)
+    "Content-Disposition": `inline; filename="ona-view.${ext}"`,
+    "Cache-Control": "private, max-age=60, no-store",
+    "X-Content-Type-Options": "nosniff",
+    "X-Ona-Doc-Access": "view-only-admin-care",
+  });
+
   // data: URLs — return decoded bytes
   if (target.startsWith("data:")) {
     try {
@@ -86,11 +133,7 @@ export async function GET(req: Request) {
             ? "pdf"
             : "jpg";
       return new Response(buf, {
-        headers: {
-          "Content-Type": mime,
-          "Content-Disposition": `inline; filename="ona-doc.${ext}"`,
-          "Cache-Control": "private, max-age=60",
-        },
+        headers: viewHeaders(mime, ext),
       });
     } catch {
       return apiFail("Invalid document data", 400);
@@ -100,11 +143,9 @@ export async function GET(req: Request) {
   // Remote URL (Supabase storage or CDN) — fetch server-side and stream
   if (target.startsWith("http://") || target.startsWith("https://")) {
     try {
-      // Prefer signed URL if this is a storage path style
       const sb = createServiceSupabase();
       let fetchUrl = target;
       try {
-        // public bucket path pattern: /storage/v1/object/public/BUCKET/path
         const pub = target.match(
           /\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/
         );
@@ -127,16 +168,17 @@ export async function GET(req: Request) {
       const buf = Buffer.from(await res.arrayBuffer());
       const ctype =
         res.headers.get("content-type") || "application/octet-stream";
+      const ext = ctype.includes("png")
+        ? "png"
+        : ctype.includes("pdf")
+          ? "pdf"
+          : "jpg";
       return new Response(buf, {
-        headers: {
-          "Content-Type": ctype,
-          "Content-Disposition": `inline; filename="ona-doc"`,
-          "Cache-Control": "private, max-age=60",
-        },
+        headers: viewHeaders(ctype, ext),
       });
     } catch (e) {
       return apiFail(
-        e instanceof Error ? e.message : "Download failed",
+        e instanceof Error ? e.message : "View failed",
         502
       );
     }

@@ -110,3 +110,16 @@ Portals for menus/call sheets must mount on `#ona-phone`, not `document.body` al
 4. Negotiate: timer ~20:00, up to 6 offers, reject `0` and 7+ digit amounts  
 
 If any step fails, **do not ship**.
+
+## 9. I’m Satisfied / release pay after pro marks complete
+
+**Never:**
+- Treat job status `completed` as “finished / link unavailable” in notification center or toasts
+- Use `isJobFinishedStatus` alone to block navigation to `/jobs/[id]` (it includes `completed` for chat-end only)
+- Leave the customer on home with only a notification when pro taps Mark complete
+
+**Always:**
+- `completed` stays a **live shell** status (`JOB_LIVE_SHELL_STATUSES` / `isJobLiveShellStatus`)
+- Notification open → `/jobs/{id}` with **I’M SATISFIED — RELEASE PAYMENT** CTA
+- Gate navigation with `isNavigationBlocked` / `isJobHistoryOnlyStatus` (not blanket finished)
+- `MotoristReleasePayGate` force-routes motorist to `/jobs/{id}` while status is `completed`

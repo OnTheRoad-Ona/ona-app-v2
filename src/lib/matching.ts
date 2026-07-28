@@ -10,6 +10,23 @@ export const DEFAULT_RADIUS_KM = 10;
 /** Map camera zoom for ~1 km street view (radius still uses MAX_RADIUS_KM) */
 export const MAP_NEAR_ZOOM = 15;
 
+/**
+ * Live marketplace pin is valid only while heartbeat is fresh.
+ * Pros refresh location_updated_at while Live (~every 3 min); 5 min = one missed tick grace.
+ */
+export const LIVE_HEARTBEAT_MAX_MS = 5 * 60 * 1000;
+
+/** True when Live pin was refreshed within LIVE_HEARTBEAT_MAX_MS. */
+export function hasRecentLiveHeartbeat(
+  locationUpdatedAt: string | null | undefined,
+  nowMs: number = Date.now()
+): boolean {
+  if (!locationUpdatedAt) return false;
+  const t = new Date(locationUpdatedAt).getTime();
+  if (!Number.isFinite(t)) return false;
+  return nowMs - t <= LIVE_HEARTBEAT_MAX_MS;
+}
+
 function problemPriority(tech: Technician, query: string): number {
   const q = query.toLowerCase().trim();
   if (!q) return 0;
@@ -101,6 +118,81 @@ export function technicianMatchesQuery(
   return false;
 }
 
+/**
+ * Normalize Home / Office / Commercial / Industrial chips so
+ * "Residential (Homes)" matches customer "Home" specialty filter, etc.
+ */
+export function specialtyAffinityTokens(raw: string): Set<string> {
+  const n = String(raw || "")
+    .toLowerCase()
+    .trim();
+  const set = new Set<string>();
+  if (!n) return set;
+  set.add(n);
+  // Collapse punctuation for soft equality
+  set.add(n.replace(/[^a-z0-9]+/g, " ").trim());
+  if (
+    n.includes("home") ||
+    n.includes("residential") ||
+    n.includes("house") ||
+    n === "homes"
+  ) {
+    set.add("home");
+    set.add("homes");
+    set.add("residential");
+    set.add("residential (homes)");
+  }
+  if (n.includes("office")) {
+    set.add("office");
+    set.add("offices");
+  }
+  if (n.includes("commercial") || n.includes("shop") || n.includes("business")) {
+    set.add("commercial");
+  }
+  if (n.includes("industrial") || n.includes("factory") || n.includes("plant")) {
+    set.add("industrial");
+  }
+  if (n.includes("vehicle") || n.includes("auto") || n === "car") {
+    set.add("vehicle");
+    set.add("auto");
+  }
+  if (n.includes("furniture") || n.includes("fit-out") || n.includes("fit out")) {
+    set.add("furniture");
+  }
+  if (n.includes("exterior") || n.includes("facade") || n.includes("façade")) {
+    set.add("exterior");
+  }
+  if (n.includes("electronics") || n.includes("mobile")) {
+    if (n.includes("electronics")) set.add("electronics");
+    if (n.includes("mobile")) set.add("mobile");
+  }
+  return set;
+}
+
+/** Customer specialty chip vs pro focus — soft match (never require exact string). */
+export function proMatchesSpecialtyFilter(
+  proSpecialties: string[] | null | undefined,
+  want: string | null | undefined
+): boolean {
+  const w = String(want || "").trim();
+  if (!w) return true;
+  const specs = Array.isArray(proSpecialties) ? proSpecialties : [];
+  // Legacy / missing focus → still list (do not empty the marketplace)
+  if (specs.length === 0) return true;
+
+  const wantTokens = specialtyAffinityTokens(w);
+  for (const s of specs) {
+    const st = specialtyAffinityTokens(s);
+    for (const t of wantTokens) {
+      if (st.has(t)) return true;
+    }
+    const a = s.toLowerCase();
+    const b = w.toLowerCase();
+    if (a === b || a.includes(b) || b.includes(a)) return true;
+  }
+  return false;
+}
+
 export function filterAndRankTechnicians(
   technicians: Technician[],
   options: {
@@ -174,16 +266,9 @@ export function filterAndRankTechnicians(
   }
 
   if (specialtyFilter && specialtyFilter.trim()) {
-    const want = specialtyFilter.trim().toLowerCase();
-    list = list.filter((t) => {
-      const specs = Array.isArray(t.specialties) ? t.specialties : [];
-      // Pros with no specialty listed still appear (legacy profiles)
-      if (specs.length === 0) return true;
-      return specs.some((s) => {
-        const n = String(s).toLowerCase();
-        return n === want || n.includes(want) || want.includes(n);
-      });
-    });
+    list = list.filter((t) =>
+      proMatchesSpecialtyFilter(t.specialties, specialtyFilter)
+    );
   }
 
   // Free-text search: only matching pros (name / trade / specialty / problem)

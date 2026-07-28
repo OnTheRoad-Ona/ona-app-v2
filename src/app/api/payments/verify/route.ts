@@ -64,11 +64,13 @@ export async function POST(req: Request) {
     const ok = verified.success && amountOk;
 
     if (!ok) {
-      await updateEscrow(payment.id, {
-        status: "failed",
-        escrowStatus: "failed",
-      });
-      return apiFail("Payment verification failed", 402, "verify_failed");
+      // Do NOT mark escrow failed permanently — bank transfer can land later.
+      // Keep pending so release/reconcile can re-check Flutterwave.
+      return apiFail(
+        "Payment not confirmed yet on Flutterwave. If you already transferred, wait and try again.",
+        402,
+        "verify_failed"
+      );
     }
 
     const updated = await updateEscrow(payment.id, {

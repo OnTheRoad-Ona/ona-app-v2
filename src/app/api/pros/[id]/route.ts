@@ -1,4 +1,5 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { hasRecentLiveHeartbeat } from "@/lib/matching";
 import {
   listProReviews,
   toProfileReview,
@@ -47,6 +48,18 @@ export async function GET(
 
     if (error) return apiFail(error.message, 500);
     if (!pro) {
+      return apiFail(
+        "This Repair Pro is Away or not available right now.",
+        404,
+        "pro_offline"
+      );
+    }
+
+    const proRow = pro as RepairProRow;
+    if (
+      !proRow.is_online ||
+      !hasRecentLiveHeartbeat(proRow.location_updated_at)
+    ) {
       return apiFail(
         "This Repair Pro is Away or not available right now.",
         404,

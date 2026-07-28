@@ -1,12 +1,23 @@
 "use client";
 
 /**
- * Settings → bank — same fields & validation as BankForcePanel
- * (bank list, auto code, NUBAN resolve, name match, uniqueness).
+ * Settings → Payments
+ * - Bank details (both roles)
+ * - Payment / payout history + status (role-aware)
+ * Customer never sees 95/5 split; pro sees expected payout.
+ * Local monitoring — not dependent on Vercel deploy.
  */
 
-import { useEffect, useState } from "react";
-import { Building2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  Building2,
+  ChevronRight,
+  Clock3,
+  Loader2,
+  RefreshCw,
+  Wallet,
+} from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import {
   BankDetailsFields,
@@ -17,13 +28,65 @@ import {
   hasCompleteBankDetails,
   validateBankDetailsInput,
 } from "@/lib/bank-details";
+import { formatMoneyMinor, type AppCurrency } from "@/lib/pricing";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
+type PayRow = {
+  id: string;
+  requestId: string;
+  amountMinor: number;
+  currency: AppCurrency;
+  escrowStatus: string;
+  statusLabel: string;
+  statusTone: "ok" | "warn" | "bad" | "muted";
+  provider: string;
+  paidAt: string | null;
+  releasedAt: string | null;
+  createdAt: string;
+  href: string;
+  proPayoutMinor: number | null;
+  platformFeeMinor: number | null;
+  showSplit: boolean;
+  nextRetryAt?: string | null;
+  payoutStatus?: string | null;
+};
+
+type Summary = {
+  totalCount: number;
+  heldCount: number;
+  releasedCount: number;
+  processingCount: number;
+  refundedCount: number;
+  heldMinor: number;
+  releasedMinor: number;
+};
+
+function toneClass(tone: PayRow["statusTone"], isLight: boolean) {
+  switch (tone) {
+    case "ok":
+      return "text-emerald-600";
+    case "warn":
+      return "text-[#FF6B35]";
+    case "bad":
+      return "text-red-500";
+    default:
+      return isLight ? "text-slate-600" : "text-white/60";
+  }
+}
+
 export default function SettingsPaymentsPage() {
-  const { theme, userProfile, updateUserProfile, accountType } = useApp();
+  const {
+    theme,
+    userProfile,
+    updateUserProfile,
+    accountType,
+    backendUserId,
+  } = useApp();
   const isLight = theme === "light";
   const isPro = accountType === "professional";
+  const userId =
+    backendUserId || userProfile?.identityId || null;
 
   const [details, setDetails] = useState<BankDetailsValue>({
     bankCode: "",
@@ -35,6 +98,15 @@ export default function SettingsPaymentsPage() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
+
+  const [rows, setRows] = useState<PayRow[]>([]);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [notes, setNotes] = useState<string | null>(null);
+  const [histLoading, setHistLoading] = useState(true);
+  const [histErr, setHistErr] = useState<string | null>(null);
+  const [filter, setFilter] = useState<
+    "all" | "active" | "released" | "refunded"
+  >("all");
 
   useEffect(() => {
     if (!userProfile) return;
@@ -54,10 +126,57 @@ export default function SettingsPaymentsPage() {
     bankAccountNumber: details.bankAccountNumber,
   } as NonNullable<typeof userProfile>);
 
-  // Open form when nothing on file yet
   useEffect(() => {
     if (!complete) setEditing(true);
   }, [complete]);
+
+  const loadHistory = useCallback(async () => {
+    if (!userId) {
+      setHistLoading(false);
+      setRows([]);
+      return;
+    }
+    setHistLoading(true);
+    setHistErr(null);
+    try {
+      const role = isPro ? "professional" : "motorist";
+      const res = await fetch(
+        `/api/payments/history?userId=${encodeURIComponent(userId)}&role=${role}`,
+        { cache: "no-store" }
+      );
+      const json = (await res.json()) as {
+        ok?: boolean;
+        data?: {
+          payments?: PayRow[];
+          summary?: Summary;
+          notes?: string;
+        };
+        error?: { message?: string };
+      };
+      if (!json?.ok) {
+        setHistErr(json?.error?.message || "Could not load payments");
+        setRows([]);
+        setSummary(null);
+      } else {
+        setRows(json.data?.payments || []);
+        setSummary(json.data?.summary || null);
+        setNotes(json.data?.notes || null);
+      }
+    } catch {
+      setHistErr("Could not load payments");
+    } finally {
+      setHistLoading(false);
+    }
+  }, [userId, isPro]);
+
+  useEffect(() => {
+    void loadHistory();
+    const t = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      void loadHistory();
+    }, 45_000);
+    return () => window.clearInterval(t);
+  }, [loadHistory]);
 
   const save = async () => {
     setErr(null);
@@ -100,7 +219,21 @@ export default function SettingsPaymentsPage() {
   const sheet = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-600" : "text-white/65";
-  const card = "bg-transparent";
+  const card = isLight ? "bg-black/[0.04]" : "bg-[#1c1c1e]";
+
+  const filtered = rows.filter((p) => {
+    if (filter === "all") return true;
+    if (filter === "active")
+      return ["held", "pending_settlement", "release_pending", "pending_payment"].includes(
+        p.escrowStatus
+      );
+    if (filter === "released")
+      return p.escrowStatus === "released" || p.statusLabel === "Paid out";
+    if (filter === "refunded") return p.escrowStatus === "refunded";
+    return true;
+  });
+
+  const currency = (rows[0]?.currency || "NGN") as AppCurrency;
 
   return (
     <div className={cn("flex h-full flex-col", sheet)}>
@@ -108,8 +241,182 @@ export default function SettingsPaymentsPage() {
         title={isPro ? "Payments & payouts" : "Payments & refunds"}
         backHref="/settings"
       />
-      <div className="flex-1 overflow-y-auto px-3 pb-6 scrollbar-hide">
-        <div className={cn("border-0 p-4", card)}>
+      <div className="flex-1 space-y-3 overflow-y-auto px-3 pb-8 scrollbar-hide">
+        {/* Summary */}
+        <section className={cn("rounded-2xl px-3 py-3", card)}>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Wallet className="h-4 w-4 text-[#FF6B35]" />
+              <p className={cn("text-[13px] font-black", ink)}>
+                {isPro ? "Payout overview" : "Payment overview"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadHistory()}
+              className={cn(
+                "inline-flex items-center gap-1 border-0 bg-transparent text-[11px] font-bold",
+                muted
+              )}
+              aria-label="Refresh"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Refresh
+            </button>
+          </div>
+          {histLoading && !summary ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-[#FF6B35]" />
+            </div>
+          ) : summary ? (
+            <div className="grid grid-cols-2 gap-2">
+              <div className={cn("rounded-xl px-2.5 py-2", isLight ? "bg-black/[0.04]" : "bg-white/5")}>
+                <p className={cn("text-[10px] font-bold uppercase", muted)}>
+                  {isPro ? "In escrow / processing" : "Held / processing"}
+                </p>
+                <p className={cn("mt-0.5 text-[15px] font-black tabular-nums", ink)}>
+                  {formatMoneyMinor(summary.heldMinor, currency)}
+                </p>
+                <p className={cn("text-[10px]", muted)}>
+                  {summary.heldCount + summary.processingCount} open
+                </p>
+              </div>
+              <div className={cn("rounded-xl px-2.5 py-2", isLight ? "bg-black/[0.04]" : "bg-white/5")}>
+                <p className={cn("text-[10px] font-bold uppercase", muted)}>
+                  {isPro ? "Paid out" : "Released"}
+                </p>
+                <p className={cn("mt-0.5 text-[15px] font-black tabular-nums", ink)}>
+                  {formatMoneyMinor(summary.releasedMinor, currency)}
+                </p>
+                <p className={cn("text-[10px]", muted)}>
+                  {summary.releasedCount} done
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className={cn("text-[12px]", muted)}>No payment activity yet.</p>
+          )}
+          {notes ? (
+            <p className={cn("mt-2 text-[11px] font-medium leading-snug", muted)}>
+              {notes}
+            </p>
+          ) : null}
+        </section>
+
+        {/* History list */}
+        <section className={cn("rounded-2xl px-3 py-3", card)}>
+          <div className="mb-2 flex items-center gap-2">
+            <Clock3 className="h-4 w-4 text-[#FF6B35]" />
+            <p className={cn("text-[13px] font-black", ink)}>Activity</p>
+          </div>
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {(
+              [
+                ["all", "All"],
+                ["active", "Open"],
+                ["released", isPro ? "Paid out" : "Released"],
+                ["refunded", "Refunded"],
+              ] as const
+            ).map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setFilter(k)}
+                className={cn(
+                  "rounded-full border-0 px-2.5 py-1 text-[11px] font-bold",
+                  filter === k
+                    ? "bg-[#FF6B35] text-white"
+                    : isLight
+                      ? "bg-black/10 text-slate-800"
+                      : "bg-white/10 text-white/85"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {histErr ? (
+            <p className="text-center text-[12px] font-semibold text-red-500">
+              {histErr}
+            </p>
+          ) : null}
+          {histLoading && rows.length === 0 ? (
+            <div className="flex justify-center py-6">
+              <Loader2 className="h-5 w-5 animate-spin text-[#FF6B35]" />
+            </div>
+          ) : null}
+          {!histLoading && filtered.length === 0 ? (
+            <p className={cn("py-4 text-center text-[12px] font-medium", muted)}>
+              No payments in this filter.
+            </p>
+          ) : null}
+
+          <ul className="space-y-2">
+            {filtered.map((p) => (
+              <li key={p.id}>
+                <Link
+                  href={p.href}
+                  className={cn(
+                    "flex items-start gap-2 rounded-xl px-2.5 py-2.5 active:opacity-90",
+                    isLight ? "bg-black/[0.04]" : "bg-white/5"
+                  )}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className={cn("text-[14px] font-black tabular-nums", ink)}>
+                        {formatMoneyMinor(
+                          isPro && p.proPayoutMinor != null
+                            ? p.proPayoutMinor
+                            : p.amountMinor,
+                          p.currency
+                        )}
+                      </p>
+                      <p
+                        className={cn(
+                          "text-[11px] font-bold",
+                          toneClass(p.statusTone, isLight)
+                        )}
+                      >
+                        {p.statusLabel}
+                      </p>
+                    </div>
+                    <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
+                      {isPro
+                        ? `Your payout · job ${p.requestId.slice(0, 8)}`
+                        : `Total paid · job ${p.requestId.slice(0, 8)}`}
+                    </p>
+                    {isPro && p.showSplit && p.proPayoutMinor != null ? (
+                      <p className={cn("mt-0.5 text-[10px] font-medium", muted)}>
+                        87.5% of service · Ona 5% · VAT 7.5% on Flutterwave
+                      </p>
+                    ) : null}
+                    <p className={cn("mt-0.5 text-[10px]", muted)}>
+                      {p.paidAt
+                        ? `Paid ${new Date(p.paidAt).toLocaleString()}`
+                        : `Created ${new Date(p.createdAt).toLocaleString()}`}
+                      {p.releasedAt
+                        ? ` · Released ${new Date(p.releasedAt).toLocaleString()}`
+                        : ""}
+                    </p>
+                  </div>
+                  <ChevronRight className={cn("mt-1 h-4 w-4 shrink-0", muted)} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          <Link
+            href="/payments/history"
+            className="mt-3 flex items-center justify-center gap-1 text-[12px] font-bold text-[#FF6B35]"
+          >
+            Full payment history
+            <ChevronRight className="h-3.5 w-3.5" />
+          </Link>
+        </section>
+
+        {/* Bank */}
+        <section className={cn("rounded-2xl px-3 py-3", card)}>
           <div className="mb-3 flex items-start gap-2">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#FF6B35]">
               <Building2 className="h-5 w-5 text-white" />
@@ -120,11 +427,13 @@ export default function SettingsPaymentsPage() {
               </p>
               {complete && !editing ? (
                 <p className="mt-1 text-[12px] font-semibold text-emerald-600">
-                  Bank verified
+                  {isPro ? "Payout bank on file" : "Refund bank on file"}
                 </p>
               ) : (
                 <p className={cn("mt-1 text-[11px] font-bold text-[#FF6B35]")}>
-                  Required to finish setup
+                  {isPro
+                    ? "Required to receive job payouts"
+                    : "Used if a refund is processed"}
                 </p>
               )}
             </div>
@@ -176,6 +485,7 @@ export default function SettingsPaymentsPage() {
                 initial={details}
                 onChange={setDetails}
                 signupFullName={userProfile?.fullName}
+                countryIso={userProfile?.identityCountryIso || "NG"}
               />
 
               {err ? (
@@ -229,7 +539,7 @@ export default function SettingsPaymentsPage() {
               </div>
             </>
           )}
-        </div>
+        </section>
       </div>
     </div>
   );

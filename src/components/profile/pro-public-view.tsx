@@ -21,7 +21,7 @@ import {
   detectCurrency,
   formatMoney,
   getBaseLabourPrice,
-  LABOUR_FEE_DISCLAIMER,
+  labourFeeDisclaimerForTrade,
 } from "@/lib/pricing";
 import {
   formatExperience,
@@ -46,9 +46,9 @@ export function ProPublicView({
   isLight: boolean;
   reviews?: ProfileReview[];
   onRequest: () => void;
-  /** Request Help | Booked (mid-trip only) */
+  /** Request Help | Open (live job with this pro) */
   ctaLabel?: string;
-  ctaKind?: "request" | "booked";
+  ctaKind?: "request" | "open" | "booked";
 }) {
   const t = profileTheme(isLight);
   const jobs = tech.jobsCompleted ?? tech.reviewCount ?? 0;
@@ -124,7 +124,7 @@ export function ProPublicView({
             size="lg"
             className={cn(
               "h-12 w-full border-0 shadow-none",
-              ctaKind === "booked"
+              ctaKind === "open" || ctaKind === "booked"
                 ? "bg-emerald-700 text-white hover:bg-emerald-800"
                 : undefined
             )}
@@ -234,7 +234,7 @@ export function ProPublicView({
 
       <ProfileSection title="Labour prices" isLight={isLight}>
         <p className={cn("mb-2 text-[10px] leading-snug", t.muted)}>
-          {LABOUR_FEE_DISCLAIMER}
+          {labourFeeDisclaimerForTrade(tech.serviceType)}
         </p>
         <ul className="space-y-1.5">
           {skills.map((s) => {

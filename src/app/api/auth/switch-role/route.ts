@@ -54,7 +54,11 @@ export async function POST(req: Request) {
     parsed.data.access_token
   );
   if (userErr || !userData.user) {
-    return apiFail("Session expired. Please log in again.", 401);
+    return apiFail(
+      "Your login session needs a refresh. Try again, or sign in once more.",
+      401,
+      "session_expired"
+    );
   }
 
   const userId = userData.user.id;

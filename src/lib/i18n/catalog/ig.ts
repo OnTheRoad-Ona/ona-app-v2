@@ -220,7 +220,7 @@ export const IG: MessageDict = {
   "jobs.past": "Past",
   "requests.title": "Requests",
   "requests.empty": "No requests yet",
-  "requests.new": "New request",
+  "requests.new": "Service Request",
   "job.status.requested": "Requested",
   "job.status.accepted": "Accepted",
   "job.status.enRoute": "On the way",
@@ -358,4 +358,6 @@ export const IG: MessageDict = {
   "common.codeSent": "E zigara koodu. Tinye ya n'okpuru.",
   "settings.hub.profileInner": "Profaịlụ",
   "settings.hub.profileInnerDetail": "Aha foto kọntaktị",
+  "settings.hub.verification": "Verification",
+  "settings.hub.verificationDetail": "ID, tiers & documents",
 };

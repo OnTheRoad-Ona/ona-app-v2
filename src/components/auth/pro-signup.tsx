@@ -668,7 +668,9 @@ export function ProSignup() {
       vehiclesServedUpdatedAt: new Date().toISOString(),
       skillAnswers: {
         ...skillAnswers,
+        // Singular + array so discovery filters (Home/Office/…) always match
         specialty: specialty || "",
+        specialties: specialty ? [specialty] : [],
         // Serialized list of vehicles this pro can fix (type/make/model/year)
         vehiclesCanFixJson: JSON.stringify(
           vehiclesCanFix.map((v) => ({

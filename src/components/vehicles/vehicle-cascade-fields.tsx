@@ -82,12 +82,13 @@ function SearchSelect({
         ? "h-11 w-full rounded-md border-0 bg-black/8 px-3 text-[14px] font-medium text-slate-900 outline-none placeholder:text-slate-500"
         : "h-11 w-full rounded-md border-0 bg-[#2c2c2e] px-3 text-[14px] font-medium text-white outline-none placeholder:text-white/50";
 
+  /* Full catalog, compact one-line field + downward list (never full-page) */
   const listClass =
     variant === "auth"
-      ? "absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-[#9A9EA6] bg-white shadow-lg"
+      ? "absolute z-50 mt-1 max-h-44 w-full overflow-y-auto overscroll-contain rounded-md border border-[#9A9EA6] bg-white shadow-lg"
       : isLight
-        ? "absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-black/10 bg-white shadow-lg"
-        : "absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-white/10 bg-[#1c1c1e] shadow-lg";
+        ? "absolute z-50 mt-1 max-h-44 w-full overflow-y-auto overscroll-contain rounded-md border border-black/10 bg-white shadow-lg"
+        : "absolute z-50 mt-1 max-h-44 w-full overflow-y-auto overscroll-contain rounded-md border border-white/10 bg-[#1c1c1e] shadow-lg";
 
   const itemBase =
     variant === "auth" || isLight

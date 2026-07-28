@@ -67,8 +67,13 @@ export const ARTISAN_TRADE_CATALOG: ArtisanTradeDef[] = [
     service: "ac",
     label: "A/C",
     homeLabel: "A/C",
-    description: "Vehicle, commercial and industrial cooling",
-    specialties: ["Vehicle", "Commercial", "Industrial"],
+    description: "Vehicle, home, commercial and industrial cooling",
+    specialties: [
+      "Vehicle",
+      "Residential (Homes)",
+      "Commercial",
+      "Industrial",
+    ],
   },
   {
     service: "body",
@@ -86,8 +91,15 @@ export const ARTISAN_TRADE_CATALOG: ArtisanTradeDef[] = [
     service: "electrical",
     label: "Electric",
     homeLabel: "Electric",
-    description: "Vehicle, electronics, and mobile electrical work",
-    specialties: ["Vehicle", "Electronics", "Mobile"],
+    description: "Vehicle, home, commercial, industrial and electronics",
+    specialties: [
+      "Vehicle",
+      "Residential (Homes)",
+      "Commercial",
+      "Industrial",
+      "Electronics",
+      "Mobile",
+    ],
   },
   {
     service: "diagnostics",
@@ -214,7 +226,7 @@ export function specialtyChipLabel(specialty: string): string {
   return `${specialty.slice(0, 12)}…`;
 }
 
-/** True for trades where vehicle brand/model focus still makes sense */
+/** Pure vehicle trades — always show vehicle fields on request. */
 export function isAutomotiveTrade(service: ProService): boolean {
   return (
     service === "mechanic" ||
@@ -223,10 +235,33 @@ export function isAutomotiveTrade(service: ProService): boolean {
     service === "battery" ||
     service === "body" ||
     service === "diagnostics" ||
-    service === "wash" ||
-    service === "ac" || // may still pick Vehicle AC specialty
-    service === "electrical" // may be Auto Electrician
+    service === "wash"
   );
+}
+
+/**
+ * Whether this pro/request should collect vehicle details.
+ * AC / Electric only when the pro’s specialties include vehicle/auto work
+ * (home / industrial / commercial specialty variants do not).
+ */
+export function showsVehicleOnRequest(
+  service: ProService | string | null | undefined,
+  specialties?: string[] | null
+): boolean {
+  const s = (service || "") as ProService;
+  if (isAutomotiveTrade(s)) return true;
+  if (s !== "ac" && s !== "electrical") return false;
+  const list = (specialties || []).map((x) => String(x).toLowerCase());
+  if (!list.length) {
+    // Legacy pros without specialty chips — allow vehicle when trade can be auto
+    return true;
+  }
+  // Any vehicle-focused specialty → show vehicle picker
+  if (list.some((x) => x.includes("vehicle") || x.includes("auto"))) {
+    return true;
+  }
+  // Only home / commercial / industrial / electronics → no vehicle fields
+  return false;
 }
 
 export function tradeDef(service: ProService): ArtisanTradeDef | undefined {

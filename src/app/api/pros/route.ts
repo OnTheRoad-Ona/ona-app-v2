@@ -1,5 +1,5 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
-import { MAX_RADIUS_KM } from "@/lib/matching";
+import { hasRecentLiveHeartbeat, MAX_RADIUS_KM } from "@/lib/matching";
 import { DOCS_PENDING_MAX_RADIUS_KM } from "@/lib/skill-questions";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
@@ -12,13 +12,12 @@ export const dynamic = "force-dynamic";
 /**
  * Public marketplace feed for Motorists.
  * Only Repair Pros who are:
- *  - approved
- *  - currently in professional role (profiles.role = repair_pro)
- *  - Live / online (is_online = true)
+ *  - approved / marketplace-ready tier
+ *  - signed-in active profile (prefer repair_pro role)
+ *  - Live: is_online = true + location_updated_at within 5 min
  *  - within MAX_RADIUS_KM (10 km) of the request lat/lng
- *    (motorist GPS or “help someone else” meet pin)
  *
- * Away pros and users switched to Customer mode are hidden.
+ * Away, stale heartbeat, and signed-out ghost pins are hidden.
  */
 export async function GET(req: Request) {
   if (!isSupabaseAdminConfigured()) {
@@ -56,6 +55,8 @@ export async function GET(req: Request) {
       "labour_prices",
       "pricing_currency",
       "vehicle_focus",
+      // Needed so Home/Office/Industrial specialty filters work (solar, plumber, …)
+      "skills",
       "jobs_completed",
       "avg_response_minutes",
       "completion_rate",
@@ -122,8 +123,13 @@ export async function GET(req: Request) {
 
     if (error) return apiFail(error.message, 500);
 
+    const nowMs = Date.now();
     const list = ((pros ?? []) as unknown as RepairProRow[]).filter((p) => {
       if (p.status === "suspended" || p.status === "rejected") return false;
+      // Live only with fresh heartbeat (signed-out / stale pin never listed)
+      if (!p.is_online || !hasRecentLiveHeartbeat(p.location_updated_at, nowMs)) {
+        return false;
+      }
       const tier = Number(p.visibility_tier);
       // T1 never appears. Null tier + approved/verified counts as marketplace-ready (T2+)
       if (Number.isFinite(tier) && tier >= 1 && tier < 2) return false;

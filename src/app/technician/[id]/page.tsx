@@ -232,7 +232,8 @@ export default function TechnicianPage({
       ctaKind={cta}
       ctaLabel={proCtaLabel(cta, true)}
       onRequest={() => {
-        if (cta !== "request" && activeJob?.id) {
+        if (cta === "open" && activeJob?.id) {
+          // Re-open live job (pay / booked / trip) — not a new request
           router.push(`/jobs/${activeJob.id}`);
           return;
         }

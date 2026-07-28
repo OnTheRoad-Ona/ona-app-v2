@@ -1,5 +1,5 @@
 /**
- * Admin session + Customer Care authorization.
+ * Admin session + multi-level staff authorization.
  * Builds on modular security (roles, sensitive unlock, idle timeout, audit).
  */
 
@@ -17,10 +17,10 @@ import {
   type CarePermission,
   normalizeAdminRole,
   roleHasPermission,
+  PASSWORD_GATED,
 } from "@/lib/server/modules/admin-roles";
 import { readUnlockFromCookies } from "@/lib/server/modules/sensitive-unlock";
 import { writeAuditLog } from "@/lib/server/modules/audit";
-import { PASSWORD_GATED } from "@/lib/server/modules/admin-roles";
 import { rateLimit } from "@/lib/server/modules/rate-limit";
 
 export { ADMIN_SESSION_COOKIE };
@@ -51,7 +51,7 @@ export async function readAdminSession(): Promise<AdminSession | null> {
     ) as AdminSession;
     if (!parsed?.userId || !parsed?.accessToken) return null;
 
-    // Idle timeout
+    // Idle timeout (30 min default)
     const last = parsed.lastActivityAt || parsed.expiresAt * 1000 || 0;
     if (last > 0 && Date.now() - last > ADMIN_IDLE_TIMEOUT_MS) {
       jar.set(ADMIN_SESSION_COOKIE, "", {
@@ -99,6 +99,16 @@ export async function touchAdminSession(session: AdminSession): Promise<void> {
   }
 }
 
+const STAFF_PROFILE_ROLES = new Set([
+  "admin",
+  "customer_care",
+  "support",
+  "senior_support",
+  "operations",
+  "manager",
+  "super_admin",
+]);
+
 export async function requireAdmin(): Promise<{
   session: AdminSession;
   profile: AdminProfile;
@@ -120,13 +130,8 @@ export async function requireAdmin(): Promise<{
     throw new AdminAuthError("Profile not found", 401);
   }
 
-  // Accept role admin OR explicit care staff flags
   const role = String(profile.role || "");
-  const isStaff =
-    role === "admin" ||
-    role === "customer_care" ||
-    role === "support" ||
-    role === "super_admin";
+  const isStaff = STAFF_PROFILE_ROLES.has(role);
   if (!isStaff || !profile.is_active) {
     throw new AdminAuthError("Admin access required", 403);
   }
@@ -135,15 +140,19 @@ export async function requireAdmin(): Promise<{
     (profile as AdminProfile).admin_role ||
       (role === "customer_care"
         ? "customer_care"
-        : role === "support"
-          ? "support"
-          : "super_admin")
+        : role === "support" || role === "senior_support"
+          ? "senior_support"
+          : role === "operations"
+            ? "operations"
+            : role === "manager"
+              ? "manager"
+              : "super_admin")
   );
 
   await touchAdminSession(session);
 
   return {
-    session,
+    session: { ...session, adminRole },
     profile: profile as AdminProfile,
     adminRole,
   };
@@ -158,14 +167,19 @@ export async function requirePermission(
 }> {
   const ctx = await requireAdmin();
   if (!roleHasPermission(ctx.adminRole, perm)) {
-    throw new AdminAuthError(`Permission denied: ${perm}`, 403);
+    throw new AdminAuthError(
+      `Permission denied (${perm}). Your access level cannot perform this action.`,
+      403,
+      "permission_denied"
+    );
   }
   return ctx;
 }
 
 /**
- * Require temporary staff unlock for gated Care/Support actions.
- * Super Admin skips unlock. Also enforces role permission + rate limit.
+ * Require temporary staff unlock for gated actions.
+ * Super Admin skips unlock for most actions, but escrow cancel/refund
+ * always requires unlock (temporary access code) for all levels including L5.
  */
 export async function requireSensitiveAction(
   perm: CarePermission,
@@ -191,16 +205,16 @@ export async function requireSensitiveAction(
     );
   }
 
-  // Super Admin has full control — no second password.
-  // Care / Support still need temporary unlock for money & freeze actions.
-  if (
+  const alwaysUnlock: CarePermission[] = ["escrow_refund", "escrow_release"];
+  const needsUnlock =
     PASSWORD_GATED.includes(perm) &&
-    ctx.adminRole !== "super_admin"
-  ) {
+    (alwaysUnlock.includes(perm) || ctx.adminRole !== "super_admin");
+
+  if (needsUnlock) {
     const unlock = await readUnlockFromCookies(ctx.session.userId);
     if (!unlock.unlocked) {
       throw new AdminAuthError(
-        "Sensitive action locked. Enter the temporary staff password to unlock.",
+        "Sensitive action locked. Enter the temporary staff access code to unlock.",
         403,
         "sensitive_locked"
       );

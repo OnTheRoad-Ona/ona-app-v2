@@ -85,23 +85,29 @@ export async function POST(req: Request) {
     expiresAt: data.session.expires_at ?? 0,
   };
 
+  const { normalizeAdminRole, roleLabel } = await import(
+    "@/lib/server/modules/admin-roles"
+  );
+  const adminRole = normalizeAdminRole(
+    (profile as { admin_role?: string }).admin_role
+  );
+
   const jar = await cookies();
-  jar.set(ADMIN_SESSION_COOKIE, encodeAdminSession({
-    ...sessionPayload,
-    lastActivityAt: Date.now(),
-    adminRole:
-      (profile as { admin_role?: string }).admin_role === "customer_care"
-        ? "customer_care"
-        : (profile as { admin_role?: string }).admin_role === "support"
-          ? "support"
-          : "super_admin",
-  }), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 8, // 8h hard cap; idle timeout still enforced server-side
-  });
+  jar.set(
+    ADMIN_SESSION_COOKIE,
+    encodeAdminSession({
+      ...sessionPayload,
+      lastActivityAt: Date.now(),
+      adminRole,
+    }),
+    {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 60 * 60 * 8, // 8h hard cap; idle timeout still enforced server-side
+    }
+  );
 
   return apiOk({
     user: {
@@ -109,7 +115,9 @@ export async function POST(req: Request) {
       email: profile.email,
       fullName: profile.full_name,
       role: profile.role,
-      adminRole: (profile as { admin_role?: string }).admin_role || "super_admin",
+      adminRole,
+      roleLabel: roleLabel(adminRole),
+      level: adminRole === "customer_care" ? 1 : adminRole === "senior_support" ? 2 : adminRole === "operations" ? 3 : adminRole === "manager" ? 4 : 5,
     },
   });
 }

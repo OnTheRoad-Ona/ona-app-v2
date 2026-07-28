@@ -573,16 +573,42 @@ export async function POST(req: Request) {
       }
     }
     // Only real vehicle trades store make/model-style focus.
-    // Home trades (painter, plumber, …) only keep service country/area — never copy specialty into “vehicles”.
+    // Home trades (painter, plumber, solar, …) keep specialty for discovery filters.
     const vehicleTrades = new Set([
       "mechanic",
       "vulcanizer",
       "towing",
       "battery",
       "panel",
-      "ac",
+      "body",
+      "diagnostics",
+      "wash",
     ]);
     const isVehicleTrade = vehicleTrades.has(svc);
+    const saRaw =
+      (input.skillAnswers as Record<string, unknown> | undefined) || {};
+    const specialtyFromSignup = (() => {
+      if (typeof saRaw.specialty === "string" && saRaw.specialty.trim()) {
+        return saRaw.specialty.trim();
+      }
+      if (Array.isArray(saRaw.specialties) && saRaw.specialties.length) {
+        return String(saRaw.specialties[0] || "").trim() || null;
+      }
+      return null;
+    })();
+    const specialtiesArr = (() => {
+      const out: string[] = [];
+      if (Array.isArray(saRaw.specialties)) {
+        for (const x of saRaw.specialties) {
+          const s = String(x || "").trim();
+          if (s && !out.includes(s)) out.push(s);
+        }
+      }
+      if (specialtyFromSignup && !out.includes(specialtyFromSignup)) {
+        out.unshift(specialtyFromSignup);
+      }
+      return out;
+    })();
     const vehicleFocus = isVehicleTrade
       ? {
           ...(input.vehicleFocus || {}),
@@ -594,11 +620,9 @@ export async function POST(req: Request) {
         }
       : {
           trade: svc,
-          specialty:
-            (input.skillAnswers as { specialty?: string } | undefined)
-              ?.specialty ||
-            input.servedVehicleType ||
-            null,
+          // Critical for customer Home/Office/Industrial filters
+          specialty: specialtyFromSignup,
+          specialties: specialtiesArr,
           servedCountry: input.servedCountry || null,
           servedLocation: input.servedLocation || null,
         };
@@ -628,9 +652,16 @@ export async function POST(req: Request) {
     // Default: under_review only when cert present; bare signup is "none" (full radius)
     const docsStatus =
       input.docsStatus || (hasCert ? "under_review" : "none");
-    const skillsSlim = slimSkillAnswers(
-      input.skillAnswers as Record<string, unknown> | undefined
-    );
+    const skillsSlim = {
+      ...slimSkillAnswers(
+        input.skillAnswers as Record<string, unknown> | undefined
+      ),
+      // Always mirror signup focus so marketplace specialty filters work
+      ...(specialtyFromSignup
+        ? { specialty: specialtyFromSignup }
+        : {}),
+      ...(specialtiesArr.length ? { specialties: specialtiesArr } : {}),
+    };
 
     const nowIso = new Date().toISOString();
     // Care must review — never auto-approve ID/account from raw NIN/BVN digits alone

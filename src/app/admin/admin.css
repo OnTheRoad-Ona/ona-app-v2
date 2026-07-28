@@ -483,6 +483,72 @@
   margin-bottom: 1rem;
 }
 
+/* Payment balances — readable on light and dark admin themes */
+.om-admin-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.om-admin-stat-card {
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--om-bg-elevated);
+  border: 1px solid var(--om-border);
+  color: var(--om-text);
+}
+
+.om-admin-stat-card .om-admin-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--om-text-muted);
+  letter-spacing: 0.01em;
+}
+
+.om-admin-stat-card .om-admin-stat-value {
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--om-text);
+  letter-spacing: -0.02em;
+}
+
+.om-admin-stat-card .om-admin-stat-sub {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--om-text-faint);
+}
+
+.om-admin-stat-card[data-tone="ledger"] {
+  background: color-mix(in srgb, #38bdf8 16%, var(--om-panel-2));
+  border-color: color-mix(in srgb, #38bdf8 35%, var(--om-border));
+}
+.om-admin-stat-card[data-tone="available"] {
+  background: color-mix(in srgb, #34d399 14%, var(--om-panel-2));
+  border-color: color-mix(in srgb, #34d399 32%, var(--om-border));
+}
+.om-admin-stat-card[data-tone="held"] {
+  background: color-mix(in srgb, #fbbf24 14%, var(--om-panel-2));
+  border-color: color-mix(in srgb, #fbbf24 32%, var(--om-border));
+}
+.om-admin-stat-card[data-tone="pending"] {
+  background: color-mix(in srgb, #fb923c 14%, var(--om-panel-2));
+  border-color: color-mix(in srgb, #fb923c 32%, var(--om-border));
+}
+.om-admin-stat-card[data-tone="released"] {
+  background: color-mix(in srgb, #4ade80 14%, var(--om-panel-2));
+  border-color: color-mix(in srgb, #4ade80 32%, var(--om-border));
+}
+.om-admin-stat-card[data-tone="failed"] {
+  background: color-mix(in srgb, #f87171 14%, var(--om-panel-2));
+  border-color: color-mix(in srgb, #f87171 32%, var(--om-border));
+}
+.om-admin-stat-card[data-tone="refunded"] {
+  background: color-mix(in srgb, #94a3b8 12%, var(--om-panel-2));
+  border-color: color-mix(in srgb, #94a3b8 28%, var(--om-border));
+}
+
 .om-admin-toolbar {
   display: flex;
   flex-wrap: wrap;

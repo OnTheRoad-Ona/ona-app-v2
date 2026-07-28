@@ -5,7 +5,7 @@
  * Falls back gracefully when keys/session missing.
  */
 
-import { MAX_RADIUS_KM } from "@/lib/matching";
+import { hasRecentLiveHeartbeat, MAX_RADIUS_KM } from "@/lib/matching";
 import { DOCS_PENDING_MAX_RADIUS_KM } from "@/lib/skill-questions";
 import { getAppSupabase, isAppBackendOnline } from "@/lib/supabase/app-client";
 import {
@@ -282,17 +282,45 @@ export async function backendUpdateProfile(
   accessToken: string,
   patch: Record<string, unknown>
 ): Promise<string | null> {
+  const { ensureAppSession, SESSION_RELOGIN_MESSAGE } = await import(
+    "@/lib/supabase/session"
+  );
   try {
+    // Prefer a freshly refreshed token over a possibly stale caller token
+    const session = await ensureAppSession();
+    const token = session?.accessToken || accessToken;
     const res = await fetch("/api/profile/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ access_token: accessToken, ...patch }),
+      body: JSON.stringify({ access_token: token, ...patch }),
     });
     const json = (await res.json().catch(() => null)) as {
       ok?: boolean;
       error?: { message?: string; code?: string };
     } | null;
     if (!json?.ok) {
+      if (json?.error?.code === "session_expired") {
+        // One more refresh + retry
+        const again = await ensureAppSession({
+          refreshIfExpiresWithinMs: 3_600_000,
+        });
+        if (again?.accessToken) {
+          const retry = await fetch("/api/profile/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              access_token: again.accessToken,
+              ...patch,
+            }),
+          });
+          const retryJson = (await retry.json().catch(() => null)) as {
+            ok?: boolean;
+            error?: { message?: string; code?: string };
+          } | null;
+          if (retryJson?.ok) return null;
+        }
+        return SESSION_RELOGIN_MESSAGE;
+      }
       if (json?.error?.code === "bank_account_in_use") {
         return (
           json.error.message ||
@@ -649,9 +677,12 @@ export async function backendSwitchRole(
   const sb = getAppSupabase();
   if (!sb) return { error: "Supabase is not configured." };
 
-  const { data: sess } = await sb.auth.getSession();
-  const token = sess.session?.access_token;
-  if (!token) return { error: "Session expired. Please log in again." };
+  const { ensureAppSession, SESSION_RELOGIN_MESSAGE } = await import(
+    "@/lib/supabase/session"
+  );
+  const session = await ensureAppSession();
+  const token = session?.accessToken;
+  if (!token) return { error: SESSION_RELOGIN_MESSAGE };
 
   try {
     const res = await fetch("/api/auth/switch-role", {
@@ -956,7 +987,7 @@ export async function backendFetchPros(userCoords: {
   const { data: pros, error } = await sb
     .from("repair_pro_profiles")
     .select(
-      "user_id, business_name, primary_service, services, status, is_online, rating_avg, rating_count, lat, lng, location_updated_at, service_radius_km, years_experience, bio, verified, labour_prices, pricing_currency, vehicle_focus, jobs_completed, docs_status, face_liveness_verified, in_person_verified, visibility_tier, is_new_artisan, go_live_window_ends_at"
+      "user_id, business_name, primary_service, services, status, is_online, rating_avg, rating_count, lat, lng, location_updated_at, service_radius_km, years_experience, bio, verified, labour_prices, pricing_currency, vehicle_focus, skills, jobs_completed, docs_status, face_liveness_verified, in_person_verified, visibility_tier, is_new_artisan, go_live_window_ends_at"
     )
     .eq("is_online", true)
     .limit(60);
@@ -975,9 +1006,16 @@ export async function backendFetchPros(userCoords: {
     (profiles as unknown as ProfileRow[] | null)?.map((p) => [p.id, p]) ?? []
   );
 
+  const nowMs = Date.now();
   return slimPros
     .filter((pro) => {
       if (pro.status === "suspended" || pro.status === "rejected") return false;
+      if (
+        !pro.is_online ||
+        !hasRecentLiveHeartbeat(pro.location_updated_at, nowMs)
+      ) {
+        return false;
+      }
       const profile = byId.get(pro.user_id);
       if (!profile || profile.role === "motorist") return false;
       return true;
@@ -1011,51 +1049,96 @@ export async function backendSetProOnline(
   online: boolean,
   coords?: { lat: number; lng: number }
 ): Promise<string | null> {
-  try {
-    const sb = getAppSupabase();
-    let access_token: string | undefined;
-    if (sb) {
-      const { data } = await sb.auth.getSession();
-      access_token = data.session?.access_token;
-    }
+  const { ensureAppSession, SESSION_RELOGIN_MESSAGE } = await import(
+    "@/lib/supabase/session"
+  );
+
+  type LiveJson = {
+    ok?: boolean;
+    error?: { message?: string; code?: string };
+    data?: { online?: boolean; pro?: { is_online?: boolean } };
+  } | null;
+
+  const callLive = async (
+    uid: string,
+    access_token?: string
+  ): Promise<LiveJson> => {
     const res = await fetch("/api/pros/live", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        userId,
+        userId: uid,
         access_token,
         online,
         lat: coords?.lat,
         lng: coords?.lng,
       }),
     });
-    const json = (await res.json().catch(() => null)) as {
-      ok?: boolean;
-      error?: { message?: string };
-      data?: { online?: boolean; pro?: { is_online?: boolean } };
-    } | null;
-    if (!json?.ok) {
-      return json?.error?.message || "Could not update Live status";
+    return (await res.json().catch(() => null)) as LiveJson;
+  };
+
+  try {
+    // Refresh near-expiry tokens before Go Live / Away
+    let session = await ensureAppSession();
+    const uid = session?.userId || userId;
+
+    let json = await callLive(uid, session?.accessToken);
+
+    // Retry once after forced refresh + userId-only fallback (no hard “session expired”)
+    if (
+      !json?.ok &&
+      (json?.error?.code === "session_expired" ||
+        json?.error?.code === "auth_required" ||
+        /session|sign in|log in again/i.test(json?.error?.message || ""))
+    ) {
+      session = await ensureAppSession({ refreshIfExpiresWithinMs: 3_600_000 });
+      json = await callLive(
+        session?.userId || uid,
+        session?.accessToken
+      );
+      if (!json?.ok) {
+        // Service-role path with userId only — Go Live must not die on stale JWT
+        json = await callLive(uid, undefined);
+      }
     }
-    // Verify server actually flipped (Away must stick)
+
+    if (!json?.ok) {
+      const msg = json?.error?.message || "Could not update Live status";
+      if (/session expired/i.test(msg)) return SESSION_RELOGIN_MESSAGE;
+      return msg;
+    }
     if (online === false && json.data?.pro?.is_online === true) {
       return "Could not go Away on server. Try again.";
     }
     return null;
   } catch {
-    // Fallback: direct client update
     const sb = getAppSupabase();
     if (!sb) return "Backend offline";
-    const patch: Record<string, unknown> = { is_online: online };
-    if (coords && online) {
-      patch.lat = coords.lat;
-      patch.lng = coords.lng;
+    // Ensure session for RLS fallback
+    await ensureAppSession().catch(() => null);
+    const patch: Record<string, unknown> = {
+      is_online: online,
+      updated_at: new Date().toISOString(),
+    };
+    if (online) {
+      // Heartbeat stamp even without new GPS so Live stays marketplace-visible
+      patch.location_updated_at = new Date().toISOString();
+      if (coords) {
+        patch.lat = coords.lat;
+        patch.lng = coords.lng;
+      }
     }
     const { error } = await sb
       .from("repair_pro_profiles")
       .update(patch)
       .eq("user_id", userId);
-    return error?.message ?? null;
+    if (error) {
+      if (/JWT|session|auth/i.test(error.message)) {
+        return SESSION_RELOGIN_MESSAGE;
+      }
+      return error.message;
+    }
+    return null;
   }
 }
 
@@ -1312,6 +1395,8 @@ export async function backendSendMessage(input: {
   conversationId: string;
   senderId: string;
   body: string;
+  /** Display name for the other party's toast */
+  senderName?: string | null;
 }): Promise<string | null> {
   const sb = getAppSupabase();
   if (!sb) return "Backend offline";
@@ -1325,7 +1410,71 @@ export async function backendSendMessage(input: {
     .from("conversations")
     .update({ last_message_at: new Date().toISOString() })
     .eq("id", input.conversationId);
+
+  // Popup for the other party (notification → toast + open chat on tap)
+  try {
+    let preview = input.body;
+    try {
+      const j = JSON.parse(input.body) as { text?: string; voiceUrl?: string };
+      if (j && typeof j === "object") {
+        preview = j.voiceUrl
+          ? j.text
+            ? `🎤 ${j.text}`
+            : "🎤 Voice note"
+          : String(j.text || input.body);
+      }
+    } catch {
+      /* plain text */
+    }
+    void fetch("/api/messages/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        conversationId: input.conversationId,
+        senderId: input.senderId,
+        preview: String(preview || "New message").slice(0, 200),
+        senderName: input.senderName || undefined,
+      }),
+    }).catch(() => null);
+  } catch {
+    /* non-fatal */
+  }
   return null;
+}
+
+/**
+ * Realtime: any new message in conversations this user belongs to.
+ * Used to refresh chats + drive inbound banner when not on the thread page.
+ */
+export function backendSubscribeUserMessageInserts(
+  userId: string,
+  onInsert: (row: MessageRow & { conversation_id?: string }) => void
+): (() => void) | null {
+  const sb = getAppSupabase();
+  if (!sb || !userId) return null;
+  const channel = sb
+    .channel(`user-messages:${userId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "messages",
+      },
+      (payload) => {
+        const row = payload.new as MessageRow & {
+          conversation_id?: string;
+          sender_id?: string;
+        };
+        // Ignore own sends (sender already has optimistic UI)
+        if (row.sender_id === userId) return;
+        onInsert(row);
+      }
+    )
+    .subscribe();
+  return () => {
+    void sb.removeChannel(channel);
+  };
 }
 
 /** Mark other party's messages as read in this conversation. */

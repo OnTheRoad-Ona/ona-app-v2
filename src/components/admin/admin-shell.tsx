@@ -70,11 +70,12 @@ const NAV_GROUPS: {
     label: "System",
     items: [
       { href: "/admin/health", label: "Health" },
+      { href: "/admin/staff", label: "Staff levels 🔒", password: true },
       { href: "/admin/settings", label: "Settings 🔒", password: true },
       { href: "/admin/features", label: "Features 🔒", password: true },
       { href: "/admin/services", label: "Services" },
       { href: "/admin/matching", label: "Matching" },
-      { href: "/admin/content", label: "Content" },
+      { href: "/admin/content", label: "Content & menus" },
     ],
   },
 ];
@@ -101,6 +102,8 @@ export function AdminShell({
   }>({ customers: 0, pros: 0 });
   const [resolvedRole, setResolvedRole] =
     useState<AdminRoleUi>("super_admin");
+  /** Fast search across every admin directory / nav item */
+  const [navSearch, setNavSearch] = useState("");
 
   const role = normalizeAdminRoleUi(adminRoleProp || resolvedRole);
   const roleUi = adminRoleTheme(role);
@@ -174,11 +177,20 @@ export function AdminShell({
 
   const visibleGroups = useMemo(() => {
     const allowed = new Set(navGroupsForRoleUi(role));
+    const q = navSearch.trim().toLowerCase();
     return NAV_GROUPS.map((g) => ({
       ...g,
-      items: g.items.filter((item) => canAccessAdminPathUi(role, item.href)),
+      items: g.items.filter((item) => {
+        if (!canAccessAdminPathUi(role, item.href)) return false;
+        if (!q) return true;
+        return (
+          item.label.toLowerCase().includes(q) ||
+          item.href.toLowerCase().includes(q) ||
+          g.label.toLowerCase().includes(q)
+        );
+      }),
     })).filter((g) => allowed.has(g.label) && g.items.length > 0);
-  }, [role]);
+  }, [role, navSearch]);
 
   function applyTheme(next: "light" | "dark") {
     setTheme(next);
@@ -236,6 +248,35 @@ export function AdminShell({
           <span className="om-admin-role-dot" aria-hidden />
           {displayRole}
         </div>
+
+        <label
+          className="om-admin-nav-search"
+          style={{
+            display: "block",
+            margin: "0.5rem 0.65rem 0.75rem",
+          }}
+        >
+          <span className="sr-only">Search admin directories</span>
+          <input
+            type="search"
+            value={navSearch}
+            onChange={(e) => setNavSearch(e.target.value)}
+            placeholder="Search directories…"
+            autoComplete="off"
+            style={{
+              width: "100%",
+              height: 34,
+              border: 0,
+              borderRadius: 8,
+              padding: "0 0.65rem",
+              fontSize: 12,
+              fontWeight: 600,
+              background: "var(--om-admin-chip-bg, rgba(0,0,0,0.06))",
+              color: "inherit",
+              outline: "none",
+            }}
+          />
+        </label>
 
         {visibleGroups.map((group) => (
           <div key={group.label}>

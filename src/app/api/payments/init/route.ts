@@ -41,12 +41,20 @@ export async function POST(req: Request) {
       return apiFail("Invalid payment payload", 400, "invalid_body");
     }
     const b = parsed.data;
-    const currency: AppCurrency =
-      b.currency ||
-      detectCurrency({
-        countryCode: b.countryCode,
-        countryName: b.countryName,
-      });
+    // Nigerian users always pay in NGN — never GBP/USD from browser locale
+    const detected = detectCurrency({
+      countryCode: b.countryCode,
+      countryName: b.countryName,
+    });
+    const isNigeria =
+      detected === "NGN" ||
+      (b.countryCode || "").toUpperCase() === "NG" ||
+      (b.countryCode || "").toUpperCase() === "NGA" ||
+      /nigeria/i.test(b.countryName || "") ||
+      process.env.FLUTTERWAVE_FORCE_NGN !== "false";
+    const currency: AppCurrency = isNigeria
+      ? "NGN"
+      : b.currency || detected;
 
     const snap = buildPricingSnapshot({
       serviceType: b.serviceType as ProService,
@@ -115,7 +123,8 @@ export async function POST(req: Request) {
         },
         proSubaccountId: null,
         platformFeePercent: 5,
-        channels: ["card", "bank", "ussd", "bank_transfer"],
+        // NG: bank transfer only (no USSD)
+        channels: ["bank_transfer"],
       },
       b.provider
     );

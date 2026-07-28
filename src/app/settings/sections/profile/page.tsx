@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Shield, UserRound } from "lucide-react";
+import { MapPin, UserRound } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { SettingsRow } from "@/components/settings/settings-ui";
 import { useT } from "@/lib/i18n";
@@ -38,13 +38,6 @@ export default function SettingsProfileSectionPage() {
             />
             <SettingsRow
               isLight={isLight}
-              icon={Shield}
-              label="Verification status"
-              detail="Tiers & documents"
-              href="/artisan/verification"
-            />
-            <SettingsRow
-              isLight={isLight}
               icon={UserRound}
               label="Public profile"
               detail="How customers see you"
@@ -60,13 +53,6 @@ export default function SettingsProfileSectionPage() {
               label={t("settings.hub.profileInner")}
               detail="Name email phone photo"
               href="/settings/profile"
-            />
-            <SettingsRow
-              isLight={isLight}
-              icon={Shield}
-              label="Verification"
-              detail="Phone government ID Tier 1 2"
-              href="/verify"
             />
             <SettingsRow
               isLight={isLight}

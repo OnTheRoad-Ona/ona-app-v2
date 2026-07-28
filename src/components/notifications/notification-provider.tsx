@@ -98,19 +98,37 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const pushToast = useCallback((n: AppNotification) => {
     if (!shouldToastNotification(n)) return;
     if (!shouldShowToast(n.priority)) return;
-    const sticky = n.priority === "critical" || n.priority === "high";
+    const st = String(n.jobStatus || "").toLowerCase();
+    const titleLow = `${n.title} ${n.body}`.toLowerCase();
+    // “I’m Satisfied / release payment” alerts: auto-hide after 2 seconds
+    const isSatisfiedAlert =
+      st === "completed" ||
+      (n.actionType === "open_job" &&
+        (titleLow.includes("satisfied") ||
+          titleLow.includes("release pay") ||
+          titleLow.includes("confirm job") ||
+          titleLow.includes("confirm & release")));
+    const isMessage = n.category === "messages" || n.actionType === "open_chat";
+    // Messages stay a bit longer so user can tap; satisfied toast is 2s
+    const sticky =
+      !isSatisfiedAlert &&
+      !isMessage &&
+      (n.priority === "critical" || n.priority === "high");
+    const ttlMs = isSatisfiedAlert ? 2000 : isMessage ? 6000 : 5500;
     const id = `toast-${n.id}-${Date.now()}`;
     setToasts((prev) =>
       [
         {
           id,
           notification: n,
-          expiresAt: sticky ? Number.POSITIVE_INFINITY : Date.now() + 5500,
+          expiresAt: sticky ? Number.POSITIVE_INFINITY : Date.now() + ttlMs,
         },
         ...prev,
       ].slice(0, 4)
     );
-    if (n.priority === "critical" || n.priority === "high") {
+    if (isMessage) {
+      playAppSound("success_soft");
+    } else if (n.priority === "critical" || n.priority === "high") {
       playAppSound("request_new");
     } else {
       playAppSound("success_soft");
@@ -224,6 +242,28 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             setNotifications((prev) => [n, ...prev]);
           }
           pushToast(n);
+          // Force customer onto release-pay job page (not toast-only)
+          try {
+            const st = String(n.jobStatus || "").toLowerCase();
+            const href = n.href || (n.jobId ? `/jobs/${n.jobId}` : "");
+            const releasePay =
+              st === "completed" &&
+              href.includes("/jobs/") &&
+              (n.actionType === "open_job" ||
+                n.actionType === "view_payment" ||
+                n.category === "payments");
+            if (
+              releasePay &&
+              typeof window !== "undefined" &&
+              !window.location.pathname.includes(
+                `/jobs/${n.jobId || href.split("/jobs/")[1]?.split("?")[0] || ""}`
+              )
+            ) {
+              window.location.assign(href.startsWith("/") ? href : `/${href}`);
+            }
+          } catch {
+            /* soft navigate optional */
+          }
         }
       )
       .subscribe();
@@ -232,12 +272,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     };
   }, [backendUserId, isAuthenticated, pushToast]);
 
-  // Auto-dismiss non-sticky toasts
+  // Auto-dismiss non-sticky toasts (poll often so 2s satisfied toasts clear on time)
   useEffect(() => {
     const t = window.setInterval(() => {
       const now = Date.now();
       setToasts((prev) => prev.filter((x) => x.expiresAt > now));
-    }, 2_000);
+    }, 400);
     return () => window.clearInterval(t);
   }, []);
 

@@ -5,7 +5,7 @@ import {
   currencySymbol,
   detectCurrency,
   formatMoney,
-  LABOUR_FEE_DISCLAIMER,
+  labourFeeDisclaimerForTrade,
   parsePriceInput,
   type AppCurrency,
 } from "@/lib/pricing";
@@ -64,7 +64,7 @@ export function ServicePriceEditor({
           isLight ? "text-slate-600" : "text-[#a1a1a6]"
         )}
       >
-        {LABOUR_FEE_DISCLAIMER}
+        {labourFeeDisclaimerForTrade(skills[0])}
       </p>
 
       {editing && onChangeCurrency && (

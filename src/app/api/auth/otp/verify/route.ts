@@ -140,14 +140,18 @@ export async function POST(req: Request) {
 
     const expected = hashCode(dest, code);
     if (expected !== otp.code_hash) {
+      const nextAttempts = (otp.attempts ?? 0) + 1;
       await supabase
         .from("phone_otps")
-        .update({ attempts: (otp.attempts ?? 0) + 1 })
+        .update({ attempts: nextAttempts })
         .eq("id", otp.id);
       return apiFail(
-        `Incorrect code. Try again or use demo ${DEMO_OTP_CODE}.`,
+        nextAttempts >= 4
+          ? "Too many incorrect codes. Please wait before requesting another code."
+          : "Incorrect code. Try again.",
         401,
-        "otp_invalid"
+        "otp_invalid",
+        { failedAttempts: nextAttempts, cooldownAfter: 4 }
       );
     }
 

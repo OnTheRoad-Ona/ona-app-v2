@@ -174,6 +174,13 @@ export type JobRecord = {
   releasedAt?: string | null;
   cancelledAt?: string | null;
   satisfiedAt?: string | null;
+  /**
+   * Pay-to-book attempts that exhausted the 20‑min window unpaid (0–3).
+   * Derived from statusHistory; optional cache for clients.
+   */
+  paymentAttemptCount?: number;
+  /** ISO end of the current open pay session (if any) */
+  paymentSessionEndsAt?: string | null;
 };
 
 export type CreateJobInput = {

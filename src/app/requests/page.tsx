@@ -46,7 +46,7 @@ const PAST: JobFlowStatus[] = [
 function statusLabel(s: JobFlowStatus, isPro: boolean): string {
   switch (s) {
     case "negotiating":
-      return isPro ? "New Request" : "Negotiating";
+      return isPro ? "Service Request" : "Negotiating";
     case "agreed":
       return "Agreed";
     case "paid_booked":
@@ -179,7 +179,10 @@ export default function RequestsPage() {
   };
 
   const Row = ({ j }: { j: JobRecord }) => {
-    const name = isPro ? j.motoristName : j.repairProName;
+    // Pro: no customer full name — vehicle + issues only
+    const name = isPro
+      ? j.motoristVehicle?.trim() || "Service Request"
+      : j.repairProName;
     const skill = PRO_SERVICE_LABELS[j.serviceType] ?? j.serviceType;
     const when = formatWhen(j.updatedAt || j.createdAt);
     const price =
@@ -193,8 +196,8 @@ export default function RequestsPage() {
         type="button"
         onClick={() => openJob(j)}
         className={cn(
-          "flex w-full items-start gap-3 border-0 border-b bg-transparent py-3.5 text-left last:border-b-0",
-          isLight ? "border-black/10" : "border-white/10"
+          "flex w-full items-start gap-3 border-0 bg-transparent py-3.5 text-left",
+          ""
         )}
       >
         <div className="min-w-0 flex-1">

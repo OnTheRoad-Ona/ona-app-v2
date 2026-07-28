@@ -358,4 +358,6 @@ export const AR: MessageDict = {
   "common.codeSent": "تم إرسال الرمز. أدخله أدناه.",
   "settings.hub.profileInner": "الملف",
   "settings.hub.profileInnerDetail": "الاسم والصورة والاتصال",
+  "settings.hub.verification": "Verification",
+  "settings.hub.verificationDetail": "ID, tiers & documents",
 };

@@ -17,6 +17,7 @@ const bodySchema = z.object({
     "MARK_COMPLETED",
     "SATISFIED",
     "RELEASE",
+    "START_NEGOTIATION",
   ]),
   actor: z.enum(["motorist", "repair_pro", "system", "admin"]),
   actorId: z.string().optional(),
@@ -31,8 +32,8 @@ export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await ctx.params;
   try {
-    const { id } = await ctx.params;
     const parsed = bodySchema.safeParse(await req.json());
     if (!parsed.success) return apiFail("Invalid transition", 400);
     const b = parsed.data;
@@ -86,19 +87,24 @@ export async function POST(
       etaSource,
     });
 
-    // Auto-release after satisfied
+    // SATISFIED may finish as "released" or "satisfied" (PENDING_SETTLEMENT).
+    // Never error the customer for settlement wait — cron auto-retries payout.
     if (!("error" in res) && res.job.status === "satisfied") {
-      const rel = await transitionJob({
-        jobId: id,
-        event: { type: "RELEASE" },
-        actor: "system",
+      return apiOk({
+        job: res.job,
+        payoutPendingSettlement: true,
+        message:
+          "Payout processing — waiting for settlement. You’ll be notified when payment is released.",
       });
-      if (!("error" in rel)) return apiOk({ job: rel.job });
     }
 
-    if ("error" in res) return apiFail(res.error, 400);
+    if ("error" in res) {
+      console.error("[transition]", id, b.event, res.error);
+      return apiFail(res.error, 400);
+    }
     return apiOk({ job: res.job });
   } catch (e) {
+    console.error("[transition]", id, e);
     return apiFail(e instanceof Error ? e.message : "Transition failed", 500);
   }
 }

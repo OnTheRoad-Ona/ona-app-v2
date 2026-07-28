@@ -41,12 +41,17 @@ export async function PATCH(req: Request) {
     return apiFail("Supabase is not configured", 503);
   }
   try {
-    // System settings require temporary password unlock (336699)
-    const { session } = await requireSensitiveAction("system_settings", req);
     const body = patchSchema.safeParse(await req.json());
     if (!body.success) {
       return apiFail("Invalid settings payload", 400, "validation");
     }
+    // Content / services (menus, copy) → L4+ content_edit
+    // Other system keys → L5 system_settings
+    const perm =
+      body.data.key === "content" || body.data.key === "services"
+        ? ("content_edit" as const)
+        : ("system_settings" as const);
+    const { session } = await requireSensitiveAction(perm, req);
     const result = await saveAppConfigSection(
       body.data.key,
       body.data.value,
@@ -57,6 +62,7 @@ export async function PATCH(req: Request) {
       key: body.data.key,
       value: body.data.value,
       sensitive: true,
+      perm,
     });
     const config = await loadAppConfig();
     return apiOk({ config });

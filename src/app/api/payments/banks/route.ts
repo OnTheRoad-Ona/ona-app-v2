@@ -4,15 +4,28 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Nigeria banks from Flutterwave (code auto-fills on select in the app).
- * Cached briefly in-memory on the server process.
+ * Country-geo banks from Flutterwave (code auto-fills on select in the app).
+ * Query: ?country=NG (ISO 3166-1 alpha-2). Defaults to NG.
+ * Cached briefly in-memory per country.
  */
 type Bank = { name: string; code: string };
 
-let cache: { at: number; banks: Bank[] } | null = null;
+const cache = new Map<string, { at: number; banks: Bank[] }>();
 const CACHE_MS = 6 * 60 * 60 * 1000;
 
-const STATIC_FALLBACK: Bank[] = [
+/** Flutterwave bank country codes we support (expand as markets open). */
+const FLW_COUNTRY: Record<string, string> = {
+  NG: "NG",
+  GH: "GH",
+  KE: "KE",
+  ZA: "ZA",
+  UG: "UG",
+  TZ: "TZ",
+  RW: "RW",
+  ZM: "ZM",
+};
+
+const NG_STATIC_FALLBACK: Bank[] = [
   { name: "Access Bank", code: "044" },
   { name: "Citibank Nigeria", code: "023" },
   { name: "Ecobank Nigeria", code: "050" },
@@ -41,12 +54,19 @@ const STATIC_FALLBACK: Bank[] = [
   { name: "Zenith Bank", code: "057" },
 ];
 
-async function fetchFlutterwaveBanks(): Promise<Bank[] | null> {
+function resolveCountry(raw: string | null): string {
+  const iso = (raw || "NG").toUpperCase().slice(0, 2);
+  return FLW_COUNTRY[iso] || "NG";
+}
+
+async function fetchFlutterwaveBanks(
+  flwCountry: string
+): Promise<Bank[] | null> {
   const secret = (process.env.FLUTTERWAVE_SECRET_KEY || "").trim();
   if (!secret) return null;
   try {
     const res = await fetch(
-      "https://api.flutterwave.com/v3/banks/NG",
+      `https://api.flutterwave.com/v3/banks/${encodeURIComponent(flwCountry)}`,
       {
         headers: { Authorization: `Bearer ${secret}` },
         next: { revalidate: 0 },
@@ -70,25 +90,29 @@ async function fetchFlutterwaveBanks(): Promise<Bank[] | null> {
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    if (cache && Date.now() - cache.at < CACHE_MS) {
+    const { searchParams } = new URL(req.url);
+    const country = resolveCountry(searchParams.get("country"));
+    const hit = cache.get(country);
+    if (hit && Date.now() - hit.at < CACHE_MS) {
       return apiOk({
-        banks: cache.banks,
+        banks: hit.banks,
         source: "cache",
-        country: "NG",
+        country,
       });
     }
 
-    const live = await fetchFlutterwaveBanks();
-    const banks = live || STATIC_FALLBACK;
-    cache = { at: Date.now(), banks };
+    const live = await fetchFlutterwaveBanks(country);
+    const banks =
+      live || (country === "NG" ? NG_STATIC_FALLBACK : NG_STATIC_FALLBACK);
+    cache.set(country, { at: Date.now(), banks });
 
     return apiOk({
       banks,
       source: live ? "flutterwave" : "static_fallback",
-      country: "NG",
-      note: "Bank code is set automatically when the user selects a bank.",
+      country,
+      note: "Bank code is set automatically when the user selects a bank. List is geo-fenced to the user's country.",
     });
   } catch (e) {
     return apiFail(

@@ -207,27 +207,48 @@ export function validateBankDetailsInput(
   return null;
 }
 
-/** Client: load banks from Flutterwave-backed API */
-export async function fetchNigeriaBanks(): Promise<{
+/** Client: load banks for a country (geo-fenced Flutterwave list). */
+export async function fetchCountryBanks(
+  countryIso: string = "NG"
+): Promise<{
   banks: BankOption[];
   source: string;
+  country: string;
 }> {
+  const iso = (countryIso || "NG").toUpperCase().slice(0, 2);
   try {
-    const res = await fetch("/api/payments/banks", { cache: "default" });
+    const res = await fetch(
+      `/api/payments/banks?country=${encodeURIComponent(iso)}`,
+      { cache: "default" }
+    );
     const json = (await res.json()) as {
       ok?: boolean;
-      data?: { banks?: BankOption[]; source?: string };
+      data?: { banks?: BankOption[]; source?: string; country?: string };
     };
     if (json?.ok && Array.isArray(json.data?.banks) && json.data.banks.length) {
       return {
         banks: json.data.banks,
         source: json.data.source || "api",
+        country: json.data.country || iso,
       };
     }
   } catch {
     /* fallback */
   }
-  return { banks: NG_BANKS, source: "static_fallback" };
+  return {
+    banks: iso === "NG" ? NG_BANKS : NG_BANKS,
+    source: "static_fallback",
+    country: iso,
+  };
+}
+
+/** @deprecated Prefer fetchCountryBanks — kept for older imports */
+export async function fetchNigeriaBanks(): Promise<{
+  banks: BankOption[];
+  source: string;
+}> {
+  const r = await fetchCountryBanks("NG");
+  return { banks: r.banks, source: r.source };
 }
 
 /**

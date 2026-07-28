@@ -136,6 +136,7 @@ export function BankSetupGate() {
           initial={details}
           onChange={setDetails}
           signupFullName={userProfile?.fullName}
+          countryIso={userProfile?.identityCountryIso || "NG"}
         />
         {err ? (
           <p className="mt-3 text-center text-[12px] font-semibold text-red-500">

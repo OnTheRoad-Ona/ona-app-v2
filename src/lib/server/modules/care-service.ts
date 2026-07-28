@@ -325,7 +325,7 @@ export async function executeCareAction(
         sensitive: true,
         meta: { note: action.note || null },
       });
-      return { ok: true, message: "Escrow released to Repair Pro (95% / 5%)" };
+      return { ok: true, message: "Escrow released to Repair Pro (87.5% · 5% Ona · VAT on FLW)" };
     }
     case "refund_escrow": {
       const esc = await getEscrowByRequest(action.jobId);

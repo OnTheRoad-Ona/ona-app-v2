@@ -1,6 +1,6 @@
 "use client";
 
-import { Banknote, Wallet } from "lucide-react";
+import { Banknote, History, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { SettingsRow } from "@/components/settings/settings-ui";
 import { useT } from "@/lib/i18n";
@@ -22,7 +22,11 @@ export default function SettingsPaymentsSectionPage() {
     >
       <PageHeader
         title={t("settings.hub.payments")}
-        subtitle={t("settings.hub.paymentsDetail")}
+        subtitle={
+          isPro
+            ? "Bank, payout status, and job earnings"
+            : "Bank, escrow status, and payment history"
+        }
         backHref="/settings"
       />
       <div className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-8 scrollbar-hide">
@@ -30,11 +34,20 @@ export default function SettingsPaymentsSectionPage() {
           first
           isLight={isLight}
           icon={isPro ? Banknote : Wallet}
-          label={isPro ? "Bank payout (Nigeria)" : "Bank account (Nigeria)"}
+          label={isPro ? "Payments & payouts" : "Payments & refunds"}
           detail={
-            isPro ? "Receive job earnings" : "Refund bank only · NUBAN"
+            isPro
+              ? "Bank, processing, paid out"
+              : "Escrow, released, refund bank"
           }
           href="/settings/payments"
+        />
+        <SettingsRow
+          isLight={isLight}
+          icon={History}
+          label="Full payment history"
+          detail="All receipts and statuses"
+          href="/payments/history"
         />
       </div>
     </div>

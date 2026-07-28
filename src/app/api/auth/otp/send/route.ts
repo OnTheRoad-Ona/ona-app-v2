@@ -107,24 +107,31 @@ export async function POST(req: Request) {
     }
   }
 
-  // Rate limit
+  /**
+   * Cooldown only after 4+ failed verify attempts on the latest code.
+   * First sends / normal resends are free of the wait message.
+   */
   const { data: recent } = await supabase
     .from("phone_otps")
-    .select("id, created_at")
+    .select("id, created_at, attempts, consumed_at")
     .eq("phone", dest)
-    .is("consumed_at", null)
     .order("created_at", { ascending: false })
     .limit(1);
 
-  const last = recent?.[0];
-  if (last?.created_at) {
+  const last = recent?.[0] as
+    | { id?: string; created_at?: string; attempts?: number; consumed_at?: string | null }
+    | undefined;
+  const failedAttempts = Number(last?.attempts ?? 0);
+  if (failedAttempts >= 4 && last?.created_at && !last.consumed_at) {
+    const COOLDOWN_MS = 45_000;
     const age = Date.now() - new Date(last.created_at).getTime();
-    if (age < 45_000) {
-      const wait = Math.ceil((45_000 - age) / 1000);
+    if (age < COOLDOWN_MS) {
+      const wait = Math.ceil((COOLDOWN_MS - age) / 1000);
       return apiFail(
         `Please wait ${wait}s before requesting another code.`,
         429,
-        "rate_limited"
+        "rate_limited",
+        { waitSec: wait, failedAttempts }
       );
     }
   }

@@ -254,14 +254,22 @@ const patchSchema = z.object({
   action: z
     .enum([
       "cancel_escrow",
+      "cancel_processing",
       "set_status",
       "retry_payout",
       "retry_all_due",
       "force_release",
+      "manual_standalone",
     ])
     .optional(),
   reason: z.string().min(8).max(500).optional(),
   jobId: z.string().optional(),
+  /** Standalone manual payout (L4+) — not job-tied */
+  amountMajor: z.number().positive().optional(),
+  bankCode: z.string().optional(),
+  accountNumber: z.string().optional(),
+  accountName: z.string().optional(),
+  narration: z.string().max(100).optional(),
 });
 
 export async function PATCH(req: Request) {
@@ -281,18 +289,139 @@ export async function PATCH(req: Request) {
       return apiOk({ message: "Retry queue processed", ...result });
     }
 
-    // Single job force/retry payout
+    // Stop auto-retry only (funds stay held — not a refund). L3+ escrow_release.
+    if (action === "cancel_processing") {
+      const { session } = await requireSensitiveAction("escrow_release", req);
+      const reason = (parsed.data.reason || "").trim();
+      if (reason.length < 8) {
+        return apiFail(
+          "Reason required (min 8 characters) to stop processing.",
+          400,
+          "reason_required"
+        );
+      }
+      const paymentId = parsed.data.id;
+      if (!paymentId) return apiFail("id required", 400);
+      const supabase = createServiceSupabase();
+      const { data: payment, error: pErr } = await supabase
+        .from("payments")
+        .select("*")
+        .eq("id", paymentId)
+        .maybeSingle();
+      if (pErr || !payment) return apiFail("Payment not found", 404);
+      const escStatus = String(
+        (payment as { escrow_status?: string }).escrow_status || ""
+      );
+      if (escStatus === "released" || escStatus === "refunded") {
+        return apiFail(
+          `Cannot stop processing — already ${escStatus}.`,
+          400
+        );
+      }
+      const meta = {
+        ...(((payment as { meta?: Record<string, unknown> }).meta ||
+          {}) as Record<string, unknown>),
+        payoutStatus: "cancelled_processing",
+        payoutSuspended: true,
+        autoRetryCancelled: true,
+        needsAdmin: true,
+        pendingSettlement: false,
+        proPayoutPending: false,
+        payoutInFlight: false,
+        payoutClaimId: null,
+        nextRetryAt: null,
+        cancelProcessingReason: reason,
+        cancelledProcessingAt: new Date().toISOString(),
+        autoRetryCancelledAt: new Date().toISOString(),
+        cancelledByAdmin: session.userId,
+        lastReleaseError: `Processing stopped by admin: ${reason}`,
+      };
+      const now = new Date().toISOString();
+      const { data: updated, error } = await supabase
+        .from("payments")
+        .update({
+          escrow_status: "held",
+          status: "paid",
+          meta,
+          updated_at: now,
+        })
+        .eq("id", paymentId)
+        .select("*")
+        .maybeSingle();
+      if (error) return apiFail(error.message, 500);
+      const jobId = String(
+        (payment as { request_id?: string }).request_id || ""
+      );
+      if (jobId) {
+        await supabase
+          .from("service_requests")
+          .update({ escrow_status: "held", updated_at: now })
+          .eq("id", jobId);
+      }
+      await logAdminAction(
+        session.userId,
+        "payments.cancel_processing",
+        paymentId,
+        { reason, jobId }
+      );
+      return apiOk({
+        payment: updated,
+        message:
+          "Auto-processing stopped. Funds remain in escrow. Use Force payout or Refund when ready.",
+      });
+    }
+
+    // Single job force/retry payout (idempotent — same ona_rel_ ref, never double pay)
     if (action === "retry_payout" || action === "force_release") {
       const { session } = await requireSensitiveAction("escrow_release", req);
+      // Force release: L4+ only
+      if (action === "force_release") {
+        const { roleAtLeast, normalizeAdminRole } = await import(
+          "@/lib/server/modules/admin-roles"
+        );
+        const role = normalizeAdminRole(session.adminRole);
+        if (!roleAtLeast(role, 4)) {
+          return apiFail(
+            "Force payout requires Manager (L4) or Super Admin (L5).",
+            403,
+            "level"
+          );
+        }
+      }
       const jobId = parsed.data.jobId || parsed.data.id;
       if (!jobId) return apiFail("jobId required", 400);
 
       const job = await getJob(jobId);
       if (!job) {
-        // payment id → request_id
         const esc = await getEscrowByRequest(jobId);
         const rid = esc?.requestId;
-        if (!rid) return apiFail("Job not found", 404);
+        if (!rid) {
+          // payment uuid
+          const sb = createServiceSupabase();
+          const { data: pay } = await sb
+            .from("payments")
+            .select("request_id")
+            .eq("id", jobId)
+            .maybeSingle();
+          const rid2 = pay?.request_id ? String(pay.request_id) : "";
+          if (!rid2) return apiFail("Job not found", 404);
+          const esc2 = await getEscrowByRequest(rid2);
+          const result = await attemptProPayout({
+            jobId: rid2,
+            repairProId: esc2?.repairProId || null,
+            amountMinor: esc2?.amountMinor,
+            currency: esc2?.currency,
+            force: action === "force_release",
+          });
+          if (result.ok) {
+            await finalizeJobReleasedAfterPayout(rid2, result);
+          }
+          await logAdminAction(session.userId, "payments.retry_payout", rid2, {
+            result,
+            force: action === "force_release",
+          });
+          return apiOk({ result, jobId: rid2 });
+        }
         const result = await attemptProPayout({
           jobId: rid,
           repairProId: esc.repairProId,
@@ -317,16 +446,111 @@ export async function PATCH(req: Request) {
         amountMinor: job.amountMinor,
         agreedMajor: job.agreedMajor,
         currency: job.currency,
-        // Admin force_release always; retry_payout respects 10‑min unless force_release
-        force: action === "force_release" || action === "retry_payout",
+        force: action === "force_release",
       });
       if (result.ok) {
         await finalizeJobReleasedAfterPayout(job.id, result);
       }
       await logAdminAction(session.userId, "payments.retry_payout", job.id, {
         result,
+        force: action === "force_release",
       });
       return apiOk({ result, jobId: job.id });
+    }
+
+    // Standalone manual bank payout (not job-tied) — L4+ only, unique ref, ledgered
+    if (action === "manual_standalone") {
+      const { session } = await requireSensitiveAction("escrow_release", req);
+      const { roleAtLeast, normalizeAdminRole } = await import(
+        "@/lib/server/modules/admin-roles"
+      );
+      const role = normalizeAdminRole(session.adminRole);
+      if (!roleAtLeast(role, 4)) {
+        return apiFail(
+          "Standalone manual payout requires Manager (L4) or Super Admin (L5).",
+          403,
+          "level"
+        );
+      }
+      const reason = (parsed.data.reason || "").trim();
+      if (reason.length < 8) {
+        return apiFail("Reason required (min 8 characters).", 400);
+      }
+      const amountMajor = Number(parsed.data.amountMajor);
+      const bankCode = String(parsed.data.bankCode || "").trim();
+      const accountNumber = String(parsed.data.accountNumber || "")
+        .replace(/\D/g, "")
+        .trim();
+      const accountName = String(parsed.data.accountName || "").trim();
+      if (!Number.isFinite(amountMajor) || amountMajor < 100) {
+        return apiFail("Amount must be at least ₦100 (FLW bank minimum).", 400);
+      }
+      if (!bankCode || accountNumber.length < 10 || !accountName) {
+        return apiFail(
+          "bankCode, 10-digit accountNumber, and accountName are required.",
+          400
+        );
+      }
+      const amountMinor = Math.round(amountMajor * 100);
+      const ref = `ona_manual_${session.userId.replace(/-/g, "").slice(0, 8)}_${Date.now().toString(36)}`.slice(
+        0,
+        50
+      );
+      const { claimTransferRef, markLedgerSuccess, markLedgerFailed } =
+        await import("@/lib/server/payments/payout-ledger");
+      const claim = await claimTransferRef({
+        transferRef: ref,
+        paymentId: `manual_${ref}`,
+        requestId: `manual_${ref}`,
+        amountMinor,
+        currency: "NGN",
+        accountBank: bankCode,
+        accountNumber,
+        beneficiaryName: accountName,
+      });
+      if (!claim.ok && claim.reason === "already_exists") {
+        return apiFail(
+          "Transfer reference already used — refusing double pay.",
+          409
+        );
+      }
+      const { releaseToPro } = await import(
+        "@/lib/server/payments/providers"
+      );
+      const xfer = await releaseToPro({
+        amountMinor,
+        currency: "NGN",
+        reference: ref,
+        transferReference: ref,
+        reason: (
+          parsed.data.narration || `Ona manual admin payout · ${reason}`
+        ).slice(0, 100),
+        bankCode,
+        accountNumber,
+        accountName,
+      });
+      if (!xfer.ok) {
+        await markLedgerFailed(ref, xfer.message || "manual_failed").catch(
+          () => undefined
+        );
+        return apiFail(xfer.message || "Manual transfer failed", 400);
+      }
+      await markLedgerSuccess(ref, xfer.transferRef || null).catch(
+        () => undefined
+      );
+      await logAdminAction(session.userId, "payments.manual_standalone", ref, {
+        amountMajor,
+        bankCode,
+        accountNumberLast4: accountNumber.slice(-4),
+        accountName,
+        reason,
+        transferRef: xfer.transferRef || ref,
+      });
+      return apiOk({
+        message: "Standalone manual payout submitted (unique ref — no double pay).",
+        transferRef: xfer.transferRef || ref,
+        amountMajor,
+      });
     }
 
     if (action === "cancel_escrow" || parsed.data.status === "refunded") {

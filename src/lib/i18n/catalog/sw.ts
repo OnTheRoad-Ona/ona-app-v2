@@ -220,7 +220,7 @@ export const SW: MessageDict = {
   "jobs.past": "Past",
   "requests.title": "Maombi",
   "requests.empty": "No requests yet",
-  "requests.new": "New request",
+  "requests.new": "Service Request",
   "job.status.requested": "Requested",
   "job.status.accepted": "Accepted",
   "job.status.enRoute": "On the way",
@@ -358,4 +358,6 @@ export const SW: MessageDict = {
   "common.codeSent": "Msimbo umetumwa. Ingiza hapa chini.",
   "settings.hub.profileInner": "Wasifu",
   "settings.hub.profileInnerDetail": "Jina picha mawasiliano",
+  "settings.hub.verification": "Verification",
+  "settings.hub.verificationDetail": "ID, tiers & documents",
 };

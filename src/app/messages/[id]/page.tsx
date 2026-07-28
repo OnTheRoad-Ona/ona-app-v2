@@ -28,7 +28,7 @@ import {
   type MessageRow,
 } from "@/lib/supabase/app-api";
 import { createBrowserSupabase } from "@/lib/supabase/client";
-import { MESSAGE_ORANGE } from "@/lib/map-trade-icons";
+
 import { unlockAudio } from "@/lib/sound-tone";
 import {
   blobToDataUrl,
@@ -506,22 +506,28 @@ function ChatThreadInner({
               <div
                 className={cn(
                   "max-w-[85%] space-y-1.5 rounded-2xl px-3 py-2 text-[13px] leading-snug",
+                  mine ? "rounded-br-md" : "rounded-bl-md",
+                  // Soft greys that blend into light (#c8c9cd) and dark (black) shells
                   mine
-                    ? "rounded-br-md text-white"
+                    ? isLight
+                      ? "bg-[#a8a9ae] text-slate-900"
+                      : "bg-[#3a3a3c] text-white"
                     : isLight
-                      ? "rounded-bl-md bg-[#bebfc4] text-slate-900"
-                      : "rounded-bl-md bg-neutral-900 text-white"
+                      ? "bg-[#b4b5ba] text-slate-900"
+                      : "bg-[#2c2c2e] text-white/95"
                 )}
                 style={
                   mine
                     ? {
-                        // Glassy Message orange — same as Message button
-                        backgroundColor: MESSAGE_ORANGE,
-                        backgroundImage:
-                          "linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.06) 40%, rgba(0,0,0,0.06) 100%)",
-                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.28)",
+                        boxShadow: isLight
+                          ? "inset 0 1px 0 rgba(255,255,255,0.35)"
+                          : "inset 0 1px 0 rgba(255,255,255,0.06)",
                       }
-                    : undefined
+                    : {
+                        boxShadow: isLight
+                          ? "inset 0 1px 0 rgba(255,255,255,0.4)"
+                          : "inset 0 1px 0 rgba(255,255,255,0.04)",
+                      }
                 }
               >
                 {msg.text && msg.text !== "Voice note" && <p>{msg.text}</p>}

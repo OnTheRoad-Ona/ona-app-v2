@@ -1,6 +1,6 @@
 "use client";
 
-import { Shield } from "lucide-react";
+import { AppWindow, Shield } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { SettingsRow } from "@/components/settings/settings-ui";
 import { useT } from "@/lib/i18n";
@@ -37,6 +37,13 @@ export default function SettingsPrivacySectionPage() {
               : "Visibility, data, blocked"
           }
           href="/settings/privacy"
+        />
+        <SettingsRow
+          isLight={isLight}
+          icon={AppWindow}
+          label="App permissions"
+          detail="Location, camera, and microphone"
+          href="/settings/permissions"
         />
       </div>
     </div>

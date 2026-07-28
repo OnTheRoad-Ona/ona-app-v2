@@ -1288,16 +1288,6 @@ export default function AdminProsHubPage() {
                   }
                 />
                 <DetailField
-                  label="BVN / bank ID"
-                  value={
-                    showFull
-                      ? selectedReview.levels.t2_id.bank_id_number || ""
-                      : selectedReview.levels.t2_id.bank_id_last4
-                        ? `••••${selectedReview.levels.t2_id.bank_id_last4}`
-                        : ""
-                  }
-                />
-                <DetailField
                   label="Submitted"
                   value={fmtDate(selectedReview.levels.t2_id.submitted_at)}
                 />
@@ -1314,20 +1304,46 @@ export default function AdminProsHubPage() {
                   label="ID front"
                   url={selectedReview.levels.t2_id.front_url}
                   size="lg"
+                  userId={selectedReview.user_id}
+                  kind="pro_front"
                 />
                 <FileThumb
                   label="ID back"
                   url={selectedReview.levels.t2_id.back_url}
                   size="lg"
+                  userId={selectedReview.user_id}
+                  kind="pro_back"
                 />
               </div>
+              {selectedReview.levels.t2_id.front_url ? (
+                <a
+                  className="om-admin-file-link"
+                  href={selectedReview.levels.t2_id.front_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ display: "inline-block", marginTop: 8, marginRight: 12 }}
+                >
+                  Open ID front in new tab
+                </a>
+              ) : null}
+              {selectedReview.levels.t2_id.back_url ? (
+                <a
+                  className="om-admin-file-link"
+                  href={selectedReview.levels.t2_id.back_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ display: "inline-block", marginTop: 8 }}
+                >
+                  Open ID back in new tab
+                </a>
+              ) : null}
             </div>
 
             <div className="om-admin-section">
-              <h3>Tier 3 · Liveness</h3>
+              <h3>Tier 3 · Liveness + BVN</h3>
               <DetailGrid>
                 <DetailField
-                  label="Status"
+                  label="Liveness"
                   value={
                     <StatusBadge
                       status={selectedReview.levels.t3_liveness.status}
@@ -1342,17 +1358,38 @@ export default function AdminProsHubPage() {
                     selectedReview.levels.t3_liveness.verified_at
                   )}
                 />
+                <DetailField
+                  label="BVN / bank ID"
+                  value={
+                    showFull
+                      ? selectedReview.levels.t2_id.bank_id_number || ""
+                      : selectedReview.levels.t2_id.bank_id_last4
+                        ? `••••${selectedReview.levels.t2_id.bank_id_last4}`
+                        : ""
+                  }
+                />
               </DetailGrid>
               <FileThumb
                 label="Selfie"
                 url={selectedReview.levels.t3_liveness.selfie_url}
                 size="md"
+                userId={selectedReview.user_id}
               />
-              {!selectedReview.levels.t3_liveness.selfie_url ? (
+              {selectedReview.levels.t3_liveness.selfie_url ? (
+                <a
+                  className="om-admin-file-link"
+                  href={selectedReview.levels.t3_liveness.selfie_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ display: "inline-block", marginTop: 6 }}
+                >
+                  Open selfie in new tab
+                </a>
+              ) : (
                 <p className="om-admin-muted" style={{ marginTop: 6 }}>
                   No selfie yet (optional until pro completes liveness in app).
                 </p>
-              ) : null}
+              )}
             </div>
 
             <div className="om-admin-section">

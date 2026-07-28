@@ -220,7 +220,7 @@ export const YO: MessageDict = {
   "jobs.past": "Past",
   "requests.title": "Ìbéèrè",
   "requests.empty": "No requests yet",
-  "requests.new": "New request",
+  "requests.new": "Service Request",
   "job.status.requested": "Requested",
   "job.status.accepted": "Accepted",
   "job.status.enRoute": "On the way",
@@ -358,4 +358,6 @@ export const YO: MessageDict = {
   "common.codeSent": "Wọ́n ti fi kóòdù ránṣẹ́. Tẹ ẹ́ nísàlẹ̀.",
   "settings.hub.profileInner": "Profaili",
   "settings.hub.profileInnerDetail": "Orúkọ fọ́tò ìbáraẹnisọ̀rọ̀",
+  "settings.hub.verification": "Verification",
+  "settings.hub.verificationDetail": "ID, tiers & documents",
 };

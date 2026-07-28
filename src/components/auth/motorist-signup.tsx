@@ -2,14 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  Lock,
-  Mail,
-  User,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Lock, Mail, User } from "lucide-react";
 import {
   AuthPlate,
   authFieldClass as fieldClass,
@@ -22,6 +15,7 @@ import {
 import { useAuthNavigate } from "@/components/auth/auth-transition";
 import { PasswordField } from "@/components/auth/password-field";
 import { RegistrationComplete } from "@/components/auth/registration-complete";
+import { VehicleCascadeFields } from "@/components/vehicles/vehicle-cascade-fields";
 import {
   checkIdentityAvailable,
   IDENTITY_RULE_COPY,
@@ -58,18 +52,10 @@ import {
   SIGNUP_GENDER_OPTIONS,
   type SignupGender,
 } from "@/lib/signup-validation";
-import {
-  filterOptions,
-  getAllMakes,
-  getModelsForMake,
-  getYearsForMakeModel,
-} from "@/lib/vehicle-catalog";
 import { VEHICLE_TYPES } from "@/lib/vehicle-focus";
 import { useApp } from "@/lib/store";
 import type { MotoristVehicle, UserProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-type VehiclePickerKey = "vehicleType" | "make" | "model" | "year";
 
 type Step = 1 | 2 | 3;
 /**
@@ -117,14 +103,10 @@ export function MotoristSignup() {
   const [area, setArea] = useState("");
   /** Optional vehicles — customer can skip (other services need no car) */
   const [vehicles, setVehicles] = useState<MotoristVehicle[]>([]);
-  const [draftVehicleType, setDraftVehicleType] = useState("Any");
-  const [draftMake, setDraftMake] = useState("Any");
-  const [draftModel, setDraftModel] = useState("Any");
-  const [draftYear, setDraftYear] = useState("Any");
-  const [vehiclePicker, setVehiclePicker] = useState<VehiclePickerKey | null>(
-    null
-  );
-  const [pickerQuery, setPickerQuery] = useState("");
+  const [draftVehicleType, setDraftVehicleType] = useState("");
+  const [draftMake, setDraftMake] = useState("");
+  const [draftModel, setDraftModel] = useState("");
+  const [draftYear, setDraftYear] = useState("");
   /**
    * Dual-role signup: prefill from Repair Pro, but only dim/lock fields
    * that already have values. Empty NIN/BVN stay fully editable (not dimmed).
@@ -284,105 +266,37 @@ export function MotoristSignup() {
       !optionalIdError();
   const step2Ok = city.trim().length >= 2 && area.trim().length >= 2;
 
-  const isAny = (v: string) => !v.trim() || v.trim().toLowerCase() === "any";
-
-  /** Real vehicle only when make + model are chosen (not ANY) */
-  const draftReady =
-    !isAny(draftMake) && !isAny(draftModel);
+  /** Real vehicle only when make + model are chosen */
+  const draftReady = Boolean(draftMake.trim() && draftModel.trim());
 
   /** Vehicles optional — always can finish step 3 */
   const step3Ok = true;
 
   const resetDraft = () => {
-    setDraftVehicleType("Any");
-    setDraftMake("Any");
-    setDraftModel("Any");
-    setDraftYear("Any");
+    setDraftVehicleType("");
+    setDraftMake("");
+    setDraftModel("");
+    setDraftYear("");
   };
 
   const addDraftVehicle = (): boolean => {
     if (!draftReady) return false;
     const v: MotoristVehicle = {
       id: `veh-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      vehicleType: isAny(draftVehicleType) ? undefined : draftVehicleType.trim(),
+      vehicleType: draftVehicleType.trim() || undefined,
       make: draftMake.trim(),
       model: draftModel.trim(),
-      year: isAny(draftYear) ? undefined : draftYear.trim(),
+      year: draftYear.trim() || undefined,
     };
     setVehicles((prev) => [...prev, v]);
     resetDraft();
     return true;
   };
 
-  const makeOptions = useMemo(() => {
-    const makes = getAllMakes();
-    return ["Any", ...makes];
-  }, []);
-
-  const modelOptions = useMemo(() => {
-    if (isAny(draftMake)) return ["Any"];
-    return ["Any", ...getModelsForMake(draftMake)];
-  }, [draftMake]);
-
-  const yearOptions = useMemo(() => {
-    if (isAny(draftMake) || isAny(draftModel)) return ["Any"];
-    const years = getYearsForMakeModel(draftMake, draftModel).map(String);
-    return ["Any", ...years];
-  }, [draftMake, draftModel]);
-
   const vehicleTypeOptions = useMemo(
-    () =>
-      VEHICLE_TYPES.includes("Any")
-        ? [...VEHICLE_TYPES]
-        : ["Any", ...VEHICLE_TYPES],
+    () => VEHICLE_TYPES.filter((t) => t.toLowerCase() !== "any"),
     []
   );
-
-  const pickerOptions = useMemo(() => {
-    if (!vehiclePicker) return [] as string[];
-    if (vehiclePicker === "vehicleType") return vehicleTypeOptions;
-    if (vehiclePicker === "make") return makeOptions;
-    if (vehiclePicker === "model") return modelOptions;
-    return yearOptions;
-  }, [
-    vehiclePicker,
-    vehicleTypeOptions,
-    makeOptions,
-    modelOptions,
-    yearOptions,
-  ]);
-
-  const filteredPickerOptions = useMemo(
-    () => filterOptions(pickerOptions, pickerQuery, 120),
-    [pickerOptions, pickerQuery]
-  );
-
-  const openVehiclePicker = (key: VehiclePickerKey) => {
-    setPickerQuery("");
-    setVehiclePicker(key);
-  };
-
-  const pickVehicleValue = (value: string) => {
-    if (!vehiclePicker) return;
-    if (vehiclePicker === "vehicleType") {
-      setDraftVehicleType(value);
-      // Keep make/model unless they clear to Any
-    } else if (vehiclePicker === "make") {
-      setDraftMake(value);
-      setDraftModel("Any");
-      setDraftYear("Any");
-    } else if (vehiclePicker === "model") {
-      setDraftModel(value);
-      setDraftYear("Any");
-    } else {
-      setDraftYear(value);
-    }
-    setVehiclePicker(null);
-    setPickerQuery("");
-  };
-
-  const displayVal = (v: string) =>
-    isAny(v) ? "ANY" : v.toUpperCase();
 
   const validateStep1 = (): string | null => {
     if (dualSignup) {
@@ -455,12 +369,10 @@ export function MotoristSignup() {
     if (!opts?.skipVehicle && draftReady) {
       const next: MotoristVehicle = {
         id: `veh-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        vehicleType: isAny(draftVehicleType)
-          ? undefined
-          : draftVehicleType.trim(),
+        vehicleType: draftVehicleType.trim() || undefined,
         make: draftMake.trim(),
         model: draftModel.trim(),
-        year: isAny(draftYear) ? undefined : draftYear.trim(),
+        year: draftYear.trim() || undefined,
       };
       list = [...vehicles, next];
       setVehicles(list);
@@ -553,100 +465,6 @@ export function MotoristSignup() {
     2: "City and area where you usually need help",
     3: "Optional — skip if you do not need vehicle services",
   };
-
-  const vehicleRows: {
-    key: VehiclePickerKey;
-    label: string;
-    value: string;
-  }[] = [
-    { key: "vehicleType", label: "Vehicle", value: draftVehicleType },
-    { key: "make", label: "Make", value: draftMake },
-    { key: "model", label: "Model", value: draftModel },
-    { key: "year", label: "Year", value: draftYear },
-  ];
-
-  // Full-screen picker for vehicle rows (image-style list → options sheet)
-  if (vehiclePicker) {
-    const titleMap: Record<VehiclePickerKey, string> = {
-      vehicleType: "Vehicle",
-      make: "Make",
-      model: "Model",
-      year: "Year",
-    };
-    return (
-      <AuthPlate exiting={exiting}>
-        <div className="flex min-h-0 flex-1 flex-col px-3 pb-3 pt-3">
-          <div className="relative flex items-center justify-center pb-1">
-            <button
-              type="button"
-              onClick={() => {
-                setVehiclePicker(null);
-                setPickerQuery("");
-              }}
-              className="absolute left-0 inline-flex h-8 items-center gap-0.5 rounded-md border-0 bg-transparent px-0 text-[12px] font-semibold text-[#1e293b]"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.25} />
-              Back
-            </button>
-            <h1 className="text-[15px] font-bold tracking-tight text-[#1c1c1e]">
-              {titleMap[vehiclePicker]}
-            </h1>
-          </div>
-          <div className="mt-2">
-            <input
-              type="search"
-              value={pickerQuery}
-              onChange={(e) => setPickerQuery(e.target.value)}
-              placeholder="Search"
-              className={fieldClass}
-              autoFocus
-            />
-          </div>
-          <ul className="mt-2 min-h-0 flex-1 list-none space-y-0.5 overflow-y-auto overscroll-contain scrollbar-hide">
-            {filteredPickerOptions.map((opt) => {
-              const selected =
-                vehiclePicker === "vehicleType"
-                  ? draftVehicleType === opt
-                  : vehiclePicker === "make"
-                    ? draftMake === opt
-                    : vehiclePicker === "model"
-                      ? draftModel === opt
-                      : draftYear === opt;
-              return (
-                <li key={opt}>
-                  <button
-                    type="button"
-                    onClick={() => pickVehicleValue(opt)}
-                    className={cn(
-                      "flex w-full items-center justify-between gap-2 rounded-lg border-0 px-3 py-2.5 text-left",
-                      selected
-                        ? "bg-[#FF6B35]/15 text-[#9a3412]"
-                        : "bg-transparent text-[#1e293b] active:bg-black/[0.04]"
-                    )}
-                  >
-                    <span className="min-w-0 flex-1 text-[13px] font-semibold uppercase tracking-[0.01em]">
-                      {opt}
-                    </span>
-                    {selected ? (
-                      <Check
-                        className="h-3.5 w-3.5 shrink-0 text-[#FF6B35]"
-                        strokeWidth={2.5}
-                      />
-                    ) : null}
-                  </button>
-                </li>
-              );
-            })}
-            {filteredPickerOptions.length === 0 && (
-              <li className="py-8 text-center text-[12px] text-[#64748b]">
-                No matches
-              </li>
-            )}
-          </ul>
-        </div>
-      </AuthPlate>
-    );
-  }
 
   return (
     <AuthPlate exiting={exiting}>
@@ -1117,33 +935,34 @@ export function MotoristSignup() {
                 </ul>
               )}
 
-              {/* Image-style preference rows: Vehicle → Make → Model → Year */}
-              <div className="overflow-hidden rounded-xl bg-[#f2f3f5] shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]">
-                {vehicleRows.map((row, i) => (
-                  <button
-                    key={row.key}
-                    type="button"
-                    onClick={() => openVehiclePicker(row.key)}
-                    className={cn(
-                      "flex w-full items-center justify-between gap-3 border-0 bg-transparent px-4 py-3.5 text-left",
-                      i > 0 && "border-t border-black/[0.06]"
-                    )}
-                  >
-                    <span className="text-[14px] font-semibold text-[#1e293b]">
-                      {row.label}
-                    </span>
-                    <span className="inline-flex min-w-0 max-w-[55%] items-center gap-1">
-                      <span className="truncate text-[13px] font-medium uppercase tracking-[0.02em] text-[#64748b]">
-                        {displayVal(row.value)}
-                      </span>
-                      <ChevronRight
-                        className="h-4 w-4 shrink-0 text-[#94a3b8]"
-                        strokeWidth={2}
-                      />
-                    </span>
-                  </button>
-                ))}
-              </div>
+              {/* Full catalog — one-line searchable dropdowns (not full-page) */}
+              <label className="block">
+                <span className="mb-0.5 block text-[11px] font-semibold text-[#475569]">
+                  Vehicle type
+                </span>
+                <select
+                  className={selectClass}
+                  value={draftVehicleType}
+                  onChange={(e) => setDraftVehicleType(e.target.value)}
+                >
+                  <option value="">Any / not specified</option>
+                  {vehicleTypeOptions.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <VehicleCascadeFields
+                make={draftMake}
+                model={draftModel}
+                year={draftYear}
+                onMakeChange={setDraftMake}
+                onModelChange={setDraftModel}
+                onYearChange={setDraftYear}
+                variant="auth"
+                isLight
+              />
 
               <button
                 type="button"
@@ -1160,7 +979,7 @@ export function MotoristSignup() {
                   setFormError("");
                 }}
               >
-                + Add another vehicle
+                + Add vehicle
               </button>
             </div>
           )}

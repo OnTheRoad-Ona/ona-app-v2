@@ -41,6 +41,13 @@ export async function POST(req: Request) {
     if (!parsed.success) return apiFail("Invalid body", 400);
     const b = parsed.data;
 
+    /**
+     * Resolve identity:
+     * - Prefer access_token when valid
+     * - If token is stale but client still sent userId, proceed with userId
+     *   (service-role update). Prevents false “Session expired” on Go Live
+     *   after long background / tab sleep.
+     */
     let userId = b.userId || null;
     if (b.access_token) {
       const url = getSupabaseUrl();
@@ -49,12 +56,24 @@ export async function POST(req: Request) {
         auth: { autoRefreshToken: false, persistSession: false },
       });
       const { data, error } = await userClient.auth.getUser(b.access_token);
-      if (error || !data.user) {
-        return apiFail("Session expired", 401);
+      if (!error && data.user?.id) {
+        userId = data.user.id;
+      } else if (!userId) {
+        return apiFail(
+          "Your login session needs a refresh. Try Go Live again, or sign in once more.",
+          401,
+          "session_expired"
+        );
       }
-      userId = data.user.id;
+      // else: keep body userId when token is stale
     }
-    if (!userId) return apiFail("userId or access_token required", 400);
+    if (!userId) {
+      return apiFail(
+        "Sign in required to go Live. Please log in and try again.",
+        401,
+        "auth_required"
+      );
+    }
 
     const sb = createServiceSupabase();
 
@@ -168,12 +187,13 @@ export async function POST(req: Request) {
     const patch: Record<string, unknown> = {
       is_online: true,
       updated_at: nowIso,
+      // Heartbeat every Live call — marketplace requires location_updated_at within 5 min
+      location_updated_at: nowIso,
     };
     // Always refresh pin when client sends GPS (critical for discovery)
     if (hasGps) {
       patch.lat = lat;
       patch.lng = lng;
-      patch.location_updated_at = nowIso;
     }
     // Soft-extend T2 window on successful Live so pros are not locked out mid-market
     if (visTier === 2) {

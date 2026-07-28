@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { ExpiredDialog } from "@/components/ui/expired-dialog";
 import { JOB_CLOSED_MESSAGE } from "@/lib/chat-expired";
 import { apiListJobs } from "@/lib/jobs/client";
+import { canOpenDisputeNow } from "@/lib/jobs/constants";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
@@ -172,9 +173,9 @@ export default function HistoryPage() {
         backHref={isPro ? "/dashboard" : "/"}
       />
 
-      {/* Filters */}
-      <div className="shrink-0 overflow-x-auto px-4 pb-2 scrollbar-hide">
-        <div className="flex min-w-min gap-1.5">
+      {/* All filters + content on one continuous scrollable page */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 scrollbar-hide">
+        <div className="mb-3 flex flex-wrap gap-1.5">
           {FILTERS.map((f) => {
             const on = filter === f.id;
             return (
@@ -183,12 +184,12 @@ export default function HistoryPage() {
                 type="button"
                 onClick={() => setFilter(f.id)}
                 className={cn(
-                  "shrink-0 rounded-full border-0 px-3 py-1.5 text-[11px] font-semibold transition",
+                  "rounded-full border-0 px-2.5 py-1 text-[11px] font-semibold transition",
                   on
                     ? "bg-[#2c2c2e] text-white"
                     : isLight
-                      ? "bg-transparent text-slate-700 ring-1 ring-black/15"
-                      : "bg-transparent text-white/80 ring-1 ring-white/20"
+                      ? "bg-black/[0.06] text-slate-700"
+                      : "bg-white/10 text-white/80"
                 )}
               >
                 {f.label}
@@ -196,14 +197,12 @@ export default function HistoryPage() {
             );
           })}
         </div>
-      </div>
 
-      <p className={cn("px-4 pb-2 text-[11px] font-medium leading-snug", muted)}>
-        Cancelled, completed, expired, and other closed jobs. Tap to view the
-        full process. Chat is not available.
-      </p>
+        <p className={cn("mb-3 text-[11px] font-medium leading-snug", muted)}>
+          Closed jobs on one page. Within 48 hours after you confirm satisfaction,
+          you can open a dispute from the job page.
+        </p>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 scrollbar-hide">
         {loading && (
           <div className="flex justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-[#FF6B35]" />
@@ -229,7 +228,9 @@ export default function HistoryPage() {
 
         {!loading &&
           filtered.map((j) => {
-            const name = isPro ? j.motoristName : j.repairProName;
+            const name = isPro
+              ? j.motoristVehicle?.trim() || "Service Request"
+              : j.repairProName;
             const skill =
               PRO_SERVICE_LABELS[j.serviceType] ?? j.serviceType;
             const when = formatWhen(j.updatedAt || j.createdAt);
@@ -242,13 +243,15 @@ export default function HistoryPage() {
                 key={j.id}
                 type="button"
                 onClick={() => {
+                  // Within 48h of satisfied: open live job for dispute; else read-only
+                  if (canOpenDisputeNow(j)) {
+                    router.push(`/jobs/${j.id}`);
+                    return;
+                  }
                   setViewHref(`/requests/${j.id}`);
                   setClosedOpen(true);
                 }}
-                className={cn(
-                  "flex w-full items-start gap-3 border-0 border-b bg-transparent py-3.5 text-left last:border-b-0",
-                  isLight ? "border-black/10" : "border-white/10"
-                )}
+                className="flex w-full items-start gap-3 border-0 bg-transparent py-3.5 text-left"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -285,7 +288,9 @@ export default function HistoryPage() {
                   <p className={cn("mt-1 text-[11px] font-medium", muted)}>
                     {when}
                     {price ? ` · ${price}` : ""}
-                    {" · View only"}
+                    {canOpenDisputeNow(j)
+                      ? " · Dispute available (48h)"
+                      : " · View only"}
                   </p>
                 </div>
                 <ChevronRight

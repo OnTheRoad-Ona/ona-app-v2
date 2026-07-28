@@ -35,6 +35,8 @@ export {
   isChatClosedForNotification,
   isNavigationBlocked,
   isJobFinishedStatus,
+  isJobHistoryClosedStatus,
+  isReleasePayPendingStatus,
   blockedActionMessage,
   isHighPriority,
   isStickyPriority,

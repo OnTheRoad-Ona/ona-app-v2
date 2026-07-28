@@ -14,6 +14,19 @@ export const JOB_LIVE_CHAT_STATUSES = new Set<string>([
   "in_progress",
 ]);
 
+/**
+ * Statuses that still use the live job shell (actions remaining).
+ * Includes post-work satisfaction — customer must release pay on /jobs/[id].
+ * Chat may still be closed for these (see isJobEndedStatus).
+ */
+export const JOB_LIVE_SHELL_STATUSES = new Set<string>([
+  ...JOB_LIVE_CHAT_STATUSES,
+  "completed",
+  "satisfied",
+  "disputed",
+  "under_appeal",
+]);
+
 /** Short, fixed copy — chat */
 export const CONVERSATION_ENDED_MESSAGE =
   "Conversation ended. You can still read.";
@@ -58,6 +71,22 @@ export function isJobLiveChatStatus(
 ): boolean {
   if (status == null || status === "") return false;
   return JOB_LIVE_CHAT_STATUSES.has(String(status).toLowerCase().trim());
+}
+
+/** True while the job still needs the live /jobs/[id] flow (incl. I’m Satisfied). */
+export function isJobLiveShellStatus(
+  status: string | null | undefined
+): boolean {
+  if (status == null || status === "") return false;
+  return JOB_LIVE_SHELL_STATUSES.has(String(status).toLowerCase().trim());
+}
+
+/** History-only: released / cancelled / expired / refunded — no live actions. */
+export function isJobHistoryOnlyStatus(
+  status: string | null | undefined
+): boolean {
+  if (status == null || status === "") return false;
+  return isJobEndedStatus(status) && !isJobLiveShellStatus(status);
 }
 
 export function isDemoJobOrHref(
@@ -176,10 +205,19 @@ export function shouldBlockLiveOpen(input: {
   // Demo / sample deep links never open live
   if (isDemoJobOrHref(href, jobId) && (chatLike || jobLike)) return true;
 
-  if (isJobEndedStatus(status)) return true;
+  // Chat: block once job is no longer mid-flow (incl. completed)
+  if (chatLike && isJobEndedStatus(status)) return true;
 
-  // Job-like with a known non-live status string
-  if (jobLike && status && !isJobLiveChatStatus(status)) return true;
+  // Job / payment deep links: allow live shell statuses (completed = release pay)
+  if (jobLike || action === "view_payment") {
+    if (status && isJobHistoryOnlyStatus(status)) return true;
+    if (status && !isJobLiveShellStatus(status) && isJobEndedStatus(status)) {
+      return true;
+    }
+    return false;
+  }
+
+  if (isJobEndedStatus(status)) return true;
 
   return false;
 }

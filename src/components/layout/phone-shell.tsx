@@ -3,6 +3,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { AcceptTripPopup } from "@/components/home/accept-trip-popup";
 import { IncomingJobPopup } from "@/components/home/incoming-job-popup";
+import { MotoristReleasePayGate } from "@/components/jobs/motorist-release-pay-gate";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/store";
 
@@ -222,6 +223,7 @@ export function PhoneShell({
           {children}
           <AcceptTripPopup />
           <IncomingJobPopup />
+          <MotoristReleasePayGate />
         </div>
       </div>
     </div>

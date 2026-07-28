@@ -75,7 +75,7 @@ export default function VerifyIdentityPage() {
       ),
     [pack]
   );
-  /** BVN / bank ID is part of T2 package when the country requires it */
+  /** BVN / bank ID is Tier 3 (not part of T2 government ID) */
   const bankDoc = useMemo(
     () => pack.docs.find((d) => d.kind === "bank_id") || null,
     [pack]
@@ -244,29 +244,12 @@ export default function VerifyIdentityPage() {
       setError(`Upload a clear back photo of your ${doc.label}.`);
       return;
     }
-    // T2 package always includes BVN when country requires bank ID (e.g. NG)
-    let bankVal = "";
-    if (bankDoc) {
-      bankVal = filterIdInput(bvnNumber, bankDoc);
-      const bankFmt = validateIdFormat(bankVal, bankDoc);
-      if (bvnRequired || bankVal) {
-        if (!bankFmt.ok) {
-          setError(bankFmt.message);
-          return;
-        }
-      }
-      if (bvnRequired && !bankVal) {
-        setError(`Enter your ${bankDoc.label} — required with government ID.`);
-        return;
-      }
-    }
+    // T2 = government ID only (BVN moved to Tier 3)
     setBusy(true);
     try {
       const err = await completeIdentityVerification({
         primaryId: val,
         nin: doc.api === "nin" ? val : undefined,
-        bvn: bankVal || undefined,
-        bankId: bankVal || undefined,
         countryIso,
         govIdKind: doc.kind,
         govIdFrontUrl: idFront || undefined,
@@ -278,6 +261,46 @@ export default function VerifyIdentityPage() {
         return;
       }
       setSubmitted(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitBvn = async () => {
+    if (busy || !bankDoc) return;
+    setError("");
+    if (!phoneOk) {
+      setError("Complete phone verification (Tier 1) first.");
+      return;
+    }
+    if (!submitted && !tier2Ok) {
+      setError("Submit government ID (Tier 2) before BVN.");
+      return;
+    }
+    const bankVal = filterIdInput(bvnNumber, bankDoc);
+    const bankFmt = validateIdFormat(bankVal, bankDoc);
+    if (!bankFmt.ok) {
+      setError(bankFmt.message);
+      return;
+    }
+    setBusy(true);
+    try {
+      // Keep existing government ID as primary; only attach BVN (Tier 3)
+      const err = await completeIdentityVerification({
+        primaryId: userProfile?.idNumber || idNumber || bankVal,
+        bvn: bankVal,
+        bankId: bankVal,
+        countryIso,
+        govIdKind: userProfile?.govIdKind || idType || undefined,
+        govIdFrontUrl: userProfile?.govIdFrontUrl || idFront || undefined,
+        govIdBackUrl: userProfile?.govIdBackUrl || idBack || undefined,
+        mode: "submit",
+      });
+      if (err) {
+        setError(err);
+        return;
+      }
+      setOtpMsg(`${bankDoc.label} submitted for review.`);
     } finally {
       setBusy(false);
     }
@@ -484,6 +507,10 @@ export default function VerifyIdentityPage() {
                     )
                   }
                   placeholder={selectedDoc?.placeholder || "ID number"}
+                  maxLength={selectedDoc?.maxLen ?? 32}
+                  inputMode={
+                    selectedDoc?.charset === "digits" ? "numeric" : "text"
+                  }
                   disabled={!phoneOk}
                 />
                 {selectedDoc?.hint ? (
@@ -492,29 +519,6 @@ export default function VerifyIdentityPage() {
                   </p>
                 ) : null}
               </div>
-
-              {bankDoc ? (
-                <div>
-                  <label className={cn(authLabelClass, "!mb-1 text-[11px]")}>
-                    {bankDoc.label}
-                    {bvnRequired ? " · required with T2" : " · optional"}
-                  </label>
-                  <input
-                    className={cn(authFieldClass, "h-9 text-[12px]")}
-                    value={bvnNumber}
-                    onChange={(e) =>
-                      setBvnNumber(filterIdInput(e.target.value, bankDoc))
-                    }
-                    placeholder={bankDoc.placeholder}
-                    disabled={!phoneOk}
-                  />
-                  {bankDoc.hint ? (
-                    <p className={cn("mt-0.5 text-[10px] leading-snug", muted)}>
-                      {bankDoc.hint}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
 
               {/* gap: om-cta-dark-gray forces margin:0 */}
               <div className="flex flex-col gap-2">
@@ -604,6 +608,59 @@ export default function VerifyIdentityPage() {
             </div>
           )}
         </section>
+
+        {/* Tier 3 — BVN (moved out of T2) */}
+        {bankDoc ? (
+          <section className={cn("rounded-xl px-3 py-3", card)}>
+            <p className={cn("flex items-center gap-1.5 text-[12px] font-bold", ink)}>
+              <ShieldCheck className="h-3.5 w-3.5 text-[#FF6B35]" />
+              Tier 3 · {bankDoc.label}
+            </p>
+            <p className={cn("mt-1 text-[11px] leading-snug", muted)}>
+              {bvnRequired
+                ? "Required after government ID for full access"
+                : "Optional after government ID"}
+            </p>
+            <div className="mt-2.5">
+              <label className={cn(authLabelClass, "!mb-1 text-[11px]")}>
+                {bankDoc.label} · 11 digits
+              </label>
+              <input
+                className={cn(authFieldClass, "h-9 text-[12px]")}
+                value={bvnNumber}
+                onChange={(e) =>
+                  setBvnNumber(filterIdInput(e.target.value, bankDoc))
+                }
+                placeholder={bankDoc.placeholder || "11-digit BVN"}
+                maxLength={bankDoc.maxLen || 11}
+                inputMode="numeric"
+                disabled={!phoneOk}
+              />
+              {bankDoc.hint ? (
+                <p className={cn("mt-0.5 text-[10px] leading-snug", muted)}>
+                  {bankDoc.hint}
+                </p>
+              ) : null}
+              <button
+                type="button"
+                disabled={
+                  busy ||
+                  !phoneOk ||
+                  (!submitted && !tier2Ok) ||
+                  bvnNumber.replace(/\D/g, "").length !== 11
+                }
+                onClick={() => void submitBvn()}
+                className={cn(
+                  authPrimaryBtnClass,
+                  "mt-2.5 !h-10 text-[13px] disabled:opacity-50"
+                )}
+                style={authPrimaryBtnStyle}
+              >
+                {busy ? "Submitting…" : `Submit ${bankDoc.label}`}
+              </button>
+            </div>
+          </section>
+        ) : null}
       </div>
     </div>
   );

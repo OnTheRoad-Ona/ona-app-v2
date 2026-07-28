@@ -262,11 +262,14 @@ export function FileThumb({
         href={view}
         target="_blank"
         rel="noreferrer"
-        download
-        title={offline ? `${label} (saved offline)` : `Open ${label}`}
+        title={
+          offline
+            ? `${label} (view only · offline)`
+            : `View ${label} (Admin / Care only · no download)`
+        }
       >
         📄 {label}
-        {offline ? " · offline" : " · open"}
+        {offline ? " · offline" : " · view"}
       </a>
     );
   }
@@ -277,8 +280,7 @@ export function FileThumb({
       href={view}
       target="_blank"
       rel="noreferrer"
-      download
-      title={`${label}${offline ? " · saved offline" : " · open / download"}`}
+      title={`${label}${offline ? " · offline" : ""} · view only (no download)`}
       style={{ width: dim, height: Math.round(dim * 0.72) }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}

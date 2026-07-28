@@ -12,6 +12,7 @@ import {
 export const PASSWORD_GATED_PATHS = [
   "/admin/settings",
   "/admin/features",
+  "/admin/staff",
 ] as const;
 
 export function isPasswordGatedPath(href: string): boolean {
@@ -21,7 +22,7 @@ export function isPasswordGatedPath(href: string): boolean {
   );
 }
 
-/** Super Admin skips the temporary password entirely. */
+/** Super Admin (L5) skips the temporary access code for most nav. Escrow cancel still prompts. */
 async function isSuperAdminSession(): Promise<boolean> {
   try {
     const res = await fetch("/api/admin/auth/me", {
@@ -29,12 +30,8 @@ async function isSuperAdminSession(): Promise<boolean> {
       cache: "no-store",
     });
     const json = await res.json().catch(() => null);
-    return Boolean(
-      json?.ok &&
-        (json.data?.adminRole === "super_admin" ||
-          json.data?.role === "admin" ||
-          json.data?.role === "super_admin")
-    );
+    // Only L5 — profiles.role is often "admin" for all staff levels
+    return Boolean(json?.ok && json.data?.adminRole === "super_admin");
   } catch {
     return false;
   }
@@ -106,17 +103,15 @@ export async function withSensitivePassword(
   opts: { title: string; detail?: string },
   fn: () => Promise<void>
 ): Promise<boolean> {
-  if (await isSuperAdminSession()) {
-    await fn();
-    return true;
-  }
+  // Always prompt for temporary access code on sensitive money/staff actions
+  // (including Super Admin) — unlock cookie is what the API checks.
   const ok = await promptSensitivePassword(opts);
   if (!ok) return false;
   try {
     await fn();
     return true;
   } finally {
-    await clearSensitiveUnlock();
+    // Keep unlock briefly for multi-step flows; server TTL still enforces 3 min
   }
 }
 

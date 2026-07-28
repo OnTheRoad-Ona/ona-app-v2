@@ -13,6 +13,8 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: projectRoot,
   },
+  // Ensure native/pg deps resolve on Vercel serverless for Local BackUp
+  serverExternalPackages: ["pg", "dotenv"],
   // Compress responses; skip source maps in prod for smaller deploys
   compress: true,
   productionBrowserSourceMaps: false,
@@ -44,6 +46,21 @@ const nextConfig: NextConfig = {
             key: "Cache-Control",
             value: "public, max-age=86400, stale-while-revalidate=604800",
           },
+        ],
+      },
+      // Payment pages: allow Payment Request API; never frame our app in strangers
+      {
+        source: "/payments/:path*",
+        headers: [
+          {
+            key: "Permissions-Policy",
+            value: "payment=(self), publickey-credentials-get=(self)",
+          },
+          {
+            key: "X-Frame-Options",
+            value: "SAMEORIGIN",
+          },
+          // Do not set restrictive CSP that blocks form posts to Flutterwave
         ],
       },
     ];

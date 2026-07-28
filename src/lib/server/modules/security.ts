@@ -1,23 +1,24 @@
 /**
- * Multi-layer admin / Customer Care security.
+ * Multi-layer admin security (5 access levels).
  *
  * Layers:
- *  1. Admin session cookie (Supabase auth + profiles.role admin|care)
- *  2. Role-based permissions (super_admin | customer_care | support)
- *  3. Temporary sensitive-action password (default 336699)
- *  4. Session idle timeout
+ *  1. Admin session cookie (Supabase auth + staff profile)
+ *  2. Role-based permissions (L1 Care → L5 Super Admin)
+ *  3. Temporary sensitive-action access code (default 336699)
+ *  4. Session idle timeout (30 min)
  *  5. Rate limiting + IP logging on sensitive routes
  *  6. Full audit trail for every sensitive action
+ *  (Phase B: 2FA — scaffolded later)
  */
 
-/** Temporary ops password for escrow / freeze / disputes / PII / settings */
+/** Temporary ops access code for escrow / freeze / disputes / bank / settings */
 export const SENSITIVE_ACTION_PASSWORD =
   process.env.ADMIN_SENSITIVE_PASSWORD?.trim() || "336699";
 
 /** Admin panel idle timeout (30 minutes) */
 export const ADMIN_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
-/** Short unlock after popup password — enough for one page visit / action */
+/** Short unlock after popup code — enough for one page visit / action */
 export const SENSITIVE_UNLOCK_TTL_MS = 3 * 60 * 1000;
 
 /** Cookie names */
@@ -32,8 +33,11 @@ export type SensitiveAction =
   | "dispute_resolve"
   | "appeal_resolve"
   | "view_pii"
+  | "view_bank_full"
+  | "content_edit"
   | "system_settings"
-  | "role_change";
+  | "role_change"
+  | "manage_staff";
 
 export const SENSITIVE_ACTIONS: SensitiveAction[] = [
   "escrow_release",
@@ -43,8 +47,11 @@ export const SENSITIVE_ACTIONS: SensitiveAction[] = [
   "dispute_resolve",
   "appeal_resolve",
   "view_pii",
+  "view_bank_full",
+  "content_edit",
   "system_settings",
   "role_change",
+  "manage_staff",
 ];
 
 export function isSensitivePasswordValid(password: string | null | undefined): boolean {

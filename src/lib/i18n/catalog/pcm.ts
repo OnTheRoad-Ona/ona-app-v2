@@ -220,7 +220,7 @@ export const PCM: MessageDict = {
   "jobs.past": "Past",
   "requests.title": "Requests",
   "requests.empty": "No requests yet",
-  "requests.new": "New request",
+  "requests.new": "Service Request",
   "job.status.requested": "Requested",
   "job.status.accepted": "Accepted",
   "job.status.enRoute": "On the way",
@@ -358,4 +358,6 @@ export const PCM: MessageDict = {
   "common.codeSent": "Code don send. Enter am below.",
   "settings.hub.profileInner": "Profile",
   "settings.hub.profileInnerDetail": "Name photo contact",
+  "settings.hub.verification": "Verification",
+  "settings.hub.verificationDetail": "ID, tiers & documents",
 };

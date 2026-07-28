@@ -69,8 +69,8 @@ export function IncomingJobPopup() {
     void ensureNotifyPermission().then(() => {
       if (canNotify()) {
         showAppNotification({
-          title: "Job request",
-          body: `${j.motoristName}: ${j.problem.slice(0, 80)} · ${skill}`,
+          title: "Service Request",
+          body: `${j.motoristVehicle || "Vehicle"} · ${j.problem.slice(0, 70)} · ${skill}`,
           tag: `job-${j.id}`,
           href: `/jobs/${j.id}`,
           requireInteraction: true,
@@ -195,7 +195,7 @@ export function IncomingJobPopup() {
           className="absolute inset-0 z-[180] flex items-end justify-center bg-black/35 p-3 pb-[max(1rem,env(safe-area-inset-bottom))]"
           role="dialog"
           aria-modal
-          aria-label="New request"
+          aria-label="Service Request"
         >
           <div
             className={cn(
@@ -206,10 +206,10 @@ export function IncomingJobPopup() {
             <div className="mb-2 flex items-start justify-between gap-2">
               <div>
                 <p className="text-[11px] font-black uppercase tracking-wide text-[#FF6B35]">
-                  Job request
+                  Service Request
                 </p>
                 <p className="mt-0.5 text-[16px] font-black leading-tight">
-                  {alertJob.motoristName}
+                  {alertJob.motoristVehicle?.trim() || "Vehicle service needed"}
                 </p>
               </div>
               <button

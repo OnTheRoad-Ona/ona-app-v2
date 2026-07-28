@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import {
@@ -19,6 +19,10 @@ import { cn } from "@/lib/utils";
 /** Near-black for secondary links (auth plate is always light gray) */
 const AUTH_LINK_NEAR_BLACK = "#0a0a0a";
 
+/** Live countdown only after 4 failed OTP attempts */
+const FAIL_THRESHOLD = 4;
+const COOLDOWN_SEC = 45;
+
 /**
  * Phone-only login (email is signup-only).
  * Unfolds on one page: Role → phone + code.
@@ -36,8 +40,28 @@ export function SignInForm() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [cooldownLeft, setCooldownLeft] = useState(0);
 
   const showPhone = Boolean(preferType);
+  const inCooldown = cooldownLeft > 0;
+
+  // Live countdown tick
+  useEffect(() => {
+    if (!cooldownUntil) {
+      setCooldownLeft(0);
+      return;
+    }
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
+      setCooldownLeft(left);
+      if (left <= 0) setCooldownUntil(0);
+    };
+    tick();
+    const id = window.setInterval(tick, 250);
+    return () => window.clearInterval(id);
+  }, [cooldownUntil]);
 
   function clearFeedback() {
     setError("");
@@ -61,10 +85,17 @@ export function SignInForm() {
     return s;
   }
 
+  function startCooldown(sec = COOLDOWN_SEC) {
+    setCooldownUntil(Date.now() + sec * 1000);
+    setCooldownLeft(sec);
+  }
+
   function pickRole(type: AccountType) {
     setPreferType(type);
     setOtpSent(false);
     setOtp("");
+    setFailedAttempts(0);
+    setCooldownUntil(0);
     clearFeedback();
   }
 
@@ -82,6 +113,13 @@ export function SignInForm() {
       setError(t("auth.pickRole"));
       return;
     }
+    // Cooldown message only after 4 failed attempts — live countdown
+    if (failedAttempts >= FAIL_THRESHOLD && inCooldown) {
+      setError(
+        `Please wait ${cooldownLeft}s before requesting another code.`
+      );
+      return;
+    }
     const target = phone.trim();
     if (!target) {
       setError("Enter the phone number you used at signup.");
@@ -91,6 +129,16 @@ export function SignInForm() {
     try {
       const res = await sendLoginOtp("phone", target);
       if (res.error) {
+        // Parse server wait if present (after 4 fails)
+        const waitMatch = res.error.match(/wait\s+(\d+)\s*s/i);
+        if (waitMatch) {
+          const sec = Number(waitMatch[1]) || COOLDOWN_SEC;
+          startCooldown(sec);
+          setError(
+            `Please wait ${sec}s before requesting another code.`
+          );
+          return;
+        }
         setError(publicMessage(res.error, "Could not send code."));
         return;
       }
@@ -126,11 +174,23 @@ export function SignInForm() {
         preferType
       );
       if (err) {
-        setError(publicMessage(err, "Incorrect code. Try again."));
+        const nextFails = failedAttempts + 1;
+        setFailedAttempts(nextFails);
+        // After 4 failed attempts → start live resend cooldown
+        if (nextFails >= FAIL_THRESHOLD) {
+          startCooldown(COOLDOWN_SEC);
+          setError(
+            `Please wait ${COOLDOWN_SEC}s before requesting another code.`
+          );
+        } else {
+          setError(publicMessage(err, "Incorrect code. Try again."));
+        }
         unlockAudio();
         playAppSound("error");
         return;
       }
+      setFailedAttempts(0);
+      setCooldownUntil(0);
       unlockAudio();
       playAppSound("login_success");
       window.setTimeout(() => {
@@ -142,6 +202,12 @@ export function SignInForm() {
       setBusy(false);
     }
   }
+
+  // Keep error line live while counting down
+  const displayError =
+    failedAttempts >= FAIL_THRESHOLD && inCooldown
+      ? `Please wait ${cooldownLeft}s before requesting another code.`
+      : error;
 
   return (
     <AuthPlate exiting={exiting}>
@@ -173,7 +239,6 @@ export function SignInForm() {
           onSubmit={onSubmit}
           className="mt-4 flex flex-1 flex-col gap-4"
         >
-          {/* 1) Role */}
           <div>
             <span className={authLabelClass}>{t("auth.loginAs")}</span>
             <div className="mt-1.5 grid grid-cols-2 gap-1.5">
@@ -194,7 +259,6 @@ export function SignInForm() {
             </div>
           </div>
 
-          {/* 2) Phone fields — unfold after role */}
           {showPhone ? (
             <div className="om-sheet-spring flex flex-1 flex-col gap-3.5">
               <label className="block">
@@ -208,6 +272,8 @@ export function SignInForm() {
                     setPhone(e.target.value);
                     setOtpSent(false);
                     setOtp("");
+                    setFailedAttempts(0);
+                    setCooldownUntil(0);
                     clearFeedback();
                   }}
                   placeholder="+234 801 234 5678"
@@ -234,11 +300,16 @@ export function SignInForm() {
               {otpSent ? (
                 <button
                   type="button"
-                  disabled={busy}
+                  disabled={
+                    busy ||
+                    (failedAttempts >= FAIL_THRESHOLD && inCooldown)
+                  }
                   onClick={() => void onSendCode()}
-                  className="text-left text-[12px] font-semibold text-[#FF6B35]"
+                  className="text-left text-[12px] font-semibold text-[#FF6B35] disabled:opacity-50"
                 >
-                  {t("auth.resendCode")}
+                  {failedAttempts >= FAIL_THRESHOLD && inCooldown
+                    ? `Please wait ${cooldownLeft}s before requesting another code.`
+                    : t("auth.resendCode")}
                 </button>
               ) : null}
 
@@ -250,12 +321,12 @@ export function SignInForm() {
                   {info}
                 </p>
               ) : null}
-              {error ? (
+              {displayError ? (
                 <p
-                  className="text-[12px] font-medium text-red-600"
+                  className="text-[12px] font-medium text-red-600 tabular-nums"
                   role="alert"
                 >
-                  {error}
+                  {displayError}
                 </p>
               ) : null}
 

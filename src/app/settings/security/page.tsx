@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import {
-  SettingsComingSoon,
   SettingsField,
   SettingsSaveBar,
   settingsInputClass,
@@ -566,15 +565,6 @@ export default function SettingsSecurityPage() {
           ) : null}
         </div>
 
-        <SettingsComingSoon
-          isLight={isLight}
-          title="Login sessions & connected devices"
-        />
-        <SettingsComingSoon
-          isLight={isLight}
-          title="App permissions (Location, Camera, Microphone)"
-        />
-        <SettingsComingSoon isLight={isLight} title="Security alerts" />
       </div>
     </div>
   );

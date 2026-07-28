@@ -44,11 +44,28 @@ export type VerificationSection = {
   requireBvn: boolean;
 };
 
+export type ContentMenuItem = {
+  id: string;
+  label: string;
+  href: string;
+  icon?: string;
+  order: number;
+  enabled: boolean;
+};
+
 export type ContentSection = {
   homeSearchPlaceholder: string;
   requestProblems: string[];
   homeBanner: string;
   loginSubtitle: string;
+  /** App display name override (soft brand) */
+  appTitle?: string;
+  /** Motorist tab / shell menu labels + order */
+  mainMenu?: ContentMenuItem[];
+  /** Pro dashboard menu */
+  proMenu?: ContentMenuItem[];
+  /** Extra marketing / empty-state strings */
+  strings?: Record<string, string>;
 };
 
 export type ServicesSection = {
@@ -114,6 +131,25 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     ],
     homeBanner: "",
     loginSubtitle: "Car owner and Repair Pro",
+    appTitle: "Ona",
+    mainMenu: [
+      { id: "home", label: "Home", href: "/", icon: "home", order: 0, enabled: true },
+      { id: "jobs", label: "Jobs", href: "/jobs", icon: "briefcase", order: 1, enabled: true },
+      { id: "messages", label: "Messages", href: "/messages", icon: "message", order: 2, enabled: true },
+      { id: "history", label: "History", href: "/history", icon: "clock", order: 3, enabled: true },
+      { id: "settings", label: "Settings", href: "/settings", icon: "settings", order: 4, enabled: true },
+    ],
+    proMenu: [
+      { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: "gauge", order: 0, enabled: true },
+      { id: "jobs", label: "Jobs", href: "/jobs", icon: "briefcase", order: 1, enabled: true },
+      { id: "messages", label: "Messages", href: "/messages", icon: "message", order: 2, enabled: true },
+      { id: "settings", label: "Settings", href: "/settings", icon: "settings", order: 3, enabled: true },
+    ],
+    strings: {
+      releaseCta: "I am Satisfied · Release",
+      disputeCta: "Open a dispute",
+      autoReleaseNote: "Auto-releases after 6 hours if no dispute",
+    },
   },
   services: {
     enabled: [

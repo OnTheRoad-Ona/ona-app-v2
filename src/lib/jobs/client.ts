@@ -103,6 +103,8 @@ export async function apiPayJob(input: {
   customerPhone?: string;
   /** Force mock (dev only). Default: live Flutterwave when keys exist */
   provider?: "mock" | "flutterwave" | "paystack";
+  /** Default true — Flutterwave modal on Ona page */
+  preferInline?: boolean;
 }) {
   const returnOrigin =
     typeof window !== "undefined" ? window.location.origin : undefined;
@@ -116,6 +118,8 @@ export async function apiPayJob(input: {
       customerPhone: input.customerPhone,
       provider: input.provider,
       returnOrigin,
+      preferInline: input.preferInline !== false,
+      action: "start",
     }),
   });
   return parse<{
@@ -124,11 +128,49 @@ export async function apiPayJob(input: {
     reference?: string;
     message?: string;
     provider?: string;
-    /** Present for real Flutterwave — client must redirect */
-    authorizationUrl?: string;
+    authorizationUrl?: string | null;
+    useInline?: boolean;
+    useInAppBankTransfer?: boolean;
+    bankTransfer?: {
+      accountNumber: string;
+      bankName: string;
+      accountName: string;
+      amountMajor: number;
+      currency: string;
+      expiresAt: string | null;
+      note: string;
+      flwRef: string | null;
+    } | null;
+    publicKey?: string | null;
+    amountMajor?: number;
+    currency?: string;
     platformSubaccount?: string | null;
-    /** True when escrow already held / job already booked */
     alreadyPaid?: boolean;
+    paymentSessionEndsAt?: string;
+    paymentAttemptCount?: number;
+    paymentAttemptsRemaining?: number;
+    returnPath?: string;
+  }>(res);
+}
+
+/** Close open pay session — does not count as attempt; next Pay gets fresh 20 min */
+export async function apiCancelPaySession(input: {
+  jobId: string;
+  motoristId: string;
+}) {
+  const res = await fetch(`/api/jobs/${input.jobId}/pay`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      motoristId: input.motoristId,
+      action: "cancel",
+    }),
+  });
+  return parse<{
+    cancelled?: boolean;
+    timerReset?: boolean;
+    job?: JobRecord;
+    message?: string;
   }>(res);
 }
 
@@ -141,6 +183,7 @@ export async function apiTransition(input: {
     | "START_WORK"
     | "MARK_COMPLETED"
     | "SATISFIED"
+    | "START_NEGOTIATION"
     | "RELEASE"
     | "EXPIRE_NEGOTIATION";
   actor: "motorist" | "repair_pro" | "system" | "admin";

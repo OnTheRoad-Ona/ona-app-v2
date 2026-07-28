@@ -9,6 +9,8 @@ import {
   JOB_LIVE_CHAT_STATUSES,
   closedOpenMessage,
   isJobEndedStatus,
+  isJobHistoryOnlyStatus,
+  isJobLiveShellStatus,
   shouldBlockLiveOpen,
 } from "@/lib/chat-expired";
 
@@ -90,6 +92,8 @@ export {
   JOB_CLOSED_MESSAGE,
   closedOpenMessage,
   isJobEndedStatus,
+  isJobHistoryOnlyStatus,
+  isJobLiveShellStatus,
 };
 
 /** Human-readable status for blocked-open popups (no dashes) */
@@ -114,8 +118,33 @@ export function jobStatusLabel(status: string | null | undefined): string {
   return map[s] || s || "closed";
 }
 
+/**
+ * Chat / mid-job ended (includes `completed` — chat closes, but live
+ * /jobs/[id] shell stays open for “I’m Satisfied” release pay).
+ * Prefer isJobHistoryOnlyStatus for “no live job page”.
+ */
 export function isJobFinishedStatus(status: string | null | undefined): boolean {
   return isJobEndedStatus(status);
+}
+
+/** True only when job is fully closed (no live /jobs/[id] actions left). */
+export function isJobHistoryClosedStatus(
+  status: string | null | undefined
+): boolean {
+  return isJobHistoryOnlyStatus(status);
+}
+
+/**
+ * Customer must still open live job shell for release pay.
+ * Never treat these as “link unavailable” in notification UI.
+ */
+export function isReleasePayPendingStatus(
+  status: string | null | undefined
+): boolean {
+  const s = String(status || "")
+    .toLowerCase()
+    .trim();
+  return s === "completed" || s === "satisfied";
 }
 
 export function isChatClosedForNotification(n: AppNotification): boolean {
@@ -137,6 +166,18 @@ export function isNavigationBlocked(
   if (n.actionType === "none") return true;
   // Missing action but has sensitive href — still evaluate
   if (!n.actionType && !n.href) return true;
+
+  // Release-pay notifications must always open /jobs/[id] (completed is live shell)
+  const status = liveStatus ?? n.jobStatus;
+  if (
+    isReleasePayPendingStatus(status) &&
+    (n.actionType === "open_job" ||
+      n.actionType === "view_payment" ||
+      n.category === "payments" ||
+      (n.href && n.href.includes("/jobs/")))
+  ) {
+    return false;
+  }
 
   return shouldBlockLiveOpen({
     href: n.href,

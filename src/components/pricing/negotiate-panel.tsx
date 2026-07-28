@@ -4,7 +4,7 @@ import {
   applyDiscount,
   clampDiscountPercent,
   formatMoney,
-  LABOUR_FEE_DISCLAIMER,
+  labourFeeDisclaimerForTrade,
   MAX_DISCOUNT_PERCENT,
   type AppCurrency,
 } from "@/lib/pricing";
@@ -54,7 +54,7 @@ export function NegotiatePanel({
               isLight ? "text-slate-600" : "text-[#a1a1a6]"
             )}
           >
-            {LABOUR_FEE_DISCLAIMER}
+            {labourFeeDisclaimerForTrade()}
           </p>
         </div>
         <p className={cn("text-[15px] font-black tabular-nums", isLight ? "text-slate-900" : "text-white")}>

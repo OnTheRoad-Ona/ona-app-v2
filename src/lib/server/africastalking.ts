@@ -59,7 +59,7 @@ export async function sendAfricaTalkingSms(input: {
     const res = await fetch(`${base}/version1/messaging`, {
       method: "POST",
       headers: {
-        apiKey,
+        ApiKey: apiKey,
         Accept: "application/json",
         "Content-Type": "application/x-www-form-urlencoded",
       },

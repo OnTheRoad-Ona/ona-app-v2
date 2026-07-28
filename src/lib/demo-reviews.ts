@@ -11,51 +11,52 @@ export type ProReview = {
   ago: string;
 };
 
+/** First name only — public reviews never show full names. */
 const POOL: Omit<ProReview, "id">[] = [
   {
-    author: "Chidi O.",
+    author: "Chidi",
     rating: 5,
     comment: "Fast response and fixed my issue on the spot. Highly recommend.",
     ago: "2 days ago",
   },
   {
-    author: "Amina B.",
+    author: "Amina",
     rating: 5,
     comment: "Professional and clear on pricing. Car sorted the same day.",
     ago: "1 week ago",
   },
   {
-    author: "Tunde K.",
+    author: "Tunde",
     rating: 4,
     comment: "Good work. Arrived a bit later than ETA but quality was solid.",
     ago: "2 weeks ago",
   },
   {
-    author: "Ngozi E.",
+    author: "Ngozi",
     rating: 5,
     comment: "Polite, skilled, and explained everything. Will call again.",
     ago: "3 weeks ago",
   },
   {
-    author: "Ibrahim S.",
+    author: "Ibrahim",
     rating: 4,
     comment: "Helped with a roadside breakdown. Fair rate and clean job.",
     ago: "1 month ago",
   },
   {
-    author: "Funke A.",
+    author: "Funke",
     rating: 5,
     comment: "Very reliable. Showed up Live when others were offline.",
     ago: "1 month ago",
   },
   {
-    author: "Emeka N.",
+    author: "Emeka",
     rating: 5,
     comment: "Knew the trade well. Problem diagnosed quickly.",
     ago: "6 weeks ago",
   },
   {
-    author: "Blessing O.",
+    author: "Blessing",
     rating: 4,
     comment: "Good communication in chat and careful with the vehicle.",
     ago: "2 months ago",

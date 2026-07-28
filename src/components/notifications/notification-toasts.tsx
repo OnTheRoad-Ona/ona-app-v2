@@ -14,8 +14,9 @@ import {
   JOB_CLOSED_MESSAGE,
   blockedActionMessage,
   isChatClosedForNotification,
-  isJobFinishedStatus,
+  isJobHistoryClosedStatus,
   isNavigationBlocked,
+  isReleasePayPendingStatus,
   isStickyPriority,
   shouldToastNotification,
   CHARCOAL,
@@ -54,10 +55,28 @@ export function NotificationToasts() {
   const safePush = (n: AppNotification, tId: string) => {
     void markRead([n.id]);
     dismissToast(tId);
+
+    // Force open release-pay job page (pro marked complete)
+    if (
+      isReleasePayPendingStatus(n.jobStatus) ||
+      (n.category === "payments" &&
+        n.actionType === "open_job" &&
+        n.href?.includes("/jobs/"))
+    ) {
+      const href =
+        n.href ||
+        (n.jobId ? `/jobs/${n.jobId}` : null);
+      if (href) {
+        router.push(href);
+        return;
+      }
+    }
+
+    // Only block truly closed jobs/chats — never block completed → I’m Satisfied
     if (
       isNavigationBlocked(n) ||
       isChatClosedForNotification(n) ||
-      isJobFinishedStatus(n.jobStatus)
+      isJobHistoryClosedStatus(n.jobStatus)
     ) {
       const tid = messageThreadIdFromHref(n.href);
       const jid =
@@ -92,9 +111,11 @@ export function NotificationToasts() {
         const n = t.notification;
         const sticky = isStickyPriority(n.priority);
         const closed = isChatClosedForNotification(n);
-        const finished = isJobFinishedStatus(n.jobStatus);
+        const releasePay = isReleasePayPendingStatus(n.jobStatus);
+        const historyClosed = isJobHistoryClosedStatus(n.jobStatus);
         const blocked =
-          isNavigationBlocked(n) || closed || finished;
+          !releasePay &&
+          (isNavigationBlocked(n) || closed || historyClosed);
 
         return (
           <div
@@ -183,14 +204,21 @@ export function NotificationToasts() {
                   {n.actionType === "open_job" ||
                   (n.category === "requests" &&
                     n.actionType !== "accept_request" &&
-                    n.actionType !== "view_tracking") ? (
+                    n.actionType !== "view_tracking") ||
+                  (n.category === "payments" && releasePay) ? (
                     <Action
-                      label={blocked ? "View" : "View job"}
+                      label={
+                        releasePay
+                          ? "Confirm Job & Release Payment"
+                          : blocked
+                            ? "View"
+                            : "View job"
+                      }
                       accent={accent}
                       onClick={() => safePush(n, t.id)}
                     />
                   ) : null}
-                  {n.actionType === "view_payment" ? (
+                  {n.actionType === "view_payment" && !releasePay ? (
                     <Action
                       label="Payments"
                       accent={accent}

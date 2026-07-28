@@ -37,6 +37,10 @@ html[data-a11y-hc="1"] #ona-phone [class*="text-white/65"] {
   max-height: min(844px, calc(100dvh - 1.5rem)) !important;
   min-height: 0;
   overflow: hidden;
+  /* Kill iOS/Android pull-to-refresh only on the app shell (not the whole browser) */
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+  touch-action: pan-x pan-y;
   margin-left: auto;
   margin-right: auto;
   contain: layout paint;

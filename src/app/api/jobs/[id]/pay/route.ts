@@ -1,7 +1,13 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
-import { startJobEscrowPayment } from "@/lib/server/jobs/job-store";
-import { resolveProvider } from "@/lib/server/payments/providers";
+import {
+  cancelOpenPaymentSession,
+  startJobEscrowPayment,
+} from "@/lib/server/jobs/job-store";
+import {
+  flutterwavePublicKey,
+  resolveProvider,
+} from "@/lib/server/payments/providers";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 
@@ -9,7 +15,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
-  motoristId: z.string().min(1),
+  motoristId: z.string().min(1).optional(),
   email: z.string().optional(),
   customerName: z.string().max(120).optional(),
   customerPhone: z.string().max(32).optional(),
@@ -17,6 +23,13 @@ const bodySchema = z.object({
   provider: z.enum(["mock", "paystack", "flutterwave"]).optional(),
   /** Prefer client origin for localhost callback */
   returnOrigin: z.string().url().optional(),
+  /** Default true — open Flutterwave modal on Ona page (not a separate page) */
+  preferInline: z.boolean().optional(),
+  /**
+   * cancel: close open pay session without counting a 20‑min attempt;
+   * next Pay starts a fresh timer.
+   */
+  action: z.enum(["start", "cancel"]).optional(),
 });
 
 function callbackBase(req: Request, returnOrigin?: string): string {
@@ -69,8 +82,9 @@ async function resolvePayerEmail(
 }
 
 /**
- * Escrow payment for a job (Agreed → Flutterwave checkout → Booked after verify).
- * Always returns authorizationUrl when successful — never silently auto-books.
+ * Escrow payment for a job.
+ * Default: Flutterwave Inline session (stays on Ona) → Booked after verify.
+ * action=cancel: close session + reset 20‑min timer (not an attempt).
  */
 export async function POST(
   req: Request,
@@ -81,6 +95,25 @@ export async function POST(
     const parsed = bodySchema.safeParse(await req.json());
     if (!parsed.success) return apiFail("Invalid payment body", 400);
     const b = parsed.data;
+
+    if (b.action === "cancel") {
+      const res = await cancelOpenPaymentSession({
+        jobId: id,
+        motoristId: b.motoristId || "callback",
+      });
+      if ("error" in res) return apiFail(res.error, 400);
+      return apiOk({
+        cancelled: true,
+        timerReset: true,
+        job: res.job,
+        message:
+          "Payment closed. Timer reset — Pay again for a fresh 20 minutes.",
+      });
+    }
+
+    if (!b.motoristId) {
+      return apiFail("motoristId is required to start payment", 400);
+    }
 
     const forceMock = b.provider === "mock";
     const allowMock =
@@ -97,7 +130,7 @@ export async function POST(
       );
     }
 
-    const email = await resolvePayerEmail(b.motoristId, b.email);
+    const email = await resolvePayerEmail(b.motoristId!, b.email);
     if (!email) {
       return apiFail(
         "A valid email is required for checkout. Update your profile email and try again.",
@@ -110,12 +143,13 @@ export async function POST(
 
     const res = await startJobEscrowPayment({
       jobId: id,
-      motoristId: b.motoristId,
+      motoristId: b.motoristId!,
       email,
       customerName: b.customerName?.trim() || null,
       customerPhone: b.customerPhone?.trim() || null,
       callbackUrl: callbackBaseUrl,
       provider: resolved,
+      preferInline: b.preferInline !== false && resolved === "flutterwave",
     });
     if ("error" in res) {
       if (res.error === "ALREADY_PAID") {
@@ -128,9 +162,16 @@ export async function POST(
       return apiFail(res.error, 400);
     }
 
-    if (!res.authorizationUrl) {
+    // Success paths: in-app bank VA, mock URL, or hosted link
+    const hasBank =
+      Boolean(res.useInAppBankTransfer) &&
+      Boolean(res.bankTransfer?.accountNumber);
+    const hasLink = Boolean((res.authorizationUrl || "").trim());
+    if (!hasBank && !hasLink && !res.useInline) {
       return apiFail(
-        "Checkout link was not created. Try again or contact support.",
+        res.bankTransfer
+          ? "Bank details incomplete. Try Pay again."
+          : "Could not start payment. Try again or contact support.",
         502
       );
     }
@@ -139,11 +180,24 @@ export async function POST(
       jobId: res.jobId,
       reference: res.reference,
       provider: res.provider,
-      authorizationUrl: res.authorizationUrl,
-      message:
-        res.provider === "mock"
-          ? "Open mock checkout to complete escrow (dev only)."
-          : "Open Flutterwave to pay. Escrow is held and the job becomes Booked after successful payment.",
+      // Never send Flutterwave hosted URL — pay stays on Ona with bank details
+      authorizationUrl:
+        res.provider === "flutterwave" || hasBank
+          ? null
+          : res.authorizationUrl || null,
+      useInAppBankTransfer: hasBank,
+      bankTransfer: hasBank ? res.bankTransfer : null,
+      useInline: false,
+      publicKey: flutterwavePublicKey() || null,
+      amountMajor: res.amountMajor,
+      currency: res.currency,
+      paymentSessionEndsAt: res.paymentSessionEndsAt,
+      paymentAttemptCount: res.paymentAttemptCount,
+      paymentAttemptsRemaining: res.paymentAttemptsRemaining,
+      returnPath: `/payments/checkout?jobId=${encodeURIComponent(id)}`,
+      message: hasBank
+        ? "Transfer the exact amount to the account shown."
+        : "Complete payment on this page.",
       platformSubaccount:
         process.env.FLUTTERWAVE_PLATFORM_SUBACCOUNT || null,
     });

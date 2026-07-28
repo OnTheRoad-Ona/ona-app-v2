@@ -1,8 +1,8 @@
 /**
  * Sequential verification gates for Repair Pros:
- * Gov ID → BVN → (BVN + liveness) → Proof of skill
+ * T2 Gov ID → T3 (face liveness + BVN) → T4 Proof of skill
  * “Complete” for ID/BVN = submitted OR approved (admin).
- * Liveness = device pass.
+ * Liveness = device pass + backend report.
  */
 
 import type { ArtisanVerificationProfile } from "@/lib/artisan/types";
@@ -46,14 +46,15 @@ export function isSkillComplete(
   return Boolean(p.tiers?.tier4_skillProof || p.skillProof);
 }
 
-export function canAccessBvn(
+/** Liveness unlocks after Government ID (Tier 3 start) */
+export function canAccessLiveness(
   p: Partial<ArtisanVerificationProfile> | null | undefined
 ): boolean {
   return isGovIdComplete(p);
 }
 
-/** Liveness unlocks after Government ID (same stage as BVN) */
-export function canAccessLiveness(
+/** BVN is Tier 3 — after Government ID (with liveness) */
+export function canAccessBvn(
   p: Partial<ArtisanVerificationProfile> | null | undefined
 ): boolean {
   return isGovIdComplete(p);
@@ -100,11 +101,11 @@ export function verificationOrderComplete(
 export function lockMessageForSection(
   section: "bvn" | "liveness" | "skill"
 ): string {
-  if (section === "bvn") {
-    return "Complete Government ID first before BVN";
-  }
   if (section === "liveness") {
     return "Complete Government ID first before face liveness";
+  }
+  if (section === "bvn") {
+    return "Complete Government ID first before BVN (Tier 3)";
   }
   return "Complete BVN and face liveness before proof of skill";
 }

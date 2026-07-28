@@ -358,4 +358,6 @@ export const PT: MessageDict = {
   "common.codeSent": "Código enviado. Introduza-o abaixo.",
   "settings.hub.profileInner": "Perfil",
   "settings.hub.profileInnerDetail": "Nome foto contacto",
+  "settings.hub.verification": "Verification",
+  "settings.hub.verificationDetail": "ID, tiers & documents",
 };

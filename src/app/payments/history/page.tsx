@@ -2,12 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { navigateBack } from "@/lib/navigation";
-import {
-  formatMoneyMinor,
-  type AppCurrency,
-} from "@/lib/pricing";
+import { formatMoneyMinor, type AppCurrency } from "@/lib/pricing";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -17,34 +15,45 @@ type PayRow = {
   amountMinor: number;
   currency: AppCurrency;
   escrowStatus: string;
-  discountPercent: number;
-  platformFeeMinor: number;
-  proPayoutMinor: number;
+  statusLabel?: string;
+  statusTone?: string;
   provider: string;
-  providerRef: string | null;
+  providerRef?: string | null;
   paidAt: string | null;
   releasedAt: string | null;
-  refundedAt: string | null;
-  labourOnly: boolean;
+  refundedAt?: string | null;
   createdAt: string;
+  proPayoutMinor?: number | null;
+  platformFeeMinor?: number | null;
+  showSplit?: boolean;
+  href?: string;
 };
 
 export default function PaymentHistoryPage() {
   const router = useRouter();
-  const { theme, userProfile } = useApp();
+  const { theme, userProfile, accountType, backendUserId } = useApp();
   const isLight = theme === "light";
+  const isPro = accountType === "professional";
+  const userId = backendUserId || userProfile?.identityId || null;
   const [rows, setRows] = useState<PayRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const userId = userProfile?.identityId || "motorist-local";
-    void fetch(`/api/payments/history?userId=${encodeURIComponent(userId)}`)
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
+    const role = isPro ? "professional" : "motorist";
+    void fetch(
+      `/api/payments/history?userId=${encodeURIComponent(userId)}&role=${role}`,
+      { cache: "no-store" }
+    )
       .then((r) => r.json())
       .then((json) => {
         if (json?.ok) setRows(json.data.payments || []);
       })
       .finally(() => setLoading(false));
-  }, [userProfile?.identityId]);
+  }, [userId, isPro]);
 
   const sheet = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const ink = isLight ? "text-slate-900" : "text-white";
@@ -55,7 +64,7 @@ export default function PaymentHistoryPage() {
       <header className="flex items-center gap-2 px-3 py-2.5">
         <button
           type="button"
-          onClick={() => navigateBack(router, "/profile")}
+          onClick={() => navigateBack(router, "/settings/payments")}
           className={cn(
             "flex h-8 w-8 items-center justify-center rounded-lg border-0",
             isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white"
@@ -68,63 +77,68 @@ export default function PaymentHistoryPage() {
           <ArrowLeft className="h-4 w-4" />
         </button>
         <h1 className={cn("text-[15px] font-bold", ink)}>
-          Payments & payouts
+          {isPro ? "Payout history" : "Payment history"}
         </h1>
       </header>
 
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-4 scrollbar-hide">
-        {loading && (
-          <p className={cn("text-[12px]", muted)}>Loading…</p>
-        )}
+        {loading && <p className={cn("text-[12px]", muted)}>Loading…</p>}
         {!loading && rows.length === 0 && (
           <p className={cn("text-[12px]", muted)}>
-            No payments yet. Labour fees paid at request confirmation appear
-            here with escrow status and receipts.
+            {isPro
+              ? "No payouts yet. Earnings appear after jobs are confirmed."
+              : "No payments yet. Escrow payments appear here with status."}
           </p>
         )}
-        {rows.map((p) => (
-          <article
-            key={p.id}
-            className={cn(
-              "rounded-2xl px-3 py-3",
-              isLight ? "bg-black/[0.04]" : "bg-[#1c1c1e]"
-            )}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className={cn("text-[14px] font-black tabular-nums", ink)}>
-                  {formatMoneyMinor(p.amountMinor, p.currency)}
-                </p>
-                <p className={cn("text-[10px]", muted)}>
-                  {p.provider} · {p.escrowStatus}
-                  {p.discountPercent > 0 ? ` · −${p.discountPercent}%` : ""}
-                </p>
+        {rows.map((p) => {
+          const displayAmt =
+            isPro && p.proPayoutMinor != null ? p.proPayoutMinor : p.amountMinor;
+          return (
+            <Link
+              key={p.id}
+              href={p.href || `/jobs/${p.requestId}`}
+              className={cn(
+                "block rounded-2xl px-3 py-3 active:opacity-90",
+                isLight ? "bg-black/[0.04]" : "bg-[#1c1c1e]"
+              )}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className={cn("text-[14px] font-black tabular-nums", ink)}>
+                    {formatMoneyMinor(displayAmt, p.currency)}
+                  </p>
+                  <p className={cn("text-[10px]", muted)}>
+                    {p.statusLabel || p.escrowStatus}
+                    {p.provider ? ` · ${p.provider}` : ""}
+                  </p>
+                </div>
+                <span className="rounded-full bg-[#FF6B35]/15 px-2 py-0.5 text-[10px] font-bold text-[#FF6B35]">
+                  {p.escrowStatus}
+                </span>
               </div>
-              <span className="rounded-full bg-brand/15 px-2 py-0.5 text-[10px] font-bold text-brand">
-                {p.labourOnly ? "Labour only" : "Payment"}
-              </span>
-            </div>
-            <p className={cn("mt-1.5 text-[10px]", muted)}>
-              Pro payout 95% ·{" "}
-              {formatMoneyMinor(p.proPayoutMinor, p.currency)} · Platform 5% ·{" "}
-              {formatMoneyMinor(p.platformFeeMinor, p.currency)}
-            </p>
-            {p.providerRef && (
-              <p className="mt-1 text-[10px] font-semibold text-brand">
-                Receipt · {p.providerRef}
+              {isPro && p.showSplit && p.proPayoutMinor != null ? (
+                <p className={cn("mt-1.5 text-[10px]", muted)}>
+                  Your share (87.5% after Ona 5% + VAT 7.5%) ·{" "}
+                  {formatMoneyMinor(p.proPayoutMinor, p.currency)}
+                </p>
+              ) : null}
+              {p.providerRef ? (
+                <p className="mt-1 text-[10px] font-semibold text-[#FF6B35]">
+                  Receipt · {p.providerRef}
+                </p>
+              ) : null}
+              <p className={cn("mt-0.5 text-[10px]", muted)}>
+                {p.paidAt
+                  ? `Paid ${new Date(p.paidAt).toLocaleString()}`
+                  : new Date(p.createdAt).toLocaleString()}
+                {p.releasedAt
+                  ? ` · Released ${new Date(p.releasedAt).toLocaleString()}`
+                  : ""}
+                {p.refundedAt ? " · Refunded" : ""}
               </p>
-            )}
-            <p className={cn("mt-0.5 text-[10px]", muted)}>
-              {p.paidAt
-                ? `Paid ${new Date(p.paidAt).toLocaleString()}`
-                : new Date(p.createdAt).toLocaleString()}
-              {p.releasedAt
-                ? ` · Released ${new Date(p.releasedAt).toLocaleString()}`
-                : ""}
-              {p.refundedAt ? " · Refunded" : ""}
-            </p>
-          </article>
-        ))}
+            </Link>
+          );
+        })}
       </div>
     </div>
   );

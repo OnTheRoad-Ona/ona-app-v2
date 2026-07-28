@@ -360,7 +360,7 @@ export default function RequestProcessPage({
               </span>
             </p>
           )}
-          <div className={cn("mt-2 border-t pt-1", hairline)}>
+          <div className="mt-2 pt-1">
             <DetailRow
               label="Status"
               value={statusLabel(job.status)}
@@ -461,12 +461,12 @@ export default function RequestProcessPage({
           />
 
           {offers.length > 0 && (
-            <ol className={cn("mt-3 space-y-0 border-t pt-2", hairline)}>
+            <ol className="mt-3 space-y-0 pt-2">
               {offers.map((o) => (
                 <li
                   key={o.id}
                   className={cn(
-                    "flex items-start justify-between gap-3 border-b py-2 last:border-b-0",
+                    "flex items-start justify-between gap-3 py-2",
                     hairline
                   )}
                 >
@@ -677,7 +677,7 @@ export default function RequestProcessPage({
                     History is readable · send is locked for closed jobs
                   </p>
                   {chatPreview.length > 0 && (
-                    <ul className={cn("mt-3 space-y-2 border-t pt-2", hairline)}>
+                    <ul className="mt-3 space-y-2 pt-2">
                       {chatPreview.map((m) => (
                         <li key={m.id} className="min-w-0">
                           <p className={cn("text-[10px] font-semibold", muted)}>

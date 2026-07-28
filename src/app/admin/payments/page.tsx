@@ -5,7 +5,10 @@ import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
 import { withSensitivePassword } from "@/components/admin/sensitive-unlock";
 import {
+  adminRoleLabel,
   canCancelEscrowUi,
+  canForcePayoutUi,
+  canManualStandalonePayoutUi,
   normalizeAdminRoleUi,
 } from "@/lib/admin-role-ui";
 
@@ -127,6 +130,16 @@ export default function AdminPaymentsPage() {
   const { adminName, adminRole, ready, api } = useAdminGate();
   const role = normalizeAdminRoleUi(adminRole);
   const canCancel = canCancelEscrowUi(role);
+  const canForce = canForcePayoutUi(role);
+  const canManual = canManualStandalonePayoutUi(role);
+  const [openId, setOpenId] = useState("");
+  const [manual, setManual] = useState({
+    amountMajor: "",
+    bankCode: "",
+    accountNumber: "",
+    accountName: "",
+    reason: "",
+  });
 
   const [payments, setPayments] = useState<Payment[]>([]);
   const [filterCounts, setFilterCounts] = useState<Record<string, number>>({});

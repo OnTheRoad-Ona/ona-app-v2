@@ -27,10 +27,14 @@ export function CountdownTimer({
   );
 
   useEffect(() => {
+    let fired = false;
     const tick = () => {
       const ms = Math.max(0, new Date(endsAt).getTime() - Date.now());
       setLeft(ms);
-      if (ms <= 0) onExpire?.();
+      if (ms <= 0 && !fired) {
+        fired = true;
+        onExpire?.();
+      }
     };
     tick();
     const id = window.setInterval(tick, 250);
@@ -38,10 +42,16 @@ export function CountdownTimer({
   }, [endsAt, onExpire]);
 
   const totalSec = Math.floor(left / 1000);
-  const m = Math.floor(totalSec / 60);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;
-  const timeLabel = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  const urgent = totalSec <= 60;
+  // Show HH:MM:SS for windows ≥ 1h (e.g. 6h auto-release); else MM:SS
+  const timeLabel =
+    h > 0
+      ? `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+      : `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  // Last hour red for multi-hour windows; last minute for short (e.g. 20 min) windows
+  const urgent = h > 0 ? totalSec <= 3600 : totalSec <= 60;
   const denom = totalMs > 0 ? totalMs : NEGOTIATE_WINDOW_MS;
   const pct = Math.min(100, Math.max(0, (left / denom) * 100));
 

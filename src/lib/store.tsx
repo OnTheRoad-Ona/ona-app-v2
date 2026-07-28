@@ -72,6 +72,7 @@ import {
   backendSignUp,
   backendSwitchRole,
   backendSubscribeJobs,
+  backendSubscribeUserMessageInserts,
   backendUpdateJobStatus,
   isAppBackendOnline,
 } from "@/lib/supabase/app-api";
@@ -158,12 +159,25 @@ export function profileToTechnician(profile: UserProfile): Technician | null {
     focusBits.length > 0
       ? `Serves ${focusBits.join(" · ")}.`
       : "Roadside repair professional.";
-  const specialtyAns = profile.skillAnswers?.specialties;
-  const specialtiesFromSignup = Array.isArray(specialtyAns)
-    ? specialtyAns.filter((s): s is string => typeof s === "string")
-    : typeof specialtyAns === "string"
-      ? [specialtyAns]
-      : [];
+  const skillAns = (profile.skillAnswers || {}) as Record<string, unknown>;
+  const specialtyAns = skillAns.specialties;
+  const specialtyOne = skillAns.specialty;
+  const specialtiesFromSignup = (() => {
+    const out: string[] = [];
+    if (Array.isArray(specialtyAns)) {
+      for (const s of specialtyAns) {
+        if (typeof s === "string" && s.trim()) out.push(s.trim());
+      }
+    } else if (typeof specialtyAns === "string" && specialtyAns.trim()) {
+      out.push(specialtyAns.trim());
+    }
+    if (typeof specialtyOne === "string" && specialtyOne.trim()) {
+      if (!out.some((x) => x.toLowerCase() === specialtyOne.trim().toLowerCase())) {
+        out.unshift(specialtyOne.trim());
+      }
+    }
+    return out;
+  })();
   return {
     id: SELF_PRO_TECH_ID,
     name,
@@ -2200,7 +2214,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       // Never hide previously requested pros from the list — customer can
-      // Request again. Mid-trip shows "Booked" on the card; past jobs → History.
+      // New request only when no open job; open jobs show "Open" on the card.
       if (!cancelled) setDiscoveryExcludeProIds([]);
     };
     void refreshDiscoveryPriority();
@@ -2455,6 +2469,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           conversationId,
           senderId: backendUserId,
           body,
+          senderName: displayName || null,
         });
         if (err) console.warn("sendChatMessage failed", err);
         // Pull latest so both devices stay in sync
@@ -2867,6 +2882,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [backendUserId, refreshCloudJobs]);
 
+  // Messages Realtime — refresh threads so inbound banner / toast can fire for both parties
+  useEffect(() => {
+    if (!isAppBackendOnline() || !backendUserId || !isAuthenticated) return;
+    let chatTimer: ReturnType<typeof setTimeout> | null = null;
+    const unsub = backendSubscribeUserMessageInserts(backendUserId, () => {
+      if (chatTimer) clearTimeout(chatTimer);
+      chatTimer = setTimeout(() => refreshCloudChats(), 250);
+    });
+    // Backup poll so popups still work if Realtime is flaky
+    const poll = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      refreshCloudChats();
+    }, 12_000);
+    return () => {
+      if (chatTimer) clearTimeout(chatTimer);
+      unsub?.();
+      window.clearInterval(poll);
+    };
+  }, [backendUserId, isAuthenticated, refreshCloudChats]);
+
   // Sync Live/Away from server (never trust localStorage alone — Away must match is_online)
   useEffect(() => {
     if (accountType !== "professional" || !backendUserId) return;
@@ -2899,10 +2934,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     let lastPush = 0;
     let inflight = false;
+    /** Heartbeat every ~2 min so marketplace 5-min window has margin for one miss */
+    const LIVE_HEARTBEAT_MS = 2 * 60 * 1000;
     const pushCoords = (lat: number, lng: number) => {
       const now = Date.now();
-      // Min 3 min between Live GPS uploads — aggressive mobile data saver
-      if (inflight || now - lastPush < 180_000) return;
+      if (inflight || now - lastPush < LIVE_HEARTBEAT_MS - 5_000) return;
       lastPush = now;
       inflight = true;
       void backendSetProOnline(backendUserId, true, { lat, lng }).finally(() => {
@@ -2910,12 +2946,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
     };
 
-    // One initial pin, then slow interval (no watchPosition stream)
+    // One initial pin, then heartbeat interval (no watchPosition stream)
     if (typeof navigator !== "undefined" && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => pushCoords(pos.coords.latitude, pos.coords.longitude),
         () => pushCoords(userLat, userLng),
-        { enableHighAccuracy: false, timeout: 6000, maximumAge: 180_000 }
+        { enableHighAccuracy: false, timeout: 6000, maximumAge: LIVE_HEARTBEAT_MS }
       );
     } else {
       pushCoords(userLat, userLng);
@@ -2930,9 +2966,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       navigator.geolocation.getCurrentPosition(
         (pos) => pushCoords(pos.coords.latitude, pos.coords.longitude),
         () => pushCoords(userLat, userLng),
-        { enableHighAccuracy: false, timeout: 6000, maximumAge: 180_000 }
+        { enableHighAccuracy: false, timeout: 6000, maximumAge: LIVE_HEARTBEAT_MS }
       );
-    }, 180_000);
+    }, LIVE_HEARTBEAT_MS);
 
     return () => {
       window.clearInterval(id);
