@@ -5,8 +5,8 @@
 | Field | Value |
 |--------|--------|
 | **Release ID** | `ONA-PAYOUT-SYNC-20260728` |
-| **Git short** | `fdb18ef` |
-| **Git full SHA** | `fdb18ef294a80053bb1609bbfb87a3ae685bf239` |
+| **Git short** | `e354112` |
+| **Git full SHA** | `e354112d3bb74576c9b7b16439b0ab4157da0204` |
 | **Date** | 2026-07-28 |
 | **Production** | https://ona-mi.vercel.app |
 
