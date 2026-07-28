@@ -29,13 +29,16 @@ import type { AccountType, ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /** Trade glyph */
+const TRADE_ICON_GLYPH = "#FF6B35";
+
 function TradeIcon({ service }: { service: ProService }) {
   const opt = PRO_TRADE_OPTIONS.find((t) => t.id === service);
   const Icon = opt?.icon ?? Wrench;
   return (
     <Icon
-      className="h-3.5 w-3.5 shrink-0 text-white/70"
+      className="h-3.5 w-3.5 shrink-0"
       strokeWidth={2}
+      style={{ color: TRADE_ICON_GLYPH }}
       aria-hidden
     />
   );
@@ -211,7 +214,9 @@ export function AppMenu({
       "rounded-lg border-0 px-2 py-2.5 text-[12px] font-bold transition-colors",
       active
         ? "bg-[#323231] text-white shadow-sm"
-        : "bg-transparent text-white/80 hover:bg-white/15"
+        : isLight
+          ? "bg-transparent text-slate-700 hover:bg-[#b0b1b6]/60"
+          : "bg-transparent text-white/85 hover:bg-white/10"
     );
 
   return (
@@ -243,7 +248,7 @@ export function AppMenu({
       <aside
         className={cn(
           "relative z-10 flex h-full max-h-full w-[80%] max-w-full flex-col overflow-hidden animate-[om-sheet-up_0.22s_ease-out]",
-          "bg-[#FF6B35] text-white"
+          isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
         <div className="flex items-start justify-between px-4 pb-4 pt-5">
@@ -262,10 +267,20 @@ export function AppMenu({
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
-                  <p className="text-[12px] font-semibold leading-tight text-white/80">
+                  <p
+                    className={cn(
+                      "text-[12px] font-semibold leading-tight",
+                      isLight ? "text-slate-600" : "text-white/70"
+                    )}
+                  >
                     {timeGreeting}
                   </p>
-                  <p className="flex flex-wrap items-center gap-1 text-[15px] font-bold leading-snug text-white">
+                  <p
+                    className={cn(
+                      "flex flex-wrap items-center gap-1 text-[15px] font-bold leading-snug",
+                      isLight ? "text-black" : "text-white"
+                    )}
+                  >
                     <span className="truncate">{fullNameDisplay}</span>
                     <NewAccountBadge
                       visibilityTier={
@@ -279,68 +294,68 @@ export function AppMenu({
                         )?.status
                       }
                       size="sm"
-                      className="text-[8px] leading-none tracking-normal text-white"
+                      className="text-[8px] leading-none tracking-normal"
                     />
                   </p>
                 </div>
               </div>
             ) : (
               <p
-                className="whitespace-nowrap text-[32px] font-black tracking-tight leading-none text-white"
+                className="whitespace-nowrap text-[32px] font-black tracking-tight leading-none"
                 aria-label={t("brand.name")}
               >
-                <span>O</span>
-                <span>na</span>
+                <span className="text-[#FF6B35]">O</span>
+                <span className={isLight ? "text-black" : "text-[#C8C9CD]"}>
+                  na
+                </span>
               </p>
             )}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-white"
+            className={cn(
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 bg-transparent",
+              isLight ? "text-black" : "text-white"
+            )}
             aria-label={t("common.close")}
           >
             <X className="h-6 w-6" strokeWidth={2.2} />
           </button>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-2 pb-2">
+        <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
           {nav.map(({ href, labelKey, icon: Icon }) => {
             const label = t(labelKey);
             const roleHome = defaultBackHref(accountType);
             const isHomeItem =
               href === "/" || href === "/dashboard" || href === roleHome;
-            // Only the current page lights white-bold — never force Dashboard always-on
             const active = isHomeItem
               ? pathname === "/" ||
                 pathname === "/dashboard" ||
                 pathname === roleHome
               : pathname === href || pathname.startsWith(`${href}/`);
+            const navColor = active ? "text-[#FF6B35] font-black" : "text-[#FF6B35]";
             return (
               <button
                 key={href + labelKey}
                 type="button"
                 onClick={() => {
                   onClose();
-                  // Home/Dashboard: reset stack so Back never traps on Settings
                   if (isHomeItem) {
                     resetNavStack(href);
                     router.replace(href);
                     return;
                   }
-                  // Instant client navigation — no full document reload
                   router.push(href);
                 }}
                 className={cn(
-                  "flex w-full items-center gap-3.5 rounded-xl border-0 bg-transparent px-3 py-2.5 text-left text-[17px] font-semibold transition-colors",
-                  active ? "text-white font-black" : "text-white/80"
+                  "flex w-full items-center gap-3.5 rounded-xl border-0 bg-transparent px-3 py-1.5 text-left text-[17px] font-semibold transition-colors",
+                  navColor
                 )}
               >
                 <Icon
-                  className={cn(
-                    "h-6 w-6 shrink-0",
-                    active ? "text-white" : "text-white/80"
-                  )}
+                  className={cn("h-6 w-6 shrink-0", navColor)}
                   strokeWidth={2}
                 />
                 <span>{label}</span>
@@ -355,7 +370,7 @@ export function AppMenu({
               onClose();
               notif?.openCenter();
             }}
-            className="flex w-full items-center gap-3.5 rounded-xl border-0 bg-transparent px-3 py-2.5 text-left text-[17px] font-semibold text-white/80 transition-colors"
+            className="flex w-full items-center gap-3.5 rounded-xl border-0 bg-transparent px-3 py-1.5 text-left text-[17px] font-semibold text-[#FF6B35] transition-colors"
           >
             <Bell className="h-6 w-6 shrink-0" strokeWidth={2} />
             <span className="min-w-0 flex-1">{t("menu.notifications")}</span>
@@ -376,12 +391,22 @@ export function AppMenu({
           <div className="mt-5 px-1 pt-3">
             {isPro && proServices.length > 0 && (
               <div className="mb-3">
-                <div className="flex w-full items-center gap-2 rounded-lg border-0 px-3 py-2 text-[13px] font-semibold text-white/80">
+                <div
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-lg border-0 px-3 py-2 text-[13px] font-semibold",
+                    isLight ? "text-slate-700" : "text-white/90"
+                  )}
+                >
                   <Briefcase className="h-4 w-4 shrink-0" strokeWidth={2} />
                   <span className="min-w-0 flex-1">{t("menu.myService")}</span>
                 </div>
                 <div className="mt-0.5 flex w-full items-center gap-2 px-3 py-1">
-                  <span className="min-w-0 flex-1 text-[12px] font-medium text-white">
+                  <span
+                    className={cn(
+                      "min-w-0 flex-1 text-[12px] font-medium",
+                      isLight ? "text-slate-900" : "text-white"
+                    )}
+                  >
                     {isProService(proServices[0])
                       ? t(TRADE_LABEL_KEY[proServices[0]])
                       : proServices[0]}
@@ -394,12 +419,18 @@ export function AppMenu({
                 </div>
               </div>
             )}
-            <p className="mb-1.5 px-2 text-[10px] font-bold uppercase tracking-wide text-white/80">
+            <p
+              className={cn(
+                "mb-1.5 px-2 text-[10px] font-bold uppercase tracking-wide",
+                isLight ? "text-slate-700" : "text-white/70"
+              )}
+            >
               {t("menu.useAs")}
             </p>
             <div
               className={cn(
-                "grid grid-cols-2 gap-1 rounded-xl bg-white/20 p-1",
+                "grid grid-cols-2 gap-1 rounded-xl p-1",
+                isLight ? "bg-[#bebfc4]" : "bg-[#1c1c1e]",
                 switching && "opacity-70 pointer-events-none"
               )}
               role="group"
@@ -433,14 +464,25 @@ export function AppMenu({
             </div>
             {warn ? (
               <div
-                className="mt-2 rounded-lg bg-white/15 px-2.5 py-2 text-[11px] font-medium leading-snug text-white"
+                className={cn(
+                  "mt-2 rounded-lg px-2.5 py-2 text-[11px] font-medium leading-snug",
+                  isLight
+                    ? "bg-[#c8c9cd] text-slate-900"
+                    : "bg-black text-white"
+                )}
                 role="alert"
               >
-                <p className="text-white">{warn}</p>
+                <p
+                  className={cn(
+                    isLight ? "text-slate-900" : "text-white"
+                  )}
+                >
+                  {warn}
+                </p>
                 {signupTarget && (
                   <button
                     type="button"
-                    className="mt-1.5 border-0 bg-transparent p-0 text-[11px] font-bold text-white underline underline-offset-2"
+                    className="mt-1.5 border-0 bg-transparent p-0 text-[11px] font-bold text-[#FF6B35] underline"
                     onClick={() => {
                       onClose();
                       router.push(
@@ -456,7 +498,7 @@ export function AppMenu({
                 {warn === t("menu.needLogin") && (
                   <button
                     type="button"
-                    className="mt-1.5 border-0 bg-transparent p-0 text-[11px] font-bold text-white underline underline-offset-2"
+                    className="mt-1.5 border-0 bg-transparent p-0 text-[11px] font-bold text-[#FF6B35] underline"
                     onClick={() => {
                       onClose();
                       router.push("/login/signin");
@@ -467,7 +509,12 @@ export function AppMenu({
                 )}
               </div>
             ) : (
-              <p className="mt-1.5 px-2 text-[10px] font-medium leading-snug text-white/70">
+              <p
+                className={cn(
+                  "mt-1.5 px-2 text-[10px] font-medium leading-snug",
+                  isLight ? "text-slate-700" : "text-white/70"
+                )}
+              >
                 {t("menu.tapToSwitch")}
               </p>
             )}
