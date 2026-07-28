@@ -9,7 +9,7 @@ export const HA: MessageDict = {
   "nav.dashboard": "Dashboard",
   "nav.settings": "Saituna",
   "nav.history": "Tarihi",
-  "nav.wallet": "Wallet/Credit",
+  "nav.wallet": "Referral & Earn",
   "nav.main": "Main navigation",
   "common.back": "Koma baya",
   "common.next": "Na gaba",

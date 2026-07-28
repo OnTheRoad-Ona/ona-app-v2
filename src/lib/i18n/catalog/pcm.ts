@@ -9,7 +9,7 @@ export const PCM: MessageDict = {
   "nav.dashboard": "Dashboard",
   "nav.settings": "Settings",
   "nav.history": "History",
-  "nav.wallet": "Wallet/Credit",
+  "nav.wallet": "Referral & Earn",
   "nav.main": "Main menu",
   "common.back": "Back",
   "common.next": "Next",

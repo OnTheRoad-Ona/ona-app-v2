@@ -9,7 +9,7 @@ export const SW: MessageDict = {
   "nav.dashboard": "Dashibodi",
   "nav.settings": "Mipangilio",
   "nav.history": "Historia",
-  "nav.wallet": "Wallet/Credit",
+  "nav.wallet": "Referral & Earn",
   "nav.main": "Menyu kuu",
   "common.back": "Rudi",
   "common.next": "Ifuatayo",

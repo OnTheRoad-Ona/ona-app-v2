@@ -327,7 +327,7 @@ export function AppMenu({
           </button>
         </div>
 
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
+        <nav className="flex-1 space-y-1.5 overflow-y-auto px-3 pb-2 pt-5">
           {nav.map(({ href, labelKey, icon: Icon }) => {
             const label = t(labelKey);
             const roleHome = defaultBackHref(accountType);
@@ -353,7 +353,7 @@ export function AppMenu({
                   router.push(href);
                 }}
                 className={cn(
-                  "flex w-full items-center gap-3.5 rounded-xl border-0 bg-transparent px-3 py-1.5 text-left text-[17px] font-semibold transition-colors",
+                  "flex w-full items-center gap-2.5 rounded-xl border-0 bg-transparent px-3 py-2.5 text-left text-[17px] font-semibold transition-colors",
                   active ? "text-[#FF6B35]" : idleColor
                 )}
               >
@@ -374,7 +374,7 @@ export function AppMenu({
               notif?.openCenter();
             }}
             className={cn(
-              "flex w-full items-center gap-3.5 rounded-xl border-0 bg-transparent px-3 py-1.5 text-left text-[17px] font-semibold transition-colors",
+              "flex w-full items-center gap-2.5 rounded-xl border-0 bg-transparent px-3 py-2.5 text-left text-[17px] font-semibold transition-colors",
               isLight ? "text-slate-700" : "text-white/90"
             )}
           >

@@ -9,7 +9,7 @@ export const AR: MessageDict = {
   "nav.dashboard": "لوحة التحكم",
   "nav.settings": "الإعدادات",
   "nav.history": "السجل",
-  "nav.wallet": "Wallet/Credit",
+  "nav.wallet": "Referral & Earn",
   "nav.main": "التنقل الرئيسي",
   "common.back": "رجوع",
   "common.next": "التالي",
