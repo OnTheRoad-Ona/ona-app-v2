@@ -1336,6 +1336,10 @@ export async function getPaymentOpsSnapshot(): Promise<{
     failedCount: number;
     disputedCount: number;
     refundedCount: number;
+    totalCommissionEarnedMinor: number;
+    commissionEarnedCount: number;
+    exhaustedCount: number;
+    suspendedCount: number;
   };
   queues: {
     pending: EscrowPayment[];
@@ -1368,6 +1372,14 @@ export async function getPaymentOpsSnapshot(): Promise<{
 
   const sum = (rows: EscrowPayment[]) =>
     rows.reduce((a, r) => a + (Number(r.amountMinor) || 0), 0);
+  const sumFee = (rows: EscrowPayment[]) =>
+    rows.reduce((a, r) => a + (Number(r.platformFeeMinor) || 0), 0);
+  const exhausted = failed.filter(
+    (e) => e.meta?.payoutStatus === "suspended_admin" || (e.meta?.autoRetryCancelled && (Number(e.meta?.payoutRetryCount) || 0) >= 144)
+  );
+  const suspended = failed.filter(
+    (e) => e.meta?.payoutStatus === "cancelled_processing" || e.meta?.payoutSuspended === true
+  );
 
   return {
     flw: {
@@ -1383,6 +1395,10 @@ export async function getPaymentOpsSnapshot(): Promise<{
       failedCount: failed.length,
       disputedCount: (await listDisputedJobs()).length,
       refundedCount: refunded.length,
+      totalCommissionEarnedMinor: sumFee(released),
+      commissionEarnedCount: released.filter((e) => Number(e.platformFeeMinor) > 0).length,
+      exhaustedCount: exhausted.length,
+      suspendedCount: suspended.length,
     },
     queues: {
       pending,

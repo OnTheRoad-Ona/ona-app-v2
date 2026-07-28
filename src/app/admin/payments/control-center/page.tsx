@@ -19,10 +19,12 @@ type Ops = {
     escrowHeldMinor: number; pendingSettlementMinor: number;
     pendingSettlementCount: number; releasedCount: number;
     failedCount: number; disputedCount: number; refundedCount: number;
+    totalCommissionEarnedMinor: number; commissionEarnedCount: number;
+    exhaustedCount: number; suspendedCount: number;
   };
 };
 type FilterKey = "all" | "held" | "pending" | "released" | "failed" | "refunded" | "disputed" | "cancelled";
-type TabKey = "payments" | "disputes" | "audit";
+type TabKey = "payments" | "disputes" | "audit" | "failed" | "commission";
 
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "all", label: "All" }, { key: "held", label: "Held" },
@@ -100,6 +102,12 @@ export default function PaymentControlCenter() {
 
   const [auditLog, setAuditLog] = useState<Record<string, unknown>[]>([]);
 
+  const [failedPayouts, setFailedPayouts] = useState<Record<string, unknown>[]>([]);
+  const [failedPayoutsTotal, setFailedPayoutsTotal] = useState(0);
+
+  const [commReport, setCommReport] = useState<Record<string, unknown> | null>(null);
+  const [commPeriod, setCommPeriod] = useState("day");
+
   const load = useCallback(async () => {
     const res = await api<{ payments: Payment[]; filterCounts?: Record<string, number>; ops?: Ops | null; opsError?: string | null; access?: { canCancelEscrow?: boolean; canRetryPayout?: boolean } }>("/api/admin/payments");
     setLoading(false);
@@ -120,9 +128,23 @@ export default function PaymentControlCenter() {
     if (res.ok) setAuditLog(Array.isArray(res.data.actions) ? res.data.actions : []);
   }, [api]);
 
+  const loadFailedPayouts = useCallback(async () => {
+    const res = await api<{ failed: Record<string, unknown>[]; totalCount: number }>("/api/admin/failed-payouts");
+    if (res.ok) { setFailedPayouts(Array.isArray(res.data.failed) ? res.data.failed : []); setFailedPayoutsTotal(res.data.totalCount); }
+  }, [api]);
+
+  const loadCommission = useCallback(async (period: string) => {
+    const to = new Date().toISOString();
+    const from = new Date(Date.now() - 90 * 86400000).toISOString();
+    const res = await api<Record<string, unknown>>(`/api/admin/commission?period=${period}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+    if (res.ok) setCommReport(res.data);
+  }, [api]);
+
   useEffect(() => { if (!ready) return; void load(); const t = setInterval(() => void load(), 30_000); return () => clearInterval(t); }, [ready, load]);
   useEffect(() => { if (!ready || tab !== "disputes") return; void loadDisputes(); }, [ready, tab, loadDisputes]);
   useEffect(() => { if (!ready || tab !== "audit") return; void loadAudit(); }, [ready, tab, loadAudit]);
+  useEffect(() => { if (!ready || tab !== "failed") return; void loadFailedPayouts(); }, [ready, tab, loadFailedPayouts]);
+  useEffect(() => { if (!ready || tab !== "commission") return; void loadCommission(commPeriod); }, [ready, tab, loadCommission, commPeriod]);
 
   const loadDetail = useCallback(async (id: string) => {
     setDetailLoading(true);
@@ -220,8 +242,10 @@ export default function PaymentControlCenter() {
     { label: "FLW Ledger", val: ops ? `₦${(ops.flw.ledger ?? 0).toLocaleString("en-NG", { minimumFractionDigits: 2 })}` : "—", sub: "Settling" },
     { label: "Escrow held", val: ops ? naira(ops.ona.escrowHeldMinor) : "—", sub: "Customer paid" },
     { label: "Pending settlement", val: ops ? naira(ops.ona.pendingSettlementMinor) : "—", sub: `${ops?.ona.pendingSettlementCount ?? 0} jobs` },
+    { label: "Commission earned", val: ops ? naira(ops.ona.totalCommissionEarnedMinor) : "—", sub: `${ops?.ona.commissionEarnedCount ?? 0} paid jobs` },
     { label: "Paid to pros", val: String(ops?.ona.releasedCount ?? "—"), sub: "Released" },
-    { label: "Failed", val: String(ops?.ona.failedCount ?? "—"), sub: "Needs admin" },
+    { label: "Failed", val: String(ops?.ona.failedCount ?? "—"), sub: `${ops?.ona.exhaustedCount ?? 0} exhausted` },
+    { label: "Suspended", val: String(ops?.ona.suspendedCount ?? "—"), sub: "Admin stopped" },
     { label: "Refunded", val: String(ops?.ona.refundedCount ?? "—"), sub: "Customer refunded" },
     { label: "Disputed", val: String(ops?.ona.disputedCount ?? "—"), sub: "In dispute" },
   ];
@@ -254,9 +278,11 @@ export default function PaymentControlCenter() {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        {(["payments", "disputes", "audit"] as TabKey[]).map(t => (
-          <button key={t} style={{ ...s.btn, fontWeight: tab === t ? 700 : 400, background: tab === t ? "#eff6ff" : "#fff", borderColor: tab === t ? "#93c5fd" : "#d1d5db" }} onClick={() => { setTab(t); setSelectedId(null); }}>{t === "payments" ? "Payments" : t === "disputes" ? "Disputes" : "Audit Trail"}</button>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        {(["payments", "disputes", "audit", "failed", "commission"] as TabKey[]).map(t => (
+          <button key={t} style={{ ...s.btn, fontWeight: tab === t ? 700 : 400, background: tab === t ? "#eff6ff" : "#fff", borderColor: tab === t ? "#93c5fd" : "#d1d5db" }} onClick={() => { setTab(t); setSelectedId(null); }}>
+            {t === "payments" ? "Payments" : t === "disputes" ? "Disputes" : t === "audit" ? "Audit" : t === "failed" ? "Failed Payouts" : "Commission"}
+          </button>
         ))}
       </div>
 
@@ -677,6 +703,139 @@ export default function PaymentControlCenter() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {tab === "failed" && (
+        <div style={s.panel}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Failed Payouts ({failedPayoutsTotal})</h2>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button style={s.btn} onClick={() => void loadFailedPayouts()} disabled={busy}>Refresh</button>
+              <button style={{ ...s.btnP, fontSize: 10 }} onClick={async () => {
+                setBusy(true);
+                const res = await api("/api/admin/payments", { method: "PATCH", body: JSON.stringify({ action: "retry_all_due" }) });
+                setBusy(false);
+                if (!res.ok) { setError(res.message); return; }
+                setMsg("Retry queue processed"); void loadFailedPayouts();
+              }} disabled={busy}>Retry All Due</button>
+            </div>
+          </div>
+          {failedPayouts.length === 0 ? <p style={s.muted}>No failed payouts. All clear.</p> : (
+            <div style={{ maxHeight: 520, overflowY: "auto" }}>
+              <table style={s.table}>
+                <thead><tr>
+                  <th style={s.th}>Request</th>
+                  <th style={s.th}>Amount</th>
+                  <th style={s.th}>Retries</th>
+                  <th style={s.th}>Status</th>
+                  <th style={s.th}>Last Error</th>
+                  <th style={s.th}>Next Retry</th>
+                  <th style={s.th}>Actions</th>
+                </tr></thead>
+                <tbody>{failedPayouts.map(fp => {
+                  const isExhausted = fp.exhausted === true;
+                  const isSuspended = fp.payoutSuspended === true;
+                  return (
+                    <tr key={String(fp.id)}>
+                      <td style={{ ...s.td, ...s.muted, fontSize: 10 }}>{String(fp.requestId || "").slice(0, 12) || String(fp.id).slice(0, 12)}</td>
+                      <td style={s.td}>{naira(Number(fp.amountMinor || 0))}</td>
+                      <td style={s.td}>{String(fp.retryCount ?? "—")}</td>
+                      <td style={s.td}>
+                        {isExhausted ? <span style={badgeStyle("failed")}>Exhausted</span>
+                        : isSuspended ? <span style={badgeStyle("cancelled")}>Suspended</span>
+                        : <span style={badgeStyle("failed")}>Failed</span>}
+                      </td>
+                      <td style={{ ...s.td, ...s.muted, fontSize: 10, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>{String(fp.lastError || "—")}</td>
+                      <td style={{ ...s.td, ...s.muted, fontSize: 10 }}>{fp.nextRetryAt ? new Date(String(fp.nextRetryAt)).toLocaleString() : "—"}</td>
+                      <td style={s.td}>
+                        <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+                          <button style={{ ...s.btn, fontSize: 9, padding: "2px 6px" }} onClick={async () => {
+                            setPassword(""); setShowPassword(true); setPendingAction(() => async () => {
+                              setBusy(true);
+                              const res = await api("/api/admin/failed-payouts", { method: "PATCH", body: JSON.stringify({ jobId: fp.requestId, action: "retry" }) });
+                              setBusy(false);
+                              if (!res.ok) { setError(res.message); return; }
+                              setMsg("Retry attempted"); void loadFailedPayouts();
+                            });
+                          }} disabled={busy}>Retry</button>
+                          <button style={{ ...s.btn, fontSize: 9, padding: "2px 6px" }} onClick={async () => {
+                            setPassword(""); setShowPassword(true); setPendingAction(() => async () => {
+                              setBusy(true);
+                              const res = await api("/api/admin/failed-payouts", { method: "PATCH", body: JSON.stringify({ jobId: fp.requestId, action: "resolve", note: "Acknowledged by admin" }) });
+                              setBusy(false);
+                              if (!res.ok) { setError(res.message); return; }
+                              setMsg("Resolved"); void loadFailedPayouts();
+                            });
+                          }} disabled={busy}>Resolve</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}</tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "commission" && (
+        <div style={s.panel}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Commission Report</h2>
+            <div style={{ display: "flex", gap: 6 }}>
+              {(["day", "week", "month"] as const).map(p => (
+                <button key={p} style={{ ...s.btn, fontWeight: commPeriod === p ? 700 : 400, fontSize: 10 }} onClick={() => { setCommPeriod(p); }}>{p === "day" ? "Daily" : p === "week" ? "Weekly" : "Monthly"}</button>
+              ))}
+            </div>
+          </div>
+
+          {commReport ? (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, marginBottom: 16 }}>
+                <div style={s.card}>
+                  <div style={s.cardLabel}>Total Commission</div>
+                  <div style={s.cardVal}>{naira(Number((commReport as Record<string, unknown>).totalCommissionMinor || 0))}</div>
+                  <div style={s.cardSub}>{String((commReport as Record<string, unknown>).transactionCount || 0)} transactions</div>
+                </div>
+                <div style={s.card}>
+                  <div style={s.cardLabel}>Total Revenue</div>
+                  <div style={s.cardVal}>{naira(Number((commReport as Record<string, unknown>).totalRevenueMinor || 0))}</div>
+                  <div style={s.cardSub}>Customer payments</div>
+                </div>
+                <div style={s.card}>
+                  <div style={s.cardLabel}>Total Payout</div>
+                  <div style={s.cardVal}>{naira(Number((commReport as Record<string, unknown>).totalPayoutMinor || 0))}</div>
+                  <div style={s.cardSub}>Sent to pros</div>
+                </div>
+              </div>
+
+              <div style={{ maxHeight: 400, overflowY: "auto" }}>
+                <table style={s.table}>
+                  <thead><tr>
+                    <th style={s.th}>Period</th>
+                    <th style={s.th}>Transactions</th>
+                    <th style={s.th}>Revenue</th>
+                    <th style={s.th}>Commission</th>
+                    <th style={s.th}>Paid to Pro</th>
+                  </tr></thead>
+                  <tbody>
+                    {((commReport as Record<string, unknown>).breakdown as Record<string, unknown>[] || []).length === 0 ? (
+                      <tr><td colSpan={5} style={{ ...s.td, ...s.muted }}>No data for this period.</td></tr>
+                    ) : ((commReport as Record<string, unknown>).breakdown as Record<string, unknown>[]).map((b, i) => (
+                      <tr key={String(b.date || i)}>
+                        <td style={{ ...s.td, ...s.muted, fontSize: 10 }}>{String(b.date || "").slice(0, 10)}</td>
+                        <td style={s.td}>{String(b.count || 0)}</td>
+                        <td style={s.td}>{naira(Number(b.revenueMinor || 0))}</td>
+                        <td style={s.td}><strong>{naira(Number(b.commissionMinor || 0))}</strong></td>
+                        <td style={s.td}>{naira(Number(b.payoutMinor || 0))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : <p style={s.muted}>Loading...</p>}
         </div>
       )}
     </AdminShell>
