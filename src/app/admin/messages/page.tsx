@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 
 type Conversation = {
   id: string;
@@ -49,6 +50,9 @@ export default function AdminMessagesPage() {
       <p className="om-admin-sub">
         Job chats between customers and repair pros. Support Care when investigating disputes.
       </p>
+
+      <AdminGuideBanner pageId="messages" />
+
       {error ? <div className="om-admin-error">{error}</div> : null}
 
       <div className="om-admin-grid-2">

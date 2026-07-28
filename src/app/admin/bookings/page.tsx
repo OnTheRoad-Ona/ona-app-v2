@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 
 type Booking = {
   id: string;
@@ -38,6 +39,9 @@ export default function AdminBookingsPage() {
       <p className="om-admin-sub">
         Booking records linked to jobs and escrow. Cross-check status with Live jobs and Payments.
       </p>
+
+      <AdminGuideBanner pageId="bookings" />
+
       {error ? <div className="om-admin-error">{error}</div> : null}
       <div className="om-admin-panel">
         <div className="om-admin-toolbar">

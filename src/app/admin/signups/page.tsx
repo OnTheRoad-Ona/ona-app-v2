@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 
 type EventRow = {
   id: string;
@@ -48,6 +49,9 @@ export default function AdminSignupsPage() {
       <p className="om-admin-sub">
         Recent signup events from the live app (Customer and Repair Pro). Useful for onboarding and fraud checks.
       </p>
+
+      <AdminGuideBanner pageId="signups" />
+
       {error ? <div className="om-admin-error">{error}</div> : null}
 
       <div className="om-admin-cards">

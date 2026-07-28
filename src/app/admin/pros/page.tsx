@@ -14,6 +14,7 @@ import {
 } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 import {
   AdminTableWrap,
   AdminTabs,
@@ -432,6 +433,8 @@ export default function AdminProsHubPage() {
       <p className="om-admin-sub">
         Repair Pro accounts from the live app. Review onboarding, documents, Live status, and payout banks. Approve or suspend pros here.
       </p>
+
+      <AdminGuideBanner pageId="pros" />
 
       {error ? <div className="om-admin-error">{error}</div> : null}
       {msg ? <div className="om-admin-success">{msg}</div> : null}

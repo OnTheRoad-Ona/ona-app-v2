@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 
 export default function AdminVerificationOverview() {
   const { adminName, ready, api } = useAdminGate();
@@ -61,6 +62,9 @@ export default function AdminVerificationOverview() {
       <p className="om-admin-sub">
         At-a-glance verification: pending customer IDs and pro documents waiting for Care review.
       </p>
+
+      <AdminGuideBanner pageId="verification" />
+
       {error ? <div className="om-admin-error">{error}</div> : null}
 
       <div className="om-admin-cards">

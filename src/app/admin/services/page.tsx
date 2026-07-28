@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 import type { AppConfig, ServicesSection } from "@/lib/app-config";
 import { PRO_TRADE_OPTIONS } from "@/lib/services";
 
@@ -61,6 +62,9 @@ export default function AdminServicesPage() {
       <p className="om-admin-sub">
         Service catalog (trades) offered on Ona. Keep labels aligned with signup and home filters.
       </p>
+
+      <AdminGuideBanner pageId="services" />
+
       {error ? <div className="om-admin-error">{error}</div> : null}
       {msg ? <div className="om-admin-success">{msg}</div> : null}
 

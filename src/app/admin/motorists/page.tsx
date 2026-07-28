@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 import {
   AdminTableWrap,
   AdminTabs,
@@ -288,6 +289,8 @@ export default function AdminCustomersHubPage() {
       <p className="om-admin-sub">
         Customer accounts from the live app. Review IDs, verification, banks, and account status. Approve or freeze customers here.
       </p>
+
+      <AdminGuideBanner pageId="customers" />
 
       {error ? <div className="om-admin-error">{error}</div> : null}
       {msg ? <div className="om-admin-success">{msg}</div> : null}

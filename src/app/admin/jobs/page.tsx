@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 
 type Job = {
   id: string;
@@ -78,6 +79,9 @@ export default function AdminJobsPage() {
       <p className="om-admin-sub">
         All service jobs from the live app — negotiation, booked, en route, complete. Open a job to inspect parties, escrow, and timeline.
       </p>
+
+      <AdminGuideBanner pageId="jobs" />
+
       {msg ? (
         <div
           className="om-admin-error"

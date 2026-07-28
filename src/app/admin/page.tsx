@@ -8,6 +8,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 import { withSensitivePassword } from "@/components/admin/sensitive-unlock";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
 
@@ -265,6 +266,7 @@ export default function CareDeskPage() {
         <p className="om-admin-muted">
           {gateError || "Loading admin session…"}
         </p>
+        <AdminGuideBanner pageId="dashboard" />
       </AdminShell>
     );
   }
@@ -279,6 +281,8 @@ export default function CareDeskPage() {
       <p className="om-admin-sub">
         Live overview of Ona: totals, open jobs, and Care tools. Search people or jobs, watch the board, and run escrow / freeze / dispute from here.
       </p>
+
+      <AdminGuideBanner pageId="dashboard" />
 
       {/* Always-visible totals dashboard */}
       <div className="om-admin-cards">

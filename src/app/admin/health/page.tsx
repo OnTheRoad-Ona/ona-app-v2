@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
 import { StatusCard } from "@/components/health/StatusCard";
 import { IssuesTable } from "@/components/health/IssuesTable";
@@ -116,6 +117,8 @@ export default function AdminHealthPage() {
           {running ? "Running…" : "Run full health check"}
         </button>
       </div>
+
+      <AdminGuideBanner pageId="health" />
 
       {toast ? (
         <div

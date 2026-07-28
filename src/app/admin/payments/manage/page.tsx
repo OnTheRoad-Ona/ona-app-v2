@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 
 type Payment = {
   id: string;
@@ -225,6 +226,8 @@ export default function PaymentManagementPage() {
           <button style={{ ...styles.btn, color: "#6b7280" }} onClick={() => router.push("/admin")}>Back to Admin</button>
         </div>
       </div>
+
+      <AdminGuideBanner pageId="payments-manage" />
 
       {error ? <div style={styles.error}>{error}</div> : null}
       {msg ? <div style={styles.success}>{msg}</div> : null}

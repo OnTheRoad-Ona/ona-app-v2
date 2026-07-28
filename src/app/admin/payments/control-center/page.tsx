@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 import { withSensitivePassword } from "@/components/admin/sensitive-unlock";
 import {
   adminRoleLabel,
@@ -263,6 +264,8 @@ export default function PaymentControlCenter() {
         Financial control room: monitor, control, release, refund, cancel, dispute, and audit every transaction.
         Sensitive actions require temporary access code. <strong>All actions are logged.</strong>
       </p>
+
+      <AdminGuideBanner pageId="payments-control" />
 
       {error ? <div style={s.err}>{error}</div> : null}
       {msg ? <div style={s.ok}>{msg}</div> : null}

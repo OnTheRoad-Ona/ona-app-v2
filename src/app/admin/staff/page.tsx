@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 import { withSensitivePassword } from "@/components/admin/sensitive-unlock";
 
 type StaffRow = {
@@ -148,6 +149,9 @@ export default function AdminStaffPage() {
         must have <code>profiles.role = admin</code> and an{" "}
         <code>admin_role</code> of L1–L5 below.
       </p>
+
+      <AdminGuideBanner pageId="staff" />
+
       {error ? <div className="om-admin-error">{error}</div> : null}
       {msg ? <div className="om-admin-success">{msg}</div> : null}
 

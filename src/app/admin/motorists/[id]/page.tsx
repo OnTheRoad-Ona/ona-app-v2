@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 
 type Detail = {
   user: {
@@ -165,6 +166,9 @@ export default function AdminMotoristDetailPage() {
         history from the live Ona database. Approve ID or freeze the account
         here.
       </p>
+
+      <AdminGuideBanner pageId="customer-detail" />
+
       {msg ? (
         <div
           className="om-admin-error"

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 import { withSensitivePassword } from "@/components/admin/sensitive-unlock";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
 import type { JobRecord } from "@/lib/jobs/types";
@@ -77,6 +78,9 @@ export default function AdminDisputesPage() {
       <p className="om-admin-sub">
         Jobs in dispute or appeal. Review evidence, lock funds in escrow, and resolve or escalate for Customer Care.
       </p>
+
+      <AdminGuideBanner pageId="disputes" />
+
       {error ? <div className="om-admin-error">{error}</div> : null}
       {flash ? (
         <div

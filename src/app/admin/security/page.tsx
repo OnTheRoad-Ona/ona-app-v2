@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 import { cn } from "@/lib/utils";
 
 type Tab = "overview" | "contact-changes" | "referrals" | "credits" | "cashouts" | "fraud" | "audit" | "settings";
@@ -404,6 +405,8 @@ export default function AdminSecurityPage() {
             </span>
           )}
         </div>
+
+        <AdminGuideBanner pageId="security" />
 
         {/* Tabs */}
         <div className="mb-6 flex flex-wrap gap-1">

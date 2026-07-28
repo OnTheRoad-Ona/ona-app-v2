@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 import type { AppConfig, ContentSection } from "@/lib/app-config";
 
 export default function AdminContentPage() {
@@ -59,6 +60,9 @@ export default function AdminContentPage() {
         Backend-controlled app text, menus, titles, and arrangement (L4 Manager+).
         Customers and pros see updates after save — design shell stays the same.
       </p>
+
+      <AdminGuideBanner pageId="content" />
+
       {error ? <div className="om-admin-error">{error}</div> : null}
       {msg ? <div className="om-admin-success">{msg}</div> : null}
 

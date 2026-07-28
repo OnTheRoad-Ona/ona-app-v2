@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 
 type Action = {
   id: string;
@@ -36,6 +37,9 @@ export default function AdminAuditPage() {
       <p className="om-admin-sub">
         Staff action log: who approved, froze, released escrow, or changed roles. Use for compliance and disputes.
       </p>
+
+      <AdminGuideBanner pageId="audit" />
+
       {error ? <div className="om-admin-error">{error}</div> : null}
       <div className="om-admin-panel">
         <div className="om-admin-toolbar">

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 
 type UserRow = {
   id: string;
@@ -115,6 +116,9 @@ export default function AdminUsersPage() {
         (new signups on Vercel show here). Full customer tools: open{" "}
         <a href="/admin/motorists">Customers</a>.
       </p>
+
+      <AdminGuideBanner pageId="users" />
+
       {msg ? (
         <div
           className="om-admin-error"

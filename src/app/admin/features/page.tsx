@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 import { SensitivePageGate } from "@/components/admin/sensitive-page-gate";
 import { withSensitivePassword } from "@/components/admin/sensitive-unlock";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
@@ -111,6 +112,9 @@ export default function AdminFeaturesPage() {
       <p className="om-admin-sub">
         Feature flags for the live app. Turn modules on/off without a redeploy (Super Admin).
       </p>
+
+      <AdminGuideBanner pageId="features" />
+
       {error ? <div className="om-admin-error">{error}</div> : null}
       {msg ? <div className="om-admin-success">{msg}</div> : null}
 

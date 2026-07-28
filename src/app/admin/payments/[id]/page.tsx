@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
 import { withSensitivePassword } from "@/components/admin/sensitive-unlock";
 import {
@@ -224,6 +225,8 @@ export default function AdminPaymentDetailPage() {
         check). Your role: {adminRoleLabel(role)}. Force payout: L4–L5. Refund /
         stop processing: L3+.
       </p>
+
+      <AdminGuideBanner pageId="payment-detail" />
       {error ? <div className="om-admin-error">{error}</div> : null}
       {msg ? <div className="om-admin-success">{msg}</div> : null}
       {data?.doublePayRisk ? (

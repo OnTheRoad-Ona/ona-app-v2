@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 import type { AppConfig, MatchingSection, VerificationSection } from "@/lib/app-config";
 
 export default function AdminMatchingPage() {
@@ -64,6 +65,9 @@ export default function AdminMatchingPage() {
       <p className="om-admin-sub">
         Map radius and matching rules that decide which pros customers see on the live map.
       </p>
+
+      <AdminGuideBanner pageId="matching" />
+
       {error ? <div className="om-admin-error">{error}</div> : null}
       {msg ? <div className="om-admin-success">{msg}</div> : null}
 

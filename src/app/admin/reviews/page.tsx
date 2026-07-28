@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
+import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 
 type Review = {
   id: string;
@@ -37,6 +38,9 @@ export default function AdminReviewsPage() {
       <p className="om-admin-sub">
         Ratings and reviews after completed jobs. Spot spam or abuse and support quality on the marketplace.
       </p>
+
+      <AdminGuideBanner pageId="reviews" />
+
       {error ? <div className="om-admin-error">{error}</div> : null}
       <div className="om-admin-panel">
         <div className="om-admin-toolbar">
