@@ -104,6 +104,26 @@ function firstAndLastName(full: string): string {
   return `${parts[0]} ${parts[parts.length - 1]}`;
 }
 
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+const AVATAR_COLORS = [
+  "#F87171", "#FB923C", "#FBBF24", "#A3E635", "#34D399",
+  "#22D3EE", "#60A5FA", "#818CF8", "#A78BFA", "#E879F9",
+];
+
+function avatarColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
 export function AppMenu({
   open,
   onClose,
@@ -250,42 +270,51 @@ export function AppMenu({
       >
         <div className="flex items-start justify-between px-4 pb-4 pt-5">
           <div className="min-w-0 flex-1 pr-2">
-            {/* Signed-in: greeting + full name only (no street address). Guest: Ona brand */}
+            {/* Signed-in: avatar row (initals circle + greeting + name). Guest: Ona brand */}
             {isAuthenticated && fullNameDisplay ? (
-              <div className="min-w-0 space-y-0.5">
-                <p
-                  className={cn(
-                    "text-[15px] font-bold leading-tight tracking-tight",
-                    isLight ? "text-black" : "text-white"
-                  )}
+              <div className="flex items-center gap-3">
+                <div
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-[15px] font-bold text-white"
+                  style={{ background: avatarColor(fullNameDisplay) }}
+                  aria-hidden
                 >
-                  {timeGreeting}
-                </p>
-                <p
-                  className={cn(
-                    "flex flex-wrap items-center gap-1 text-[13px] font-semibold leading-snug",
-                    isLight ? "text-slate-700" : "text-white/80"
-                  )}
-                >
-                  <span className="truncate">{fullNameDisplay}</span>
-                  {isPro ? (
-                    <NewAccountBadge
-                      visibilityTier={
-                        getArtisanProfile(
-                          userProfile?.identityId || backendUserId || ""
-                        )?.visibilityTier ?? 1
-                      }
-                      status={
-                        getArtisanProfile(
-                          userProfile?.identityId || backendUserId || ""
-                        )?.status
-                      }
-                      isProfessional
-                      size="sm"
-                      className="text-[8px] leading-none tracking-normal"
-                    />
-                  ) : null}
-                </p>
+                  {getInitials(fullNameDisplay)}
+                </div>
+                <div className="min-w-0">
+                  <p
+                    className={cn(
+                      "text-[12px] font-semibold leading-tight",
+                      isLight ? "text-slate-600" : "text-white/70"
+                    )}
+                  >
+                    {timeGreeting}
+                  </p>
+                  <p
+                    className={cn(
+                      "flex flex-wrap items-center gap-1 text-[15px] font-bold leading-snug",
+                      isLight ? "text-black" : "text-white"
+                    )}
+                  >
+                    <span className="truncate">{fullNameDisplay}</span>
+                    {isPro ? (
+                      <NewAccountBadge
+                        visibilityTier={
+                          getArtisanProfile(
+                            userProfile?.identityId || backendUserId || ""
+                          )?.visibilityTier ?? 1
+                        }
+                        status={
+                          getArtisanProfile(
+                            userProfile?.identityId || backendUserId || ""
+                          )?.status
+                        }
+                        isProfessional
+                        size="sm"
+                        className="text-[8px] leading-none tracking-normal"
+                      />
+                    ) : null}
+                  </p>
+                </div>
               </div>
             ) : (
               <p
@@ -342,7 +371,7 @@ export function AppMenu({
                   router.push(href);
                 }}
                 className={cn(
-                  "flex w-full items-center gap-3.5 rounded-xl border-0 bg-transparent px-3 py-3.5 text-left text-[17px] font-semibold transition-colors",
+                  "flex w-full items-center gap-3.5 rounded-xl border-0 bg-transparent px-3 py-2.5 text-left text-[17px] font-semibold transition-colors",
                   active ? activeColor : idleColor
                 )}
               >
@@ -366,7 +395,7 @@ export function AppMenu({
               notif?.openCenter();
             }}
             className={cn(
-              "flex w-full items-center gap-3.5 rounded-xl border-0 bg-transparent px-3 py-3.5 text-left text-[17px] font-semibold transition-colors",
+              "flex w-full items-center gap-3.5 rounded-xl border-0 bg-transparent px-3 py-2.5 text-left text-[17px] font-semibold transition-colors",
               isLight ? "text-slate-700" : "text-white/90"
             )}
           >
