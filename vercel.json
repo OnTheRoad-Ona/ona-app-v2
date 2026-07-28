@@ -6,10 +6,6 @@
     {
       "path": "/api/payments/payout-retry",
       "schedule": "0 8 * * *"
-    },
-    {
-      "path": "/api/payments/payout-retry",
-      "schedule": "*/10 6-22 * * *"
     }
   ]
 }
