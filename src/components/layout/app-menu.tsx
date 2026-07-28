@@ -351,7 +351,7 @@ export function AppMenu({
                 }}
                 className={cn(
                   "flex w-full items-center gap-3.5 rounded-xl border-0 bg-transparent px-3 py-1.5 text-left text-[17px] font-semibold transition-colors",
-                  active ? "text-[#FF6B35] font-black" : idleColor
+                  active ? "text-[#FF6B35]" : idleColor
                 )}
               >
                 <Icon
