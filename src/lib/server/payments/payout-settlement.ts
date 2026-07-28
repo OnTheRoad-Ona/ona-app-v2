@@ -14,6 +14,7 @@ import {
   updateEscrow,
   type EscrowPayment,
 } from "@/lib/server/payments/escrow-store";
+import { listDisputedJobs } from "@/lib/server/jobs/job-store";
 import {
   findExistingFlutterwaveTransfer,
   getFlutterwaveNgnBalances,
@@ -1380,7 +1381,7 @@ export async function getPaymentOpsSnapshot(): Promise<{
       pendingSettlementCount: pending.length,
       releasedCount: released.length,
       failedCount: failed.length,
-      disputedCount: 0,
+      disputedCount: (await listDisputedJobs()).length,
       refundedCount: refunded.length,
     },
     queues: {

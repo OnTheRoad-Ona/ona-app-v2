@@ -16,7 +16,7 @@ import {
   getEscrowByRequest,
   updateEscrow,
 } from "@/lib/server/payments/escrow-store";
-import { getJob, transitionJob } from "@/lib/server/jobs/job-store";
+import { getJob, listDisputedJobs, transitionJob } from "@/lib/server/jobs/job-store";
 import {
   attemptProPayout,
   finalizeJobReleasedAfterPayout,
@@ -149,6 +149,7 @@ function buildFilterCounts(
     released: 0,
     failed: 0,
     refunded: 0,
+    disputed: 0,
   };
   for (const row of rows) {
     const e = effectiveEscrowStatus(row);
@@ -158,6 +159,7 @@ function buildFilterCounts(
     else if (e === "released") counts.released += 1;
     else if (e === "failed") counts.failed += 1;
     else if (e === "refunded") counts.refunded += 1;
+    else if (row._disputed) counts.disputed += 1;
   }
   return counts;
 }
@@ -203,6 +205,21 @@ export async function GET() {
     const payments = raw
       .map((p) => shapePayment(p, adminRole))
       .filter((p): p is Record<string, unknown> => p != null && Boolean(p.id));
+
+    const disputedJobs = await listDisputedJobs();
+    const disputedRequestIds = new Set(disputedJobs.map((j) => j.id));
+    for (const p of payments) {
+      const rid = String(p.request_id || "");
+      if (rid && disputedRequestIds.has(rid)) {
+        p._disputed = true;
+      }
+    }
+    for (const r of raw) {
+      const rid = String(r.request_id || r.job_id || "");
+      if (rid && disputedRequestIds.has(rid)) {
+        r._disputed = true;
+      }
+    }
 
     const filterCounts = buildFilterCounts(raw);
 
