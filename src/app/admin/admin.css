@@ -49,22 +49,26 @@
   --om-bg: #1c1d21;
   --om-bg-elevated: #25262b;
   --om-panel: #2a2b31;
-  --om-panel-2: #32333a;
-  --om-border: #3f414a;
-  --om-border-soft: #35363d;
+  --om-panel-2: #3d3e48;
+  --om-border: #4a4b55;
+  --om-border-soft: #3f4049;
   --om-text: #eef0f4;
   --om-text-muted: #a0a4ae;
   --om-text-faint: #7a7f8a;
   --om-nav: #25262b;
   --om-nav-hover: #2f3037;
   --om-nav-active: #3a3b44;
-  --om-input: #35363d;
-  --om-input-focus: #3f414a;
+  --om-input: #3a3b44;
+  --om-input-focus: #454650;
+  --om-accent: #ff8a5c;
   --om-accent-soft: #3b2415;
-  --om-success-bg: #14532d;
-  --om-danger-bg: #450a0a;
-  --om-warn-bg: #422006;
-  --om-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --om-success: #4ade80;
+  --om-success-bg: #166534;
+  --om-danger: #f87171;
+  --om-danger-bg: #7f1d1d;
+  --om-warn: #fbbf24;
+  --om-warn-bg: #713f12;
+  --om-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 /* Super Admin — deep slate */
