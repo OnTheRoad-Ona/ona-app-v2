@@ -311,7 +311,10 @@ export function NotificationSettings({ className, onSaved }: Props) {
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-600" : "text-white/65";
   const card = isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]";
-  const trackOff = isLight ? "bg-black/20" : "bg-white/20";
+  // Light OFF track must be clearly darker so the white knob is visible
+  const trackOff = isLight ? "#6b6e76" : "rgba(255,255,255,0.28)";
+  const knobOn = "#ffffff";
+  const knobOff = isLight ? "#f4f4f5" : "#ffffff";
 
   const Toggle = ({
     on,
@@ -331,21 +334,22 @@ export function NotificationSettings({ className, onSaved }: Props) {
       aria-label={label}
       aria-describedby={describedBy}
       onClick={() => onChange(!on)}
-      className={cn(
-        "relative h-6 w-11 shrink-0 rounded-full border-0 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2",
-        on ? "" : trackOff
-      )}
-      style={
-        on
-          ? { backgroundColor: accent, outlineColor: accent }
-          : { outlineColor: accent }
-      }
+      className="relative h-7 w-12 shrink-0 rounded-full border-0 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+      style={{
+        backgroundColor: on ? accent : trackOff,
+        outlineColor: accent,
+        boxShadow: "none",
+      }}
     >
       <span
         className={cn(
-          "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform",
-          on ? "left-5" : "left-0.5"
+          "absolute top-0.5 h-6 w-6 rounded-full transition-transform",
+          on ? "left-[1.35rem]" : "left-0.5"
         )}
+        style={{
+          backgroundColor: on ? knobOn : knobOff,
+          boxShadow: "none",
+        }}
         aria-hidden
       />
     </button>

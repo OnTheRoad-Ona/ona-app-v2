@@ -27,14 +27,39 @@ function authorized(req: Request): boolean {
 }
 
 async function run(req: Request) {
-  if (!authorized(req)) {
-    return apiFail("Unauthorized", 401);
-  }
   try {
-    const result = await expireOverdueBookedJobs(50);
+    // Job cancel/refund sweeps stay behind CRON_SECRET when configured.
+    // Payout catch-up is always allowed (idempotent) so open jobs unstick when
+    // Available is funded — even if the browser cannot send the cron secret.
+    let result: { checked: number; cancelled: number; ids: string[] } = {
+      checked: 0,
+      cancelled: 0,
+      ids: [],
+    };
+    if (authorized(req)) {
+      result = await expireOverdueBookedJobs(50);
+    }
+
+    let payoutRetry: {
+      checked: number;
+      succeeded: number;
+      stillPending: number;
+      failed: number;
+      ids: string[];
+    } | null = null;
+    try {
+      const { processDuePayoutRetries } = await import(
+        "@/lib/server/payments/payout-settlement"
+      );
+      payoutRetry = await processDuePayoutRetries(30);
+    } catch (e) {
+      console.error("payout retry in expire-stale", e);
+    }
     return apiOk({
       ...result,
-      rule: "Booked jobs not completed within 6 hours of payment are cancelled with full refund",
+      payoutRetry,
+      rule:
+        "Agreed unpaid: payment details expire after 20 min; Booked not completed within 6h: cancel + refund; Completed 6h: auto-release pro 87.5%; PENDING_SETTLEMENT: auto-retry when FLW Available is enough",
     });
   } catch (e) {
     return apiFail(

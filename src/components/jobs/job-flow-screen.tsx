@@ -36,6 +36,7 @@ import {
   CONVERSATION_ENDED_MESSAGE,
   JOB_CLOSED_MESSAGE,
   isJobEndedStatus,
+  isJobHistoryOnlyStatus,
 } from "@/lib/chat-expired";
 import {
   apiAcceptOffer,
@@ -49,20 +50,32 @@ import {
   getCurrentPosition,
 } from "@/lib/jobs/client";
 import {
+  canOpenDisputeNow,
+  COMPLETED_AUTO_RELEASE_WINDOW_MS,
   DISPUTE_REASONS,
+  isNegotiationTimerArmed,
+  isPayoutPendingSettlement,
   MAX_OFFER_DIGITS,
+  MIN_OFFER_AMOUNT_MAJOR,
+  paymentEndsAtIso,
   PRO_TRIP_STATUS_COPY,
+  satisfiedReleaseEndsAtIso,
   TRIP_STATUS_COPY,
 } from "@/lib/jobs/constants";
 import { negotiationUiStatus } from "@/lib/jobs/state-machine";
 import type { DisputeReason, JobRecord } from "@/lib/jobs/types";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { tradeIconDataUrl } from "@/lib/map-trade-icons";
-import { formatMoney, LABOUR_SPLIT_LINE } from "@/lib/pricing";
+import {
+  buildCustomerChargeMajor,
+  formatMoney,
+  fromMinorUnits,
+  LABOUR_SPLIT_LINE_PRO,
+} from "@/lib/pricing";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import type { ServiceRequest } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, firstNameOnly } from "@/lib/utils";
 
 /** Prefer newer job snapshots so stale polls never undo Start trip etc. */
 function isJobNewer(next: JobRecord, prev: JobRecord | null): boolean {
@@ -115,13 +128,16 @@ export function JobFlowScreen({
   const [job, setJob] = useState<JobRecord | null>(null);
   const jobRef = useRef<JobRecord | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  /** Release/payout errors must survive job polls (load() used to wipe setErr). */
+  const [stickyReleaseErr, setStickyReleaseErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [offerInput, setOfferInput] = useState("");
   const [disputeOpen, setDisputeOpen] = useState(false);
   const [disputeReason, setDisputeReason] =
     useState<DisputeReason>("work_incomplete");
   const [disputeDesc, setDisputeDesc] = useState("");
-  const [rating, setRating] = useState(5);
+  /** 0 = blank until customer taps a star */
+  const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
   const [reviewLeft, setReviewLeft] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
@@ -266,16 +282,30 @@ export function JobFlowScreen({
   const load = useCallback(async () => {
     const res = await apiGetJob(jobId);
     if (!res.ok) {
-      setErr(res.message);
+      // Don't overwrite a sticky release error with a generic load failure
+      setErr((prev) => stickyReleaseErr || prev || res.message);
       return;
     }
     commitJob(res.data.job);
-    setErr(null);
-  }, [jobId, commitJob]);
+    // Never clear stickyReleaseErr here — only dismiss / successful release
+    setErr((prev) => (stickyReleaseErr ? stickyReleaseErr : null));
+    // If payout already done, drop sticky error
+    if (
+      res.data.job.releasedAt ||
+      res.data.job.escrowStatus === "released" ||
+      res.data.job.status === "released"
+    ) {
+      setStickyReleaseErr(null);
+    }
+  }, [jobId, commitJob, stickyReleaseErr]);
 
-  // Client backup: sweep overdue Booked jobs (6h) when this screen is open
+  // Client backup: sweep overdue jobs + retry PENDING_SETTLEMENT payouts while open
   useEffect(() => {
     let cancelled = false;
+    const pendingPayout =
+      job?.status === "satisfied" ||
+      job?.escrowStatus === "pending_settlement" ||
+      job?.escrowStatus === "release_pending";
     const sweep = async () => {
       try {
         const { apiExpireStaleBookedJobs } = await import("@/lib/jobs/client");
@@ -287,35 +317,51 @@ export function JobFlowScreen({
       }
     };
     void sweep();
+    // Faster poll while payout is stuck processing (funds may already be Available)
+    const intervalMs = pendingPayout ? 20_000 : 120_000;
     const t = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void sweep();
-    }, 120_000);
+    }, intervalMs);
     return () => {
       cancelled = true;
       window.clearInterval(t);
     };
-  }, [load]);
+  }, [
+    load,
+    job?.status,
+    job?.escrowStatus,
+  ]);
 
-  // When job flips to completed for motorist, surface satisfaction UI immediately
+  // When job flips to completed for customer, force satisfaction UI + notify
   const prevStatusRef = useRef<string | null>(null);
   useEffect(() => {
     const prev = prevStatusRef.current;
     prevStatusRef.current = job?.status || null;
-    if (
-      viewer === "motorist" &&
-      job?.status === "completed" &&
-      prev &&
-      prev !== "completed"
-    ) {
+    if (!job || job.status !== "completed") return;
+    const isCustomer =
+      (Boolean(actorId) && job.motoristId === actorId) ||
+      viewer === "motorist";
+    if (!isCustomer) return;
+    // Always re-assert path so dual-role / deep links land on release screen
+    if (typeof window !== "undefined") {
+      const path = `/jobs/${job.id}`;
+      if (!window.location.pathname.includes(path)) {
+        router.replace(path);
+      }
+    }
+    if (prev && prev !== "completed") {
       try {
+        // Short in-app flash only (2s) — not sticky
+        setFlash("Job complete — release payment");
+        window.setTimeout(() => setFlash(null), 2000);
         void import("@/lib/app-notify").then(({ showAppNotification }) => {
           showAppNotification({
             title: "Confirm & release pay",
-            body: "Job complete — tap I am satisfied to release payment.",
+            body: "Job complete — tap I am Satisfied to release payment.",
             tag: `job-complete-${job.id}`,
             href: `/jobs/${job.id}`,
-            requireInteraction: true,
+            requireInteraction: false,
           });
         });
         void import("@/lib/sound-tone").then(({ playAppSound }) => {
@@ -325,7 +371,7 @@ export function JobFlowScreen({
         /* */
       }
     }
-  }, [job?.status, job?.id, viewer]);
+  }, [job?.status, job?.id, job?.motoristId, viewer, actorId, router]);
 
   // Poll job state; faster while trip active / awaiting satisfaction
   useEffect(() => {
@@ -545,13 +591,9 @@ export function JobFlowScreen({
     );
   }
 
-  /* Ended jobs: process history only — never stay on live job shell */
-  if (
-    isJobEndedStatus(job.status) &&
-    job.status !== "disputed" &&
-    job.status !== "under_appeal"
-  ) {
-    // Rating / satisfaction still on process page; live trip UI is wrong here
+  /* Truly finished jobs only → history. Keep completed/satisfied on live shell
+   * so customer can tap I’M SATISFIED and release pay. */
+  if (isJobHistoryOnlyStatus(job.status)) {
     if (typeof window !== "undefined") {
       const path = window.location.pathname || "";
       if (path.startsWith("/jobs/")) {
@@ -622,13 +664,25 @@ export function JobFlowScreen({
           footer={
             <div className="space-y-2">
               <CopperButton
+                disabled={busy}
                 onClick={() => {
-                  setProCanFixAccepted(true);
-                  try {
-                    sessionStorage.setItem(`om-can-fix-${job.id}`, "1");
-                  } catch {
-                    /* */
-                  }
+                  void run(async () => {
+                    const res = await apiTransition({
+                      jobId: job.id,
+                      event: "START_NEGOTIATION",
+                      actor: "repair_pro",
+                      actorId,
+                    });
+                    if (res.ok) {
+                      setProCanFixAccepted(true);
+                      try {
+                        sessionStorage.setItem(`om-can-fix-${job.id}`, "1");
+                      } catch {
+                        /* */
+                      }
+                    }
+                    return res;
+                  });
                 }}
               >
                 I can fix this
@@ -656,33 +710,31 @@ export function JobFlowScreen({
         >
           <div className="space-y-4 px-0.5 pt-2">
             <p className={cn("text-[15px] font-semibold leading-snug", ink)}>
-              Read this before you accept this request
+              Service Request — vehicle &amp; issues only
             </p>
             <div className="space-y-3">
-              {job.motoristVehicle ? (
-                <div>
-                  <p className={cn("text-[11px] font-medium uppercase", muted)}>
-                    Vehicle
-                  </p>
-                  <p className={cn("mt-1 text-[14px] font-semibold", ink)}>
-                    {job.motoristVehicle}
-                  </p>
-                </div>
-              ) : null}
               <div>
                 <p className={cn("text-[11px] font-medium uppercase", muted)}>
-                  Service
+                  Vehicle
                 </p>
                 <p className={cn("mt-1 text-[14px] font-semibold", ink)}>
-                  {PRO_SERVICE_LABELS[job.serviceType] || job.serviceType}
+                  {job.motoristVehicle?.trim() || "Vehicle details on request"}
                 </p>
               </div>
               <div>
                 <p className={cn("text-[11px] font-medium uppercase", muted)}>
-                  I ADMIT TO FIX IT
+                  Common issues
                 </p>
                 <p className={cn("mt-1 text-[14px] font-medium leading-relaxed", ink)}>
                   {job.problem}
+                </p>
+              </div>
+              <div>
+                <p className={cn("text-[11px] font-medium uppercase", muted)}>
+                  Your matching skill
+                </p>
+                <p className={cn("mt-1 text-[14px] font-semibold", ink)}>
+                  {PRO_SERVICE_LABELS[job.serviceType] || job.serviceType}
                 </p>
               </div>
               {job.voiceNote?.url && (
@@ -691,7 +743,7 @@ export function JobFlowScreen({
                     url={job.voiceNote.url}
                     durationSec={job.voiceNote.durationSec}
                     isLight={isLight}
-                    label="Customer voice note"
+                    label="Problem voice note"
                   />
                 </div>
               )}
@@ -714,7 +766,7 @@ export function JobFlowScreen({
     return (
       <JobShell
         isLight={isLight}
-        title={viewer === "repair_pro" ? "New Request" : "Negotiate labour"}
+        title={viewer === "repair_pro" ? "Service Request" : "Negotiate labour"}
         compactHeader
         onBack={goJobsList}
         footer={
@@ -759,7 +811,7 @@ export function JobFlowScreen({
                     }}
                     placeholder={
                       mySide === "repair_pro"
-                        ? "Labour price (not 0)"
+                        ? `Labour price (min ₦${MIN_OFFER_AMOUNT_MAJOR})`
                         : "Counter (max 50% off)"
                     }
                     className={cn(
@@ -772,15 +824,24 @@ export function JobFlowScreen({
                   />
                   <button
                     type="button"
-                    disabled={busy || !offerInput || Number(offerInput) < 1}
+                    disabled={
+                      busy ||
+                      !offerInput ||
+                      Number(offerInput.replace(/\D/g, "")) <
+                        MIN_OFFER_AMOUNT_MAJOR
+                    }
                     onClick={() =>
                       void run(async () => {
                         const amount = Number(offerInput.replace(/\D/g, ""));
-                        if (!Number.isFinite(amount) || amount < 1) {
-                          setErr("Price cannot start from 0.");
+                        if (
+                          !Number.isFinite(amount) ||
+                          amount < MIN_OFFER_AMOUNT_MAJOR
+                        ) {
+                          const msg = `Minimum service charge is ₦${MIN_OFFER_AMOUNT_MAJOR.toLocaleString("en-NG")}.`;
+                          setErr(msg);
                           return {
                             ok: false as const,
-                            message: "Price cannot start from 0.",
+                            message: msg,
                           };
                         }
                         const res = await apiPlaceOffer({
@@ -798,10 +859,6 @@ export function JobFlowScreen({
                     Send
                   </button>
                 </div>
-                <p className={cn("text-[10px] font-medium", muted)}>
-                  Up to {job.maxOffers} offers · not 0 · max {MAX_OFFER_DIGITS}{" "}
-                  digits · 20 min
-                </p>
               </div>
             )}
             <button
@@ -831,21 +888,7 @@ export function JobFlowScreen({
           <div className="shrink-0 space-y-4 bg-transparent">
             {viewer === "repair_pro" ? (
               <div className="space-y-3 bg-transparent">
-                {job.motoristVehicle ? (
-                  <div>
-                    <p
-                      className={cn(
-                        "text-[11px] font-semibold uppercase tracking-wide",
-                        muted
-                      )}
-                    >
-                      Vehicle
-                    </p>
-                    <p className={cn("mt-1 text-[15px] font-semibold", ink)}>
-                      {job.motoristVehicle}
-                    </p>
-                  </div>
-                ) : null}
+                {/* Pro request: vehicle details + matching skills only — no customer PII */}
                 <div>
                   <p
                     className={cn(
@@ -853,10 +896,10 @@ export function JobFlowScreen({
                       muted
                     )}
                   >
-                    Service
+                    Vehicle
                   </p>
                   <p className={cn("mt-1 text-[15px] font-semibold", ink)}>
-                    {PRO_SERVICE_LABELS[job.serviceType] || job.serviceType}
+                    {job.motoristVehicle?.trim() || "Vehicle details on request"}
                   </p>
                 </div>
                 <div>
@@ -866,7 +909,7 @@ export function JobFlowScreen({
                       muted
                     )}
                   >
-                    I ADMIT TO FIX IT
+                    Common issues
                   </p>
                   <p
                     className={cn(
@@ -875,6 +918,19 @@ export function JobFlowScreen({
                     )}
                   >
                     {job.problem}
+                  </p>
+                </div>
+                <div>
+                  <p
+                    className={cn(
+                      "text-[11px] font-semibold uppercase tracking-wide",
+                      muted
+                    )}
+                  >
+                    Your matching skill
+                  </p>
+                  <p className={cn("mt-1 text-[15px] font-semibold", ink)}>
+                    {PRO_SERVICE_LABELS[job.serviceType] || job.serviceType}
                   </p>
                 </div>
                 {job.voiceNote?.url && (
@@ -971,22 +1027,30 @@ export function JobFlowScreen({
             </div>
           </div>
 
-          {/* Ring mid-page under problem / offer history */}
+          {/* Ring mid-page — only after pro armed the negotiate clock */}
           <div className="flex min-h-[42vh] flex-1 flex-col items-center justify-center bg-transparent py-5">
-            <CountdownTimer
-              variant="ring"
-              endsAt={job.negotiateEndsAt}
-              onExpire={() => {
-                void run(() =>
-                  apiTransition({
-                    jobId: job.id,
-                    event: "EXPIRE_NEGOTIATION",
-                    actor: "system",
-                  })
-                );
-              }}
-              className={ink}
-            />
+            {isNegotiationTimerArmed(job) ? (
+              <CountdownTimer
+                variant="ring"
+                endsAt={job.negotiateEndsAt}
+                onExpire={() => {
+                  void run(() =>
+                    apiTransition({
+                      jobId: job.id,
+                      event: "EXPIRE_NEGOTIATION",
+                      actor: "system",
+                    })
+                  );
+                }}
+                className={ink}
+              />
+            ) : (
+              <p className={cn("text-center text-[13px] font-semibold", muted)}>
+                {viewer === "repair_pro"
+                  ? "Accept the request to start the 20‑min negotiate timer"
+                  : "Waiting for Repair Pro to accept this request…"}
+              </p>
+            )}
             <p
               className={cn(
                 "mt-3 text-center text-[12px] font-medium",
@@ -1015,7 +1079,9 @@ export function JobFlowScreen({
   /* ─── AGREED ─── */
   if (job.status === "agreed") {
     const counterpartName =
-      viewer === "motorist" ? job.repairProName : job.motoristName;
+      viewer === "motorist"
+        ? job.repairProName
+        : firstNameOnly(job.motoristName);
     const counterpartPhoto =
       viewer === "motorist"
         ? job.repairProPhoto || DEFAULT_VENDOR_PHOTO
@@ -1024,6 +1090,7 @@ export function JobFlowScreen({
       viewer === "motorist"
         ? PRO_SERVICE_LABELS[job.serviceType]
         : "Customer";
+    const payEndsAt = paymentEndsAtIso(job);
 
     return (
       <JobShell
@@ -1043,10 +1110,14 @@ export function JobFlowScreen({
                 isLight={isLight}
                 disabled={busy}
                 onClick={() => {
-                  router.push(`/payments/checkout?jobId=${encodeURIComponent(job.id)}`);
+                  router.push(
+                    `/payments/checkout?jobId=${encodeURIComponent(job.id)}`
+                  );
                 }}
               >
-                Pay now to book
+                {job.paymentSessionEndsAt
+                  ? "Continue payment"
+                  : "Pay now to book"}
               </StageButton>
               <button
                 type="button"
@@ -1077,12 +1148,36 @@ export function JobFlowScreen({
         <div className="mb-3 flex flex-col items-center py-3 text-center">
           <p className={cn("text-[26px] font-black tracking-tight", ink)}>
             {job.agreedMajor != null
-              ? formatMoney(job.agreedMajor, job.currency)
+              ? formatMoney(
+                  viewer === "motorist"
+                    ? buildCustomerChargeMajor(job.agreedMajor).totalMajor
+                    : job.agreedMajor,
+                  job.currency
+                )
               : "—"}
           </p>
-          <p className={cn("mt-1 text-[12px] font-medium", muted)}>
-            {LABOUR_SPLIT_LINE}
-          </p>
+          {viewer === "repair_pro" ? (
+            <p className={cn("mt-1 text-[12px] font-medium", muted)}>
+              {LABOUR_SPLIT_LINE_PRO}
+            </p>
+          ) : job.agreedMajor != null ? (
+            <p className={cn("mt-1 text-[12px] font-medium", muted)}>
+              Service charge · pay exact amount
+            </p>
+          ) : null}
+          {/*
+            20-min pay timer lives only on checkout after Flutterwave opens.
+            Pros never see a pay countdown — only “waiting for customer”.
+          */}
+          {viewer === "motorist" && payEndsAt ? (
+            <p className={cn("mt-3 text-center text-[12px] font-semibold", muted)}>
+              Complete payment within 20 minutes in the checkout screen
+            </p>
+          ) : viewer === "repair_pro" ? (
+            <p className={cn("mt-3 text-center text-[12px] font-semibold", muted)}>
+              Waiting for customer to pay into escrow
+            </p>
+          ) : null}
         </div>
         {viewer === "motorist" ? (
           <JobCard isLight={isLight}>
@@ -1119,13 +1214,13 @@ export function JobFlowScreen({
               ) : null}
               <p className={cn("text-[14px] font-semibold", ink)}>
                 <span className={cn("text-[11px] uppercase", muted)}>
-                  Service ·{" "}
+                  Matching skill ·{" "}
                 </span>
                 {PRO_SERVICE_LABELS[job.serviceType] || job.serviceType}
               </p>
               <p className={cn("text-[14px] font-medium", ink)}>
                 <span className={cn("text-[11px] uppercase", muted)}>
-                  I ADMIT TO FIX IT ·{" "}
+                  Common issues ·{" "}
                 </span>
                 {job.problem}
               </p>
@@ -1172,10 +1267,8 @@ export function JobFlowScreen({
                   goJobsList();
                 }}
                 className={cn(
-                  "flex h-12 w-full items-center justify-center border-0 border-t text-[14px] font-bold",
-                  isLight
-                    ? "border-black/10 text-slate-900"
-                    : "border-white/10 text-white"
+                  "flex h-12 w-full items-center justify-center border-0 text-[14px] font-bold",
+                  isLight ? "text-slate-900" : "text-white"
                 )}
               >
                 Cancel payment
@@ -1195,8 +1288,7 @@ export function JobFlowScreen({
                   );
                 }}
                 className={cn(
-                  "flex h-12 w-full items-center justify-center border-0 border-t text-[14px] font-bold text-red-500",
-                  isLight ? "border-black/10" : "border-white/10"
+                  "flex h-12 w-full items-center justify-center border-0 text-[14px] font-bold text-red-500"
                 )}
               >
                 Cancel request
@@ -1205,10 +1297,8 @@ export function JobFlowScreen({
                 type="button"
                 onClick={() => setPayCancelOpen(false)}
                 className={cn(
-                  "flex h-11 w-full items-center justify-center border-0 border-t text-[13px] font-semibold",
-                  isLight
-                    ? "border-black/10 text-slate-500"
-                    : "border-white/10 text-white/50"
+                  "flex h-11 w-full items-center justify-center border-0 text-[13px] font-semibold",
+                  isLight ? "text-slate-500" : "text-white/50"
                 )}
               >
                 Keep paying
@@ -1869,52 +1959,247 @@ export function JobFlowScreen({
 
   /* ─── COMPLETED → customer must confirm to release pay ─── */
   if (job.status === "completed") {
-    // Job party wins over “Use as” role (dual-account devices)
-    const isCustomerParty =
+    // Prefer job membership over “Use as” role (dual-account devices).
+    // Motorist on the job ALWAYS gets I’m Satisfied — never hide behind role.
+    const isMotoristOnJob =
+      Boolean(actorId) && Boolean(job.motoristId) && job.motoristId === actorId;
+    const isProOnlyOnJob =
       Boolean(actorId) &&
-      (job.motoristId === actorId || viewer === "motorist");
-    const showSatisfiedCta = isCustomerParty;
+      Boolean(job.repairProId) &&
+      job.repairProId === actorId &&
+      !isMotoristOnJob;
+    // Only treat as done when money actually released (not a false satisfiedAt stamp)
+    const payoutDone =
+      Boolean(job.releasedAt) || job.escrowStatus === "released";
+    const showSatisfiedCta =
+      !payoutDone &&
+      (isMotoristOnJob || viewer === "motorist" || !isProOnlyOnJob);
 
-    const onSatisfied = () =>
-      void run(async () => {
-        const res = await apiTransition({
-          jobId: job.id,
-          event: "SATISFIED",
-          actor: "motorist",
-          actorId,
-        });
-        if (res.ok) {
+    const motoristActor =
+      (job.motoristId && job.motoristId.length > 10
+        ? job.motoristId
+        : null) ||
+      (actorId && actorId.length > 10 ? actorId : null) ||
+      "";
+
+    const onSatisfied = () => {
+      if (!motoristActor) {
+        const msg =
+          "Sign in as the customer who booked this job to release payment.";
+        setErr(msg);
+        setStickyReleaseErr(msg);
+        return;
+      }
+      setBusy(true);
+      setErr(null);
+      // Keep previous sticky until we know result
+      void (async () => {
+        try {
+          const res = await apiTransition({
+            jobId: job.id,
+            event: "SATISFIED",
+            actor: "motorist",
+            actorId: motoristActor,
+          });
           try {
-            const { playAppSound } = await import("@/lib/sound-tone");
-            playAppSound("payment_success");
+            const again = await apiGetJob(job.id);
+            if (again.ok && again.data.job) commitJob(again.data.job, true);
           } catch {
             /* */
           }
+          if (!res.ok) {
+            const msg =
+              res.message ||
+              "Could not release payment. Funds stay held. Fix bank details or contact support.";
+            setErr(msg);
+            setStickyReleaseErr(msg);
+            try {
+              const { playAppSound } = await import("@/lib/sound-tone");
+              playAppSound("error");
+            } catch {
+              /* */
+            }
+            return;
+          }
+          setStickyReleaseErr(null);
+          setErr(null);
+          applyJob(res.data.job);
+          try {
+            const { playAppSound } = await import("@/lib/sound-tone");
+            playAppSound(
+              isPayoutPendingSettlement(res.data.job)
+                ? "success_soft"
+                : "job_complete"
+            );
+          } catch {
+            /* */
+          }
+          // Customer → dashboard immediately after confirm
+          window.setTimeout(() => {
+            router.replace("/dashboard");
+          }, 600);
+        } catch (e) {
+          const msg =
+            e instanceof Error
+              ? e.message
+              : "Release failed. Funds stay in escrow.";
+          setErr(msg);
+          setStickyReleaseErr(msg);
+        } finally {
+          setBusy(false);
         }
-        return res;
-      });
+      })();
+    };
+
+    const releaseBanner = stickyReleaseErr || err;
+    const copyReleaseErr = () => {
+      if (!releaseBanner) return;
+      void navigator.clipboard.writeText(releaseBanner).catch(() => null);
+    };
+    const dismissReleaseErr = () => {
+      setErr(null);
+      setStickyReleaseErr(null);
+    };
+    // Only show optional egress help when FLW message is clearly IP-related
+    const showEgressHint =
+      Boolean(releaseBanner) &&
+      /ip whitelist|ip whitelisting|whitelist.*ip|ip policy/i.test(
+        releaseBanner || ""
+      );
+
+    const autoReleaseEndsAt = satisfiedReleaseEndsAtIso(job);
+
+    // Pro 87.5% · Ona 5% · VAT 7.5% (VAT stays on FLW)
+    const releaseTotalMajor =
+      job.agreedMajor != null && job.agreedMajor > 0
+        ? job.agreedMajor
+        : job.amountMinor != null && job.amountMinor > 0
+          ? fromMinorUnits(job.amountMinor, job.currency)
+          : null;
+    const releaseSplit =
+      releaseTotalMajor != null
+        ? buildCustomerChargeMajor(releaseTotalMajor)
+        : null;
+    const releaseProMajor =
+      releaseSplit != null
+        ? releaseSplit.proPayoutMajor
+        : job.proPayoutMinor != null
+          ? fromMinorUnits(job.proPayoutMinor, job.currency)
+          : null;
+    const releasePlatformMajor =
+      releaseSplit != null
+        ? releaseSplit.platformFeeMajor
+        : job.platformFeeMinor != null
+          ? fromMinorUnits(job.platformFeeMinor, job.currency)
+          : null;
+    const releaseVatMajor = releaseSplit != null ? releaseSplit.vatMajor : null;
+
+    const completedDisputeSheet = disputeOpen ? (
+      <DisputeSheet
+        isLight={isLight}
+        reason={disputeReason}
+        setReason={setDisputeReason}
+        desc={disputeDesc}
+        setDesc={setDisputeDesc}
+        busy={busy}
+        onClose={() => setDisputeOpen(false)}
+        onSubmit={() =>
+          void run(async () => {
+            const res = await apiOpenDispute({
+              jobId: job.id,
+              by: "motorist",
+              reason: disputeReason,
+              description: disputeDesc,
+            });
+            if (res.ok) setDisputeOpen(false);
+            return res;
+          })
+        }
+      />
+    ) : null;
 
     return (
       <JobShell
         isLight={isLight}
         title={
-          showSatisfiedCta ? "Confirm & release pay" : "Job completed"
+          showSatisfiedCta
+            ? "Release payment"
+            : payoutDone
+              ? "Paid"
+              : "Completed"
         }
         compactHeader
         onBack={goJobsList}
         footer={
           showSatisfiedCta ? (
             <div className="flex w-full flex-col gap-2">
-              <CopperButton disabled={busy} onClick={onSatisfied}>
-                I&apos;M SATISFIED
+              {releaseBanner ? (
+                <div
+                  className="z-20 max-h-48 overflow-y-auto rounded-lg border border-red-500/40 bg-red-50 px-3 py-2.5 text-left dark:bg-red-950/40"
+                  role="alert"
+                >
+                  <p className="text-[12px] font-semibold leading-snug text-red-700 dark:text-red-300">
+                    {releaseBanner}
+                  </p>
+                  {showEgressHint ? (
+                    <p className="mt-2 text-[11px] font-medium leading-snug text-red-800/90 dark:text-red-200/90">
+                      Optional: if Flutterwave IP Whitelisting is ON, check{" "}
+                      <a
+                        href="/api/payments/egress-ip"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-bold underline"
+                      >
+                        /api/payments/egress-ip
+                      </a>
+                      {" "}or turn IP Whitelisting OFF. Prefer{" "}
+                      <code className="text-[10px]">FLUTTERWAVE_TRANSFER_PROXY_URL</code>{" "}
+                      for a fixed payout IP.
+                    </p>
+                  ) : null}
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={copyReleaseErr}
+                      className="rounded-md border-0 bg-red-600/15 px-2.5 py-1 text-[11px] font-bold text-red-700"
+                    >
+                      Copy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={dismissReleaseErr}
+                      className="rounded-md border-0 bg-black/5 px-2.5 py-1 text-[11px] font-bold text-red-800"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              <CopperButton
+                disabled={busy || !motoristActor}
+                onClick={onSatisfied}
+              >
+                {busy ? "Confirming…" : "I am Satisfied · Release"}
               </CopperButton>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setDisputeOpen(true)}
+                className="w-full text-center text-[12px] font-bold text-red-500"
+              >
+                Open a dispute
+              </button>
               <p className={cn("text-center text-[11px] font-medium", muted)}>
-                Releases 95% to {job.repairProName} · 5% platform
+                Cannot close this job · auto-releases after 6 hours if no dispute
               </p>
             </div>
+          ) : payoutDone ? (
+            <p className={cn("text-center text-[13px] font-semibold", muted)}>
+              Released
+            </p>
           ) : (
             <p className={cn("text-center text-[13px] font-semibold", muted)}>
-              Waiting for customer to confirm “I am satisfied”…
+              Waiting for customer…
             </p>
           )
         }
@@ -1923,62 +2208,145 @@ export function JobFlowScreen({
           <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-500" />
           <p className={cn("mt-3 text-[18px] font-black", ink)}>
             {showSatisfiedCta
-              ? "Work is done — confirm to release money"
-              : "Work marked complete"}
+              ? "Release payment"
+              : payoutDone
+                ? "Released"
+                : "Work complete"}
           </p>
-          <p className={cn("mt-1 text-[13px] leading-snug", muted)}>
-            {showSatisfiedCta
-              ? `Tap I’M SATISFIED to send 95% to ${job.repairProName} (5% stays with the platform).`
-              : "Escrow releases only after the customer confirms."}
-          </p>
-          {job.agreedMajor != null && (
+          {!showSatisfiedCta ? (
+            <p className={cn("mt-1 text-[13px] leading-snug", muted)}>
+              {payoutDone ? "Payment released" : "Awaiting customer confirm"}
+            </p>
+          ) : null}
+          {releaseTotalMajor != null && (
             <p className={cn("mt-4 text-[24px] font-black tabular-nums", ink)}>
-              {formatMoney(job.agreedMajor, job.currency)}
+              {formatMoney(releaseTotalMajor, job.currency)}
             </p>
           )}
-          {showSatisfiedCta ? (
-            <div className="mt-5 space-y-2">
-              <CopperButton disabled={busy} onClick={onSatisfied}>
-                I&apos;M SATISFIED
-              </CopperButton>
-              <p className={cn("text-[11px] font-medium", muted)}>
-                {LABOUR_SPLIT_LINE || "95% Repair Pro · 5% platform"}
+          {/* Split breakdown — Repair Pro only (customers never see 95/5) */}
+          {viewer === "repair_pro" &&
+          releaseProMajor != null &&
+          releasePlatformMajor != null ? (
+            <div
+              className={cn(
+                "mx-auto mt-3 w-full max-w-[280px] space-y-1.5 rounded-xl px-3 py-2.5 text-left text-[12px] font-semibold",
+                isLight ? "bg-black/5" : "bg-white/8"
+              )}
+            >
+              <p className={cn("text-center text-[11px] font-bold uppercase tracking-wide", muted)}>
+                Split on release
+              </p>
+              <div className="flex items-center justify-between gap-2">
+                <span className={muted}>You receive (87.5%)</span>
+                <span className={cn("tabular-nums font-black", ink)}>
+                  {formatMoney(releaseProMajor, job.currency)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className={muted}>Ona platform (5%)</span>
+                <span className={cn("tabular-nums font-black", ink)}>
+                  {formatMoney(releasePlatformMajor, job.currency)}
+                </span>
+              </div>
+              {releaseVatMajor != null ? (
+                <div className="flex items-center justify-between gap-2">
+                  <span className={muted}>VAT held on FLW (7.5%)</span>
+                  <span className={cn("tabular-nums font-black", ink)}>
+                    {formatMoney(releaseVatMajor, job.currency)}
+                  </span>
+                </div>
+              ) : null}
+              <p className={cn("pt-0.5 text-center text-[10px] font-medium", muted)}>
+                Paid to your bank · Ona 5% settles to platform · VAT stays on Flutterwave
               </p>
             </div>
           ) : null}
+          {showSatisfiedCta && autoReleaseEndsAt ? (
+            <div className="mt-4 px-1">
+              <p className="mb-1 text-center text-[11px] font-semibold text-[#FF6B35]">
+                Auto-release in
+              </p>
+              <CountdownTimer
+                endsAt={autoReleaseEndsAt}
+                totalMs={COMPLETED_AUTO_RELEASE_WINDOW_MS}
+                className={ink}
+              />
+            </div>
+          ) : null}
+          {releaseBanner && showSatisfiedCta ? (
+            <div
+              className="mt-3 max-h-40 overflow-y-auto rounded-lg border border-red-500/30 bg-red-50 px-3 py-2 text-left dark:bg-red-950/30"
+              role="alert"
+            >
+              <p className="text-[12px] font-semibold leading-snug text-red-600 dark:text-red-300">
+                {releaseBanner}
+              </p>
+              <div className="mt-1.5 flex gap-3">
+                <button
+                  type="button"
+                  onClick={copyReleaseErr}
+                  className="text-[11px] font-bold text-red-700 underline"
+                >
+                  Copy error
+                </button>
+                <button
+                  type="button"
+                  onClick={dismissReleaseErr}
+                  className="text-[11px] font-bold text-red-700 underline"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          ) : null}
         </JobCard>
-        {showSatisfiedCta ? (
+        {completedDisputeSheet}
+      </JobShell>
+    );
+  }
+
+  /* ─── PENDING SETTLEMENT (customer confirmed, payout auto-retrying) ─── */
+  if (isPayoutPendingSettlement(job) && job.status !== "released") {
+    return (
+      <JobShell
+        isLight={isLight}
+        title="Payout processing"
+        compactHeader
+        onBack={() =>
+          router.replace(
+            viewer === "repair_pro" ? "/payments/history" : "/dashboard"
+          )
+        }
+        footer={
           <button
             type="button"
-            onClick={() => setDisputeOpen(true)}
-            className="mt-4 w-full text-center text-[12px] font-bold text-red-500"
-          >
-            Open dispute instead
-          </button>
-        ) : null}
-        {disputeOpen && (
-          <DisputeSheet
-            isLight={isLight}
-            reason={disputeReason}
-            setReason={setDisputeReason}
-            desc={disputeDesc}
-            setDesc={setDisputeDesc}
-            busy={busy}
-            onClose={() => setDisputeOpen(false)}
-            onSubmit={() =>
-              void run(async () => {
-                const res = await apiOpenDispute({
-                  jobId: job.id,
-                  by: "motorist",
-                  reason: disputeReason,
-                  description: disputeDesc,
-                });
-                if (res.ok) setDisputeOpen(false);
-                return res;
-              })
+            onClick={() =>
+              router.replace(
+                viewer === "repair_pro" ? "/payments/history" : "/dashboard"
+              )
             }
-          />
-        )}
+            className="inline-flex h-12 w-full items-center justify-center rounded-md border-0 bg-[#FF6B35] text-[14px] font-black text-white"
+          >
+            Back to Dashboard
+          </button>
+        }
+      >
+        <JobCard isLight={isLight} className="text-center">
+          <Loader2 className="mx-auto h-12 w-12 animate-spin text-[#FF6B35]" />
+          <p className={cn("mt-3 text-[17px] font-black", ink)}>
+            Payout processing
+          </p>
+          <p className={cn("mt-2 text-[13px] leading-snug", muted)}>
+            {viewer === "repair_pro"
+              ? "Your payout is being processed automatically. You’ll be notified when it’s released to your bank."
+              : "Your payment is being processed. You’ll get a notification when it’s fully released. No further action needed."}
+          </p>
+          {job.agreedMajor != null ? (
+            <p className={cn("mt-4 text-[22px] font-black tabular-nums", ink)}>
+              {formatMoney(job.agreedMajor, job.currency)}
+            </p>
+          ) : null}
+        </JobCard>
       </JobShell>
     );
   }
@@ -1994,6 +2362,10 @@ export function JobFlowScreen({
 
     const submitReview = async () => {
       if (viewer !== "motorist") return;
+      if (!rating || rating < 1) {
+        setErr("Tap a star rating first");
+        return;
+      }
       setBusy(true);
       setErr(null);
       const note = reviewText.trim().slice(0, REVIEW_MAX);
@@ -2019,11 +2391,15 @@ export function JobFlowScreen({
         className="flex items-center justify-center gap-2"
         role={interactive ? "radiogroup" : "img"}
         aria-label={
-          interactive ? "Rate the Repair Pro" : `Rated ${value} out of 5`
+          interactive
+            ? "Rate the Repair Pro"
+            : value > 0
+              ? `Rated ${value} out of 5`
+              : "No rating yet"
         }
       >
         {[1, 2, 3, 4, 5].map((n) => {
-          const on = value >= n;
+          const on = value > 0 && value >= n;
           if (!interactive) {
             return (
               <Star
@@ -2069,22 +2445,64 @@ export function JobFlowScreen({
       </div>
     );
 
+    const canDisputeClosed = canOpenDisputeNow(job);
+
     return (
       <JobShell
         isLight={isLight}
-        title="Payment released"
+        title={
+          isPayoutPendingSettlement(job) && job.status !== "released"
+            ? "Payout processing"
+            : job.status === "released"
+              ? "Payment released"
+              : "Confirmed"
+        }
         compactHeader
-        onBack={goHome}
+        onBack={viewer === "repair_pro" ? () => router.replace("/payments/history") : goHome}
         footer={
-          // Pure history when already reviewed / pro view — motorist may still leave review once
-          viewer === "motorist" && !alreadyLeft ? (
-            <CopperButton
-              disabled={busy}
-              onClick={() => void submitReview()}
-            >
-              {busy ? "Saving…" : "Leave review"}
-            </CopperButton>
-          ) : undefined
+          <div className="flex w-full flex-col gap-2">
+            {viewer === "motorist" && !alreadyLeft ? (
+              <CopperButton
+                disabled={busy || rating < 1}
+                onClick={() => void submitReview()}
+              >
+                {busy ? "Saving…" : "Leave review"}
+              </CopperButton>
+            ) : null}
+            {canDisputeClosed ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setDisputeOpen(true)}
+                className="w-full text-center text-[12px] font-bold text-red-500"
+              >
+                Open a dispute (48h window)
+              </button>
+            ) : null}
+            {viewer === "motorist" ? (
+              <button
+                type="button"
+                onClick={() => router.replace("/dashboard")}
+                className={cn(
+                  "w-full text-center text-[12px] font-semibold",
+                  muted
+                )}
+              >
+                Go to dashboard
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => router.replace("/payments/history")}
+                className={cn(
+                  "w-full text-center text-[12px] font-semibold",
+                  muted
+                )}
+              >
+                Payment status
+              </button>
+            )}
+          </div>
         }
       >
         {/* Flat success layout — no cards / no tinted panels (both themes) */}

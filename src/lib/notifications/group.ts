@@ -9,14 +9,27 @@ export type NotificationGroup = {
 };
 
 /**
- * Smart grouping: same groupKey collapses into one expandable row.
+ * Stack key: explicit groupKey, else same title + category + job
+ * (Twitter-style: related updates collapse into one cascade).
+ */
+function stackKey(n: AppNotification): string {
+  if (n.groupKey) return `gk:${n.groupKey}`;
+  const title = (n.title || "").trim().toLowerCase().replace(/\s+/g, " ");
+  const cat = n.category || "system";
+  const job = n.jobId || "";
+  const action = n.actionType || "";
+  return `st:${cat}|${job}|${action}|${title}`;
+}
+
+/**
+ * Smart grouping: same thread collapses into one expandable cascade.
+ * Newest first; click expands stacked updates.
  */
 export function groupNotifications(
   list: AppNotification[]
 ): (AppNotification | NotificationGroup)[] {
-  const groups = new Map<string, AppNotification[]>();
+  const buckets = new Map<string, AppNotification[]>();
   const order: string[] = [];
-  const singles: AppNotification[] = [];
 
   const sorted = [...list].sort(
     (a, b) =>
@@ -24,39 +37,26 @@ export function groupNotifications(
   );
 
   for (const n of sorted) {
-    if (n.groupKey) {
-      if (!groups.has(n.groupKey)) {
-        groups.set(n.groupKey, []);
-        order.push(`g:${n.groupKey}`);
-      }
-      groups.get(n.groupKey)!.push(n);
-    } else {
-      order.push(`s:${n.id}`);
-      singles.push(n);
+    const key = stackKey(n);
+    if (!buckets.has(key)) {
+      buckets.set(key, []);
+      order.push(key);
     }
+    buckets.get(key)!.push(n);
   }
 
-  const singleById = new Map(singles.map((s) => [s.id, s]));
   const out: (AppNotification | NotificationGroup)[] = [];
-
   for (const key of order) {
-    if (key.startsWith("g:")) {
-      const gk = key.slice(2);
-      const items = groups.get(gk) || [];
-      if (items.length === 1) {
-        out.push(items[0]);
-      } else if (items.length > 1) {
-        out.push({
-          key: gk,
-          items,
-          head: items[0],
-          unread: items.filter((i) => !i.readAt).length,
-        });
-      }
-    } else {
-      const id = key.slice(2);
-      const n = singleById.get(id);
-      if (n) out.push(n);
+    const items = buckets.get(key) || [];
+    if (items.length === 1) {
+      out.push(items[0]);
+    } else if (items.length > 1) {
+      out.push({
+        key,
+        items,
+        head: items[0],
+        unread: items.filter((i) => !i.readAt).length,
+      });
     }
   }
   return out;

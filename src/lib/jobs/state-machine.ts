@@ -25,6 +25,8 @@ export type TransitionEvent =
   | { type: "MARK_COMPLETED" }
   | { type: "SATISFIED" } // motorist → release path
   | { type: "RELEASE" } // system after satisfied
+  /** Repair Pro tapped “I can fix this” — starts 20 min negotiate clock */
+  | { type: "START_NEGOTIATION" }
   | { type: "OPEN_DISPUTE"; by: "motorist" | "repair_pro" }
   | { type: "RESOLVE_DISPUTE"; outcome: "release" | "refund" | "split" }
   | { type: "OPEN_APPEAL"; by: "motorist" | "repair_pro" }
@@ -36,6 +38,7 @@ const ALLOWED: Record<JobFlowStatus, Partial<Record<TransitionEvent["type"], Job
     ACCEPT_OFFER: "agreed",
     EXPIRE_NEGOTIATION: "expired",
     CANCEL: "cancelled",
+    START_NEGOTIATION: "negotiating",
   },
   agreed: {
     PAYMENT_SUCCESS: "paid_booked",
@@ -65,13 +68,19 @@ const ALLOWED: Record<JobFlowStatus, Partial<Record<TransitionEvent["type"], Job
     CANCEL: "cancelled",
   },
   completed: {
+    /** Customer confirms → pro 87.5% · Ona 5% · VAT 7.5% on FLW */
     SATISFIED: "satisfied",
+    /** Dispute freezes 6h auto-release until admin resolve (release or refund) */
     OPEN_DISPUTE: "disputed",
+    // No CANCEL — after pro marks complete, only Release / Dispute / 6h auto-release
   },
   satisfied: {
     RELEASE: "released",
+    OPEN_DISPUTE: "disputed",
   },
-  released: {},
+  released: {
+    OPEN_DISPUTE: "disputed",
+  },
   cancelled: {},
   expired: {},
   disputed: {
@@ -154,13 +163,23 @@ export function canPlaceOffer(input: {
   side: OfferSide;
   negotiateEndsAt: string;
   now?: number;
+  /** When false, timer not started yet (pro has not accepted) */
+  timerArmed?: boolean;
 }): { ok: true } | { ok: false; reason: string } {
   if (input.status !== "negotiating") {
     return { ok: false, reason: "Negotiation is closed." };
   }
   const now = input.now ?? Date.now();
-  if (now > new Date(input.negotiateEndsAt).getTime()) {
-    return { ok: false, reason: "Negotiation timer expired." };
+  // Only enforce expiry after pro armed the negotiate clock
+  if (
+    input.timerArmed !== false &&
+    now > new Date(input.negotiateEndsAt).getTime()
+  ) {
+    // Far-future sentinel = unarmed
+    const ends = new Date(input.negotiateEndsAt).getTime();
+    if (ends - now < 30 * 24 * 60 * 60 * 1000) {
+      return { ok: false, reason: "Negotiation timer expired." };
+    }
   }
   if (input.offerCount >= MAX_NEGOTIATION_OFFERS) {
     return {
@@ -179,7 +198,7 @@ export function canPlaceOffer(input: {
 
 /**
  * Motorist counter must be ≥ 50% of pro base (max 50% discount).
- * Pro can set any positive labour price (not 0; max 6 digits).
+ * Pro labour price: min ₦120 (Flutterwave payout floor), max 6 digits.
  */
 export function validateOfferAmount(input: {
   side: OfferSide;
@@ -191,7 +210,10 @@ export function validateOfferAmount(input: {
     return { ok: false, reason: "Enter a valid labour price." };
   }
   if (input.amountMajor < MIN_OFFER_AMOUNT_MAJOR) {
-    return { ok: false, reason: "Price cannot start from 0. Enter a real amount." };
+    return {
+      ok: false,
+      reason: `Minimum service charge is ₦${MIN_OFFER_AMOUNT_MAJOR.toLocaleString("en-NG")} so payout can complete.`,
+    };
   }
   if (input.amountMajor > MAX_OFFER_AMOUNT_MAJOR) {
     return {
@@ -259,7 +281,10 @@ export function actorMay(
     case "MARK_COMPLETED":
       return actor === "repair_pro";
     case "SATISFIED":
-      return actor === "motorist";
+      // motorist confirms; system auto-releases after 6h with no dispute
+      return actor === "motorist" || actor === "system";
+    case "START_NEGOTIATION":
+      return actor === "repair_pro";
     case "PAYMENT_SUCCESS":
     case "RELEASE":
     case "EXPIRE_NEGOTIATION":

@@ -4,9 +4,16 @@
  */
 
 import {
+  isAgreedPastPaymentDeadline,
   isBookedPastCompletionDeadline,
+  isCompletedPastAutoReleaseDeadline,
   MAX_NEGOTIATION_OFFERS,
+  MAX_PAYMENT_ATTEMPTS,
   NEGOTIATE_WINDOW_MS,
+  PAY_HISTORY,
+  PAYMENT_WINDOW_MS,
+  paymentEndsAtIso,
+  paymentWindowsExpiredCount,
   PLATFORM_FEE_PERCENT,
 } from "@/lib/jobs/constants";
 import { computeEvidenceScores } from "@/lib/jobs/evidence";
@@ -29,6 +36,7 @@ import type {
 } from "@/lib/jobs/types";
 import {
   fromMinorUnits,
+  splitServiceChargeMinor,
   toMinorUnits,
   type AppCurrency,
 } from "@/lib/pricing";
@@ -40,7 +48,6 @@ import {
 } from "@/lib/server/payments/escrow-store";
 import {
   initCharge,
-  releaseToPro,
   resolveProvider,
   verifyCharge,
 } from "@/lib/server/payments/providers";
@@ -57,10 +64,14 @@ function uid(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** Service charge S → pro 87.5% · Ona 5% · VAT 7.5% (see splitServiceChargeMinor). */
 function splitMinor(amountMinor: number) {
-  const total = Math.max(0, Math.round(amountMinor));
-  const platform = Math.round((total * PLATFORM_FEE_PERCENT) / 100);
-  return { platformFeeMinor: platform, proPayoutMinor: total - platform };
+  const s = splitServiceChargeMinor(amountMinor);
+  return {
+    platformFeeMinor: s.platformFeeMinor,
+    proPayoutMinor: s.proPayoutMinor,
+    vatMinor: s.vatMinor,
+  };
 }
 
 /** Map classic service_requests.status → premium flow when flow_status is blank */
@@ -123,6 +134,9 @@ function rowToJob(row: Record<string, unknown>): JobRecord {
       offers = [];
     }
   }
+  const statusHistory =
+    (row.status_history as JobRecord["statusHistory"]) || [];
+  const status = resolveFlowStatus(row);
   return {
     id: String(row.id),
     motoristId: String(row.motorist_id),
@@ -142,7 +156,7 @@ function rowToJob(row: Record<string, unknown>): JobRecord {
     problem: String(row.problem_text || row.description || ""),
     voiceNote: (row.voice_note as JobMedia) || null,
     photos: (row.photos as JobMedia[]) || [],
-    status: resolveFlowStatus(row),
+    status,
     currency: (row.pricing_currency as AppCurrency) || "NGN",
     proBaseMajor:
       row.pro_base_major != null ? Number(row.pro_base_major) : null,
@@ -186,14 +200,15 @@ function rowToJob(row: Record<string, unknown>): JobRecord {
     evidence: (row.evidence as JobRecord["evidence"]) || null,
     rating: row.rating != null ? Number(row.rating) : null,
     ratingNote: row.rating_note ? String(row.rating_note) : null,
-    statusHistory:
-      (row.status_history as JobRecord["statusHistory"]) || [],
+    statusHistory,
     createdAt: String(row.created_at || nowIso()),
     updatedAt: String(row.updated_at || nowIso()),
     paidAt: row.paid_at ? String(row.paid_at) : null,
     releasedAt: row.released_at ? String(row.released_at) : null,
     cancelledAt: row.cancelled_at ? String(row.cancelled_at) : null,
     satisfiedAt: row.satisfied_at ? String(row.satisfied_at) : null,
+    paymentAttemptCount: paymentWindowsExpiredCount({ statusHistory }),
+    paymentSessionEndsAt: paymentEndsAtIso({ status, statusHistory }),
   };
 }
 
@@ -354,7 +369,9 @@ async function persist(job: JobRecord): Promise<JobRecord> {
 
 export async function createJob(input: CreateJobInput): Promise<JobRecord> {
   const ts = nowIso();
-  const ends = new Date(Date.now() + NEGOTIATE_WINDOW_MS).toISOString();
+  // Negotiation clock does NOT start until Repair Pro taps “I can fix this”.
+  // Far-future sentinel so expire logic / UI know the timer is unarmed.
+  const ends = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
   const id = uid("job");
 
   // Prefer explicit photo; else hydrate from profiles.avatar_url
@@ -704,17 +721,357 @@ export async function getJob(id: string): Promise<JobRecord | null> {
   const job = await getJobRaw(id);
   if (!job) return null;
   const synced = await reconcileJobPayment(job);
-  return maybeExpire(synced);
+  const recovered = await recoverReleasedFromFlutterwave(synced);
+  const cleaned = await clearFalseSatisfiedStamp(recovered);
+  return maybeExpire(cleaned);
+}
+
+/**
+ * If FLW already paid the pro transfer but job still shows satisfied/held
+ * (cancel race or missed finalize), mark released so UI leaves “Payout processing”.
+ */
+async function recoverReleasedFromFlutterwave(
+  job: JobRecord
+): Promise<JobRecord> {
+  if (job.releasedAt || job.status === "released") return job;
+  if (
+    job.status !== "satisfied" &&
+    job.status !== "completed" &&
+    job.escrowStatus !== "pending_settlement" &&
+    job.escrowStatus !== "held"
+  ) {
+    return job;
+  }
+  try {
+    const { attemptProPayout } = await import(
+      "@/lib/server/payments/payout-settlement"
+    );
+    // force false is fine: FLW success is recovered before cancel gate
+    const result = await attemptProPayout({
+      jobId: job.id,
+      repairProId: job.repairProId,
+      amountMinor: job.amountMinor,
+      agreedMajor: job.agreedMajor,
+      currency: job.currency,
+      paymentReference: job.paymentReference,
+      force: false,
+    });
+    if (result.ok) {
+      const ts = nowIso();
+      const next: JobRecord = {
+        ...job,
+        status: "released",
+        escrowStatus: "released",
+        releasedAt: job.releasedAt || ts,
+        amountMinor: result.totalMinor ?? job.amountMinor,
+        proPayoutMinor: result.proPayoutMinor ?? job.proPayoutMinor,
+        platformFeeMinor: result.platformFeeMinor ?? job.platformFeeMinor,
+        statusHistory: [
+          ...job.statusHistory,
+          { status: "released", at: ts, by: "system_flw_recover" },
+        ],
+        updatedAt: ts,
+      };
+      const saved = await persist(next);
+      // Notify once if this was the first time we learned FLW already paid
+      if (!result.alreadyReleased || !job.releasedAt) {
+        try {
+          const { finalizeJobReleasedAfterPayout } = await import(
+            "@/lib/server/payments/payout-settlement"
+          );
+          await finalizeJobReleasedAfterPayout(job.id, {
+            transferRef: result.transferRef || "",
+            totalMinor: result.totalMinor,
+            proPayoutMinor: result.proPayoutMinor,
+            platformFeeMinor: result.platformFeeMinor,
+          });
+        } catch {
+          /* notifications optional */
+        }
+      }
+      return saved;
+    }
+  } catch (e) {
+    console.error("recoverReleasedFromFlutterwave", job.id, e);
+  }
+  return job;
+}
+
+/**
+ * Fix bad rows: satisfiedAt set while job still completed and escrow held
+ * (failed release / auto-release stamp). Clear so customer can act again.
+ */
+async function clearFalseSatisfiedStamp(job: JobRecord): Promise<JobRecord> {
+  if (job.status !== "completed") return job;
+  if (!job.satisfiedAt) return job;
+  if (job.releasedAt || job.escrowStatus === "released") return job;
+  // Escrow still held or never paid out → stamp was premature
+  if (
+    job.escrowStatus === "held" ||
+    job.escrowStatus === "release_pending" ||
+    !job.escrowStatus ||
+    job.escrowStatus === "none"
+  ) {
+    return persist({
+      ...job,
+      satisfiedAt: null,
+      updatedAt: nowIso(),
+    });
+  }
+  return job;
+}
+
+/**
+ * Mark pending Flutterwave / escrow charge as expired so customer can
+ * generate a fresh payment request (job stays agreed).
+ */
+async function expirePendingPaymentForJob(
+  job: JobRecord,
+  reason = "payment_window_20m"
+): Promise<void> {
+  try {
+    const esc = await getEscrowByRequest(job.id);
+    if (!esc) return;
+    if (
+      esc.escrowStatus === "pending_payment" ||
+      esc.status === "pending" ||
+      (!esc.paidAt &&
+        esc.escrowStatus !== "held" &&
+        esc.escrowStatus !== "released" &&
+        esc.escrowStatus !== "refunded")
+    ) {
+      await updateEscrow(esc.id, {
+        status: "expired",
+        escrowStatus: "failed",
+        meta: {
+          ...esc.meta,
+          expiredAt: nowIso(),
+          expiredReason: reason,
+          paymentWindowMs: PAYMENT_WINDOW_MS,
+        },
+      });
+    }
+  } catch (e) {
+    console.error("expirePendingPaymentForJob", job.id, e);
+  }
+}
+
+/**
+ * Customer closed / cancelled Flutterwave without paying.
+ * Does NOT count as a 20‑min attempt. Clears open session so the next Pay
+ * starts a fresh 20‑minute timer.
+ */
+export async function cancelOpenPaymentSession(input: {
+  jobId: string;
+  motoristId?: string | null;
+}): Promise<
+  | { job: JobRecord; timerReset: true }
+  | { error: string }
+> {
+  let job = await getJob(input.jobId);
+  if (!job) return { error: "Job not found" };
+  const mid = (input.motoristId || "").trim();
+  // Allow unauthenticated timer reset from FLW cancel callback (no money moved)
+  if (
+    mid &&
+    mid !== "callback" &&
+    mid !== "system" &&
+    job.motoristId !== mid
+  ) {
+    return { error: "Only the customer on this job can cancel payment." };
+  }
+  if (job.status !== "agreed") {
+    // Already moved on — nothing to reset
+    return { job, timerReset: true };
+  }
+
+  await expirePendingPaymentForJob(job, "customer_cancelled_checkout");
+
+  const ts = nowIso();
+  const last = [...(job.statusHistory || [])].sort(
+    (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()
+  )[0];
+  // Avoid stacking cancel markers if they spam close
+  const history =
+    last?.by === PAY_HISTORY.SESSION_CANCELLED
+      ? job.statusHistory
+      : [
+          ...job.statusHistory,
+          {
+            status: "agreed" as const,
+            at: ts,
+            by: PAY_HISTORY.SESSION_CANCELLED,
+          },
+        ];
+
+  job = await persist({
+    ...job,
+    status: "agreed",
+    statusHistory: history,
+    paymentSessionEndsAt: null,
+    paymentReference: null,
+    updatedAt: ts,
+  });
+  return { job, timerReset: true };
+}
+
+/**
+ * Unpaid 20‑min window closed.
+ * - Counts as 1 payment attempt (only full window expiry counts).
+ * - Attempts 1–2: stay agreed, user can Pay again.
+ * - Attempt 3: cancel job, notify both sides, refund if any hold.
+ */
+async function expireOpenPaymentWindow(job: JobRecord): Promise<JobRecord> {
+  const ts = nowIso();
+  // Idempotent: already recorded this window
+  const last = [...(job.statusHistory || [])]
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())[0];
+  if (last?.by === PAY_HISTORY.WINDOW_EXPIRED) {
+    // Already counted; ensure pending charge is expired
+    await expirePendingPaymentForJob(job);
+    return job;
+  }
+
+  await expirePendingPaymentForJob(job);
+
+  const nextHistory = [
+    ...job.statusHistory,
+    {
+      status: "agreed" as const,
+      at: ts,
+      by: PAY_HISTORY.WINDOW_EXPIRED,
+    },
+  ];
+  const attempts = paymentWindowsExpiredCount({
+    statusHistory: nextHistory,
+  });
+
+  if (attempts >= MAX_PAYMENT_ATTEMPTS) {
+    // Final cancel + refund any held funds + notify both
+    let cancelled: JobRecord = {
+      ...job,
+      statusHistory: [
+        ...nextHistory,
+        {
+          status: "cancelled",
+          at: ts,
+          by: PAY_HISTORY.MAX_ATTEMPTS_CANCEL,
+        },
+      ],
+      paymentAttemptCount: attempts,
+      paymentSessionEndsAt: null,
+      updatedAt: ts,
+    };
+    try {
+      cancelled = await applyEvent(
+        {
+          ...job,
+          statusHistory: nextHistory,
+          paymentAttemptCount: attempts,
+        },
+        { type: "CANCEL", by: "system" },
+        "system"
+      );
+      // Ensure history marker survives cancel
+      if (
+        !cancelled.statusHistory.some(
+          (h) => h.by === PAY_HISTORY.MAX_ATTEMPTS_CANCEL
+        )
+      ) {
+        cancelled = await persist({
+          ...cancelled,
+          statusHistory: [
+            ...cancelled.statusHistory,
+            {
+              status: "cancelled",
+              at: ts,
+              by: PAY_HISTORY.MAX_ATTEMPTS_CANCEL,
+            },
+          ],
+          paymentAttemptCount: attempts,
+          paymentSessionEndsAt: null,
+        });
+      }
+    } catch (e) {
+      console.error("payment max attempts cancel failed", job.id, e);
+      cancelled = await persist({
+        ...job,
+        status: "cancelled",
+        cancelledAt: ts,
+        statusHistory: nextHistory,
+        paymentAttemptCount: attempts,
+        paymentSessionEndsAt: null,
+        updatedAt: ts,
+      });
+      await refundJobEscrow(cancelled).catch(() => undefined);
+    }
+
+    try {
+      const { insertNotification } = await import(
+        "@/lib/server/notifications"
+      );
+      const body = `Payment was not completed within ${MAX_PAYMENT_ATTEMPTS} timed windows (20 min each). This booking is cancelled.`;
+      await insertNotification({
+        userId: job.motoristId,
+        category: "payments",
+        priority: "high",
+        title: "Booking cancelled — payment not completed",
+        body,
+        href: `/requests/${job.id}`,
+        actionType: "open_job",
+        actionPayload: { jobId: job.id },
+        jobId: job.id,
+        jobStatus: "cancelled",
+        groupKey: `pay-cancel-${job.id}`,
+      });
+      if (job.repairProId) {
+        await insertNotification({
+          userId: job.repairProId,
+          category: "payments",
+          priority: "high",
+          title: "Booking cancelled — customer did not pay",
+          body,
+          href: `/requests/${job.id}`,
+          actionType: "open_job",
+          actionPayload: { jobId: job.id },
+          jobId: job.id,
+          jobStatus: "cancelled",
+          groupKey: `pay-cancel-pro-${job.id}`,
+        });
+      }
+    } catch {
+      /* notifications optional */
+    }
+    return cancelled;
+  }
+
+  // Stay agreed — no open session until customer taps Pay again
+  return persist({
+    ...job,
+    status: "agreed",
+    statusHistory: nextHistory,
+    paymentAttemptCount: attempts,
+    paymentSessionEndsAt: null,
+    paymentReference: null,
+    updatedAt: ts,
+  });
 }
 
 async function maybeExpire(job: JobRecord): Promise<JobRecord> {
-  // 1) Negotiation timer
+  // 1) Negotiation timer — only after pro “I can fix this” armed the clock
   if (job.status === "negotiating") {
+    const { isNegotiationTimerArmed } = await import("@/lib/jobs/constants");
+    if (!isNegotiationTimerArmed(job)) return job;
     if (Date.now() <= new Date(job.negotiateEndsAt).getTime()) return job;
     return applyEvent(job, { type: "EXPIRE_NEGOTIATION" }, "system");
   }
 
-  // 2) Booked but not completed within 6h of payment → cancel + full refund
+  // 2) Open pay session past 20 min unpaid → count 1 attempt; after 3 → cancel
+  if (isAgreedPastPaymentDeadline(job)) {
+    return expireOpenPaymentWindow(job);
+  }
+
+  // 3) Booked but not completed within 6h of payment → cancel + full refund
   if (isBookedPastCompletionDeadline(job)) {
     try {
       return await applyEvent(
@@ -728,34 +1085,93 @@ async function maybeExpire(job: JobRecord): Promise<JobRecord> {
     }
   }
 
+  // 4) Completed > 6h without satisfaction or dispute → auto-release 95/5.
+  // On Flutterwave failure: keep escrow held, stay completed, retry later.
+  if (isCompletedPastAutoReleaseDeadline(job)) {
+    // Skip rapid retries when last Flutterwave payout failed
+    try {
+      const esc = await getEscrowByRequest(job.id);
+      const lastAt = String(
+        (esc?.meta as { lastReleaseAt?: string } | undefined)?.lastReleaseAt ||
+          ""
+      );
+      if (lastAt) {
+        const age = Date.now() - new Date(lastAt).getTime();
+        // Don't hammer Flutterwave every poll — wait 15 min between auto attempts
+        if (Number.isFinite(age) && age < 15 * 60 * 1000) {
+          return job;
+        }
+      }
+    } catch {
+      /* continue to attempt */
+    }
+    try {
+      let next = await applyEvent(job, { type: "SATISFIED" }, "system");
+      // applyEvent(SATISFIED) already releases; if still satisfied, force RELEASE
+      if (next.status === "satisfied") {
+        next = await applyEvent(next, { type: "RELEASE" }, "system");
+      }
+      return next;
+    } catch (e) {
+      // Keep status=completed + escrow held; expire-stale / customer Release retries
+      console.error("auto-release completed job failed (will retry)", job.id, e);
+      return job;
+    }
+  }
+
   return job;
 }
 
 /**
- * Batch sweep for overdue booked jobs (cron / client backup).
- * Returns how many were cancelled + refunded.
+ * Batch sweep for:
+ *  - Agreed unpaid past 20 min payment window → expire pending payment
+ *  - Booked not completed within 6h of payment → cancel + refund
+ *  - Completed past 6h without satisfaction/dispute → auto-release 95/5
+ * Safe for cron / client backup.
  */
 export async function expireOverdueBookedJobs(limit = 40): Promise<{
   checked: number;
   cancelled: number;
+  released: number;
   ids: string[];
 }> {
   const ids: string[] = [];
   let checked = 0;
+  let cancelled = 0;
+  let released = 0;
   const statuses = [
+    "agreed",
     "paid_booked",
     "en_route",
     "arrived",
     "in_progress",
+    "completed",
   ] as const;
 
   // Memory first
   for (const j of memory.values()) {
-    if (!isBookedPastCompletionDeadline(j)) continue;
+    if (
+      !isAgreedPastPaymentDeadline(j) &&
+      !isBookedPastCompletionDeadline(j) &&
+      !isCompletedPastAutoReleaseDeadline(j)
+    ) {
+      continue;
+    }
     checked += 1;
+    const prev = j.status;
     const next = await maybeExpire(j);
     if (next.status === "cancelled" || next.escrowStatus === "refunded") {
+      cancelled += 1;
       ids.push(next.id);
+    } else if (
+      (prev === "completed" || prev === "satisfied") &&
+      next.status === "released"
+    ) {
+      released += 1;
+      ids.push(next.id);
+    } else if (prev === "agreed" && next.status === "agreed") {
+      // payment expired in place
+      if (!ids.includes(next.id)) ids.push(next.id);
     }
   }
 
@@ -769,15 +1185,28 @@ export async function expireOverdueBookedJobs(limit = 40): Promise<{
         .order("updated_at", { ascending: true })
         .limit(limit);
       for (const row of data || []) {
-        checked += 1;
         const job = rowToJob(row as Record<string, unknown>);
-        if (!isBookedPastCompletionDeadline(job)) continue;
-        const next = await maybeExpire(job);
         if (
-          (next.status === "cancelled" || next.status === "refunded") &&
-          !ids.includes(next.id)
+          !isAgreedPastPaymentDeadline(job) &&
+          !isBookedPastCompletionDeadline(job) &&
+          !isCompletedPastAutoReleaseDeadline(job)
         ) {
-          ids.push(next.id);
+          continue;
+        }
+        checked += 1;
+        const prev = job.status;
+        const next = await maybeExpire(job);
+        if (next.status === "cancelled" || next.status === "refunded") {
+          cancelled += 1;
+          if (!ids.includes(next.id)) ids.push(next.id);
+        } else if (
+          (prev === "completed" || prev === "satisfied") &&
+          next.status === "released"
+        ) {
+          released += 1;
+          if (!ids.includes(next.id)) ids.push(next.id);
+        } else if (prev === "agreed") {
+          if (!ids.includes(next.id)) ids.push(next.id);
         }
       }
     } catch (e) {
@@ -785,7 +1214,7 @@ export async function expireOverdueBookedJobs(limit = 40): Promise<{
     }
   }
 
-  return { checked, cancelled: ids.length, ids };
+  return { checked, cancelled, released, ids };
 }
 
 export async function listJobsForUser(
@@ -808,27 +1237,10 @@ export async function listJobsForUser(
         .order("created_at", { ascending: false })
         .limit(50);
       for (const row of data || []) {
-        // Skip legacy cancelled/completed that still had negotiating flow
-        const legacy = String(
-          (row as { status?: string }).status || ""
-        ).toLowerCase();
-        if (legacy === "cancelled" || legacy === "completed") {
-          const flow = String(
-            (row as { flow_status?: string }).flow_status || ""
-          );
-          if (flow === "negotiating" || flow === "agreed") {
-            try {
-              await sb
-                .from("service_requests")
-                .update({ flow_status: "expired" })
-                .eq("id", (row as { id: string }).id);
-            } catch {
-              /* */
-            }
-            continue;
-          }
-        }
-        let j = await maybeExpire(rowToJob(row as Record<string, unknown>));
+        // Prefer flow_status over legacy status (agreed re-open after cancel must not be forced expired)
+        let j = rowToJob(row as Record<string, unknown>);
+        j = await clearFalseSatisfiedStamp(j);
+        j = await maybeExpire(j);
         j = await hydrateJobPhones(j);
         if (!out.find((x) => x.id === j.id)) out.push(j);
       }
@@ -882,6 +1294,21 @@ async function applyEvent(
 ): Promise<JobRecord> {
   const next = assertTransition(job.status, event);
   const ts = nowIso();
+
+  // Pro accepts request → arm 20 min negotiate timer (does not change status)
+  if (event.type === "START_NEGOTIATION") {
+    const ends = new Date(Date.now() + NEGOTIATE_WINDOW_MS).toISOString();
+    return persist({
+      ...job,
+      negotiateEndsAt: ends,
+      updatedAt: ts,
+      statusHistory: [
+        ...job.statusHistory,
+        { status: job.status, at: ts, by: "negotiation_timer_start" },
+      ],
+    });
+  }
+
   const updated: JobRecord = {
     ...job,
     status: next,
@@ -894,8 +1321,13 @@ async function applyEvent(
 
   if (next === "cancelled") {
     updated.cancelledAt = ts;
-    // Full refund if money was held
-    if (job.paymentId || job.escrowStatus === "held") {
+    updated.paymentSessionEndsAt = null;
+    // Full refund if money was held (so customer can pay fresh on a new request)
+    if (
+      job.paymentId ||
+      job.escrowStatus === "held" ||
+      job.escrowStatus === "release_pending"
+    ) {
       await refundJobEscrow(updated);
       updated.escrowStatus = "refunded";
     }
@@ -917,8 +1349,8 @@ async function applyEvent(
         userId: job.motoristId,
         category: "payments",
         priority: "critical",
-        title: "Confirm job & release pay",
-        body: `${job.repairProName} marked the job complete. Tap I am satisfied to release payment.`,
+        title: "Confirm Job & Release Payment",
+        body: "Tap Release to pay the pro (87.5% · 5% Ona · 7.5% VAT on FLW).",
         href: `/jobs/${job.id}`,
         actionType: "open_job",
         actionPayload: { jobId: job.id },
@@ -931,39 +1363,85 @@ async function applyEvent(
     }
   }
   if (next === "satisfied") {
-    updated.satisfiedAt = ts;
-    // Customer “I am satisfied” → transfer 95% to pro bank, keep 5% platform
-    const payout = await releaseJobEscrow(updated);
-    if (!payout.ok) {
-      throw new Error(
-        payout.message ||
-          "Could not pay the Repair Pro. Funds stay held until release succeeds. Try again."
-      );
-    }
-    const released: JobRecord = {
+    // Customer “I am satisfied” → try instant pro transfer (87.5% of service).
+    // If FLW Available is not ready → PENDING_SETTLEMENT (escrow kept, auto-retry).
+    // Customer is not asked to manual-retry for settlement delays.
+    const payout = await releaseJobEscrow({
       ...updated,
-      status: "released",
-      releasedAt: ts,
-      escrowStatus: "released",
-      statusHistory: [
-        ...updated.statusHistory,
-        { status: "released", at: ts, by: "system" },
-      ],
-      updatedAt: ts,
-    };
-    await bumpProJobsCompleted(job.repairProId);
-    return persist(released);
+      satisfiedAt: ts,
+    });
+
+    if (payout.ok) {
+      const released: JobRecord = {
+        ...updated,
+        status: "released",
+        releasedAt: ts,
+        escrowStatus: "released",
+        satisfiedAt: ts,
+        amountMinor: payout.totalMinor ?? updated.amountMinor,
+        proPayoutMinor: payout.proPayoutMinor ?? updated.proPayoutMinor,
+        platformFeeMinor: payout.platformFeeMinor ?? updated.platformFeeMinor,
+        statusHistory: [
+          ...job.statusHistory,
+          { status: "satisfied", at: ts, by: actor },
+          { status: "released", at: ts, by: "system" },
+        ],
+        updatedAt: ts,
+      };
+      await bumpProJobsCompleted(job.repairProId);
+      await notifyPayoutReleased(released);
+      return persist(released);
+    }
+
+    if (payout.pendingSettlement) {
+      // Confirmed by customer; payout queued until FLW Available is enough
+      const pending: JobRecord = {
+        ...updated,
+        status: "satisfied",
+        satisfiedAt: ts,
+        escrowStatus: "pending_settlement",
+        amountMinor: payout.totalMinor ?? updated.amountMinor,
+        proPayoutMinor: payout.proPayoutMinor ?? updated.proPayoutMinor,
+        platformFeeMinor: payout.platformFeeMinor ?? updated.platformFeeMinor,
+        statusHistory: [
+          ...job.statusHistory,
+          { status: "satisfied", at: ts, by: actor },
+        ],
+        updatedAt: ts,
+      };
+      await notifyPayoutPendingSettlement(pending);
+      return persist(pending);
+    }
+
+    // Hard fail (bad bank, etc.) — stay completed so customer can retry or open dispute
+    throw new Error(
+      payout.message ||
+        "Could not pay the Repair Pro (87.5%). Funds stay held. Fix pro bank details or contact support."
+    );
   }
   if (next === "released") {
     updated.releasedAt = ts;
     const payout = await releaseJobEscrow(updated);
-    if (!payout.ok) {
+    if (payout.ok) {
+      updated.escrowStatus = "released";
+      if (payout.totalMinor != null) updated.amountMinor = payout.totalMinor;
+      if (payout.proPayoutMinor != null)
+        updated.proPayoutMinor = payout.proPayoutMinor;
+      if (payout.platformFeeMinor != null)
+        updated.platformFeeMinor = payout.platformFeeMinor;
+      await notifyPayoutReleased({ ...updated, status: "released" });
+    } else if (payout.pendingSettlement) {
+      updated.status = "satisfied";
+      updated.escrowStatus = "pending_settlement";
+      updated.satisfiedAt = updated.satisfiedAt || ts;
+      await notifyPayoutPendingSettlement(updated);
+      return persist(updated);
+    } else {
       throw new Error(
         payout.message ||
           "Could not release payout to Repair Pro. Funds still held."
       );
     }
-    updated.escrowStatus = "released";
   }
   if (next === "refunded") {
     updated.escrowStatus = "refunded";
@@ -985,114 +1463,178 @@ async function refundJobEscrow(job: JobRecord) {
 }
 
 /**
- * Pay Repair Pro 95% (proPayoutMinor) via Flutterwave Transfer from merchant balance.
- * Platform 5% stays in Witco/Ona merchant account. Never mark released unless transfer ok
- * (mock provider always succeeds).
+ * Pay Repair Pro 87.5% of service via Flutterwave Transfer from merchant balance.
+ * Ona keeps 5%. Collections (Ledger) ≠ Available for payout — settlement delays
+ * become PENDING_SETTLEMENT with auto-retry (never double-pay).
  */
 async function releaseJobEscrow(
   job: JobRecord
-): Promise<{ ok: boolean; message?: string; transferRef?: string }> {
-  const esc = await getEscrowByRequest(job.id);
-  if (!esc) {
-    // No escrow row (edge/demo) — allow status advance without transfer
-    if (resolveProvider() === "mock") return { ok: true, transferRef: "mock-no-escrow" };
-    return {
-      ok: false,
-      message: "No held payment found for this job. Contact support.",
-    };
+): Promise<{
+  ok: boolean;
+  pendingSettlement?: boolean;
+  message?: string;
+  transferRef?: string;
+  totalMinor?: number;
+  proPayoutMinor?: number;
+  platformFeeMinor?: number;
+}> {
+  // Auto-heal pending payment → held when FLW already settled collection
+  let esc = await getEscrowByRequest(job.id);
+  if (
+    esc?.providerRef &&
+    (esc.escrowStatus === "pending_payment" ||
+      esc.escrowStatus === "none" ||
+      esc.escrowStatus === "failed" ||
+      esc.status === "pending" ||
+      esc.status === "failed")
+  ) {
+    try {
+      const verified = await verifyCharge(
+        esc.providerRef,
+        String(esc.provider)
+      );
+      if (verified.success) {
+        await updateEscrow(esc.id, {
+          status: "paid",
+          escrowStatus: "held",
+          paidAt: verified.paidAt || nowIso(),
+          providerChannel: verified.channel || null,
+        });
+        if (job.status === "agreed") {
+          await markJobPaidFromReference(esc.providerRef);
+        }
+      }
+    } catch (e) {
+      console.error("releaseJobEscrow auto-verify", job.id, e);
+    }
   }
 
-  // Already paid out successfully
-  const meta = (esc.meta || {}) as Record<string, unknown>;
-  if (
-    esc.escrowStatus === "released" &&
-    (meta.proTransferRef || meta.proTransferOk === true)
-  ) {
+  const { attemptProPayout } = await import(
+    "@/lib/server/payments/payout-settlement"
+  );
+  const result = await attemptProPayout({
+    jobId: job.id,
+    repairProId: job.repairProId,
+    repairProName: job.repairProName,
+    amountMinor: job.amountMinor,
+    agreedMajor: job.agreedMajor,
+    currency: job.currency,
+    paymentReference: job.paymentReference,
+    // First release after “I’m Satisfied” may run immediately (no prior nextRetryAt).
+    // Later auto-retries use processDuePayoutRetries with force:false (10‑min spacing).
+    force: false,
+  });
+
+  if (result.ok) {
     return {
       ok: true,
-      transferRef: String(meta.proTransferRef || ""),
+      transferRef: result.transferRef,
+      totalMinor: result.totalMinor,
+      proPayoutMinor: result.proPayoutMinor,
+      platformFeeMinor: result.platformFeeMinor,
     };
   }
-
-  const total =
-    job.amountMinor ??
-    esc.amountMinor ??
-    (job.agreedMajor != null
-      ? toMinorUnits(job.agreedMajor, job.currency)
-      : 0);
-  if (!total || total <= 0) {
-    return { ok: false, message: "Invalid job amount for release." };
-  }
-
-  let proPayout =
-    job.proPayoutMinor ??
-    esc.proPayoutMinor ??
-    0;
-  if (!proPayout || proPayout <= 0) {
-    // 95% default platform fee
-    const platform = Math.round((total * PLATFORM_FEE_PERCENT) / 100);
-    proPayout = total - platform;
-  }
-  // Never send more than held
-  proPayout = Math.min(proPayout, total);
-
-  const bank = await loadProPayoutBank(job.repairProId);
-  const currency = (job.currency || esc.currency || "NGN") as AppCurrency;
-  const reference = String(
-    esc.providerRef || job.paymentReference || job.id
-  ).slice(0, 40);
-
-  const transfer = await releaseToPro({
-    amountMinor: proPayout,
-    currency,
-    reference,
-    reason: `Ona job payout 95% · ${job.repairProName || "Repair Pro"} · ${job.id.slice(0, 8)}`,
-    bankCode: bank.bankCode || undefined,
-    accountNumber: bank.accountNumber || undefined,
-    accountName: bank.accountName || undefined,
-  });
-
-  if (!transfer.ok) {
-    // Keep escrow held so funds stay in merchant until fixed
-    try {
-      await updateEscrow(esc.id, {
-        status: esc.status,
-        escrowStatus: "held",
-        meta: {
-          ...meta,
-          lastReleaseError: transfer.message || "transfer_failed",
-          lastReleaseAt: nowIso(),
-          attemptedProPayoutMinor: proPayout,
-        },
-      });
-    } catch {
-      /* */
-    }
+  if (result.pendingSettlement) {
     return {
       ok: false,
-      message:
-        transfer.message ||
-        "Could not transfer 95% to Repair Pro bank. Funds remain held.",
+      pendingSettlement: true,
+      message: result.message,
+      totalMinor: result.totalMinor,
+      proPayoutMinor: result.proPayoutMinor,
+      platformFeeMinor: result.platformFeeMinor,
     };
   }
+  return {
+    ok: false,
+    pendingSettlement: false,
+    message: result.message,
+    totalMinor: result.totalMinor,
+    proPayoutMinor: result.proPayoutMinor,
+    platformFeeMinor: result.platformFeeMinor,
+  };
+}
 
-  await updateEscrow(esc.id, {
-    status: "released",
-    escrowStatus: "released",
-    releasedAt: nowIso(),
-    motoristCompletedAt: job.satisfiedAt || nowIso(),
-    proCompletedAt: nowIso(),
-    meta: {
-      ...meta,
-      proTransferOk: true,
-      proTransferRef: transfer.transferRef || null,
-      proPayoutMinor: proPayout,
-      platformKeptMinor: total - proPayout,
-      releasedAt: nowIso(),
-    },
-  });
+async function notifyPayoutReleased(job: JobRecord) {
+  try {
+    const { insertNotification } = await import(
+      "@/lib/server/notifications"
+    );
+    // group_key dedupe — one notification per user per job even if called twice
+    if (job.motoristId) {
+      await insertNotification({
+        userId: job.motoristId,
+        category: "payments",
+        priority: "critical",
+        title: "Payment released",
+        body: "Your payment has been released to your Repair Pro.",
+        href: `/jobs/${job.id}`,
+        actionType: "view_payment",
+        actionPayload: { jobId: job.id },
+        jobId: job.id,
+        jobStatus: "released",
+        groupKey: `payout-released-${job.id}`,
+      });
+    }
+    if (job.repairProId) {
+      await insertNotification({
+        userId: job.repairProId,
+        category: "payments",
+        priority: "critical",
+        title: "Payout released",
+        body: "Your labour payout has been released to your bank.",
+        href: `/jobs/${job.id}`,
+        actionType: "view_payment",
+        actionPayload: { jobId: job.id },
+        jobId: job.id,
+        jobStatus: "released",
+        groupKey: `payout-released-pro-${job.id}`,
+      });
+    }
+  } catch {
+    /* optional */
+  }
+}
 
-  return { ok: true, transferRef: transfer.transferRef };
+async function notifyPayoutPendingSettlement(job: JobRecord) {
+  try {
+    const { insertNotification } = await import(
+      "@/lib/server/notifications"
+    );
+    const body =
+      "Payout processing — auto-retry every 10 minutes for up to 24 hours. You’ll be notified when payment is released.";
+    if (job.motoristId) {
+      await insertNotification({
+        userId: job.motoristId,
+        category: "payments",
+        priority: "high",
+        title: "Payout processing",
+        body,
+        href: `/jobs/${job.id}`,
+        actionType: "open_job",
+        actionPayload: { jobId: job.id },
+        jobId: job.id,
+        jobStatus: "satisfied",
+        groupKey: `payout-pending-${job.id}`,
+      });
+    }
+    if (job.repairProId) {
+      await insertNotification({
+        userId: job.repairProId,
+        category: "payments",
+        priority: "high",
+        title: "Payout processing",
+        body,
+        href: `/jobs/${job.id}`,
+        actionType: "open_job",
+        actionPayload: { jobId: job.id },
+        jobId: job.id,
+        jobStatus: "satisfied",
+        groupKey: `payout-pending-pro-${job.id}`,
+      });
+    }
+  } catch {
+    /* optional */
+  }
 }
 
 /** Count completed trades when customer taps I am Satisfied (successful release). */
@@ -1279,7 +1821,14 @@ export async function mockPayJob(input: {
     provider: "mock",
     providerRef: reference,
     serviceType: job.serviceType,
-    meta: { mock: true, email: input.email },
+    meta: {
+      mock: true,
+      email: input.email,
+      labourMinor: amountMinor,
+      vatMinor: split.vatMinor,
+      vatHeldOnFlutterwave: true,
+      settlementModel: "service_only_v2",
+    },
   });
 
   await updateEscrow(payment.id, {
@@ -1303,7 +1852,9 @@ export async function mockPayJob(input: {
 
 /**
  * Start real Flutterwave (or configured provider) escrow charge for a job.
- * Returns checkout URL — job becomes Booked only after verify + markJobPaidFromReference.
+ * Flutterwave default: Inline-ready session (no forced full-page leave).
+ * Hosted authorizationUrl is still returned as fallback when gateway creates one.
+ * Job becomes Booked only after verify + markJobPaidFromReference.
  */
 export async function startJobEscrowPayment(input: {
   jobId: string;
@@ -1313,12 +1864,24 @@ export async function startJobEscrowPayment(input: {
   customerPhone?: string | null;
   callbackUrl: string;
   provider?: string | null;
+  /** Prefer in-app Inline (no separate page). Default true for Flutterwave. */
+  preferInline?: boolean;
 }): Promise<
   | {
       authorizationUrl: string;
       reference: string;
       provider: string;
       jobId: string;
+      paymentSessionEndsAt: string;
+      paymentAttemptCount: number;
+      paymentAttemptsRemaining: number;
+      /** @deprecated use useInAppBankTransfer */
+      useInline: boolean;
+      /** Show bank details inside Ona (no FLW page / tab) */
+      useInAppBankTransfer: boolean;
+      bankTransfer: import("@/lib/server/payments/providers").BankTransferInstructions | null;
+      amountMajor: number;
+      currency: AppCurrency;
     }
   | { error: string }
 > {
@@ -1343,16 +1906,76 @@ export async function startJobEscrowPayment(input: {
       jobId: job.id,
     } as { error: string; jobId: string };
   }
-  if (job.status !== "agreed") {
-    return { error: "Job must be in Agreed status before payment." };
-  }
   if (job.agreedMajor == null || job.agreedMajor <= 0) {
     return { error: "No agreed price." };
   }
+  const agreedMajor = Number(job.agreedMajor);
 
-  const amountMinor = toMinorUnits(job.agreedMajor, job.currency);
-  const split = splitMinor(amountMinor);
+  /**
+   * Pay again / re-open: if pay window left the job cancelled or expired
+   * but labour was already agreed and nothing is held in escrow, restore
+   * status → agreed so a new Flutterwave session can be created.
+   */
+  // Hard stop: already used 3 unpaid windows
+  if (paymentWindowsExpiredCount(job) >= MAX_PAYMENT_ATTEMPTS) {
+    return {
+      error:
+        "Payment attempts exhausted (3 × 20 min). This booking was cancelled. Start a new request if you still need help.",
+    };
+  }
+
+  if (job.status !== "agreed") {
+    // Only reopen soft cancels that were NOT max-attempt payment cancels
+    const maxCancel = job.statusHistory?.some(
+      (h) => h.by === PAY_HISTORY.MAX_ATTEMPTS_CANCEL
+    );
+    const canReopen =
+      !maxCancel &&
+      (job.status === "cancelled" || job.status === "expired") &&
+      job.escrowStatus !== "held" &&
+      job.escrowStatus !== "released" &&
+      job.escrowStatus !== "release_pending";
+    if (!canReopen) {
+      return {
+        error: `Job must be in Agreed status before payment (currently ${job.status}).`,
+      };
+    }
+    const ts = nowIso();
+    job = await persist({
+      ...job,
+      status: "agreed",
+      agreedMajor,
+      cancelledAt: null,
+      updatedAt: ts,
+      statusHistory: [
+        ...job.statusHistory,
+        { status: "agreed", at: ts, by: "system" },
+      ],
+    });
+  }
+
+  // Expire any previous pending charge so a fresh Flutterwave session can open
+  await expirePendingPaymentForJob(job);
+
+  // Nigeria-first: force NGN for Flutterwave escrow collections
+  const payCurrency: AppCurrency =
+    job.currency === "NGN" || !job.currency ? "NGN" : job.currency;
+  // Ona primary market — never charge Nigerian jobs in GBP/USD
+  const currency: AppCurrency =
+    process.env.FLUTTERWAVE_FORCE_NGN === "false" ? payCurrency : "NGN";
+
+  // Customer pays service charge S only. Split: pro 87.5% · Ona 5% · VAT 7.5% on FLW.
+  // FLW collection + payout fees come from Ona’s 5% only (Ona absorbs if fees > 5%).
+  const { buildCustomerChargeMajor } = await import("@/lib/pricing");
+  const pricing = buildCustomerChargeMajor(agreedMajor);
+  const amountMinor = toMinorUnits(pricing.totalMajor, currency);
+  const labourMinor = toMinorUnits(pricing.labourMajor, currency);
+  const platformFeeMinor = toMinorUnits(pricing.platformFeeMajor, currency);
+  const vatMinor = toMinorUnits(pricing.vatMajor, currency);
+  const proPayoutMinor = toMinorUnits(pricing.proPayoutMajor, currency);
+  const split = { platformFeeMinor, proPayoutMinor, vatMinor };
   const reference = `ona_${job.id.replace(/-/g, "").slice(0, 12)}_${Date.now().toString(36)}`;
+  const sessionEndsAt = new Date(Date.now() + PAYMENT_WINDOW_MS).toISOString();
 
   let motoristBankCode: string | null = null;
   let proBankCode: string | null = null;
@@ -1384,32 +2007,109 @@ export async function startJobEscrowPayment(input: {
       ? input.callbackUrl
       : `${input.callbackUrl}${input.callbackUrl.includes("?") ? "&" : "?"}ref=${encodeURIComponent(reference)}`;
 
-    const charge = await initCharge(
-      {
-        amountMinor,
-        currency: job.currency,
+    const resolvedProvider = input.provider || "flutterwave";
+    const preferInApp =
+      input.preferInline !== false &&
+      resolvedProvider !== "mock" &&
+      (resolvedProvider === "flutterwave" || !resolvedProvider);
+
+    /**
+     * In-app bank transfer (default for Flutterwave):
+     * Server creates a VA via charges?type=bank_transfer and returns account
+     * details for the Ona UI. Never opens Flutterwave.com (no new tab / 503).
+     */
+    let charge: {
+      provider: string;
+      authorizationUrl: string;
+      reference: string;
+    };
+    let bankTransfer: import("@/lib/server/payments/providers").BankTransferInstructions | null =
+      null;
+
+    if (preferInApp) {
+      const { createFlutterwaveBankTransfer } = await import(
+        "@/lib/server/payments/providers"
+      );
+      // Full pro name for customer note only — NOT the bank account name.
+      // Money is paid into Ona escrow (FLW VA), not the pro’s personal bank.
+      const proLabel =
+        (job.repairProName || "").trim() || "your Repair Pro";
+      const shortNarration = `Ona escrow · ${proLabel}`.slice(0, 80);
+      const customerNote = `For ${proLabel}. Pay into Ona escrow (account below). Funds are released after the job is confirmed. Transfer the exact amount only.`;
+      const va = await createFlutterwaveBankTransfer({
+        amountMajor: pricing.totalMajor,
+        currency,
         email: input.email,
-        customerName:
-          input.customerName || job.motoristName || null,
-        customerPhone:
-          input.customerPhone || job.motoristPhone || null,
+        customerName: input.customerName || job.motoristName || null,
+        customerPhone: input.customerPhone || job.motoristPhone || null,
         reference,
-        callbackUrl,
-        platformFeePercent: PLATFORM_FEE_PERCENT,
-        metadata: {
-          requestId: job.id,
-          jobId: job.id,
-          motoristId: job.motoristId,
-          repairProId: job.repairProId,
-          serviceType: job.serviceType,
-          labourOnly: true,
-          motoristBankCode,
-          proBankCode,
-          platformSubaccount: process.env.FLUTTERWAVE_PLATFORM_SUBACCOUNT || null,
+        // Short bank-statement narration — never a long "Please transfer to …"
+        narration: shortNarration,
+        transferNote: customerNote,
+        // Display name for account holder field (escrow merchant brand)
+        accountDisplayName: "Ona",
+      });
+      if (!va.ok) {
+        return { error: va.error };
+      }
+      bankTransfer = {
+        ...va.instructions,
+        // Always show brand as account name if FLW returned junk/narration
+        accountName:
+          va.instructions.accountName &&
+          !/please|transfer to|make a bank/i.test(va.instructions.accountName)
+            ? va.instructions.accountName
+            : "Ona",
+        note: customerNote,
+      };
+      charge = {
+        provider: "flutterwave",
+        authorizationUrl: "",
+        reference,
+      };
+    } else if (resolvedProvider === "mock") {
+      charge = await initCharge(
+        {
+          amountMinor,
+          currency,
+          email: input.email,
+          customerName: input.customerName || job.motoristName || null,
+          customerPhone: input.customerPhone || job.motoristPhone || null,
+          reference,
+          callbackUrl,
+          platformFeePercent: PLATFORM_FEE_PERCENT,
+          channels: ["bank_transfer"],
+          metadata: { requestId: job.id, jobId: job.id },
         },
-      },
-      input.provider
-    );
+        "mock"
+      );
+    } else {
+      charge = await initCharge(
+        {
+          amountMinor,
+          currency,
+          email: input.email,
+          customerName: input.customerName || job.motoristName || null,
+          customerPhone: input.customerPhone || job.motoristPhone || null,
+          reference,
+          callbackUrl,
+          platformFeePercent: PLATFORM_FEE_PERCENT,
+          channels: ["bank_transfer"],
+          metadata: {
+            requestId: job.id,
+            jobId: job.id,
+            motoristId: job.motoristId,
+            repairProId: job.repairProId,
+            serviceType: job.serviceType,
+            labourOnly: true,
+            motoristBankCode,
+            proBankCode,
+            paymentSessionEndsAt: sessionEndsAt,
+          },
+        },
+        input.provider
+      );
+    }
 
     await createEscrowPayment({
       requestId: job.id,
@@ -1417,31 +2117,82 @@ export async function startJobEscrowPayment(input: {
       repairProId: job.repairProId,
       amountMinor,
       baseAmountMinor: toMinorUnits(
-        job.proBaseMajor ?? job.agreedMajor,
-        job.currency
+        job.proBaseMajor ?? agreedMajor,
+        currency
       ),
       discountPercent: 0,
       platformFeeMinor: split.platformFeeMinor,
       proPayoutMinor: split.proPayoutMinor,
-      currency: job.currency,
+      currency,
       provider: charge.provider,
       providerRef: charge.reference,
       serviceType: job.serviceType,
       meta: {
         labourOnly: true,
+        labourMajor: pricing.labourMajor,
+        labourMinor,
+        /** Ona 5% of S (gross before FLW fees) — settles to Zenith / platform subaccount */
+        platformFeeMajor: pricing.platformFeeMajor,
+        platformFeeMinor,
+        /** VAT 7.5% of S — stays on Flutterwave main balance */
+        vatMajor: pricing.vatMajor,
+        vatMinor,
+        vatHeldOnFlutterwave: true,
+        chargeTotalMajor: pricing.totalMajor,
+        /** Pro net 87.5% of S */
+        proPayoutMajor: pricing.proPayoutMajor,
+        proPayoutMinor,
+        settlementModel: "service_only_v2",
         platformSubaccount:
           process.env.FLUTTERWAVE_PLATFORM_SUBACCOUNT || null,
         motoristBankCode,
         proBankCode,
         email: input.email,
+        paymentSessionEndsAt: sessionEndsAt,
+        paymentWindowMs: PAYMENT_WINDOW_MS,
+        checkoutMode: preferInApp ? "in_app_bank_transfer" : "hosted",
+        bankTransfer: bankTransfer || undefined,
       },
     });
+
+    // Open a new 20‑min session (does NOT count as an attempt until it expires unpaid)
+    const sessionStart = nowIso();
+    const refreshed: JobRecord = {
+      ...job,
+      status: "agreed",
+      currency,
+      updatedAt: sessionStart,
+      statusHistory: [
+        ...job.statusHistory,
+        {
+          status: "agreed",
+          at: sessionStart,
+          by: PAY_HISTORY.SESSION_START,
+        },
+      ],
+      paymentReference: charge.reference,
+      paymentSessionEndsAt: sessionEndsAt,
+      paymentAttemptCount: paymentWindowsExpiredCount(job),
+    };
+    await persist(refreshed);
 
     return {
       authorizationUrl: charge.authorizationUrl,
       reference: charge.reference,
       provider: charge.provider,
       jobId: job.id,
+      paymentSessionEndsAt: sessionEndsAt,
+      paymentAttemptCount: paymentWindowsExpiredCount(job),
+      paymentAttemptsRemaining: Math.max(
+        0,
+        MAX_PAYMENT_ATTEMPTS - paymentWindowsExpiredCount(job)
+      ),
+      useInline: false,
+      /** Native in-app bank transfer (preferred) */
+      useInAppBankTransfer: Boolean(bankTransfer),
+      bankTransfer,
+      amountMajor: agreedMajor,
+      currency,
     };
   } catch (e) {
     return {
@@ -1517,6 +2268,14 @@ export async function transitionJob(input: {
 }): Promise<{ job: JobRecord } | { error: string }> {
   let job = await getJob(input.jobId);
   if (!job) return { error: "Job not found" };
+
+  // After pro marks complete: no cancel/close — only Release, Dispute, or 6h auto-release
+  if (input.event.type === "CANCEL" && job.status === "completed") {
+    return {
+      error:
+        "This job is completed and cannot be closed. Release payment, open a dispute, or wait for auto-release after 6 hours.",
+    };
+  }
 
   try {
     if (input.proLocation) {
@@ -1606,6 +2365,14 @@ export async function openDispute(input: {
   if (!job) return { error: "Job not found" };
   if (job.dispute && job.dispute.status !== "final") {
     return { error: "Only one active dispute per job." };
+  }
+
+  const { canOpenDisputeNow } = await import("@/lib/jobs/constants");
+  if (!canOpenDisputeNow(job)) {
+    return {
+      error:
+        "Dispute window closed. You can dispute within 48 hours after confirming satisfaction (I’m Satisfied).",
+    };
   }
 
   const dispute = {

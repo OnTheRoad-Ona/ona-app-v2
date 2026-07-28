@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * NotificationCenter — icon filter tabs, gated job/chat/payment open,
- * soft light chrome, near-square cards.
- * Light theme accents: Message orange #FF6B35. Dark: copper #FF6B35.
+ * NotificationCenter — icon filters, Twitter-style stacks, cascade expand.
+ * Read: solid grey action buttons (no border/glow). Unread: orange.
+ * Mark read on card click / hover — no separate “Mark read” control.
  */
 
 import { useMemo, useState } from "react";
@@ -26,8 +26,9 @@ import {
   blockedActionMessage,
   isChatClosedForNotification,
   isHighPriority,
-  isJobFinishedStatus,
+  isJobHistoryClosedStatus,
   isNavigationBlocked,
+  isReleasePayPendingStatus,
   type AppNotification,
   type NotificationFilter,
 } from "@/lib/notifications/types";
@@ -69,6 +70,46 @@ function formatWhen(iso: string): string {
   }
 }
 
+/** Solid action chip — orange when unread, blended grey when read. No border/glow. */
+function ActionBtn({
+  label,
+  onClick,
+  read,
+  isLight,
+}: {
+  label: string;
+  onClick: () => void;
+  read: boolean;
+  isLight: boolean;
+}) {
+  const orange = MESSAGE_ORANGE;
+  // Well-blended grey, high-contrast text, both themes
+  const bg = read
+    ? isLight
+      ? "#8b8d94"
+      : "#4a4a50"
+    : orange;
+  const color = "#ffffff";
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className="h-8 rounded-md border-0 px-3 text-[11px] font-bold active:opacity-85"
+      style={{
+        backgroundColor: bg,
+        color,
+        boxShadow: "none",
+        outline: "none",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
 export function NotificationCenter() {
   const {
     centerOpen,
@@ -90,53 +131,27 @@ export function NotificationCenter() {
   const [blockMsg, setBlockMsg] = useState<string | null>(null);
   const [viewHref, setViewHref] = useState<string | null>(null);
 
-  /** Notifications accent — always Message orange */
   const accent = MESSAGE_ORANGE;
-
   const stage = isLight ? "#c8c9cd" : "#0a0a0a";
-  // Light: blend with sheet (not pure white). Dark: charcoal card.
   const card = isLight ? "#d4d5d9" : CHARCOAL;
   const searchBg = isLight ? "#bebfc4" : "rgba(255,255,255,0.08)";
   const ink = isLight ? "#1a1b1e" : "#ffffff";
   const muted = isLight ? "#5c6370" : "rgba(255,255,255,0.65)";
 
-  const grouped = useMemo(
-    () => groupNotifications(filtered),
-    [filtered]
-  );
+  const grouped = useMemo(() => groupNotifications(filtered), [filtered]);
 
   if (!centerOpen) return null;
 
   const showBlock = (n: AppNotification, msg: string) => {
     setBlockMsg(msg || CONVERSATION_ENDED_MESSAGE);
-    // 4C: View → read-only chat, or process summary for jobs
     const tid = messageThreadIdFromHref(n.href);
     if (tid) {
       setViewHref(readOnlyChatHref(String(tid)));
       return;
     }
     const jid = n.jobId || null;
-    if (
-      jid &&
-      (n.category === "messages" ||
-        n.actionType === "open_chat" ||
-        n.category === "requests" ||
-        n.actionType === "open_job" ||
-        n.actionType === "view_tracking" ||
-        n.actionType === "accept_request")
-    ) {
-      setViewHref(`/requests/${jid}`);
-      return;
-    }
-    if (n.href?.includes("/jobs/")) {
-      const id = n.href.split("/jobs/")[1]?.split("?")[0];
-      if (id) {
-        setViewHref(`/requests/${id}`);
-        return;
-      }
-    }
-    if (n.href?.includes("/requests/")) {
-      setViewHref(n.href);
+    if (jid) {
+      setViewHref(`/jobs/${jid}`);
       return;
     }
     setViewHref(null);
@@ -144,58 +159,31 @@ export function NotificationCenter() {
 
   const runAction = async (n: AppNotification) => {
     void markRead([n.id]);
-
-    // Rate after complete is always allowed (deep link to rate UI)
-    if (n.actionType === "rate" && n.href) {
-      closeCenter();
-      router.push(n.href);
-      return;
-    }
-
-    if (n.actionType === "none") {
-      return;
-    }
-
-    // Resolve live job status when we have a real id
-    let liveStatus = n.jobStatus || null;
-    const jobKey = n.jobId || null;
-    if (jobKey && !String(jobKey).startsWith("demo-")) {
+    if (!n.href) return;
+    let liveStatus: string | undefined = n.jobStatus || undefined;
+    if (n.jobId) {
       try {
-        const res = await apiGetJob(jobKey);
-        if (res.ok && res.data?.job?.status) {
+        const res = await apiGetJob(n.jobId);
+        if (res.ok && res.data.job?.status) {
           liveStatus = res.data.job.status;
         }
       } catch {
-        /* use stored status */
+        /* use cached */
       }
     }
-
-    // Always gate finished / demo / closed — show popup, never live navigate
-    if (isNavigationBlocked(n, liveStatus) || isJobFinishedStatus(liveStatus) || isJobFinishedStatus(n.jobStatus)) {
+    if (isReleasePayPendingStatus(liveStatus || n.jobStatus)) {
+      closeCenter();
+      router.push(n.href.includes("/jobs/") ? n.href : `/jobs/${n.jobId}`);
+      return;
+    }
+    if (isNavigationBlocked({ ...n, jobStatus: liveStatus })) {
       showBlock(n, blockedActionMessage(n, liveStatus));
       return;
     }
-
-    // No href and blocked types — still popup rather than no-op silence
-    if (!n.href) {
-      if (
-        n.actionType === "open_chat" ||
-        n.actionType === "open_job" ||
-        n.category === "messages" ||
-        n.category === "requests"
-      ) {
-        showBlock(n, blockedActionMessage(n, liveStatus));
-      }
-      return;
-    }
-
-    // Payments tied to finished escrow
-    if (n.actionType === "view_payment" && n.jobId && isJobFinishedStatus(liveStatus)) {
+    if (isChatClosedForNotification(n) || isJobHistoryClosedStatus(liveStatus)) {
       showBlock(n, blockedActionMessage(n, liveStatus));
       return;
     }
-
-    // Sensitive deep links without confirmed live status + demo
     if (
       (n.href.includes("/jobs/") ||
         n.href.includes("/messages/") ||
@@ -205,9 +193,12 @@ export function NotificationCenter() {
       showBlock(n, blockedActionMessage(n, liveStatus));
       return;
     }
-
     closeCenter();
     router.push(n.href);
+  };
+
+  const markStackRead = (ids: string[]) => {
+    void markRead(ids);
   };
 
   return (
@@ -219,7 +210,7 @@ export function NotificationCenter() {
     >
       <button
         type="button"
-        className="absolute inset-0 border-0 transition-opacity duration-200"
+        className="absolute inset-0 border-0"
         style={{ backgroundColor: isLight ? "#00000055" : "#00000099" }}
         aria-label="Close notifications"
         onClick={closeCenter}
@@ -228,7 +219,6 @@ export function NotificationCenter() {
         className="relative z-10 mt-auto flex h-[92%] max-h-full w-full flex-col animate-[om-sheet-up_0.28s_ease-out] sm:ml-auto sm:mt-0 sm:h-full sm:max-w-[400px]"
         style={{ backgroundColor: stage }}
       >
-        {/* Header */}
         <div className="flex shrink-0 items-center justify-between gap-3 px-4 pb-2 pt-4">
           <div className="min-w-0">
             <h2
@@ -237,24 +227,20 @@ export function NotificationCenter() {
             >
               Notifications
             </h2>
-            <p
-              className="mt-0.5 text-[11px] font-medium"
-              style={{ color: muted }}
-            >
+            <p className="mt-0.5 text-[11px] font-medium" style={{ color: muted }}>
               {unreadCount > 0 ? `${unreadCount} unread` : "All caught up"}
             </p>
           </div>
           <button
             type="button"
             onClick={() => void markAllRead()}
-            className="shrink-0 border-0 bg-transparent px-1 py-1.5 text-[12px] font-bold transition-opacity active:opacity-70"
+            className="shrink-0 border-0 bg-transparent px-1 py-1.5 text-[12px] font-bold active:opacity-70"
             style={{ color: accent }}
           >
             Mark all as read
           </button>
         </div>
 
-        {/* Search — blends with light sheet (not pure white) */}
         <div className="shrink-0 px-4 pb-2">
           <input
             type="search"
@@ -266,7 +252,6 @@ export function NotificationCenter() {
           />
         </div>
 
-        {/* Icon filters — equal width, one row, no side scroll, no chip fills */}
         <div className="shrink-0 px-3 pb-2">
           <div className="grid w-full grid-cols-5 gap-0">
             {FILTERS.map((f) => {
@@ -280,7 +265,7 @@ export function NotificationCenter() {
                   aria-label={f.label}
                   aria-pressed={on}
                   onClick={() => setFilter(f.id)}
-                  className="flex h-10 w-full items-center justify-center border-0 bg-transparent transition-colors"
+                  className="flex h-10 w-full items-center justify-center border-0 bg-transparent"
                   style={{ color: on ? accent : muted }}
                 >
                   <Icon
@@ -293,7 +278,6 @@ export function NotificationCenter() {
           </div>
         </div>
 
-        {/* List */}
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 scrollbar-hide">
           {loading && (
             <p
@@ -324,14 +308,21 @@ export function NotificationCenter() {
                 const open = expanded[item.key];
                 const head = item.head;
                 const high = isHighPriority(head.priority);
+                const stackRead = item.unread === 0;
+                const ids = item.items.map((i) => i.id);
                 return (
                   <li
                     key={item.key}
                     className="overflow-hidden rounded-md"
                     style={{ backgroundColor: card }}
+                    onMouseEnter={() => markStackRead(ids)}
+                    onClick={() => {
+                      markStackRead(ids);
+                      setExpanded((e) => ({ ...e, [item.key]: !open }));
+                    }}
                   >
                     <div className="flex gap-0">
-                      {high ? (
+                      {high && !stackRead ? (
                         <div
                           className="w-1 shrink-0 self-stretch"
                           style={{ backgroundColor: accent }}
@@ -340,7 +331,10 @@ export function NotificationCenter() {
                       <div className="min-w-0 flex-1 px-3 py-3">
                         <div className="flex items-start justify-between gap-2">
                           <p
-                            className="text-[13px] font-bold leading-snug"
+                            className={cn(
+                              "text-[13px] font-bold leading-snug",
+                              !stackRead && "font-black"
+                            )}
                             style={{ color: ink }}
                           >
                             {head.title}
@@ -351,7 +345,14 @@ export function NotificationCenter() {
                               >
                                 {item.unread}
                               </span>
-                            ) : null}
+                            ) : (
+                              <span
+                                className="ml-1.5 text-[10px] font-semibold"
+                                style={{ color: muted }}
+                              >
+                                {item.items.length}
+                              </span>
+                            )}
                           </p>
                           <span
                             className="shrink-0 text-[10px] font-medium"
@@ -364,37 +365,76 @@ export function NotificationCenter() {
                           className="mt-1 text-[12px] font-medium leading-snug"
                           style={{ color: muted }}
                         >
-                          {item.items.length} updates · {head.body}
+                          {head.body}
                         </p>
-                        <button
-                          type="button"
-                          className="mt-2 border-0 bg-transparent p-0 text-[12px] font-bold"
+                        <p
+                          className="mt-1.5 text-[11px] font-bold"
                           style={{ color: accent }}
-                          onClick={() =>
-                            setExpanded((e) => ({
-                              ...e,
-                              [item.key]: !open,
-                            }))
-                          }
                         >
-                          {open ? "Hide updates" : "View updates"}
-                        </button>
+                          {open
+                            ? "Hide stack"
+                            : `Show ${item.items.length} updates`}
+                        </p>
+
+                        {/* Cascade stack — Twitter-style nested list */}
                         {open ? (
-                          <ul className="mt-2 space-y-2">
-                            {item.items.map((n) => (
-                              <NotificationCardBody
+                          <ul
+                            className="mt-3 space-y-1 pl-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {item.items.map((n, idx) => (
+                              <li
                                 key={n.id}
-                                n={n}
-                                ink={ink}
-                                muted={muted}
-                                accent={accent}
-                                isLight={isLight}
-                                accountType={accountType}
-                                onAction={() => void runAction(n)}
-                                onRead={() => void markRead([n.id])}
-                              />
+                                className="rounded-md px-2.5 py-2.5"
+                                style={{
+                                  backgroundColor: isLight
+                                    ? "rgba(0,0,0,0.04)"
+                                    : "rgba(255,255,255,0.05)",
+                                }}
+                                onMouseEnter={() => markStackRead([n.id])}
+                              >
+                                <p
+                                  className="mb-1 text-[10px] font-bold uppercase tracking-wide"
+                                  style={{ color: muted }}
+                                >
+                                  Update {idx + 1} of {item.items.length}
+                                </p>
+                                <NotificationCardBody
+                                  n={n}
+                                  ink={ink}
+                                  muted={muted}
+                                  isLight={isLight}
+                                  accountType={accountType}
+                                  showMeta
+                                  stacked
+                                  stackIndex={idx}
+                                  onAction={() => void runAction(n)}
+                                  onRead={() => markStackRead([n.id])}
+                                />
+                              </li>
                             ))}
                           </ul>
+                        ) : null}
+
+                        {!open ? (
+                          <div
+                            className="mt-2.5"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ActionBtn
+                              label={
+                                isReleasePayPendingStatus(head.jobStatus)
+                                  ? "Confirm Job & Release Payment"
+                                  : "Open"
+                              }
+                              read={stackRead}
+                              isLight={isLight}
+                              onClick={() => {
+                                markStackRead(ids);
+                                void runAction(head);
+                              }}
+                            />
+                          </div>
                         ) : null}
                       </div>
                     </div>
@@ -404,14 +444,17 @@ export function NotificationCenter() {
 
               const n = item;
               const high = isHighPriority(n.priority);
+              const isRead = Boolean(n.readAt);
               return (
                 <li
                   key={n.id}
                   className="overflow-hidden rounded-md"
                   style={{ backgroundColor: card }}
+                  onMouseEnter={() => markStackRead([n.id])}
+                  onClick={() => markStackRead([n.id])}
                 >
                   <div className="flex gap-0">
-                    {high ? (
+                    {high && !isRead ? (
                       <div
                         className="w-1 shrink-0 self-stretch"
                         style={{ backgroundColor: accent }}
@@ -422,12 +465,11 @@ export function NotificationCenter() {
                         n={n}
                         ink={ink}
                         muted={muted}
-                        accent={accent}
                         isLight={isLight}
                         accountType={accountType}
                         showMeta
                         onAction={() => void runAction(n)}
-                        onRead={() => void markRead([n.id])}
+                        onRead={() => markStackRead([n.id])}
                       />
                     </div>
                   </div>
@@ -445,7 +487,6 @@ export function NotificationCenter() {
             setBlockMsg(null);
             setViewHref(null);
           }}
-          // View when we have a read-only target (job summary or closed chat)
           onView={
             viewHref
               ? () => {
@@ -467,27 +508,35 @@ function NotificationCardBody({
   n,
   ink,
   muted,
-  accent,
   isLight,
   accountType,
   showMeta,
+  stacked,
   onAction,
   onRead,
 }: {
   n: AppNotification;
   ink: string;
   muted: string;
-  accent: string;
   isLight: boolean;
   accountType: string | null;
   showMeta?: boolean;
+  stacked?: boolean;
+  stackIndex?: number;
   onAction: () => void;
   onRead: () => void;
 }) {
   const closed = isChatClosedForNotification(n);
   const unread = !n.readAt;
-  const finished = isJobFinishedStatus(n.jobStatus);
-  const navBlocked = isNavigationBlocked(n) || closed || finished;
+  const historyClosed = isJobHistoryClosedStatus(n.jobStatus);
+  const releasePay = isReleasePayPendingStatus(n.jobStatus);
+  const navBlocked =
+    !releasePay && (isNavigationBlocked(n) || closed || historyClosed);
+
+  const go = () => {
+    onRead();
+    onAction();
+  };
 
   return (
     <div>
@@ -496,7 +545,8 @@ function NotificationCardBody({
           <p
             className={cn(
               "text-[13px] font-bold leading-snug",
-              unread && "font-black"
+              unread && "font-black",
+              stacked && "text-[12px]"
             )}
             style={{ color: ink }}
           >
@@ -524,26 +574,23 @@ function NotificationCardBody({
           Job finished. Full message.
         </p>
       ) : null}
-      {finished && !closed && n.category === "requests" ? (
+      {historyClosed && !closed && n.category === "requests" ? (
         <p className="mt-1 text-[10px] font-semibold" style={{ color: muted }}>
           Job {n.jobStatus?.replace(/_/g, " ") || "closed"}. Link unavailable.
         </p>
       ) : null}
 
       <div className="mt-2.5 flex flex-wrap gap-2">
-        {/* Always show primary action — blocked → popup (not silent hide) */}
         {n.actionType === "open_chat" || n.category === "messages" ? (
-          <SolidBtn
+          <ActionBtn
             label={navBlocked ? "View" : "Open chat"}
-            accent={accent}
-            onClick={() => {
-              onRead();
-              onAction();
-            }}
+            read={!unread}
+            isLight={isLight}
+            onClick={go}
           />
         ) : null}
         {n.actionType === "accept_request" ? (
-          <SolidBtn
+          <ActionBtn
             label={
               navBlocked
                 ? "View"
@@ -551,99 +598,60 @@ function NotificationCardBody({
                   ? "View request"
                   : "View"
             }
-            accent={accent}
-            onClick={() => {
-              onRead();
-              onAction();
-            }}
+            read={!unread}
+            isLight={isLight}
+            onClick={go}
           />
         ) : null}
         {n.actionType === "view_tracking" ? (
-          <SolidBtn
+          <ActionBtn
             label={navBlocked ? "View" : "Track"}
-            accent={accent}
-            onClick={() => {
-              onRead();
-              onAction();
-            }}
+            read={!unread}
+            isLight={isLight}
+            onClick={go}
           />
         ) : null}
         {n.actionType === "open_job" ||
-        (n.category === "requests" && n.actionType !== "accept_request") ? (
-          <SolidBtn
-            label={navBlocked ? "View" : "View job"}
-            accent={accent}
-            onClick={() => {
-              onRead();
-              onAction();
-            }}
+        (n.category === "requests" && n.actionType !== "accept_request") ||
+        (n.category === "payments" && releasePay) ? (
+          <ActionBtn
+            label={
+              releasePay
+                ? "Confirm Job & Release Payment"
+                : navBlocked
+                  ? "View"
+                  : "View job"
+            }
+            read={!unread}
+            isLight={isLight}
+            onClick={go}
           />
         ) : null}
-        {n.actionType === "view_payment" ? (
-          <SolidBtn
+        {n.actionType === "view_payment" && !releasePay ? (
+          <ActionBtn
             label="Payments"
-            accent={accent}
-            onClick={() => {
-              onRead();
-              onAction();
-            }}
+            read={!unread}
+            isLight={isLight}
+            onClick={go}
           />
         ) : null}
         {n.actionType === "rate" ? (
-          <SolidBtn
+          <ActionBtn
             label="Rate"
-            accent={accent}
-            onClick={() => {
-              onRead();
-              onAction();
-            }}
+            read={!unread}
+            isLight={isLight}
+            onClick={go}
           />
         ) : null}
-        {/* Generic href-only cards */}
         {!n.actionType && n.href ? (
-          <SolidBtn
+          <ActionBtn
             label={navBlocked ? "View" : "Open"}
-            accent={accent}
-            onClick={() => {
-              onRead();
-              onAction();
-            }}
+            read={!unread}
+            isLight={isLight}
+            onClick={go}
           />
-        ) : null}
-        {unread ? (
-          <SolidBtn label="Mark read" onClick={onRead} isLight={isLight} />
         ) : null}
       </div>
     </div>
-  );
-}
-
-function SolidBtn({
-  label,
-  onClick,
-  accent,
-  isLight,
-}: {
-  label: string;
-  onClick: () => void;
-  accent?: string;
-  isLight?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="h-8 rounded-md border-0 px-3 text-[11px] font-bold transition-opacity active:opacity-80"
-      style={
-        accent
-          ? { backgroundColor: accent, color: "#ffffff" }
-          : {
-              backgroundColor: isLight ? "#bebfc4" : "#2c2c2e",
-              color: isLight ? "#1a1b1e" : "#ffffff",
-            }
-      }
-    >
-      {label}
-    </button>
   );
 }

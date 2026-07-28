@@ -12,6 +12,8 @@ export type EscrowStatus =
   | "pending_payment"
   | "held"
   | "release_pending"
+  /** Customer satisfied; pro 87.5% waiting for FLW Available settlement */
+  | "pending_settlement"
   | "released"
   | "refunded"
   | "failed";
@@ -218,6 +220,22 @@ export async function getEscrowByRequest(
   if (isSupabaseAdminConfigured()) {
     try {
       const sb = createServiceSupabase();
+      // Prefer money rows (ignore expired Pay-again drafts)
+      const { data: held } = await sb
+        .from("payments")
+        .select("*")
+        .eq("request_id", requestId)
+        .in("escrow_status", [
+          "held",
+          "release_pending",
+          "pending_settlement",
+          "released",
+        ])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (held) return rowToEscrow(held as Record<string, unknown>);
+
       const { data } = await sb
         .from("payments")
         .select("*")
@@ -230,10 +248,50 @@ export async function getEscrowByRequest(
       /* memory */
     }
   }
+  let best: EscrowPayment | null = null;
   for (const p of memory.values()) {
-    if (p.requestId === requestId && !p.id.startsWith("ref:")) return p;
+    if (p.requestId !== requestId || p.id.startsWith("ref:")) continue;
+    if (
+      p.escrowStatus === "held" ||
+      p.escrowStatus === "release_pending" ||
+      p.escrowStatus === "pending_settlement" ||
+      p.escrowStatus === "released"
+    ) {
+      return p;
+    }
+    if (!best) best = p;
   }
-  return null;
+  return best;
+}
+
+/** List escrow rows by status (admin + retry queue). */
+export async function listEscrowsByStatuses(
+  statuses: EscrowStatus[],
+  limit = 100
+): Promise<EscrowPayment[]> {
+  if (isSupabaseAdminConfigured()) {
+    try {
+      const sb = createServiceSupabase();
+      const { data, error } = await sb
+        .from("payments")
+        .select("*")
+        .in("escrow_status", statuses)
+        .order("updated_at", { ascending: false })
+        .limit(limit);
+      // Empty array is a successful answer — do not fall through to memory
+      if (!error && data != null) {
+        return data.map((r) => rowToEscrow(r as Record<string, unknown>));
+      }
+    } catch {
+      /* memory */
+    }
+  }
+  const out: EscrowPayment[] = [];
+  for (const p of memory.values()) {
+    if (p.id.startsWith("ref:")) continue;
+    if (statuses.includes(p.escrowStatus)) out.push(p);
+  }
+  return out.slice(0, limit);
 }
 
 export async function updateEscrow(
@@ -248,6 +306,8 @@ export async function updateEscrow(
     proCompletedAt: string | null;
     providerChannel: string | null;
     amountMinor: number;
+    platformFeeMinor: number;
+    proPayoutMinor: number;
     meta: Record<string, unknown>;
   }>
 ): Promise<EscrowPayment | null> {
@@ -264,6 +324,10 @@ export async function updateEscrow(
   if (patch.providerChannel !== undefined)
     dbPatch.provider_channel = patch.providerChannel;
   if (patch.amountMinor != null) dbPatch.amount_kobo = patch.amountMinor;
+  if (patch.platformFeeMinor != null)
+    dbPatch.platform_fee_kobo = patch.platformFeeMinor;
+  if (patch.proPayoutMinor != null)
+    dbPatch.pro_payout_kobo = patch.proPayoutMinor;
   if (patch.meta) dbPatch.meta = patch.meta;
 
   const moneyTouch =
@@ -315,6 +379,8 @@ export async function updateEscrow(
           ? patch.providerChannel
           : existing.providerChannel,
       amountMinor: patch.amountMinor ?? existing.amountMinor,
+      platformFeeMinor: patch.platformFeeMinor ?? existing.platformFeeMinor,
+      proPayoutMinor: patch.proPayoutMinor ?? existing.proPayoutMinor,
       meta: patch.meta ?? existing.meta,
       updatedAt: nowIso(),
     };

@@ -17,8 +17,20 @@ export type AppCurrency =
   | "CAD"
   | "AUD";
 
-/** Platform take on released escrow (Repair Pro receives the rest). */
+/**
+ * Settlement from the **service charge S** (customer pays S only):
+ * - Repair pro: 87.5% = S − 5% Ona − 7.5% VAT  (equiv. 95% of S − VAT)
+ * - Ona platform: 5% of S (Flutterwave fees come out of this; Ona absorbs if fees > 5%)
+ * - VAT: 7.5% of S stays on Flutterwave main balance (not paid to pro or Zenith)
+ * - FLW collection + payout fees: deducted from Ona’s 5% only
+ */
 export const PLATFORM_COMMISSION_PERCENT = 5;
+/** @deprecated Name kept for imports — fee is taken from S, not added on top. */
+export const PLATFORM_FEE_ON_TOP_PERCENT = PLATFORM_COMMISSION_PERCENT;
+/** Nigeria VAT on labour/service only. */
+export const VAT_PERCENT_NG = 7.5;
+/** Pro net share of service charge after Ona 5% and VAT 7.5%. */
+export const PRO_NET_PAYOUT_PERCENT = 100 - PLATFORM_COMMISSION_PERCENT - VAT_PERCENT_NG;
 
 /** Max motorist-negotiated discount off the pro’s base labour price. */
 export const MAX_DISCOUNT_PERCENT = 50;
@@ -26,8 +38,134 @@ export const MAX_DISCOUNT_PERCENT = 50;
 export const LABOUR_FEE_DISCLAIMER =
   "Labour / service fee only. Does not include spare parts or motor parts.";
 
-export const LABOUR_SPLIT_LINE =
-  "Labour only | 5% platform | 95% Repair Pro";
+/** Pro-only copy — never show to customers */
+export const LABOUR_SPLIT_LINE_PRO =
+  "You receive 87.5% · 5% Ona · 7.5% VAT held on Flutterwave";
+
+/** @deprecated Prefer role-specific lines; do not show split to customers */
+export const LABOUR_SPLIT_LINE = LABOUR_SPLIT_LINE_PRO;
+
+/**
+ * Split service charge in minor units so pro + Ona + VAT always sum to total.
+ * Customer pays `totalMinor` exactly (no fees stacked on top).
+ */
+export function splitServiceChargeMinor(amountMinor: number): {
+  totalMinor: number;
+  proPayoutMinor: number;
+  platformFeeMinor: number;
+  vatMinor: number;
+} {
+  const total = Math.max(0, Math.round(amountMinor));
+  const platformFeeMinor = Math.round((total * PLATFORM_COMMISSION_PERCENT) / 100);
+  const vatMinor = Math.round((total * VAT_PERCENT_NG) / 100);
+  const proPayoutMinor = Math.max(0, total - platformFeeMinor - vatMinor);
+  return { totalMinor: total, proPayoutMinor, platformFeeMinor, vatMinor };
+}
+
+/**
+ * Customer checkout = agreed service price only.
+ * After release: pro 87.5% · Ona 5% (minus FLW fees) · VAT 7.5% stays on FLW.
+ */
+export function buildCustomerChargeMajor(labourMajor: number): {
+  labourMajor: number;
+  platformFeeMajor: number;
+  vatMajor: number;
+  totalMajor: number;
+  proPayoutMajor: number;
+  onaKeepMajor: number;
+} {
+  const labour = Math.max(0, Number(labourMajor) || 0);
+  const totalMinor = Math.round(labour * 100);
+  const split = splitServiceChargeMinor(totalMinor);
+  return {
+    labourMajor: split.totalMinor / 100,
+    platformFeeMajor: split.platformFeeMinor / 100,
+    vatMajor: split.vatMinor / 100,
+    totalMajor: split.totalMinor / 100,
+    proPayoutMajor: split.proPayoutMinor / 100,
+    /** Gross Ona platform before Flutterwave fees */
+    onaKeepMajor: split.platformFeeMinor / 100,
+  };
+}
+
+/** Trade-aware labour disclaimer (parts vs materials vs consumables). */
+export function labourFeeDisclaimerForTrade(
+  service?: ProService | string | null
+): string {
+  const s = (service || "").toLowerCase();
+  if (
+    s === "mechanic" ||
+    s === "vulcanizer" ||
+    s === "towing" ||
+    s === "battery" ||
+    s === "body" ||
+    s === "diagnostics" ||
+    s === "wash"
+  ) {
+    return "Labour / service fee only. Does not include spare parts, tyres, or motor parts.";
+  }
+  if (s === "ac") {
+    return "Labour / service fee only. Does not include gas, filters, or replacement parts (vehicle or building A/C).";
+  }
+  if (s === "electrical") {
+    return "Labour / service fee only. Does not include cables, breakers, bulbs, or electrical materials.";
+  }
+  if (s === "plumber") {
+    return "Labour / service fee only. Does not include pipes, fittings, or plumbing materials.";
+  }
+  if (s === "carpenter") {
+    return "Labour / service fee only. Does not include wood, hardware, or materials.";
+  }
+  if (s === "painter") {
+    return "Labour / service fee only. Does not include paint, primer, or consumables.";
+  }
+  if (s === "solar") {
+    return "Labour / service fee only. Does not include panels, batteries, inverters, or materials.";
+  }
+  if (s === "generator") {
+    return "Labour / service fee only. Does not include spare parts, oil, or filters.";
+  }
+  return LABOUR_FEE_DISCLAIMER;
+}
+
+/** Trade-aware problem description placeholder. */
+export function problemPlaceholderForTrade(
+  service?: ProService | string | null
+): string {
+  const s = (service || "").toLowerCase();
+  switch (s) {
+    case "mechanic":
+      return "e.g. Engine overheating on the expressway, steam from the bonnet";
+    case "vulcanizer":
+      return "e.g. Flat tyre on the front right, need plug and balance";
+    case "towing":
+      return "e.g. Car won’t start on the highway, need a light tow";
+    case "battery":
+      return "e.g. Dead battery, needs jump start or replacement";
+    case "body":
+      return "e.g. Dent on rear bumper after a parking scrape";
+    case "ac":
+      return "e.g. Unit not cooling, water leaking, or vehicle A/C blowing warm";
+    case "electrical":
+      return "e.g. No power to outlets, wiring fault, or vehicle electrics dead";
+    case "diagnostics":
+      return "e.g. Check-engine light on, need full OBD scan";
+    case "wash":
+      return "e.g. Full exterior wash and interior vacuum";
+    case "plumber":
+      return "e.g. Burst pipe under the kitchen sink, no water upstairs";
+    case "carpenter":
+      return "e.g. Door frame loose, wardrobe hinge broken";
+    case "painter":
+      return "e.g. Living room walls peeling, need full repaint";
+    case "solar":
+      return "e.g. Inverter not charging, panels dirty or offline";
+    case "generator":
+      return "e.g. Generator won’t start, surging under load";
+    default:
+      return "e.g. Describe what is wrong and where you need help";
+  }
+}
 
 const COUNTRY_CURRENCY: Record<string, AppCurrency> = {
   NG: "NGN",
@@ -84,18 +222,33 @@ function nameToCurrency(name: string): AppCurrency | null {
 
 /**
  * Resolve marketplace currency from country code/name or locale.
+ * Nigerian users always get NGN (never GBP from en-GB devices).
  * Defaults to NGN (primary market).
  */
 export function detectCurrency(opts?: {
   countryCode?: string | null;
   countryName?: string | null;
   locale?: string | null;
+  /** When true (default for Ona NG), force NGN for Nigerian signals */
+  forceNgnForNigeria?: boolean;
 }): AppCurrency {
+  const forceNg = opts?.forceNgnForNigeria !== false;
   const code = (opts?.countryCode || "").trim().toUpperCase();
-  if (code && COUNTRY_CURRENCY[code]) return COUNTRY_CURRENCY[code];
+  if (code === "NG" || code === "NGA") return "NGN";
+  if (code && COUNTRY_CURRENCY[code]) {
+    // If product is NG-first and no foreign market flag, still prefer NGN
+    if (forceNg && process.env.NEXT_PUBLIC_FORCE_NGN !== "false") {
+      // Only allow non-NGN when country is explicitly non-NG
+      if (code !== "NG" && code !== "NGA") return COUNTRY_CURRENCY[code];
+    }
+    return COUNTRY_CURRENCY[code];
+  }
 
   const fromName = nameToCurrency(opts?.countryName || "");
-  if (fromName) return fromName;
+  if (fromName === "NGN") return "NGN";
+  if (fromName && !forceNg) return fromName;
+  if (fromName && fromName !== "GBP" && fromName !== "USD" && fromName !== "EUR")
+    return fromName;
 
   const locale = (
     opts?.locale ||
@@ -104,13 +257,41 @@ export function detectCurrency(opts?: {
 
   // Prefer Nigeria market defaults — do not infer GBP/EUR from browser language alone
   // (many Nigerian devices report en-GB / en-US and wrongly priced in £).
-  if (locale.startsWith("en-ng") || locale.startsWith("ha-ng") || locale.startsWith("yo-ng") || locale.startsWith("ig-ng") || locale.startsWith("pcm"))
+  if (
+    locale.startsWith("en-ng") ||
+    locale.startsWith("ha-ng") ||
+    locale.startsWith("yo-ng") ||
+    locale.startsWith("ig-ng") ||
+    locale.startsWith("pcm")
+  )
     return "NGN";
+
+  // Hard block: en-GB / en-US must not become £/$ for Ona Nigeria
+  if (
+    forceNg &&
+    process.env.NEXT_PUBLIC_FORCE_NGN !== "false" &&
+    (locale.startsWith("en-gb") ||
+      locale.startsWith("en-us") ||
+      locale === "en")
+  ) {
+    return "NGN";
+  }
+
   if (locale.startsWith("en-za") || locale.startsWith("af-za")) return "ZAR";
   if (locale.startsWith("en-gh")) return "GHS";
   if (locale.startsWith("en-ke") || locale.startsWith("sw-ke")) return "KES";
 
-  // Primary market default
+  // Primary market default — always NGN
+  return "NGN";
+}
+
+/** Nigerian display/pay currency only */
+export function forceNairaCurrency(
+  currency?: AppCurrency | string | null
+): AppCurrency {
+  if (process.env.NEXT_PUBLIC_FORCE_NGN === "false") {
+    return (currency as AppCurrency) || "NGN";
+  }
   return "NGN";
 }
 
@@ -299,12 +480,13 @@ export function applyDiscount(
 export function splitEscrow(amountMinor: number): {
   platformMinor: number;
   proMinor: number;
+  vatMinor: number;
 } {
-  const total = Math.max(0, Math.round(amountMinor));
-  const platformMinor = Math.round((total * PLATFORM_COMMISSION_PERCENT) / 100);
+  const s = splitServiceChargeMinor(amountMinor);
   return {
-    platformMinor,
-    proMinor: total - platformMinor,
+    platformMinor: s.platformFeeMinor,
+    proMinor: s.proPayoutMinor,
+    vatMinor: s.vatMinor,
   };
 }
 
@@ -346,4 +528,9 @@ export function buildPricingSnapshot(input: {
     proPayoutMinor: proMinor,
     labourOnly: true,
   };
+}
+
+/** @deprecated Use splitServiceChargeMinor — alias for call sites expecting 95/5 name. */
+export function split95_5_from_service(amountMinor: number) {
+  return splitServiceChargeMinor(amountMinor);
 }

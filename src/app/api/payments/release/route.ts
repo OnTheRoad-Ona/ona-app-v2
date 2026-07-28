@@ -4,10 +4,7 @@ import {
   getEscrowByRequest,
   updateEscrow,
 } from "@/lib/server/payments/escrow-store";
-import { releaseToPro } from "@/lib/server/payments/providers";
-import type { AppCurrency } from "@/lib/pricing";
-import { createServiceSupabase } from "@/lib/supabase/server";
-import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
+import { attemptProPayout } from "@/lib/server/payments/payout-settlement";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,30 +15,10 @@ const bodySchema = z.object({
   userId: z.string().min(1),
 });
 
-async function loadProBank(repairProId: string | null) {
-  if (!repairProId || !isSupabaseAdminConfigured()) return null;
-  try {
-    const sb = createServiceSupabase();
-    const { data } = await sb
-      .from("repair_pro_profiles")
-      .select("bank_name, bank_account_name, bank_account_number, bank_code")
-      .eq("user_id", repairProId)
-      .maybeSingle();
-    if (!data) return null;
-    return {
-      bankName: (data.bank_name as string) || "",
-      accountName: (data.bank_account_name as string) || "",
-      accountNumber: String(data.bank_account_number || "").replace(/\D/g, ""),
-      bankCode: String(data.bank_code || "").trim(),
-    };
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Dual completion: each party marks complete.
- * When both done → release 95% to pro (Flutterwave transfer + bank code).
+ * When both done → single idempotent pro payout via attemptProPayout
+ * (stable transfer ref + ledger + FLW lookup — never a second bank credit).
  */
 export async function POST(req: Request) {
   try {
@@ -51,10 +28,18 @@ export async function POST(req: Request) {
 
     const payment = await getEscrowByRequest(requestId);
     if (!payment) return apiFail("No escrow payment for this request", 404);
-    if (payment.escrowStatus === "released") {
+    if (
+      payment.escrowStatus === "released" ||
+      payment.meta?.proTransferOk === true ||
+      payment.meta?.payoutStatus === "success"
+    ) {
       return apiOk({ payment, alreadyReleased: true });
     }
-    if (payment.escrowStatus !== "held" && payment.escrowStatus !== "release_pending") {
+    if (
+      payment.escrowStatus !== "held" &&
+      payment.escrowStatus !== "release_pending" &&
+      payment.escrowStatus !== "pending_settlement"
+    ) {
       return apiFail("Escrow is not held — cannot release", 400, "not_held");
     }
 
@@ -62,7 +47,6 @@ export async function POST(req: Request) {
     const patch: {
       motoristCompletedAt?: string | null;
       proCompletedAt?: string | null;
-      escrowStatus?: "release_pending" | "released" | "held";
     } = {};
 
     if (role === "motorist") {
@@ -82,72 +66,73 @@ export async function POST(req: Request) {
     const proDone =
       role === "professional" ? true : Boolean(payment.proCompletedAt);
 
-    if (motoristDone && proDone) {
-      patch.escrowStatus = "release_pending";
-      let updated = await updateEscrow(payment.id, {
-        ...patch,
-        escrowStatus: "release_pending",
+    if (!(motoristDone && proDone)) {
+      const updated = await updateEscrow(payment.id, patch);
+      return apiOk({
+        payment: updated,
+        bothCompleted: false,
+        waitingFor: role === "motorist" ? "professional" : "motorist",
       });
+    }
 
-      const proBank = await loadProBank(payment.repairProId);
-      if (
-        !proBank?.bankCode ||
-        !proBank.accountNumber ||
-        !proBank.accountName
-      ) {
-        return apiFail(
-          "Repair Pro must save bank details (with bank code) before payout.",
-          400,
-          "pro_bank_required"
-        );
-      }
+    await updateEscrow(payment.id, {
+      ...patch,
+      escrowStatus: "release_pending",
+    });
 
-      const xfer = await releaseToPro({
-        amountMinor: payment.proPayoutMinor,
-        currency: payment.currency as AppCurrency,
-        reference: `rel_${payment.providerRef || payment.id}`,
-        reason: "Ona job completion payout (95% labour fee)",
-        bankCode: proBank.bankCode,
-        accountNumber: proBank.accountNumber,
-        accountName: proBank.accountName,
-      });
+    // ONE path only — never call releaseToPro with a different reference
+    const result = await attemptProPayout({
+      jobId: requestId,
+      repairProId: payment.repairProId,
+      amountMinor: payment.amountMinor,
+      currency: payment.currency,
+      paymentReference: payment.providerRef,
+      // force only skips settlement backoff, never bypasses double-pay guards
+      force: true,
+    });
 
-      updated = await updateEscrow(payment.id, {
-        status: "paid",
-        escrowStatus: xfer.ok ? "released" : "release_pending",
-        releasedAt: xfer.ok ? now : null,
-        meta: {
-          ...payment.meta,
-          releaseAttempt: xfer,
-          platformFeeMinor: payment.platformFeeMinor,
-          proPayoutMinor: payment.proPayoutMinor,
-          proBankCode: proBank.bankCode,
-          proBankName: proBank.bankName,
-        },
-      });
-
+    if (result.ok) {
+      const updated = await getEscrowByRequest(requestId);
       return apiOk({
         payment: updated,
         bothCompleted: true,
-        transfer: xfer,
+        alreadyReleased: result.alreadyReleased === true,
+        transfer: { ok: true, transferRef: result.transferRef },
         split: {
           platformPercent: 5,
-          proPercent: 95,
-          platformFeeMinor: payment.platformFeeMinor,
-          proPayoutMinor: payment.proPayoutMinor,
+          proPercent: 87.5,
+          vatPercent: 7.5,
+          platformFeeMinor: result.platformFeeMinor,
+          proPayoutMinor: result.proPayoutMinor,
         },
       });
     }
 
-    const updated = await updateEscrow(payment.id, patch);
-    return apiOk({
-      payment: updated,
-      bothCompleted: false,
-      waitingFor:
-        role === "motorist" ? "professional" : "motorist",
-    });
+    if (result.pendingSettlement) {
+      const updated = await getEscrowByRequest(requestId);
+      return apiOk({
+        payment: updated,
+        bothCompleted: true,
+        pendingSettlement: true,
+        message: result.message,
+        split: {
+          platformPercent: 5,
+          proPercent: 87.5,
+          vatPercent: 7.5,
+          platformFeeMinor: result.platformFeeMinor,
+          proPayoutMinor: result.proPayoutMinor,
+        },
+      });
+    }
+
+    return apiFail(
+      result.message || "Could not release payout. Funds remain in escrow.",
+      400,
+      "payout_failed"
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Release failed";
     return apiFail(msg, 500);
   }
 }
+
