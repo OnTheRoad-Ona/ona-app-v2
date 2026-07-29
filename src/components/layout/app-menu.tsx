@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
@@ -13,7 +14,6 @@ import {
   UserRound,
   Wallet,
   Wrench,
-  X,
 } from "lucide-react";
 import { useNotificationsOptional } from "@/components/notifications/notification-provider";
 import { NewAccountBadge } from "@/components/profile/new-account-badge";
@@ -254,8 +254,8 @@ export function AppMenu({
           isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
-        <div className="flex items-start justify-between px-4 pb-4 pt-5">
-          <div className="min-w-0 flex-1 pr-2">
+          <div className="flex items-start px-4 pb-4 pt-5">
+          <div className="min-w-0 flex-1">
             {/* Signed-in: avatar (Ona default or user photo) + greeting + name. Guest: Ona brand */}
             {isAuthenticated && fullNameDisplay ? (
               <div className="flex items-center gap-3">
@@ -314,17 +314,6 @@ export function AppMenu({
               </p>
             )}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 bg-transparent",
-              isLight ? "text-black" : "text-white"
-            )}
-            aria-label={t("common.close")}
-          >
-            <X className="h-6 w-6" strokeWidth={2.2} />
-          </button>
         </div>
 
         <nav className="flex-1 space-y-1.5 overflow-y-auto px-3 pb-2 pt-5">
@@ -547,6 +536,28 @@ export function AppMenu({
           </button>
         </div>
       </aside>
+
+      {/* Sliding image panel from the right */}
+      <div
+        className="pointer-events-none absolute animate-[om-panel-slide_0.35s_ease-out]"
+        style={{
+          right: 0,
+          top: "140px",
+          width: "200px",
+          height: "220px",
+          borderRadius: "16px",
+          overflow: "hidden",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+        }}
+      >
+        <Image
+          src="/images/slider-panel.jpeg"
+          alt="Panel"
+          fill
+          className="object-cover"
+          draggable={false}
+        />
+      </div>
     </div>
   );
 }
