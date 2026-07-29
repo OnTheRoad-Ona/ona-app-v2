@@ -250,13 +250,11 @@ export async function POST(req: Request) {
     }
   }
 
-  // Repair Pros cannot change personal full name after signup (business name is separate)
+  // Name is immutable for all roles after signup (business name is separate for pros)
   await admin
     .from("profiles")
     .update({
-      ...(b.fullName != null && !isRepairPro
-        ? { full_name: b.fullName }
-        : {}),
+      // full_name is never updated — locked at signup
       ...(b.phone != null ? { phone: b.phone } : {}),
       ...(b.gender != null ? { gender: b.gender } : {}),
       ...(b.dateOfBirth != null
@@ -485,7 +483,7 @@ export async function POST(req: Request) {
         ...(b.businessName !== undefined
           ? { business_name: b.businessName || null }
           : {}),
-        ...(b.bio !== undefined ? { bio: b.bio || null } : {}),
+        ...(b.bio !== undefined && isRepairPro ? { bio: b.bio || null } : {}),
         // Pros: years only if never set (one-time from My Profile)
         ...(() => {
           if (b.yearsExperience === undefined) return {};

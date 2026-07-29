@@ -215,6 +215,8 @@ export interface UserProfile {
   >;
   /** Stable identity id for the local account registry */
   identityId?: string;
+  /** Name is locked after signup — cannot be changed */
+  name_locked?: boolean;
   registeredAt: string;
 }
 

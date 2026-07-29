@@ -629,6 +629,7 @@ export function ProSignup() {
     const profile: UserProfile = {
       accountType: "professional",
       fullName: fullName.trim(),
+      name_locked: true,
       gender: gender as SignupGender,
       dateOfBirth: normalizeDobIso(dateOfBirth) || dateOfBirth.trim(),
       businessName: businessName.trim(),

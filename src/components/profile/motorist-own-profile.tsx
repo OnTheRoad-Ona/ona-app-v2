@@ -81,7 +81,6 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  const [fullName, setFullName] = useState(userProfile?.fullName || "");
   const [avatarUrl, setAvatarUrl] = useState(userProfile?.avatarUrl || "");
   const [vehicles, setVehicles] = useState<MotoristVehicle[]>(() =>
     userProfile ? vehiclesFromProfile(userProfile) : []
@@ -112,7 +111,6 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
     : "h-10 w-full rounded-xl border-0 bg-[#2c2c2e] px-3 text-[13px] font-medium text-white outline-none";
 
   const syncFromProfile = (p: UserProfile) => {
-    setFullName(p.fullName || "");
     setAvatarUrl(p.avatarUrl || "");
     setVehicles(vehiclesFromProfile(p));
     setAddingVehicle(false);
@@ -151,7 +149,6 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
     setMsg(null);
     const legacy = legacyFieldsFromVehicles(vehicles);
     const e = updateUserProfile({
-      fullName: fullName.trim(),
       avatarUrl: avatarUrl || undefined,
       vehicles,
       ...legacy,
@@ -255,11 +252,11 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
             <Avatar className="h-16 w-16 overflow-hidden rounded-full">
               <AvatarImage
                 src={avatarUrl || DEFAULT_VENDOR_PHOTO}
-                alt={fullName}
+                alt={userProfile.fullName}
                 className="object-cover"
               />
               <AvatarFallback className="bg-brand font-bold text-white">
-                {avatarInitials(fullName)}
+                {avatarInitials(userProfile.fullName)}
               </AvatarFallback>
             </Avatar>
             {editing && (
@@ -276,18 +273,9 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
             onChange={(e) => void onPickAvatar(e.target.files?.[0] || null)}
           />
           <div className="min-w-0 flex-1">
-            {editing ? (
-              <input
-                className={field}
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Full name"
-              />
-            ) : (
-              <p className={cn("truncate text-[17px] font-black", t.ink)}>
-                {userProfile.fullName}
-              </p>
-            )}
+            <p className={cn("truncate text-[17px] font-black", t.ink)}>
+              {userProfile.fullName}
+            </p>
             <p className={cn("mt-0.5 text-[12px] font-semibold", t.muted)}>
               Customer
             </p>

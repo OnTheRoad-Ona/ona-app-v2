@@ -419,6 +419,7 @@ export function MotoristSignup() {
     const profile: UserProfile = {
       accountType: "motorist",
       fullName: fullName.trim(),
+      name_locked: true,
       gender: gender as SignupGender,
       dateOfBirth: normalizeDobIso(dateOfBirth) || "",
       phone: fullPhone,

@@ -1590,7 +1590,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         accountType: userProfile.accountType,
         password: userProfile.password,
         email: fields.email?.trim() || userProfile.email,
-        fullName: (fields.fullName ?? userProfile.fullName).trim(),
+        // Name is immutable for all roles after signup
+        fullName: (userProfile.fullName || "").trim(),
         phone: fields.phone ?? userProfile.phone,
       };
 
@@ -1599,8 +1600,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       if (next.accountType === "professional") {
-        // Locked after signup: personal name + single trade skill
-        next.fullName = (userProfile.fullName || "").trim();
         // Years: allow set only once if unset at signup
         if (!isExperienceUnset(userProfile.yearsExperience)) {
           next.yearsExperience = userProfile.yearsExperience;
@@ -1666,7 +1665,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               area: next.area,
               avatarUrl: next.avatarUrl,
               businessName: next.businessName,
-              bio: next.bio,
+              bio: isPro ? next.bio : undefined,
               // Pros: send years only when setting for the first time (or non-pro)
               yearsExperience: isPro
                 ? isExperienceUnset(userProfile.yearsExperience) &&
@@ -1854,6 +1853,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...normalized,
         ...res.profile,
         primaryAccountType: primary,
+        name_locked: true,
         // Merge vault extras the server may not echo yet
         servicePrices: normalized.servicePrices ?? res.profile.servicePrices,
         pricingCurrency:
