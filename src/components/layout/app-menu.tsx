@@ -545,37 +545,39 @@ export function AppMenu({
         </div>
       </aside>
 
-      {/* Right sliding drawer (mobile-app style) */}
+      {/* Trade panel at chip row level */}
       <div
         className={cn(
-          "relative z-10 flex h-full w-[40%] flex-col overflow-y-auto transition-transform duration-300 ease-out",
+          "absolute z-10 flex animate-[om-panel-slide_0.3s_ease-out]",
           isLight ? "bg-[#d8dce4]" : "bg-[#1c1c1e]"
         )}
         style={{
+          right: 0,
+          top: "155px",
+          width: "205px",
           borderRadius: "24px 0 0 24px",
-          transform: "translateX(0)",
+          overflow: "hidden",
+          boxShadow: "-4px 0 20px rgba(0,0,0,0.25)",
         }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 pb-2 pt-5">
-          <p className={cn("text-[14px] font-black uppercase tracking-wider", isLight ? "text-slate-800" : "text-white/90")}>
-            Trades
-          </p>
-          <button
-            type="button"
-            onClick={onClose}
-            className={cn(
-              "flex h-8 w-8 items-center justify-center rounded-full border-0 bg-transparent",
-              isLight ? "text-slate-600 hover:bg-slate-300" : "text-white/60 hover:bg-white/15"
-            )}
-            aria-label={t("common.close")}
-          >
-            <X className="h-5 w-5" strokeWidth={2.2} />
-          </button>
-        </div>
+        <div className="flex w-full flex-col gap-1.5 px-3 py-3">
+          {/* Header row */}
+          <div className="flex items-center justify-between">
+            <p className={cn("text-[10px] font-black uppercase tracking-wider", isLight ? "text-slate-600" : "text-white/50")}>Trades</p>
+            <button
+              type="button"
+              onClick={onClose}
+              className={cn(
+                "flex h-6 w-6 items-center justify-center rounded-full border-0 bg-transparent p-0",
+                isLight ? "text-slate-500 hover:bg-slate-300" : "text-white/40 hover:bg-white/15"
+              )}
+              aria-label={t("common.close")}
+            >
+              <X className="h-3.5 w-3.5" strokeWidth={2.5} />
+            </button>
+          </div>
 
-        {/* Trade buttons */}
-        <div className="flex flex-col gap-2 px-3">
+          {/* Trade buttons */}
           {[
             { id: "mechanic" as const, label: "Mechanic", icon: Wrench },
             { id: "body" as const, label: "Body", icon: Paintbrush },
@@ -588,49 +590,42 @@ export function AppMenu({
                 type="button"
                 onClick={() => setCategory(active ? "all" : id)}
                 className={cn(
-                  "flex items-center gap-3 rounded-xl border-0 px-3 py-3 text-[13px] font-bold transition-colors",
+                  "flex items-center gap-2 rounded-lg border-0 px-2 py-1.5 text-[11px] font-bold transition-colors",
                   active
                     ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white"
                     : isLight ? "bg-transparent text-slate-700 hover:bg-white/60" : "bg-transparent text-white/80 hover:bg-white/10"
                 )}
               >
-                <Icon className="h-5 w-5 shrink-0" strokeWidth={2} />
+                <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
                 {label}
               </button>
             );
           })}
+
+          <div className={cn("h-px", isLight ? "bg-slate-400/30" : "bg-white/15")} />
+
+          {/* Radius */}
+          <div>
+            <p className={cn("text-[9px] font-black uppercase tracking-wider", isLight ? "text-slate-600" : "text-white/50")}>Radius</p>
+            <p className={cn("text-[11px] font-bold tabular-nums", isLight ? "text-slate-900" : "text-white")}>{radiusKm} km</p>
+            <input type="range" min={2} max={50} value={radiusKm}
+              onChange={(e) => setRadiusKm(parseFloat(e.target.value))}
+              className="mt-0.5 w-full accent-[#FF6B35]" />
+          </div>
+
+          {/* Nearest */}
+          <button type="button" onClick={() => toggleFilter("nearest")}
+            className={cn(
+              "flex items-center gap-2 rounded-lg border-0 px-2 py-1.5 text-[11px] font-bold transition-colors",
+              filters.nearest
+                ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white"
+                : isLight ? "bg-transparent text-slate-700 hover:bg-white/60" : "bg-transparent text-white/80 hover:bg-white/10"
+            )}
+          >
+            <Clock className="h-4 w-4 shrink-0" strokeWidth={2} />
+            <span>Nearest</span>
+          </button>
         </div>
-
-        <div className={cn("mx-3 my-3 h-px", isLight ? "bg-slate-400/30" : "bg-white/15")} />
-
-        {/* Radius */}
-        <div className="px-4">
-          <p className={cn("text-[11px] font-black uppercase tracking-wider", isLight ? "text-slate-600" : "text-white/50")}>Radius</p>
-          <p className={cn("mt-1 text-[14px] font-bold tabular-nums", isLight ? "text-slate-900" : "text-white")}>{radiusKm} km</p>
-          <input
-            type="range"
-            min={2}
-            max={50}
-            value={radiusKm}
-            onChange={(e) => setRadiusKm(parseFloat(e.target.value))}
-            className="mt-2 w-full accent-[#FF6B35]"
-          />
-        </div>
-
-        {/* Nearest toggle */}
-        <button
-          type="button"
-          onClick={() => toggleFilter("nearest")}
-          className={cn(
-            "mx-3 mt-2 flex items-center gap-3 rounded-xl border-0 px-3 py-3 text-[13px] font-bold transition-colors",
-            filters.nearest
-              ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white"
-              : isLight ? "bg-transparent text-slate-700 hover:bg-white/60" : "bg-transparent text-white/80 hover:bg-white/10"
-          )}
-        >
-          <Clock className="h-5 w-5 shrink-0" strokeWidth={2} />
-          <span>Nearest</span>
-        </button>
       </div>
     </div>
   );
