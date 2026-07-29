@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
@@ -536,28 +535,6 @@ export function AppMenu({
           </button>
         </div>
       </aside>
-
-      {/* Sliding image panel from the right */}
-      <div
-        className="pointer-events-none absolute animate-[om-panel-slide_0.35s_ease-out]"
-        style={{
-          right: 0,
-          top: "140px",
-          width: "200px",
-          height: "220px",
-          borderRadius: "16px",
-          overflow: "hidden",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
-        }}
-      >
-        <Image
-          src="/images/slider-panel.jpeg"
-          alt="Panel"
-          fill
-          className="object-cover"
-          draggable={false}
-        />
-      </div>
     </div>
   );
 }

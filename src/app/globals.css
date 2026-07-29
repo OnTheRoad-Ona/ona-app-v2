@@ -1065,18 +1065,6 @@ button.om-cta-dark-gray:disabled,
   }
 }
 
-/* Panel slide-in from the right */
-@keyframes om-panel-slide {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
 /* Quiet "Where are they?" field — no heavy bar */
 .om-help-where-input {
   border-radius: 0;
