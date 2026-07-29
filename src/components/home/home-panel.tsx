@@ -7,9 +7,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { ChevronLeft, Clock, Hammer, MapPin, Paintbrush, Wrench, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useJsApiLoader } from "@react-google-maps/api";
-import { ChevronLeft, MapPin, X } from "lucide-react";
 import { CategoryTabs } from "@/components/home/category-tabs";
 import { FilterChips } from "@/components/home/filter-chips";
 import { RadiusSlider } from "@/components/home/radius-slider";
@@ -129,18 +129,22 @@ export function HomePanel({
     setHelpingSomeoneElse,
     userProfile,
     query,
+    category,
+    setCategory,
+    setRadiusKm,
+    toggleFilter,
   } = useApp();
   const isLight = theme === "light";
   const [refreshingPros, setRefreshingPros] = useState(false);
-  const [chipsHidden, setChipsHidden] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
     const phone = document.getElementById("ona-phone");
     if (!phone) return;
     const mo = new MutationObserver(() => {
-      setChipsHidden(phone.dataset.chipsHidden === "true");
+      setMenuOpen(phone.dataset.menuOpen === "true");
     });
-    mo.observe(phone, { attributes: true, attributeFilter: ["data-chips-hidden"] });
-    setChipsHidden(phone.dataset.chipsHidden === "true");
+    mo.observe(phone, { attributes: true, attributeFilter: ["data-menu-open"] });
+    setMenuOpen(phone.dataset.menuOpen === "true");
     return () => mo.disconnect();
   }, []);
   /** Address confirmed → show trade strip under the field (no chip). */
@@ -569,8 +573,60 @@ export function HomePanel({
         {/* Radius first (or specialty strip for Plumber/Carpenter/etc. until pick) */}
         {specialtyPickerOpen ? <SpecialtyFilterBar /> : <RadiusSlider />}
 
-        {/* Nearest · 4.5+ · Available · Verified · Fast — live filter list/map */}
-        {!chipsHidden && <FilterChips />}
+        {/* Chip row: trades on left when menu open, chips on right sliding */}
+        {menuOpen ? (
+          <div className={cn("flex w-full overflow-hidden rounded-md", isLight ? "bg-[#c5ccd6]" : "bg-[#2a2a2a]")}>
+            {/* Left: trades */}
+            <div className="flex shrink-0 gap-px">
+              <div className={cn("flex flex-col gap-0.5 px-1.5 py-1", isLight ? "bg-[#c5ccd6]" : "bg-[#2a2a2a]")}>
+                <p className={cn("text-[8px] font-black uppercase tracking-wider", isLight ? "text-slate-500" : "text-white/40")}>Trade</p>
+                {[
+                  { id: "mechanic" as const, label: "Mech", icon: Wrench },
+                  { id: "body" as const, label: "Body", icon: Paintbrush },
+                  { id: "carpenter" as const, label: "Carp", icon: Hammer },
+                ].map(({ id, label, icon: Icon }) => {
+                  const active = category === id;
+                  return (
+                    <button key={id} type="button" onClick={() => setCategory(active ? "all" : id)}
+                      className={cn(
+                        "flex items-center gap-1 rounded border-0 px-1.5 py-0.5 text-[9px] font-bold transition-colors",
+                        active ? isLight ? "bg-white text-slate-900" : "bg-[#3d3d3d] text-white" : isLight ? "bg-transparent text-slate-700 hover:bg-white/50" : "bg-transparent text-white/80 hover:bg-white/10"
+                      )}
+                    >
+                      <Icon className="h-3 w-3 shrink-0" strokeWidth={2} />
+                      {label}
+                    </button>
+                  );
+                })}
+                <div className={cn("mx-1 my-0.5 h-px", isLight ? "bg-slate-400/30" : "bg-white/15")} />
+                <div className="flex items-center gap-1 px-1">
+                  <p className={cn("text-[8px] font-black", isLight ? "text-slate-500" : "text-white/40")}>R</p>
+                  <input type="range" min={2} max={50} value={radiusKm}
+                    onChange={(e) => setRadiusKm(parseFloat(e.target.value))}
+                    className="h-3 w-14 accent-[#FF6B35]" />
+                  <p className={cn("text-[8px] font-bold tabular-nums", isLight ? "text-slate-700" : "text-white/70")}>{radiusKm}</p>
+                </div>
+                <button type="button" onClick={() => toggleFilter("nearest")}
+                  className={cn(
+                    "flex items-center gap-1 rounded border-0 px-1.5 py-0.5 text-[9px] font-bold transition-colors",
+                    filters.nearest ? isLight ? "bg-white text-slate-900" : "bg-[#3d3d3d] text-white" : isLight ? "bg-transparent text-slate-700 hover:bg-white/50" : "bg-transparent text-white/80 hover:bg-white/10"
+                  )}
+                >
+                  <Clock className="h-3 w-3 shrink-0" strokeWidth={2} />
+                  Nrst
+                </button>
+              </div>
+            </div>
+            {/* Right: chips sliding to the right */}
+            <div className="flex-1 overflow-hidden">
+              <div className="flex translate-x-8 gap-px transition-transform duration-300">
+                <FilterChips />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <FilterChips />
+        )}
       </div>
 
       {locationError && (

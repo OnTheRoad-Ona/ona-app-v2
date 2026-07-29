@@ -5,18 +5,14 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
   Briefcase,
-  Clock,
   Clock3,
-  Hammer,
   History,
   Home,
   LogOut,
-  Paintbrush,
   Settings,
   UserRound,
   Wallet,
   Wrench,
-  X,
 } from "lucide-react";
 import { useNotificationsOptional } from "@/components/notifications/notification-provider";
 import { NewAccountBadge } from "@/components/profile/new-account-badge";
@@ -135,12 +131,6 @@ export function AppMenu({
     displayName,
     userProfile,
     backendUserId,
-    category,
-    setCategory,
-    radiusKm,
-    setRadiusKm,
-    filters,
-    toggleFilter,
   } = useApp();
   const isLight = theme === "light";
   const isPro =
@@ -171,14 +161,14 @@ export function AppMenu({
 
   const [switching, setSwitching] = useState(false);
 
-  // Toggle chip row visibility via data attribute on phone frame
+  // Signal menu state to home panel for chip row slide
   useEffect(() => {
     const phone = document.getElementById("ona-phone");
     if (!phone) return;
     if (open) {
-      phone.dataset.chipsHidden = "true";
+      phone.dataset.menuOpen = "true";
     } else {
-      delete phone.dataset.chipsHidden;
+      delete phone.dataset.menuOpen;
     }
   }, [open]);
 
@@ -255,10 +245,23 @@ export function AppMenu({
         aria-label={t("menu.closeMenu")}
         onClick={onClose}
       />
-      {/* Left nav menu */}
+      {/* Free ~20% stage (right): soft dim + brand mark — tap closes */}
+      <div
+        className="pointer-events-none absolute inset-y-0 right-0 z-[5] flex w-[20%] flex-col items-center justify-center gap-3 px-1"
+        aria-hidden
+      >
+        <span className="select-none text-[22px] font-black tracking-tight leading-none opacity-90">
+          <span className="text-[#FF6B35]">O</span>
+          <span className="text-white/80">na</span>
+        </span>
+        <span className="max-w-[4.5rem] text-center text-[10px] font-semibold leading-snug text-white/55">
+          {t("menu.tapToClose")}
+        </span>
+      </div>
+      {/* 80% width drawer (X-style left rail); free 20% stays dimmed stage */}
       <aside
         className={cn(
-          "relative z-10 flex h-full max-h-full w-[60%] max-w-full flex-col overflow-hidden animate-[om-sheet-up_0.22s_ease-out]",
+          "relative z-10 flex h-full max-h-full w-[80%] max-w-full flex-col overflow-hidden animate-[om-sheet-up_0.22s_ease-out]",
           isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
@@ -544,89 +547,6 @@ export function AppMenu({
           </button>
         </div>
       </aside>
-
-      {/* Trade panel at chip row level */}
-      <div
-        className={cn(
-          "absolute z-10 flex animate-[om-panel-slide_0.3s_ease-out]",
-          isLight ? "bg-[#d8dce4]" : "bg-[#1c1c1e]"
-        )}
-        style={{
-          right: 0,
-          top: "155px",
-          width: "205px",
-          borderRadius: "24px 0 0 24px",
-          overflow: "hidden",
-          boxShadow: "-4px 0 20px rgba(0,0,0,0.25)",
-        }}
-      >
-        <div className="flex w-full flex-col gap-1.5 px-3 py-3">
-          {/* Header row */}
-          <div className="flex items-center justify-between">
-            <p className={cn("text-[10px] font-black uppercase tracking-wider", isLight ? "text-slate-600" : "text-white/50")}>Trades</p>
-            <button
-              type="button"
-              onClick={onClose}
-              className={cn(
-                "flex h-6 w-6 items-center justify-center rounded-full border-0 bg-transparent p-0",
-                isLight ? "text-slate-500 hover:bg-slate-300" : "text-white/40 hover:bg-white/15"
-              )}
-              aria-label={t("common.close")}
-            >
-              <X className="h-3.5 w-3.5" strokeWidth={2.5} />
-            </button>
-          </div>
-
-          {/* Trade buttons */}
-          {[
-            { id: "mechanic" as const, label: "Mechanic", icon: Wrench },
-            { id: "body" as const, label: "Body", icon: Paintbrush },
-            { id: "carpenter" as const, label: "Carpenter", icon: Hammer },
-          ].map(({ id, label, icon: Icon }) => {
-            const active = category === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setCategory(active ? "all" : id)}
-                className={cn(
-                  "flex items-center gap-2 rounded-lg border-0 px-2 py-1.5 text-[11px] font-bold transition-colors",
-                  active
-                    ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white"
-                    : isLight ? "bg-transparent text-slate-700 hover:bg-white/60" : "bg-transparent text-white/80 hover:bg-white/10"
-                )}
-              >
-                <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
-                {label}
-              </button>
-            );
-          })}
-
-          <div className={cn("h-px", isLight ? "bg-slate-400/30" : "bg-white/15")} />
-
-          {/* Radius */}
-          <div>
-            <p className={cn("text-[9px] font-black uppercase tracking-wider", isLight ? "text-slate-600" : "text-white/50")}>Radius</p>
-            <p className={cn("text-[11px] font-bold tabular-nums", isLight ? "text-slate-900" : "text-white")}>{radiusKm} km</p>
-            <input type="range" min={2} max={50} value={radiusKm}
-              onChange={(e) => setRadiusKm(parseFloat(e.target.value))}
-              className="mt-0.5 w-full accent-[#FF6B35]" />
-          </div>
-
-          {/* Nearest */}
-          <button type="button" onClick={() => toggleFilter("nearest")}
-            className={cn(
-              "flex items-center gap-2 rounded-lg border-0 px-2 py-1.5 text-[11px] font-bold transition-colors",
-              filters.nearest
-                ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white"
-                : isLight ? "bg-transparent text-slate-700 hover:bg-white/60" : "bg-transparent text-white/80 hover:bg-white/10"
-            )}
-          >
-            <Clock className="h-4 w-4 shrink-0" strokeWidth={2} />
-            <span>Nearest</span>
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
