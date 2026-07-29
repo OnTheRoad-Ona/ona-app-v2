@@ -16,7 +16,6 @@ import {
   UserRound,
   Wallet,
   Wrench,
-  X,
 } from "lucide-react";
 import { useNotificationsOptional } from "@/components/notifications/notification-provider";
 import { NewAccountBadge } from "@/components/profile/new-account-badge";
@@ -171,6 +170,20 @@ export function AppMenu({
 
   const [switching, setSwitching] = useState(false);
 
+  // Twitter/X style: transform phone frame when menu opens
+  useEffect(() => {
+    if (!open) return;
+    const phone = document.getElementById("ona-phone");
+    if (!phone) return;
+    const orig = phone.style.cssText;
+    phone.style.transition = "transform 0.3s ease, border-radius 0.3s ease";
+    phone.style.transform = "scale(0.82) translateX(10%)";
+    phone.style.borderRadius = "16px";
+    return () => {
+      phone.style.cssText = orig;
+    };
+  }, [open]);
+
   const onSwitch = async (type: AccountType) => {
     // Already on this role → only navigate to its home page
     if (
@@ -233,7 +246,7 @@ export function AppMenu({
 
   return (
     <div
-      className="absolute inset-0 z-[100] flex max-h-full max-w-full overflow-hidden"
+      className="fixed inset-0 z-[100] flex overflow-hidden"
       role="dialog"
       aria-modal
     >
@@ -251,8 +264,8 @@ export function AppMenu({
           isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
-        <div className="flex items-start justify-between px-4 pb-4 pt-5">
-          <div className="min-w-0 flex-1 pr-2">
+          <div className="flex items-start px-4 pb-4 pt-5">
+          <div className="min-w-0 flex-1">
             {/* Signed-in: avatar (Ona default or user photo) + greeting + name. Guest: Ona brand */}
             {isAuthenticated && fullNameDisplay ? (
               <div className="flex items-center gap-3">
@@ -311,17 +324,6 @@ export function AppMenu({
               </p>
             )}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 bg-transparent",
-              isLight ? "text-black" : "text-white"
-            )}
-            aria-label={t("common.close")}
-          >
-            <X className="h-6 w-6" strokeWidth={2.2} />
-          </button>
         </div>
 
         <nav className="flex-1 space-y-1.5 overflow-y-auto px-3 pb-2 pt-5">
@@ -547,56 +549,73 @@ export function AppMenu({
 
       {/* Right ~20%: trade controls on home page, Ona brand on other pages */}
       {pathname === "/" ? (
-        <div
-          className={cn(
-            "relative z-10 flex flex-1 flex-col gap-2 overflow-y-auto px-2 py-5 animate-[om-sheet-up_0.22s_ease-out]",
-            isLight ? "bg-[#b8b9c2]" : "bg-[#1a1a1a]"
-          )}
-        >
-          <p className={cn("mb-1 px-1 text-[10px] font-black uppercase tracking-wider", isLight ? "text-slate-600" : "text-white/50")}>Trades</p>
-          {[
-            { id: "mechanic" as const, label: "Mechanic", icon: Wrench },
-            { id: "body" as const, label: "Body", icon: Paintbrush },
-            { id: "carpenter" as const, label: "Carpenter", icon: Hammer },
-          ].map(({ id, label, icon: Icon }) => {
-            const active = category === id;
-            return (
-              <button key={id} type="button" onClick={() => setCategory(active ? "all" : id)}
-                className={cn(
-                  "flex items-center gap-2 rounded-lg border-0 px-2 py-2 text-[11px] font-bold transition-colors",
-                  active
-                    ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white"
-                    : isLight ? "bg-transparent text-slate-700 hover:bg-white/70" : "bg-transparent text-white/80 hover:bg-white/10"
-                )}
-              >
-                <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
-                {label}
-              </button>
-            );
-          })}
-
-          <div className={cn("my-1 h-px", isLight ? "bg-slate-400/30" : "bg-white/15")} />
-
-          <div className="px-1">
-            <p className={cn("text-[9px] font-black uppercase tracking-wider", isLight ? "text-slate-600" : "text-white/50")}>Radius</p>
-            <p className={cn("mt-0.5 text-[11px] font-bold tabular-nums", isLight ? "text-slate-900" : "text-white")}>{radiusKm} km</p>
-            <input type="range" min={2} max={50} value={radiusKm}
-              onChange={(e) => setRadiusKm(parseFloat(e.target.value))}
-              className="mt-1 w-full accent-[#FF6B35]" />
-          </div>
-
-          <button type="button" onClick={() => toggleFilter("nearest")}
+        <>
+          <div
             className={cn(
-              "flex items-center gap-2 rounded-lg border-0 px-2 py-2 text-[11px] font-bold transition-colors",
-              filters.nearest
-                ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white"
-                : isLight ? "bg-transparent text-slate-700 hover:bg-white/70" : "bg-transparent text-white/80 hover:bg-white/10"
+              "relative z-10 flex w-[calc(20%-32px)] flex-col gap-2 overflow-y-auto px-2 py-5 animate-[om-sheet-up_0.22s_ease-out]",
+              isLight ? "bg-[#b8b9c2]" : "bg-[#1a1a1a]"
             )}
           >
-            <Clock className="h-4 w-4 shrink-0" strokeWidth={2} />
-            <span>Nearest</span>
-          </button>
-        </div>
+            <p className={cn("mb-1 px-1 text-[10px] font-black uppercase tracking-wider", isLight ? "text-slate-600" : "text-white/50")}>Trades</p>
+            {[
+              { id: "mechanic" as const, label: "Mechanic", icon: Wrench },
+              { id: "body" as const, label: "Body", icon: Paintbrush },
+              { id: "carpenter" as const, label: "Carpenter", icon: Hammer },
+            ].map(({ id, label, icon: Icon }) => {
+              const active = category === id;
+              return (
+                <button key={id} type="button" onClick={() => setCategory(active ? "all" : id)}
+                  className={cn(
+                    "flex items-center gap-2 rounded-lg border-0 px-2 py-2 text-[11px] font-bold transition-colors",
+                    active
+                      ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white"
+                      : isLight ? "bg-transparent text-slate-700 hover:bg-white/70" : "bg-transparent text-white/80 hover:bg-white/10"
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
+                  {label}
+                </button>
+              );
+            })}
+
+            <div className={cn("my-1 h-px", isLight ? "bg-slate-400/30" : "bg-white/15")} />
+
+            <div className="px-1">
+              <p className={cn("text-[9px] font-black uppercase tracking-wider", isLight ? "text-slate-600" : "text-white/50")}>Radius</p>
+              <p className={cn("mt-0.5 text-[11px] font-bold tabular-nums", isLight ? "text-slate-900" : "text-white")}>{radiusKm} km</p>
+              <input type="range" min={2} max={50} value={radiusKm}
+                onChange={(e) => setRadiusKm(parseFloat(e.target.value))}
+                className="mt-1 w-full accent-[#FF6B35]" />
+            </div>
+
+            <button type="button" onClick={() => toggleFilter("nearest")}
+              className={cn(
+                "flex items-center gap-2 rounded-lg border-0 px-2 py-2 text-[11px] font-bold transition-colors",
+                filters.nearest
+                  ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white"
+                  : isLight ? "bg-transparent text-slate-700 hover:bg-white/70" : "bg-transparent text-white/80 hover:bg-white/10"
+              )}
+            >
+              <Clock className="h-4 w-4 shrink-0" strokeWidth={2} />
+              <span>Nearest</span>
+            </button>
+          </div>
+          {/* Ona close strip */}
+          <div
+            className="relative z-10 flex w-[32px] cursor-pointer flex-col items-center justify-center gap-2"
+            role="button"
+            aria-label={t("menu.closeMenu")}
+            onClick={onClose}
+          >
+            <span className="select-none text-[16px] font-black tracking-tight leading-none opacity-90">
+              <span className="text-[#FF6B35]">O</span>
+              <span className="text-white/80">na</span>
+            </span>
+            <span className="max-w-[3rem] text-center text-[8px] font-semibold leading-tight text-white/55">
+              {t("menu.tapToClose")}
+            </span>
+          </div>
+        </>
       ) : (
         <div
           className="pointer-events-none flex flex-1 flex-col items-center justify-center gap-3 px-1"

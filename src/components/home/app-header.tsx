@@ -22,7 +22,7 @@ export function AppHeader() {
   const [showOnTheRoad, setShowOnTheRoad] = useState(false);
 
   useEffect(() => {
-    setMount(document.getElementById("ona-phone"));
+    setMount(document.body);
   }, []);
 
   useEffect(() => {
