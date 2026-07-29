@@ -5,14 +5,18 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
   Briefcase,
+  Clock,
   Clock3,
+  Hammer,
   History,
   Home,
   LogOut,
+  Paintbrush,
   Settings,
   UserRound,
   Wallet,
   Wrench,
+  X,
 } from "lucide-react";
 import { useNotificationsOptional } from "@/components/notifications/notification-provider";
 import { NewAccountBadge } from "@/components/profile/new-account-badge";
@@ -131,6 +135,12 @@ export function AppMenu({
     displayName,
     userProfile,
     backendUserId,
+    category,
+    setCategory,
+    radiusKm,
+    setRadiusKm,
+    filters,
+    toggleFilter,
   } = useApp();
   const isLight = theme === "light";
   const isPro =
@@ -160,6 +170,17 @@ export function AppMenu({
   }, [open]);
 
   const [switching, setSwitching] = useState(false);
+
+  // Toggle chip row visibility via data attribute on phone frame
+  useEffect(() => {
+    const phone = document.getElementById("ona-phone");
+    if (!phone) return;
+    if (open) {
+      phone.dataset.chipsHidden = "true";
+    } else {
+      delete phone.dataset.chipsHidden;
+    }
+  }, [open]);
 
   const onSwitch = async (type: AccountType) => {
     // Already on this role → only navigate to its home page
@@ -227,29 +248,17 @@ export function AppMenu({
       role="dialog"
       aria-modal
     >
-      {/* Free ~20% stage (right): soft dim + brand mark — tap closes */}
+      {/* Backdrop — tap closes */}
       <button
         type="button"
         className="absolute inset-0 border-0 bg-black/50 transition-opacity duration-200"
         aria-label={t("menu.closeMenu")}
         onClick={onClose}
       />
-      <div
-        className="pointer-events-none absolute inset-y-0 right-0 z-[5] flex w-[20%] flex-col items-center justify-center gap-3 px-1"
-        aria-hidden
-      >
-        <span className="select-none text-[22px] font-black tracking-tight leading-none opacity-90">
-          <span className="text-[#FF6B35]">O</span>
-          <span className="text-white/80">na</span>
-        </span>
-        <span className="max-w-[4.5rem] text-center text-[10px] font-semibold leading-snug text-white/55">
-          {t("menu.tapToClose")}
-        </span>
-      </div>
-      {/* 80% width drawer (X-style left rail); free 20% stays dimmed stage */}
+      {/* Left nav menu */}
       <aside
         className={cn(
-          "relative z-10 flex h-full max-h-full w-[80%] max-w-full flex-col overflow-hidden animate-[om-sheet-up_0.22s_ease-out]",
+          "relative z-10 flex h-full max-h-full w-[60%] max-w-full flex-col overflow-hidden animate-[om-sheet-up_0.22s_ease-out]",
           isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
@@ -535,6 +544,94 @@ export function AppMenu({
           </button>
         </div>
       </aside>
+
+      {/* Right sliding drawer (mobile-app style) */}
+      <div
+        className={cn(
+          "relative z-10 flex h-full w-[40%] flex-col overflow-y-auto transition-transform duration-300 ease-out",
+          isLight ? "bg-[#d8dce4]" : "bg-[#1c1c1e]"
+        )}
+        style={{
+          borderRadius: "24px 0 0 24px",
+          transform: "translateX(0)",
+        }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 pb-2 pt-5">
+          <p className={cn("text-[14px] font-black uppercase tracking-wider", isLight ? "text-slate-800" : "text-white/90")}>
+            Trades
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-full border-0 bg-transparent",
+              isLight ? "text-slate-600 hover:bg-slate-300" : "text-white/60 hover:bg-white/15"
+            )}
+            aria-label={t("common.close")}
+          >
+            <X className="h-5 w-5" strokeWidth={2.2} />
+          </button>
+        </div>
+
+        {/* Trade buttons */}
+        <div className="flex flex-col gap-2 px-3">
+          {[
+            { id: "mechanic" as const, label: "Mechanic", icon: Wrench },
+            { id: "body" as const, label: "Body", icon: Paintbrush },
+            { id: "carpenter" as const, label: "Carpenter", icon: Hammer },
+          ].map(({ id, label, icon: Icon }) => {
+            const active = category === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setCategory(active ? "all" : id)}
+                className={cn(
+                  "flex items-center gap-3 rounded-xl border-0 px-3 py-3 text-[13px] font-bold transition-colors",
+                  active
+                    ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white"
+                    : isLight ? "bg-transparent text-slate-700 hover:bg-white/60" : "bg-transparent text-white/80 hover:bg-white/10"
+                )}
+              >
+                <Icon className="h-5 w-5 shrink-0" strokeWidth={2} />
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className={cn("mx-3 my-3 h-px", isLight ? "bg-slate-400/30" : "bg-white/15")} />
+
+        {/* Radius */}
+        <div className="px-4">
+          <p className={cn("text-[11px] font-black uppercase tracking-wider", isLight ? "text-slate-600" : "text-white/50")}>Radius</p>
+          <p className={cn("mt-1 text-[14px] font-bold tabular-nums", isLight ? "text-slate-900" : "text-white")}>{radiusKm} km</p>
+          <input
+            type="range"
+            min={2}
+            max={50}
+            value={radiusKm}
+            onChange={(e) => setRadiusKm(parseFloat(e.target.value))}
+            className="mt-2 w-full accent-[#FF6B35]"
+          />
+        </div>
+
+        {/* Nearest toggle */}
+        <button
+          type="button"
+          onClick={() => toggleFilter("nearest")}
+          className={cn(
+            "mx-3 mt-2 flex items-center gap-3 rounded-xl border-0 px-3 py-3 text-[13px] font-bold transition-colors",
+            filters.nearest
+              ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white"
+              : isLight ? "bg-transparent text-slate-700 hover:bg-white/60" : "bg-transparent text-white/80 hover:bg-white/10"
+          )}
+        >
+          <Clock className="h-5 w-5 shrink-0" strokeWidth={2} />
+          <span>Nearest</span>
+        </button>
+      </div>
     </div>
   );
 }

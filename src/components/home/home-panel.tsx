@@ -132,6 +132,17 @@ export function HomePanel({
   } = useApp();
   const isLight = theme === "light";
   const [refreshingPros, setRefreshingPros] = useState(false);
+  const [chipsHidden, setChipsHidden] = useState(false);
+  useEffect(() => {
+    const phone = document.getElementById("ona-phone");
+    if (!phone) return;
+    const mo = new MutationObserver(() => {
+      setChipsHidden(phone.dataset.chipsHidden === "true");
+    });
+    mo.observe(phone, { attributes: true, attributeFilter: ["data-chips-hidden"] });
+    setChipsHidden(phone.dataset.chipsHidden === "true");
+    return () => mo.disconnect();
+  }, []);
   /** Address confirmed → show trade strip under the field (no chip). */
   const addressConfirmed = helpingSomeoneElse;
 
@@ -559,7 +570,7 @@ export function HomePanel({
         {specialtyPickerOpen ? <SpecialtyFilterBar /> : <RadiusSlider />}
 
         {/* Nearest · 4.5+ · Available · Verified · Fast — live filter list/map */}
-        <FilterChips />
+        {!chipsHidden && <FilterChips />}
       </div>
 
       {locationError && (
