@@ -10,6 +10,7 @@ export const IG: MessageDict = {
   "nav.settings": "Ntọala",
   "nav.history": "Akụkọ ihe mere",
   "nav.wallet": "Referral & Earn",
+  "nav.referralEarn": "Referral & Earn",
   "nav.main": "Main navigation",
   "common.back": "Laghachi",
   "common.next": "Osote",

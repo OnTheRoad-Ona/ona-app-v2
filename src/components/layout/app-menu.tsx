@@ -6,6 +6,7 @@ import {
   Bell,
   Briefcase,
   Clock3,
+  Gift,
   History,
   Home,
   LogOut,
@@ -13,6 +14,7 @@ import {
   UserRound,
   Wallet,
   Wrench,
+  X,
 } from "lucide-react";
 import { useNotificationsOptional } from "@/components/notifications/notification-provider";
 import { NewAccountBadge } from "@/components/profile/new-account-badge";
@@ -56,7 +58,7 @@ const CLIENT_NAV: {
   { href: "/", labelKey: "nav.dashboard", icon: Home },
   { href: "/history", labelKey: "nav.history", icon: History },
   { href: "/profile", labelKey: "nav.profile", icon: UserRound },
-  { href: "/wallet", labelKey: "nav.wallet", icon: Wallet },
+  { href: "/wallet", labelKey: "nav.referralEarn", icon: Gift },
   { href: "/settings", labelKey: "menu.settings", icon: Settings },
 ];
 
@@ -68,7 +70,7 @@ const PRO_NAV: {
   { href: "/dashboard", labelKey: "nav.dashboard", icon: Wrench },
   { href: "/jobs", labelKey: "nav.jobs", icon: Clock3 },
   { href: "/profile", labelKey: "nav.profile", icon: UserRound },
-  { href: "/wallet", labelKey: "nav.wallet", icon: Wallet },
+  { href: "/wallet", labelKey: "nav.referralEarn", icon: Gift },
   { href: "/settings", labelKey: "menu.settings", icon: Settings },
 ];
 
@@ -245,27 +247,32 @@ export function AppMenu({
         aria-label={t("menu.closeMenu")}
         onClick={onClose}
       />
-      {/* Free ~20% stage (right): soft dim + brand mark — tap closes */}
+      {/* Free ~20% stage (right): soft dim + brand mark + X close button */}
       <div
-        className="pointer-events-none absolute inset-y-0 right-0 z-[5] flex w-[20%] flex-col items-center justify-center gap-3 px-1"
+        className="pointer-events-none absolute inset-y-0 right-0 z-[5] flex w-[20%] flex-row items-center justify-center gap-1 px-1"
         aria-hidden
       >
         <span className="select-none text-[22px] font-black tracking-tight leading-none opacity-90">
           <span className="text-[#FF6B35]">O</span>
           <span className="text-white/80">na</span>
         </span>
-        <span className="max-w-[4.5rem] text-center text-[10px] font-semibold leading-snug text-white/55">
-          {t("menu.tapToClose")}
-        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="pointer-events-auto inline-flex h-5 w-5 items-center justify-center rounded-full border-0 bg-[#FF6B35]/40 p-0 text-white transition-colors hover:bg-[#FF6B35]/60 animate-[om-x-close-in_0.25s_ease-out]"
+          aria-label={t("menu.closeMenu")}
+        >
+          <X className="h-3.5 w-3.5" strokeWidth={2.5} />
+        </button>
       </div>
       {/* 80% width drawer (X-style left rail); free 20% stays dimmed stage */}
       <aside
         className={cn(
-          "relative z-10 flex h-full max-h-full w-[80%] max-w-full flex-col overflow-hidden animate-[om-sheet-up_0.22s_ease-out]",
+          "relative z-10 flex h-full max-h-full w-[80%] max-w-full flex-col overflow-hidden rounded-r-lg animate-[om-sheet-up_0.22s_ease-out]",
           isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
-          <div className="flex items-start px-4 pb-4 pt-5">
+          <div className="flex items-start pl-2 pr-4 pb-4 pt-5">
           <div className="min-w-0 flex-1">
             {/* Signed-in: avatar (Ona default or user photo) + greeting + name. Guest: Ona brand */}
             {isAuthenticated && fullNameDisplay ? (

@@ -10,6 +10,7 @@ export const HA: MessageDict = {
   "nav.settings": "Saituna",
   "nav.history": "Tarihi",
   "nav.wallet": "Referral & Earn",
+  "nav.referralEarn": "Referral & Earn",
   "nav.main": "Main navigation",
   "common.back": "Koma baya",
   "common.next": "Na gaba",

@@ -104,6 +104,7 @@ export function HomePanel({
   const [helpError, setHelpError] = useState<string | null>(null);
   const [helpKnownHits, setHelpKnownHits] = useState<KnownPlace[]>([]);
   const [helpSuggestOpen, setHelpSuggestOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const gestureY = useRef<number | null>(null);
   const helpInputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
@@ -136,17 +137,7 @@ export function HomePanel({
   } = useApp();
   const isLight = theme === "light";
   const [refreshingPros, setRefreshingPros] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  useEffect(() => {
-    const phone = document.getElementById("ona-phone");
-    if (!phone) return;
-    const mo = new MutationObserver(() => {
-      setMenuOpen(phone.dataset.menuOpen === "true");
-    });
-    mo.observe(phone, { attributes: true, attributeFilter: ["data-menu-open"] });
-    setMenuOpen(phone.dataset.menuOpen === "true");
-    return () => mo.disconnect();
-  }, []);
+
   /** Address confirmed → show trade strip under the field (no chip). */
   const addressConfirmed = helpingSomeoneElse;
 
@@ -335,15 +326,31 @@ export function HomePanel({
     else onExpand();
   };
 
+  // Watch data attribute set by AppMenu so we can reposition the dashboard
+  // horizontally when the sidebar opens (left portion becomes visible in the
+  // right 20% gap).
+  useEffect(() => {
+    const phone = document.getElementById("ona-phone");
+    if (!phone) return;
+    const synced = phone.dataset.menuOpen === "true";
+    if (synced !== menuOpen) setMenuOpen(synced);
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.type === "attributes" && m.attributeName === "data-menu-open") {
+          setMenuOpen(phone.dataset.menuOpen === "true");
+        }
+      }
+    });
+    observer.observe(phone, { attributes: true });
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className={cn("relative z-30 flex min-h-0 flex-col", className)}
-      style={menuOpen ? {
-        transform: "translateX(88px) scale(0.92)",
-        borderRadius: "20px",
-        overflow: "hidden",
-        transition: "transform 0.3s ease, border-radius 0.3s ease"
-      } : {
-        transition: "transform 0.3s ease, border-radius 0.3s ease"
+      style={{
+        transition: "transform 0.3s ease, border-radius 0.3s ease",
+        transform: menuOpen ? "translateX(80%)" : undefined
       }}
     >
       <div onWheel={onSheetWheel} className="shrink-0">
@@ -395,6 +402,7 @@ export function HomePanel({
             onCollapse={onCollapse}
             onSwipeLeft={isMotorist ? openHelpSomeone : undefined}
             onOpenHelp={isMotorist ? openHelpSomeone : undefined}
+            menuOpen={menuOpen}
           />
         ) : (
           <>
@@ -574,64 +582,16 @@ export function HomePanel({
                 expanded={expanded}
                 onExpand={onExpand}
                 onCollapse={onCollapse}
+                menuOpen={menuOpen}
               />
             )}
           </>
         )}
 
         {/* Radius first (or specialty strip for Plumber/Carpenter/etc. until pick) */}
-        {specialtyPickerOpen ? <SpecialtyFilterBar /> : <RadiusSlider />}
+        {!menuOpen && (specialtyPickerOpen ? <SpecialtyFilterBar /> : <RadiusSlider />)}
 
-        {/* Trade controls slide in from left alongside chips */}
-        <div className="flex">
-          <div className="overflow-hidden transition-all duration-300"
-            style={{
-              width: menuOpen ? "82px" : "0px",
-              opacity: menuOpen ? 1 : 0,
-            }}
-          >
-            <div className={cn("flex w-[82px] flex-col gap-1.5 rounded-r-2xl px-2.5 py-2", isLight ? "bg-[#d8dce4]" : "bg-[#1c1c1e]")}>
-              {[
-                { id: "mechanic" as const, label: "Mech", icon: Wrench },
-                { id: "body" as const, label: "Body", icon: Paintbrush },
-                { id: "carpenter" as const, label: "Carp", icon: Hammer },
-              ].map(({ id, label, icon: Icon }) => {
-                const active = category === id;
-                return (
-                  <button key={id} type="button" onClick={() => setCategory(active ? "all" : id)}
-                    className={cn(
-                      "flex flex-col items-center gap-0.5 rounded-lg border-0 px-1 py-1 text-[8px] font-bold transition-colors",
-                      active ? isLight ? "bg-white text-slate-900" : "bg-[#3d3d3d] text-white" : isLight ? "bg-transparent text-slate-700 hover:bg-white/60" : "bg-transparent text-white/80 hover:bg-white/10"
-                    )}
-                  >
-                    <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
-                    {label}
-                  </button>
-                );
-              })}
-              <div className={cn("h-px", isLight ? "bg-slate-400/30" : "bg-white/15")} />
-              <div className="flex flex-col items-center gap-0.5 px-1">
-                <p className={cn("text-[7px] font-black", isLight ? "text-slate-500" : "text-white/40")}>R</p>
-                <input type="range" min={2} max={50} value={radiusKm}
-                  onChange={(e) => setRadiusKm(parseFloat(e.target.value))}
-                  className="h-1.5 w-full accent-[#FF6B35]" />
-                <p className={cn("text-[8px] font-bold tabular-nums", isLight ? "text-slate-700" : "text-white/70")}>{radiusKm}</p>
-              </div>
-              <button type="button" onClick={() => toggleFilter("nearest")}
-                className={cn(
-                  "flex flex-col items-center gap-0.5 rounded-lg border-0 px-1 py-1 text-[8px] font-bold transition-colors",
-                  filters.nearest ? isLight ? "bg-white text-slate-900" : "bg-[#3d3d3d] text-white" : isLight ? "bg-transparent text-slate-700 hover:bg-white/60" : "bg-transparent text-white/80 hover:bg-white/10"
-                )}
-              >
-                <Clock className="h-4 w-4" strokeWidth={2} />
-                <span>Nrst</span>
-              </button>
-            </div>
-          </div>
-          <div className="flex-1 min-w-0">
-            <FilterChips />
-          </div>
-        </div>
+        {!menuOpen && <FilterChips />}
       </div>
 
       {locationError && (
@@ -650,56 +610,67 @@ export function HomePanel({
         </div>
       )}
 
-      {/* Repair Pro list — always shown; updates with radius / filters / help pin */}
+      {/* Empty state — kept outside the scrollable area so it stays static during sheet flip */}
+      {list.length === 0 && !showVerifyPanel && (
+        <div
+          className={cn(
+            "shrink-0 overflow-hidden rounded-t-lg",
+            isLight ? "bg-[#c8c9cd]" : "bg-black"
+          )}
+          style={{ transform: "translateZ(0)" }}
+        >
+          <div className="p-4 text-center">
+            <p
+              className={cn(
+                "text-sm font-semibold",
+                isLight ? "text-slate-800" : "text-white"
+              )}
+            >
+              {query.trim()
+                ? t("search.noResultsFor", { q: query.trim() })
+                : filters.availableNow
+                  ? t("home.noProsAvailable")
+                  : filters.rating45 ||
+                      filters.verified ||
+                      filters.fastResponse
+                    ? t("home.noProsMatch")
+                    : t("home.noRepairPros")}
+            </p>
+            <button
+              type="button"
+              disabled={refreshingPros}
+              onClick={() => {
+                setRefreshingPros(true);
+                retryLocation();
+                window.setTimeout(() => {
+                  refreshNearbyPros();
+                  setRefreshingPros(false);
+                }, 1500);
+              }}
+              className="mt-2 border-0 bg-transparent text-[12px] font-bold text-brand disabled:opacity-60"
+            >
+              {refreshingPros ? t("home.refreshing") : t("home.refresh")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Repair Pro list — scrollable when items present */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-0 scrollbar-hide">
         {showVerifyPanel ? (
           <div className="mb-2 shrink-0">
             <HomeVerifyPanel message={verifyMessage} isLight={isLight} />
           </div>
         ) : null}
-        <div
-          className={cn(
-            "min-h-full overflow-hidden rounded-t-lg",
-            isLight ? "bg-[#d8dce4]/90 backdrop-blur-sm" : "bg-black"
-          )}
-        >
-          {list.length === 0 ? (
-            <div className="p-4 text-center">
-              <p
-                className={cn(
-                  "text-sm font-semibold",
-                  isLight ? "text-slate-800" : "text-white"
-                )}
-              >
-                {query.trim()
-                  ? t("search.noResultsFor", { q: query.trim() })
-                  : filters.availableNow
-                    ? t("home.noProsAvailable")
-                    : filters.rating45 ||
-                        filters.verified ||
-                        filters.fastResponse
-                      ? t("home.noProsMatch")
-                      : t("home.noRepairPros")}
-              </p>
-              <button
-                type="button"
-                disabled={refreshingPros}
-                onClick={() => {
-                  setRefreshingPros(true);
-                  retryLocation();
-                  window.setTimeout(() => {
-                    refreshNearbyPros();
-                    setRefreshingPros(false);
-                  }, 1500);
-                }}
-                className="mt-2 border-0 bg-transparent text-[12px] font-bold text-brand disabled:opacity-60"
-              >
-                {refreshingPros ? t("home.refreshing") : t("home.refresh")}
-              </button>
-            </div>
-          ) : (
-            <>
-              <p
+        {list.length > 0 && (
+          <div
+            className={cn(
+              "min-h-full overflow-hidden rounded-t-lg",
+              isLight ? "bg-[#d8dce4]/90 backdrop-blur-sm" : "bg-black"
+            )}
+            style={{ transform: "translateZ(0)" }}
+          >
+            <p
                 className={cn(
                   "px-3 pt-2 text-[10px] font-semibold uppercase tracking-wide",
                   isLight ? "text-slate-600" : "text-white/55"
@@ -760,20 +731,19 @@ export function HomePanel({
                   {t("home.showingAll", { total, km: radiusKm })}
                 </p>
               )}
-            </>
-          )}
+          </div>
+        )}
 
-          {!expanded && list.length > 0 && (
-            <p
-              className={cn(
-                "py-2 text-center text-[10px]",
-                isLight ? "text-slate-400" : "text-white/45"
-              )}
-            >
-              {t("home.swipeHint")}
-            </p>
-          )}
-        </div>
+        {!expanded && list.length > 0 && (
+          <p
+            className={cn(
+              "py-2 text-center text-[10px]",
+              isLight ? "text-slate-400" : "text-white/45"
+            )}
+          >
+            {t("home.swipeHint")}
+          </p>
+        )}
       </div>
 
       {footer}

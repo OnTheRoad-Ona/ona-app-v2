@@ -104,85 +104,85 @@ export default function WalletPage() {
     setCashoutBusy(false);
   };
 
-  const statBox = (label: string, value: string | number, col = false) => (
-    <div className={cn("rounded-xl p-3", card)}>
-      <p className={cn("text-[11px] font-semibold", muted)}>{label}</p>
-      <p className={cn("mt-1 text-[18px] font-bold", ink)}>{value}</p>
+  const statBox = (label: string, value: string | number, compact = false) => (
+    <div className={cn("rounded-xl", compact ? "p-2" : "p-3", card)}>
+      <p className={cn("text-[10px] font-semibold", muted)}>{label}</p>
+      <p className={cn("mt-0.5 text-[15px] font-bold", ink)}>{value}</p>
     </div>
   );
 
   return (
     <div className={cn("flex h-full flex-col", bg)}>
-      <PageHeader title="Wallet / Credit" />
-      <div className="flex-1 overflow-y-auto px-4 pb-6">
+      <PageHeader title="Refer & Earn" />
+      <div className="flex-1 overflow-hidden px-4 pb-4">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-6 w-6 animate-spin" style={{ color: accent }} />
           </div>
         ) : (
-          <div className="mt-4 space-y-5">
+          <div className="mt-2 space-y-3">
             {/* Balance card */}
-            <div className={cn("rounded-2xl p-5", card)}>
-              <p className={cn("text-[12px] font-semibold", muted)}>Available Credit</p>
-              <p className="mt-1 text-[32px] font-black" style={{ color: accent }}>
+            <div className={cn("rounded-2xl p-3", card)}>
+              <p className={cn("text-[11px] font-semibold", muted)}>Available Credit</p>
+              <p className="mt-0.5 text-[24px] font-black" style={{ color: accent }}>
                 ₦{wallet?.availableCredits?.toLocaleString() ?? 0}
               </p>
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                {statBox("Total Earned", `₦${(wallet?.totalEarned ?? 0).toLocaleString()}`)}
-                {statBox("Pending", `₦${(wallet?.pendingCredits ?? 0).toLocaleString()}`)}
-                {statBox("Cashable", `₦${(wallet?.cashableCredits ?? 0).toLocaleString()}`)}
-                {statBox("Spent", `₦${(wallet?.serviceSpendCredits ?? 0).toLocaleString()}`)}
+              <div className="mt-2 grid grid-cols-2 gap-1.5">
+                {statBox("Total Earned", `₦${(wallet?.totalEarned ?? 0).toLocaleString()}`, true)}
+                {statBox("Pending", `₦${(wallet?.pendingCredits ?? 0).toLocaleString()}`, true)}
+                {statBox("Cashable", `₦${(wallet?.cashableCredits ?? 0).toLocaleString()}`, true)}
+                {statBox("Spent", `₦${(wallet?.serviceSpendCredits ?? 0).toLocaleString()}`, true)}
               </div>
             </div>
 
             {/* Referral card */}
-            <div className={cn("rounded-2xl p-5", card)}>
-              <div className="flex items-center gap-2">
-                <Gift className="h-5 w-5" style={{ color: accent }} />
-                <p className={cn("text-[14px] font-bold", ink)}>Refer & Earn</p>
+            <div className={cn("rounded-2xl p-3", card)}>
+              <div className="flex items-center gap-1.5">
+                <Gift className="h-4 w-4" style={{ color: accent }} />
+                <p className={cn("text-[13px] font-bold", ink)}>Refer & Earn</p>
               </div>
-              <p className={cn("mt-2 text-[12px] font-medium", muted)}>
+              <p className={cn("mt-1 text-[11px] font-medium", muted)}>
                 Share your code. Earn credits when friends sign up.
               </p>
               {referral?.code ? (
-                <div className="mt-3">
-                  <div className={cn("flex items-center gap-2 rounded-xl px-4 py-3", isLight ? "bg-slate-100" : "bg-black/40")}>
-                    <code className={cn("flex-1 text-[16px] font-bold tracking-wider", ink)}>
+                <div className="mt-2">
+                  <div className={cn("flex items-center gap-2 rounded-xl px-3 py-2", isLight ? "bg-slate-100" : "bg-black/40")}>
+                    <code className={cn("flex-1 text-[14px] font-bold tracking-wider", ink)}>
                       {referral.code.referralCode}
                     </code>
                     <button
                       type="button"
                       onClick={handleCopy}
-                      className="flex h-9 w-9 items-center justify-center rounded-lg border-0"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border-0"
                       style={{ backgroundColor: accent, color: "#fff" }}
                     >
-                      <Copy className="h-4 w-4" />
+                      <Copy className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                  {copied && <p className="mt-1 text-[11px] font-medium text-green-500">Copied!</p>}
+                  {copied && <p className="mt-0.5 text-[10px] font-medium text-green-500">Copied!</p>}
                 </div>
               ) : (
-                <p className={cn("mt-2 text-[12px]", muted)}>Loading referral code...</p>
+                <p className={cn("mt-1 text-[11px]", muted)}>Loading referral code...</p>
               )}
             </div>
 
             {/* Cashout card */}
-            <div className={cn("rounded-2xl p-5", card)}>
-              <div className="flex items-center gap-2">
-                <ArrowUpRight className="h-5 w-5" style={{ color: accent }} />
-                <p className={cn("text-[14px] font-bold", ink)}>Cash Out</p>
+            <div className={cn("rounded-2xl p-3", card)}>
+              <div className="flex items-center gap-1.5">
+                <ArrowUpRight className="h-4 w-4" style={{ color: accent }} />
+                <p className={cn("text-[13px] font-bold", ink)}>Cash Out</p>
               </div>
-              <p className={cn("mt-1 text-[11px] font-medium", muted)}>
+              <p className={cn("mt-0.5 text-[10px] font-medium", muted)}>
                 Convert eligible credits to cash. Minimum ₦2,000.
               </p>
-              <div className="mt-3 flex items-center gap-2">
+              <div className="mt-2 flex items-center gap-2">
                 <input
                   type="number"
                   placeholder="Amount"
                   value={cashoutAmount}
                   onChange={(e) => setCashoutAmount(e.target.value)}
                   className={cn(
-                    "flex-1 rounded-xl border-0 px-4 py-3 text-[14px] font-semibold outline-none",
+                    "flex-1 rounded-xl border-0 px-3 py-2 text-[13px] font-semibold outline-none",
                     isLight ? "bg-slate-100 text-black" : "bg-black/40 text-white"
                   )}
                 />
@@ -190,41 +190,41 @@ export default function WalletPage() {
                   type="button"
                   disabled={cashoutBusy || !cashoutAmount}
                   onClick={handleCashout}
-                  className="h-11 rounded-xl border-0 px-5 text-[13px] font-bold text-white disabled:opacity-50"
+                  className="h-10 rounded-xl border-0 px-4 text-[12px] font-bold text-white disabled:opacity-50"
                   style={{ backgroundColor: accent }}
                 >
                   {cashoutBusy ? "..." : "Request"}
                 </button>
               </div>
               {cashoutMsg ? (
-                <p className={cn("mt-2 text-[11px] font-medium", cashoutMsg.includes("submitted") ? "text-green-500" : "text-red-500")}>
+                <p className={cn("mt-1 text-[10px] font-medium", cashoutMsg.includes("submitted") ? "text-green-500" : "text-red-500")}>
                   {cashoutMsg}
                 </p>
               ) : null}
             </div>
 
             {/* Transaction history */}
-            <div className={cn("rounded-2xl p-5", card)}>
-              <div className="flex items-center gap-2">
-                <History className="h-5 w-5" style={{ color: accent }} />
-                <p className={cn("text-[14px] font-bold", ink)}>History</p>
+            <div className={cn("rounded-2xl p-3", card)}>
+              <div className="flex items-center gap-1.5">
+                <History className="h-4 w-4" style={{ color: accent }} />
+                <p className={cn("text-[13px] font-bold", ink)}>History</p>
               </div>
               {txs.length === 0 ? (
-                <p className={cn("mt-3 text-[12px]", muted)}>No transactions yet.</p>
+                <p className={cn("mt-1 text-[11px]", muted)}>No transactions yet.</p>
               ) : (
-                <div className="mt-3 space-y-2">
+                <div className="mt-2 space-y-1.5">
                   {txs.slice(0, 20).map((tx) => (
-                    <div key={tx.id} className={cn("flex items-center justify-between rounded-xl px-3 py-2.5", isLight ? "bg-slate-50" : "bg-black/30")}>
+                    <div key={tx.id} className={cn("flex items-center justify-between rounded-xl px-3 py-2", isLight ? "bg-slate-50" : "bg-black/30")}>
                       <div>
-                        <p className={cn("text-[12px] font-semibold capitalize", ink)}>
+                        <p className={cn("text-[11px] font-semibold capitalize", ink)}>
                           {tx.transactionType.replace("_", " ")}
                         </p>
-                        <p className={cn("text-[10px]", muted)}>
+                        <p className={cn("text-[9px]", muted)}>
                           {new Date(tx.createdAt).toLocaleDateString()}
                           {tx.reason ? ` · ${tx.reason}` : ""}
                         </p>
                       </div>
-                      <p className={cn("text-[13px] font-bold", tx.amount > 0 ? "text-green-500" : "text-red-400")}>
+                      <p className={cn("text-[12px] font-bold", tx.amount > 0 ? "text-green-500" : "text-red-400")}>
                         {tx.amount > 0 ? "+" : ""}₦{tx.amount.toLocaleString()}
                       </p>
                     </div>

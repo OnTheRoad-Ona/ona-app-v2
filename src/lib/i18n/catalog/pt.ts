@@ -10,6 +10,7 @@ export const PT: MessageDict = {
   "nav.settings": "Definições",
   "nav.history": "Histórico",
   "nav.wallet": "Referral & Earn",
+  "nav.referralEarn": "Referral & Earn",
   "nav.main": "Navegação principal",
   "common.back": "Voltar",
   "common.next": "Seguinte",

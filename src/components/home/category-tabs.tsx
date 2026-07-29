@@ -57,6 +57,7 @@ export function CategoryTabs({
   onSwipeLeft,
   onSwipeRight,
   onOpenHelp,
+  menuOpen,
 }: {
   expanded?: boolean;
   onExpand?: () => void;
@@ -64,6 +65,7 @@ export function CategoryTabs({
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
   onOpenHelp?: () => void;
+  menuOpen?: boolean;
 }) {
   const { category, setCategory, openSpecialtyPicker, theme } = useApp();
   const t = useT();
@@ -166,9 +168,9 @@ export function CategoryTabs({
         aria-label={t("home.serviceCategory")}
         className={cn(
           "relative grid grid-cols-5 gap-0 rounded-xl p-0.5",
-          isLight
-            ? "bg-[#d8dce4]/90 backdrop-blur-sm"
-            : "bg-gradient-to-b from-[#1a1a1a] to-[#141414]"
+              isLight
+                ? "bg-[#d8dce4]/90 backdrop-blur-sm"
+                : "bg-gradient-to-b from-[#1a1a1a] to-[#141414]"
         )}
       >
         {tabs.map(({ id, labelKey, icon: Icon }) => {
@@ -190,8 +192,8 @@ export function CategoryTabs({
                 setCategory(id);
               }}
               className={cn(
-                "flex min-w-0 flex-col items-center justify-center gap-0.5 border-0 px-0.5 py-2 text-[9px] font-semibold transition-colors",
-                active
+                "flex min-w-0 flex-col items-center justify-center gap-0.5 border-0 px-1 py-2.5 text-[9px] font-semibold transition-colors",
+                active && !menuOpen
                   ? "metallic-orange text-white rounded-md"
                   : isLight
                     ? "bg-transparent text-black hover:text-black"

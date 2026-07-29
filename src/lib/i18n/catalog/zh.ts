@@ -10,6 +10,7 @@ export const ZH: MessageDict = {
   "nav.settings": "设置",
   "nav.history": "历史",
   "nav.wallet": "Referral & Earn",
+  "nav.referralEarn": "Referral & Earn",
   "nav.main": "主导航",
   "common.back": "返回",
   "common.next": "下一步",

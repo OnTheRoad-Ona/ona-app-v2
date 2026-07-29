@@ -1077,6 +1077,18 @@ button.om-cta-dark-gray:disabled,
   }
 }
 
+/* X close button pop-in for the sidebar */
+@keyframes om-x-close-in {
+  from {
+    opacity: 0;
+    transform: rotate(-90deg) scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+}
+
 /* Quiet "Where are they?" field — no heavy bar */
 .om-help-where-input {
   border-radius: 0;
