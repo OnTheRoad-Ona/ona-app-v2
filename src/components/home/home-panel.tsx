@@ -360,109 +360,8 @@ export function HomePanel({
         </div>
 
         {/*
-          Help mode: quiet "Where are they?" on top.
-          After confirm: address stays + trade sidebar below.
-        */}
-        {helpMode ? (
-          <div
-            className="px-3 pb-1 pt-1"
-            onTouchStart={(e) => {
-              gestureY.current = e.touches[0].clientX;
-            }}
-            onTouchEnd={(e) => {
-              if (gestureY.current == null) return;
-              const dx = e.changedTouches[0].clientX - gestureY.current;
-              gestureY.current = null;
-              if (dx > 40) closeHelpMode();
-            }}
-            style={{ touchAction: "manipulation" }}
-          >
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => {
-                  if (addressConfirmed) clearHelpingSomeone();
-                  closeHelpMode();
-                }}
-                aria-label={t("home.backToTrades")}
-                className={cn(
-                  "inline-flex h-8 w-8 shrink-0 items-center justify-center border-0 bg-transparent p-0",
-                  isLight ? "text-slate-600" : "text-white/70"
-                )}
-              >
-                <ChevronLeft className="h-4 w-4" strokeWidth={2.25} />
-              </button>
-              <div className="relative min-w-0 flex-1">
-                <MapPin
-                  className={cn(
-                    "pointer-events-none absolute left-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2",
-                    isLight ? "text-slate-400" : "text-white/40"
-                  )}
-                  strokeWidth={2}
-                />
-                <input
-                  ref={helpInputRef}
-                  type="text"
-                  value={helpAddress}
-                  onChange={(e) => {
-                    const next = e.target.value;
-                    setHelpAddress(next);
-                    setHelpError(null);
-                    const hits = matchKnownPlaces(next, 4).map((r) => r.place);
-                    setHelpKnownHits(hits);
-                    setHelpSuggestOpen(hits.length > 0 && next.trim().length >= 2);
-                    if (!next.trim() && addressConfirmed) clearHelpingSomeone();
-                  }}
-                  onFocus={() => {
-                    const hits = matchKnownPlaces(helpAddress, 4).map((r) => r.place);
-                    setHelpKnownHits(hits);
-                    setHelpSuggestOpen(hits.length > 0 && helpAddress.trim().length >= 2);
-                  }}
-                  onBlur={() => window.setTimeout(() => setHelpSuggestOpen(false), 180)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") { e.preventDefault(); setHelpSuggestOpen(false); void submitHelpAddress(); }
-                    if (e.key === "Escape") { e.preventDefault(); if (addressConfirmed) clearHelpingSomeone(); closeHelpMode(); }
-                  }}
-                  placeholder={t("home.whereAreThey")}
-                  autoComplete="off"
-                  enterKeyHint="search"
-                  aria-label={t("home.whereAreTheyAria")}
-                  className={cn(
-                    "om-help-where-input h-9 w-full border-0 border-b bg-transparent pl-5 pr-7 text-[13px] font-medium outline-none transition-colors",
-                    isLight ? "border-slate-400/50 text-slate-900 placeholder:text-slate-400 focus:border-brand/60" : "border-white/20 text-white placeholder:text-white/40 focus:border-brand/50"
-                  )}
-                />
-                {helpSuggestOpen && helpKnownHits.length > 0 ? (
-                  <ul className={cn("absolute left-0 right-0 top-[calc(100%+4px)] z-40 max-h-44 overflow-y-auto rounded-md border-0", isLight ? "bg-[#c8c9cd]" : "bg-black")} role="listbox">
-                    {helpKnownHits.map((p) => (
-                      <li key={p.id} role="option">
-                        <button type="button" className={cn("flex w-full flex-col items-start border-0 bg-transparent px-2.5 py-2 text-left", isLight ? "hover:bg-[#d4d5db]" : "hover:bg-white/10")}
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { const pick = knownPlaceToPick(p); applyHelpLocation(pick.label, pick.lat, pick.lng); setHelpSuggestOpen(false); }}
-                        >
-                          <span className={cn("text-[12px] font-bold", isLight ? "text-slate-900" : "text-white")}>{p.name}</span>
-                          <span className={cn("text-[10px] font-medium", isLight ? "text-slate-600" : "text-white/55")}>{p.address}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-                {(helpAddress || helpBusy) && (
-                  <button type="button" aria-label={t("home.clearAddress")} disabled={helpBusy}
-                    onClick={clearHelpingSomeone}
-                    className={cn("absolute right-0 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center border-0 bg-transparent p-0", isLight ? "text-slate-400" : "text-white/40")}
-                  ><X className="h-3.5 w-3.5" /></button>
-                )}
-              </div>
-            </div>
-            {helpError && <p className="mt-1 pl-9 text-[10px] font-medium text-red-500">{helpError}</p>}
-            {helpBusy && <p className={cn("mt-1 pl-9 text-[10px]", isLight ? "text-slate-500" : "text-white/45")}>{t("home.findingPlace")}</p>}
-          </div>
-        ) : null}
-
-        {/*
           Default: trade strip only.
-          Help mode: quiet "Where are they?" on top.
+          Help mode: quiet “Where are they?” on top.
           After confirm: address stays + trade strip below (no chip).
         */}
         {!helpMode ? (
@@ -690,7 +589,8 @@ export function HomePanel({
           className={cn(
             "min-h-full overflow-hidden rounded-t-lg",
             isLight ? "bg-[#d8dce4]/90 backdrop-blur-sm" : "bg-black"
-          )}>
+          )}
+        >
           {list.length === 0 ? (
             <div className="p-4 text-center">
               <p
@@ -801,8 +701,8 @@ export function HomePanel({
               {t("home.swipeHint")}
             </p>
           )}
-          </div>
         </div>
+      </div>
 
       {footer}
     </div>

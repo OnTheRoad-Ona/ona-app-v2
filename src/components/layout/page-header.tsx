@@ -48,7 +48,7 @@ export function PageHeader({
   const parentHref = resolveBackHref(pathname, accountType, backHref);
 
   useEffect(() => {
-    setMount(document.body);
+    setMount(document.getElementById("ona-phone"));
     // Never leave shell dimmed/shifted if a prior back animation was interrupted
     clearPageExitClass();
   }, []);

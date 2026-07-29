@@ -13,6 +13,7 @@ import {
   UserRound,
   Wallet,
   Wrench,
+  X,
 } from "lucide-react";
 import { useNotificationsOptional } from "@/components/notifications/notification-provider";
 import { NewAccountBadge } from "@/components/profile/new-account-badge";
@@ -161,20 +162,6 @@ export function AppMenu({
 
   const [switching, setSwitching] = useState(false);
 
-  // Twitter/X style: transform phone frame when menu opens
-  useEffect(() => {
-    if (!open) return;
-    const phone = document.getElementById("ona-phone");
-    if (!phone) return;
-    const orig = phone.style.cssText;
-    phone.style.transition = "transform 0.3s ease, border-radius 0.3s ease";
-    phone.style.transform = "scale(0.82) translateX(10%)";
-    phone.style.borderRadius = "16px";
-    return () => {
-      phone.style.cssText = orig;
-    };
-  }, [open]);
-
   const onSwitch = async (type: AccountType) => {
     // Already on this role → only navigate to its home page
     if (
@@ -237,26 +224,38 @@ export function AppMenu({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex overflow-hidden"
+      className="absolute inset-0 z-[100] flex max-h-full max-w-full overflow-hidden"
       role="dialog"
       aria-modal
     >
-      {/* Backdrop — tap closes (only on the non-trade area) */}
+      {/* Free ~20% stage (right): soft dim + brand mark — tap closes */}
       <button
         type="button"
         className="absolute inset-0 border-0 bg-black/50 transition-opacity duration-200"
         aria-label={t("menu.closeMenu")}
         onClick={onClose}
       />
-      {/* 80% width drawer (left side nav) */}
+      <div
+        className="pointer-events-none absolute inset-y-0 right-0 z-[5] flex w-[20%] flex-col items-center justify-center gap-3 px-1"
+        aria-hidden
+      >
+        <span className="select-none text-[22px] font-black tracking-tight leading-none opacity-90">
+          <span className="text-[#FF6B35]">O</span>
+          <span className="text-white/80">na</span>
+        </span>
+        <span className="max-w-[4.5rem] text-center text-[10px] font-semibold leading-snug text-white/55">
+          {t("menu.tapToClose")}
+        </span>
+      </div>
+      {/* 80% width drawer (X-style left rail); free 20% stays dimmed stage */}
       <aside
         className={cn(
           "relative z-10 flex h-full max-h-full w-[80%] max-w-full flex-col overflow-hidden animate-[om-sheet-up_0.22s_ease-out]",
           isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
-          <div className="flex items-start px-4 pb-4 pt-5">
-          <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between px-4 pb-4 pt-5">
+          <div className="min-w-0 flex-1 pr-2">
             {/* Signed-in: avatar (Ona default or user photo) + greeting + name. Guest: Ona brand */}
             {isAuthenticated && fullNameDisplay ? (
               <div className="flex items-center gap-3">
@@ -315,6 +314,17 @@ export function AppMenu({
               </p>
             )}
           </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className={cn(
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 bg-transparent",
+              isLight ? "text-black" : "text-white"
+            )}
+            aria-label={t("common.close")}
+          >
+            <X className="h-6 w-6" strokeWidth={2.2} />
+          </button>
         </div>
 
         <nav className="flex-1 space-y-1.5 overflow-y-auto px-3 pb-2 pt-5">
@@ -537,22 +547,6 @@ export function AppMenu({
           </button>
         </div>
       </aside>
-
-      {/* Right ~20%: Ona brand — tap closes */}
-      <div
-        className="flex flex-1 cursor-pointer flex-col items-center justify-center gap-3 px-1"
-        role="button"
-        aria-label={t("menu.closeMenu")}
-        onClick={onClose}
-      >
-        <span className="select-none text-[22px] font-black tracking-tight leading-none opacity-90">
-          <span className="text-[#FF6B35]">O</span>
-          <span className="text-white/80">na</span>
-        </span>
-        <span className="max-w-[4.5rem] text-center text-[10px] font-semibold leading-snug text-white/55">
-          {t("menu.tapToClose")}
-        </span>
-      </div>
     </div>
   );
 }
