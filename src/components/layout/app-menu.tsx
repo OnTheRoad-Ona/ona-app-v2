@@ -5,10 +5,13 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
   Briefcase,
+  Clock,
   Clock3,
+  Hammer,
   History,
   Home,
   LogOut,
+  Paintbrush,
   Settings,
   UserRound,
   Wallet,
@@ -132,6 +135,12 @@ export function AppMenu({
     displayName,
     userProfile,
     backendUserId,
+    category,
+    setCategory,
+    radiusKm,
+    setRadiusKm,
+    filters,
+    toggleFilter,
   } = useApp();
   const isLight = theme === "light";
   const isPro =
@@ -228,29 +237,17 @@ export function AppMenu({
       role="dialog"
       aria-modal
     >
-      {/* Free ~20% stage (right): soft dim + brand mark — tap closes */}
+      {/* Backdrop — tap closes */}
       <button
         type="button"
         className="absolute inset-0 border-0 bg-black/50 transition-opacity duration-200"
         aria-label={t("menu.closeMenu")}
         onClick={onClose}
       />
-      <div
-        className="pointer-events-none absolute inset-y-0 right-0 z-[5] flex w-[20%] flex-col items-center justify-center gap-3 px-1"
-        aria-hidden
-      >
-        <span className="select-none text-[22px] font-black tracking-tight leading-none opacity-90">
-          <span className="text-[#FF6B35]">O</span>
-          <span className="text-white/80">na</span>
-        </span>
-        <span className="max-w-[4.5rem] text-center text-[10px] font-semibold leading-snug text-white/55">
-          {t("menu.tapToClose")}
-        </span>
-      </div>
-      {/* 80% width drawer (X-style left rail); free 20% stays dimmed stage */}
+      {/* 60% width drawer (left side nav) */}
       <aside
         className={cn(
-          "relative z-10 flex h-full max-h-full w-[80%] max-w-full flex-col overflow-hidden animate-[om-sheet-up_0.22s_ease-out]",
+          "relative z-10 flex h-full max-h-full w-[60%] max-w-full flex-col overflow-hidden animate-[om-sheet-up_0.22s_ease-out]",
           isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
@@ -547,6 +544,60 @@ export function AppMenu({
           </button>
         </div>
       </aside>
+
+      {/* Trade controls panel (right side, between nav and backdrop) — shown on home page */}
+      {pathname === "/" && (
+        <div
+          className={cn(
+            "relative z-10 flex w-[22%] flex-col gap-2 overflow-y-auto px-2 py-5 animate-[om-sheet-up_0.22s_ease-out]",
+            isLight ? "bg-[#b8b9c2]" : "bg-[#1a1a1a]"
+          )}
+        >
+          <p className={cn("mb-1 px-1 text-[10px] font-black uppercase tracking-wider", isLight ? "text-slate-600" : "text-white/50")}>Trades</p>
+          {[
+            { id: "mechanic" as const, label: "Mechanic", icon: Wrench },
+            { id: "body" as const, label: "Body", icon: Paintbrush },
+            { id: "carpenter" as const, label: "Carpenter", icon: Hammer },
+          ].map(({ id, label, icon: Icon }) => {
+            const active = category === id;
+            return (
+              <button key={id} type="button" onClick={() => setCategory(active ? "all" : id)}
+                className={cn(
+                  "flex items-center gap-2 rounded-lg border-0 px-2 py-2 text-[11px] font-bold transition-colors",
+                  active
+                    ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white"
+                    : isLight ? "bg-transparent text-slate-700 hover:bg-white/70" : "bg-transparent text-white/80 hover:bg-white/10"
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
+                {label}
+              </button>
+            );
+          })}
+
+          <div className={cn("my-1 h-px", isLight ? "bg-slate-400/30" : "bg-white/15")} />
+
+          <div className="px-1">
+            <p className={cn("text-[9px] font-black uppercase tracking-wider", isLight ? "text-slate-600" : "text-white/50")}>Radius</p>
+            <p className={cn("mt-0.5 text-[11px] font-bold tabular-nums", isLight ? "text-slate-900" : "text-white")}>{radiusKm} km</p>
+            <input type="range" min={2} max={50} value={radiusKm}
+              onChange={(e) => setRadiusKm(parseFloat(e.target.value))}
+              className="mt-1 w-full accent-[#FF6B35]" />
+          </div>
+
+          <button type="button" onClick={() => toggleFilter("nearest")}
+            className={cn(
+              "flex items-center gap-2 rounded-lg border-0 px-2 py-2 text-[11px] font-bold transition-colors",
+              filters.nearest
+                ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white"
+                : isLight ? "bg-transparent text-slate-700 hover:bg-white/70" : "bg-transparent text-white/80 hover:bg-white/10"
+            )}
+          >
+            <Clock className="h-4 w-4 shrink-0" strokeWidth={2} />
+            <span>Nearest</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

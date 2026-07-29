@@ -9,7 +9,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { useJsApiLoader } from "@react-google-maps/api";
-import { ChevronLeft, Clock, Hammer, MapPin, Paintbrush, SlidersHorizontal, Wrench, X } from "lucide-react";
+import { ChevronLeft, MapPin, X } from "lucide-react";
 import { CategoryTabs } from "@/components/home/category-tabs";
 import { FilterChips } from "@/components/home/filter-chips";
 import { RadiusSlider } from "@/components/home/radius-slider";
@@ -115,7 +115,6 @@ export function HomePanel({
     visibleTechnicians,
     radiusKm,
     filters,
-    category,
     specialtyPickerOpen,
     setSelectedTechId,
     selectedTechId,
@@ -130,13 +129,9 @@ export function HomePanel({
     setHelpingSomeoneElse,
     userProfile,
     query,
-    setRadiusKm,
-    setCategory,
-    toggleFilter,
   } = useApp();
   const isLight = theme === "light";
   const [refreshingPros, setRefreshingPros] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
   /** Address confirmed → show trade strip under the field (no chip). */
   const addressConfirmed = helpingSomeoneElse;
 
@@ -666,23 +661,6 @@ export function HomePanel({
 
         {/* Nearest · 4.5+ · Available · Verified · Fast — live filter list/map */}
         <FilterChips />
-
-        {/* Filter button */}
-        <div className="flex justify-end px-3 py-1">
-          <button
-            type="button"
-            onClick={() => setDrawerOpen(true)}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-md border-0 px-2.5 py-1 text-[11px] font-bold transition-colors",
-              isLight
-                ? "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                : "bg-white/10 text-white/80 hover:bg-white/20"
-            )}
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={2.25} />
-            Filters
-          </button>
-        </div>
       </div>
 
       {locationError && (
@@ -827,70 +805,6 @@ export function HomePanel({
         </div>
 
       {footer}
-
-      {/* Right-sliding filter drawer (Twitter/X style) */}
-      {drawerOpen && (
-        <>
-          <div className="fixed inset-0 z-50 bg-black/40" onClick={() => setDrawerOpen(false)} />
-          <div className="fixed right-0 top-0 z-50 flex h-full w-[220px] flex-col gap-3 overflow-y-auto px-4 py-5 shadow-xl"
-            style={{ backgroundColor: isLight ? "#e8eaed" : "#1a1a1a" }}
-          >
-            <div className="flex items-center justify-between">
-              <p className={cn("text-[13px] font-black uppercase tracking-wider", isLight ? "text-slate-800" : "text-white/90")}>Trades</p>
-              <button type="button" onClick={() => setDrawerOpen(false)}
-                className={cn("inline-flex h-7 w-7 items-center justify-center rounded-full border-0 bg-transparent p-0", isLight ? "text-slate-500 hover:bg-slate-300" : "text-white/60 hover:bg-white/15")}
-              >
-                <X className="h-4 w-4" strokeWidth={2.25} />
-              </button>
-            </div>
-
-            {[
-              { id: "mechanic" as const, label: "Mechanic", icon: Wrench },
-              { id: "body" as const, label: "Body", icon: Paintbrush },
-              { id: "carpenter" as const, label: "Carpenter", icon: Hammer },
-            ].map(({ id, label, icon: Icon }) => {
-              const active = category === id;
-              return (
-                <button key={id} type="button" onClick={() => { setCategory(active ? "all" : id); setDrawerOpen(false); }}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg border-0 px-3 py-2.5 text-[13px] font-bold transition-colors",
-                    active
-                      ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white"
-                      : isLight ? "bg-transparent text-slate-700 hover:bg-white/70" : "bg-transparent text-white/80 hover:bg-white/10"
-                  )}
-                >
-                  <Icon className="h-5 w-5 shrink-0" strokeWidth={2} />
-                  {label}
-                </button>
-              );
-            })}
-
-            <div className={cn("h-px", isLight ? "bg-slate-400/30" : "bg-white/15")} />
-
-            {/* Radius */}
-            <div className="px-1">
-              <p className={cn("text-[10px] font-black uppercase tracking-wider", isLight ? "text-slate-600" : "text-white/50")}>Radius</p>
-              <p className={cn("mt-1 text-[13px] font-bold tabular-nums", isLight ? "text-slate-900" : "text-white")}>{radiusKm} km</p>
-              <input type="range" min={2} max={50} value={radiusKm}
-                onChange={(e) => setRadiusKm(parseFloat(e.target.value))}
-                className="mt-1 w-full accent-[#FF6B35]" />
-            </div>
-
-            {/* Nearest toggle */}
-            <button type="button" onClick={() => toggleFilter("nearest")}
-              className={cn(
-                "flex items-center gap-3 rounded-lg border-0 px-3 py-2.5 text-[13px] font-bold transition-colors",
-                filters.nearest
-                  ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white"
-                  : isLight ? "bg-transparent text-slate-700 hover:bg-white/70" : "bg-transparent text-white/80 hover:bg-white/10"
-              )}
-            >
-              <Clock className="h-5 w-5 shrink-0" strokeWidth={2} />
-              <span>Nearest</span>
-            </button>
-          </div>
-        </>
-      )}
     </div>
   );
 }
