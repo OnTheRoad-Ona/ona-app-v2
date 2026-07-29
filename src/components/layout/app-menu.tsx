@@ -237,17 +237,17 @@ export function AppMenu({
       role="dialog"
       aria-modal
     >
-      {/* Backdrop — tap closes */}
+      {/* Backdrop — tap closes (only on the non-trade area) */}
       <button
         type="button"
         className="absolute inset-0 border-0 bg-black/50 transition-opacity duration-200"
         aria-label={t("menu.closeMenu")}
         onClick={onClose}
       />
-      {/* 60% width drawer (left side nav) */}
+      {/* 80% width drawer (left side nav) */}
       <aside
         className={cn(
-          "relative z-10 flex h-full max-h-full w-[60%] max-w-full flex-col overflow-hidden animate-[om-sheet-up_0.22s_ease-out]",
+          "relative z-10 flex h-full max-h-full w-[80%] max-w-full flex-col overflow-hidden animate-[om-sheet-up_0.22s_ease-out]",
           isLight ? "bg-[#c8c9cd]" : "bg-black"
         )}
       >
@@ -545,11 +545,11 @@ export function AppMenu({
         </div>
       </aside>
 
-      {/* Trade controls panel (right side, between nav and backdrop) — shown on home page */}
-      {pathname === "/" && (
+      {/* Right ~20%: trade controls on home page, Ona brand on other pages */}
+      {pathname === "/" ? (
         <div
           className={cn(
-            "relative z-10 flex w-[22%] flex-col gap-2 overflow-y-auto px-2 py-5 animate-[om-sheet-up_0.22s_ease-out]",
+            "relative z-10 flex flex-1 flex-col gap-2 overflow-y-auto px-2 py-5 animate-[om-sheet-up_0.22s_ease-out]",
             isLight ? "bg-[#b8b9c2]" : "bg-[#1a1a1a]"
           )}
         >
@@ -596,6 +596,19 @@ export function AppMenu({
             <Clock className="h-4 w-4 shrink-0" strokeWidth={2} />
             <span>Nearest</span>
           </button>
+        </div>
+      ) : (
+        <div
+          className="pointer-events-none flex flex-1 flex-col items-center justify-center gap-3 px-1"
+          aria-hidden
+        >
+          <span className="select-none text-[22px] font-black tracking-tight leading-none opacity-90">
+            <span className="text-[#FF6B35]">O</span>
+            <span className="text-white/80">na</span>
+          </span>
+          <span className="max-w-[4.5rem] text-center text-[10px] font-semibold leading-snug text-white/55">
+            {t("menu.tapToClose")}
+          </span>
         </div>
       )}
     </div>
