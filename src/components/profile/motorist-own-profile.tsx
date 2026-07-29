@@ -7,7 +7,6 @@ import {
   MapPin,
   Plus,
   Trash2,
-  Wrench,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -20,9 +19,8 @@ import { TierProgress } from "@/components/profile/verification-mark";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { compressImageFile } from "@/lib/image-compress";
 import { memberSinceLabel, profileTheme } from "@/lib/profile-system";
-import { resetNavStack } from "@/lib/navigation";
 import { useApp } from "@/lib/store";
-import type { AccountType, MotoristVehicle, UserProfile } from "@/lib/types";
+import type { MotoristVehicle, UserProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 function vehiclesFromProfile(p: UserProfile): MotoristVehicle[] {
@@ -74,9 +72,6 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
     userProfile,
     updateUserProfile,
     location,
-    hasProAccount,
-    accountType,
-    switchAccount,
   } = useApp();
   const t = profileTheme(isLight);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -84,7 +79,6 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
   const [editing, setEditing] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [switching, setSwitching] = useState(false);
 
   const [fullName, setFullName] = useState(userProfile?.fullName || "");
   const [avatarUrl, setAvatarUrl] = useState(userProfile?.avatarUrl || "");
@@ -105,40 +99,6 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
   const jobsRequested = userProfile?.jobsRequested ?? userProfile?.serviceActionCount ?? 0;
   const jobsCompleted = userProfile?.jobsCompleted ?? 0;
   const ratingGiven = userProfile?.averageRatingGiven ?? 0;
-
-  const onSwitchRole = async (type: AccountType) => {
-    if (type === "motorist" && accountType === "motorist") return;
-    if (type === "professional" && accountType === "professional") {
-      resetNavStack("/dashboard");
-      router.replace("/dashboard");
-      return;
-    }
-    // Let switchAccount refresh dual-role from server — local hasProAccount can be stale.
-    setSwitching(true);
-    setErr(null);
-    try {
-      const result = await switchAccount(type);
-      if (result === null) {
-        const home = type === "professional" ? "/dashboard" : "/";
-        resetNavStack(home);
-        router.replace(home);
-        return;
-      }
-      if (result === "needs_signup") {
-        router.push(
-          type === "professional"
-            ? "/signup/pro?from=profile&next=/dashboard"
-            : "/signup/motorist?from=profile&next=/"
-        );
-        return;
-      }
-      setErr(
-        typeof result === "string" ? result : "Could not switch account."
-      );
-    } finally {
-      setSwitching(false);
-    }
-  };
 
   if (!userProfile || userProfile.accountType !== "motorist") {
     return (
@@ -355,65 +315,7 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
         </div>
       </ProfileSection>
 
-      <ProfileSection title="Use as" isLight={isLight}>
-        <p className={cn("text-[12px] leading-snug", t.muted)}>
-          {hasProAccount
-            ? "Switch between Customer and Repair Pro without leaving this screen."
-            : "Offer roadside services as a mechanic, vulcanizer, tow and more. Finish a short signup to unlock Repair Pro."}
-        </p>
-        <div
-          className={cn(
-            "mt-2.5 grid grid-cols-2 gap-1 rounded-xl p-1",
-            isLight ? "bg-black/[0.06]" : "bg-[#2c2c2e]",
-            switching && "pointer-events-none opacity-70"
-          )}
-          role="group"
-          aria-label="Switch account type"
-        >
-          <button
-            type="button"
-            disabled={switching}
-            onClick={() => void onSwitchRole("motorist")}
-            className={cn(
-              "rounded-lg border-0 px-2 py-2.5 text-[12px] font-bold",
-              accountType === "motorist" || accountType == null
-                ? "bg-[#323231] text-white shadow-sm"
-                : isLight
-                  ? "bg-transparent text-slate-700"
-                  : "bg-transparent text-white/85"
-            )}
-          >
-            Customer
-          </button>
-          <button
-            type="button"
-            disabled={switching}
-            onClick={() => void onSwitchRole("professional")}
-            className={cn(
-              "rounded-lg border-0 px-2 py-2.5 text-[12px] font-bold",
-              accountType === "professional"
-                ? "bg-[#323231] text-white shadow-sm"
-                : isLight
-                  ? "bg-transparent text-slate-700"
-                  : "bg-transparent text-white/85"
-            )}
-          >
-            {switching ? "…" : "Repair Pro"}
-          </button>
-        </div>
-        {!hasProAccount ? (
-          <button
-            type="button"
-            onClick={() =>
-              router.push("/signup/pro?from=profile&next=/dashboard")
-            }
-            className="mt-2.5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border-0 bg-brand text-[13px] font-bold text-white"
-          >
-            <Wrench className="h-4 w-4" />
-            Become a Repair Pro
-          </button>
-        ) : null}
-      </ProfileSection>
+
 
       <ProfileSection title="Verification" isLight={isLight}>
         <TierProgress profile={userProfile} isLight={isLight} />

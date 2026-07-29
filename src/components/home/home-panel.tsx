@@ -337,57 +337,15 @@ export function HomePanel({
 
   return (
     <div className={cn("relative z-30 flex min-h-0 flex-col", className)}
-      style={menuOpen ? { transform: "translateX(88px)", transition: "transform 0.3s ease" } : { transition: "transform 0.3s ease" }}
+      style={menuOpen ? {
+        transform: "translateX(88px) scale(0.92)",
+        borderRadius: "20px",
+        overflow: "hidden",
+        transition: "transform 0.3s ease, border-radius 0.3s ease"
+      } : {
+        transition: "transform 0.3s ease, border-radius 0.3s ease"
+      }}
     >
-      {/* Trade panel slides in from left when menu opens */}
-      <div className={cn(
-        "absolute left-0 z-20 flex flex-col gap-1.5 rounded-r-2xl px-2.5 py-2 shadow-lg transition-all duration-300",
-        isLight ? "bg-[#d8dce4]" : "bg-[#1c1c1e]"
-      )}
-        style={{
-          top: "195px",
-          width: "82px",
-          opacity: menuOpen ? 1 : 0,
-          pointerEvents: menuOpen ? "auto" : "none",
-          transform: menuOpen ? "translateX(0)" : "translateX(-20px)",
-        }}
-      >
-        {[
-          { id: "mechanic" as const, label: "Mech", icon: Wrench },
-          { id: "body" as const, label: "Body", icon: Paintbrush },
-          { id: "carpenter" as const, label: "Carp", icon: Hammer },
-        ].map(({ id, label, icon: Icon }) => {
-          const active = category === id;
-          return (
-            <button key={id} type="button" onClick={() => setCategory(active ? "all" : id)}
-              className={cn(
-                "flex flex-col items-center gap-0.5 rounded-lg border-0 px-1 py-1 text-[8px] font-bold transition-colors",
-                active ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white" : isLight ? "bg-transparent text-slate-700 hover:bg-white/60" : "bg-transparent text-white/80 hover:bg-white/10"
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
-              {label}
-            </button>
-          );
-        })}
-        <div className={cn("h-px", isLight ? "bg-slate-400/30" : "bg-white/15")} />
-        <div className="flex flex-col items-center gap-0.5 px-1">
-          <p className={cn("text-[7px] font-black", isLight ? "text-slate-500" : "text-white/40")}>R</p>
-          <input type="range" min={2} max={50} value={radiusKm}
-            onChange={(e) => setRadiusKm(parseFloat(e.target.value))}
-            className="h-1.5 w-full accent-[#FF6B35]" />
-          <p className={cn("text-[8px] font-bold tabular-nums", isLight ? "text-slate-700" : "text-white/70")}>{radiusKm}</p>
-        </div>
-        <button type="button" onClick={() => toggleFilter("nearest")}
-          className={cn(
-            "flex flex-col items-center gap-0.5 rounded-lg border-0 px-1 py-1 text-[8px] font-bold transition-colors",
-            filters.nearest ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white" : isLight ? "bg-transparent text-slate-700 hover:bg-white/60" : "bg-transparent text-white/80 hover:bg-white/10"
-          )}
-        >
-          <Clock className="h-4 w-4" strokeWidth={2} />
-          <span>Nrst</span>
-        </button>
-      </div>
       <div onWheel={onSheetWheel} className="shrink-0">
         <div
           role="button"
@@ -624,8 +582,55 @@ export function HomePanel({
         {/* Radius first (or specialty strip for Plumber/Carpenter/etc. until pick) */}
         {specialtyPickerOpen ? <SpecialtyFilterBar /> : <RadiusSlider />}
 
-        {/* Nearest · 4.5+ · Available · Verified · Fast — live filter list/map */}
-        <FilterChips />
+        {menuOpen ? (
+          <div className="flex">
+            {/* Trade controls */}
+            <div className={cn("flex shrink-0 flex-col gap-1.5 rounded-r-2xl px-2.5 py-2", isLight ? "bg-[#d8dce4]" : "bg-[#1c1c1e]")}
+              style={{ width: "82px" }}
+            >
+              {[
+                { id: "mechanic" as const, label: "Mech", icon: Wrench },
+                { id: "body" as const, label: "Body", icon: Paintbrush },
+                { id: "carpenter" as const, label: "Carp", icon: Hammer },
+              ].map(({ id, label, icon: Icon }) => {
+                const active = category === id;
+                return (
+                  <button key={id} type="button" onClick={() => setCategory(active ? "all" : id)}
+                    className={cn(
+                      "flex flex-col items-center gap-0.5 rounded-lg border-0 px-1 py-1 text-[8px] font-bold transition-colors",
+                      active ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white" : isLight ? "bg-transparent text-slate-700 hover:bg-white/60" : "bg-transparent text-white/80 hover:bg-white/10"
+                    )}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
+                    {label}
+                  </button>
+                );
+              })}
+              <div className={cn("h-px", isLight ? "bg-slate-400/30" : "bg-white/15")} />
+              <div className="flex flex-col items-center gap-0.5 px-1">
+                <p className={cn("text-[7px] font-black", isLight ? "text-slate-500" : "text-white/40")}>R</p>
+                <input type="range" min={2} max={50} value={radiusKm}
+                  onChange={(e) => setRadiusKm(parseFloat(e.target.value))}
+                  className="h-1.5 w-full accent-[#FF6B35]" />
+                <p className={cn("text-[8px] font-bold tabular-nums", isLight ? "text-slate-700" : "text-white/70")}>{radiusKm}</p>
+              </div>
+              <button type="button" onClick={() => toggleFilter("nearest")}
+                className={cn(
+                  "flex flex-col items-center gap-0.5 rounded-lg border-0 px-1 py-1 text-[8px] font-bold transition-colors",
+                  filters.nearest ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white" : isLight ? "bg-transparent text-slate-700 hover:bg-white/60" : "bg-transparent text-white/80 hover:bg-white/10"
+                )}
+              >
+                <Clock className="h-4 w-4" strokeWidth={2} />
+                <span>Nrst</span>
+              </button>
+            </div>
+            <div className="flex-1">
+              <FilterChips />
+            </div>
+          </div>
+        ) : (
+          <FilterChips />
+        )}
       </div>
 
       {locationError && (
