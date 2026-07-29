@@ -582,12 +582,15 @@ export function HomePanel({
         {/* Radius first (or specialty strip for Plumber/Carpenter/etc. until pick) */}
         {specialtyPickerOpen ? <SpecialtyFilterBar /> : <RadiusSlider />}
 
-        {menuOpen ? (
-          <div className="flex">
-            {/* Trade controls */}
-            <div className={cn("flex shrink-0 flex-col gap-1.5 rounded-r-2xl px-2.5 py-2", isLight ? "bg-[#d8dce4]" : "bg-[#1c1c1e]")}
-              style={{ width: "82px" }}
-            >
+        {/* Trade controls slide in from left alongside chips */}
+        <div className="flex">
+          <div className="overflow-hidden transition-all duration-300"
+            style={{
+              width: menuOpen ? "82px" : "0px",
+              opacity: menuOpen ? 1 : 0,
+            }}
+          >
+            <div className={cn("flex w-[82px] flex-col gap-1.5 rounded-r-2xl px-2.5 py-2", isLight ? "bg-[#d8dce4]" : "bg-[#1c1c1e]")}>
               {[
                 { id: "mechanic" as const, label: "Mech", icon: Wrench },
                 { id: "body" as const, label: "Body", icon: Paintbrush },
@@ -598,7 +601,7 @@ export function HomePanel({
                   <button key={id} type="button" onClick={() => setCategory(active ? "all" : id)}
                     className={cn(
                       "flex flex-col items-center gap-0.5 rounded-lg border-0 px-1 py-1 text-[8px] font-bold transition-colors",
-                      active ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white" : isLight ? "bg-transparent text-slate-700 hover:bg-white/60" : "bg-transparent text-white/80 hover:bg-white/10"
+                      active ? isLight ? "bg-white text-slate-900" : "bg-[#3d3d3d] text-white" : isLight ? "bg-transparent text-slate-700 hover:bg-white/60" : "bg-transparent text-white/80 hover:bg-white/10"
                     )}
                   >
                     <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
@@ -617,20 +620,18 @@ export function HomePanel({
               <button type="button" onClick={() => toggleFilter("nearest")}
                 className={cn(
                   "flex flex-col items-center gap-0.5 rounded-lg border-0 px-1 py-1 text-[8px] font-bold transition-colors",
-                  filters.nearest ? isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white" : isLight ? "bg-transparent text-slate-700 hover:bg-white/60" : "bg-transparent text-white/80 hover:bg-white/10"
+                  filters.nearest ? isLight ? "bg-white text-slate-900" : "bg-[#3d3d3d] text-white" : isLight ? "bg-transparent text-slate-700 hover:bg-white/60" : "bg-transparent text-white/80 hover:bg-white/10"
                 )}
               >
                 <Clock className="h-4 w-4" strokeWidth={2} />
                 <span>Nrst</span>
               </button>
             </div>
-            <div className="flex-1">
-              <FilterChips />
-            </div>
           </div>
-        ) : (
-          <FilterChips />
-        )}
+          <div className="flex-1 min-w-0">
+            <FilterChips />
+          </div>
+        </div>
       </div>
 
       {locationError && (
