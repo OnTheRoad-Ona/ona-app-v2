@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { CallButton } from "@/components/call/in-app-call";
 import { AchievementBadgesRow } from "@/components/profile/achievement-badges";
 import { ProfileSection, ProfileShell } from "@/components/profile/profile-shell";
 import { RadiusMapPreview } from "@/components/profile/radius-map-preview";
@@ -103,37 +102,19 @@ export function ProPublicView({
       isLight={isLight}
       title="Repair Pro Profile"
       footer={
-        <>
-          <div className="grid grid-cols-2 gap-2">
-            <CallButton
-              target={{
-                name: tech.name,
-                phone: tech.phone || "",
-                photo: photo,
-                roleLabel: skillLabel,
-              }}
-              className={
-                isLight
-                  ? "bg-black/8 text-slate-900"
-                  : "bg-[#2c2c2e] text-white"
-              }
-            />
-            {/* Chat only after a request — Request CTA below */}
-          </div>
-          <Button
-            size="lg"
-            className={cn(
-              "h-12 w-full border-0 shadow-none",
-              ctaKind === "open" || ctaKind === "booked"
-                ? "bg-emerald-700 text-white hover:bg-emerald-800"
-                : undefined
-            )}
-            onClick={onRequest}
-          >
-            {ctaKind === "request" ? <Zap className="h-4 w-4" /> : null}
-            {ctaLabel}
-          </Button>
-        </>
+        <Button
+          size="lg"
+          className={cn(
+            "h-12 w-full border-0 shadow-none",
+            ctaKind === "open" || ctaKind === "booked"
+              ? "bg-emerald-700 text-white hover:bg-emerald-800"
+              : undefined
+          )}
+          onClick={onRequest}
+        >
+          {ctaKind === "request" ? <Zap className="h-4 w-4" /> : null}
+          {ctaLabel}
+        </Button>
       }
     >
       <ProfileSection isLight={isLight}>

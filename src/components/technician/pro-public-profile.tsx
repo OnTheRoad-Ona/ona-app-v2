@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { CallButton } from "@/components/call/in-app-call";
 import { NewAccountBadge } from "@/components/profile/new-account-badge";
 import { OnlineStatusDot } from "@/components/ui/online-status-dot";
 import { StarRatingDisplay } from "@/components/ui/star-rating";
@@ -394,24 +393,10 @@ export function ProPublicProfile({
               Edit my profile
             </Button>
           ) : (
-            <>
-              <div className="grid grid-cols-2 gap-2">
-                <CallButton
-                  target={{
-                    name: tech.name,
-                    phone: tech.phone || "",
-                    photo: photoSrc,
-                    roleLabel: skillLabel,
-                  }}
-                  className={solidBtn}
-                />
-                {/* Chat only after a request exists — use Request assistance */}
-              </div>
-              <Button size="lg" className="h-11 w-full" onClick={onRequest}>
-                <Zap className="h-4 w-4" />
-                Request assistance
-              </Button>
-            </>
+            <Button size="lg" className="h-11 w-full" onClick={onRequest}>
+              <Zap className="h-4 w-4" />
+              Request assistance
+            </Button>
           )}
         </div>
       </div>
