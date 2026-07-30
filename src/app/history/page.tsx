@@ -229,7 +229,7 @@ export default function HistoryPage() {
         {!loading &&
           filtered.map((j) => {
             const name = isPro
-              ? j.motoristVehicle?.trim() || "Service Request"
+              ? j.motoristVehicle?.trim() || PRO_SERVICE_LABELS[j.serviceType] || "Service Request"
               : j.repairProName;
             const skill =
               PRO_SERVICE_LABELS[j.serviceType] ?? j.serviceType;

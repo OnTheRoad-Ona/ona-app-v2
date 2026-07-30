@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { NewAccountBadge } from "@/components/profile/new-account-badge";
 import { OnlineStatusDot } from "@/components/ui/online-status-dot";
 import { StarRatingDisplay } from "@/components/ui/star-rating";
+import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { navigateBack } from "@/lib/navigation";
 import { publicSkillRows } from "@/lib/skill-questions";
@@ -324,22 +325,30 @@ export function ProPublicProfile({
             </SolidSection>
           ) : null}
 
-          <SolidSection title="Vehicles they serve" icon={Car} isLight={isLight} card={card} cardBg={cardBg}>
-            {serviceFocus.length > 0 ? (
-              serviceFocus.map(([label, value]) => (
-                <Row
-                  key={label}
-                  label={label}
-                  value={String(value)}
-                  isLight={isLight}
-                />
-              ))
-            ) : (
+          {isAutomotiveTrade(tech.serviceType) ? (
+            <SolidSection title="Vehicles they serve" icon={Car} isLight={isLight} card={card} cardBg={cardBg}>
+              {serviceFocus.length > 0 ? (
+                serviceFocus.map(([label, value]) => (
+                  <Row
+                    key={label}
+                    label={label}
+                    value={String(value)}
+                    isLight={isLight}
+                  />
+                ))
+              ) : (
+                <p className={cn("text-[12px]", muted)}>
+                  Any vehicle · not specified yet
+                </p>
+              )}
+            </SolidSection>
+          ) : (
+            <SolidSection title="Service focus" icon={Briefcase} isLight={isLight} card={card} cardBg={cardBg}>
               <p className={cn("text-[12px]", muted)}>
-                Any vehicle · not specified yet
+                Residential, Commercial & Industrial
               </p>
-            )}
-          </SolidSection>
+            </SolidSection>
+          )}
 
           <SolidSection title="Service area" icon={MapPin} isLight={isLight} card={card} cardBg={cardBg}>
             <Row

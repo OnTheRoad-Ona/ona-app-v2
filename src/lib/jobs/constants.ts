@@ -378,7 +378,7 @@ export const TRIP_STATUS_COPY: Partial<
   },
   in_progress: {
     title: "Work in progress",
-    subtitle: "Your vehicle is being fixed",
+    subtitle: "Job in progress — on site",
   },
   completed: {
     title: "Confirm Job & Release Payment",

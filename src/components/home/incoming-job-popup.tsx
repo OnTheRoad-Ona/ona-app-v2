@@ -70,7 +70,7 @@ export function IncomingJobPopup() {
       if (canNotify()) {
         showAppNotification({
           title: "Service Request",
-          body: `${j.motoristVehicle || "Vehicle"} · ${j.problem.slice(0, 70)} · ${skill}`,
+          body: `${j.motoristVehicle || skill} · ${j.problem.slice(0, 70)} · ${skill}`,
           tag: `job-${j.id}`,
           href: `/jobs/${j.id}`,
           requireInteraction: true,
@@ -209,7 +209,7 @@ export function IncomingJobPopup() {
                   Service Request
                 </p>
                 <p className="mt-0.5 text-[16px] font-black leading-tight">
-                  {alertJob.motoristVehicle?.trim() || "Vehicle service needed"}
+                  {alertJob.motoristVehicle?.trim() || PRO_SERVICE_LABELS[alertJob.serviceType] || "Service Request"}
                 </p>
               </div>
               <button

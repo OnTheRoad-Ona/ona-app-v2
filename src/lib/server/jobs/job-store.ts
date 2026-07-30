@@ -425,6 +425,7 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
       const { data, error } = await sb
         .from("service_requests")
         .insert({
+          id: job.id,
           motorist_id: input.motoristId,
           repair_pro_id: input.repairProId,
           service_type: input.serviceType,
@@ -454,6 +455,7 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
       // Insert may fail if motorist_vehicle column missing — retry without it
       if (error) {
         const { motorist_vehicle: _mv, ...rest } = {
+          id: job.id,
           motorist_id: input.motoristId,
           repair_pro_id: input.repairProId,
           service_type: input.serviceType,

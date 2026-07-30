@@ -181,7 +181,7 @@ export default function RequestsPage() {
   const Row = ({ j }: { j: JobRecord }) => {
     // Pro: no customer full name — vehicle + issues only
     const name = isPro
-      ? j.motoristVehicle?.trim() || "Service Request"
+      ? j.motoristVehicle?.trim() || PRO_SERVICE_LABELS[j.serviceType] || "Service Request"
       : j.repairProName;
     const skill = PRO_SERVICE_LABELS[j.serviceType] ?? j.serviceType;
     const when = formatWhen(j.updatedAt || j.createdAt);

@@ -143,15 +143,6 @@ export function navigateBack(
 
   const go = () => {
     clearPageExitClass();
-    // True previous page first (settings → verification → back returns to settings, etc.)
-    if (
-      typeof window !== "undefined" &&
-      typeof router.back === "function" &&
-      window.history.length > 1
-    ) {
-      router.back();
-      return;
-    }
     router.push(target);
   };
 
