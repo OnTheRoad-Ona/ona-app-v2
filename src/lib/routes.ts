@@ -38,6 +38,7 @@ export function isSharedAppPath(pathname: string): boolean {
   if (pathname.startsWith("/verify")) return true;
   if (pathname.startsWith("/artisan")) return true;
   if (pathname.startsWith("/logout")) return true;
+  if (pathname.startsWith("/wallet")) return true;
   return false;
 }
 
