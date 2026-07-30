@@ -287,7 +287,7 @@ function RequestInner() {
         isLight={isLight}
         title="Describe the problem"
         compactHeader
-        onBack={() => router.push(techId ? `/technician/${techId}` : "/")}
+        onBack={() => router.push("/dashboard")}
         footer={
           <button
             type="button"
@@ -310,7 +310,7 @@ function RequestInner() {
       isLight={isLight}
       title="Describe the problem"
       compactHeader
-      onBack={() => router.push(techId ? `/technician/${techId}` : "/")}
+      onBack={() => router.push("/dashboard")}
       footer={
         <button
           type="button"

@@ -192,8 +192,8 @@ export function CategoryTabs({
                 setCategory(id);
               }}
               style={{
-                fontSize: expanded ? 10 : 9,
-                transition: "font-size 550ms cubic-bezier(0.32, 0.72, 0, 1)",
+                fontSize: expanded ? 10.08 : 9,
+                transition: "font-size 550ms cubic-bezier(0.4, 0, 0.2, 1)",
               }}
               className={cn(
                 "flex min-w-0 flex-col items-center justify-center gap-0.5 border-0 px-1 py-2.5 font-semibold",
@@ -206,9 +206,9 @@ export function CategoryTabs({
             >
               <Icon
                 style={{
-                  width: expanded ? 18 : 16,
-                  height: expanded ? 18 : 16,
-                  transition: "width 550ms cubic-bezier(0.32, 0.72, 0, 1), height 550ms cubic-bezier(0.32, 0.72, 0, 1)",
+                  width: expanded ? 18.24 : 16,
+                  height: expanded ? 18.24 : 16,
+                  transition: "width 550ms cubic-bezier(0.4, 0, 0.2, 1), height 550ms cubic-bezier(0.4, 0, 0.2, 1)",
                 }}
                 className={cn(
                   "shrink-0",
