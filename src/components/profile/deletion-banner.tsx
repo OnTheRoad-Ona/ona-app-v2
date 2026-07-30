@@ -77,8 +77,8 @@ export function DeletionBanner() {
       )}
     >
       <span>
-        Your account is scheduled for deletion in{" "}
-        <strong>{daysLeft ?? "?"} days</strong>. Log back in to reactivate.
+        Your account will be deleted in{" "}
+        <strong>{daysLeft ?? "?"} days</strong>. Reactivate to keep it.
       </span>
       <div className="flex shrink-0 gap-2">
         <button

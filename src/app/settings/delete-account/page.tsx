@@ -58,14 +58,14 @@ export default function SettingsDeleteAccountPage() {
     >
       <PageHeader
         title="Delete account"
-        subtitle="This cannot be undone"
+        subtitle="You have 30 days to change your mind"
         backHref="/settings"
       />
       <div className="flex-1 space-y-3 overflow-y-auto px-3 pb-8 scrollbar-hide">
         <div className="rounded-md bg-red-500/10 px-3 py-3 text-[12px] font-medium leading-relaxed text-red-700">
-          Your account will be scheduled for deletion. You have 30 days to log
-          back in and reactivate it. After 30 days, all data is permanently
-          removed.
+          Your account will be scheduled for deletion. You have 30 days to
+          reactivate by clicking "Reactivate" on the banner shown after login.
+          After 30 days, all data is permanently removed.
         </div>
         <label className="block">
           <span

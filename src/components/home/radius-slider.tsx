@@ -13,11 +13,11 @@ export function RadiusSlider() {
   const pct = (radiusKm / MAX_RADIUS_KM) * 100;
 
   return (
-    <div className="flex h-6 items-center gap-1.5 px-4 py-0">
+    <div className="flex h-8 items-center gap-2 px-4 py-0">
       <span
         className={cn(
-          "shrink-0 text-[8px] font-semibold leading-none tracking-wide uppercase",
-          isLight ? "text-[#7b8798]" : "text-white/60"
+          "shrink-0 text-[10px] font-bold leading-none tracking-wide uppercase",
+          isLight ? "text-[#4a5568]" : "text-white/80"
         )}
       >
         {t("home.radius")}
@@ -34,10 +34,11 @@ export function RadiusSlider() {
         aria-label={t("home.searchRadiusAria")}
       />
       <span
-        className="shrink-0 tabular-nums text-[9px] font-bold leading-none"
+        className="shrink-0 tabular-nums text-[12px] font-black leading-none"
         style={{ color: "#FF6B35" }}
       >
-        {radiusKm} km
+        {radiusKm}
+        <span className="ml-0.5 text-[10px] font-bold opacity-80">km</span>
       </span>
     </div>
   );

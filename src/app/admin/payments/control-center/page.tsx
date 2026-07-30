@@ -139,7 +139,9 @@ export default function PaymentControlCenter() {
     const to = new Date().toISOString();
     const from = period === "ytd"
       ? new Date(new Date().getFullYear(), 0, 1).toISOString()
-      : new Date(Date.now() - 90 * 86400000).toISOString();
+      : period === "year"
+        ? new Date(Date.now() - 730 * 86400000).toISOString()
+        : new Date(Date.now() - 90 * 86400000).toISOString();
     const p = period === "ytd" ? "day" : period;
     const res = await api<Record<string, unknown>>(`/api/admin/commission?period=${p}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
     if (res.ok) { setCommReport(res.data); setCommYtd((res.data as Record<string, unknown>).ytd as Record<string, unknown> || null); }

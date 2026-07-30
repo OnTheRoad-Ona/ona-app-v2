@@ -347,7 +347,7 @@ export const EN = {
   "settings.hub.addressesDetail": "Home, Work, service area & pin",
   "settings.dangerZone": "Danger zone",
   "settings.deleteAccount": "Delete account",
-  "settings.deleteAccountDetail": "Deactivate permanently — cannot undo",
+  "settings.deleteAccountDetail": "Schedule deletion — 30-day reactivation window",
   "settings.theme.tap": "Tap",
 
   // Search empty states

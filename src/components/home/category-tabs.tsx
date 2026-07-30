@@ -191,8 +191,12 @@ export function CategoryTabs({
                 }
                 setCategory(id);
               }}
+              style={{
+                fontSize: expanded ? 10 : 9,
+                transition: "font-size 550ms cubic-bezier(0.32, 0.72, 0, 1)",
+              }}
               className={cn(
-                "flex min-w-0 flex-col items-center justify-center gap-0.5 border-0 px-1 py-2.5 text-[9px] font-semibold transition-colors",
+                "flex min-w-0 flex-col items-center justify-center gap-0.5 border-0 px-1 py-2.5 font-semibold",
                 active && !menuOpen
                   ? "metallic-orange text-white rounded-md"
                   : isLight
@@ -201,8 +205,13 @@ export function CategoryTabs({
               )}
             >
               <Icon
+                style={{
+                  width: expanded ? 18 : 16,
+                  height: expanded ? 18 : 16,
+                  transition: "width 550ms cubic-bezier(0.32, 0.72, 0, 1), height 550ms cubic-bezier(0.32, 0.72, 0, 1)",
+                }}
                 className={cn(
-                  "h-4 w-4 shrink-0",
+                  "shrink-0",
                   !active && isLight && "text-black"
                 )}
                 strokeWidth={active ? 2.4 : 2}
