@@ -89,6 +89,7 @@ export async function backendSignUp(input: {
   docsStatus?: UserProfile["docsStatus"];
   certificationFileName?: string;
   certificationFileDataUrl?: string;
+  refCode?: string;
 }): Promise<{ error: string | null; userId?: string; profile?: UserProfile }> {
   /**
    * Server-side signup (service role, email auto-confirmed).
@@ -143,6 +144,7 @@ export async function backendSignUp(input: {
         bankAccountNumber: input.bankAccountNumber,
         guarantor: input.guarantor,
         keepOtherRole: input.keepOtherRole !== false,
+        refCode: input.refCode,
         docsStatus: input.docsStatus,
         certificationFileName: input.certificationFileName,
         certificationFileDataUrl: input.certificationFileDataUrl,

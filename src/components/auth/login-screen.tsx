@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Car, Check, ChevronLeft, ChevronRight, Wrench } from "lucide-react";
 import {
   AuthPlate,
@@ -20,15 +21,16 @@ const ACCENT = "#FF6B35";
 export function LoginScreen() {
   const { exiting, go } = useAuthNavigate();
   const t = useT();
+  const searchParams = useSearchParams();
+  const ref = searchParams.get("ref");
   /** No default — user must pick Motorist or Repair Pro */
   const [accountType, setAccountType] = useState<AccountType | null>(null);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!accountType) return;
-    go(
-      accountType === "professional" ? "/signup/pro" : "/signup/motorist"
-    );
+    const dest = accountType === "professional" ? "/signup/pro" : "/signup/motorist";
+    go(ref ? `${dest}?ref=${encodeURIComponent(ref)}` : dest);
   };
 
   const goBack = () => {

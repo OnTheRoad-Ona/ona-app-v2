@@ -1832,6 +1832,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         certificationFileDataUrl: certData,
         // Dual role: keep motorist when adding Repair Pro (and vice versa)
         keepOtherRole: true,
+        refCode: normalized.refCode,
       });
 
       if (res.error || !res.profile || !res.userId) {

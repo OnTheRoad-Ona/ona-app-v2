@@ -228,6 +228,8 @@ export interface UserProfile {
   identityId?: string;
   /** Name is locked after signup — cannot be changed */
   name_locked?: boolean;
+  /** Referral code from ?ref= URL parameter */
+  refCode?: string;
   registeredAt: string;
 }
 

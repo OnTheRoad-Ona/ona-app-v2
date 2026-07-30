@@ -368,7 +368,7 @@ export async function getOrCreateReferralCode(
     id,
     userId,
     referralCode: code,
-    referralLink: `${process.env.NEXT_PUBLIC_APP_URL || "https://ona-mi.vercel.app"}/signup?ref=${code}`,
+    referralLink: `${process.env.NEXT_PUBLIC_APP_URL || "https://ona-mi.vercel.app"}/login/role?ref=${code}`,
     active: true,
     createdAt: now(),
     updatedAt: now(),

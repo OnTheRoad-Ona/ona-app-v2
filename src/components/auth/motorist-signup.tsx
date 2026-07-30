@@ -436,6 +436,7 @@ export function MotoristSignup() {
       vehicleModel: first?.model,
       vehicleYear: first?.year,
       registeredAt: new Date().toISOString(),
+      refCode: searchParams.get("ref") || undefined,
     };
 
     // Service area text → home map session label (Lagos default coords until GPS)

@@ -703,6 +703,7 @@ export function ProSignup() {
         relationship: guarantorRelationship.trim(),
       },
       registeredAt: new Date().toISOString(),
+      refCode: searchParams.get("ref") || undefined,
     };
     const err = await completeSignup(profile);
     if (err) {
