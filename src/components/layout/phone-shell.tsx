@@ -4,6 +4,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { AcceptTripPopup } from "@/components/home/accept-trip-popup";
 import { IncomingJobPopup } from "@/components/home/incoming-job-popup";
 import { MotoristReleasePayGate } from "@/components/jobs/motorist-release-pay-gate";
+import { DeletionBanner } from "@/components/profile/deletion-banner";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/store";
 
@@ -220,6 +221,7 @@ export function PhoneShell({
           className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden"
           style={{ backgroundColor: phoneInterior }}
         >
+          <DeletionBanner />
           {children}
           <AcceptTripPopup />
           <IncomingJobPopup />

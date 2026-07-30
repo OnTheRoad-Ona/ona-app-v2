@@ -26,6 +26,7 @@ import {
   QUIET_HOURS_ANYTIME,
   type QuietHoursConfig,
 } from "@/lib/notifications/quiet-hours";
+import { getAppSupabase } from "@/lib/supabase/app-client";
 import { cn } from "@/lib/utils";
 
 /** Icons, on-toggles, and primary buttons — never yellow/copper */
@@ -292,11 +293,14 @@ export function NotificationSettings({ className, onSaved }: Props) {
     try {
       writeSettings(userKey, state);
 
-      // TODO(api): await fetch("/api/notifications/settings", {
-      //   method: "PATCH",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify({ userId: backendUserId, ...state }),
-      // });
+      const sb = getAppSupabase();
+      const { data: sessionData } = await sb!.auth.getSession();
+      const token = sessionData.session?.access_token;
+      await fetch("/api/notifications/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ access_token: token, ...state }),
+      });
 
       setDirty(false);
       onSaved?.(state);

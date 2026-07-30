@@ -5,14 +5,11 @@ import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { getAppSupabase } from "@/lib/supabase/app-client";
 
-/**
- * Delete account — confirm + deactivate (soft).
- * Sits alone at the bottom of Settings.
- */
 export default function SettingsDeleteAccountPage() {
   const router = useRouter();
-  const { theme, userProfile, logout, updateUserProfile } = useApp();
+  const { theme, logout } = useApp();
   const isLight = theme === "light";
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
@@ -28,24 +25,26 @@ export default function SettingsDeleteAccountPage() {
     }
     setBusy(true);
     try {
-      // Soft-delete: clear local identity; server hard-delete is admin-only for now
-      updateUserProfile({
-        // mark inactive in vault profile if field exists
-        email: userProfile?.email,
+      const sb = getAppSupabase();
+      const { data: sessionData } = await sb!.auth.getSession();
+      const token = sessionData.session?.access_token;
+
+      const res = await fetch("/api/auth/delete-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ access_token: token }),
       });
-      try {
-        localStorage.setItem(
-          `ona-account-deactivated:${userProfile?.email || "x"}`,
-          new Date().toISOString()
-        );
-      } catch {
-        /* */
+      const json = await res.json();
+      if (!json.ok) {
+        setErr(json.error?.message || "Deletion failed");
+        setBusy(false);
+        return;
       }
+
       await logout();
       router.replace("/login");
     } catch {
       setErr("Could not complete deactivation. Contact care.");
-    } finally {
       setBusy(false);
     }
   };
@@ -64,9 +63,9 @@ export default function SettingsDeleteAccountPage() {
       />
       <div className="flex-1 space-y-3 overflow-y-auto px-3 pb-8 scrollbar-hide">
         <div className="rounded-md bg-red-500/10 px-3 py-3 text-[12px] font-medium leading-relaxed text-red-700">
-          Deactivating your Ona account signs you out and marks the account for
-          removal. Active jobs may be cancelled. Contact care if you need a full
-          server wipe: witcowavers@gmail.com
+          Your account will be scheduled for deletion. You have 30 days to log
+          back in and reactivate it. After 30 days, all data is permanently
+          removed.
         </div>
         <label className="block">
           <span
@@ -99,7 +98,7 @@ export default function SettingsDeleteAccountPage() {
           onClick={() => void deactivate()}
           className="flex h-11 w-full items-center justify-center rounded-md border-0 bg-red-600 text-[13px] font-bold text-white disabled:opacity-60"
         >
-          {busy ? "Working…" : "Deactivate my account"}
+          {busy ? "Working…" : "Schedule deletion"}
         </button>
       </div>
     </div>

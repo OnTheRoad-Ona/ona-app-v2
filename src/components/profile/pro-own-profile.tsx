@@ -69,6 +69,7 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
     proLive,
     setProLive,
     proServices,
+    backendUserId,
   } = useApp();
   const t = profileTheme(isLight);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -720,7 +721,7 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
       <ProfileSection title="Public preview" isLight={isLight}>
         <button
           type="button"
-          onClick={() => router.push("/technician/pro-self")}
+          onClick={() => router.push(`/technician/${backendUserId}`)}
           className="text-[12px] font-bold text-brand"
         >
           View as motorists see you →
