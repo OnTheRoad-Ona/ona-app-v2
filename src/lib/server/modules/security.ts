@@ -12,8 +12,11 @@
  */
 
 /** Temporary ops access code for escrow / freeze / disputes / bank / settings */
-export const SENSITIVE_ACTION_PASSWORD =
-  process.env.ADMIN_SENSITIVE_PASSWORD?.trim() || "336699";
+function getSensitiveActionPassword(): string {
+  const pw = process.env.ADMIN_SENSITIVE_PASSWORD?.trim();
+  if (!pw) throw new Error("ADMIN_SENSITIVE_PASSWORD environment variable is required");
+  return pw;
+}
 
 /** Admin panel idle timeout (30 minutes) */
 export const ADMIN_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
@@ -56,7 +59,7 @@ export const SENSITIVE_ACTIONS: SensitiveAction[] = [
 
 export function isSensitivePasswordValid(password: string | null | undefined): boolean {
   if (!password) return false;
-  return password.trim() === SENSITIVE_ACTION_PASSWORD;
+  return password.trim() === getSensitiveActionPassword();
 }
 
 export function clientIp(req: Request): string {

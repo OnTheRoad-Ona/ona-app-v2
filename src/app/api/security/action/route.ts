@@ -151,12 +151,12 @@ export async function POST(req: Request) {
       // Check phone not already in use
       const { data: existing } = await supabase
         .from("profiles")
-        .select("id")
+        .select("id, phone")
         .eq("is_active", true)
+        .neq("id", userId)
+        .eq("phone", phone)
         .limit(1);
-      const phoneTaken = (existing || []).some(
-        (p: { id: string; phone?: string }) => p.id !== userId && p.phone === phone
-      );
+      const phoneTaken = (existing || []).length > 0;
       if (phoneTaken) return apiFail("This phone number is already in use.", 409);
 
       // Get current phone

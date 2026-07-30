@@ -1,5 +1,8 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
-import { expireOverdueBookedJobs } from "@/lib/server/jobs/job-store";
+import {
+  expireOverdueBookedJobs,
+  expireUnacceptedJobs,
+} from "@/lib/server/jobs/job-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,6 +43,18 @@ async function run(req: Request) {
       result = await expireOverdueBookedJobs(50);
     }
 
+    // Sweep unaccepted jobs — reroute to next pro after 1 min, expire after 15 min
+    let unacceptedResult: {
+      checked: number;
+      rerouted: number;
+      expired: number;
+    } | null = null;
+    try {
+      unacceptedResult = await expireUnacceptedJobs(40);
+    } catch (e) {
+      console.error("expireUnacceptedJobs in expire-stale", e);
+    }
+
     let payoutRetry: {
       checked: number;
       succeeded: number;
@@ -57,6 +72,7 @@ async function run(req: Request) {
     }
     return apiOk({
       ...result,
+      unaccepted: unacceptedResult,
       payoutRetry,
       rule:
         "Agreed unpaid: payment details expire after 20 min; Booked not completed within 6h: cancel + refund; Completed 6h: auto-release pro 87.5%; PENDING_SETTLEMENT: auto-retry when FLW Available is enough",

@@ -349,8 +349,9 @@ export function HomePanel({
   return (
     <div className={cn("relative z-30 flex min-h-0 flex-col", className)}
       style={{
-        transition: "transform 0.3s ease, border-radius 0.3s ease",
-        transform: menuOpen ? "translateX(80%)" : undefined
+        transition: "transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+        transform: menuOpen ? "translateX(80%)" : "translateX(0%)",
+        willChange: "transform"
       }}
     >
       <div onWheel={onSheetWheel} className="shrink-0">
@@ -589,9 +590,10 @@ export function HomePanel({
         )}
 
         {/* Radius first (or specialty strip for Plumber/Carpenter/etc. until pick) */}
-        {!menuOpen && (specialtyPickerOpen ? <SpecialtyFilterBar /> : <RadiusSlider />)}
+        {specialtyPickerOpen ? <SpecialtyFilterBar /> : <RadiusSlider />}
 
-        {!menuOpen && <FilterChips />}
+        {/* Filter chips — always rendered so all panel content slides as one unit */}
+        <FilterChips />
       </div>
 
       {locationError && (

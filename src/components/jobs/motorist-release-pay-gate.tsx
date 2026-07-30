@@ -432,34 +432,22 @@ export function MotoristReleasePayGate() {
       const proShare = Math.round(total * 0.875 * 100) / 100;
       const platformShare = Math.round(total * 0.05 * 100) / 100;
 
-      if (released) {
-        setReceipt({
-          amount: formatMoney(total, currency),
-          pro: formatMoney(proShare, currency),
-          platform: formatMoney(platformShare, currency),
-          note: "Payment confirmed",
-        });
-      } else if (pendingSettlement) {
-        setReceipt({
-          amount: formatMoney(total, currency),
-          pro: formatMoney(proShare, currency),
-          platform: formatMoney(platformShare, currency),
-          note: "Payout processing — waiting for settlement. We’ll notify you when released.",
-        });
-      } else {
-        setReceipt({
-          amount: formatMoney(total, currency),
-          pro: formatMoney(proShare, currency),
-          platform: formatMoney(platformShare, currency),
-          note: "Release processing…",
-        });
-      }
       unlockAudio();
       playAppSound("payment_success");
-      setPending(null);
-      setSuccess(false);
-      setReceipt(null);
-      router.replace("/dashboard");
+      if (released || pendingSettlement) {
+        setReceipt({
+          amount: formatMoney(total, currency),
+          pro: formatMoney(proShare, currency),
+          platform: formatMoney(platformShare, currency),
+          note: released
+            ? "Payment confirmed"
+            : "Payout processing — waiting for settlement. We’ll notify you when released.",
+        });
+        setSuccess(true);
+        setPending(null);
+      } else {
+        router.replace("/dashboard");
+      }
     } catch (e) {
       markDone(pending.id);
       setErr(e instanceof Error ? e.message : "Release failed");

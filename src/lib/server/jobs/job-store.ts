@@ -53,6 +53,7 @@ import {
 } from "@/lib/server/payments/providers";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { createServiceSupabase } from "@/lib/supabase/server";
+import { randomUUID } from "node:crypto";
 
 const memory = new Map<string, JobRecord>();
 
@@ -61,6 +62,9 @@ function nowIso() {
 }
 
 function uid(prefix: string) {
+  if (prefix === "job") {
+    return randomUUID();
+  }
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
@@ -1206,6 +1210,209 @@ export async function expireOverdueBookedJobs(limit = 40): Promise<{
   return { checked, cancelled, released, ids };
 }
 
+const REROUTE_AFTER_MS = 60_000; // 1 minute before rerouting
+const REROUTE_WINDOW_MS = 15 * 60_000; // 15 min total reroute window
+
+/**
+ * Find the next available pro of the same trade, closest to the customer.
+ * Excludes pros already tried. Returns null if none found.
+ */
+async function findNextPro(
+  job: JobRecord,
+  sb: ReturnType<typeof createServiceSupabase>
+): Promise<{ id: string; name: string; photo?: string } | null> {
+  const triedProIds = new Set(
+    job.statusHistory
+      .filter((h) => h.by === "reroute")
+      .flatMap((h) => {
+        const m = /rerouted_to:(\S+)/.exec(h.by || "");
+        return m ? [m[1]] : [];
+      })
+  );
+  triedProIds.add(job.repairProId);
+
+  const { data: pros } = await sb
+    .from("repair_pro_profiles")
+    .select("user_id, business_name, lat, lng")
+    .eq("is_online", true)
+    .neq("status", "suspended")
+    .neq("status", "rejected");
+
+  if (!pros?.length) return null;
+
+  const available = pros.filter(
+    (p) => !triedProIds.has(p.user_id) && p.lat != null && p.lng != null
+  );
+  if (!available.length) return null;
+
+  const { lat: cLat, lng: cLng } = job.motoristLocation;
+  available.sort((a, b) => {
+    const dA = Math.hypot((a.lat ?? 0) - cLat, (a.lng ?? 0) - cLng);
+    const dB = Math.hypot((b.lat ?? 0) - cLat, (b.lng ?? 0) - cLng);
+    return dA - dB;
+  });
+
+  const best = available[0];
+
+  // Fetch name + photo from profiles
+  const { data: profile } = await sb
+    .from("profiles")
+    .select("full_name, avatar_url")
+    .eq("id", best.user_id)
+    .maybeSingle();
+
+  return {
+    id: best.user_id,
+    name: profile?.full_name || best.business_name || "Repair Pro",
+    photo: profile?.avatar_url || undefined,
+  };
+}
+
+/**
+ * Reroute an unaccepted job to the next available pro.
+ * If no pro is found or the 15-min reroute window has expired,
+ * the job is expired with `reroute_exhausted`.
+ */
+async function rerouteUnacceptedJob(
+  job: JobRecord,
+  sb: ReturnType<typeof createServiceSupabase>
+): Promise<boolean> {
+  const ts = new Date().toISOString();
+
+  const nextPro = await findNextPro(job, sb);
+  if (!nextPro) {
+    // No more pros — expire with reroute_exhausted
+    await sb
+      .from("service_requests")
+      .update({
+        status: "expired",
+        updated_at: ts,
+        status_history: [
+          ...job.statusHistory,
+          {
+            status: "expired",
+            at: ts,
+            by: "reroute_exhausted",
+          },
+        ],
+      })
+      .eq("id", job.id);
+    return false;
+  }
+
+  // Update job with new pro
+  await sb
+    .from("service_requests")
+    .update({
+      repair_pro_id: nextPro.id,
+      repair_pro_name: nextPro.name,
+      ...(nextPro.photo ? { repair_pro_photo: nextPro.photo } : {}),
+      updated_at: ts,
+      status_history: [
+        ...job.statusHistory,
+        {
+          status: "negotiating",
+          at: ts,
+          by: `reroute:${nextPro.id}`,
+        },
+      ],
+    })
+    .eq("id", job.id);
+
+  // Notify the new pro
+  try {
+    const { insertNotification } = await import(
+      "@/lib/server/notifications"
+    );
+    await insertNotification({
+      userId: nextPro.id,
+      category: "requests",
+      priority: "high",
+      title: "Service Request",
+      body: `New request from ${job.motoristName} · ${job.problem.slice(0, 80)}`,
+      href: `/jobs/${job.id}`,
+      actionType: "open_job",
+      actionPayload: { jobId: job.id },
+      jobId: job.id,
+    });
+  } catch {
+    /* notifications optional */
+  }
+
+  return true;
+}
+
+/**
+ * Sweep for negotiating jobs where the pro has not tapped "I can fix this"
+ * within 1 minute. Reroutes to the next available pro of the same trade.
+ * After 15 minutes without any acceptance, the job expires with a
+ * `reroute_exhausted` marker so the customer sees the retry message.
+ */
+export async function expireUnacceptedJobs(
+  limit = 40
+): Promise<{ checked: number; rerouted: number; expired: number }> {
+  let checked = 0;
+  let rerouted = 0;
+  let expired = 0;
+
+  if (!isSupabaseAdminConfigured()) return { checked, rerouted, expired };
+
+  try {
+    const sb = createServiceSupabase();
+    const { data } = await sb
+      .from("service_requests")
+      .select("*")
+      .eq("status", "negotiating")
+      .order("created_at", { ascending: true })
+      .limit(limit);
+
+    for (const row of data || []) {
+      const job = rowToJob(row as Record<string, unknown>);
+      checked++;
+
+      // Skip if pro already accepted (tapped "I can fix this")
+      const hasAccepted = job.statusHistory.some(
+        (h) => h.by === "negotiation_timer_start"
+      );
+      if (hasAccepted) continue;
+
+      const ageMs = Date.now() - new Date(job.createdAt).getTime();
+
+      // Not yet 1 minute old
+      if (ageMs < REROUTE_AFTER_MS) continue;
+
+      if (ageMs >= REROUTE_WINDOW_MS) {
+        // 15+ minutes — expire
+        await sb
+          .from("service_requests")
+          .update({
+            status: "expired",
+            updated_at: new Date().toISOString(),
+            status_history: [
+              ...job.statusHistory,
+              {
+                status: "expired",
+                at: new Date().toISOString(),
+                by: "reroute_exhausted",
+              },
+            ],
+          })
+          .eq("id", job.id);
+        expired++;
+      } else {
+        // 1-15 min — reroute
+        const ok = await rerouteUnacceptedJob(job, sb);
+        if (ok) rerouted++;
+        else expired++;
+      }
+    }
+  } catch (e) {
+    console.error("expireUnacceptedJobs", e);
+  }
+
+  return { checked, rerouted, expired };
+}
+
 export async function listJobsForUser(
   userId: string,
   role: "motorist" | "repair_pro"
@@ -1287,6 +1494,27 @@ async function applyEvent(
   // Pro accepts request → arm 20 min negotiate timer (does not change status)
   if (event.type === "START_NEGOTIATION") {
     const ends = new Date(Date.now() + NEGOTIATE_WINDOW_MS).toISOString();
+    // Notify customer that pro accepted
+    try {
+      const { insertNotification } = await import(
+        "@/lib/server/notifications"
+      );
+      await insertNotification({
+        userId: job.motoristId,
+        category: "requests",
+        priority: "high",
+        title: "Pro can fix this",
+        body: `${job.repairProName} confirmed they can fix your issue.`,
+        href: `/jobs/${job.id}`,
+        actionType: "open_job",
+        actionPayload: { jobId: job.id },
+        jobId: job.id,
+        jobStatus: "negotiating",
+        groupKey: `pro-accepted-${job.id}`,
+      });
+    } catch {
+      /* notification optional */
+    }
     return persist({
       ...job,
       negotiateEndsAt: ends,

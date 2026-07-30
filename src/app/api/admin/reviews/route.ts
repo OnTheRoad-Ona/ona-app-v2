@@ -1,27 +1,17 @@
-import { AdminAuthError, requireAdmin } from "@/lib/server/admin-auth";
 import { apiFail, apiOk } from "@/lib/server/api-json";
-import { createServiceSupabase } from "@/lib/supabase/server";
-import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
+import { listAllReviews } from "@/lib/server/reviews/review-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503);
-  }
   try {
-    await requireAdmin();
-    const supabase = createServiceSupabase();
-    const { data, error } = await supabase
-      .from("reviews")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(200);
-    if (error) return apiFail(error.message, 500);
-    return apiOk({ reviews: data ?? [] });
+    const reviews = await listAllReviews(200);
+    return apiOk({ reviews });
   } catch (e) {
-    if (e instanceof AdminAuthError) return apiFail(e.message, e.status, "auth");
-    return apiFail("Failed to load reviews", 500);
+    return apiFail(
+      e instanceof Error ? e.message : "Could not list reviews",
+      500
+    );
   }
 }

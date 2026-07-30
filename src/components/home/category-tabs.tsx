@@ -168,9 +168,9 @@ export function CategoryTabs({
         aria-label={t("home.serviceCategory")}
         className={cn(
           "relative grid grid-cols-5 gap-0 rounded-xl p-0.5",
-              isLight
-                ? "bg-[#d8dce4]/90 backdrop-blur-sm"
-                : "bg-gradient-to-b from-[#1a1a1a] to-[#141414]"
+                isLight
+                  ? "bg-[#d8dce4]/90"
+                  : "bg-gradient-to-b from-[#1a1a1a] to-[#141414]"
         )}
       >
         {tabs.map(({ id, labelKey, icon: Icon }) => {
@@ -193,12 +193,11 @@ export function CategoryTabs({
               }}
               style={{
                 fontSize: expanded ? 10.08 : 9,
-                transition: "font-size 550ms cubic-bezier(0.4, 0, 0.2, 1)",
               }}
               className={cn(
-                "flex min-w-0 flex-col items-center justify-center gap-0.5 border-0 px-1 py-2.5 font-semibold",
+                "flex min-w-0 flex-col items-center justify-center gap-0.5 border-0 px-1 py-2.5 font-semibold rounded-md",
                 active && !menuOpen
-                  ? "metallic-orange text-white rounded-md"
+                  ? "metallic-orange text-white"
                   : isLight
                     ? "bg-transparent text-black hover:text-black"
                     : "bg-transparent text-[#a0a0a0] hover:text-white"
@@ -208,7 +207,6 @@ export function CategoryTabs({
                 style={{
                   width: expanded ? 18.24 : 16,
                   height: expanded ? 18.24 : 16,
-                  transition: "width 550ms cubic-bezier(0.4, 0, 0.2, 1), height 550ms cubic-bezier(0.4, 0, 0.2, 1)",
                 }}
                 className={cn(
                   "shrink-0",

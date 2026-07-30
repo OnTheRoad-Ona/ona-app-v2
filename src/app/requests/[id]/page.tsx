@@ -26,6 +26,7 @@ import {
 import { apiGetJob } from "@/lib/jobs/client";
 import type { JobFlowStatus, JobOffer, JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
+import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -342,7 +343,7 @@ export default function RequestProcessPage({
           <p className={cn("text-[17px] font-semibold", ink)}>{counterpart}</p>
           <p className={cn("mt-0.5 text-[12px] font-medium", muted)}>
             {skill}
-            {job.motoristVehicle ? ` · ${job.motoristVehicle}` : ""}
+            {isAutomotiveTrade(job.serviceType) && job.motoristVehicle ? ` · ${job.motoristVehicle}` : ""}
           </p>
           <p className={cn("mt-3 text-[14px] font-medium leading-relaxed", ink)}>
             {job.problem}

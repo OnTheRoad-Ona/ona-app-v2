@@ -5,6 +5,22 @@ import type { JobRecord } from "@/lib/jobs/types";
 type ApiOk<T> = { ok: true; data: T };
 type ApiErr = { ok: false; message: string };
 
+const FETCH_TIMEOUT = 15_000;
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit = {}
+): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
+  try {
+    const res = await fetch(url, { ...init, signal: ctrl.signal });
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function parse<T>(res: Response): Promise<ApiOk<T> | ApiErr> {
   const json = (await res.json().catch(() => null)) as {
     ok?: boolean;
@@ -21,7 +37,7 @@ async function parse<T>(res: Response): Promise<ApiOk<T> | ApiErr> {
 }
 
 export async function apiCreateJob(body: Record<string, unknown>) {
-  const res = await fetch("/api/jobs", {
+  const res = await fetchWithTimeout("/api/jobs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -30,7 +46,7 @@ export async function apiCreateJob(body: Record<string, unknown>) {
 }
 
 export async function apiGetJob(id: string) {
-  const res = await fetch(`/api/jobs/${id}`, { cache: "no-store" });
+  const res = await fetchWithTimeout(`/api/jobs/${id}`, { cache: "no-store" });
   return parse<{ job: JobRecord }>(res);
 }
 
@@ -39,7 +55,7 @@ export async function apiGetJob(id: string) {
  * cancel + full refund. Safe no-op when none are overdue.
  */
 export async function apiExpireStaleBookedJobs() {
-  const res = await fetch("/api/jobs/expire-stale", {
+  const res = await fetchWithTimeout("/api/jobs/expire-stale", {
     method: "POST",
     cache: "no-store",
   });
@@ -55,7 +71,7 @@ export async function apiListJobs(
   role: "motorist" | "repair_pro"
 ) {
   const qs = new URLSearchParams({ userId, role });
-  const res = await fetch(`/api/jobs?${qs}`, { cache: "no-store" });
+  const res = await fetchWithTimeout(`/api/jobs?${qs}`, { cache: "no-store" });
   return parse<{ jobs: JobRecord[] }>(res);
 }
 
@@ -67,8 +83,14 @@ async function retryFetch(
 ): Promise<Response> {
   for (let i = 0; i < tries; i++) {
     try {
-      const res = await fetch(url, init);
-      if (res.ok || i === tries - 1) return res;
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
+      try {
+        const res = await fetch(url, { ...init, signal: ctrl.signal });
+        if (res.ok || i === tries - 1) return res;
+      } finally {
+        clearTimeout(timer);
+      }
     } catch {
       if (i === tries - 1) throw new Error("Network offline");
     }
@@ -175,7 +197,7 @@ export async function apiAcceptOffer(input: {
   side: "repair_pro" | "motorist";
   actorId: string;
 }) {
-  const res = await fetch(`/api/jobs/${input.jobId}/offer`, {
+  const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/offer`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -200,7 +222,7 @@ export async function apiPayJob(input: {
 }) {
   const returnOrigin =
     typeof window !== "undefined" ? window.location.origin : undefined;
-  const res = await fetch(`/api/jobs/${input.jobId}/pay`, {
+  const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/pay`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -250,7 +272,7 @@ export async function apiCancelPaySession(input: {
   jobId: string;
   motoristId: string;
 }) {
-  const res = await fetch(`/api/jobs/${input.jobId}/pay`, {
+  const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/pay`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -284,7 +306,7 @@ export async function apiTransition(input: {
   proLat?: number;
   proLng?: number;
 }) {
-  const res = await fetch(`/api/jobs/${input.jobId}/transition`, {
+  const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/transition`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -300,7 +322,7 @@ export async function apiPushTripLocation(input: {
   actor: "motorist" | "repair_pro";
   actorId?: string;
 }) {
-  const res = await fetch(`/api/jobs/${input.jobId}/location`, {
+  const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/location`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -343,7 +365,7 @@ export async function apiRateJob(input: {
   note?: string;
   actor?: "motorist" | "repair_pro";
 }) {
-  const res = await fetch(`/api/jobs/${input.jobId}/rate`, {
+  const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/rate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -380,7 +402,7 @@ export async function apiOpenDispute(input: {
   description: string;
   media?: unknown[];
 }) {
-  const res = await fetch(`/api/jobs/${input.jobId}/dispute`, {
+  const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/dispute`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "open", ...input }),
@@ -394,7 +416,7 @@ export async function apiOpenAppeal(input: {
   reason: string;
   media?: unknown[];
 }) {
-  const res = await fetch(`/api/jobs/${input.jobId}/appeal`, {
+  const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/appeal`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "open", ...input }),

@@ -15,6 +15,7 @@ import { apiListJobs } from "@/lib/jobs/client";
 import { canOpenDisputeNow } from "@/lib/jobs/constants";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
+import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -229,7 +230,9 @@ export default function HistoryPage() {
         {!loading &&
           filtered.map((j) => {
             const name = isPro
-              ? j.motoristVehicle?.trim() || PRO_SERVICE_LABELS[j.serviceType] || "Service Request"
+              ? isAutomotiveTrade(j.serviceType) && j.motoristVehicle?.trim()
+                ? j.motoristVehicle.trim()
+                : j.motoristName?.split(/\s+/)[0] || PRO_SERVICE_LABELS[j.serviceType] || "Service Request"
               : j.repairProName;
             const skill =
               PRO_SERVICE_LABELS[j.serviceType] ?? j.serviceType;

@@ -33,6 +33,7 @@ import {
   forceNairaCurrency,
   formatMoney,
 } from "@/lib/pricing";
+import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -778,7 +779,7 @@ function CheckoutInner() {
                     {PRO_SERVICE_LABELS[job.serviceType] || job.serviceType}
                   </dd>
                 </div>
-                {job.motoristVehicle ? (
+                {isAutomotiveTrade(job.serviceType) && job.motoristVehicle ? (
                   <div className="flex justify-between gap-3">
                     <dt className={muted}>Vehicle</dt>
                     <dd className={cn("truncate font-bold", ink)}>

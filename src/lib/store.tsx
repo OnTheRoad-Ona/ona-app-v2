@@ -72,6 +72,7 @@ import {
   backendSignUp,
   backendSwitchRole,
   backendSubscribeJobs,
+  backendSubscribePros,
   backendSubscribeUserMessageInserts,
   backendUpdateJobStatus,
   isAppBackendOnline,
@@ -2841,7 +2842,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudPros();
-    }, 60_000);
+    }, 5_000);
     const onVis = () => {
       if (document.visibilityState === "visible") refreshCloudPros();
     };
@@ -2852,6 +2853,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       document.removeEventListener("visibilitychange", onVis);
     };
   }, [refreshCloudPros, isAuthenticated, accountType]);
+
+  // Pros Realtime — instant Live/Presence updates (throttled in app-api)
+  useEffect(() => {
+    if (!isAppBackendOnline() || !backendUserId || accountType === "professional") return;
+    let prosTimer: ReturnType<typeof setTimeout> | null = null;
+    const unsubPros = backendSubscribePros(() => {
+      if (prosTimer) clearTimeout(prosTimer);
+      prosTimer = setTimeout(() => refreshCloudPros(), 400);
+    });
+    return () => {
+      if (prosTimer) clearTimeout(prosTimer);
+      unsubPros?.();
+    };
+  }, [backendUserId, accountType, refreshCloudPros]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -2873,10 +2888,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Short debounce only (coalesce burst events) — was 60s and felt broken
       jobsTimer = setTimeout(() => refreshCloudJobs(), 400);
     });
+    // Expire-stale sweep every 30s (reroute unaccepted jobs, cancel stale bookings)
+    const staleTimer = window.setTimeout(() => {
+      import("@/lib/jobs/client").then((m) =>
+        m.apiExpireStaleBookedJobs().catch(() => null)
+      );
+    }, 5_000);
     // Backup poll so pros still see new requests if Realtime drops
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudJobs();
+      import("@/lib/jobs/client").then((m) =>
+        m.apiExpireStaleBookedJobs().catch(() => null)
+      );
     }, 30_000);
     const onVis = () => {
       if (document.visibilityState === "visible") refreshCloudJobs();
@@ -2885,6 +2909,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       if (jobsTimer) clearTimeout(jobsTimer);
       unsubJobs?.();
+      window.clearTimeout(staleTimer);
       window.clearInterval(poll);
       document.removeEventListener("visibilitychange", onVis);
     };

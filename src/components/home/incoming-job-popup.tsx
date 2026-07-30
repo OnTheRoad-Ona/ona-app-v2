@@ -12,6 +12,7 @@ import {
 import { apiListJobs } from "@/lib/jobs/client";
 import type { JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
+import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { playAppSound, unlockAudio } from "@/lib/sound-tone";
 import { useApp } from "@/lib/store";
@@ -70,7 +71,7 @@ export function IncomingJobPopup() {
       if (canNotify()) {
         showAppNotification({
           title: "Service Request",
-          body: `${j.motoristVehicle || skill} · ${j.problem.slice(0, 70)} · ${skill}`,
+          body: `${isAutomotiveTrade(j.serviceType) && j.motoristVehicle ? j.motoristVehicle : j.motoristName?.split(/\s+/)[0] || skill} · ${j.problem.slice(0, 70)} · ${skill}`,
           tag: `job-${j.id}`,
           href: `/jobs/${j.id}`,
           requireInteraction: true,
@@ -139,11 +140,11 @@ export function IncomingJobPopup() {
     };
 
     void poll();
-    // Slow poll — Realtime / visibility handle urgency (data saver)
+    // Fast poll for new job requests
     const t = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void poll();
-    }, 45_000);
+    }, 5_000);
     const onVis = () => {
       if (!document.hidden) void poll();
     };
@@ -209,7 +210,9 @@ export function IncomingJobPopup() {
                   Service Request
                 </p>
                 <p className="mt-0.5 text-[16px] font-black leading-tight">
-                  {alertJob.motoristVehicle?.trim() || PRO_SERVICE_LABELS[alertJob.serviceType] || "Service Request"}
+                  {isAutomotiveTrade(alertJob.serviceType) && alertJob.motoristVehicle?.trim()
+                    ? alertJob.motoristVehicle.trim()
+                    : alertJob.motoristName?.split(/\s+/)[0] || PRO_SERVICE_LABELS[alertJob.serviceType] || "Service Request"}
                 </p>
               </div>
               <button

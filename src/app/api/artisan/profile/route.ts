@@ -10,6 +10,7 @@ import {
   type ProPipelineStatus,
 } from "@/lib/server/modules/pros/pipeline";
 import { writePlatformAudit } from "@/lib/server/modules/platform-audit";
+import { getUserFromRequest } from "@/lib/server/auth-utils";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 
@@ -75,9 +76,13 @@ export async function PATCH(req: Request) {
     });
   }
 
+  const user = await getUserFromRequest(req);
   const parsed = patchSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return apiFail("Invalid body", 400, "invalid_body");
   const b = parsed.data;
+  if (!user || user.id !== b.userId) {
+    return apiFail("Unauthorized", 403);
+  }
   const supabase = createServiceSupabase();
 
   const { data: existing } = await supabase

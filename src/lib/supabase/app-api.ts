@@ -1606,13 +1606,53 @@ export function backendSubscribeJobs(
 }
 
 /**
- * Pros Realtime DISABLED for data savings.
- * OLD BUG: subscribed to all repair_pro_profiles changes → every Live pro’s
- * GPS ping re-fetched /api/pros for every motorist (catastrophic data use).
- * Discovery uses a slow poll instead (see store refreshCloudPros interval).
+ * Pros Realtime — throttled so GPS heartbeats don't trigger re-fetches.
+ * Only fires when is_online flips (goes Live or Away).
  */
 export function backendSubscribePros(
-  _onChange: () => void
+  onChange: () => void
 ): (() => void) | null {
-  return null;
+  if (typeof window === "undefined") return null;
+  const sb = getAppSupabase();
+  if (!sb) return null;
+
+  let lastFire = 0;
+
+  const sub = sb
+    .channel("pros-live")
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "repair_pro_profiles",
+        filter: `is_online=eq.true`,
+      },
+      () => {
+        const now = Date.now();
+        if (now - lastFire < 60_000) return;
+        lastFire = now;
+        onChange();
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "repair_pro_profiles",
+        filter: `is_online=eq.false`,
+      },
+      () => {
+        const now = Date.now();
+        if (now - lastFire < 60_000) return;
+        lastFire = now;
+        onChange();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    sb.removeChannel(sub);
+  };
 }

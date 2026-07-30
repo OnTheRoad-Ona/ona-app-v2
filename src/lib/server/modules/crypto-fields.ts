@@ -22,8 +22,8 @@ function getKey(): Buffer {
     }
     return createHash("sha256").update(env).digest();
   }
-  // Dev fallback — never use in production without setting a real key
-  const salt = process.env.ADMIN_SENSITIVE_PASSWORD || "336699";
+  const salt = process.env.ADMIN_SENSITIVE_PASSWORD;
+  if (!salt) throw new Error("ADMIN_SENSITIVE_PASSWORD environment variable is required");
   return createHash("sha256")
     .update(`ogamecho-field-v1:${salt}`)
     .digest();

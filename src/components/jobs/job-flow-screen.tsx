@@ -52,6 +52,7 @@ import {
 } from "@/lib/jobs/client";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { SwipeToRelease } from "@/components/jobs/motorist-release-pay-gate";
+import { apiCreateReview } from "@/lib/reviews/client";
 import {
   canOpenDisputeNow,
   COMPLETED_AUTO_RELEASE_WINDOW_MS,
@@ -131,6 +132,7 @@ export function JobFlowScreen({
   const [job, setJob] = useState<JobRecord | null>(null);
   const jobRef = useRef<JobRecord | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [redirecting, setRedirecting] = useState(false);
   /** Release/payout errors must survive job polls (load() used to wipe setErr). */
   const [stickyReleaseErr, setStickyReleaseErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -271,6 +273,18 @@ export function JobFlowScreen({
       /* */
     }
   }, [jobId]);
+
+  /* Redirect history-only jobs to /requests/:id (side-effect in render is illegal) */
+  useEffect(() => {
+    if (!job) return;
+    if (isJobHistoryOnlyStatus(job.status)) {
+      const path = window.location.pathname || "";
+      if (path.startsWith("/jobs/")) {
+        setRedirecting(true);
+        router.replace(`/requests/${job.id}`);
+      }
+    }
+  }, [job, router]);
 
   const REVIEW_MAX = 144;
 
@@ -595,43 +609,44 @@ export function JobFlowScreen({
 
   /* Truly finished jobs only → history. Keep completed/satisfied on live shell
    * so customer can tap I’M SATISFIED and release pay. */
-  if (isJobHistoryOnlyStatus(job.status)) {
-    if (typeof window !== "undefined") {
-      const path = window.location.pathname || "";
-      if (path.startsWith("/jobs/")) {
-        router.replace(`/requests/${job.id}`);
-        return (
-          <JobShell
-            isLight={isLight}
-            title="Job closed"
-            compactHeader
-            onBack={goJobsList}
-          >
-            <p className={cn("px-0.5 pt-4 text-[14px] font-medium", ink)}>
-              {JOB_CLOSED_MESSAGE}
-            </p>
-            <p className={cn("mt-2 text-[12px]", muted)}>Opening summary…</p>
-          </JobShell>
-        );
-      }
-    }
+  if (redirecting) {
+    return (
+      <JobShell
+        isLight={isLight}
+        title="Job closed"
+        compactHeader
+        onBack={goJobsList}
+      >
+        <p className={cn("px-0.5 pt-4 text-[14px] font-medium", ink)}>
+          {JOB_CLOSED_MESSAGE}
+        </p>
+        <p className={cn("mt-2 text-[12px]", muted)}>Opening summary…</p>
+      </JobShell>
+    );
   }
 
   /* ─── EXPIRED — pure history, no action buttons ─── */
   if (job.status === "expired" || negStatus === "expired") {
     const isPro = viewer === "repair_pro";
+    const isRerouteExhausted = job.statusHistory.some(
+      (h) => h.by === "reroute_exhausted"
+    );
 
     return (
       <JobShell
         isLight={isLight}
-        title="Negotiation expired"
+        title={isRerouteExhausted ? "No pro available" : "Negotiation expired"}
         compactHeader
         onBack={isPro ? () => router.push("/dashboard") : goJobsList}
       >
         <p className={cn("px-0.5 pt-4 text-[14px] font-medium leading-relaxed", ink)}>
-          {isPro
-            ? `This request ended between you and ${job.motoristName}. No agreement was reached.`
-            : `No agreement was reached with ${job.repairProName}.`}
+          {isRerouteExhausted
+            ? isPro
+              ? "This request was rerouted but no pro accepted in time."
+              : "Request again. You can also adjust your filter for faster result."
+            : isPro
+              ? `This request ended between you and ${job.motoristName}. No agreement was reached.`
+              : `No agreement was reached with ${job.repairProName}.`}
         </p>
       </JobShell>
     );
@@ -958,7 +973,7 @@ export function JobFlowScreen({
                     muted
                   )}
                 >
-                  I ADMIT TO FIX IT
+                  {proCanFixAccepted ? "I ADMIT TO FIX IT" : "Problem description"}
                 </p>
                 <p
                   className={cn(
@@ -1121,14 +1136,38 @@ export function JobFlowScreen({
               </button>
             </div>
           ) : (
-            <p
-              className={cn(
-                "text-center text-[13px] font-semibold",
-                isLight ? "text-slate-700" : "text-[#c8c9cd]"
-              )}
-            >
-              Waiting for customer to pay into escrow…
-            </p>
+            <div className="flex w-full flex-col gap-2">
+              <p
+                className={cn(
+                  "text-center text-[13px] font-semibold",
+                  isLight ? "text-slate-700" : "text-[#c8c9cd]"
+                )}
+              >
+                Waiting for customer to pay into escrow…
+              </p>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  void run(() =>
+                    apiTransition({
+                      jobId: job.id,
+                      event: "CANCEL",
+                      actor: "repair_pro",
+                      actorId,
+                    })
+                  )
+                }
+                className={cn(
+                  "inline-flex h-11 w-full items-center justify-center rounded-md border-0 text-[13px] font-semibold",
+                  isLight
+                    ? "bg-black/10 text-slate-900"
+                    : "bg-[#2c2c2e] text-white"
+                )}
+              >
+                Cancel request
+              </button>
+            </div>
           )
         }
       >
@@ -1263,9 +1302,8 @@ export function JobFlowScreen({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => {
-                  setPayCancelOpen(false);
-                  void run(() =>
+                onClick={async () => {
+                  await run(() =>
                     apiTransition({
                       jobId: job.id,
                       event: "CANCEL",
@@ -1273,6 +1311,7 @@ export function JobFlowScreen({
                       actorId,
                     })
                   );
+                  setPayCancelOpen(false);
                 }}
                 className={cn(
                   "flex h-12 w-full items-center justify-center border-0 text-[14px] font-bold text-red-500"
@@ -2354,21 +2393,30 @@ export function JobFlowScreen({
       setBusy(true);
       setErr(null);
       const note = reviewText.trim().slice(0, REVIEW_MAX);
+      // Save job-level rating (existing)
       const res = await apiRateJob({
         jobId: job.id,
         rating,
         note: note || undefined,
         actor: "motorist",
       });
-      setBusy(false);
       if (!res.ok) {
+        setBusy(false);
         setErr(res.message || "Could not save review");
         return;
       }
       commitJob(res.data.job, true);
+      // Save pro-level review (new — median + confidence aggregation)
+      await apiCreateReview({
+        jobId: job.id,
+        repairProId: job.repairProId,
+        rating,
+        comment: note || undefined,
+      }).catch(() => null);
       setReviewLeft(true);
       setFlash("Thanks for your review");
       window.setTimeout(() => setFlash(null), 2500);
+      setBusy(false);
     };
 
     const starRow = (value: number, interactive: boolean) => (

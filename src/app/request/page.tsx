@@ -218,33 +218,40 @@ function RequestInner() {
     }
     setBusy(true);
     setError(null);
-    const res = await apiCreateJob({
-      motoristId: userId,
-      motoristName: userProfile?.fullName || "Customer",
-      motoristPhoto: userProfile?.avatarUrl || null,
-      motoristVehicle:
-        tech &&
-        showsVehicleOnRequest(
-          tech.serviceType as ProService,
-          tech.specialties
-        )
-          ? selectedVehicleLabel || null
-          : null,
-      repairProId: tech.id,
-      repairProName: tech.name,
-      repairProPhoto: tech.photo,
-      serviceType: tech.serviceType,
-      problem: problem.trim(),
-      voiceNote: voice,
-      photos,
-      currency,
-      proBaseMajor: base,
-      locationLabel: helpingSomeoneElse
-        ? helpingSomeoneLabel || location.label
-        : location.label,
-      lat: location.coordinates.lat,
-      lng: location.coordinates.lng,
-    });
+    let res;
+    try {
+      res = await apiCreateJob({
+        motoristId: userId,
+        motoristName: userProfile?.fullName || "Customer",
+        motoristPhoto: userProfile?.avatarUrl || null,
+        motoristVehicle:
+          tech &&
+          showsVehicleOnRequest(
+            tech.serviceType as ProService,
+            tech.specialties
+          )
+            ? selectedVehicleLabel || null
+            : null,
+        repairProId: tech.id,
+        repairProName: tech.name,
+        repairProPhoto: tech.photo,
+        serviceType: tech.serviceType,
+        problem: problem.trim(),
+        voiceNote: voice,
+        photos,
+        currency,
+        proBaseMajor: base,
+        locationLabel: helpingSomeoneElse
+          ? helpingSomeoneLabel || location.label
+          : location.label,
+        lat: location.coordinates.lat,
+        lng: location.coordinates.lng,
+      });
+    } catch {
+      setBusy(false);
+      setError("Network error — please try again");
+      return;
+    }
     setBusy(false);
     if (!res.ok) {
       setError(res.message);
