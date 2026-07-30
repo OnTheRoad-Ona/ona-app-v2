@@ -9,7 +9,7 @@ import {
   showAppNotification,
   vibrateCallPattern,
 } from "@/lib/app-notify";
-import { apiListJobs } from "@/lib/jobs/client";
+import { apiListJobs, apiTransition } from "@/lib/jobs/client";
 import type { JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
@@ -246,7 +246,27 @@ export function IncomingJobPopup() {
                 ? ` · ${formatMoney(alertJob.agreedMajor, alertJob.currency)}`
                 : ""}
             </p>
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const id = alertJob.id;
+                  setAlertJob(null);
+                  void apiTransition({
+                    jobId: id,
+                    event: "CANCEL",
+                    actor: "repair_pro",
+                    actorId: backendUserId || undefined,
+                    reason: "pro_declined",
+                  });
+                }}
+                className={cn(
+                  "h-11 rounded-xl border-0 text-[13px] font-bold",
+                  isLight ? "bg-red-500/20 text-red-700" : "bg-red-500/20 text-red-400"
+                )}
+              >
+                Decline
+              </button>
               <button
                 type="button"
                 onClick={() => setAlertJob(null)}
@@ -266,7 +286,7 @@ export function IncomingJobPopup() {
                 }}
                 className="h-11 rounded-xl border-0 bg-[#FF6B35] text-[13px] font-bold text-white"
               >
-                Open job request
+                Open
               </button>
             </div>
           </div>

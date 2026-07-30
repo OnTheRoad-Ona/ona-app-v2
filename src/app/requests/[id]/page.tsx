@@ -229,6 +229,10 @@ export default function RequestProcessPage({
     setLoading(true);
     const res = await apiGetJob(id);
     if (!res.ok) {
+      if (res.message === "Job not found") {
+        router.replace(accountType === "professional" ? "/jobs" : "/");
+        return;
+      }
       setErr(res.message || "Could not load job");
       setJob(null);
       setLoading(false);
@@ -288,7 +292,7 @@ export default function RequestProcessPage({
           </p>
           <button
             type="button"
-            onClick={() => router.push(backHref)}
+            onClick={() => router.push(isPro ? "/jobs" : "/")}
             className="h-11 rounded-md border-0 bg-[#2c2c2e] px-5 text-[13px] font-semibold text-white"
           >
             Back

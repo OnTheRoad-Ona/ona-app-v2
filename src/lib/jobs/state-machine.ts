@@ -16,7 +16,7 @@ export type TransitionActor = "motorist" | "repair_pro" | "system" | "admin";
 
 export type TransitionEvent =
   | { type: "EXPIRE_NEGOTIATION" }
-  | { type: "CANCEL"; by: TransitionActor }
+  | { type: "CANCEL"; by: TransitionActor; reason?: "pro_declined" | string }
   | { type: "ACCEPT_OFFER"; by: TransitionActor }
   | { type: "PAYMENT_SUCCESS" }
   | { type: "START_TRIP" } // pro → en_route

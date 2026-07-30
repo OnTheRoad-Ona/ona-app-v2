@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { JobFlowScreen } from "@/components/jobs/job-flow-screen";
 import { apiGetJob } from "@/lib/jobs/client";
 import { useApp } from "@/lib/store";
@@ -9,6 +9,7 @@ import { useApp } from "@/lib/store";
 function JobPageInner() {
   const params = useParams();
   const id = String(params?.id || "");
+  const router = useRouter();
   const { theme, userProfile, accountType, backendUserId } = useApp();
   const isLight = theme === "light";
 
@@ -34,7 +35,14 @@ function JobPageInner() {
     if (!id || !actorId) return;
     void (async () => {
       const res = await apiGetJob(id);
-      if (cancelled || !res.ok) return;
+      if (cancelled) return;
+      if (!res.ok) {
+        if (res.message === "Job not found") {
+          router.replace(accountType === "professional" ? "/jobs" : "/");
+          return;
+        }
+        return;
+      }
       const j = res.data.job;
       if (j.motoristId && j.motoristId === actorId) {
         setViewer("motorist");

@@ -128,6 +128,7 @@ export function JobFlowScreen({
     ensureChatForRequestAsync,
     visibleMessageThreads,
     userProfile,
+    accountType,
   } = useApp();
   const [job, setJob] = useState<JobRecord | null>(null);
   const jobRef = useRef<JobRecord | null>(null);
@@ -299,6 +300,10 @@ export function JobFlowScreen({
   const load = useCallback(async () => {
     const res = await apiGetJob(jobId);
     if (!res.ok) {
+      if (res.message === "Job not found") {
+        router.replace(accountType === "professional" ? "/jobs" : "/");
+        return;
+      }
       // Don't overwrite a sticky release error with a generic load failure
       setErr((prev) => stickyReleaseErr || prev || res.message);
       return;

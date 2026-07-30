@@ -1413,6 +1413,39 @@ export async function expireUnacceptedJobs(
   return { checked, rerouted, expired };
 }
 
+/** Reroute a single unaccepted job to the next nearest pro when the current pro declines. */
+export async function rerouteDeclinedJob(
+  jobId: string
+): Promise<{ ok: true; job: JobRecord } | { error: string }> {
+  if (!isSupabaseAdminConfigured()) return { error: "Server not configured" };
+  const sb = createServiceSupabase();
+  const { data } = await sb
+    .from("service_requests")
+    .select("*")
+    .eq("id", jobId)
+    .single();
+  if (!data) return { error: "Job not found" };
+  const job = rowToJob(data as Record<string, unknown>);
+  if (job.status !== "negotiating") return { error: "Job is no longer available" };
+  const ok = await rerouteUnacceptedJob(job, sb);
+  if (!ok) {
+    // Reroute exhausted → reload to get expired status
+    const { data: expired } = await sb
+      .from("service_requests")
+      .select("*")
+      .eq("id", jobId)
+      .single();
+    return { ok: true, job: rowToJob((expired || data) as Record<string, unknown>) };
+  }
+  // Reload job with new pro assignment
+  const { data: updated } = await sb
+    .from("service_requests")
+    .select("*")
+    .eq("id", jobId)
+    .single();
+  return { ok: true, job: rowToJob((updated || data) as Record<string, unknown>) };
+}
+
 export async function listJobsForUser(
   userId: string,
   role: "motorist" | "repair_pro"
@@ -1532,7 +1565,7 @@ async function applyEvent(
     updatedAt: ts,
     statusHistory: [
       ...job.statusHistory,
-      { status: next, at: ts, by: actor },
+      { status: next, at: ts, by: actor, note: event.type === "CANCEL" && "reason" in event ? event.reason : undefined },
     ],
   };
 

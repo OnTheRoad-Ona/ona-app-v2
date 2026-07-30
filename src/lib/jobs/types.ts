@@ -167,7 +167,7 @@ export type JobRecord = {
   evidence?: EvidenceScores | null;
   rating?: number | null;
   ratingNote?: string | null;
-  statusHistory: { status: JobFlowStatus; at: string; by?: string }[];
+  statusHistory: { status: JobFlowStatus; at: string; by?: string; note?: string }[];
   createdAt: string;
   updatedAt: string;
   paidAt?: string | null;

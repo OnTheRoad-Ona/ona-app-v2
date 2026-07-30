@@ -302,6 +302,7 @@ export async function apiTransition(input: {
     | "EXPIRE_NEGOTIATION";
   actor: "motorist" | "repair_pro" | "system" | "admin";
   actorId?: string;
+  reason?: string;
   /** Real GPS — server computes Google Distance Matrix ETA */
   proLat?: number;
   proLng?: number;
