@@ -166,7 +166,7 @@ export default function CareDeskPage() {
     const t = window.setInterval(() => {
       void refreshBoard();
       void refreshDash();
-    }, 20_000);
+    }, 60_000);
     return () => window.clearInterval(t);
   }, [ready, refreshBoard, refreshStatus, refreshDash, refreshLatestBackup]);
 

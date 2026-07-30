@@ -256,12 +256,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     };
   }, [backendUserId, isAuthenticated, pushToast]);
 
-  // Auto-dismiss non-sticky toasts (poll often so 2s satisfied toasts clear on time)
+  // Auto-dismiss non-sticky toasts
   useEffect(() => {
     const t = window.setInterval(() => {
       const now = Date.now();
       setToasts((prev) => prev.filter((x) => x.expiresAt > now));
-    }, 400);
+    }, 5_000);
     return () => window.clearInterval(t);
   }, []);
 

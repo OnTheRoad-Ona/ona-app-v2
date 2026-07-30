@@ -29,9 +29,10 @@ export async function GET(req: Request) {
   const supabase = createServiceSupabase();
   const { data, error } = await supabase
     .from("user_addresses")
-    .select("*")
+    .select("id, label, address_text, lat, lng, is_default, created_at, updated_at")
     .eq("user_id", userId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(50);
   if (error) return apiFail(error.message, 500);
   return apiOk({ addresses: data ?? [] });
 }

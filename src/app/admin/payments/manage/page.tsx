@@ -140,7 +140,7 @@ export default function PaymentManagementPage() {
     setError(null);
   }, []);
 
-  useEffect(() => { if (authed) { void loadPayments(); const t = setInterval(() => void loadPayments(), 30_000); return () => clearInterval(t); } }, [authed, loadPayments]);
+  useEffect(() => { if (authed) { void loadPayments(); const t = setInterval(() => void loadPayments(), 120_000); return () => clearInterval(t); } }, [authed, loadPayments]);
 
   const loadDetail = useCallback(async (id: string) => {
     setDetailLoading(true); setError(null);

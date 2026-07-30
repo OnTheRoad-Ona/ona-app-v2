@@ -242,11 +242,11 @@ function ProJobsPage({
 
   useEffect(() => {
     void load();
-    // Fast poll so new customer requests appear quickly for Repair Pros
+    // Poll for new customer requests; Realtime handles instant updates, this is a backup
     const t = window.setInterval(() => {
       if (document.hidden) return;
       void load();
-    }, 3_000);
+    }, 30_000);
     const onVis = () => {
       if (document.visibilityState === "visible") void load();
     };

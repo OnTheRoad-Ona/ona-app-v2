@@ -57,7 +57,7 @@ export async function GET(req: Request) {
 
     const supabase = createServiceSupabase();
 
-    // YTD: always compute year-to-date totals regardless of period
+    // YTD totals (3 numeric columns — small payload even at 9999 rows)
     const ytd = ytdRange();
     const { data: ytdRows } = await supabase
       .from("payments")
@@ -68,13 +68,13 @@ export async function GET(req: Request) {
       .limit(9999);
 
     const ytdTotalCommissionMinor = (ytdRows ?? []).reduce(
-      (a, r) => a + (Number(r.platform_fee_kobo) || 0), 0
+      (a, r) => a + (Number((r as Record<string, unknown>).platform_fee_kobo) || 0), 0
     );
     const ytdTotalPayoutMinor = (ytdRows ?? []).reduce(
-      (a, r) => a + (Number(r.pro_payout_kobo) || 0), 0
+      (a, r) => a + (Number((r as Record<string, unknown>).pro_payout_kobo) || 0), 0
     );
     const ytdTotalRevenueMinor = (ytdRows ?? []).reduce(
-      (a, r) => a + (Number(r.amount_kobo) || 0), 0
+      (a, r) => a + (Number((r as Record<string, unknown>).amount_kobo) || 0), 0
     );
 
     const { data, error } = await supabase

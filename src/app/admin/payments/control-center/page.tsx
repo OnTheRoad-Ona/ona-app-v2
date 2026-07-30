@@ -145,7 +145,7 @@ export default function PaymentControlCenter() {
     if (res.ok) { setCommReport(res.data); setCommYtd((res.data as Record<string, unknown>).ytd as Record<string, unknown> || null); }
   }, [api]);
 
-  useEffect(() => { if (!ready) return; void load(); const t = setInterval(() => void load(), 30_000); return () => clearInterval(t); }, [ready, load]);
+  useEffect(() => { if (!ready) return; void load(); const t = setInterval(() => void load(), 120_000); return () => clearInterval(t); }, [ready, load]);
   useEffect(() => { if (!ready || tab !== "disputes") return; void loadDisputes(); }, [ready, tab, loadDisputes]);
   useEffect(() => { if (!ready || tab !== "audit") return; void loadAudit(); }, [ready, tab, loadAudit]);
   useEffect(() => { if (!ready || tab !== "failed") return; void loadFailedPayouts(); }, [ready, tab, loadFailedPayouts]);

@@ -2837,11 +2837,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
     const first = window.setTimeout(() => refreshCloudPros(), 400);
-    // Was 30 minutes — empty lists stayed empty while pros went Live
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudPros();
-    }, 20_000);
+    }, 60_000);
     const onVis = () => {
       if (document.visibilityState === "visible") refreshCloudPros();
     };
@@ -2873,11 +2872,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Short debounce only (coalesce burst events) — was 60s and felt broken
       jobsTimer = setTimeout(() => refreshCloudJobs(), 400);
     });
-    // Fast backup poll so pros still see new requests if Realtime drops
+    // Backup poll so pros still see new requests if Realtime drops
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudJobs();
-    }, 10_000);
+    }, 30_000);
     const onVis = () => {
       if (document.visibilityState === "visible") refreshCloudJobs();
     };
@@ -2902,7 +2901,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudChats();
-    }, 12_000);
+    }, 30_000);
     return () => {
       if (chatTimer) clearTimeout(chatTimer);
       unsub?.();
