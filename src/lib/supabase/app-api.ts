@@ -85,6 +85,7 @@ export async function backendSignUp(input: {
   bankAccountName?: string;
   bankAccountNumber?: string;
   keepOtherRole?: boolean;
+  guarantor?: UserProfile["guarantor"];
   docsStatus?: UserProfile["docsStatus"];
   certificationFileName?: string;
   certificationFileDataUrl?: string;
@@ -140,6 +141,7 @@ export async function backendSignUp(input: {
         bankName: input.bankName,
         bankAccountName: input.bankAccountName,
         bankAccountNumber: input.bankAccountNumber,
+        guarantor: input.guarantor,
         keepOtherRole: input.keepOtherRole !== false,
         docsStatus: input.docsStatus,
         certificationFileName: input.certificationFileName,
@@ -571,6 +573,36 @@ export async function backendSendPhoneOtp(
   return backendSendOtp({ channel: "phone", target: phone });
 }
 
+/** Verify OTP for profile changes (no session created). */
+export async function backendProfileVerifyOtp(input: {
+  channel: "phone" | "email";
+  target: string;
+  code: string;
+}): Promise<{ error: string | null; verified?: boolean }> {
+  try {
+    const res = await fetch("/api/auth/otp/profile-verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        channel: input.channel,
+        target: input.target,
+        code: input.code,
+      }),
+    });
+    const json = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      error?: { message?: string };
+      data?: { verified?: boolean };
+    } | null;
+    if (!json?.ok || !json.data?.verified) {
+      return { error: json?.error?.message || "Verification failed." };
+    }
+    return { error: null, verified: true };
+  } catch {
+    return { error: "Network error during verification." };
+  }
+}
+
 export async function backendSignIn(
   email: string,
   password: string
@@ -824,13 +856,14 @@ export async function backendLoadUserProfile(
     p.role === "repair_pro" ? "professional" : "motorist";
 
   // Load both side tables so primary = original signup (earlier created_at)
-  const [motRes, proRes] = await Promise.all([
+  const [motRes, proRes, guarantorRes] = await Promise.all([
     sb.from("motorist_profiles").select("*").eq("user_id", userId).maybeSingle(),
     sb
       .from("repair_pro_profiles")
       .select("*")
       .eq("user_id", userId)
       .maybeSingle(),
+    sb.from("repair_pro_guarantors").select("*").eq("user_id", userId).maybeSingle(),
   ]);
   const mot = motRes.data as {
     vehicle_make?: string | null;
@@ -911,6 +944,16 @@ export async function backendLoadUserProfile(
       bankAccountName: pr?.bank_account_name || undefined,
       bankAccountNumber: pr?.bank_account_number || undefined,
       bankCode: pr?.bank_code || undefined,
+      guarantor: guarantorRes.data
+        ? {
+            fullName: (guarantorRes.data as any).full_name,
+            phone: (guarantorRes.data as any).phone,
+            address: (guarantorRes.data as any).address || undefined,
+            occupation: (guarantorRes.data as any).occupation || undefined,
+            relationship: (guarantorRes.data as any).relationship,
+            linkedUserId: (guarantorRes.data as any).linked_user_id || undefined,
+          }
+        : undefined,
       phoneVerified:
         Boolean(
           (p as { phone_verified?: boolean }).phone_verified
@@ -1240,7 +1283,7 @@ export async function backendFetchJobsForUser(
   const sb = getAppSupabase();
   if (!sb) return [];
 
-  let q = sb.from("service_requests").select("*").order("created_at", {
+  let q = sb.from("service_requests").select("id, motorist_id, repair_pro_id, service_type, status, description, pickup_lat, pickup_lng, pickup_address, radius_km, created_at, updated_at").order("created_at", {
     ascending: false,
   });
   if (role === "motorist") q = q.eq("motorist_id", userId);

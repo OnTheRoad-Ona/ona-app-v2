@@ -6,11 +6,12 @@ import { useAdminGate } from "@/components/admin/use-admin-gate";
 import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 import { cn } from "@/lib/utils";
 
-type Tab = "overview" | "contact-changes" | "fraud" | "audit";
+type Tab = "overview" | "contact-changes" | "name-changes" | "fraud" | "audit";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "contact-changes", label: "Contact Changes" },
+  { key: "name-changes", label: "Name Changes" },
   { key: "fraud", label: "Fraud Review" },
   { key: "audit", label: "Audit Trail" },
 ];
@@ -62,6 +63,7 @@ export default function AdminSecurityPage() {
 
   const stats = data.overview?.stats || {};
   const requests = data["contact-changes"]?.requests || [];
+  const nameRequests = data["name-changes"]?.requests || [];
   const flags = data.fraud?.flags || [];
   const actions = data.audit?.actions || [];
 
@@ -136,6 +138,59 @@ export default function AdminSecurityPage() {
               </tr>
             ))}
             {requests.length === 0 && <tr><td colSpan={7} className="p-4 text-center text-[var(--om-text-muted)]">No requests</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  const renderNameChanges = () => (
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        {["all", "pending", "under_review", "approved", "rejected"].map((s) => (
+          <button key={s} type="button" onClick={() => void fetchSection("name-changes", `status=${s}`)}
+            className="rounded-lg border border-[var(--om-border)] bg-[var(--om-bg-elevated)] px-3 py-1.5 text-[11px] font-semibold text-[var(--om-text)] hover:bg-[var(--om-nav-hover)]"
+          >{s.replace("_", " ")}</button>
+        ))}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-[12px]">
+          <thead>
+            <tr className="border-b border-[var(--om-border)] text-[11px] font-semibold text-[var(--om-text-muted)]">
+              <th className="p-2">User ID</th>
+              <th className="p-2">Current Name</th>
+              <th className="p-2">Requested Name</th>
+              <th className="p-2">Reason</th>
+              <th className="p-2">Status</th>
+              <th className="p-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {nameRequests.map((r: any) => (
+              <tr key={r.id} className="border-b border-[var(--om-border-soft)]">
+                <td className="p-2 font-medium">{r.userId?.slice(0, 8)}</td>
+                <td className="p-2">{r.currentName}</td>
+                <td className="p-2 font-semibold">{r.requestedName}</td>
+                <td className="p-2 text-[var(--om-text-muted)] max-w-[200px] truncate">{r.reason || "—"}</td>
+                <td className="p-2"><span className={badge(
+                  r.status === "approved" ? "bg-green-50 text-green-700" :
+                  r.status === "rejected" ? "bg-red-50 text-red-700" :
+                  r.status === "under_review" ? "bg-yellow-50 text-yellow-700" :
+                  "bg-blue-50 text-blue-700"
+                )}>{r.status}</span></td>
+                <td className="p-2">
+                  <div className="flex gap-1">
+                    <button type="button" onClick={() => onAction("approve-name-change", { id: r.id, reason: "Admin approved" })}
+                      className="rounded bg-green-500 px-2 py-1 text-[10px] font-bold text-white">Approve</button>
+                    <button type="button" onClick={() => onAction("reject-name-change", { id: r.id, reason: "Admin rejected" })}
+                      className="rounded bg-red-500 px-2 py-1 text-[10px] font-bold text-white">Reject</button>
+                    <button type="button" onClick={() => onAction("review-name-change", { id: r.id, reason: "Under review" })}
+                      className="rounded bg-yellow-500 px-2 py-1 text-[10px] font-bold text-white">Review</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {nameRequests.length === 0 && <tr><td colSpan={6} className="p-4 text-center text-[var(--om-text-muted)]">No name change requests</td></tr>}
           </tbody>
         </table>
       </div>
@@ -255,6 +310,7 @@ export default function AdminSecurityPage() {
 
         {tab === "overview" && renderOverview()}
         {tab === "contact-changes" && renderContactChanges()}
+        {tab === "name-changes" && renderNameChanges()}
         {tab === "fraud" && renderFraud()}
         {tab === "audit" && renderAudit()}
       </div>

@@ -156,8 +156,18 @@ const bodySchema = z.object({
   bankAccountName: z.string().optional(),
   bankAccountNumber: z.string().optional(),
   bankCode: z.string().optional(),
+  password: z.string().min(6).optional(),
   faceLivenessVerified: z.boolean().optional(),
   phoneVerified: z.boolean().optional(),
+  guarantor: z
+    .object({
+      fullName: z.string(),
+      phone: z.string(),
+      address: z.string().optional(),
+      occupation: z.string().optional(),
+      relationship: z.string(),
+    })
+    .optional(),
   gender: z.enum(["male", "female", "prefer_not_to_say"]).optional(),
   /** ISO YYYY-MM-DD */
   dateOfBirth: z
@@ -552,6 +562,38 @@ export async function POST(req: Request) {
       } catch {
         /* non-fatal */
       }
+    }
+  }
+
+  // Persist guarantor for Repair Pro
+  if (b.guarantor) {
+    try {
+      await admin.from("repair_pro_guarantors").upsert(
+        {
+          user_id: userId,
+          full_name: b.guarantor.fullName,
+          phone: b.guarantor.phone,
+          address: b.guarantor.address || null,
+          occupation: b.guarantor.occupation || null,
+          relationship: b.guarantor.relationship,
+        },
+        { onConflict: "user_id" }
+      );
+    } catch {
+      /* non-fatal */
+    }
+  }
+
+  if (b.password) {
+    try {
+      const { error: pwdErr } = await admin.auth.admin.updateUserById(userId, {
+        password: b.password,
+      });
+      if (pwdErr) {
+        console.error("password update failed", pwdErr.message);
+      }
+    } catch (e) {
+      console.error("password update exception", e);
     }
   }
 

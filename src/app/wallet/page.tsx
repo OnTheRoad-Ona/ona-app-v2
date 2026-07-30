@@ -53,7 +53,10 @@ export default function WalletPage() {
   const accent = "#FF6B35";
 
   const fetchData = useCallback(async () => {
-    if (!backendUserId) return;
+    if (!backendUserId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const [walletRes, refRes] = await Promise.all([
@@ -118,6 +121,10 @@ export default function WalletPage() {
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-6 w-6 animate-spin" style={{ color: accent }} />
+          </div>
+        ) : !backendUserId ? (
+          <div className="flex items-center justify-center py-20">
+            <p className={cn("text-[13px] font-medium", muted)}>Sign in to view your referral & earnings</p>
           </div>
         ) : (
           <div className="mt-2 space-y-3">

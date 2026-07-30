@@ -1585,10 +1585,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const next: UserProfile = {
         ...userProfile,
+        password: userProfile.password,
         ...fields,
         // Never allow account type flip via profile edit
         accountType: userProfile.accountType,
-        password: userProfile.password,
         email: fields.email?.trim() || userProfile.email,
         // Name is immutable for all roles after signup
         fullName: (userProfile.fullName || "").trim(),
@@ -1655,8 +1655,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
               : null;
             if (!session?.access_token) return;
             const isPro = next.accountType === "professional";
+            const pwdChanged = next.password && next.password !== userProfile.password;
             const errMsg = await backendUpdateProfile(session.access_token, {
               // Pros cannot change full name via profile edit
+              ...(pwdChanged ? { password: next.password } : {}),
               fullName: isPro ? undefined : next.fullName,
               phone: next.phone,
               gender: next.gender,
@@ -1688,6 +1690,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               vehicleCommonIssues: next.vehicleCommonIssues,
               vehicles: next.vehicles,
               emergencyContact: next.emergencyContact ?? null,
+              guarantor: next.guarantor,
               savedLocations: next.savedLocations,
               bankName: next.bankName,
               bankAccountName: next.bankAccountName,
@@ -1823,6 +1826,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         bankName: normalized.bankName,
         bankAccountName: normalized.bankAccountName,
         bankAccountNumber: normalized.bankAccountNumber,
+        guarantor: normalized.guarantor,
         docsStatus: normalized.docsStatus,
         certificationFileName: normalized.certificationFileName,
         certificationFileDataUrl: certData,
@@ -2809,7 +2813,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const refreshCloudJobs = useCallback(() => {
     if (!isAppBackendOnline() || !backendUserId || !accountType) return;
     void backendFetchJobsForUser(backendUserId, accountType).then((jobs) => {
-      if (jobs.length > 0) setRequests(jobs);
+      if (jobs.length > 0) setRequests((prev) => {
+        const prevJson = JSON.stringify(prev);
+        const nextJson = JSON.stringify(jobs);
+        return prevJson === nextJson ? prev : jobs;
+      });
     });
   }, [backendUserId, accountType]);
 
@@ -2869,7 +2877,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudJobs();
-    }, 4_000);
+    }, 10_000);
     const onVis = () => {
       if (document.visibilityState === "visible") refreshCloudJobs();
     };

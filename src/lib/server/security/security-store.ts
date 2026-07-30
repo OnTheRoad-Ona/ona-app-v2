@@ -26,6 +26,7 @@ import type {
   FlagStatus,
   RiskLevel,
   FraudFlagType,
+  NameChangeRequest,
 } from "@/lib/security/types";
 
 // ── In-memory fallback stores ────────────────────────────────────────────────
@@ -1210,6 +1211,81 @@ export async function listSystemSettings(): Promise<SystemSetting[]> {
     } catch { /* */ }
   }
   return out;
+}
+
+// ── Name Change Requests ────────────────────────────────────────────────────
+
+function rowToNameChange(row: Record<string, unknown>): NameChangeRequest {
+  return {
+    id: String(row.id),
+    userId: String(row.user_id || row.userId),
+    currentName: String(row.current_name || row.currentName),
+    requestedName: String(row.requested_name || row.requestedName),
+    reason: String(row.reason ?? ""),
+    identityDocumentUrl: String(row.identity_document_url ?? row.identityDocumentUrl ?? ""),
+    identityDocumentType: String(row.identity_document_type ?? row.identityDocumentType ?? ""),
+    status: (row.status as NameChangeRequest["status"]) || "pending",
+    adminId: String(row.admin_id ?? row.adminId ?? ""),
+    adminReason: String(row.admin_reason ?? row.adminReason ?? ""),
+    reviewedAt: String(row.reviewed_at ?? row.reviewedAt ?? ""),
+    createdAt: String(row.created_at || row.createdAt || now()),
+    updatedAt: String(row.updated_at || row.updatedAt || now()),
+  };
+}
+
+export async function listNameChangeRequests(filters?: {
+  status?: string;
+  userId?: string;
+}): Promise<NameChangeRequest[]> {
+  if (!isSupabaseAdminConfigured()) return [];
+  try {
+    const sb = createServiceSupabase();
+    let q = sb.from("name_change_requests").select("*, user_id, current_name, requested_name, reason, identity_document_url, identity_document_type, status, admin_id, admin_reason, reviewed_at, created_at, updated_at");
+    if (filters?.status) q = q.eq("status", filters.status);
+    if (filters?.userId) q = q.eq("user_id", filters.userId);
+    const { data } = await q.order("created_at", { ascending: false }).limit(100);
+    return (data || []).map((row: Record<string, unknown>) => rowToNameChange(row));
+  } catch {
+    return [];
+  }
+}
+
+export async function updateNameChangeStatus(
+  id: string,
+  status: NameChangeRequest["status"],
+  adminId?: string,
+  reason?: string
+): Promise<{ request: NameChangeRequest } | { error: string }> {
+  if (!isSupabaseAdminConfigured()) return { error: "not_configured" };
+  try {
+    const sb = createServiceSupabase();
+    const patch: Record<string, unknown> = {
+      status,
+      admin_id: adminId || null,
+      admin_reason: reason || null,
+      reviewed_at: now(),
+      updated_at: now(),
+    };
+    const { data, error } = await sb
+      .from("name_change_requests")
+      .update(patch)
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) return { error: error.message };
+
+    // If approved, update the user's full_name in profiles
+    if (status === "approved") {
+      await sb
+        .from("profiles")
+        .update({ full_name: (data as Record<string, unknown>).requested_name as string, updated_at: now() })
+        .eq("id", (data as Record<string, unknown>).user_id as string);
+    }
+
+    return { request: rowToNameChange(data as Record<string, unknown>) };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "update_failed" };
+  }
 }
 
 // ── Dashboard Stats ─────────────────────────────────────────────────────────

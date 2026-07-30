@@ -17,6 +17,8 @@ import {
   setSystemSetting,
   listSystemSettings,
   createCreditTransaction,
+  listNameChangeRequests,
+  updateNameChangeStatus,
 } from "@/lib/server/security/security-store";
 
 export const runtime = "nodejs";
@@ -47,6 +49,11 @@ export async function GET(req: Request) {
       case "overview": {
         const stats = await getSecurityDashboardStats();
         return apiOk({ stats });
+      }
+      case "name-changes": {
+        const status = searchParams.get("status") || undefined;
+        const requests = await listNameChangeRequests({ status });
+        return apiOk({ requests });
       }
       case "contact-changes": {
         const status = searchParams.get("status") || undefined;
@@ -122,6 +129,23 @@ export async function POST(req: Request) {
         const result = await updateContactChangeStatus(id, statusMap[action] as any, adminId, reason);
         if ("error" in result) return apiFail(result.error, 400);
         await logAdminAction({ adminId, adminName, targetType: "contact_change", targetId: id, actionType: action, reason });
+        return apiOk({ request: result.request });
+      }
+
+      // Name change actions
+      case "approve-name-change":
+      case "reject-name-change":
+      case "review-name-change": {
+        const { id, reason } = body;
+        if (!id) return apiFail("Missing id", 400);
+        const statusMap: Record<string, "approved" | "rejected" | "under_review"> = {
+          "approve-name-change": "approved",
+          "reject-name-change": "rejected",
+          "review-name-change": "under_review",
+        };
+        const result = await updateNameChangeStatus(id, statusMap[action], adminId, reason);
+        if ("error" in result) return apiFail(result.error, 400);
+        await logAdminAction({ adminId, adminName, targetType: "name_change", targetId: id, actionType: action, reason });
         return apiOk({ request: result.request });
       }
 

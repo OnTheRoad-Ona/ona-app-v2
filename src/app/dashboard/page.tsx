@@ -44,11 +44,6 @@ const ONGOING_STATUSES = new Set<JobFlowStatus>([
 const RECENT_STATUSES = new Set<JobFlowStatus>([
   "satisfied",
   "released",
-  "cancelled",
-  "expired",
-  "disputed",
-  "under_appeal",
-  "refunded",
 ]);
 
 function ongoingStatusLabel(st: JobFlowStatus): string {

@@ -14,22 +14,33 @@ type Action = {
   created_at: string;
 };
 
+type Period = "all" | "year" | "ytd";
+
+const PERIOD_LABELS: Record<Period, string> = {
+  all: "All time",
+  year: "Past year",
+  ytd: "Year to date",
+};
+
 export default function AdminAuditPage() {
   const { adminName, ready, api } = useAdminGate();
   const [actions, setActions] = useState<Action[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [period, setPeriod] = useState<Period>("all");
+  const [ytdCount, setYtdCount] = useState(0);
 
   useEffect(() => {
     if (!ready) return;
     (async () => {
-      const res = await api<{ actions: Action[] }>("/api/admin/audit");
+      const res = await api<{ actions: Action[]; yearSummary?: { ytdCount: number } }>(`/api/admin/audit?period=${period}`);
       if (!res.ok) {
         setError(res.message);
         return;
       }
       setActions(res.data.actions);
+      setYtdCount(res.data.yearSummary?.ytdCount || 0);
     })();
-  }, [ready, api]);
+  }, [ready, api, period]);
 
   return (
     <AdminShell adminName={adminName}>
@@ -40,10 +51,22 @@ export default function AdminAuditPage() {
 
       <AdminGuideBanner pageId="audit" />
 
-      {error ? <div className="om-admin-error">{error}</div> : null}
       <div className="om-admin-panel">
-        <div className="om-admin-toolbar">
+        <div className="om-admin-toolbar" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <strong>{actions.length} event(s)</strong>
+          <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+            {(["all", "year", "ytd"] as Period[]).map(p => (
+              <button key={p} onClick={() => setPeriod(p)} style={{
+                background: period === p ? "var(--accent)" : "transparent",
+                color: period === p ? "#fff" : "inherit",
+                border: "1px solid var(--border)",
+                borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: period === p ? 700 : 400, cursor: "pointer",
+              }}>
+                {PERIOD_LABELS[p]}
+                {p === "ytd" && ytdCount > 0 ? ` (${ytdCount})` : ""}
+              </button>
+            ))}
+          </div>
         </div>
         <table className="om-admin-table">
           <thead>

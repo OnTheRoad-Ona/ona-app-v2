@@ -217,6 +217,22 @@ export interface WalletSummary {
   blockedCredits: number;
 }
 
+export interface NameChangeRequest {
+  id: string;
+  userId: string;
+  currentName: string;
+  requestedName: string;
+  reason?: string;
+  identityDocumentUrl?: string;
+  identityDocumentType?: string;
+  status: "pending" | "under_review" | "approved" | "rejected";
+  adminId?: string;
+  adminReason?: string;
+  reviewedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CreateContactChangeInput {
   userId: string;
   changeType: ChangeType;

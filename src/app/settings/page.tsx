@@ -8,17 +8,16 @@
 
 import { useEffect, useRef } from "react";
 import {
-  BadgeCheck,
   Banknote,
   Bell,
   Briefcase,
   CalendarClock,
   HelpCircle,
   Lock,
+  MapPin,
   Palette,
   Shield,
   Trash2,
-  UserRound,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import {
@@ -42,12 +41,6 @@ const HUB_SECTIONS: {
     labelKey: "settings.hub.appearance",
     detailKey: "settings.hub.appearanceDetail",
     icon: Palette,
-  },
-  {
-    href: "/settings/sections/profile",
-    labelKey: "settings.hub.profile",
-    detailKey: "settings.hub.profileDetail",
-    icon: UserRound,
   },
   {
     href: "/settings/sections/availability",
@@ -91,6 +84,12 @@ const HUB_SECTIONS: {
     detailKey: "settings.hub.supportDetail",
     icon: HelpCircle,
   },
+  {
+    href: "/settings/location",
+    labelKey: "settings.hub.addresses",
+    detailKey: "settings.hub.addressesDetail",
+    icon: MapPin,
+  },
 ];
 
 export default function SettingsPage() {
@@ -129,35 +128,18 @@ export default function SettingsPage() {
         onScroll={() => saveSettingsScroll(scrollRef.current)}
       >
         <div className="space-y-0.5 py-1">
-          {HUB_SECTIONS.flatMap((item, i) => {
-            const rows = [
-              <SettingsRow
-                key={item.href}
-                first={i === 0}
-                isLight={isLight}
-                icon={item.icon}
-                label={t(item.labelKey)}
-                detail={t(item.detailKey)}
-                href={item.href}
-                onClick={rememberScroll}
-              />,
-            ];
-            // Verification as its own top-level menu (not nested under Profile)
-            if (item.href === "/settings/sections/profile") {
-              rows.push(
-                <SettingsRow
-                  key="settings-verification"
-                  isLight={isLight}
-                  icon={BadgeCheck}
-                  label={t("settings.hub.verification")}
-                  detail={t("settings.hub.verificationDetail")}
-                  href={isPro ? "/artisan/verification" : "/verify"}
-                  onClick={rememberScroll}
-                />
-              );
-            }
-            return rows;
-          })}
+          {HUB_SECTIONS.map((item, i) => (
+            <SettingsRow
+              key={item.href}
+              first={i === 0}
+              isLight={isLight}
+              icon={item.icon}
+              label={t(item.labelKey)}
+              detail={t(item.detailKey)}
+              href={item.href}
+              onClick={rememberScroll}
+            />
+          ))}
         </div>
 
         <SettingsSection title={t("settings.dangerZone")} isLight={isLight}>

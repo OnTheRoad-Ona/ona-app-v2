@@ -66,6 +66,15 @@ export type MotoristVehicle = {
 };
 
 /** Full profile after Motorist or Repair Pro signup */
+export interface Guarantor {
+  fullName: string;
+  phone: string;
+  address?: string;
+  occupation?: string;
+  relationship: string;
+  linkedUserId?: string;
+}
+
 export interface UserProfile {
   accountType: AccountType;
   /**
@@ -132,6 +141,8 @@ export interface UserProfile {
   bankCode?: string;
   cacDocumentName?: string;
   cacDocumentDataUrl?: string;
+  /** Repair Pro guarantor (compulsory) */
+  guarantor?: Guarantor;
   /** National / primary ID number (country-specific) */
   idNumber?: string;
   /** Bank / secondary ID (e.g. BVN in Nigeria) */

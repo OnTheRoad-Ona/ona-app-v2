@@ -137,7 +137,10 @@ export async function POST(req: Request) {
   }
 
   // Always store a real random code; demo 336699 is also accepted on verify
-  const code = String(randomInt(100000, 999999));
+  // Email delivery uses fixed demo code 336699 since no email provider is wired yet.
+  const code = channel === "email" && !isAfricaTalkingConfigured()
+    ? "336699"
+    : String(randomInt(100000, 999999));
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
   await supabase

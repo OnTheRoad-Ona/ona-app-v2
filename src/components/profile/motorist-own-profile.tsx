@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Camera,
@@ -21,6 +21,10 @@ import { compressImageFile } from "@/lib/image-compress";
 import { memberSinceLabel, profileTheme } from "@/lib/profile-system";
 import { DOCS_PENDING_MAX_RADIUS_KM } from "@/lib/skill-questions";
 import { useApp } from "@/lib/store";
+import { PhoneChangeFlow } from "@/components/profile/security/phone-change-flow";
+import { EmailChangeFlow } from "@/components/profile/security/email-change-flow";
+import { PasswordChangeFlow } from "@/components/profile/security/password-change-flow";
+import { NameChangeForm } from "@/components/profile/security/name-change-form";
 import type { MotoristVehicle, UserProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -73,9 +77,22 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
     userProfile,
     updateUserProfile,
     location,
-  } = useApp();
+  } =   useApp();
   const t = profileTheme(isLight);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [accessToken, setAccessToken] = useState("");
+  const [nameChangeOpen, setNameChangeOpen] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { getAppSupabase } = await import("@/lib/supabase/app-client");
+        const sb = getAppSupabase();
+        const s = sb ? (await sb.auth.getSession()).data.session : null;
+        if (s?.access_token) setAccessToken(s.access_token);
+      } catch { /* */ }
+    })();
+  }, []);
 
   const [editing, setEditing] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -110,13 +127,13 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
     ? "h-10 w-full border-0 border-b border-black/15 bg-transparent px-0 text-[13px] font-medium text-slate-900 outline-none"
     : "h-10 w-full rounded-xl border-0 bg-[#2c2c2e] px-3 text-[13px] font-medium text-white outline-none";
 
-  const syncFromProfile = (p: UserProfile) => {
-    setAvatarUrl(p.avatarUrl || "");
-    setVehicles(vehiclesFromProfile(p));
+  const syncFromProfile = (p: UserProfile | null | undefined) => {
+    setAvatarUrl(p?.avatarUrl || "");
+    setVehicles(p ? vehiclesFromProfile(p) : []);
     setAddingVehicle(false);
-    setEmName(p.emergencyContact?.name || "");
-    setEmPhone(p.emergencyContact?.phone || "");
-    setSaved(p.savedLocations || []);
+    setEmName(p?.emergencyContact?.name || "");
+    setEmPhone(p?.emergencyContact?.phone || "");
+    setSaved(p?.savedLocations || []);
   };
 
   const persistVehicles = (list: MotoristVehicle[]) => {
@@ -137,8 +154,18 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
   const onPickAvatar = async (file: File | null) => {
     if (!file) return;
     try {
-      const url = await compressImageFile(file, { maxEdge: 512 });
-      setAvatarUrl(url);
+      const dataUrl = await compressImageFile(file, { maxEdge: 512 });
+      const res = await fetch("/api/profile/upload-avatar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessToken, imageDataUrl: dataUrl }),
+      });
+      const json = await res.json() as { ok?: boolean; data?: { url?: string }; error?: { message?: string } };
+      if (json?.ok && json.data?.url) {
+        setAvatarUrl(json.data.url);
+      } else {
+        setErr(json?.error?.message || "Could not upload image.");
+      }
     } catch {
       setErr("Could not process image.");
     }
@@ -187,6 +214,7 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
       title="My Profile"
       showEdit={!editing}
       onEdit={() => {
+        if (!userProfile) return;
         syncFromProfile(userProfile);
         setEditing(true);
         setMsg(null);
@@ -221,6 +249,7 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
             size="lg"
             className="h-11 w-full"
             onClick={() => {
+              if (!userProfile) return;
               syncFromProfile(userProfile);
               setEditing(true);
             }}
@@ -286,25 +315,62 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
         </div>
       </ProfileSection>
 
-      <ProfileSection title="Contact" isLight={isLight}>
-        <div className="space-y-1.5 text-[12px]">
-          <div className="flex justify-between gap-2">
-            <span className={t.muted}>Phone</span>
-            <span className={cn("font-semibold", t.ink)}>
-              {userProfile.phone}{" "}
-              <span className="text-[10px] text-emerald-500">verified · locked</span>
-            </span>
-          </div>
-          <div className="flex justify-between gap-2">
-            <span className={t.muted}>Email</span>
-            <span className={cn("max-w-[60%] truncate text-right font-semibold", t.ink)}>
-              {userProfile.email}
-            </span>
-          </div>
+      <ProfileSection title="Contact & Security" isLight={isLight}>
+        <div className="space-y-3">
+          <PhoneChangeFlow
+            isLight={isLight}
+            currentPhone={userProfile.phone}
+            currentEmail={userProfile.email}
+            isPhoneVerified={!!userProfile.phoneVerified}
+            guarantorName={userProfile.guarantor?.fullName}
+            accessToken={accessToken}
+            onPhoneChanged={(p) => updateUserProfile({ phone: p })}
+          />
+          <hr className={cn("border-0", isLight ? "border-black/8" : "border-white/8")} />
+          <EmailChangeFlow
+            isLight={isLight}
+            currentEmail={userProfile.email}
+            isEmailVerified={!!userProfile.emailVerified}
+            guarantorName={userProfile.guarantor?.fullName}
+            accessToken={accessToken}
+            onEmailChanged={(e) => updateUserProfile({ email: e })}
+          />
+          <hr className={cn("border-0", isLight ? "border-black/8" : "border-white/8")} />
+          <PasswordChangeFlow
+            isLight={isLight}
+            accessToken={accessToken}
+          />
         </div>
       </ProfileSection>
 
+      <ProfileSection title="Name" isLight={isLight}>
+        <div className="space-y-1">
+          <p className={cn("text-[13px] font-semibold", t.ink)}>
+            {userProfile.fullName}
 
+          </p>
+          <p className={cn("text-[11px]", isLight ? "text-slate-900" : "text-white")}>
+            Name cannot be changed here.
+            <button
+              type="button"
+              onClick={() => setNameChangeOpen(!nameChangeOpen)}
+              className={cn("ml-1 font-bold", isLight ? "text-slate-900" : "text-white", nameChangeOpen ? "text-red-400" : "")}
+            >
+              {nameChangeOpen ? "Cancel" : "Request name change"}
+            </button>
+          </p>
+          {nameChangeOpen && (
+            <div className="mt-2">
+              <NameChangeForm
+                isLight={isLight}
+                currentName={userProfile.fullName}
+                accessToken={accessToken}
+                userId={userProfile.identityId}
+              />
+            </div>
+          )}
+        </div>
+      </ProfileSection>
 
       <ProfileSection title="Verification" isLight={isLight}>
         <TierProgress profile={userProfile} isLight={isLight} />
@@ -341,7 +407,7 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
         <button
           type="button"
           onClick={() => router.push("/verify")}
-          className="mt-2 text-[12px] font-bold text-brand"
+          className={cn("mt-2 text-[12px] font-bold", isLight ? "text-slate-900" : "text-white")}
         >
           Continue verification →
         </button>
@@ -359,7 +425,7 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
                 setMsg(null);
                 setErr(null);
               }}
-              className="inline-flex items-center gap-1 border-0 bg-transparent text-[12px] font-bold text-brand"
+              className={cn("inline-flex items-center gap-1 border-0 bg-transparent text-[12px] font-bold", isLight ? "text-slate-900" : "text-white")}
             >
               <Plus className="h-3.5 w-3.5" />
               Add vehicle

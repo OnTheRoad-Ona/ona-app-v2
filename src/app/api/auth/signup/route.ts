@@ -86,6 +86,16 @@ const bodySchema = z.object({
   bankAccountNumber: z.string().optional(),
   /** Dual signup: keep the other role's side table */
   keepOtherRole: z.boolean().optional().default(true),
+  /** Repair Pro guarantor */
+  guarantor: z
+    .object({
+      fullName: z.string().min(2),
+      phone: z.string().min(7),
+      address: z.string().optional(),
+      occupation: z.string().optional(),
+      relationship: z.string().min(2),
+    })
+    .optional(),
   /** Certification docs review (pros) */
   docsStatus: z
     .enum(["none", "under_review", "approved", "rejected"])
@@ -740,6 +750,25 @@ export async function POST(req: Request) {
         500,
         "pro_profile_error"
       );
+    }
+
+    // Insert guarantor for Repair Pro (compulsory)
+    if (input.guarantor) {
+      try {
+        await supabase.from("repair_pro_guarantors").upsert(
+          {
+            user_id: userId,
+            full_name: input.guarantor.fullName,
+            phone: input.guarantor.phone,
+            address: input.guarantor.address || null,
+            occupation: input.guarantor.occupation || null,
+            relationship: input.guarantor.relationship,
+          },
+          { onConflict: "user_id" }
+        );
+      } catch {
+        /* non-fatal - table may not exist yet */
+      }
     }
   }
 

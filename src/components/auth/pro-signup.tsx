@@ -157,6 +157,13 @@ export function ProSignup() {
   const [email, setEmail] = useState("");
   const [idNumber, setIdNumber] = useState("");
   const [bvn, setBvn] = useState("");
+
+  // Guarantor (compulsory for Repair Pro)
+  const [guarantorName, setGuarantorName] = useState("");
+  const [guarantorPhone, setGuarantorPhone] = useState("");
+  const [guarantorAddress, setGuarantorAddress] = useState("");
+  const [guarantorOccupation, setGuarantorOccupation] = useState("");
+  const [guarantorRelationship, setGuarantorRelationship] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [city, setCity] = useState("Lagos");
@@ -512,11 +519,14 @@ export function ProSignup() {
   /** Vehicles step is optional — pro can skip and add later */
   const step3Ok = true;
   const step4Ok =
-    fullName.trim().length >= 2 &&
+    !fullNameError(fullName) &&
     !genderError(gender) &&
     !dobError(dateOfBirth) &&
     !phoneNationalError(phoneNational) &&
     businessName.trim().length >= 2 &&
+    guarantorName.trim().length >= 2 &&
+    guarantorPhone.replace(/\D/g, "").length >= 7 &&
+    guarantorRelationship.trim().length >= 2 &&
     yearsExperience.trim().length > 0 &&
     bio.trim().length >= 2 &&
     bio.trim().length <= BIO_MAX;
@@ -549,6 +559,9 @@ export function ProSignup() {
       return phoneNationalError(phoneNational);
     }
     if (businessName.trim().length < 2) return "Please enter your business or workshop name.";
+    if (guarantorName.trim().length < 2) return "Enter your guarantor's full name.";
+    if (guarantorPhone.replace(/\D/g, "").length < 7) return "Enter a valid guarantor phone number.";
+    if (guarantorRelationship.trim().length < 2) return "Enter your relationship with the guarantor.";
     if (!yearsExperience.trim()) return "Please pick how many years you have worked.";
     if (bio.trim().length < 2) return "Please write a short bio.";
     if (bio.trim().length > BIO_MAX) return `Bio must be ${BIO_MAX} characters or less.`;
@@ -681,6 +694,13 @@ export function ProSignup() {
             year: v.year,
           }))
         ),
+      },
+      guarantor: {
+        fullName: guarantorName.trim(),
+        phone: guarantorPhone.trim(),
+        address: guarantorAddress.trim() || undefined,
+        occupation: guarantorOccupation.trim() || undefined,
+        relationship: guarantorRelationship.trim(),
       },
       registeredAt: new Date().toISOString(),
     };
@@ -1559,6 +1579,40 @@ export function ProSignup() {
                   required
                 />
               </section>
+
+              {/* Guarantor — compulsory for Repair Pro */}
+              <section className="flex flex-col gap-3">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#64748b]">
+                    Guarantor
+                    <span className="ml-0.5 font-bold text-red-600" aria-label="required">*</span>
+                  </p>
+                  <p className="mt-0.5 text-[12px] text-[#475569]">
+                    Provide a guarantor reference (required). Must be at least name, phone, and your relationship.
+                  </p>
+                </div>
+                <Field label="Full name" required>
+                  <input className={authFieldClass} style={authFieldStyle} value={guarantorName}
+                    onChange={(e) => setGuarantorName(e.target.value)} placeholder="e.g. Chidi Okafor" />
+                </Field>
+                <Field label="Phone" required>
+                  <input className={authFieldClass} style={authFieldStyle} value={guarantorPhone}
+                    onChange={(e) => setGuarantorPhone(e.target.value.replace(/\D/g, "").slice(0, 15))}
+                    placeholder="e.g. 8012345678" type="tel" inputMode="numeric" />
+                </Field>
+                <Field label="Occupation">
+                  <input className={authFieldClass} style={authFieldStyle} value={guarantorOccupation}
+                    onChange={(e) => setGuarantorOccupation(e.target.value)} placeholder="e.g. Business owner" />
+                </Field>
+                <Field label="Residential address">
+                  <input className={authFieldClass} style={authFieldStyle} value={guarantorAddress}
+                    onChange={(e) => setGuarantorAddress(e.target.value)} placeholder="e.g. 25 Awolowo Road, Ikeja" />
+                </Field>
+                <Field label="Relationship to you" required>
+                  <input className={authFieldClass} style={authFieldStyle} value={guarantorRelationship}
+                    onChange={(e) => setGuarantorRelationship(e.target.value)} placeholder="e.g. Uncle, Former employer, Pastor" />
+                </Field>
+              </section>
             </div>
           )}
 
@@ -1935,6 +1989,9 @@ export function ProSignup() {
                 <Row k="Experience" v={experienceLabel(yearsExperience)} />
               )}
               {bio && <Row k="Bio" v={bio} />}
+              {guarantorName && (
+                <Row k="Guarantor" v={`${guarantorName} · ${guarantorPhone} · ${guarantorRelationship}`} />
+              )}
             </div>
           )}
         </div>

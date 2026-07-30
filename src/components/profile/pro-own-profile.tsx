@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Radio } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -35,6 +35,11 @@ import {
 import { useApp } from "@/lib/store";
 import { isProService } from "@/lib/services";
 import { DOCS_PENDING_MAX_RADIUS_KM } from "@/lib/skill-questions";
+import { PhoneChangeFlow } from "@/components/profile/security/phone-change-flow";
+import { EmailChangeFlow } from "@/components/profile/security/email-change-flow";
+import { PasswordChangeFlow } from "@/components/profile/security/password-change-flow";
+import { BankChangeFlow } from "@/components/profile/security/bank-change-flow";
+import { NameChangeForm } from "@/components/profile/security/name-change-form";
 import type { ProService, UserProfile } from "@/lib/types";
 import { StarRatingDisplay } from "@/components/ui/star-rating";
 import { cn } from "@/lib/utils";
@@ -81,6 +86,20 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
   );
   const canSetExperience = isExperienceUnset(userProfile?.yearsExperience);
 
+  const [accessToken, setAccessToken] = useState("");
+  const [nameChangeOpen, setNameChangeOpen] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { getAppSupabase } = await import("@/lib/supabase/app-client");
+        const sb = getAppSupabase();
+        const s = sb ? (await sb.auth.getSession()).data.session : null;
+        if (s?.access_token) setAccessToken(s.access_token);
+      } catch { /* */ }
+    })();
+  }, []);
+
   const [editing, setEditing] = useState(false);
   const [showLiveness, setShowLiveness] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -96,15 +115,11 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
     clampProServiceRadiusKm(userProfile?.serviceRadiusKm)
   );
   const [avatarUrl, setAvatarUrl] = useState(userProfile?.avatarUrl || "");
-  const [bankName, setBankName] = useState(userProfile?.bankName || "");
-  const [bankAccountName, setBankAccountName] = useState(
-    userProfile?.bankAccountName || ""
-  );
-  const [bankAccountNumber, setBankAccountNumber] = useState(
-    userProfile?.bankAccountNumber || ""
-  );
-  const [cacName, setCacName] = useState(userProfile?.cacDocumentName || "");
-  const [cacData, setCacData] = useState(userProfile?.cacDocumentDataUrl || "");
+  const [gName, setGName] = useState(userProfile?.guarantor?.fullName || "");
+  const [gPhone, setGPhone] = useState(userProfile?.guarantor?.phone || "");
+  const [gOccupation, setGOccupation] = useState(userProfile?.guarantor?.occupation || "");
+  const [gAddress, setGAddress] = useState(userProfile?.guarantor?.address || "");
+  const [gRelationship, setGRelationship] = useState(userProfile?.guarantor?.relationship || "");
 
   if (!userProfile || userProfile.accountType !== "professional") {
     return (
@@ -127,17 +142,17 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
     ? "text-[10px] font-medium text-slate-500"
     : "text-[10px] font-medium text-white/45";
 
-  const sync = (p: UserProfile) => {
-    setBusinessName(p.businessName || "");
-    setBio(p.bio || "");
-    setYears(p.yearsExperience || "");
-    setRadiusKm(clampProServiceRadiusKm(p.serviceRadiusKm));
-    setAvatarUrl(p.avatarUrl || "");
-    setBankName(p.bankName || "");
-    setBankAccountName(p.bankAccountName || "");
-    setBankAccountNumber(p.bankAccountNumber || "");
-    setCacName(p.cacDocumentName || "");
-    setCacData(p.cacDocumentDataUrl || "");
+  const sync = (p: UserProfile | null | undefined) => {
+    setBusinessName(p?.businessName || "");
+    setBio(p?.bio || "");
+    setYears(p?.yearsExperience || "");
+    setRadiusKm(clampProServiceRadiusKm(p?.serviceRadiusKm));
+    setAvatarUrl(p?.avatarUrl || "");
+    setGName(p?.guarantor?.fullName || "");
+    setGPhone(p?.guarantor?.phone || "");
+    setGOccupation(p?.guarantor?.occupation || "");
+    setGAddress(p?.guarantor?.address || "");
+    setGRelationship(p?.guarantor?.relationship || "");
   };
 
   const save = () => {
@@ -155,11 +170,13 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
       services: skill ? [skill] : userProfile.services,
       serviceRadiusKm: clampProServiceRadiusKm(radiusKm),
       avatarUrl: avatarUrl || undefined,
-      bankName: bankName.trim() || undefined,
-      bankAccountName: bankAccountName.trim() || undefined,
-      bankAccountNumber: bankAccountNumber.trim() || undefined,
-      cacDocumentName: cacName || undefined,
-      cacDocumentDataUrl: cacData || undefined,
+      guarantor: {
+        fullName: gName.trim(),
+        phone: gPhone.trim(),
+        address: gAddress.trim() || undefined,
+        occupation: gOccupation.trim() || undefined,
+        relationship: gRelationship.trim(),
+      },
     });
     if (e) {
       setErr(e);
@@ -188,6 +205,7 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
       title="My Profile"
       showEdit={!editing}
       onEdit={() => {
+        if (!userProfile) return;
         sync(userProfile);
         setEditing(true);
         setMsg(null);
@@ -305,7 +323,18 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
               const f = e.target.files?.[0];
               if (!f) return;
               try {
-                setAvatarUrl(await compressImageFile(f, { maxEdge: 512 }));
+                const dataUrl = await compressImageFile(f, { maxEdge: 512 });
+                const res = await fetch("/api/profile/upload-avatar", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ accessToken, imageDataUrl: dataUrl }),
+                });
+                const json = await res.json() as { ok?: boolean; data?: { url?: string }; error?: { message?: string } };
+                if (json?.ok && json.data?.url) {
+                  setAvatarUrl(json.data.url);
+                } else {
+                  setErr(json?.error?.message || "Could not upload image.");
+                }
               } catch {
                 setErr("Could not process image.");
               }
@@ -376,6 +405,63 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
             >
               {proLive ? "Go offline" : "Go online"}
             </button>
+          )}
+        </div>
+      </ProfileSection>
+
+      <ProfileSection title="Contact & Security" isLight={isLight}>
+        <div className="space-y-3">
+          <PhoneChangeFlow
+            isLight={isLight}
+            currentPhone={userProfile.phone}
+            currentEmail={userProfile.email}
+            isPhoneVerified={!!userProfile.phoneVerified}
+            guarantorName={userProfile.guarantor?.fullName}
+            accessToken={accessToken}
+            onPhoneChanged={(p) => updateUserProfile({ phone: p })}
+          />
+          <hr className={cn("border-0", isLight ? "border-black/8" : "border-white/8")} />
+          <EmailChangeFlow
+            isLight={isLight}
+            currentEmail={userProfile.email}
+            isEmailVerified={!!userProfile.emailVerified}
+            guarantorName={userProfile.guarantor?.fullName}
+            accessToken={accessToken}
+            onEmailChanged={(e) => updateUserProfile({ email: e })}
+          />
+          <hr className={cn("border-0", isLight ? "border-black/8" : "border-white/8")} />
+          <PasswordChangeFlow
+            isLight={isLight}
+            accessToken={accessToken}
+          />
+        </div>
+      </ProfileSection>
+
+      <ProfileSection title="Name" isLight={isLight}>
+        <div className="space-y-1">
+          <p className={cn("text-[13px] font-semibold", t.ink)}>
+            {userProfile.fullName}
+
+          </p>
+          <p className={cn("text-[11px]", isLight ? "text-slate-900" : "text-white")}>
+            Name cannot be changed here.
+            <button
+              type="button"
+              onClick={() => setNameChangeOpen(!nameChangeOpen)}
+              className={cn("ml-1 font-bold", isLight ? "text-slate-900" : "text-white", nameChangeOpen ? "text-red-400" : "")}
+            >
+              {nameChangeOpen ? "Cancel" : "Request name change"}
+            </button>
+          </p>
+          {nameChangeOpen && (
+            <div className="mt-2">
+              <NameChangeForm
+                isLight={isLight}
+                currentName={userProfile.fullName}
+                accessToken={accessToken}
+                userId={userProfile.identityId}
+              />
+            </div>
           )}
         </div>
       </ProfileSection>
@@ -544,86 +630,92 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
       </ProfileSection>
 
       {hasVerificationMark(userProfile) && (
-        <ProfileSection title="Payout & CAC (Tier 3)" isLight={isLight}>
-          {editing ? (
-            <div className="space-y-2">
-              <input
-                className={field}
-                placeholder="Bank name"
-                value={bankName}
-                onChange={(e) => setBankName(e.target.value)}
-              />
-              <input
-                className={field}
-                placeholder="Account name"
-                value={bankAccountName}
-                onChange={(e) => setBankAccountName(e.target.value)}
-              />
-              <input
-                className={field}
-                placeholder="Account number"
-                value={bankAccountNumber}
-                onChange={(e) => setBankAccountNumber(e.target.value)}
-              />
-              <label className="block">
-                <span
-                  className={cn(
-                    "mb-1 block text-[11px] font-semibold",
-                    t.muted
-                  )}
-                >
-                  Business registration / CAC (optional)
-                </span>
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
-                  className={cn(
-                    "w-full text-[12px]",
-                    isLight ? "text-slate-700" : "text-white/80"
-                  )}
-                  onChange={async (e) => {
-                    const f = e.target.files?.[0];
-                    if (!f) return;
-                    setCacName(f.name);
-                    try {
-                      if (f.type.startsWith("image/")) {
-                        setCacData(
-                          await compressImageFile(f, { maxEdge: 1200 })
-                        );
-                      } else {
-                        const reader = new FileReader();
-                        reader.onload = () =>
-                          setCacData(String(reader.result || ""));
-                        reader.readAsDataURL(f);
-                      }
-                    } catch {
-                      setErr("Could not upload CAC document.");
-                    }
-                  }}
-                />
-                {cacName && (
-                  <p className={cn("mt-1 text-[11px]", t.muted)}>
-                    Attached · {cacName}
-                  </p>
-                )}
-              </label>
-            </div>
-          ) : (
-            <div className={cn("space-y-1 text-[12px]", t.ink)}>
-              <p>{userProfile.bankName || "Bank not set"}</p>
-              <p className={t.muted}>
-                {userProfile.bankAccountName || "—"} ·{" "}
-                {userProfile.bankAccountNumber
-                  ? `••••${userProfile.bankAccountNumber.slice(-4)}`
-                  : "—"}
+        <>
+          <ProfileSection title="Payout (Tier 3)" isLight={isLight}>
+            <BankChangeFlow
+              isLight={isLight}
+              currentBank={{
+                bankName: userProfile.bankName,
+                bankAccountName: userProfile.bankAccountName,
+                bankAccountNumber: userProfile.bankAccountNumber,
+                bankCode: userProfile.bankCode,
+              }}
+              userPhone={userProfile.phone}
+              accessToken={accessToken}
+              onBankChanged={(b) => {
+                updateUserProfile({
+                  bankName: b.bankName,
+                  bankAccountName: b.bankAccountName,
+                  bankAccountNumber: b.bankAccountNumber,
+                  bankCode: b.bankCode,
+                });
+              }}
+            />
+          </ProfileSection>
+
+          <ProfileSection title="Business registration / CAC" isLight={isLight}>
+            {userProfile.cacDocumentName ? (
+              <p className={cn("text-[12px]", t.ink)}>
+                Attached · {userProfile.cacDocumentName}
               </p>
-              {userProfile.cacDocumentName && (
-                <p className={t.muted}>CAC · {userProfile.cacDocumentName}</p>
-              )}
-            </div>
-          )}
-        </ProfileSection>
+            ) : (
+              <p className={cn("text-[12px]", t.muted)}>No document uploaded.</p>
+            )}
+            <label className="mt-2 block">
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                className={cn("w-full text-[12px]", isLight ? "text-slate-700" : "text-white/80")}
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  try {
+                    const data = f.type.startsWith("image/")
+                      ? await compressImageFile(f, { maxEdge: 1200 })
+                      : await new Promise<string>((resolve) => {
+                          const reader = new FileReader();
+                          reader.onload = () => resolve(String(reader.result || ""));
+                          reader.readAsDataURL(f);
+                        });
+                    updateUserProfile({ cacDocumentName: f.name, cacDocumentDataUrl: data });
+                    setMsg("CAC document uploaded.");
+                  } catch {
+                    setErr("Could not upload document.");
+                  }
+                }}
+              />
+            </label>
+          </ProfileSection>
+        </>
       )}
+
+      <ProfileSection title="Guarantor" isLight={isLight}>
+        {editing ? (
+          <div className="space-y-2">
+            <input className={field} placeholder="Full name" value={gName}
+              onChange={(e) => setGName(e.target.value)} />
+            <input className={field} placeholder="Phone" value={gPhone}
+              onChange={(e) => setGPhone(e.target.value.replace(/\D/g, "").slice(0, 15))} />
+            <input className={field} placeholder="Occupation" value={gOccupation}
+              onChange={(e) => setGOccupation(e.target.value)} />
+            <input className={field} placeholder="Residential address" value={gAddress}
+              onChange={(e) => setGAddress(e.target.value)} />
+            <input className={field} placeholder="Relationship to you" value={gRelationship}
+              onChange={(e) => setGRelationship(e.target.value)} />
+          </div>
+        ) : (
+          <div className={cn("space-y-1 text-[12px]", t.ink)}>
+            <p>{userProfile.guarantor?.fullName || "Not set"}</p>
+            <p className={t.muted}>{userProfile.guarantor?.phone || "—"}</p>
+            {userProfile.guarantor?.occupation && (
+              <p className={t.muted}>{userProfile.guarantor.occupation}</p>
+            )}
+            {userProfile.guarantor?.relationship && (
+              <p className={t.muted}>{userProfile.guarantor.relationship}</p>
+            )}
+          </div>
+        )}
+      </ProfileSection>
 
       <ProfileSection title="Public preview" isLight={isLight}>
         <button

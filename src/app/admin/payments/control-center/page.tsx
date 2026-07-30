@@ -108,6 +108,7 @@ export default function PaymentControlCenter() {
 
   const [commReport, setCommReport] = useState<Record<string, unknown> | null>(null);
   const [commPeriod, setCommPeriod] = useState("day");
+  const [commYtd, setCommYtd] = useState<Record<string, unknown> | null>(null);
 
   const load = useCallback(async () => {
     const res = await api<{ payments: Payment[]; filterCounts?: Record<string, number>; ops?: Ops | null; opsError?: string | null; access?: { canCancelEscrow?: boolean; canRetryPayout?: boolean } }>("/api/admin/payments");
@@ -136,9 +137,12 @@ export default function PaymentControlCenter() {
 
   const loadCommission = useCallback(async (period: string) => {
     const to = new Date().toISOString();
-    const from = new Date(Date.now() - 90 * 86400000).toISOString();
-    const res = await api<Record<string, unknown>>(`/api/admin/commission?period=${period}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
-    if (res.ok) setCommReport(res.data);
+    const from = period === "ytd"
+      ? new Date(new Date().getFullYear(), 0, 1).toISOString()
+      : new Date(Date.now() - 90 * 86400000).toISOString();
+    const p = period === "ytd" ? "day" : period;
+    const res = await api<Record<string, unknown>>(`/api/admin/commission?period=${p}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+    if (res.ok) { setCommReport(res.data); setCommYtd((res.data as Record<string, unknown>).ytd as Record<string, unknown> || null); }
   }, [api]);
 
   useEffect(() => { if (!ready) return; void load(); const t = setInterval(() => void load(), 30_000); return () => clearInterval(t); }, [ready, load]);
@@ -787,8 +791,8 @@ export default function PaymentControlCenter() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Commission Report</h2>
             <div style={{ display: "flex", gap: 6 }}>
-              {(["day", "week", "month"] as const).map(p => (
-                <button key={p} style={{ ...s.btn, fontWeight: commPeriod === p ? 700 : 400, fontSize: 10 }} onClick={() => { setCommPeriod(p); }}>{p === "day" ? "Daily" : p === "week" ? "Weekly" : "Monthly"}</button>
+              {(["day", "week", "month", "year", "ytd"] as const).map(p => (
+                <button key={p} style={{ ...s.btn, fontWeight: commPeriod === p ? 700 : 400, fontSize: 10 }} onClick={() => { setCommPeriod(p); }}>{p === "day" ? "Daily" : p === "week" ? "Weekly" : p === "month" ? "Monthly" : p === "year" ? "Year" : "YTD"}</button>
               ))}
             </div>
           </div>
@@ -813,6 +817,26 @@ export default function PaymentControlCenter() {
                 </div>
               </div>
 
+              {commYtd && (
+                <>
+                  <div style={{ marginTop: 8, marginBottom: 4, fontSize: 13, fontWeight: 600 }}>Year to Date</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, marginBottom: 16 }}>
+                    <div style={s.card}>
+                      <div style={s.cardLabel}>YTD Commission</div>
+                      <div style={s.cardVal}>{naira(Number(commYtd.totalCommissionMinor || 0))}</div>
+                    </div>
+                    <div style={s.card}>
+                      <div style={s.cardLabel}>YTD Revenue</div>
+                      <div style={s.cardVal}>{naira(Number(commYtd.totalRevenueMinor || 0))}</div>
+                    </div>
+                    <div style={s.card}>
+                      <div style={s.cardLabel}>YTD Payout</div>
+                      <div style={s.cardVal}>{naira(Number(commYtd.totalPayoutMinor || 0))}</div>
+                    </div>
+                  </div>
+                </>
+              )}
+
               <div style={{ maxHeight: 400, overflowY: "auto" }}>
                 <table style={s.table}>
                   <thead><tr>
@@ -827,7 +851,7 @@ export default function PaymentControlCenter() {
                       <tr><td colSpan={5} style={{ ...s.td, ...s.muted }}>No data for this period.</td></tr>
                     ) : ((commReport as Record<string, unknown>).breakdown as Record<string, unknown>[]).map((b, i) => (
                       <tr key={String(b.date || i)}>
-                        <td style={{ ...s.td, ...s.muted, fontSize: 10 }}>{String(b.date || "").slice(0, 10)}</td>
+                        <td style={{ ...s.td, ...s.muted, fontSize: 10 }}>{commPeriod === "year" ? String(b.date || "").slice(0, 4) : String(b.date || "").slice(0, 10)}</td>
                         <td style={s.td}>{String(b.count || 0)}</td>
                         <td style={s.td}>{naira(Number(b.revenueMinor || 0))}</td>
                         <td style={s.td}><strong>{naira(Number(b.commissionMinor || 0))}</strong></td>

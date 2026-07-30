@@ -28,6 +28,21 @@ function startOfMonth(d: Date): string {
   return x.toISOString();
 }
 
+function startOfYear(d: Date): string {
+  const x = new Date(d);
+  x.setUTCMonth(0, 1);
+  x.setUTCHours(0, 0, 0, 0);
+  return x.toISOString();
+}
+
+function ytdRange(): { from: string; to: string } {
+  const now = new Date();
+  return {
+    from: startOfYear(now),
+    to: now.toISOString(),
+  };
+}
+
 export async function GET(req: Request) {
   if (!isSupabaseAdminConfigured()) {
     return apiFail("Supabase is not configured", 503, "supabase_not_configured");
@@ -41,6 +56,27 @@ export async function GET(req: Request) {
     const to = url.searchParams.get("to") || new Date().toISOString();
 
     const supabase = createServiceSupabase();
+
+    // YTD: always compute year-to-date totals regardless of period
+    const ytd = ytdRange();
+    const { data: ytdRows } = await supabase
+      .from("payments")
+      .select("platform_fee_kobo, pro_payout_kobo, amount_kobo")
+      .eq("escrow_status", "released")
+      .gte("released_at", ytd.from)
+      .lte("released_at", ytd.to)
+      .limit(9999);
+
+    const ytdTotalCommissionMinor = (ytdRows ?? []).reduce(
+      (a, r) => a + (Number(r.platform_fee_kobo) || 0), 0
+    );
+    const ytdTotalPayoutMinor = (ytdRows ?? []).reduce(
+      (a, r) => a + (Number(r.pro_payout_kobo) || 0), 0
+    );
+    const ytdTotalRevenueMinor = (ytdRows ?? []).reduce(
+      (a, r) => a + (Number(r.amount_kobo) || 0), 0
+    );
+
     const { data, error } = await supabase
       .from("payments")
       .select("platform_fee_kobo, pro_payout_kobo, amount_kobo, escrow_status, released_at, updated_at, created_at, currency, service_type")
@@ -67,7 +103,10 @@ export async function GET(req: Request) {
     const byPeriod: Record<string, { count: number; commissionMinor: number; revenueMinor: number; payoutMinor: number }> = {};
     for (const r of rows) {
       const d = new Date(String(r.released_at || r.updated_at || r.created_at));
-      const key = period === "month" ? startOfMonth(d) : period === "week" ? startOfWeek(d) : startOfDay(d);
+      const key = period === "year" ? startOfYear(d)
+        : period === "month" ? startOfMonth(d)
+        : period === "week" ? startOfWeek(d)
+        : startOfDay(d);
       if (!byPeriod[key]) byPeriod[key] = { count: 0, commissionMinor: 0, revenueMinor: 0, payoutMinor: 0 };
       byPeriod[key].count += 1;
       byPeriod[key].commissionMinor += Number(r.platform_fee_kobo) || 0;
@@ -88,6 +127,11 @@ export async function GET(req: Request) {
       from,
       to,
       breakdown,
+      ytd: {
+        totalCommissionMinor: ytdTotalCommissionMinor,
+        totalPayoutMinor: ytdTotalPayoutMinor,
+        totalRevenueMinor: ytdTotalRevenueMinor,
+      },
     });
   } catch (e) {
     if (e instanceof AdminAuthError) return apiFail(e.message, e.status, "auth");

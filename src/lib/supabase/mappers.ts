@@ -366,6 +366,7 @@ export function profileToUserProfile(
     bankAccountName?: string;
     bankAccountNumber?: string;
     bankCode?: string;
+    guarantor?: UserProfile["guarantor"];
   }
 ): UserProfile {
   const accountType =
@@ -381,6 +382,7 @@ export function profileToUserProfile(
     fullName: profile.full_name || "",
     phone: profile.phone || "",
     email: profile.email || "",
+    avatarUrl: profile.avatar_url || "",
     password: extra?.password || "",
     gender:
       profile.gender === "male" ||
@@ -437,6 +439,7 @@ export function profileToUserProfile(
     bankAccountName: extra?.bankAccountName,
     bankAccountNumber: extra?.bankAccountNumber,
     bankCode: extra?.bankCode,
+    guarantor: extra?.guarantor,
     serviceActionCount: 0,
   };
 }
