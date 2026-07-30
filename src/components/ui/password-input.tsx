@@ -11,6 +11,7 @@ export function PasswordInput({
   onChange,
   isLight,
   autoFocus,
+  autoComplete,
 }: {
   className?: string;
   placeholder?: string;
@@ -18,6 +19,7 @@ export function PasswordInput({
   onChange: (v: string) => void;
   isLight?: boolean;
   autoFocus?: boolean;
+  autoComplete?: string;
 }) {
   const [show, setShow] = useState(false);
 
@@ -30,6 +32,7 @@ export function PasswordInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         autoFocus={autoFocus}
+        autoComplete={autoComplete}
       />
       <button
         type="button"

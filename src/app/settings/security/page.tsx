@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { PasswordInput } from "@/components/ui/password-input";
 import { PageHeader } from "@/components/layout/page-header";
 import {
   SettingsField,
@@ -257,20 +258,20 @@ export default function SettingsSecurityPage() {
             Change password
           </p>
           <SettingsField label="Current password" isLight={isLight}>
-            <input
-              type="password"
+            <PasswordInput
               className={settingsInputClass(isLight)}
               value={current}
-              onChange={(e) => setCurrent(e.target.value)}
+              onChange={setCurrent}
+              isLight={isLight}
               autoComplete="current-password"
             />
           </SettingsField>
           <SettingsField label="New password" isLight={isLight}>
-            <input
-              type="password"
+            <PasswordInput
               className={settingsInputClass(isLight)}
               value={next}
-              onChange={(e) => setNext(e.target.value)}
+              onChange={setNext}
+              isLight={isLight}
               autoComplete="new-password"
             />
           </SettingsField>
@@ -293,11 +294,11 @@ export default function SettingsSecurityPage() {
             ))}
           </ul>
           <SettingsField label="Confirm new password" isLight={isLight}>
-            <input
-              type="password"
+            <PasswordInput
               className={settingsInputClass(isLight)}
               value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
+              onChange={setConfirm}
+              isLight={isLight}
               autoComplete="new-password"
             />
           </SettingsField>

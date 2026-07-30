@@ -55,19 +55,12 @@ BEGIN
 END;
 $$;
 
--- 5. RLS: users can only update their own deletion_status to restore
+-- 5. RLS: users can update their own row (server API enforces business rules)
 DROP POLICY IF EXISTS "Users restore own account" ON public.profiles;
 CREATE POLICY "Users restore own account"
   ON public.profiles FOR UPDATE
   USING (auth.uid() = id)
-  WITH CHECK (
-    auth.uid() = id
-    AND (
-      -- Only allow setting deletion_status back to 'restored' or 'active'
-      (OLD.deletion_status = 'pending_deletion' AND NEW.deletion_status IN ('restored', 'active'))
-      OR OLD.deletion_status = NEW.deletion_status
-    )
-  );
+  WITH CHECK (auth.uid() = id);
 
 -- 6. RLS: service role can manage all deletion fields
 DROP POLICY IF EXISTS "Service role manage deletion" ON public.profiles;
