@@ -126,6 +126,34 @@ export async function POST(req: Request) {
         .eq("user_id", userId);
       if (awayErr) return apiFail(awayErr.message, 500);
 
+      // Cancel all unbooked jobs (negotiating + agreed) when going offline
+      const { data: unbooked } = await sb
+        .from("service_requests")
+        .select("id, status, status_history")
+        .eq("repair_pro_id", userId)
+        .in("flow_status", ["negotiating", "agreed"]);
+      if (unbooked && unbooked.length > 0) {
+        const ts = nowIso;
+        for (const row of unbooked) {
+          const hist = Array.isArray(row.status_history)
+            ? row.status_history
+            : [];
+          await sb
+            .from("service_requests")
+            .update({
+              flow_status: "cancelled",
+              status: "cancelled",
+              cancelled_at: ts,
+              updated_at: ts,
+              status_history: [
+                ...hist,
+                { status: "cancelled", at: ts, by: "repair_pro", note: "pro_offline" },
+              ],
+            })
+            .eq("id", row.id);
+        }
+      }
+
       const { data: updated } = await sb
         .from("repair_pro_profiles")
         .select("user_id, is_online, lat, lng, docs_status, status")

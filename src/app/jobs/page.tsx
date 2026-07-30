@@ -11,12 +11,12 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { ChevronRight, Loader2, X } from "lucide-react";
 import { JobShell } from "@/components/jobs/job-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { ExpiredDialog } from "@/components/ui/expired-dialog";
 import { JOB_CLOSED_MESSAGE } from "@/lib/chat-expired";
-import { apiListJobs } from "@/lib/jobs/client";
+import { apiListJobs, apiTransition } from "@/lib/jobs/client";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
@@ -292,6 +292,7 @@ function ProJobsPage({
                   j.agreedMajor != null
                     ? formatMoney(j.agreedMajor, j.currency)
                     : null;
+                const unbooked = j.status === "negotiating" || j.status === "agreed";
                 return (
                   <li key={j.id}>
                     <Link
@@ -328,9 +329,31 @@ function ProJobsPage({
                           </p>
                         ) : null}
                       </div>
-                      <ChevronRight
-                        className={cn("mt-1 h-4 w-4 shrink-0", muted)}
-                      />
+                      {unbooked ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void apiTransition({
+                              jobId: j.id,
+                              event: "CANCEL",
+                              actor: "repair_pro",
+                              actorId: backendUserId || undefined,
+                              reason: "pro_declined",
+                            }).then(() => load());
+                          }}
+                          className={cn(
+                            "shrink-0 rounded-full border-0 p-1.5",
+                            isLight ? "hover:bg-black/10" : "hover:bg-white/10"
+                          )}
+                          aria-label="Decline"
+                        >
+                          <X className={cn("h-4 w-4", muted)} strokeWidth={2} />
+                        </button>
+                      ) : (
+                        <ChevronRight className={cn("mt-1 h-4 w-4 shrink-0", muted)} />
+                      )}
                     </Link>
                   </li>
                 );
