@@ -303,6 +303,7 @@ export async function apiTransition(input: {
   actor: "motorist" | "repair_pro" | "system" | "admin";
   actorId?: string;
   reason?: string;
+  cancelReason?: string;
   /** Real GPS — server computes Google Distance Matrix ETA */
   proLat?: number;
   proLng?: number;
@@ -311,6 +312,18 @@ export async function apiTransition(input: {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
+  });
+  return parse<{ job: JobRecord }>(res);
+}
+
+export async function apiDeferJob(
+  jobId: string,
+  proId: string
+): Promise<ApiOk<{ job: JobRecord }> | ApiErr> {
+  const res = await fetchWithTimeout(`/api/jobs/${jobId}/defer`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ proId }),
   });
   return parse<{ job: JobRecord }>(res);
 }

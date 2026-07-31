@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
   canTransition,
   nextStatus,
@@ -8,8 +8,8 @@ import {
   negotiationUiStatus,
   actorMay,
   type TransitionEvent,
-  type TransitionActor,
 } from "@/lib/jobs/state-machine";
+import type { JobFlowStatus } from "@/lib/jobs/types";
 
 describe("state-machine", () => {
   describe("canTransition", () => {
@@ -40,7 +40,7 @@ describe("state-machine", () => {
     it("allows OPEN_DISPUTE from disputable statuses", () => {
       const disputable = ["paid_booked", "en_route", "arrived", "in_progress", "completed", "satisfied", "released"];
       for (const status of disputable) {
-        expect(canTransition(status as any, { type: "OPEN_DISPUTE", by: "motorist" })).toBe(true);
+        expect(canTransition(status as JobFlowStatus, { type: "OPEN_DISPUTE", by: "motorist" })).toBe(true);
       }
     });
 

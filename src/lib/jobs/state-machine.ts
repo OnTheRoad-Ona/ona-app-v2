@@ -37,8 +37,13 @@ const ALLOWED: Record<JobFlowStatus, Partial<Record<TransitionEvent["type"], Job
   negotiating: {
     ACCEPT_OFFER: "agreed",
     EXPIRE_NEGOTIATION: "expired",
-    CANCEL: "cancelled",
+    CANCEL: "searching",
     START_NEGOTIATION: "negotiating",
+  },
+  searching: {
+    START_NEGOTIATION: "negotiating",
+    EXPIRE_NEGOTIATION: "expired",
+    CANCEL: "cancelled",
   },
   agreed: {
     PAYMENT_SUCCESS: "paid_booked",
@@ -284,7 +289,7 @@ export function actorMay(
       // motorist confirms; system auto-releases after 6h with no dispute
       return actor === "motorist" || actor === "system";
     case "START_NEGOTIATION":
-      return actor === "repair_pro";
+      return actor === "repair_pro" || actor === "system" || actor === "admin";
     case "PAYMENT_SUCCESS":
     case "RELEASE":
     case "EXPIRE_NEGOTIATION":

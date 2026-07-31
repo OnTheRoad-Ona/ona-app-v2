@@ -10,6 +10,7 @@ import {
   DEMO_OTP_CODE,
   emailOtpKey,
   isDemoOtp,
+  isDemoOtpAllowed,
 } from "@/lib/auth/demo-otp";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
@@ -52,8 +53,9 @@ export async function POST(req: Request) {
 
   const channel = parsed.data.channel;
   const code = parsed.data.code.replace(/\D/g, "");
+  const demoHint = isDemoOtpAllowed() ? ` or use demo ${DEMO_OTP_CODE}` : "";
   if (code.length < 4) {
-    return apiFail(`Enter the 6-digit code (demo: ${DEMO_OTP_CODE})`, 400);
+    return apiFail(`Enter the 6-digit code${demoHint}`, 400);
   }
 
   const supabase = createServiceSupabase();
@@ -99,8 +101,8 @@ export async function POST(req: Request) {
     );
   }
 
-  // Demo code always works (until real SMS/email delivery is production-ready)
-  const demoOk = isDemoOtp(code);
+  // Demo code only works outside production (until real SMS/email delivery is production-ready)
+  const demoOk = isDemoOtp(code) && isDemoOtpAllowed();
 
   if (!demoOk) {
     const { data: rows, error } = await supabase
@@ -115,7 +117,7 @@ export async function POST(req: Request) {
     const otp = rows?.[0];
     if (!otp) {
       return apiFail(
-        `No active code. Tap Send code, or use demo ${DEMO_OTP_CODE}.`,
+        `No active code. Tap Send code${demoHint}.`,
         400
       );
     }
@@ -125,7 +127,7 @@ export async function POST(req: Request) {
         .update({ consumed_at: new Date().toISOString() })
         .eq("id", otp.id);
       return apiFail(
-        `Code expired. Request a new one or use demo ${DEMO_OTP_CODE}.`,
+        `Code expired. Request a new one${demoHint}.`,
         400,
         "otp_expired"
       );

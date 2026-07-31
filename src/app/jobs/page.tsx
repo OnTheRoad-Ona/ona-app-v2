@@ -16,7 +16,7 @@ import { JobShell } from "@/components/jobs/job-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { ExpiredDialog } from "@/components/ui/expired-dialog";
 import { JOB_CLOSED_MESSAGE } from "@/lib/chat-expired";
-import { apiListJobs, apiTransition } from "@/lib/jobs/client";
+import { apiDeferJob, apiListJobs, apiTransition } from "@/lib/jobs/client";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
@@ -170,6 +170,28 @@ function ProJobsPage({
   const [err, setErr] = useState<string | null>(null);
   const [closedOpen, setClosedOpen] = useState(false);
   const [viewHref, setViewHref] = useState<string | null>(null);
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const raw = sessionStorage.getItem("om-jobs-hidden");
+      return new Set(JSON.parse(raw || "[]"));
+    } catch {
+      return new Set();
+    }
+  });
+
+  const hideJob = useCallback((id: string) => {
+    setHiddenIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      try {
+        sessionStorage.setItem("om-jobs-hidden", JSON.stringify([...next]));
+      } catch {
+        /* */
+      }
+      return next;
+    });
+  }, []);
 
   const stage = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const ink = isLight ? "text-slate-900" : "text-white";
@@ -275,89 +297,124 @@ function ProJobsPage({
           </p>
         )}
 
-        {/* Active — keep for mid-trip back + multi-request */}
+        {/* Active — card-style with Decline / Later / Open (matching IncomingJobPopup) */}
         {!loading && active.length > 0 && (
           <section className="mb-6">
             <p
               className={cn(
-                "mb-1 text-[11px] font-semibold uppercase tracking-wide",
+                "mb-2 text-[11px] font-semibold uppercase tracking-wide",
                 muted
               )}
             >
               Active
             </p>
-            <ul className="space-y-0">
-              {active.map((j) => {
-                const price =
-                  j.agreedMajor != null
-                    ? formatMoney(j.agreedMajor, j.currency)
-                    : null;
-                const unbooked = j.status === "negotiating" || j.status === "agreed";
-                return (
-                  <li key={j.id}>
-                    <Link
-                      href={`/jobs/${j.id}`}
-                      className="flex items-start gap-2.5 border-0 bg-transparent py-3.5 active:opacity-90"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className={cn("text-[10px] font-bold uppercase", muted)}>
-                          {statusLabel(j.status)}
-                        </p>
-                        <p
+            <ul className="space-y-3">
+              {(() => {
+                const visible = active.filter((j) => !hiddenIds.has(j.id));
+                return visible.length > 0
+                  ? visible.map((j) => {
+                      const price =
+                        j.agreedMajor != null
+                          ? formatMoney(j.agreedMajor, j.currency)
+                          : null;
+                      return (
+                        <li
+                          key={j.id}
                           className={cn(
-                            "mt-1 truncate text-[15px] font-semibold",
-                            ink
+                            "rounded-xl p-4",
+                            isLight ? "bg-white" : "bg-[#1c1c1e]"
                           )}
                         >
-                          {isAutomotiveTrade(j.serviceType) && j.motoristVehicle?.trim()
-                            ? j.motoristVehicle.trim()
-                            : j.motoristName?.split(/\s+/)[0] || PRO_SERVICE_LABELS[j.serviceType] || "Service Request"}
-                        </p>
-                        {j.problem?.trim() ? (
+                          <div className="mb-2 flex items-start justify-between gap-2">
+                            <div>
+                              <p className="text-[11px] font-black uppercase tracking-wide text-[#FF6B35]">
+                                Service Request
+                              </p>
+                              <p className="mt-0.5 text-[16px] font-black leading-tight">
+                                {isAutomotiveTrade(j.serviceType) && j.motoristVehicle?.trim()
+                                  ? j.motoristVehicle.trim()
+                                  : j.motoristName?.split(/\s+/)[0] || PRO_SERVICE_LABELS[j.serviceType] || "Service Request"}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => hideJob(j.id)}
+                              className={cn(
+                                "rounded-full border-0 p-1.5",
+                                isLight ? "bg-black/5" : "bg-white/10"
+                              )}
+                              aria-label="Dismiss"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
                           <p
                             className={cn(
-                              "mt-0.5 line-clamp-1 text-[12px] font-medium",
-                              muted
+                              "text-[13px] font-semibold leading-snug",
+                              isLight ? "text-slate-700" : "text-white/80"
                             )}
                           >
                             {j.problem}
                           </p>
-                        ) : null}
-                        {price ? (
-                          <p className={cn("mt-1 text-[13px] font-semibold tabular-nums", ink)}>
-                            {price}
+                          <p
+                            className={cn(
+                              "mt-1 text-[11px] font-medium",
+                              isLight ? "text-slate-500" : "text-white/50"
+                            )}
+                          >
+                            {PRO_SERVICE_LABELS[j.serviceType] || j.serviceType}
+                            {price ? ` · ${price}` : ""}
                           </p>
-                        ) : null}
-                      </div>
-                      {unbooked ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            void apiTransition({
-                              jobId: j.id,
-                              event: "CANCEL",
-                              actor: "repair_pro",
-                              actorId: backendUserId || undefined,
-                              reason: "pro_declined",
-                            }).then(() => load());
-                          }}
-                          className={cn(
-                            "shrink-0 rounded-full border-0 p-1.5",
-                            isLight ? "hover:bg-black/10" : "hover:bg-white/10"
-                          )}
-                          aria-label="Decline"
-                        >
-                          <X className={cn("h-4 w-4", muted)} strokeWidth={2} />
-                        </button>
-                      ) : (
-                        <ChevronRight className={cn("mt-1 h-4 w-4 shrink-0", muted)} />
-                      )}
-                    </Link>
-                  </li>
-                );
-              })}
+                          <div className="mt-4 grid grid-cols-3 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void apiTransition({
+                                  jobId: j.id,
+                                  event: "CANCEL",
+                                  actor: "repair_pro",
+                                  actorId: backendUserId || undefined,
+                                  reason: "pro_declined",
+                                }).then(() => load());
+                              }}
+                              className={cn(
+                                "h-11 rounded-xl border-0 text-[13px] font-bold",
+                                isLight
+                                  ? "bg-red-500/20 text-red-700"
+                                  : "bg-red-500/20 text-red-400"
+                              )}
+                            >
+                              Not available
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (backendUserId) {
+                                  void apiDeferJob(j.id, backendUserId).then(() => load());
+                                }
+                              }}
+                              className={cn(
+                                "h-11 rounded-xl border-0 text-[13px] font-bold",
+                                isLight
+                                  ? "bg-black/8 text-slate-900"
+                                  : "bg-white/10 text-white"
+                              )}
+                            >
+                              Later
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/jobs/${j.id}`)}
+                              className="h-11 rounded-xl border-0 bg-[#FF6B35] text-[13px] font-bold text-white"
+                            >
+                              Open
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })
+                  : null;
+              })()}
             </ul>
           </section>
         )}

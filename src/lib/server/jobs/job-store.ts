@@ -104,6 +104,7 @@ function legacyToFlowStatus(legacy: string | null | undefined): JobFlowStatus | 
 
 const FLOW_STATUSES = new Set<string>([
   "negotiating",
+  "searching",
   "agreed",
   "paid_booked",
   "en_route",
@@ -220,6 +221,7 @@ function rowToJob(row: Record<string, unknown>): JobRecord {
 function flowToLegacyStatus(flow: JobFlowStatus): string {
   switch (flow) {
     case "negotiating":
+    case "searching":
     case "agreed":
       return "requested";
     case "paid_booked":
@@ -1212,6 +1214,170 @@ export async function expireOverdueBookedJobs(limit = 40): Promise<{
 
 const REROUTE_AFTER_MS = 60_000; // 1 minute before rerouting
 const REROUTE_WINDOW_MS = 15 * 60_000; // 15 min total reroute window
+const DEFER_DURATION_MS = 5 * 60_000; // Pro "Later" hides request for 5 minutes
+const EXCLUDE_DURATION_MS = 33 * 60_000; // Pro decline excludes (customer, pro) for 33 minutes
+
+/**
+ * Dispatch exclusions.
+ * Deferrals are per-job and derived from status_history (`deferred:<proId>`),
+ * so they survive restarts. Decline exclusions are (customer, pro) pairs —
+ * tracked in memory across jobs, plus mirrored in the current job's
+ * status_history (`excluded:<proId>`) for the active reroute.
+ */
+type ExclusionEntry = {
+  proId: string;
+  reason: string;
+  at: string;
+  expiresAt: string;
+};
+
+const exclusionsByCustomer = new Map<string, ExclusionEntry[]>();
+
+function cleanExpiredExclusions(): void {
+  const now = Date.now();
+  for (const [customerId, entries] of exclusionsByCustomer) {
+    const active = entries.filter((e) => Date.parse(e.expiresAt) > now);
+    if (active.length === 0) exclusionsByCustomer.delete(customerId);
+    else exclusionsByCustomer.set(customerId, active);
+  }
+}
+
+/** Active cross-job (customer, pro) exclusions currently in memory. */
+export function listActiveExclusions(): {
+  customerId: string;
+  proId: string;
+  reason: string;
+  at: string;
+  expiresAt: string;
+}[] {
+  cleanExpiredExclusions();
+  const out: ReturnType<typeof listActiveExclusions> = [];
+  for (const [customerId, entries] of exclusionsByCustomer) {
+    for (const e of entries) {
+      out.push({ customerId, proId: e.proId, reason: e.reason, at: e.at, expiresAt: e.expiresAt });
+    }
+  }
+  return out;
+}
+
+function excludeProForCustomer(
+  customerId: string,
+  proId: string,
+  reason: string
+): ExclusionEntry {
+  cleanExpiredExclusions();
+  const now = Date.now();
+  const entry: ExclusionEntry = {
+    proId,
+    reason,
+    at: new Date(now).toISOString(),
+    expiresAt: new Date(now + EXCLUDE_DURATION_MS).toISOString(),
+  };
+  const existing = exclusionsByCustomer.get(customerId) || [];
+  const filtered = existing.filter((e) => e.proId !== proId);
+  filtered.push(entry);
+  exclusionsByCustomer.set(customerId, filtered);
+  return entry;
+}
+
+/** Latest `deferred:<proId>` timestamp from the job's history, if any. */
+function latestDeferredAtMs(job: JobRecord, proId: string): number | null {
+  let latest: number | null = null;
+  for (const h of job.statusHistory || []) {
+    if (h.by === `deferred:${proId}`) {
+      const t = Date.parse(h.at);
+      if (Number.isFinite(t) && (latest === null || t > latest)) latest = t;
+    }
+  }
+  return latest;
+}
+
+/** True while this pro's "Later" is still active for this job (5 min). */
+function isDeferredByPro(job: JobRecord, proId: string): boolean {
+  const at = latestDeferredAtMs(job, proId);
+  if (at === null) return false;
+  return Date.now() - at < DEFER_DURATION_MS;
+}
+
+/** Latest `excluded:<proId>` timestamp from the job's history, if any. */
+function latestExcludedAtMs(job: JobRecord, proId: string): number | null {
+  let latest: number | null = null;
+  for (const h of job.statusHistory || []) {
+    if (h.by === `excluded:${proId}`) {
+      const t = Date.parse(h.at);
+      if (Number.isFinite(t) && (latest === null || t > latest)) latest = t;
+    }
+  }
+  return latest;
+}
+
+/** True if this (customer, pro) pair is on a 33-minute cooldown. */
+function isProExcludedForCustomer(
+  job: JobRecord,
+  customerId: string,
+  proId: string
+): boolean {
+  cleanExpiredExclusions();
+  const crossJob = exclusionsByCustomer.get(customerId) || [];
+  if (crossJob.some((e) => e.proId === proId)) return true;
+  const at = latestExcludedAtMs(job, proId);
+  if (at === null) return false;
+  return Date.now() - at < EXCLUDE_DURATION_MS;
+}
+
+/**
+ * Pro taps "Later": hide the request from that pro and keep the customer's
+ * search moving by rerouting to the next available pro immediately. The
+ * deferred pro stays excluded for 5 minutes. If no other pro is available,
+ * the request stays with the deferred pro and becomes deliverable again after
+ * the 5-minute window.
+ */
+export async function deferJob(
+  jobId: string,
+  proId: string
+): Promise<JobRecord | null> {
+  const job = await getJob(jobId);
+  if (!job) return null;
+  if (job.repairProId !== proId) return job;
+
+  const ts = new Date().toISOString();
+  job.statusHistory = [
+    ...(job.statusHistory || []),
+    { status: job.status, at: ts, by: `deferred:${proId}` },
+  ];
+
+  // Keep the customer's search alive: move into the searching phase so the
+  // customer sees the live search screen while dispatch finds another pro.
+  const hasAccepted = (job.statusHistory || []).some(
+    (h) => h.by === "negotiation_timer_start"
+  );
+  const canReroute =
+    !hasAccepted &&
+    isSupabaseAdminConfigured() &&
+    (job.status === "negotiating" || job.status === "searching");
+
+  if (canReroute) {
+    job.status = "searching";
+    job.statusHistory = [
+      ...job.statusHistory,
+      { status: "searching", at: ts, by: "searching_started" },
+    ];
+  }
+  await persist(job);
+
+  if (canReroute) {
+    try {
+      const sb = createServiceSupabase();
+      // Do not expire the job when no other pro is available — the deferred
+      // pro's request becomes deliverable again after the 5 minutes.
+      await assignNextPro(job, sb);
+    } catch (e) {
+      console.error("[deferJob] reroute failed", jobId, e);
+    }
+  }
+
+  return (await getJob(jobId)) || job;
+}
 
 /**
  * Find the next available pro of the same trade, closest to the customer.
@@ -1221,15 +1387,30 @@ async function findNextPro(
   job: JobRecord,
   sb: ReturnType<typeof createServiceSupabase>
 ): Promise<{ id: string; name: string; photo?: string } | null> {
-  const triedProIds = new Set(
-    job.statusHistory
-      .filter((h) => h.by === "reroute")
-      .flatMap((h) => {
-        const m = /rerouted_to:(\S+)/.exec(h.by || "");
-        return m ? [m[1]] : [];
-      })
-  );
+  const triedProIds = new Set<string>();
+  for (const h of job.statusHistory || []) {
+    const by = h.by || "";
+    if (by.startsWith("reroute:")) {
+      triedProIds.add(by.slice("reroute:".length));
+    }
+  }
   triedProIds.add(job.repairProId);
+
+  // Respect active cooldowns: pros who tapped Later (5 min) or declined this
+  // customer (33 min) are skipped so the same request is not re-delivered to
+  // them repeatedly within the cooldown period.
+  for (const h of job.statusHistory || []) {
+    const by = h.by || "";
+    if (by.startsWith("deferred:")) {
+      const proId = by.slice("deferred:".length);
+      if (isDeferredByPro(job, proId)) triedProIds.add(proId);
+    } else if (by.startsWith("excluded:")) {
+      const proId = by.slice("excluded:".length);
+      if (isProExcludedForCustomer(job, job.motoristId, proId)) {
+        triedProIds.add(proId);
+      }
+    }
+  }
 
   const { data: pros } = await sb
     .from("repair_pro_profiles")
@@ -1269,41 +1450,24 @@ async function findNextPro(
 }
 
 /**
- * Reroute an unaccepted job to the next available pro.
- * If no pro is found or the 15-min reroute window has expired,
- * the job is expired with `reroute_exhausted`.
+ * Assign the next available pro to an unaccepted job. Returns false when no
+ * eligible pro is left (caller decides whether to expire or keep waiting).
  */
-async function rerouteUnacceptedJob(
+async function assignNextPro(
   job: JobRecord,
   sb: ReturnType<typeof createServiceSupabase>
 ): Promise<boolean> {
-  const ts = new Date().toISOString();
-
   const nextPro = await findNextPro(job, sb);
-  if (!nextPro) {
-    // No more pros — expire with reroute_exhausted
-    await sb
-      .from("service_requests")
-      .update({
-        status: "expired",
-        updated_at: ts,
-        status_history: [
-          ...job.statusHistory,
-          {
-            status: "expired",
-            at: ts,
-            by: "reroute_exhausted",
-          },
-        ],
-      })
-      .eq("id", job.id);
-    return false;
-  }
+  if (!nextPro) return false;
+
+  const ts = new Date().toISOString();
 
   // Update job with new pro
   await sb
     .from("service_requests")
     .update({
+      status: "negotiating",
+      flow_status: "negotiating",
       repair_pro_id: nextPro.id,
       repair_pro_name: nextPro.name,
       ...(nextPro.photo ? { repair_pro_photo: nextPro.photo } : {}),
@@ -1343,10 +1507,46 @@ async function rerouteUnacceptedJob(
 }
 
 /**
+ * Reroute an unaccepted job to the next available pro.
+ * When no pro is available right now, the job moves into the `searching`
+ * phase (customer sees the live 60/40 search screen) and the sweep keeps
+ * retrying until the 15-minute window expires with `reroute_exhausted`.
+ */
+async function rerouteUnacceptedJob(
+  job: JobRecord,
+  sb: ReturnType<typeof createServiceSupabase>
+): Promise<boolean> {
+  const ok = await assignNextPro(job, sb);
+  if (ok) return true;
+
+  // No eligible pro right now — enter searching so the customer sees the
+  // search screen and dispatch keeps looking within the window.
+  const ts = new Date().toISOString();
+  const { error } = await sb
+    .from("service_requests")
+    .update({
+      status: flowToLegacyStatus("searching"),
+      flow_status: "searching",
+      updated_at: ts,
+      status_history: [
+        ...job.statusHistory,
+        { status: "searching", at: ts, by: "reroute_no_pro" },
+      ],
+    })
+    .eq("id", job.id);
+  if (error) {
+    console.error("rerouteUnacceptedJob: searching update failed", job.id, error.message);
+  }
+  return false;
+}
+
+/**
  * Sweep for negotiating jobs where the pro has not tapped "I can fix this"
  * within 1 minute. Reroutes to the next available pro of the same trade.
  * After 15 minutes without any acceptance, the job expires with a
  * `reroute_exhausted` marker so the customer sees the retry message.
+ * Also handles `searching` jobs (pro actively cancelled) — reroute immediately
+ * without the 1-minute delay.
  */
 export async function expireUnacceptedJobs(
   limit = 40
@@ -1359,34 +1559,36 @@ export async function expireUnacceptedJobs(
 
   try {
     const sb = createServiceSupabase();
-    const { data } = await sb
+
+    // Sweep negotiating jobs (pro has not responded yet)
+    const { data: negotiatingData } = await sb
       .from("service_requests")
       .select("*")
       .eq("status", "negotiating")
       .order("created_at", { ascending: true })
       .limit(limit);
 
-    for (const row of data || []) {
+    for (const row of negotiatingData || []) {
       const job = rowToJob(row as Record<string, unknown>);
       checked++;
 
-      // Skip if pro already accepted (tapped "I can fix this")
       const hasAccepted = job.statusHistory.some(
         (h) => h.by === "negotiation_timer_start"
       );
       if (hasAccepted) continue;
 
+      if (isDeferredByPro(job, job.repairProId)) continue;
+
       const ageMs = Date.now() - new Date(job.createdAt).getTime();
 
-      // Not yet 1 minute old
       if (ageMs < REROUTE_AFTER_MS) continue;
 
       if (ageMs >= REROUTE_WINDOW_MS) {
-        // 15+ minutes — expire
         await sb
           .from("service_requests")
           .update({
             status: "expired",
+            flow_status: "expired",
             updated_at: new Date().toISOString(),
             status_history: [
               ...job.statusHistory,
@@ -1400,10 +1602,61 @@ export async function expireUnacceptedJobs(
           .eq("id", job.id);
         expired++;
       } else {
-        // 1-15 min — reroute
         const ok = await rerouteUnacceptedJob(job, sb);
         if (ok) rerouted++;
         else expired++;
+      }
+    }
+
+    // Sweep searching jobs (pro cancelled — reroute immediately)
+    const { data: searchingData } = await sb
+      .from("service_requests")
+      .select("*")
+      .eq("flow_status", "searching")
+      .order("created_at", { ascending: true })
+      .limit(limit);
+
+    for (const row of searchingData || []) {
+      const job = rowToJob(row as Record<string, unknown>);
+      checked++;
+
+      // Measure the 15-minute search window from when searching actually
+      // started (e.g. the decline), not from job creation.
+      let searchingAt = 0;
+      for (const h of job.statusHistory || []) {
+        if (h.status === "searching") {
+          const t = Date.parse(h.at);
+          if (Number.isFinite(t) && t > searchingAt) searchingAt = t;
+        }
+      }
+      const ageMs =
+        Date.now() - (searchingAt || new Date(job.createdAt).getTime());
+
+      if (ageMs >= REROUTE_WINDOW_MS) {
+        // 15+ minutes — expire
+        await sb
+          .from("service_requests")
+          .update({
+            status: "expired",
+            flow_status: "expired",
+            updated_at: new Date().toISOString(),
+            status_history: [
+              ...job.statusHistory,
+              {
+                status: "expired",
+                at: new Date().toISOString(),
+                by: "reroute_exhausted",
+              },
+            ],
+          })
+          .eq("id", job.id);
+        expired++;
+      } else {
+        // Reroute immediately (no 1-minute delay for actively cancelled jobs).
+        // When no pro is available right now, keep the job searching — a pro
+        // may free up before the 15-minute window ends.
+        const ok = await assignNextPro(job, sb);
+        if (ok) rerouted++;
       }
     }
   } catch (e) {
@@ -1415,6 +1668,103 @@ export async function expireUnacceptedJobs(
 
 /** Reroute a single unaccepted job to the next nearest pro when the current pro declines. */
 export async function rerouteDeclinedJob(
+  jobId: string,
+  cancelReason?: string
+): Promise<{ ok: true; job: JobRecord } | { error: string }> {
+  if (!isSupabaseAdminConfigured()) return { error: "Server not configured" };
+  const sb = createServiceSupabase();
+  const { data } = await sb
+    .from("service_requests")
+    .select("*")
+    .eq("id", jobId)
+    .single();
+  if (!data) return { error: "Job not found" };
+  const job = rowToJob(data as Record<string, unknown>);
+  if (job.status !== "negotiating" && job.status !== "searching") {
+    return { error: "Job is no longer available" };
+  }
+
+  // Record the cancellation in statusHistory, then move the job into the
+  // "searching" phase so the customer's UI shows the live 60/40 search screen
+  // while dispatch looks for the next pro.
+  const cancelledProName = job.repairProName;
+  const declineTs = new Date().toISOString();
+  const cancelEntry = {
+    status: "searching" as JobFlowStatus,
+    at: declineTs,
+    by: "repair_pro",
+    note: cancelReason ? `pro_declined:${cancelReason}` : "pro_declined",
+  };
+  const history = [...(job.statusHistory || []), cancelEntry];
+
+  // 33-minute exclusion: this (customer, pro) pair is on cooldown so the
+  // same pro is not re-dispatched for this customer's request. Mirrored into
+  // statusHistory so the active reroute sees it, and into the cross-job map
+  // so it also covers future requests from the same customer.
+  excludeProForCustomer(job.motoristId, job.repairProId, "pro_declined");
+  history.push({
+    status: "searching" as JobFlowStatus,
+    at: declineTs,
+    by: `excluded:${job.repairProId}`,
+  });
+
+  // 1) Persist the searching phase first (customer sees the search screen).
+  const { error: searchErr } = await sb
+    .from("service_requests")
+    .update({
+      status: flowToLegacyStatus("searching"),
+      flow_status: "searching",
+      updated_at: declineTs,
+      status_history: history,
+    })
+    .eq("id", job.id);
+  if (searchErr) {
+    console.error("rerouteDeclinedJob: searching update failed", job.id, searchErr.message);
+    return { error: "Could not enter searching phase" };
+  }
+
+  // 2) Hand off ASAP to the next available pro. When none is available the
+  // job stays in "searching" — the expireUnacceptedJobs sweep keeps retrying
+  // and only expires after the 15-minute window.
+  const jobWithHistory = { ...job, statusHistory: history };
+  await assignNextPro(jobWithHistory, sb);
+
+  // Notify customer that the pro declined and we're finding another
+  try {
+    const { insertNotification } = await import("@/lib/server/notifications");
+    await insertNotification({
+      userId: job.motoristId,
+      category: "requests",
+      priority: "high",
+      title: "Repair Pro not available",
+      body: `${cancelledProName} could not take this request. Finding another pro…`,
+      href: `/jobs/${job.id}`,
+      actionType: "open_job",
+      actionPayload: { jobId: job.id },
+      jobId: job.id,
+      jobStatus: "searching",
+      groupKey: `pro-declined-${job.id}`,
+    });
+  } catch {
+    /* notification optional */
+  }
+
+  // Reload to get the post-reroute state (negotiating with new pro, or still
+  // searching while we keep looking).
+  const { data: updated } = await sb
+    .from("service_requests")
+    .select("*")
+    .eq("id", jobId)
+    .single();
+  return { ok: true, job: rowToJob((updated || data) as Record<string, unknown>) };
+}
+
+/**
+ * Admin control: force-reroute an active job to the next eligible pro
+ * (skipping deferred/excluded/tried pros). Returns the updated job, or an
+ * error when the job isn't actively awaiting a pro or no pro is eligible.
+ */
+export async function forceRerouteJob(
   jobId: string
 ): Promise<{ ok: true; job: JobRecord } | { error: string }> {
   if (!isSupabaseAdminConfigured()) return { error: "Server not configured" };
@@ -1426,24 +1776,181 @@ export async function rerouteDeclinedJob(
     .single();
   if (!data) return { error: "Job not found" };
   const job = rowToJob(data as Record<string, unknown>);
-  if (job.status !== "negotiating") return { error: "Job is no longer available" };
-  const ok = await rerouteUnacceptedJob(job, sb);
-  if (!ok) {
-    // Reroute exhausted → reload to get expired status
-    const { data: expired } = await sb
-      .from("service_requests")
-      .select("*")
-      .eq("id", jobId)
-      .single();
-    return { ok: true, job: rowToJob((expired || data) as Record<string, unknown>) };
+  if (job.status !== "negotiating" && job.status !== "searching") {
+    return { error: "Job is not awaiting a pro" };
   }
-  // Reload job with new pro assignment
+
+  job.statusHistory = [
+    ...(job.statusHistory || []),
+    {
+      status: job.status as JobFlowStatus,
+      at: new Date().toISOString(),
+      by: "admin_force_reroute",
+    },
+  ];
+
+  const ok = await assignNextPro(job, sb);
+  if (!ok) return { error: "No eligible pro available" };
+
   const { data: updated } = await sb
     .from("service_requests")
     .select("*")
     .eq("id", jobId)
     .single();
-  return { ok: true, job: rowToJob((updated || data) as Record<string, unknown>) };
+  if (!updated) return { error: "Job not found after reroute" };
+  return { ok: true, job: rowToJob(updated as Record<string, unknown>) };
+}
+
+/**
+ * Admin control: clear every active cooldown (deferrals + exclusions) for a
+ * job so dispatch may consider those pros again immediately.
+ */
+export async function clearJobCooldowns(
+  jobId: string
+): Promise<{ ok: true; job: JobRecord } | { error: string }> {
+  if (!isSupabaseAdminConfigured()) return { error: "Server not configured" };
+  const sb = createServiceSupabase();
+  const { data } = await sb
+    .from("service_requests")
+    .select("*")
+    .eq("id", jobId)
+    .single();
+  if (!data) return { error: "Job not found" };
+  const job = rowToJob(data as Record<string, unknown>);
+
+  // Clear in-memory cross-job exclusions for this customer.
+  exclusionsByCustomer.delete(job.motoristId);
+
+  // Strip deferral / exclusion markers from persisted history.
+  const cleaned = (job.statusHistory || []).filter((h) => {
+    const by = h.by || "";
+    return !by.startsWith("deferred:") && !by.startsWith("excluded:");
+  });
+  await sb
+    .from("service_requests")
+    .update({
+      status_history: cleaned,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", jobId);
+
+  const { data: updated } = await sb
+    .from("service_requests")
+    .select("*")
+    .eq("id", jobId)
+    .single();
+  if (!updated) return { error: "Job not found after clear" };
+  return { ok: true, job: rowToJob(updated as Record<string, unknown>) };
+}
+
+/**
+ * Admin control: force-expire an active job (ends the search/negotiation).
+ */
+export async function adminExpireJob(
+  jobId: string
+): Promise<{ ok: true; job: JobRecord } | { error: string }> {
+  if (!isSupabaseAdminConfigured()) return { error: "Server not configured" };
+  const sb = createServiceSupabase();
+  const { data } = await sb
+    .from("service_requests")
+    .select("*")
+    .eq("id", jobId)
+    .single();
+  if (!data) return { error: "Job not found" };
+  const job = rowToJob(data as Record<string, unknown>);
+
+  const ts = new Date().toISOString();
+  await sb
+    .from("service_requests")
+    .update({
+      status: "expired",
+      flow_status: "expired",
+      updated_at: ts,
+      status_history: [
+        ...(job.statusHistory || []),
+        { status: "expired", at: ts, by: "admin_expired" },
+      ],
+    })
+    .eq("id", jobId);
+
+  const { data: updated } = await sb
+    .from("service_requests")
+    .select("*")
+    .eq("id", jobId)
+    .single();
+  if (!updated) return { error: "Job not found after expire" };
+  return { ok: true, job: rowToJob(updated as Record<string, unknown>) };
+}
+
+/**
+ * Admin control: reassign an active job to a specific pro, bypassing the
+ * normal dispatch order. The targeted pro's active deferral/exclusion for
+ * this job is cleared first so the override sticks.
+ */
+export async function adminReassignJob(
+  jobId: string,
+  proId: string,
+  proName?: string
+): Promise<{ ok: true; job: JobRecord } | { error: string }> {
+  if (!isSupabaseAdminConfigured()) return { error: "Server not configured" };
+  if (!proId) return { error: "Missing proId" };
+  const sb = createServiceSupabase();
+  const { data } = await sb
+    .from("service_requests")
+    .select("*")
+    .eq("id", jobId)
+    .single();
+  if (!data) return { error: "Job not found" };
+  const job = rowToJob(data as Record<string, unknown>);
+
+  const ts = new Date().toISOString();
+  const history = (job.statusHistory || []).filter((h) => {
+    const by = h.by || "";
+    return !(by.startsWith("deferred:") && by.slice("deferred:".length) === proId) &&
+      !(by.startsWith("excluded:") && by.slice("excluded:".length) === proId);
+  });
+  history.push({
+    status: "negotiating",
+    at: ts,
+    by: `admin_reassign:${proId}`,
+  });
+
+  await sb
+    .from("service_requests")
+    .update({
+      status: "negotiating",
+      flow_status: "negotiating",
+      repair_pro_id: proId,
+      repair_pro_name: proName || job.repairProName,
+      updated_at: ts,
+      status_history: history,
+    })
+    .eq("id", jobId);
+
+  try {
+    const { insertNotification } = await import("@/lib/server/notifications");
+    await insertNotification({
+      userId: proId,
+      category: "requests",
+      priority: "high",
+      title: "Service Request",
+      body: `New request from ${job.motoristName} · ${job.problem.slice(0, 80)}`,
+      href: `/jobs/${job.id}`,
+      actionType: "open_job",
+      actionPayload: { jobId: job.id },
+      jobId: job.id,
+    });
+  } catch {
+    /* notifications optional */
+  }
+
+  const { data: updated } = await sb
+    .from("service_requests")
+    .select("*")
+    .eq("id", jobId)
+    .single();
+  if (!updated) return { error: "Job not found after reassign" };
+  return { ok: true, job: rowToJob(updated as Record<string, unknown>) };
 }
 
 export async function listJobsForUser(
@@ -1453,7 +1960,10 @@ export async function listJobsForUser(
   const out: JobRecord[] = [];
   for (const j of memory.values()) {
     if (role === "motorist" && j.motoristId === userId) out.push(j);
-    if (role === "repair_pro" && j.repairProId === userId) out.push(j);
+    if (role === "repair_pro" && j.repairProId === userId) {
+      if (isDeferredByPro(j, userId)) continue;
+      out.push(j);
+    }
   }
   if (isSupabaseAdminConfigured()) {
     try {
@@ -1471,6 +1981,7 @@ export async function listJobsForUser(
         j = await clearFalseSatisfiedStamp(j);
         j = await maybeExpire(j);
         j = await hydrateJobPhones(j);
+        if (role === "repair_pro" && isDeferredByPro(j, userId)) continue;
         if (!out.find((x) => x.id === j.id)) out.push(j);
       }
     } catch {
@@ -1521,7 +2032,12 @@ async function applyEvent(
   event: TransitionEvent,
   actor: TransitionActor
 ): Promise<JobRecord> {
-  const next = assertTransition(job.status, event);
+  const nextRaw = assertTransition(job.status, event);
+  // Customer (or admin/system) cancelling during negotiation/search fully
+  // cancels the job — only a Repair Pro decline enters the "searching"
+  // (find-another-pro) phase, and that path is handled by rerouteDeclinedJob.
+  const next =
+    event.type === "CANCEL" && nextRaw === "searching" ? "cancelled" : nextRaw;
   const ts = nowIso();
 
   // Pro accepts request → arm 20 min negotiate timer (does not change status)

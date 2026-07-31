@@ -52,11 +52,11 @@ create table if not exists public.profiles (
 -- unique constraints if missing
 do $$ begin
   alter table public.profiles add constraint profiles_phone_unique unique (phone);
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 do $$ begin
   alter table public.profiles add constraint profiles_email_unique unique (email);
-exception when duplicate_object then null;
+exception when duplicate_object or duplicate_table then null;
 end $$;
 
 create index if not exists profiles_role_idx on public.profiles (role);
@@ -450,21 +450,41 @@ grant all on all routines in schema public to postgres, anon, authenticated, ser
 alter default privileges in schema public grant all on tables to postgres, anon, authenticated, service_role;
 alter default privileges in schema public grant all on sequences to postgres, anon, authenticated, service_role;
 
--- Seed Super Admin profile for existing auth user
-insert into public.profiles (id, role, full_name, email, is_active)
-values (
-  'd2e5f02b-2d60-4c6c-944d-ea3898336660',
-  'admin',
-  'Oluwatosin Abdullah',
-  'oluwatosinabdullahime@gmail.com',
-  true
-)
-on conflict (id) do update set
-  role = 'admin',
-  full_name = excluded.full_name,
-  email = excluded.email,
-  is_active = true,
-  updated_at = now();
+-- Seed Super Admin profile for existing auth user.
+-- Idempotent: if the admin email already belongs to a real app account (it does
+-- on a live DB), promote that account to admin instead of forcing the email
+-- onto the dedicated admin id (which would collide with profiles_email_unique).
+do $$
+declare
+  seed_admin_id uuid := 'd2e5f02b-2d60-4c6c-944d-ea3898336660'::uuid;
+  seed_admin_email text := 'oluwatosinabdullahime@gmail.com';
+  seed_admin_name text := 'Oluwatosin Abdullah';
+  email_owner uuid;
+begin
+  select id into email_owner from public.profiles
+  where email = seed_admin_email limit 1;
+
+  if email_owner is null then
+    insert into public.profiles (id, role, full_name, email, is_active)
+    values (seed_admin_id, 'admin', seed_admin_name, seed_admin_email, true)
+    on conflict (id) do update set
+      role = 'admin',
+      full_name = excluded.full_name,
+      email = excluded.email,
+      is_active = true,
+      updated_at = now();
+  else
+    update public.profiles set
+      role = 'admin',
+      full_name = case
+        when full_name is null or full_name = '' then seed_admin_name
+        else full_name
+      end,
+      is_active = true,
+      updated_at = now()
+    where id = email_owner;
+  end if;
+end $$;
 
 delete from public.motorist_profiles where user_id = 'd2e5f02b-2d60-4c6c-944d-ea3898336660';
 delete from public.repair_pro_profiles where user_id = 'd2e5f02b-2d60-4c6c-944d-ea3898336660';

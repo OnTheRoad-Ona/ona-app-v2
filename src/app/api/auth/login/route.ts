@@ -12,6 +12,10 @@ import {
   profileToUserProfile,
   resolvePrimaryAccountType,
 } from "@/lib/supabase/mappers";
+import {
+  ensureUserRole,
+  syncPayoutAcrossRoles,
+} from "@/lib/server/identity/identity-sync";
 import type { ProfileRow, RepairProRow } from "@/lib/supabase/types";
 import type { AccountType, ProService, UserProfile } from "@/lib/types";
 
@@ -270,6 +274,21 @@ export async function POST(req: Request) {
     }
 
     const { profile, hasMotorist, hasPro } = loaded;
+
+    // Unified identity self-heal: register attached roles + sync the canonical
+    // bank record on every login (harmless for up-to-date accounts).
+    try {
+      const admin = createServiceSupabase();
+      if (hasMotorist) {
+        await ensureUserRole(admin, userId, "motorist", { userId, source: "login" });
+      }
+      if (hasPro) {
+        await ensureUserRole(admin, userId, "repair_pro", { userId, source: "login" });
+      }
+      await syncPayoutAcrossRoles(admin, userId, { userId, source: "login" });
+    } catch (e) {
+      console.error("login identity sync failed", e);
+    }
 
     return apiOk({
       userId,

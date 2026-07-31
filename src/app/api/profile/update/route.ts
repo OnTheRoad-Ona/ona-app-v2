@@ -565,6 +565,19 @@ export async function POST(req: Request) {
     }
   }
 
+  // Unified identity: keep the canonical bank record + the other role's side
+  // table in sync after any bank change (one bank = payouts + refunds).
+  if (hasBankPatch) {
+    try {
+      const { syncPayoutAcrossRoles } = await import(
+        "@/lib/server/identity/identity-sync"
+      );
+      await syncPayoutAcrossRoles(admin, userId, { userId, source: "profile_update" });
+    } catch (e) {
+      console.error("profile bank sync failed", e);
+    }
+  }
+
   // Persist guarantor for Repair Pro
   if (b.guarantor) {
     try {

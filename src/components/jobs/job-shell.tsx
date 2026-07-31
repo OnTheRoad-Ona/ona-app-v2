@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -19,6 +19,8 @@ export function JobShell({
   compactHeader = false,
   /** Body fills height without outer scroll (map + swipe sheet layouts) */
   fillBody = false,
+  /** Override the back icon (default: ArrowLeft) */
+  backIcon,
 }: {
   isLight: boolean;
   title: string;
@@ -30,13 +32,14 @@ export function JobShell({
   /** Smaller title / subtitle (e.g. describe-problem) */
   compactHeader?: boolean;
   fillBody?: boolean;
+  backIcon?: ReactNode;
 }) {
   const stage = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-600" : "text-white/60";
 
   return (
-    <div className={cn("relative flex h-full min-h-0 flex-col", stage)}>
+    <div className={cn("relative flex h-full min-h-0 flex-1 flex-col", stage)}>
       <header className="relative z-10 flex shrink-0 items-center gap-2 px-4 pb-1.5 pt-[max(0.75rem,env(safe-area-inset-top))]">
         {onBack && (
           <button
@@ -52,7 +55,7 @@ export function JobShell({
             }}
             aria-label="Back"
           >
-            <ArrowLeft className={compactHeader ? "h-4 w-4" : "h-5 w-5"} />
+            {backIcon ?? <ArrowLeft className={compactHeader ? "h-4 w-4" : "h-5 w-5"} />}
           </button>
         )}
         <div className="min-w-0 flex-1">

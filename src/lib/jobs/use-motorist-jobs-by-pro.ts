@@ -40,7 +40,9 @@ export function useMotoristJobsByPro(): {
   }, [backendUserId, accountType]);
 
   useEffect(() => {
-    void load();
+    queueMicrotask(() => {
+      void load();
+    });
     const onVis = () => {
       if (document.visibilityState === "visible") void load();
     };

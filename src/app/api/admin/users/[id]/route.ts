@@ -6,11 +6,12 @@ import {
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
+import { identityStatus } from "@/lib/server/identity/identity-sync";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Full person detail: profile + role tables + jobs/bookings history (no embeds). */
+/** Full person detail: profile + role tables + identity sync + history. */
 export async function GET(
   _req: Request,
   ctx: { params: Promise<{ id: string }> }
@@ -34,7 +35,7 @@ export async function GET(
     if (error) return apiFail(error.message, 500);
     if (!profile) return apiFail("User not found", 404);
 
-    const [motRes, proRes, jobs, bookings, payments, reviews] =
+    const [motRes, proRes, jobs, bookings, payments, reviews, identity] =
       await Promise.all([
         supabase.from("motorist_profiles").select("*").eq("user_id", id).maybeSingle(),
         supabase
@@ -70,6 +71,7 @@ export async function GET(
           .or(`motorist_id.eq.${id},repair_pro_id.eq.${id}`)
           .order("created_at", { ascending: false })
           .limit(20),
+        identityStatus(supabase, id),
       ]);
 
     return apiOk({
@@ -78,6 +80,7 @@ export async function GET(
         motorist_profiles: motRes.data ?? null,
         repair_pro_profiles: proRes.data ?? null,
       },
+      identity,
       jobs: jobs.data ?? [],
       bookings: bookings.data ?? [],
       payments: payments.data ?? [],

@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { normalizeNgPhone } from "@/lib/server/africastalking";
-import { emailOtpKey } from "@/lib/auth/demo-otp";
+import { emailOtpKey, isDemoOtp, isDemoOtpAllowed } from "@/lib/auth/demo-otp";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 
@@ -54,9 +54,9 @@ export async function POST(req: Request) {
 
   if (!dest) return apiFail("Invalid target", 400);
 
-  // Demo code 336699 always works
-  const DEMO_CODE = "336699";
-  if (codeClean === DEMO_CODE) {
+  // Demo code 336699 only works outside production
+  const demoOk = isDemoOtp(codeClean) && isDemoOtpAllowed();
+  if (demoOk) {
     await supabase
       .from("phone_otps")
       .update({ consumed_at: new Date().toISOString() })

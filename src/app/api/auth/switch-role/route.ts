@@ -11,6 +11,11 @@ import {
   profileToUserProfile,
   resolvePrimaryAccountType,
 } from "@/lib/supabase/mappers";
+import {
+  ensureUserRole,
+  listUserRoles,
+  syncPayoutAcrossRoles,
+} from "@/lib/server/identity/identity-sync";
 import type { ProfileRow, RepairProRow } from "@/lib/supabase/types";
 import type { AccountType, ProService } from "@/lib/types";
 import { isProService } from "@/lib/services";
@@ -146,6 +151,14 @@ export async function POST(req: Request) {
       .eq("user_id", userId);
   }
 
+  // Unified identity: keep the role registry + canonical bank in sync so a
+  // bank entered on one role is reused by the other without re-entry.
+  await ensureUserRole(admin, userId, role, {
+    userId,
+    source: "switch_role",
+  });
+  await syncPayoutAcrossRoles(admin, userId, { userId, source: "switch_role" });
+
   const profileRow = updated as ProfileRow;
   const accountType: AccountType =
     role === "repair_pro" ? "professional" : "motorist";
@@ -228,10 +241,13 @@ export async function POST(req: Request) {
     ...extras,
   });
 
+  const roles = await listUserRoles(admin, userId);
+
   return apiOk({
     userId,
     accountType,
     role,
+    roles,
     hasMotorist,
     hasPro,
     primaryAccountType,

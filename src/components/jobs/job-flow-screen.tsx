@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  Minimize2,
   Navigation,
   ShieldAlert,
   Star,
@@ -23,6 +24,7 @@ import { useInAppCall } from "@/components/call/in-app-call";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CountdownTimer } from "@/components/jobs/countdown-timer";
 import { LiveJobTrackMap } from "@/components/jobs/live-job-track-map";
+import { SearchingMap } from "@/components/jobs/searching-map";
 import {
   CopperButton,
   GhostButton,
@@ -91,6 +93,7 @@ function isJobNewer(next: JobRecord, prev: JobRecord | null): boolean {
   // Same timestamp: allow forward status progression only
   const order = [
     "negotiating",
+    "searching",
     "agreed",
     "paid_booked",
     "en_route",
@@ -161,6 +164,11 @@ export function JobFlowScreen({
   const tripGestureY = useRef<number | null>(null);
   /** Pay screen: single Cancel → choose payment vs request */
   const [payCancelOpen, setPayCancelOpen] = useState(false);
+  /** Pro cancel reason modal */
+  const [showCancelReasons, setShowCancelReasons] = useState(false);
+  const [cancelReason, setCancelReason] = useState<string | null>(null);
+  /** Reroute notification overlay */
+  const [rerouteAlert, setRerouteAlert] = useState<string | null>(null);
 
   /** Open (or create) cloud job chat so both parties share one conversation */
   const openJobChat = useCallback(
@@ -410,7 +418,7 @@ export function JobFlowScreen({
     void tick();
     // Real-time feel: negotiate/agreed fast; trip moderate; completed fast for customer
     const ms =
-      job?.status === "negotiating" || job?.status === "agreed"
+      job?.status === "negotiating" || job?.status === "searching" || job?.status === "agreed"
         ? 2_500
         : job?.status === "completed"
           ? 2_000
@@ -560,6 +568,20 @@ export function JobFlowScreen({
       }
       applyJob(res.data.job);
       const next = res.data.job.status;
+
+      // Detect reroute — pro cancelled and system found another
+      const lastHistory = res.data.job.statusHistory?.at(-1);
+      const hasReroute = lastHistory?.by?.startsWith("reroute:");
+      const wasCancelled = res.data.job.statusHistory?.some(
+        (h) => h.note?.startsWith("pro_declined")
+      );
+      if (hasReroute && wasCancelled && viewer === "motorist") {
+        const note = res.data.job.statusHistory.find(
+          (h) => h.note?.startsWith("pro_declined")
+        );
+        setRerouteAlert(note?.note || "pro_declined");
+        return;
+      }
       try {
         const { playAppSound } = await import("@/lib/sound-tone");
         if (next !== prevStatus) {
@@ -677,8 +699,19 @@ export function JobFlowScreen({
       job.offers.length === 0;
 
     if (needsProCanFixGate) {
+      const CANCEL_REASONS = [
+        "Currently unavailable",
+        "Too far away",
+        "Busy with another customer",
+        "Outside my service area",
+        "Vehicle issue",
+        "Emergency",
+        "Other",
+      ] as const;
+
       return (
-        <JobShell
+        <>
+          <JobShell
           isLight={isLight}
           title="Can you fix this?"
           compactHeader
@@ -709,24 +742,12 @@ export function JobFlowScreen({
               >
                 I can fix this
               </CopperButton>
-              <button
-                type="button"
-                className={cn(
-                  "inline-flex h-12 w-full items-center justify-center rounded-md border-0 bg-[#2c2c2e] text-[14px] font-semibold text-white"
-                )}
-                onClick={() =>
-                  void run(() =>
-                    apiTransition({
-                      jobId: job.id,
-                      event: "CANCEL",
-                      actor: "repair_pro",
-                      actorId,
-                    })
-                  )
-                }
+              <GhostButton
+                isLight={isLight}
+                onClick={() => setShowCancelReasons(true)}
               >
                 Cancel · I cannot fix this
-              </button>
+              </GhostButton>
             </div>
           }
         >
@@ -784,15 +805,71 @@ export function JobFlowScreen({
             )}
           </div>
         </JobShell>
-      );
-    }
 
-    return (
+        {/* Cancel reason modal */}
+        {showCancelReasons && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 pb-12">
+            <div
+              className={cn(
+                "w-full max-w-[390px] rounded-t-2xl px-5 pb-6 pt-5",
+                isLight ? "bg-[#c8c9cd]" : "bg-[#1c1c1e]"
+              )}
+            >
+              <h2 className={cn("mb-4 text-[16px] font-bold", ink)}>
+                Why are you cancelling?
+              </h2>
+              <div className="space-y-2">
+                {CANCEL_REASONS.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => {
+                      setCancelReason(r);
+                      setShowCancelReasons(false);
+                      void run(() =>
+                        apiTransition({
+                          jobId: job.id,
+                          event: "CANCEL",
+                          actor: "repair_pro",
+                          actorId,
+                          reason: "pro_declined",
+                          cancelReason: r,
+                        })
+                      );
+                    }}
+                    className={cn(
+                      "flex w-full items-center rounded-lg px-4 py-3 text-left text-[14px] font-medium transition active:scale-[0.98]",
+                      isLight
+                        ? "bg-white/70 text-slate-900 active:bg-white"
+                        : "bg-[#2c2c2e] text-white active:bg-[#3a3a3c]"
+                    )}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="mt-4 w-full py-3 text-center text-[13px] font-medium text-red-500"
+                onClick={() => setShowCancelReasons(false)}
+              >
+                Go back
+              </button>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <>
       <JobShell
         isLight={isLight}
         title={viewer === "repair_pro" ? "Service Request" : "Negotiate labour"}
         compactHeader
         onBack={goJobsList}
+        backIcon={viewer === "motorist" ? <Minimize2 className="h-4 w-4" /> : undefined}
         footer={
           <div className="space-y-1.5">
             {canAccept && last && (
@@ -1080,7 +1157,38 @@ export function JobFlowScreen({
           </p>
         )}
       </JobShell>
+
+      {/* Reroute notification overlay for motorist */}
+      {rerouteAlert && viewer === "motorist" && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 pb-12">
+          <div
+            className={cn(
+              "w-full max-w-[390px] rounded-t-2xl px-5 pb-6 pt-5",
+              isLight ? "bg-[#c8c9cd]" : "bg-[#1c1c1e]"
+            )}
+          >
+            <h2 className={cn("mb-2 text-[18px] font-bold", ink)}>
+              Repair Pro Unavailable
+            </h2>
+            <p className={cn("mb-6 text-[14px] font-medium leading-relaxed", muted)}>
+              The selected pro is currently unavailable and has declined your
+              request. We&rsquo;re finding another pro with the same skill.
+            </p>
+            <CopperButton
+              onClick={() => setRerouteAlert(null)}
+            >
+              Continue Searching
+            </CopperButton>
+          </div>
+        </div>
+      )}
+    </>
     );
+  }
+
+  /* ─── SEARCHING (pro cancelled, finding another) ─── */
+  if (job.status === "searching") {
+    return <SearchingScreen job={job} viewer={viewer} isLight={isLight} err={err} onBack={goJobsList} />;
   }
 
   /* ─── AGREED ─── */
@@ -1855,7 +1963,8 @@ export function JobFlowScreen({
         }
       };
 
-      return (
+    return (
+      <>
         <JobShell
           isLight={isLight}
           title={copy.title}
@@ -1961,9 +2070,35 @@ export function JobFlowScreen({
             </div>
           </div>
           {disputeNode}
-        </JobShell>
-      );
-    }
+      </JobShell>
+
+        {/* Reroute notification overlay for motorist */}
+        {rerouteAlert && viewer === "motorist" && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 pb-12">
+            <div
+              className={cn(
+                "w-full max-w-[390px] rounded-t-2xl px-5 pb-6 pt-5",
+                isLight ? "bg-[#c8c9cd]" : "bg-[#1c1c1e]"
+              )}
+            >
+              <h2 className={cn("mb-2 text-[18px] font-bold", ink)}>
+                Repair Pro Unavailable
+              </h2>
+              <p className={cn("mb-6 text-[14px] font-medium leading-relaxed", muted)}>
+                The selected pro is currently unavailable and has declined your
+                request. We&rsquo;re finding another pro with the same skill.
+              </p>
+              <CopperButton
+                onClick={() => setRerouteAlert(null)}
+              >
+                Continue Searching
+              </CopperButton>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
 
     /* ── Ready to go only (no map) — details stay on solid stage panel ── */
     return (
@@ -2775,8 +2910,8 @@ export function JobFlowScreen({
   }
 
   /* ─── CANCELLED / REFUNDED ─── */
-  return (
-    <JobShell
+    return (
+      <JobShell
       isLight={isLight}
       title={
         job.status === "refunded"
@@ -2815,9 +2950,9 @@ export function JobFlowScreen({
               : "This job has ended.")}
         </p>
       </JobCard>
-    </JobShell>
-  );
-}
+      </JobShell>
+    );
+  }
 
 function StatusPill({
   label,
@@ -2924,5 +3059,141 @@ function DisputeSheet({
         </div>
       </div>
     </div>
+  );
+}
+
+/** Total reroute window a search can run before the request expires. */
+const SEARCH_REROUTE_WINDOW_MS = 15 * 60_000;
+
+function searchingEndsAtIso(job: JobRecord): string {
+  let start = 0;
+  for (const h of job.statusHistory || []) {
+    if (h.status === "searching") {
+      const t = Date.parse(h.at);
+      if (Number.isFinite(t) && t > start) start = t;
+    }
+  }
+  if (!start) start = Date.now();
+  return new Date(start + SEARCH_REROUTE_WINDOW_MS).toISOString();
+}
+
+function SearchingScreen({
+  job,
+  viewer,
+  isLight,
+  err,
+  onBack,
+}: {
+  job: JobRecord;
+  viewer: "motorist" | "repair_pro";
+  isLight: boolean;
+  err: string | null;
+  onBack: () => void;
+}) {
+  const ink = isLight ? "text-slate-900" : "text-white";
+  const muted = isLight ? "text-slate-700" : "text-white/75";
+  const skillLabel =
+    (PRO_SERVICE_LABELS[job.serviceType] || "Pro").replace(/\s*Pro$/i, "").trim() ||
+    "Pro";
+  const [idx, setIdx] = useState(0);
+  const messages = useMemo(
+    () => [
+      `Searching for the nearest ${skillLabel} near you…`,
+      `Contacting nearby ${skillLabel}s who can fix "${job.problem}"…`,
+      `Checking ${skillLabel}s available right now…`,
+      `Still looking for an available ${skillLabel}…`,
+      `Widening the search to more ${skillLabel}s…`,
+    ],
+    [skillLabel, job.problem]
+  );
+  useEffect(() => {
+    const id = window.setInterval(
+      () => setIdx((i) => (i + 1) % messages.length),
+      2600
+    );
+    return () => window.clearInterval(id);
+  }, [messages.length]);
+
+  if (viewer === "repair_pro") {
+    return (
+      <JobShell isLight={isLight} title="Service Request" compactHeader>
+        <div className="flex flex-col items-center justify-center px-0.5 pt-12">
+          <div className="mb-6 h-10 w-10 animate-spin rounded-full border-2 border-[#FF6B35] border-t-transparent" />
+          <h2 className={cn("mb-2 text-center text-[18px] font-bold", ink)}>
+            Request cancelled
+          </h2>
+          <p className={cn("mb-1 text-center text-[13px] font-medium", muted)}>
+            This request will be passed to another pro.
+          </p>
+          <p className={cn("mt-4 text-center text-[12px] font-medium", muted)}>
+            This request is no longer available to you.
+          </p>
+        </div>
+        {err && (
+          <p className="mt-4 text-center text-[12px] font-medium text-red-500">
+            {err}
+          </p>
+        )}
+      </JobShell>
+    );
+  }
+
+  return (
+    <JobShell
+      isLight={isLight}
+      title="Finding Another Pro"
+      compactHeader
+      fullBleed
+      fillBody
+      onBack={onBack}
+      backIcon={<Minimize2 className="h-4 w-4" />}
+    >
+      <div className="relative flex h-full min-h-0 flex-1 flex-col">
+        {/* 60% — real Google Map anchored on the motorist location */}
+        <div className="relative min-h-0 flex-[3]">
+          <SearchingMap job={job} isLight={isLight} />
+        </div>
+
+        {/* 40% — bottom sheet with live searching feedback */}
+        <div
+          className={cn(
+            "relative z-20 flex min-h-0 flex-[2] flex-col rounded-t-[1.5rem] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2.5",
+            "shadow-[0_-10px_30px_rgba(0,0,0,0.35)]",
+            isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white"
+          )}
+        >
+          <div
+            className={cn(
+              "mx-auto h-1 w-10 shrink-0 rounded-full",
+              isLight ? "bg-black/15" : "bg-white/20"
+            )}
+          />
+          <p className="mt-3 text-center text-[10px] font-black uppercase tracking-[0.14em] text-[#FF6B35]">
+            Searching for the nearest {skillLabel}
+          </p>
+          <h2
+            key={idx}
+            className={cn(
+              "mt-2 text-center text-[15px] font-bold leading-snug",
+              ink
+            )}
+          >
+            {messages[idx]}
+          </h2>
+          <div className="mt-auto">
+            <CountdownTimer
+              variant="bar"
+              endsAt={searchingEndsAtIso(job)}
+              totalMs={SEARCH_REROUTE_WINDOW_MS}
+            />
+          </div>
+        </div>
+      </div>
+      {err && (
+        <p className="mt-4 text-center text-[12px] font-medium text-red-500">
+          {err}
+        </p>
+      )}
+    </JobShell>
   );
 }

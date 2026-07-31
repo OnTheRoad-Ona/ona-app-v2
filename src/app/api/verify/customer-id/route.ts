@@ -195,6 +195,20 @@ export async function POST(req: Request) {
       if (error) return apiFail(error.message, 500);
     }
 
+    // Signup/verification-time duplicate detection: if this ID matches another
+    // (non-deleted) account, queue the pair for admin review.
+    try {
+      const { detectMergeCandidatesForUser } = await import(
+        "@/lib/server/identity/identity-sync"
+      );
+      await detectMergeCandidatesForUser(admin, userId, {
+        userId,
+        source: "customer_id_verify",
+      });
+    } catch (e) {
+      console.error("customer-id merge detection failed", e);
+    }
+
     return apiOk({
       status: "submitted",
       message: "ID submitted for admin / customer care review.",

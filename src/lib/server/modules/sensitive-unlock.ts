@@ -5,6 +5,7 @@
 
 import { cookies } from "next/headers";
 import { createHmac, timingSafeEqual } from "crypto";
+import { isDemoOtpAllowed } from "@/lib/auth/demo-otp";
 import {
   SENSITIVE_UNLOCK_COOKIE,
   SENSITIVE_UNLOCK_TTL_MS,
@@ -18,12 +19,13 @@ export type UnlockPayload = {
 };
 
 function signingSecret(): string {
-  return (
+  const secret =
     process.env.ADMIN_UNLOCK_SIGNING_SECRET ||
     process.env.ADMIN_FIELD_ENCRYPTION_KEY ||
-    process.env.ADMIN_SENSITIVE_PASSWORD ||
-    "336699-ogamecho-unlock"
-  );
+    process.env.ADMIN_SENSITIVE_PASSWORD;
+  if (secret) return secret;
+  if (isDemoOtpAllowed()) return "336699-ogamecho-unlock";
+  throw new Error("ADMIN_UNLOCK_SIGNING_SECRET environment variable is required");
 }
 
 function sign(adminId: string, exp: number): string {

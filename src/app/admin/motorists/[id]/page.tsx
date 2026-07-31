@@ -78,6 +78,23 @@ type Detail = {
     comment?: string | null;
     created_at: string;
   }>;
+  identity?: {
+    roles: string[];
+    hasMotorist: boolean;
+    hasPro: boolean;
+    payoutMethod: Record<string, unknown> | null;
+    syncStatus: "in_sync" | "needs_sync" | "conflict" | "unknown";
+    missingFields: string[];
+    completedFields: string[];
+    syncLog: Array<{
+      id: string;
+      action: string;
+      result: string;
+      error: string | null;
+      created_at: string;
+    }>;
+    pendingMerges: unknown[];
+  };
 };
 
 function one<T>(v: T | T[] | null | undefined): T | null {
@@ -144,6 +161,23 @@ export default function AdminMotoristDetailPage() {
       return;
     }
     router.replace("/admin/motorists");
+  }
+
+  async function reSync() {
+    if (!id) return;
+    setBusy(true);
+    setMsg(null);
+    setError(null);
+    const res = await api(`/api/admin/users/${id}/sync`, { method: "POST" });
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.message);
+      return;
+    }
+    setMsg(
+      `Identity sync re-run: roles ${((res.data as { roles?: string[] } | undefined)?.roles || []).join(", ") || "—"}`
+    );
+    await load();
   }
 
   const u = data?.user;
@@ -317,6 +351,121 @@ export default function AdminMotoristDetailPage() {
                     {mot?.identity_verified_at
                       ? new Date(mot.identity_verified_at).toLocaleString()
                       : "—"}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="om-admin-panel" style={{ marginBottom: 16 }}>
+            <div className="om-admin-toolbar">
+              <strong>Accounts & identity sync</strong>
+              <div className="om-admin-row-actions" style={{ marginLeft: "auto" }}>
+                <button
+                  type="button"
+                  className="om-admin-btn"
+                  disabled={busy}
+                  onClick={() => void reSync()}
+                >
+                  Re-run sync
+                </button>
+              </div>
+            </div>
+            <table className="om-admin-table">
+              <tbody>
+                <tr>
+                  <th style={{ width: 160 }}>Attached roles</th>
+                  <td>
+                    {data.identity?.roles.length ? (
+                      <span>
+                        {data.identity.roles.includes("motorist")
+                          ? "Customer"
+                          : ""}
+                        {data.identity.roles.includes("motorist") &&
+                        data.identity.roles.includes("repair_pro")
+                          ? " + "
+                          : ""}
+                        {data.identity.roles.includes("repair_pro")
+                          ? "Repair Pro"
+                          : ""}
+                      </span>
+                    ) : (
+                      <span className="om-admin-muted">—</span>
+                    )}
+                  </td>
+                </tr>
+                <tr>
+                  <th>Sync status</th>
+                  <td>
+                    <span className="om-admin-badge pending">
+                      {data.identity?.syncStatus || "unknown"}
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <th>Payout method</th>
+                  <td>
+                    {data.identity?.payoutMethod ? (
+                      <span>
+                        {String(
+                          data.identity.payoutMethod.bank_name || "Bank"
+                        )}{" "}
+                        · …{String(
+                          data.identity.payoutMethod.account_number_last4 || "????"
+                        )}{" "}
+                        <span className="om-admin-muted">
+                          ({String(
+                            data.identity.payoutMethod.linked_role || "—"
+                          )})
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="om-admin-muted">—</span>
+                    )}
+                  </td>
+                </tr>
+                <tr>
+                  <th>Completed fields</th>
+                  <td>
+                    {data.identity?.completedFields?.length ? (
+                      <span className="om-admin-muted">
+                        {data.identity.completedFields.join(", ")}
+                      </span>
+                    ) : (
+                      <span className="om-admin-muted">—</span>
+                    )}
+                  </td>
+                </tr>
+                <tr>
+                  <th>Missing fields</th>
+                  <td>
+                    {data.identity?.missingFields?.length ? (
+                      <span style={{ color: "#b45309" }}>
+                        {data.identity.missingFields.join(", ")}
+                      </span>
+                    ) : (
+                      <span className="om-admin-muted">—</span>
+                    )}
+                  </td>
+                </tr>
+                <tr>
+                  <th>Recent sync events</th>
+                  <td>
+                    {data.identity?.syncLog?.length ? (
+                      data.identity.syncLog.slice(0, 4).map((e) => (
+                        <div
+                          key={e.id}
+                          className="om-admin-muted"
+                          style={{ fontSize: 11, lineHeight: 1.5 }}
+                        >
+                          {e.action} · {e.result}
+                          {e.error ? ` · ${e.error}` : ""} —{" "}
+                          {new Date(e.created_at).toLocaleString()}
+                        </div>
+                      ))
+                    ) : (
+                      <span className="om-admin-muted">—</span>
+                    )}
                   </td>
                 </tr>
               </tbody>

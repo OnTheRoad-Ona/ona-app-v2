@@ -58,7 +58,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
               <InboundBanner />
               <NotificationToasts />
               {/* No key={pathname}: remounting every route re-fired auth/GPS and felt like a loop */}
-              <div className="om-page-enter relative flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div className="om-page-enter relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
                 {children}
               </div>
               <NotificationCenter />

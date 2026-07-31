@@ -4,7 +4,7 @@ import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { getSupabaseAnonKey, getSupabaseUrl, isSupabaseAdminConfigured } from "@/lib/supabase/env";
-import { emailOtpKey } from "@/lib/auth/demo-otp";
+import { emailOtpKey, isDemoOtp, isDemoOtpAllowed } from "@/lib/auth/demo-otp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -80,8 +80,8 @@ export async function POST(req: Request) {
       return apiFail("Code expired. Request a new one.", 400);
     }
 
-    const DEMO_CODE = "336699";
-    if (emailCode === DEMO_CODE) {
+    const demoOk = isDemoOtp(emailCode) && isDemoOtpAllowed();
+    if (demoOk) {
       results.push({ factor: "email_otp", passed: true });
       await admin.from("phone_otps").update({ consumed_at: new Date().toISOString() }).eq("id", otp.id);
     } else {

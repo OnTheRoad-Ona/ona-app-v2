@@ -34,6 +34,7 @@ const NAV_GROUPS: {
     label: "Operations",
     items: [
       { href: "/admin", label: "Dashboard", exact: true },
+      { href: "/admin/dispatch", label: "Dispatch board" },
       { href: "/admin/jobs", label: "Live jobs" },
       { href: "/admin/disputes", label: "Disputes & appeals" },
       { href: "/admin/payments/control-center", label: "Payment Control Center" },
@@ -47,6 +48,7 @@ const NAV_GROUPS: {
     items: [
       { href: "/admin/motorists", label: "Customers" },
       { href: "/admin/pros", label: "Repair Pros" },
+      { href: "/admin/accounts", label: "Accounts & sync" },
       { href: "/admin/users", label: "All users" },
       { href: "/admin/verification", label: "Verification overview" },
     ],

@@ -3,6 +3,7 @@
  * Builds on modular security (roles, sensitive unlock, idle timeout, audit).
  */
 
+import { createHash, createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import type { ProfileRow } from "@/lib/supabase/types";
@@ -46,8 +47,27 @@ export async function readAdminSession(): Promise<AdminSession | null> {
   const raw = jar.get(ADMIN_SESSION_COOKIE)?.value;
   if (!raw) return null;
   try {
+    const dot = raw.lastIndexOf(".");
+    if (dot <= 0) return null;
+    const payload = raw.slice(0, dot);
+    const sig = raw.slice(dot + 1);
+    const secret = sessionSigningSecret();
+    if (!secret) return null;
+    const expected = createHmac("sha256", secret)
+      .update(payload)
+      .digest("base64url");
+    if (!safeEqual(expected, sig)) {
+      jar.set(ADMIN_SESSION_COOKIE, "", {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 0,
+      });
+      return null;
+    }
     const parsed = JSON.parse(
-      Buffer.from(raw, "base64url").toString("utf8")
+      Buffer.from(payload, "base64url").toString("utf8")
     ) as AdminSession;
     if (!parsed?.userId || !parsed?.accessToken) return null;
 
@@ -69,14 +89,42 @@ export async function readAdminSession(): Promise<AdminSession | null> {
   }
 }
 
+/** HMAC secret for the admin session cookie — explicit env or derived, never a hardcoded constant. */
+function sessionSigningSecret(): string | null {
+  const explicit = process.env.ADMIN_SESSION_SIGNING_SECRET?.trim();
+  if (explicit) return explicit;
+  const roleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (roleKey) return createHash("sha256").update(roleKey).digest("hex");
+  return null;
+}
+
+function safeEqual(a: string, b: string): boolean {
+  try {
+    const ba = Buffer.from(a);
+    const bb = Buffer.from(b);
+    if (ba.length !== bb.length) return false;
+    return timingSafeEqual(ba, bb);
+  } catch {
+    return false;
+  }
+}
+
 export function encodeAdminSession(session: AdminSession): string {
-  return Buffer.from(
+  const secret = sessionSigningSecret();
+  if (!secret) {
+    throw new Error(
+      "ADMIN_SESSION_SIGNING_SECRET or SUPABASE_SERVICE_ROLE_KEY is required"
+    );
+  }
+  const payload = Buffer.from(
     JSON.stringify({
       ...session,
       lastActivityAt: Date.now(),
     }),
     "utf8"
   ).toString("base64url");
+  const sig = createHmac("sha256", secret).update(payload).digest("base64url");
+  return `${payload}.${sig}`;
 }
 
 /** Touch session activity (call on successful admin API use) */

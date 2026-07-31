@@ -4,6 +4,10 @@ import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { sendSignupConfirmationEmail } from "@/lib/server/resend";
 import { canonicalPhone } from "@/lib/server/phone-match";
+import {
+  detectMergeCandidatesForUser,
+  runIdentitySync,
+} from "@/lib/server/identity/identity-sync";
 import { isProService } from "@/lib/services";
 import type { ProService } from "@/lib/types";
 import type { UserRole } from "@/lib/supabase/types";
@@ -772,6 +776,27 @@ export async function POST(req: Request) {
         /* non-fatal - table may not exist yet */
       }
     }
+  }
+
+  // Unified identity sync: register this role on the identity and carry over
+  // any bank already saved on the user's other role (payout_methods + mirror).
+  // Runs for both brand-new and dual-role ("attach to existing account") signups.
+  try {
+    await runIdentitySync(supabase, userId, { source: "signup" });
+  } catch (e) {
+    console.error("identity sync after signup failed", e);
+  }
+
+  // Signup-time duplicate detection: if this account shares a NIN/BVN last-4,
+  // Driver's Licence or Passport number with an existing (non-deleted) account,
+  // queue the pair for admin review — never merges automatically.
+  try {
+    await detectMergeCandidatesForUser(supabase, userId, {
+      userId,
+      source: "signup",
+    });
+  } catch (e) {
+    console.error("signup merge detection failed", e);
   }
 
   // 5) Generate referral code for new user (non-blocking)

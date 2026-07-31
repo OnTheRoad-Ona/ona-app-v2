@@ -3,8 +3,10 @@
  * Contact changes, referral codes, credit wallets, cashouts, fraud flags, audit logs.
  */
 
+import { randomInt } from "crypto";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
+import { isDemoOtp, isDemoOtpAllowed } from "@/lib/auth/demo-otp";
 import type {
   ContactChangeRequest,
   UserSession,
@@ -119,6 +121,8 @@ export async function createContactChangeRequest(
   try {
     void notify(input.userId, "Contact change requested", `Verification required to update ${input.changeType}`, "contact_requested", "pending");
   } catch { /* */ }
+  const oldCode = isDemoOtpAllowed() ? "336699" : String(randomInt(100000, 999999));
+  const newCode = isDemoOtpAllowed() ? "336699" : String(randomInt(100000, 999999));
   try {
     if (isSupabaseAdminConfigured()) {
       const sb = createServiceSupabase();
@@ -132,8 +136,8 @@ export async function createContactChangeRequest(
           password_confirmed: input.passwordConfirmed ?? false,
           device_info: input.deviceInfo ?? {},
           session_info: input.sessionInfo ?? {},
-          old_code: "336699",
-          new_code: "336699",
+          old_code: oldCode,
+          new_code: newCode,
           status: "awaiting_old_verification",
         })
         .select()
@@ -151,8 +155,8 @@ export async function createContactChangeRequest(
       passwordConfirmed: input.passwordConfirmed ?? false,
       oldVerified: false,
       newVerified: false,
-      oldCode: "336699",
-      newCode: "336699",
+      oldCode,
+      newCode,
       codeAttempts: 0,
       riskScore: 0,
       status: "awaiting_old_verification",
@@ -263,7 +267,8 @@ export async function verifyContactChangeCode(
   const mem = contactRequests.get(id);
   if (mem) {
     const validCode = target === "old" ? mem.oldCode : mem.newCode;
-    if (code !== validCode && code !== "336699") {
+    const demoOk = isDemoOtp(code) && isDemoOtpAllowed();
+    if (code !== validCode && !demoOk) {
       mem.codeAttempts += 1;
       return { ok: false, error: "Invalid verification code" };
     }
@@ -284,7 +289,8 @@ export async function verifyContactChangeCode(
     const sb = createServiceSupabase();
     const req = await getContactChangeRequest(id);
     if (!req) return { error: "not_found" };
-    if (code !== "336699") {
+    const demoOk = isDemoOtp(code) && isDemoOtpAllowed();
+    if (!demoOk) {
       const { data: check } = await sb
         .from("contact_change_requests")
         .select("old_code,new_code")

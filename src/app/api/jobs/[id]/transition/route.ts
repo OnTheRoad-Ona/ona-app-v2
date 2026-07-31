@@ -22,6 +22,7 @@ const bodySchema = z.object({
   actor: z.enum(["motorist", "repair_pro", "system", "admin"]),
   actorId: z.string().optional(),
   reason: z.string().optional(),
+  cancelReason: z.string().optional(),
   proLat: z.number().optional(),
   proLng: z.number().optional(),
   /** Optional client overrides — server prefers Google Distance Matrix when GPS present */
@@ -77,7 +78,7 @@ export async function POST(
 
     // Pro declined → reroute to next nearest pro instead of cancelling
     if (b.event === "CANCEL" && b.reason === "pro_declined") {
-      const rerouteRes = await rerouteDeclinedJob(id);
+      const rerouteRes = await rerouteDeclinedJob(id, b.cancelReason);
       if ("error" in rerouteRes) {
         return apiFail(rerouteRes.error, 400);
       }

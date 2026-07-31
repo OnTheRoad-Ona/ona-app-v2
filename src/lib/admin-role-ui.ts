@@ -128,6 +128,7 @@ export function canAccessAdminPathUi(
     "/admin/services",
     "/admin/users",
     "/admin/staff",
+    "/admin/accounts",
   ];
   // At this point role is never super_admin (early return above)
   if (

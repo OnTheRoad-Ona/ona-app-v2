@@ -6,6 +6,7 @@
 /** Live chat / live job open only while mid-flow */
 export const JOB_LIVE_CHAT_STATUSES = new Set<string>([
   "negotiating",
+  "searching",
   "accepted",
   "agreed",
   "paid_booked",

@@ -8,6 +8,7 @@ import type { Coordinates, ProService } from "@/lib/types";
 /** Full escrow job lifecycle */
 export type JobFlowStatus =
   | "negotiating"
+  | "searching"
   | "agreed"
   | "paid_booked"
   | "en_route"

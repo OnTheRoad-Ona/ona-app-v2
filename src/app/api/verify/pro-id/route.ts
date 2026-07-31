@@ -234,6 +234,22 @@ export async function POST(req: Request) {
       .update({ role: "repair_pro", updated_at: now })
       .eq("id", userId);
 
+    // Signup/onboarding-time duplicate detection: if this ID matches another
+    // (non-deleted) account, queue the pair for admin review.
+    if (kind === "gov_id" || kind === "nin") {
+      try {
+        const { detectMergeCandidatesForUser } = await import(
+          "@/lib/server/identity/identity-sync"
+        );
+        await detectMergeCandidatesForUser(admin, userId, {
+          userId,
+          source: "pro_id_verify",
+        });
+      } catch (e) {
+        console.error("pro-id merge detection failed", e);
+      }
+    }
+
     return apiOk({
       kind,
       status: "submitted",
