@@ -128,7 +128,7 @@ export default function SettingsPage() {
         onScroll={() => saveSettingsScroll(scrollRef.current)}
       >
         <div className="space-y-0.5 py-1">
-          {HUB_SECTIONS.map((item, i) => (
+          {HUB_SECTIONS.filter((item) => !(isPro && item.href === "/settings/sections/payments")).map((item, i) => (
             <SettingsRow
               key={item.href}
               first={i === 0}

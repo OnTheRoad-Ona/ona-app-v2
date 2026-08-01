@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Banknote,
   Bell,
   Briefcase,
   Clock3,
@@ -71,6 +72,7 @@ const PRO_NAV: {
   { href: "/jobs", labelKey: "nav.jobs", icon: Clock3 },
   { href: "/profile", labelKey: "nav.profile", icon: UserRound },
   { href: "/wallet", labelKey: "nav.referralEarn", icon: Gift },
+  { href: "/payments/history", labelKey: "settings.hub.payments", icon: Banknote },
   { href: "/settings", labelKey: "menu.settings", icon: Settings },
 ];
 
