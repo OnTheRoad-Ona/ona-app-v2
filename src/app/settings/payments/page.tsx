@@ -4,8 +4,6 @@
  * Settings → Payments
  * - Bank details (both roles)
  * - Payment / payout history + status (role-aware)
- * Customer never sees 95/5 split; pro sees expected payout.
- * Local monitoring — not dependent on Vercel deploy.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -242,7 +240,7 @@ export default function SettingsPaymentsPage() {
         backHref="/settings"
       />
       <div className="flex-1 space-y-3 overflow-y-auto px-3 pb-8 scrollbar-hide">
-        {/* Summary */}
+        {/* Summary (Payment overview) */}
         <section className={cn("rounded-2xl px-3 py-3", card)}>
           <div className="mb-2 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -303,119 +301,7 @@ export default function SettingsPaymentsPage() {
           ) : null}
         </section>
 
-        {/* History list */}
-        <section className={cn("rounded-2xl px-3 py-3", card)}>
-          <div className="mb-2 flex items-center gap-2">
-            <Clock3 className="h-4 w-4 text-[#FF6B35]" />
-            <p className={cn("text-[13px] font-black", ink)}>Activity</p>
-          </div>
-          <div className="mb-2 flex flex-wrap gap-1.5">
-            {(
-              [
-                ["all", "All"],
-                ["active", "Open"],
-                ["released", isPro ? "Paid out" : "Released"],
-                ["refunded", "Refunded"],
-              ] as const
-            ).map(([k, label]) => (
-              <button
-                key={k}
-                type="button"
-                onClick={() => setFilter(k)}
-                className={cn(
-                  "rounded-full border-0 px-2.5 py-1 text-[11px] font-bold",
-                  filter === k
-                    ? "bg-[#FF6B35] text-white"
-                    : isLight
-                      ? "bg-black/10 text-slate-800"
-                      : "bg-white/10 text-white/85"
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {histErr ? (
-            <p className="text-center text-[12px] font-semibold text-red-500">
-              {histErr}
-            </p>
-          ) : null}
-          {histLoading && rows.length === 0 ? (
-            <div className="flex justify-center py-6">
-              <Loader2 className="h-5 w-5 animate-spin text-[#FF6B35]" />
-            </div>
-          ) : null}
-          {!histLoading && filtered.length === 0 ? (
-            <p className={cn("py-4 text-center text-[12px] font-medium", muted)}>
-              No payments in this filter.
-            </p>
-          ) : null}
-
-          <ul className="space-y-2">
-            {filtered.map((p) => (
-              <li key={p.id}>
-                <Link
-                  href={p.href}
-                  className={cn(
-                    "flex items-start gap-2 rounded-xl px-2.5 py-2.5 active:opacity-90",
-                    isLight ? "bg-black/[0.04]" : "bg-white/5"
-                  )}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className={cn("text-[14px] font-black tabular-nums", ink)}>
-                        {formatMoneyMinor(
-                          isPro && p.proPayoutMinor != null
-                            ? p.proPayoutMinor
-                            : p.amountMinor,
-                          p.currency
-                        )}
-                      </p>
-                      <p
-                        className={cn(
-                          "text-[11px] font-bold",
-                          toneClass(p.statusTone, isLight)
-                        )}
-                      >
-                        {p.statusLabel}
-                      </p>
-                    </div>
-                    <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
-                      {isPro
-                        ? `Your payout · job ${p.requestId.slice(0, 8)}`
-                        : `Total paid · job ${p.requestId.slice(0, 8)}`}
-                    </p>
-                    {isPro && p.showSplit && p.proPayoutMinor != null ? (
-                      <p className={cn("mt-0.5 text-[10px] font-medium", muted)}>
-                        87.5% of service · Ona 5% · VAT 7.5% on Flutterwave
-                      </p>
-                    ) : null}
-                    <p className={cn("mt-0.5 text-[10px]", muted)}>
-                      {p.paidAt
-                        ? `Paid ${new Date(p.paidAt).toLocaleString()}`
-                        : `Created ${new Date(p.createdAt).toLocaleString()}`}
-                      {p.releasedAt
-                        ? ` · Released ${new Date(p.releasedAt).toLocaleString()}`
-                        : ""}
-                    </p>
-                  </div>
-                  <ChevronRight className={cn("mt-1 h-4 w-4 shrink-0", muted)} />
-                </Link>
-              </li>
-            ))}
-          </ul>
-
-          <Link
-            href="/payments/history"
-            className="mt-3 flex items-center justify-center gap-1 text-[12px] font-bold text-[#FF6B35]"
-          >
-            Full payment history
-            <ChevronRight className="h-3.5 w-3.5" />
-          </Link>
-        </section>
-
-        {/* Bank */}
+        {/* Bank account details (Directly below Payment overview) */}
         <section className={cn("rounded-2xl px-3 py-3", card)}>
           <div className="mb-3 flex items-start gap-2">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#FF6B35]">
@@ -539,6 +425,102 @@ export default function SettingsPaymentsPage() {
               </div>
             </>
           )}
+        </section>
+
+        {/* History list */}
+        <section className={cn("rounded-2xl px-3 py-3", card)}>
+          <div className="mb-2 flex items-center gap-2">
+            <Clock3 className="h-4 w-4 text-[#FF6B35]" />
+            <p className={cn("text-[13px] font-black", ink)}>Activity</p>
+          </div>
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {(
+              [
+                ["all", "All"],
+                ["active", "Open"],
+                ["released", isPro ? "Paid out" : "Released"],
+                ["refunded", "Refunded"],
+              ] as const
+            ).map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setFilter(k)}
+                className={cn(
+                  "rounded-full border-0 px-2.5 py-1 text-[11px] font-bold",
+                  filter === k
+                    ? "bg-[#FF6B35] text-white"
+                    : isLight
+                      ? "bg-black/10 text-slate-800"
+                      : "bg-white/10 text-white/85"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {histErr ? (
+            <p className="text-center text-[12px] font-semibold text-red-500">
+              {histErr}
+            </p>
+          ) : null}
+          {histLoading && rows.length === 0 ? (
+            <div className="flex justify-center py-6">
+              <Loader2 className="h-5 w-5 animate-spin text-[#FF6B35]" />
+            </div>
+          ) : null}
+          {!histLoading && filtered.length === 0 ? (
+            <p className={cn("py-4 text-center text-[12px]", muted)}>
+              {rows.length === 0
+                ? "No payment transactions yet."
+                : "No transactions match this filter."}
+            </p>
+          ) : null}
+
+          <div className="space-y-2">
+            {filtered.map((p) => {
+              const displayAmt =
+                isPro && p.proPayoutMinor != null ? p.proPayoutMinor : p.amountMinor;
+              return (
+                <Link
+                  key={p.id}
+                  href={p.href}
+                  className={cn(
+                    "flex items-center justify-between rounded-xl p-2.5 no-underline transition-colors",
+                    isLight ? "bg-black/[0.03] hover:bg-black/[0.06]" : "bg-white/5 hover:bg-white/10"
+                  )}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className={cn("text-[13px] font-bold tabular-nums", ink)}>
+                      {formatMoneyMinor(displayAmt, p.currency)}
+                    </p>
+                    <p className={cn("text-[11px]", muted)}>
+                      {new Date(p.createdAt).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p
+                      className={cn(
+                        "text-[12px] font-bold",
+                        toneClass(p.statusTone, isLight)
+                      )}
+                    >
+                      {p.statusLabel}
+                    </p>
+                    <p className={cn("text-[10px]", muted)}>
+                      {p.provider}
+                    </p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
         </section>
       </div>
     </div>

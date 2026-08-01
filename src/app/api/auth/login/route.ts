@@ -15,6 +15,7 @@ import {
 import {
   ensureUserRole,
   syncPayoutAcrossRoles,
+  mergeIdentities,
 } from "@/lib/server/identity/identity-sync";
 import type { ProfileRow, RepairProRow } from "@/lib/supabase/types";
 import type { AccountType, ProService, UserProfile } from "@/lib/types";
@@ -279,6 +280,25 @@ export async function POST(req: Request) {
     // bank record on every login (harmless for up-to-date accounts).
     try {
       const admin = createServiceSupabase();
+      // Auto-merge any duplicate accounts sharing email or phone
+      const { data: dupes } = await admin
+        .from("profiles")
+        .select("id, email, phone")
+        .or(`email.eq.${email},phone.eq.${profile.phone || ""}`)
+        .neq("id", userId)
+        .eq("is_active", true);
+
+      if (dupes && dupes.length > 0) {
+        for (const d of dupes) {
+          await mergeIdentities(admin, {
+            primaryUserId: userId,
+            duplicateUserId: d.id,
+            performedBy: userId,
+            performedByRole: "system",
+          });
+        }
+      }
+
       if (hasMotorist) {
         await ensureUserRole(admin, userId, "motorist", { userId, source: "login" });
       }
@@ -287,7 +307,7 @@ export async function POST(req: Request) {
       }
       await syncPayoutAcrossRoles(admin, userId, { userId, source: "login" });
     } catch (e) {
-      console.error("login identity sync failed", e);
+      console.error("login identity sync/merge failed", e);
     }
 
     return apiOk({
