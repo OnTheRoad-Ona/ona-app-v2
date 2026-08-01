@@ -133,46 +133,18 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       );
       const json = await res.json();
       if (json?.ok && Array.isArray(json.data?.notifications)) {
-        let list = json.data.notifications as AppNotification[];
-        // Never seed production with demo chat/toasts (random popups).
-        // Samples only in local development when the API is empty.
-        if (list.length === 0 || json.data?.tableMissing) {
-          list =
-            process.env.NODE_ENV === "development"
-              ? localSampleNotifications(backendUserId, role)
-              : [];
-        }
+        const list = json.data.notifications as AppNotification[];
         const surface = list.filter(shouldListNotification);
         setNotifications(surface);
         if (!primed.current) {
           knownIds.current = new Set(list.map((n) => n.id));
           primed.current = true;
         }
-      } else if (process.env.NODE_ENV === "development" && backendUserId) {
-        const local = localSampleNotifications(backendUserId, role).filter(
-          shouldListNotification
-        );
-        setNotifications(local);
-        if (!primed.current) {
-          knownIds.current = new Set(local.map((n) => n.id));
-          primed.current = true;
-        }
       } else {
         setNotifications([]);
       }
     } catch {
-      if (process.env.NODE_ENV === "development" && backendUserId) {
-        const local = localSampleNotifications(backendUserId, role).filter(
-          shouldListNotification
-        );
-        setNotifications(local);
-        if (!primed.current) {
-          knownIds.current = new Set(local.map((n) => n.id));
-          primed.current = true;
-        }
-      } else {
-        setNotifications([]);
-      }
+      setNotifications([]);
     } finally {
       setLoading(false);
     }

@@ -64,7 +64,7 @@ export default function PaymentHistoryPage() {
       <header className="flex items-center gap-2 px-3 py-2.5">
         <button
           type="button"
-          onClick={() => navigateBack(router, "/settings/payments")}
+          onClick={() => navigateBack(router, isPro ? "/dashboard" : "/settings")}
           className={cn(
             "flex h-8 w-8 items-center justify-center rounded-lg border-0",
             isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white"
@@ -81,7 +81,31 @@ export default function PaymentHistoryPage() {
         </h1>
       </header>
 
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-4 scrollbar-hide">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 pb-4 pt-3 scrollbar-hide">
+        <div className={cn("rounded-xl p-3.5", isLight ? "bg-white/80 shadow-sm" : "bg-[#1c1c1e]")}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={cn("text-[11px] font-semibold uppercase tracking-wide", isLight ? "text-slate-500" : "text-white/60")}>
+                Linked Bank Account ({isPro ? "Payouts" : "Refunds"})
+              </p>
+              <p className={cn("mt-1 text-[14px] font-bold", ink)}>
+                {userProfile?.bankName ? `${userProfile.bankName} · ••••${(userProfile.bankAccountNumber || "").slice(-4)}` : "No bank account added"}
+              </p>
+              {userProfile?.bankAccountName && (
+                <p className={cn("text-[12px] font-medium", muted)}>
+                  {userProfile.bankAccountName}
+                </p>
+              )}
+            </div>
+            <Link
+              href="/settings/payments"
+              className="rounded-lg bg-[#FF6B35] px-3 py-1.5 text-[11px] font-bold text-white shadow-sm hover:bg-[#ff8255]"
+            >
+              {userProfile?.bankName ? "Edit" : "Add Bank"}
+            </Link>
+          </div>
+        </div>
+
         {loading && <p className={cn("text-[12px]", muted)}>Loading…</p>}
         {!loading && rows.length === 0 && (
           <p className={cn("text-[12px]", muted)}>
