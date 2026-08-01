@@ -217,7 +217,6 @@ export default function SettingsPaymentsPage() {
   const sheet = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-600" : "text-white/65";
-  const card = isLight ? "bg-black/[0.04]" : "bg-[#1c1c1e]";
 
   const filtered = rows.filter((p) => {
     if (filter === "all") return true;
@@ -239,9 +238,9 @@ export default function SettingsPaymentsPage() {
         title={isPro ? "Payments & payouts" : "Payments & refunds"}
         backHref="/settings"
       />
-      <div className="flex-1 space-y-3 overflow-y-auto px-3 pb-8 scrollbar-hide">
+      <div className="flex-1 space-y-4 overflow-y-auto px-3 pb-8 scrollbar-hide bg-transparent">
         {/* Summary (Payment overview) */}
-        <section className={cn("rounded-2xl px-3 py-3", card)}>
+        <section className="px-1 py-2 bg-transparent">
           <div className="mb-2 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Wallet className="h-4 w-4 text-[#FF6B35]" />
@@ -268,7 +267,7 @@ export default function SettingsPaymentsPage() {
             </div>
           ) : summary ? (
             <div className="grid grid-cols-2 gap-2">
-              <div className={cn("rounded-xl px-2.5 py-2", isLight ? "bg-black/[0.04]" : "bg-white/5")}>
+              <div className="px-2.5 py-2 bg-transparent">
                 <p className={cn("text-[10px] font-bold uppercase", muted)}>
                   {isPro ? "In escrow / processing" : "Held / processing"}
                 </p>
@@ -279,7 +278,7 @@ export default function SettingsPaymentsPage() {
                   {summary.heldCount + summary.processingCount} open
                 </p>
               </div>
-              <div className={cn("rounded-xl px-2.5 py-2", isLight ? "bg-black/[0.04]" : "bg-white/5")}>
+              <div className="px-2.5 py-2 bg-transparent">
                 <p className={cn("text-[10px] font-bold uppercase", muted)}>
                   {isPro ? "Paid out" : "Released"}
                 </p>
@@ -302,7 +301,7 @@ export default function SettingsPaymentsPage() {
         </section>
 
         {/* Bank account details (Directly below Payment overview) */}
-        <section className={cn("rounded-2xl px-3 py-3", card)}>
+        <section className="px-1 py-2 bg-transparent">
           <div className="mb-3 flex items-start gap-2">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#FF6B35]">
               <Building2 className="h-5 w-5 text-white" />
@@ -428,7 +427,7 @@ export default function SettingsPaymentsPage() {
         </section>
 
         {/* History list */}
-        <section className={cn("rounded-2xl px-3 py-3", card)}>
+        <section className="px-1 py-2 bg-transparent">
           <div className="mb-2 flex items-center gap-2">
             <Clock3 className="h-4 w-4 text-[#FF6B35]" />
             <p className={cn("text-[13px] font-black", ink)}>Activity</p>
@@ -487,8 +486,8 @@ export default function SettingsPaymentsPage() {
                   key={p.id}
                   href={p.href}
                   className={cn(
-                    "flex items-center justify-between rounded-xl p-2.5 no-underline transition-colors",
-                    isLight ? "bg-black/[0.03] hover:bg-black/[0.06]" : "bg-white/5 hover:bg-white/10"
+                    "flex items-center justify-between rounded-xl p-2.5 no-underline transition-colors bg-transparent",
+                    isLight ? "hover:bg-black/[0.04]" : "hover:bg-white/10"
                   )}
                 >
                   <div className="min-w-0 flex-1">

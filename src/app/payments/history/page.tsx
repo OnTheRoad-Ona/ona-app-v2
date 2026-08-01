@@ -82,7 +82,7 @@ export default function PaymentHistoryPage() {
       </header>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 pb-4 pt-3 scrollbar-hide">
-        <div className={cn("rounded-xl p-3.5", isLight ? "bg-white/80 shadow-sm" : "bg-[#1c1c1e]")}>
+        <div className="rounded-xl p-3.5 bg-transparent">
           <div className="flex items-center justify-between">
             <div>
               <p className={cn("text-[11px] font-semibold uppercase tracking-wide", isLight ? "text-slate-500" : "text-white/60")}>

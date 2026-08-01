@@ -60,6 +60,7 @@ const CLIENT_NAV: {
   { href: "/history", labelKey: "nav.history", icon: History },
   { href: "/profile", labelKey: "nav.profile", icon: UserRound },
   { href: "/wallet", labelKey: "nav.referralEarn", icon: Gift },
+  { href: "/payments/history", labelKey: "settings.hub.payments", icon: Banknote },
   { href: "/settings", labelKey: "menu.settings", icon: Settings },
 ];
 
@@ -139,7 +140,7 @@ export function AppMenu({
   const isLight = theme === "light";
   const isPro =
     accountType === "professional" ||
-    (accountType == null && userMode === "professional");
+    userMode === "professional";
   const nav = isPro ? PRO_NAV : CLIENT_NAV;
   const notif = useNotificationsOptional();
   const unread = notif?.unreadCount ?? 0;
