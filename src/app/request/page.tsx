@@ -24,6 +24,7 @@ import {
   problemPlaceholderForTrade,
   type AppCurrency,
 } from "@/lib/pricing";
+import { requiresBankSetup } from "@/lib/bank-details";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import type { ProService } from "@/lib/types";
@@ -208,6 +209,10 @@ function RequestInner() {
   };
 
   const send = async () => {
+    if (userProfile && requiresBankSetup(userProfile)) {
+      setError("Please complete your bank account setup before requesting assistance.");
+      return;
+    }
     if (!tech) {
       setError("Select a Repair Pro first.");
       return;

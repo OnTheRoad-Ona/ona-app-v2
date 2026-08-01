@@ -536,7 +536,7 @@ export function AppMenu({
           </div>
         </nav>
 
-        <div className="px-3 pb-4 pt-1">
+        <div className="shrink-0 px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 border-t border-black/5 dark:border-white/10">
           <button
             type="button"
             onClick={() => {

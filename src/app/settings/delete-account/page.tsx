@@ -9,11 +9,16 @@ import { getAppSupabase } from "@/lib/supabase/app-client";
 
 export default function SettingsDeleteAccountPage() {
   const router = useRouter();
-  const { theme, logout } = useApp();
+  const { theme, logout, hasMotoristAccount, hasProAccount } = useApp();
   const isLight = theme === "light";
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const hasBoth = hasMotoristAccount && hasProAccount;
+  const [deleteTarget, setDeleteTarget] = useState<"motorist" | "professional" | "both">(
+    hasBoth ? "both" : (hasProAccount ? "professional" : "motorist")
+  );
 
   const confirmWord = "DELETE";
 
@@ -32,7 +37,7 @@ export default function SettingsDeleteAccountPage() {
       const res = await fetch("/api/auth/delete-account", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ access_token: token }),
+        body: JSON.stringify({ access_token: token, targetRole: deleteTarget }),
       });
       const json = await res.json();
       if (!json.ok) {
@@ -41,8 +46,13 @@ export default function SettingsDeleteAccountPage() {
         return;
       }
 
-      await logout();
-      router.replace("/login");
+      if (deleteTarget === "both") {
+        await logout();
+        router.replace("/login");
+      } else {
+        // Switched or removed one role
+        router.replace("/");
+      }
     } catch {
       setErr("Could not complete deactivation. Contact care.");
       setBusy(false);
@@ -58,15 +68,78 @@ export default function SettingsDeleteAccountPage() {
     >
       <PageHeader
         title="Delete account"
-        subtitle="You have 30 days to change your mind"
+        subtitle="Manage account or role deletion"
         backHref="/settings"
       />
-      <div className="flex-1 space-y-3 overflow-y-auto px-3 pb-8 scrollbar-hide">
+      <div className="flex-1 space-y-4 overflow-y-auto px-3 pb-8 scrollbar-hide">
         <div className="rounded-md bg-red-500/10 px-3 py-3 text-[12px] font-medium leading-relaxed text-red-700">
-          Your account will be scheduled for deletion. You have 30 days to
-          reactivate by clicking "Reactivate" on the banner shown after login.
-          After 30 days, all data is permanently removed.
+          Your account or selected role will be scheduled for deletion. You have 30 days to
+          reactivate by contacting support or logging back in.
         </div>
+
+        {hasBoth && (
+          <div className="space-y-2">
+            <span
+              className={cn(
+                "block text-[11px] font-semibold uppercase tracking-wide",
+                isLight ? "text-slate-600" : "text-white/65"
+              )}
+            >
+              Select what to delete
+            </span>
+            <div className="space-y-1.5">
+              <label
+                className={cn(
+                  "flex items-center gap-2 rounded-lg p-3 text-[13px] font-semibold cursor-pointer",
+                  isLight ? "bg-black/5" : "bg-white/5",
+                  deleteTarget === "motorist" && "ring-2 ring-red-500"
+                )}
+              >
+                <input
+                  type="radio"
+                  name="deleteTarget"
+                  checked={deleteTarget === "motorist"}
+                  onChange={() => setDeleteTarget("motorist")}
+                  className="accent-red-600"
+                />
+                <span>Delete Customer Account Only</span>
+              </label>
+              <label
+                className={cn(
+                  "flex items-center gap-2 rounded-lg p-3 text-[13px] font-semibold cursor-pointer",
+                  isLight ? "bg-black/5" : "bg-white/5",
+                  deleteTarget === "professional" && "ring-2 ring-red-500"
+                )}
+              >
+                <input
+                  type="radio"
+                  name="deleteTarget"
+                  checked={deleteTarget === "professional"}
+                  onChange={() => setDeleteTarget("professional")}
+                  className="accent-red-600"
+                />
+                <span>Delete Repair Pro Account Only</span>
+              </label>
+              <label
+                className={cn(
+                  "flex items-center gap-2 rounded-lg p-3 text-[13px] font-semibold cursor-pointer",
+                  isLight ? "bg-black/5" : "bg-white/5",
+                  deleteTarget === "both" && "ring-2 ring-red-500"
+                )}
+              >
+                <input
+                  type="radio"
+                  name="deleteTarget"
+                  checked={deleteTarget === "both"}
+                  onChange={() => setDeleteTarget("both")}
+                  className="accent-red-600"
+                />
+                <span>Delete Both Accounts (Complete Deletion)</span>
+              </label>
+            </div>
+          </div>
+        )}
+
         <label className="block">
           <span
             className={cn(
