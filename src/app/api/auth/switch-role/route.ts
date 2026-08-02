@@ -166,6 +166,12 @@ export async function POST(req: Request) {
     bvnVerified?: boolean;
     phoneVerified?: boolean;
     docsStatus?: UserProfile["docsStatus"];
+    govIdVerified?: boolean;
+    identityReviewStatus?: UserProfile["identityReviewStatus"];
+    identityVerifiedAt?: string;
+    identitySubmittedAt?: string;
+    govIdKind?: string;
+    govIdFrontUrl?: string;
     bankName?: string;
     bankAccountName?: string;
     bankAccountNumber?: string;
@@ -185,6 +191,12 @@ export async function POST(req: Request) {
     nin_verified?: boolean;
     bvn_verified?: boolean;
     phone_verified?: boolean;
+    gov_id_verified?: boolean;
+    identity_review_status?: string | null;
+    identity_verified_at?: string | null;
+    identity_submitted_at?: string | null;
+    gov_id_kind?: string | null;
+    gov_id_front_url?: string | null;
     bank_name?: string | null;
     bank_account_name?: string | null;
     bank_account_number?: string | null;
@@ -206,6 +218,33 @@ export async function POST(req: Request) {
       proBank?.phone_verified
   );
 
+  // Customer identity (T2) must survive C→Pro switch so Pro does not re-ask ID
+  const motIdentityStatus = motRow?.identity_review_status;
+  const identityStatus:
+    | UserProfile["identityReviewStatus"]
+    | undefined =
+    motIdentityStatus === "none" ||
+    motIdentityStatus === "submitted" ||
+    motIdentityStatus === "approved" ||
+    motIdentityStatus === "rejected"
+      ? motIdentityStatus
+      : undefined;
+  const identityFromCustomer: {
+    govIdVerified: boolean;
+    identityReviewStatus?: UserProfile["identityReviewStatus"];
+    identityVerifiedAt?: string;
+    identitySubmittedAt?: string;
+    govIdKind?: string;
+    govIdFrontUrl?: string;
+  } = {
+    govIdVerified: Boolean(motRow?.gov_id_verified),
+    identityReviewStatus: identityStatus,
+    identityVerifiedAt: motRow?.identity_verified_at || undefined,
+    identitySubmittedAt: motRow?.identity_submitted_at || undefined,
+    govIdKind: motRow?.gov_id_kind || undefined,
+    govIdFrontUrl: motRow?.gov_id_front_url || undefined,
+  };
+
   if (accountType === "professional") {
     const ds = proBank?.docs_status;
     extras = {
@@ -218,8 +257,9 @@ export async function POST(req: Request) {
       bio: pr?.bio || undefined,
       yearsExperience: pr?.years_experience || undefined,
       serviceRadiusKm: pr?.service_radius_km,
-      ninVerified: pr?.nin_verified,
-      bvnVerified: pr?.bvn_verified,
+      // Prefer pro flags; fall back to customer NIN/BVN when pro not set
+      ninVerified: pr?.nin_verified || motRow?.nin_verified,
+      bvnVerified: pr?.bvn_verified || motRow?.bvn_verified,
       phoneVerified,
       docsStatus:
         ds === "none" ||
@@ -228,6 +268,8 @@ export async function POST(req: Request) {
         ds === "rejected"
           ? ds
           : undefined,
+      // Carry Customer T2 identity so Pro onboarding can skip gov ID
+      ...identityFromCustomer,
       // Prefer pro bank; fall back to customer bank on same login
       bankName: proBank?.bank_name || motRow?.bank_name || undefined,
       bankAccountName:
@@ -246,6 +288,7 @@ export async function POST(req: Request) {
       ninVerified: motRow?.nin_verified,
       bvnVerified: motRow?.bvn_verified,
       phoneVerified,
+      ...identityFromCustomer,
       bankName: motRow?.bank_name || proBank?.bank_name || undefined,
       bankAccountName:
         motRow?.bank_account_name || proBank?.bank_account_name || undefined,

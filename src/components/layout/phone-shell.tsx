@@ -5,6 +5,7 @@ import { PostSwitchPhoneOtpGate } from "@/components/auth/post-switch-phone-otp-
 import { AcceptTripPopup } from "@/components/home/accept-trip-popup";
 import { IncomingJobPopup } from "@/components/home/incoming-job-popup";
 import { MotoristReleasePayGate } from "@/components/jobs/motorist-release-pay-gate";
+import { ProOnboardingSheet } from "@/components/pro/pro-onboarding-sheet";
 import { DeletionBanner } from "@/components/profile/deletion-banner";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/store";
@@ -224,6 +225,7 @@ export function PhoneShell({
         >
           <DeletionBanner />
           {children}
+          <ProOnboardingSheet />
           <PostSwitchPhoneOtpGate />
           <AcceptTripPopup />
           <IncomingJobPopup />

@@ -28,6 +28,8 @@ import {
   saveSettingsScroll,
 } from "@/components/settings/settings-ui";
 import { useI18n, type MessageKey } from "@/lib/i18n";
+import { getArtisanProfile } from "@/lib/artisan/local-store";
+import { shouldShowProSettingsVerification } from "@/lib/pro-switch-onboarding";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -102,11 +104,29 @@ const HUB_SECTIONS: {
 ];
 
 export default function SettingsPage() {
-  const { theme, displayName, accountType } = useApp();
+  const {
+    theme,
+    displayName,
+    accountType,
+    userProfile,
+    backendUserId,
+    hasMotoristAccount,
+    hasProAccount,
+    primaryAccountType,
+  } = useApp();
   const { t } = useI18n();
   const isLight = theme === "light";
   const isPro = accountType === "professional";
   const scrollRef = useRef<HTMLDivElement>(null);
+  const artisan = backendUserId ? getArtisanProfile(backendUserId) : null;
+  const showVerification = shouldShowProSettingsVerification({
+    hasMotoristAccount,
+    hasProAccount,
+    accountType,
+    primaryAccountType,
+    userProfile,
+    artisan,
+  });
 
   useEffect(() => {
     restoreSettingsScroll(scrollRef.current);
@@ -140,6 +160,14 @@ export default function SettingsPage() {
           {HUB_SECTIONS.filter((item) => {
             // Pro: Payments & Payouts lives in the side bar, not Settings
             if (isPro && item.href === "/settings/payments") return false;
+            // C→Pro dual: Verification only after T2 (customer or pro)
+            if (
+              item.href === "/settings/verification" &&
+              isPro &&
+              !showVerification
+            ) {
+              return false;
+            }
             return true;
           }).map((item, i) => (
             <SettingsRow

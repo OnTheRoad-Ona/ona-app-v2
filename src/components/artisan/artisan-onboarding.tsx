@@ -74,6 +74,11 @@ import {
   supportsLga,
 } from "@/lib/geo/service-area";
 import { profileTheme } from "@/lib/profile-system";
+import {
+  customerHasT1,
+  customerHasT2,
+  isProSwitchMandatoryOnboardingDone,
+} from "@/lib/pro-switch-onboarding";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -131,9 +136,21 @@ function ReqStar() {
 
 export function ArtisanOnboarding({
   mode = "full",
+  embedInSheet = false,
+  skipT1IfCustomerDone = false,
+  skipT2IfCustomerDone = false,
+  onMandatoryComplete,
 }: {
   /** full = post-signup; settings = optional tiers later */
   mode?: "full" | "settings";
+  /** Nested in ProOnboardingSheet (60% panel) — compact chrome */
+  embedInSheet?: boolean;
+  /** Customer already passed T1 — hide phone OTP step */
+  skipT1IfCustomerDone?: boolean;
+  /** Customer already passed T2 — hide gov ID re-verify */
+  skipT2IfCustomerDone?: boolean;
+  /** Called when mandatory T1+T2 (inherited or done) are satisfied */
+  onMandatoryComplete?: () => void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -151,29 +168,32 @@ export function ArtisanOnboarding({
   const ink = tokens.ink;
   const muted = tokens.muted;
   const soft = tokens.soft;
-  // Fields/chips sit on main sheet (#c8c9cd / black) — soft inset only, no stacked gray panels
+  // Apple premium: single sheet, hairline fields only (no nested fills)
   const fieldClass = cn(
-    "h-10 w-full rounded-md border-0 px-3 text-[13px] font-medium outline-none",
-    isLight ? "bg-black/[0.06] text-[#0f172a]" : "bg-white/[0.08] text-white"
+    "h-11 w-full border-0 border-b bg-transparent px-0 text-[16px] font-medium outline-none",
+    isLight
+      ? "border-black/15 text-[#1c1c1e] placeholder:text-slate-400"
+      : "border-white/20 text-white placeholder:text-white/35"
   );
   const selectClass = cn(
-    "h-10 w-full rounded-md border-0 px-2 text-[12px] font-semibold outline-none",
-    isLight ? "bg-black/[0.06] text-[#0f172a]" : "bg-white/[0.08] text-white"
+    "h-11 w-full border-0 border-b bg-transparent px-0 text-[16px] font-semibold outline-none",
+    isLight ? "border-black/15 text-[#1c1c1e]" : "border-white/20 text-white"
   );
-  const panelClass = cn(
-    "rounded-md p-3",
-    isLight ? "bg-transparent" : "bg-transparent"
-  );
+  const panelClass = "rounded-none border-0 bg-transparent p-0";
   const chipOff = isLight
-    ? "bg-black/[0.06] text-slate-800"
-    : "bg-white/[0.08] text-[#d1d1d6]";
+    ? "bg-transparent text-slate-800 border border-black/10"
+    : "bg-transparent text-[#d1d1d6] border border-white/15";
   const uploadClass = cn(
-    "flex cursor-pointer flex-col items-center justify-center rounded-md text-[12px] font-bold",
-    isLight ? "bg-black/[0.06] text-slate-800" : "bg-white/[0.08] text-white"
+    "flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed text-[13px] font-semibold",
+    isLight
+      ? "border-black/20 bg-transparent text-slate-800"
+      : "border-white/25 bg-transparent text-white"
   );
   const uploadInlineClass = cn(
-    "flex cursor-pointer items-center justify-center rounded-md text-[12px] font-bold",
-    isLight ? "bg-black/[0.06] text-slate-800" : "bg-white/[0.08] text-white"
+    "flex cursor-pointer items-center justify-center rounded-xl border border-dashed text-[13px] font-semibold",
+    isLight
+      ? "border-black/20 bg-transparent text-slate-800"
+      : "border-white/25 bg-transparent text-white"
   );
   const errBox = isLight
     ? "bg-red-50 text-red-700"
@@ -188,11 +208,11 @@ export function ArtisanOnboarding({
     ? "bg-[#fff7ed] text-[#9a3412]"
     : "bg-[#3a2010] text-[#fdba74]";
   const navBack = isLight
-    ? "bg-black/[0.06] text-slate-900"
-    : "bg-white/[0.08] text-white";
+    ? "bg-transparent text-slate-600"
+    : "bg-transparent text-white/60";
   const tradeOff = isLight
-    ? "bg-black/[0.06] text-slate-900"
-    : "bg-white/[0.08] text-white";
+    ? "bg-transparent text-slate-900 border-b border-black/10"
+    : "bg-transparent text-white border-b border-white/10";
   /** Selected chips — brand orange for all Yes/No and option picks */
   const chipOn = "bg-[#FF6B35] text-white";
   const userId =
@@ -945,18 +965,49 @@ export function ArtisanOnboarding({
 
   const trade = tradeDef(profile.trade.service);
 
+  const hidePhoneTier =
+    skipT1IfCustomerDone && customerHasT1(userProfile);
+  const hideGovIdTiers =
+    skipT2IfCustomerDone && customerHasT2(userProfile);
+
+  // Notify parent sheet when Customer-inherited or local T1+T2 are done
+  useEffect(() => {
+    if (!onMandatoryComplete || !profile) return;
+    if (isProSwitchMandatoryOnboardingDone(userProfile, profile)) {
+      onMandatoryComplete();
+    }
+  }, [
+    onMandatoryComplete,
+    userProfile,
+    profile?.tiers?.tier1_phone,
+    profile?.tiers?.tier2_govId,
+    profile?.govIdReviewStatus,
+  ]);
+
   return (
     <div
       className="relative flex h-full min-h-0 flex-col overflow-hidden"
       style={{ backgroundColor: sheetBg }}
     >
       <div className="shrink-0">
-        <PageHeader
-          title={mode === "settings" ? "Verification" : "Repair Pro Setup"}
-          subtitle={`${statusLabel(profile.status)} · ${progress}% verified`}
-          // Stack previous page when available; else dashboard (pro) / profile
-          backHref={mode === "settings" ? "/profile" : "/dashboard"}
-        />
+        {!embedInSheet ? (
+          <PageHeader
+            title={mode === "settings" ? "Verification" : "Repair Pro Setup"}
+            subtitle={`${statusLabel(profile.status)} · ${progress}% verified`}
+            // Stack previous page when available; else dashboard (pro) / profile
+            backHref={mode === "settings" ? "/profile" : "/dashboard"}
+          />
+        ) : (
+          <div className="px-3 pb-1 pt-0.5">
+            <p className={cn("text-[11px] font-semibold", muted)}>
+              {hideGovIdTiers
+                ? "Customer ID already verified — finish Pro-only steps"
+                : "Complete remaining verification for Repair Pro"}
+              {" · "}
+              {progress}%
+            </p>
+          </div>
+        )}
 
         {needsResubmit ? (
           <div
@@ -1278,8 +1329,8 @@ export function ArtisanOnboarding({
           </section>
         )}
 
-        {/* —— PHONE TIER 1 —— */}
-        {step === "phone" && (
+        {/* —— PHONE TIER 1 —— (skip if Customer already T1) */}
+        {step === "phone" && !hidePhoneTier && (
           <section className="space-y-3">
             <div className="flex items-center gap-2">
               <Phone className="h-5 w-5 text-[#FF6B35]" />
@@ -1804,7 +1855,30 @@ export function ArtisanOnboarding({
               </div>
             ) : null}
 
-            <div className={cn(panelClass, "space-y-2.5")}>
+            {hideGovIdTiers ? (
+              <div
+                className={cn(
+                  "rounded-md px-3 py-2.5 text-[11px] font-medium leading-snug",
+                  isLight
+                    ? "bg-emerald-100 text-emerald-900"
+                    : "bg-emerald-950/40 text-emerald-200"
+                )}
+              >
+                <p className="font-bold">Tier 2 already complete</p>
+                <p className="mt-0.5">
+                  Your Customer government ID is verified — no re-upload for
+                  Repair Pro.
+                </p>
+              </div>
+            ) : null}
+
+            <div
+              className={cn(
+                panelClass,
+                "space-y-2.5",
+                hideGovIdTiers && "hidden"
+              )}
+            >
               <div>
                 <p className={cn("flex items-center gap-2 text-[13px] font-bold", ink)}>
                   <FileText className="h-4 w-4 shrink-0 text-[#FF6B35]" />{" "}
@@ -2500,30 +2574,30 @@ export function ArtisanOnboarding({
         </BottomSheet>
       ) : null}
 
-      {/* Nav */}
+      {/* Apple footer — primary Continue, text Back */}
       {mode === "full" ? (
         <div
-          className="flex shrink-0 gap-2 border-0 px-3 pb-4 pt-2"
+          className="flex shrink-0 flex-col gap-2 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3"
           style={{ backgroundColor: sheetBg }}
         >
+          <button
+            type="button"
+            disabled={stepIndex >= STEPS.length - 1}
+            onClick={goNext}
+            className="inline-flex h-12 w-full items-center justify-center rounded-xl border-0 bg-[#323231] text-[16px] font-semibold text-white disabled:opacity-40"
+          >
+            Continue
+          </button>
           <button
             type="button"
             disabled={stepIndex <= 0}
             onClick={() => setStep(STEPS[Math.max(0, stepIndex - 1)].id)}
             className={cn(
-              "inline-flex h-11 flex-1 items-center justify-center gap-1 rounded-md border-0 text-[13px] font-bold disabled:opacity-40",
+              "h-10 w-full border-0 bg-transparent text-[15px] font-semibold disabled:opacity-40",
               navBack
             )}
           >
-            <ChevronLeft className="h-4 w-4" /> Back
-          </button>
-          <button
-            type="button"
-            disabled={stepIndex >= STEPS.length - 1}
-            onClick={goNext}
-            className="inline-flex h-11 flex-1 items-center justify-center gap-1 rounded-md border-0 bg-[#323231] text-[13px] font-bold text-white disabled:opacity-40"
-          >
-            Next <ChevronRight className="h-4 w-4" />
+            Back
           </button>
         </div>
       ) : null}

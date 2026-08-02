@@ -78,6 +78,11 @@ import {
   isAppBackendOnline,
 } from "@/lib/supabase/app-api";
 import { isSpecialtyPickerTrade } from "@/lib/artisan/catalog";
+import { getArtisanProfile } from "@/lib/artisan/local-store";
+import {
+  isCustomerToProDualPath,
+  isProSwitchMandatoryOnboardingDone,
+} from "@/lib/pro-switch-onboarding";
 import { getVehiclesServedLock } from "@/lib/profile-edit";
 import { playPersonTone } from "@/lib/sound-tone";
 import { haversineKm } from "@/lib/supabase/mappers";
@@ -302,6 +307,12 @@ interface AppState {
   /** Verify post-switch OTP (profile-verify / demo). Returns error or null. */
   completePostSwitchPhoneOtp: (code: string) => Promise<string | null>;
   /**
+   * Customer → Pro: 60% bottom onboarding sheet until T2 satisfied.
+   * Set on switch to professional when dual-role (has Customer).
+   */
+  proOnboardingSheetRequired: boolean;
+  setProOnboardingSheetRequired: (v: boolean) => void;
+  /**
    * Log in with email + password against the dual vault.
    * Optionally prefer a specific account type when both match.
    */
@@ -516,6 +527,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [proLive, setProLiveState] = useState(false);
   /** Session-only: force phone OTP after every successful Tap to Switch */
   const [postSwitchPhoneOtpRequired, setPostSwitchPhoneOtpRequired] =
+    useState(false);
+  /** Customer → Pro: bottom-sheet onboarding until T2 done */
+  const [proOnboardingSheetRequired, setProOnboardingSheetRequired] =
     useState(false);
   const [helpingSomeoneElse, setHelpingSomeoneElseState] = useState(false);
   const [helpingSomeoneLabel, setHelpingSomeoneLabel] = useState<string | null>(
@@ -842,6 +856,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
     root.style.backgroundColor = stage;
     if (document.body) document.body.style.backgroundColor = stage;
   }, [theme]);
+
+  /**
+   * Rehydrate C→Pro mandatory bottom sheet after refresh/relogin.
+   * Session flag alone was lost on reload; Settings Verification stays hidden
+   * until T2, so without this dual Pros could get stuck.
+   */
+  useEffect(() => {
+    if (!isAuthenticated || accountType !== "professional") {
+      return;
+    }
+    const dual = isCustomerToProDualPath({
+      hasMotoristAccount,
+      hasProAccount,
+      accountType,
+      primaryAccountType,
+    });
+    if (!dual) return;
+    const artisan = backendUserId ? getArtisanProfile(backendUserId) : null;
+    if (!isProSwitchMandatoryOnboardingDone(userProfile, artisan)) {
+      setProOnboardingSheetRequired(true);
+    } else {
+      setProOnboardingSheetRequired(false);
+    }
+  }, [
+    isAuthenticated,
+    accountType,
+    hasMotoristAccount,
+    hasProAccount,
+    primaryAccountType,
+    backendUserId,
+    userProfile,
+  ]);
 
   // Follow OS theme only when no device/account override is stored
   useEffect(() => {
@@ -1177,15 +1223,55 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
         }
       }
-      // Carry verification flags from server; then force session re-OTP (item 3)
+      // Carry verification flags from server + preserve Customer T2 if API omits
+      const prev = userProfile;
       const withFlags: UserProfile = {
         ...switched,
-        phoneVerified: Boolean(switched.phoneVerified),
+        phoneVerified: Boolean(
+          switched.phoneVerified || prev?.phoneVerified
+        ),
+        identityReviewStatus:
+          switched.identityReviewStatus || prev?.identityReviewStatus,
+        govIdVerified: Boolean(switched.govIdVerified || prev?.govIdVerified),
+        identityVerifiedAt:
+          switched.identityVerifiedAt || prev?.identityVerifiedAt,
+        identitySubmittedAt:
+          switched.identitySubmittedAt || prev?.identitySubmittedAt,
+        govIdKind: switched.govIdKind || prev?.govIdKind,
+        govIdFrontUrl: switched.govIdFrontUrl || prev?.govIdFrontUrl,
+        ninVerified: Boolean(switched.ninVerified || prev?.ninVerified),
+        bvnVerified: Boolean(switched.bvnVerified || prev?.bvnVerified),
       };
       saveProfileToVault(withFlags);
-      // Session phone gate: must re-enter OTP after switch (DB flags still true)
-      applySession({ ...withFlags, phoneVerified: false });
-      setPostSwitchPhoneOtpRequired(true);
+
+      const dualToPro =
+        type === "professional" &&
+        Boolean(
+          res.hasMotorist ||
+            hasMotoristAccount ||
+            userProfile?.accountType === "motorist"
+        );
+      const t1Done = Boolean(withFlags.phoneVerified);
+
+      if (dualToPro) {
+        // Customer → Pro: keep T1 if already done; open 60% setup sheet
+        // Skip post-switch OTP when Customer T1 already verified
+        if (t1Done) {
+          applySession(withFlags);
+          setPostSwitchPhoneOtpRequired(false);
+        } else {
+          applySession({ ...withFlags, phoneVerified: false });
+          setPostSwitchPhoneOtpRequired(true);
+        }
+        // Always show sheet; it auto-clears when T1+T2 satisfied (inherited or done)
+        setProOnboardingSheetRequired(true);
+      } else {
+        // Other switches: session re-OTP still required
+        applySession({ ...withFlags, phoneVerified: false });
+        setPostSwitchPhoneOtpRequired(true);
+        setProOnboardingSheetRequired(false);
+      }
+
       if (res.hasMotorist != null) setHasMotoristAccount(res.hasMotorist);
       if (res.hasPro != null) setHasProAccount(res.hasPro);
       // Always Away after a role switch — pro must tap Live again
@@ -2185,6 +2271,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPrimaryAccountType(null);
     setProLiveState(false);
     setPostSwitchPhoneOtpRequired(false);
+    setProOnboardingSheetRequired(false);
     setDisplayName("Guest");
     setUserProfile(null);
     setCloudTechs([]);
@@ -3396,6 +3483,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       postSwitchPhoneOtpRequired,
       sendPostSwitchPhoneOtp,
       completePostSwitchPhoneOtp,
+      proOnboardingSheetRequired,
+      setProOnboardingSheetRequired,
       signInWithPassword,
       sendPhoneOtp,
       sendLoginOtp,
@@ -3474,6 +3563,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       postSwitchPhoneOtpRequired,
       sendPostSwitchPhoneOtp,
       completePostSwitchPhoneOtp,
+      proOnboardingSheetRequired,
+      setProOnboardingSheetRequired,
       signInWithPassword,
       sendPhoneOtp,
       sendLoginOtp,

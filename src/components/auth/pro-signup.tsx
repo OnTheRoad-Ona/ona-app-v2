@@ -6,15 +6,27 @@ import { Briefcase, Check, ChevronLeft, ChevronRight, User } from "lucide-react"
 import {
   AuthPlate,
   authBackBtnClass,
-  authFieldClass,
-  authFieldIconClass,
-  authFieldStyle,
+  authFieldClass as authFieldClassLegacy,
+  authFieldIconClass as authFieldIconClassLegacy,
+  authFieldStyle as authFieldStyleLegacy,
   authLabelClass,
   authLockedFieldClass,
   authLockedFieldStyle,
-  authSelectClass,
-  authTextareaClass,
+  authSelectClass as authSelectClassLegacy,
+  authTextareaClass as authTextareaClassLegacy,
 } from "@/components/auth/auth-plate";
+import {
+  AppleProBody,
+  AppleProFooter,
+  AppleProOptionRow,
+  AppleProProgress,
+  AppleProTitle,
+  AppleProWizard,
+  appleProFieldClass,
+  appleProSelectClass,
+  appleProTextareaClass,
+  proSheetBg,
+} from "@/components/pro/apple-pro-wizard";
 import { useAuthNavigate } from "@/components/auth/auth-transition";
 import { PasswordField } from "@/components/auth/password-field";
 import { RegistrationComplete } from "@/components/auth/registration-complete";
@@ -112,7 +124,24 @@ export function ProSignup() {
   const router = useRouter();
   const { exiting, go } = useAuthNavigate();
   const searchParams = useSearchParams();
-  const { completeSignup, userProfile, isAuthenticated } = useApp();
+  const { completeSignup, userProfile, isAuthenticated, theme } = useApp();
+  const isLight = theme === "light";
+  /** Apple premium: hairline fields on single sheet (no nested gray wells) */
+  const authFieldClass = appleProFieldClass(isLight);
+  const authFieldIconClass = cn(appleProFieldClass(isLight), "pl-8");
+  const authSelectClass = appleProSelectClass(isLight);
+  const authTextareaClass = appleProTextareaClass(isLight);
+  const authFieldStyle = {
+    backgroundColor: "transparent",
+    borderColor: "transparent",
+    color: isLight ? "#1c1c1e" : "#ffffff",
+    boxShadow: "none",
+  } as const;
+  void authFieldClassLegacy;
+  void authFieldIconClassLegacy;
+  void authSelectClassLegacy;
+  void authTextareaClassLegacy;
+  void authFieldStyleLegacy;
   const phoneCodes = useMemo(() => getPhoneCodeOptions(), []);
   const [step, setStep] = useState<Step>(1);
   const [done, setDone] = useState(false);
@@ -1137,102 +1166,101 @@ export function ProSignup() {
   }
 
   return (
-    <AuthPlate exiting={exiting}>
-      <div className="om-pro-signup-fields mx-auto flex min-h-0 w-[80%] flex-1 flex-col pb-4 pt-5">
-        <button type="button" onClick={goBack} className={authBackBtnClass}>
-          <ChevronLeft className="h-4 w-4" strokeWidth={2.25} />
-          Back
-        </button>
+    <AppleProWizard
+      isLight={isLight}
+      className={exiting ? "om-auth-exit" : "om-auth-enter"}
+    >
+      <div className="mx-auto flex min-h-0 w-full max-w-[390px] flex-1 flex-col">
+        <AppleProTitle
+          title={stepTitles[step]}
+          subtitle={
+            dualSignup
+              ? "Continue as Repair Pro with your Customer details"
+              : "Create your Repair Pro account"
+          }
+          isLight={isLight}
+          stepLabel={`Step ${FLOW_STEPS.indexOf(step) + 1} of ${FLOW_STEPS.length}`}
+        />
+        <AppleProProgress
+          total={FLOW_STEPS.length}
+          index={FLOW_STEPS.indexOf(step)}
+          isLight={isLight}
+        />
 
-        <h1 className="text-center text-[17px] font-bold tracking-tight text-[#1c1c1e]">
-          {stepTitles[step]}
-        </h1>
-        {/* Progress bar — account signup steps only (no car/skill-Q steps) */}
-        <div className="mt-2 flex gap-1">
-          {FLOW_STEPS.map((n, i) => {
-            const currentIdx = FLOW_STEPS.indexOf(step);
-            return (
-              <span
-                key={n}
-                className={cn(
-                  "h-0.5 flex-1 rounded-sm",
-                  i <= currentIdx
-                    ? "auth-apple-progress-fill"
-                    : "auth-apple-progress-track"
-                )}
-              />
-            );
-          })}
-        </div>
-
-        <div
+        <AppleProBody
           className={cn(
-            "mt-2 flex min-h-0 flex-1 flex-col",
-            step === 1
-              ? "overflow-hidden"
-              : "gap-2 overflow-y-auto scrollbar-hide"
+            step === 1 ? "flex flex-col overflow-hidden" : "gap-1"
           )}
         >
           {step === 1 && (
             <>
               <div className="min-h-0 w-full flex-1 overflow-y-auto scrollbar-hide">
-                <ul className="flex list-none flex-col gap-2 p-0 pb-2">
+                <ul className="flex list-none flex-col p-0">
                   {PRO_TRADE_OPTIONS.map(({ id, label, icon: Icon, hint }) => {
                     const active = skill === id;
                     return (
                       <li key={id} className="shrink-0">
-                        <button
-                          type="button"
-                          onClick={(e) => selectSkill(id, e)}
-                          aria-pressed={active}
-                          className={cn(
-                            "flex min-h-[52px] w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors",
-                            !active &&
-                              "bg-[#E2E3E7] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] hover:bg-[#E8E9ED]",
-                            active &&
-                              "bg-[#9a9da5] shadow-[0_1px_6px_rgba(15,23,42,0.08)]"
-                          )}
+                        <AppleProOptionRow
+                          active={active}
+                          isLight={isLight}
+                          onClick={() => selectSkill(id)}
                         >
                           <Icon
                             className={cn(
-                              "h-[18px] w-[18px] shrink-0",
-                              active ? "text-[#1c1c1e]" : "text-[#3f4248]"
+                              "h-5 w-5 shrink-0",
+                              active
+                                ? "text-[#FF6B35]"
+                                : isLight
+                                  ? "text-slate-600"
+                                  : "text-white/70"
                             )}
                             strokeWidth={1.85}
                           />
                           <span className="min-w-0 flex-1">
                             <span
                               className={cn(
-                                "block text-[15px] tracking-[-0.01em]",
-                                active
-                                  ? "font-semibold text-[#1c1c1e]"
-                                  : "font-medium text-[#1c1c1e]"
+                                "block text-[16px] font-semibold",
+                                isLight ? "text-[#1c1c1e]" : "text-white"
                               )}
                             >
                               {label}
                             </span>
-                            <span className="block text-[11px] text-[#3a3a3c]/70">
-                              {hint}
-                            </span>
+                            {hint ? (
+                              <span
+                                className={cn(
+                                  "mt-0.5 block text-[12px] font-medium",
+                                  isLight ? "text-slate-500" : "text-white/45"
+                                )}
+                              >
+                                {hint}
+                              </span>
+                            ) : null}
                           </span>
                           <span
                             className={cn(
                               "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border transition-colors",
                               active
                                 ? "border-[#FF6B35] bg-[#FF6B35] text-[8px] font-bold text-white"
-                                : "border-[#8b8e96]/50 bg-transparent"
+                                : isLight
+                                  ? "border-black/20 bg-transparent"
+                                  : "border-white/30 bg-transparent"
                             )}
                             aria-hidden
                           >
                             {active ? "✓" : ""}
                           </span>
-                        </button>
+                        </AppleProOptionRow>
                       </li>
                     );
                   })}
                 </ul>
               </div>
-              <p className="mt-2 shrink-0 text-center text-[11px] text-[#3a3a3c]/70">
+              <p
+                className={cn(
+                  "mt-2 shrink-0 text-center text-[12px] font-medium",
+                  isLight ? "text-slate-500" : "text-white/45"
+                )}
+              >
                 Choose only{" "}
                 <span className="font-semibold text-[#FF6B35]">one</span> trade,
                 then pick your focus
@@ -1240,32 +1268,60 @@ export function ProSignup() {
             </>
           )}
 
-          {/* Step 2 — full-page specialty (modern cards, not chips) */}
+          {/* Step 2 — specialty (hairline list) */}
           {step === 2 && skill && (
             <div className="flex min-h-0 flex-1 flex-col pt-1">
-              <p className="mb-3 text-center text-[12px] leading-relaxed text-[#475569]">
+              <p
+                className={cn(
+                  "mb-2 text-[14px] font-medium leading-snug",
+                  isLight ? "text-slate-600" : "text-white/55"
+                )}
+              >
                 Where do you mainly work as a{" "}
-                <span className="font-semibold text-[#1e293b]">
+                <span
+                  className={cn(
+                    "font-semibold",
+                    isLight ? "text-[#1c1c1e]" : "text-white"
+                  )}
+                >
                   {PRO_SERVICE_LABELS[skill]}
                 </span>
                 ?
               </p>
-              <ul className="flex min-h-0 flex-1 list-none flex-col gap-2.5 overflow-y-auto p-0 pb-2 scrollbar-hide">
+              <ul className="flex min-h-0 flex-1 list-none flex-col overflow-y-auto p-0 pb-2 scrollbar-hide">
                 {specialtyOptions.map((s) => {
                   const on = specialty === s;
                   return (
                     <li key={s} className="shrink-0">
-                      <button
-                        type="button"
+                      <AppleProOptionRow
+                        active={on}
+                        isLight={isLight}
                         onClick={() => setSpecialty(s)}
-                        aria-pressed={on}
-                        className={cn(
-                          "flex min-h-[64px] w-full items-center gap-3 rounded-xl px-4 py-3.5 text-left transition-all",
-                          on
-                            ? "bg-[#323231] text-white shadow-[0_4px_14px_rgba(15,23,42,0.18)]"
-                            : "bg-[#E2E3E7] text-[#1c1c1e] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] active:scale-[0.99]"
-                        )}
                       >
+                        <span
+                          className={cn(
+                            "text-[16px] font-semibold",
+                            isLight ? "text-[#1c1c1e]" : "text-white"
+                          )}
+                        >
+                          {s}
+                        </span>
+                      </AppleProOptionRow>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {false && step === 2 && skill && (
+            <div>
+              <ul>
+                {specialtyOptions.map((s) => {
+                  const on = specialty === s;
+                  return (
+                    <li key={s}>
+                      <button type="button">
                         <span
                           className={cn(
                             "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[15px] font-black",
@@ -2021,120 +2077,82 @@ export function ProSignup() {
               )}
             </div>
           )}
-        </div>
 
-        <div className={cn("shrink-0", step === 1 ? "mt-2" : "mt-3")}>
-          {formError && step !== 5 && (
+          {formError && step !== 5 ? (
             <p className="mb-2 text-center text-[12px] font-medium text-red-700">
               {formError}
             </p>
-          )}
-          {step < 7 ? (
-            <button
-              type="button"
-              className="om-cta-dark-gray"
-              style={{
-                WebkitAppearance: "none",
-                appearance: "none",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: "100%",
-                height: 44,
-                margin: 0,
-                border: "none",
-                borderRadius: 6,
-                background: "#323231",
-                backgroundColor: "#323231",
-                backgroundImage: "none",
-                color: "#ffffff",
-                fontSize: 14,
-                fontWeight: 600,
-                boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
-                cursor: "pointer",
-                opacity: 1,
-              }}
-              data-cta="next"
-              onClick={() => {
-                if (step === 1) {
-                  if (!skill) {
-                    setFormError("Please select your trade.");
-                    return;
-                  }
-                  // Trade only on step 1 — specialty is the next full page
-                  setFormError("");
-                  setStep(2);
-                  return;
-                }
-                if (step === 2) {
-                  if (!specialty?.trim()) {
-                    setFormError("Please pick your focus area.");
-                    return;
-                  }
-                  setFormError("");
-                  setStep(4);
-                  return;
-                }
-                if (step === 4) {
-                  const err = validateStep4();
-                  if (err) {
-                    setFormError(err);
-                    return;
-                  }
-                }
-                if (step === 5) {
-                  const err = validateStep5();
-                  if (err) {
-                    setFormError(err);
-                    return;
-                  }
-                }
-                const blocked =
-                  (step === 4 && !step4Ok) ||
-                  (step === 5 && !step5Ok) ||
-                  (step === 6 && !step6Ok);
-                if (blocked) return;
-                const nxt = nextFlowStep(step);
-                if (!nxt) return;
-                setFormError("");
-                setStep(nxt);
-              }}
-            >
-              Next
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="om-cta-dark-gray"
-              style={{
-                WebkitAppearance: "none",
-                appearance: "none",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: "100%",
-                height: 44,
-                margin: 0,
-                border: "none",
-                borderRadius: 6,
-                background: "#323231",
-                backgroundColor: "#323231",
-                backgroundImage: "none",
-                color: "#ffffff",
-                fontSize: 14,
-                fontWeight: 600,
-                boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
-                cursor: busy ? "wait" : "pointer",
-                opacity: 1,
-              }}
-              data-cta="complete-registration"
-              onClick={finish}
-            >
-              {busy ? "Please wait…" : "Finish and create account"}
-            </button>
-          )}
-        </div>
+          ) : null}
+        </AppleProBody>
 
+        <AppleProFooter
+          isLight={isLight}
+          hideBack={step === 1 && !dualSignup}
+          onBack={goBack}
+          nextLabel={
+            step < 7
+              ? "Continue"
+              : busy
+                ? "Please wait…"
+                : "Finish and create account"
+          }
+          nextBusy={busy}
+          nextDisabled={
+            busy ||
+            (step === 1 && !skill) ||
+            (step === 2 && !specialty?.trim()) ||
+            (step === 4 && !step4Ok) ||
+            (step === 5 && !step5Ok) ||
+            (step === 6 && !step6Ok)
+          }
+          onNext={() => {
+            if (step === 7) {
+              void finish();
+              return;
+            }
+            if (step === 1) {
+              if (!skill) {
+                setFormError("Please select your trade.");
+                return;
+              }
+              setFormError("");
+              setStep(2);
+              return;
+            }
+            if (step === 2) {
+              if (!specialty?.trim()) {
+                setFormError("Please pick your focus area.");
+                return;
+              }
+              setFormError("");
+              setStep(4);
+              return;
+            }
+            if (step === 4) {
+              const err = validateStep4();
+              if (err) {
+                setFormError(err);
+                return;
+              }
+            }
+            if (step === 5) {
+              const err = validateStep5();
+              if (err) {
+                setFormError(err);
+                return;
+              }
+            }
+            const blocked =
+              (step === 4 && !step4Ok) ||
+              (step === 5 && !step5Ok) ||
+              (step === 6 && !step6Ok);
+            if (blocked) return;
+            const nxt = nextFlowStep(step);
+            if (!nxt) return;
+            setFormError("");
+            setStep(nxt);
+          }}
+        />
       </div>
 
       <RegistrationComplete
@@ -2144,7 +2162,7 @@ export function ProSignup() {
           router.replace("/dashboard");
         }}
       />
-    </AuthPlate>
+    </AppleProWizard>
   );
 }
 
