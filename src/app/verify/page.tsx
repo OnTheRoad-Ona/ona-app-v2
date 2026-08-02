@@ -389,7 +389,7 @@ export default function VerifyIdentityPage() {
           </p>
           <p className={cn("mt-1 text-[11px] leading-snug", muted)}>
             {phoneOk
-              ? "Verified — free booking for 30 days from your first request."
+              ? "Phone checked. Free booking for 30 days from your first request."
               : "Confirm your phone with a one-time code."}
           </p>
           {phoneOk ? (

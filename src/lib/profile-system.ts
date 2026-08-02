@@ -21,7 +21,7 @@ export const EXP_YEARS = [
 export type ExpYear = (typeof EXP_YEARS)[number];
 
 export function formatExperience(years?: string | null): string {
-  if (!years) return "—";
+  if (!years) return "Not set";
   if (years === "10+") return "10+ years";
   if (years === "1") return "1 year";
   return `${years} years`;
@@ -273,13 +273,11 @@ export function profileTheme(isLight: boolean): ProfileThemeTokens {
     isLight,
     sheet: isLight ? "bg-[#c8c9cd]" : "bg-black",
     sheetBg: isLight ? "#c8c9cd" : "#000000",
-    // Light: flat; dark: solid elevated
-    card: isLight
-      ? "rounded-none border-0 bg-transparent"
-      : "rounded-2xl bg-[#1c1c1e]",
-    cardBg: isLight ? "transparent" : "#1c1c1e",
-    inset: isLight ? "bg-transparent" : "bg-[#2c2c2e]",
-    insetBg: isLight ? "transparent" : "#2c2c2e",
+    // Flat profile: no elevated cards (X-style). Inputs use transparent stage.
+    card: "rounded-none border-0 bg-transparent",
+    cardBg: "transparent",
+    inset: "bg-transparent",
+    insetBg: "transparent",
     ink: isLight ? "text-slate-900" : "text-white",
     muted: isLight ? "text-slate-600" : "text-[#a1a1a6]",
     soft: isLight ? "text-slate-700" : "text-[#d1d1d6]",
@@ -295,13 +293,13 @@ export function canViewMotoristProfile(
 }
 
 export function memberSinceLabel(iso?: string): string {
-  if (!iso) return "—";
+  if (!iso) return "Not set";
   try {
     return new Date(iso).toLocaleDateString(undefined, {
       month: "short",
       year: "numeric",
     });
   } catch {
-    return "—";
+    return "Not set";
   }
 }

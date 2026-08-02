@@ -142,14 +142,14 @@ export async function syncPayoutAcrossRoles(
       supabase
         .from("motorist_profiles")
         .select(
-          "user_id, bank_name, bank_code, bank_account_name, bank_account_number"
+          "user_id, bank_name, bank_code, bank_account_name, bank_account_number, updated_at"
         )
         .eq("user_id", userId)
         .maybeSingle(),
       supabase
         .from("repair_pro_profiles")
         .select(
-          "user_id, bank_name, bank_code, bank_account_name, bank_account_number"
+          "user_id, bank_name, bank_code, bank_account_name, bank_account_number, updated_at"
         )
         .eq("user_id", userId)
         .maybeSingle(),
@@ -158,42 +158,50 @@ export async function syncPayoutAcrossRoles(
       return { ok: false, error: "Could not read bank details" };
     }
 
-    const mot = motRes.data as
-      | {
-          bank_name?: string | null;
-          bank_code?: string | null;
-          bank_account_name?: string | null;
-          bank_account_number?: string | null;
-        }
-      | null
-      | undefined;
-    const pro = proRes.data as typeof mot | undefined;
+    type BankRow = {
+      bank_name?: string | null;
+      bank_code?: string | null;
+      bank_account_name?: string | null;
+      bank_account_number?: string | null;
+      updated_at?: string | null;
+    } | null | undefined;
 
-    const hasNum = (row: typeof mot) =>
+    const mot = motRes.data as BankRow;
+    const pro = proRes.data as BankRow;
+
+    const hasNum = (row: BankRow) =>
       Boolean(row?.bank_account_number && row.bank_account_number.trim());
 
-    // Source of truth: prefer the row that actually has a number.
+    // Source of truth: one NUBAN per identity. Prefer the side that has a
+    // number; if both do, prefer the more recently updated row so the latest
+    // save (Customer or Pro) wins and is merged to both roles.
     let source: "motorist" | "repair_pro" | "both" | null = null;
-    if (hasNum(mot) && hasNum(pro)) source = "both";
-    else if (hasNum(mot)) source = "motorist";
+    if (hasNum(mot) && hasNum(pro)) {
+      const mAt = mot?.updated_at ? Date.parse(mot.updated_at) : 0;
+      const pAt = pro?.updated_at ? Date.parse(pro.updated_at) : 0;
+      source = mAt >= pAt ? "motorist" : "repair_pro";
+      bankSynced.conflictResolved = source;
+    } else if (hasNum(mot)) source = "motorist";
     else if (hasNum(pro)) source = "repair_pro";
     if (!source) return { ok: true, bankSynced };
 
-    const pick = (row: typeof mot, field: "bank_name" | "bank_code" | "bank_account_name" | "bank_account_number") =>
-      (row?.[field] || "").trim() || null;
+    const pick = (
+      row: BankRow,
+      field:
+        | "bank_name"
+        | "bank_code"
+        | "bank_account_name"
+        | "bank_account_number"
+    ) => (row?.[field] || "").trim() || null;
+    const winner = source === "motorist" ? mot : pro;
     const bank = {
-      bank_name: source === "motorist" ? pick(mot, "bank_name") : pick(pro, "bank_name"),
-      bank_code: source === "motorist" ? pick(mot, "bank_code") : pick(pro, "bank_code"),
-      account_name:
-        source === "motorist"
-          ? pick(mot, "bank_account_name")
-          : pick(pro, "bank_account_name"),
-      account_number:
-        source === "motorist"
-          ? pick(mot, "bank_account_number")
-          : pick(pro, "bank_account_number"),
+      bank_name: pick(winner, "bank_name"),
+      bank_code: pick(winner, "bank_code"),
+      account_name: pick(winner, "bank_account_name"),
+      account_number: pick(winner, "bank_account_number"),
     };
     const last4 = bank.account_number ? bank.account_number.slice(-4) : null;
+    const bothRoles = Boolean(motRes.data && proRes.data);
 
     // 1) Canonical record.
     const { error: pmErr } = await supabase.from("payout_methods").upsert(
@@ -203,7 +211,7 @@ export async function syncPayoutAcrossRoles(
         bank_code: bank.bank_code,
         account_name: bank.account_name,
         account_number_last4: last4,
-        linked_role: source === "both" ? "both" : source,
+        linked_role: bothRoles ? "both" : source,
         verified: false,
         updated_at: new Date().toISOString(),
       },
@@ -211,38 +219,51 @@ export async function syncPayoutAcrossRoles(
     );
     if (pmErr) return { ok: false, error: pmErr.message };
 
-    // 2) Mirror into the other role's side table so payout/refund code
-    //    (which reads side tables directly) works without changes.
-    if (source !== "both") {
-      const other = source === "motorist" ? "repair_pro_profiles" : "motorist_profiles";
-      const current =
-        source === "motorist"
-          ? pro
-          : mot;
-      if (!hasNum(current)) {
-        const { data: copied, error: copyErr } = await supabase
-          .from(other)
-          .update({
-            bank_name: bank.bank_name,
-            bank_code: bank.bank_code,
-            bank_account_name: bank.account_name,
-            bank_account_number: bank.account_number,
-            updated_at: new Date().toISOString(),
-          })
+    // 2) Always mirror the winning bank into every role side-table that exists
+    //    so refunds (customer) and payouts (pro) withdraw to the same NUBAN.
+    //    Role balances remain separate; only the payout destination is shared.
+    const bankPatch = {
+      bank_name: bank.bank_name,
+      bank_code: bank.bank_code,
+      bank_account_name: bank.account_name,
+      bank_account_number: bank.account_number,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (motRes.data) {
+      const same =
+        pick(mot, "bank_code") === bank.bank_code &&
+        (pick(mot, "bank_account_number") || "").replace(/\D/g, "") ===
+          (bank.account_number || "").replace(/\D/g, "");
+      if (!same) {
+        const { error: copyErr } = await supabase
+          .from("motorist_profiles")
+          .update(bankPatch)
           .eq("user_id", userId);
-        if (!copyErr && (copied ?? []).length > 0) {
-          (bankSynced.copiedTo as string[]).push(other);
-        }
+        if (!copyErr) (bankSynced.copiedTo as string[]).push("motorist_profiles");
+      }
+    }
+    if (proRes.data) {
+      const same =
+        pick(pro, "bank_code") === bank.bank_code &&
+        (pick(pro, "bank_account_number") || "").replace(/\D/g, "") ===
+          (bank.account_number || "").replace(/\D/g, "");
+      if (!same) {
+        const { error: copyErr } = await supabase
+          .from("repair_pro_profiles")
+          .update(bankPatch)
+          .eq("user_id", userId);
+        if (!copyErr) (bankSynced.copiedTo as string[]).push("repair_pro_profiles");
       }
     }
 
     await logIdentitySync(supabase, {
       userId,
       action: "bank_synced",
-      newState: { source, bankName: bank.bank_name, last4 },
+      newState: { source, bankName: bank.bank_name, last4, bothRoles },
       bankSynced,
       actor,
-      meta: { canonical: "payout_methods" },
+      meta: { canonical: "payout_methods", merged: true },
     });
     return { ok: true, bankSynced };
   } catch (e) {

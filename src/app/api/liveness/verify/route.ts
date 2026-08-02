@@ -5,6 +5,7 @@
 
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { requireUser } from "@/lib/server/auth-utils";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { writePlatformAudit } from "@/lib/server/modules/platform-audit";
@@ -21,11 +22,19 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return apiFail("Invalid body", 400, "invalid_body");
   }
   const b = parsed.data;
+
+  if (b.userId && b.userId !== auth.userId) {
+    return apiFail("Forbidden", 403, "forbidden");
+  }
+  const userId = auth.userId;
 
   if (!b.passed) {
     return apiOk({
@@ -43,21 +52,13 @@ export async function POST(req: Request) {
     });
   }
 
-  if (!b.userId) {
-    return apiOk({
-      recorded: false,
-      reason: "no_user",
-      message: "Sign in required to report liveness to server",
-    });
-  }
-
   const supabase = createServiceSupabase();
   const now = new Date().toISOString();
 
   const { data: existing } = await supabase
     .from("repair_pro_profiles")
     .select("user_id")
-    .eq("user_id", b.userId)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (!existing) {
@@ -77,7 +78,7 @@ export async function POST(req: Request) {
       liveness_passed_at: now,
       updated_at: now,
     })
-    .eq("user_id", b.userId);
+    .eq("user_id", userId);
 
   if (error) {
     console.error("[liveness/verify]", error.message);
@@ -88,17 +89,17 @@ export async function POST(req: Request) {
     const { recomputeProVisibility } = await import(
       "@/lib/server/pro-visibility"
     );
-    await recomputeProVisibility(supabase, b.userId);
+    await recomputeProVisibility(supabase, userId);
   } catch {
     /* non-fatal */
   }
 
   await writePlatformAudit({
-    actorId: b.userId,
+    actorId: userId,
     actorRole: "repair_pro",
     action: "pro.liveness.passed",
     targetType: "repair_pro_profiles",
-    targetId: b.userId,
+    targetId: userId,
     newValue: {
       challenges: b.challenges ?? [],
       durationMs: b.durationMs ?? null,

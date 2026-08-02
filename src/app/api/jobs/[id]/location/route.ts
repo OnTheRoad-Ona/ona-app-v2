@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { isJobParty, requireUser } from "@/lib/server/auth-utils";
 import { haversineEtaMinutes } from "@/lib/server/google-eta";
 import { getJob, updateTripPartyLocation } from "@/lib/server/jobs/job-store";
 
@@ -40,12 +41,18 @@ export async function POST(
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireUser(req);
+    if (!auth.ok) return auth.response;
+
     const { id } = await ctx.params;
     const parsed = bodySchema.safeParse(await req.json());
     if (!parsed.success) return apiFail("Invalid location", 400);
 
     const job = await getJob(id);
     if (!job) return apiFail("Job not found", 404);
+    if (!isJobParty(auth.userId, job)) {
+      return apiFail("Forbidden", 403, "forbidden");
+    }
 
     const active = [
       "paid_booked",
@@ -57,7 +64,11 @@ export async function POST(
       return apiFail("Location updates only while trip is active", 400);
     }
 
-    const actor = parsed.data.actor;
+    // Bind actor from session, not client spoof
+    const actor =
+      auth.userId === job.motoristId
+        ? ("motorist" as const)
+        : ("repair_pro" as const);
     const point = { lat: parsed.data.lat, lng: parsed.data.lng };
 
     const pro =

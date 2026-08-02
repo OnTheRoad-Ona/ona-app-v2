@@ -266,11 +266,11 @@ function ProJobsPage({
 
   useEffect(() => {
     void load();
-    // Poll for new customer requests; Realtime handles instant updates, this is a backup
+    // Realtime is primary; backup poll only (was 30s, stacked with global jobs poll)
     const t = window.setInterval(() => {
       if (document.hidden) return;
       void load();
-    }, 30_000);
+    }, 60_000);
     const onVis = () => {
       if (document.visibilityState === "visible") void load();
     };

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { requireUser } from "@/lib/server/auth-utils";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 
@@ -24,6 +25,9 @@ export async function POST(req: Request) {
     return apiFail("Supabase not configured", 503);
   }
   try {
+    const auth = await requireUser(req);
+    if (!auth.ok) return auth.response;
+
     const body = await req.json();
     const parsed = postSchema.safeParse(body);
     if (!parsed.success) {
@@ -33,6 +37,9 @@ export async function POST(req: Request) {
       );
     }
     const b = parsed.data;
+    if (b.fromUserId !== auth.userId) {
+      return apiFail("fromUserId must match signed-in user", 403);
+    }
     if (b.toUserId === b.fromUserId) {
       return apiFail("Cannot signal yourself", 400);
     }
@@ -43,7 +50,7 @@ export async function POST(req: Request) {
       .insert({
         call_id: b.callId,
         to_user_id: b.toUserId,
-        from_user_id: b.fromUserId,
+        from_user_id: auth.userId,
         kind: b.kind,
         payload: b.payload ?? {},
         consumed: false,
@@ -76,6 +83,9 @@ export async function GET(req: Request) {
     return apiFail("Supabase not configured", 503);
   }
   try {
+    const auth = await requireUser(req);
+    if (!auth.ok) return auth.response;
+
     const url = new URL(req.url);
     const userId = url.searchParams.get("userId") || "";
     if (
@@ -85,12 +95,15 @@ export async function GET(req: Request) {
     ) {
       return apiFail("userId required (uuid)", 400);
     }
+    if (userId !== auth.userId) {
+      return apiFail("Forbidden", 403, "forbidden");
+    }
 
     const sb = createServiceSupabase();
     const { data, error } = await sb
       .from("call_signals")
       .select("id, call_id, from_user_id, kind, payload, created_at")
-      .eq("to_user_id", userId)
+      .eq("to_user_id", auth.userId)
       .eq("consumed", false)
       .order("created_at", { ascending: true })
       .limit(50);
@@ -128,13 +141,18 @@ export async function PATCH(req: Request) {
     return apiFail("Supabase not configured", 503);
   }
   try {
+    const auth = await requireUser(req);
+    if (!auth.ok) return auth.response;
+
     const parsed = patchSchema.safeParse(await req.json());
     if (!parsed.success) return apiFail("ids required", 400);
     const sb = createServiceSupabase();
+    // Only mark signals addressed to this user
     const { error } = await sb
       .from("call_signals")
       .update({ consumed: true })
-      .in("id", parsed.data.ids);
+      .in("id", parsed.data.ids)
+      .eq("to_user_id", auth.userId);
     if (error) return apiFail(error.message, 500);
     return apiOk({ ok: true });
   } catch (e) {

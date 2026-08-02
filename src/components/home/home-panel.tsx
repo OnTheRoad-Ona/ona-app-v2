@@ -347,11 +347,15 @@ export function HomePanel({
   }, []);
 
   return (
-    <div className={cn("relative z-30 flex min-h-0 flex-col", className)}
+    <div
+      className={cn("relative z-30 flex min-h-0 flex-col", className)}
       style={{
         transition: "transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
-        transform: menuOpen ? "translateX(80%)" : "translateX(0%)",
-        willChange: "transform"
+        // Same split as .om-x-drawer / .om-x-rail — chips land in the capsule tube
+        transform: menuOpen
+          ? "translateX(var(--om-menu-split, 80%))"
+          : "translateX(0%)",
+        willChange: "transform",
       }}
     >
       <div onWheel={onSheetWheel} className="shrink-0">

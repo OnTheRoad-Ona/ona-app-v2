@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { requireUser } from "@/lib/server/auth-utils";
 import {
   cancelOpenPaymentSession,
   startJobEscrowPayment,
@@ -91,15 +92,24 @@ export async function POST(
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireUser(req);
+    if (!auth.ok) return auth.response;
+
     const { id } = await ctx.params;
     const parsed = bodySchema.safeParse(await req.json());
     if (!parsed.success) return apiFail("Invalid payment body", 400);
     const b = parsed.data;
 
+    // Motorist identity is always the authenticated user
+    const motoristId = auth.userId;
+    if (b.motoristId && b.motoristId !== auth.userId) {
+      return apiFail("You can only pay for your own jobs", 403);
+    }
+
     if (b.action === "cancel") {
       const res = await cancelOpenPaymentSession({
         jobId: id,
-        motoristId: b.motoristId || "callback",
+        motoristId,
       });
       if ("error" in res) return apiFail(res.error, 400);
       return apiOk({
@@ -109,10 +119,6 @@ export async function POST(
         message:
           "Payment closed. Timer reset — Pay again for a fresh 20 minutes.",
       });
-    }
-
-    if (!b.motoristId) {
-      return apiFail("motoristId is required to start payment", 400);
     }
 
     const forceMock = b.provider === "mock";
@@ -130,7 +136,7 @@ export async function POST(
       );
     }
 
-    const email = await resolvePayerEmail(b.motoristId!, b.email);
+    const email = await resolvePayerEmail(motoristId, b.email);
     if (!email) {
       return apiFail(
         "A valid email is required for checkout. Update your profile email and try again.",
@@ -143,7 +149,7 @@ export async function POST(
 
     const res = await startJobEscrowPayment({
       jobId: id,
-      motoristId: b.motoristId!,
+      motoristId,
       email,
       customerName: b.customerName?.trim() || null,
       customerPhone: b.customerPhone?.trim() || null,

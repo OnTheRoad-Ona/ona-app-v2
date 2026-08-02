@@ -1,9 +1,11 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { requireUser } from "@/lib/server/auth-utils";
 import {
   getEscrowByRequest,
   updateEscrow,
 } from "@/lib/server/payments/escrow-store";
+import { attemptFlutterwaveRefund } from "@/lib/server/payments/providers";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 
@@ -44,15 +46,19 @@ async function loadMotoristBank(motoristId: string) {
  */
 export async function POST(req: Request) {
   try {
+    const auth = await requireUser(req);
+    if (!auth.ok) return auth.response;
+
     const parsed = bodySchema.safeParse(await req.json());
     if (!parsed.success) return apiFail("Invalid body", 400);
 
     const payment = await getEscrowByRequest(parsed.data.requestId);
     if (!payment) return apiFail("Payment not found", 404);
 
+    // Session identity only
     if (
-      payment.motoristId !== parsed.data.userId &&
-      payment.repairProId !== parsed.data.userId
+      payment.motoristId !== auth.userId &&
+      payment.repairProId !== auth.userId
     ) {
       return apiFail("Forbidden", 403);
     }
@@ -74,8 +80,35 @@ export async function POST(req: Request) {
 
     const customerBank = await loadMotoristBank(payment.motoristId);
 
-    // Gateway refund: prefer card refund via provider_ref; bank transfer uses bank_code.
-    // Live Flutterwave refund endpoint can be plugged in here with provider_ref.
+    // Try Flutterwave refund when we have a provider ref; always update ledger.
+    let gatewayStatus: string = "pending_ops";
+    let gatewayMessage: string | undefined;
+    let gatewayRaw: unknown;
+    if (payment.providerRef && payment.provider !== "mock") {
+      const amountMajor =
+        payment.amountMinor != null
+          ? Math.round(Number(payment.amountMinor) / 100)
+          : undefined;
+      const gw = await attemptFlutterwaveRefund({
+        providerRef: String(payment.providerRef),
+        amountMajor,
+        reason: parsed.data.reason || "Cancelled before start",
+      });
+      if (gw.ok) {
+        gatewayStatus = "submitted";
+        gatewayMessage = `Flutterwave refund ${gw.status}`;
+        gatewayRaw = gw.raw;
+      } else {
+        gatewayStatus =
+          gw.code === "no_key" ? "pending_ops" : `failed_${gw.code}`;
+        gatewayMessage = gw.message;
+        gatewayRaw = gw.raw;
+      }
+    } else if (payment.provider === "mock") {
+      gatewayStatus = "mock_ok";
+      gatewayMessage = "Mock payment — ledger only";
+    }
+
     const updated = await updateEscrow(payment.id, {
       status: "refunded",
       escrowStatus: "refunded",
@@ -83,6 +116,9 @@ export async function POST(req: Request) {
       meta: {
         ...payment.meta,
         refundReason: parsed.data.reason || "Cancelled before start",
+        refundGatewayStatus: gatewayStatus,
+        refundGatewayMessage: gatewayMessage || null,
+        refundLedgerAt: new Date().toISOString(),
         customerBankCode: customerBank?.bankCode || null,
         customerBankName: customerBank?.bankName || null,
         customerAccountName: customerBank?.accountName || null,
@@ -95,8 +131,13 @@ export async function POST(req: Request) {
 
     return apiOk({
       payment: updated,
-      message: "Full refund processed (labour fee returned to motorist).",
+      message:
+        gatewayStatus === "submitted"
+          ? "Refund submitted to Flutterwave and recorded in Ona ledger."
+          : "Refund recorded in Ona ledger. Gateway return pending ops if auto-refund unavailable.",
       customerBankReady: Boolean(customerBank?.bankCode),
+      gatewayStatus,
+      gatewayMessage,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Refund failed";

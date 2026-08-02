@@ -100,10 +100,10 @@ export function BankSetupGate() {
           </div>
           <div>
             <h1 className={cn("text-[18px] font-black leading-tight", ink)}>
-              Add bank account
+              Add your bank
             </h1>
             <p className={cn("text-[12px] font-medium", muted)}>
-              Account name loads after you enter the number
+              Type your account number. Your name will fill itself.
             </p>
           </div>
         </div>
@@ -126,8 +126,8 @@ export function BankSetupGate() {
 
       <p className={cn("mt-4 text-[13px] font-medium leading-snug", muted)}>
         {isPro
-          ? "Payouts use this account after escrow release."
-          : "Refunds use this account if a job is cancelled."}
+          ? "This is where we send your pay."
+          : "This is where we send refunds."}
       </p>
 
       <div className="mt-5 flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-hide">

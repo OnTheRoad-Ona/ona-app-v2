@@ -1,4 +1,5 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { requireUser } from "@/lib/server/auth-utils";
 import {
   createReview,
   getProReviews,
@@ -9,6 +10,9 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireUser(req);
+    if (!auth.ok) return auth.response;
+
     const body = await req.json();
     const { jobId, repairProId, rating, comment, photos } = body;
 
@@ -16,10 +20,10 @@ export async function POST(req: Request) {
       return apiFail("jobId, repairProId, and rating are required", 400);
     }
 
-    // Extract motoristId from auth or body
-    const motoristId = body.motoristId || body.motorist_id;
-    if (!motoristId) {
-      return apiFail("motoristId is required", 400);
+    // Motorist id always from session — ignore spoofed body motoristId
+    const motoristId = auth.userId;
+    if (body.motoristId && body.motoristId !== auth.userId) {
+      return apiFail("Forbidden", 403, "forbidden");
     }
 
     const result = await createReview({
@@ -44,6 +48,7 @@ export async function POST(req: Request) {
   }
 }
 
+/** Public: list reviews for a pro (marketplace). Write path is auth'd. */
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);

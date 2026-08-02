@@ -254,7 +254,7 @@ function RequestInner() {
       });
     } catch {
       setBusy(false);
-      setError("Network error — please try again");
+      setError("Network error. Please try again.");
       return;
     }
     setBusy(false);

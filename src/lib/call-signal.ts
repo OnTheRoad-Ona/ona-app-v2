@@ -3,6 +3,8 @@
  * Also supports client-side Supabase Realtime when available.
  */
 
+import { authFetch } from "@/lib/api-auth-headers";
+
 export type CallSignalKind =
   | "offer"
   | "answer"
@@ -29,9 +31,8 @@ export async function postCallSignal(input: {
   payload: Record<string, unknown>;
 }): Promise<string | null> {
   try {
-    const res = await fetch("/api/call/signal", {
+    const res = await authFetch("/api/call/signal", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     });
     const json = (await res.json().catch(() => null)) as {
@@ -52,9 +53,8 @@ export async function pollCallSignals(
 ): Promise<CallSignalRow[]> {
   try {
     const qs = new URLSearchParams({ userId });
-    const res = await fetch(`/api/call/signal?${qs}`, {
+    const res = await authFetch(`/api/call/signal?${qs}`, {
       cache: "no-store",
-      headers: { Accept: "application/json" },
     });
     const json = (await res.json().catch(() => null)) as {
       ok?: boolean;
@@ -75,9 +75,8 @@ export async function pollCallSignals(
 export async function ackCallSignals(ids: string[]): Promise<void> {
   if (!ids.length) return;
   try {
-    await fetch("/api/call/signal", {
+    await authFetch("/api/call/signal", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ids }),
     });
   } catch {

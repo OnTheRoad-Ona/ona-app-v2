@@ -803,11 +803,11 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
     };
 
     void tick();
-    // Realtime INSERT wakes us; slow poll backs up (was thrashing UI / looking "stuck").
+    // Realtime INSERT wakes us; rare poll backs up (was 8s and noisy on data).
     const id = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void tick();
-    }, 8_000);
+    }, 15_000);
 
     const onVis = () => {
       void tick();

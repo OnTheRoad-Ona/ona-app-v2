@@ -5,15 +5,29 @@ import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const CRON_SECRET = process.env.CRON_SECRET;
+const CRON_SECRET = process.env.CRON_SECRET?.trim() || "";
+
+function authorized(req: Request): boolean {
+  const authHeader = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
+  const header = req.headers.get("x-cron-secret") || "";
+  if (CRON_SECRET) {
+    return authHeader === CRON_SECRET || header === CRON_SECRET;
+  }
+  // Fail closed outside local when secret missing
+  const isProd =
+    process.env.NODE_ENV === "production" ||
+    process.env.VERCEL_ENV === "production" ||
+    process.env.VERCEL_ENV === "preview";
+  if (isProd) return false;
+  return true; // local/dev only
+}
 
 export async function GET(req: Request) {
   if (!isSupabaseAdminConfigured()) {
     return apiFail("Database not configured", 503, "no_db");
   }
-  const authHeader = req.headers.get("authorization")?.replace("Bearer ", "");
-  if (CRON_SECRET && authHeader !== CRON_SECRET) {
-    return apiFail("Unauthorized", 401);
+  if (!authorized(req)) {
+    return apiFail("Unauthorized", 401, "auth");
   }
 
   const supabase = createServiceSupabase();

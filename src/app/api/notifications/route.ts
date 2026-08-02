@@ -1,4 +1,5 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { requireUser } from "@/lib/server/auth-utils";
 import { mapNotificationRow } from "@/lib/server/notifications";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
@@ -8,24 +9,30 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /api/notifications?userId=
- * Lists notifications for a user (service role; client must pass own id).
+ * Lists notifications for the authenticated user only.
  */
 export async function GET(req: Request) {
   if (!isSupabaseAdminConfigured()) {
     return apiFail("Supabase is not configured", 503, "supabase_not_configured");
   }
 
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get("userId")?.trim();
   if (!userId) {
     return apiFail("userId required", 400, "validation");
+  }
+  if (userId !== auth.userId) {
+    return apiFail("Forbidden", 403, "forbidden");
   }
 
   const sb = createServiceSupabase();
   const { data, error } = await sb
     .from("notifications")
     .select("id,user_id,category,priority,title,body,href,action_type,group_key,job_id,job_status,message_text,read_at,created_at")
-    .eq("user_id", userId)
+    .eq("user_id", auth.userId)
     .order("created_at", { ascending: false })
     .limit(50);
 

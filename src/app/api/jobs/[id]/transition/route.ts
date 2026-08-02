@@ -1,8 +1,13 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { isJobParty, requireUser } from "@/lib/server/auth-utils";
 import { actorMay, type TransitionEvent } from "@/lib/jobs/state-machine";
 import { computeDriveMetrics } from "@/lib/server/google-eta";
-import { getJob, rerouteDeclinedJob, transitionJob } from "@/lib/server/jobs/job-store";
+import {
+  getJob,
+  rerouteDeclinedJob,
+  transitionJob,
+} from "@/lib/server/jobs/job-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,17 +41,47 @@ export async function POST(
 ) {
   const { id } = await ctx.params;
   try {
+    const auth = await requireUser(req);
+    if (!auth.ok) return auth.response;
+
     const parsed = bodySchema.safeParse(await req.json());
     if (!parsed.success) return apiFail("Invalid transition", 400);
     const b = parsed.data;
 
-    if (!actorMay(b.event, b.actor)) {
+    // Never trust client-claimed admin/system without real staff session
+    if (b.actor === "admin" || b.actor === "system") {
+      return apiFail("Admin/system transitions require staff tools", 403);
+    }
+
+    const job = await getJob(id);
+    if (!job) return apiFail("Job not found", 404);
+    if (!isJobParty(auth.userId, job)) {
+      return apiFail("Forbidden", 403, "forbidden");
+    }
+
+    // Bind actor from authenticated identity, not client spoof
+    let actor: "motorist" | "repair_pro" = b.actor;
+    if (auth.userId === job.motoristId) actor = "motorist";
+    else if (auth.userId === job.repairProId) actor = "repair_pro";
+    else {
+      return apiFail("Forbidden", 403, "forbidden");
+    }
+
+    // Reject mismatches where client claims the other side
+    if (b.actor !== actor) {
+      return apiFail("Actor does not match your role on this job", 403);
+    }
+    if (b.actorId && b.actorId !== auth.userId) {
+      return apiFail("actorId must match the signed-in user", 403);
+    }
+
+    if (!actorMay(b.event, actor)) {
       return apiFail("This actor cannot perform that action", 403);
     }
 
     const event = (
       b.event === "CANCEL"
-        ? { type: "CANCEL" as const, by: b.actor, reason: b.reason }
+        ? { type: "CANCEL" as const, by: actor, reason: b.reason }
         : { type: b.event as TransitionEvent["type"] }
     ) as TransitionEvent;
 
@@ -61,61 +96,54 @@ export async function POST(
     let etaSource: string | undefined;
 
     // Accurate Google drive time when pro GPS is sent
-    if (proLocation) {
-      const job = await getJob(id);
-      if (job?.motoristLocation) {
-        const metrics = await computeDriveMetrics(
-          proLocation,
-          job.motoristLocation
-        );
-        distanceKm = metrics.distanceKm;
-        etaMinutes = metrics.etaMinutes;
-        etaText = metrics.durationText;
-        distanceText = metrics.distanceText;
-        etaSource = metrics.source;
-      }
+    if (proLocation && job.motoristLocation) {
+      const metrics = await computeDriveMetrics(
+        proLocation,
+        job.motoristLocation
+      );
+      distanceKm = metrics.distanceKm;
+      etaMinutes = metrics.etaMinutes;
+      etaText = metrics.durationText;
+      distanceText = metrics.distanceText;
+      etaSource = metrics.source;
     }
 
     // Pro declined → reroute to next nearest pro instead of cancelling
     if (b.event === "CANCEL" && b.reason === "pro_declined") {
-      const rerouteRes = await rerouteDeclinedJob(id, b.cancelReason);
-      if ("error" in rerouteRes) {
-        return apiFail(rerouteRes.error, 400);
+      if (actor !== "repair_pro") {
+        return apiFail("Only the assigned Repair Pro can decline", 403);
       }
-      return apiOk({ job: rerouteRes.job });
+      const res = await rerouteDeclinedJob(id, b.cancelReason || b.reason);
+      if ("error" in res) return apiFail(res.error, 400);
+      return apiOk({
+        job: res.job,
+        rerouted: true,
+        etaText,
+        distanceText,
+        etaSource,
+      });
     }
 
     const res = await transitionJob({
       jobId: id,
       event,
-      actor: b.actor,
-      actorId: b.actorId,
+      actor,
+      actorId: auth.userId,
       proLocation,
       etaMinutes,
       distanceKm,
+    });
+    if ("error" in res) return apiFail(res.error, 400);
+    return apiOk({
+      job: res.job,
       etaText,
       distanceText,
       etaSource,
     });
-
-    // SATISFIED may finish as "released" or "satisfied" (PENDING_SETTLEMENT).
-    // Never error the customer for settlement wait — cron auto-retries payout.
-    if (!("error" in res) && res.job.status === "satisfied") {
-      return apiOk({
-        job: res.job,
-        payoutPendingSettlement: true,
-        message:
-          "Payout processing — waiting for settlement. You’ll be notified when payment is released.",
-      });
-    }
-
-    if ("error" in res) {
-      console.error("[transition]", id, b.event, res.error);
-      return apiFail(res.error, 400);
-    }
-    return apiOk({ job: res.job });
   } catch (e) {
-    console.error("[transition]", id, e);
-    return apiFail(e instanceof Error ? e.message : "Transition failed", 500);
+    return apiFail(
+      e instanceof Error ? e.message : "Transition failed",
+      500
+    );
   }
 }

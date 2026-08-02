@@ -1986,21 +1986,18 @@ export function ArtisanOnboarding({
                         void (async () => {
                           try {
                             if (backendUserId) {
-                              await fetch("/api/artisan/profile", {
+                              const { authFetch } = await import(
+                                "@/lib/api-auth-headers"
+                              );
+                              await authFetch("/api/artisan/profile", {
                                 method: "PATCH",
-                                headers: {
-                                  "Content-Type": "application/json",
-                                },
                                 body: JSON.stringify({
                                   userId: backendUserId,
                                   livenessPassedAt: passedAt,
                                 }),
                               });
-                              await fetch("/api/profile/update", {
+                              await authFetch("/api/profile/update", {
                                 method: "POST",
-                                headers: {
-                                  "Content-Type": "application/json",
-                                },
                                 body: JSON.stringify({
                                   faceLivenessVerified: true,
                                 }),

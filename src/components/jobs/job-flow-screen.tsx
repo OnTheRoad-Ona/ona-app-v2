@@ -1293,7 +1293,7 @@ export function JobFlowScreen({
                     : job.agreedMajor,
                   job.currency
                 )
-              : "—"}
+              : "Not set"}
           </p>
           {viewer === "repair_pro" ? (
             <p className={cn("mt-1 text-[12px] font-medium", muted)}>
@@ -2478,7 +2478,7 @@ export function JobFlowScreen({
         compactHeader
         onBack={() =>
           router.replace(
-            viewer === "repair_pro" ? "/payments/history" : "/dashboard"
+            viewer === "repair_pro" ? "/settings/payments" : "/dashboard"
           )
         }
         footer={
@@ -2486,7 +2486,7 @@ export function JobFlowScreen({
             type="button"
             onClick={() =>
               router.replace(
-                viewer === "repair_pro" ? "/payments/history" : "/dashboard"
+                viewer === "repair_pro" ? "/settings/payments" : "/dashboard"
               )
             }
             className="inline-flex h-12 w-full items-center justify-center rounded-md border-0 bg-[#FF6B35] text-[14px] font-black text-white"
@@ -2631,7 +2631,7 @@ export function JobFlowScreen({
               : "Confirmed"
         }
         compactHeader
-        onBack={viewer === "repair_pro" ? () => router.replace("/payments/history") : goHome}
+        onBack={viewer === "repair_pro" ? () => router.replace("/settings/payments") : goHome}
         footer={
           <div className="flex w-full flex-col gap-2">
             {viewer === "motorist" && !alreadyLeft ? (
@@ -2666,7 +2666,7 @@ export function JobFlowScreen({
             ) : (
               <button
                 type="button"
-                onClick={() => router.replace("/payments/history")}
+                onClick={() => router.replace("/settings/payments")}
                 className={cn(
                   "w-full text-center text-[12px] font-semibold",
                   muted

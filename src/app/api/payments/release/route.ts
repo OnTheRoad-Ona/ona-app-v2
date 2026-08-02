@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { requireUser } from "@/lib/server/auth-utils";
 import {
   getEscrowByRequest,
   updateEscrow,
@@ -22,9 +23,14 @@ const bodySchema = z.object({
  */
 export async function POST(req: Request) {
   try {
+    const auth = await requireUser(req);
+    if (!auth.ok) return auth.response;
+
     const parsed = bodySchema.safeParse(await req.json());
     if (!parsed.success) return apiFail("Invalid body", 400);
-    const { requestId, role, userId } = parsed.data;
+    const { requestId, role } = parsed.data;
+    // Identity from session only — ignore spoofed body.userId
+    const userId = auth.userId;
 
     const payment = await getEscrowByRequest(requestId);
     if (!payment) return apiFail("No escrow payment for this request", 404);

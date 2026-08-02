@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
-import { openDispute, resolveDispute } from "@/lib/server/jobs/job-store";
+import { isJobParty, requireUser } from "@/lib/server/auth-utils";
+import {
+  AdminAuthError,
+  requireAdmin,
+} from "@/lib/server/admin-auth";
+import { getJob, openDispute, resolveDispute } from "@/lib/server/jobs/job-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,7 +57,19 @@ export async function POST(
   try {
     const { id } = await ctx.params;
     const body = await req.json();
+
     if (body?.action === "resolve") {
+      // Money outcomes: staff session only (admin cookie)
+      let adminUserId: string;
+      try {
+        const { session } = await requireAdmin();
+        adminUserId = session.userId;
+      } catch (e) {
+        if (e instanceof AdminAuthError) {
+          return apiFail(e.message, e.status, "auth");
+        }
+        return apiFail("Admin access required to resolve disputes", 403);
+      }
       const parsed = resolveSchema.safeParse(body);
       if (!parsed.success) return apiFail("Invalid resolve payload", 400);
       const res = await resolveDispute({
@@ -60,17 +77,35 @@ export async function POST(
         outcome: parsed.data.outcome,
         proPercent: parsed.data.proPercent,
         note: parsed.data.note,
-        adminId: parsed.data.adminId,
+        adminId: adminUserId,
       });
       if ("error" in res) return apiFail(res.error, 400);
       return apiOk({ job: res.job });
     }
 
+    const auth = await requireUser(req);
+    if (!auth.ok) return auth.response;
+
     const parsed = openSchema.safeParse(body);
     if (!parsed.success) return apiFail("Invalid dispute payload", 400);
+
+    const job = await getJob(id);
+    if (!job) return apiFail("Job not found", 404);
+    if (!isJobParty(auth.userId, job)) {
+      return apiFail("Forbidden", 403, "forbidden");
+    }
+
+    const by =
+      auth.userId === job.motoristId
+        ? ("motorist" as const)
+        : ("repair_pro" as const);
+    if (parsed.data.by !== by) {
+      return apiFail("by does not match your role on this job", 403);
+    }
+
     const res = await openDispute({
       jobId: id,
-      by: parsed.data.by,
+      by,
       reason: parsed.data.reason,
       description: parsed.data.description,
       media: parsed.data.media,

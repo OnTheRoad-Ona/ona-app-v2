@@ -82,19 +82,9 @@ export async function POST(req: Request) {
     return apiFail("Profile not found", 404);
   }
 
-  // Self-heal: accidental deactivation must not block Motorist ↔ Repair Pro switch.
-  // Admin freeze can re-apply is_active=false later; dual-role users need to switch.
+  // Admin freeze / deactivation is hard — never auto-revive on role switch
   if (!existing.is_active) {
-    const { data: revived, error: reviveErr } = await admin
-      .from("profiles")
-      .update({ is_active: true, updated_at: new Date().toISOString() })
-      .eq("id", userId)
-      .select("*")
-      .maybeSingle();
-    if (reviveErr || !revived) {
-      return apiFail("This account is deactivated", 403);
-    }
-    Object.assign(existing, revived);
+    return apiFail("This account is deactivated. Contact support.", 403);
   }
 
   // Require a real side-profile (completed signup). Do not invent empty rows.
@@ -174,15 +164,37 @@ export async function POST(req: Request) {
     serviceRadiusKm?: number;
     ninVerified?: boolean;
     bvnVerified?: boolean;
+    bankName?: string;
+    bankAccountName?: string;
+    bankAccountNumber?: string;
+    bankCode?: string;
   } = {};
 
+  // Load both side tables so bank can be merged either way on switch
+  const [{ data: pro }, { data: mot }] = await Promise.all([
+    admin.from("repair_pro_profiles").select("*").eq("user_id", userId).maybeSingle(),
+    admin.from("motorist_profiles").select("*").eq("user_id", userId).maybeSingle(),
+  ]);
+  const pr = pro as RepairProRow | null;
+  const motRow = mot as {
+    vehicle_make?: string | null;
+    vehicle_model?: string | null;
+    vehicle_year?: string | null;
+    nin_verified?: boolean;
+    bvn_verified?: boolean;
+    bank_name?: string | null;
+    bank_account_name?: string | null;
+    bank_account_number?: string | null;
+    bank_code?: string | null;
+  } | null;
+  const proBank = pr as {
+    bank_name?: string | null;
+    bank_account_name?: string | null;
+    bank_account_number?: string | null;
+    bank_code?: string | null;
+  } | null;
+
   if (accountType === "professional") {
-    const { data: pro } = await admin
-      .from("repair_pro_profiles")
-      .select("*")
-      .eq("user_id", userId)
-      .maybeSingle();
-    const pr = pro as RepairProRow | null;
     extras = {
       services:
         (pr?.services as ProService[])?.filter(isProService) ||
@@ -195,19 +207,31 @@ export async function POST(req: Request) {
       serviceRadiusKm: pr?.service_radius_km,
       ninVerified: pr?.nin_verified,
       bvnVerified: pr?.bvn_verified,
+      // Prefer pro bank; fall back to customer bank on same login
+      bankName: proBank?.bank_name || motRow?.bank_name || undefined,
+      bankAccountName:
+        proBank?.bank_account_name || motRow?.bank_account_name || undefined,
+      bankAccountNumber:
+        proBank?.bank_account_number ||
+        motRow?.bank_account_number ||
+        undefined,
+      bankCode: proBank?.bank_code || motRow?.bank_code || undefined,
     };
   } else {
-    const { data: mot } = await admin
-      .from("motorist_profiles")
-      .select("*")
-      .eq("user_id", userId)
-      .maybeSingle();
     extras = {
-      vehicleMake: mot?.vehicle_make || undefined,
-      vehicleModel: mot?.vehicle_model || undefined,
-      vehicleYear: mot?.vehicle_year || undefined,
-      ninVerified: mot?.nin_verified,
-      bvnVerified: mot?.bvn_verified,
+      vehicleMake: motRow?.vehicle_make || undefined,
+      vehicleModel: motRow?.vehicle_model || undefined,
+      vehicleYear: motRow?.vehicle_year || undefined,
+      ninVerified: motRow?.nin_verified,
+      bvnVerified: motRow?.bvn_verified,
+      bankName: motRow?.bank_name || proBank?.bank_name || undefined,
+      bankAccountName:
+        motRow?.bank_account_name || proBank?.bank_account_name || undefined,
+      bankAccountNumber:
+        motRow?.bank_account_number ||
+        proBank?.bank_account_number ||
+        undefined,
+      bankCode: motRow?.bank_code || proBank?.bank_code || undefined,
     };
   }
 

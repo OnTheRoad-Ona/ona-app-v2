@@ -30,7 +30,7 @@ const FAQ: { q: string; a: string }[] = [
     a: "Customers: verify phone (Tier 1), then upload ID (Tier 2) after free requests so we can keep the marketplace safe. Repair Pros: complete verification tiers so you can Go Live and appear in search.",
   },
   {
-    q: "A request or job is stuck — what do I do?",
+    q: "A request or job is stuck. What do I do?",
     a: "Open Requests or Jobs and check the status. If something looks wrong, message care below with your name, phone, and job details. We’ll help from the backend.",
   },
   {
@@ -63,10 +63,10 @@ export default function SettingsSupportPage() {
       body.trim(),
       "",
       "—",
-      `Name: ${userProfile?.fullName || displayName || "—"}`,
+      `Name: ${userProfile?.fullName || displayName || "Not set"}`,
       `Role: ${roleLabel}`,
-      `Phone: ${userProfile?.phone || "—"}`,
-      `Email: ${userProfile?.email || "—"}`,
+      `Phone: ${userProfile?.phone || "Not set"}`,
+      `Email: ${userProfile?.email || "Not set"}`,
     ];
     return lines.join("\n");
   }, [body, userProfile, displayName, roleLabel]);
@@ -128,7 +128,7 @@ export default function SettingsSupportPage() {
             <p className={cn("text-[14px] font-bold", ink)}>Ona Care</p>
             <p className={cn("mt-0.5 text-[12px] font-medium leading-snug", muted)}>
               Quick answers below. Still stuck? Email care or send a short
-              message — we reply from the backend team.
+              message. We reply from the Ona team.
             </p>
           </div>
         </div>

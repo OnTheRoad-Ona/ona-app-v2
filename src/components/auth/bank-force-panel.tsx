@@ -61,6 +61,46 @@ export function BankForcePanel({
     });
   }, [userProfile]);
 
+  // If this role is missing bank but the same login already has one on the
+  // other role (or vault), apply it once so Pro does not re-ask for bank.
+  useEffect(() => {
+    if (!need || !userProfile || !isAuthenticated) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { getVaultProfile } = await import("@/lib/profiles-vault");
+        const { hasCompleteBankDetails } = await import("@/lib/bank-details");
+        if (hasCompleteBankDetails(userProfile)) return;
+        const vaultMot = getVaultProfile("motorist");
+        const vaultPro = getVaultProfile("professional");
+        const donor =
+          (vaultMot && hasCompleteBankDetails(vaultMot) && vaultMot) ||
+          (vaultPro && hasCompleteBankDetails(vaultPro) && vaultPro) ||
+          null;
+        if (!donor || cancelled) return;
+        const msg = updateUserProfile({
+          bankCode: donor.bankCode,
+          bankName: donor.bankName,
+          bankAccountName: donor.bankAccountName,
+          bankAccountNumber: donor.bankAccountNumber,
+        });
+        if (!msg && !cancelled) {
+          setDetails({
+            bankCode: donor.bankCode || "",
+            bankName: donor.bankName || "",
+            bankAccountName: donor.bankAccountName || "",
+            bankAccountNumber: donor.bankAccountNumber || "",
+          });
+        }
+      } catch {
+        /* keep panel open for manual entry */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [need, userProfile, isAuthenticated, updateUserProfile, accountType]);
+
   useEffect(() => {
     if (need) setOpen(true);
   }, [need, userProfile?.identityId, accountType]);
@@ -122,9 +162,7 @@ export function BankForcePanel({
             className={cn("flex items-center gap-2 text-[13px] font-bold", ink)}
           >
             <Building2 className="h-4 w-4 text-[#FF6B35]" />
-            {isPro
-              ? "Add bank for payouts"
-              : "Add bank for refunds"}
+            {isPro ? "Add your bank to get paid" : "Add your bank for refunds"}
           </span>
           <ChevronUp className={cn("h-4 w-4", muted)} />
         </button>
@@ -149,7 +187,7 @@ export function BankForcePanel({
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <p className={cn("text-[15px] font-black", ink)}>
-                Bank account required
+                Add your bank
               </p>
               <p
                 className={cn(
@@ -157,7 +195,9 @@ export function BankForcePanel({
                   muted
                 )}
               >
-                {isPro ? "Bank for payouts" : "Bank for refunds"}
+                {isPro
+                  ? "We need this to send your pay."
+                  : "We need this to send refunds."}
               </p>
             </div>
             <button

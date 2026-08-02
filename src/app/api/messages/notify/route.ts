@@ -3,6 +3,7 @@
  */
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { requireUser } from "@/lib/server/auth-utils";
 import { insertNotification } from "@/lib/server/notifications";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
@@ -22,9 +23,16 @@ export async function POST(req: Request) {
     return apiFail("Supabase not configured", 503);
   }
   try {
+    const auth = await requireUser(req);
+    if (!auth.ok) return auth.response;
+
     const parsed = bodySchema.safeParse(await req.json());
     if (!parsed.success) return apiFail("Invalid body", 400);
-    const { conversationId, senderId, preview, senderName } = parsed.data;
+    const { conversationId, preview, senderName } = parsed.data;
+    const senderId = auth.userId;
+    if (parsed.data.senderId !== auth.userId) {
+      return apiFail("senderId must match signed-in user", 403);
+    }
 
     const sb = createServiceSupabase();
     const { data: conv, error } = await sb

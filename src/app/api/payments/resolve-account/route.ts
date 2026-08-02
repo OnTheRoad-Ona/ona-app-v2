@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { requireUser } from "@/lib/server/auth-utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +17,27 @@ const bodySchema = z.object({
  */
 export async function POST(req: Request) {
   try {
+    const auth = await requireUser(req);
+    if (!auth.ok) return auth.response;
+
+    try {
+      const { rateLimit } = await import("@/lib/server/modules/rate-limit");
+      const rl = rateLimit({
+        key: `resolve-account:${auth.userId}`,
+        limit: 20,
+        windowMs: 60_000,
+      });
+      if (!rl.ok) {
+        return apiFail(
+          `Too many name lookups. Retry in ${rl.retryAfterSec}s.`,
+          429,
+          "rate_limited"
+        );
+      }
+    } catch {
+      /* non-fatal */
+    }
+
     const parsed = bodySchema.safeParse(await req.json());
     if (!parsed.success) {
       return apiFail("Enter a valid 10-digit account number and bank.", 400);

@@ -166,7 +166,7 @@ function CheckoutInner() {
   }, [job?.agreedMajor]);
 
   const amountLabel = useMemo(() => {
-    if (!chargeBreakdown) return "—";
+    if (!chargeBreakdown) return "Not set";
     return formatMoney(
       chargeBreakdown.totalMajor,
       forceNairaCurrency(job?.currency)

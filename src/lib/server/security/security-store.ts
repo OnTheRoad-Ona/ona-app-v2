@@ -43,6 +43,26 @@ const fraudFlags = new Map<string, FraudFlag>();
 const adminActions: AdminAction[] = [];
 const systemSettings = new Map<string, SystemSetting>();
 
+/** Per-user wallet mutex — serializes debit/hold within this process */
+const walletLocks = new Map<string, Promise<unknown>>();
+
+async function withWalletLock<T>(userId: string, fn: () => Promise<T>): Promise<T> {
+  const prev = walletLocks.get(userId) || Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  const chain = prev.then(() => gate);
+  walletLocks.set(userId, chain);
+  await prev.catch(() => undefined);
+  try {
+    return await fn();
+  } finally {
+    release();
+    if (walletLocks.get(userId) === chain) walletLocks.delete(userId);
+  }
+}
+
 let settingCounter = 0;
 let contactCounter = 0;
 let sessionCounter = 0;
@@ -659,8 +679,41 @@ export async function createCreditTransaction(
     metadata?: Record<string, unknown>;
   }
 ): Promise<{ tx: CreditTransaction; wallet: CreditWallet } | { error: string }> {
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    return { error: "Amount must be a positive number" };
+  }
+
+  return withWalletLock(input.userId, async () => {
+  // Re-read wallet under lock for concurrent debit safety
+  // (clears stale in-memory copy by re-fetching from DB when configured)
+  if (isSupabaseAdminConfigured()) {
+    try {
+      const sb = createServiceSupabase();
+      const { data } = await sb
+        .from("credit_wallets")
+        .select("*")
+        .eq("user_id", input.userId)
+        .maybeSingle();
+      if (data) {
+        const w = rowToCreditWallet(data as Record<string, unknown>);
+        creditWallets.set(w.id, w);
+      }
+    } catch { /* */ }
+  }
+
   const wallet = await getOrCreateWallet(input.userId);
   const balanceBefore = wallet.availableCredits;
+
+  // Debit types require sufficient available credits (prevents double-spend races at app layer)
+  const isDebit =
+    input.transactionType === "service_spend" ||
+    input.transactionType === "reverse" ||
+    input.transactionType === "block" ||
+    input.transactionType === "redeem" ||
+    input.transactionType === "cashout";
+  if (isDebit && input.amount > wallet.availableCredits) {
+    return { error: "Insufficient available credits" };
+  }
 
   const id = memId("ctx", ++txCounter);
   const tx: CreditTransaction = {
@@ -697,6 +750,14 @@ export async function createCreditTransaction(
   } else if (input.transactionType === "block") {
     wallet.blockedCredits += input.amount;
     wallet.availableCredits -= input.amount;
+    wallet.cashableCredits = Math.max(0, wallet.cashableCredits - input.amount);
+  } else if (
+    input.transactionType === "redeem" ||
+    input.transactionType === "cashout"
+  ) {
+    wallet.availableCredits -= input.amount;
+    wallet.redeemedCredits += input.amount;
+    wallet.cashableCredits = Math.max(0, wallet.cashableCredits - input.amount);
   } else if (input.transactionType === "adjust") {
     wallet.availableCredits += input.amount;
     if (input.amount > 0) wallet.totalEarned += input.amount;
@@ -726,6 +787,7 @@ export async function createCreditTransaction(
     } catch { /* */ }
   }
   return { tx, wallet };
+  }); // withWalletLock
 }
 
 export async function listCreditTransactions(
@@ -784,6 +846,7 @@ export async function createCashoutRequest(input: {
   requestedAmount: number;
   destinationAccount?: string;
 }): Promise<{ cashout: CashoutRequest } | { error: string }> {
+  return withWalletLock(input.userId, async () => {
   const wallet = await getOrCreateWallet(input.userId);
   const minimumStr = await getSystemSetting("credit_cashout_minimum");
   const minimum = Number(minimumStr?.value ?? 2000);
@@ -802,8 +865,75 @@ export async function createCashoutRequest(input: {
 
   const feeAmount = Math.round(input.requestedAmount * (feePercent / 100) * 100) / 100;
   const netAmount = input.requestedAmount - feeAmount;
-
   const id = memId("csh", ++cashoutCounter);
+
+  // Prefer SQL FOR UPDATE debit when migration 045 is applied
+  if (isSupabaseAdminConfigured()) {
+    try {
+      const sb = createServiceSupabase();
+      const { data: rpcRows, error: rpcErr } = await sb.rpc("credit_wallet_debit", {
+        p_user_id: input.userId,
+        p_amount: input.requestedAmount,
+        p_tx_type: "block",
+        p_reference_type: "cashout_hold",
+        p_reference_id: id,
+        p_reason: "Cashout hold pending payout",
+      });
+      if (!rpcErr && Array.isArray(rpcRows) && rpcRows[0]) {
+        const row = rpcRows[0] as {
+          ok?: boolean;
+          error_message?: string;
+          available_credits?: number;
+          blocked_credits?: number;
+        };
+        if (row.ok === false) {
+          return { error: row.error_message || "Insufficient available credits" };
+        }
+        // refresh mem wallet
+        wallet.availableCredits = Number(row.available_credits ?? wallet.availableCredits);
+        wallet.blockedCredits = Number(row.blocked_credits ?? wallet.blockedCredits);
+        creditWallets.set(wallet.id, wallet);
+
+        const cashout: CashoutRequest = {
+          id,
+          userId: input.userId,
+          walletId: wallet.id,
+          requestedAmount: input.requestedAmount,
+          feeAmount,
+          netAmount,
+          status: "pending",
+          payoutMethod: "bank_transfer",
+          destinationAccount: input.destinationAccount,
+          createdAt: now(),
+          updatedAt: now(),
+        };
+        cashoutRequests.set(id, cashout);
+        await sb.from("cashout_requests").insert({
+          user_id: input.userId,
+          wallet_id: wallet.id,
+          requested_amount: input.requestedAmount,
+          fee_amount: feeAmount,
+          net_amount: netAmount,
+          destination_account: input.destinationAccount,
+          status: "pending",
+        });
+        return { cashout };
+      }
+    } catch {
+      /* fall through to app-layer hold */
+    }
+  }
+
+  // App-layer hold (mutex already held)
+  const balanceBefore = wallet.availableCredits;
+  wallet.blockedCredits += input.requestedAmount;
+  wallet.availableCredits -= input.requestedAmount;
+  wallet.cashableCredits = Math.max(
+    0,
+    wallet.cashableCredits - input.requestedAmount
+  );
+  await persistWallet(wallet);
+
   const cashout: CashoutRequest = {
     id,
     userId: input.userId,
@@ -822,6 +952,20 @@ export async function createCashoutRequest(input: {
   if (isSupabaseAdminConfigured()) {
     try {
       const sb = createServiceSupabase();
+      await sb.from("credit_transactions").insert({
+        wallet_id: wallet.id,
+        user_id: input.userId,
+        transaction_type: "block",
+        amount: input.requestedAmount,
+        balance_before: balanceBefore,
+        balance_after: wallet.availableCredits,
+        status: "completed",
+        reference_type: "cashout_hold",
+        reference_id: id,
+        reason: "Cashout hold pending payout",
+        metadata: {},
+        completed_at: now(),
+      });
       await sb.from("cashout_requests").insert({
         user_id: input.userId,
         wallet_id: wallet.id,
@@ -829,10 +973,12 @@ export async function createCashoutRequest(input: {
         fee_amount: feeAmount,
         net_amount: netAmount,
         destination_account: input.destinationAccount,
+        status: "pending",
       });
     } catch { /* */ }
   }
   return { cashout };
+  });
 }
 
 export async function updateCashoutStatus(

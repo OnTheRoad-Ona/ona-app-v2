@@ -196,7 +196,7 @@ export function formatGenderLabel(gender?: string | null): string {
   if (gender === "male") return "Male";
   if (gender === "female") return "Female";
   if (gender === "prefer_not_to_say") return "Prefer not to say";
-  return "—";
+  return "Not set";
 }
 
 /** Always store/display as YYYY-MM-DD (or empty). */
@@ -212,7 +212,7 @@ export function normalizeDobIso(
 /** Human-readable DOB for UI (consistent across app + admin). */
 export function formatDobLabel(raw: string | null | undefined): string {
   const iso = normalizeDobIso(raw);
-  if (!iso) return "—";
+  if (!iso) return "Not set";
   const [y, m, d] = iso.split("-").map(Number);
   if (!y || !m || !d) return iso;
   const months = [

@@ -10,7 +10,7 @@ import {
   type ProPipelineStatus,
 } from "@/lib/server/modules/pros/pipeline";
 import { writePlatformAudit } from "@/lib/server/modules/platform-audit";
-import { getUserFromRequest } from "@/lib/server/auth-utils";
+import { getUserFromRequest, requireUser } from "@/lib/server/auth-utils";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 
@@ -38,8 +38,14 @@ const patchSchema = z.object({
 });
 
 export async function GET(req: Request) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+
   const userId = new URL(req.url).searchParams.get("userId");
   if (!userId) return apiFail("userId required", 400);
+  if (userId !== auth.userId) {
+    return apiFail("Forbidden", 403, "forbidden");
+  }
 
   if (!isSupabaseAdminConfigured()) {
     return apiOk({
@@ -53,18 +59,32 @@ export async function GET(req: Request) {
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, full_name, phone, email, avatar_url, role")
-    .eq("id", userId)
+    .eq("id", auth.userId)
     .maybeSingle();
   const { data: pro } = await supabase
     .from("repair_pro_profiles")
     .select("*")
-    .eq("user_id", userId)
+    .eq("user_id", auth.userId)
     .maybeSingle();
+
+  // Never expose encrypted bank/NIN fields on this self-profile endpoint
+  // if they are present as raw secrets — strip known sensitive keys for safety.
+  let safePro = pro as Record<string, unknown> | null;
+  if (safePro) {
+    const {
+      nin_encrypted: _n,
+      bvn_encrypted: _b,
+      bank_account_encrypted: _ba,
+      gov_id_number: _g,
+      ...rest
+    } = safePro;
+    safePro = rest;
+  }
 
   return apiOk({
     source: "supabase",
     profile,
-    pro,
+    pro: safePro,
   });
 }
 

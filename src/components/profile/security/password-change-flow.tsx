@@ -54,7 +54,7 @@ export function PasswordChangeFlow({ isLight, accessToken }: PasswordChangeFlowP
     setErr(null);
     setStep("confirming");
     try {
-      const res = await fetch("/api/security/action", {
+      const res = await (await import("@/lib/api-auth-headers")).authFetch("/api/security/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

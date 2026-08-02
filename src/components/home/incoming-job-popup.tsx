@@ -145,11 +145,12 @@ export function IncomingJobPopup() {
     };
 
     void poll();
-    // Fast poll for new job requests
+    // Backup only — store jobs Realtime already refreshes the job list.
+    // Was 5s and stacked with global jobs poll (heavy on mobile data).
     const t = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void poll();
-    }, 5_000);
+    }, 20_000);
     const onVis = () => {
       if (!document.hidden) void poll();
     };

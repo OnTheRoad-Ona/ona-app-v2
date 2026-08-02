@@ -63,7 +63,7 @@ export function decryptField(payload: string | null | undefined): string | null 
 
 /** Store only last 4 for display; full value encrypted if provided */
 export function maskIdentity(value: string | null | undefined): string {
-  if (!value) return "—";
+  if (!value) return "Not set";
   const d = value.replace(/\D/g, "");
   if (d.length < 4) return "••••";
   return `••••${d.slice(-4)}`;

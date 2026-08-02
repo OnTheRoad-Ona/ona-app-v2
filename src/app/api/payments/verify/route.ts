@@ -21,6 +21,29 @@ const bodySchema = z.object({
 /** Verify gateway charge, mark escrow held, job → Booked. */
 export async function POST(req: Request) {
   try {
+    // Soft rate-limit (verify is called from payment callback; gateway is source of truth)
+    try {
+      const { rateLimit } = await import("@/lib/server/modules/rate-limit");
+      const ip =
+        req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+        req.headers.get("x-real-ip") ||
+        "unknown";
+      const rl = rateLimit({
+        key: `pay-verify:${ip}`,
+        limit: 30,
+        windowMs: 60_000,
+      });
+      if (!rl.ok) {
+        return apiFail(
+          `Too many verify attempts. Retry in ${rl.retryAfterSec}s.`,
+          429,
+          "rate_limited"
+        );
+      }
+    } catch {
+      /* non-fatal */
+    }
+
     const parsed = bodySchema.safeParse(await req.json());
     if (!parsed.success) return apiFail("Invalid body", 400);
 

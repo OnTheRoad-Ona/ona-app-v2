@@ -1114,10 +1114,57 @@ export function AppProvider({ children }: { children: ReactNode }) {
         primaryAccountType ||
         accountType ||
         "motorist";
-      const switched: UserProfile = {
+      // One bank per login: if this role has no bank, reuse the other role's bank
+      // so Repair Pro never asks for a "fresh" bank when Customer already saved one.
+      let switched: UserProfile = {
         ...res.profile,
         primaryAccountType: primary,
       };
+      const bankComplete = (p: UserProfile | null | undefined) =>
+        Boolean(
+          p &&
+            (p.bankCode || "").trim() &&
+            (p.bankAccountName || "").trim() &&
+            (p.bankAccountNumber || "").replace(/\D/g, "").length === 10
+        );
+      if (!bankComplete(switched)) {
+        const vaultMot = getVaultProfile("motorist");
+        const vaultPro = getVaultProfile("professional");
+        const donor =
+          (bankComplete(vaultMot) && vaultMot) ||
+          (bankComplete(vaultPro) && vaultPro) ||
+          (bankComplete(userProfile) && userProfile) ||
+          null;
+        if (donor) {
+          switched = {
+            ...switched,
+            bankCode: donor.bankCode,
+            bankName: donor.bankName,
+            bankAccountName: donor.bankAccountName,
+            bankAccountNumber: donor.bankAccountNumber,
+          };
+          // Persist to the active role side-table + identity bank sync
+          if (isAppBackendOnline() && res.userId) {
+            void (async () => {
+              try {
+                const { ensureAppSession } = await import(
+                  "@/lib/supabase/session"
+                );
+                const s = await ensureAppSession();
+                if (!s?.accessToken) return;
+                await backendUpdateProfile(s.accessToken, {
+                  bankCode: donor.bankCode,
+                  bankName: donor.bankName,
+                  bankAccountName: donor.bankAccountName,
+                  bankAccountNumber: donor.bankAccountNumber,
+                });
+              } catch {
+                /* non-fatal — UI already has bank */
+              }
+            })();
+          }
+        }
+      }
       saveProfileToVault(switched);
       applySession(switched);
       if (res.hasMotorist != null) setHasMotoristAccount(res.hasMotorist);
@@ -1139,6 +1186,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       primaryAccountType,
       hasMotoristAccount,
       hasProAccount,
+      userProfile,
     ]
   );
 
@@ -1394,60 +1442,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const dig = code.replace(/\D/g, "");
       if (dig.length < 4) return "Enter the 6-digit code.";
 
-      const { CUSTOMER_PHONE_OTP } = await import("@/lib/verification-gate");
-      const { DEMO_OTP_CODE } = await import("@/lib/auth/demo-otp");
-      const isDemo =
-        dig === CUSTOMER_PHONE_OTP || dig === DEMO_OTP_CODE || dig === "336699";
-
-      // Real SMS OTP via same path as login (demo 336699 also accepted server-side)
-      if (!isDemo) {
-        if (!isAppBackendOnline() || !userProfile.phone) {
-          return "Invalid code. Try again.";
+      // Always verify via server (demo 336699 accepted only when server allows it).
+      // Never self-assert phoneVerified from the client.
+      if (!isAppBackendOnline() || !userProfile.phone) {
+        return "Could not verify code. Check network and try again.";
+      }
+      try {
+        const r = await fetch("/api/auth/otp/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            channel: "phone",
+            target: userProfile.phone,
+            code: dig,
+            preferType: "motorist",
+          }),
+        });
+        const json = (await r.json().catch(() => null)) as {
+          ok?: boolean;
+          error?: { message?: string };
+        } | null;
+        if (!json?.ok) {
+          return json?.error?.message || "Invalid code. Try again.";
         }
-        try {
-          const r = await fetch("/api/auth/otp/verify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              channel: "phone",
-              target: userProfile.phone,
-              code: dig,
-              preferType: "motorist",
-            }),
-          });
-          const json = (await r.json().catch(() => null)) as {
-            ok?: boolean;
-            error?: { message?: string };
-          } | null;
-          if (!json?.ok) {
-            return json?.error?.message || "Invalid code. Try again.";
-          }
-        } catch {
-          return "Could not verify code. Check network and try again.";
-        }
+      } catch {
+        return "Could not verify code. Check network and try again.";
       }
 
       const next = { ...userProfile, phoneVerified: true };
       persistProfile(next);
       setUserProfile(next);
-      // Persist Tier 1 so bank gate + reload + admin Care show Verified
-      if (isAppBackendOnline()) {
-        try {
-          const sb = (
-            await import("@/lib/supabase/app-client")
-          ).getAppSupabase();
-          const session = sb
-            ? (await sb.auth.getSession()).data.session
-            : null;
-          if (session?.access_token) {
-            await backendUpdateProfile(session.access_token, {
-              phoneVerified: true,
-            });
-          }
-        } catch {
-          /* local already set */
-        }
-      }
       return null;
     },
     [userProfile, persistProfile]
@@ -1827,6 +1851,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         bankName: normalized.bankName,
         bankAccountName: normalized.bankAccountName,
         bankAccountNumber: normalized.bankAccountNumber,
+        bankCode: normalized.bankCode,
         guarantor: normalized.guarantor,
         docsStatus: normalized.docsStatus,
         certificationFileName: normalized.certificationFileName,
@@ -2793,6 +2818,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const userLat = location.coordinates.lat;
   const userLng = location.coordinates.lng;
 
+  const prosFetchLock = useRef(false);
+  const lastProsFetchAt = useRef(0);
+
   const refreshCloudPros = useCallback(() => {
     // Motorist marketplace only — pros never load "nearby" discovery feed
     // Guests / login screens must not burn mobile data on map lists
@@ -2800,11 +2828,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setCloudTechs(accountType === "professional" ? [] : null);
       return;
     }
+    // Dedupe stacked polls / realtime bursts (data saver)
+    const now = Date.now();
+    if (prosFetchLock.current || now - lastProsFetchAt.current < 3_500) {
+      return;
+    }
+    prosFetchLock.current = true;
+    lastProsFetchAt.current = now;
     // /api/pros returns only Live Repair Pros (online + pro role + range)
-    void backendFetchPros({ lat: userLat, lng: userLng }).then((list) => {
-      // [] is valid: no one is Live right now (do not re-show demo seeds)
-      setCloudTechs(list);
-    });
+    void backendFetchPros({ lat: userLat, lng: userLng })
+      .then((list) => {
+        // [] is valid: no one is Live right now (do not re-show demo seeds)
+        setCloudTechs(list);
+      })
+      .finally(() => {
+        prosFetchLock.current = false;
+      });
   }, [userLat, userLng, accountType, isAuthenticated]);
 
   /** Public: motorist empty-state Refresh — pros list only */
@@ -2832,17 +2871,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, [backendUserId, accountType]);
 
-  // Customer marketplace: load soon + refresh often so Live pros appear quickly
+  // Customer marketplace: Realtime is primary; slow poll is backup only (data saver)
   useEffect(() => {
     if (!isAuthenticated || accountType === "professional") {
       if (accountType === "professional") setCloudTechs([]);
       return;
     }
-    const first = window.setTimeout(() => refreshCloudPros(), 400);
+    const first = window.setTimeout(() => refreshCloudPros(), 600);
+    // Was 5s and burned mobile data hard — 45s backup is enough with Realtime
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudPros();
-    }, 5_000);
+    }, 45_000);
     const onVis = () => {
       if (document.visibilityState === "visible") refreshCloudPros();
     };
@@ -2854,13 +2894,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [refreshCloudPros, isAuthenticated, accountType]);
 
-  // Pros Realtime — instant Live/Presence updates (throttled in app-api)
+  // Pros Realtime — instant Live/Presence updates (throttled)
   useEffect(() => {
     if (!isAppBackendOnline() || !backendUserId || accountType === "professional") return;
     let prosTimer: ReturnType<typeof setTimeout> | null = null;
     const unsubPros = backendSubscribePros(() => {
       if (prosTimer) clearTimeout(prosTimer);
-      prosTimer = setTimeout(() => refreshCloudPros(), 400);
+      // Coalesce bursts so we do not re-fetch the full pros list every event
+      prosTimer = setTimeout(() => refreshCloudPros(), 1_200);
     });
     return () => {
       if (prosTimer) clearTimeout(prosTimer);
@@ -2870,7 +2911,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    // Jobs soon after auth (requests list); chats only when needed / rare backup
+    // Jobs soon after auth; chats only as rare backup (Realtime is primary)
     const jobsT = window.setTimeout(() => refreshCloudJobs(), 900);
     const chatsT = window.setTimeout(() => refreshCloudChats(), 600_000);
     return () => {
@@ -2883,25 +2924,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isAppBackendOnline() || !backendUserId) return;
     let jobsTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastStaleSweep = 0;
     const unsubJobs = backendSubscribeJobs(backendUserId, () => {
       if (jobsTimer) clearTimeout(jobsTimer);
-      // Short debounce only (coalesce burst events) — was 60s and felt broken
-      jobsTimer = setTimeout(() => refreshCloudJobs(), 400);
+      jobsTimer = setTimeout(() => refreshCloudJobs(), 800);
     });
-    // Expire-stale sweep every 30s (reroute unaccepted jobs, cancel stale bookings)
+    // First stale sweep once after open (not on every jobs poll)
     const staleTimer = window.setTimeout(() => {
+      lastStaleSweep = Date.now();
       import("@/lib/jobs/client").then((m) =>
         m.apiExpireStaleBookedJobs().catch(() => null)
       );
-    }, 5_000);
-    // Backup poll so pros still see new requests if Realtime drops
+    }, 12_000);
+    // Backup poll if Realtime drops — was 30s + expire every tick (heavy)
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudJobs();
-      import("@/lib/jobs/client").then((m) =>
-        m.apiExpireStaleBookedJobs().catch(() => null)
-      );
-    }, 30_000);
+      const now = Date.now();
+      if (now - lastStaleSweep >= 120_000) {
+        lastStaleSweep = now;
+        import("@/lib/jobs/client").then((m) =>
+          m.apiExpireStaleBookedJobs().catch(() => null)
+        );
+      }
+    }, 60_000);
     const onVis = () => {
       if (document.visibilityState === "visible") refreshCloudJobs();
     };
@@ -2915,19 +2961,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [backendUserId, refreshCloudJobs]);
 
-  // Messages Realtime — refresh threads so inbound banner / toast can fire for both parties
+  // Messages Realtime — refresh threads so inbound banner / toast can fire
   useEffect(() => {
     if (!isAppBackendOnline() || !backendUserId || !isAuthenticated) return;
     let chatTimer: ReturnType<typeof setTimeout> | null = null;
     const unsub = backendSubscribeUserMessageInserts(backendUserId, () => {
       if (chatTimer) clearTimeout(chatTimer);
-      chatTimer = setTimeout(() => refreshCloudChats(), 250);
+      chatTimer = setTimeout(() => refreshCloudChats(), 600);
     });
-    // Backup poll so popups still work if Realtime is flaky
+    // Rare backup only — was 30s and stacked with jobs/pros polls
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudChats();
-    }, 30_000);
+    }, 180_000);
     return () => {
       if (chatTimer) clearTimeout(chatTimer);
       unsub?.();

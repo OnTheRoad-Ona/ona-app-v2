@@ -11,6 +11,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
+  ProfileIdentityHeader,
   ProfileSection,
   ProfileShell,
 } from "@/components/profile/profile-shell";
@@ -155,7 +156,7 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
     if (!file) return;
     try {
       const dataUrl = await compressImageFile(file, { maxEdge: 512 });
-      const res = await fetch("/api/profile/upload-avatar", {
+      const res = await (await import("@/lib/api-auth-headers")).authFetch("/api/profile/upload-avatar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ accessToken, imageDataUrl: dataUrl }),
@@ -230,8 +231,8 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
                 syncFromProfile(userProfile);
               }}
               className={cn(
-                "h-11 flex-1 rounded-xl border-0 text-[13px] font-bold",
-                isLight ? "bg-black/8 text-slate-900" : "bg-[#2c2c2e] text-white"
+                "h-11 flex-1 border-0 text-[13px] font-bold",
+                isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white"
               )}
             >
               Cancel
@@ -239,7 +240,7 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
             <button
               type="button"
               onClick={save}
-              className="h-11 flex-1 rounded-xl border-0 bg-[#323231] text-[13px] font-bold text-white"
+              className="h-11 flex-1 border-0 bg-[#FF6B35] text-[13px] font-bold text-white"
             >
               Save
             </button>
@@ -262,23 +263,27 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
       {(msg || err) && (
         <p
           className={cn(
-            "mb-1 rounded-xl px-3 py-2 text-[12px] font-semibold",
-            err ? "bg-red-500/15 text-red-400" : "bg-emerald-500/15 text-emerald-500"
+            "mb-3 text-[12px] font-semibold",
+            err ? "text-red-500" : "text-emerald-600"
           )}
         >
           {err || msg}
         </p>
       )}
 
-      <ProfileSection isLight={isLight}>
-        <div className="flex items-center gap-3">
+      <ProfileIdentityHeader
+        isLight={isLight}
+        name={userProfile.fullName}
+        roleLabel="Customer"
+        meta={`Member since ${memberSinceLabel(userProfile.registeredAt)}`}
+        avatar={
           <button
             type="button"
             disabled={!editing}
             onClick={() => fileRef.current?.click()}
             className="relative shrink-0 border-0 bg-transparent p-0"
           >
-            <Avatar className="h-16 w-16 overflow-hidden rounded-full">
+            <Avatar className="h-[72px] w-[72px] overflow-hidden rounded-full">
               <AvatarImage
                 src={avatarUrl || DEFAULT_VENDOR_PHOTO}
                 alt={userProfile.fullName}
@@ -289,31 +294,20 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
               </AvatarFallback>
             </Avatar>
             {editing && (
-              <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-brand text-white">
-                <Camera className="h-3 w-3" />
+              <span className="absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-brand text-white">
+                <Camera className="h-3.5 w-3.5" />
               </span>
             )}
           </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => void onPickAvatar(e.target.files?.[0] || null)}
-          />
-          <div className="min-w-0 flex-1">
-            <p className={cn("truncate text-[17px] font-black", t.ink)}>
-              {userProfile.fullName}
-            </p>
-            <p className={cn("mt-0.5 text-[12px] font-semibold", t.muted)}>
-              Customer
-            </p>
-            <p className={cn("mt-1 text-[11px]", t.muted)}>
-              Member since {memberSinceLabel(userProfile.registeredAt)}
-            </p>
-          </div>
-        </div>
-      </ProfileSection>
+        }
+      />
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => void onPickAvatar(e.target.files?.[0] || null)}
+      />
 
       <ProfileSection title="Contact & Security" isLight={isLight}>
         <div className="space-y-3">
@@ -596,7 +590,7 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
           </div>
         ) : (
           <p className={cn("text-[12px]", t.ink)}>
-            {userProfile.emergencyContact?.name || "—"}
+            {userProfile.emergencyContact?.name || "Not set"}
             {userProfile.emergencyContact?.phone
               ? ` · ${userProfile.emergencyContact.phone}`
               : ""}
@@ -609,7 +603,7 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
           {[
             ["Requested", jobsRequested],
             ["Completed", jobsCompleted],
-            ["Avg given", ratingGiven ? ratingGiven.toFixed(1) : "—"],
+            ["Avg given", ratingGiven ? ratingGiven.toFixed(1) : "Not set"],
           ].map(([label, val]) => (
             <div
               key={String(label)}

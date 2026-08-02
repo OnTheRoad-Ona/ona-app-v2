@@ -84,23 +84,46 @@ export async function backendSignUp(input: {
   bankName?: string;
   bankAccountName?: string;
   bankAccountNumber?: string;
+  bankCode?: string;
   keepOtherRole?: boolean;
   guarantor?: UserProfile["guarantor"];
   docsStatus?: UserProfile["docsStatus"];
   certificationFileName?: string;
   certificationFileDataUrl?: string;
   refCode?: string;
+  /** Dual-role: bind new role to this session identity */
+  access_token?: string;
 }): Promise<{ error: string | null; userId?: string; profile?: UserProfile }> {
   /**
    * Server-side signup (service role, email auto-confirmed).
    * Avoids Supabase browser signUp confirmation emails that hit:
    * "For security purposes, you can only request this after X seconds"
    */
+  // Prefer live session token so dual-role always attaches to the signed-in user
+  let accessToken = input.access_token;
+  if (!accessToken) {
+    try {
+      const { ensureAppSession } = await import("@/lib/supabase/session");
+      const s = await ensureAppSession();
+      accessToken = s?.accessToken;
+    } catch {
+      /* guest signup */
+    }
+  }
+
   let res: Response;
   try {
     res = await fetch("/api/auth/signup", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(accessToken
+          ? {
+              Authorization: `Bearer ${accessToken}`,
+              "x-access-token": accessToken,
+            }
+          : {}),
+      },
       body: JSON.stringify({
         email: input.email,
         password: input.password,
@@ -142,12 +165,14 @@ export async function backendSignUp(input: {
         bankName: input.bankName,
         bankAccountName: input.bankAccountName,
         bankAccountNumber: input.bankAccountNumber,
+        bankCode: input.bankCode,
         guarantor: input.guarantor,
         keepOtherRole: input.keepOtherRole !== false,
         refCode: input.refCode,
         docsStatus: input.docsStatus,
         certificationFileName: input.certificationFileName,
         certificationFileDataUrl: input.certificationFileDataUrl,
+        access_token: accessToken,
       }),
     });
   } catch {
@@ -295,7 +320,11 @@ export async function backendUpdateProfile(
     const token = session?.accessToken || accessToken;
     const res = await fetch("/api/profile/update", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        "x-access-token": token,
+      },
       body: JSON.stringify({ access_token: token, ...patch }),
     });
     const json = (await res.json().catch(() => null)) as {
@@ -311,7 +340,11 @@ export async function backendUpdateProfile(
         if (again?.accessToken) {
           const retry = await fetch("/api/profile/update", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${again.accessToken}`,
+              "x-access-token": again.accessToken,
+            },
             body: JSON.stringify({
               access_token: again.accessToken,
               ...patch,
@@ -328,7 +361,7 @@ export async function backendUpdateProfile(
       if (json?.error?.code === "bank_account_in_use") {
         return (
           json.error.message ||
-          "This bank account is already linked to another Ona account."
+          "This bank is already used on another Ona account."
         );
       }
       return json?.error?.message || "Could not save profile";
@@ -721,7 +754,11 @@ export async function backendSwitchRole(
   try {
     const res = await fetch("/api/auth/switch-role", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        "x-access-token": token,
+      },
       body: JSON.stringify({
         access_token: token,
         target,
@@ -942,10 +979,13 @@ export async function backendLoadUserProfile(
       servedModel: vf.servedModel,
       servedCountry: vf.servedCountry,
       servedLocation: vf.servedLocation,
-      bankName: pr?.bank_name || undefined,
-      bankAccountName: pr?.bank_account_name || undefined,
-      bankAccountNumber: pr?.bank_account_number || undefined,
-      bankCode: pr?.bank_code || undefined,
+      // One bank per login: prefer pro side, fall back to customer bank
+      bankName: pr?.bank_name || mot?.bank_name || undefined,
+      bankAccountName:
+        pr?.bank_account_name || mot?.bank_account_name || undefined,
+      bankAccountNumber:
+        pr?.bank_account_number || mot?.bank_account_number || undefined,
+      bankCode: pr?.bank_code || mot?.bank_code || undefined,
       guarantor: guarantorRes.data
         ? {
             fullName: (guarantorRes.data as any).full_name,
@@ -993,10 +1033,13 @@ export async function backendLoadUserProfile(
       Boolean((p as { phone_verified?: boolean }).phone_verified) ||
       Boolean(mot?.phone_verified),
     firstServiceAt: mot?.first_service_at || undefined,
-    bankName: mot?.bank_name || undefined,
-    bankAccountName: mot?.bank_account_name || undefined,
-    bankAccountNumber: mot?.bank_account_number || undefined,
-    bankCode: mot?.bank_code || undefined,
+    // One bank per login: prefer customer side, fall back to pro bank
+    bankName: mot?.bank_name || pr?.bank_name || undefined,
+    bankAccountName:
+      mot?.bank_account_name || pr?.bank_account_name || undefined,
+    bankAccountNumber:
+      mot?.bank_account_number || pr?.bank_account_number || undefined,
+    bankCode: mot?.bank_code || pr?.bank_code || undefined,
   });
 }
 
@@ -1110,7 +1153,15 @@ export async function backendSetProOnline(
   ): Promise<LiveJson> => {
     const res = await fetch("/api/pros/live", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(access_token
+          ? {
+              Authorization: `Bearer ${access_token}`,
+              "x-access-token": access_token,
+            }
+          : {}),
+      },
       body: JSON.stringify({
         userId: uid,
         access_token,
@@ -1471,16 +1522,19 @@ export async function backendSendMessage(input: {
     } catch {
       /* plain text */
     }
-    void fetch("/api/messages/notify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        conversationId: input.conversationId,
-        senderId: input.senderId,
-        preview: String(preview || "New message").slice(0, 200),
-        senderName: input.senderName || undefined,
-      }),
-    }).catch(() => null);
+    void import("@/lib/api-auth-headers")
+      .then(({ authFetch }) =>
+        authFetch("/api/messages/notify", {
+          method: "POST",
+          body: JSON.stringify({
+            conversationId: input.conversationId,
+            senderId: input.senderId,
+            preview: String(preview || "New message").slice(0, 200),
+            senderName: input.senderName || undefined,
+          }),
+        })
+      )
+      .catch(() => null);
   } catch {
     /* non-fatal */
   }
@@ -1529,9 +1583,9 @@ export async function backendMarkMessagesRead(
 ): Promise<void> {
   if (!conversationId || conversationId.startsWith("chat-") || !userId) return;
   try {
-    await fetch("/api/messages/read", {
+    const { authFetch } = await import("@/lib/api-auth-headers");
+    await authFetch("/api/messages/read", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ conversationId, userId }),
     });
   } catch {

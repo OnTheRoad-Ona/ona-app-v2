@@ -210,7 +210,8 @@ describe("syncPayoutAcrossRoles", () => {
     // Canonical record written.
     const pm = db.rows.payout_methods.find((r) => r.user_id === userId);
     expect(pm?.account_number_last4).toBe("6789");
-    expect(pm?.linked_role).toBe("motorist");
+    // Both side tables exist → linked as shared identity bank (payouts + refunds).
+    expect(pm?.linked_role).toBe("both");
     // Pro side mirror was created (repair_pro_profiles row now has the bank).
     const pro = db.rows.repair_pro_profiles.find((r) => r.user_id === userId);
     expect(pro?.bank_account_number).toBe("0123456789");

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { requireUser } from "@/lib/server/auth-utils";
 import { insertNotification } from "@/lib/server/notifications";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
@@ -20,6 +21,9 @@ export async function POST(req: Request) {
   if (!isSupabaseAdminConfigured()) {
     return apiFail("Supabase is not configured", 503);
   }
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+
   let json: unknown;
   try {
     json = await req.json();
@@ -29,6 +33,9 @@ export async function POST(req: Request) {
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
     return apiFail("userId required", 400);
+  }
+  if (parsed.data.userId !== auth.userId) {
+    return apiFail("Forbidden", 403, "forbidden");
   }
   const { userId, role } = parsed.data;
 

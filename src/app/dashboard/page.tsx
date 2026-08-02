@@ -334,10 +334,11 @@ export default function TechnicianDashboardPage() {
       }
     };
     void sync();
+    // Care approval rarely changes — 3 min is enough (was 60s)
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void sync();
-    }, 60_000);
+    }, 180_000);
     return () => {
       cancelled = true;
       window.clearInterval(poll);

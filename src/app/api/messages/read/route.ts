@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { requireUser } from "@/lib/server/auth-utils";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 
@@ -19,6 +20,9 @@ export async function POST(req: Request) {
     return apiFail("Server not configured", 503);
   }
 
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+
   let json: unknown;
   try {
     json = await req.json();
@@ -30,7 +34,11 @@ export async function POST(req: Request) {
     return apiFail("Invalid request", 400);
   }
 
-  const { conversationId, userId } = parsed.data;
+  if (parsed.data.userId !== auth.userId) {
+    return apiFail("Forbidden", 403, "forbidden");
+  }
+
+  const { conversationId } = parsed.data;
   const sb = createServiceSupabase();
   const now = new Date().toISOString();
 
@@ -38,7 +46,7 @@ export async function POST(req: Request) {
     .from("messages")
     .update({ read_at: now })
     .eq("conversation_id", conversationId)
-    .neq("sender_id", userId)
+    .neq("sender_id", auth.userId)
     .is("read_at", null);
 
   if (error) {

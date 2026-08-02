@@ -705,6 +705,32 @@ export function ProSignup() {
       registeredAt: new Date().toISOString(),
       refCode: searchParams.get("ref") || undefined,
     };
+
+    // Dual-role: carry Customer bank into Repair Pro so payout bank is ready
+    // and the "Add bank" panel does not ask again after signup.
+    if (dualSignup) {
+      try {
+        const { getVaultProfile } = await import("@/lib/profiles-vault");
+        const { hasCompleteBankDetails } = await import("@/lib/bank-details");
+        const vaultMot = getVaultProfile("motorist");
+        const liveMot =
+          userProfile?.accountType === "motorist" ? userProfile : null;
+        const donor =
+          (liveMot && hasCompleteBankDetails(liveMot) && liveMot) ||
+          (vaultMot && hasCompleteBankDetails(vaultMot) && vaultMot) ||
+          (userProfile && hasCompleteBankDetails(userProfile) && userProfile) ||
+          null;
+        if (donor) {
+          profile.bankCode = donor.bankCode;
+          profile.bankName = donor.bankName;
+          profile.bankAccountName = donor.bankAccountName;
+          profile.bankAccountNumber = donor.bankAccountNumber;
+        }
+      } catch {
+        /* continue without bank; identity sync may still copy server-side */
+      }
+    }
+
     const err = await completeSignup(profile);
     if (err) {
       setBusy(false);
@@ -1964,7 +1990,7 @@ export function ProSignup() {
             <div className="space-y-0 text-[12px]">
               <Row k="Name" v={fullName} />
               <Row k="Gender" v={formatGenderLabel(gender)} />
-              <Row k="Date of birth" v={dateOfBirth || "—"} />
+              <Row k="Date of birth" v={dateOfBirth || "Not set"} />
               <Row k="Business" v={businessName} />
               <Row k="Trade" v={skill ? PRO_SERVICE_LABELS[skill] : "Not set"} />
               <Row k="Focus" v={specialty || "Not set"} />

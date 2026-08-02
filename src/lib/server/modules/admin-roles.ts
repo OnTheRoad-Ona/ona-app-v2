@@ -365,7 +365,7 @@ export function canAccessAdminPath(role: AdminRole, href: string): boolean {
 /** Mask account number for staff without view_bank_full */
 export function maskBankAccount(account: string | null | undefined): string {
   const s = String(account || "").replace(/\s/g, "");
-  if (!s) return "—";
+  if (!s) return "Not set";
   if (s.length <= 4) return "••••";
   return `••••${s.slice(-4)}`;
 }

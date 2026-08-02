@@ -50,6 +50,28 @@ export async function POST(req: Request) {
     return apiFail("Choose phone or email and enter a valid target", 400);
   }
 
+  try {
+    const { rateLimit } = await import("@/lib/server/modules/rate-limit");
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+    const rl = rateLimit({
+      key: `otp-send:${ip}:${parsed.data.channel}:${parsed.data.target}`,
+      limit: 8,
+      windowMs: 10 * 60_000,
+    });
+    if (!rl.ok) {
+      return apiFail(
+        `Too many code requests. Retry in ${rl.retryAfterSec}s.`,
+        429,
+        "rate_limited"
+      );
+    }
+  } catch {
+    /* non-fatal */
+  }
+
   const channel = parsed.data.channel;
   const supabase = createServiceSupabase();
 

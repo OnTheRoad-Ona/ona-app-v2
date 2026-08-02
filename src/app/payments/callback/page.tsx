@@ -94,18 +94,17 @@ function CallbackInner() {
     if (flwStatus === "cancelled" || flwStatus === "failed") {
       setStatus("fail");
       setMessage(
-        "Payment cancelled. Timer reset — Pay again for a fresh 20 minutes."
+        "Payment cancelled. Timer reset. Pay again for a fresh 20 minutes."
       );
       if (jobId) {
         void (async () => {
           try {
             // Best-effort: clear open session so next Pay starts a new window
-            await fetch(`/api/jobs/${encodeURIComponent(jobId)}/pay`, {
+            const { authFetch } = await import("@/lib/api-auth-headers");
+            await authFetch(`/api/jobs/${encodeURIComponent(jobId)}/pay`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 action: "cancel",
-                motoristId: "callback",
               }),
             });
           } catch {
@@ -125,9 +124,9 @@ function CallbackInner() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/payments/verify", {
+        const { authFetch } = await import("@/lib/api-auth-headers");
+        const res = await authFetch("/api/payments/verify", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             reference: ref || undefined,
             transactionId: transactionId || undefined,
@@ -137,7 +136,7 @@ function CallbackInner() {
         const json = await res.json();
         if (cancelled) return;
         if (jobId) {
-          await fetch(`/api/jobs/${encodeURIComponent(jobId)}`, {
+          await authFetch(`/api/jobs/${encodeURIComponent(jobId)}`, {
             cache: "no-store",
           }).catch(() => null);
         }

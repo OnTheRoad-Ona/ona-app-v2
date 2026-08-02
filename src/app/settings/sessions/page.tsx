@@ -56,7 +56,8 @@ export default function SettingsSessionsPage() {
     setLoading(true);
     setErr(null);
     try {
-      const res = await fetch(
+      const { authFetch } = await import("@/lib/api-auth-headers");
+      const res = await authFetch(
         `/api/sessions?userId=${encodeURIComponent(backendUserId)}`,
         { credentials: "include" }
       );
@@ -92,17 +93,18 @@ export default function SettingsSessionsPage() {
     } catch {
       /* */
     }
-    void fetch("/api/sessions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        userId: backendUserId,
-        deviceLabel: "This browser",
-        userAgent:
-          typeof navigator !== "undefined" ? navigator.userAgent : undefined,
-      }),
-    })
+    void import("@/lib/api-auth-headers").then(({ authFetch }) =>
+      authFetch("/api/sessions", {
+        method: "POST",
+        credentials: "include",
+        body: JSON.stringify({
+          userId: backendUserId,
+          deviceLabel: "This browser",
+          userAgent:
+            typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+        }),
+      })
+    )
       .then(() => {
         try {
           sessionStorage.setItem(key, "1");
@@ -120,7 +122,8 @@ export default function SettingsSessionsPage() {
     setMsg(null);
     setErr(null);
     try {
-      const res = await fetch(
+      const { authFetch } = await import("@/lib/api-auth-headers");
+      const res = await authFetch(
         `/api/sessions?sessionId=${encodeURIComponent(id)}&userId=${encodeURIComponent(backendUserId)}`,
         { method: "DELETE", credentials: "include" }
       );
@@ -206,7 +209,7 @@ export default function SettingsSessionsPage() {
                       Last active{" "}
                       {s.last_seen_at
                         ? new Date(s.last_seen_at).toLocaleString()
-                        : "—"}
+                        : "Not set"}
                     </p>
                   </div>
                   <button

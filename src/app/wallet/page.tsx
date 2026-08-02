@@ -59,9 +59,10 @@ export default function WalletPage() {
     }
     setLoading(true);
     try {
+      const { authFetch } = await import("@/lib/api-auth-headers");
       const [walletRes, refRes] = await Promise.all([
-        fetch(`/api/security/wallet?userId=${encodeURIComponent(backendUserId)}`),
-        fetch(`/api/security/referral?userId=${encodeURIComponent(backendUserId)}`),
+        authFetch(`/api/security/wallet?userId=${encodeURIComponent(backendUserId)}`),
+        authFetch(`/api/security/referral?userId=${encodeURIComponent(backendUserId)}`),
       ]);
       const wJson = await walletRes.json();
       const rJson = await refRes.json();
@@ -90,9 +91,9 @@ export default function WalletPage() {
     setCashoutBusy(true);
     setCashoutMsg(null);
     try {
-      const res = await fetch("/api/security/cashout", {
+      const { authFetch } = await import("@/lib/api-auth-headers");
+      const res = await authFetch("/api/security/cashout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: backendUserId, requestedAmount: Number(cashoutAmount) }),
       });
       const json = await res.json();

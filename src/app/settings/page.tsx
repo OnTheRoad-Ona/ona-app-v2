@@ -55,9 +55,10 @@ const HUB_SECTIONS: {
     icon: Briefcase,
   },
   {
-    href: "/settings/sections/payments",
-    labelKey: "settings.hub.payments",
-    detailKey: "settings.hub.paymentsDetail",
+    // Customers manage money here (Pros use ☰ → Payments & Payouts only)
+    href: "/settings/payments",
+    labelKey: "settings.hub.paymentsCustomer",
+    detailKey: "settings.hub.paymentsDetailCustomer",
     icon: Banknote,
   },
   {
@@ -128,7 +129,11 @@ export default function SettingsPage() {
         onScroll={() => saveSettingsScroll(scrollRef.current)}
       >
         <div className="space-y-0.5 py-1">
-          {HUB_SECTIONS.filter((item) => !(isPro && item.href === "/settings/sections/payments")).map((item, i) => (
+          {HUB_SECTIONS.filter((item) => {
+            // Pro: Payments & Payouts lives in the side bar, not Settings
+            if (isPro && item.href === "/settings/payments") return false;
+            return true;
+          }).map((item, i) => (
             <SettingsRow
               key={item.href}
               first={i === 0}

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
-import { acceptOffer, placeOffer } from "@/lib/server/jobs/job-store";
+import { isJobParty, requireUser } from "@/lib/server/auth-utils";
+import { acceptOffer, getJob, placeOffer } from "@/lib/server/jobs/job-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,10 +19,32 @@ export async function POST(
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireUser(req);
+    if (!auth.ok) return auth.response;
+
     const { id } = await ctx.params;
     const parsed = bodySchema.safeParse(await req.json());
     if (!parsed.success) return apiFail("Invalid offer payload", 400);
     const b = parsed.data;
+
+    if (b.actorId !== auth.userId) {
+      return apiFail("actorId must match the signed-in user", 403);
+    }
+
+    const job = await getJob(id);
+    if (!job) return apiFail("Job not found", 404);
+    if (!isJobParty(auth.userId, job)) {
+      return apiFail("Forbidden", 403, "forbidden");
+    }
+
+    // Bind side to actual party
+    const side =
+      auth.userId === job.motoristId
+        ? ("motorist" as const)
+        : ("repair_pro" as const);
+    if (b.side !== side) {
+      return apiFail("side does not match your role on this job", 403);
+    }
 
     if (b.action === "place") {
       if (b.amountMajor == null) {
@@ -29,9 +52,9 @@ export async function POST(
       }
       const res = await placeOffer({
         jobId: id,
-        side: b.side,
+        side,
         amountMajor: b.amountMajor,
-        actorId: b.actorId,
+        actorId: auth.userId,
       });
       if ("error" in res) return apiFail(res.error, 400);
       return apiOk({ job: res.job });
@@ -39,8 +62,8 @@ export async function POST(
 
     const res = await acceptOffer({
       jobId: id,
-      by: b.side,
-      actorId: b.actorId,
+      by: side,
+      actorId: auth.userId,
     });
     if ("error" in res) return apiFail(res.error, 400);
     return apiOk({ job: res.job });

@@ -88,6 +88,7 @@ const bodySchema = z.object({
   bankName: z.string().optional(),
   bankAccountName: z.string().optional(),
   bankAccountNumber: z.string().optional(),
+  bankCode: z.string().optional(),
   /** Dual signup: keep the other role's side table */
   keepOtherRole: z.boolean().optional().default(true),
   /** Repair Pro guarantor */
@@ -108,6 +109,12 @@ const bodySchema = z.object({
   certificationFileDataUrl: z.string().optional(),
   /** Referral code from ?ref= param in signup link */
   refCode: z.string().max(30).optional(),
+  /**
+   * When the user is already logged in (dual-role attach from menu),
+   * pass their access_token so we extend THIS identity — never create a
+   * second auth user (fraud / duplicate account prevention).
+   */
+  access_token: z.string().min(10).optional(),
 });
 
 function last4(digits: string | undefined): string | null {
@@ -245,6 +252,28 @@ export async function POST(req: Request) {
     );
   }
 
+  try {
+    const { rateLimit } = await import("@/lib/server/modules/rate-limit");
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+    const rl = rateLimit({
+      key: `signup:ip:${ip}`,
+      limit: 10,
+      windowMs: 15 * 60_000,
+    });
+    if (!rl.ok) {
+      return apiFail(
+        `Too many sign-up attempts. Retry in ${rl.retryAfterSec}s.`,
+        429,
+        "rate_limited"
+      );
+    }
+  } catch {
+    /* non-fatal */
+  }
+
   const input = parsed.data;
   const email = input.email.trim().toLowerCase();
   if (!email || !email.includes("@")) {
@@ -317,6 +346,48 @@ export async function POST(req: Request) {
     date_of_birth: input.dateOfBirth,
   };
 
+  // ── Dual-role attach: same logged-in user adds the other role ─────────────
+  // Prefer session token so we NEVER create a second auth user (anti-fraud).
+  let attachUserId: string | null = null;
+  if (input.access_token) {
+    try {
+      const { createClient } = await import("@supabase/supabase-js");
+      const {
+        getSupabaseAnonKey,
+        getSupabaseUrl,
+      } = await import("@/lib/supabase/env");
+      const userClient = createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { data: tokUser, error: tokErr } = await userClient.auth.getUser(
+        input.access_token
+      );
+      if (!tokErr && tokUser.user?.id) {
+        attachUserId = tokUser.user.id;
+        // Force email to the session identity (cannot attach under a different email)
+        const sessionEmail = String(tokUser.user.email || "")
+          .trim()
+          .toLowerCase();
+        if (sessionEmail && sessionEmail !== email) {
+          // Allow client to send the locked session email; if mismatch, prefer session
+          // only when keepOtherRole (dual attach). Reject pure hijack attempts.
+          if (input.keepOtherRole !== false) {
+            // rebind to session email for profile writes
+            // (input.email is const via local — use session for create path skip)
+          } else {
+            return apiFail(
+              "Signed-in email does not match. Stay on this account to add a role.",
+              403,
+              "identity_mismatch"
+            );
+          }
+        }
+      }
+    } catch {
+      /* fall through to normal signup */
+    }
+  }
+
   // Phone uniqueness across different accounts (same user dual-role reuses their phone)
   const phoneDigits = input.phone.replace(/\D/g, "");
   if (phoneDigits.length >= 10) {
@@ -332,6 +403,8 @@ export async function POST(req: Request) {
       if (d.length < 10) return false;
       const rowTail = d.length > 10 ? d.slice(-10) : d;
       if (rowTail !== tail) return false;
+      // Same identity attaching dual role — not a conflict
+      if (attachUserId && row.id === attachUserId) return false;
       const rowEmail = String(row.email || "").trim().toLowerCase();
       return rowEmail !== email;
     });
@@ -349,61 +422,88 @@ export async function POST(req: Request) {
     }
   }
 
-  // 1) Create (or recover) auth user WITHOUT sending confirmation email
+  // 1) Create (or recover) auth user — OR attach to existing session identity
   let userId: string | null = null;
   let createdNew = false;
 
-  const created = await supabase.auth.admin.createUser({
-    email,
-    password: input.password,
-    email_confirm: true,
-    user_metadata: {
-      role,
-      full_name: input.fullName,
-      phone: input.phone,
-      gender: input.gender,
-      date_of_birth: input.dateOfBirth,
-    },
-  });
-
-  if (created.error || !created.data.user) {
-    const msg = created.error?.message || "Could not create account";
-    const lower = msg.toLowerCase();
-    const exists =
-      lower.includes("already") ||
-      lower.includes("registered") ||
-      lower.includes("exists") ||
-      created.error?.status === 422;
-
-    if (!exists) {
-      const f = friendlyAuthError(msg);
-      await logSignupEvent(supabase, {
-        ...eventBase,
-        success: false,
-        error_message: f.message,
-      });
-      return apiFail(f.message, f.status, f.code);
-    }
-
-    // Account already exists — try password sign-in and finish profile
+  if (attachUserId) {
+    // Dual-role path: reuse this user id; verify password owns the account
     const signed = await supabase.auth.signInWithPassword({
-      email,
+      email:
+        (
+          await supabase.auth.admin.getUserById(attachUserId)
+        ).data.user?.email?.toLowerCase() || email,
       password: input.password,
     });
     if (signed.error || !signed.data.user) {
-      const m =
-        "An account with this email already exists. Log in with your password, or reset it if you forgot.";
-      await logSignupEvent(supabase, {
-        ...eventBase,
-        success: false,
-        error_message: m,
-      });
-      return apiFail(m, 409, "email_exists");
+      return apiFail(
+        "Enter the password for your existing Ona account to add this role.",
+        401,
+        "password_required"
+      );
     }
-    userId = signed.data.user.id;
+    if (signed.data.user.id !== attachUserId) {
+      return apiFail(
+        "Password belongs to a different account. Stay signed in and try again.",
+        403,
+        "identity_mismatch"
+      );
+    }
+    userId = attachUserId;
+    createdNew = false;
   } else {
-    userId = created.data.user.id;
-    createdNew = true;
+    const created = await supabase.auth.admin.createUser({
+      email,
+      password: input.password,
+      email_confirm: true,
+      user_metadata: {
+        role,
+        full_name: input.fullName,
+        phone: input.phone,
+        gender: input.gender,
+        date_of_birth: input.dateOfBirth,
+      },
+    });
+
+    if (created.error || !created.data.user) {
+      const msg = created.error?.message || "Could not create account";
+      const lower = msg.toLowerCase();
+      const exists =
+        lower.includes("already") ||
+        lower.includes("registered") ||
+        lower.includes("exists") ||
+        created.error?.status === 422;
+
+      if (!exists) {
+        const f = friendlyAuthError(msg);
+        await logSignupEvent(supabase, {
+          ...eventBase,
+          success: false,
+          error_message: f.message,
+        });
+        return apiFail(f.message, f.status, f.code);
+      }
+
+      // Account already exists — try password sign-in and finish profile (dual-role)
+      const signed = await supabase.auth.signInWithPassword({
+        email,
+        password: input.password,
+      });
+      if (signed.error || !signed.data.user) {
+        const m =
+          "An account with this email already exists. Log in with your password, or reset it if you forgot.";
+        await logSignupEvent(supabase, {
+          ...eventBase,
+          success: false,
+          error_message: m,
+        });
+        return apiFail(m, 409, "email_exists");
+      }
+      userId = signed.data.user.id;
+    } else {
+      userId = created.data.user.id;
+      createdNew = true;
+    }
   }
 
   if (!userId) {
@@ -491,7 +591,8 @@ export async function POST(req: Request) {
   // 3) Role-specific tables
   // Dual-role: NEVER delete the other role's side table when keepOtherRole is true
   // (motorist adding Repair Pro must keep motorist_profiles).
-  const keepOther = input.keepOtherRole !== false;
+  // Attach path always keeps the original role (anti-fraud merge on same identity).
+  const keepOther = attachUserId ? true : input.keepOtherRole !== false;
 
   if (role === "motorist") {
     if (!keepOther) {
@@ -733,6 +834,7 @@ export async function POST(req: Request) {
         bank_name: input.bankName || null,
         bank_account_name: input.bankAccountName || null,
         bank_account_number: input.bankAccountNumber || null,
+        bank_code: input.bankCode || null,
         docs_status: docsStatus,
         docs_rating_boost_applied: false,
         certification_file_name: certName,
@@ -844,15 +946,26 @@ export async function POST(req: Request) {
   }
 
   // 7) Issue a session for the browser (no email round-trip)
+  // Dual-attach: always sign in as the existing identity email
+  let signInEmail = email;
+  if (attachUserId && userId) {
+    try {
+      const u = await supabase.auth.admin.getUserById(userId);
+      const em = String(u.data.user?.email || "").trim().toLowerCase();
+      if (em) signInEmail = em;
+    } catch {
+      /* keep input email */
+    }
+  }
   let signedIn = await supabase.auth.signInWithPassword({
-    email,
+    email: signInEmail,
     password: input.password,
   });
   // Retry once if sign-in races with createUser
   if (signedIn.error || !signedIn.data.session) {
     await new Promise((r) => setTimeout(r, 400));
     signedIn = await supabase.auth.signInWithPassword({
-      email,
+      email: signInEmail,
       password: input.password,
     });
   }

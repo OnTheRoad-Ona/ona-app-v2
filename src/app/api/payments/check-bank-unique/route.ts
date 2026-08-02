@@ -102,7 +102,7 @@ export async function POST(req: Request) {
       return apiOk({
         available: false,
         message:
-          "This bank account is already linked to another Ona account.",
+          "This bank is already used on another Ona account.",
       });
     }
 

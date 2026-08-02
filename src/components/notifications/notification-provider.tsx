@@ -127,7 +127,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     // Only show loading on first prime — avoids list flicker on poll/realtime
     if (!primed.current) setLoading(true);
     try {
-      const res = await fetch(
+      const { authFetch } = await import("@/lib/api-auth-headers");
+      const res = await authFetch(
         `/api/notifications?userId=${encodeURIComponent(backendUserId)}`,
         { cache: "default" }
       );
@@ -253,9 +254,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       );
       if (!backendUserId) return;
       if (ids.every((id) => id.startsWith("local-"))) return;
-      await fetch("/api/notifications/read", {
+      const { authFetch } = await import("@/lib/api-auth-headers");
+      await authFetch("/api/notifications/read", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: backendUserId, ids }),
       }).catch(() => null);
     },
@@ -268,9 +269,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       prev.map((n) => ({ ...n, readAt: n.readAt || now }))
     );
     if (!backendUserId) return;
-    await fetch("/api/notifications/read-all", {
+    const { authFetch } = await import("@/lib/api-auth-headers");
+    await authFetch("/api/notifications/read-all", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId: backendUserId }),
     }).catch(() => null);
   }, [backendUserId]);

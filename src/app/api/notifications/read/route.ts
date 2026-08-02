@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { requireUser } from "@/lib/server/auth-utils";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 
@@ -16,6 +17,9 @@ export async function POST(req: Request) {
   if (!isSupabaseAdminConfigured()) {
     return apiFail("Supabase is not configured", 503);
   }
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+
   let json: unknown;
   try {
     json = await req.json();
@@ -26,13 +30,16 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return apiFail("userId and ids required", 400, "validation");
   }
-  const { userId, ids } = parsed.data;
+  if (parsed.data.userId !== auth.userId) {
+    return apiFail("Forbidden", 403, "forbidden");
+  }
+  const { ids } = parsed.data;
   const sb = createServiceSupabase();
   const now = new Date().toISOString();
   const { error } = await sb
     .from("notifications")
     .update({ read_at: now })
-    .eq("user_id", userId)
+    .eq("user_id", auth.userId)
     .in("id", ids)
     .is("read_at", null);
 

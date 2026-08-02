@@ -42,30 +42,30 @@ export async function POST(req: Request) {
     const b = parsed.data;
 
     /**
-     * Resolve identity:
-     * - Prefer access_token when valid
-     * - If token is stale but client still sent userId, proceed with userId
-     *   (service-role update). Prevents false “Session expired” on Go Live
-     *   after long background / tab sleep.
+     * Resolve identity from access_token only (Bearer or body).
+     * Never trust bare userId alone (force-online / force-offline IDOR).
      */
-    let userId = b.userId || null;
-    if (b.access_token) {
+    let userId: string | null = null;
+    const headerTok = req.headers.get("authorization")?.startsWith("Bearer ")
+      ? req.headers.get("authorization")!.slice(7).trim()
+      : req.headers.get("x-access-token")?.trim() || null;
+    const token = headerTok || b.access_token || null;
+    if (token) {
       const url = getSupabaseUrl();
       const anon = getSupabaseAnonKey();
       const userClient = createClient(url, anon, {
         auth: { autoRefreshToken: false, persistSession: false },
       });
-      const { data, error } = await userClient.auth.getUser(b.access_token);
+      const { data, error } = await userClient.auth.getUser(token);
       if (!error && data.user?.id) {
         userId = data.user.id;
-      } else if (!userId) {
+      } else {
         return apiFail(
           "Your login session needs a refresh. Try Go Live again, or sign in once more.",
           401,
           "session_expired"
         );
       }
-      // else: keep body userId when token is stale
     }
     if (!userId) {
       return apiFail(
@@ -73,6 +73,9 @@ export async function POST(req: Request) {
         401,
         "auth_required"
       );
+    }
+    if (b.userId && b.userId !== userId) {
+      return apiFail("userId does not match session", 403, "forbidden");
     }
 
     const sb = createServiceSupabase();
@@ -126,31 +129,49 @@ export async function POST(req: Request) {
         .eq("user_id", userId);
       if (awayErr) return apiFail(awayErr.message, 500);
 
-      // Cancel all unbooked jobs (negotiating + agreed) when going offline
+      // Unbooked negotiating jobs → search for next pro (not silent cancel).
+      // Agreed (unpaid) jobs are cancelled so customer can re-request with clear status.
       const { data: unbooked } = await sb
         .from("service_requests")
-        .select("id, status, status_history")
+        .select("id, flow_status, status_history")
         .eq("repair_pro_id", userId)
         .in("flow_status", ["negotiating", "agreed"]);
       if (unbooked && unbooked.length > 0) {
-        const ts = nowIso;
+        const { rerouteDeclinedJob } = await import(
+          "@/lib/server/jobs/job-store"
+        );
         for (const row of unbooked) {
-          const hist = Array.isArray(row.status_history)
-            ? row.status_history
-            : [];
-          await sb
-            .from("service_requests")
-            .update({
-              flow_status: "cancelled",
-              status: "cancelled",
-              cancelled_at: ts,
-              updated_at: ts,
-              status_history: [
-                ...hist,
-                { status: "cancelled", at: ts, by: "repair_pro", note: "pro_offline" },
-              ],
-            })
-            .eq("id", row.id);
+          if (row.flow_status === "negotiating") {
+            try {
+              await rerouteDeclinedJob(row.id, "pro_offline");
+            } catch (e) {
+              console.error("[pros/live] reroute on offline failed", row.id, e);
+            }
+          } else {
+            // agreed but unpaid — cancel so customer is not stuck with offline pro
+            const ts = nowIso;
+            const hist = Array.isArray(row.status_history)
+              ? row.status_history
+              : [];
+            await sb
+              .from("service_requests")
+              .update({
+                flow_status: "cancelled",
+                status: "cancelled",
+                cancelled_at: ts,
+                updated_at: ts,
+                status_history: [
+                  ...hist,
+                  {
+                    status: "cancelled",
+                    at: ts,
+                    by: "repair_pro",
+                    note: "pro_offline",
+                  },
+                ],
+              })
+              .eq("id", row.id);
+          }
         }
       }
 

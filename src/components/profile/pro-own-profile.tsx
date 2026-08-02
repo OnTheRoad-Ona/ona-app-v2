@@ -10,6 +10,7 @@ import { BioField } from "@/components/profile/bio-field";
 import { FaceLiveness } from "@/components/profile/face-liveness";
 import { NewAccountBadge } from "@/components/profile/new-account-badge";
 import {
+  ProfileIdentityHeader,
   ProfileSection,
   ProfileShell,
 } from "@/components/profile/profile-shell";
@@ -222,8 +223,8 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
                 sync(userProfile);
               }}
               className={cn(
-                "h-11 flex-1 rounded-xl border-0 text-[13px] font-bold",
-                isLight ? "bg-black/8 text-slate-900" : "bg-[#2c2c2e] text-white"
+                "h-11 flex-1 border-0 text-[13px] font-bold",
+                isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white"
               )}
             >
               Cancel
@@ -231,7 +232,7 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
             <button
               type="button"
               onClick={save}
-              className="h-11 flex-1 rounded-xl border-0 bg-[#323231] text-[13px] font-bold text-white"
+              className="h-11 flex-1 border-0 bg-[#FF6B35] text-[13px] font-bold text-white"
             >
               Save
             </button>
@@ -252,8 +253,8 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
       {(msg || err) && (
         <p
           className={cn(
-            "mb-1 rounded-xl px-3 py-2 text-[12px] font-semibold",
-            err ? "bg-red-500/15 text-red-400" : "bg-emerald-500/15 text-emerald-500"
+            "mb-3 text-[12px] font-semibold",
+            err ? "text-red-500" : "text-emerald-600"
           )}
         >
           {err || msg}
@@ -265,12 +266,11 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
         userProfile.docsStatus === "rejected") && (
         <div
           className={cn(
-            "mb-2 rounded-xl px-3 py-2.5 text-[12px] font-semibold leading-snug",
+            "mb-3 border-b pb-3 text-[12px] font-semibold leading-snug",
+            isLight ? "border-black/12" : "border-white/12",
             userProfile.docsStatus === "rejected"
-              ? "bg-red-500/15 text-red-500"
-              : isLight
-                ? "bg-[#FF6B35]/150/15 text-[#FF6B35]"
-                : "bg-[#FF6B35]/150/20 text-[#FF6B35]"
+              ? "text-red-500"
+              : "text-[#FF6B35]"
           )}
         >
           <p className="font-black uppercase tracking-wide">
@@ -278,28 +278,39 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
               ? "Documents rejected"
               : "Under review"}
           </p>
-          <p className="mt-0.5 font-medium opacity-90">
+          <p className={cn("mt-0.5 font-medium", t.muted)}>
             {userProfile.docsStatus === "rejected"
               ? "Your certification was not approved. Re-upload or contact support."
               : `Your documents are being checked. You stay visible only within ${DOCS_PENDING_MAX_RADIUS_KM} km until approved. After Tier 4 verification and approval you get +1 star instantly.`}
           </p>
           {userProfile.certificationFileName ? (
-            <p className="mt-1 text-[11px] opacity-80">
+            <p className={cn("mt-1 text-[11px]", t.muted)}>
               File: {userProfile.certificationFileName}
             </p>
           ) : null}
         </div>
       )}
 
-      <ProfileSection isLight={isLight}>
-        <div className="flex items-center gap-3">
+      <ProfileIdentityHeader
+        isLight={isLight}
+        name={userProfile.fullName}
+        roleLabel="Repair Pro"
+        meta={`Member since ${memberSinceLabel(userProfile.registeredAt)}`}
+        badge={
+          <NewAccountBadge
+            visibilityTier={artisan?.visibilityTier ?? 1}
+            status={artisan?.status}
+            size="sm"
+          />
+        }
+        avatar={
           <button
             type="button"
             disabled={!editing}
             onClick={() => fileRef.current?.click()}
             className="relative shrink-0 border-0 bg-transparent p-0"
           >
-            <Avatar className="h-16 w-16 overflow-hidden rounded-full">
+            <Avatar className="h-[72px] w-[72px] overflow-hidden rounded-full">
               <AvatarImage
                 src={avatarUrl || DEFAULT_VENDOR_PHOTO}
                 alt={userProfile.fullName}
@@ -310,85 +321,65 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
               </AvatarFallback>
             </Avatar>
             {editing && (
-              <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-brand text-white">
-                <Camera className="h-3 w-3" />
+              <span className="absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-brand text-white">
+                <Camera className="h-3.5 w-3.5" />
               </span>
             )}
           </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={async (e) => {
-              const f = e.target.files?.[0];
-              if (!f) return;
-              try {
-                const dataUrl = await compressImageFile(f, { maxEdge: 512 });
-                const res = await fetch("/api/profile/upload-avatar", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ accessToken, imageDataUrl: dataUrl }),
-                });
-                const json = await res.json() as { ok?: boolean; data?: { url?: string }; error?: { message?: string } };
-                if (json?.ok && json.data?.url) {
-                  setAvatarUrl(json.data.url);
-                } else {
-                  setErr(json?.error?.message || "Could not upload image.");
-                }
-              } catch {
-                setErr("Could not process image.");
-              }
-            }}
-          />
-          <div className="min-w-0 flex-1">
-            {/* Full name — always locked */}
-            <p
-              className={cn(
-                "flex flex-wrap items-center gap-1.5 text-[17px] font-black",
-                t.ink
-              )}
-            >
-              <span className="truncate">{userProfile.fullName}</span>
-              <VerificationMark profile={userProfile} />
-              <NewAccountBadge
-                visibilityTier={artisan?.visibilityTier ?? 1}
-                status={artisan?.status}
-                size="md"
-              />
-            </p>
-            {editing ? (
-              <input
-                className={cn(field, "mt-1.5")}
-                value={businessName}
-                onChange={(e) => setBusinessName(e.target.value)}
-                placeholder="Business / workshop name"
-              />
-            ) : (
-              userProfile.businessName && (
-                <p className={cn("text-[12px] font-semibold", t.soft)}>
-                  {userProfile.businessName}
-                </p>
-              )
-            )}
-            <p className={cn("mt-1 text-[11px]", t.muted)}>
-              Member since {memberSinceLabel(userProfile.registeredAt)}
-            </p>
-            <AchievementBadgesRow completedJobs={jobs} className="mt-1.5" />
-          </div>
-        </div>
+        }
+      />
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={async (e) => {
+          const f = e.target.files?.[0];
+          if (!f) return;
+          try {
+            const dataUrl = await compressImageFile(f, { maxEdge: 512 });
+            const res = await (
+              await import("@/lib/api-auth-headers")
+            ).authFetch("/api/profile/upload-avatar", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ accessToken, imageDataUrl: dataUrl }),
+            });
+            const json = (await res.json()) as {
+              ok?: boolean;
+              data?: { url?: string };
+              error?: { message?: string };
+            };
+            if (json?.ok && json.data?.url) {
+              setAvatarUrl(json.data.url);
+            } else {
+              setErr(json?.error?.message || "Could not upload image.");
+            }
+          } catch {
+            setErr("Could not process image.");
+          }
+        }}
+      />
 
-        <div className="mt-2 flex items-center justify-between gap-2">
-          <span
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold",
-              proLive
-                ? "bg-emerald-500/20 text-emerald-500"
-                : isLight
-                  ? "bg-black/10 text-slate-600"
-                  : "bg-[#2c2c2e] text-white/60"
-            )}
-          >
+      <ProfileSection isLight={isLight}>
+        <div className="flex items-center gap-1.5">
+          <VerificationMark profile={userProfile} />
+          <AchievementBadgesRow completedJobs={jobs} />
+        </div>
+        {editing ? (
+          <input
+            className={cn(field, "mt-3")}
+            value={businessName}
+            onChange={(e) => setBusinessName(e.target.value)}
+            placeholder="Business / workshop name"
+          />
+        ) : userProfile.businessName ? (
+          <p className={cn("mt-2 text-[14px] font-semibold", t.ink)}>
+            {userProfile.businessName}
+          </p>
+        ) : null}
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <span className={cn("inline-flex items-center gap-1.5 text-[12px] font-bold", t.ink)}>
             <span
               className={cn(
                 "h-2 w-2 rounded-full",
@@ -402,7 +393,7 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
               type="button"
               disabled={liveBusy}
               onClick={() => void toggleLive()}
-              className="text-[11px] font-bold text-brand"
+              className="border-0 bg-transparent text-[12px] font-bold text-[#FF6B35]"
             >
               {proLive ? "Go offline" : "Go online"}
             </button>
@@ -557,13 +548,13 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
               "Response",
               userProfile.avgResponseMinutes != null
                 ? `${userProfile.avgResponseMinutes}m`
-                : "—",
+                : "Not set",
             ],
             [
               "Complete",
               userProfile.completionRate != null
                 ? `${Math.round(userProfile.completionRate * 100)}%`
-                : "—",
+                : "Not set",
             ],
           ].map(([label, val]) => (
             <div
@@ -707,7 +698,7 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
         ) : (
           <div className={cn("space-y-1 text-[12px]", t.ink)}>
             <p>{userProfile.guarantor?.fullName || "Not set"}</p>
-            <p className={t.muted}>{userProfile.guarantor?.phone || "—"}</p>
+            <p className={t.muted}>{userProfile.guarantor?.phone || "Not set"}</p>
             {userProfile.guarantor?.occupation && (
               <p className={t.muted}>{userProfile.guarantor.occupation}</p>
             )}

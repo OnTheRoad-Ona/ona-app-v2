@@ -1412,28 +1412,65 @@ async function findNextPro(
     }
   }
 
-  const { data: pros } = await sb
+  // Same trade only — never reassign a mechanic job to a plumber, etc.
+  const serviceType = String(job.serviceType || "").trim();
+  let query = sb
     .from("repair_pro_profiles")
-    .select("user_id, business_name, lat, lng")
+    .select(
+      "user_id, business_name, lat, lng, primary_service, services, location_updated_at, visibility_tier"
+    )
     .eq("is_online", true)
     .neq("status", "suspended")
     .neq("status", "rejected");
 
+  if (serviceType) {
+    query = query.eq("primary_service", serviceType);
+  }
+
+  const { data: pros } = await query;
+
   if (!pros?.length) return null;
 
-  const available = pros.filter(
-    (p) => !triedProIds.has(p.user_id) && p.lat != null && p.lng != null
-  );
+  const LIVE_HEARTBEAT_MAX_MS = 5 * 60 * 1000;
+  const MAX_RADIUS_KM = 10;
+  const now = Date.now();
+
+  const available = pros.filter((p) => {
+    if (triedProIds.has(p.user_id) || p.lat == null || p.lng == null) {
+      return false;
+    }
+    // Prefer pros with a fresh Live heartbeat when the column is present
+    const updatedAt = p.location_updated_at
+      ? new Date(p.location_updated_at as string).getTime()
+      : NaN;
+    if (Number.isFinite(updatedAt) && now - updatedAt > LIVE_HEARTBEAT_MAX_MS) {
+      return false;
+    }
+    // Soft skip very incomplete visibility (tier 1 / 0%) when set
+    const tier = Number(p.visibility_tier);
+    if (Number.isFinite(tier) && tier > 0 && tier < 2) {
+      return false;
+    }
+    return true;
+  });
   if (!available.length) return null;
 
   const { lat: cLat, lng: cLng } = job.motoristLocation;
-  available.sort((a, b) => {
-    const dA = Math.hypot((a.lat ?? 0) - cLat, (a.lng ?? 0) - cLng);
-    const dB = Math.hypot((b.lat ?? 0) - cLat, (b.lng ?? 0) - cLng);
-    return dA - dB;
-  });
+  const withDistance = available
+    .map((p) => {
+      const dLat = ((p.lat as number) - cLat) * 111;
+      const dLng =
+        ((p.lng as number) - cLng) *
+        111 *
+        Math.cos((cLat * Math.PI) / 180);
+      const km = Math.hypot(dLat, dLng);
+      return { p, km };
+    })
+    .filter((x) => x.km <= MAX_RADIUS_KM + 0.75)
+    .sort((a, b) => a.km - b.km);
 
-  const best = available[0];
+  if (!withDistance.length) return null;
+  const best = withDistance[0].p;
 
   // Fetch name + photo from profiles
   const { data: profile } = await sb
@@ -1462,15 +1499,19 @@ async function assignNextPro(
 
   const ts = new Date().toISOString();
 
-  // Update job with new pro
+  // Clean slate for the new pro — do not carry prior offers / armed timer / price
   await sb
     .from("service_requests")
     .update({
-      status: "negotiating",
+      status: "requested",
       flow_status: "negotiating",
       repair_pro_id: nextPro.id,
       repair_pro_name: nextPro.name,
       ...(nextPro.photo ? { repair_pro_photo: nextPro.photo } : {}),
+      offers: [],
+      pro_base_major: null,
+      agreed_major: null,
+      negotiation_ends_at: null,
       updated_at: ts,
       status_history: [
         ...job.statusHistory,
@@ -1560,11 +1601,12 @@ export async function expireUnacceptedJobs(
   try {
     const sb = createServiceSupabase();
 
-    // Sweep negotiating jobs (pro has not responded yet)
+    // Sweep negotiating jobs (pro has not responded yet).
+    // DB stores legacy status=requested + flow_status=negotiating for new jobs.
     const { data: negotiatingData } = await sb
       .from("service_requests")
       .select("*")
-      .eq("status", "negotiating")
+      .eq("flow_status", "negotiating")
       .order("created_at", { ascending: true })
       .limit(limit);
 
@@ -1604,7 +1646,7 @@ export async function expireUnacceptedJobs(
       } else {
         const ok = await rerouteUnacceptedJob(job, sb);
         if (ok) rerouted++;
-        else expired++;
+        // else: still searching / waiting — do not count as expired
       }
     }
 

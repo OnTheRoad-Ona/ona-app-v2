@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { requireUser } from "@/lib/server/auth-utils";
 import {
   buildPricingSnapshot,
   detectCurrency,
@@ -36,11 +37,17 @@ const bodySchema = z.object({
  */
 export async function POST(req: Request) {
   try {
+    const auth = await requireUser(req);
+    if (!auth.ok) return auth.response;
+
     const parsed = bodySchema.safeParse(await req.json());
     if (!parsed.success) {
       return apiFail("Invalid payment payload", 400, "invalid_body");
     }
     const b = parsed.data;
+    if (b.motoristId !== auth.userId) {
+      return apiFail("You can only init payment for your own jobs", 403);
+    }
     // Nigerian users always pay in NGN — never GBP/USD from browser locale
     const detected = detectCurrency({
       countryCode: b.countryCode,

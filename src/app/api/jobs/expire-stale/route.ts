@@ -10,22 +10,41 @@ export const dynamic = "force-dynamic";
 /**
  * Auto-cancel Booked jobs not completed within 6h of payment + full refund.
  * Safe to call from:
- *  - Vercel cron / external scheduler
- *  - Client backup while app is open
+ *  - Vercel cron / external scheduler (Bearer CRON_SECRET / JOB_EXPIRE_SECRET)
+ *  - Authenticated app client (Bearer user session) as backup while app is open
  *
- * Optional: CRON_SECRET or JOB_EXPIRE_SECRET header Authorization: Bearer …
- * When secret is set in env, request must match; when unset, open (dev).
+ * Production/preview: secret required for unauthenticated callers (fail closed).
+ * Local/dev without secret: open only when NODE_ENV is not production and not Vercel prod.
  */
-function authorized(req: Request): boolean {
+async function authorized(req: Request): Promise<boolean> {
   const secret =
     process.env.CRON_SECRET?.trim() ||
     process.env.JOB_EXPIRE_SECRET?.trim() ||
     "";
-  if (!secret) return true;
   const auth = req.headers.get("authorization") || "";
   const header = req.headers.get("x-cron-secret") || "";
-  if (auth === `Bearer ${secret}`) return true;
-  if (header === secret) return true;
+  if (secret) {
+    if (auth === `Bearer ${secret}`) return true;
+    if (header === secret) return true;
+  }
+
+  // Authenticated app users may trigger the sweep (idempotent maintenance)
+  try {
+    const { requireUser } = await import("@/lib/server/auth-utils");
+    const u = await requireUser(req);
+    if (u.ok) return true;
+  } catch {
+    /* fall through */
+  }
+
+  const isProd =
+    process.env.NODE_ENV === "production" ||
+    process.env.VERCEL_ENV === "production" ||
+    process.env.VERCEL_ENV === "preview";
+  // Fail closed outside local: require secret or user session
+  if (isProd) return false;
+  // Local dev without secret configured — allow for DX
+  if (!secret) return true;
   return false;
 }
 
@@ -39,7 +58,7 @@ async function run(req: Request) {
       cancelled: 0,
       ids: [],
     };
-    if (authorized(req)) {
+    if (await authorized(req)) {
       result = await expireOverdueBookedJobs(50);
     }
 

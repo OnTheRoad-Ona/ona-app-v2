@@ -276,38 +276,12 @@ export async function POST(req: Request) {
       ...(b.preferredLocale != null
         ? { preferred_locale: b.preferredLocale }
         : {}),
-      ...(b.phoneVerified != null
-        ? {
-            phone_verified: b.phoneVerified,
-            ...(b.phoneVerified
-              ? { phone_verified_at: new Date().toISOString() }
-              : {}),
-          }
-        : {}),
+      // phone_verified is set only by OTP verify routes — never from client profile patch
       updated_at: new Date().toISOString(),
     })
     .eq("id", userId);
 
-  // Mirror Tier 1 phone flag onto role tables (admin Care reads motorist_profiles.phone_verified)
-  if (b.phoneVerified === true) {
-    const ts = new Date().toISOString();
-    try {
-      await admin
-        .from("motorist_profiles")
-        .update({ phone_verified: true, phone_verified_at: ts })
-        .eq("user_id", userId);
-    } catch {
-      /* column may be missing on old DBs */
-    }
-    try {
-      await admin
-        .from("repair_pro_profiles")
-        .update({ phone_verified: true })
-        .eq("user_id", userId);
-    } catch {
-      /* optional */
-    }
-  }
+  // Ignore client-asserted phoneVerified (security: Tier-1 gate)
 
   const hasBankPatch =
     b.bankName !== undefined ||
@@ -360,7 +334,7 @@ export async function POST(req: Request) {
       );
       if (taken) {
         return apiFail(
-          "This bank account is already linked to another Ona account. Use a different account.",
+          "This bank is already used on another Ona account. Use a different one.",
           409,
           "bank_account_in_use"
         );

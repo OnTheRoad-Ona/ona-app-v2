@@ -1106,3 +1106,110 @@ export async function releaseToPro(input: {
       "Configure pro bank details + Flutterwave transfer. Funds remain held until release succeeds.",
   };
 }
+
+/**
+ * Attempt a Flutterwave transaction refund by provider reference / transaction id.
+ * Returns gateway status without throwing — callers update ledger meta accordingly.
+ */
+export async function attemptFlutterwaveRefund(input: {
+  providerRef: string;
+  amountMajor?: number;
+  reason?: string;
+}): Promise<
+  | { ok: true; status: string; flwId?: string; raw?: unknown }
+  | { ok: false; code: "no_key" | "gateway" | "not_found"; message: string; raw?: unknown }
+> {
+  const secret = flutterwaveSecret();
+  const ref = (input.providerRef || "").trim();
+  if (!secret) {
+    return { ok: false, code: "no_key", message: "Flutterwave secret not configured" };
+  }
+  if (!ref) {
+    return { ok: false, code: "not_found", message: "Missing payment reference" };
+  }
+
+  try {
+    // Resolve transaction id from our reference (tx_ref)
+    const lookup = await fetch(
+      `https://api.flutterwave.com/v3/transactions?tx_ref=${encodeURIComponent(ref)}`,
+      {
+        headers: { Authorization: `Bearer ${secret}` },
+        cache: "no-store",
+        signal: AbortSignal.timeout(15_000),
+      }
+    );
+    const lookupJson = (await lookup.json().catch(() => null)) as {
+      status?: string;
+      data?: Array<{ id?: number; status?: string; tx_ref?: string }> | { id?: number };
+      message?: string;
+    } | null;
+
+    let txId: number | null = null;
+    if (lookupJson?.status === "success" && lookupJson.data) {
+      const rows = Array.isArray(lookupJson.data)
+        ? lookupJson.data
+        : [lookupJson.data];
+      const hit = rows.find((r) => r?.id != null) || rows[0];
+      if (hit?.id != null) txId = Number(hit.id);
+    }
+
+    // Some refs are already numeric FLW ids
+    if (txId == null && /^\d+$/.test(ref)) txId = Number(ref);
+
+    if (txId == null) {
+      return {
+        ok: false,
+        code: "not_found",
+        message: "Flutterwave transaction not found for refund",
+        raw: lookupJson,
+      };
+    }
+
+    const body: Record<string, unknown> = {
+      comments: (input.reason || "Ona escrow refund").slice(0, 200),
+    };
+    if (input.amountMajor != null && input.amountMajor > 0) {
+      body.amount = input.amountMajor;
+    }
+
+    const res = await fetch(
+      `https://api.flutterwave.com/v3/transactions/${txId}/refund`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${secret}`,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(20_000),
+      }
+    );
+    const json = (await res.json().catch(() => null)) as {
+      status?: string;
+      message?: string;
+      data?: { id?: number; status?: string };
+    } | null;
+
+    if (json?.status === "success") {
+      return {
+        ok: true,
+        status: String(json.data?.status || "success"),
+        flwId: json.data?.id != null ? String(json.data.id) : undefined,
+        raw: json,
+      };
+    }
+
+    return {
+      ok: false,
+      code: "gateway",
+      message: json?.message || `Refund failed (${res.status})`,
+      raw: json,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      code: "gateway",
+      message: e instanceof Error ? e.message : "Refund request failed",
+    };
+  }
+}

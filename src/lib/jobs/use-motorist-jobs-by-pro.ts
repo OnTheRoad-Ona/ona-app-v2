@@ -47,11 +47,11 @@ export function useMotoristJobsByPro(): {
       if (document.visibilityState === "visible") void load();
     };
     document.addEventListener("visibilitychange", onVis);
-    // Soft poll so CTA flips Request → Open while app is open
+    // Soft poll so CTA flips Request → Open (Realtime covers most updates)
     const t = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void load();
-    }, 12_000);
+    }, 45_000);
     return () => {
       document.removeEventListener("visibilitychange", onVis);
       window.clearInterval(t);

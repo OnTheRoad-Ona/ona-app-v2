@@ -92,7 +92,7 @@ export function PhoneChangeFlow({
     setBusy(true);
     setErr(null);
     try {
-      const res = await fetch("/api/security/verify-identity", {
+      const res = await (await import("@/lib/api-auth-headers")).authFetch("/api/security/verify-identity", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -146,7 +146,7 @@ export function PhoneChangeFlow({
     setBusy(true);
     setErr(null);
     try {
-      const res = await fetch("/api/security/action", {
+      const res = await (await import("@/lib/api-auth-headers")).authFetch("/api/security/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "change_phone", accessToken, newValue: newPhone }),

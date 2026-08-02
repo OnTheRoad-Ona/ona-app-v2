@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { requireUser } from "@/lib/server/auth-utils";
 import { createJob, listJobsForUser } from "@/lib/server/jobs/job-store";
 import type { JobMedia } from "@/lib/jobs/types";
 import { isProService } from "@/lib/services";
@@ -42,11 +43,19 @@ const createSchema = z.object({
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireUser(req);
+    if (!auth.ok) return auth.response;
+
     const parsed = createSchema.safeParse(await req.json());
     if (!parsed.success) {
       return apiFail("Invalid job request", 400, "validation");
     }
     const b = parsed.data;
+
+    // Only the authenticated motorist can open a job for themselves
+    if (b.motoristId !== auth.userId) {
+      return apiFail("You can only create jobs for your own account", 403, "forbidden");
+    }
     if (!isProService(b.serviceType)) {
       return apiFail("Invalid service type", 400);
     }
@@ -78,11 +87,18 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   try {
+    const auth = await requireUser(req);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get("userId");
     const role = searchParams.get("role") as "motorist" | "repair_pro" | null;
     if (!userId || (role !== "motorist" && role !== "repair_pro")) {
       return apiFail("userId and role required", 400);
+    }
+    // Never list another user's jobs
+    if (userId !== auth.userId) {
+      return apiFail("Forbidden", 403, "forbidden");
     }
     const jobs = await listJobsForUser(userId, role);
     return apiOk({ jobs });

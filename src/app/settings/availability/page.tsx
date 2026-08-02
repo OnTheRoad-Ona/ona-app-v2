@@ -87,7 +87,7 @@ export default function SettingsAvailabilityPage() {
     }
     setMsg(
       vacation
-        ? "Saved. Vacation mode — Live turned off for new jobs."
+        ? "Saved. Vacation mode is on. Live is off for new jobs."
         : "Availability & radius saved."
     );
   };

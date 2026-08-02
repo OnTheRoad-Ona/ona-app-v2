@@ -173,8 +173,8 @@ export function bankAccountMatchesSignupName(
       matches,
       error:
         required >= 2
-          ? "Bank account name must match at least 2 names from your signup name."
-          : "Bank account name must match your signup name.",
+          ? "Bank name on file must match at least 2 parts of your Ona name."
+          : "Bank name on file must match your Ona name.",
     };
   }
   return { ok: true, matches };
@@ -196,10 +196,10 @@ export function validateBankDetailsInput(
     (input.bankName || "").trim() || bankNameForCode(code, list);
   const name = (input.bankAccountName || "").trim();
   const num = (input.bankAccountNumber || "").replace(/\D/g, "");
-  if (!code) return "Select your bank — code is filled automatically.";
+  if (!code) return "Pick your bank. The bank code fills itself.";
   if (!bank) return "Bank name is required.";
   if (!name) return "Account name is required.";
-  if (num.length !== 10) return "Nigerian account numbers are 10 digits.";
+  if (num.length !== 10) return "Account number must be 10 digits.";
   if (signupFullName != null && String(signupFullName).trim()) {
     const match = bankAccountMatchesSignupName(name, signupFullName);
     if (!match.ok) return match.error;
@@ -282,7 +282,15 @@ export async function checkBankAccountAvailable(input: {
     }
     const res = await fetch("/api/payments/check-bank-unique", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(access_token
+          ? {
+              Authorization: `Bearer ${access_token}`,
+              "x-access-token": access_token,
+            }
+          : {}),
+      },
       body: JSON.stringify({ accountNumber, bankCode, access_token }),
       credentials: "include",
     });
@@ -297,7 +305,7 @@ export async function checkBankAccountAvailable(input: {
         error:
           (json.data as { message?: string })?.message ||
           json.error?.message ||
-          "This bank account is already linked to another Ona account.",
+          "This bank is already used on another Ona account.",
       };
     }
     if (json?.ok) return { ok: true };
@@ -321,9 +329,9 @@ export async function resolveNigeriaAccountName(input: {
     return { ok: false, error: "Select a bank first." };
   }
   try {
-    const res = await fetch("/api/payments/resolve-account", {
+    const { authFetch } = await import("@/lib/api-auth-headers");
+    const res = await authFetch("/api/payments/resolve-account", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ accountNumber, bankCode }),
     });
     const json = (await res.json().catch(() => null)) as {

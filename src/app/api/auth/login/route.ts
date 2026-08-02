@@ -15,7 +15,6 @@ import {
 import {
   ensureUserRole,
   syncPayoutAcrossRoles,
-  mergeIdentities,
 } from "@/lib/server/identity/identity-sync";
 import type { ProfileRow, RepairProRow } from "@/lib/supabase/types";
 import type { AccountType, ProService, UserProfile } from "@/lib/types";
@@ -55,11 +54,15 @@ async function loadOrRepairProfile(
   userId: string,
   email: string,
   meta: Record<string, unknown> | undefined
-): Promise<{
-  profile: UserProfile;
-  hasMotorist: boolean;
-  hasPro: boolean;
-} | null> {
+): Promise<
+  | {
+      profile: UserProfile;
+      hasMotorist: boolean;
+      hasPro: boolean;
+    }
+  | { deactivated: true }
+  | null
+> {
   if (!isSupabaseAdminConfigured()) return null;
   const admin = createServiceSupabase();
 
@@ -106,34 +109,28 @@ async function loadOrRepairProfile(
 
   if (!profile) return null;
 
-  // Revive accidentally deactivated accounts so Motorist ↔ Pro switch works after login
+  // Frozen / admin-deactivated accounts must stay blocked
   if ((profile as ProfileRow).is_active === false) {
-    const { data: revived } = await admin
-      .from("profiles")
-      .update({ is_active: true, updated_at: new Date().toISOString() })
-      .eq("id", userId)
-      .select("*")
-      .maybeSingle();
-    if (revived) profile = revived;
+    return { deactivated: true };
   }
 
   const p = profile as ProfileRow;
   const accountType: AccountType =
     p.role === "repair_pro" ? "professional" : "motorist";
 
-  // Slim selects — login only needs identity fields, not full side tables
+  // Slim selects + bank (shared across Customer / Repair Pro on one login)
   const [motRes, proRes] = await Promise.all([
     admin
       .from("motorist_profiles")
       .select(
-        "vehicle_make, vehicle_model, vehicle_year, plate_number, vehicle_photo, vehicle_common_issues, vehicles, nin_verified, bvn_verified, identity_verified_at, created_at"
+        "vehicle_make, vehicle_model, vehicle_year, plate_number, vehicle_photo, vehicle_common_issues, vehicles, nin_verified, bvn_verified, identity_verified_at, created_at, bank_name, bank_account_name, bank_account_number, bank_code"
       )
       .eq("user_id", userId)
       .maybeSingle(),
     admin
       .from("repair_pro_profiles")
       .select(
-        "user_id, business_name, primary_service, services, years_experience, bio, service_radius_km, nin_verified, bvn_verified, docs_status, docs_rating_boost_applied, certification_file_name, certification_file_url, skills, rating_avg, jobs_completed, labour_prices, pricing_currency, vehicle_focus, created_at"
+        "user_id, business_name, primary_service, services, years_experience, bio, service_radius_km, nin_verified, bvn_verified, docs_status, docs_rating_boost_applied, certification_file_name, certification_file_url, skills, rating_avg, jobs_completed, labour_prices, pricing_currency, vehicle_focus, created_at, bank_name, bank_account_name, bank_account_number, bank_code"
       )
       .eq("user_id", userId)
       .maybeSingle(),
@@ -151,8 +148,25 @@ async function loadOrRepairProfile(
     bvn_verified?: boolean;
     identity_verified_at?: string | null;
     created_at?: string;
+    bank_name?: string | null;
+    bank_account_name?: string | null;
+    bank_account_number?: string | null;
+    bank_code?: string | null;
   } | null;
-  const pr = proRes.data as RepairProRow | null;
+  const pr = proRes.data as (RepairProRow & {
+    bank_name?: string | null;
+    bank_account_name?: string | null;
+    bank_account_number?: string | null;
+    bank_code?: string | null;
+  }) | null;
+
+  // One bank per login: either side can supply it
+  const bankName = pr?.bank_name || mot?.bank_name || undefined;
+  const bankAccountName =
+    pr?.bank_account_name || mot?.bank_account_name || undefined;
+  const bankAccountNumber =
+    pr?.bank_account_number || mot?.bank_account_number || undefined;
+  const bankCode = pr?.bank_code || mot?.bank_code || undefined;
 
   const primaryAccountType = resolvePrimaryAccountType({
     hasMotorist: Boolean(mot),
@@ -205,6 +219,10 @@ async function loadOrRepairProfile(
         servedModel: vf.servedModel,
         servedCountry: vf.servedCountry,
         servedLocation: vf.servedLocation,
+        bankName: bankName || undefined,
+        bankAccountName: bankAccountName || undefined,
+        bankAccountNumber: bankAccountNumber || undefined,
+        bankCode: bankCode || undefined,
       }),
       hasMotorist,
       hasPro,
@@ -225,6 +243,10 @@ async function loadOrRepairProfile(
       ninVerified: Boolean(mot?.nin_verified),
       bvnVerified: Boolean(mot?.bvn_verified),
       identityVerifiedAt: mot?.identity_verified_at || undefined,
+      bankName: bankName || undefined,
+      bankAccountName: bankAccountName || undefined,
+      bankAccountNumber: bankAccountNumber || undefined,
+      bankCode: bankCode || undefined,
     }),
     hasMotorist,
     hasPro,
@@ -244,6 +266,41 @@ export async function POST(req: Request) {
 
     const email = parsed.data.email.trim().toLowerCase();
     const password = parsed.data.password;
+
+    // Soft IP + email throttle (in-memory; multi-instance → Redis later)
+    try {
+      const { rateLimitAsync } = await import("@/lib/server/modules/rate-limit");
+      const ip =
+        req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+        req.headers.get("x-real-ip") ||
+        "unknown";
+      const byIp = await rateLimitAsync({
+        key: `login:ip:${ip}`,
+        limit: 80,
+        windowMs: 60_000,
+      });
+      if (!byIp.ok) {
+        return apiFail(
+          `Too many login attempts. Retry in ${byIp.retryAfterSec}s.`,
+          429,
+          "rate_limited"
+        );
+      }
+      const byEmail = await rateLimitAsync({
+        key: `login:email:${email}`,
+        limit: 12,
+        windowMs: 60_000,
+      });
+      if (!byEmail.ok) {
+        return apiFail(
+          `Too many login attempts for this email. Retry in ${byEmail.retryAfterSec}s.`,
+          429,
+          "rate_limited"
+        );
+      }
+    } catch {
+      /* never block login on rate-limit module errors */
+    }
     const url = getSupabaseUrl();
     const anon = getSupabaseAnonKey();
 
@@ -267,37 +324,28 @@ export async function POST(req: Request) {
       (data.user.user_metadata || {}) as Record<string, unknown>
     );
 
-    if (!loaded?.profile) {
+    if (loaded && "deactivated" in loaded && loaded.deactivated) {
+      return apiFail(
+        "This account has been deactivated. Contact support.",
+        403,
+        "deactivated"
+      );
+    }
+
+    if (!loaded || !("profile" in loaded) || !loaded.profile) {
       return apiFail(
         "Account exists but profile could not be loaded. Contact support.",
         500
       );
     }
 
-    const { profile, hasMotorist, hasPro } = loaded;
+    let { profile, hasMotorist, hasPro } = loaded;
 
-    // Unified identity self-heal: register attached roles + sync the canonical
-    // bank record on every login (harmless for up-to-date accounts).
+    // Unified identity self-heal: register attached roles + sync bank.
+    // Do NOT auto-merge other accounts on login (account-takeover risk).
+    // Duplicates are flagged at signup via detectMergeCandidatesForUser.
     try {
       const admin = createServiceSupabase();
-      // Auto-merge any duplicate accounts sharing email or phone
-      const { data: dupes } = await admin
-        .from("profiles")
-        .select("id, email, phone")
-        .or(`email.eq.${email},phone.eq.${profile.phone || ""}`)
-        .neq("id", userId)
-        .eq("is_active", true);
-
-      if (dupes && dupes.length > 0) {
-        for (const d of dupes) {
-          await mergeIdentities(admin, {
-            primaryUserId: userId,
-            duplicateUserId: d.id,
-            performedBy: userId,
-            performedByRole: "system",
-          });
-        }
-      }
 
       if (hasMotorist) {
         await ensureUserRole(admin, userId, "motorist", { userId, source: "login" });
@@ -306,8 +354,20 @@ export async function POST(req: Request) {
         await ensureUserRole(admin, userId, "repair_pro", { userId, source: "login" });
       }
       await syncPayoutAcrossRoles(admin, userId, { userId, source: "login" });
+
+      // Re-load after bank mirror so Pro session sees Customer bank (and reverse)
+      const again = await loadOrRepairProfile(
+        userId,
+        email,
+        (data.user.user_metadata || {}) as Record<string, unknown>
+      );
+      if (again && "profile" in again && again.profile) {
+        profile = again.profile;
+        hasMotorist = again.hasMotorist;
+        hasPro = again.hasPro;
+      }
     } catch (e) {
-      console.error("login identity sync/merge failed", e);
+      console.error("login identity sync failed", e);
     }
 
     return apiOk({

@@ -337,11 +337,11 @@ function GoogleTrackMap({
   const timeValue =
     job.etaText ||
     routeEta?.durationText ||
-    (displayEtaMin != null ? formatEta(displayEtaMin) : "—");
+    (displayEtaMin != null ? formatEta(displayEtaMin) : "Not set");
   const distValue =
     job.distanceText ||
     routeEta?.distanceText ||
-    (displayDist != null ? formatDistance(displayDist) : "—");
+    (displayDist != null ? formatDistance(displayDist) : "Not set");
 
   if (!isLoaded) {
     return (
@@ -493,11 +493,11 @@ export function LiveJobTrackMap({
         <TripMapStatsBar
           time={
             job.etaText ||
-            (job.etaMinutes != null ? formatEta(job.etaMinutes) : "—")
+            (job.etaMinutes != null ? formatEta(job.etaMinutes) : "Not set")
           }
           distance={
             job.distanceText ||
-            (job.distanceKm != null ? formatDistance(job.distanceKm) : "—")
+            (job.distanceKm != null ? formatDistance(job.distanceKm) : "Not set")
           }
           isLight={isLight}
         />

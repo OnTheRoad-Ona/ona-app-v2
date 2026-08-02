@@ -5,6 +5,7 @@
  */
 
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { requireUser } from "@/lib/server/auth-utils";
 import { listEscrowForUser } from "@/lib/server/payments/escrow-store";
 import type { EscrowPayment } from "@/lib/server/payments/escrow-store";
 
@@ -36,7 +37,7 @@ function humanStatus(
   }
   if (esc === "held") {
     return {
-      label: role === "professional" ? "In escrow · job open" : "Held in escrow",
+      label: role === "professional" ? "Held (job open)" : "Held",
       tone: "warn",
     };
   }
@@ -45,21 +46,21 @@ function humanStatus(
   }
   if (esc === "refunded") {
     return {
-      label:
-        role === "professional"
-          ? "Cancelled / refunded (merchant)"
-          : "Refunded (pending admin if needed)",
+      label: role === "professional" ? "Refunded" : "Refunded",
       tone: "muted",
     };
   }
   if (esc === "failed" || payoutStatus === "failed") {
-    return { label: "Failed · support", tone: "bad" };
+    return { label: "Failed. Contact support", tone: "bad" };
   }
   return { label: esc || p.status || "Unknown", tone: "muted" };
 }
 
 export async function GET(req: Request) {
   try {
+    const auth = await requireUser(req);
+    if (!auth.ok) return auth.response;
+
     const url = new URL(req.url);
     const userId = url.searchParams.get("userId");
     const roleParam = (url.searchParams.get("role") || "motorist").toLowerCase();
@@ -69,8 +70,9 @@ export async function GET(req: Request) {
         : "motorist";
 
     if (!userId) return apiFail("userId required", 400);
+    if (userId !== auth.userId) return apiFail("Forbidden", 403, "forbidden");
 
-    const raw = await listEscrowForUser(userId);
+    const raw = await listEscrowForUser(auth.userId);
 
     // Prefer rows that matter for this role
     const filtered = raw.filter((p) => {
@@ -182,8 +184,8 @@ export async function GET(req: Request) {
       bankRequired: role === "professional",
       notes:
         role === "professional"
-          ? "Payouts use your saved bank details. Processing means settlement retry is automatic."
-          : "Payments are held in escrow until you confirm the job. Refunds stay with the platform until admin processes them.",
+          ? "We pay you to the bank you saved. If a payout is still processing, we try again for you."
+          : "We hold your money until you say the job is done. Refunds are handled by Ona support.",
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "History failed";

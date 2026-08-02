@@ -220,7 +220,7 @@ export function NotificationToasts() {
                         }
                         void markRead([n.id]);
                         dismissToast(t.id);
-                        router.push(n.href || "/payments/history");
+                        router.push(n.href || "/settings/payments");
                       }}
                     />
                   ) : null}

@@ -1,11 +1,32 @@
 "use client";
 
 import type { JobRecord } from "@/lib/jobs/types";
+import { ensureAppSession } from "@/lib/supabase/session";
 
 type ApiOk<T> = { ok: true; data: T };
 type ApiErr = { ok: false; message: string };
 
 const FETCH_TIMEOUT = 15_000;
+
+/** Attach Bearer token so job APIs can enforce auth server-side. */
+async function authHeaders(
+  extra?: Record<string, string>
+): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(extra || {}),
+  };
+  try {
+    const session = await ensureAppSession();
+    if (session?.accessToken) {
+      headers.Authorization = `Bearer ${session.accessToken}`;
+      headers["x-access-token"] = session.accessToken;
+    }
+  } catch {
+    /* unauthenticated call — server will 401 */
+  }
+  return headers;
+}
 
 async function fetchWithTimeout(
   url: string,
@@ -39,14 +60,17 @@ async function parse<T>(res: Response): Promise<ApiOk<T> | ApiErr> {
 export async function apiCreateJob(body: Record<string, unknown>) {
   const res = await fetchWithTimeout("/api/jobs", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeaders(),
     body: JSON.stringify(body),
   });
   return parse<{ job: JobRecord }>(res);
 }
 
 export async function apiGetJob(id: string) {
-  const res = await fetchWithTimeout(`/api/jobs/${id}`, { cache: "no-store" });
+  const res = await fetchWithTimeout(`/api/jobs/${id}`, {
+    cache: "no-store",
+    headers: await authHeaders(),
+  });
   return parse<{ job: JobRecord }>(res);
 }
 
@@ -58,6 +82,7 @@ export async function apiExpireStaleBookedJobs() {
   const res = await fetchWithTimeout("/api/jobs/expire-stale", {
     method: "POST",
     cache: "no-store",
+    headers: await authHeaders(),
   });
   return parse<{
     checked: number;
@@ -71,7 +96,10 @@ export async function apiListJobs(
   role: "motorist" | "repair_pro"
 ) {
   const qs = new URLSearchParams({ userId, role });
-  const res = await fetchWithTimeout(`/api/jobs?${qs}`, { cache: "no-store" });
+  const res = await fetchWithTimeout(`/api/jobs?${qs}`, {
+    cache: "no-store",
+    headers: await authHeaders(),
+  });
   return parse<{ jobs: JobRecord[] }>(res);
 }
 
@@ -144,7 +172,7 @@ export async function processPendingOffers(): Promise<void> {
     try {
       const res = await retryFetch(`/api/jobs/${item.jobId}/offer`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await authHeaders(),
         body: JSON.stringify({
           action: "place",
           side: item.side,
@@ -173,7 +201,7 @@ export async function apiPlaceOffer(input: {
   try {
     const res = await retryFetch(`/api/jobs/${input.jobId}/offer`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await authHeaders(),
       body: JSON.stringify({
         action: "place",
         side: input.side,
@@ -199,7 +227,7 @@ export async function apiAcceptOffer(input: {
 }) {
   const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/offer`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeaders(),
     body: JSON.stringify({
       action: "accept",
       side: input.side,
@@ -224,7 +252,7 @@ export async function apiPayJob(input: {
     typeof window !== "undefined" ? window.location.origin : undefined;
   const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/pay`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeaders(),
     body: JSON.stringify({
       motoristId: input.motoristId,
       email: input.email,
@@ -274,7 +302,7 @@ export async function apiCancelPaySession(input: {
 }) {
   const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/pay`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeaders(),
     body: JSON.stringify({
       motoristId: input.motoristId,
       action: "cancel",
@@ -310,7 +338,7 @@ export async function apiTransition(input: {
 }) {
   const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/transition`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeaders(),
     body: JSON.stringify(input),
   });
   return parse<{ job: JobRecord }>(res);
@@ -322,7 +350,7 @@ export async function apiDeferJob(
 ): Promise<ApiOk<{ job: JobRecord }> | ApiErr> {
   const res = await fetchWithTimeout(`/api/jobs/${jobId}/defer`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeaders(),
     body: JSON.stringify({ proId }),
   });
   return parse<{ job: JobRecord }>(res);
@@ -338,7 +366,7 @@ export async function apiPushTripLocation(input: {
 }) {
   const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/location`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeaders(),
     body: JSON.stringify({
       lat: input.lat,
       lng: input.lng,
@@ -381,7 +409,7 @@ export async function apiRateJob(input: {
 }) {
   const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/rate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeaders(),
     body: JSON.stringify({
       rating: input.rating,
       note: input.note,
@@ -418,7 +446,7 @@ export async function apiOpenDispute(input: {
 }) {
   const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/dispute`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeaders(),
     body: JSON.stringify({ action: "open", ...input }),
   });
   return parse<{ job: JobRecord }>(res);
@@ -432,7 +460,7 @@ export async function apiOpenAppeal(input: {
 }) {
   const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/appeal`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeaders(),
     body: JSON.stringify({ action: "open", ...input }),
   });
   return parse<{ job: JobRecord }>(res);

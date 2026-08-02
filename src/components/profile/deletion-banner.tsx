@@ -21,11 +21,13 @@ export function DeletionBanner() {
     sb.auth.getSession().then(({ data }) => {
       const token = data.session?.access_token;
       if (!token) return;
-      fetch("/api/auth/deletion-status", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ access_token: token }),
-      })
+      void import("@/lib/api-auth-headers")
+        .then(({ authFetch }) =>
+          authFetch("/api/auth/deletion-status", {
+            method: "POST",
+            body: JSON.stringify({ access_token: token }),
+          })
+        )
         .then((r) => r.json())
         .then((json) => {
           if (json.ok && json.data?.deletion_status === "pending_deletion") {
@@ -47,7 +49,7 @@ export function DeletionBanner() {
       const sb = getAppSupabase();
       const { data: sessionData } = await sb!.auth.getSession();
       const token = sessionData.session?.access_token;
-      const res = await fetch("/api/auth/restore-account", {
+      const res = await (await import("@/lib/api-auth-headers")).authFetch("/api/auth/restore-account", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ access_token: token }),

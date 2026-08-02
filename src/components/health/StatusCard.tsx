@@ -76,7 +76,7 @@ export function StatusCard({
         Last check:{" "}
         {component.lastChecked
           ? new Date(component.lastChecked).toLocaleString()
-          : "—"}
+          : "Not set"}
       </p>
     </div>
   );

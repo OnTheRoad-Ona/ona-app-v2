@@ -486,7 +486,7 @@ export default function SettingsSecurityPage() {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={authenticatorQrUrl(secret, email)}
-                    alt="Authenticator QR code — scan with your app"
+                    alt="Authenticator QR code. Scan with your app"
                     width={168}
                     height={168}
                     className="rounded-lg bg-white p-2"
@@ -505,7 +505,7 @@ export default function SettingsSecurityPage() {
                     : "bg-white/[0.1] text-white"
                 )}
               >
-                {secret || "—"}
+                {secret || "Not set"}
               </div>
               <p className={cn("text-[10px] font-medium", muted)}>
                 Secret · Account Ona · Time-based (30s)

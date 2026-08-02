@@ -385,17 +385,20 @@ export function FaceLiveness({
     });
     // Report pass to backend (no frames/media). Never blocks local success.
     if (userId) {
-      void fetch("/api/liveness/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId,
-          passed: true,
-          challenges,
-          durationMs: Math.round(durationMs),
-          clientScore: 1,
-        }),
-      }).catch(() => undefined);
+      void import("@/lib/api-auth-headers")
+        .then(({ authFetch }) =>
+          authFetch("/api/liveness/verify", {
+            method: "POST",
+            body: JSON.stringify({
+              userId,
+              passed: true,
+              challenges,
+              durationMs: Math.round(durationMs),
+              clientScore: 1,
+            }),
+          })
+        )
+        .catch(() => undefined);
     }
     window.setTimeout(() => {
       stopCamera();

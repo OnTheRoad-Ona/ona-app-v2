@@ -433,7 +433,7 @@ export default function RequestProcessPage({
             value={
               job.proBaseMajor != null
                 ? formatMoney(job.proBaseMajor, job.currency)
-                : "—"
+                : "Not set"
             }
             ink={ink}
             muted={muted}
@@ -450,7 +450,7 @@ export default function RequestProcessPage({
           />
           <DetailRow
             label="Accepted at"
-            value={acceptedAt ? formatWhen(acceptedAt) : "—"}
+            value={acceptedAt ? formatWhen(acceptedAt) : "Not set"}
             ink={ink}
             muted={muted}
           />
@@ -506,7 +506,7 @@ export default function RequestProcessPage({
           />
           <DetailRow
             label="Escrow"
-            value={job.escrowStatus || "—"}
+            value={job.escrowStatus || "Not set"}
             ink={ink}
             muted={muted}
           />
@@ -531,7 +531,7 @@ export default function RequestProcessPage({
             value={
               releasedAt || hasReached(job, "released")
                 ? formatWhen(releasedAt) || "Yes"
-                : "—"
+                : "Not set"
             }
             ink={ink}
             muted={muted}
@@ -560,7 +560,7 @@ export default function RequestProcessPage({
           />
           <DetailRow
             label="Meet location"
-            value={job.locationLabel?.trim() || "—"}
+            value={job.locationLabel?.trim() || "Not set"}
             ink={ink}
             muted={muted}
           />
@@ -571,7 +571,7 @@ export default function RequestProcessPage({
                 job.distanceText ||
                 (job.distanceKm != null
                   ? `${job.distanceKm.toFixed(1)} km`
-                  : "—")
+                  : "Not set")
               }
               ink={ink}
               muted={muted}
@@ -582,7 +582,7 @@ export default function RequestProcessPage({
               label="ETA (last)"
               value={
                 job.etaText ||
-                (job.etaMinutes != null ? `${job.etaMinutes} min` : "—")
+                (job.etaMinutes != null ? `${job.etaMinutes} min` : "Not set")
               }
               ink={ink}
               muted={muted}
@@ -607,7 +607,7 @@ export default function RequestProcessPage({
             value={
               workAt || hasReached(job, "in_progress")
                 ? formatWhen(workAt) || "Yes"
-                : "—"
+                : "Not set"
             }
             ink={ink}
             muted={muted}
@@ -621,7 +621,7 @@ export default function RequestProcessPage({
             value={
               completedAt || hasReached(job, "completed")
                 ? formatWhen(completedAt) || "Yes"
-                : "—"
+                : "Not set"
             }
             ink={ink}
             muted={muted}
@@ -631,7 +631,7 @@ export default function RequestProcessPage({
             value={
               satisfiedAt || hasReached(job, "satisfied")
                 ? formatWhen(satisfiedAt) || "Yes"
-                : "—"
+                : "Not set"
             }
             ink={ink}
             muted={muted}

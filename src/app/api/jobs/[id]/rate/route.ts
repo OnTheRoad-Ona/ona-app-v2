@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
-import { rateJob } from "@/lib/server/jobs/job-store";
+import { requireUser } from "@/lib/server/auth-utils";
+import { getJob, rateJob } from "@/lib/server/jobs/job-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +17,9 @@ export async function POST(
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireUser(req);
+    if (!auth.ok) return auth.response;
+
     const { id } = await ctx.params;
     const parsed = bodySchema.safeParse(await req.json());
     if (!parsed.success) return apiFail("Invalid rating", 400);
@@ -33,11 +37,17 @@ export async function POST(
       );
     }
 
+    const job = await getJob(id);
+    if (!job) return apiFail("Job not found", 404);
+    if (job.motoristId !== auth.userId) {
+      return apiFail("Only the motorist on this job can rate", 403);
+    }
+
     const res = await rateJob({
       jobId: id,
       rating: parsed.data.rating,
       note,
-      actor: parsed.data.actor ?? "motorist",
+      actor: "motorist",
     });
     if ("error" in res) return apiFail(res.error, 400);
     return apiOk({ job: res.job });
