@@ -16,7 +16,6 @@ import {
   UserRound,
   Wallet,
   Wrench,
-  X,
 } from "lucide-react";
 import { useNotificationsOptional } from "@/components/notifications/notification-provider";
 import { NewAccountBadge } from "@/components/profile/new-account-badge";
@@ -168,6 +167,30 @@ export function AppMenu({
 
   const [switching, setSwitching] = useState(false);
 
+  /**
+   * Drawer + capsule share one clock (MENU_MS). Stay mounted on exit so both
+   * finish together — fixes capsule appearing early / “paused” open.
+   * Ona X stays removed. Chip row is separate (data-menu-open).
+   */
+  const MENU_MS = 200;
+  const [mounted, setMounted] = useState(open);
+  const [exiting, setExiting] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      setExiting(false);
+      return;
+    }
+    if (!mounted) return;
+    setExiting(true);
+    const t = window.setTimeout(() => {
+      setMounted(false);
+      setExiting(false);
+    }, MENU_MS);
+    return () => window.clearTimeout(t);
+  }, [open, mounted]);
+
   // Signal menu state to home panel for chip row slide
   useEffect(() => {
     const phone = document.getElementById("ona-phone");
@@ -227,7 +250,7 @@ export function AppMenu({
     }
   };
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   const useAsBtnClass = (active: boolean) =>
     cn(
@@ -245,9 +268,8 @@ export function AppMenu({
   /*
    * Shared open geometry (light ≡ dark) — no layer lapping:
    *   left  80% = solid theme drawer + dim under it only
-   *   right 20% = capsule rail (pill + Ona/X + close hit)
-   * Split is exclusive: drawer ends at 80%, rail starts at 80%.
-   * Chip row still slides via home-panel translateX(80%).
+   *   right 20% = capsule rail (pill + close hit)
+   * ONE chrome transform moves drawer + capsule together (not separate anims).
    */
   return (
     <div
@@ -255,6 +277,16 @@ export function AppMenu({
       role="dialog"
       aria-modal
     >
+      {/*
+        Single sliding unit: dim + drawer + capsule rail share one transform.
+        Capsule is a window over the page — separate rail fade left it “paused”.
+      */}
+      <div
+        className={cn(
+          "om-x-chrome absolute inset-0",
+          exiting ? "om-x-chrome-out" : "om-x-chrome-in"
+        )}
+      >
       {/* Dim only under the solid menu (never under the capsule rail) */}
       <button
         type="button"
@@ -589,7 +621,7 @@ export function AppMenu({
 
       {/*
         Right capsule rail — exclusive strip (starts at 80%, no drawer overlap).
-        Same geometry in light and dark. Pill over live chips; Ona + X on top.
+        Rides inside om-x-chrome so it slides with the drawer.
       */}
       <div className="om-x-rail pointer-events-none absolute z-20">
         <div className="om-x-capsule pointer-events-none absolute" aria-hidden />
@@ -599,20 +631,7 @@ export function AppMenu({
           aria-label={t("menu.closeMenu")}
           onClick={onClose}
         />
-        <div className="om-x-capsule-brand pointer-events-none absolute z-[2] flex flex-row items-center justify-center gap-1">
-          <span className="select-none text-[22px] font-black tracking-tight leading-none">
-            <span className="text-[#FF6B35]">O</span>
-            <span className={isLight ? "text-black" : "text-white"}>na</span>
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="pointer-events-auto inline-flex h-6 w-6 items-center justify-center rounded-full border-0 bg-[#FF6B35] p-0 text-white transition-colors hover:bg-[#ff7a4a] animate-[om-x-close-in_0.25s_ease-out]"
-            aria-label={t("menu.closeMenu")}
-          >
-            <X className="h-3.5 w-3.5" strokeWidth={2.5} />
-          </button>
-        </div>
+      </div>
       </div>
     </div>
   );

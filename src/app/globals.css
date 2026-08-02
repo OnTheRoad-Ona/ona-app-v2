@@ -95,15 +95,53 @@ html[data-a11y-hc="1"] #ona-phone [class*="text-white/65"] {
  * Exclusive split so layers never lap:
  *   left  --om-menu-split = solid drawer + dim
  *   right remainder        = capsule rail (pill tube over live page)
- * Dashboard is not scaled; chip row slides via home-panel translateX(80%).
+ *
+ * Motion: ONE .om-x-chrome transform moves drawer + capsule together.
+ * Separate drawer/rail anims looked “paused” because the capsule is a clear
+ * window over the live page (always visible while only the drawer slid).
  */
-@keyframes om-x-drawer-in {
+#ona-phone {
+  --om-menu-ms: 0.2s;
+  --om-menu-ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/*
+ * Final layout from frame 0; fade + short nudge together.
+ * A full -100% slide made the solid drawer enter first while the clear
+ * capsule window (live page) was already visible — looked “paused”.
+ */
+@keyframes om-x-chrome-in {
   from {
-    transform: translate3d(-100%, 0, 0);
+    opacity: 0;
+    transform: translate3d(-16px, 0, 0);
   }
   to {
+    opacity: 1;
     transform: translate3d(0, 0, 0);
   }
+}
+@keyframes om-x-chrome-out {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(-16px, 0, 0);
+  }
+}
+
+/* Full-phone unit: drawer + capsule children appear/disappear as one */
+#ona-phone .om-x-chrome {
+  position: absolute !important;
+  inset: 0 !important;
+  will-change: transform, opacity;
+}
+#ona-phone .om-x-chrome-in {
+  animation: om-x-chrome-in var(--om-menu-ms) var(--om-menu-ease) both;
+}
+#ona-phone .om-x-chrome-out {
+  animation: om-x-chrome-out var(--om-menu-ms) var(--om-menu-ease) both;
 }
 
 /* Dim + drawer: hard-lock to left strip only */
@@ -120,12 +158,13 @@ html[data-a11y-hc="1"] #ona-phone [class*="text-white/65"] {
 #ona-phone .om-x-drawer {
   border-radius: 0 !important;
   overflow: hidden !important;
-  animation: om-x-drawer-in 0.28s cubic-bezier(0.32, 0.72, 0, 1) both;
-  will-change: transform;
   box-shadow: none !important;
   outline: none !important;
   /* Never paint into the capsule rail */
   clip-path: inset(0) !important;
+  /* Motion is on .om-x-chrome only — no separate drawer slide */
+  animation: none !important;
+  transform: none !important;
 }
 
 /*
@@ -139,6 +178,8 @@ html[data-a11y-hc="1"] #ona-phone [class*="text-white/65"] {
   bottom: 0 !important;
   width: auto !important;
   overflow: hidden !important;
+  animation: none !important;
+  transform: none !important;
 }
 
 /* Pill sits inside the rail with small inset; never crosses into drawer */
@@ -177,7 +218,8 @@ html[data-a11y-hc="1"] #ona-phone [class*="text-white/65"] {
   background: rgba(255, 255, 255, 0.04) !important;
 }
 @media (prefers-reduced-motion: reduce) {
-  #ona-phone .om-x-drawer {
+  #ona-phone .om-x-chrome-in,
+  #ona-phone .om-x-chrome-out {
     animation: none !important;
   }
 }
