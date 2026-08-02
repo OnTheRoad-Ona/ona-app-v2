@@ -323,6 +323,8 @@ export const ZH: MessageDict = {
   "settings.hub.subtitleCustomer": "账户与偏好",
   "settings.hub.appearance": "外观",
   "settings.hub.appearanceDetail": "主题与语言",
+  "settings.hub.verification": "Verification",
+  "settings.hub.verificationDetail": "Identity, phone & tier status",
   "settings.hub.availability": "可接单与排班",
   "settings.hub.availabilityDetail": "时段、位置与覆盖",
   "settings.hub.pricing": "定价与服务",

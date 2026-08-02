@@ -323,6 +323,8 @@ export const SW: MessageDict = {
   "settings.hub.subtitleCustomer": "Akaunti na mapendeleo",
   "settings.hub.appearance": "Muonekano",
   "settings.hub.appearanceDetail": "Mandhari na lugha",
+  "settings.hub.verification": "Verification",
+  "settings.hub.verificationDetail": "Identity, phone & tier status",
   "settings.hub.availability": "Upatikanaji na ratiba",
   "settings.hub.availabilityDetail": "Saa, eneo na chanjo",
   "settings.hub.pricing": "Bei na huduma",

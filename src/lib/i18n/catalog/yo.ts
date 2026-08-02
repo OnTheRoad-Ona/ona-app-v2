@@ -323,6 +323,8 @@ export const YO: MessageDict = {
   "settings.hub.subtitleCustomer": "Àkántì & ààyè",
   "settings.hub.appearance": "Ìrísí",
   "settings.hub.appearanceDetail": "Àwọ̀ & èdè",
+  "settings.hub.verification": "Verification",
+  "settings.hub.verificationDetail": "Identity, phone & tier status",
   "settings.hub.availability": "Wíwà & Ìṣètò",
   "settings.hub.availabilityDetail": "Wákàtí, ibi & àgbègbè",
   "settings.hub.pricing": "Iye & Iṣẹ́",

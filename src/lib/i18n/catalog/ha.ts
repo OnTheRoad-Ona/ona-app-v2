@@ -323,6 +323,8 @@ export const HA: MessageDict = {
   "settings.hub.subtitleCustomer": "Asusu & zaɓuɓɓuka",
   "settings.hub.appearance": "Bayyanar",
   "settings.hub.appearanceDetail": "Jigo & harshe",
+  "settings.hub.verification": "Verification",
+  "settings.hub.verificationDetail": "Identity, phone & tier status",
   "settings.hub.availability": "Samuwa & tsari",
   "settings.hub.availabilityDetail": "Lokuta, wuri & ƙasa",
   "settings.hub.pricing": "Farashi & ayyuka",

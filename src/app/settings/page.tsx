@@ -8,6 +8,7 @@
 
 import { useEffect, useRef } from "react";
 import {
+  BadgeCheck,
   Banknote,
   Bell,
   Briefcase,
@@ -41,6 +42,13 @@ const HUB_SECTIONS: {
     labelKey: "settings.hub.appearance",
     detailKey: "settings.hub.appearanceDetail",
     icon: Palette,
+  },
+  {
+    // Role-resolved in render: Customer → /verify, Pro → /artisan/verification
+    href: "/settings/verification",
+    labelKey: "settings.hub.verification",
+    detailKey: "settings.hub.verificationDetail",
+    icon: BadgeCheck,
   },
   {
     href: "/settings/sections/availability",
@@ -141,7 +149,13 @@ export default function SettingsPage() {
               icon={item.icon}
               label={t(item.labelKey)}
               detail={t(item.detailKey)}
-              href={item.href}
+              href={
+                item.href === "/settings/verification"
+                  ? isPro
+                    ? "/artisan/verification"
+                    : "/verify"
+                  : item.href
+              }
               onClick={rememberScroll}
             />
           ))}

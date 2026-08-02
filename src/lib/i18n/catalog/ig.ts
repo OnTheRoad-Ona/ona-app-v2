@@ -323,6 +323,8 @@ export const IG: MessageDict = {
   "settings.hub.subtitleCustomer": "Akaụntụ & mmasị",
   "settings.hub.appearance": "Ọdịdị",
   "settings.hub.appearanceDetail": "Isiokwu & asụsụ",
+  "settings.hub.verification": "Verification",
+  "settings.hub.verificationDetail": "Identity, phone & tier status",
   "settings.hub.availability": "Nnwere & nhazi oge",
   "settings.hub.availabilityDetail": "Awa, ebe & mkpuchi",
   "settings.hub.pricing": "Ọnụahịa & ọrụ",

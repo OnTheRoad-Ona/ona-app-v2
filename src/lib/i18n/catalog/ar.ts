@@ -323,6 +323,8 @@ export const AR: MessageDict = {
   "settings.hub.subtitleCustomer": "الحساب والتفضيلات",
   "settings.hub.appearance": "المظهر",
   "settings.hub.appearanceDetail": "السمة واللغة",
+  "settings.hub.verification": "Verification",
+  "settings.hub.verificationDetail": "Identity, phone & tier status",
   "settings.hub.availability": "التوفر والجدولة",
   "settings.hub.availabilityDetail": "الساعات والموقع والتغطية",
   "settings.hub.pricing": "الأسعار والخدمات",

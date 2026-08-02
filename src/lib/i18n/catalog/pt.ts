@@ -323,6 +323,8 @@ export const PT: MessageDict = {
   "settings.hub.subtitleCustomer": "Conta e preferências",
   "settings.hub.appearance": "Aparência",
   "settings.hub.appearanceDetail": "Tema e idioma",
+  "settings.hub.verification": "Verification",
+  "settings.hub.verificationDetail": "Identity, phone & tier status",
   "settings.hub.availability": "Disponibilidade e agenda",
   "settings.hub.availabilityDetail": "Horários, local e cobertura",
   "settings.hub.pricing": "Preços e serviços",

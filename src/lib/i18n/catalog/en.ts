@@ -329,6 +329,8 @@ export const EN = {
   "settings.hub.subtitleCustomer": "Account & preferences",
   "settings.hub.appearance": "Appearance",
   "settings.hub.appearanceDetail": "Theme & language",
+  "settings.hub.verification": "Verification",
+  "settings.hub.verificationDetail": "Identity, phone & tier status",
   "settings.hub.availability": "Availability & Scheduling",
   "settings.hub.availabilityDetail": "Hours, location & coverage",
   "settings.hub.pricing": "Pricing & Services",

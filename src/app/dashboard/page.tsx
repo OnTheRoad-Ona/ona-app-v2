@@ -610,7 +610,7 @@ export default function TechnicianDashboardPage() {
               <p className={cn("text-[15px] font-black", ink)}>
                 {proLive ? "You are Live" : "Go Live"}
               </p>
-              <p className={cn("text-[12px] font-medium", muted)}>
+              <p className={cn("text-[10px] font-medium leading-snug", muted)}>
                 {proLive
                   ? "You’re Live. Customers nearby can find you."
                   : "Customers nearby can find you when you’re Live."}
