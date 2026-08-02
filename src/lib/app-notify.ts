@@ -69,7 +69,7 @@ export function showAppNotification(opts: AppNotifyOpts): void {
       }
       n.close();
     };
-    // Auto-close non-critical after 12s
+    // Auto-close non-critical after 66s (match in-app request / toast banners)
     if (!opts.requireInteraction) {
       window.setTimeout(() => {
         try {
@@ -77,7 +77,7 @@ export function showAppNotification(opts: AppNotifyOpts): void {
         } catch {
           /* */
         }
-      }, 12_000);
+      }, 66_000);
     }
   } catch {
     /* Safari private / unsupported */

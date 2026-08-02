@@ -37,6 +37,28 @@ export async function getUserFromToken(
   return data.user;
 }
 
+/**
+ * Cookie session fallback — browser client (@supabase/ssr) stores tokens in
+ * cookies. Job pages can race Bearer attach; cookie auth still proves login.
+ */
+async function getUserFromCookies(): Promise<{
+  user: User;
+  token: string;
+} | null> {
+  if (!url || !anon) return null;
+  try {
+    const { createServerSupabase } = await import("@/lib/supabase/server");
+    const sb = await createServerSupabase();
+    const { data, error } = await sb.auth.getUser();
+    if (error || !data?.user) return null;
+    const { data: sess } = await sb.auth.getSession();
+    const token = sess.session?.access_token || "";
+    return { user: data.user, token };
+  } catch {
+    return null;
+  }
+}
+
 export async function getUserFromRequest(req: Request): Promise<User | null> {
   const headerToken = getBearerToken(req);
   if (headerToken) return getUserFromToken(headerToken);
@@ -56,13 +78,16 @@ export async function getUserFromRequest(req: Request): Promise<User | null> {
   } catch {
     /* ignore */
   }
-  return null;
+
+  const fromCookie = await getUserFromCookies();
+  return fromCookie?.user ?? null;
 }
 
 export type AuthUser = { userId: string; email?: string | null; token: string };
 
 /**
  * Require a valid session. Returns auth context or a ready-to-return error Response.
+ * Order: Bearer / x-access-token → body access_token → cookie session.
  */
 export async function requireUser(
   req: Request,
@@ -72,24 +97,61 @@ export async function requireUser(
   | { ok: false; response: Response }
 > {
   const token = getBearerToken(req) || opts?.bodyToken || null;
-  const user = token
-    ? await getUserFromToken(token)
-    : await getUserFromRequest(req);
 
-  if (!user) {
+  if (token) {
+    const user = await getUserFromToken(token);
+    if (user) {
+      return {
+        ok: true,
+        userId: user.id,
+        email: user.email,
+        token,
+        user,
+      };
+    }
+  }
+
+  // Body token path (POST only; clone-safe)
+  if (!token) {
+    try {
+      const clone = req.clone();
+      const body = (await clone.json().catch(() => null)) as Record<
+        string,
+        unknown
+      > | null;
+      const t = body?.access_token;
+      if (typeof t === "string" && t.length >= 10) {
+        const user = await getUserFromToken(t);
+        if (user) {
+          return {
+            ok: true,
+            userId: user.id,
+            email: user.email,
+            token: t,
+            user,
+          };
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // Cookie session (SSR browser client)
+  const fromCookie = await getUserFromCookies();
+  if (fromCookie) {
     return {
-      ok: false,
-      response: apiFail("Not authenticated", 401, "auth"),
+      ok: true,
+      userId: fromCookie.user.id,
+      email: fromCookie.user.email,
+      token: fromCookie.token,
+      user: fromCookie.user,
     };
   }
 
-  const resolvedToken = token || getBearerToken(req) || "";
   return {
-    ok: true,
-    userId: user.id,
-    email: user.email,
-    token: resolvedToken,
-    user,
+    ok: false,
+    response: apiFail("Not authenticated", 401, "auth"),
   };
 }
 

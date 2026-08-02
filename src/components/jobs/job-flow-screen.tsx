@@ -308,10 +308,25 @@ export function JobFlowScreen({
   }, []);
 
   const load = useCallback(async () => {
+    // Ensure JWT is present before first hit (local isAuthenticated can lag session)
+    try {
+      const { ensureAppSession } = await import("@/lib/supabase/session");
+      await ensureAppSession({ waitForSessionMs: 4000 });
+    } catch {
+      /* continue — apiGetJob retries */
+    }
     const res = await apiGetJob(jobId);
     if (!res.ok) {
       if (res.message === "Job not found") {
         router.replace(accountType === "professional" ? "/jobs" : "/");
+        return;
+      }
+      // Soft auth failure: keep spinner, let poll retry — don't stick forever
+      const authish = /not authenticated|session|sign in|refresh/i.test(
+        res.message
+      );
+      if (authish && !jobRef.current) {
+        setErr(res.message);
         return;
       }
       // Don't overwrite a sticky release error with a generic load failure
@@ -329,7 +344,7 @@ export function JobFlowScreen({
     ) {
       setStickyReleaseErr(null);
     }
-  }, [jobId, commitJob, stickyReleaseErr]);
+  }, [jobId, commitJob, stickyReleaseErr, accountType, router]);
 
   // Replay any offers that failed due to network (offline queue)
   useEffect(() => {
@@ -415,6 +430,7 @@ export function JobFlowScreen({
 
   // Poll job state; faster while trip active / awaiting satisfaction.
   // Wait for authReady so we never hit /api/jobs with no Bearer after create→navigate.
+  // While still loading (no job), poll every 2s so auth race recovers quickly.
   useEffect(() => {
     if (!authReady) return;
     if (!isAuthenticated) {
@@ -428,16 +444,19 @@ export function JobFlowScreen({
     };
     void tick();
     // Real-time feel: negotiate/agreed fast; trip moderate; completed fast for customer
-    const ms =
-      job?.status === "negotiating" || job?.status === "searching" || job?.status === "agreed"
+    const ms = !job
+      ? 2_000
+      : job.status === "negotiating" ||
+          job.status === "searching" ||
+          job.status === "agreed"
         ? 2_500
-        : job?.status === "completed"
+        : job.status === "completed"
           ? 2_000
           : ["paid_booked", "en_route", "arrived", "in_progress"].includes(
-                job?.status || ""
+                job.status
               )
             ? 5_000
-            : job?.status === "released" || job?.status === "satisfied"
+            : job.status === "released" || job.status === "satisfied"
               ? 12_000
               : 20_000;
     const id = window.setInterval(() => {
@@ -448,7 +467,7 @@ export function JobFlowScreen({
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [load, job?.status, authReady, isAuthenticated]);
+  }, [load, job?.status, job, authReady, isAuthenticated]);
 
   /** My jobs list — stay on open negotiation without cancelling */
   const goJobsList = useCallback(() => {

@@ -1,8 +1,16 @@
 "use client";
 
+/**
+ * Repair Pro: service-request popup (X-style banner + inDrive pile).
+ * - Auto-show at most once per 10 minutes (wave)
+ * - Stay 66s then fully hide
+ * - New requests during the 66s window stack (pile)
+ * - Manual dismiss / Open / Later never blocked by throttle for next *manual* open via /jobs
+ */
+
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Briefcase, Clock, Loader2, X } from "lucide-react";
+import { Briefcase, Clock, Loader2, Wrench, X } from "lucide-react";
 import {
   canNotify,
   ensureNotifyPermission,
@@ -10,6 +18,12 @@ import {
   vibrateCallPattern,
 } from "@/lib/app-notify";
 import { apiDeferJob, apiListJobs, apiTransition } from "@/lib/jobs/client";
+import {
+  canSurfaceIncomingJob,
+  INCOMING_POPUP_VISIBLE_MS,
+  markJobShown,
+  writeLastWaveAt,
+} from "@/lib/jobs/incoming-popup-timing";
 import type { JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
@@ -19,74 +33,111 @@ import { VoiceNotePlayer } from "@/components/jobs/voice-note-player";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
-const SHOWN_KEY = "om-job-request-shown";
-
-function readShown(): Set<string> {
-  try {
-    const raw = sessionStorage.getItem(SHOWN_KEY);
-    if (!raw) return new Set();
-    const arr = JSON.parse(raw) as string[];
-    return new Set(Array.isArray(arr) ? arr : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function markShown(id: string) {
-  try {
-    const s = readShown();
-    s.add(id);
-    sessionStorage.setItem(SHOWN_KEY, JSON.stringify([...s].slice(-40)));
-  } catch {
-    /* */
-  }
-}
-
-/**
- * Repair Pro only: Job request auto-popup + browser notification.
- * New motorist requests surface immediately while the app is open.
- */
 export function IncomingJobPopup() {
-  const { accountType, backendUserId, theme, isAuthenticated } = useApp();
+  const { accountType, backendUserId, theme, isAuthenticated, authReady } =
+    useApp();
   const isLight = theme === "light";
   const router = useRouter();
   const pathname = usePathname() || "";
   const knownIds = useRef<Set<string>>(new Set());
   const primed = useRef(false);
+  const hideTimer = useRef<number | null>(null);
+  const waveStartedAt = useRef(0);
+
   const [alertJob, setAlertJob] = useState<JobRecord | null>(null);
+  const [pile, setPile] = useState<JobRecord[]>([]);
   const [otherCount, setOtherCount] = useState(0);
   const [expandedJob, setExpandedJob] = useState<JobRecord | null>(null);
   const [accepting, setAccepting] = useState(false);
   const [snoozed, setSnoozed] = useState(false);
 
-  const surfaceJob = (j: JobRecord) => {
+  const clearHideTimer = () => {
+    if (hideTimer.current) {
+      window.clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
+  };
+
+  const fullyHide = () => {
+    clearHideTimer();
+    setAlertJob(null);
+    setPile([]);
+    setSnoozed(false);
+    setExpandedJob(null);
+  };
+
+  const scheduleAutoHide = (fromMs: number) => {
+    clearHideTimer();
+    const remaining = Math.max(
+      0,
+      INCOMING_POPUP_VISIBLE_MS - (Date.now() - fromMs)
+    );
+    hideTimer.current = window.setTimeout(() => {
+      fullyHide();
+    }, remaining || INCOMING_POPUP_VISIBLE_MS);
+  };
+
+  const surfaceJob = (j: JobRecord, reason: "new_wave" | "pile") => {
     if (pathname.includes(`/jobs/${j.id}`)) {
-      markShown(j.id);
+      markJobShown(j.id);
       return;
     }
-    unlockAudio();
-    playAppSound("request_new");
-    vibrateCallPattern();
-    setAlertJob(j);
-    setSnoozed(false);
-    markShown(j.id);
+
+    const gate = canSurfaceIncomingJob(j.id);
+    if (!gate.allow) return;
+
+    markJobShown(j.id);
+
+    if (reason === "new_wave" || gate.reason === "new_wave") {
+      const now = Date.now();
+      waveStartedAt.current = now;
+      writeLastWaveAt(now);
+      setPile([j]);
+      setAlertJob(j);
+      setSnoozed(false);
+      scheduleAutoHide(now);
+      unlockAudio();
+      playAppSound("request_new");
+      vibrateCallPattern();
+    } else {
+      // Pile onto open wave
+      setPile((prev) => {
+        if (prev.some((x) => x.id === j.id)) return prev;
+        const next = [j, ...prev].slice(0, 4);
+        return next;
+      });
+      setAlertJob(j);
+      setSnoozed(false);
+      if (waveStartedAt.current > 0) {
+        scheduleAutoHide(waveStartedAt.current);
+      }
+      unlockAudio();
+      playAppSound("request_new");
+      vibrateCallPattern();
+    }
+
     const skill =
       PRO_SERVICE_LABELS[j.serviceType] || j.serviceType || "Job";
     void ensureNotifyPermission().then(() => {
       if (canNotify()) {
         showAppNotification({
-          title: "Service Request",
+          title: "Ona · Service Request",
           body: `${isAutomotiveTrade(j.serviceType) && j.motoristVehicle ? j.motoristVehicle : j.motoristName?.split(/\s+/)[0] || skill} · ${j.problem.slice(0, 70)} · ${skill}`,
           tag: `job-${j.id}`,
           href: `/jobs/${j.id}`,
-          requireInteraction: true,
+          requireInteraction: false,
         });
       }
     });
   };
 
   useEffect(() => {
-    if (!isAuthenticated || accountType !== "professional" || !backendUserId) {
+    if (
+      !authReady ||
+      !isAuthenticated ||
+      accountType !== "professional" ||
+      !backendUserId
+    ) {
       return;
     }
 
@@ -100,7 +151,6 @@ export function IncomingJobPopup() {
       const open = res.data.jobs.filter((j) => {
         if (j.repairProId !== backendUserId) return false;
         if (!j.motoristId || !j.problem?.trim()) return false;
-        // Popup for new requests (negotiating) primarily
         if (j.status !== "negotiating" && j.status !== "agreed") return false;
         if (
           j.status === "negotiating" &&
@@ -112,26 +162,28 @@ export function IncomingJobPopup() {
         return true;
       });
 
-      const shown = readShown();
-
       if (!primed.current) {
         knownIds.current = new Set(open.map((j) => j.id));
         primed.current = true;
         setOtherCount(open.length);
-        // Surface newest Job request not yet shown this session
-        const newest = open.find(
-          (j) => j.status === "negotiating" && !shown.has(j.id)
-        );
-        if (newest) surfaceJob(newest);
+        // Surface newest eligible request once (respects 10m + shown)
+        const newest = open.find((j) => j.status === "negotiating");
+        if (newest) {
+          const gate = canSurfaceIncomingJob(newest.id);
+          if (gate.allow) surfaceJob(newest, gate.reason);
+        }
         return;
       }
 
       for (const j of open) {
         if (!knownIds.current.has(j.id)) {
           knownIds.current.add(j.id);
-          if (j.status === "negotiating" || !shown.has(j.id)) {
-            surfaceJob(j);
-            break;
+          if (j.status === "negotiating") {
+            const gate = canSurfaceIncomingJob(j.id);
+            if (gate.allow) {
+              surfaceJob(j, gate.reason);
+              break;
+            }
           }
         }
       }
@@ -145,8 +197,6 @@ export function IncomingJobPopup() {
     };
 
     void poll();
-    // Backup only — store jobs Realtime already refreshes the job list.
-    // Was 5s and stacked with global jobs poll (heavy on mobile data).
     const t = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void poll();
@@ -160,16 +210,21 @@ export function IncomingJobPopup() {
       window.clearInterval(t);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [accountType, backendUserId, isAuthenticated, pathname]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountType, backendUserId, isAuthenticated, authReady, pathname]);
 
   useEffect(() => {
     if (!isAuthenticated || accountType !== "professional") {
       primed.current = false;
       knownIds.current = new Set();
-      setAlertJob(null);
-      setOtherCount(0);
+      fullyHide();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, accountType]);
+
+  useEffect(() => {
+    return () => clearHideTimer();
+  }, []);
 
   const showBadge =
     accountType === "professional" &&
@@ -179,6 +234,23 @@ export function IncomingJobPopup() {
 
   if (accountType !== "professional") return null;
 
+  // X-style surface
+  const solid = isLight
+    ? "rgba(255,255,255,0.96)"
+    : "rgba(28,28,30,0.96)";
+  const ink = isLight ? "#0f1419" : "#e7e9ea";
+  const muted = isLight ? "#536471" : "#71767b";
+  const hairline = isLight
+    ? "rgba(0,0,0,0.08)"
+    : "rgba(255,255,255,0.08)";
+
+  const titleFor = (j: JobRecord) =>
+    isAutomotiveTrade(j.serviceType) && j.motoristVehicle?.trim()
+      ? j.motoristVehicle.trim()
+      : j.motoristName?.split(/\s+/)[0] ||
+        PRO_SERVICE_LABELS[j.serviceType] ||
+        "Service Request";
+
   return (
     <>
       {showBadge && (
@@ -187,9 +259,7 @@ export function IncomingJobPopup() {
           onClick={() => router.push("/jobs")}
           className={cn(
             "absolute right-3 top-[max(0.6rem,env(safe-area-inset-top))] z-[160] flex items-center gap-1.5 rounded-full border-0 px-2.5 py-1.5 text-[11px] font-bold shadow-md",
-            isLight
-              ? "bg-slate-900 text-white"
-              : "bg-[#FF6B35] text-white"
+            isLight ? "bg-slate-900 text-white" : "bg-[#FF6B35] text-white"
           )}
         >
           <Briefcase className="h-3.5 w-3.5" />
@@ -197,112 +267,171 @@ export function IncomingJobPopup() {
         </button>
       )}
 
-      {/* Compact popup — 3-button card */}
-      {alertJob && !expandedJob && (
+      {/* X-style top banner + inDrive pile (compact) */}
+      {alertJob && !expandedJob && !snoozed && (
         <div
-          className="absolute inset-0 z-[180] flex items-end justify-center bg-black/35 p-3 pb-[max(1rem,env(safe-area-inset-bottom))]"
+          className="pointer-events-none absolute inset-x-0 top-2 z-[180] flex flex-col items-center px-3"
           role="dialog"
           aria-modal
           aria-label="Service Request"
         >
-          <div
-            className={cn(
-              "w-full max-w-[360px] rounded-2xl border-0 p-4",
-              isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white"
-            )}
-          >
-            <div className="mb-2 flex items-start justify-between gap-2">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-wide text-[#FF6B35]">
-                  Service Request
-                </p>
-                <p className="mt-0.5 text-[16px] font-black leading-tight">
-                  {isAutomotiveTrade(alertJob.serviceType) && alertJob.motoristVehicle?.trim()
-                    ? alertJob.motoristVehicle.trim()
-                    : alertJob.motoristName?.split(/\s+/)[0] || PRO_SERVICE_LABELS[alertJob.serviceType] || "Service Request"}
-                </p>
+          <div className="relative w-full max-w-[380px]">
+            {/* Pile under-cards */}
+            {pile.slice(1, 4).map((j, i) => (
+              <div
+                key={j.id}
+                aria-hidden
+                className="absolute left-0 right-0 top-0 rounded-[18px]"
+                style={{
+                  zIndex: 10 - i,
+                  transform: `translateY(${(i + 1) * 6}px) scale(${1 - (i + 1) * 0.03})`,
+                  opacity: 0.85 - i * 0.12,
+                  height: 88,
+                  backgroundColor: solid,
+                  boxShadow: isLight
+                    ? "0 8px 28px rgba(0,0,0,0.10)"
+                    : "0 8px 28px rgba(0,0,0,0.4)",
+                  border: `0.5px solid ${hairline}`,
+                }}
+              />
+            ))}
+
+            <div
+              className="pointer-events-auto relative animate-[om-toast-in_0.32s_cubic-bezier(0.2,0.8,0.2,1)] rounded-[18px] shadow-[0_8px_28px_rgba(0,0,0,0.18)] backdrop-blur-xl"
+              style={{
+                zIndex: 20,
+                backgroundColor: solid,
+                boxShadow: isLight
+                  ? "0 8px 28px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.06)"
+                  : "0 8px 28px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.06)",
+                border: `0.5px solid ${hairline}`,
+              }}
+            >
+              <div className="flex items-start gap-2.5 px-3 py-2.5">
+                <div
+                  className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                  style={{
+                    backgroundColor: isLight
+                      ? "rgba(255,107,53,0.12)"
+                      : "rgba(255,107,53,0.18)",
+                  }}
+                >
+                  <Wrench
+                    className="h-[18px] w-[18px] text-[#FF6B35]"
+                    strokeWidth={2}
+                  />
+                </div>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="truncate text-[13px] font-bold leading-tight"
+                      style={{ color: ink }}
+                    >
+                      Ona
+                    </span>
+                    <span
+                      className="shrink-0 text-[11px] font-medium"
+                      style={{ color: muted }}
+                    >
+                      · Service Request
+                    </span>
+                    {pile.length > 1 ? (
+                      <span className="ml-auto shrink-0 rounded-full bg-[#FF6B35] px-1.5 py-0.5 text-[10px] font-bold text-white">
+                        +{pile.length - 1}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p
+                    className="mt-0.5 text-[13px] font-semibold leading-snug"
+                    style={{ color: ink }}
+                  >
+                    {titleFor(alertJob)}
+                  </p>
+                  <p
+                    className="mt-0.5 line-clamp-2 text-[12px] font-normal leading-snug"
+                    style={{ color: muted }}
+                  >
+                    {alertJob.problem}
+                    {alertJob.agreedMajor != null
+                      ? ` · ${formatMoney(alertJob.agreedMajor, alertJob.currency)}`
+                      : ""}
+                  </p>
+                  <div className="mt-2 grid grid-cols-3 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const id = alertJob.id;
+                        fullyHide();
+                        void apiTransition({
+                          jobId: id,
+                          event: "CANCEL",
+                          actor: "repair_pro",
+                          actorId: backendUserId || undefined,
+                          reason: "pro_declined",
+                        });
+                      }}
+                      className={cn(
+                        "h-9 rounded-xl border-0 text-[12px] font-bold",
+                        isLight
+                          ? "bg-red-500/15 text-red-700"
+                          : "bg-red-500/20 text-red-400"
+                      )}
+                    >
+                      Decline
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const id = alertJob.id;
+                        setSnoozed(true);
+                        clearHideTimer();
+                        if (backendUserId) {
+                          void apiDeferJob(id, backendUserId);
+                        }
+                      }}
+                      className={cn(
+                        "h-9 rounded-xl border-0 text-[12px] font-bold",
+                        isLight
+                          ? "bg-black/8 text-slate-900"
+                          : "bg-white/10 text-white"
+                      )}
+                    >
+                      Later
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearHideTimer();
+                        setExpandedJob(alertJob);
+                      }}
+                      className="h-9 rounded-xl border-0 bg-[#FF6B35] text-[12px] font-bold text-white"
+                    >
+                      Open
+                    </button>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fullyHide()}
+                  className="shrink-0 rounded-full border-0 p-1"
+                  style={{ color: muted }}
+                  aria-label="Dismiss"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setAlertJob(null)}
-                className={cn(
-                  "rounded-full border-0 p-1.5",
-                  isLight ? "bg-black/5" : "bg-white/10"
-                )}
-                aria-label="Dismiss"
-              >
-                <X className="h-4 w-4" />
-              </button>
             </div>
-            <p
-              className={cn(
-                "text-[13px] font-semibold leading-snug",
-                isLight ? "text-slate-700" : "text-white/80"
-              )}
-            >
-              {alertJob.problem}
-            </p>
-            <p
-              className={cn(
-                "mt-1 text-[11px] font-medium",
-                isLight ? "text-slate-500" : "text-white/50"
-              )}
-            >
-              {PRO_SERVICE_LABELS[alertJob.serviceType] || alertJob.serviceType}
-              {alertJob.agreedMajor != null
-                ? ` · ${formatMoney(alertJob.agreedMajor, alertJob.currency)}`
-                : ""}
-            </p>
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const id = alertJob.id;
-                  setAlertJob(null);
-                  void apiTransition({
-                    jobId: id,
-                    event: "CANCEL",
-                    actor: "repair_pro",
-                    actorId: backendUserId || undefined,
-                    reason: "pro_declined",
-                  });
-                }}
-                className={cn(
-                  "h-11 rounded-xl border-0 text-[13px] font-bold",
-                  isLight ? "bg-red-500/20 text-red-700" : "bg-red-500/20 text-red-400"
-                )}
-              >
-                Not available
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const id = alertJob.id;
-                  setSnoozed(true);
-                  if (backendUserId) {
-                    void apiDeferJob(id, backendUserId);
-                  }
-                }}
-                className={cn(
-                  "h-11 rounded-xl border-0 text-[13px] font-bold",
-                  isLight ? "bg-black/8 text-slate-900" : "bg-white/10 text-white"
-                )}
-              >
-                Later
-              </button>
-              <button
-                type="button"
-                onClick={() => setExpandedJob(alertJob)}
-                className="h-11 rounded-xl border-0 bg-[#FF6B35] text-[13px] font-bold text-white"
-              >
-                Open
-              </button>
-            </div>
+            {pile.length > 1 ? (
+              <div
+                aria-hidden
+                style={{ height: Math.min(pile.length - 1, 3) * 6 }}
+              />
+            ) : null}
           </div>
         </div>
       )}
 
-      {/* Snoozed confirmation — request returns in 5 minutes */}
+      {/* Snoozed confirmation */}
       {alertJob && snoozed && !expandedJob && (
         <div
           className="absolute inset-0 z-[180] flex items-end justify-center bg-black/35 p-3 pb-[max(1rem,env(safe-area-inset-bottom))]"
@@ -326,15 +455,12 @@ export function IncomingJobPopup() {
                 isLight ? "text-slate-600" : "text-white/60"
               )}
             >
-              This request is hidden from you for now. If it&rsquo;s still open, it
-              returns in <span className="font-bold text-[#FF6B35]">05:00</span>.
+              Hidden for now. If still open, it returns in{" "}
+              <span className="font-bold text-[#FF6B35]">05:00</span>.
             </p>
             <button
               type="button"
-              onClick={() => {
-                setAlertJob(null);
-                setSnoozed(false);
-              }}
+              onClick={() => fullyHide()}
               className="mt-4 h-11 w-full rounded-xl border-0 bg-[#FF6B35] text-[13px] font-bold text-white"
             >
               Got it
@@ -343,7 +469,7 @@ export function IncomingJobPopup() {
         </div>
       )}
 
-      {/* Expanded detail view — full request review */}
+      {/* Expanded detail */}
       {expandedJob && (
         <div
           className="absolute inset-0 z-[180] flex items-end justify-center bg-black/35 p-3 pb-[max(1rem,env(safe-area-inset-bottom))]"
@@ -357,7 +483,6 @@ export function IncomingJobPopup() {
               isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white"
             )}
           >
-            {/* Scrollable content */}
             <div className="flex-1 overflow-y-auto px-5 pb-2 pt-5">
               <div className="mb-3 flex items-start justify-between gap-2">
                 <div>
@@ -365,9 +490,7 @@ export function IncomingJobPopup() {
                     Service Request
                   </p>
                   <p className="mt-0.5 text-[16px] font-black leading-tight">
-                    {isAutomotiveTrade(expandedJob.serviceType) && expandedJob.motoristVehicle?.trim()
-                      ? expandedJob.motoristVehicle.trim()
-                      : expandedJob.motoristName?.split(/\s+/)[0] || PRO_SERVICE_LABELS[expandedJob.serviceType] || "Service Request"}
+                    {titleFor(expandedJob)}
                   </p>
                 </div>
                 <button
@@ -383,32 +506,64 @@ export function IncomingJobPopup() {
                 </button>
               </div>
 
-              {isAutomotiveTrade(expandedJob.serviceType) && expandedJob.motoristVehicle?.trim() ? (
+              {isAutomotiveTrade(expandedJob.serviceType) &&
+              expandedJob.motoristVehicle?.trim() ? (
                 <div className="mb-3">
-                  <p className={cn("text-[11px] font-semibold uppercase", isLight ? "text-slate-600" : "text-white/50")}>
+                  <p
+                    className={cn(
+                      "text-[11px] font-semibold uppercase",
+                      isLight ? "text-slate-600" : "text-white/50"
+                    )}
+                  >
                     Vehicle
                   </p>
-                  <p className={cn("mt-0.5 text-[15px] font-semibold", isLight ? "text-slate-900" : "text-white")}>
+                  <p
+                    className={cn(
+                      "mt-0.5 text-[15px] font-semibold",
+                      isLight ? "text-slate-900" : "text-white"
+                    )}
+                  >
                     {expandedJob.motoristVehicle.trim()}
                   </p>
                 </div>
               ) : null}
 
               <div className="mb-3">
-                <p className={cn("text-[11px] font-semibold uppercase", isLight ? "text-slate-600" : "text-white/50")}>
-                  Common issues
+                <p
+                  className={cn(
+                    "text-[11px] font-semibold uppercase",
+                    isLight ? "text-slate-600" : "text-white/50"
+                  )}
+                >
+                  Problem
                 </p>
-                <p className={cn("mt-0.5 text-[15px] font-medium leading-relaxed", isLight ? "text-slate-900" : "text-white")}>
+                <p
+                  className={cn(
+                    "mt-0.5 text-[15px] font-medium leading-relaxed",
+                    isLight ? "text-slate-900" : "text-white"
+                  )}
+                >
                   {expandedJob.problem}
                 </p>
               </div>
 
               <div className="mb-3">
-                <p className={cn("text-[11px] font-semibold uppercase", isLight ? "text-slate-600" : "text-white/50")}>
-                  Your matching skill
+                <p
+                  className={cn(
+                    "text-[11px] font-semibold uppercase",
+                    isLight ? "text-slate-600" : "text-white/50"
+                  )}
+                >
+                  Skill
                 </p>
-                <p className={cn("mt-0.5 text-[15px] font-semibold", isLight ? "text-slate-900" : "text-white")}>
-                  {PRO_SERVICE_LABELS[expandedJob.serviceType] || expandedJob.serviceType}
+                <p
+                  className={cn(
+                    "mt-0.5 text-[15px] font-semibold",
+                    isLight ? "text-slate-900" : "text-white"
+                  )}
+                >
+                  {PRO_SERVICE_LABELS[expandedJob.serviceType] ||
+                    expandedJob.serviceType}
                 </p>
               </div>
 
@@ -425,11 +580,17 @@ export function IncomingJobPopup() {
 
               {expandedJob.photos?.length > 0 ? (
                 <div className="mb-3">
-                  <p className={cn("mb-1.5 text-[11px] font-semibold uppercase", isLight ? "text-slate-600" : "text-white/50")}>
+                  <p
+                    className={cn(
+                      "mb-1.5 text-[11px] font-semibold uppercase",
+                      isLight ? "text-slate-600" : "text-white/50"
+                    )}
+                  >
                     Photos ({expandedJob.photos.length})
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {expandedJob.photos.map((p) => (
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         key={p.id}
                         src={p.url}
@@ -441,14 +602,20 @@ export function IncomingJobPopup() {
                 </div>
               ) : null}
 
-              <p className={cn("text-[13px] font-medium leading-relaxed", isLight ? "text-slate-500" : "text-white/50")}>
+              <p
+                className={cn(
+                  "text-[13px] font-medium leading-relaxed",
+                  isLight ? "text-slate-500" : "text-white/50"
+                )}
+              >
                 By tapping{" "}
-                <span className="font-semibold text-[#FF6B35]">I can fix this</span>
+                <span className="font-semibold text-[#FF6B35]">
+                  I can fix this
+                </span>
                 , you confirm you can complete this job.
               </p>
             </div>
 
-            {/* Fixed footer buttons */}
             <div className="shrink-0 space-y-2 px-5 pb-5 pt-2">
               {accepting ? (
                 <div className="flex h-12 items-center justify-center">
@@ -477,8 +644,7 @@ export function IncomingJobPopup() {
                           } catch {
                             /* */
                           }
-                          setExpandedJob(null);
-                          setAlertJob(null);
+                          fullyHide();
                           router.push(`/jobs/${expandedJob.id}`);
                         }
                       } finally {
@@ -494,8 +660,7 @@ export function IncomingJobPopup() {
                     disabled={accepting}
                     onClick={() => {
                       const id = expandedJob.id;
-                      setExpandedJob(null);
-                      setAlertJob(null);
+                      fullyHide();
                       void apiTransition({
                         jobId: id,
                         event: "CANCEL",
@@ -504,12 +669,7 @@ export function IncomingJobPopup() {
                         reason: "pro_declined",
                       });
                     }}
-                    className={cn(
-                      "inline-flex h-12 w-full items-center justify-center rounded-md border-0 text-[14px] font-semibold disabled:opacity-50",
-                      isLight
-                        ? "bg-[#2c2c2e] text-white"
-                        : "bg-[#2c2c2e] text-white"
-                    )}
+                    className="inline-flex h-12 w-full items-center justify-center rounded-md border-0 bg-[#2c2c2e] text-[14px] font-semibold text-white disabled:opacity-50"
                   >
                     Not available
                   </button>

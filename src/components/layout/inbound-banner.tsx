@@ -81,8 +81,8 @@ export function InboundBanner() {
   const showBanner = useCallback((b: NonNullable<Banner>) => {
     setBanner(b);
     if (hideTimer.current) window.clearTimeout(hideTimer.current);
-    // Stay visible long enough to tap; message toast is the primary alert
-    hideTimer.current = window.setTimeout(() => setBanner(null), 6000);
+    // 66s like inDrive / request popup — then fully hide
+    hideTimer.current = window.setTimeout(() => setBanner(null), 66_000);
   }, []);
 
   // Detect new inbound messages → tone + system notify + in-app banner

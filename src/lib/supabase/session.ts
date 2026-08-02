@@ -51,7 +51,7 @@ async function waitForSession(maxMs: number): Promise<AppSession | null> {
   const deadline = Date.now() + maxMs;
   let session = await readSession();
   while (!session && Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 80));
+    await new Promise((r) => setTimeout(r, 100));
     session = await readSession();
   }
   return session;
@@ -69,6 +69,16 @@ async function doRefresh(): Promise<AppSession | null> {
   } catch {
     /* fall through */
   }
+  // Last resort: getUser can rehydrate from storage when getSession is empty
+  try {
+    const { data } = await sb.auth.getUser();
+    if (data?.user?.id) {
+      const again = await readSession();
+      if (again) return again;
+    }
+  } catch {
+    /* ignore */
+  }
   return readSession();
 }
 
@@ -85,7 +95,7 @@ export async function ensureAppSession(opts?: {
   forceRefresh?: boolean;
   /**
    * If getSession is empty, poll up to this many ms for storage rehydrate
-   * (default 0 = no wait). Job create/load should pass ~1500–2500.
+   * (default 0 = no wait). Job create/load should pass ~1500–4000.
    */
   waitForSessionMs?: number;
 }): Promise<AppSession | null> {

@@ -27,7 +27,7 @@ async function authHeaders(
   };
   try {
     const session = await ensureAppSession({
-      waitForSessionMs: 2500,
+      waitForSessionMs: opts?.forceRefresh ? 4000 : 3500,
       forceRefresh: opts?.forceRefresh,
       refreshIfExpiresWithinMs: opts?.forceRefresh ? 3_600_000 : undefined,
     });
@@ -119,9 +119,14 @@ async function parse<T>(res: Response): Promise<ApiOk<T> | ApiErr> {
 export async function apiCreateJob(body: Record<string, unknown>) {
   // Prefer real session user id so motoristId always matches requireUser
   try {
-    const session = await ensureAppSession({ waitForSessionMs: 2500 });
+    const session = await ensureAppSession({ waitForSessionMs: 4000 });
     if (session?.userId) {
       body = { ...body, motoristId: session.userId };
+    } else {
+      return {
+        ok: false as const,
+        message: SESSION_RELOGIN_MESSAGE,
+      };
     }
   } catch {
     /* keep caller motoristId */
@@ -134,10 +139,30 @@ export async function apiCreateJob(body: Record<string, unknown>) {
 }
 
 export async function apiGetJob(id: string) {
-  const res = await jobFetch(`/api/jobs/${id}`, {
-    cache: "no-store",
-  });
-  return parse<{ job: JobRecord }>(res);
+  // Up to 3 attempts — covers create→navigate session race
+  let last: ApiOk<{ job: JobRecord }> | ApiErr = {
+    ok: false,
+    message: SESSION_RELOGIN_MESSAGE,
+  };
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, 400 * attempt));
+      await ensureAppSession({
+        waitForSessionMs: 3000,
+        forceRefresh: attempt === 2,
+      });
+    }
+    const res = await jobFetch(`/api/jobs/${id}`, {
+      cache: "no-store",
+    });
+    last = await parse<{ job: JobRecord }>(res);
+    if (last.ok) return last;
+    const authFail =
+      /not authenticated|session|sign in|refresh/i.test(last.message) ||
+      last.message === SESSION_RELOGIN_MESSAGE;
+    if (!authFail) return last;
+  }
+  return last;
 }
 
 /**
