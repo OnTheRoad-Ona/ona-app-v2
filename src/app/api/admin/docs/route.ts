@@ -3,7 +3,7 @@
  * View in-browser (inline). Download is blocked for everyone else.
  * Support role cannot access review / ID / skill files.
  *
- * GET ?userId=&kind=front|back|pro_front|pro_back|skill
+ * GET ?userId=&kind=front|back|pro_front|pro_back|skill|selfie|cac|cert
  * GET ?url=   (absolute http(s) or data: URL — re-fetched server-side when http)
  */
 import { AdminAuthError, requireAdmin } from "@/lib/server/admin-auth";
@@ -65,11 +65,18 @@ export async function GET(req: Request) {
   if (!target && userId) {
     try {
       const sb = createServiceSupabase();
-      if (kind === "pro_front" || kind === "pro_back" || kind === "skill") {
+      if (
+        kind === "pro_front" ||
+        kind === "pro_back" ||
+        kind === "skill" ||
+        kind === "selfie" ||
+        kind === "cac" ||
+        kind === "cert"
+      ) {
         const { data } = await sb
           .from("repair_pro_profiles")
           .select(
-            "gov_id_front_url, gov_id_back_url, skill_doc_url, cac_document_url, portfolio"
+            "gov_id_front_url, gov_id_back_url, skill_doc_url, cac_document_url, certification_file_url, face_liveness_selfie_url, portfolio"
           )
           .eq("user_id", userId)
           .maybeSingle();
@@ -77,8 +84,14 @@ export async function GET(req: Request) {
           target = (data?.gov_id_front_url as string) || null;
         else if (kind === "pro_back")
           target = (data?.gov_id_back_url as string) || null;
+        else if (kind === "selfie")
+          target = (data?.face_liveness_selfie_url as string) || null;
+        else if (kind === "cac")
+          target = (data?.cac_document_url as string) || null;
         else
+          // skill | cert — any skill proof column
           target =
+            (data?.certification_file_url as string) ||
             (data?.skill_doc_url as string) ||
             (data?.cac_document_url as string) ||
             null;
@@ -146,22 +159,29 @@ export async function GET(req: Request) {
       const sb = createServiceSupabase();
       let fetchUrl = target;
       try {
-        const pub = target.match(
-          /\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/
+        // public | sign | authenticated object paths → short-lived signed URL
+        const storageMatch = target.match(
+          /\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^/]+)\/(.+)$/
         );
-        if (pub) {
-          const bucket = pub[1];
-          const path = decodeURIComponent(pub[2].split("?")[0]);
-          const { data } = await sb.storage
+        if (storageMatch) {
+          const bucket = storageMatch[1];
+          const path = decodeURIComponent(
+            storageMatch[2].split("?")[0]
+          );
+          const { data, error } = await sb.storage
             .from(bucket)
-            .createSignedUrl(path, 120);
-          if (data?.signedUrl) fetchUrl = data.signedUrl;
+            .createSignedUrl(path, 300);
+          if (!error && data?.signedUrl) fetchUrl = data.signedUrl;
         }
       } catch {
         /* use original */
       }
 
-      const res = await fetch(fetchUrl, { cache: "no-store" });
+      let res = await fetch(fetchUrl, { cache: "no-store" });
+      // Retry once with original URL if signed fetch failed
+      if (!res.ok && fetchUrl !== target) {
+        res = await fetch(target, { cache: "no-store" });
+      }
       if (!res.ok) {
         return apiFail(`Upstream document error (${res.status})`, 502);
       }
@@ -170,9 +190,11 @@ export async function GET(req: Request) {
         res.headers.get("content-type") || "application/octet-stream";
       const ext = ctype.includes("png")
         ? "png"
-        : ctype.includes("pdf")
-          ? "pdf"
-          : "jpg";
+        : ctype.includes("webp")
+          ? "webp"
+          : ctype.includes("pdf")
+            ? "pdf"
+            : "jpg";
       return new Response(buf, {
         headers: viewHeaders(ctype, ext),
       });

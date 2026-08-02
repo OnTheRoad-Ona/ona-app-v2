@@ -3,6 +3,11 @@
  * NIN/BVN hit /api/verify/* (Prembly when keys set, format sandbox otherwise).
  */
 
+import {
+  DEMO_OTP_CODE,
+  isDemoOtp,
+  isDemoOtpAllowed,
+} from "@/lib/auth/demo-otp";
 import { verifyBvnApi, verifyNinApi } from "@/lib/ng-id-verify-client";
 
 export type VerifyStatus =
@@ -113,7 +118,8 @@ export function sendArtisanOtp(phone: string): {
       };
     }
   }
-  const code = createOtpCode();
+  // When demo OTP is allowed, store 336699 so Send → Verify works without SMS.
+  const code = isDemoOtpAllowed() ? DEMO_OTP_CODE : createOtpCode();
   const now = Date.now();
   writeOtpSession({
     phone: normalizePhoneKey(p),
@@ -134,6 +140,12 @@ export function verifyArtisanOtp(
   phone: string,
   code: string
 ): { ok: true } | { ok: false; error: string } {
+  const entered = code.replace(/\D/g, "").trim();
+  // Production + OTP_DEMO_MODE (or local): accept fixed demo code always.
+  if (isDemoOtp(entered) && isDemoOtpAllowed()) {
+    writeOtpSession(null);
+    return { ok: true };
+  }
   const session = readOtpSession();
   if (!session) {
     return { ok: false, error: "No code sent. Tap Send OTP first." };
@@ -149,7 +161,6 @@ export function verifyArtisanOtp(
     writeOtpSession(null);
     return { ok: false, error: "Too many attempts. Send a new OTP." };
   }
-  const entered = code.replace(/\D/g, "").trim();
   if (entered !== session.code) {
     session.attempts += 1;
     writeOtpSession(session);

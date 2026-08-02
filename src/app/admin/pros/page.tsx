@@ -715,11 +715,28 @@ export default function AdminProsHubPage() {
                         </td>
                         <td className="om-admin-td-files">
                           <FileThumbRow
+                            userId={p.user_id}
                             items={[
-                              { label: "ID", url: L.t2_id.front_url },
-                              { label: "Back", url: L.t2_id.back_url },
-                              { label: "Selfie", url: L.t3_liveness.selfie_url },
-                              { label: "Skill", url: L.t4_docs.file_url },
+                              {
+                                label: "ID",
+                                url: L.t2_id.front_url,
+                                kind: "pro_front",
+                              },
+                              {
+                                label: "Back",
+                                url: L.t2_id.back_url,
+                                kind: "pro_back",
+                              },
+                              {
+                                label: "Selfie",
+                                url: L.t3_liveness.selfie_url,
+                                kind: "selfie",
+                              },
+                              {
+                                label: "Skill",
+                                url: L.t4_docs.file_url,
+                                kind: "skill",
+                              },
                             ]}
                           />
                         </td>
@@ -1218,11 +1235,15 @@ export default function AdminProsHubPage() {
                   label="Skill cert"
                   url={selectedReview.levels.t4_docs.file_url}
                   size="md"
+                  userId={selectedReview.user_id}
+                  kind="skill"
                 />
                 <FileThumb
                   label="CAC"
                   url={selectedReview.cac_document_url}
                   size="md"
+                  userId={selectedReview.user_id}
+                  kind="cac"
                 />
                 {mediaUrlsFromUnknown(selectedReview.skill_proof).map(
                   (u, i) => (
@@ -1318,28 +1339,7 @@ export default function AdminProsHubPage() {
                   kind="pro_back"
                 />
               </div>
-              {selectedReview.levels.t2_id.front_url ? (
-                <a
-                  className="om-admin-file-link"
-                  href={selectedReview.levels.t2_id.front_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ display: "inline-block", marginTop: 8, marginRight: 12 }}
-                >
-                  Open ID front in new tab
-                </a>
-              ) : null}
-              {selectedReview.levels.t2_id.back_url ? (
-                <a
-                  className="om-admin-file-link"
-                  href={selectedReview.levels.t2_id.back_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ display: "inline-block", marginTop: 8 }}
-                >
-                  Open ID back in new tab
-                </a>
-              ) : null}
+              {/* Full-size open uses FileThumb lightbox (admin proxy) — no raw storage links */}
             </div>
 
             <div className="om-admin-section">
@@ -1377,22 +1377,13 @@ export default function AdminProsHubPage() {
                 url={selectedReview.levels.t3_liveness.selfie_url}
                 size="md"
                 userId={selectedReview.user_id}
+                kind="selfie"
               />
-              {selectedReview.levels.t3_liveness.selfie_url ? (
-                <a
-                  className="om-admin-file-link"
-                  href={selectedReview.levels.t3_liveness.selfie_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ display: "inline-block", marginTop: 6 }}
-                >
-                  Open selfie in new tab
-                </a>
-              ) : (
+              {!selectedReview.levels.t3_liveness.selfie_url ? (
                 <p className="om-admin-muted" style={{ marginTop: 6 }}>
                   No selfie yet (optional until pro completes liveness in app).
                 </p>
-              )}
+              ) : null}
             </div>
 
             <div className="om-admin-section">
@@ -1415,22 +1406,16 @@ export default function AdminProsHubPage() {
                   value={fmtDate(selectedReview.levels.t4_docs.submitted_at)}
                 />
               </DetailGrid>
-              {selectedReview.levels.t4_docs.file_url ? (
+              {selectedReview.levels.t4_docs.file_url ||
+              selectedReview.levels.t4_docs.file_name ? (
                 <div style={{ marginTop: 8 }}>
                   <FileThumb
                     label="Skill document"
                     url={selectedReview.levels.t4_docs.file_url}
                     size="lg"
+                    userId={selectedReview.user_id}
+                    kind="skill"
                   />
-                  <a
-                    className="om-admin-file-link"
-                    href={selectedReview.levels.t4_docs.file_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ display: "inline-block", marginTop: 6 }}
-                  >
-                    Open full size
-                  </a>
                 </div>
               ) : (
                 <CareCallout>

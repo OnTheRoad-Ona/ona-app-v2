@@ -151,28 +151,29 @@ export function ArtisanOnboarding({
   const ink = tokens.ink;
   const muted = tokens.muted;
   const soft = tokens.soft;
+  // Fields/chips sit on main sheet (#c8c9cd / black) — soft inset only, no stacked gray panels
   const fieldClass = cn(
     "h-10 w-full rounded-md border-0 px-3 text-[13px] font-medium outline-none",
-    isLight ? "bg-[#E2E3E7] text-[#0f172a]" : "bg-[#2c2c2e] text-white"
+    isLight ? "bg-black/[0.06] text-[#0f172a]" : "bg-white/[0.08] text-white"
   );
   const selectClass = cn(
     "h-10 w-full rounded-md border-0 px-2 text-[12px] font-semibold outline-none",
-    isLight ? "bg-[#E2E3E7] text-[#0f172a]" : "bg-[#2c2c2e] text-white"
+    isLight ? "bg-black/[0.06] text-[#0f172a]" : "bg-white/[0.08] text-white"
   );
   const panelClass = cn(
     "rounded-md p-3",
-    isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]"
+    isLight ? "bg-transparent" : "bg-transparent"
   );
   const chipOff = isLight
-    ? "bg-black/10 text-slate-800"
-    : "bg-[#2c2c2e] text-[#d1d1d6]";
+    ? "bg-black/[0.06] text-slate-800"
+    : "bg-white/[0.08] text-[#d1d1d6]";
   const uploadClass = cn(
     "flex cursor-pointer flex-col items-center justify-center rounded-md text-[12px] font-bold",
-    isLight ? "bg-[#E2E3E7] text-slate-800" : "bg-[#2c2c2e] text-white"
+    isLight ? "bg-black/[0.06] text-slate-800" : "bg-white/[0.08] text-white"
   );
   const uploadInlineClass = cn(
     "flex cursor-pointer items-center justify-center rounded-md text-[12px] font-bold",
-    isLight ? "bg-[#E2E3E7] text-slate-800" : "bg-[#2c2c2e] text-white"
+    isLight ? "bg-black/[0.06] text-slate-800" : "bg-white/[0.08] text-white"
   );
   const errBox = isLight
     ? "bg-red-50 text-red-700"
@@ -187,11 +188,11 @@ export function ArtisanOnboarding({
     ? "bg-[#fff7ed] text-[#9a3412]"
     : "bg-[#3a2010] text-[#fdba74]";
   const navBack = isLight
-    ? "bg-[#d4d5d9] text-slate-900"
-    : "bg-[#2c2c2e] text-white";
+    ? "bg-black/[0.06] text-slate-900"
+    : "bg-white/[0.08] text-white";
   const tradeOff = isLight
-    ? "bg-[#d4d5d9] text-slate-900"
-    : "bg-[#1c1c1e] text-white";
+    ? "bg-black/[0.06] text-slate-900"
+    : "bg-white/[0.08] text-white";
   /** Selected chips — brand orange for all Yes/No and option picks */
   const chipOn = "bg-[#FF6B35] text-white";
   const userId =
@@ -894,7 +895,7 @@ export function ArtisanOnboarding({
           <div
             className={cn(
               "mx-3 mb-2 rounded-md border-0 px-3 py-2.5",
-              isLight ? "bg-[#d8d9df]" : "bg-[#32333a]"
+              isLight ? "bg-black/[0.05]" : "bg-white/[0.06]"
             )}
           >
             <p className={cn("text-[12px] font-bold", ink)}>
@@ -909,7 +910,7 @@ export function ArtisanOnboarding({
           <div
             className={cn(
               "mx-3 mb-2 rounded-md border-0 px-3 py-2.5",
-              isLight ? "bg-[#d8d9df]" : "bg-[#32333a]"
+              isLight ? "bg-black/[0.05]" : "bg-white/[0.06]"
             )}
           >
             <p className={cn("text-[12px] font-bold", ink)}>
@@ -1327,7 +1328,7 @@ export function ArtisanOnboarding({
             <div
               className={cn(
                 "overflow-hidden rounded-md",
-                isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]"
+                isLight ? "bg-black/[0.05]" : "bg-white/[0.06]"
               )}
             >
               <Link
@@ -1536,7 +1537,7 @@ export function ArtisanOnboarding({
             <label
               className={cn(
                 "flex h-24 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed",
-                isLight ? "border-[#9A9EA6] bg-[#E2E3E7]" : "border-white/20 bg-[#2c2c2e]"
+                isLight ? "border-black/15 bg-black/[0.06]" : "border-white/20 bg-white/[0.08]"
               )}
             >
               <Upload className={cn("h-5 w-5", isLight ? "text-slate-500" : "text-[#a1a1a6]")} />
@@ -1694,7 +1695,7 @@ export function ArtisanOnboarding({
                         : "bg-emerald-900/50 text-emerald-300"
                       : isLight
                         ? "bg-black/10 text-slate-600"
-                        : "bg-[#2c2c2e] text-[#a1a1a6]"
+                        : "bg-white/[0.08] text-[#a1a1a6]"
                   )}
                 >
                   {ok ? "✓" : "·"} {label}
@@ -1827,8 +1828,8 @@ export function ArtisanOnboarding({
                   className={cn(
                     "flex w-full min-h-[48px] cursor-pointer flex-col items-center justify-center gap-1 rounded-md px-3 py-3",
                     isLight
-                      ? "bg-[#E2E3E7] text-slate-800"
-                      : "bg-[#2c2c2e] text-white",
+                      ? "bg-black/[0.06] text-slate-800"
+                      : "bg-white/[0.08] text-white",
                     (profile.tiers.tier2_govId ||
                       profile.govIdReviewStatus === "submitted") &&
                       "pointer-events-none opacity-60"
@@ -2163,8 +2164,8 @@ export function ArtisanOnboarding({
                   className={cn(
                     "flex w-full min-h-[48px] cursor-pointer flex-col items-center justify-center gap-1 rounded-md px-3 py-3",
                     isLight
-                      ? "bg-[#E2E3E7] text-slate-800"
-                      : "bg-[#2c2c2e] text-white"
+                      ? "bg-black/[0.06] text-slate-800"
+                      : "bg-white/[0.08] text-white"
                   )}
                 >
                   <span className="flex items-center gap-2 text-[12px] font-bold">
@@ -2294,7 +2295,7 @@ export function ArtisanOnboarding({
             <div
               className={cn(
                 "overflow-hidden rounded-md",
-                isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]"
+                isLight ? "bg-black/[0.05]" : "bg-white/[0.06]"
               )}
             >
               {(
