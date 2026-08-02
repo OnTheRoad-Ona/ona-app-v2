@@ -245,136 +245,27 @@ export default function TechnicianDashboardPage() {
       return;
     }
 
-    // Hydrate + poll care approval so dashboard tier flips without leaving
+    // Hydrate + poll Care approval via single forever sync module
     let cancelled = false;
+    let pollMs = 4000;
     const sync = async () => {
       try {
-        const { authFetch } = await import("@/lib/api-auth-headers");
-        const res = await authFetch(
-          `/api/artisan/profile?userId=${encodeURIComponent(backendUserId)}`,
-          { cache: "no-store" }
+        const { syncArtisanCareStatus, CARE_STATUS_POLL_MS } = await import(
+          "@/lib/artisan/sync-care-status"
         );
-        const json = (await res.json().catch(() => null)) as {
-          ok?: boolean;
-          data?: {
-            pro?: {
-              status?: string;
-              gov_id_review_status?: string | null;
-              visibility_tier?: number | null;
-              verified?: boolean | null;
-              nin_verified?: boolean | null;
-              face_liveness_verified?: boolean | null;
-              docs_status?: string | null;
-              tier2_approved_at?: string | null;
-              tier3_approved_at?: string | null;
-              tier4_approved_at?: string | null;
-              go_live_window_ends_at?: string | null;
-            } | null;
-            motorist?: {
-              identity_review_status?: string | null;
-              identity_verified_at?: string | null;
-              nin_verified?: boolean | null;
-            } | null;
-          };
-        } | null;
-        if (cancelled || !json?.ok) return;
-        const pro = json.data?.pro;
-        const mot = json.data?.motorist;
-        const local = getArtisanProfile(backendUserId);
-        if (!local) return;
-        const gov = String(pro?.gov_id_review_status || "none");
-        const motId = String(mot?.identity_review_status || "none");
-        const t2 =
-          gov === "approved" ||
-          motId === "approved" ||
-          Boolean(pro?.verified) ||
-          Boolean(pro?.nin_verified) ||
-          Boolean(mot?.nin_verified) ||
-          Boolean(mot?.identity_verified_at);
-        const vis =
-          Number(pro?.visibility_tier) || local.visibilityTier || 1;
-        const docs = String(pro?.docs_status || "none");
-        if (
-          !t2 &&
-          gov !== "submitted" &&
-          motId !== "submitted" &&
-          gov !== "rejected" &&
-          motId !== "rejected"
-        ) {
-          // Still refresh visibility if server moved ladder
-          if (vis !== local.visibilityTier) {
-            const next = {
-              ...local,
-              visibilityTier: vis as 1 | 2 | 3 | 4,
-              isNewArtisan: vis <= 2,
-            };
-            const { saveArtisanProfile } = await import(
-              "@/lib/artisan/local-store"
-            );
-            saveArtisanProfile(next);
-            if (!cancelled) setArtisan(next);
-          }
-          return;
-        }
-        const fully =
-          String(pro?.status) === "approved" || (t2 && vis >= 2);
-        const next = {
-          ...local,
-          status: fully
-            ? ("approved" as const)
-            : gov === "rejected" || motId === "rejected"
-              ? ("rejected" as const)
-              : gov === "submitted" || motId === "submitted"
-                ? ("pending_review" as const)
-                : local.status,
-          rejectReason: fully ? null : local.rejectReason,
-          govIdReviewStatus: t2
-            ? ("approved" as const)
-            : gov === "rejected" || motId === "rejected"
-              ? ("rejected" as const)
-              : gov === "submitted" || motId === "submitted"
-                ? ("submitted" as const)
-                : local.govIdReviewStatus,
-          tiers: {
-            ...local.tiers,
-            tier2_govId: t2 || local.tiers.tier2_govId,
-            tier2_nin:
-              Boolean(pro?.nin_verified) ||
-              Boolean(mot?.nin_verified) ||
-              t2 ||
-              local.tiers.tier2_nin,
-            tier3_liveness:
-              Boolean(pro?.face_liveness_verified) ||
-              local.tiers.tier3_liveness,
-            tier4_skillProof:
-              docs === "approved" || local.tiers.tier4_skillProof,
-          },
-          visibilityTier: vis as 1 | 2 | 3 | 4,
-          tier2ApprovedAt:
-            pro?.tier2_approved_at || local.tier2ApprovedAt,
-          tier3ApprovedAt:
-            pro?.tier3_approved_at || local.tier3ApprovedAt,
-          tier4ApprovedAt:
-            pro?.tier4_approved_at || local.tier4ApprovedAt,
-          goLiveWindowEndsAt:
-            pro?.go_live_window_ends_at || local.goLiveWindowEndsAt,
-          isNewArtisan: vis <= 2,
-        };
-        const { saveArtisanProfile } = await import(
-          "@/lib/artisan/local-store"
-        );
-        saveArtisanProfile(next);
-        if (!cancelled) setArtisan(next);
+        pollMs = CARE_STATUS_POLL_MS;
+        const result = await syncArtisanCareStatus(backendUserId);
+        if (cancelled || !result.ok || !result.profile) return;
+        setArtisan(result.profile);
       } catch {
         /* offline */
       }
     };
     void sync();
-    // Care approval rarely changes — 3 min is enough (was 60s)
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void sync();
-    }, 180_000);
+    }, pollMs);
     return () => {
       cancelled = true;
       window.clearInterval(poll);
