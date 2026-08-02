@@ -2449,29 +2449,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [backendUserId, accountType]);
 
-  const visibleTechnicians = useMemo(
-    () =>
-      filterAndRankTechnicians(technicians, {
-        radiusKm,
-        category,
-        query,
-        filters,
-        specialtyFilter,
-        excludeProIds: discoveryExcludeProIds,
-        // Demote even while excluded so when job closes ranking stays soft
-        radiusDemoteProIds: discoveryDemoteProIds,
-      }),
-    [
-      technicians,
+  const visibleTechnicians = useMemo(() => {
+    // Dual-role: never show own Repair Pro pin when browsing as Customer
+    const exclude = new Set(
+      Array.from(discoveryExcludeProIds || []).map((id) => String(id))
+    );
+    if (backendUserId) exclude.add(String(backendUserId));
+    return filterAndRankTechnicians(technicians, {
       radiusKm,
       category,
       query,
       filters,
       specialtyFilter,
-      discoveryExcludeProIds,
-      discoveryDemoteProIds,
-    ]
-  );
+      excludeProIds: exclude,
+      // Demote even while excluded so when job closes ranking stays soft
+      radiusDemoteProIds: discoveryDemoteProIds,
+    });
+  }, [
+    technicians,
+    radiusKm,
+    category,
+    query,
+    filters,
+    specialtyFilter,
+    discoveryExcludeProIds,
+    discoveryDemoteProIds,
+    backendUserId,
+  ]);
 
   const toggleFilter = useCallback((key: keyof AppFilters) => {
     setFilters((prev) => ({ ...prev, [key]: !prev[key] }));

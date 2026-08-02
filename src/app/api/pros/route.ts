@@ -1,4 +1,5 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { getUserFromRequest } from "@/lib/server/auth-utils";
 import { hasRecentLiveHeartbeat, MAX_RADIUS_KM } from "@/lib/matching";
 import { DOCS_PENDING_MAX_RADIUS_KM } from "@/lib/skill-questions";
 import { createServiceSupabase } from "@/lib/supabase/server";
@@ -34,6 +35,11 @@ export async function GET(req: Request) {
 
   try {
     const supabase = createServiceSupabase();
+    // Dual-role: never list the signed-in user as a pro for themselves
+    // (even when Live on the Repair Pro side).
+    const viewer = await getUserFromRequest(req);
+    const excludeSelfId = viewer?.id ? String(viewer.id) : null;
+
     // Live only — not suspended/rejected. Pending+approved both OK when Live.
     // Slim columns only: never pull certification_file_url / skills base64 (multi-MB thrash).
     const proColumns = [
@@ -125,6 +131,7 @@ export async function GET(req: Request) {
 
     const nowMs = Date.now();
     const list = ((pros ?? []) as unknown as RepairProRow[]).filter((p) => {
+      if (excludeSelfId && String(p.user_id) === excludeSelfId) return false;
       if (p.status === "suspended" || p.status === "rejected") return false;
       // Live only with fresh heartbeat (signed-out / stale pin never listed)
       if (!p.is_online || !hasRecentLiveHeartbeat(p.location_updated_at, nowMs)) {

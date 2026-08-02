@@ -797,32 +797,57 @@ export default function AdminProsHubPage() {
                             >
                               Open
                             </button>
-                            <button
-                              type="button"
-                              className="om-admin-btn"
-                              disabled={
-                                busyId === p.user_id ||
-                                L.t2_id.status === "approved"
-                              }
-                              onClick={() =>
-                                void actReview(p.user_id, "pro_t2_approve")
-                              }
-                            >
-                              Approve T2
-                            </button>
-                            <button
-                              type="button"
-                              className="om-admin-btn"
-                              disabled={
-                                busyId === p.user_id ||
-                                L.t4_docs.status === "approved"
-                              }
-                              onClick={() =>
-                                void actReview(p.user_id, "pro_t4_approve")
-                              }
-                            >
-                              Approve T4
-                            </button>
+                            {L.t2_id.status === "approved" ? (
+                              <button
+                                type="button"
+                                className="om-admin-btn done"
+                                disabled
+                              >
+                                ✓ T2 approved
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="om-admin-btn"
+                                disabled={busyId === p.user_id}
+                                onClick={() =>
+                                  void actReview(p.user_id, "pro_t2_approve")
+                                }
+                              >
+                                Approve T2
+                              </button>
+                            )}
+                            {L.t3_liveness?.verified ||
+                            L.t3_liveness?.status === "passed" ||
+                            L.t3_liveness?.status === "verified" ? (
+                              <button
+                                type="button"
+                                className="om-admin-btn done"
+                                disabled
+                              >
+                                ✓ T3 liveness
+                              </button>
+                            ) : null}
+                            {L.t4_docs.status === "approved" ? (
+                              <button
+                                type="button"
+                                className="om-admin-btn done"
+                                disabled
+                              >
+                                ✓ T4 approved
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="om-admin-btn"
+                                disabled={busyId === p.user_id}
+                                onClick={() =>
+                                  void actReview(p.user_id, "pro_t4_approve")
+                                }
+                              >
+                                Approve T4
+                              </button>
+                            )}
                             {!p.needs_resubmit ? (
                               <button
                                 type="button"
@@ -979,32 +1004,62 @@ export default function AdminProsHubPage() {
         footer={
           selectedReview ? (
             <>
-              <button
-                type="button"
-                className="om-admin-btn"
-                disabled={
-                  busyId === selectedReview.user_id ||
-                  selectedReview.levels.t2_id.status === "approved"
-                }
-                onClick={() =>
-                  void actReview(selectedReview.user_id, "pro_t2_approve")
-                }
-              >
-                Approve T2 ID
-              </button>
-              <button
-                type="button"
-                className="om-admin-btn"
-                disabled={
-                  busyId === selectedReview.user_id ||
-                  selectedReview.levels.t4_docs.status === "approved"
-                }
-                onClick={() =>
-                  void actReview(selectedReview.user_id, "pro_t4_approve")
-                }
-              >
-                Approve T4 docs
-              </button>
+              {selectedReview.levels.t1_phone?.verified ? (
+                <button type="button" className="om-admin-btn done" disabled>
+                  ✓ T1 verified
+                </button>
+              ) : null}
+              {selectedReview.levels.t2_id.status === "approved" ? (
+                <button
+                  type="button"
+                  className="om-admin-btn done"
+                  disabled
+                >
+                  ✓ T2 approved
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="om-admin-btn"
+                  disabled={busyId === selectedReview.user_id}
+                  onClick={() =>
+                    void actReview(selectedReview.user_id, "pro_t2_approve")
+                  }
+                >
+                  Approve T2 ID
+                </button>
+              )}
+              {selectedReview.levels.t3_liveness?.verified ||
+              selectedReview.levels.t3_liveness?.status === "passed" ||
+              selectedReview.levels.t3_liveness?.status === "verified" ? (
+                <button
+                  type="button"
+                  className="om-admin-btn done"
+                  disabled
+                >
+                  ✓ T3 liveness passed
+                </button>
+              ) : null}
+              {selectedReview.levels.t4_docs.status === "approved" ? (
+                <button
+                  type="button"
+                  className="om-admin-btn done"
+                  disabled
+                >
+                  ✓ T4 approved
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="om-admin-btn"
+                  disabled={busyId === selectedReview.user_id}
+                  onClick={() =>
+                    void actReview(selectedReview.user_id, "pro_t4_approve")
+                  }
+                >
+                  Approve T4 docs
+                </button>
+              )}
               <button
                 type="button"
                 className="om-admin-btn ghost"

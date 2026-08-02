@@ -648,6 +648,7 @@
   filter: brightness(1.05);
 }
 
+/* Pending CTA disabled (busy) — dim orange; never use this for “already approved” */
 .om-admin-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -655,19 +656,30 @@
   box-shadow: none;
 }
 
-/* Settled / current state — do NOT look like a CTA to click again */
+/* After Care/admin approve (T1–T4): dimmed solid green, not dimmed orange */
 .om-admin-btn.done,
 .om-admin-btn.done:hover,
 .om-admin-btn.done:focus,
 .om-admin-btn.done:disabled {
-  background: var(--om-success-bg) !important;
-  color: var(--om-success) !important;
-  border: 1px solid rgba(21, 128, 61, 0.35) !important;
-  opacity: 1;
+  background: #16a34a !important;
+  color: #ffffff !important;
+  border: 1px solid #15803d !important;
+  opacity: 0.72;
   cursor: default;
   filter: none;
   box-shadow: none;
   outline: none;
+  pointer-events: none;
+}
+
+.om-admin-root[data-theme="dark"] .om-admin-btn.done,
+.om-admin-root[data-theme="dark"] .om-admin-btn.done:hover,
+.om-admin-root[data-theme="dark"] .om-admin-btn.done:focus,
+.om-admin-root[data-theme="dark"] .om-admin-btn.done:disabled {
+  background: #22c55e !important;
+  color: #052e16 !important;
+  border-color: #16a34a !important;
+  opacity: 0.78;
 }
 
 .om-admin-btn.ghost {

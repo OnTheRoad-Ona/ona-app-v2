@@ -694,8 +694,12 @@ export default function AdminCustomersHubPage() {
                               Approve T2
                             </button>
                           ) : (
-                            <button type="button" className="om-admin-btn done" disabled>
-                              ✓ T2
+                            <button
+                              type="button"
+                              className="om-admin-btn done"
+                              disabled
+                            >
+                              ✓ T2 approved
                             </button>
                           )}
                           {c.identity_review_status === "submitted" ||
@@ -869,8 +873,12 @@ export default function AdminCustomersHubPage() {
         footer={
           selectedReview ? (
             <>
-              {!selectedReview.phone_verified &&
-              !selectedReview.levels?.t1_phone?.verified ? (
+              {selectedReview.phone_verified ||
+              selectedReview.levels?.t1_phone?.verified ? (
+                <button type="button" className="om-admin-btn done" disabled>
+                  ✓ T1 verified
+                </button>
+              ) : (
                 <button
                   type="button"
                   className="om-admin-btn ghost"
@@ -884,7 +892,7 @@ export default function AdminCustomersHubPage() {
                 >
                   Mark phone verified
                 </button>
-              ) : null}
+              )}
               {selectedReview.identity_review_status !== "approved" ? (
                 <button
                   type="button"
@@ -898,7 +906,7 @@ export default function AdminCustomersHubPage() {
                 </button>
               ) : (
                 <button type="button" className="om-admin-btn done" disabled>
-                  ✓ Approved
+                  ✓ T2 approved
                 </button>
               )}
               <button

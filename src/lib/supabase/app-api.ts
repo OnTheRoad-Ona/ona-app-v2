@@ -1074,7 +1074,9 @@ export async function backendFetchPros(userCoords: {
       lat: String(userCoords.lat),
       lng: String(userCoords.lng),
     });
-    const res = await fetch(`/api/pros?${qs.toString()}`, {
+    // authFetch so server can exclude the signed-in dual-role user from results
+    const { authFetch } = await import("@/lib/api-auth-headers");
+    const res = await authFetch(`/api/pros?${qs.toString()}`, {
       method: "GET",
       cache: "no-store",
     });
@@ -1104,6 +1106,13 @@ export async function backendFetchPros(userCoords: {
   if (error || !pros?.length) return [];
 
   const slimPros = pros as unknown as RepairProRow[];
+  let selfId: string | null = null;
+  try {
+    const { data: sess } = await sb.auth.getSession();
+    selfId = sess.session?.user?.id ? String(sess.session.user.id) : null;
+  } catch {
+    selfId = null;
+  }
   const ids = slimPros.map((p) => p.user_id);
   const { data: profiles } = await sb
     .from("profiles")
@@ -1118,6 +1127,8 @@ export async function backendFetchPros(userCoords: {
   const nowMs = Date.now();
   return slimPros
     .filter((pro) => {
+      // Dual-role: never see own Live pro profile when searching as customer
+      if (selfId && String(pro.user_id) === selfId) return false;
       if (pro.status === "suspended" || pro.status === "rejected") return false;
       if (
         !pro.is_online ||
