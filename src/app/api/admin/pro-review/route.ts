@@ -564,15 +564,20 @@ export async function PATCH(req: Request) {
         .update(t2Patch)
         .eq("user_id", userId);
       if (error) {
+        // Fallback still must flip gov_id_review_status so the app leaves "in review"
         const { error: e2 } = await supabase
           .from("repair_pro_profiles")
           .update({
             nin_verified: true,
             bvn_verified: true,
             verified: true,
+            gov_id_review_status: "approved",
+            gov_id_reviewed_at: now,
             status: "approved",
             visibility_tier: 2,
             is_new_artisan: true,
+            tier2_approved_at: now,
+            updated_at: now,
           })
           .eq("user_id", userId);
         if (e2) return apiFail(e2.message, 500);

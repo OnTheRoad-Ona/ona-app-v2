@@ -807,6 +807,34 @@ export async function PATCH(req: Request) {
     }
     if (error) return apiFail(error.message, 500);
 
+    // Dual-role: mirror Care decision onto Repair Pro ID fields so Pro UI leaves "in review"
+    if (approve) {
+      await supabase
+        .from("repair_pro_profiles")
+        .update({
+          nin_verified: true,
+          bvn_verified: true,
+          verified: true,
+          gov_id_review_status: "approved",
+          gov_id_reviewed_at: now,
+          tier2_approved_at: now,
+          updated_at: now,
+        })
+        .eq("user_id", userId);
+    } else {
+      await supabase
+        .from("repair_pro_profiles")
+        .update({
+          gov_id_review_status: "rejected",
+          gov_id_reviewed_at: now,
+          nin_verified: false,
+          bvn_verified: false,
+          verified: false,
+          updated_at: now,
+        })
+        .eq("user_id", userId);
+    }
+
     await logAdminAction(
       session.userId,
       approve ? "customer_t2_approve" : "customer_t2_reject",

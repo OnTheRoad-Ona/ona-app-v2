@@ -325,7 +325,8 @@ export function ArtisanOnboarding({
     // Server is truth for care reset / approval — unlock local "pending_review" wall
     const syncFromServer = async () => {
       try {
-        const res = await fetch(
+        const { authFetch } = await import("@/lib/api-auth-headers");
+        const res = await authFetch(
           `/api/artisan/profile?userId=${encodeURIComponent(userId)}`,
           { cache: "no-store" }
         );
@@ -348,27 +349,41 @@ export function ArtisanOnboarding({
               tier4_approved_at?: string | null;
               go_live_window_ends_at?: string | null;
             } | null;
+            motorist?: {
+              identity_review_status?: string | null;
+              identity_verified_at?: string | null;
+              nin_verified?: boolean | null;
+              bvn_verified?: boolean | null;
+            } | null;
           };
         } | null;
-        if (cancelled || !json?.ok || !json.data?.pro) return;
-        const pro = json.data.pro;
+        if (cancelled || !json?.ok) return;
+        const pro = json.data?.pro;
+        const mot = json.data?.motorist;
+        // No pro row yet (draft only) — still apply Customer Care T2 if dual
+        if (!pro && !(mot?.identity_review_status === "approved")) return;
         const local = getArtisanProfile(userId) || next;
         let merged = { ...local };
         let changed = false;
 
-        const gov = String(pro.gov_id_review_status || "none");
-        const docs = String(pro.docs_status || "none");
-        const pipe = String(pro.pipeline_status || "");
+        const gov = String(pro?.gov_id_review_status || "none");
+        const motId = String(mot?.identity_review_status || "none");
+        const docs = String(pro?.docs_status || "none");
+        const pipe = String(pro?.pipeline_status || "");
         const careReset =
           pipe === "needs_resubmit" ||
-          /re-?\s*submit/i.test(String(pro.rejection_reason || "")) ||
-          /re-?\s*submit/i.test(String(pro.pipeline_notes || ""));
+          /re-?\s*submit/i.test(String(pro?.rejection_reason || "")) ||
+          /re-?\s*submit/i.test(String(pro?.pipeline_notes || ""));
+        // Care may approve on repair_pro_profiles OR motorist_profiles (dual)
         const t2Approved =
           gov === "approved" ||
-          Boolean(pro.verified) ||
-          Boolean(pro.nin_verified);
-        const vis = Number(pro.visibility_tier) || 1;
-        const proStatus = String(pro.status || "");
+          motId === "approved" ||
+          Boolean(pro?.verified) ||
+          Boolean(pro?.nin_verified) ||
+          Boolean(mot?.nin_verified) ||
+          Boolean(mot?.identity_verified_at);
+        const vis = Number(pro?.visibility_tier) || 1;
+        const proStatus = String(pro?.status || "");
 
         // Immediately apply care approval → ID approved + T2 privileges + %
         if (t2Approved) {
@@ -376,10 +391,12 @@ export function ArtisanOnboarding({
             ...merged.tiers,
             tier2_govId: true,
             tier2_nin:
-              Boolean(pro.nin_verified) ||
+              Boolean(pro?.nin_verified) ||
+              Boolean(mot?.nin_verified) ||
               gov === "approved" ||
+              motId === "approved" ||
               merged.tiers.tier2_nin,
-            tier3_liveness: Boolean(pro.face_liveness_verified),
+            tier3_liveness: Boolean(pro?.face_liveness_verified),
             tier4_skillProof:
               docs === "approved" || merged.tiers.tier4_skillProof,
           };
@@ -397,26 +414,29 @@ export function ArtisanOnboarding({
               rejectReason: fullyApproved ? null : merged.rejectReason,
               govIdReviewStatus: "approved",
               ninReviewStatus:
-                Boolean(pro.nin_verified) || gov === "approved"
+                Boolean(pro?.nin_verified) ||
+                Boolean(mot?.nin_verified) ||
+                gov === "approved" ||
+                motId === "approved"
                   ? "approved"
                   : merged.ninReviewStatus,
               tiers: nextTiers,
               visibilityTier: vis as 1 | 2 | 3 | 4,
               tier2ApprovedAt:
-                pro.tier2_approved_at ||
+                pro?.tier2_approved_at ||
                 merged.tier2ApprovedAt ||
                 new Date().toISOString(),
               tier3ApprovedAt:
-                pro.tier3_approved_at || merged.tier3ApprovedAt,
+                pro?.tier3_approved_at || merged.tier3ApprovedAt,
               tier4ApprovedAt:
-                pro.tier4_approved_at || merged.tier4ApprovedAt,
+                pro?.tier4_approved_at || merged.tier4ApprovedAt,
               goLiveWindowEndsAt:
-                pro.go_live_window_ends_at || merged.goLiveWindowEndsAt,
+                pro?.go_live_window_ends_at || merged.goLiveWindowEndsAt,
               isNewArtisan: vis <= 2,
             };
             changed = true;
           }
-        } else if (careReset || gov === "rejected") {
+        } else if (careReset || gov === "rejected" || motId === "rejected") {
           // Care reset / reject: unlock form so pro can re-verify
           if (
             merged.status === "pending_review" ||
@@ -429,23 +449,26 @@ export function ArtisanOnboarding({
               ...merged,
               status: "rejected",
               rejectReason:
-                pro.rejection_reason ||
-                pro.pipeline_notes ||
+                pro?.rejection_reason ||
+                pro?.pipeline_notes ||
                 "Care asked you to re-submit verification.",
-              govIdReviewStatus: gov === "rejected" ? "rejected" : "none",
+              govIdReviewStatus:
+                gov === "rejected" || motId === "rejected"
+                  ? "rejected"
+                  : "none",
               ninReviewStatus: "none",
               tiers: {
                 ...merged.tiers,
                 tier2_govId: false,
                 tier2_nin: false,
-                tier3_liveness: Boolean(pro.face_liveness_verified),
+                tier3_liveness: Boolean(pro?.face_liveness_verified),
                 tier4_skillProof: docs === "approved",
               },
               visibilityTier: (vis >= 1 && vis <= 4 ? vis : 1) as 1 | 2 | 3 | 4,
             };
             changed = true;
           }
-        } else if (gov === "submitted") {
+        } else if (gov === "submitted" || motId === "submitted") {
           if (merged.govIdReviewStatus !== "submitted") {
             merged = {
               ...merged,
@@ -455,7 +478,11 @@ export function ArtisanOnboarding({
             };
             changed = true;
           }
-        } else if (gov === "none" && merged.govIdReviewStatus === "submitted") {
+        } else if (
+          gov === "none" &&
+          motId === "none" &&
+          merged.govIdReviewStatus === "submitted"
+        ) {
           // Server cleared submitted (rare) — unlock
           merged = {
             ...merged,
@@ -470,11 +497,11 @@ export function ArtisanOnboarding({
           merged = {
             ...merged,
             visibilityTier: vis as 1 | 2 | 3 | 4,
-            tier2ApprovedAt: pro.tier2_approved_at || merged.tier2ApprovedAt,
-            tier3ApprovedAt: pro.tier3_approved_at || merged.tier3ApprovedAt,
-            tier4ApprovedAt: pro.tier4_approved_at || merged.tier4ApprovedAt,
+            tier2ApprovedAt: pro?.tier2_approved_at || merged.tier2ApprovedAt,
+            tier3ApprovedAt: pro?.tier3_approved_at || merged.tier3ApprovedAt,
+            tier4ApprovedAt: pro?.tier4_approved_at || merged.tier4ApprovedAt,
             goLiveWindowEndsAt:
-              pro.go_live_window_ends_at || merged.goLiveWindowEndsAt,
+              pro?.go_live_window_ends_at || merged.goLiveWindowEndsAt,
             isNewArtisan: vis <= 2,
           };
           changed = true;
@@ -501,15 +528,20 @@ export function ArtisanOnboarding({
           saveArtisanProfile(merged);
           if (!cancelled) {
             setProfile(merged);
-            if (t2Approved && (gov === "approved" || Boolean(pro.verified))) {
+            if (
+              t2Approved &&
+              (gov === "approved" ||
+                motId === "approved" ||
+                Boolean(pro?.verified))
+            ) {
               setMsg(
                 "Government ID approved. Tier 2 privileges unlocked."
               );
               setErr(null);
-            } else if (careReset || gov === "rejected") {
+            } else if (careReset || gov === "rejected" || motId === "rejected") {
               setMsg(
-                pro.rejection_reason ||
-                  pro.pipeline_notes ||
+                pro?.rejection_reason ||
+                  pro?.pipeline_notes ||
                   "Care reset your verification. Re-submit ID / skill docs below."
               );
             }

@@ -56,16 +56,27 @@ export async function GET(req: Request) {
   }
 
   const supabase = createServiceSupabase();
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, full_name, phone, email, avatar_url, role")
-    .eq("id", auth.userId)
-    .maybeSingle();
-  const { data: pro } = await supabase
-    .from("repair_pro_profiles")
-    .select("*")
-    .eq("user_id", auth.userId)
-    .maybeSingle();
+  const [{ data: profile }, { data: pro }, { data: motorist }] =
+    await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, full_name, phone, email, avatar_url, role")
+        .eq("id", auth.userId)
+        .maybeSingle(),
+      supabase
+        .from("repair_pro_profiles")
+        .select("*")
+        .eq("user_id", auth.userId)
+        .maybeSingle(),
+      // Dual-role: Care may approve Customer T2 on motorist_profiles
+      supabase
+        .from("motorist_profiles")
+        .select(
+          "identity_review_status, identity_verified_at, gov_id_kind, phone_verified, nin_verified, bvn_verified"
+        )
+        .eq("user_id", auth.userId)
+        .maybeSingle(),
+    ]);
 
   // Never expose encrypted bank/NIN fields on this self-profile endpoint
   // if they are present as raw secrets — strip known sensitive keys for safety.
@@ -81,10 +92,30 @@ export async function GET(req: Request) {
     safePro = rest;
   }
 
+  const mot = motorist as {
+    identity_review_status?: string | null;
+    identity_verified_at?: string | null;
+    gov_id_kind?: string | null;
+    phone_verified?: boolean | null;
+    nin_verified?: boolean | null;
+    bvn_verified?: boolean | null;
+  } | null;
+
   return apiOk({
     source: "supabase",
     profile,
     pro: safePro,
+    /** Safe motorist identity flags for dual-role Care approval sync */
+    motorist: mot
+      ? {
+          identity_review_status: mot.identity_review_status ?? null,
+          identity_verified_at: mot.identity_verified_at ?? null,
+          gov_id_kind: mot.gov_id_kind ?? null,
+          phone_verified: Boolean(mot.phone_verified),
+          nin_verified: Boolean(mot.nin_verified),
+          bvn_verified: Boolean(mot.bvn_verified),
+        }
+      : null,
   });
 }
 

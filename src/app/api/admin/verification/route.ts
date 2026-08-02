@@ -366,14 +366,20 @@ export async function PATCH(req: Request) {
     }
 
     if (action === "pro_t2_approve") {
+      const now = new Date().toISOString();
       const { error } = await supabase
         .from("repair_pro_profiles")
         .update({
           nin_verified: true,
           bvn_verified: true,
           verified: true,
+          gov_id_review_status: "approved",
+          gov_id_reviewed_at: now,
+          status: "approved",
           visibility_tier: 2,
           is_new_artisan: true,
+          tier2_approved_at: now,
+          updated_at: now,
         })
         .eq("user_id", userId);
       if (error) return apiFail(error.message, 500);
