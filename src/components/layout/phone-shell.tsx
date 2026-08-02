@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
+import { PostSwitchPhoneOtpGate } from "@/components/auth/post-switch-phone-otp-gate";
 import { AcceptTripPopup } from "@/components/home/accept-trip-popup";
 import { IncomingJobPopup } from "@/components/home/incoming-job-popup";
 import { MotoristReleasePayGate } from "@/components/jobs/motorist-release-pay-gate";
@@ -223,6 +224,7 @@ export function PhoneShell({
         >
           <DeletionBanner />
           {children}
+          <PostSwitchPhoneOtpGate />
           <AcceptTripPopup />
           <IncomingJobPopup />
           <MotoristReleasePayGate />

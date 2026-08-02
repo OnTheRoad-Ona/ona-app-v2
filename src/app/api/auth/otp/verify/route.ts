@@ -264,10 +264,18 @@ export async function POST(req: Request) {
         updated_at: ts,
       })
       .eq("id", profileRow.id);
-    // Admin Care Tier 1 badge reads motorist_profiles.phone_verified
+    // Side-tables used by Care + artisan tier UI
     try {
       await supabase
         .from("motorist_profiles")
+        .update({ phone_verified: true, phone_verified_at: ts })
+        .eq("user_id", profileRow.id);
+    } catch {
+      /* optional columns */
+    }
+    try {
+      await supabase
+        .from("repair_pro_profiles")
         .update({ phone_verified: true, phone_verified_at: ts })
         .eq("user_id", profileRow.id);
     } catch {

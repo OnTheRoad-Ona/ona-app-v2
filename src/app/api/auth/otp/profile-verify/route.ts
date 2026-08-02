@@ -3,6 +3,10 @@ import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { normalizeNgPhone } from "@/lib/server/africastalking";
 import { emailOtpKey, isDemoOtp, isDemoOtpAllowed } from "@/lib/auth/demo-otp";
+import {
+  phoneOrFilter,
+  phonesMatch,
+} from "@/lib/server/phone-match";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 
@@ -21,9 +25,53 @@ function hashCode(dest: string, code: string): string {
     .digest("hex");
 }
 
+/** Mark profiles + motorist + pro side-tables phone verified for this identity. */
+async function markPhoneVerified(
+  supabase: ReturnType<typeof createServiceSupabase>,
+  destPhone: string
+) {
+  const ts = new Date().toISOString();
+  const { data: found } = await supabase
+    .from("profiles")
+    .select("id, phone")
+    .eq("is_active", true)
+    .or(phoneOrFilter(destPhone))
+    .limit(25);
+  const list = (found || []) as { id: string; phone?: string | null }[];
+  const row = list.find((p) => phonesMatch(p.phone, destPhone)) || null;
+  if (!row?.id) return;
+
+  await supabase
+    .from("profiles")
+    .update({
+      phone_verified: true,
+      phone_verified_at: ts,
+      updated_at: ts,
+    })
+    .eq("id", row.id);
+
+  try {
+    await supabase
+      .from("motorist_profiles")
+      .update({ phone_verified: true, phone_verified_at: ts })
+      .eq("user_id", row.id);
+  } catch {
+    /* optional columns */
+  }
+  try {
+    await supabase
+      .from("repair_pro_profiles")
+      .update({ phone_verified: true, phone_verified_at: ts })
+      .eq("user_id", row.id);
+  } catch {
+    /* optional columns */
+  }
+}
+
 /**
- * Verify OTP for profile changes (NOT sign-in).
- * Validates the code against phone_otps table without creating a session.
+ * Verify OTP for profile changes / post-switch re-OTP (NOT a new sign-in session).
+ * Validates against phone_otps; demo 336699 when isDemoOtpAllowed().
+ * On phone success, sets profiles + side-table phone_verified.
  */
 export async function POST(req: Request) {
   if (!isSupabaseAdminConfigured()) {
@@ -48,13 +96,13 @@ export async function POST(req: Request) {
   }
 
   const supabase = createServiceSupabase();
-  const dest = channel === "phone"
-    ? normalizeNgPhone(parsed.data.target)
-    : emailOtpKey(parsed.data.target.trim().toLowerCase());
+  const dest =
+    channel === "phone"
+      ? normalizeNgPhone(parsed.data.target)
+      : emailOtpKey(parsed.data.target.trim().toLowerCase());
 
   if (!dest) return apiFail("Invalid target", 400);
 
-  // Demo code 336699 only works outside production
   const demoOk = isDemoOtp(codeClean) && isDemoOtpAllowed();
   if (demoOk) {
     await supabase
@@ -62,6 +110,9 @@ export async function POST(req: Request) {
       .update({ consumed_at: new Date().toISOString() })
       .eq("phone", dest)
       .is("consumed_at", null);
+    if (channel === "phone") {
+      await markPhoneVerified(supabase, dest);
+    }
     return apiOk({ verified: true, demoUsed: true });
   }
 
@@ -112,6 +163,10 @@ export async function POST(req: Request) {
     .from("phone_otps")
     .update({ consumed_at: new Date().toISOString() })
     .eq("id", otp.id);
+
+  if (channel === "phone") {
+    await markPhoneVerified(supabase, dest);
+  }
 
   return apiOk({ verified: true, demoUsed: false });
 }

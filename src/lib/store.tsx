@@ -293,6 +293,15 @@ interface AppState {
     type: AccountType
   ) => Promise<null | "needs_signup" | "needs_login" | string>;
   /**
+   * After Tap to Switch: must re-enter phone OTP before using the new role.
+   * Cleared only by completePostSwitchPhoneOtp (not by switch payload alone).
+   */
+  postSwitchPhoneOtpRequired: boolean;
+  /** Send OTP for post-switch re-verify (uses registered phone). */
+  sendPostSwitchPhoneOtp: () => Promise<string | null>;
+  /** Verify post-switch OTP (profile-verify / demo). Returns error or null. */
+  completePostSwitchPhoneOtp: (code: string) => Promise<string | null>;
+  /**
    * Log in with email + password against the dual vault.
    * Optionally prefer a specific account type when both match.
    */
@@ -505,6 +514,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [hasProAccount, setHasProAccount] = useState(false);
   /** Live = visible to motorists; Away = hidden (stays on until pro turns it off) */
   const [proLive, setProLiveState] = useState(false);
+  /** Session-only: force phone OTP after every successful Tap to Switch */
+  const [postSwitchPhoneOtpRequired, setPostSwitchPhoneOtpRequired] =
+    useState(false);
   const [helpingSomeoneElse, setHelpingSomeoneElseState] = useState(false);
   const [helpingSomeoneLabel, setHelpingSomeoneLabel] = useState<string | null>(
     null
@@ -1165,8 +1177,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
         }
       }
-      saveProfileToVault(switched);
-      applySession(switched);
+      // Carry verification flags from server; then force session re-OTP (item 3)
+      const withFlags: UserProfile = {
+        ...switched,
+        phoneVerified: Boolean(switched.phoneVerified),
+      };
+      saveProfileToVault(withFlags);
+      // Session phone gate: must re-enter OTP after switch (DB flags still true)
+      applySession({ ...withFlags, phoneVerified: false });
+      setPostSwitchPhoneOtpRequired(true);
       if (res.hasMotorist != null) setHasMotoristAccount(res.hasMotorist);
       if (res.hasPro != null) setHasProAccount(res.hasPro);
       // Always Away after a role switch — pro must tap Live again
@@ -1304,6 +1323,67 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const res = await backendSendPhoneOtp(phone);
     return res.error;
   }, []);
+
+  const sendPostSwitchPhoneOtp = useCallback(async (): Promise<string | null> => {
+    const phone = (userProfile?.phone || "").trim();
+    if (!phone) return "No phone on this account. Add a phone in Settings first.";
+    if (!isAppBackendOnline()) return "Server is unavailable.";
+    const res = await backendSendPhoneOtp(phone);
+    return res.error;
+  }, [userProfile?.phone]);
+
+  const completePostSwitchPhoneOtp = useCallback(
+    async (code: string): Promise<string | null> => {
+      const dig = code.replace(/\D/g, "");
+      if (dig.length < 4) return "Enter the 6-digit code.";
+      const phone = (userProfile?.phone || "").trim();
+      if (!phone) return "No phone on this account.";
+      if (!isAppBackendOnline()) {
+        // Offline fallback: demo OTP only when allowed
+        const { isDemoOtp, isDemoOtpAllowed } = await import(
+          "@/lib/auth/demo-otp"
+        );
+        if (isDemoOtp(dig) && isDemoOtpAllowed()) {
+          if (userProfile) {
+            const next = { ...userProfile, phoneVerified: true };
+            saveProfileToVault(next);
+            applySession(next);
+          }
+          setPostSwitchPhoneOtpRequired(false);
+          return null;
+        }
+        return "Server is unavailable.";
+      }
+      try {
+        const r = await fetch("/api/auth/otp/profile-verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            channel: "phone",
+            target: phone,
+            code: dig,
+          }),
+        });
+        const json = (await r.json().catch(() => null)) as {
+          ok?: boolean;
+          error?: { message?: string };
+        } | null;
+        if (!json?.ok) {
+          return json?.error?.message || "Incorrect code. Try again.";
+        }
+      } catch {
+        return "Could not verify code. Check network and try again.";
+      }
+      if (userProfile) {
+        const next = { ...userProfile, phoneVerified: true };
+        saveProfileToVault(next);
+        applySession(next);
+      }
+      setPostSwitchPhoneOtpRequired(false);
+      return null;
+    },
+    [userProfile, applySession]
+  );
 
   /** Send OTP to phone or email. Returns error string, or null on success (message in second channel via throw pattern — we return null and caller uses info). */
   const sendLoginOtp = useCallback(
@@ -2104,6 +2184,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAccountType(null);
     setPrimaryAccountType(null);
     setProLiveState(false);
+    setPostSwitchPhoneOtpRequired(false);
     setDisplayName("Guest");
     setUserProfile(null);
     setCloudTechs([]);
@@ -3312,6 +3393,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       helpingSomeoneLabel,
       setHelpingSomeoneElse,
       switchAccount,
+      postSwitchPhoneOtpRequired,
+      sendPostSwitchPhoneOtp,
+      completePostSwitchPhoneOtp,
       signInWithPassword,
       sendPhoneOtp,
       sendLoginOtp,
@@ -3387,6 +3471,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       helpingSomeoneLabel,
       setHelpingSomeoneElse,
       switchAccount,
+      postSwitchPhoneOtpRequired,
+      sendPostSwitchPhoneOtp,
+      completePostSwitchPhoneOtp,
       signInWithPassword,
       sendPhoneOtp,
       sendLoginOtp,

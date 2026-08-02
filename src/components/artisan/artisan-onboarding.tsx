@@ -254,6 +254,14 @@ export function ArtisanOnboarding({
     if (fresh) next = fresh;
 
     let dirty = false;
+    // Unify with server/app identity phone flag (same as Customer Tier 1)
+    if (userProfile?.phoneVerified && !next.tiers.tier1_phone) {
+      next = {
+        ...next,
+        tiers: { ...next.tiers, tier1_phone: true },
+      };
+      dirty = true;
+    }
     // Force primary trade from signup when known (lock)
     if (primary && next.trade.service !== primary) {
       next = {
@@ -637,12 +645,40 @@ export function ArtisanOnboarding({
     setStep(STEPS[Math.min(STEPS.length - 1, stepIndex + 1)].id);
   };
 
-  const sendOtp = () => {
+  const sendOtp = async () => {
     if (!profile?.phone?.trim()) {
       setErr("Enter your phone number first.");
       return;
     }
-    const res = sendArtisanOtp(profile.phone.trim());
+    const phone = profile.phone.trim();
+    // Server OTP (login path) so 336699 + phone_verified land on profiles
+    try {
+      const r = await fetch("/api/auth/otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel: "phone", target: phone }),
+      });
+      const json = (await r.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: { message?: string };
+      } | null;
+      if (json?.ok) {
+        // Keep local demo session in sync for offline/demo
+        sendArtisanOtp(phone);
+        setOtpSent(true);
+        setOtp("");
+        setMsg("OTP sent. Enter the code (demo 336699 when enabled).");
+        setErr(null);
+        return;
+      }
+      // Fall through to local if server rejects unregistered mid-signup
+      if (json?.error?.message) {
+        /* try local */
+      }
+    } catch {
+      /* offline → local */
+    }
+    const res = sendArtisanOtp(phone);
     if (!res.ok) {
       setErr(res.error);
       return;
@@ -655,20 +691,51 @@ export function ArtisanOnboarding({
     setErr(null);
   };
 
-  const verifyOtp = () => {
+  const verifyOtp = async () => {
     if (!profile) return;
-    const res = verifyArtisanOtp(profile.phone.trim(), otp);
-    if (!res.ok) {
-      setErr(res.error);
-      return;
+    const phone = profile.phone.trim();
+    // Prefer server profile-verify so phone_verified is unified with Customer
+    try {
+      const r = await fetch("/api/auth/otp/profile-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channel: "phone",
+          target: phone,
+          code: otp,
+        }),
+      });
+      const json = (await r.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: { message?: string };
+      } | null;
+      if (json?.ok) {
+        verifyArtisanOtp(phone, otp); // clear local session if any
+        patch({
+          tiers: { ...profile.tiers, tier1_phone: true },
+        });
+        updateUserProfile({ phoneVerified: true });
+        setMsg("Phone verified. Tier 1 complete. Next: add your bank account.");
+        setErr(null);
+        return;
+      }
+      // If server says wrong code, still try local demo path
+      const local = verifyArtisanOtp(phone, otp);
+      if (!local.ok) {
+        setErr(json?.error?.message || local.error);
+        return;
+      }
+    } catch {
+      const res = verifyArtisanOtp(phone, otp);
+      if (!res.ok) {
+        setErr(res.error);
+        return;
+      }
     }
     patch({
       tiers: { ...profile.tiers, tier1_phone: true },
     });
-    // Mirror Tier 1 onto app profile so bank gate + refunds/payouts unlock rules apply
-    if (userProfile && !userProfile.phoneVerified) {
-      updateUserProfile({ phoneVerified: true });
-    }
+    updateUserProfile({ phoneVerified: true });
     setMsg("Phone verified. Tier 1 complete. Next: add your bank account.");
     setErr(null);
   };
@@ -1249,7 +1316,7 @@ export function ArtisanOnboarding({
               <>
                 <button
                   type="button"
-                  onClick={sendOtp}
+                  onClick={() => void sendOtp()}
                   className="h-10 w-full rounded-md border-0 bg-[#323231] text-[13px] font-bold text-white"
                 >
                   {otpSent ? "Resend OTP" : "Send OTP"}
@@ -1267,7 +1334,7 @@ export function ArtisanOnboarding({
                     />
                     <button
                       type="button"
-                      onClick={verifyOtp}
+                      onClick={() => void verifyOtp()}
                       disabled={otp.length !== 6}
                       className="h-10 shrink-0 rounded-md border-0 bg-[#FF6B35] px-4 text-[13px] font-bold text-white disabled:opacity-50"
                     >

@@ -17,7 +17,7 @@ import {
   syncPayoutAcrossRoles,
 } from "@/lib/server/identity/identity-sync";
 import type { ProfileRow, RepairProRow } from "@/lib/supabase/types";
-import type { AccountType, ProService } from "@/lib/types";
+import type { AccountType, ProService, UserProfile } from "@/lib/types";
 import { isProService } from "@/lib/services";
 
 export const runtime = "nodejs";
@@ -164,6 +164,8 @@ export async function POST(req: Request) {
     serviceRadiusKm?: number;
     ninVerified?: boolean;
     bvnVerified?: boolean;
+    phoneVerified?: boolean;
+    docsStatus?: UserProfile["docsStatus"];
     bankName?: string;
     bankAccountName?: string;
     bankAccountNumber?: string;
@@ -182,6 +184,7 @@ export async function POST(req: Request) {
     vehicle_year?: string | null;
     nin_verified?: boolean;
     bvn_verified?: boolean;
+    phone_verified?: boolean;
     bank_name?: string | null;
     bank_account_name?: string | null;
     bank_account_number?: string | null;
@@ -192,9 +195,19 @@ export async function POST(req: Request) {
     bank_account_name?: string | null;
     bank_account_number?: string | null;
     bank_code?: string | null;
+    phone_verified?: boolean;
+    docs_status?: string | null;
   } | null;
 
+  // Shared identity phone flag (must survive Tap to Switch)
+  const phoneVerified = Boolean(
+    (profileRow as { phone_verified?: boolean }).phone_verified ||
+      motRow?.phone_verified ||
+      proBank?.phone_verified
+  );
+
   if (accountType === "professional") {
+    const ds = proBank?.docs_status;
     extras = {
       services:
         (pr?.services as ProService[])?.filter(isProService) ||
@@ -207,6 +220,14 @@ export async function POST(req: Request) {
       serviceRadiusKm: pr?.service_radius_km,
       ninVerified: pr?.nin_verified,
       bvnVerified: pr?.bvn_verified,
+      phoneVerified,
+      docsStatus:
+        ds === "none" ||
+        ds === "under_review" ||
+        ds === "approved" ||
+        ds === "rejected"
+          ? ds
+          : undefined,
       // Prefer pro bank; fall back to customer bank on same login
       bankName: proBank?.bank_name || motRow?.bank_name || undefined,
       bankAccountName:
@@ -224,6 +245,7 @@ export async function POST(req: Request) {
       vehicleYear: motRow?.vehicle_year || undefined,
       ninVerified: motRow?.nin_verified,
       bvnVerified: motRow?.bvn_verified,
+      phoneVerified,
       bankName: motRow?.bank_name || proBank?.bank_name || undefined,
       bankAccountName:
         motRow?.bank_account_name || proBank?.bank_account_name || undefined,
