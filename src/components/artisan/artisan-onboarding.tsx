@@ -326,18 +326,14 @@ export function ArtisanOnboarding({
     if (dirty) saveArtisanProfile(next);
     setProfile(next);
 
-    // Server is truth for Care approval — single module (authFetch + dual-role)
     const syncFromServer = async () => {
       const result = await syncArtisanCareStatus(userId, {
         local: getArtisanProfile(userId) || next,
       });
       if (cancelled) return;
       if (!result.ok) {
-        // Soft notice only after auth failure (silent offline otherwise)
         if (result.authFailed) {
-          setErr(
-            "Couldn’t refresh verification status. Stay signed in and try again."
-          );
+          setErr("Sign in again to refresh ID status.");
         }
         return;
       }
@@ -351,7 +347,6 @@ export function ArtisanOnboarding({
     };
 
     void syncFromServer();
-    // Poll while page open so approval flips without leaving the screen
     const pollId = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void syncFromServer();

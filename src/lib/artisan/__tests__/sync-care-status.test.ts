@@ -65,7 +65,7 @@ describe("isServerT2Approved", () => {
 });
 
 describe("resolveGovIdReviewFromServer", () => {
-  it("server approved overwrites local submitted (the bug we fixed forever)", () => {
+  it("server approved overwrites local submitted", () => {
     expect(
       resolveGovIdReviewFromServer(
         { gov_id_review_status: "approved" },

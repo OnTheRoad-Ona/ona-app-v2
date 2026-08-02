@@ -1,12 +1,6 @@
 /**
- * Forever rule: Care / admin verification status is server-owned.
- *
- * - Client local draft is a cache only.
- * - Always load with authFetch (Bearer) — never plain fetch on requireUser routes.
- * - Dual-role: Care may approve Customer (motorist) OR Pro (repair_pro) — both count.
- * - When server says approved, local "submitted" is always overwritten.
- *
- * All verification UI (onboarding, sheet, dashboard) must use this module.
+ * Care ID status: server wins. Use syncArtisanCareStatus() only (authFetch + dual-role).
+ * See CARE_STATUS_SYNC.md.
  */
 
 import { authFetch } from "@/lib/api-auth-headers";
@@ -19,7 +13,6 @@ import type {
   IdentityReviewStatus,
 } from "@/lib/artisan/types";
 
-/** Slim pro row fields used for Care → app status */
 export type CareProSnapshot = {
   status?: string | null;
   pipeline_status?: string | null;
@@ -37,7 +30,6 @@ export type CareProSnapshot = {
   go_live_window_ends_at?: string | null;
 };
 
-/** Slim motorist identity (dual-role Care path) */
 export type CareMotoristSnapshot = {
   identity_review_status?: string | null;
   identity_verified_at?: string | null;
@@ -64,7 +56,7 @@ function asStatus(raw: string | null | undefined): string {
   return String(raw || "none").toLowerCase();
 }
 
-/** Pure: is Tier 2 Care-approved from either side of dual role? */
+/** True if Care approved T2 on Pro or Customer side. */
 export function isServerT2Approved(
   pro: CareProSnapshot | null | undefined,
   motorist: CareMotoristSnapshot | null | undefined
@@ -81,7 +73,7 @@ export function isServerT2Approved(
   );
 }
 
-/** Pure: resolve gov ID review chip from server (server wins over local submitted). */
+/** Map server fields to local review status. */
 export function resolveGovIdReviewFromServer(
   pro: CareProSnapshot | null | undefined,
   motorist: CareMotoristSnapshot | null | undefined,
@@ -93,18 +85,13 @@ export function resolveGovIdReviewFromServer(
   if (gov === "rejected" || motId === "rejected") return "rejected";
   if (gov === "submitted" || motId === "submitted") return "submitted";
   if (gov === "none" && motId === "none" && local === "submitted") {
-    // Server cleared submitted — unlock
     return "none";
   }
-  // If local was submitted but server has no signal, keep local only when server empty
   if (!pro && !motorist) return local || "none";
   return (local as IdentityReviewStatus) || "none";
 }
 
-/**
- * Pure merge: server Care status onto local artisan draft.
- * Approved always overwrites local "submitted".
- */
+/** Merge server Care status onto local draft (approved overwrites submitted). */
 export function applyCareServerToLocalDraft(
   local: ArtisanVerificationProfile,
   snapshot: CareServerSnapshot
@@ -172,7 +159,6 @@ export function applyCareServerToLocalDraft(
         ...merged,
         status: fullyApproved ? "approved" : merged.status,
         rejectReason: fullyApproved ? null : merged.rejectReason,
-        // FOREVER: server approved always replaces local submitted
         govIdReviewStatus: "approved",
         ninReviewStatus:
           Boolean(pro?.nin_verified) ||
@@ -288,7 +274,6 @@ export function applyCareServerToLocalDraft(
     mot,
     merged.govIdReviewStatus
   );
-  // Hard guarantee: never leave submitted when server says approved
   if (t2Approved && merged.govIdReviewStatus !== "approved") {
     merged = {
       ...merged,
@@ -310,10 +295,7 @@ export function applyCareServerToLocalDraft(
   };
 }
 
-/**
- * Authenticated load of Care-facing profile status.
- * MUST use authFetch — plain fetch returns 401 and freezes UI on "in review".
- */
+/** Load Care status with Bearer auth. */
 export async function loadArtisanServerProfile(
   userId: string
 ): Promise<
@@ -374,10 +356,7 @@ export type SyncCareStatusResult =
       errorMessage: string;
     };
 
-/**
- * Full pipeline: authFetch server → merge onto local draft → save if changed.
- * Call on mount + poll from verification UI and pro dashboard.
- */
+/** Load server status, apply to local draft, save if changed. */
 export async function syncArtisanCareStatus(
   userId: string,
   opts?: { local?: ArtisanVerificationProfile | null }
@@ -444,5 +423,4 @@ export async function syncArtisanCareStatus(
   }
 }
 
-/** Default poll interval for Care approval (ms). */
 export const CARE_STATUS_POLL_MS = 4000;

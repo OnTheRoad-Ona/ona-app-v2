@@ -245,18 +245,16 @@ export default function TechnicianDashboardPage() {
       return;
     }
 
-    // Hydrate + poll Care approval via single forever sync module
     let cancelled = false;
-    let pollMs = 4000;
     const sync = async () => {
       try {
-        const { syncArtisanCareStatus, CARE_STATUS_POLL_MS } = await import(
+        const { syncArtisanCareStatus } = await import(
           "@/lib/artisan/sync-care-status"
         );
-        pollMs = CARE_STATUS_POLL_MS;
         const result = await syncArtisanCareStatus(backendUserId);
-        if (cancelled || !result.ok || !result.profile) return;
-        setArtisan(result.profile);
+        if (!cancelled && result.ok && result.profile) {
+          setArtisan(result.profile);
+        }
       } catch {
         /* offline */
       }
@@ -265,7 +263,7 @@ export default function TechnicianDashboardPage() {
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void sync();
-    }, pollMs);
+    }, 4000);
     return () => {
       cancelled = true;
       window.clearInterval(poll);
