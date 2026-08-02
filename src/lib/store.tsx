@@ -82,6 +82,7 @@ import { getArtisanProfile } from "@/lib/artisan/local-store";
 import {
   isCustomerToProDualPath,
   isProSwitchMandatoryOnboardingDone,
+  clearProSetupSheetState,
   readProOnboardingSheetFlag,
   writeProOnboardingSheetFlag,
 } from "@/lib/pro-switch-onboarding";
@@ -884,7 +885,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
     if (!dual) return;
     const artisan = backendUserId ? getArtisanProfile(backendUserId) : null;
-    // Dual C→Pro: force lower panel until Care-approved T2
+    // Dual incomplete: keep sheet available (pill); auto-expand throttled to 30m
     const incomplete = !isProSwitchMandatoryOnboardingDone(
       userProfile,
       artisan
@@ -2281,6 +2282,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Server-side Live OFF + session clear (prevents ghost online / previous pro)
     void backendLogout();
 
+    const uid = backendUserId;
     setBackendUserId(null);
     setIsAuthenticated(false);
     setAccountType(null);
@@ -2293,6 +2295,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCloudTechs([]);
     // Keep dual vault so both accounts remain for future login / switch after re-auth
     try {
+      clearProSetupSheetState(uid);
       localStorage.setItem("ona-pro-live", "0");
       localStorage.removeItem("ona-pro-live");
       localStorage.removeItem(AUTH_KEY);
@@ -2306,7 +2309,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [backendUserId]);
 
   /** One professional skill only — ignore adds beyond the first. */
   const addProService = useCallback((service: ProService) => {

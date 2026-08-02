@@ -10,7 +10,14 @@ function JobPageInner() {
   const params = useParams();
   const id = String(params?.id || "");
   const router = useRouter();
-  const { theme, userProfile, accountType, backendUserId } = useApp();
+  const {
+    theme,
+    userProfile,
+    accountType,
+    backendUserId,
+    authReady,
+    isAuthenticated,
+  } = useApp();
   const isLight = theme === "light";
 
   const actorId = useMemo(
@@ -32,7 +39,7 @@ function JobPageInner() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!id || !actorId) return;
+    if (!id || !actorId || !authReady || !isAuthenticated) return;
     void (async () => {
       const res = await apiGetJob(id);
       if (cancelled) return;
@@ -55,7 +62,7 @@ function JobPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [id, actorId, accountType]);
+  }, [id, actorId, accountType, authReady, isAuthenticated, router]);
 
   if (!id) {
     return (

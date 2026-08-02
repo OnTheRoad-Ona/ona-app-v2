@@ -132,6 +132,8 @@ export function JobFlowScreen({
     visibleMessageThreads,
     userProfile,
     accountType,
+    authReady,
+    isAuthenticated,
   } = useApp();
   const [job, setJob] = useState<JobRecord | null>(null);
   const jobRef = useRef<JobRecord | null>(null);
@@ -336,6 +338,7 @@ export function JobFlowScreen({
 
   // Client backup: sweep overdue jobs + retry PENDING_SETTLEMENT payouts while open
   useEffect(() => {
+    if (!authReady || !isAuthenticated) return;
     let cancelled = false;
     const pendingPayout =
       job?.status === "satisfied" ||
@@ -366,6 +369,8 @@ export function JobFlowScreen({
     load,
     job?.status,
     job?.escrowStatus,
+    authReady,
+    isAuthenticated,
   ]);
 
   // When job flips to completed for customer, force satisfaction UI + notify
@@ -408,8 +413,14 @@ export function JobFlowScreen({
     }
   }, [job?.status, job?.id, job?.motoristId, viewer, actorId, router]);
 
-  // Poll job state; faster while trip active / awaiting satisfaction
+  // Poll job state; faster while trip active / awaiting satisfaction.
+  // Wait for authReady so we never hit /api/jobs with no Bearer after create→navigate.
   useEffect(() => {
+    if (!authReady) return;
+    if (!isAuthenticated) {
+      setErr("Please sign in to view this job.");
+      return;
+    }
     let cancelled = false;
     const tick = async () => {
       if (cancelled) return;
@@ -437,7 +448,7 @@ export function JobFlowScreen({
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [load, job?.status]);
+  }, [load, job?.status, authReady, isAuthenticated]);
 
   /** My jobs list — stay on open negotiation without cancelling */
   const goJobsList = useCallback(() => {

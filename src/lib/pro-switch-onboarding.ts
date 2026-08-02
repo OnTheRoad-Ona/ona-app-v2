@@ -21,6 +21,9 @@ import type { UserProfile } from "@/lib/types";
 
 const SHEET_FLAG_PREFIX = "ona-pro-onboarding-sheet:";
 const SETUP_STARTED_PREFIX = "ona-pro-setup-started:";
+/** Last auto-expand timestamp (ms) — throttle forced open to 30 min */
+const LAST_EXPAND_PREFIX = "ona-pro-setup-last-expand:";
+export const PRO_SETUP_AUTO_EXPAND_MS = 30 * 60 * 1000;
 
 /** Customer Tier 1 = phone OTP verified on identity */
 export function customerHasT1(
@@ -243,5 +246,52 @@ export function readProSetupStarted(userId: string | null | undefined): boolean 
     return localStorage.getItem(SETUP_STARTED_PREFIX + userId) === "1";
   } catch {
     return false;
+  }
+}
+
+export function readProSetupLastExpandAt(
+  userId: string | null | undefined
+): number {
+  if (!userId || typeof window === "undefined") return 0;
+  try {
+    const n = Number(localStorage.getItem(LAST_EXPAND_PREFIX + userId) || "0");
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function writeProSetupLastExpandAt(
+  userId: string | null | undefined,
+  atMs: number = Date.now()
+): void {
+  if (!userId || typeof window === "undefined") return;
+  try {
+    localStorage.setItem(LAST_EXPAND_PREFIX + userId, String(atMs));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** True if we may force-open the sheet (first time or ≥30 min since last auto-expand). */
+export function canAutoExpandProSetup(
+  userId: string | null | undefined,
+  nowMs: number = Date.now()
+): boolean {
+  const last = readProSetupLastExpandAt(userId);
+  if (!last) return true;
+  return nowMs - last >= PRO_SETUP_AUTO_EXPAND_MS;
+}
+
+/** Logout / session end — no ghost verification panel. */
+export function clearProSetupSheetState(
+  userId: string | null | undefined
+): void {
+  if (!userId || typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(SHEET_FLAG_PREFIX + userId);
+    localStorage.removeItem(LAST_EXPAND_PREFIX + userId);
+  } catch {
+    /* ignore */
   }
 }

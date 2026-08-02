@@ -24,7 +24,11 @@ import {
   shouldToastNotification,
 } from "@/lib/notifications/types";
 import { shouldShowToast } from "@/lib/notifications/quiet-hours";
-import { localSampleNotifications } from "@/lib/notifications/sample-local";
+import {
+  TOAST_MAX_STACK,
+  TOAST_VISIBLE_MS,
+  canAutoShowToast,
+} from "@/lib/notifications/toast-timing";
 import { useApp } from "@/lib/store";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { playAppSound } from "@/lib/sound-tone";
@@ -91,6 +95,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const primed = useRef(false);
   const knownIds = useRef<Set<string>>(new Set());
+  /** Start of current/last auto-toast wave (throttle + pile window). */
+  const lastToastWaveAt = useRef(0);
+  /** Avoid double-toast for same notification id. */
+  const toastedIds = useRef<Set<string>>(new Set());
 
   const role =
     accountType === "professional" ? "professional" : "motorist";
@@ -98,17 +106,39 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const pushToast = useCallback((n: AppNotification) => {
     if (!shouldToastNotification(n)) return;
     if (!shouldShowToast(n.priority)) return;
+    // Never re-toast the same notification row
+    if (toastedIds.current.has(n.id)) return;
+
+    const now = Date.now();
+    const gate = canAutoShowToast(lastToastWaveAt.current, now);
+    if (!gate.allow) {
+      // Still land in center list (caller may have added it) — no popup spam
+      return;
+    }
+
+    if (gate.reason === "new_wave") {
+      lastToastWaveAt.current = now;
+    }
+
+    toastedIds.current.add(n.id);
     const isMessage = n.category === "messages" || n.actionType === "open_chat";
-    const id = `toast-${n.id}-${Date.now()}`;
+    const id = `toast-${n.id}-${now}`;
+    // All toasts in a wave share the same 66s end so the pile clears together
+    const waveStart =
+      gate.reason === "pile" && lastToastWaveAt.current > 0
+        ? lastToastWaveAt.current
+        : now;
+    const expiresAt = waveStart + TOAST_VISIBLE_MS;
+
     setToasts((prev) =>
       [
         {
           id,
           notification: n,
-          expiresAt: Date.now() + 2000,
+          expiresAt,
         },
         ...prev,
-      ].slice(0, 4)
+      ].slice(0, TOAST_MAX_STACK)
     );
     if (isMessage) {
       playAppSound("success_soft");
@@ -154,6 +184,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     primed.current = false;
     knownIds.current = new Set();
+    toastedIds.current = new Set();
+    lastToastWaveAt.current = 0;
+    setToasts([]);
     void refresh();
     // Depend on session identity only — not `refresh` fn identity (avoids fetch storms)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -229,12 +262,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     };
   }, [backendUserId, isAuthenticated, pushToast]);
 
-  // Auto-dismiss non-sticky toasts
+  // Auto-dismiss after 66s (poll often so hide is on-time, not ~5s late)
   useEffect(() => {
     const t = window.setInterval(() => {
       const now = Date.now();
-      setToasts((prev) => prev.filter((x) => x.expiresAt > now));
-    }, 5_000);
+      setToasts((prev) => {
+        const next = prev.filter((x) => x.expiresAt > now);
+        return next.length === prev.length ? prev : next;
+      });
+    }, 1_000);
     return () => window.clearInterval(t);
   }, []);
 

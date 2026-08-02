@@ -1,23 +1,36 @@
 "use client";
 
 import type { JobRecord } from "@/lib/jobs/types";
-import { ensureAppSession } from "@/lib/supabase/session";
+import {
+  ensureAppSession,
+  SESSION_RELOGIN_MESSAGE,
+} from "@/lib/supabase/session";
 
 type ApiOk<T> = { ok: true; data: T };
 type ApiErr = { ok: false; message: string };
 
 const FETCH_TIMEOUT = 15_000;
 
-/** Attach Bearer token so job APIs can enforce auth server-side. */
+/**
+ * Attach Bearer token so job APIs can enforce auth server-side.
+ * Waits briefly for storage rehydrate (post-navigation race) and
+ * optionally force-refreshes after a 401.
+ */
 async function authHeaders(
-  extra?: Record<string, string>
+  extra?: Record<string, string>,
+  opts?: { forceRefresh?: boolean }
 ): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    Accept: "application/json",
     ...(extra || {}),
   };
   try {
-    const session = await ensureAppSession();
+    const session = await ensureAppSession({
+      waitForSessionMs: 2500,
+      forceRefresh: opts?.forceRefresh,
+      refreshIfExpiresWithinMs: opts?.forceRefresh ? 3_600_000 : undefined,
+    });
     if (session?.accessToken) {
       headers.Authorization = `Bearer ${session.accessToken}`;
       headers["x-access-token"] = session.accessToken;
@@ -42,6 +55,48 @@ async function fetchWithTimeout(
   }
 }
 
+/**
+ * Job API fetch: attach session, retry once on 401 after forced refresh.
+ * Prevents "Loading job… Not authenticated" right after create → navigate.
+ */
+async function jobFetch(
+  url: string,
+  init: RequestInit = {}
+): Promise<Response> {
+  const headers1 = await authHeaders(
+    init.headers as Record<string, string> | undefined
+  );
+  if (!headers1.Authorization) {
+    // Last chance: forced refresh before failing open without token
+    const headersRetry = await authHeaders(
+      init.headers as Record<string, string> | undefined,
+      { forceRefresh: true }
+    );
+    if (!headersRetry.Authorization) {
+      // Synthetic 401 so parse surfaces a clear message
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: { code: "auth", message: SESSION_RELOGIN_MESSAGE },
+        }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    return fetchWithTimeout(url, { ...init, headers: headersRetry });
+  }
+
+  const res = await fetchWithTimeout(url, { ...init, headers: headers1 });
+  if (res.status !== 401) return res;
+
+  // Token rejected — refresh once and retry
+  const headers2 = await authHeaders(
+    init.headers as Record<string, string> | undefined,
+    { forceRefresh: true }
+  );
+  if (!headers2.Authorization) return res;
+  return fetchWithTimeout(url, { ...init, headers: headers2 });
+}
+
 async function parse<T>(res: Response): Promise<ApiOk<T> | ApiErr> {
   const json = (await res.json().catch(() => null)) as {
     ok?: boolean;
@@ -51,25 +106,36 @@ async function parse<T>(res: Response): Promise<ApiOk<T> | ApiErr> {
   if (!json?.ok) {
     return {
       ok: false,
-      message: json?.error?.message || `Request failed (${res.status})`,
+      message:
+        json?.error?.message ||
+        (res.status === 401
+          ? SESSION_RELOGIN_MESSAGE
+          : `Request failed (${res.status})`),
     };
   }
   return { ok: true, data: json.data as T };
 }
 
 export async function apiCreateJob(body: Record<string, unknown>) {
-  const res = await fetchWithTimeout("/api/jobs", {
+  // Prefer real session user id so motoristId always matches requireUser
+  try {
+    const session = await ensureAppSession({ waitForSessionMs: 2500 });
+    if (session?.userId) {
+      body = { ...body, motoristId: session.userId };
+    }
+  } catch {
+    /* keep caller motoristId */
+  }
+  const res = await jobFetch("/api/jobs", {
     method: "POST",
-    headers: await authHeaders(),
     body: JSON.stringify(body),
   });
   return parse<{ job: JobRecord }>(res);
 }
 
 export async function apiGetJob(id: string) {
-  const res = await fetchWithTimeout(`/api/jobs/${id}`, {
+  const res = await jobFetch(`/api/jobs/${id}`, {
     cache: "no-store",
-    headers: await authHeaders(),
   });
   return parse<{ job: JobRecord }>(res);
 }
@@ -79,10 +145,9 @@ export async function apiGetJob(id: string) {
  * cancel + full refund. Safe no-op when none are overdue.
  */
 export async function apiExpireStaleBookedJobs() {
-  const res = await fetchWithTimeout("/api/jobs/expire-stale", {
+  const res = await jobFetch("/api/jobs/expire-stale", {
     method: "POST",
     cache: "no-store",
-    headers: await authHeaders(),
   });
   return parse<{
     checked: number;
@@ -96,35 +161,10 @@ export async function apiListJobs(
   role: "motorist" | "repair_pro"
 ) {
   const qs = new URLSearchParams({ userId, role });
-  const res = await fetchWithTimeout(`/api/jobs?${qs}`, {
+  const res = await jobFetch(`/api/jobs?${qs}`, {
     cache: "no-store",
-    headers: await authHeaders(),
   });
   return parse<{ jobs: JobRecord[] }>(res);
-}
-
-/** Retry a fetch up to `tries` times with exponential backoff. */
-async function retryFetch(
-  url: string,
-  init: RequestInit,
-  tries = 3
-): Promise<Response> {
-  for (let i = 0; i < tries; i++) {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
-      try {
-        const res = await fetch(url, { ...init, signal: ctrl.signal });
-        if (res.ok || i === tries - 1) return res;
-      } finally {
-        clearTimeout(timer);
-      }
-    } catch {
-      if (i === tries - 1) throw new Error("Network offline");
-    }
-    await new Promise((r) => setTimeout(r, 1000 * 2 ** i));
-  }
-  throw new Error("Retry exhausted");
 }
 
 const OFFER_QUEUE_KEY = "om-pending-offers";
@@ -170,9 +210,8 @@ export async function processPendingOffers(): Promise<void> {
   const remaining: typeof queue = [];
   for (const item of queue) {
     try {
-      const res = await retryFetch(`/api/jobs/${item.jobId}/offer`, {
+      const res = await jobFetch(`/api/jobs/${item.jobId}/offer`, {
         method: "POST",
-        headers: await authHeaders(),
         body: JSON.stringify({
           action: "place",
           side: item.side,
@@ -199,9 +238,8 @@ export async function apiPlaceOffer(input: {
   amountMajor: number;
 }) {
   try {
-    const res = await retryFetch(`/api/jobs/${input.jobId}/offer`, {
+    const res = await jobFetch(`/api/jobs/${input.jobId}/offer`, {
       method: "POST",
-      headers: await authHeaders(),
       body: JSON.stringify({
         action: "place",
         side: input.side,
@@ -225,9 +263,8 @@ export async function apiAcceptOffer(input: {
   side: "repair_pro" | "motorist";
   actorId: string;
 }) {
-  const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/offer`, {
+  const res = await jobFetch(`/api/jobs/${input.jobId}/offer`, {
     method: "POST",
-    headers: await authHeaders(),
     body: JSON.stringify({
       action: "accept",
       side: input.side,
@@ -250,9 +287,8 @@ export async function apiPayJob(input: {
 }) {
   const returnOrigin =
     typeof window !== "undefined" ? window.location.origin : undefined;
-  const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/pay`, {
+  const res = await jobFetch(`/api/jobs/${input.jobId}/pay`, {
     method: "POST",
-    headers: await authHeaders(),
     body: JSON.stringify({
       motoristId: input.motoristId,
       email: input.email,
@@ -300,9 +336,8 @@ export async function apiCancelPaySession(input: {
   jobId: string;
   motoristId: string;
 }) {
-  const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/pay`, {
+  const res = await jobFetch(`/api/jobs/${input.jobId}/pay`, {
     method: "POST",
-    headers: await authHeaders(),
     body: JSON.stringify({
       motoristId: input.motoristId,
       action: "cancel",
@@ -336,9 +371,8 @@ export async function apiTransition(input: {
   proLat?: number;
   proLng?: number;
 }) {
-  const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/transition`, {
+  const res = await jobFetch(`/api/jobs/${input.jobId}/transition`, {
     method: "POST",
-    headers: await authHeaders(),
     body: JSON.stringify(input),
   });
   return parse<{ job: JobRecord }>(res);
@@ -348,9 +382,8 @@ export async function apiDeferJob(
   jobId: string,
   proId: string
 ): Promise<ApiOk<{ job: JobRecord }> | ApiErr> {
-  const res = await fetchWithTimeout(`/api/jobs/${jobId}/defer`, {
+  const res = await jobFetch(`/api/jobs/${jobId}/defer`, {
     method: "POST",
-    headers: await authHeaders(),
     body: JSON.stringify({ proId }),
   });
   return parse<{ job: JobRecord }>(res);
@@ -364,9 +397,8 @@ export async function apiPushTripLocation(input: {
   actor: "motorist" | "repair_pro";
   actorId?: string;
 }) {
-  const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/location`, {
+  const res = await jobFetch(`/api/jobs/${input.jobId}/location`, {
     method: "POST",
-    headers: await authHeaders(),
     body: JSON.stringify({
       lat: input.lat,
       lng: input.lng,
@@ -407,9 +439,8 @@ export async function apiRateJob(input: {
   note?: string;
   actor?: "motorist" | "repair_pro";
 }) {
-  const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/rate`, {
+  const res = await jobFetch(`/api/jobs/${input.jobId}/rate`, {
     method: "POST",
-    headers: await authHeaders(),
     body: JSON.stringify({
       rating: input.rating,
       note: input.note,
@@ -444,9 +475,8 @@ export async function apiOpenDispute(input: {
   description: string;
   media?: unknown[];
 }) {
-  const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/dispute`, {
+  const res = await jobFetch(`/api/jobs/${input.jobId}/dispute`, {
     method: "POST",
-    headers: await authHeaders(),
     body: JSON.stringify({ action: "open", ...input }),
   });
   return parse<{ job: JobRecord }>(res);
@@ -458,9 +488,8 @@ export async function apiOpenAppeal(input: {
   reason: string;
   media?: unknown[];
 }) {
-  const res = await fetchWithTimeout(`/api/jobs/${input.jobId}/appeal`, {
+  const res = await jobFetch(`/api/jobs/${input.jobId}/appeal`, {
     method: "POST",
-    headers: await authHeaders(),
     body: JSON.stringify({ action: "open", ...input }),
   });
   return parse<{ job: JobRecord }>(res);

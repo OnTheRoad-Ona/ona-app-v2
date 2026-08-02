@@ -225,8 +225,26 @@ function RequestInner() {
     setError(null);
     let res;
     try {
+      // Resolve motoristId from live session so it always matches requireUser
+      let motoristId = userId;
+      try {
+        const { ensureAppSession } = await import("@/lib/supabase/session");
+        const session = await ensureAppSession({ waitForSessionMs: 2500 });
+        if (session?.userId) motoristId = session.userId;
+      } catch {
+        /* keep store userId */
+      }
+      if (
+        !motoristId ||
+        motoristId === "motorist-local" ||
+        motoristId === "local-user"
+      ) {
+        setBusy(false);
+        setError("Please sign in again to request a Repair Pro.");
+        return;
+      }
       res = await apiCreateJob({
-        motoristId: userId,
+        motoristId,
         motoristName: userProfile?.fullName || "Customer",
         motoristPhoto: userProfile?.avatarUrl || null,
         motoristVehicle:

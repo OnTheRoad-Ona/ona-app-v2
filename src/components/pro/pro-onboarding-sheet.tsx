@@ -12,9 +12,11 @@ import { ArtisanOnboarding } from "@/components/artisan/artisan-onboarding";
 import { getArtisanProfile, saveArtisanProfile } from "@/lib/artisan/local-store";
 import {
   applyCustomerTiersToArtisan,
+  canAutoExpandProSetup,
   isCustomerToProDualPath,
   isProSwitchMandatoryOnboardingDone,
   proSetupSheetTitle,
+  writeProSetupLastExpandAt,
 } from "@/lib/pro-switch-onboarding";
 import { useApp } from "@/lib/store";
 import { useOverlayGatesReady } from "@/lib/use-overlay-gates-ready";
@@ -112,17 +114,31 @@ export function ProOnboardingSheet() {
     return () => window.clearInterval(t);
   }, [open, recheckDone, tick]);
 
+  // User tapped Continue Verification / Settings — always expand (not throttled)
   useEffect(() => {
-    const onExpand = () => setExpanded(true);
+    const onExpand = () => {
+      setExpanded(true);
+      if (backendUserId) writeProSetupLastExpandAt(backendUserId);
+    };
     window.addEventListener(EXPAND_EVENT, onExpand);
     return () => window.removeEventListener(EXPAND_EVENT, onExpand);
-  }, []);
+  }, [backendUserId]);
 
+  // Auto-expand at most once per 30 minutes (pill stays if collapsed)
   useEffect(() => {
-    if (open) setExpanded(true);
-  }, [open]);
+    if (!open || !backendUserId) return;
+    if (canAutoExpandProSetup(backendUserId)) {
+      setExpanded(true);
+      writeProSetupLastExpandAt(backendUserId);
+    } else {
+      setExpanded(false);
+    }
+  }, [open, backendUserId]);
 
-  const onExpand = useCallback(() => setExpanded(true), []);
+  const onExpand = useCallback(() => {
+    setExpanded(true);
+    // Manual grabber expand does not reset the 30m auto timer
+  }, []);
   const onCollapse = useCallback(() => setExpanded(false), []);
 
   /** Wheel: same idea as customer HomePanel */

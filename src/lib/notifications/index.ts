@@ -57,4 +57,11 @@ export {
   isInQuietHours,
 } from "@/lib/notifications/quiet-hours";
 
+export {
+  TOAST_VISIBLE_MS,
+  TOAST_AUTO_THROTTLE_MS,
+  TOAST_MAX_STACK,
+  canAutoShowToast,
+} from "@/lib/notifications/toast-timing";
+
 export { localSampleNotifications } from "@/lib/notifications/sample-local";

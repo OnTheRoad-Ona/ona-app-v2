@@ -1158,15 +1158,15 @@ button.om-cta-dark-gray:disabled,
   }
 }
 
-/* Notification toasts / center sheet — subtle motion only */
+/* Notification toasts — X-style slide-in + inDrive pile */
 @keyframes om-toast-in {
   from {
     opacity: 0;
-    transform: translateY(-8px);
+    transform: translateY(-14px) scale(0.97);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
