@@ -144,7 +144,13 @@ export async function GET(req: Request) {
           ? "webp"
           : mime.includes("pdf")
             ? "pdf"
-            : "jpg";
+            : mime.includes("mp4")
+              ? "mp4"
+              : mime.includes("webm")
+                ? "webm"
+                : mime.startsWith("video/")
+                  ? "mp4"
+                  : "jpg";
       return new Response(buf, {
         headers: viewHeaders(mime, ext),
       });
@@ -194,7 +200,13 @@ export async function GET(req: Request) {
           ? "webp"
           : ctype.includes("pdf")
             ? "pdf"
-            : "jpg";
+            : ctype.includes("mp4")
+              ? "mp4"
+              : ctype.includes("webm")
+                ? "webm"
+                : ctype.startsWith("video/")
+                  ? "mp4"
+                  : "jpg";
       return new Response(buf, {
         headers: viewHeaders(ctype, ext),
       });

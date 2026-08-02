@@ -29,7 +29,10 @@ import {
 } from "@/components/settings/settings-ui";
 import { useI18n, type MessageKey } from "@/lib/i18n";
 import { getArtisanProfile } from "@/lib/artisan/local-store";
-import { shouldShowProSettingsVerification } from "@/lib/pro-switch-onboarding";
+import {
+  shouldShowProContinueSetup,
+  shouldShowProSettingsVerification,
+} from "@/lib/pro-switch-onboarding";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -113,6 +116,7 @@ export default function SettingsPage() {
     hasMotoristAccount,
     hasProAccount,
     primaryAccountType,
+    setProOnboardingSheetRequired,
   } = useApp();
   const { t } = useI18n();
   const isLight = theme === "light";
@@ -120,6 +124,14 @@ export default function SettingsPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const artisan = backendUserId ? getArtisanProfile(backendUserId) : null;
   const showVerification = shouldShowProSettingsVerification({
+    hasMotoristAccount,
+    hasProAccount,
+    accountType,
+    primaryAccountType,
+    userProfile,
+    artisan,
+  });
+  const showContinueSetup = shouldShowProContinueSetup({
     hasMotoristAccount,
     hasProAccount,
     accountType,
@@ -144,9 +156,13 @@ export default function SettingsPage() {
       <PageHeader
         title={t("settings.title")}
         subtitle={
-          isPro
-            ? t("settings.hub.subtitlePro")
-            : t("settings.hub.subtitleCustomer")
+          hasMotoristAccount && hasProAccount
+            ? `Dual Role · ${
+                isPro ? "Professional Role" : "Customer Role"
+              } active`
+            : isPro
+              ? t("settings.hub.subtitlePro")
+              : t("settings.hub.subtitleCustomer")
         }
         backHref={isPro ? "/dashboard" : "/"}
       />
@@ -157,10 +173,26 @@ export default function SettingsPage() {
         onScroll={() => saveSettingsScroll(scrollRef.current)}
       >
         <div className="space-y-0.5 py-1">
+          {showContinueSetup ? (
+            <SettingsRow
+              first
+              isLight={isLight}
+              icon={BadgeCheck}
+              label="Continue setup"
+              detail="Complete Tier 2 setup for Repair Pro"
+              onClick={() => {
+                rememberScroll();
+                setProOnboardingSheetRequired(true);
+                void import("@/components/pro/pro-onboarding-sheet").then(
+                  (m) => m.requestProOnboardingSheetExpand()
+                );
+              }}
+            />
+          ) : null}
           {HUB_SECTIONS.filter((item) => {
             // Pro: Payments & Payouts lives in the side bar, not Settings
             if (isPro && item.href === "/settings/payments") return false;
-            // C→Pro dual: Verification only after T2 (customer or pro)
+            // Dual C→Pro: Verification only after Care-approved T2
             if (
               item.href === "/settings/verification" &&
               isPro &&
@@ -172,7 +204,7 @@ export default function SettingsPage() {
           }).map((item, i) => (
             <SettingsRow
               key={item.href}
-              first={i === 0}
+              first={!showContinueSetup && i === 0}
               isLight={isLight}
               icon={item.icon}
               label={t(item.labelKey)}

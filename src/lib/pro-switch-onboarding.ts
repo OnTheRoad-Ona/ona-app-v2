@@ -1,19 +1,22 @@
 /**
  * Customer → Repair Pro (Tap to Switch) onboarding rules.
  *
- * - Carry Customer T1 (phone) + T2 (gov ID approved) so Pro is not re-asked.
- * - Force remaining Pro setup in a 60% bottom panel until T2 is satisfied
- *   (from Customer or completed as Pro).
- * - Settings → Verification for dual C→Pro only after T2 is done.
+ * - Carry Customer T1 (phone) + T2 (gov ID Care-approved) so Pro is not re-asked.
+ * - Force remaining Pro setup in a bottom panel until Care-approved T2
+ *   (collapses to a tiny fracture; one tier at a time).
+ * - Settings → Verification for dual C→Pro only after Care approves T2.
+ * - Progress flag persisted per user (localStorage) so sheet returns after refresh.
  */
 
 import type { ArtisanVerificationProfile } from "@/lib/artisan/types";
-import { isGovIdComplete } from "@/lib/artisan/verification-order";
 import {
   isIdentityVerified,
   isPhoneVerified,
 } from "@/lib/verification-gate";
 import type { UserProfile } from "@/lib/types";
+
+const SHEET_FLAG_PREFIX = "ona-pro-onboarding-sheet:";
+const SETUP_STARTED_PREFIX = "ona-pro-setup-started:";
 
 /** Customer Tier 1 = phone OTP verified on identity */
 export function customerHasT1(
@@ -22,7 +25,7 @@ export function customerHasT1(
   return isPhoneVerified(profile);
 }
 
-/** Customer Tier 2 = government ID approved by Care */
+/** Customer Tier 2 = government ID Care-approved only */
 export function customerHasT2(
   profile: UserProfile | null | undefined
 ): boolean {
@@ -31,7 +34,6 @@ export function customerHasT2(
 
 /**
  * Dual-role path: had / has Customer + acting (or switching) as Pro.
- * Used to scope Settings Verification visibility.
  */
 export function isCustomerToProDualPath(opts: {
   hasMotoristAccount: boolean;
@@ -41,7 +43,6 @@ export function isCustomerToProDualPath(opts: {
 }): boolean {
   if (!opts.hasMotoristAccount) return false;
   if (opts.accountType === "professional") return true;
-  // Primary was customer, later added pro
   if (
     opts.hasProAccount &&
     (opts.primaryAccountType === "motorist" || !opts.primaryAccountType)
@@ -51,7 +52,34 @@ export function isCustomerToProDualPath(opts: {
   return opts.hasProAccount && opts.hasMotoristAccount;
 }
 
-/** Whether Pro should see Settings → Verification (C→Pro dual only after T2). */
+/**
+ * Care-approved T2 only (not mere submit). Used for Settings Verification
+ * and for dismissing the mandatory dual onboarding sheet.
+ */
+export function proT2CareApproved(
+  profile: UserProfile | null | undefined,
+  artisan?: Partial<ArtisanVerificationProfile> | null
+): boolean {
+  if (customerHasT2(profile)) return true;
+  if (profile?.identityReviewStatus === "approved") return true;
+  if (
+    artisan?.govIdReviewStatus === "approved" &&
+    Boolean(artisan?.tiers?.tier2_govId)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/** @deprecated prefer proT2CareApproved for product gates */
+export function proT2Satisfied(
+  profile: UserProfile | null | undefined,
+  artisan?: Partial<ArtisanVerificationProfile> | null
+): boolean {
+  return proT2CareApproved(profile, artisan);
+}
+
+/** Whether Pro should see Settings → Verification (dual only after Care T2). */
 export function shouldShowProSettingsVerification(opts: {
   hasMotoristAccount: boolean;
   hasProAccount: boolean;
@@ -61,33 +89,30 @@ export function shouldShowProSettingsVerification(opts: {
   artisan?: Partial<ArtisanVerificationProfile> | null;
 }): boolean {
   const isPro = opts.accountType === "professional";
-  if (!isPro) return true; // Customer uses Verification for their own tiers
+  if (!isPro) return true;
 
   const dual = isCustomerToProDualPath(opts);
   if (!dual) {
-    // Pure Pro signup — keep Verification available for their ladder
+    // Pure Pro — Verification always available
     return true;
   }
-  // Tap-to-switch Customer → Pro: only after T2 done (customer or pro)
-  return proT2Satisfied(opts.userProfile, opts.artisan);
+  return proT2CareApproved(opts.userProfile, opts.artisan);
 }
 
-/** T2 satisfied from Customer identity or Pro artisan gov-id path */
-export function proT2Satisfied(
-  profile: UserProfile | null | undefined,
-  artisan?: Partial<ArtisanVerificationProfile> | null
-): boolean {
-  if (customerHasT2(profile)) return true;
-  if (artisan && isGovIdComplete(artisan)) return true;
-  if (profile?.govIdVerified && profile.identityReviewStatus === "approved") {
-    return true;
-  }
-  // Pro nin/gov flags from switch payload
-  if (profile?.ninVerified && profile?.govIdVerified) return true;
-  return false;
+/** Dual incomplete: show Settings “Continue setup” (not Verification). */
+export function shouldShowProContinueSetup(opts: {
+  hasMotoristAccount: boolean;
+  hasProAccount: boolean;
+  accountType: string | null | undefined;
+  primaryAccountType?: string | null;
+  userProfile: UserProfile | null | undefined;
+  artisan?: Partial<ArtisanVerificationProfile> | null;
+}): boolean {
+  if (opts.accountType !== "professional") return false;
+  if (!isCustomerToProDualPath(opts)) return false;
+  return !proT2CareApproved(opts.userProfile, opts.artisan);
 }
 
-/** T1 satisfied from Customer or artisan phone tier */
 export function proT1Satisfied(
   profile: UserProfile | null | undefined,
   artisan?: Partial<ArtisanVerificationProfile> | null
@@ -97,18 +122,16 @@ export function proT1Satisfied(
   return false;
 }
 
-/**
- * Mandatory bottom-sheet onboarding after C→Pro switch is done when T2 is
- * satisfied (inherited or completed). T3/T4 can continue in Settings later.
- */
+/** Mandatory sheet done = Care-approved T2 (T1 can be inherited). */
 export function isProSwitchMandatoryOnboardingDone(
   profile: UserProfile | null | undefined,
   artisan?: Partial<ArtisanVerificationProfile> | null
 ): boolean {
-  return proT1Satisfied(profile, artisan) && proT2Satisfied(profile, artisan);
+  // T1 still required (phone) before considering dual onboarding complete
+  if (!proT1Satisfied(profile, artisan)) return false;
+  return proT2CareApproved(profile, artisan);
 }
 
-/** Apply Customer T1/T2 onto artisan local profile so UI skips those steps */
 export function applyCustomerTiersToArtisan(
   artisan: ArtisanVerificationProfile,
   profile: UserProfile | null | undefined
@@ -128,4 +151,39 @@ export function applyCustomerTiersToArtisan(
     }
   }
   return next;
+}
+
+export function readProOnboardingSheetFlag(userId: string | null | undefined): boolean {
+  if (!userId || typeof window === "undefined") return false;
+  try {
+    return localStorage.getItem(SHEET_FLAG_PREFIX + userId) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function writeProOnboardingSheetFlag(
+  userId: string | null | undefined,
+  required: boolean
+): void {
+  if (!userId || typeof window === "undefined") return;
+  try {
+    if (required) {
+      localStorage.setItem(SHEET_FLAG_PREFIX + userId, "1");
+      localStorage.setItem(SETUP_STARTED_PREFIX + userId, "1");
+    } else {
+      localStorage.removeItem(SHEET_FLAG_PREFIX + userId);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+export function readProSetupStarted(userId: string | null | undefined): boolean {
+  if (!userId || typeof window === "undefined") return false;
+  try {
+    return localStorage.getItem(SETUP_STARTED_PREFIX + userId) === "1";
+  } catch {
+    return false;
+  }
 }

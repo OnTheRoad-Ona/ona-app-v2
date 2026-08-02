@@ -480,6 +480,21 @@ export function AppMenu({
             >
               {t("menu.useAs")}
             </p>
+            {hasMotoristAccount && hasProAccount ? (
+              <p
+                className={cn(
+                  "mb-1.5 px-2 text-[11px] font-bold",
+                  isLight ? "text-[#FF6B35]" : "text-[#FF6B35]"
+                )}
+              >
+                Dual Role
+                {userProfile?.primaryAccountType === "professional"
+                  ? " · Professional Role first"
+                  : userProfile?.primaryAccountType === "motorist"
+                    ? " · Customer Role first"
+                    : ""}
+              </p>
+            ) : null}
             <div
               className={cn(
                 "grid grid-cols-2 gap-1 rounded-xl p-1",

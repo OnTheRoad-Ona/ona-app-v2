@@ -32,6 +32,12 @@ type MotoristRow = {
   created_at: string;
   gender?: string | null;
   date_of_birth?: string | null;
+  dual_role?: boolean;
+  has_switched?: boolean;
+  first_role?: string | null;
+  current_role?: string | null;
+  last_role_switch_at?: string | null;
+  role_switch_count?: number;
   verifyLevel: "full" | "partial" | "none";
   /** Queue # among unattended pending T2 only */
   queue_number?: number | null;
@@ -67,6 +73,12 @@ type ReviewRow = {
   city: string | null;
   area: string | null;
   avatar_url?: string | null;
+  dual_role?: boolean;
+  has_switched?: boolean;
+  first_role?: string | null;
+  current_role?: string | null;
+  last_role_switch_at?: string | null;
+  role_switch_count?: number;
   address_text?: string | null;
   identity_review_status: string;
   identity_submitted_at: string | null;
@@ -462,6 +474,23 @@ export default function AdminCustomersHubPage() {
                         </td>
                         <td>
                           <strong>{r.full_name}</strong>
+                          {r.dual_role ? (
+                            <span
+                              className="om-admin-flag-resubmit"
+                              style={{
+                                background: "#FF6B35",
+                                color: "#fff",
+                                marginLeft: 6,
+                              }}
+                              title={
+                                r.has_switched
+                                  ? `Switched · first ${r.first_role || "—"} · now ${r.current_role || "—"}`
+                                  : "Holds Customer + Professional roles"
+                              }
+                            >
+                              Dual Role
+                            </span>
+                          ) : null}
                           <div className="om-admin-muted">
                             {[r.city, r.area].filter(Boolean).join(", ") || ""}
                           </div>
@@ -922,6 +951,38 @@ export default function AdminCustomersHubPage() {
                 />
               </div>
               <DetailGrid>
+                <DetailField
+                  label="Dual Role"
+                  value={
+                    selectedReview.dual_role
+                      ? selectedReview.has_switched
+                        ? "Yes · has switched"
+                        : "Yes"
+                      : "No"
+                  }
+                />
+                <DetailField
+                  label="First role"
+                  value={selectedReview.first_role || "—"}
+                />
+                <DetailField
+                  label="Current role"
+                  value={selectedReview.current_role || "—"}
+                />
+                <DetailField
+                  label="Last switch"
+                  value={
+                    selectedReview.last_role_switch_at
+                      ? fmtDate(selectedReview.last_role_switch_at)
+                      : selectedReview.dual_role
+                        ? "Not recorded yet"
+                        : "—"
+                  }
+                />
+                <DetailField
+                  label="Switch count"
+                  value={String(selectedReview.role_switch_count ?? 0)}
+                />
                 <DetailField label="Phone" value={selectedReview.phone} />
                 <DetailField label="Email" value={selectedReview.email} />
                 <DetailField

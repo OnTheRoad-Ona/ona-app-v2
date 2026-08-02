@@ -1,0 +1,9 @@
+◇ injected env (21) from .env.local // tip: ⌘ enable debugging { debug: true }
+◇ injected env (0) from .env // tip: ⌘ suppress logs { quiet: true }
+[synthetic-cleanup] dryRun=false
+[synthetic-cleanup] manifest users: 556
+[synthetic-cleanup] total synthetic ids: 561
+[synthetic-cleanup] deleted 50/561
+[synthetic-cleanup] deleted 100/561
+[synthetic-cleanup] deleted 150/561
+[synthetic-cleanup] deleted 200/561

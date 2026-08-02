@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { UploadInlinePreview } from "@/components/media/upload-inline-preview";
 import { FaceLiveness } from "@/components/profile/face-liveness";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { ARTISAN_TRADE_CATALOG, tradeDef } from "@/lib/artisan/catalog";
@@ -140,6 +141,7 @@ export function ArtisanOnboarding({
   skipT1IfCustomerDone = false,
   skipT2IfCustomerDone = false,
   onMandatoryComplete,
+  embedScrollParentRef,
 }: {
   /** full = post-signup; settings = optional tiers later */
   mode?: "full" | "settings";
@@ -151,6 +153,8 @@ export function ArtisanOnboarding({
   skipT2IfCustomerDone?: boolean;
   /** Called when mandatory T1+T2 (inherited or done) are satisfied */
   onMandatoryComplete?: () => void;
+  /** Sheet swipe: scroll container for “at top → collapse” */
+  embedScrollParentRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -240,6 +244,9 @@ export function ArtisanOnboarding({
   const [tradeLockOpen, setTradeLockOpen] = useState(false);
   /** Soft grey square popup for verification step locks */
   const [gatePopup, setGatePopup] = useState<string | null>(null);
+  /** Custom ID-type menu (list has no border; closed field keeps hairline) */
+  const [idTypeMenuOpen, setIdTypeMenuOpen] = useState(false);
+  const idTypeWrapRef = useRef<HTMLDivElement>(null);
   const skillSectionRef = useRef<HTMLDivElement>(null);
 
   /** Signup primary trade — locked for life of this onboarding/profile */
@@ -916,6 +923,38 @@ export function ArtisanOnboarding({
     setBusy(false);
   };
 
+  // Hooks must run before any early return (Rules of Hooks)
+  const hidePhoneTier =
+    skipT1IfCustomerDone && customerHasT1(userProfile);
+  const hideGovIdTiers =
+    skipT2IfCustomerDone && customerHasT2(userProfile);
+
+  useEffect(() => {
+    if (!onMandatoryComplete || !profile) return;
+    if (isProSwitchMandatoryOnboardingDone(userProfile, profile)) {
+      onMandatoryComplete();
+    }
+  }, [
+    onMandatoryComplete,
+    userProfile,
+    profile,
+    profile?.tiers?.tier1_phone,
+    profile?.tiers?.tier2_govId,
+    profile?.govIdReviewStatus,
+  ]);
+
+  // Close ID type menu on outside click
+  useEffect(() => {
+    if (!idTypeMenuOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!idTypeWrapRef.current?.contains(e.target as Node)) {
+        setIdTypeMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [idTypeMenuOpen]);
+
   if (!profile) {
     return (
       <div
@@ -965,24 +1004,32 @@ export function ArtisanOnboarding({
 
   const trade = tradeDef(profile.trade.service);
 
-  const hidePhoneTier =
-    skipT1IfCustomerDone && customerHasT1(userProfile);
-  const hideGovIdTiers =
-    skipT2IfCustomerDone && customerHasT2(userProfile);
+  const showEmbedT2Form =
+    embedInSheet &&
+    !hideGovIdTiers &&
+    (hidePhoneTier || profile.tiers.tier1_phone);
 
-  // Notify parent sheet when Customer-inherited or local T1+T2 are done
-  useEffect(() => {
-    if (!onMandatoryComplete || !profile) return;
-    if (isProSwitchMandatoryOnboardingDone(userProfile, profile)) {
-      onMandatoryComplete();
-    }
-  }, [
-    onMandatoryComplete,
-    userProfile,
-    profile?.tiers?.tier1_phone,
-    profile?.tiers?.tier2_govId,
-    profile?.govIdReviewStatus,
-  ]);
+  const submitIdLabel =
+    idBusy === "gov" ? (
+      <>
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
+      </>
+    ) : profile.tiers.tier2_govId ||
+      profile.govIdReviewStatus === "approved" ? (
+      <>
+        <Check className="h-3.5 w-3.5" /> ID approved
+      </>
+    ) : profile.govIdReviewStatus === "submitted" ? (
+      "ID currently in review"
+    ) : (
+      "Submit ID for review"
+    );
+
+  const submitIdDisabled =
+    idBusy === "gov" ||
+    profile.tiers.tier2_govId ||
+    profile.govIdReviewStatus === "submitted" ||
+    profile.govIdReviewStatus === "approved";
 
   return (
     <div
@@ -997,17 +1044,7 @@ export function ArtisanOnboarding({
             // Stack previous page when available; else dashboard (pro) / profile
             backHref={mode === "settings" ? "/profile" : "/dashboard"}
           />
-        ) : (
-          <div className="px-3 pb-1 pt-0.5">
-            <p className={cn("text-[11px] font-semibold", muted)}>
-              {hideGovIdTiers
-                ? "Customer ID already verified — finish Pro-only steps"
-                : "Complete remaining verification for Repair Pro"}
-              {" · "}
-              {progress}%
-            </p>
-          </div>
-        )}
+        ) : null}
 
         {needsResubmit ? (
           <div
@@ -1072,13 +1109,18 @@ export function ArtisanOnboarding({
         ) : null}
       </div>
 
-      {/* Scrollable body — must stay scrollable on mobile */}
+      {/* Body: one tier in sheet (panel-contained scroll only); full page scrolls freely */}
       <div
-        className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 pb-4"
+        ref={embedInSheet ? embedScrollParentRef : undefined}
+        className={cn(
+          "min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3",
+          embedInSheet ? "pb-2" : "pb-4"
+        )}
         style={{
           WebkitOverflowScrolling: "touch",
           touchAction: "pan-y",
         }}
+        data-pro-sheet-scroll={embedInSheet ? "1" : undefined}
       >
         {err ? (
           <p className={cn("mb-2 rounded-md px-3 py-2 text-[12px] font-semibold", errBox)}>
@@ -1693,6 +1735,20 @@ export function ArtisanOnboarding({
                 </div>
               ))}
             </div>
+            {profile.portfolio.length > 0 ? (
+              <div className="space-y-2">
+                {profile.portfolio.map((m, i) => (
+                  <UploadInlinePreview
+                    key={`pv-${m.id}`}
+                    url={m.url}
+                    label={`Photo ${i + 1}`}
+                    mime={m.mime}
+                    fileName={m.name}
+                    isLight={isLight}
+                  />
+                ))}
+              </div>
+            ) : null}
           </section>
         )}
 
@@ -1765,61 +1821,99 @@ export function ArtisanOnboarding({
               />
             </label>
             {profile.introVideo ? (
-              <button
-                type="button"
-                onClick={() => patch({ introVideo: null })}
-                className="text-[12px] font-bold text-red-600"
-              >
-                Remove video
-              </button>
+              <div className="space-y-2">
+                <UploadInlinePreview
+                  url={profile.introVideo.url}
+                  label="Intro video"
+                  mime={profile.introVideo.mime}
+                  fileName={profile.introVideo.name}
+                  isLight={isLight}
+                  defaultOpen
+                />
+                <button
+                  type="button"
+                  onClick={() => patch({ introVideo: null })}
+                  className="text-[12px] font-bold text-red-600"
+                >
+                  Remove video
+                </button>
+              </div>
             ) : null}
           </section>
         )}
 
         {/* —— OPTIONAL TIERS 2–4 (strict order) —— */}
         {(step === "optional_tiers" || mode === "settings") && (
-          <section className="space-y-4">
-            <div className={cn("rounded-md px-3 py-2.5 text-[11px] font-medium leading-snug", tipBox)}>
-              <p className="font-bold">Verification order</p>
-              <ol className="mt-1 list-decimal space-y-1 pl-4">
-                <li>Government ID (Tier 2) — submit anytime for review</li>
-                <li>Face liveness (Tier 3) after ID</li>
-                <li>BVN (Tier 3) after ID — with liveness before skill</li>
-                <li>Proof of skill (Tier 4) — upload then submit for review</li>
-              </ol>
-              <p className="mt-2 font-medium">
-                Profile Submit does not require Tier 2–4
-              </p>
-            </div>
-
-            {/* Status strip — complete = submitted or approved / passed */}
-            <div className="flex flex-wrap gap-1.5">
-              {(
-                [
-                  ["Phone", profile.tiers.tier1_phone],
-                  ["Gov ID", isGovIdComplete(profile)],
-                  ["BVN", isBvnComplete(profile)],
-                  ["Liveness", isLivenessComplete(profile)],
-                  ["Skill", isSkillComplete(profile)],
-                ] as const
-              ).map(([label, ok]) => (
-                <span
-                  key={label}
+          <section className={cn(embedInSheet ? "space-y-3" : "space-y-4")}>
+            {/* Lower panel: one tier only. Full page: full order list. */}
+            {embedInSheet ? (
+              <div
+                className={cn(
+                  "rounded-md px-3 py-2 text-[11px] font-medium leading-snug",
+                  tipBox
+                )}
+              >
+                <p className="font-bold">
+                  {hidePhoneTier || profile.tiers.tier1_phone
+                    ? "Tier 2: Government ID"
+                    : "Tier 1: Phone verification"}
+                </p>
+                <p className="mt-0.5">
+                  {hidePhoneTier || profile.tiers.tier1_phone
+                    ? "Submit your ID for Care review. Higher tiers unlock after approval."
+                    : "Verify your phone to unlock Tier 2."}
+                </p>
+              </div>
+            ) : (
+              <>
+                <div
                   className={cn(
-                    "rounded-md px-2 py-1 text-[10px] font-bold",
-                    ok
-                      ? isLight
-                        ? "bg-emerald-100 text-emerald-800"
-                        : "bg-emerald-900/50 text-emerald-300"
-                      : isLight
-                        ? "bg-black/10 text-slate-600"
-                        : "bg-white/[0.08] text-[#a1a1a6]"
+                    "rounded-md px-3 py-2.5 text-[11px] font-medium leading-snug",
+                    tipBox
                   )}
                 >
-                  {ok ? "✓" : "·"} {label}
-                </span>
-              ))}
-            </div>
+                  <p className="font-bold">Verification order</p>
+                  <ol className="mt-1 list-decimal space-y-1 pl-4">
+                    <li>Government ID (Tier 2): submit anytime for review</li>
+                    <li>Face liveness (Tier 3) after ID</li>
+                    <li>BVN (Tier 3) after ID: with liveness before skill</li>
+                    <li>Proof of skill (Tier 4): upload then submit for review</li>
+                  </ol>
+                  <p className="mt-2 font-medium">
+                    Profile Submit does not require Tier 2–4
+                  </p>
+                </div>
+
+                {/* Status strip — complete = submitted or approved / passed */}
+                <div className="flex flex-wrap gap-1.5">
+                  {(
+                    [
+                      ["Phone", profile.tiers.tier1_phone],
+                      ["Gov ID", isGovIdComplete(profile)],
+                      ["BVN", isBvnComplete(profile)],
+                      ["Liveness", isLivenessComplete(profile)],
+                      ["Skill", isSkillComplete(profile)],
+                    ] as const
+                  ).map(([label, ok]) => (
+                    <span
+                      key={label}
+                      className={cn(
+                        "rounded-md px-2 py-1 text-[10px] font-bold",
+                        ok
+                          ? isLight
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-emerald-900/50 text-emerald-300"
+                          : isLight
+                            ? "bg-black/10 text-slate-600"
+                            : "bg-white/[0.08] text-[#a1a1a6]"
+                      )}
+                    >
+                      {ok ? "✓" : "·"} {label}
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
 
             {/* Soft grey square lock popup */}
             {gatePopup ? (
@@ -1855,6 +1949,74 @@ export function ArtisanOnboarding({
               </div>
             ) : null}
 
+            {/* Sheet embed: show only the active mandatory tier (T1 or T2) */}
+            {embedInSheet &&
+            !hidePhoneTier &&
+            !profile.tiers.tier1_phone ? (
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 shrink-0 text-[#FF6B35]" />
+                  <p className={cn("text-[13px] font-bold", ink)}>
+                    Phone verification
+                  </p>
+                </div>
+                <label className={cn("block text-[11px] font-bold", soft)}>
+                  Phone number
+                  <input
+                    value={profile.phone}
+                    onChange={(e) =>
+                      patch({
+                        phone: e.target.value,
+                        ...(profile.tiers.tier1_phone
+                          ? {
+                              tiers: {
+                                ...profile.tiers,
+                                tier1_phone: false,
+                              },
+                            }
+                          : {}),
+                      })
+                    }
+                    className={cn("mt-1", fieldClass)}
+                    placeholder="+234 801 234 5678"
+                    inputMode="tel"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void sendOtp()}
+                  className="h-10 w-full rounded-md border-0 bg-[#323231] text-[13px] font-bold text-white"
+                >
+                  {otpSent ? "Resend OTP" : "Send OTP"}
+                </button>
+                {otpSent ? (
+                  <div className="flex gap-2">
+                    <input
+                      value={otp}
+                      onChange={(e) =>
+                        setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                      }
+                      className={cn(
+                        "min-w-0 flex-1 font-bold tracking-widest",
+                        fieldClass
+                      )}
+                      placeholder="6-digit code"
+                      inputMode="numeric"
+                      maxLength={6}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void verifyOtp()}
+                      disabled={otp.length !== 6}
+                      className="h-10 shrink-0 rounded-md border-0 bg-[#FF6B35] px-4 text-[13px] font-bold text-white disabled:opacity-50"
+                    >
+                      Verify
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             {hideGovIdTiers ? (
               <div
                 className={cn(
@@ -1866,17 +2028,22 @@ export function ArtisanOnboarding({
               >
                 <p className="font-bold">Tier 2 already complete</p>
                 <p className="mt-0.5">
-                  Your Customer government ID is verified — no re-upload for
+                  Your Customer government ID is verified: no re-upload for
                   Repair Pro.
                 </p>
               </div>
             ) : null}
 
+            {/* T2 Government ID — hide on sheet while Tier 1 still open */}
             <div
               className={cn(
                 panelClass,
                 "space-y-2.5",
-                hideGovIdTiers && "hidden"
+                (hideGovIdTiers ||
+                  (embedInSheet &&
+                    !hidePhoneTier &&
+                    !profile.tiers.tier1_phone)) &&
+                  "hidden"
               )}
             >
               <div>
@@ -1890,31 +2057,116 @@ export function ArtisanOnboarding({
                     : reviewLabel(profile.govIdReviewStatus)}
                 </p>
               </div>
-              <select
-                value={profile.govIdType || ""}
-                onChange={(e) =>
-                  patch({
-                    govIdType: (e.target.value || null) as GovIdType | null,
-                    govIdFront: null,
-                    govIdBack: null,
-                    tiers: { ...profile.tiers, tier2_govId: false },
-                    govIdReviewStatus: "none",
-                  })
-                }
-                className={selectClass}
-                disabled={
-                  profile.tiers.tier2_govId ||
-                  profile.govIdReviewStatus === "submitted"
-                }
-              >
-                <option value="">ID type…</option>
-                <option value="nin">National ID (NIN card)</option>
-                <option value="drivers_licence">Driver’s Licence</option>
-                <option value="voters_card">Voter’s Card</option>
-                <option value="international_passport">
-                  International Passport
-                </option>
-              </select>
+              {/* Closed field keeps hairline; open options list has no border */}
+              <div ref={idTypeWrapRef} className="relative">
+                <button
+                  type="button"
+                  disabled={
+                    profile.tiers.tier2_govId ||
+                    profile.govIdReviewStatus === "submitted"
+                  }
+                  aria-haspopup="listbox"
+                  aria-expanded={idTypeMenuOpen}
+                  onClick={() => {
+                    if (
+                      profile.tiers.tier2_govId ||
+                      profile.govIdReviewStatus === "submitted"
+                    ) {
+                      return;
+                    }
+                    setIdTypeMenuOpen((o) => !o);
+                  }}
+                  className={cn(
+                    selectClass,
+                    "flex items-center justify-between gap-2 text-left disabled:opacity-60"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      !profile.govIdType && (isLight ? "text-slate-400" : "text-white/35")
+                    )}
+                  >
+                    {profile.govIdType === "nin"
+                      ? "National ID (NIN card)"
+                      : profile.govIdType === "drivers_licence"
+                        ? "Driver’s Licence"
+                        : profile.govIdType === "voters_card"
+                          ? "Voter’s Card"
+                          : profile.govIdType === "international_passport"
+                            ? "International Passport"
+                            : "ID type…"}
+                  </span>
+                  <ChevronRight
+                    className={cn(
+                      "h-4 w-4 shrink-0 transition-transform",
+                      idTypeMenuOpen && "rotate-90",
+                      isLight ? "text-slate-500" : "text-white/45"
+                    )}
+                  />
+                </button>
+                {idTypeMenuOpen ? (
+                  <ul
+                    role="listbox"
+                    className={cn(
+                      "absolute left-0 right-0 top-full z-50 mt-1 max-h-52 overflow-y-auto overscroll-contain rounded-lg border-0 py-1 shadow-lg",
+                      isLight ? "bg-white" : "bg-[#1c1c1e]"
+                    )}
+                  >
+                    {(
+                      [
+                        {
+                          value: "nin" as GovIdType,
+                          label: "National ID (NIN card)",
+                        },
+                        {
+                          value: "drivers_licence" as GovIdType,
+                          label: "Driver’s Licence",
+                        },
+                        {
+                          value: "voters_card" as GovIdType,
+                          label: "Voter’s Card",
+                        },
+                        {
+                          value: "international_passport" as GovIdType,
+                          label: "International Passport",
+                        },
+                      ] as const
+                    ).map((opt) => {
+                      const selected = profile.govIdType === opt.value;
+                      return (
+                        <li key={opt.value} role="option" aria-selected={selected}>
+                          <button
+                            type="button"
+                            className={cn(
+                              "flex w-full border-0 bg-transparent px-3 py-2.5 text-left text-[14px] font-medium",
+                              selected
+                                ? "bg-[#FF6B35]/15 text-[#FF6B35]"
+                                : isLight
+                                  ? "text-slate-900 hover:bg-black/[0.05]"
+                                  : "text-white hover:bg-white/[0.08]"
+                            )}
+                            onClick={() => {
+                              patch({
+                                govIdType: opt.value,
+                                govIdFront: null,
+                                govIdBack: null,
+                                tiers: {
+                                  ...profile.tiers,
+                                  tier2_govId: false,
+                                },
+                                govIdReviewStatus: "none",
+                              });
+                              setIdTypeMenuOpen(false);
+                            }}
+                          >
+                            {opt.label}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+              </div>
               <input
                 value={profile.govIdNumber || ""}
                 onChange={(e) => {
@@ -1964,105 +2216,104 @@ export function ArtisanOnboarding({
                     : []),
                 ] as const
               ).map((slot) => (
-                <label
-                  key={slot.side}
-                  className={cn(
-                    "flex w-full min-h-[48px] cursor-pointer flex-col items-center justify-center gap-1 rounded-md px-3 py-3",
-                    isLight
-                      ? "bg-black/[0.06] text-slate-800"
-                      : "bg-white/[0.08] text-white",
-                    (profile.tiers.tier2_govId ||
-                      profile.govIdReviewStatus === "submitted") &&
-                      "pointer-events-none opacity-60"
-                  )}
-                >
-                  <span className="flex items-center gap-2 text-[12px] font-bold">
-                    <Upload className="h-4 w-4 shrink-0 text-[#FF6B35]" />
-                    {slot.media
-                      ? `Uploaded: ${slot.media.name || slot.side}`
-                      : slot.label}
-                  </span>
-                  <span className={cn("text-[10px] font-medium", muted)}>
-                    Max {formatMb(IMAGE_MAX_BYTES)} · image only
-                    {govIdNeedsBack(profile.govIdType)
-                      ? ` · ${slot.side}`
-                      : " · front only"}
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    disabled={
-                      profile.tiers.tier2_govId ||
-                      profile.govIdReviewStatus === "submitted"
-                    }
-                    onChange={async (e) => {
-                      const f = e.target.files?.[0];
-                      e.target.value = "";
-                      if (!f) return;
-                      if (f.size > IMAGE_MAX_BYTES) {
-                        setErr(
-                          `ID photo must be ${formatMb(IMAGE_MAX_BYTES)} or less.`
-                        );
-                        return;
+                <div key={slot.side} className="space-y-1.5">
+                  <label
+                    className={cn(
+                      "flex w-full min-h-[48px] cursor-pointer flex-col items-center justify-center gap-1 rounded-md px-3 py-3",
+                      isLight
+                        ? "bg-black/[0.06] text-slate-800"
+                        : "bg-white/[0.08] text-white",
+                      (profile.tiers.tier2_govId ||
+                        profile.govIdReviewStatus === "submitted") &&
+                        "pointer-events-none opacity-60"
+                    )}
+                  >
+                    <span className="flex items-center gap-2 text-[12px] font-bold">
+                      <Upload className="h-4 w-4 shrink-0 text-[#FF6B35]" />
+                      {slot.media
+                        ? `Uploaded: ${slot.media.name || slot.side}`
+                        : slot.label}
+                    </span>
+                    <span className={cn("text-[10px] font-medium", muted)}>
+                      Max {formatMb(IMAGE_MAX_BYTES)} · image only
+                      {govIdNeedsBack(profile.govIdType)
+                        ? ` · ${slot.side}`
+                        : " · front only"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={
+                        profile.tiers.tier2_govId ||
+                        profile.govIdReviewStatus === "submitted"
                       }
-                      setBusy(true);
-                      try {
-                        const url = await fileToDataUrl(f);
-                        const media = {
-                          id: uid(),
-                          url,
-                          kind: slot.kind,
-                          name: f.name,
-                          mime: f.type,
-                          createdAt: new Date().toISOString(),
-                        };
-                        patch({
-                          ...(slot.side === "front"
-                            ? { govIdFront: media }
-                            : { govIdBack: media }),
-                          tiers: { ...profile.tiers, tier2_govId: false },
-                          govIdReviewStatus: "none",
-                        });
-                        setErr(null);
-                      } catch {
-                        setErr("Could not read ID photo.");
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}
-                  />
-                </label>
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = "";
+                        if (!f) return;
+                        if (f.size > IMAGE_MAX_BYTES) {
+                          setErr(
+                            `ID photo must be ${formatMb(IMAGE_MAX_BYTES)} or less.`
+                          );
+                          return;
+                        }
+                        setBusy(true);
+                        try {
+                          const url = await fileToDataUrl(f);
+                          const media = {
+                            id: uid(),
+                            url,
+                            kind: slot.kind,
+                            name: f.name,
+                            mime: f.type,
+                            createdAt: new Date().toISOString(),
+                          };
+                          patch({
+                            ...(slot.side === "front"
+                              ? { govIdFront: media }
+                              : { govIdBack: media }),
+                            tiers: { ...profile.tiers, tier2_govId: false },
+                            govIdReviewStatus: "none",
+                          });
+                          setErr(null);
+                        } catch {
+                          setErr("Could not read ID photo.");
+                        } finally {
+                          setBusy(false);
+                        }
+                      }}
+                    />
+                  </label>
+                  {slot.media?.url ? (
+                    <UploadInlinePreview
+                      url={slot.media.url}
+                      label={slot.side === "front" ? "ID front" : "ID back"}
+                      mime={slot.media.mime}
+                      fileName={slot.media.name}
+                      isLight={isLight}
+                      defaultOpen
+                    />
+                  ) : null}
+                </div>
               ))}
-              <button
-                type="button"
-                disabled={
-                  idBusy === "gov" ||
-                  profile.tiers.tier2_govId ||
-                  profile.govIdReviewStatus === "submitted" ||
-                  profile.govIdReviewStatus === "approved"
-                }
-                className="flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[12px] font-bold text-white disabled:opacity-60"
-                onClick={submitGovIdForReview}
-              >
-                {idBusy === "gov" ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
-                  </>
-                ) : profile.tiers.tier2_govId ||
-                  profile.govIdReviewStatus === "approved" ? (
-                  <>
-                    <Check className="h-3.5 w-3.5" /> ID approved
-                  </>
-                ) : profile.govIdReviewStatus === "submitted" ? (
-                  "ID currently in review"
-                ) : (
-                  "Submit ID for review"
-                )}
-              </button>
+              {/* Full page: inline submit. Sheet embed: sticky footer below. */}
+              {!embedInSheet ? (
+                <button
+                  type="button"
+                  disabled={submitIdDisabled}
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[12px] font-bold text-white disabled:opacity-60"
+                  onClick={submitGovIdForReview}
+                >
+                  {submitIdLabel}
+                </button>
+              ) : null}
             </div>
 
-            {/* Face liveness — Tier 3 (after Government ID) */}
+            {/* T3–T4 only on full verification page (sheet is one mandatory tier) */}
+            {!embedInSheet ? (
+            <>
+            {/* Face liveness: Tier 3 (after Government ID) */}
             <div
               className={cn(
                 "relative",
@@ -2301,74 +2552,86 @@ export function ArtisanOnboarding({
                   </option>
                   <option value="other_evidence">Other evidence</option>
                 </select>
-                <label
-                  className={cn(
-                    "flex w-full min-h-[48px] cursor-pointer flex-col items-center justify-center gap-1 rounded-md px-3 py-3",
-                    isLight
-                      ? "bg-black/[0.06] text-slate-800"
-                      : "bg-white/[0.08] text-white"
-                  )}
-                >
-                  <span className="flex items-center gap-2 text-[12px] font-bold">
-                    <Upload className="h-4 w-4 shrink-0 text-[#FF6B35]" />
-                    {profile.skillProof
-                      ? `File: ${profile.skillProof.name || "certificate"}`
-                      : "Upload certificate"}
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*,.pdf"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const f = e.target.files?.[0];
-                      e.target.value = "";
-                      if (!f) return;
-                      if (!canAccessSkillProof(profile)) {
-                        setGatePopup(lockMessageForSection("skill"));
-                        return;
-                      }
-                      if (!profile.skillProofType) {
-                        setErr("Pick a certificate type first.");
-                        return;
-                      }
-                      if (
-                        f.type.startsWith("image/") &&
-                        f.size > IMAGE_MAX_BYTES
-                      ) {
-                        setErr(
-                          `Image must be ${formatMb(IMAGE_MAX_BYTES)} or less.`
-                        );
-                        return;
-                      }
-                      setBusy(true);
-                      try {
-                        const url = await fileToDataUrl(f);
-                        // Draft only — submit button sends for review
-                        patch({
-                          skillProof: {
-                            id: uid(),
-                            url,
-                            kind: "skill_proof",
-                            name: f.name,
-                            mime: f.type,
-                            createdAt: new Date().toISOString(),
-                          },
-                          skillProofStatus: "uploaded",
-                          tiers: {
-                            ...profile.tiers,
-                            tier4_skillProof: false,
-                          },
-                        });
-                        setMsg("Certificate saved. Submit for review below.");
-                        setErr(null);
-                      } catch {
-                        setErr("Could not read file.");
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}
-                  />
-                </label>
+                <div className="space-y-1.5">
+                  <label
+                    className={cn(
+                      "flex w-full min-h-[48px] cursor-pointer flex-col items-center justify-center gap-1 rounded-md px-3 py-3",
+                      isLight
+                        ? "bg-black/[0.06] text-slate-800"
+                        : "bg-white/[0.08] text-white"
+                    )}
+                  >
+                    <span className="flex items-center gap-2 text-[12px] font-bold">
+                      <Upload className="h-4 w-4 shrink-0 text-[#FF6B35]" />
+                      {profile.skillProof
+                        ? `File: ${profile.skillProof.name || "certificate"}`
+                        : "Upload certificate"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = "";
+                        if (!f) return;
+                        if (!canAccessSkillProof(profile)) {
+                          setGatePopup(lockMessageForSection("skill"));
+                          return;
+                        }
+                        if (!profile.skillProofType) {
+                          setErr("Pick a certificate type first.");
+                          return;
+                        }
+                        if (
+                          f.type.startsWith("image/") &&
+                          f.size > IMAGE_MAX_BYTES
+                        ) {
+                          setErr(
+                            `Image must be ${formatMb(IMAGE_MAX_BYTES)} or less.`
+                          );
+                          return;
+                        }
+                        setBusy(true);
+                        try {
+                          const url = await fileToDataUrl(f);
+                          // Draft only — submit button sends for review
+                          patch({
+                            skillProof: {
+                              id: uid(),
+                              url,
+                              kind: "skill_proof",
+                              name: f.name,
+                              mime: f.type,
+                              createdAt: new Date().toISOString(),
+                            },
+                            skillProofStatus: "uploaded",
+                            tiers: {
+                              ...profile.tiers,
+                              tier4_skillProof: false,
+                            },
+                          });
+                          setMsg("Certificate saved. Submit for review below.");
+                          setErr(null);
+                        } catch {
+                          setErr("Could not read file.");
+                        } finally {
+                          setBusy(false);
+                        }
+                      }}
+                    />
+                  </label>
+                  {profile.skillProof?.url ? (
+                    <UploadInlinePreview
+                      url={profile.skillProof.url}
+                      label="Skill proof"
+                      mime={profile.skillProof.mime}
+                      fileName={profile.skillProof.name}
+                      isLight={isLight}
+                      defaultOpen
+                    />
+                  ) : null}
+                </div>
                 <button
                   type="button"
                   disabled={
@@ -2418,6 +2681,8 @@ export function ArtisanOnboarding({
                 </button>
               </div>
             </div>
+            </>
+            ) : null}
           </section>
         )}
 
@@ -2572,6 +2837,23 @@ export function ArtisanOnboarding({
             </a>
           </p>
         </BottomSheet>
+      ) : null}
+
+      {/* Sheet embed: sticky Submit ID at bottom of lower panel */}
+      {showEmbedT2Form ? (
+        <div
+          className="shrink-0 border-0 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
+          style={{ backgroundColor: sheetBg }}
+        >
+          <button
+            type="button"
+            disabled={submitIdDisabled}
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[13px] font-bold text-white disabled:opacity-60"
+            onClick={submitGovIdForReview}
+          >
+            {submitIdLabel}
+          </button>
+        </div>
       ) : null}
 
       {/* Apple footer — primary Continue, text Back */}

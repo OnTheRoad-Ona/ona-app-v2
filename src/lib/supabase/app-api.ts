@@ -935,13 +935,28 @@ export async function backendLoadUserProfile(
     bank_account_number?: string | null;
     bank_code?: string | null;
   }) | null;
-  const primaryAccountType = resolvePrimaryAccountType({
-    hasMotorist: Boolean(mot),
-    hasPro: Boolean(pr),
-    motoristCreatedAt: mot?.created_at,
-    proCreatedAt: pr?.created_at,
-    activeAccountType: accountType,
-  });
+  const storedPrimary = (() => {
+    const prRole = (p as { primary_role?: string | null }).primary_role;
+    if (prRole === "repair_pro") return "professional" as const;
+    if (prRole === "motorist") return "motorist" as const;
+    return null;
+  })();
+  const primaryAccountType =
+    storedPrimary ||
+    resolvePrimaryAccountType({
+      hasMotorist: Boolean(mot),
+      hasPro: Boolean(pr),
+      motoristCreatedAt: mot?.created_at,
+      proCreatedAt: pr?.created_at,
+      activeAccountType: accountType,
+    });
+  const dualRole = Boolean(mot) && Boolean(pr);
+  const lastRoleSwitchAt =
+    (p as { last_role_switch_at?: string | null }).last_role_switch_at ||
+    undefined;
+  const roleSwitchCount = Number(
+    (p as { role_switch_count?: number | null }).role_switch_count || 0
+  );
 
   if (accountType === "professional") {
     const proExtra = pr as RepairProRow & {
@@ -957,6 +972,9 @@ export async function backendLoadUserProfile(
     return profileToUserProfile(p, {
       accountType,
       primaryAccountType,
+      dualRole,
+      lastRoleSwitchAt,
+      roleSwitchCount,
       services: (pr?.services as ProService[]) ||
         (pr?.primary_service ? [pr.primary_service as ProService] : []),
       businessName: pr?.business_name || undefined,
@@ -1013,6 +1031,9 @@ export async function backendLoadUserProfile(
   return profileToUserProfile(p, {
     accountType,
     primaryAccountType,
+    dualRole,
+    lastRoleSwitchAt,
+    roleSwitchCount,
     vehicleMake: mot?.vehicle_make || undefined,
     vehicleModel: mot?.vehicle_model || undefined,
     vehicleYear: mot?.vehicle_year || undefined,

@@ -1,0 +1,23 @@
+◇ injected env (21) from .env.local // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+[synthetic-seed] run=2026-08-01T12-16-48-266Z
+[synthetic-seed] customers=500 pros=56 services=14
+[synthetic-seed] customers 50/500
+[synthetic-seed] customers 100/500
+[synthetic-seed] customers 150/500
+[synthetic-seed] customers 200/500
+[synthetic-seed] customers 250/500
+[synthetic-seed] customers 300/500
+[synthetic-seed] customers 350/500
+[synthetic-seed] customers 400/500
+[synthetic-seed] customers 450/500
+[synthetic-seed] customers 500/500
+[synthetic-seed] pros 14/56
+[synthetic-seed] pros 28/56
+[synthetic-seed] pros 42/56
+[synthetic-seed] pros 56/56
+[synthetic-seed] done
+  customers: 500  pros: 56  errors: 0
+  manifest: /Users/mac/Desktop/Code/Ona/tmp-audit/synthetic-manifest-2026-08-01T12-16-48-266Z.json
+  password: SyntheticPass336699!
+  cleanup: node scripts/synthetic-cleanup.mjs

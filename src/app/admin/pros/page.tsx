@@ -59,6 +59,12 @@ type ReviewRow = {
   city: string | null;
   area?: string | null;
   avatar_url?: string | null;
+  dual_role?: boolean;
+  has_switched?: boolean;
+  first_role?: string | null;
+  current_role?: string | null;
+  last_role_switch_at?: string | null;
+  role_switch_count?: number;
   business_name: string | null;
   primary_service: string | null;
   services?: string[];
@@ -137,11 +143,26 @@ function portfolioUrls(v: unknown): { label: string; url: string }[] {
   if (!Array.isArray(v)) return [];
   return v
     .map((item, i) => {
-      if (typeof item === "string") return { label: `Portfolio ${i + 1}`, url: item };
+      if (typeof item === "string") {
+        const isVid = /\.(mp4|webm|mov|m4v)(\?|$)/i.test(item);
+        return {
+          label: isVid ? `Video ${i + 1}` : `Portfolio ${i + 1}`,
+          url: item,
+        };
+      }
       if (item && typeof item === "object") {
         const o = item as Record<string, unknown>;
         const url = String(o.url || o.src || "");
-        const label = String(o.kind || o.name || `Portfolio ${i + 1}`);
+        const kind = String(o.kind || "");
+        const mime = String(o.mime || "");
+        const name = String(o.name || "");
+        const isVid =
+          kind.includes("video") ||
+          mime.startsWith("video/") ||
+          /\.(mp4|webm|mov|m4v)$/i.test(name);
+        const label = isVid
+          ? name || "Intro / portfolio video"
+          : String(o.name || o.kind || `Portfolio ${i + 1}`);
         return url ? { label, url } : null;
       }
       return null;
@@ -690,6 +711,23 @@ export default function AdminProsHubPage() {
                         </td>
                         <td>
                           <strong>{p.full_name}</strong>
+                          {p.dual_role ? (
+                            <span
+                              className="om-admin-flag-resubmit"
+                              style={{
+                                background: "#FF6B35",
+                                color: "#fff",
+                                marginLeft: 6,
+                              }}
+                              title={
+                                p.has_switched
+                                  ? `Switched · first ${p.first_role || "—"} · now ${p.current_role || "—"}`
+                                  : "Holds Customer + Professional roles"
+                              }
+                            >
+                              Dual Role
+                            </span>
+                          ) : null}
                           {p.needs_resubmit ? (
                             <span className="om-admin-flag-resubmit">
                               Re-submit
@@ -931,7 +969,9 @@ export default function AdminProsHubPage() {
         title={selectedReview?.full_name || "Review"}
         subtitle={
           selectedReview
-            ? `${selectedReview.primary_service || ""} · ${selectedReview.status}`
+            ? `${selectedReview.primary_service || ""} · ${selectedReview.status}${
+                selectedReview.dual_role ? " · Dual Role" : ""
+              }`
             : undefined
         }
         onClose={() => setSelectedId(null)}
@@ -1095,6 +1135,38 @@ export default function AdminProsHubPage() {
                 <DetailField
                   label="Pipeline"
                   value={selectedReview.pipeline_status}
+                />
+                <DetailField
+                  label="Dual Role"
+                  value={
+                    selectedReview.dual_role
+                      ? selectedReview.has_switched
+                        ? "Yes · has switched"
+                        : "Yes"
+                      : "No"
+                  }
+                />
+                <DetailField
+                  label="First role"
+                  value={selectedReview.first_role || "—"}
+                />
+                <DetailField
+                  label="Current role"
+                  value={selectedReview.current_role || "—"}
+                />
+                <DetailField
+                  label="Last switch"
+                  value={
+                    selectedReview.last_role_switch_at
+                      ? fmtDate(selectedReview.last_role_switch_at)
+                      : selectedReview.dual_role
+                        ? "Not recorded yet"
+                        : "—"
+                  }
+                />
+                <DetailField
+                  label="Switch count"
+                  value={String(selectedReview.role_switch_count ?? 0)}
                 />
                 <DetailField
                   label="User ID"

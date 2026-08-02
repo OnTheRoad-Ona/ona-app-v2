@@ -16,6 +16,7 @@ import {
   listUserRoles,
   syncPayoutAcrossRoles,
 } from "@/lib/server/identity/identity-sync";
+import { dbRoleToAccountType } from "@/lib/dual-role";
 import type { ProfileRow, RepairProRow } from "@/lib/supabase/types";
 import type { AccountType, ProService, UserProfile } from "@/lib/types";
 import { isProService } from "@/lib/services";
@@ -116,15 +117,50 @@ export async function POST(req: Request) {
     }
   }
 
-  const { data: updated, error: updErr } = await admin
-    .from("profiles")
-    .update({ role })
-    .eq("id", userId)
-    .select("*")
-    .single();
+  // Track switch for Care admin + dual-role analytics (DB-synced)
+  const prevRole = existing.role as string;
+  const isActualSwitch = prevRole !== role;
+  const existingPrimary =
+    (existing as { primary_role?: string | null }).primary_role || null;
+  const prevCount = Number(
+    (existing as { role_switch_count?: number | null }).role_switch_count || 0
+  );
+  const profilePatch: Record<string, unknown> = { role };
+  if (!existingPrimary) {
+    // First time we see a switch/patch: lock original as previous (or current if same)
+    profilePatch.primary_role = prevRole === "admin" ? role : prevRole;
+  }
+  if (isActualSwitch) {
+    profilePatch.last_role_switch_at = new Date().toISOString();
+    profilePatch.role_switch_count = prevCount + 1;
+  }
 
-  if (updErr || !updated) {
-    return apiFail(updErr?.message || "Could not switch role", 500);
+  let profileAfter: ProfileRow | null = null;
+  {
+    const { data: updated, error: updErr } = await admin
+      .from("profiles")
+      .update(profilePatch)
+      .eq("id", userId)
+      .select("*")
+      .single();
+    if (!updErr && updated) {
+      profileAfter = updated as ProfileRow;
+    } else {
+      // Columns may be missing before migration — fall back to role-only
+      const { data: fallback, error: fbErr } = await admin
+        .from("profiles")
+        .update({ role })
+        .eq("id", userId)
+        .select("*")
+        .single();
+      if (fbErr || !fallback) {
+        return apiFail(
+          updErr?.message || fbErr?.message || "Could not switch role",
+          500
+        );
+      }
+      profileAfter = fallback as ProfileRow;
+    }
   }
 
   // Switching away from Repair Pro → go Away so motorists cannot find them.
@@ -149,7 +185,7 @@ export async function POST(req: Request) {
   });
   await syncPayoutAcrossRoles(admin, userId, { userId, source: "switch_role" });
 
-  const profileRow = updated as ProfileRow;
+  const profileRow = profileAfter;
   const accountType: AccountType =
     role === "repair_pro" ? "professional" : "motorist";
 
@@ -316,17 +352,32 @@ export async function POST(req: Request) {
 
   const hasMotorist = Boolean(motExists);
   const hasPro = Boolean(proExists);
-  const primaryAccountType = resolvePrimaryAccountType({
-    hasMotorist,
-    hasPro,
-    motoristCreatedAt: (motExists as { created_at?: string } | null)?.created_at,
-    proCreatedAt: (proExists as { created_at?: string } | null)?.created_at,
-    activeAccountType: accountType,
-  });
+  const storedPrimary = dbRoleToAccountType(
+    (profileRow as ProfileRow).primary_role
+  );
+  const primaryAccountType =
+    storedPrimary ||
+    resolvePrimaryAccountType({
+      hasMotorist,
+      hasPro,
+      motoristCreatedAt: (motExists as { created_at?: string } | null)
+        ?.created_at,
+      proCreatedAt: (proExists as { created_at?: string } | null)?.created_at,
+      activeAccountType: accountType,
+    });
+
+  const lastRoleSwitchAt =
+    (profileRow as ProfileRow).last_role_switch_at || undefined;
+  const roleSwitchCount = Number(
+    (profileRow as ProfileRow).role_switch_count || 0
+  );
 
   const userProfile = profileToUserProfile(profileRow, {
     accountType,
     primaryAccountType,
+    dualRole: hasMotorist && hasPro,
+    lastRoleSwitchAt,
+    roleSwitchCount,
     ...extras,
   });
 
@@ -339,7 +390,10 @@ export async function POST(req: Request) {
     roles,
     hasMotorist,
     hasPro,
+    dualRole: hasMotorist && hasPro,
     primaryAccountType,
+    lastRoleSwitchAt: lastRoleSwitchAt || null,
+    roleSwitchCount,
     userProfile,
     profile: {
       id: profileRow.id,

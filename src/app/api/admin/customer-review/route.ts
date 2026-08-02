@@ -5,6 +5,7 @@ import {
   requireAdmin,
 } from "@/lib/server/admin-auth";
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { buildDualRoleMeta } from "@/lib/dual-role";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 
@@ -86,16 +87,28 @@ export async function GET(req: Request) {
         is_active: boolean;
         created_at: string;
         avatar_url?: string | null;
+        role: string | null;
+        primary_role: string | null;
+        last_role_switch_at: string | null;
+        role_switch_count: number;
       }
     > = {};
+    const proIds = new Set<string>();
     if (userIds.length) {
-      const { data: profs } = await supabase
-        .from("profiles")
-        .select(
-          "id, full_name, email, phone, city, area, is_active, created_at, avatar_url"
-        )
-        .in("id", userIds);
+      const [{ data: profs }, { data: pros }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select(
+            "id, full_name, email, phone, city, area, is_active, created_at, avatar_url, role, primary_role, last_role_switch_at, role_switch_count"
+          )
+          .in("id", userIds),
+        supabase
+          .from("repair_pro_profiles")
+          .select("user_id")
+          .in("user_id", userIds),
+      ]);
       for (const p of profs ?? []) {
+        const row = p as Record<string, unknown>;
         profiles[p.id] = {
           full_name: p.full_name,
           email: p.email,
@@ -105,8 +118,13 @@ export async function GET(req: Request) {
           is_active: p.is_active !== false,
           created_at: p.created_at,
           avatar_url: (p as { avatar_url?: string }).avatar_url ?? null,
+          role: (row.role as string) || "motorist",
+          primary_role: (row.primary_role as string) || null,
+          last_role_switch_at: (row.last_role_switch_at as string) || null,
+          role_switch_count: Number(row.role_switch_count || 0),
         };
       }
+      for (const pr of pros ?? []) proIds.add(String(pr.user_id));
     }
 
     // Job counts + job media (photos/evidence) — not star reviews
@@ -185,6 +203,17 @@ export async function GET(req: Request) {
         (meta.bankId as string) ||
         null;
 
+      const dualMeta = buildDualRoleMeta({
+        hasMotorist: true,
+        hasPro: proIds.has(String(m.user_id)),
+        currentDbRole: p?.role || "motorist",
+        primaryDbRole: p?.primary_role || null,
+        lastRoleSwitchAt: p?.last_role_switch_at || null,
+        roleSwitchCount: p?.role_switch_count ?? 0,
+        activeAccountType:
+          p?.role === "repair_pro" ? "professional" : "motorist",
+      });
+
       return {
         user_id: m.user_id,
         // Account
@@ -196,6 +225,12 @@ export async function GET(req: Request) {
         avatar_url: p?.avatar_url ?? null,
         is_active: p?.is_active !== false,
         registered_at: p?.created_at || null,
+        dual_role: dualMeta.dualRole,
+        has_switched: dualMeta.hasSwitched,
+        first_role: dualMeta.firstRoleLabel,
+        current_role: dualMeta.currentRoleLabel,
+        last_role_switch_at: dualMeta.lastRoleSwitchAt,
+        role_switch_count: dualMeta.roleSwitchCount,
         address_text: m.address_text ?? null,
         // Vehicle
         vehicle_make: m.vehicle_make ?? snap.vehicleMake ?? null,

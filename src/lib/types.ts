@@ -80,8 +80,15 @@ export interface UserProfile {
   /**
    * Role the user originally signed up as (main / primary account).
    * Stays fixed when they switch Motorist ↔ Repair Pro.
+   * motorist = Customer Role, professional = Professional Role.
    */
   primaryAccountType?: AccountType;
+  /** Both Customer + Repair Pro side profiles exist */
+  dualRole?: boolean;
+  /** Last Tap-to-Switch time (ISO) from profiles.last_role_switch_at */
+  lastRoleSwitchAt?: string;
+  /** profiles.role_switch_count */
+  roleSwitchCount?: number;
   fullName: string;
   phone: string;
   email: string;

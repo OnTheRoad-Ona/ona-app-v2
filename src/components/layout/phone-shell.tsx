@@ -7,6 +7,7 @@ import { IncomingJobPopup } from "@/components/home/incoming-job-popup";
 import { MotoristReleasePayGate } from "@/components/jobs/motorist-release-pay-gate";
 import { ProOnboardingSheet } from "@/components/pro/pro-onboarding-sheet";
 import { DeletionBanner } from "@/components/profile/deletion-banner";
+import { useOverlayGatesReady } from "@/lib/use-overlay-gates-ready";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/store";
 
@@ -79,6 +80,8 @@ export function PhoneShell({
   className?: string;
 }) {
   const { theme, toggleTheme } = useApp();
+  /** Page paints first; overlays wait for auth + settle */
+  const gatesReady = useOverlayGatesReady();
   const isLight = theme === "light";
   /** Phone frame interior — explicit colors avoid browser class lag */
   const phoneInterior = isLight ? "#c8c9cd" : "#000000";
@@ -225,11 +228,15 @@ export function PhoneShell({
         >
           <DeletionBanner />
           {children}
-          <ProOnboardingSheet />
-          <PostSwitchPhoneOtpGate />
-          <AcceptTripPopup />
-          <IncomingJobPopup />
-          <MotoristReleasePayGate />
+          {gatesReady ? (
+            <>
+              <ProOnboardingSheet />
+              <PostSwitchPhoneOtpGate />
+              <AcceptTripPopup />
+              <IncomingJobPopup />
+              <MotoristReleasePayGate />
+            </>
+          ) : null}
         </div>
       </div>
     </div>

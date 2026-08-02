@@ -82,6 +82,8 @@ import { getArtisanProfile } from "@/lib/artisan/local-store";
 import {
   isCustomerToProDualPath,
   isProSwitchMandatoryOnboardingDone,
+  readProOnboardingSheetFlag,
+  writeProOnboardingSheetFlag,
 } from "@/lib/pro-switch-onboarding";
 import { getVehiclesServedLock } from "@/lib/profile-edit";
 import { playPersonTone } from "@/lib/sound-tone";
@@ -307,8 +309,9 @@ interface AppState {
   /** Verify post-switch OTP (profile-verify / demo). Returns error or null. */
   completePostSwitchPhoneOtp: (code: string) => Promise<string | null>;
   /**
-   * Customer → Pro: 60% bottom onboarding sheet until T2 satisfied.
+   * Customer → Pro: 60% bottom onboarding sheet until Care-approved T2.
    * Set on switch to professional when dual-role (has Customer).
+   * Persisted per user so it returns after refresh.
    */
   proOnboardingSheetRequired: boolean;
   setProOnboardingSheetRequired: (v: boolean) => void;
@@ -528,8 +531,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /** Session-only: force phone OTP after every successful Tap to Switch */
   const [postSwitchPhoneOtpRequired, setPostSwitchPhoneOtpRequired] =
     useState(false);
-  /** Customer → Pro: bottom-sheet onboarding until T2 done */
-  const [proOnboardingSheetRequired, setProOnboardingSheetRequired] =
+  /** Customer → Pro: bottom-sheet onboarding until Care-approved T2 */
+  const [proOnboardingSheetRequired, setProOnboardingSheetRequiredState] =
     useState(false);
   const [helpingSomeoneElse, setHelpingSomeoneElseState] = useState(false);
   const [helpingSomeoneLabel, setHelpingSomeoneLabel] = useState<string | null>(
@@ -588,6 +591,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [cloudTechs, setCloudTechs] = useState<Technician[] | null>(null);
   /** Supabase auth.users id when backend session is active */
   const [backendUserId, setBackendUserId] = useState<string | null>(null);
+  const setProOnboardingSheetRequired = useCallback(
+    (v: boolean) => {
+      setProOnboardingSheetRequiredState(v);
+      writeProOnboardingSheetFlag(backendUserId, v);
+    },
+    [backendUserId]
+  );
   /** True only after server session is checked (and confirmed or cleared) */
   const [serverSessionReady, setServerSessionReady] = useState(false);
 
@@ -874,11 +884,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
     if (!dual) return;
     const artisan = backendUserId ? getArtisanProfile(backendUserId) : null;
-    if (!isProSwitchMandatoryOnboardingDone(userProfile, artisan)) {
-      setProOnboardingSheetRequired(true);
-    } else {
-      setProOnboardingSheetRequired(false);
+    // Dual C→Pro: force lower panel until Care-approved T2
+    const incomplete = !isProSwitchMandatoryOnboardingDone(
+      userProfile,
+      artisan
+    );
+    if (!incomplete) {
+      setProOnboardingSheetRequiredState(false);
+      writeProOnboardingSheetFlag(backendUserId, false);
+      return;
     }
+    setProOnboardingSheetRequiredState(true);
+    writeProOnboardingSheetFlag(backendUserId, true);
   }, [
     isAuthenticated,
     accountType,
@@ -1254,17 +1271,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const t1Done = Boolean(withFlags.phoneVerified);
 
       if (dualToPro) {
-        // Customer → Pro: keep T1 if already done; open 60% setup sheet
-        // Skip post-switch OTP when Customer T1 already verified
+        // Customer → Pro: lower panel until Care T2; re-OTP if phone not verified
         if (t1Done) {
           applySession(withFlags);
           setPostSwitchPhoneOtpRequired(false);
+          setProOnboardingSheetRequired(true);
         } else {
           applySession({ ...withFlags, phoneVerified: false });
           setPostSwitchPhoneOtpRequired(true);
+          setProOnboardingSheetRequired(true);
         }
-        // Always show sheet; it auto-clears when T1+T2 satisfied (inherited or done)
-        setProOnboardingSheetRequired(true);
       } else {
         // Other switches: session re-OTP still required
         applySession({ ...withFlags, phoneVerified: false });
@@ -2271,7 +2287,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPrimaryAccountType(null);
     setProLiveState(false);
     setPostSwitchPhoneOtpRequired(false);
-    setProOnboardingSheetRequired(false);
+    setProOnboardingSheetRequiredState(false);
     setDisplayName("Guest");
     setUserProfile(null);
     setCloudTechs([]);

@@ -323,6 +323,9 @@ export function profileToUserProfile(
     accountType: AccountType;
     /** Original signup role — does not change when switching */
     primaryAccountType?: AccountType;
+    dualRole?: boolean;
+    lastRoleSwitchAt?: string;
+    roleSwitchCount?: number;
     password?: string;
     services?: ProService[];
     businessName?: string;
@@ -378,6 +381,15 @@ export function profileToUserProfile(
     // to active role — that would overwrite primary on Motorist ↔ Pro switch.
     ...(extra?.primaryAccountType
       ? { primaryAccountType: extra.primaryAccountType }
+      : {}),
+    ...(typeof extra?.dualRole === "boolean"
+      ? { dualRole: extra.dualRole }
+      : {}),
+    ...(extra?.lastRoleSwitchAt
+      ? { lastRoleSwitchAt: extra.lastRoleSwitchAt }
+      : {}),
+    ...(typeof extra?.roleSwitchCount === "number"
+      ? { roleSwitchCount: extra.roleSwitchCount }
       : {}),
     fullName: profile.full_name || "",
     phone: profile.phone || "",

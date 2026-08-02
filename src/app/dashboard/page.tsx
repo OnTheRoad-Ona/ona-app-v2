@@ -23,6 +23,10 @@ import { apiListJobs } from "@/lib/jobs/client";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
 import { useT } from "@/lib/i18n";
 import { isProService, PRO_SERVICE_LABELS } from "@/lib/services";
+import {
+  isCustomerToProDualPath,
+  proT2CareApproved,
+} from "@/lib/pro-switch-onboarding";
 import { useApp } from "@/lib/store";
 import type { ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -171,11 +175,20 @@ export default function TechnicianDashboardPage() {
     isAuthenticated,
     switchAccount,
     hasProAccount,
+    hasMotoristAccount,
+    primaryAccountType,
     userProfile,
     proServices,
+    setProOnboardingSheetRequired,
   } = useApp();
   const t = useT();
   const isLight = theme === "light";
+  const dualCtoPro = isCustomerToProDualPath({
+    hasMotoristAccount,
+    hasProAccount,
+    accountType,
+    primaryAccountType,
+  });
   const [liveBusy, setLiveBusy] = useState(false);
   const [liveErr, setLiveErr] = useState<string | null>(null);
   const [incoming, setIncoming] = useState<JobRecord[]>([]);
@@ -186,6 +199,7 @@ export default function TechnicianDashboardPage() {
   const [artisan, setArtisan] = useState<ArtisanVerificationProfile | null>(
     null
   );
+  const t2CareOk = proT2CareApproved(userProfile, artisan);
   const [switchBusy, setSwitchBusy] = useState(false);
   const [jobsCompletedCount, setJobsCompletedCount] = useState(0);
 
@@ -529,7 +543,7 @@ export default function TechnicianDashboardPage() {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto px-3 pb-4 scrollbar-hide">
-        {/* Artisan verification / visibility tier gate */}
+        {/* Verification gate — original layout/size; dual incomplete uses CTA text only */}
         {artisan ? (
           <section
             className={cn(
@@ -547,52 +561,84 @@ export default function TechnicianDashboardPage() {
                     artisan.status === "approved"
                       ? tier2GoLiveWarning(artisan)
                       : null;
+                  const dualNeedsSetup = dualCtoPro && !t2CareOk;
                   const statusLine =
-                    artisan.status !== "approved"
-                      ? artisan.status === "draft"
-                        ? t("gate.finishBeforeLive")
-                        : g.allowed
-                          ? ""
-                          : g.message
-                      : "";
+                    dualNeedsSetup
+                      ? ""
+                      : artisan.status !== "approved"
+                        ? artisan.status === "draft"
+                          ? t("gate.finishBeforeLive")
+                          : g.allowed
+                            ? ""
+                            : g.message
+                        : "";
                   return (
                     <>
                       <p className={cn("text-[13px] font-bold", ink)}>
                         Tier {tier}
                       </p>
                       {statusLine ? (
-                      <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
-                        {statusLine}
-                      </p>
+                        <p className={cn("mt-0.5 text-[11px] font-medium", muted)}>
+                          {statusLine}
+                        </p>
                       ) : null}
-                      {warn ? (
-                        <p
-                          className={cn(
-                            "mt-1.5 text-[11px] font-semibold",
-                            "text-[#FF6B35]"
-                          )}
-                        >
+                      {warn && !dualNeedsSetup ? (
+                        <p className="mt-1.5 text-[11px] font-semibold text-[#FF6B35]">
                           {warn}
                         </p>
                       ) : null}
-                      {artisan.status !== "approved" ? (
-                        <Link
-                          href={
-                            artisan.status === "draft" ||
-                            artisan.status === "rejected"
-                              ? "/artisan/onboarding"
-                              : "/artisan/verification"
-                          }
-                          className="mt-2 inline-flex text-[12px] font-bold text-[#FF6B35]"
-                        >
-                          {artisan.status === "pending_review"
-                            ? t("gate.viewStatus")
-                            : t("gate.continueVerification")}
-                        </Link>
+                      {dualNeedsSetup || artisan.status !== "approved" ? (
+                        dualNeedsSetup ? (
+                          <button
+                            type="button"
+                            className="mt-2 inline-flex border-0 bg-transparent p-0 text-[12px] font-bold text-[#FF6B35]"
+                            onClick={() => {
+                              setProOnboardingSheetRequired(true);
+                              void import(
+                                "@/components/pro/pro-onboarding-sheet"
+                              ).then((m) => m.requestProOnboardingSheetExpand());
+                            }}
+                          >
+                            Continue Verification
+                          </button>
+                        ) : (
+                          <Link
+                            href="/artisan/verification"
+                            className="mt-2 inline-flex text-[12px] font-bold text-[#FF6B35]"
+                          >
+                            Continue Verification
+                          </Link>
+                        )
                       ) : null}
                     </>
                   );
                 })()}
+              </div>
+            </div>
+          </section>
+        ) : dualCtoPro && !t2CareOk ? (
+          <section
+            className={cn(
+              "rounded-md px-3 py-3",
+              isLight ? "bg-[#d4d5d9]" : "bg-white/10"
+            )}
+          >
+            <div className="flex items-start gap-2">
+              <Shield className="mt-0.5 h-4 w-4 shrink-0 text-[#FF6B35]" />
+              <div className="min-w-0 flex-1">
+                <p className={cn("text-[13px] font-bold", ink)}>Tier 1</p>
+                <button
+                  type="button"
+                  className="mt-2 inline-flex border-0 bg-transparent p-0 text-[12px] font-bold text-[#FF6B35]"
+                  onClick={() => {
+                    setProOnboardingSheetRequired(true);
+                    void import(
+                      "@/components/pro/pro-onboarding-sheet"
+                    ).then((m) => m.requestProOnboardingSheetExpand());
+                  }}
+                >
+                  Continue Verification
+                </button>
               </div>
             </div>
           </section>

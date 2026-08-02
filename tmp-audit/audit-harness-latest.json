@@ -1,0 +1,301 @@
+{
+  "generatedAt": "2026-08-01T13:14:36.958Z",
+  "base": "http://127.0.0.1:3000",
+  "stress": 1000,
+  "summary": {
+    "passed": 36,
+    "failed": 0,
+    "findings": 0
+  },
+  "findings": [],
+  "results": [
+    {
+      "agent": "Coordinator",
+      "name": "app_reachable",
+      "pass": true,
+      "detail": "HTTP 200",
+      "severity": "info",
+      "at": "2026-08-01T13:14:07.821Z"
+    },
+    {
+      "agent": "A13-Security",
+      "name": "jobs_POST_requires_auth",
+      "pass": true,
+      "detail": "blocked status=401 code=auth",
+      "severity": "info",
+      "at": "2026-08-01T13:14:07.853Z"
+    },
+    {
+      "agent": "A13-Security",
+      "name": "jobs_GET_requires_auth",
+      "pass": true,
+      "detail": "blocked status=401 code=auth",
+      "severity": "info",
+      "at": "2026-08-01T13:14:07.866Z"
+    },
+    {
+      "agent": "A13-Security",
+      "name": "jobs_transition_requires_auth",
+      "pass": true,
+      "detail": "blocked status=401 code=auth",
+      "severity": "info",
+      "at": "2026-08-01T13:14:07.900Z"
+    },
+    {
+      "agent": "A13-Security",
+      "name": "payments_release_requires_auth",
+      "pass": true,
+      "detail": "blocked status=401 code=auth",
+      "severity": "info",
+      "at": "2026-08-01T13:14:07.915Z"
+    },
+    {
+      "agent": "A13-Security",
+      "name": "payments_refund_requires_auth",
+      "pass": true,
+      "detail": "blocked status=401 code=auth",
+      "severity": "info",
+      "at": "2026-08-01T13:14:07.929Z"
+    },
+    {
+      "agent": "A13-Security",
+      "name": "payments_history_requires_auth",
+      "pass": true,
+      "detail": "blocked status=401 code=auth",
+      "severity": "info",
+      "at": "2026-08-01T13:14:07.943Z"
+    },
+    {
+      "agent": "A13-Security",
+      "name": "sessions_GET_requires_auth",
+      "pass": true,
+      "detail": "blocked status=401 code=auth",
+      "severity": "info",
+      "at": "2026-08-01T13:14:07.956Z"
+    },
+    {
+      "agent": "A13-Security",
+      "name": "addresses_GET_requires_auth",
+      "pass": true,
+      "detail": "blocked status=401 code=auth",
+      "severity": "info",
+      "at": "2026-08-01T13:14:07.971Z"
+    },
+    {
+      "agent": "A13-Security",
+      "name": "notifications_GET_requires_auth",
+      "pass": true,
+      "detail": "blocked status=401 code=auth",
+      "severity": "info",
+      "at": "2026-08-01T13:14:07.983Z"
+    },
+    {
+      "agent": "A13-Security",
+      "name": "wallet_GET_requires_auth",
+      "pass": true,
+      "detail": "blocked status=401 code=auth",
+      "severity": "info",
+      "at": "2026-08-01T13:14:07.994Z"
+    },
+    {
+      "agent": "A13-Security",
+      "name": "cashout_GET_requires_auth",
+      "pass": true,
+      "detail": "blocked status=401 code=auth",
+      "severity": "info",
+      "at": "2026-08-01T13:14:08.011Z"
+    },
+    {
+      "agent": "A13-Security",
+      "name": "liveness_POST_requires_auth",
+      "pass": true,
+      "detail": "blocked status=401 code=auth",
+      "severity": "info",
+      "at": "2026-08-01T13:14:08.027Z"
+    },
+    {
+      "agent": "A13-Security",
+      "name": "reviews_POST_requires_auth",
+      "pass": true,
+      "detail": "blocked status=401 code=auth",
+      "severity": "info",
+      "at": "2026-08-01T13:14:08.042Z"
+    },
+    {
+      "agent": "A13-Security",
+      "name": "artisan_GET_requires_auth",
+      "pass": true,
+      "detail": "blocked status=401 code=auth",
+      "severity": "info",
+      "at": "2026-08-01T13:14:08.055Z"
+    },
+    {
+      "agent": "A13-Security",
+      "name": "call_signal_GET_requires_auth",
+      "pass": true,
+      "detail": "blocked status=401 code=auth",
+      "severity": "info",
+      "at": "2026-08-01T13:14:08.068Z"
+    },
+    {
+      "agent": "A13-Security",
+      "name": "referral_GET_requires_auth",
+      "pass": true,
+      "detail": "blocked status=401 code=auth",
+      "severity": "info",
+      "at": "2026-08-01T13:14:08.079Z"
+    },
+    {
+      "agent": "A13-Security",
+      "name": "payments_init_requires_auth",
+      "pass": true,
+      "detail": "blocked status=401 code=auth",
+      "severity": "info",
+      "at": "2026-08-01T13:14:08.094Z"
+    },
+    {
+      "agent": "A13-Security",
+      "name": "resolve_account_requires_auth",
+      "pass": true,
+      "detail": "blocked status=401 code=auth",
+      "severity": "info",
+      "at": "2026-08-01T13:14:08.107Z"
+    },
+    {
+      "agent": "A13-Security",
+      "name": "pros_live_requires_auth",
+      "pass": true,
+      "detail": "blocked status=400 code=error",
+      "severity": "info",
+      "at": "2026-08-01T13:14:08.122Z"
+    },
+    {
+      "agent": "A13-Security",
+      "name": "rate_limit_exists",
+      "pass": true,
+      "detail": "in-memory Map (multi-instance gap remains P2)",
+      "severity": "info",
+      "at": "2026-08-01T13:14:08.122Z"
+    },
+    {
+      "agent": "A1-Auth",
+      "name": "signup",
+      "pass": true,
+      "detail": "0afd7b99-8336-432f-a891-4bd7c4b01037",
+      "severity": "info",
+      "at": "2026-08-01T13:14:12.892Z"
+    },
+    {
+      "agent": "A1-Auth",
+      "name": "password_login",
+      "pass": true,
+      "detail": "session issued",
+      "severity": "info",
+      "at": "2026-08-01T13:14:14.030Z"
+    },
+    {
+      "agent": "A1-Auth",
+      "name": "otp_send",
+      "pass": true,
+      "detail": "demo",
+      "severity": "info",
+      "at": "2026-08-01T13:14:14.859Z"
+    },
+    {
+      "agent": "A1-Auth",
+      "name": "otp_verify_336699",
+      "pass": true,
+      "detail": "session ok",
+      "severity": "info",
+      "at": "2026-08-01T13:14:16.410Z"
+    },
+    {
+      "agent": "A1-Auth",
+      "name": "otp_reject_wrong_code",
+      "pass": true,
+      "detail": "status=400",
+      "severity": "info",
+      "at": "2026-08-01T13:14:16.892Z"
+    },
+    {
+      "agent": "A1-Auth",
+      "name": "logout",
+      "pass": true,
+      "detail": "status=200",
+      "severity": "info",
+      "at": "2026-08-01T13:14:17.343Z"
+    },
+    {
+      "agent": "A1-Auth",
+      "name": "otp_unregistered_blocked",
+      "pass": true,
+      "detail": "email_not_registered",
+      "severity": "info",
+      "at": "2026-08-01T13:14:17.548Z"
+    },
+    {
+      "agent": "A5-Database",
+      "name": "manifest_loaded",
+      "pass": true,
+      "detail": "customers=500 pros=56",
+      "severity": "info",
+      "at": "2026-08-01T13:14:17.549Z"
+    },
+    {
+      "agent": "A5-Database",
+      "name": "pro_category_coverage",
+      "pass": true,
+      "detail": "categories=14/14",
+      "severity": "info",
+      "at": "2026-08-01T13:14:17.549Z"
+    },
+    {
+      "agent": "A2-CustomerFlow",
+      "name": "create_job",
+      "pass": true,
+      "detail": "072393a4-8c42-450d-a682-5a27a766e2a0",
+      "severity": "info",
+      "at": "2026-08-01T13:14:18.349Z"
+    },
+    {
+      "agent": "A2-CustomerFlow",
+      "name": "initial_status",
+      "pass": true,
+      "detail": "negotiating",
+      "severity": "info",
+      "at": "2026-08-01T13:14:18.349Z"
+    },
+    {
+      "agent": "A2-CustomerFlow",
+      "name": "start_negotiation",
+      "pass": true,
+      "detail": "negotiating",
+      "severity": "info",
+      "at": "2026-08-01T13:14:24.886Z"
+    },
+    {
+      "agent": "A2-CustomerFlow",
+      "name": "pro_decline_reroute",
+      "pass": true,
+      "detail": "searching",
+      "severity": "info",
+      "at": "2026-08-01T13:14:26.866Z"
+    },
+    {
+      "agent": "A14-Stress",
+      "name": "concurrent_logins_1000",
+      "pass": true,
+      "detail": "elapsed=9868ms avg=9.9ms 5xx=0 netFail=0 batch=50 sample=401,401,401,401,401",
+      "severity": "info",
+      "at": "2026-08-01T13:14:36.735Z"
+    },
+    {
+      "agent": "A14-Stress",
+      "name": "page_burst",
+      "pass": true,
+      "detail": "statuses=200,200,404,200 ms=222",
+      "severity": "info",
+      "at": "2026-08-01T13:14:36.958Z"
+    }
+  ]
+}

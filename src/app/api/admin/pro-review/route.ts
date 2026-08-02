@@ -5,6 +5,7 @@ import {
   requireAdmin,
 } from "@/lib/server/admin-auth";
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { buildDualRoleMeta } from "@/lib/dual-role";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 
@@ -72,24 +73,53 @@ async function buildProList(
       area: string | null;
       avatar_url: string | null;
       created_at: string;
+      role: string | null;
+      primary_role: string | null;
+      last_role_switch_at: string | null;
+      role_switch_count: number;
     }
   > = {};
+  const motoristIds = new Set<string>();
   if (userIds.length) {
-    const { data } = await supabase
+    let rows: Record<string, unknown>[] = [];
+    const full = await supabase
       .from("profiles")
-      .select("id, full_name, email, phone, city, area, avatar_url, created_at")
+      .select(
+        "id, full_name, email, phone, city, area, avatar_url, created_at, role, primary_role, last_role_switch_at, role_switch_count"
+      )
       .in("id", userIds);
-    for (const p of data ?? []) {
-      profiles[p.id] = {
-        full_name: p.full_name,
-        email: p.email,
-        phone: p.phone ?? null,
-        city: p.city ?? null,
-        area: (p as { area?: string | null }).area ?? null,
-        avatar_url: (p as { avatar_url?: string | null }).avatar_url ?? null,
-        created_at: p.created_at,
+    if (!full.error && full.data) {
+      rows = full.data as Record<string, unknown>[];
+    } else {
+      const slim = await supabase
+        .from("profiles")
+        .select(
+          "id, full_name, email, phone, city, area, avatar_url, created_at, role"
+        )
+        .in("id", userIds);
+      rows = (slim.data ?? []) as Record<string, unknown>[];
+    }
+    const { data: mots } = await supabase
+      .from("motorist_profiles")
+      .select("user_id")
+      .in("user_id", userIds);
+    for (const p of rows) {
+      const id = String(p.id);
+      profiles[id] = {
+        full_name: String(p.full_name || ""),
+        email: (p.email as string) ?? null,
+        phone: (p.phone as string) ?? null,
+        city: (p.city as string) ?? null,
+        area: (p.area as string) ?? null,
+        avatar_url: (p.avatar_url as string) ?? null,
+        created_at: String(p.created_at || ""),
+        role: (p.role as string) || "repair_pro",
+        primary_role: (p.primary_role as string) || null,
+        last_role_switch_at: (p.last_role_switch_at as string) || null,
+        role_switch_count: Number(p.role_switch_count || 0),
       };
     }
+    for (const m of mots ?? []) motoristIds.add(String(m.user_id));
   }
 
   // Recent job media (evidence / live photos) — not star reviews
@@ -195,6 +225,17 @@ async function buildProList(
     const needs_action =
       t2Pending || t4Pending || needs_resubmit || accountPending;
 
+    const dualMeta = buildDualRoleMeta({
+      hasMotorist: motoristIds.has(uid),
+      hasPro: true,
+      currentDbRole: p?.role || "repair_pro",
+      primaryDbRole: p?.primary_role || null,
+      lastRoleSwitchAt: p?.last_role_switch_at || null,
+      roleSwitchCount: p?.role_switch_count ?? 0,
+      activeAccountType:
+        p?.role === "motorist" ? "motorist" : "professional",
+    });
+
     return {
       user_id: uid,
       full_name: p?.full_name ?? "—",
@@ -204,6 +245,12 @@ async function buildProList(
       area: p?.area ?? null,
       avatar_url: p?.avatar_url ?? null,
       registered_at: p?.created_at ?? null,
+      dual_role: dualMeta.dualRole,
+      has_switched: dualMeta.hasSwitched,
+      first_role: dualMeta.firstRoleLabel,
+      current_role: dualMeta.currentRoleLabel,
+      last_role_switch_at: dualMeta.lastRoleSwitchAt,
+      role_switch_count: dualMeta.roleSwitchCount,
       business_name: pr.business_name ?? null,
       primary_service: pr.primary_service ?? null,
       services: pr.services ?? [],

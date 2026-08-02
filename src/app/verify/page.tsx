@@ -15,6 +15,7 @@ import {
   authPrimaryBtnClass,
   authPrimaryBtnStyle,
 } from "@/components/auth/auth-plate";
+import { UploadInlinePreview } from "@/components/media/upload-inline-preview";
 import {
   filterIdInput,
   getCountryIdPack,
@@ -523,73 +524,95 @@ export default function VerifyIdentityPage() {
               {/* gap: om-cta-dark-gray forces margin:0 */}
               <div className="flex flex-col gap-2">
                 {selectedDoc?.needsFront !== false ? (
-                  <label
-                    className={cn(
-                      "flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border-0 text-[12px] font-bold",
-                      isLight
-                        ? "bg-black/10 text-slate-800"
-                        : "bg-[#2c2c2e] text-white",
-                      !phoneOk && "pointer-events-none opacity-50"
-                    )}
-                  >
-                    <Upload className="h-3.5 w-3.5" />
-                    {idFrontName || idFront
-                      ? `${selectedDoc?.needsBack ? "Front" : "Photo"}: ${idFrontName || "uploaded"}`
-                      : selectedDoc?.needsBack
-                        ? "Upload front of ID"
-                        : "Upload ID photo (front only)"}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      disabled={!phoneOk}
-                      onChange={async (e) => {
-                        const f = e.target.files?.[0];
-                        if (!f) return;
-                        try {
-                          setIdFront(await readFile(f));
-                          setIdFrontName(f.name);
-                          setError("");
-                        } catch {
-                          setError("Could not read photo.");
-                        }
-                      }}
-                    />
-                  </label>
+                  <div className="flex flex-col gap-1.5">
+                    <label
+                      className={cn(
+                        "flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border-0 text-[12px] font-bold",
+                        isLight
+                          ? "bg-black/10 text-slate-800"
+                          : "bg-[#2c2c2e] text-white",
+                        !phoneOk && "pointer-events-none opacity-50"
+                      )}
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      {idFrontName || idFront
+                        ? `${selectedDoc?.needsBack ? "Front" : "Photo"}: ${idFrontName || "uploaded"}`
+                        : selectedDoc?.needsBack
+                          ? "Upload front of ID"
+                          : "Upload ID photo (front only)"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={!phoneOk}
+                        onChange={async (e) => {
+                          const f = e.target.files?.[0];
+                          if (!f) return;
+                          try {
+                            setIdFront(await readFile(f));
+                            setIdFrontName(f.name);
+                            setError("");
+                          } catch {
+                            setError("Could not read photo.");
+                          }
+                        }}
+                      />
+                    </label>
+                    {idFront ? (
+                      <UploadInlinePreview
+                        url={idFront}
+                        label={selectedDoc?.needsBack ? "ID front" : "ID photo"}
+                        fileName={idFrontName}
+                        isLight={isLight}
+                        defaultOpen
+                      />
+                    ) : null}
+                  </div>
                 ) : null}
 
                 {selectedDoc?.needsBack ? (
-                  <label
-                    className={cn(
-                      "flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border-0 text-[12px] font-bold",
-                      isLight
-                        ? "bg-black/10 text-slate-800"
-                        : "bg-[#2c2c2e] text-white",
-                      !phoneOk && "pointer-events-none opacity-50"
-                    )}
-                  >
-                    <Upload className="h-3.5 w-3.5" />
-                    {idBackName || idBack
-                      ? `Back: ${idBackName || "uploaded"}`
-                      : "Upload back of ID"}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      disabled={!phoneOk}
-                      onChange={async (e) => {
-                        const f = e.target.files?.[0];
-                        if (!f) return;
-                        try {
-                          setIdBack(await readFile(f));
-                          setIdBackName(f.name);
-                          setError("");
-                        } catch {
-                          setError("Could not read photo.");
-                        }
-                      }}
-                    />
-                  </label>
+                  <div className="flex flex-col gap-1.5">
+                    <label
+                      className={cn(
+                        "flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border-0 text-[12px] font-bold",
+                        isLight
+                          ? "bg-black/10 text-slate-800"
+                          : "bg-[#2c2c2e] text-white",
+                        !phoneOk && "pointer-events-none opacity-50"
+                      )}
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      {idBackName || idBack
+                        ? `Back: ${idBackName || "uploaded"}`
+                        : "Upload back of ID"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={!phoneOk}
+                        onChange={async (e) => {
+                          const f = e.target.files?.[0];
+                          if (!f) return;
+                          try {
+                            setIdBack(await readFile(f));
+                            setIdBackName(f.name);
+                            setError("");
+                          } catch {
+                            setError("Could not read photo.");
+                          }
+                        }}
+                      />
+                    </label>
+                    {idBack ? (
+                      <UploadInlinePreview
+                        url={idBack}
+                        label="ID back"
+                        fileName={idBackName}
+                        isLight={isLight}
+                        defaultOpen
+                      />
+                    ) : null}
+                  </div>
                 ) : null}
 
                 <button

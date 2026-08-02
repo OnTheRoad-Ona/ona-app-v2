@@ -17,6 +17,7 @@ import {
   validateBankDetailsInput,
 } from "@/lib/bank-details";
 import { useApp } from "@/lib/store";
+import { useOverlayGatesReady } from "@/lib/use-overlay-gates-ready";
 import { cn } from "@/lib/utils";
 
 export function BankForcePanel({
@@ -32,13 +33,15 @@ export function BankForcePanel({
     theme,
     updateUserProfile,
   } = useApp();
+  const gatesReady = useOverlayGatesReady();
   const isLight = theme === "light";
   const isPro =
     surface === "dashboard" || accountType === "professional";
 
   // Both Customer and Repair Pro need bank (refunds vs payouts)
+  // Wait for full page settle so reload never flashes bank over half-loaded UI
   const need =
-    Boolean(authReady && isAuthenticated && userProfile) &&
+    Boolean(gatesReady && authReady && isAuthenticated && userProfile) &&
     requiresBankSetup(userProfile);
 
   const [open, setOpen] = useState(true);

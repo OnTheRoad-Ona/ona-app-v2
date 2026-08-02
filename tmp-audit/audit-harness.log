@@ -1,0 +1,25 @@
+[audit-harness] base=http://127.0.0.1:3000 stress=100
+[PASS] [Coordinator] app_reachable — HTTP 200
+[PASS] [A13-Security] jobs_POST_requires_auth — blocked status=401
+[PASS] [A13-Security] jobs_GET_requires_auth — status=401
+[PASS] [A13-Security] jobs_transition_auth — status=401 msg=Not authenticated
+[PASS] [A13-Security] rate_limit_exists — src/lib/server/modules/rate-limit.ts is in-memory (multi-instance gap)
+  !! HIGH: Rate limiter is process-local Map only
+[PASS] [A1-Auth] signup — fa724bdd-f3f4-4af1-ab59-737e4e52bbea
+[PASS] [A1-Auth] password_login — session issued
+[PASS] [A1-Auth] otp_send — demo
+[PASS] [A1-Auth] otp_verify_336699 — session ok
+[PASS] [A1-Auth] otp_reject_wrong_code — status=400
+[PASS] [A1-Auth] logout — status=200
+[PASS] [A1-Auth] otp_unregistered_blocked — email_not_registered
+[PASS] [A5-Database] manifest_loaded — customers=500 pros=56
+[PASS] [A5-Database] pro_category_coverage — categories=14/14
+[PASS] [A2-CustomerFlow] create_job — dc21a2e7-106a-405f-99d8-8f3dbcaaedf3
+[PASS] [A2-CustomerFlow] initial_status — negotiating
+[PASS] [A2-CustomerFlow] start_negotiation — negotiating
+[PASS] [A2-CustomerFlow] pro_decline_reroute — searching
+[PASS] [A14-Stress] concurrent_logins_100 — elapsed=1910ms avg=19.1ms 5xx=0 sample=401,401,401,401,401
+[PASS] [A14-Stress] page_burst — statuses=200,200,404,200 ms=233
+
+[audit-harness] summary { passed: 20, failed: 0, findings: 1 }
+[audit-harness] wrote /Users/mac/Desktop/Code/Ona/tmp-audit/audit-harness-latest.json

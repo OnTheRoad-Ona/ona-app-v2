@@ -43,6 +43,15 @@ export interface ProfileRow {
   date_of_birth?: string | null;
   /** App UI language (en, pcm, yo, …) */
   preferred_locale?: string | null;
+  /**
+   * Original signup role (does not change on Tap to Switch).
+   * motorist = Customer Role, repair_pro = Professional Role.
+   */
+  primary_role?: UserRole | null;
+  /** Last successful Motorist ↔ Repair Pro switch */
+  last_role_switch_at?: string | null;
+  /** Number of successful role switches */
+  role_switch_count?: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

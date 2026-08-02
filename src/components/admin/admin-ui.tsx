@@ -250,9 +250,22 @@ export function FileThumb({
   const isPdf =
     (url && /\.pdf(\?|$)/i.test(url)) ||
     (url && url.includes("application/pdf")) ||
-    (view && view.includes("pdf"));
+    Boolean(url && url.startsWith("data:application/pdf")) ||
+    (view && view.includes("pdf") && !view.includes("video"));
+  const isVideo =
+    Boolean(url && url.startsWith("data:video")) ||
+    Boolean(url && /\.(mp4|webm|mov|m4v|ogg)(\?|$)/i.test(url)) ||
+    Boolean(url && /video\//i.test(url || "")) ||
+    Boolean(
+      label &&
+        /video|intro/i.test(label) &&
+        view &&
+        !isPdf &&
+        !view.startsWith("data:image")
+    );
   const isImage =
     !isPdf &&
+    !isVideo &&
     (view.startsWith("data:image") ||
       view.startsWith("blob:") ||
       Boolean(
@@ -278,6 +291,18 @@ export function FileThumb({
   const openViewer = (e: MouseEvent) => {
     e.preventDefault();
     setLightbox(true);
+  };
+
+  const retrySrc = () => {
+    if (userId && kind) {
+      setSrc(
+        `/api/admin/docs?userId=${encodeURIComponent(userId)}&kind=${encodeURIComponent(kind)}&t=${Date.now()}`
+      );
+    } else if (url) {
+      setSrc(proxyDocUrl(url) + `&t=${Date.now()}`);
+    } else {
+      setFailed(true);
+    }
   };
 
   const viewer =
@@ -316,6 +341,7 @@ export function FileThumb({
         >
           <span>
             {label}
+            {isVideo ? " · video" : isPdf ? " · PDF" : " · image"}
             {offline ? " · offline" : " · view only"}
           </span>
           <button
@@ -352,6 +378,21 @@ export function FileThumb({
                 background: "#111",
               }}
             />
+          ) : isVideo ? (
+            <video
+              src={view}
+              controls
+              playsInline
+              autoPlay={false}
+              style={{
+                width: "100%",
+                maxHeight: "min(80vh, 900px)",
+                borderRadius: 8,
+                background: "#000",
+              }}
+            >
+              Video preview unavailable
+            </video>
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -363,22 +404,35 @@ export function FileThumb({
                 objectFit: "contain",
                 borderRadius: 8,
               }}
-              onError={() => {
-                if (userId && kind) {
-                  setSrc(
-                    `/api/admin/docs?userId=${encodeURIComponent(userId)}&kind=${encodeURIComponent(kind)}&t=${Date.now()}`
-                  );
-                } else if (url) {
-                  setSrc(proxyDocUrl(url) + `&t=${Date.now()}`);
-                } else {
-                  setFailed(true);
-                }
-              }}
+              onError={retrySrc}
             />
           )}
         </div>
       </div>
     ) : null;
+
+  if (isVideo) {
+    return (
+      <>
+        <button
+          type="button"
+          className="om-admin-file-link"
+          onClick={openViewer}
+          title={`Play ${label} (Admin / Care · proxy)`}
+          style={{
+            cursor: "pointer",
+            border: 0,
+            background: "transparent",
+            textAlign: "left",
+          }}
+        >
+          🎬 {label}
+          {offline ? " · offline" : " · play"}
+        </button>
+        {viewer}
+      </>
+    );
+  }
 
   if (isPdf || (!isImage && view && !view.startsWith("data:image"))) {
     return (
@@ -422,17 +476,7 @@ export function FileThumb({
         <img
           src={view}
           alt={label}
-          onError={() => {
-            if (userId && kind) {
-              setSrc(
-                `/api/admin/docs?userId=${encodeURIComponent(userId)}&kind=${encodeURIComponent(kind)}&t=${Date.now()}`
-              );
-            } else if (url) {
-              setSrc(proxyDocUrl(url) + `&t=${Date.now()}`);
-            } else {
-              setFailed(true);
-            }
-          }}
+          onError={retrySrc}
         />
         <span className="om-admin-file-caption">
           {label}
