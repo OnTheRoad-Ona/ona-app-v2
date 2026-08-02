@@ -69,6 +69,16 @@ export async function POST(
 
     if (error) return apiFail(error.message, 500);
 
+    if (approve) {
+      const { mirrorDualRoleT2Approved } = await import(
+        "@/lib/server/identity/dual-t2-mirror"
+      );
+      await mirrorDualRoleT2Approved(supabase, id, {
+        reviewedBy: session.userId,
+        now,
+      });
+    }
+
     await logAdminAction(
       session.userId,
       approve ? "motorist_identity_approve" : "motorist_identity_reject",

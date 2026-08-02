@@ -48,6 +48,8 @@ export function ProOnboardingSheet() {
   const isLight = theme === "light";
   const [expanded, setExpanded] = useState(true);
   const [tick, setTick] = useState(0);
+  /** Hide flip pill + sheet while ☰ sidebar is open */
+  const [menuOpen, setMenuOpen] = useState(false);
   const gestureY = useRef<number | null>(null);
   const bodyScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -63,7 +65,19 @@ export function ProOnboardingSheet() {
     isAuthenticated &&
     accountType === "professional" &&
     dual &&
-    proOnboardingSheetRequired;
+    proOnboardingSheetRequired &&
+    !menuOpen;
+
+  // App menu sets #ona-phone[data-menu-open] while drawer is open
+  useEffect(() => {
+    const phone = document.getElementById("ona-phone");
+    if (!phone) return;
+    const sync = () => setMenuOpen(phone.dataset.menuOpen === "true");
+    sync();
+    const obs = new MutationObserver(sync);
+    obs.observe(phone, { attributes: true, attributeFilter: ["data-menu-open"] });
+    return () => obs.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!open || !backendUserId) return;

@@ -323,11 +323,19 @@ export async function PATCH(req: Request) {
             .eq("user_id", userId));
         }
         if (error) return apiFail(error.message, 500);
+        const { mirrorDualRoleT2Approved } = await import(
+          "@/lib/server/identity/dual-t2-mirror"
+        );
+        await mirrorDualRoleT2Approved(supabase, userId, {
+          reviewedBy: session.userId,
+          now,
+        });
         await logAdminAction(session.userId, "customer_t2_approve", userId, {});
         return apiOk({
           subject,
           action,
-          message: "Customer Tier 2 approved — unlimited requests unlocked.",
+          message:
+            "Customer Tier 2 approved — dual Repair Pro T2 auto-approved when both accounts exist.",
         });
       }
       if (action === "customer_t2_reject") {
@@ -383,11 +391,19 @@ export async function PATCH(req: Request) {
         })
         .eq("user_id", userId);
       if (error) return apiFail(error.message, 500);
+      const { mirrorDualRoleT2Approved } = await import(
+        "@/lib/server/identity/dual-t2-mirror"
+      );
+      await mirrorDualRoleT2Approved(supabase, userId, {
+        reviewedBy: session.userId,
+        now,
+      });
       await logAdminAction(session.userId, "pro_t2_approve", userId, {});
       return apiOk({
         subject,
         action,
-        message: "Pro Tier 2 (ID + BVN) approved · visibility Tier 2.",
+        message:
+          "Pro Tier 2 approved · dual Customer T2 auto-approved when both accounts exist.",
       });
     }
 

@@ -807,20 +807,15 @@ export async function PATCH(req: Request) {
     }
     if (error) return apiFail(error.message, 500);
 
-    // Dual-role: mirror Care decision onto Repair Pro ID fields so Pro UI leaves "in review"
     if (approve) {
-      await supabase
-        .from("repair_pro_profiles")
-        .update({
-          nin_verified: true,
-          bvn_verified: true,
-          verified: true,
-          gov_id_review_status: "approved",
-          gov_id_reviewed_at: now,
-          tier2_approved_at: now,
-          updated_at: now,
-        })
-        .eq("user_id", userId);
+      // Dual-role: auto-approve Repair Pro T2 + share ID media if empty
+      const { mirrorDualRoleT2Approved } = await import(
+        "@/lib/server/identity/dual-t2-mirror"
+      );
+      await mirrorDualRoleT2Approved(supabase, userId, {
+        reviewedBy: session.userId,
+        now,
+      });
     } else {
       await supabase
         .from("repair_pro_profiles")
@@ -846,7 +841,7 @@ export async function PATCH(req: Request) {
       userId,
       action: approve ? "approve" : "reject",
       message: approve
-        ? "Tier 2 approved — Government ID + BVN accepted. Full booking unlocked."
+        ? "Tier 2 approved on Customer — dual Repair Pro T2 auto-approved when both accounts exist."
         : "Tier 2 rejected — customer must re-submit ID and BVN.",
     });
   } catch (e) {

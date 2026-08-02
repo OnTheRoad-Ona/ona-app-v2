@@ -583,17 +583,26 @@ export async function PATCH(req: Request) {
         if (e2) return apiFail(e2.message, 500);
       }
       const vis = Number(t2Patch.visibility_tier) || 2;
+      // Dual-role: auto-approve Customer T2 + share ID media if empty
+      const { mirrorDualRoleT2Approved } = await import(
+        "@/lib/server/identity/dual-t2-mirror"
+      );
+      await mirrorDualRoleT2Approved(supabase, userId, {
+        reviewedBy: session.userId,
+        now,
+      });
       await logAdminAction(session.userId, "pro_t2_approve", userId, {
         visibility_tier: vis,
         auto: true,
+        dual_t2_mirrored: true,
       });
       return apiOk({
         message:
           vis >= 4
-            ? "T2 ID approved. Visibility T4 (full) — ID, liveness, BVN and skill docs all complete."
+            ? "T2 ID approved (dual Customer T2 auto-approved if present). Visibility T4."
             : vis >= 3
-              ? "T2 ID approved. Visibility T3 (~70% · 3 km) — liveness + BVN already complete. Skill docs unlock full T4."
-              : "T2 ID approved. Visibility T2 (limited · ~30% · 1 km) when they Go Live. T3 unlocks after face liveness (+ BVN).",
+              ? "T2 ID approved (dual Customer T2 auto-approved if present). Visibility T3."
+              : "T2 ID approved (dual Customer T2 auto-approved if present). Visibility T2 when they Go Live.",
       });
     }
 
