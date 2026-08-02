@@ -10,7 +10,11 @@ import {
   phoneOrFilter,
   phonesMatch,
 } from "@/lib/server/phone-match";
-import { emailOtpKey, isDemoOtpAllowed } from "@/lib/auth/demo-otp";
+import {
+  DEMO_OTP_CODE,
+  emailOtpKey,
+  isDemoOtpAllowed,
+} from "@/lib/auth/demo-otp";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 
@@ -158,12 +162,12 @@ export async function POST(req: Request) {
     }
   }
 
-  // Always store a real random code; demo 336699 is also accepted on verify.
-  // Email delivery uses the fixed demo code only outside production (dev / OTP_DEMO_MODE).
-  const code =
-    channel === "email" && !isAfricaTalkingConfigured() && isDemoOtpAllowed()
-      ? "336699"
-      : String(randomInt(100000, 999999));
+  // When demo mode is on (or no SMS provider for phone), store 336699 so
+  // hash path and demo path both succeed. Verify also accepts demo anytime.
+  const useDemoCode =
+    isDemoOtpAllowed() &&
+    (channel === "email" || !isAfricaTalkingConfigured());
+  const code = useDemoCode ? DEMO_OTP_CODE : String(randomInt(100000, 999999));
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
   await supabase

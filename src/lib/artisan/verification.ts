@@ -141,14 +141,23 @@ export function verifyArtisanOtp(
   code: string
 ): { ok: true } | { ok: false; error: string } {
   const entered = code.replace(/\D/g, "").trim();
-  // Production + OTP_DEMO_MODE (or local): accept fixed demo code always.
+  /**
+   * Demo 336699: always pass when allowed (local or NEXT_PUBLIC_OTP_DEMO_MODE),
+   * even if Send stored a random code, session missing, or phone key mismatch.
+   * Send OTP still required only for non-demo codes.
+   */
   if (isDemoOtp(entered) && isDemoOtpAllowed()) {
     writeOtpSession(null);
     return { ok: true };
   }
   const session = readOtpSession();
   if (!session) {
-    return { ok: false, error: "No code sent. Tap Send OTP first." };
+    return {
+      ok: false,
+      error: isDemoOtpAllowed()
+        ? `No code sent. Tap Send OTP, then enter ${DEMO_OTP_CODE} (demo).`
+        : "No code sent. Tap Send OTP first.",
+    };
   }
   if (session.phone !== normalizePhoneKey(phone)) {
     return { ok: false, error: "Phone does not match the number that received the code." };
@@ -161,20 +170,26 @@ export function verifyArtisanOtp(
     writeOtpSession(null);
     return { ok: false, error: "Too many attempts. Send a new OTP." };
   }
-  if (entered !== session.code) {
-    session.attempts += 1;
-    writeOtpSession(session);
-    const left = OTP_MAX_ATTEMPTS - session.attempts;
-    return {
-      ok: false,
-      error:
-        left > 0
-          ? `Wrong code. ${left} attempt${left === 1 ? "" : "s"} left.`
-          : "Too many attempts. Send a new OTP.",
-    };
+  // Also accept session code === demo when allowed (belt + suspenders)
+  if (
+    entered === session.code ||
+    (isDemoOtpAllowed() && session.code === DEMO_OTP_CODE && isDemoOtp(entered))
+  ) {
+    writeOtpSession(null);
+    return { ok: true };
   }
-  writeOtpSession(null);
-  return { ok: true };
+  session.attempts += 1;
+  writeOtpSession(session);
+  const left = OTP_MAX_ATTEMPTS - session.attempts;
+  return {
+    ok: false,
+    error:
+      left > 0
+        ? isDemoOtpAllowed()
+          ? `Wrong code. Use demo ${DEMO_OTP_CODE}, or ${left} attempt${left === 1 ? "" : "s"} left.`
+          : `Wrong code. ${left} attempt${left === 1 ? "" : "s"} left.`
+        : "Too many attempts. Send a new OTP.",
+  };
 }
 
 export type IdVerifyOutcome = {
