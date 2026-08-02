@@ -32,6 +32,7 @@ import { getArtisanProfile } from "@/lib/artisan/local-store";
 import {
   shouldShowProContinueSetup,
   shouldShowProSettingsVerification,
+  shouldShowProViewVerification,
 } from "@/lib/pro-switch-onboarding";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -123,14 +124,6 @@ export default function SettingsPage() {
   const isPro = accountType === "professional";
   const scrollRef = useRef<HTMLDivElement>(null);
   const artisan = backendUserId ? getArtisanProfile(backendUserId) : null;
-  const showVerification = shouldShowProSettingsVerification({
-    hasMotoristAccount,
-    hasProAccount,
-    accountType,
-    primaryAccountType,
-    userProfile,
-    artisan,
-  });
   const showContinueSetup = shouldShowProContinueSetup({
     hasMotoristAccount,
     hasProAccount,
@@ -139,6 +132,24 @@ export default function SettingsPage() {
     userProfile,
     artisan,
   });
+  const showViewVerification = shouldShowProViewVerification({
+    hasMotoristAccount,
+    hasProAccount,
+    accountType,
+    primaryAccountType,
+    userProfile,
+    artisan,
+  });
+  const showVerification =
+    showViewVerification ||
+    shouldShowProSettingsVerification({
+      hasMotoristAccount,
+      hasProAccount,
+      accountType,
+      primaryAccountType,
+      userProfile,
+      artisan,
+    });
 
   useEffect(() => {
     restoreSettingsScroll(scrollRef.current);
@@ -178,8 +189,8 @@ export default function SettingsPage() {
               first
               isLight={isLight}
               icon={BadgeCheck}
-              label="Continue setup"
-              detail="Complete Tier 2 setup for Repair Pro"
+              label="Continue verification"
+              detail="Finish remaining Repair Pro tiers"
               onClick={() => {
                 rememberScroll();
                 setProOnboardingSheetRequired(true);
@@ -189,14 +200,25 @@ export default function SettingsPage() {
               }}
             />
           ) : null}
+          {showViewVerification ? (
+            <SettingsRow
+              first={!showContinueSetup}
+              isLight={isLight}
+              icon={BadgeCheck}
+              label="View Verification"
+              detail="View only — all tiers complete"
+              href="/artisan/verification?view=1"
+              onClick={rememberScroll}
+            />
+          ) : null}
           {HUB_SECTIONS.filter((item) => {
             // Pro: Payments & Payouts lives in the side bar, not Settings
             if (isPro && item.href === "/settings/payments") return false;
-            // Dual C→Pro: Verification only after Care-approved T2
+            // Dual: hide hub Verification row — use Continue / View rows above
             if (
               item.href === "/settings/verification" &&
               isPro &&
-              !showVerification
+              (showContinueSetup || showViewVerification || !showVerification)
             ) {
               return false;
             }
@@ -204,7 +226,7 @@ export default function SettingsPage() {
           }).map((item, i) => (
             <SettingsRow
               key={item.href}
-              first={!showContinueSetup && i === 0}
+              first={!showContinueSetup && !showViewVerification && i === 0}
               isLight={isLight}
               icon={item.icon}
               label={t(item.labelKey)}

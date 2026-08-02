@@ -14,8 +14,7 @@ import {
   applyCustomerTiersToArtisan,
   isCustomerToProDualPath,
   isProSwitchMandatoryOnboardingDone,
-  proT1Satisfied,
-  proT2Satisfied,
+  proSetupSheetTitle,
 } from "@/lib/pro-switch-onboarding";
 import { useApp } from "@/lib/store";
 import { useOverlayGatesReady } from "@/lib/use-overlay-gates-ready";
@@ -164,11 +163,7 @@ export function ProOnboardingSheet() {
   if (!open) return null;
 
   const artisan = backendUserId ? getArtisanProfile(backendUserId) : null;
-  const t1Done = proT1Satisfied(userProfile, artisan);
-  const t2Done = proT2Satisfied(userProfile, artisan);
-  const title = t1Done
-    ? "Complete Tier 2 setup for Repair Pro"
-    : "Complete Tier 1 setup for Repair Pro";
+  const title = proSetupSheetTitle(userProfile, artisan);
 
   return (
     <div
@@ -251,7 +246,7 @@ export function ProOnboardingSheet() {
                 isLight ? "text-slate-900" : "text-white"
               )}
             >
-              {t2Done ? "Repair Pro setup almost done" : title}
+              {title}
             </span>
           ) : null}
         </div>

@@ -55,6 +55,7 @@ import {
   isLivenessComplete,
   isSkillComplete,
   lockMessageForSection,
+  nextProEmbedTierStep,
 } from "@/lib/artisan/verification-order";
 import { sendArtisanOtp, verifyArtisanOtp } from "@/lib/artisan/verification";
 import type {
@@ -146,6 +147,7 @@ export function ArtisanOnboarding({
   skipT2IfCustomerDone = false,
   onMandatoryComplete,
   embedScrollParentRef,
+  viewOnly = false,
 }: {
   /** full = post-signup; settings = optional tiers later */
   mode?: "full" | "settings";
@@ -159,6 +161,8 @@ export function ArtisanOnboarding({
   onMandatoryComplete?: () => void;
   /** Sheet swipe: scroll container for “at top → collapse” */
   embedScrollParentRef?: React.RefObject<HTMLDivElement | null>;
+  /** Settings “View Verification” — no edits */
+  viewOnly?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -685,6 +689,38 @@ export function ArtisanOnboarding({
   };
 
   /** NIN/BVN number → server queue for admin/care */
+  const submitSkillForReview = async () => {
+    if (!profile) return;
+    if (!canAccessSkillProof(profile)) {
+      setGatePopup(lockMessageForSection("skill"));
+      return;
+    }
+    if (!profile.skillProof || !profile.skillProofType) {
+      setErr("Upload a certificate first.");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    const apiErr = await postProVerify({
+      kind: "skill_docs",
+      skillProofType: profile.skillProofType,
+      skillProofName: profile.skillProof?.name,
+      skillProofUrl: profile.skillProof?.url,
+      primaryService: profile.trade?.service,
+    });
+    if (apiErr) {
+      setErr(apiErr);
+      setBusy(false);
+      return;
+    }
+    patch({
+      skillProofStatus: "under_review",
+      tiers: { ...profile.tiers, tier4_skillProof: true },
+    });
+    setMsg("Skill proof submitted for review.");
+    setBusy(false);
+  };
+
   const submitNinForReview = async () => {
     if (!profile) return;
     const nin = (profile.nin || "").replace(/\D/g, "");
@@ -829,10 +865,18 @@ export function ArtisanOnboarding({
 
   const trade = tradeDef(profile.trade.service);
 
-  const showEmbedT2Form =
-    embedInSheet &&
-    !hideGovIdTiers &&
-    (hidePhoneTier || profile.tiers.tier1_phone);
+  const embedStep = embedInSheet
+    ? nextProEmbedTierStep(profile, {
+        hidePhone: hidePhoneTier,
+        hideGovId: hideGovIdTiers,
+      })
+    : null;
+
+  const showEmbedT2Form = embedInSheet && embedStep === "gov_id";
+  const showEmbedLivenessBtn =
+    embedInSheet && embedStep === "liveness" && !showLiveness;
+  const showEmbedBvnBtn = embedInSheet && embedStep === "bvn";
+  const showEmbedSkillBtn = embedInSheet && embedStep === "skill";
 
   const submitIdLabel =
     idBusy === "gov" ? (
@@ -858,17 +902,41 @@ export function ArtisanOnboarding({
 
   return (
     <div
-      className="relative flex h-full min-h-0 flex-col overflow-hidden"
+      className={cn(
+        "relative flex h-full min-h-0 flex-col overflow-hidden",
+        viewOnly && "select-none"
+      )}
       style={{ backgroundColor: sheetBg }}
+      data-view-only={viewOnly ? "1" : undefined}
     >
       <div className="shrink-0">
         {!embedInSheet ? (
           <PageHeader
-            title={mode === "settings" ? "Verification" : "Repair Pro Setup"}
-            subtitle={`${statusLabel(profile.status)} · ${progress}% verified`}
-            // Stack previous page when available; else dashboard (pro) / profile
-            backHref={mode === "settings" ? "/profile" : "/dashboard"}
+            title={
+              viewOnly
+                ? "View Verification"
+                : mode === "settings"
+                  ? "Verification"
+                  : "Repair Pro Setup"
+            }
+            subtitle={
+              viewOnly
+                ? "View only"
+                : `${statusLabel(profile.status)} · ${progress}% verified`
+            }
+            backHref={mode === "settings" ? "/settings" : "/dashboard"}
           />
+        ) : null}
+        {viewOnly ? (
+          <p
+            className={cn(
+              "mx-3 mb-2 rounded-md px-3 py-2 text-[11px] font-medium",
+              isLight ? "bg-black/5 text-slate-700" : "bg-white/10 text-white/70"
+            )}
+          >
+            View only — verification is complete. Contact Care to change
+            documents.
+          </p>
         ) : null}
 
         {needsResubmit ? (
@@ -939,7 +1007,8 @@ export function ArtisanOnboarding({
         ref={embedInSheet ? embedScrollParentRef : undefined}
         className={cn(
           "min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3",
-          embedInSheet ? "pb-2" : "pb-4"
+          embedInSheet ? "pb-2" : "pb-4",
+          viewOnly && "pointer-events-none opacity-90"
         )}
         style={{
           WebkitOverflowScrolling: "touch",
@@ -1679,14 +1748,30 @@ export function ArtisanOnboarding({
                 )}
               >
                 <p className="font-bold">
-                  {hidePhoneTier || profile.tiers.tier1_phone
-                    ? "Tier 2: Government ID"
-                    : "Tier 1: Phone verification"}
+                  {embedStep === "phone"
+                    ? "Tier 1: Phone verification"
+                    : embedStep === "gov_id"
+                      ? "Tier 2: Government ID"
+                      : embedStep === "liveness"
+                        ? "Tier 3: Face liveness"
+                        : embedStep === "bvn"
+                          ? "Tier 3: BVN"
+                          : embedStep === "skill"
+                            ? "Tier 4: Proof of skill"
+                            : "Verification complete"}
                 </p>
                 <p className="mt-0.5">
-                  {hidePhoneTier || profile.tiers.tier1_phone
-                    ? "Submit your ID for Care review. Higher tiers unlock after approval."
-                    : "Verify your phone to unlock Tier 2."}
+                  {embedStep === "phone"
+                    ? "Verify your phone to unlock Tier 2."
+                    : embedStep === "gov_id"
+                      ? "Submit your ID for Care review. Next steps unlock after approval."
+                      : embedStep === "liveness"
+                        ? "Complete face liveness to continue."
+                        : embedStep === "bvn"
+                          ? "Submit BVN after liveness for full Tier 3 reach."
+                          : embedStep === "skill"
+                            ? "Upload proof of skill for Tier 4 review."
+                            : "All tiers are complete."}
                 </p>
               </div>
             ) : (
@@ -1774,10 +1859,8 @@ export function ArtisanOnboarding({
               </div>
             ) : null}
 
-            {/* Sheet embed: show only the active mandatory tier (T1 or T2) */}
-            {embedInSheet &&
-            !hidePhoneTier &&
-            !profile.tiers.tier1_phone ? (
+            {/* Sheet embed: phone only when active step */}
+            {embedInSheet && embedStep === "phone" ? (
               <div className="space-y-2.5">
                 <div className="flex items-center gap-2">
                   <Phone className="h-4 w-4 shrink-0 text-[#FF6B35]" />
@@ -1842,7 +1925,7 @@ export function ArtisanOnboarding({
               </div>
             ) : null}
 
-            {hideGovIdTiers ? (
+            {hideGovIdTiers && (!embedInSheet || embedStep === "gov_id") ? (
               <div
                 className={cn(
                   "rounded-md px-3 py-2.5 text-[11px] font-medium leading-snug",
@@ -1859,15 +1942,13 @@ export function ArtisanOnboarding({
               </div>
             ) : null}
 
-            {/* T2 Government ID — hide on sheet while Tier 1 still open */}
+            {/* T2 Government ID — sheet: only when this is the active tier */}
             <div
               className={cn(
                 panelClass,
                 "space-y-2.5",
                 (hideGovIdTiers ||
-                  (embedInSheet &&
-                    !hidePhoneTier &&
-                    !profile.tiers.tier1_phone)) &&
+                  (embedInSheet && embedStep !== "gov_id")) &&
                   "hidden"
               )}
             >
@@ -2135,13 +2216,17 @@ export function ArtisanOnboarding({
               ) : null}
             </div>
 
-            {/* T3–T4 only on full verification page (sheet is one mandatory tier) */}
-            {!embedInSheet ? (
+            {/* T3–T4: full page shows all; sheet shows active tier only */}
+            {(!embedInSheet ||
+              embedStep === "liveness" ||
+              embedStep === "bvn" ||
+              embedStep === "skill") && (
             <>
             {/* Face liveness: Tier 3 (after Government ID) */}
             <div
               className={cn(
                 "relative",
+                (!embedInSheet || embedStep === "liveness") ? "" : "hidden",
                 !canAccessLiveness(profile) && "opacity-45"
               )}
             >
@@ -2161,16 +2246,8 @@ export function ArtisanOnboarding({
                   !canAccessLiveness(profile) && "pointer-events-none"
                 )}
               >
-                <p className={cn("text-[13px] font-bold", ink)}>
-                  Face liveness · Tier 3
-                </p>
-                <p className={cn("mt-1 text-[10px] font-medium", muted)}>
-                  {profile.tiers.tier3_liveness
-                    ? `Passed${profile.livenessPassedAt ? ` ${new Date(profile.livenessPassedAt).toLocaleString()}` : ""}`
-                    : "Live video check · 5–8s · no recording saved"}
-                </p>
                 {showLiveness ? (
-                  <div className="mt-2">
+                  <div>
                     <FaceLiveness
                       isLight={isLight}
                       userKey={
@@ -2228,10 +2305,10 @@ export function ArtisanOnboarding({
                       }}
                     />
                   </div>
-                ) : (
+                ) : !embedInSheet ? (
                   <button
                     type="button"
-                    className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#FF6B35] text-[12px] font-bold text-white"
+                    className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[13px] font-bold text-white"
                     onClick={() => {
                       setShowLiveness(true);
                       setErr(null);
@@ -2242,7 +2319,7 @@ export function ArtisanOnboarding({
                       ? "Run liveness again"
                       : "Start face liveness"}
                   </button>
-                )}
+                ) : null}
               </div>
             </div>
 
@@ -2250,6 +2327,7 @@ export function ArtisanOnboarding({
             <div
               className={cn(
                 "relative",
+                (!embedInSheet || embedStep === "bvn") ? "" : "hidden",
                 !canAccessBvn(profile) && "opacity-45"
               )}
             >
@@ -2293,30 +2371,33 @@ export function ArtisanOnboarding({
                   maxLength={11}
                   pattern="[0-9]{11}"
                 />
-                <button
-                  type="button"
-                  disabled={
-                    idBusy === "nin" ||
-                    profile.tiers.tier2_nin ||
-                    profile.ninReviewStatus === "submitted"
-                  }
-                  className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[12px] font-bold text-white disabled:opacity-60"
-                  onClick={submitNinForReview}
-                >
-                  {idBusy === "nin" ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
-                    </>
-                  ) : profile.tiers.tier2_nin ? (
-                    <>
-                      <Check className="h-3.5 w-3.5" /> Approved
-                    </>
-                  ) : profile.ninReviewStatus === "submitted" ? (
-                    "BVN currently in review"
-                  ) : (
-                    "Submit"
-                  )}
-                </button>
+                {!embedInSheet ? (
+                  <button
+                    type="button"
+                    disabled={
+                      idBusy === "nin" ||
+                      profile.tiers.tier2_nin ||
+                      profile.ninReviewStatus === "submitted"
+                    }
+                    className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[13px] font-bold text-white disabled:opacity-60"
+                    onClick={submitNinForReview}
+                  >
+                    {idBusy === "nin" ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />{" "}
+                        Saving…
+                      </>
+                    ) : profile.tiers.tier2_nin ? (
+                      <>
+                        <Check className="h-3.5 w-3.5" /> Approved
+                      </>
+                    ) : profile.ninReviewStatus === "submitted" ? (
+                      "BVN currently in review"
+                    ) : (
+                      "Submit BVN for review"
+                    )}
+                  </button>
+                ) : null}
               </div>
             </div>
 
@@ -2325,6 +2406,7 @@ export function ArtisanOnboarding({
               ref={skillSectionRef}
               className={cn(
                 "relative",
+                (!embedInSheet || embedStep === "skill") ? "" : "hidden",
                 !canAccessSkillProof(profile) && "opacity-45"
               )}
             >
@@ -2457,57 +2539,30 @@ export function ArtisanOnboarding({
                     />
                   ) : null}
                 </div>
-                <button
-                  type="button"
-                  disabled={
-                    busy ||
-                    !profile.skillProof ||
-                    profile.tiers.tier4_skillProof ||
+                {!embedInSheet ? (
+                  <button
+                    type="button"
+                    disabled={
+                      busy ||
+                      !profile.skillProof ||
+                      profile.tiers.tier4_skillProof ||
+                      profile.skillProofStatus === "under_review"
+                    }
+                    className="flex h-11 w-full items-center justify-center rounded-md border-0 bg-[#323231] text-[13px] font-bold text-white disabled:opacity-60"
+                    onClick={() => {
+                      void submitSkillForReview();
+                    }}
+                  >
+                    {profile.tiers.tier4_skillProof ||
                     profile.skillProofStatus === "under_review"
-                  }
-                  className="flex h-11 w-full items-center justify-center rounded-md border-0 bg-[#323231] text-[12px] font-bold text-white disabled:opacity-60"
-                  onClick={() => {
-                    if (!canAccessSkillProof(profile)) {
-                      setGatePopup(lockMessageForSection("skill"));
-                      return;
-                    }
-                    if (!profile.skillProof || !profile.skillProofType) {
-                      setErr("Upload a certificate first.");
-                      return;
-                    }
-                    void (async () => {
-                      setBusy(true);
-                      setErr(null);
-                      const apiErr = await postProVerify({
-                        kind: "skill_docs",
-                        skillProofType: profile.skillProofType,
-                        skillProofName: profile.skillProof?.name,
-                        skillProofUrl: profile.skillProof?.url,
-                        primaryService: profile.trade?.service,
-                      });
-                      if (apiErr) {
-                        setErr(apiErr);
-                        setBusy(false);
-                        return;
-                      }
-                      patch({
-                        skillProofStatus: "under_review",
-                        tiers: { ...profile.tiers, tier4_skillProof: true },
-                      });
-                      setMsg("Skill proof submitted for review.");
-                      setBusy(false);
-                    })();
-                  }}
-                >
-                  {profile.tiers.tier4_skillProof ||
-                  profile.skillProofStatus === "under_review"
-                    ? "Skill currently in review"
-                    : "Submit skill for review"}
-                </button>
+                      ? "Skill currently in review"
+                      : "Submit skill for review"}
+                  </button>
+                ) : null}
               </div>
             </div>
             </>
-            ) : null}
+            )}
           </section>
         )}
 
@@ -2664,20 +2719,87 @@ export function ArtisanOnboarding({
         </BottomSheet>
       ) : null}
 
-      {/* Sheet embed: sticky Submit ID at bottom of lower panel */}
-      {showEmbedT2Form ? (
+      {/* Sheet embed: primary action sticky at bottom (same for every tier) */}
+      {showEmbedT2Form ||
+      showEmbedLivenessBtn ||
+      showEmbedBvnBtn ||
+      showEmbedSkillBtn ? (
         <div
           className="shrink-0 border-0 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
           style={{ backgroundColor: sheetBg }}
         >
-          <button
-            type="button"
-            disabled={submitIdDisabled}
-            className="flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[13px] font-bold text-white disabled:opacity-60"
-            onClick={submitGovIdForReview}
-          >
-            {submitIdLabel}
-          </button>
+          {showEmbedT2Form ? (
+            <button
+              type="button"
+              disabled={submitIdDisabled || viewOnly}
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[13px] font-bold text-white disabled:opacity-60"
+              onClick={submitGovIdForReview}
+            >
+              {submitIdLabel}
+            </button>
+          ) : null}
+          {showEmbedLivenessBtn ? (
+            <button
+              type="button"
+              disabled={viewOnly}
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[13px] font-bold text-white disabled:opacity-60"
+              onClick={() => {
+                setShowLiveness(true);
+                setErr(null);
+              }}
+            >
+              <Camera className="h-4 w-4" />
+              {profile.tiers.tier3_liveness
+                ? "Run liveness again"
+                : "Start face liveness"}
+            </button>
+          ) : null}
+          {showEmbedBvnBtn ? (
+            <button
+              type="button"
+              disabled={
+                viewOnly ||
+                idBusy === "nin" ||
+                profile.tiers.tier2_nin ||
+                profile.ninReviewStatus === "submitted"
+              }
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[13px] font-bold text-white disabled:opacity-60"
+              onClick={submitNinForReview}
+            >
+              {idBusy === "nin" ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
+                </>
+              ) : profile.tiers.tier2_nin ? (
+                <>
+                  <Check className="h-3.5 w-3.5" /> Approved
+                </>
+              ) : profile.ninReviewStatus === "submitted" ? (
+                "BVN currently in review"
+              ) : (
+                "Submit BVN for review"
+              )}
+            </button>
+          ) : null}
+          {showEmbedSkillBtn ? (
+            <button
+              type="button"
+              disabled={
+                viewOnly ||
+                busy ||
+                !profile.skillProof ||
+                profile.tiers.tier4_skillProof ||
+                profile.skillProofStatus === "under_review"
+              }
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[13px] font-bold text-white disabled:opacity-60"
+              onClick={() => void submitSkillForReview()}
+            >
+              {profile.tiers.tier4_skillProof ||
+              profile.skillProofStatus === "under_review"
+                ? "Skill currently in review"
+                : "Submit skill for review"}
+            </button>
+          ) : null}
         </div>
       ) : null}
 

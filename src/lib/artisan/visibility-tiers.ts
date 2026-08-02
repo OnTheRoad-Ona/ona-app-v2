@@ -169,13 +169,35 @@ export function rulesForTier(tier: VisibilityTier): VisibilityTierRules {
 
 /** Effective visibility tier from artisan profile (defaults to 1). */
 export function resolveVisibilityTier(
-  p: Pick<ArtisanVerificationProfile, "visibilityTier" | "status"> | null | undefined
+  p:
+    | (Pick<ArtisanVerificationProfile, "visibilityTier" | "status"> &
+        Partial<
+          Pick<ArtisanVerificationProfile, "tiers" | "govIdReviewStatus">
+        >)
+    | null
+    | undefined
 ): VisibilityTier {
   if (!p) return 1;
-  if (p.visibilityTier != null) return clampVisibilityTier(p.visibilityTier);
-  // Legacy: bare "approved" without tier field → Tier 2 (first admin gate)
-  if (p.status === "approved") return 2;
-  return 1;
+  let tier =
+    p.visibilityTier != null
+      ? clampVisibilityTier(p.visibilityTier)
+      : p.status === "approved"
+        ? 2
+        : 1;
+  // Care-approved T2 must never still read as Tier 1
+  if (
+    p.govIdReviewStatus === "approved" ||
+    Boolean(p.tiers?.tier2_govId)
+  ) {
+    tier = Math.max(tier, 2) as VisibilityTier;
+  }
+  if (Boolean(p.tiers?.tier3_liveness)) {
+    tier = Math.max(tier, 3) as VisibilityTier;
+  }
+  if (Boolean(p.tiers?.tier4_skillProof)) {
+    tier = Math.max(tier, 4) as VisibilityTier;
+  }
+  return tier;
 }
 
 export function addDaysIso(fromIso: string, days: number): string {

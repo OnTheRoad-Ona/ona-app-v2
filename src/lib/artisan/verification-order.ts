@@ -67,6 +67,58 @@ export function canAccessSkillProof(
   return isBvnComplete(p) && isLivenessComplete(p);
 }
 
+/**
+ * Next incomplete step for Pro lower panel (one tier at a time).
+ * After Care T2, advances to liveness → BVN → skill.
+ */
+export type ProEmbedTierStep =
+  | "phone"
+  | "gov_id"
+  | "liveness"
+  | "bvn"
+  | "skill"
+  | "done";
+
+export function nextProEmbedTierStep(
+  p: Partial<ArtisanVerificationProfile> | null | undefined,
+  opts?: { hidePhone?: boolean; hideGovId?: boolean }
+): ProEmbedTierStep {
+  if (!opts?.hidePhone && !p?.tiers?.tier1_phone) return "phone";
+  // Care-approved or submitted T2 counts as past phone; still on gov if not complete
+  if (!opts?.hideGovId && !isGovIdComplete(p)) return "gov_id";
+  if (!isLivenessComplete(p)) return "liveness";
+  if (!isBvnComplete(p)) return "bvn";
+  if (!isSkillComplete(p)) return "skill";
+  return "done";
+}
+
+/** Short label for dashboard CTA under the tier bar. */
+export function nextProEmbedTierLabel(step: ProEmbedTierStep): string {
+  switch (step) {
+    case "phone":
+      return "Tier 1 · Phone";
+    case "gov_id":
+      return "Tier 2 · Government ID";
+    case "liveness":
+      return "Tier 3 · Face liveness";
+    case "bvn":
+      return "Tier 3 · BVN";
+    case "skill":
+      return "Tier 4 · Proof of skill";
+    default:
+      return "";
+  }
+}
+
+/** All of T1–T4 done (phone + ID + BVN + liveness + skill). */
+export function isProVerificationLadderComplete(
+  p: Partial<ArtisanVerificationProfile> | null | undefined,
+  opts?: { phoneOk?: boolean }
+): boolean {
+  if (!(opts?.phoneOk || p?.tiers?.tier1_phone)) return false;
+  return verificationOrderComplete(p).ok === true;
+}
+
 /** Full verification ladder for Submit / Go Live readiness */
 export function verificationOrderComplete(
   p: Partial<ArtisanVerificationProfile> | null | undefined

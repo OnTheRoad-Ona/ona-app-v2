@@ -2,13 +2,17 @@
  * Customer → Repair Pro (Tap to Switch) onboarding rules.
  *
  * - Carry Customer T1 (phone) + T2 (gov ID Care-approved) so Pro is not re-asked.
- * - Force remaining Pro setup in a bottom panel until Care-approved T2
- *   (collapses to a tiny fracture; one tier at a time).
- * - Settings → Verification for dual C→Pro only after Care approves T2.
+ * - Force remaining Pro setup in bottom panel until full T1–T4 ladder done
+ *   (one tier at a time; after Care T2 advances to T3/T4).
+ * - Settings: Continue verification until ladder done, then View Verification.
  * - Progress flag persisted per user (localStorage) so sheet returns after refresh.
  */
 
 import type { ArtisanVerificationProfile } from "@/lib/artisan/types";
+import {
+  isProVerificationLadderComplete,
+  nextProEmbedTierStep,
+} from "@/lib/artisan/verification-order";
 import {
   isIdentityVerified,
   isPhoneVerified,
@@ -62,12 +66,8 @@ export function proT2CareApproved(
 ): boolean {
   if (customerHasT2(profile)) return true;
   if (profile?.identityReviewStatus === "approved") return true;
-  if (
-    artisan?.govIdReviewStatus === "approved" &&
-    Boolean(artisan?.tiers?.tier2_govId)
-  ) {
-    return true;
-  }
+  if (artisan?.govIdReviewStatus === "approved") return true;
+  if (Boolean(artisan?.tiers?.tier2_govId)) return true;
   return false;
 }
 
@@ -79,7 +79,7 @@ export function proT2Satisfied(
   return proT2CareApproved(profile, artisan);
 }
 
-/** Whether Pro should see Settings → Verification (dual only after Care T2). */
+/** Pure Pro: always; dual: View Verification only when T1–T4 complete. */
 export function shouldShowProSettingsVerification(opts: {
   hasMotoristAccount: boolean;
   hasProAccount: boolean;
@@ -92,14 +92,11 @@ export function shouldShowProSettingsVerification(opts: {
   if (!isPro) return true;
 
   const dual = isCustomerToProDualPath(opts);
-  if (!dual) {
-    // Pure Pro — Verification always available
-    return true;
-  }
-  return proT2CareApproved(opts.userProfile, opts.artisan);
+  if (!dual) return true;
+  return isProLadderDone(opts.userProfile, opts.artisan);
 }
 
-/** Dual incomplete: show Settings “Continue setup” (not Verification). */
+/** Dual (or pro) incomplete ladder: Settings “Continue verification”. */
 export function shouldShowProContinueSetup(opts: {
   hasMotoristAccount: boolean;
   hasProAccount: boolean;
@@ -110,7 +107,36 @@ export function shouldShowProContinueSetup(opts: {
 }): boolean {
   if (opts.accountType !== "professional") return false;
   if (!isCustomerToProDualPath(opts)) return false;
-  return !proT2CareApproved(opts.userProfile, opts.artisan);
+  return !isProLadderDone(opts.userProfile, opts.artisan);
+}
+
+/** Dual complete: Settings “View Verification” (read-only). */
+export function shouldShowProViewVerification(opts: {
+  hasMotoristAccount: boolean;
+  hasProAccount: boolean;
+  accountType: string | null | undefined;
+  primaryAccountType?: string | null;
+  userProfile: UserProfile | null | undefined;
+  artisan?: Partial<ArtisanVerificationProfile> | null;
+}): boolean {
+  if (opts.accountType !== "professional") return false;
+  if (!isCustomerToProDualPath(opts)) return false;
+  return isProLadderDone(opts.userProfile, opts.artisan);
+}
+
+function isProLadderDone(
+  profile: UserProfile | null | undefined,
+  artisan?: Partial<ArtisanVerificationProfile> | null
+): boolean {
+  const merged = artisan
+    ? applyCustomerTiersToArtisan(
+        artisan as ArtisanVerificationProfile,
+        profile
+      )
+    : null;
+  return isProVerificationLadderComplete(merged || artisan, {
+    phoneOk: proT1Satisfied(profile, artisan),
+  });
 }
 
 export function proT1Satisfied(
@@ -122,14 +148,46 @@ export function proT1Satisfied(
   return false;
 }
 
-/** Mandatory sheet done = Care-approved T2 (T1 can be inherited). */
+/**
+ * Dual lower panel done only when full ladder complete (T1–T4).
+ * After Care T2, panel advances to T3/T4 instead of dismissing.
+ */
 export function isProSwitchMandatoryOnboardingDone(
   profile: UserProfile | null | undefined,
   artisan?: Partial<ArtisanVerificationProfile> | null
 ): boolean {
-  // T1 still required (phone) before considering dual onboarding complete
   if (!proT1Satisfied(profile, artisan)) return false;
-  return proT2CareApproved(profile, artisan);
+  return isProLadderDone(profile, artisan);
+}
+
+/** Label for lower-panel header from next open tier. */
+export function proSetupSheetTitle(
+  profile: UserProfile | null | undefined,
+  artisan?: Partial<ArtisanVerificationProfile> | null
+): string {
+  const merged = artisan
+    ? applyCustomerTiersToArtisan(
+        artisan as ArtisanVerificationProfile,
+        profile
+      )
+    : artisan;
+  const step = nextProEmbedTierStep(merged, {
+    hidePhone: proT1Satisfied(profile, artisan),
+    hideGovId: proT2CareApproved(profile, artisan),
+  });
+  switch (step) {
+    case "phone":
+      return "Complete Tier 1 setup for Repair Pro";
+    case "gov_id":
+      return "Complete Tier 2 setup for Repair Pro";
+    case "liveness":
+    case "bvn":
+      return "Complete Tier 3 setup for Repair Pro";
+    case "skill":
+      return "Complete Tier 4 setup for Repair Pro";
+    default:
+      return "Repair Pro verification complete";
+  }
 }
 
 export function applyCustomerTiersToArtisan(
