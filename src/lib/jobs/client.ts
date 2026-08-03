@@ -139,7 +139,9 @@ export async function apiCreateJob(body: Record<string, unknown>) {
 }
 
 export async function apiGetJob(id: string) {
-  // Up to 3 attempts — covers create→navigate session race
+  // Up to 3 attempts — covers create→navigate session race.
+  // Prefer POST: production previously returned 401 on GET /api/jobs/[id]
+  // with the same Bearer that succeeded on POST /api/jobs (create).
   let last: ApiOk<{ job: JobRecord }> | ApiErr = {
     ok: false,
     message: SESSION_RELOGIN_MESSAGE,
@@ -152,8 +154,16 @@ export async function apiGetJob(id: string) {
         forceRefresh: attempt === 2,
       });
     }
+    const session = await ensureAppSession({ waitForSessionMs: 2500 });
+    const access_token = session?.accessToken || "";
+    // POST body carries token as belt-and-suspenders (matches create job)
     const res = await jobFetch(`/api/jobs/${id}`, {
+      method: "POST",
       cache: "no-store",
+      body: JSON.stringify({
+        action: "get",
+        ...(access_token ? { access_token } : {}),
+      }),
     });
     last = await parse<{ job: JobRecord }>(res);
     if (last.ok) return last;

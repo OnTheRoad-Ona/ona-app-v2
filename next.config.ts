@@ -4,12 +4,21 @@ import { fileURLToPath } from "url";
 
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 
+/**
+ * Optional external API proxy. Disabled by default.
+ * When API_PROXY_TARGET was always on for ona-mi production, job GET
+ * /api/jobs/[id] hit a stale backend and returned "Not authenticated"
+ * while local POST /api/jobs worked — frontend deploys never fixed load.
+ * Opt-in only: set USE_API_PROXY=true AND API_PROXY_TARGET.
+ */
 const apiProxyTarget = process.env.API_PROXY_TARGET;
+const useApiProxy =
+  process.env.USE_API_PROXY === "true" && Boolean(apiProxyTarget);
 const isBackend = process.env.IS_BACKEND === "true";
 
 const nextConfig: NextConfig = {
   async rewrites() {
-    if (apiProxyTarget) {
+    if (useApiProxy && apiProxyTarget) {
       return [
         { source: "/api/:path*", destination: `${apiProxyTarget}/api/:path*` },
       ];
