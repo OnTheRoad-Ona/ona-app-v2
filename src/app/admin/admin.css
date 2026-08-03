@@ -31,7 +31,7 @@
   --om-role-text: #ffffff;
   --om-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 4px 12px rgba(15, 23, 42, 0.04);
   --om-radius: 0.5rem;
-  --om-font: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  --om-font: var(--font-ona-sans), Inter, system-ui, -apple-system, sans-serif;
 
   position: fixed;
   inset: 0;

@@ -26,6 +26,7 @@ import {
   StatusBadge,
   fmtDate,
 } from "@/components/admin/admin-ui";
+import { storesVehicleBrandFocus } from "@/lib/artisan/catalog";
 
 type DirRow = {
   id: string;
@@ -247,15 +248,11 @@ function focusRows(
 ): { label: string; value: string }[] {
   if (!focus || typeof focus !== "object" || Array.isArray(focus)) return [];
   const o = focus as Record<string, unknown>;
-  const vehicleTrades = new Set([
-    "mechanic",
-    "vulcanizer",
-    "towing",
-    "battery",
-    "panel",
-    "ac",
-  ]);
-  const isVehicle = trade ? vehicleTrades.has(trade) : false;
+  const specialty = typeof o.specialty === "string" ? o.specialty : null;
+  const specialties = Array.isArray(o.specialties)
+    ? (o.specialties as string[])
+    : null;
+  const isVehicle = storesVehicleBrandFocus(trade, specialty, specialties);
   const preferred = isVehicle
     ? [
         "servedVehicleType",

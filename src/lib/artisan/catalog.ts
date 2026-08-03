@@ -226,17 +226,26 @@ export function specialtyChipLabel(specialty: string): string {
   return `${specialty.slice(0, 12)}…`;
 }
 
-/** Pure vehicle trades — always show vehicle fields on request. */
-export function isAutomotiveTrade(service: ProService): boolean {
-  return (
-    service === "mechanic" ||
-    service === "vulcanizer" ||
-    service === "towing" ||
-    service === "battery" ||
-    service === "body" ||
-    service === "diagnostics" ||
-    service === "wash"
-  );
+/**
+ * Pure vehicle / auto trades — always use vehicle focus (type/brand/model)
+ * and show vehicle fields on customer request.
+ * Single source of truth for signup, admin, request UI, jobs.
+ * (Never include non-services like "panel".)
+ */
+export const AUTOMOTIVE_TRADES: readonly ProService[] = [
+  "mechanic",
+  "vulcanizer",
+  "towing",
+  "battery",
+  "body",
+  "diagnostics",
+  "wash",
+] as const;
+
+export function isAutomotiveTrade(
+  service: ProService | string | null | undefined
+): boolean {
+  return AUTOMOTIVE_TRADES.includes(service as ProService);
 }
 
 /**
@@ -262,6 +271,41 @@ export function showsVehicleOnRequest(
   }
   // Only home / commercial / industrial / electronics → no vehicle fields
   return false;
+}
+
+/**
+ * Signup “Vehicles you fix” step + vehicle_focus brand storage.
+ * Home trades (solar, generator, plumber, …) never.
+ * AC / Electric only when focus is Vehicle.
+ */
+export function needsVehiclesSignupStep(
+  service: ProService | string | null | undefined,
+  specialty?: string | null,
+  specialties?: string[] | null
+): boolean {
+  const s = (service || "") as ProService;
+  if (!s) return false;
+  if (isAutomotiveTrade(s)) return true;
+  if (s === "ac" || s === "electrical") {
+    const list = [
+      specialty,
+      ...((specialties || []) as string[]),
+    ]
+      .filter(Boolean)
+      .map((x) => String(x).toLowerCase());
+    if (!list.length) return false;
+    return list.some((x) => x.includes("vehicle") || x.includes("auto"));
+  }
+  return false;
+}
+
+/** Persist vehicle brands/models in vehicle_focus (vs home specialty blob). */
+export function storesVehicleBrandFocus(
+  service: ProService | string | null | undefined,
+  specialty?: string | null,
+  specialties?: string[] | null
+): boolean {
+  return needsVehiclesSignupStep(service, specialty, specialties);
 }
 
 export function tradeDef(service: ProService): ArtisanTradeDef | undefined {

@@ -1,16 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Geist_Mono } from "next/font/google";
 import { AppConfigProvider } from "@/components/app-config-provider";
 import { AppFrame } from "@/components/layout/app-frame";
 import { I18nProvider } from "@/lib/i18n";
 import { AppProvider } from "@/lib/store";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+/**
+ * Inter — closest free match to X’s Chirp (clean grotesque sans).
+ * Used app-wide for menus, body, and chrome.
+ */
+const interSans = Inter({
+  variable: "--font-ona-sans",
   subsets: ["latin"],
   display: "swap",
-  // Only latin weights used in UI — lighter first paint
   preload: true,
 });
 
@@ -61,7 +64,7 @@ export default function RootLayout({
     <html
       lang="en"
       data-theme="light"
-      className={`${geistSans.variable} ${geistMono.variable} h-full max-h-full overflow-hidden antialiased`}
+      className={`${interSans.variable} ${geistMono.variable} h-full max-h-full overflow-hidden antialiased`}
       style={{ height: "100%", maxHeight: "100%" }}
     >
       {/* Inline stage color so first paint is never browser-default white */}

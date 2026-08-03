@@ -1460,7 +1460,8 @@ export const PROBLEM_MATCHES: Record<
   engine: ["mechanic"],
   oil: ["mechanic"],
   brake: ["mechanic"],
-  battery: ["mechanic"],
+  battery: ["battery", "mechanic"],
+  "jump start": ["battery"],
   towing: ["towing"],
   tow: ["towing"],
   stuck: ["towing"],
@@ -1473,11 +1474,13 @@ export const PROBLEM_MATCHES: Record<
   valet: ["wash"],
   vulcanizer: ["vulcanizer"],
   mechanic: ["mechanic"],
-  // Home / power trades (solar was invisible in free-text search)
+  // Home / power trades
   solar: ["solar"],
   inverter: ["solar", "electrical"],
-  panel: ["solar", "body"],
+  // "panel" alone is ambiguous (body panel vs solar) — prefer explicit phrases
+  "body panel": ["body"],
   "solar panel": ["solar"],
+  "panel install": ["solar"],
   generator: ["generator"],
   genset: ["generator"],
   plumber: ["plumber"],

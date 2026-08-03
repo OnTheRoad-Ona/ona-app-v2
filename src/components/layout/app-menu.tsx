@@ -16,6 +16,7 @@ import {
   UserRound,
   Wallet,
   Wrench,
+  type LucideIcon,
 } from "lucide-react";
 import { useNotificationsOptional } from "@/components/notifications/notification-provider";
 import { NewAccountBadge } from "@/components/profile/new-account-badge";
@@ -270,12 +271,26 @@ export function AppMenu({
       active
         ? "bg-[#323231] text-white shadow-sm"
         : isLight
-          ? "bg-transparent text-slate-700 hover:bg-[#b0b1b6]/60"
+          ? "bg-transparent text-black hover:bg-[#b0b1b6]/60"
           : "bg-transparent text-white/85 hover:bg-white/10"
     );
 
-  const rowIdle = isLight ? "text-slate-800" : "text-white/90";
+  /** Menu row labels: pure black (light) / white (dark) */
+  const rowIdle = isLight ? "text-black" : "text-white";
   const rowActive = "text-[#FF6B35]";
+
+  /** Glass tile + dual-tone glyph — frosted chip so the change is obvious */
+  const renderMenuIcon = (Icon: LucideIcon) => (
+    <span
+      className={cn(
+        "om-menu-icon-glass",
+        isLight ? "om-menu-icon-glass--light" : "om-menu-icon-glass--dark"
+      )}
+      aria-hidden
+    >
+      <Icon className="om-menu-icon" strokeWidth={1} size={18} aria-hidden />
+    </span>
+  );
 
   /*
    * Shared open geometry (light ≡ dark) — no layer lapping:
@@ -334,7 +349,7 @@ export function AppMenu({
                   <p
                     className={cn(
                       "text-[12px] font-semibold leading-tight",
-                      isLight ? "text-slate-600" : "text-white/70"
+                      isLight ? "text-black" : "text-white/70"
                     )}
                   >
                     {timeGreeting}
@@ -415,13 +430,7 @@ export function AppMenu({
                   active ? rowActive : rowIdle
                 )}
               >
-                <Icon
-                  className={cn(
-                    "h-6 w-6 shrink-0",
-                    active ? rowActive : rowIdle
-                  )}
-                  strokeWidth={2}
-                />
+                {renderMenuIcon(Icon)}
                 <span>{label}</span>
               </button>
             );
@@ -438,7 +447,7 @@ export function AppMenu({
               rowIdle
             )}
           >
-            <Bell className={cn("h-6 w-6 shrink-0", rowIdle)} strokeWidth={2} />
+            {renderMenuIcon(Bell)}
             <span className="min-w-0 flex-1">{t("menu.notifications")}</span>
             {unread > 0 ? (
               <span
@@ -467,17 +476,14 @@ export function AppMenu({
                     rowIdle
                   )}
                 >
-                  <Briefcase
-                    className={cn("h-6 w-6 shrink-0", rowIdle)}
-                    strokeWidth={2}
-                  />
+                  {renderMenuIcon(Briefcase)}
                   <span className="min-w-0 flex-1">{t("menu.myService")}</span>
                 </div>
                 <div className="flex w-full items-center gap-2 px-3 py-0.5">
                   <span
                     className={cn(
                       "min-w-0 flex-1 text-[12px] font-medium",
-                      isLight ? "text-slate-900" : "text-white"
+                      isLight ? "text-black" : "text-white"
                     )}
                   >
                     {isProService(proServices[0])
@@ -501,7 +507,7 @@ export function AppMenu({
             <p
               className={cn(
                 "mb-1 px-2 text-[10px] font-bold uppercase tracking-wide",
-                isLight ? "text-slate-600" : "text-white/55"
+                isLight ? "text-black" : "text-white/55"
               )}
             >
               {t("menu.useAs")}
@@ -558,12 +564,12 @@ export function AppMenu({
                 className={cn(
                   "mt-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium leading-snug",
                   isLight
-                    ? "bg-black/10 text-slate-900"
+                    ? "bg-black/10 text-black"
                     : "bg-white/10 text-white"
                 )}
                 role="alert"
               >
-                <p className={isLight ? "text-slate-900" : "text-white"}>
+                <p className={isLight ? "text-black" : "text-white"}>
                   {warn}
                 </p>
                 {signupTarget && (
@@ -599,7 +605,7 @@ export function AppMenu({
               <p
                 className={cn(
                   "mt-1 px-2 text-[10px] font-medium leading-snug",
-                  isLight ? "text-slate-600" : "text-white/55"
+                  isLight ? "text-black" : "text-white/55"
                 )}
               >
                 {t("menu.tapToSwitch")}

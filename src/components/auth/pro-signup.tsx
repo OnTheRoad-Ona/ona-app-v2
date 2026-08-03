@@ -68,7 +68,11 @@ import {
   PRO_SERVICE_LABELS,
   PRO_TRADE_OPTIONS,
 } from "@/lib/services";
-import { ARTISAN_TRADE_CATALOG, tradeDef } from "@/lib/artisan/catalog";
+import {
+  ARTISAN_TRADE_CATALOG,
+  needsVehiclesSignupStep,
+  tradeDef,
+} from "@/lib/artisan/catalog";
 import {
   CERTIFICATION_WARNING,
   getSkillFlow,
@@ -545,7 +549,9 @@ export function ProSignup() {
   const isAny = (v: string) => !v || v === "Any";
   const draftVehicleReady =
     !isAny(draftMake) && !isAny(draftModel);
-  /** Vehicles step is optional — pro can skip and add later */
+  /** Auto trades + AC/Electric (Vehicle focus) only — solar/generator skip */
+  const needsVehicleStep = needsVehiclesSignupStep(skill, specialty);
+  /** Vehicles step is optional when shown — pro can skip and add later */
   const step3Ok = true;
   const step4Ok =
     !fullNameError(fullName) &&
@@ -696,33 +702,44 @@ export function ProSignup() {
         ? String(certUpload?.dataUrl || "")
         : undefined,
       averageRating: 0,
-      // Vehicles they can fix (Customer-style list) + legacy single focus fields
-      servedVehicleType:
-        vehiclesCanFix[0]?.vehicleType || vehicleType || undefined,
-      servedBrand: vehiclesCanFix[0]?.make || vehicleBrands[0] || undefined,
-      servedMake: vehiclesCanFix[0]?.make || vehicleBrands[0] || undefined,
-      servedModel:
-        vehiclesCanFix[0]?.model ||
-        (vehicleBrands[0] && vehicleModelsByBrand[vehicleBrands[0]]?.length
-          ? vehicleModelsByBrand[vehicleBrands[0]].join(", ")
-          : undefined),
+      // Vehicles only for auto trades (or AC/Electric vehicle focus)
+      ...(needsVehiclesSignupStep(skill, specialty)
+        ? {
+            servedVehicleType:
+              vehiclesCanFix[0]?.vehicleType || vehicleType || undefined,
+            servedBrand:
+              vehiclesCanFix[0]?.make || vehicleBrands[0] || undefined,
+            servedMake:
+              vehiclesCanFix[0]?.make || vehicleBrands[0] || undefined,
+            servedModel:
+              vehiclesCanFix[0]?.model ||
+              (vehicleBrands[0] &&
+              vehicleModelsByBrand[vehicleBrands[0]]?.length
+                ? vehicleModelsByBrand[vehicleBrands[0]].join(", ")
+                : undefined),
+            vehiclesServedUpdatedAt: new Date().toISOString(),
+          }
+        : {}),
       servedCountry: prefCountry,
       servedLocation: prefLocation,
-      vehiclesServedUpdatedAt: new Date().toISOString(),
       skillAnswers: {
         ...skillAnswers,
         // Singular + array so discovery filters (Home/Office/…) always match
         specialty: specialty || "",
         specialties: specialty ? [specialty] : [],
         // Serialized list of vehicles this pro can fix (type/make/model/year)
-        vehiclesCanFixJson: JSON.stringify(
-          vehiclesCanFix.map((v) => ({
-            vehicleType: v.vehicleType,
-            make: v.make,
-            model: v.model,
-            year: v.year,
-          }))
-        ),
+        ...(needsVehiclesSignupStep(skill, specialty)
+          ? {
+              vehiclesCanFixJson: JSON.stringify(
+                vehiclesCanFix.map((v) => ({
+                  vehicleType: v.vehicleType,
+                  make: v.make,
+                  model: v.model,
+                  year: v.year,
+                }))
+              ),
+            }
+          : {}),
       },
       guarantor: {
         fullName: guarantorName.trim(),
@@ -796,7 +813,13 @@ export function ProSignup() {
       return;
     }
     const idx = FLOW_STEPS.indexOf(step);
-    if (idx > 0) setStep(FLOW_STEPS[idx - 1]);
+    if (idx <= 0) return;
+    let prev = FLOW_STEPS[idx - 1];
+    // Skip vehicle step when going back if trade doesn't need it
+    if (prev === 3 && !needsVehiclesSignupStep(skill, specialty)) {
+      prev = 2;
+    }
+    setStep(prev);
   };
 
   const stepTitles: Record<Step, string> = {
@@ -881,7 +904,12 @@ export function ProSignup() {
   const nextFlowStep = (s: Step): Step | null => {
     const idx = FLOW_STEPS.indexOf(s);
     if (idx < 0 || idx >= FLOW_STEPS.length - 1) return null;
-    return FLOW_STEPS[idx + 1];
+    let next = FLOW_STEPS[idx + 1];
+    // Solar / generator / home trades: never show mechanic-style vehicle list
+    if (next === 3 && !needsVehiclesSignupStep(skill, specialty)) {
+      next = FLOW_STEPS[idx + 2] ?? null;
+    }
+    return next ?? null;
   };
 
   const pickerLabel = pickerKey
@@ -1932,10 +1960,11 @@ export function ProSignup() {
             </div>
           )}
 
-          {step === 3 && (
+          {step === 3 && needsVehicleStep && (
             <div className="flex flex-col gap-3">
               <p className="text-[12px] font-medium leading-snug text-[#475569]">
                 Add vehicle types you fix best (type, make, model, year).
+                Optional — you can skip.
               </p>
               {vehiclesCanFix.length > 0 && (
                 <ul className="flex flex-col gap-1.5">
@@ -2124,6 +2153,14 @@ export function ProSignup() {
                 setFormError("Please pick your focus area.");
                 return;
               }
+              setFormError("");
+              // Mechanic etc. → vehicles; solar/generator/home → about you
+              setStep(
+                needsVehiclesSignupStep(skill, specialty) ? 3 : 4
+              );
+              return;
+            }
+            if (step === 3) {
               setFormError("");
               setStep(4);
               return;

@@ -689,19 +689,6 @@ export async function POST(req: Request) {
         if (Number.isFinite(n) && n > 0) labourPrices[k] = n;
       }
     }
-    // Only real vehicle trades store make/model-style focus.
-    // Home trades (painter, plumber, solar, …) keep specialty for discovery filters.
-    const vehicleTrades = new Set([
-      "mechanic",
-      "vulcanizer",
-      "towing",
-      "battery",
-      "panel",
-      "body",
-      "diagnostics",
-      "wash",
-    ]);
-    const isVehicleTrade = vehicleTrades.has(svc);
     const saRaw =
       (input.skillAnswers as Record<string, unknown> | undefined) || {};
     const specialtyFromSignup = (() => {
@@ -726,6 +713,15 @@ export async function POST(req: Request) {
       }
       return out;
     })();
+    // Vehicle brand focus vs home specialty focus (shared catalog helper)
+    const { storesVehicleBrandFocus } = await import(
+      "@/lib/artisan/catalog"
+    );
+    const isVehicleTrade = storesVehicleBrandFocus(
+      svc,
+      specialtyFromSignup,
+      specialtiesArr
+    );
     const vehicleFocus = isVehicleTrade
       ? {
           ...(input.vehicleFocus || {}),

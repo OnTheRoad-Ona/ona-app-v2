@@ -241,9 +241,10 @@ html[data-a11y-hc="1"] #ona-phone [class*="text-white/65"] {
   --surface-2: #bebfc4;
   --surface-3: #b4b5bb;
   --elevated: #d4d5d9;
-  --foreground: #1e293b;
-  --muted: #7b8798;
-  --muted-2: #9aa3b2;
+  /* Pure black text in light mode — no slate / navy mixture */
+  --foreground: #000000;
+  --muted: #000000;
+  --muted-2: #000000;
   --border: #b4b5bb;
   --border-strong: #a3a4ab;
   --app-bg: #c8c9cd;
@@ -257,9 +258,11 @@ html[data-a11y-hc="1"] #ona-phone [class*="text-white/65"] {
   --brand-solid: #ff6b35;
 
   --accent-blue: #6ba3e0;
-  --navy: #1e293b;
-  --navy-mid: #334155;
-  --navy-soft: #475569;
+  --navy: #000000;
+  --navy-mid: #000000;
+  --navy-soft: #000000;
+  /* Sidebar icon fill body (edge is darker via CSS) */
+  --icon-muted: #9a9a9e;
 
   --map-bg: #0a1610;
   --success: #10b981;
@@ -305,6 +308,8 @@ html[data-a11y-hc="1"] #ona-phone [class*="text-white/65"] {
   --border: #2e1a14;
   --border-strong: #3a221a;
   --app-bg: #120a08;
+  /* Sidebar icon fill body (edge is lighter via CSS) */
+  --icon-muted: #6c6c70;
 
   --brand: #ff6b35;
   --brand-bright: #ff6b35;
@@ -353,7 +358,7 @@ html[data-a11y-hc="1"] #ona-phone [class*="text-white/65"] {
   --color-danger: var(--danger);
   --color-info: var(--info);
   --color-teal: var(--teal);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-ona-sans);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -378,9 +383,136 @@ body {
 body {
   background: var(--stage);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  /* Chirp-like stack: Inter first, then system grotesques */
+  font-family:
+    var(--font-ona-sans),
+    "Inter",
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/**
+ * Light mode: pure #000 body text inside the app shell.
+ * Brand / danger / success / explicit hex utilities keep their own colors.
+ */
+[data-theme="light"] #ona-phone {
+  color: #000000;
+}
+[data-theme="light"] #ona-phone .text-slate-950,
+[data-theme="light"] #ona-phone .text-slate-900,
+[data-theme="light"] #ona-phone .text-slate-800,
+[data-theme="light"] #ona-phone .text-slate-700,
+[data-theme="light"] #ona-phone .text-slate-600,
+[data-theme="light"] #ona-phone .text-slate-500,
+[data-theme="light"] #ona-phone .text-gray-900,
+[data-theme="light"] #ona-phone .text-gray-800,
+[data-theme="light"] #ona-phone .text-gray-700,
+[data-theme="light"] #ona-phone .text-gray-600,
+[data-theme="light"] #ona-phone .text-neutral-900,
+[data-theme="light"] #ona-phone .text-neutral-800,
+[data-theme="light"] #ona-phone .text-zinc-900,
+[data-theme="light"] #ona-phone .text-zinc-800,
+[data-theme="light"] #ona-phone .text-black {
+  color: #000000 !important;
+}
+/* Do not force-black brand / status colors */
+[data-theme="light"] #ona-phone .text-brand,
+[data-theme="light"] #ona-phone .text-\[\#FF6B35\],
+[data-theme="light"] #ona-phone .text-red-500,
+[data-theme="light"] #ona-phone .text-red-600,
+[data-theme="light"] #ona-phone .text-red-700,
+[data-theme="light"] #ona-phone .text-emerald-500,
+[data-theme="light"] #ona-phone .text-emerald-600,
+[data-theme="light"] #ona-phone .text-green-600,
+[data-theme="light"] #ona-phone .text-white {
+  color: revert-layer;
+}
+
+/* Placeholders stay slightly soft so empty fields stay readable */
+[data-theme="light"] #ona-phone input::placeholder,
+[data-theme="light"] #ona-phone textarea::placeholder,
+[data-theme="light"] #ona-phone select::placeholder {
+  color: rgba(0, 0, 0, 0.4) !important;
+}
+
+/**
+ * Sidebar glass icon chips + dual-tone glyph.
+ * Wrapper = frosted glass tile (always visible change).
+ * Glyph = solid soft fill + thin edge (forced on every path).
+ */
+.om-menu-icon-glass {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  border-radius: 0.625rem;
+  box-sizing: border-box;
+}
+/* Light: frosted glass on grey sheet */
+.om-menu-icon-glass--light {
+  background: linear-gradient(
+    155deg,
+    rgba(255, 255, 255, 0.78) 0%,
+    rgba(255, 255, 255, 0.38) 48%,
+    rgba(200, 201, 205, 0.45) 100%
+  );
+  border: 0.5px solid rgba(255, 255, 255, 0.75);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+    0 1px 3px rgba(0, 0, 0, 0.07);
+  -webkit-backdrop-filter: blur(12px) saturate(1.35);
+  backdrop-filter: blur(12px) saturate(1.35);
+  --om-icon-fill: #8e8e93;
+  --om-icon-edge: #48484a;
+}
+/* Dark: smoky glass on black */
+.om-menu-icon-glass--dark {
+  background: linear-gradient(
+    155deg,
+    rgba(255, 255, 255, 0.14) 0%,
+    rgba(255, 255, 255, 0.05) 50%,
+    rgba(0, 0, 0, 0.25) 100%
+  );
+  border: 0.5px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 1px 3px rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
+  --om-icon-fill: #8e8e93;
+  --om-icon-edge: #e5e5ea;
+}
+.om-menu-icon-glass .om-menu-icon {
+  width: 1.125rem !important;
+  height: 1.125rem !important;
+  display: block;
+  color: var(--om-icon-edge) !important;
+  overflow: visible;
+}
+/* Force fill + thin border on every Lucide shape (inline attrs lose to !important) */
+.om-menu-icon-glass .om-menu-icon path,
+.om-menu-icon-glass .om-menu-icon circle,
+.om-menu-icon-glass .om-menu-icon line,
+.om-menu-icon-glass .om-menu-icon polyline,
+.om-menu-icon-glass .om-menu-icon polygon,
+.om-menu-icon-glass .om-menu-icon rect,
+.om-menu-icon-glass .om-menu-icon ellipse {
+  fill: var(--om-icon-fill) !important;
+  stroke: var(--om-icon-edge) !important;
+  stroke-width: 1 !important; /* user units in 24 viewBox ≈ thin on 18px icon */
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  paint-order: fill stroke;
 }
 
 /*
