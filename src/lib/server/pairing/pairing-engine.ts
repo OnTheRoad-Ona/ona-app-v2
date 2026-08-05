@@ -507,6 +507,18 @@ export async function confirmRequest(
     .eq("status", "active");
   if (resErr) return { ok: false, error: resErr.message, status: 500 };
 
+  // Record acceptance so a racing sweep's CAS-on-offered can never mark the
+  // pro timed_out after they confirmed ("I can fix this").
+  await sb
+    .from("request_pairing_queue")
+    .update({
+      status: "accepted",
+      responded_at: ts,
+      result_note: "pro_confirmed",
+    })
+    .eq("request_id", row.id)
+    .eq("pro_id", proId);
+
   const patch: Record<string, unknown> = {
     pairing_stage: "negotiating",
     pairing_deadline: null,
@@ -515,7 +527,6 @@ export async function confirmRequest(
     reservation_status: "confirmed",
     assignment_status: "assigned",
     negotiate_ends_at: armedEnds,
-    negotiation_ends_at: null,
     updated_at: ts,
     status_history: [
       ...history(row),
@@ -549,18 +560,27 @@ async function settleCurrentPro(
   const proId = currentPro(row);
   const ts = nowIso();
   if (!proId) return { error: null };
+  // CAS on `status = offered`: a pro who already confirmed ("accepted") or
+  // deferred ("deferred") must never be re-marked timed_out/declined by a
+  // racing sweep. The stage CAS in the caller is the real gate; this keeps
+  // the queue audit trail consistent under the confirm/timeout race.
   const { error: qErr } = await sb
     .from("request_pairing_queue")
     .update({ status, responded_at: ts, result_note: reason || null })
     .eq("request_id", row.id)
-    .eq("pro_id", proId);
+    .eq("pro_id", proId)
+    .eq("status", "offered");
   if (qErr) return { error: qErr.message };
 
+  // Only release reservations whose window actually lapsed. openRequest /
+  // confirmRequest refresh expires_at to the fresh deadline, so a stale sweep
+  // can never cancel a reservation the pro just opened or confirmed.
   const { error: rErr } = await sb
     .from("request_reservations")
     .update({ status: "cancelled", released_at: ts, released_by: status })
     .eq("request_id", row.id)
-    .eq("status", "active");
+    .eq("status", "active")
+    .lte("expires_at", ts);
   return { error: rErr?.message || null };
 }
 
@@ -611,7 +631,13 @@ export async function declineRequest(
   return { ok: true, jobId: row.id, currentProId: null, nextProId: next.ok ? next.currentProId ?? null : null };
 }
 
-/** Pro tapped Later → defer 5 min (D5) + immediate next pro. */
+/**
+ * Pro tapped Later → keep the request in the pro's incoming list and still
+ * acceptable until the 66s pairing deadline expires (new spec). We record the
+ * pro's intent as `deferred` for the queue audit trail, but do NOT advance:
+ * pairing_stage / pairing_deadline / reservation stay untouched so the sweep
+ * enforces the window and advances to the next pro once it lapses.
+ */
 export async function deferRequest(
   jobId: string,
   proId: string
@@ -630,29 +656,20 @@ export async function deferRequest(
   }
 
   const ts = nowIso();
-  const settled = await settleCurrentPro(sb, row, "deferred", "pro_later");
-  if (settled.error) return { ok: false, error: settled.error, status: 500 };
-
-  const { error } = await sb
-    .from("service_requests")
+  await sb
+    .from("request_pairing_queue")
     .update({
-      pairing_stage: "sequential_pairing",
-      pairing_deadline: null,
-      flow_status: "sequential_pairing",
-      status: "requested",
-      reservation_status: "none",
-      updated_at: ts,
-      status_history: [
-        ...history(row),
-        { status: "sequential_pairing", at: ts, by: `deferred:${proId}` },
-      ],
+      status: "deferred",
+      responded_at: ts,
+      result_note: "pro_later",
     })
-    .eq("id", row.id)
-    .eq("pairing_stage", row.pairing_stage);
-  if (error) return { ok: false, error: error.message, status: 500 };
+    .eq("request_id", row.id)
+    .eq("pro_id", proId)
+    .eq("status", "offered");
 
-  const next = await advancePairing(jobId);
-  return { ok: true, jobId: row.id, currentProId: null, nextProId: next.ok ? next.currentProId ?? null : null };
+  // No pairing state change — the request stays with this pro until the
+  // deadline, after which the sweep times it out and advances.
+  return { ok: true, jobId: row.id, currentProId: proId };
 }
 
 /** Server sweep: current pro did not respond within the 66s deadline. */
@@ -667,11 +684,28 @@ export async function timeoutRequest(jobId: string): Promise<PairingResult> {
     return { ok: true, noop: true, jobId };
   }
 
+  // Re-check under the freshest read: a pro may have opened (refreshing the
+  // deadline) after the sweep selected this row. If so, this timeout is stale
+  // and must not settle or advance.
+  const fresh = await loadPairingRow(sb, jobId);
+  if (!fresh) return { ok: true, noop: true, jobId };
+  if (!PAIRING_STAGES.includes(fresh.pairing_stage as PairingStage) || fresh.pairing_stage === "sequential_pairing") {
+    return { ok: true, noop: true, jobId };
+  }
+  const deadline = fresh.pairing_deadline ? Date.parse(fresh.pairing_deadline) : 0;
+  if (Number.isFinite(deadline) && Date.now() < deadline) {
+    return { ok: true, noop: true, jobId };
+  }
+
   const ts = nowIso();
-  const settled = await settleCurrentPro(sb, row, "timed_out", "pairing deadline exceeded");
+  const settled = await settleCurrentPro(sb, fresh, "timed_out", "pairing deadline exceeded");
   if (settled.error) return { ok: false, error: settled.error, status: 500 };
 
-  const { error } = await sb
+  // CAS the stage to sequential_pairing and only count the timeout + advance
+  // when the row actually matched. If it moved (pro opened/confirmed while we
+  // were settling), leave the job exactly where it is — the opener/confirmer
+  // owns it now and the sweep already refreshed its deadline.
+  const { data, error } = await sb
     .from("service_requests")
     .update({
       pairing_stage: "sequential_pairing",
@@ -681,13 +715,17 @@ export async function timeoutRequest(jobId: string): Promise<PairingResult> {
       reservation_status: "none",
       updated_at: ts,
       status_history: [
-        ...history(row),
+        ...history(fresh),
         { status: "sequential_pairing", at: ts, by: "sweep:timeout" },
       ],
     })
     .eq("id", row.id)
-    .eq("pairing_stage", row.pairing_stage);
+    .eq("pairing_stage", fresh.pairing_stage)
+    .select("id");
   if (error) return { ok: false, error: error.message, status: 500 };
+  if (!data || data.length === 0) {
+    return { ok: true, noop: true, jobId };
+  }
 
   const next = await advancePairing(jobId);
   return { ok: true, jobId: row.id, currentProId: null, nextProId: next.ok ? next.currentProId ?? null : null };

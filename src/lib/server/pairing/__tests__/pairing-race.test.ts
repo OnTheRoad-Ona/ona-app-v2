@@ -402,7 +402,11 @@ describe("timeoutRequest — sweep enforcement", () => {
   });
 
   it("times out an unresponsive waiting_for_pro and advances", async () => {
-    const row: Row = { ...FULL_ROW, pairing_stage: "waiting_for_pro" };
+    const row: Row = {
+      ...FULL_ROW,
+      pairing_stage: "waiting_for_pro",
+      pairing_deadline: new Date(Date.now() - 1000).toISOString(),
+    };
     installClient(row);
     responders["request_pairing_queue"] = () => ({ data: null, error: null });
     responders["repair_pro_profiles"] = () => ({
@@ -423,6 +427,77 @@ describe("timeoutRequest — sweep enforcement", () => {
       ?.args[0] as Record<string, unknown>;
     expect(advancePatch.pairing_stage).toBe("waiting_for_pro");
     expect(advancePatch.repair_pro_id).toBe("pro-2");
+  });
+
+  it("is a noop when the deadline was refreshed mid-sweep (pro just opened)", async () => {
+    // The sweep selected the row while its deadline had lapsed, but the pro
+    // opened (refreshing pairing_deadline) before timeoutRequest ran. The
+    // timeout must not settle or advance the fresh window.
+    const row: Row = {
+      ...FULL_ROW,
+      pairing_stage: "selected_review",
+      pairing_deadline: new Date(Date.now() + 30_000).toISOString(),
+    };
+    installClient(row);
+    responders["request_pairing_queue"] = () => ({ data: null, error: null });
+
+    const res = await timeoutRequest("job-1");
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.noop).toBe(true);
+    expect(callsFor("request_pairing_queue", "update")).toHaveLength(0);
+    expect(callsFor("service_requests", "update")).toHaveLength(0);
+  });
+
+  it("is a noop when the stage CAS loses the confirm race", async () => {
+    // confirmRequest already moved the row to negotiating — the stale timeout's
+    // CAS on the old stage matches nothing, so nothing advances.
+    const row: Row = { ...FULL_ROW, pairing_stage: "negotiating" };
+    installClient(row);
+    responders["request_pairing_queue"] = () => ({ data: null, error: null });
+
+    const res = await timeoutRequest("job-1");
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.noop).toBe(true);
+  });
+});
+
+describe("confirmRequest — marks the queue accepted (race-safe vs sweep)", () => {
+  it("writes status=accepted to the queue so a racing timeout never marks it timed_out", async () => {
+    const row: Row = { ...FULL_ROW, pairing_stage: "selected_review" };
+    installClient(row);
+    responders["request_reservations"] = () => ({ data: null, error: null });
+    responders["request_pairing_queue"] = () => ({ data: null, error: null });
+
+    const res = await confirmRequest("job-1", "pro-1", "k-acc");
+    expect(res.ok).toBe(true);
+
+    const qUpdate = callsFor("request_pairing_queue", "update").find(
+      (c) => (c.args[0] as Record<string, unknown>).status === "accepted"
+    );
+    expect(qUpdate).toBeTruthy();
+  });
+});
+
+describe("deferRequest — Later keeps the request acceptable until the deadline", () => {
+  it("records deferred, keeps pairing state and does not advance", async () => {
+    const row: Row = { ...FULL_ROW, pairing_stage: "waiting_for_pro" };
+    installClient(row);
+    responders["request_pairing_queue"] = () => ({ data: null, error: null });
+
+    const { deferRequest } = await import(
+      "@/lib/server/pairing/pairing-engine"
+    );
+    const res = await deferRequest("job-1", "pro-1");
+    expect(res.ok).toBe(true);
+
+    const qPatch = callsFor("request_pairing_queue", "update").find(
+      (c) => (c.args[0] as Record<string, unknown>).status === "deferred"
+    );
+    expect(qPatch).toBeTruthy();
+
+    // No sequential_pairing / no next-pro dispatch, no deadline clobber.
+    const srUpdates = callsFor("service_requests", "update");
+    expect(srUpdates).toHaveLength(0);
   });
 });
 

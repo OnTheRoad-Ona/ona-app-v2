@@ -1594,7 +1594,6 @@ async function assignNextPro(
       offers: [],
       pro_base_major: null,
       agreed_major: null,
-      negotiation_ends_at: null,
       negotiate_ends_at: unarmedEnds,
       updated_at: ts,
       status_history: [

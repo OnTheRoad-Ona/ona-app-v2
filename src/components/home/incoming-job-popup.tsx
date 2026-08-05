@@ -526,7 +526,8 @@ export function IncomingJobPopup() {
                 isLight ? "text-slate-600" : "text-white/60"
               )}
             >
-              Hidden for now. Search continues for nearby pros.
+              Kept in your incoming list and still acceptable until the timer
+              runs out.
             </p>
             <button
               type="button"
@@ -625,16 +626,44 @@ export function IncomingJobPopup() {
                   setAccepting(true);
                   try {
                     if (isPairingAlert(j)) {
-                      const res = await apiTransition({
-                        jobId: j.id,
-                        event: "CONFIRM",
-                        actor: "repair_pro",
-                        actorId: backendUserId,
-                        idempotencyKey: idemFor(j, backendUserId, "CONFIRM"),
-                      });
-                      if (res.ok) {
+                      // "I can fix this" must work from any actionable stage:
+                      // waiting_for_selected / waiting_for_pro need an OPEN
+                      // first (reservation + selected_review), then CONFIRM.
+                      const stage = j.pairingStage ?? "";
+                      const needsOpen =
+                        stage === "waiting_for_selected" ||
+                        stage === "waiting_for_pro";
+                      if (needsOpen) {
+                        const openRes = await apiTransition({
+                          jobId: j.id,
+                          event: "OPEN",
+                          actor: "repair_pro",
+                          actorId: backendUserId,
+                          idempotencyKey: idemFor(j, backendUserId, "OPEN"),
+                        });
+                        if (openRes.ok) {
+                          await apiTransition({
+                            jobId: j.id,
+                            event: "CONFIRM",
+                            actor: "repair_pro",
+                            actorId: backendUserId,
+                            idempotencyKey: idemFor(j, backendUserId, "CONFIRM"),
+                          });
+                        }
                         fullyHide();
                         router.push(`/jobs/${j.id}`);
+                      } else {
+                        const res = await apiTransition({
+                          jobId: j.id,
+                          event: "CONFIRM",
+                          actor: "repair_pro",
+                          actorId: backendUserId,
+                          idempotencyKey: idemFor(j, backendUserId, "CONFIRM"),
+                        });
+                        if (res.ok) {
+                          fullyHide();
+                          router.push(`/jobs/${j.id}`);
+                        }
                       }
                     } else {
                       const res = await apiTransition({
