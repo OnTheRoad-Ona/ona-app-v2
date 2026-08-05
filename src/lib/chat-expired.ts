@@ -5,6 +5,11 @@
 
 /** Live chat / live job open only while mid-flow */
 export const JOB_LIVE_CHAT_STATUSES = new Set<string>([
+  "waiting_for_selected",
+  "selected_review",
+  "sequential_pairing",
+  "waiting_for_pro",
+  "reserved",
   "negotiating",
   "searching",
   "accepted",

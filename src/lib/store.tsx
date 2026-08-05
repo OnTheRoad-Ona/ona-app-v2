@@ -2786,6 +2786,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       };
 
       if (isAppBackendOnline() && backendUserId && accountType === "motorist") {
+        // Full premium create: flow_status=negotiating + DB notify to pro
         void backendCreateJob({
           motoristId: backendUserId,
           repairProId: tech.id,
@@ -2795,6 +2796,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           lng: location.coordinates.lng,
           address: meetLabel,
           radiusKm,
+          motoristName: displayName || "Customer",
+          repairProName: tech.name,
+          repairProPhoto: tech.photo,
+          proBaseMajor: pricing?.labourBaseMajor ?? null,
+          currency: pricing?.pricingCurrency || "NGN",
         }).then((res) => {
           if (res.request) {
             const cloud: ServiceRequest = {
@@ -2804,12 +2810,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 ? { ...location.coordinates }
                 : undefined,
               locationLabel: meetLabel,
+              labourBaseMajor:
+                res.request.labourBaseMajor ?? pricing?.labourBaseMajor,
+              labourAgreedMajor:
+                res.request.labourAgreedMajor ?? pricing?.labourAgreedMajor,
+              pricingCurrency:
+                res.request.pricingCurrency ?? pricing?.pricingCurrency,
             };
             setRequests((prev) => [
               cloud,
               ...prev.filter((r) => r.id !== localReq.id),
             ]);
-            // Chat created only when user opens it (no auto system messages)
           }
         });
       }
@@ -2825,6 +2836,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       backendUserId,
       accountType,
       radiusKm,
+      displayName,
     ]
   );
 
@@ -3068,12 +3080,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (accountType === "professional") setCloudTechs([]);
       return;
     }
-    const first = window.setTimeout(() => refreshCloudPros(), 600);
-    // Was 5s and burned mobile data hard — 45s backup is enough with Realtime
+    const first = window.setTimeout(() => refreshCloudPros(), 100);
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudPros();
-    }, 45_000);
+    }, 5_000);
     const onVis = () => {
       if (document.visibilityState === "visible") refreshCloudPros();
     };

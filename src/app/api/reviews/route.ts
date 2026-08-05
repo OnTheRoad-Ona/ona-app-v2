@@ -1,5 +1,6 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { requireUser } from "@/lib/server/auth-utils";
+import { recalculateMerit } from "@/lib/server/merit/merit-engine";
 import {
   createReview,
   getProReviews,
@@ -38,6 +39,9 @@ export async function POST(req: Request) {
     if (!result.ok) {
       return apiFail(result.error, 400);
     }
+
+    // Review changes the pro's rating aggregate → refresh merit score.
+    void recalculateMerit(repairProId);
 
     return apiOk({ review: result.review });
   } catch (e) {

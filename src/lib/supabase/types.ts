@@ -92,6 +92,8 @@ export interface RepairProRow {
   location_updated_at?: string | null;
   /** Admin visibility ladder 1–4 */
   visibility_tier?: number | null;
+  /** Care gov-ID review state ("none" | "submitted" | "approved" | "rejected") */
+  gov_id_review_status?: string | null;
   tier2_approved_at?: string | null;
   tier3_approved_at?: string | null;
   tier4_approved_at?: string | null;

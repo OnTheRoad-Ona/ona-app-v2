@@ -1285,6 +1285,10 @@ export async function backendGetProOnline(
   return Boolean(data.is_online);
 }
 
+/**
+ * Create a job via the premium API (flow_status + pro notification).
+ * Direct Supabase insert was missing negotiating state and never notified pros.
+ */
 export async function backendCreateJob(input: {
   motoristId: string;
   repairProId: string;
@@ -1294,41 +1298,58 @@ export async function backendCreateJob(input: {
   lng: number;
   address: string;
   radiusKm: number;
+  motoristName?: string;
+  motoristPhoto?: string | null;
+  repairProName?: string;
+  repairProPhoto?: string;
+  proBaseMajor?: number | null;
+  currency?: string;
 }): Promise<{ error: string | null; request?: ServiceRequest }> {
-  const sb = getAppSupabase();
-  if (!sb) return { error: "Backend offline" };
-
-  const { data, error } = await sb
-    .from("service_requests")
-    .insert({
-      motorist_id: input.motoristId,
-      repair_pro_id: input.repairProId,
-      service_type: input.serviceType,
-      status: "requested",
-      description: input.description,
-      pickup_lat: input.lat,
-      pickup_lng: input.lng,
-      pickup_address: input.address,
-      radius_km: input.radiusKm,
-    })
-    .select("*")
-    .single();
-
-  if (error || !data) return { error: error?.message || "Could not create job" };
-
-  const { data: proProfile } = await sb
-    .from("profiles")
-    .select("full_name")
-    .eq("id", input.repairProId)
-    .maybeSingle();
-
-  return {
-    error: null,
-    request: mapRequestRow(
-      data as ServiceRequestRow,
-      (proProfile as { full_name?: string } | null)?.full_name
-    ),
-  };
+  try {
+    const { apiCreateJob } = await import("@/lib/jobs/client");
+    const res = await apiCreateJob({
+      motoristId: input.motoristId,
+      motoristName: input.motoristName || "Customer",
+      motoristPhoto: input.motoristPhoto ?? null,
+      repairProId: input.repairProId,
+      repairProName: input.repairProName || "Repair Pro",
+      repairProPhoto: input.repairProPhoto,
+      serviceType: input.serviceType,
+      problem: input.description,
+      currency: input.currency || "NGN",
+      proBaseMajor: input.proBaseMajor ?? null,
+      locationLabel: input.address || "Near you",
+      lat: input.lat,
+      lng: input.lng,
+    });
+    if (!res.ok) {
+      return { error: res.message || "Could not create job" };
+    }
+    const job = res.data.job;
+    // Map JobRecord → ServiceRequest shape used by store
+    const request: ServiceRequest = {
+      id: job.id,
+      technicianId: job.repairProId,
+      technicianName: job.repairProName,
+      serviceType: job.serviceType as ProService,
+      problem: job.problem,
+      status: "pending",
+      createdAt: job.createdAt,
+      locationLabel: job.locationLabel || "Near you",
+      labourBaseMajor: job.proBaseMajor ?? undefined,
+      labourAgreedMajor: job.agreedMajor ?? undefined,
+      pricingCurrency: job.currency,
+      negotiationStatus: "none",
+      motoristId: job.motoristId,
+      etaMinutes: job.etaMinutes ?? 0,
+      distanceKm: job.distanceKm ?? 0,
+    };
+    return { error: null, request };
+  } catch (e) {
+    return {
+      error: e instanceof Error ? e.message : "Could not create job",
+    };
+  }
 }
 
 export async function backendUpdateJobStatus(
@@ -1584,7 +1605,7 @@ export function backendSubscribeUserMessageInserts(
   const sb = getAppSupabase();
   if (!sb || !userId) return null;
   const channel = sb
-    .channel(`user-messages:${userId}`)
+    .channel(`user-messages:${userId}:${Math.random().toString(36).slice(2, 8)}`)
     .on(
       "postgres_changes",
       {
@@ -1633,7 +1654,7 @@ export function backendSubscribeMessages(
   const sb = getAppSupabase();
   if (!sb) return null;
   const channel = sb
-    .channel(`messages:${conversationId}`)
+    .channel(`messages:${conversationId}:${Math.random().toString(36).slice(2, 8)}`)
     .on(
       "postgres_changes",
       {
@@ -1664,7 +1685,7 @@ export function backendSubscribeJobs(
   const sb = getAppSupabase();
   if (!sb) return null;
   const channel = sb
-    .channel(`jobs:${userId}`)
+    .channel(`jobs:${userId}:${Math.random().toString(36).slice(2, 8)}`)
     .on(
       "postgres_changes",
       {
@@ -1705,7 +1726,7 @@ export function backendSubscribePros(
   let lastFire = 0;
 
   const sub = sb
-    .channel("pros-live")
+    .channel(`pros-live:${Math.random().toString(36).slice(2, 8)}`)
     .on(
       "postgres_changes",
       {

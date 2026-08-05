@@ -51,6 +51,8 @@ import {
   resolveProvider,
   verifyCharge,
 } from "@/lib/server/payments/providers";
+import { orderCandidatesByMerit } from "@/lib/server/merit/merit-engine";
+import { PAIRING_WINDOW_MS } from "@/lib/server/pairing/pairing-engine";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { randomUUID } from "node:crypto";
@@ -103,6 +105,11 @@ function legacyToFlowStatus(legacy: string | null | undefined): JobFlowStatus | 
 }
 
 const FLOW_STATUSES = new Set<string>([
+  "waiting_for_selected",
+  "selected_review",
+  "sequential_pairing",
+  "waiting_for_pro",
+  "reserved",
   "negotiating",
   "searching",
   "agreed",
@@ -214,12 +221,34 @@ function rowToJob(row: Record<string, unknown>): JobRecord {
     satisfiedAt: row.satisfied_at ? String(row.satisfied_at) : null,
     paymentAttemptCount: paymentWindowsExpiredCount({ statusHistory }),
     paymentSessionEndsAt: paymentEndsAtIso({ status, statusHistory }),
+    pairingStage: row.pairing_stage ? String(row.pairing_stage) : null,
+    pairingDeadline: row.pairing_deadline
+      ? String(row.pairing_deadline)
+      : null,
+    queuePosition:
+      row.queue_position != null ? Number(row.queue_position) : null,
+    remainingCandidates:
+      row.remaining_candidates != null ? Number(row.remaining_candidates) : null,
+    reservationStatus: row.reservation_status
+      ? String(row.reservation_status)
+      : null,
+    assignmentStatus: row.assignment_status
+      ? String(row.assignment_status)
+      : null,
+    chosenProId: row.chosen_pro_id ? String(row.chosen_pro_id) : null,
+    pairingRadiusKm:
+      row.pairing_radius_km != null ? Number(row.pairing_radius_km) : null,
   };
 }
 
 /** Keep classic status column in sync for older UI / queries */
 function flowToLegacyStatus(flow: JobFlowStatus): string {
   switch (flow) {
+    case "waiting_for_selected":
+    case "selected_review":
+    case "sequential_pairing":
+    case "waiting_for_pro":
+    case "reserved":
     case "negotiating":
     case "searching":
     case "agreed":
@@ -305,6 +334,15 @@ function jobToDbPatch(job: JobRecord): Record<string, unknown> {
           : job.status === "paid_booked" || job.status === "released"
             ? "paid"
             : "none",
+    // SSPE dispatch columns (persist so state-machine transitions stay in sync)
+    pairing_stage: job.pairingStage ?? null,
+    pairing_deadline: job.pairingDeadline ?? null,
+    queue_position: job.queuePosition ?? null,
+    remaining_candidates: job.remainingCandidates ?? null,
+    reservation_status: job.reservationStatus ?? null,
+    assignment_status: job.assignmentStatus ?? null,
+    pairing_radius_km: job.pairingRadiusKm ?? null,
+    chosen_pro_id: job.chosenProId ?? null,
     updated_at: job.updatedAt,
   };
 }
@@ -409,7 +447,7 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
     problem: input.problem,
     voiceNote: input.voiceNote || null,
     photos: input.photos || [],
-    status: "negotiating",
+    status: "waiting_for_selected",
     currency: input.currency,
     proBaseMajor: input.proBaseMajor ?? null,
     agreedMajor: null,
@@ -420,7 +458,15 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
     motoristLocation: input.motoristLocation,
     motoristLocationAt: ts,
     proLocation: null,
-    statusHistory: [{ status: "negotiating", at: ts, by: "motorist" }],
+    statusHistory: [{ status: "waiting_for_selected", at: ts, by: "motorist" }],
+    pairingStage: "waiting_for_selected",
+    pairingDeadline: new Date(Date.now() + PAIRING_WINDOW_MS).toISOString(),
+    queuePosition: 1,
+    remainingCandidates: null,
+    reservationStatus: null,
+    assignmentStatus: null,
+    pairingRadiusKm: 15,
+    chosenProId: input.repairProId,
     createdAt: ts,
     updatedAt: ts,
   };
@@ -442,12 +488,28 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
           pickup_address: input.locationLabel,
           radius_km: 10,
           ...jobToDbPatch(job),
-          flow_status: "negotiating",
+          flow_status: "waiting_for_selected",
+          pairing_stage: "waiting_for_selected",
+          pairing_deadline: job.pairingDeadline,
+          queue_position: 1,
+          pairing_radius_km: 15,
+          chosen_pro_id: input.repairProId,
           created_at: ts,
         })
         .select("*")
         .single();
       if (!error && data) {
+        // The customer-chosen pro is the first queue entry (position 1).
+        await sb
+          .from("request_pairing_queue")
+          .insert({
+            request_id: job.id,
+            pro_id: input.repairProId,
+            position: 1,
+            source: "chosen",
+            status: "offered",
+            offered_at: ts,
+          });
         const mapped = rowToJob(data as Record<string, unknown>);
         // preserve client-generated media / vehicle if DB stripped columns
         mapped.photos = job.photos;
@@ -456,6 +518,26 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
         mapped.motoristVehicle =
           mapped.motoristVehicle || job.motoristVehicle || null;
         memory.set(mapped.id, mapped);
+        // Instantly notify assigned repair pro
+        if (input.repairProId) {
+          try {
+            const { insertNotification } = await import("@/lib/server/notifications");
+            await insertNotification({
+              userId: input.repairProId,
+              category: "requests",
+              priority: "high",
+              title: "Service Request",
+              body: `New request from ${job.motoristName} · ${job.problem.slice(0, 80)}`,
+              href: `/jobs/${job.id}`,
+              actionType: "open_job",
+              actionPayload: { jobId: job.id },
+              jobId: job.id,
+              jobStatus: "waiting_for_selected",
+            });
+          } catch {
+            /* optional */
+          }
+        }
         return mapped;
       }
       // Insert may fail if motorist_vehicle column missing — retry without it
@@ -472,7 +554,12 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
           pickup_address: input.locationLabel,
           radius_km: 10,
           ...jobToDbPatch(job),
-          flow_status: "negotiating",
+          flow_status: "waiting_for_selected",
+          pairing_stage: "waiting_for_selected",
+          pairing_deadline: job.pairingDeadline,
+          queue_position: 1,
+          pairing_radius_km: 15,
+          chosen_pro_id: input.repairProId,
           created_at: ts,
         } as Record<string, unknown>;
         void _mv;
@@ -482,6 +569,16 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
           .select("*")
           .single();
         if (!retry.error && retry.data) {
+          await sb
+            .from("request_pairing_queue")
+            .insert({
+              request_id: job.id,
+              pro_id: input.repairProId,
+              position: 1,
+              source: "chosen",
+              status: "offered",
+              offered_at: ts,
+            });
           const mapped = rowToJob(retry.data as Record<string, unknown>);
           mapped.photos = job.photos;
           mapped.voiceNote = job.voiceNote;
@@ -499,6 +596,24 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
                 .eq("id", mapped.id);
             } catch {
               /* column may not exist yet */
+            }
+          }
+          if (input.repairProId) {
+            try {
+              const { insertNotification } = await import("@/lib/server/notifications");
+              await insertNotification({
+                userId: input.repairProId,
+                category: "requests",
+                priority: "high",
+                title: "Service Request",
+                body: `New request from ${job.motoristName} · ${job.problem.slice(0, 80)}`,
+                href: `/jobs/${job.id}`,
+                actionType: "open_job",
+                actionPayload: { jobId: job.id },
+                jobId: job.id,
+              });
+            } catch {
+              /* optional */
             }
           }
           return mapped;
@@ -1215,34 +1330,14 @@ export async function expireOverdueBookedJobs(limit = 40): Promise<{
 const REROUTE_AFTER_MS = 60_000; // 1 minute before rerouting
 const REROUTE_WINDOW_MS = 15 * 60_000; // 15 min total reroute window
 const DEFER_DURATION_MS = 5 * 60_000; // Pro "Later" hides request for 5 minutes
-const EXCLUDE_DURATION_MS = 33 * 60_000; // Pro decline excludes (customer, pro) for 33 minutes
 
 /**
- * Dispatch exclusions.
+ * Dispatch exclusions (D6).
  * Deferrals are per-job and derived from status_history (`deferred:<proId>`),
- * so they survive restarts. Decline exclusions are (customer, pro) pairs —
- * tracked in memory across jobs, plus mirrored in the current job's
- * status_history (`excluded:<proId>`) for the active reroute.
+ * so they survive restarts. Decline exclusions are PER-REQUEST only: the
+ * `excluded:<proId>` marker in this job's status_history excludes that pro
+ * permanently from THIS request. There is no cross-request cooldown.
  */
-type ExclusionEntry = {
-  proId: string;
-  reason: string;
-  at: string;
-  expiresAt: string;
-};
-
-const exclusionsByCustomer = new Map<string, ExclusionEntry[]>();
-
-function cleanExpiredExclusions(): void {
-  const now = Date.now();
-  for (const [customerId, entries] of exclusionsByCustomer) {
-    const active = entries.filter((e) => Date.parse(e.expiresAt) > now);
-    if (active.length === 0) exclusionsByCustomer.delete(customerId);
-    else exclusionsByCustomer.set(customerId, active);
-  }
-}
-
-/** Active cross-job (customer, pro) exclusions currently in memory. */
 export function listActiveExclusions(): {
   customerId: string;
   proId: string;
@@ -1250,34 +1345,7 @@ export function listActiveExclusions(): {
   at: string;
   expiresAt: string;
 }[] {
-  cleanExpiredExclusions();
-  const out: ReturnType<typeof listActiveExclusions> = [];
-  for (const [customerId, entries] of exclusionsByCustomer) {
-    for (const e of entries) {
-      out.push({ customerId, proId: e.proId, reason: e.reason, at: e.at, expiresAt: e.expiresAt });
-    }
-  }
-  return out;
-}
-
-function excludeProForCustomer(
-  customerId: string,
-  proId: string,
-  reason: string
-): ExclusionEntry {
-  cleanExpiredExclusions();
-  const now = Date.now();
-  const entry: ExclusionEntry = {
-    proId,
-    reason,
-    at: new Date(now).toISOString(),
-    expiresAt: new Date(now + EXCLUDE_DURATION_MS).toISOString(),
-  };
-  const existing = exclusionsByCustomer.get(customerId) || [];
-  const filtered = existing.filter((e) => e.proId !== proId);
-  filtered.push(entry);
-  exclusionsByCustomer.set(customerId, filtered);
-  return entry;
+  return [];
 }
 
 /** Latest `deferred:<proId>` timestamp from the job's history, if any. */
@@ -1299,30 +1367,11 @@ function isDeferredByPro(job: JobRecord, proId: string): boolean {
   return Date.now() - at < DEFER_DURATION_MS;
 }
 
-/** Latest `excluded:<proId>` timestamp from the job's history, if any. */
-function latestExcludedAtMs(job: JobRecord, proId: string): number | null {
-  let latest: number | null = null;
-  for (const h of job.statusHistory || []) {
-    if (h.by === `excluded:${proId}`) {
-      const t = Date.parse(h.at);
-      if (Number.isFinite(t) && (latest === null || t > latest)) latest = t;
-    }
-  }
-  return latest;
-}
-
-/** True if this (customer, pro) pair is on a 33-minute cooldown. */
-function isProExcludedForCustomer(
-  job: JobRecord,
-  customerId: string,
-  proId: string
-): boolean {
-  cleanExpiredExclusions();
-  const crossJob = exclusionsByCustomer.get(customerId) || [];
-  if (crossJob.some((e) => e.proId === proId)) return true;
-  const at = latestExcludedAtMs(job, proId);
-  if (at === null) return false;
-  return Date.now() - at < EXCLUDE_DURATION_MS;
+/** True if this pro declined this request (permanent per-request, D6). */
+function isExcludedForJob(job: JobRecord, proId: string): boolean {
+  return (job.statusHistory || []).some(
+    (h) => h.by === `excluded:${proId}`
+  );
 }
 
 /**
@@ -1339,6 +1388,21 @@ export async function deferJob(
   const job = await getJob(jobId);
   if (!job) return null;
   if (job.repairProId !== proId) return job;
+
+  // SSPE job → hand off to the pairing engine (queue + reservation + next pro).
+  if (job.pairingStage) {
+    try {
+      const { deferRequest } = await import(
+        "@/lib/server/pairing/pairing-engine"
+      );
+      const res = await deferRequest(jobId, proId);
+      if (!res.ok) return job;
+      return (await getJob(jobId)) || job;
+    } catch (e) {
+      console.error("[deferJob] SSPE defer failed", jobId, e);
+      return job;
+    }
+  }
 
   const ts = new Date().toISOString();
   job.statusHistory = [
@@ -1396,9 +1460,8 @@ async function findNextPro(
   }
   triedProIds.add(job.repairProId);
 
-  // Respect active cooldowns: pros who tapped Later (5 min) or declined this
-  // customer (33 min) are skipped so the same request is not re-delivered to
-  // them repeatedly within the cooldown period.
+  // Skip pros who tapped Later (5 min) or declined THIS request (permanent
+  // per-request exclusion, D6) so the request is not re-delivered to them.
   for (const h of job.statusHistory || []) {
     const by = h.by || "";
     if (by.startsWith("deferred:")) {
@@ -1406,15 +1469,14 @@ async function findNextPro(
       if (isDeferredByPro(job, proId)) triedProIds.add(proId);
     } else if (by.startsWith("excluded:")) {
       const proId = by.slice("excluded:".length);
-      if (isProExcludedForCustomer(job, job.motoristId, proId)) {
-        triedProIds.add(proId);
-      }
+      if (isExcludedForJob(job, proId)) triedProIds.add(proId);
     }
   }
 
   // Same trade only — never reassign a mechanic job to a plumber, etc.
+  // Match primary_service OR services[] so multi-skill pros still get requests.
   const serviceType = String(job.serviceType || "").trim();
-  let query = sb
+  const { data: pros } = await sb
     .from("repair_pro_profiles")
     .select(
       "user_id, business_name, lat, lng, primary_service, services, location_updated_at, visibility_tier"
@@ -1423,34 +1485,43 @@ async function findNextPro(
     .neq("status", "suspended")
     .neq("status", "rejected");
 
-  if (serviceType) {
-    query = query.eq("primary_service", serviceType);
-  }
-
-  const { data: pros } = await query;
-
   if (!pros?.length) return null;
 
-  const LIVE_HEARTBEAT_MAX_MS = 5 * 60 * 1000;
-  const MAX_RADIUS_KM = 10;
-  const now = Date.now();
+  const MAX_RADIUS_KM = 15;
+
+  const offersTrade = (p: {
+    primary_service?: string | null;
+    services?: unknown;
+  }) => {
+    if (!serviceType) return true;
+    if (String(p.primary_service || "").trim() === serviceType) return true;
+    const list = p.services;
+    if (Array.isArray(list)) {
+      return list.some(
+        (s) => String(s || "").trim().toLowerCase() === serviceType.toLowerCase()
+      );
+    }
+    if (typeof list === "string" && list.trim()) {
+      try {
+        const parsed = JSON.parse(list) as unknown;
+        if (Array.isArray(parsed)) {
+          return parsed.some(
+            (s) =>
+              String(s || "").trim().toLowerCase() === serviceType.toLowerCase()
+          );
+        }
+      } catch {
+        return list.toLowerCase().includes(serviceType.toLowerCase());
+      }
+    }
+    return false;
+  };
 
   const available = pros.filter((p) => {
     if (triedProIds.has(p.user_id) || p.lat == null || p.lng == null) {
       return false;
     }
-    // Prefer pros with a fresh Live heartbeat when the column is present
-    const updatedAt = p.location_updated_at
-      ? new Date(p.location_updated_at as string).getTime()
-      : NaN;
-    if (Number.isFinite(updatedAt) && now - updatedAt > LIVE_HEARTBEAT_MAX_MS) {
-      return false;
-    }
-    // Soft skip very incomplete visibility (tier 1 / 0%) when set
-    const tier = Number(p.visibility_tier);
-    if (Number.isFinite(tier) && tier > 0 && tier < 2) {
-      return false;
-    }
+    if (!offersTrade(p)) return false;
     return true;
   });
   if (!available.length) return null;
@@ -1466,11 +1537,19 @@ async function findNextPro(
       const km = Math.hypot(dLat, dLng);
       return { p, km };
     })
-    .filter((x) => x.km <= MAX_RADIUS_KM + 0.75)
-    .sort((a, b) => a.km - b.km);
+    .filter((x) => x.km <= MAX_RADIUS_KM + 0.75);
 
   if (!withDistance.length) return null;
-  const best = withDistance[0].p;
+
+  // Merit-first ordering (D4): rank within 10-point merit bands, distance as
+  // the tiebreak. Fall back to distance-only when merit scores are absent.
+  const kmOf = (p: { user_id: string }) =>
+    withDistance.find((x) => x.p.user_id === p.user_id)?.km ?? Number.POSITIVE_INFINITY;
+  const ordered = await orderCandidatesByMerit(
+    withDistance.map((x) => x.p),
+    kmOf
+  );
+  const best = ordered[0];
 
   // Fetch name + photo from profiles
   const { data: profile } = await sb
@@ -1499,7 +1578,11 @@ async function assignNextPro(
 
   const ts = new Date().toISOString();
 
-  // Clean slate for the new pro — do not carry prior offers / armed timer / price
+  // Clean slate for the new pro — do not carry prior offers / armed timer / price.
+  // Far-future negotiate_ends_at: timer unarmed until pro accepts (same as createJob).
+  const unarmedEnds = new Date(
+    Date.now() + 365 * 24 * 60 * 60 * 1000
+  ).toISOString();
   await sb
     .from("service_requests")
     .update({
@@ -1512,6 +1595,7 @@ async function assignNextPro(
       pro_base_major: null,
       agreed_major: null,
       negotiation_ends_at: null,
+      negotiate_ends_at: unarmedEnds,
       updated_at: ts,
       status_history: [
         ...job.statusHistory,
@@ -1524,7 +1608,26 @@ async function assignNextPro(
     })
     .eq("id", job.id);
 
-  // Notify the new pro
+  // Keep the in-memory store in sync so listJobsForUser (which merges memory
+  // first) reflects the reassignment for both the previous and next pro.
+  memory.set(job.id, {
+    ...job,
+    status: "negotiating",
+    repairProId: nextPro.id,
+    repairProName: nextPro.name,
+    ...(nextPro.photo ? { repairProPhoto: nextPro.photo } : {}),
+    offers: [],
+    proBaseMajor: null,
+    agreedMajor: null,
+    negotiateEndsAt: unarmedEnds,
+    updatedAt: ts,
+    statusHistory: [
+      ...job.statusHistory,
+      { status: "negotiating", at: ts, by: `reroute:${nextPro.id}` },
+    ],
+  });
+
+  // Notify the new pro (DB row so app center + realtime stay in sync)
   try {
     const { insertNotification } = await import(
       "@/lib/server/notifications"
@@ -1539,6 +1642,7 @@ async function assignNextPro(
       actionType: "open_job",
       actionPayload: { jobId: job.id },
       jobId: job.id,
+      jobStatus: "negotiating",
     });
   } catch {
     /* notifications optional */
@@ -1563,21 +1667,30 @@ async function rerouteUnacceptedJob(
   // No eligible pro right now — enter searching so the customer sees the
   // search screen and dispatch keeps looking within the window.
   const ts = new Date().toISOString();
+  const searchingHistory = [
+    ...job.statusHistory,
+    { status: "searching" as JobFlowStatus, at: ts, by: "reroute_no_pro" },
+  ];
   const { error } = await sb
     .from("service_requests")
     .update({
       status: flowToLegacyStatus("searching"),
       flow_status: "searching",
       updated_at: ts,
-      status_history: [
-        ...job.statusHistory,
-        { status: "searching", at: ts, by: "reroute_no_pro" },
-      ],
+      status_history: searchingHistory,
     })
     .eq("id", job.id);
   if (error) {
     console.error("rerouteUnacceptedJob: searching update failed", job.id, error.message);
   }
+  // Keep memory in sync so the previous pro's dashboard drops the job from
+  // Incoming (listJobsForUser merges memory first).
+  memory.set(job.id, {
+    ...job,
+    status: "searching",
+    updatedAt: ts,
+    statusHistory: searchingHistory,
+  });
   return false;
 }
 
@@ -1601,12 +1714,14 @@ export async function expireUnacceptedJobs(
   try {
     const sb = createServiceSupabase();
 
-    // Sweep negotiating jobs (pro has not responded yet).
+    // Sweep negotiating jobs (pro has not responded yet). SSPE jobs carry a
+    // pairing_stage and are timed by the pairing sweep instead.
     // DB stores legacy status=requested + flow_status=negotiating for new jobs.
     const { data: negotiatingData } = await sb
       .from("service_requests")
       .select("*")
       .eq("flow_status", "negotiating")
+      .is("pairing_stage", null)
       .order("created_at", { ascending: true })
       .limit(limit);
 
@@ -1655,6 +1770,7 @@ export async function expireUnacceptedJobs(
       .from("service_requests")
       .select("*")
       .eq("flow_status", "searching")
+      .is("pairing_stage", null)
       .order("created_at", { ascending: true })
       .limit(limit);
 
@@ -1726,6 +1842,27 @@ export async function rerouteDeclinedJob(
     return { error: "Job is no longer available" };
   }
 
+  // SSPE job → hand off to the pairing engine (per-request exclusion + next pro).
+  if (job.pairingStage) {
+    try {
+      const { declineRequest } = await import(
+        "@/lib/server/pairing/pairing-engine"
+      );
+      const res = await declineRequest(
+        jobId,
+        job.repairProId,
+        cancelReason || "pro_declined"
+      );
+      if (!res.ok) return { error: res.error };
+      const updated = await getJob(jobId);
+      if (!updated) return { error: "Job not found" };
+      return { ok: true, job: updated };
+    } catch (e) {
+      console.error("rerouteDeclinedJob: SSPE decline failed", jobId, e);
+      return { error: "Could not reroute request" };
+    }
+  }
+
   // Record the cancellation in statusHistory, then move the job into the
   // "searching" phase so the customer's UI shows the live 60/40 search screen
   // while dispatch looks for the next pro.
@@ -1739,11 +1876,8 @@ export async function rerouteDeclinedJob(
   };
   const history = [...(job.statusHistory || []), cancelEntry];
 
-  // 33-minute exclusion: this (customer, pro) pair is on cooldown so the
-  // same pro is not re-dispatched for this customer's request. Mirrored into
-  // statusHistory so the active reroute sees it, and into the cross-job map
-  // so it also covers future requests from the same customer.
-  excludeProForCustomer(job.motoristId, job.repairProId, "pro_declined");
+  // Per-request exclusion only (D6): this pro is excluded permanently from
+  // THIS request, never across future requests from the same customer.
   history.push({
     status: "searching" as JobFlowStatus,
     at: declineTs,
@@ -1764,6 +1898,15 @@ export async function rerouteDeclinedJob(
     console.error("rerouteDeclinedJob: searching update failed", job.id, searchErr.message);
     return { error: "Could not enter searching phase" };
   }
+
+  // Keep the in-memory store in sync so the declining pro's dashboard no
+  // longer lists this job under Incoming (listJobsForUser merges memory first).
+  memory.set(job.id, {
+    ...job,
+    status: "searching",
+    updatedAt: declineTs,
+    statusHistory: history,
+  });
 
   // 2) Hand off ASAP to the next available pro. When none is available the
   // job stays in "searching" — the expireUnacceptedJobs sweep keeps retrying
@@ -1798,7 +1941,11 @@ export async function rerouteDeclinedJob(
     .select("*")
     .eq("id", jobId)
     .single();
-  return { ok: true, job: rowToJob((updated || data) as Record<string, unknown>) };
+  const finalJob = rowToJob((updated || data) as Record<string, unknown>);
+  // Mirror the final state into memory (assignNextPro already does this on a
+  // successful handoff, but reflect the searching fallback here too).
+  memory.set(job.id, finalJob);
+  return { ok: true, job: finalJob };
 }
 
 /**
@@ -1860,9 +2007,6 @@ export async function clearJobCooldowns(
   if (!data) return { error: "Job not found" };
   const job = rowToJob(data as Record<string, unknown>);
 
-  // Clear in-memory cross-job exclusions for this customer.
-  exclusionsByCustomer.delete(job.motoristId);
-
   // Strip deferral / exclusion markers from persisted history.
   const cleaned = (job.statusHistory || []).filter((h) => {
     const by = h.by || "";
@@ -1875,6 +2019,16 @@ export async function clearJobCooldowns(
       updated_at: new Date().toISOString(),
     })
     .eq("id", jobId);
+
+  // SSPE: un-terminate the request queue so declined/timed-out pros are
+  // eligible again for this request (admin explicitly cleared the cooldowns).
+  if (job.pairingStage) {
+    await sb
+      .from("request_pairing_queue")
+      .update({ status: "offered", result_note: "admin_cleared" })
+      .eq("request_id", jobId)
+      .in("status", ["declined", "timed_out", "deferred", "skipped"]);
+  }
 
   const { data: updated } = await sb
     .from("service_requests")
@@ -2011,18 +2165,39 @@ export async function listJobsForUser(
     try {
       const sb = createServiceSupabase();
       const col = role === "motorist" ? "motorist_id" : "repair_pro_id";
+      // Keep list lean — full hydrate is for single-job detail, not list polls
       const { data } = await sb
         .from("service_requests")
         .select("*")
         .eq(col, userId)
         .order("created_at", { ascending: false })
-        .limit(50);
-      for (const row of data || []) {
-        // Prefer flow_status over legacy status (agreed re-open after cancel must not be forced expired)
-        let j = rowToJob(row as Record<string, unknown>);
-        j = await clearFalseSatisfiedStamp(j);
-        j = await maybeExpire(j);
-        j = await hydrateJobPhones(j);
+        .limit(40);
+      const rows = data || [];
+      // Parallel light processing (was sequential N+1 → multi-second hangs)
+      const mapped = await Promise.all(
+        rows.map(async (row) => {
+          let j = rowToJob(row as Record<string, unknown>);
+          // Only run expire checks on statuses that can auto-advance
+          if (
+            j.status === "negotiating" ||
+            j.status === "agreed" ||
+            j.status === "paid_booked" ||
+            j.status === "en_route" ||
+            j.status === "arrived" ||
+            j.status === "in_progress" ||
+            j.status === "completed" ||
+            j.status === "searching"
+          ) {
+            try {
+              j = await maybeExpire(j);
+            } catch {
+              /* keep raw row */
+            }
+          }
+          return j;
+        })
+      );
+      for (const j of mapped) {
         if (role === "repair_pro" && isDeferredByPro(j, userId)) continue;
         if (!out.find((x) => x.id === j.id)) out.push(j);
       }
@@ -2068,6 +2243,24 @@ export async function listDisputedJobs(): Promise<JobRecord[]> {
   }
   return all;
 }
+
+/**
+ * Fire-and-forget Merit Ranking Engine refresh for a pro. Safe to call on any
+ * completion / cancellation / dispute transition — recomputing is idempotent.
+ * Keeps ranking current after completed jobs, cancellations and disputes.
+ */
+async function fireMeritRecalc(proId?: string | null): Promise<void> {
+  if (!proId) return;
+  try {
+    const { recalculateMerit } = await import(
+      "@/lib/server/merit/merit-engine"
+    );
+    void recalculateMerit(proId);
+  } catch {
+    /* merit recalc is best-effort */
+  }
+}
+export { fireMeritRecalc };
 
 async function applyEvent(
   job: JobRecord,
@@ -2130,6 +2323,7 @@ async function applyEvent(
   if (next === "cancelled") {
     updated.cancelledAt = ts;
     updated.paymentSessionEndsAt = null;
+    await fireMeritRecalc(job.repairProId);
     // Full refund if money was held (so customer can pay fresh on a new request)
     if (
       job.paymentId ||
@@ -2142,6 +2336,14 @@ async function applyEvent(
   }
   if (next === "expired") {
     updated.cancelledAt = ts;
+  }
+  if (next === "cancelled" || next === "expired" || next === "refunded") {
+    // Leave the pairing flow cleanly: drop pairing stage/timer/reservation so
+    // the pairing sweep never re-times-out a terminal job.
+    updated.pairingStage = null;
+    updated.pairingDeadline = null;
+    updated.reservationStatus = null;
+    updated.assignmentStatus = null;
   }
   if (next === "paid_booked") {
     updated.paidAt = ts;
@@ -2171,6 +2373,7 @@ async function applyEvent(
     }
   }
   if (next === "satisfied") {
+    await fireMeritRecalc(job.repairProId);
     // Customer “I am satisfied” → try instant pro transfer (87.5% of service).
     // If FLW Available is not ready → PENDING_SETTLEMENT (escrow kept, auto-retry).
     // Customer is not asked to manual-retry for settlement delays.
@@ -2229,6 +2432,7 @@ async function applyEvent(
   }
   if (next === "released") {
     updated.releasedAt = ts;
+    await fireMeritRecalc(job.repairProId);
     const payout = await releaseJobEscrow(updated);
     if (payout.ok) {
       updated.escrowStatus = "released";
@@ -2287,7 +2491,7 @@ async function releaseJobEscrow(
   platformFeeMinor?: number;
 }> {
   // Auto-heal pending payment → held when FLW already settled collection
-  let esc = await getEscrowByRequest(job.id);
+  const esc = await getEscrowByRequest(job.id);
   if (
     esc?.providerRef &&
     (esc.escrowStatus === "pending_payment" ||
@@ -3219,6 +3423,7 @@ export async function openDispute(input: {
       { type: "OPEN_DISPUTE", by: input.by },
       input.by
     );
+    await fireMeritRecalc(updated.repairProId);
     return { job: updated };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Cannot open dispute" };
@@ -3298,6 +3503,7 @@ export async function resolveDispute(input: {
       { type: "RESOLVE_DISPUTE", outcome: resolveOutcome },
       "admin"
     );
+    await fireMeritRecalc(updated.repairProId);
     return { job: updated };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Resolve failed" };

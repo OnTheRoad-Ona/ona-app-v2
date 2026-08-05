@@ -110,9 +110,9 @@ function MockupMap({
   const parkBlob = isLight ? "bg-[#14281c]/70" : "bg-[#2a1010]/55";
   const roadColor = isLight ? "#1e4030" : "#4a1414";
   const roadSoft = isLight ? "#14281c" : "#2a1010";
-  const routeStroke = isLight ? "#34d399" : "#e07070";
-  const youRing = isLight ? "bg-emerald-400/30" : "bg-red-400/30";
-  const youDot = isLight ? "bg-emerald-600" : "bg-[#a82020]";
+  const routeStroke = isLight ? "#34d399" : "#c96a45";
+  const youRing = isLight ? "bg-emerald-400/30" : "bg-[#a8502f]/30";
+  const youDot = isLight ? "bg-emerald-600" : "bg-[#a8502f]";
 
   return (
     <div

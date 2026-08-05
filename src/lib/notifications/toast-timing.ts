@@ -1,17 +1,19 @@
 /**
- * In-app toast timing — inDrive-style auto banners.
+ * In-app toast timing (top notifications).
  *
- * - Visible for 66s, then fully hide
- * - Auto-show at most one “wave” every 10 minutes
- * - Within the open 66s window, new items pile up (stack)
+ * - Visible for 3s, then fully hide
+ * - Within the open 3s window, new items can pile (stack)
  * - Manual open of notification center is not throttled
  */
 
-/** How long each auto toast stays on screen (inDrive-like). */
-export const TOAST_VISIBLE_MS = 66_000;
+/** How long each auto toast stays on screen. */
+export const TOAST_VISIBLE_MS = 3_000;
 
-/** Quiet period after an auto-toast wave starts before another auto-show. */
-export const TOAST_AUTO_THROTTLE_MS = 10 * 60 * 1000;
+/**
+ * Quiet period after a toast wave before another auto-show.
+ * Short cooldown so legitimate alerts still land quickly (not 10 min).
+ */
+export const TOAST_AUTO_THROTTLE_MS = 3_000;
 
 /** Max stacked toasts in one wave (pile). */
 export const TOAST_MAX_STACK = 4;
@@ -37,7 +39,7 @@ export function canAutoShowToast(
   if (age < TOAST_VISIBLE_MS) {
     return { allow: true, reason: "pile" };
   }
-  // After hide until 10 min — no auto popup
+  // Brief quiet after hide
   if (age < TOAST_AUTO_THROTTLE_MS) {
     return { allow: false, reason: "throttled" };
   }

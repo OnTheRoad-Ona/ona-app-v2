@@ -5,7 +5,7 @@ import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
 import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 
-type Cooldown = { proId: string; proName: string; until: string };
+type Cooldown = { proId: string; proName: string; until: string | null };
 
 type DispatchJob = {
   id: string;
@@ -21,6 +21,16 @@ type DispatchJob = {
   searchingSince: string | null;
   searchEndsAt: string | null;
   negotiateEndsAt: string | null;
+  pairingStage: string | null;
+  pairingDeadline: string | null;
+  pairingRadiusKm: number | null;
+  queuePosition: number | null;
+  remainingCandidates: number | null;
+  reservationStatus: string | null;
+  assignmentStatus: string | null;
+  chosenProId: string | null;
+  chosenProName: string | null;
+  meritScore: number | null;
   activeDeferrals: Cooldown[];
   activeExclusions: Cooldown[];
   historySummary: string[];
@@ -30,6 +40,7 @@ type Summary = {
   searching: number;
   negotiating: number;
   agreed: number;
+  pairing: number;
   activeDeferrals: number;
   activeExclusions: number;
   crossJobExclusions: number;
@@ -50,8 +61,15 @@ function fmtLeft(iso: string): string {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const tone =
-    status === "searching"
+  const pairing =
+    status === "waiting_for_selected" ||
+    status === "selected_review" ||
+    status === "sequential_pairing" ||
+    status === "waiting_for_pro" ||
+    status === "reserved";
+  const tone = pairing
+    ? "background:#818cf8;color:#1e1b4b"
+    : status === "searching"
       ? "background:#fbbf24;color:#451a03"
       : status === "negotiating"
         ? "background:#fb923c;color:#431407"
@@ -148,8 +166,9 @@ export default function AdminDispatchPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Dispatch board</h1>
       <p className="om-admin-sub">
-        Live request/dispatch monitoring — searching, negotiation, deferrals (5 min), decline
-        exclusions (33 min), and admin controls to reroute, reassign, clear cooldowns, or expire.
+        Live request/dispatch monitoring — SSPE pairing (66s per pro), searching, negotiation,
+        deferrals (5 min), per-request decline exclusions, and admin controls to reroute,
+        reassign, clear cooldowns, or expire.
       </p>
 
       <AdminGuideBanner pageId="jobs" />
@@ -162,6 +181,11 @@ export default function AdminDispatchPage() {
           <div className="om-admin-stat-label">Searching</div>
           <div className="om-admin-stat-value">{summary?.searching ?? "—"}</div>
           <div className="om-admin-stat-sub">awaiting a pro</div>
+        </div>
+        <div className="om-admin-stat-card" data-tone="pending">
+          <div className="om-admin-stat-label">Pairing</div>
+          <div className="om-admin-stat-value">{summary?.pairing ?? "—"}</div>
+          <div className="om-admin-stat-sub">66s dispatch</div>
         </div>
         <div className="om-admin-stat-card" data-tone="pending">
           <div className="om-admin-stat-label">Negotiating</div>
@@ -184,7 +208,7 @@ export default function AdminDispatchPage() {
             {(summary?.activeExclusions ?? 0) + (summary?.crossJobExclusions ?? 0)}
           </div>
           <div className="om-admin-stat-sub">
-            declined (33 min) · {summary?.crossJobExclusions ?? 0} cross-job
+            declined (per-request) · {summary?.crossJobExclusions ?? 0} cross-job
           </div>
         </div>
       </div>
@@ -233,6 +257,31 @@ export default function AdminDispatchPage() {
                     </td>
                     <td>
                       <StatusBadge status={j.flowStatus} />
+                      {j.pairingStage ? (
+                        <div className="om-admin-muted" style={{ marginTop: 4, fontSize: 10, lineHeight: 1.5 }}>
+                          stage {j.pairingStage}
+                          {j.queuePosition ? ` · pos ${j.queuePosition}` : ""}
+                          {j.remainingCandidates != null
+                            ? ` · ${j.remainingCandidates} left`
+                            : ""}
+                          {j.pairingRadiusKm ? ` · ${j.pairingRadiusKm}km` : ""}
+                        </div>
+                      ) : null}
+                      {j.pairingDeadline ? (
+                        <div className="om-admin-muted" style={{ marginTop: 2, fontSize: 10 }}>
+                          pairs in {fmtLeft(j.pairingDeadline)}
+                        </div>
+                      ) : null}
+                      {j.meritScore != null ? (
+                        <div className="om-admin-muted" style={{ marginTop: 2, fontSize: 10 }}>
+                          merit {j.meritScore.toFixed(1)}
+                        </div>
+                      ) : null}
+                      {j.reservationStatus === "confirmed" ? (
+                        <div className="om-admin-muted" style={{ marginTop: 2, fontSize: 10 }}>
+                          confirmed assignment
+                        </div>
+                      ) : null}
                       {j.searchEndsAt ? (
                         <div className="om-admin-muted" style={{ marginTop: 4, fontSize: 10 }}>
                           search ends {fmtLeft(j.searchEndsAt)}
@@ -247,15 +296,23 @@ export default function AdminDispatchPage() {
                     <td>
                       {j.activeDeferrals.map((d) => (
                         <div key={`d-${d.proId}`} style={{ fontSize: 11, color: "#b45309" }}>
-                          Deferred · {d.proName} until {fmtClock(d.until)} ({fmtLeft(d.until)})
+                          Deferred · {d.proName} until {fmtClock(d.until || "")} ({fmtLeft(d.until || "")})
                         </div>
                       ))}
                       {j.activeExclusions.map((e) => (
                         <div key={`e-${e.proId}`} style={{ fontSize: 11, color: "#b91c1c" }}>
-                          Excluded · {e.proName} until {fmtClock(e.until)} ({fmtLeft(e.until)})
+                          Excluded · {e.proName}{" "}
+                          {e.until ? `until ${fmtClock(e.until)} (${fmtLeft(e.until)})` : "per-request"}
                         </div>
                       ))}
-                      {j.activeDeferrals.length === 0 && j.activeExclusions.length === 0 ? (
+                      {j.chosenProName ? (
+                        <div style={{ fontSize: 11, color: "#6d28d9" }}>
+                          Chosen: {j.chosenProName}
+                        </div>
+                      ) : null}
+                      {j.activeDeferrals.length === 0 &&
+                      j.activeExclusions.length === 0 &&
+                      !j.chosenProName ? (
                         <span className="om-admin-muted">—</span>
                       ) : null}
                       <div className="om-admin-muted" style={{ marginTop: 4, fontSize: 10, lineHeight: 1.5 }}>

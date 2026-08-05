@@ -74,6 +74,21 @@ async function run(req: Request) {
       console.error("expireUnacceptedJobs in expire-stale", e);
     }
 
+    // SSPE sweep — enforce 66s pairing deadlines and advance to next pro
+    let pairingResult: {
+      checked: number;
+      timedOut: number;
+      expired: number;
+    } | null = null;
+    try {
+      const { sweepPairing } = await import(
+        "@/lib/server/pairing/pairing-engine"
+      );
+      pairingResult = await sweepPairing(50);
+    } catch (e) {
+      console.error("sweepPairing in expire-stale", e);
+    }
+
     let payoutRetry: {
       checked: number;
       succeeded: number;
@@ -92,6 +107,7 @@ async function run(req: Request) {
     return apiOk({
       ...result,
       unaccepted: unacceptedResult,
+      pairing: pairingResult,
       payoutRetry,
       rule:
         "Agreed unpaid: payment details expire after 20 min; Booked not completed within 6h: cancel + refund; Completed 6h: auto-release pro 87.5%; PENDING_SETTLEMENT: auto-retry when FLW Available is enough",

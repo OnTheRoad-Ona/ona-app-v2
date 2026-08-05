@@ -31,9 +31,53 @@ export type TransitionEvent =
   | { type: "RESOLVE_DISPUTE"; outcome: "release" | "refund" | "split" }
   | { type: "OPEN_APPEAL"; by: "motorist" | "repair_pro" }
   | { type: "RESOLVE_APPEAL"; outcome: "release" | "refund" | "split" }
-  | { type: "REFUND" };
+  | { type: "REFUND" }
+  // ── SSPE dispatch (docs/SSPE_REFACTOR_PLAN.md §3) ────────────────────────
+  /** Pro tapped Open on the incoming popup → reservation screen */
+  | { type: "OPEN"; by: "repair_pro" }
+  /** Pro tapped “I can fix this” → assignment + negotiation */
+  | { type: "CONFIRM"; by: "repair_pro" }
+  /** Pro tapped Later → defer 5 min, immediately next pro */
+  | { type: "LATER"; by: "repair_pro" }
+  /** Pro declined → per-request permanent exclusion, next pro */
+  | { type: "DECLINE"; by: "repair_pro"; reason?: string }
+  /** Server sweep: current pro did not respond in 66s */
+  | { type: "PAIRING_TIMEOUT" }
+  /** Server dispatch: sequential_pairing → next waiting_for_pro */
+  | { type: "DISPATCH" };
 
 const ALLOWED: Record<JobFlowStatus, Partial<Record<TransitionEvent["type"], JobFlowStatus>>> = {
+  waiting_for_selected: {
+    OPEN: "selected_review",
+    LATER: "sequential_pairing",
+    DECLINE: "sequential_pairing",
+    PAIRING_TIMEOUT: "sequential_pairing",
+    CANCEL: "cancelled",
+  },
+  selected_review: {
+    CONFIRM: "negotiating",
+    DECLINE: "sequential_pairing",
+    PAIRING_TIMEOUT: "sequential_pairing",
+    CANCEL: "cancelled",
+  },
+  sequential_pairing: {
+    DISPATCH: "waiting_for_pro",
+    PAIRING_TIMEOUT: "expired",
+    CANCEL: "cancelled",
+  },
+  waiting_for_pro: {
+    OPEN: "reserved",
+    LATER: "sequential_pairing",
+    DECLINE: "sequential_pairing",
+    PAIRING_TIMEOUT: "sequential_pairing",
+    CANCEL: "cancelled",
+  },
+  reserved: {
+    CONFIRM: "negotiating",
+    DECLINE: "sequential_pairing",
+    PAIRING_TIMEOUT: "sequential_pairing",
+    CANCEL: "cancelled",
+  },
   negotiating: {
     ACCEPT_OFFER: "agreed",
     EXPIRE_NEGOTIATION: "expired",
@@ -290,6 +334,14 @@ export function actorMay(
       return actor === "motorist" || actor === "system";
     case "START_NEGOTIATION":
       return actor === "repair_pro" || actor === "system" || actor === "admin";
+    case "OPEN":
+    case "CONFIRM":
+    case "LATER":
+    case "DECLINE":
+      return actor === "repair_pro";
+    case "PAIRING_TIMEOUT":
+    case "DISPATCH":
+      return actor === "system";
     case "PAYMENT_SUCCESS":
     case "RELEASE":
     case "EXPIRE_NEGOTIATION":

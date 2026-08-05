@@ -81,8 +81,8 @@ export function InboundBanner() {
   const showBanner = useCallback((b: NonNullable<Banner>) => {
     setBanner(b);
     if (hideTimer.current) window.clearTimeout(hideTimer.current);
-    // 66s like inDrive / request popup — then fully hide
-    hideTimer.current = window.setTimeout(() => setBanner(null), 66_000);
+    // Top banners auto-hide after 3s
+    hideTimer.current = window.setTimeout(() => setBanner(null), 3_000);
   }, []);
 
   // Detect new inbound messages → tone + system notify + in-app banner

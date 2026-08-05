@@ -33,7 +33,13 @@ import type { ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /** Service Request only — leaves dashboard after Accept */
-const INCOMING_STATUSES = new Set<JobFlowStatus>(["negotiating"]);
+const INCOMING_STATUSES = new Set<JobFlowStatus>([
+  "waiting_for_selected",
+  "selected_review",
+  "waiting_for_pro",
+  "reserved",
+  "negotiating",
+]);
 
 /** Active work the pro can open quickly (agreed → in progress → awaiting customer) */
 const ONGOING_STATUSES = new Set<JobFlowStatus>([
@@ -302,6 +308,12 @@ export default function TechnicianDashboardPage() {
           ) {
             return false;
           }
+          if (
+            j.pairingDeadline &&
+            now > new Date(j.pairingDeadline).getTime()
+          ) {
+            return false;
+          }
           return true;
         })
         .sort(
@@ -548,22 +560,13 @@ export default function TechnicianDashboardPage() {
                       </p>
                     ) : null}
                     {needsContinue ? (
-                      dualCtoPro ? (
-                        <button
-                          type="button"
-                          className="mt-1.5 inline-flex border-0 bg-transparent p-0 text-[11px] font-semibold text-[#FF6B35]"
-                          onClick={openSetup}
-                        >
-                          Continue Verification
-                        </button>
-                      ) : artisan ? (
-                        <Link
-                          href="/artisan/verification"
-                          className="mt-1.5 inline-flex text-[11px] font-semibold text-[#FF6B35]"
-                        >
-                          Continue Verification
-                        </Link>
-                      ) : null
+                      <button
+                        type="button"
+                        className="mt-1.5 inline-flex border-0 bg-transparent p-0 text-[11px] font-semibold text-[#FF6B35]"
+                        onClick={openSetup}
+                      >
+                        Continue Verification
+                      </button>
                     ) : null}
                   </div>
                 </div>

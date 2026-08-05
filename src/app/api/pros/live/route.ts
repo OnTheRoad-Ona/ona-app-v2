@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { recalculateMerit } from "@/lib/server/merit/merit-engine";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import {
   getSupabaseAnonKey,
@@ -7,6 +8,7 @@ import {
   isSupabaseAdminConfigured,
 } from "@/lib/supabase/env";
 import { createClient } from "@supabase/supabase-js";
+import { effectiveGoLiveTier } from "@/lib/artisan/visibility-tiers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +22,7 @@ const bodySchema = z.object({
 });
 
 const PRO_SELECT_FULL =
-  "user_id, lat, lng, docs_status, status, visibility_tier, go_live_window_ends_at, is_online, location_updated_at";
+  "user_id, lat, lng, docs_status, status, visibility_tier, go_live_window_ends_at, is_online, location_updated_at, gov_id_review_status, verified, nin_verified, bvn_verified, face_liveness_verified, tier2_approved_at";
 const PRO_SELECT_BASE =
   "user_id, lat, lng, docs_status, status, is_online";
 
@@ -129,6 +131,9 @@ export async function POST(req: Request) {
         .eq("user_id", userId);
       if (awayErr) return apiFail(awayErr.message, 500);
 
+      // Availability changed → refresh the pro's merit score (fire-and-forget).
+      void recalculateMerit(userId);
+
       // Unbooked negotiating jobs → search for next pro (not silent cancel).
       // Agreed (unpaid) jobs are cancelled so customer can re-request with clear status.
       const { data: unbooked } = await sb
@@ -198,9 +203,10 @@ export async function POST(req: Request) {
       );
     }
 
-    // Visibility ladder: Tier 1 cannot Go Live; Tier 2 has 30-day window
-    // Default tier 2 when column missing so existing pros are not locked out
-    const visTier = Number(proRow.visibility_tier ?? 2);
+    // Visibility ladder: Tier 1 cannot Go Live; Tier 2 has 30-day window.
+    // effectiveGoLiveTier never reads a care-approved pro as Tier 1, even if
+    // visibility_tier was reset to 1 by a stale write (see signup upsert fix).
+    const visTier = effectiveGoLiveTier(proRow);
     if (visTier < 2) {
       return apiFail(
         "Tier 1: set up your profile. Admin must approve Tier 2 before Go Live.",
@@ -279,6 +285,9 @@ export async function POST(req: Request) {
     }
 
     if (upErr) return apiFail(upErr.message, 500);
+
+    // Availability changed → refresh the pro's merit score (fire-and-forget).
+    void recalculateMerit(userId);
 
     await sb
       .from("profiles")

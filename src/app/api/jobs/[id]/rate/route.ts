@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { requireUser } from "@/lib/server/auth-utils";
+import { recalculateMerit } from "@/lib/server/merit/merit-engine";
 import { getJob, rateJob } from "@/lib/server/jobs/job-store";
 
 export const runtime = "nodejs";
@@ -50,6 +51,10 @@ export async function POST(
       actor: "motorist",
     });
     if ("error" in res) return apiFail(res.error, 400);
+
+    // New rating affects the pro's merit score.
+    if (job.repairProId) void recalculateMerit(job.repairProId);
+
     return apiOk({ job: res.job });
   } catch (e) {
     return apiFail(e instanceof Error ? e.message : "Rate failed", 500);

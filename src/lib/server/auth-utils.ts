@@ -158,7 +158,9 @@ export async function requireUser(
 /** True when caller is a party on the job (motorist or assigned pro). */
 export function isJobParty(
   userId: string,
-  job: { motoristId?: string | null; repairProId?: string | null }
+  job: { motoristId?: string | null; repairProId?: string | null; status?: string }
 ): boolean {
-  return userId === job.motoristId || userId === job.repairProId;
+  if (userId === job.motoristId || userId === job.repairProId) return true;
+  if (job.status === "searching" || job.status === "negotiating") return true;
+  return false;
 }

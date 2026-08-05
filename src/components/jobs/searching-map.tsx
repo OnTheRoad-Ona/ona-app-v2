@@ -105,11 +105,22 @@ function GoogleSearchingMap({
         />
       </GoogleMap>
 
-      {/* Searching radar ring anchored over the pin */}
+      {/* Searching radar ring anchored over the pin — InDrive style */}
+      {/* Light app theme → dark green map: green pulse · Dark app theme → red-black map: reddish-brown pulse */}
       <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
         <div className="relative h-24 w-24">
-          <span className="absolute inset-0 animate-ping rounded-full border-2 border-[#FF6B35] opacity-60" />
-          <span className="absolute inset-3 animate-ping rounded-full border-2 border-[#FF6B35] opacity-40 [animation-delay:180ms]" />
+          <span
+            className="absolute inset-0 animate-ping rounded-full border-2 opacity-60"
+            style={{
+              borderColor: isLight ? "#34d399" : "#a8502f",
+            }}
+          />
+          <span
+            className="absolute inset-3 animate-ping rounded-full border-2 opacity-40 [animation-delay:180ms]"
+            style={{
+              borderColor: isLight ? "#34d399" : "#a8502f",
+            }}
+          />
         </div>
       </div>
     </div>

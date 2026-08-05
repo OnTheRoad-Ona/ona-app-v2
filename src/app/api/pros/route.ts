@@ -4,6 +4,7 @@ import { hasRecentLiveHeartbeat, MAX_RADIUS_KM } from "@/lib/matching";
 import { DOCS_PENDING_MAX_RADIUS_KM } from "@/lib/skill-questions";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
+import { getMeritScoresForPros } from "@/lib/server/merit/merit-engine";
 import { mapProToTechnician } from "@/lib/supabase/mappers";
 import type { ProfileRow, RepairProRow } from "@/lib/supabase/types";
 
@@ -76,7 +77,7 @@ export async function GET(req: Request) {
 
     // Live + not suspended/rejected. Tier filter applied in JS so null tier
     // after T2 approve (or lag) still appears when verified/approved.
-    let prosQuery = supabase
+    const prosQuery = supabase
       .from("repair_pro_profiles")
       .select(proColumns)
       .eq("is_online", true)
@@ -137,15 +138,16 @@ export async function GET(req: Request) {
       if (!p.is_online || !hasRecentLiveHeartbeat(p.location_updated_at, nowMs)) {
         return false;
       }
-      const tier = Number(p.visibility_tier);
-      // T1 never appears. Null tier + approved/verified counts as marketplace-ready (T2+)
-      if (Number.isFinite(tier) && tier >= 1 && tier < 2) return false;
-      if (!Number.isFinite(tier) || tier < 1) {
-        const verified = Boolean(p.verified);
-        const okStatus = p.status === "approved" || p.status === "pending";
-        if (!verified && p.status !== "approved") return false;
-        if (!okStatus && !verified) return false;
-      }
+      // Approved/verified pros are marketplace-ready (T2+) even when a stale
+      // write left visibility_tier=1 — never hide them from the customer feed
+      // (same class as the "approved for Tier 2 but shown Tier 1" bug).
+      const rawTier = Number(p.visibility_tier);
+      const marketplaceReady =
+        (Number.isFinite(rawTier) && rawTier >= 2) ||
+        p.gov_id_review_status === "approved" ||
+        Boolean(p.verified) ||
+        p.status === "approved";
+      if (!marketplaceReady) return false;
       return true;
     });
     if (!list.length) {
@@ -210,6 +212,21 @@ export async function GET(req: Request) {
       .sort((a, b) => (a.distanceKm ?? 99) - (b.distanceKm ?? 99))
       .slice(0, 40);
 
+    // sort=merit → rank by stored merit score, distance as tiebreak.
+    // Default remains nearest-first for the marketplace (plan §13.3).
+    const sort = searchParams.get("sort");
+    if (sort === "merit" && techniciansFinal.length > 1) {
+      const scores = await getMeritScoresForPros(
+        techniciansFinal.map((t) => String(t.id))
+      );
+      techniciansFinal.sort((a, b) => {
+        const sa = scores.get(String(a.id)) ?? 0;
+        const sb = scores.get(String(b.id)) ?? 0;
+        if (sb !== sa) return sb - sa;
+        return (a.distanceKm ?? 99) - (b.distanceKm ?? 99);
+      });
+    }
+
     return apiOk({
       technicians: techniciansFinal,
       count: techniciansFinal.length,
@@ -220,6 +237,7 @@ export async function GET(req: Request) {
         liveProsInDb: list.length,
         afterRadius: techniciansFinal.length,
         etaSource: "haversine_fast",
+        sort: sort === "merit" ? "merit" : "nearest",
       },
     });
   } catch (e) {

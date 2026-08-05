@@ -13,9 +13,9 @@ describe("canAutoShowToast", () => {
     });
   });
 
-  it("piles during the 66s visible window", () => {
+  it("piles during the 3s visible window", () => {
     const start = 1_000_000;
-    expect(canAutoShowToast(start, start + 1_000)).toEqual({
+    expect(canAutoShowToast(start, start + 500)).toEqual({
       allow: true,
       reason: "pile",
     });
@@ -25,22 +25,12 @@ describe("canAutoShowToast", () => {
     });
   });
 
-  it("throttles after hide until 10 minutes", () => {
+  it("starts a new wave once the 3s window ends", () => {
     const start = 1_000_000;
     expect(canAutoShowToast(start, start + TOAST_VISIBLE_MS)).toEqual({
-      allow: false,
-      reason: "throttled",
+      allow: true,
+      reason: "new_wave",
     });
-    expect(
-      canAutoShowToast(start, start + TOAST_AUTO_THROTTLE_MS - 1)
-    ).toEqual({
-      allow: false,
-      reason: "throttled",
-    });
-  });
-
-  it("starts a new wave after 10 minutes", () => {
-    const start = 1_000_000;
     expect(
       canAutoShowToast(start, start + TOAST_AUTO_THROTTLE_MS)
     ).toEqual({

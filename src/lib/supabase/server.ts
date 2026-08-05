@@ -24,7 +24,10 @@ export async function createServerSupabase() {
       setAll(cookiesToSet) {
         try {
           for (const { name, value, options } of cookiesToSet) {
-            cookieStore.set(name, value, options);
+            cookieStore.set(name, value, {
+              ...options,
+              secure: process.env.NODE_ENV === "production",
+            });
           }
         } catch {
           /* called from a Server Component — ignore */

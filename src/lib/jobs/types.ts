@@ -7,6 +7,11 @@ import type { Coordinates, ProService } from "@/lib/types";
 
 /** Full escrow job lifecycle */
 export type JobFlowStatus =
+  | "waiting_for_selected"
+  | "selected_review"
+  | "sequential_pairing"
+  | "waiting_for_pro"
+  | "reserved"
   | "negotiating"
   | "searching"
   | "agreed"
@@ -182,6 +187,15 @@ export type JobRecord = {
   paymentAttemptCount?: number;
   /** ISO end of the current open pay session (if any) */
   paymentSessionEndsAt?: string | null;
+  /** SSPE dispatch fields (see docs/SSPE_REFACTOR_PLAN.md §3) */
+  pairingStage?: string | null;
+  pairingDeadline?: string | null;
+  queuePosition?: number | null;
+  remainingCandidates?: number | null;
+  reservationStatus?: string | null;
+  assignmentStatus?: string | null;
+  chosenProId?: string | null;
+  pairingRadiusKm?: number | null;
 };
 
 export type CreateJobInput = {

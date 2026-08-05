@@ -19,6 +19,7 @@ import {
   Navigation,
   ShieldAlert,
   Star,
+  Wrench,
 } from "lucide-react";
 import { useInAppCall } from "@/components/call/in-app-call";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -42,6 +43,7 @@ import {
 } from "@/lib/chat-expired";
 import {
   apiAcceptOffer,
+  apiDeferJob,
   apiGetJob,
   apiOpenAppeal,
   apiOpenDispute,
@@ -63,6 +65,7 @@ import {
   isPayoutPendingSettlement,
   MAX_OFFER_DIGITS,
   MIN_OFFER_AMOUNT_MAJOR,
+  PAIRING_WINDOW_MS,
   paymentEndsAtIso,
   PRO_TRIP_STATUS_COPY,
   satisfiedReleaseEndsAtIso,
@@ -83,6 +86,17 @@ import { useApp } from "@/lib/store";
 import type { ServiceRequest } from "@/lib/types";
 import { cn, firstNameOnly } from "@/lib/utils";
 
+/** Decline reasons shown to a pro who cannot take a request (SSPE + legacy). */
+const CANCEL_REASONS = [
+  "Currently unavailable",
+  "Too far away",
+  "Busy with another customer",
+  "Outside my service area",
+  "Vehicle issue",
+  "Emergency",
+  "Other",
+] as const;
+
 /** Prefer newer job snapshots so stale polls never undo Start trip etc. */
 function isJobNewer(next: JobRecord, prev: JobRecord | null): boolean {
   if (!prev) return true;
@@ -92,6 +106,11 @@ function isJobNewer(next: JobRecord, prev: JobRecord | null): boolean {
   if (nt !== pt) return nt >= pt;
   // Same timestamp: allow forward status progression only
   const order = [
+    "waiting_for_selected",
+    "selected_review",
+    "sequential_pairing",
+    "waiting_for_pro",
+    "reserved",
     "negotiating",
     "searching",
     "agreed",
@@ -132,6 +151,7 @@ export function JobFlowScreen({
     visibleMessageThreads,
     userProfile,
     accountType,
+    backendUserId,
     authReady,
     isAuthenticated,
   } = useApp();
@@ -285,17 +305,23 @@ export function JobFlowScreen({
     }
   }, [jobId]);
 
-  /* Redirect history-only jobs to /requests/:id (side-effect in render is illegal) */
+  /* Auto-close: customer → job details, repair pro → dashboard (fast, no gesture) */
   useEffect(() => {
     if (!job) return;
-    if (isJobHistoryOnlyStatus(job.status)) {
+    const isPro = viewer === "repair_pro";
+    const isCurrentPro = job.repairProId === (backendUserId || "");
+    const passedOn =
+      isPro &&
+      (job.status === "sequential_pairing" ||
+        Boolean(job.repairProId && !isCurrentPro));
+    if (isJobHistoryOnlyStatus(job.status) || passedOn) {
       const path = window.location.pathname || "";
       if (path.startsWith("/jobs/")) {
         setRedirecting(true);
-        router.replace(`/requests/${job.id}`);
+        router.replace(isPro ? "/dashboard" : `/requests/${job.id}`);
       }
     }
-  }, [job, router]);
+  }, [job, viewer, backendUserId, router]);
 
   const REVIEW_MAX = 144;
 
@@ -448,7 +474,12 @@ export function JobFlowScreen({
       ? 2_000
       : job.status === "negotiating" ||
           job.status === "searching" ||
-          job.status === "agreed"
+          job.status === "agreed" ||
+          job.status === "waiting_for_selected" ||
+          job.status === "selected_review" ||
+          job.status === "sequential_pairing" ||
+          job.status === "waiting_for_pro" ||
+          job.status === "reserved"
         ? 2_500
         : job.status === "completed"
           ? 2_000
@@ -709,6 +740,348 @@ export function JobFlowScreen({
     );
   }
 
+  /* ─── SSPE DISPATCH STATES ───
+   * waiting_for_selected / selected_review / sequential_pairing /
+   * waiting_for_pro / reserved. All countdowns render pairing_deadline
+   * (display-only, D3) — the server sweep owns timing.
+   */
+  if (
+    job.status === "waiting_for_selected" ||
+    job.status === "selected_review" ||
+    job.status === "sequential_pairing" ||
+    job.status === "waiting_for_pro" ||
+    job.status === "reserved"
+  ) {
+    const deadline = job.pairingDeadline || null;
+    const isCurrentPro =
+      viewer === "repair_pro" &&
+      job.repairProId === (backendUserId || "");
+    const reviewing =
+      job.status === "selected_review" || job.status === "reserved";
+    const finding = job.status === "sequential_pairing";
+    // A pro is never actionable while pairing actively advances between pros.
+    const proPassedOn =
+      viewer === "repair_pro" && (!isCurrentPro || finding);
+    const idem = (e: string) => `${job.id}:${actorId}:${e}`;
+
+    // Customer: sequential pairing actively pings pros → full search screen.
+    if (viewer === "motorist" && finding) {
+      return (
+        <SearchingScreen
+          job={job}
+          viewer={viewer}
+          backendUserId={backendUserId}
+          isLight={isLight}
+          err={err}
+          onBack={goJobsList}
+        />
+      );
+    }
+
+    const proLabel = PRO_SERVICE_LABELS[job.serviceType] || job.serviceType;
+
+    const title =
+      viewer === "repair_pro"
+        ? proPassedOn
+          ? "Request passed on"
+          : reviewing
+            ? "Can you fix this?"
+            : "New Service Request"
+        : job.status === "waiting_for_selected"
+          ? `Waiting for ${proLabel}`
+          : reviewing
+            ? "Repair Pro reviewing your request"
+            : "Finding another pro…";
+
+    const subtitle =
+      viewer === "repair_pro"
+        ? proPassedOn
+          ? "This request is no longer available to you."
+          : reviewing
+            ? "Confirm you can complete this job to start the negotiation."
+            : "Open the request to review the details. You have 66 seconds."
+        : job.status === "waiting_for_selected"
+          ? `${firstNameOnly(
+              job.repairProName === "Repair Pro" ? null : job.repairProName,
+              proLabel
+            )} has received your request and will respond shortly.`
+          : reviewing
+            ? "The Repair Pro is reviewing your request and will respond shortly."
+            : finding
+              ? "We’re finding another pro with the same skill."
+              : "A pro is checking your request."
+
+    const body = (
+      <div className="flex min-h-0 flex-col bg-transparent px-0.5 pt-1">
+        <div className="shrink-0 space-y-3 bg-transparent">
+          {viewer === "repair_pro" ? (
+            <>
+              {isAutomotiveTrade(job.serviceType) ? (
+                <div>
+                  <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
+                    Vehicle
+                  </p>
+                  <p className={cn("mt-1 text-[15px] font-semibold", ink)}>
+                    {job.motoristVehicle?.trim() || "Vehicle details on request"}
+                  </p>
+                </div>
+              ) : null}
+              <div>
+                <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
+                  Common issues
+                </p>
+                <p className={cn("mt-1 text-[15px] font-medium leading-relaxed", ink)}>
+                  {job.problem}
+                </p>
+              </div>
+              <div>
+                <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
+                  Your matching skill
+                </p>
+                <p className={cn("mt-1 text-[15px] font-semibold", ink)}>{proLabel}</p>
+              </div>
+            </>
+          ) : (
+            <div>
+              <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
+                Problem description
+              </p>
+              <p className={cn("mt-1 text-[15px] font-medium leading-relaxed", ink)}>
+                {job.problem}
+              </p>
+              {job.voiceNote?.url && (
+                <div className="mt-2.5">
+                  <VoiceNotePlayer
+                    url={job.voiceNote.url}
+                    durationSec={job.voiceNote.durationSec}
+                    isLight={isLight}
+                    label="Your voice note"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex min-h-[40vh] flex-1 flex-col items-center justify-center bg-transparent py-5">
+          {deadline && !finding ? (
+            <CountdownTimer
+              variant="ring"
+              endsAt={deadline}
+              totalMs={PAIRING_WINDOW_MS}
+              onExpire={() => void load()}
+              className={ink}
+            />
+          ) : (
+            <div className="mb-4 h-10 w-10 animate-spin rounded-full border-2 border-[#FF6B35] border-t-transparent" />
+          )}
+          <p className={cn("mt-4 max-w-[280px] text-center text-[13px] font-semibold leading-snug", muted)}>
+            {subtitle}
+          </p>
+        </div>
+      </div>
+    );
+
+    const footer =
+      viewer === "motorist" ? (
+        <div className="space-y-2">
+          {err && (
+            <p className="text-center text-[12px] font-semibold text-red-500">
+              {err}
+            </p>
+          )}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              void run(() =>
+                apiTransition({
+                  jobId: job.id,
+                  event: "CANCEL",
+                  actor: "motorist",
+                  actorId,
+                })
+              )
+            }
+            className={cn(
+              "inline-flex h-11 w-full items-center justify-center rounded-md border-0 text-[13px] font-semibold",
+              isLight
+                ? "bg-black/10 text-slate-900"
+                : "bg-[#2c2c2e] text-white"
+            )}
+          >
+            Cancel request
+          </button>
+        </div>
+      ) : proPassedOn ? (
+        null
+      ) : reviewing ? (
+        <div className="space-y-2">
+          {err && (
+            <p className="text-center text-[12px] font-semibold text-red-500">
+              {err}
+            </p>
+          )}
+          <CopperButton
+            disabled={busy}
+            onClick={() =>
+              void run(() =>
+                apiTransition({
+                  jobId: job.id,
+                  event: "CONFIRM",
+                  actor: "repair_pro",
+                  actorId,
+                  idempotencyKey: idem("confirm"),
+                })
+              )
+            }
+          >
+            I can fix this
+          </CopperButton>
+          <GhostButton
+            isLight={isLight}
+            onClick={() => setShowCancelReasons(true)}
+          >
+            I cannot fix this
+          </GhostButton>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              void run(() =>
+                apiTransition({
+                  jobId: job.id,
+                  event: "DECLINE",
+                  actor: "repair_pro",
+                  actorId,
+                  idempotencyKey: idem("decline"),
+                })
+              )
+            }
+            className="h-11 rounded-md border-0 bg-red-500/15 text-[13px] font-bold text-red-600"
+          >
+            Decline
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              void run(() =>
+                apiTransition({
+                  jobId: job.id,
+                  event: "LATER",
+                  actor: "repair_pro",
+                  actorId,
+                  idempotencyKey: idem("later"),
+                })
+              )
+            }
+            className={cn(
+              "h-11 rounded-md border-0 text-[13px] font-bold",
+              isLight
+                ? "bg-black/10 text-slate-900"
+                : "bg-[#2c2c2e] text-white"
+            )}
+          >
+            Later
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              void run(() =>
+                apiTransition({
+                  jobId: job.id,
+                  event: "OPEN",
+                  actor: "repair_pro",
+                  actorId,
+                  idempotencyKey: idem("open"),
+                })
+              )
+            }
+            className="h-11 rounded-md border-0 bg-[#FF6B35] text-[13px] font-bold text-white"
+          >
+            Open
+          </button>
+        </div>
+      );
+
+    return (
+      <>
+        <JobShell
+          isLight={isLight}
+          title={title}
+          compactHeader
+          onBack={goJobsList}
+          footer={footer || undefined}
+        >
+          {body}
+          {err && viewer === "repair_pro" && (
+            <p className="mt-1 text-center text-[12px] font-medium text-red-500">
+              {err}
+            </p>
+          )}
+        </JobShell>
+
+        {/* Decline reason modal (shares state with negotiating branch) */}
+        {showCancelReasons && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 pb-12">
+            <div
+              className={cn(
+                "w-full max-w-[390px] rounded-t-2xl px-5 pb-6 pt-5",
+                isLight ? "bg-[#c8c9cd]" : "bg-[#1c1c1e]"
+              )}
+            >
+              <h2 className={cn("mb-4 text-[16px] font-bold", ink)}>
+                Why can’t you fix this?
+              </h2>
+              <div className="space-y-2">
+                {CANCEL_REASONS.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => {
+                      setCancelReason(r);
+                      setShowCancelReasons(false);
+                      void run(() =>
+                        apiTransition({
+                          jobId: job.id,
+                          event: "DECLINE",
+                          actor: "repair_pro",
+                          actorId,
+                          reason: r,
+                          idempotencyKey: idem("decline"),
+                        })
+                      );
+                    }}
+                    className={cn(
+                      "flex w-full items-center rounded-lg px-4 py-3 text-left text-[14px] font-medium transition active:scale-[0.98]",
+                      isLight
+                        ? "bg-white/70 text-slate-900 active:bg-white"
+                        : "bg-[#2c2c2e] text-white active:bg-[#3a3a3c]"
+                    )}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="mt-4 w-full py-3 text-center text-[13px] font-medium text-red-500"
+                onClick={() => setShowCancelReasons(false)}
+              >
+                Go back
+              </button>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
   /* ─── NEGOTIATING / NEW REQUEST ─── */
   if (job.status === "negotiating") {
     const last = job.offers[job.offers.length - 1];
@@ -722,23 +1095,19 @@ export function JobFlowScreen({
         ? last
         : [...job.offers].reverse().find((o) => o.side !== mySide);
 
-    // D2: first time pro opens this request — confirm they can fix it
+    // D2: first time pro opens this request — confirm they can fix it.
+    // SSPE jobs already confirmed via the "I can fix this" sheet → skip gate.
+    const confirmedViaSspe =
+      job.reservationStatus === "confirmed" ||
+      job.assignmentStatus === "assigned" ||
+      (job.statusHistory || []).some((h) => h.by === "confirmed");
     const needsProCanFixGate =
       viewer === "repair_pro" &&
       !proCanFixAccepted &&
-      job.offers.length === 0;
+      job.offers.length === 0 &&
+      !confirmedViaSspe;
 
     if (needsProCanFixGate) {
-      const CANCEL_REASONS = [
-        "Currently unavailable",
-        "Too far away",
-        "Busy with another customer",
-        "Outside my service area",
-        "Vehicle issue",
-        "Emergency",
-        "Other",
-      ] as const;
-
       return (
         <>
           <JobShell
@@ -827,6 +1196,11 @@ export function JobFlowScreen({
               By tapping{" "}
               <span className="font-semibold text-[#FF6B35]">I can fix this</span>
               , you confirm you can complete this job.
+            </p>
+            <p className={cn("text-[12px] leading-relaxed", muted)}>
+              By proceeding, you re-affirm that you are a certified professional
+              and can complete this job. Customers trust Ona to match them with
+              verified pros.
             </p>
             {err && (
               <p className="text-center text-[12px] font-semibold text-red-500">
@@ -1218,7 +1592,7 @@ export function JobFlowScreen({
 
   /* ─── SEARCHING (pro cancelled, finding another) ─── */
   if (job.status === "searching") {
-    return <SearchingScreen job={job} viewer={viewer} isLight={isLight} err={err} onBack={goJobsList} />;
+    return <SearchingScreen job={job} viewer={viewer} backendUserId={backendUserId} isLight={isLight} err={err} onBack={goJobsList} />;
   }
 
   /* ─── AGREED ─── */
@@ -3092,8 +3466,8 @@ function DisputeSheet({
   );
 }
 
-/** Total reroute window a search can run before the request expires. */
-const SEARCH_REROUTE_WINDOW_MS = 15 * 60_000;
+/** Total reroute window a search can run before the request expires (3 minutes). */
+const SEARCH_REROUTE_WINDOW_MS = 3 * 60_000;
 
 function searchingEndsAtIso(job: JobRecord): string {
   let start = 0;
@@ -3110,16 +3484,19 @@ function searchingEndsAtIso(job: JobRecord): string {
 function SearchingScreen({
   job,
   viewer,
+  backendUserId,
   isLight,
   err,
   onBack,
 }: {
   job: JobRecord;
   viewer: "motorist" | "repair_pro";
+  backendUserId?: string | null;
   isLight: boolean;
   err: string | null;
   onBack: () => void;
 }) {
+  const router = useRouter();
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-700" : "text-white/75";
   const skillLabel =
@@ -3144,18 +3521,108 @@ function SearchingScreen({
     return () => window.clearInterval(id);
   }, [messages.length]);
 
+  const cancelSearch = useCallback(
+    async (auto: boolean) => {
+      try {
+        await apiTransition({
+          jobId: job.id,
+          event: "CANCEL",
+          actor: "motorist",
+          actorId: job.motoristId,
+          reason: "motorist_cancelled_search",
+        });
+      } catch {
+        /* ignore */
+      }
+      router.replace(auto ? `/requests/${job.id}` : "/");
+    },
+    [job.id, job.motoristId, router]
+  );
+
+  // Manual cancel (user-initiated) — go home.
+  const handleCancelSearch = useCallback(
+    () => void cancelSearch(false),
+    [cancelSearch]
+  );
+
+  // 3-minute auto-cancel timer → auto-close: customer to job details page.
+  useEffect(() => {
+    const t = window.setTimeout(
+      () => void cancelSearch(true),
+      SEARCH_REROUTE_WINDOW_MS
+    );
+    return () => window.clearTimeout(t);
+  }, [cancelSearch]);
+
   if (viewer === "repair_pro") {
+    const isAssignedToThisPro = job.repairProId === backendUserId;
+    if (isAssignedToThisPro) {
+      return (
+        <JobShell isLight={isLight} title="Service Request" compactHeader>
+          <div className="flex flex-col items-center px-4 pt-8 text-center">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#FF6B35]/20">
+              <Wrench className="h-7 w-7 text-[#FF6B35]" />
+            </div>
+            <h2 className={cn("text-[18px] font-black", ink)}>
+              New Request from {job.motoristName}
+            </h2>
+            <p className={cn("mt-1 text-[13px]", muted)}>
+              {job.problem}
+            </p>
+            <div className="mt-4 rounded-xl bg-[#FF6B35]/10 px-4 py-2 text-[13px] font-bold text-[#FF6B35]">
+              Request expires in 30s
+            </div>
+            <div className="mt-6 grid w-full grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  await apiTransition({
+                    jobId: job.id,
+                    event: "CANCEL",
+                    actor: "repair_pro",
+                    actorId: backendUserId || undefined,
+                    reason: "pro_declined",
+                  });
+                  router.replace("/jobs");
+                }}
+                className="h-11 rounded-xl border-0 bg-red-500/15 text-[13px] font-bold text-red-600"
+              >
+                Decline
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (backendUserId) await apiDeferJob(job.id, backendUserId);
+                  router.replace("/jobs");
+                }}
+                className={cn(
+                  "h-11 rounded-xl border-0 text-[13px] font-bold",
+                  isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white"
+                )}
+              >
+                Later
+              </button>
+              <button
+                type="button"
+                onClick={() => router.replace(`/jobs/${job.id}`)}
+                className="h-11 rounded-xl border-0 bg-[#FF6B35] text-[13px] font-bold text-white"
+              >
+                Open
+              </button>
+            </div>
+          </div>
+        </JobShell>
+      );
+    }
+
     return (
       <JobShell isLight={isLight} title="Service Request" compactHeader>
         <div className="flex flex-col items-center justify-center px-0.5 pt-12">
           <div className="mb-6 h-10 w-10 animate-spin rounded-full border-2 border-[#FF6B35] border-t-transparent" />
           <h2 className={cn("mb-2 text-center text-[18px] font-bold", ink)}>
-            Request cancelled
+            Request passed to another pro
           </h2>
           <p className={cn("mb-1 text-center text-[13px] font-medium", muted)}>
-            This request will be passed to another pro.
-          </p>
-          <p className={cn("mt-4 text-center text-[12px] font-medium", muted)}>
             This request is no longer available to you.
           </p>
         </div>
@@ -3210,12 +3677,19 @@ function SearchingScreen({
           >
             {messages[idx]}
           </h2>
-          <div className="mt-auto">
-            <CountdownTimer
-              variant="bar"
-              endsAt={searchingEndsAtIso(job)}
-              totalMs={SEARCH_REROUTE_WINDOW_MS}
-            />
+          <div className="mt-auto pb-2">
+            <button
+              type="button"
+              onClick={() => void handleCancelSearch()}
+              className={cn(
+                "h-11 w-full rounded-xl border-0 text-[13px] font-bold transition-colors",
+                isLight
+                  ? "bg-red-500/15 text-red-700 hover:bg-red-500/25"
+                  : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+              )}
+            >
+              Cancel Request
+            </button>
           </div>
         </div>
       </div>

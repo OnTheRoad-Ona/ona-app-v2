@@ -23,11 +23,17 @@ const bodySchema = z.object({
     "SATISFIED",
     "RELEASE",
     "START_NEGOTIATION",
+    "OPEN",
+    "CONFIRM",
+    "LATER",
+    "DECLINE",
   ]),
   actor: z.enum(["motorist", "repair_pro", "system", "admin"]),
   actorId: z.string().optional(),
   reason: z.string().optional(),
   cancelReason: z.string().optional(),
+  /** Client idempotency key — dedupes replayed Open/Confirm/Later/Decline */
+  idempotencyKey: z.string().max(64).optional(),
   proLat: z.number().optional(),
   proLng: z.number().optional(),
   /** Optional client overrides — server prefers Google Distance Matrix when GPS present */
@@ -79,13 +85,49 @@ export async function POST(
       return apiFail("This actor cannot perform that action", 403);
     }
 
+    // ── SSPE dispatch actions (Open / I-can-fix-this / Later / Decline) ─────
+    if (
+      b.event === "OPEN" ||
+      b.event === "CONFIRM" ||
+      b.event === "LATER" ||
+      b.event === "DECLINE"
+    ) {
+      if (actor !== "repair_pro") {
+        return apiFail("Only the assigned Repair Pro can do that", 403);
+      }
+      const {
+        openRequest,
+        confirmRequest,
+        deferRequest,
+        declineRequest,
+      } = await import("@/lib/server/pairing/pairing-engine");
+      const idempotencyKey = b.idempotencyKey || undefined;
+      let res;
+      if (b.event === "OPEN") {
+        res = await openRequest(id, auth.userId, idempotencyKey);
+      } else if (b.event === "CONFIRM") {
+        res = await confirmRequest(id, auth.userId, idempotencyKey);
+      } else if (b.event === "LATER") {
+        res = await deferRequest(id, auth.userId);
+      } else {
+        res = await declineRequest(id, auth.userId, b.reason || b.cancelReason);
+      }
+      if (!res.ok) return apiFail(res.error, res.status || 400);
+      const updatedJob = await getJob(id);
+      return apiOk({
+        job: updatedJob,
+        rerouted: Boolean(res.nextProId),
+        noop: Boolean(res.noop),
+      });
+    }
+
     const event = (
       b.event === "CANCEL"
         ? { type: "CANCEL" as const, by: actor, reason: b.reason }
         : { type: b.event as TransitionEvent["type"] }
     ) as TransitionEvent;
 
-    let proLocation =
+    const proLocation =
       b.proLat != null && b.proLng != null
         ? { lat: b.proLat, lng: b.proLng }
         : undefined;

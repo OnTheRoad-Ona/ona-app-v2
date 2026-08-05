@@ -38,6 +38,11 @@ const PRO_PAST = new Set<JobFlowStatus>([
 
 /** Still open for pro (back from live job flow / multi-request) */
 const PRO_ACTIVE = new Set<JobFlowStatus>([
+  "waiting_for_selected",
+  "selected_review",
+  "sequential_pairing",
+  "waiting_for_pro",
+  "reserved",
   "negotiating",
   "agreed",
   "paid_booked",
@@ -47,6 +52,11 @@ const PRO_ACTIVE = new Set<JobFlowStatus>([
 ]);
 
 const MOTORIST_ACTIVE = new Set([
+  "waiting_for_selected",
+  "selected_review",
+  "sequential_pairing",
+  "waiting_for_pro",
+  "reserved",
   "negotiating",
   "agreed",
   "paid_booked",

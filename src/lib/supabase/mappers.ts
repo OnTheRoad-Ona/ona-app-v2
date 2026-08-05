@@ -235,8 +235,14 @@ export function mapProToTechnician(
     // Prefer backend visibility_tier columns; fall back to local artisan store
     ...(() => {
       let dbTier = Number(pro.visibility_tier);
-      // Null tier but T2-approved/verified → treat as T2 so customers can find them
-      if ((!Number.isFinite(dbTier) || dbTier < 1) && Boolean(pro.verified)) {
+      // Null/1 tier but T2-approved/verified (or approved status) → treat as T2
+      // so customers can find them — stale tier must never hide an approved pro
+      if (
+        (!Number.isFinite(dbTier) || dbTier < 2) &&
+        (Boolean(pro.verified) ||
+          pro.status === "approved" ||
+          pro.gov_id_review_status === "approved")
+      ) {
         dbTier = 2;
       }
       if (dbTier >= 1 && dbTier <= 4) {

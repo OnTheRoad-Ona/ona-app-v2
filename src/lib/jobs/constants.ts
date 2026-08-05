@@ -11,6 +11,12 @@ export const JOB_NAVY = "#0f172a";
 /** Negotiation window — 20 minutes for price back-and-forth */
 export const NEGOTIATE_WINDOW_MS = 20 * 60 * 1000;
 /**
+ * SSPE dispatch window — each pro has 66 seconds to Open a request before the
+ * server sweep advances to the next ranked pro (see docs/SSPE_REFACTOR_PLAN.md).
+ * Clients only render `pairing_deadline`; the server owns enforcement.
+ */
+export const PAIRING_WINDOW_MS = 66 * 1000;
+/**
  * After a payment session starts (Pay / Pay again), customer has this long
  * to complete Flutterwave. Only a full unpaid window counts as one attempt.
  */

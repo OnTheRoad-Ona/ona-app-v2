@@ -1,89 +1,187 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  INCOMING_POPUP_THROTTLE_MS,
-  INCOMING_POPUP_VISIBLE_MS,
   canSurfaceIncomingJob,
+  isIncomingJobOpen,
   markJobShown,
-  readLastWaveAt,
-  writeLastWaveAt,
+  readShownJobIds,
 } from "@/lib/jobs/incoming-popup-timing";
+import type { JobRecord } from "@/lib/jobs/types";
 
-function mockWebStorage(): Storage {
-  const map = new Map<string, string>();
-  return {
-    get length() {
-      return map.size;
-    },
-    clear: () => map.clear(),
-    getItem: (k: string) => map.get(k) ?? null,
+const store: Record<string, string> = {};
+
+beforeEach(() => {
+  for (const k of Object.keys(store)) delete store[k];
+  vi.stubGlobal("sessionStorage", {
+    getItem: (k: string) => store[k] ?? null,
     setItem: (k: string, v: string) => {
-      map.set(k, String(v));
+      store[k] = v;
     },
     removeItem: (k: string) => {
-      map.delete(k);
+      delete store[k];
     },
-    key: (i: number) => [...map.keys()][i] ?? null,
-  };
-}
+  });
+});
 
 describe("canSurfaceIncomingJob", () => {
-  beforeEach(() => {
-    // Node vitest has no browser storage by default
-    Object.defineProperty(globalThis, "localStorage", {
-      value: mockWebStorage(),
-      configurable: true,
+  it("allows every new job (no 10-minute throttle)", () => {
+    expect(canSurfaceIncomingJob("j1")).toEqual({
+      allow: true,
+      reason: "new_wave",
     });
-    Object.defineProperty(globalThis, "sessionStorage", {
-      value: mockWebStorage(),
-      configurable: true,
-    });
-  });
-
-  it("allows first job as new wave", () => {
-    expect(canSurfaceIncomingJob("j1", 1_000_000)).toEqual({
+    expect(canSurfaceIncomingJob("j2")).toEqual({
       allow: true,
       reason: "new_wave",
     });
   });
 
-  it("blocks already shown job", () => {
+  it("blocks already shown jobs", () => {
     markJobShown("j1");
-    expect(canSurfaceIncomingJob("j1", 1_000_000).allow).toBe(false);
+    expect(canSurfaceIncomingJob("j1").allow).toBe(false);
+    expect(readShownJobIds().has("j1")).toBe(true);
   });
 
-  it("piles during 66s window", () => {
-    writeLastWaveAt(1_000_000);
-    expect(canSurfaceIncomingJob("j2", 1_000_000 + 10_000)).toEqual({
+  it("piles when a wave is open", () => {
+    expect(canSurfaceIncomingJob("j3", { waveOpen: true })).toEqual({
       allow: true,
       reason: "pile",
     });
   });
+});
 
-  it("throttles after hide until 10 min", () => {
-    writeLastWaveAt(1_000_000);
-    expect(
-      canSurfaceIncomingJob("j3", 1_000_000 + INCOMING_POPUP_VISIBLE_MS).allow
-    ).toBe(false);
-    expect(
-      canSurfaceIncomingJob(
-        "j3",
-        1_000_000 + INCOMING_POPUP_THROTTLE_MS - 1
-      ).allow
-    ).toBe(false);
-  });
+const NOW = Date.parse("2026-08-04T12:00:00.000Z");
 
-  it("new wave after 10 minutes", () => {
-    writeLastWaveAt(1_000_000);
+function job(overrides: Partial<JobRecord>): JobRecord {
+  return {
+    id: "j1",
+    motoristId: "m1",
+    motoristName: "M",
+    repairProId: "p1",
+    repairProName: "P",
+    serviceType: "mechanic",
+    problem: "Engine won't start",
+    status: "reserved",
+    createdAt: new Date(NOW - 60_000).toISOString(),
+    statusHistory: [],
+    ...overrides,
+  } as JobRecord;
+}
+
+describe("isIncomingJobOpen", () => {
+  it("stays open for a normal reserved pairing job", () => {
     expect(
-      canSurfaceIncomingJob(
-        "j4",
-        1_000_000 + INCOMING_POPUP_THROTTLE_MS
+      isIncomingJobOpen(
+        job({
+          status: "reserved",
+          pairingStage: "reserved",
+          pairingDeadline: new Date(NOW + 60_000).toISOString(),
+        }),
+        "p1",
+        NOW
       )
-    ).toEqual({ allow: true, reason: "new_wave" });
+    ).toBe(true);
   });
 
-  it("persists wave timestamp", () => {
-    writeLastWaveAt(42);
-    expect(readLastWaveAt()).toBe(42);
+  it("closes a cancelled job even with a stale reserved stage (sticky bug)", () => {
+    expect(
+      isIncomingJobOpen(
+        job({
+          status: "cancelled",
+          pairingStage: "reserved",
+          pairingDeadline: new Date(NOW + 60_000).toISOString(),
+        }),
+        "p1",
+        NOW
+      )
+    ).toBe(false);
+  });
+
+  it("closes a completed job even with a stale waiting_for_pro stage", () => {
+    expect(
+      isIncomingJobOpen(
+        job({
+          status: "completed",
+          pairingStage: "waiting_for_pro",
+          pairingDeadline: new Date(NOW + 60_000).toISOString(),
+        }),
+        "p1",
+        NOW
+      )
+    ).toBe(false);
+  });
+
+  it("closes an expired / declined (sequential_pairing) job", () => {
+    expect(
+      isIncomingJobOpen(
+        job({
+          status: "sequential_pairing",
+          pairingStage: "sequential_pairing",
+        }),
+        "p1",
+        NOW
+      )
+    ).toBe(false);
+  });
+
+  it("closes a pairing job past its pairing deadline", () => {
+    expect(
+      isIncomingJobOpen(
+        job({
+          status: "reserved",
+          pairingStage: "reserved",
+          pairingDeadline: new Date(NOW - 1_000).toISOString(),
+        }),
+        "p1",
+        NOW
+      )
+    ).toBe(false);
+  });
+
+  it("keeps negotiating open inside the window and closed after it", () => {
+    expect(
+      isIncomingJobOpen(
+        job({
+          status: "negotiating",
+          negotiateEndsAt: new Date(NOW + 60_000).toISOString(),
+        }),
+        "p1",
+        NOW
+      )
+    ).toBe(true);
+    expect(
+      isIncomingJobOpen(
+        job({
+          status: "negotiating",
+          negotiateEndsAt: new Date(NOW - 1_000).toISOString(),
+        }),
+        "p1",
+        NOW
+      )
+    ).toBe(false);
+  });
+
+  it("keeps agreed open and never opens for another pro", () => {
+    expect(
+      isIncomingJobOpen(job({ status: "agreed" }), "p1", NOW)
+    ).toBe(true);
+    expect(
+      isIncomingJobOpen(job({ status: "agreed" }), "p2", NOW)
+    ).toBe(false);
+  });
+
+  it("closes a released / satisfied job", () => {
+    for (const status of [
+      "released",
+      "satisfied",
+      "refunded",
+      "expired",
+    ] as const) {
+      expect(
+        isIncomingJobOpen(
+          job({ status, pairingStage: "reserved" }),
+          "p1",
+          NOW
+        )
+      ).toBe(false);
+    }
   });
 });

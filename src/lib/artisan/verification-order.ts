@@ -19,7 +19,14 @@ export function isGovIdComplete(
   p: Partial<ArtisanVerificationProfile> | null | undefined
 ): boolean {
   if (!p) return false;
-  return reviewDone(p.govIdReviewStatus, p.tiers?.tier2_govId);
+  if (reviewDone(p.govIdReviewStatus, p.tiers?.tier2_govId)) return true;
+  // Match resolveVisibilityTier: admin-approved status / elevated tier /
+  // recorded approval imply T2 even when the review flag was not stamped.
+  return (
+    p.status === "approved" ||
+    (p.visibilityTier ?? 0) >= 2 ||
+    Boolean(p.tier2ApprovedAt)
+  );
 }
 
 /** BVN submitted or approved */
@@ -27,7 +34,12 @@ export function isBvnComplete(
   p: Partial<ArtisanVerificationProfile> | null | undefined
 ): boolean {
   if (!p) return false;
-  return reviewDone(p.ninReviewStatus, p.tiers?.tier2_nin);
+  if (reviewDone(p.ninReviewStatus, p.tiers?.tier2_nin)) return true;
+  return (
+    p.status === "approved" ||
+    (p.visibilityTier ?? 0) >= 2 ||
+    Boolean(p.tier2ApprovedAt)
+  );
 }
 
 /** Face liveness passed on device */

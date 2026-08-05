@@ -226,7 +226,7 @@ function ChatThreadInner({
       return;
     }
     if (!sb) return;
-    const channel = sb.channel(`om-typing:${id}`, {
+    const channel = sb.channel(`om-typing:${id}-${Math.random().toString(36).slice(2, 8)}`, {
       config: { broadcast: { self: false } },
     });
     channel

@@ -213,9 +213,21 @@ export function shouldListNotification(n: AppNotification): boolean {
   return Boolean(n.messageText?.trim());
 }
 
-/** Toasts: never for closed-chat message notifications */
+/**
+ * Toasts (top in-app stack): never for closed-chat messages.
+ * Incoming service requests are handled only by the lower Incoming panel
+ * (+ OS push) — do not also pile a top toast with the same text.
+ */
 export function shouldToastNotification(n: AppNotification): boolean {
-  return !isChatClosedForNotification(n);
+  if (isChatClosedForNotification(n)) return false;
+  if (
+    n.actionType === "open_job" ||
+    n.actionType === "accept_request" ||
+    (n.category === "requests" && n.jobId)
+  ) {
+    return false;
+  }
+  return true;
 }
 
 export function isHighPriority(p: NotificationPriority): boolean {

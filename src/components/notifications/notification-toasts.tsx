@@ -2,7 +2,7 @@
 
 /**
  * In-app toasts — X-style top banners, inDrive pile as requests arrive.
- * Visible 66s then fully hide; auto-wave throttled to 10 min (provider).
+ * Visible 3s then fully hide (provider).
  * Swipe up to dismiss. Never navigates for finished jobs / closed chats.
  */
 

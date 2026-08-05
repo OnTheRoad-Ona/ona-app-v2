@@ -443,76 +443,32 @@ body {
 }
 
 /**
- * Sidebar glass icon chips + dual-tone glyph.
- * Wrapper = frosted glass tile (always visible change).
- * Glyph = solid soft fill + thin edge (forced on every path).
+ * Sidebar menu icons — layout only.
+ * Solid orange / no-border is set on SVG shape attributes in menu-icons.tsx
+ * so CSS cannot force hollow outlines again.
  */
-.om-menu-icon-glass {
+.om-menu-icon-slot {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
+  width: 1.5rem;
+  height: 1.5rem;
   flex-shrink: 0;
-  border-radius: 0.625rem;
-  box-sizing: border-box;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
 }
-/* Light: frosted glass on grey sheet */
-.om-menu-icon-glass--light {
-  background: linear-gradient(
-    155deg,
-    rgba(255, 255, 255, 0.78) 0%,
-    rgba(255, 255, 255, 0.38) 48%,
-    rgba(200, 201, 205, 0.45) 100%
-  );
-  border: 0.5px solid rgba(255, 255, 255, 0.75);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.04),
-    0 1px 3px rgba(0, 0, 0, 0.07);
-  -webkit-backdrop-filter: blur(12px) saturate(1.35);
-  backdrop-filter: blur(12px) saturate(1.35);
-  --om-icon-fill: #8e8e93;
-  --om-icon-edge: #48484a;
-}
-/* Dark: smoky glass on black */
-.om-menu-icon-glass--dark {
-  background: linear-gradient(
-    155deg,
-    rgba(255, 255, 255, 0.14) 0%,
-    rgba(255, 255, 255, 0.05) 50%,
-    rgba(0, 0, 0, 0.25) 100%
-  );
-  border: 0.5px solid rgba(255, 255, 255, 0.12);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 1px 3px rgba(0, 0, 0, 0.35);
-  -webkit-backdrop-filter: blur(12px) saturate(1.2);
-  backdrop-filter: blur(12px) saturate(1.2);
-  --om-icon-fill: #8e8e93;
-  --om-icon-edge: #e5e5ea;
-}
-.om-menu-icon-glass .om-menu-icon {
-  width: 1.125rem !important;
-  height: 1.125rem !important;
+.om-menu-icon {
   display: block;
-  color: var(--om-icon-edge) !important;
+  width: 1.375rem !important;
+  height: 1.375rem !important;
+  flex-shrink: 0;
   overflow: visible;
-}
-/* Force fill + thin border on every Lucide shape (inline attrs lose to !important) */
-.om-menu-icon-glass .om-menu-icon path,
-.om-menu-icon-glass .om-menu-icon circle,
-.om-menu-icon-glass .om-menu-icon line,
-.om-menu-icon-glass .om-menu-icon polyline,
-.om-menu-icon-glass .om-menu-icon polygon,
-.om-menu-icon-glass .om-menu-icon rect,
-.om-menu-icon-glass .om-menu-icon ellipse {
-  fill: var(--om-icon-fill) !important;
-  stroke: var(--om-icon-edge) !important;
-  stroke-width: 1 !important; /* user units in 24 viewBox ≈ thin on 18px icon */
-  stroke-linecap: round !important;
-  stroke-linejoin: round !important;
-  paint-order: fill stroke;
+  color: currentColor;
+  shape-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+  filter: none !important;
 }
 
 /*
@@ -1310,6 +1266,16 @@ button.om-cta-dark-gray:disabled,
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Scrim behind the incoming-request lower panel — fades in with the panel */
+@keyframes om-scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 

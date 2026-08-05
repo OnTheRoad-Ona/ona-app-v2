@@ -6,6 +6,10 @@
     {
       "path": "/api/payments/payout-retry",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/jobs/pairing-sweep",
+      "schedule": "* * * * *"
     }
   ]
 }

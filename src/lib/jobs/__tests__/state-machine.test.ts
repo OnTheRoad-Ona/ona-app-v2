@@ -80,6 +80,55 @@ describe("state-machine", () => {
     });
   });
 
+  describe("SSPE dispatch transitions", () => {
+    it("OPEN moves waiting_for_selected → selected_review", () => {
+      expect(canTransition("waiting_for_selected", { type: "OPEN", by: "repair_pro" })).toBe(true);
+      expect(nextStatus("waiting_for_selected", { type: "OPEN", by: "repair_pro" })).toBe("selected_review");
+    });
+
+    it("OPEN moves waiting_for_pro → reserved", () => {
+      expect(nextStatus("waiting_for_pro", { type: "OPEN", by: "repair_pro" })).toBe("reserved");
+    });
+
+    it("CONFIRM moves selected_review → negotiating", () => {
+      expect(nextStatus("selected_review", { type: "CONFIRM", by: "repair_pro" })).toBe("negotiating");
+    });
+
+    it("CONFIRM moves reserved → negotiating", () => {
+      expect(nextStatus("reserved", { type: "CONFIRM", by: "repair_pro" })).toBe("negotiating");
+    });
+
+    it("LATER / DECLINE / PAIRING_TIMEOUT move to sequential_pairing", () => {
+      expect(nextStatus("waiting_for_selected", { type: "LATER", by: "repair_pro" })).toBe("sequential_pairing");
+      expect(nextStatus("waiting_for_pro", { type: "DECLINE", by: "repair_pro" })).toBe("sequential_pairing");
+      expect(nextStatus("waiting_for_pro", { type: "PAIRING_TIMEOUT" })).toBe("sequential_pairing");
+      expect(nextStatus("selected_review", { type: "PAIRING_TIMEOUT" })).toBe("sequential_pairing");
+    });
+
+    it("DISPATCH moves sequential_pairing → waiting_for_pro", () => {
+      expect(nextStatus("sequential_pairing", { type: "DISPATCH" })).toBe("waiting_for_pro");
+    });
+
+    it("PAIRING_TIMEOUT from sequential_pairing → expired (exhausted)", () => {
+      expect(nextStatus("sequential_pairing", { type: "PAIRING_TIMEOUT" })).toBe("expired");
+    });
+
+    it("CANCEL allowed from all pairing states", () => {
+      for (const s of ["waiting_for_selected", "selected_review", "sequential_pairing", "waiting_for_pro", "reserved"] as const) {
+        expect(canTransition(s, { type: "CANCEL", by: "motorist" })).toBe(true);
+        expect(nextStatus(s, { type: "CANCEL", by: "motorist" })).toBe("cancelled");
+      }
+    });
+
+    it("illegal: DISPATCH not allowed from waiting_for_pro", () => {
+      expect(canTransition("waiting_for_pro", { type: "DISPATCH" })).toBe(false);
+    });
+
+    it("illegal: OPEN not allowed from negotiating", () => {
+      expect(canTransition("negotiating", { type: "OPEN", by: "repair_pro" })).toBe(false);
+    });
+  });
+
   describe("nextStatus", () => {
     it("returns agreed after ACCEPT_OFFER", () => {
       expect(nextStatus("negotiating", { type: "ACCEPT_OFFER", by: "motorist" })).toBe("agreed");
@@ -346,6 +395,21 @@ describe("state-machine", () => {
 
     it("allows system to EXPIRE_NEGOTIATION", () => {
       expect(actorMay("EXPIRE_NEGOTIATION", "system")).toBe(true);
+    });
+
+    it("allows repair_pro to OPEN/CONFIRM/LATER/DECLINE", () => {
+      for (const e of ["OPEN", "CONFIRM", "LATER", "DECLINE"] as const) {
+        expect(actorMay(e, "repair_pro")).toBe(true);
+        expect(actorMay(e, "motorist")).toBe(false);
+      }
+    });
+
+    it("allows only system to PAIRING_TIMEOUT/DISPATCH", () => {
+      for (const e of ["PAIRING_TIMEOUT", "DISPATCH"] as const) {
+        expect(actorMay(e, "system")).toBe(true);
+        expect(actorMay(e, "repair_pro")).toBe(false);
+        expect(actorMay(e, "motorist")).toBe(false);
+      }
     });
 
     it("allows admin to REFUND", () => {

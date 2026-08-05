@@ -13,7 +13,6 @@ import { getArtisanProfile, saveArtisanProfile } from "@/lib/artisan/local-store
 import {
   applyCustomerTiersToArtisan,
   canAutoExpandProSetup,
-  isCustomerToProDualPath,
   isProSwitchMandatoryOnboardingDone,
   proSetupSheetTitle,
   writeProSetupLastExpandAt,
@@ -40,9 +39,6 @@ export function ProOnboardingSheet() {
     accountType,
     userProfile,
     backendUserId,
-    hasMotoristAccount,
-    hasProAccount,
-    primaryAccountType,
     proOnboardingSheetRequired,
     setProOnboardingSheetRequired,
   } = useApp();
@@ -55,18 +51,10 @@ export function ProOnboardingSheet() {
   const gestureY = useRef<number | null>(null);
   const bodyScrollRef = useRef<HTMLDivElement | null>(null);
 
-  const dual = isCustomerToProDualPath({
-    hasMotoristAccount,
-    hasProAccount,
-    accountType,
-    primaryAccountType,
-  });
-
   const open =
     gatesReady &&
     isAuthenticated &&
     accountType === "professional" &&
-    dual &&
     proOnboardingSheetRequired &&
     !menuOpen;
 

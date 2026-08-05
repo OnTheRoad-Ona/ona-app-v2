@@ -123,7 +123,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     toastedIds.current.add(n.id);
     const isMessage = n.category === "messages" || n.actionType === "open_chat";
     const id = `toast-${n.id}-${now}`;
-    // All toasts in a wave share the same 66s end so the pile clears together
+    // Each toast (and pile in same wave) expires after TOAST_VISIBLE_MS (3s)
     const waveStart =
       gate.reason === "pile" && lastToastWaveAt.current > 0
         ? lastToastWaveAt.current
@@ -213,7 +213,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
     if (!sb) return;
     const channel = sb
-      .channel(`om-notif-${backendUserId}`)
+      .channel(`om-notif-${backendUserId}-${Math.random().toString(36).slice(2, 8)}`)
       .on(
         "postgres_changes",
         {
@@ -262,7 +262,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     };
   }, [backendUserId, isAuthenticated, pushToast]);
 
-  // Auto-dismiss after 66s (poll often so hide is on-time, not ~5s late)
+  // Auto-dismiss after 3s (poll often so hide is on-time)
   useEffect(() => {
     const t = window.setInterval(() => {
       const now = Date.now();
@@ -270,7 +270,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         const next = prev.filter((x) => x.expiresAt > now);
         return next.length === prev.length ? prev : next;
       });
-    }, 1_000);
+    }, 250);
     return () => window.clearInterval(t);
   }, []);
 

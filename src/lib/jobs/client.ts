@@ -397,11 +397,17 @@ export async function apiTransition(input: {
     | "SATISFIED"
     | "START_NEGOTIATION"
     | "RELEASE"
-    | "EXPIRE_NEGOTIATION";
+    | "EXPIRE_NEGOTIATION"
+    | "OPEN"
+    | "CONFIRM"
+    | "LATER"
+    | "DECLINE";
   actor: "motorist" | "repair_pro" | "system" | "admin";
   actorId?: string;
   reason?: string;
   cancelReason?: string;
+  /** Client-generated idempotency key (SSPE Open/Confirm/Later/Decline) */
+  idempotencyKey?: string;
   /** Real GPS — server computes Google Distance Matrix ETA */
   proLat?: number;
   proLng?: number;

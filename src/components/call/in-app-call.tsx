@@ -820,7 +820,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
     let channel: ReturnType<NonNullable<typeof sb>["channel"]> | null = null;
     if (sb) {
       channel = sb
-        .channel(`call-db:${backendUserId}`)
+        .channel(`call-db:${backendUserId}-${Math.random().toString(36).slice(2, 8)}`)
         .on(
           "postgres_changes",
           {
