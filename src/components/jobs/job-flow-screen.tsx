@@ -305,23 +305,20 @@ export function JobFlowScreen({
     }
   }, [jobId]);
 
-  /* Auto-close: customer → job details, repair pro → dashboard (fast, no gesture) */
+  /* Auto-close: terminal status → customer job details, pro dashboard (fast, no gesture).
+   * A pro whose request has been passed to another pro stays on the explicit
+   * "Request passed on" screen (see SSPE block) instead of being silently bounced. */
   useEffect(() => {
     if (!job) return;
     const isPro = viewer === "repair_pro";
-    const isCurrentPro = job.repairProId === (backendUserId || "");
-    const passedOn =
-      isPro &&
-      (job.status === "sequential_pairing" ||
-        Boolean(job.repairProId && !isCurrentPro));
-    if (isJobHistoryOnlyStatus(job.status) || passedOn) {
+    if (isJobHistoryOnlyStatus(job.status)) {
       const path = window.location.pathname || "";
       if (path.startsWith("/jobs/")) {
         setRedirecting(true);
         router.replace(isPro ? "/dashboard" : `/requests/${job.id}`);
       }
     }
-  }, [job, viewer, backendUserId, router]);
+  }, [job, viewer, router]);
 
   const REVIEW_MAX = 144;
 
@@ -618,6 +615,18 @@ export function JobFlowScreen({
     try {
       const res = await fn();
       if (!res.ok) {
+        // Raced SSPE action: the pairing sweep already moved this request on
+        // (passed to another pro or expired). Reload so the UI shows the real
+        // state — "Request passed on" / expired — instead of a bare error.
+        if (
+          /Request is not awaiting confirmation|Request is not open for this action|Not assigned to this request/i.test(
+            res.message
+          )
+        ) {
+          setErr(null);
+          void load();
+          return;
+        }
         setErr(res.message);
         try {
           const { playAppSound } = await import("@/lib/sound-tone");
