@@ -19,6 +19,8 @@ export const PAIRING_WINDOW_MS = 66_000; // 66s per pro (display + enforce)
 export const DEFER_DURATION_MS = 5 * 60_000; // Later = 5 min per pro (D5)
 export const RADIUS_STEPS_KM = [15, 20, 30, 50];
 export const MAX_PAIRING_RADIUS_KM = RADIUS_STEPS_KM[RADIUS_STEPS_KM.length - 1];
+/** Dispatch rounds before the request auto-cancels (customer side, 66s each). */
+export const MAX_PAIRING_ATTEMPTS = 5;
 /** Minimum job age before we expire it when candidates are exhausted. */
 const MIN_EXHAUSTED_HOLD_MS = 2 * 60_000;
 
@@ -146,13 +148,16 @@ function offersTrade(serviceType: string, p: { primary_service?: string | null; 
  * Next eligible pro of the same trade within `radiusKm`, ordered by merit
  * (score desc, distance as tiebreak within merit bands). Pros already
  * resolved in this request's queue are excluded (per-request exclusion, D6;
- * deferral lasts 5 min, D5). Returns the candidate plus how many more
- * candidates were still available (for remaining_candidates).
+ * deferral lasts 5 min, D5) unless `allowRecycle` — the "no other pro nearby"
+ * fallback that re-offers a previously timed-out/declined pro so the request
+ * can still run its 5 dispatch rounds. Returns the candidate plus how many
+ * more candidates were still available (for remaining_candidates).
  */
 async function findCandidate(
   sb: ReturnType<typeof createServiceSupabase>,
   row: PairingRow,
-  radiusKm: number
+  radiusKm: number,
+  allowRecycle = false
 ): Promise<{ candidate: ProCandidate; remaining: number } | null> {
   const { data: queue } = await sb
     .from("request_pairing_queue")
@@ -164,7 +169,9 @@ async function findCandidate(
   for (const q of queue ?? []) {
     const status = String(q.status || "");
     if (QUEUE_TERMINAL.has(status)) {
-      blocked.add(String(q.pro_id));
+      // Distinct pass excludes resolved pros; recycle pass re-admits them so
+      // the request keeps cycling when no new pros exist nearby.
+      if (!allowRecycle) blocked.add(String(q.pro_id));
       continue;
     }
     if (status === "deferred") {
@@ -279,11 +286,84 @@ export function nextRadiusKm(current: number | null): number | null {
 }
 
 /**
+ * Offer the request to `candidate` (round = queue_position + 1). The queue row
+ * is upserted on (request_id, pro_id) so a recycled pro is bumped back to
+ * "offered" at the new round instead of silently colliding with the unique
+ * index on (request_id, pro_id).
+ */
+async function dispatchCandidate(
+  sb: ReturnType<typeof createServiceSupabase>,
+  row: PairingRow,
+  candidate: ProCandidate,
+  remaining: number,
+  source: "pairing"
+): Promise<PairingResult> {
+  const ts = nowIso();
+  const position = Number(row.queue_position) || 0;
+  const name = candidate.full_name || candidate.business_name || "Repair Pro";
+  const { error: qErr } = await sb
+    .from("request_pairing_queue")
+    .upsert(
+      {
+        request_id: row.id,
+        pro_id: candidate.user_id,
+        position: position + 1,
+        source,
+        status: "offered",
+        offered_at: ts,
+        responded_at: null,
+        result_note: null,
+      },
+      { onConflict: "request_id,pro_id" }
+    );
+  if (qErr && !/duplicate|already exists/i.test(qErr.message)) {
+    return { ok: false, error: qErr.message, status: 500 };
+  }
+
+  const { error } = await sb
+    .from("service_requests")
+    .update({
+      pairing_stage: "waiting_for_pro",
+      flow_status: "waiting_for_pro",
+      status: "requested",
+      pairing_deadline: deadlineIso(),
+      queue_position: position + 1,
+      remaining_candidates: remaining,
+      reservation_status: "none",
+      repair_pro_id: candidate.user_id,
+      repair_pro_name: name,
+      ...(candidate.avatar_url ? { repair_pro_photo: candidate.avatar_url } : {}),
+      updated_at: ts,
+      status_history: [
+        ...history(row),
+        { status: "waiting_for_pro", at: ts, by: `pairing:${candidate.user_id}` },
+      ],
+    })
+    .eq("id", row.id)
+    .eq("pairing_stage", row.pairing_stage);
+
+  if (error) return { ok: false, error: error.message, status: 500 };
+
+  await notifyPro(
+    candidate.user_id,
+    row.id,
+    "Service Request",
+    `New request from ${row.motorist_name || "a customer"} · ${problemText(row).slice(0, 80)}`,
+    "waiting_for_pro"
+  );
+
+  return { ok: true, jobId: row.id, currentProId: candidate.user_id, nextProId: candidate.user_id };
+}
+
+/**
  * Advance an exhausted / responsive request to the next pro.
- * - candidate found  → waiting_for_pro + 66s deadline + notify
- * - none at radius   → expand radius and retry once
- * - none at max      → expire only after MIN_EXHAUSTED_HOLD_MS, else stay in
- *                      sequential_pairing (sweep retries, screen stays alive)
+ * - attempts >= MAX_PAIRING_ATTEMPTS → expire (auto-cancel after 5 rounds)
+ * - new candidate found              → waiting_for_pro + 66s deadline + notify
+ * - none at radius                   → expand radius and retry once
+ * - distinct pros exhausted (max)    → recycle a tried pro (no new pro nearby)
+ * - none at all                      → expire only after MIN_EXHAUSTED_HOLD_MS,
+ *                                       else stay in sequential_pairing (sweep
+ *                                       retries, screen stays alive)
  */
 export async function advancePairing(jobId: string): Promise<PairingResult> {
   if (!isSupabaseAdminConfigured()) {
@@ -301,58 +381,16 @@ export async function advancePairing(jobId: string): Promise<PairingResult> {
   }
 
   const radius = Number(row.pairing_radius_km) || RADIUS_STEPS_KM[0];
+  const attempts = Number(row.queue_position) || 0;
+
+  // 5 dispatch rounds max (66s each) — the customer's request auto-cancels.
+  if (attempts >= MAX_PAIRING_ATTEMPTS) {
+    return markExhausted(sb, row);
+  }
+
   const found = await findCandidate(sb, row, radius);
-
   if (found) {
-    const { candidate, remaining } = found;
-    const ts = nowIso();
-    const position = Number(row.queue_position) || 0;
-    const name = candidate.full_name || candidate.business_name || "Repair Pro";
-    const { error: qErr } = await sb.from("request_pairing_queue").insert({
-      request_id: row.id,
-      pro_id: candidate.user_id,
-      position: position + 1,
-      source: "pairing",
-      status: "offered",
-      offered_at: ts,
-    });
-    if (qErr && !/duplicate|already exists/i.test(qErr.message)) {
-      return { ok: false, error: qErr.message, status: 500 };
-    }
-
-    const { error } = await sb
-      .from("service_requests")
-      .update({
-        pairing_stage: "waiting_for_pro",
-        flow_status: "waiting_for_pro",
-        status: "requested",
-        pairing_deadline: deadlineIso(),
-        queue_position: position + 1,
-        remaining_candidates: remaining,
-        reservation_status: "none",
-        repair_pro_id: candidate.user_id,
-        repair_pro_name: name,
-        ...(candidate.avatar_url ? { repair_pro_photo: candidate.avatar_url } : {}),
-        updated_at: ts,
-        status_history: [
-          ...history(row),
-          { status: "waiting_for_pro", at: ts, by: `pairing:${candidate.user_id}` },
-        ],
-      })
-      .eq("id", row.id)
-      .eq("pairing_stage", row.pairing_stage);
-
-    if (error) return { ok: false, error: error.message, status: 500 };
-
-    await notifyPro(
-      candidate.user_id,
-      row.id,
-      "Service Request",
-      `New request from ${row.motorist_name || "a customer"} · ${problemText(row).slice(0, 80)}`,
-      "waiting_for_pro"
-    );
-
-    return { ok: true, jobId: row.id, currentProId: candidate.user_id, nextProId: candidate.user_id };
+    return dispatchCandidate(sb, row, found.candidate, found.remaining, "pairing");
   }
 
   // No candidate at current radius — expand and retry once.
@@ -368,8 +406,15 @@ export async function advancePairing(jobId: string): Promise<PairingResult> {
     }
   }
 
-  // Radius maxed with no candidate. Hold briefly to keep the screen alive,
-  // then expire so the customer sees the retry state (existing semantics).
+  // Distinct pros exhausted at max radius — recycle a previously tried pro so
+  // the request still runs its full 5 rounds when no new pro is nearby.
+  const recycled = await findCandidate(sb, row, radius, true);
+  if (recycled) {
+    return dispatchCandidate(sb, row, recycled.candidate, recycled.remaining, "pairing");
+  }
+
+  // No pro available at all. Hold briefly to keep the screen alive, then
+  // expire so the customer sees the retry state (existing semantics).
   const created = row.created_at ? Date.parse(row.created_at) : Date.now();
   if (Number.isFinite(created) && Date.now() - created < MIN_EXHAUSTED_HOLD_MS) {
     // Refresh a pairing_deadline so the sweep re-runs advancePairing while we
@@ -390,7 +435,7 @@ async function markExhausted(
   row: PairingRow
 ): Promise<PairingResult> {
   const ts = nowIso();
-  const { error } = await sb
+  const { data, error } = await sb
     .from("service_requests")
     .update({
       pairing_stage: null,
@@ -404,8 +449,14 @@ async function markExhausted(
       ],
     })
     .eq("id", row.id)
-    .eq("pairing_stage", row.pairing_stage);
+    .eq("pairing_stage", row.pairing_stage)
+    .select("id");
   if (error) return { ok: false, error: error.message, status: 500 };
+  // CAS matched 0 rows → the request moved (a pro confirmed, or the stage
+  // changed mid-flight). Never report expired for a job we did not expire.
+  if (!data || data.length === 0) {
+    return { ok: true, noop: true, jobId: row.id, currentProId: currentPro(row) };
+  }
   return { ok: true, jobId: row.id, currentProId: currentPro(row), expired: true };
 }
 
@@ -460,12 +511,25 @@ export async function openRequest(
   };
   if (idempotencyKey) patch.idempotency_key = idempotencyKey;
 
-  const { error } = await sb
+  const { data, error } = await sb
     .from("service_requests")
     .update(patch)
     .eq("id", row.id)
-    .eq("pairing_stage", row.pairing_stage);
+    .eq("pairing_stage", row.pairing_stage)
+    .select("id");
   if (error) return { ok: false, error: error.message, status: 500 };
+  // CAS matched 0 rows → the request moved while we opened (e.g. the sweep
+  // advanced past our deadline). Release the reservation we just inserted so
+  // it can never orphan an "active" slot (which blocks the next pro's open).
+  if (!data || data.length === 0) {
+    await sb
+      .from("request_reservations")
+      .update({ status: "cancelled", released_at: ts, released_by: "open_race" })
+      .eq("request_id", row.id)
+      .eq("pro_id", proId)
+      .eq("status", "active");
+    return { ok: false, error: "Request moved on while opening", status: 409 };
+  }
 
   return { ok: true, jobId: row.id, currentProId: proId };
 }
@@ -536,12 +600,26 @@ export async function confirmRequest(
   };
   if (idempotencyKey) patch.idempotency_key = idempotencyKey;
 
-  const { error } = await sb
+  const { data, error } = await sb
     .from("service_requests")
     .update(patch)
     .eq("id", row.id)
-    .eq("pairing_stage", row.pairing_stage);
+    .eq("pairing_stage", row.pairing_stage)
+    .select("id");
   if (error) return { ok: false, error: error.message, status: 500 };
+  // CAS matched 0 rows → a racing sweep already advanced the request past this
+  // pro. Revert the reservation so we never leave a "confirmed" reservation on
+  // a request that is no longer this pro's (the queue "accepted" marker stays:
+  // it truthfully records their intent and blocks re-dispatch to them).
+  if (!data || data.length === 0) {
+    await sb
+      .from("request_reservations")
+      .update({ status: "cancelled", released_at: ts, released_by: "confirm_race" })
+      .eq("request_id", row.id)
+      .eq("pro_id", proId)
+      .eq("status", "confirmed");
+    return { ok: false, error: "Request moved on before confirmation", status: 409 };
+  }
 
   // A confirmed assignment reflects well on the pro → refresh merit.
   const { recalculateMerit } = await import("@/lib/server/merit/merit-engine");

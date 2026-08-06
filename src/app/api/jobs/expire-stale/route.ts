@@ -7,6 +7,12 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// The pairing sweep has its own dedicated every-minute route; expire-stale
+// only runs it as a backup, throttled to ≤1x/30s per instance so the ~8s
+// external hits don't re-run the same indexed sweep 7× a minute.
+const PAIRING_SWEEP_INTERVAL_MS = 30_000;
+let lastPairingSweepAt = 0;
+
 /**
  * Auto-cancel Booked jobs not completed within 6h of payment + full refund.
  * Safe to call from:
@@ -74,19 +80,25 @@ async function run(req: Request) {
       console.error("expireUnacceptedJobs in expire-stale", e);
     }
 
-    // SSPE sweep — enforce 66s pairing deadlines and advance to next pro
+    // SSPE sweep — enforce 66s pairing deadlines and advance to next pro.
+    // Backed by the dedicated pairing-sweep route (every minute); throttled
+    // here so the frequent expire-stale hits don't duplicate it every 8s.
     let pairingResult: {
       checked: number;
       timedOut: number;
       expired: number;
     } | null = null;
-    try {
-      const { sweepPairing } = await import(
-        "@/lib/server/pairing/pairing-engine"
-      );
-      pairingResult = await sweepPairing(50);
-    } catch (e) {
-      console.error("sweepPairing in expire-stale", e);
+    const now = Date.now();
+    if (now - lastPairingSweepAt >= PAIRING_SWEEP_INTERVAL_MS) {
+      lastPairingSweepAt = now;
+      try {
+        const { sweepPairing } = await import(
+          "@/lib/server/pairing/pairing-engine"
+        );
+        pairingResult = await sweepPairing(50);
+      } catch (e) {
+        console.error("sweepPairing in expire-stale", e);
+      }
     }
 
     let payoutRetry: {

@@ -24,6 +24,7 @@ import {
   timeoutRequest,
   advancePairing,
   sweepPairing,
+  MAX_PAIRING_ATTEMPTS,
 } from "@/lib/server/pairing/pairing-engine";
 
 const createServiceSupabaseMock = vi.mocked(createServiceSupabase);
@@ -149,6 +150,11 @@ function makeQuery(table: string) {
       const r = resolveResponder(table, calls);
       return r instanceof Promise ? r : r;
     },
+    upsert: async (...a: unknown[]) => {
+      record("upsert", a);
+      const r = resolveResponder(table, calls);
+      return r instanceof Promise ? r : r;
+    },
     update: (...a: unknown[]) => {
       record("update", a);
       return q;
@@ -271,6 +277,30 @@ describe("openRequest — idempotency & race safety", () => {
     const res = await openRequest("job-1", "pro-1", "k-2");
     expect(res.ok).toBe(false);
   });
+
+  it("releases the reservation and fails (409) when the stage CAS matches 0 rows", async () => {
+    const row: Row = { ...FULL_ROW, pairing_stage: "waiting_for_selected" };
+    installClient(row);
+    responders["request_reservations"] = () => ({ data: null, error: null });
+    // loadPairingRow (maybeSingle) still sees the old stage, but the stage
+    // UPDATE matches 0 rows (sweep advanced it) → reservation must be released.
+    responders["service_requests"] = (calls) => {
+      if (calls.some((c) => c.op === "maybeSingle")) {
+        return { data: row, error: null };
+      }
+      return { data: [], error: null };
+    };
+
+    const res = await openRequest("job-1", "pro-1", "k-race");
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.status).toBe(409);
+
+    const released = callsFor("request_reservations", "update").find((c) => {
+      const p = c.args[0] as Record<string, unknown>;
+      return p.status === "cancelled" && p.released_by === "open_race";
+    });
+    expect(released).toBeTruthy();
+  });
 });
 
 describe("confirmRequest — assignment point", () => {
@@ -327,6 +357,29 @@ describe("confirmRequest — assignment point", () => {
     const res = await confirmRequest("job-1", "pro-1");
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.status).toBe(409);
+  });
+
+  it("reverts the confirmation when the stage CAS matches 0 rows (sweep raced)", async () => {
+    const row: Row = { ...FULL_ROW, pairing_stage: "selected_review" };
+    installClient(row);
+    responders["request_reservations"] = () => ({ data: null, error: null });
+    responders["request_pairing_queue"] = () => ({ data: null, error: null });
+    responders["service_requests"] = (calls) => {
+      if (calls.some((c) => c.op === "maybeSingle")) {
+        return { data: row, error: null };
+      }
+      return { data: [], error: null };
+    };
+
+    const res = await confirmRequest("job-1", "pro-1", "k-race2");
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.status).toBe(409);
+
+    const reverted = callsFor("request_reservations", "update").find((c) => {
+      const p = c.args[0] as Record<string, unknown>;
+      return p.status === "cancelled" && p.released_by === "confirm_race";
+    });
+    expect(reverted).toBeTruthy();
   });
 });
 
@@ -597,5 +650,105 @@ describe("sweepPairing — recovery loop", () => {
     const advancePatch = callsFor("service_requests", "update").at(-1)
       ?.args[0] as Record<string, unknown>;
     expect(advancePatch.repair_pro_id).toBe("pro-2");
+  });
+});
+
+describe("advancePairing — 5-round cap & recycling", () => {
+  it("expires the request once MAX_PAIRING_ATTEMPTS rounds have run", async () => {
+    const row: Row = {
+      ...FULL_ROW,
+      pairing_stage: "sequential_pairing",
+      pairing_deadline: new Date(Date.now() - 1000).toISOString(),
+      queue_position: MAX_PAIRING_ATTEMPTS,
+    };
+    installClient(row);
+
+    const res = await advancePairing("job-1");
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.expired).toBe(true);
+
+    const expirePatch = callsFor("service_requests", "update").find((c) => {
+      const p = c.args[0] as Record<string, unknown>;
+      return p.pairing_stage === null && p.status === "expired";
+    });
+    expect(expirePatch).toBeTruthy();
+    // No dispatch happened after the cap.
+    expect(callsFor("request_pairing_queue", "upsert")).toHaveLength(0);
+  });
+
+  it("reports noop (not expired) when the expire CAS matches 0 rows (confirm raced)", async () => {
+    const row: Row = {
+      ...FULL_ROW,
+      pairing_stage: "sequential_pairing",
+      pairing_deadline: new Date(Date.now() - 1000).toISOString(),
+      queue_position: MAX_PAIRING_ATTEMPTS,
+    };
+    installClient(row);
+    // loadPairingRow still sees the pairing row, but the expire UPDATE matches
+    // 0 rows (a pro confirmed in the meantime) → never claim expired.
+    responders["service_requests"] = (calls) => {
+      if (calls.some((c) => c.op === "maybeSingle")) {
+        return { data: row, error: null };
+      }
+      return { data: [], error: null };
+    };
+
+    const res = await advancePairing("job-1");
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.expired).toBeFalsy();
+      expect(res.noop).toBe(true);
+    }
+  });
+
+  it("recycles a previously tried pro when no new pro is nearby", async () => {
+    const row: Row = {
+      ...FULL_ROW,
+      pairing_stage: "sequential_pairing",
+      pairing_deadline: new Date(Date.now() - 1000).toISOString(),
+      repair_pro_id: "pro-2",
+      pairing_radius_km: 50,
+      queue_position: 2,
+    };
+    installClient(row);
+    responders["request_pairing_queue"] = () => ({
+      data: [
+        { pro_id: "pro-1", status: "timed_out", responded_at: null },
+        { pro_id: "pro-2", status: "timed_out", responded_at: null },
+      ],
+      error: null,
+    });
+    responders["repair_pro_profiles"] = () => ({
+      data: [
+        { user_id: "pro-1", business_name: "Alpha", primary_service: "auto", lat: 6.5, lng: 3.3 },
+        { user_id: "pro-2", business_name: "Beta", primary_service: "auto", lat: 6.5, lng: 3.3 },
+      ],
+      error: null,
+    });
+    responders["profiles"] = () => ({
+      data: { full_name: "Alpha", avatar_url: null },
+      error: null,
+    });
+
+    const res = await advancePairing("job-1");
+    expect(res.ok).toBe(true);
+
+    const dispatchPatch = callsFor("service_requests", "update").find((c) => {
+      const p = c.args[0] as Record<string, unknown>;
+      return p.pairing_stage === "waiting_for_pro";
+    });
+    expect(dispatchPatch).toBeTruthy();
+    const patch = dispatchPatch?.args[0] as Record<string, unknown>;
+    expect(patch.repair_pro_id).toBe("pro-1");
+    expect(patch.queue_position).toBe(3);
+
+    // The recycled pro's queue row is bumped back to "offered" via upsert, not
+    // a fresh insert that would collide with the (request_id, pro_id) index.
+    const qUpsert = callsFor("request_pairing_queue", "upsert");
+    expect(qUpsert).toHaveLength(1);
+    const upserted = qUpsert[0].args[0] as Record<string, unknown>;
+    expect(upserted.pro_id).toBe("pro-1");
+    expect(upserted.position).toBe(3);
+    expect(upserted.status).toBe("offered");
   });
 });

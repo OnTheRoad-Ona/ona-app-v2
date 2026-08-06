@@ -248,17 +248,34 @@ export function IncomingJobPopup() {
       }
     };
 
+    let polling = false;
     const poll = async () => {
-      const res = await apiListJobs(backendUserId, "repair_pro");
-      if (cancelled || !res.ok) return;
-      ingest(res.data.jobs);
+      if (polling) return;
+      polling = true;
+      try {
+        const res = await apiListJobs(backendUserId, "repair_pro");
+        if (cancelled || !res.ok) return;
+        ingest(res.data.jobs);
+      } finally {
+        polling = false;
+      }
     };
 
     void poll();
-    const t = window.setInterval(() => {
-      if (typeof document !== "undefined" && document.hidden) return;
-      void poll();
-    }, 1_000);
+    // Adaptive cadence: 1s while a request is live on screen, 3s otherwise.
+    // Realtime events still trigger an instant poll, so the popup stays snappy.
+    let timer = 0;
+    const schedule = () => {
+      timer = window.setTimeout(() => {
+        if (typeof document !== "undefined" && document.hidden) {
+          schedule();
+          return;
+        }
+        void poll();
+        schedule();
+      }, alertJobRef.current || queueRef.current.length ? 1_000 : 3_000);
+    };
+    schedule();
 
     const unsub = backendSubscribeJobs(backendUserId, () => {
       if (!cancelled) void poll();
@@ -271,7 +288,7 @@ export function IncomingJobPopup() {
 
     return () => {
       cancelled = true;
-      window.clearInterval(t);
+      window.clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVis);
       unsub?.();
     };
@@ -626,9 +643,12 @@ export function IncomingJobPopup() {
                   setAccepting(true);
                   try {
                     if (isPairingAlert(j)) {
-                      // "I can fix this" must work from any actionable stage:
-                      // waiting_for_selected / waiting_for_pro need an OPEN
-                      // first (reservation + selected_review), then CONFIRM.
+                      // "I can fix this" opens the request and lands on the
+                      // reviewing screen ("Can you fix this?" + problem, voice
+                      // note, photos, and "I can fix it / Cancel. I cannot fix
+                      // it"). The pro confirms there with a second tap — never
+                      // auto-confirm, and never navigate when the OPEN failed
+                      // (that left pros stuck on "New Service Request" + timer).
                       const stage = j.pairingStage ?? "";
                       const needsOpen =
                         stage === "waiting_for_selected" ||
@@ -641,30 +661,10 @@ export function IncomingJobPopup() {
                           actorId: backendUserId,
                           idempotencyKey: idemFor(j, backendUserId, "OPEN"),
                         });
-                        if (openRes.ok) {
-                          await apiTransition({
-                            jobId: j.id,
-                            event: "CONFIRM",
-                            actor: "repair_pro",
-                            actorId: backendUserId,
-                            idempotencyKey: idemFor(j, backendUserId, "CONFIRM"),
-                          });
-                        }
-                        fullyHide();
-                        router.push(`/jobs/${j.id}`);
-                      } else {
-                        const res = await apiTransition({
-                          jobId: j.id,
-                          event: "CONFIRM",
-                          actor: "repair_pro",
-                          actorId: backendUserId,
-                          idempotencyKey: idemFor(j, backendUserId, "CONFIRM"),
-                        });
-                        if (res.ok) {
-                          fullyHide();
-                          router.push(`/jobs/${j.id}`);
-                        }
+                        if (!openRes.ok) return;
                       }
+                      fullyHide();
+                      router.push(`/jobs/${j.id}`);
                     } else {
                       const res = await apiTransition({
                         jobId: j.id,

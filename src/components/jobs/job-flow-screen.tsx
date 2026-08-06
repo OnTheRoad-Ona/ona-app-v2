@@ -849,6 +849,38 @@ export function JobFlowScreen({
                 </p>
                 <p className={cn("mt-1 text-[15px] font-semibold", ink)}>{proLabel}</p>
               </div>
+              {job.voiceNote?.url && (
+                <div>
+                  <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
+                    Problem voice note
+                  </p>
+                  <div className="mt-1">
+                    <VoiceNotePlayer
+                      url={job.voiceNote.url}
+                      durationSec={job.voiceNote.durationSec}
+                      isLight={isLight}
+                    />
+                  </div>
+                </div>
+              )}
+              {job.photos.length > 0 && (
+                <div>
+                  <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
+                    Photos
+                  </p>
+                  <div className="mt-1 grid grid-cols-3 gap-1.5">
+                    {job.photos.map((p) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        key={p.id}
+                        src={p.url}
+                        alt={p.name || "Problem photo"}
+                        className="h-20 w-full rounded-lg object-cover"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <div>
