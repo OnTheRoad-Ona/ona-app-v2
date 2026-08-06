@@ -507,26 +507,26 @@ function ChatThreadInner({
                 className={cn(
                   "max-w-[85%] space-y-1.5 rounded-2xl px-3 py-2 text-[13px] leading-snug",
                   mine ? "rounded-br-md" : "rounded-bl-md",
-                  // Soft greys that blend into light (#c8c9cd) and dark (black) shells
+                  // Sent vs received — far-apart greys, still elegant in both shells
                   mine
                     ? isLight
-                      ? "bg-[#a8a9ae] text-slate-900"
-                      : "bg-[#3a3a3c] text-white"
+                      ? "bg-[#7c7d83] text-white"
+                      : "bg-[#d6d6db] text-slate-900"
                     : isLight
-                      ? "bg-[#b4b5ba] text-slate-900"
-                      : "bg-[#2c2c2e] text-white/95"
+                      ? "bg-[#e5e6e9] text-slate-900"
+                      : "bg-[#1e1e20] text-white/95"
                 )}
                 style={
                   mine
                     ? {
                         boxShadow: isLight
-                          ? "inset 0 1px 0 rgba(255,255,255,0.35)"
-                          : "inset 0 1px 0 rgba(255,255,255,0.06)",
+                          ? "inset 0 1px 0 rgba(255,255,255,0.28)"
+                          : "inset 0 1px 0 rgba(255,255,255,0.55)",
                       }
                     : {
                         boxShadow: isLight
-                          ? "inset 0 1px 0 rgba(255,255,255,0.4)"
-                          : "inset 0 1px 0 rgba(255,255,255,0.04)",
+                          ? "inset 0 1px 0 rgba(255,255,255,0.6)"
+                          : "inset 0 1px 0 rgba(255,255,255,0.05)",
                       }
                 }
               >
@@ -537,7 +537,7 @@ function ChatThreadInner({
                     durationSec={msg.voiceDurationSec}
                     isLight={mine ? false : isLight}
                     label={mine ? "Your voice" : "Voice note"}
-                    className={mine ? "bg-black/20" : undefined}
+                    className={mine ? "bg-black/10" : undefined}
                   />
                 )}
                 {msg.voiceUrl && (!msg.text || msg.text === "Voice note") && (
