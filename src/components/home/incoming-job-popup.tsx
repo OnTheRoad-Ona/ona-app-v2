@@ -64,6 +64,7 @@ export function IncomingJobPopup() {
   const [expandedJob, setExpandedJob] = useState<JobRecord | null>(null);
   const [accepting, setAccepting] = useState(false);
   const [snoozed, setSnoozed] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState(INCOMING_POPUP_VISIBLE_SEC);
 
   useEffect(() => {
@@ -79,8 +80,67 @@ export function IncomingJobPopup() {
     queueRef.current = [];
     setSnoozed(false);
     setExpandedJob(null);
+    setActionError(null);
     setTimeLeft(INCOMING_POPUP_VISIBLE_SEC);
   }, []);
+
+  /**
+   * One-tap "I can fix this": for pairing-stage requests this OPENS the
+   * request (server-side reservation) and lands on the reviewing screen
+   * ("Can you fix this?" + "I can fix it"); for classic requests it connects
+   * straight into negotiation. Errors are surfaced inline so a failed tap is
+   * never silent.
+   */
+  const handleFixIt = useCallback(
+    async (j: JobRecord) => {
+      if (!backendUserId) return;
+      setAccepting(true);
+      setActionError(null);
+      try {
+        if (isPairingAlert(j)) {
+          const stage = j.pairingStage ?? "";
+          const needsOpen =
+            stage === "waiting_for_selected" || stage === "waiting_for_pro";
+          if (needsOpen) {
+            const openRes = await apiTransition({
+              jobId: j.id,
+              event: "OPEN",
+              actor: "repair_pro",
+              actorId: backendUserId,
+              idempotencyKey: idemFor(j, backendUserId, "OPEN"),
+            });
+            if (!openRes.ok) {
+              setActionError(
+                openRes.message ||
+                  "Could not open this request. Please try again."
+              );
+              return;
+            }
+          }
+          fullyHide();
+          router.push(`/jobs/${j.id}`);
+        } else {
+          const res = await apiTransition({
+            jobId: j.id,
+            event: "START_NEGOTIATION",
+            actor: "repair_pro",
+            actorId: backendUserId,
+          });
+          if (res.ok) {
+            fullyHide();
+            router.push(`/jobs/${j.id}`);
+          } else {
+            setActionError(
+              res.message || "Could not connect. Please try again."
+            );
+          }
+        }
+      } finally {
+        setAccepting(false);
+      }
+    },
+    [backendUserId, fullyHide, router]
+  );
 
   const pushOsOnce = useCallback((j: JobRecord) => {
     if (osPushed.current.has(j.id)) return;
@@ -114,6 +174,7 @@ export function IncomingJobPopup() {
       setAlertJob(j);
       setSnoozed(false);
       setExpandedJob(null);
+      setActionError(null);
       setTimeLeft(INCOMING_POPUP_VISIBLE_SEC);
       unlockAudio();
       playAppSound("request_new");
@@ -391,7 +452,10 @@ export function IncomingJobPopup() {
             )}
           />
 
-          <div className="min-w-0 flex-1 overflow-y-auto">
+          <div
+            className="min-w-0 flex-1 cursor-pointer overflow-y-auto"
+            onClick={() => setExpandedJob(alertJob)}
+          >
             <p
               className="text-[15px] font-black leading-tight"
               style={{ color: ink }}
@@ -409,7 +473,7 @@ export function IncomingJobPopup() {
             </p>
           </div>
 
-          <div className="mt-3 grid grid-cols-3 gap-2 pt-1">
+          <div className="mt-3 grid grid-cols-2 gap-2 pt-1">
             <button
               type="button"
               onClick={() => {
@@ -474,30 +538,26 @@ export function IncomingJobPopup() {
             >
               Later
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                const j = alertJob;
-                const stage = j.pairingStage ?? "";
-                const needsOpen =
-                  stage === "waiting_for_selected" ||
-                  stage === "waiting_for_pro";
-                if (needsOpen && backendUserId) {
-                  void apiTransition({
-                    jobId: j.id,
-                    event: "OPEN",
-                    actor: "repair_pro",
-                    actorId: backendUserId,
-                    idempotencyKey: idemFor(j, backendUserId, "OPEN"),
-                  });
-                }
-                setExpandedJob(alertJob);
-              }}
-              className="h-11 rounded-xl border-0 bg-[#FF6B35] text-[13px] font-bold text-white"
-            >
-              Open
-            </button>
           </div>
+          <button
+            type="button"
+            disabled={accepting || !backendUserId}
+            onClick={() => handleFixIt(alertJob)}
+            className="mt-2 inline-flex h-12 w-full items-center justify-center gap-1.5 rounded-xl border-0 bg-[#FF6B35] text-[14px] font-bold text-white"
+          >
+            {accepting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : null}
+            I can fix this
+          </button>
+          {actionError ? (
+            <p
+              className="mt-2 text-center text-[12px] font-semibold"
+              style={{ color: isLight ? "#b91c1c" : "#fca5a5" }}
+            >
+              {actionError}
+            </p>
+          ) : null}
 
           <div
             className="mt-3 h-1 w-full overflow-hidden rounded-full bg-black/10 dark:bg-white/10"
@@ -637,50 +697,7 @@ export function IncomingJobPopup() {
               <button
                 type="button"
                 disabled={accepting || !backendUserId}
-                onClick={async () => {
-                  if (!backendUserId) return;
-                  const j = expandedJob;
-                  setAccepting(true);
-                  try {
-                    if (isPairingAlert(j)) {
-                      // "I can fix this" opens the request and lands on the
-                      // reviewing screen ("Can you fix this?" + problem, voice
-                      // note, photos, and "I can fix it / Cancel. I cannot fix
-                      // it"). The pro confirms there with a second tap — never
-                      // auto-confirm, and never navigate when the OPEN failed
-                      // (that left pros stuck on "New Service Request" + timer).
-                      const stage = j.pairingStage ?? "";
-                      const needsOpen =
-                        stage === "waiting_for_selected" ||
-                        stage === "waiting_for_pro";
-                      if (needsOpen) {
-                        const openRes = await apiTransition({
-                          jobId: j.id,
-                          event: "OPEN",
-                          actor: "repair_pro",
-                          actorId: backendUserId,
-                          idempotencyKey: idemFor(j, backendUserId, "OPEN"),
-                        });
-                        if (!openRes.ok) return;
-                      }
-                      fullyHide();
-                      router.push(`/jobs/${j.id}`);
-                    } else {
-                      const res = await apiTransition({
-                        jobId: j.id,
-                        event: "START_NEGOTIATION",
-                        actor: "repair_pro",
-                        actorId: backendUserId,
-                      });
-                      if (res.ok) {
-                        fullyHide();
-                        router.push(`/jobs/${j.id}`);
-                      }
-                    }
-                  } finally {
-                    setAccepting(false);
-                  }
-                }}
+                onClick={() => handleFixIt(expandedJob)}
                 className="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl border-0 bg-[#FF6B35] text-[13px] font-bold text-white"
               >
                 {accepting ? (
@@ -689,6 +706,14 @@ export function IncomingJobPopup() {
                 I can fix this
               </button>
             </div>
+            {actionError ? (
+              <p
+                className="px-4 pb-4 text-center text-[12px] font-semibold"
+                style={{ color: isLight ? "#b91c1c" : "#fca5a5" }}
+              >
+                {actionError}
+              </p>
+            ) : null}
           </div>
         </div>
       )}

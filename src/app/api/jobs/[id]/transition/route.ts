@@ -102,17 +102,35 @@ export async function POST(
         declineRequest,
       } = await import("@/lib/server/pairing/pairing-engine");
       const idempotencyKey = b.idempotencyKey || undefined;
+      const t0 = Date.now();
+      console.log(
+        `[sspe] ${b.event} start id=${id} pro=${auth.userId} stage=${job.pairingStage ?? job.status} key=${idempotencyKey ?? "-"}`
+      );
       let res;
-      if (b.event === "OPEN") {
-        res = await openRequest(id, auth.userId, idempotencyKey);
-      } else if (b.event === "CONFIRM") {
-        res = await confirmRequest(id, auth.userId, idempotencyKey);
-      } else if (b.event === "LATER") {
-        res = await deferRequest(id, auth.userId);
-      } else {
-        res = await declineRequest(id, auth.userId, b.reason || b.cancelReason);
+      try {
+        if (b.event === "OPEN") {
+          res = await openRequest(id, auth.userId, idempotencyKey);
+        } else if (b.event === "CONFIRM") {
+          res = await confirmRequest(id, auth.userId, idempotencyKey);
+        } else if (b.event === "LATER") {
+          res = await deferRequest(id, auth.userId);
+        } else {
+          res = await declineRequest(id, auth.userId, b.reason || b.cancelReason);
+        }
+      } catch (err) {
+        console.error(
+          `[sspe] ${b.event} threw id=${id} pro=${auth.userId}:`,
+          err
+        );
+        return apiFail("Internal error", 500);
       }
+      console.log(
+        `[sspe] ${b.event} end id=${id} pro=${auth.userId} ok=${res.ok} ms=${Date.now() - t0}${res.ok ? "" : ` err=${res.error} status=${res.status}`}`
+      );
       if (!res.ok) return apiFail(res.error, res.status || 400);
+      console.log(
+        `[sspe] ${b.event} success id=${id} noop=${res.noop} next=${res.nextProId ?? "-"}`
+      );
       const updatedJob = await getJob(id);
       return apiOk({
         job: updatedJob,
