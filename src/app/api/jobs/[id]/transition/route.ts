@@ -33,7 +33,7 @@ const bodySchema = z.object({
   reason: z.string().optional(),
   cancelReason: z.string().optional(),
   /** Client idempotency key — dedupes replayed Open/Confirm/Later/Decline */
-  idempotencyKey: z.string().max(64).optional(),
+  idempotencyKey: z.string().max(128).optional(),
   proLat: z.number().optional(),
   proLng: z.number().optional(),
   /** Optional client overrides — server prefers Google Distance Matrix when GPS present */

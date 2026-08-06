@@ -771,7 +771,7 @@ export function JobFlowScreen({
     // A pro is never actionable while pairing actively advances between pros.
     const proPassedOn =
       viewer === "repair_pro" && (!isCurrentPro || finding);
-    const idem = (e: string) => `${job.id}:${actorId}:${e}`;
+    const idem = (e: string) => `${e}:${job.id}:${(actorId || "").slice(0, 8)}`;
 
     // Customer: sequential pairing actively pings pros → full search screen.
     if (viewer === "motorist" && finding) {

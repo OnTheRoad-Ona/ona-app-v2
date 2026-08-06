@@ -42,7 +42,7 @@ function isPairingAlert(j: JobRecord): boolean {
 }
 
 function idemFor(j: JobRecord, proId: string, event: string): string {
-  return `${j.id}:${proId}:${event}`;
+  return `${event}:${j.id}:${(proId || "").slice(0, 8)}`;
 }
 
 export function IncomingJobPopup() {
