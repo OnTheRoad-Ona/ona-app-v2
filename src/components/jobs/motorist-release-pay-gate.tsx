@@ -109,9 +109,11 @@ function writeLastBuzz(id: string, ts: number) {
 export function SwipeToRelease({
   onRelease,
   busy,
+  isLight,
 }: {
   onRelease: () => void;
   busy: boolean;
+  isLight?: boolean;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [progress, setProgress] = useState(0);
@@ -154,7 +156,12 @@ export function SwipeToRelease({
       style={{ touchAction: "none" }}
     >
       {/* Background text */}
-      <span className="absolute inset-0 flex items-center justify-center text-[12px] font-bold tracking-wide text-[#FF6B35]">
+      <span
+        className={cn(
+          "absolute inset-0 flex items-center justify-center text-[12px] font-bold tracking-wide",
+          isLight ? "text-slate-600" : "text-zinc-300"
+        )}
+      >
         {busy ? "Confirming…" : "I am Satisfied Release Payment"}
       </span>
 
@@ -205,7 +212,7 @@ function AutoReleaseCountdown({ endsAt }: { endsAt: string }) {
 
   return (
     <div className="mt-3 w-full">
-      <p className="text-center text-[11px] font-semibold text-[#FF6B35]">
+      <p className="text-center text-[11px] font-semibold text-black">
         Auto-release in
       </p>
       <p
@@ -633,6 +640,7 @@ export function MotoristReleasePayGate() {
         <SwipeToRelease
           onRelease={() => void onSatisfied()}
           busy={busy || !backendUserId}
+          isLight={isLight}
         />
 
       </div>

@@ -2789,6 +2789,7 @@ export function JobFlowScreen({
               <SwipeToRelease
                 onRelease={onSatisfied}
                 busy={busy || !motoristActor}
+                isLight={isLight}
               />
               <button
                 type="button"
@@ -2865,14 +2866,11 @@ export function JobFlowScreen({
                   </span>
                 </div>
               ) : null}
-              <p className={cn("pt-0.5 text-center text-[10px] font-medium", muted)}>
-                Paid to your bank · Ona 5% settles to platform · VAT stays on Flutterwave
-              </p>
-            </div>
-          ) : null}
+              </div>
+            ) : null}
           {showSatisfiedCta && autoReleaseEndsAt ? (
             <div className="mt-4 px-1">
-              <p className="mb-1 text-center text-[11px] font-semibold text-[#FF6B35]">
+              <p className="mb-1 text-center text-[11px] font-semibold text-black">
                 Auto-release in
               </p>
               <CountdownTimer
