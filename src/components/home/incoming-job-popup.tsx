@@ -2,32 +2,40 @@
 
 /**
  * Repair Pro: lower-panel Incoming Request only (no top toast).
- * - Instant surface: 1s poll + Supabase realtime
- * - One request at a time (first only); others queue silently
- * - UI: title + problem only (no repetitive labels)
- * - 66s progress line; when empty → hide + defer/search; next job shows instantly with fresh 66s
+ * - Instant surface: poll + Supabase realtime
+ * - Up to 2 requests visible at once (full cards, panel expands — no shrink/scroll)
+ * - Further jobs queue; when a slot frees, next promotes instantly
+ * - 66s progress per card (server pairing_deadline)
  * - OS push kept alongside in-app panel
- * - Background is dimmed while the panel is visible; clears when it closes.
+ * - No dim scrim — panel only; cannot dismiss by outside tap or Escape
+ *   (timer elapse or Decline / Later / I can fix this only)
  */
+
+/** Max concurrent request cards in the lower panel (no scroll for this many). */
+const MAX_VISIBLE_INCOMING = 2;
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Briefcase, Clock, Loader2, X } from "lucide-react";
+import { Briefcase, ChevronLeft, ChevronRight, Clock, Loader2, X } from "lucide-react";
 import {
   canNotify,
   ensureNotifyPermission,
   showAppNotification,
   vibrateCallPattern,
 } from "@/lib/app-notify";
-import { apiDeferJob, apiListJobs, apiTransition } from "@/lib/jobs/client";
+import { apiDeferJob, apiGetJob, apiListJobs, apiTransition } from "@/lib/jobs/client";
 import {
   canSurfaceIncomingJob,
+  clearJobShown,
+  INCOMING_POPUP_VISIBLE_MS,
   INCOMING_POPUP_VISIBLE_SEC,
   isIncomingJobOpen,
   markJobShown,
   PAIRING_ACTION_STAGES,
+  takeForceIncomingPanelJobId,
 } from "@/lib/jobs/incoming-popup-timing";
 import type { JobRecord } from "@/lib/jobs/types";
+import { serverNow } from "@/lib/jobs/server-clock";
 import { formatMoney } from "@/lib/pricing";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
@@ -54,47 +62,57 @@ export function IncomingJobPopup() {
   const knownIds = useRef<Set<string>>(new Set());
   const primed = useRef(false);
   const primedForId = useRef<string | null | undefined>(undefined);
-  const alertJobRef = useRef<JobRecord | null>(null);
+  const visibleJobsRef = useRef<JobRecord[]>([]);
   const queueRef = useRef<JobRecord[]>([]);
   const osPushed = useRef<Set<string>>(new Set());
+  /** Horizontal swipe origin for the photo lightbox (next/prev without closing). */
+  const lightboxTouchX = useRef<number | null>(null);
 
-  const [alertJob, setAlertJob] = useState<JobRecord | null>(null);
+  /** Up to MAX_VISIBLE_INCOMING full request cards in the lower panel */
+  const [visibleJobs, setVisibleJobs] = useState<JobRecord[]>([]);
   const [queue, setQueue] = useState<JobRecord[]>([]);
   const [otherCount, setOtherCount] = useState(0);
-  const [expandedJob, setExpandedJob] = useState<JobRecord | null>(null);
-  const [accepting, setAccepting] = useState(false);
-  const [snoozed, setSnoozed] = useState(false);
+  const [confirmFix, setConfirmFix] = useState<JobRecord | null>(null);
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [snoozedJob, setSnoozedJob] = useState<JobRecord | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState(INCOMING_POPUP_VISIBLE_SEC);
+  /** Seconds left per job id (server deadline) */
+  const [timeLeftById, setTimeLeftById] = useState<Record<string, number>>({});
+  const [lightbox, setLightbox] = useState<{
+    photos: { id: string; url: string; name?: string | null }[];
+    index: number;
+  } | null>(null);
 
   useEffect(() => {
-    alertJobRef.current = alertJob;
-  }, [alertJob]);
+    visibleJobsRef.current = visibleJobs;
+  }, [visibleJobs]);
   useEffect(() => {
     queueRef.current = queue;
   }, [queue]);
 
   const fullyHide = useCallback(() => {
-    setAlertJob(null);
+    setVisibleJobs([]);
+    visibleJobsRef.current = [];
     setQueue([]);
     queueRef.current = [];
-    setSnoozed(false);
-    setExpandedJob(null);
+    setSnoozedJob(null);
     setActionError(null);
-    setTimeLeft(INCOMING_POPUP_VISIBLE_SEC);
+    setTimeLeftById({});
+    setAcceptingId(null);
   }, []);
 
   /**
-   * One-tap "I can fix this": for pairing-stage requests this OPENS the
-   * request (server-side reservation) and lands on the reviewing screen
-   * ("Can you fix this?" + "I can fix it"); for classic requests it connects
-   * straight into negotiation. Errors are surfaced inline so a failed tap is
-   * never silent.
+   * One-tap "I can fix this": accepts the request right here (lower panel) and
+   * lands straight on the negotiation page — no full-page review in between.
+   * - pairing-stage: OPEN (reserve) then CONFIRM (accept) so the negotiation
+   *   gate is skipped server-side (reservation confirmed / assignment assigned)
+   * - classic: START_NEGOTIATION + session flag so the page skips the gate.
+   * Errors are surfaced inline so a failed tap is never silent.
    */
   const handleFixIt = useCallback(
     async (j: JobRecord) => {
       if (!backendUserId) return;
-      setAccepting(true);
+      setAcceptingId(j.id);
       setActionError(null);
       try {
         if (isPairingAlert(j)) {
@@ -117,6 +135,20 @@ export function IncomingJobPopup() {
               return;
             }
           }
+          const confirmRes = await apiTransition({
+            jobId: j.id,
+            event: "CONFIRM",
+            actor: "repair_pro",
+            actorId: backendUserId,
+            idempotencyKey: idemFor(j, backendUserId, "CONFIRM"),
+          });
+          if (!confirmRes.ok) {
+            setActionError(
+              confirmRes.message ||
+                "Could not confirm this request. Please try again."
+            );
+            return;
+          }
           fullyHide();
           router.push(`/jobs/${j.id}`);
         } else {
@@ -126,17 +158,24 @@ export function IncomingJobPopup() {
             actor: "repair_pro",
             actorId: backendUserId,
           });
-          if (res.ok) {
-            fullyHide();
-            router.push(`/jobs/${j.id}`);
-          } else {
+          if (!res.ok) {
             setActionError(
               res.message || "Could not connect. Please try again."
             );
+            return;
           }
+          // Skip the full-page "Can you fix this?" gate — go straight to
+          // negotiation (lower-panel flow).
+          try {
+            sessionStorage.setItem(`om-can-fix-${j.id}`, "1");
+          } catch {
+            /* */
+          }
+          fullyHide();
+          router.push(`/jobs/${j.id}`);
         }
       } finally {
-        setAccepting(false);
+        setAcceptingId(null);
       }
     },
     [backendUserId, fullyHide, router]
@@ -163,48 +202,91 @@ export function IncomingJobPopup() {
     });
   }, []);
 
-  /** Show this job as the single active panel (fresh 66s). */
+  /**
+   * Add/update a job in a free visible slot (max 2).
+   * Customer photos/voice load before open when missing.
+   */
   const presentJob = useCallback(
-    (j: JobRecord) => {
-      if (pathname.includes(`/jobs/${j.id}`)) {
-        markJobShown(j.id, backendUserId || undefined);
-        return;
+    async (j: JobRecord) => {
+      markJobShown(
+        j.id,
+        backendUserId || undefined,
+        j.pairingDeadline || null
+      );
+
+      let job = j;
+      const hasMedia =
+        (Array.isArray(j.photos) && j.photos.length > 0) ||
+        Boolean(j.voiceNote?.url);
+      if (!hasMedia) {
+        try {
+          const res = await apiGetJob(j.id);
+          if (res.ok) {
+            const full = res.data.job;
+            job = {
+              ...j,
+              ...full,
+              photos: full.photos?.length ? full.photos : j.photos || [],
+              voiceNote: full.voiceNote || j.voiceNote || null,
+              motoristPhoto: full.motoristPhoto || j.motoristPhoto || null,
+            };
+          }
+        } catch {
+          /* open with text-only if media fetch fails */
+        }
       }
-      markJobShown(j.id, backendUserId || undefined);
-      setAlertJob(j);
-      setSnoozed(false);
-      setExpandedJob(null);
+
+      setVisibleJobs((prev) => {
+        const idx = prev.findIndex((x) => x.id === j.id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = job;
+          visibleJobsRef.current = next;
+          return next;
+        }
+        if (prev.length >= MAX_VISIBLE_INCOMING) return prev;
+        const next = [...prev, job].slice(0, MAX_VISIBLE_INCOMING);
+        visibleJobsRef.current = next;
+        return next;
+      });
+      setSnoozedJob(null);
       setActionError(null);
-      setTimeLeft(INCOMING_POPUP_VISIBLE_SEC);
+      setTimeLeftById((m) => ({
+        ...m,
+        [job.id]: INCOMING_POPUP_VISIBLE_SEC,
+      }));
       unlockAudio();
       playAppSound("request_new");
       vibrateCallPattern();
-      pushOsOnce(j);
+      pushOsOnce(job);
     },
-    [pathname, pushOsOnce, backendUserId]
+    [pushOsOnce, backendUserId]
   );
 
-  /**
-   * Enqueue or present: only the first request is shown.
-   * Later jobs wait in queue until current ends / is dismissed.
-   */
+  /** Present up to 2 jobs; extras wait in queue until a slot frees. */
   const offerJob = useCallback(
     (j: JobRecord) => {
-      if (pathname.includes(`/jobs/${j.id}`)) {
-        markJobShown(j.id, backendUserId || undefined);
-        return;
-      }
       const gate = canSurfaceIncomingJob(j.id, {
         proId: backendUserId || undefined,
+        pairingDeadline: j.pairingDeadline || null,
       });
       if (!gate.allow) return;
 
-      const current = alertJobRef.current;
-      if (!current) {
-        presentJob(j);
+      const visible = visibleJobsRef.current;
+      const existing = visible.find((x) => x.id === j.id);
+      if (existing) {
+        if (
+          j.pairingDeadline &&
+          existing.pairingDeadline !== j.pairingDeadline
+        ) {
+          void presentJob(j);
+        }
         return;
       }
-      if (current.id === j.id) return;
+      if (visible.length < MAX_VISIBLE_INCOMING) {
+        void presentJob(j);
+        return;
+      }
       setQueue((prev) => {
         if (prev.some((x) => x.id === j.id)) return prev;
         const next = [...prev, j].slice(0, 8);
@@ -212,48 +294,103 @@ export function IncomingJobPopup() {
         return next;
       });
     },
-    [pathname, presentJob, backendUserId]
+    [presentJob, backendUserId]
   );
 
-  /** After 66s / decline: promote next queued job instantly, or hide fully. */
-  const endCurrentAndMaybeNext = useCallback(
-    (opts?: { defer?: boolean }) => {
-      const current = alertJobRef.current;
+  /** Remove one card; promote next from queue into free slot. */
+  const removeJobAndMaybeNext = useCallback(
+    (
+      jobId: string,
+      opts?: { defer?: boolean; goDashboard?: boolean }
+    ) => {
       const proId = backendUserId;
-      if (opts?.defer && current && proId) {
-        void apiDeferJob(current.id, proId);
+      const target =
+        visibleJobsRef.current.find((j) => j.id === jobId) ||
+        queueRef.current.find((j) => j.id === jobId);
+      if (opts?.defer && target && proId) {
+        void apiDeferJob(target.id, proId);
       }
-      const rest = queueRef.current.filter((j) => j.id !== current?.id);
-      if (rest.length > 0) {
-        const [next, ...tail] = rest;
-        queueRef.current = tail;
-        setQueue(tail);
-        presentJob(next);
+      if (opts?.goDashboard) {
+        fullyHide();
+        router.replace("/dashboard");
         return;
       }
-      fullyHide();
+
+      const rest = visibleJobsRef.current.filter((j) => j.id !== jobId);
+      let q = queueRef.current.filter((j) => j.id !== jobId);
+      // Promote queued jobs into free slots after state settles
+      const toPresent: JobRecord[] = [];
+      while (rest.length + toPresent.length < MAX_VISIBLE_INCOMING && q.length > 0) {
+        const [next, ...tail] = q;
+        q = tail;
+        toPresent.push(next);
+      }
+      queueRef.current = q;
+      setQueue(q);
+      visibleJobsRef.current = rest;
+      setVisibleJobs(rest);
+      setTimeLeftById((m) => {
+        const n = { ...m };
+        delete n[jobId];
+        return n;
+      });
+      if (rest.length === 0 && q.length === 0) {
+        setSnoozedJob(null);
+        setActionError(null);
+      }
+      for (const n of toPresent) void presentJob(n);
     },
-    [backendUserId, fullyHide, presentJob]
+    [backendUserId, fullyHide, presentJob, router]
   );
 
-  // 66s progress line (stable — end handler via ref so timer never restarts mid-wave)
-  const endRef = useRef(endCurrentAndMaybeNext);
-  endRef.current = endCurrentAndMaybeNext;
-  useEffect(() => {
-    if (!alertJob || snoozed || expandedJob) return;
-    setTimeLeft(INCOMING_POPUP_VISIBLE_SEC);
-    const interval = window.setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          window.clearInterval(interval);
-          endRef.current({ defer: true });
-          return 0;
+  const endCurrentAndMaybeNext = useCallback(
+    (opts?: { defer?: boolean; goDashboard?: boolean }) => {
+      const current = visibleJobsRef.current[0];
+      if (!current) {
+        if (opts?.goDashboard) {
+          fullyHide();
+          router.replace("/dashboard");
         }
-        return prev - 1;
-      });
+        return;
+      }
+      removeJobAndMaybeNext(current.id, opts);
+    },
+    [fullyHide, removeJobAndMaybeNext, router]
+  );
+
+  // Progress lines — ALWAYS each job.pairingDeadline (same as customer ring).
+  const removeRef = useRef(removeJobAndMaybeNext);
+  useEffect(() => {
+    removeRef.current = removeJobAndMaybeNext;
+  });
+  const visibleKey = visibleJobs.map((j) => `${j.id}:${j.pairingDeadline || ""}`).join("|");
+  useEffect(() => {
+    if (visibleJobsRef.current.length === 0 || snoozedJob || lightbox) return;
+    const interval = window.setInterval(() => {
+      const jobs = visibleJobsRef.current;
+      if (jobs.length === 0) return;
+      const nextMap: Record<string, number> = {};
+      const expired: string[] = [];
+      for (const j of jobs) {
+        const deadlineMs = j.pairingDeadline
+          ? Date.parse(j.pairingDeadline)
+          : Number.NaN;
+        if (!Number.isFinite(deadlineMs)) {
+          nextMap[j.id] = INCOMING_POPUP_VISIBLE_SEC;
+          continue;
+        }
+        const left = Math.max(0, Math.round((deadlineMs - serverNow()) / 1000));
+        nextMap[j.id] = left;
+        if (left <= 0) expired.push(j.id);
+      }
+      setTimeLeftById((prev) => ({ ...prev, ...nextMap }));
+      // Expire each card independently (defer that request)
+      for (const id of expired) {
+        removeRef.current(id, { defer: true });
+      }
     }, 1000);
     return () => window.clearInterval(interval);
-  }, [alertJob?.id, snoozed, expandedJob]);
+  }, [visibleKey, snoozedJob, lightbox]);
 
   // Poll + realtime
   useEffect(() => {
@@ -269,17 +406,36 @@ export function IncomingJobPopup() {
     let cancelled = false;
 
     const ingest = (jobs: JobRecord[]) => {
-      const now = Date.now();
+      const now = serverNow();
       const open = jobs.filter((j) =>
         isIncomingJobOpen(j, backendUserId, now)
       );
       setOtherCount(open.length);
 
+      // Forced open (bounced off full /jobs page → dashboard + panel only)
+      const forceId = takeForceIncomingPanelJobId();
+      if (forceId) {
+        const forced = open.find((j) => j.id === forceId);
+        if (forced) {
+          clearJobShown(forced.id, backendUserId);
+          presentJob(forced);
+          knownIds.current.add(forced.id);
+          primed.current = true;
+          return;
+        }
+      }
+
       if (!primed.current) {
         knownIds.current = new Set(open.map((j) => j.id));
         primed.current = true;
-        const newest = open[0];
-        if (newest) offerJob(newest);
+        // Surface up to 2 open requests immediately
+        for (const j of open.slice(0, MAX_VISIBLE_INCOMING)) {
+          offerJob(j);
+        }
+        // Rest go through offerJob queue path on next polls via knownIds
+        for (const j of open.slice(MAX_VISIBLE_INCOMING)) {
+          offerJob(j);
+        }
         return;
       }
 
@@ -295,6 +451,39 @@ export function IncomingJobPopup() {
         if (!openIds.has(id)) knownIds.current.delete(id);
       }
 
+      // Keep visible cards in lockstep with server pairing_deadline
+      setVisibleJobs((prev) => {
+        let changed = false;
+        const next = prev.map((cur) => {
+          if (!openIds.has(cur.id)) return cur;
+          const fresh = open.find((j) => j.id === cur.id);
+          if (
+            fresh &&
+            (fresh.pairingDeadline !== cur.pairingDeadline ||
+              fresh.status !== cur.status ||
+              fresh.pairingStage !== cur.pairingStage)
+          ) {
+            changed = true;
+            return {
+              ...cur,
+              ...fresh,
+              photos: cur.photos?.length ? cur.photos : fresh.photos,
+              voiceNote: cur.voiceNote || fresh.voiceNote,
+              motoristPhoto: cur.motoristPhoto || fresh.motoristPhoto,
+            };
+          }
+          return cur;
+        });
+        // Drop cards no longer open
+        const kept = next.filter((j) => openIds.has(j.id));
+        if (kept.length !== prev.length) changed = true;
+        if (changed) {
+          visibleJobsRef.current = kept;
+          return kept;
+        }
+        return prev;
+      });
+
       // Drop queue items no longer open
       setQueue((prev) => {
         const next = prev.filter((j) => openIds.has(j.id));
@@ -302,10 +491,13 @@ export function IncomingJobPopup() {
         return next;
       });
 
-      const current = alertJobRef.current;
-      if (current && !openIds.has(current.id) && !snoozed) {
-        // Current reassigned / closed — show next instantly if any
-        endCurrentAndMaybeNext({ defer: false });
+      // If all visible slots emptied (reassigned), promote from queue
+      const still = visibleJobsRef.current.filter((j) => openIds.has(j.id));
+      if (still.length < MAX_VISIBLE_INCOMING) {
+        for (const j of queueRef.current.slice()) {
+          if (visibleJobsRef.current.length >= MAX_VISIBLE_INCOMING) break;
+          if (openIds.has(j.id)) offerJob(j);
+        }
       }
     };
 
@@ -323,19 +515,19 @@ export function IncomingJobPopup() {
     };
 
     void poll();
-    // Adaptive cadence: 1s while a request is live on screen, 3s otherwise.
-    // Realtime events still trigger an instant poll, so the popup stays snappy.
-    let timer = 0;
-    const schedule = () => {
-      timer = window.setTimeout(() => {
-        if (typeof document !== "undefined" && document.hidden) {
+// Pairing hot path stays fast (4s with panel open). Idle pros poll less.
+      // Local deadline timer + Realtime still wake instantly on new offers.
+      let timer = 0;
+      const schedule = () => {
+        timer = window.setTimeout(() => {
+          if (typeof document !== "undefined" && document.hidden) {
+            schedule();
+            return;
+          }
+          void poll();
           schedule();
-          return;
-        }
-        void poll();
-        schedule();
-      }, alertJobRef.current || queueRef.current.length ? 1_000 : 3_000);
-    };
+        }, visibleJobsRef.current.length || queueRef.current.length ? 4_000 : 12_000);
+      };
     schedule();
 
     const unsub = backendSubscribeJobs(backendUserId, () => {
@@ -374,9 +566,26 @@ export function IncomingJobPopup() {
 
   const showBadge =
     accountType === "professional" &&
-    otherCount > 1 &&
+    otherCount > MAX_VISIBLE_INCOMING &&
     pathname.startsWith("/jobs/") &&
-    !alertJob;
+    visibleJobs.length === 0;
+
+  const panelOpen = visibleJobs.length > 0 && !snoozedJob;
+
+  // Must respond via buttons or wait for timer — no outside tap / Escape dismiss
+  // Hook is called unconditionally (before the accountType early return) so the
+  // hook count never changes on a role switch (React error #310).
+  useEffect(() => {
+    if (!panelOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [panelOpen]);
 
   if (accountType !== "professional") return null;
 
@@ -388,6 +597,9 @@ export function IncomingJobPopup() {
   const hairline = isLight
     ? "rgba(0,0,0,0.08)"
     : "rgba(255,255,255,0.08)";
+  const cardBg = isLight
+    ? "rgba(0,0,0,0.04)"
+    : "rgba(255,255,255,0.06)";
 
   const titleFor = (j: JobRecord) =>
     isAutomotiveTrade(j.serviceType) && j.motoristVehicle?.trim()
@@ -395,8 +607,6 @@ export function IncomingJobPopup() {
       : j.motoristName?.split(/\s+/)[0] ||
         PRO_SERVICE_LABELS[j.serviceType] ||
         "Service Request";
-
-  const dismissPanel = () => endCurrentAndMaybeNext({ defer: false });
 
   return (
     <>
@@ -414,173 +624,278 @@ export function IncomingJobPopup() {
         </button>
       )}
 
-      {/* Dim scrim behind the lower panel while it is visible */}
-      {alertJob && !expandedJob && !snoozed && (
-        <div
-          role="button"
-          tabIndex={-1}
-          aria-label="Close request"
-          className="pointer-events-auto absolute inset-0 z-[179] border-0 animate-[om-scrim-in_0.35s_ease-out]"
-          style={{
-            backgroundColor: "rgba(0,0,0,0.55)",
-            cursor: "default",
-          }}
-          onClick={dismissPanel}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") dismissPanel();
-          }}
-        />
-      )}
+      {/* No dim scrim — panel only. Outside taps do nothing (no dismiss layer). */}
 
-      {/* Lower panel only — title + problem (no top toast, no repeated labels) */}
-      {alertJob && !expandedJob && !snoozed && (
+      {/* Lower panel — medium compact, up to 2 cards; buttons stay full-size */}
+      {panelOpen && (
         <div
-          className="pointer-events-auto absolute inset-x-0 bottom-0 z-[180] flex flex-col rounded-t-[2rem] px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-12px_40px_rgba(0,0,0,0.35)] backdrop-blur-2xl"
+          className="pointer-events-auto absolute inset-x-0 bottom-0 z-[180] flex max-h-[min(78dvh,720px)] flex-col rounded-t-2xl px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_28px_rgba(0,0,0,0.28)]"
           style={{
-            maxHeight: "40vh",
             backgroundColor: solid,
             borderTop: `0.5px solid ${hairline}`,
           }}
           role="dialog"
-          aria-modal
-          aria-label={titleFor(alertJob)}
+          aria-modal="true"
+          aria-label={
+            visibleJobs.length > 1
+              ? `${visibleJobs.length} incoming requests`
+              : titleFor(visibleJobs[0])
+          }
+          onClick={(e) => e.stopPropagation()}
         >
           <div
             className={cn(
-              "mx-auto mb-2 h-1 w-10 shrink-0 rounded-full",
+              "mx-auto mb-1.5 h-1 w-9 shrink-0 rounded-full",
               isLight ? "bg-black/15" : "bg-white/20"
             )}
           />
-
-          <div
-            className="min-w-0 flex-1 cursor-pointer overflow-y-auto"
-            onClick={() => setExpandedJob(alertJob)}
-          >
+          {visibleJobs.length > 1 ? (
             <p
-              className="text-[15px] font-black leading-tight"
-              style={{ color: ink }}
-            >
-              {titleFor(alertJob)}
-            </p>
-            <p
-              className="mt-1 text-[13px] font-medium leading-relaxed"
+              className="mb-1.5 shrink-0 text-center text-[11px] font-bold"
               style={{ color: muted }}
             >
-              {alertJob.problem}
-              {alertJob.agreedMajor != null
-                ? ` · ${formatMoney(alertJob.agreedMajor, alertJob.currency)}`
-                : ""}
+              {visibleJobs.length} requests · respond to each
             </p>
+          ) : null}
+
+          <div className="flex min-h-0 flex-col gap-2">
+            {visibleJobs.map((job) => {
+              const timeLeft =
+                timeLeftById[job.id] ?? INCOMING_POPUP_VISIBLE_SEC;
+              const accepting = acceptingId === job.id;
+              const strip =
+                job.photos?.length > 0
+                  ? job.photos
+                  : job.motoristPhoto?.trim()
+                    ? [
+                        {
+                          id: "customer-profile",
+                          url: job.motoristPhoto.trim(),
+                          name: job.motoristName || "Customer",
+                        },
+                      ]
+                    : [];
+              return (
+                <div
+                  key={job.id}
+                  className="shrink-0 rounded-xl p-2.5"
+                  style={{
+                    backgroundColor: cardBg,
+                    border: `0.5px solid ${hairline}`,
+                  }}
+                >
+                  <div className="flex items-start gap-2">
+                    {job.motoristPhoto ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={job.motoristPhoto}
+                        alt=""
+                        className="mt-0.5 h-7 w-7 shrink-0 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div
+                        className={cn(
+                          "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-black",
+                          isLight
+                            ? "bg-black/10 text-slate-700"
+                            : "bg-white/12 text-white"
+                        )}
+                        aria-hidden
+                      >
+                        {(job.motoristName || "?")
+                          .trim()
+                          .charAt(0)
+                          .toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className="text-[14px] font-black leading-tight"
+                        style={{ color: ink }}
+                      >
+                        {titleFor(job)}
+                      </p>
+                      <p
+                        className="mt-0.5 line-clamp-2 text-[12px] font-medium leading-snug"
+                        style={{ color: muted }}
+                      >
+                        {job.problem}
+                        {job.agreedMajor != null
+                          ? ` · ${formatMoney(job.agreedMajor, job.currency)}`
+                          : ""}
+                      </p>
+                    </div>
+                  </div>
+                  {job.voiceNote?.url ? (
+                    <div className="mt-1.5">
+                      <VoiceNotePlayer
+                        url={job.voiceNote.url}
+                        durationSec={job.voiceNote.durationSec}
+                        isLight={isLight}
+                      />
+                    </div>
+                  ) : null}
+                  {strip.length > 0 ? (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {strip.slice(0, 4).map((p, i) => (
+                        <button
+                          key={p.id || `photo-${job.id}-${i}`}
+                          type="button"
+                          aria-label={p.name || "View job photo"}
+                          onClick={() =>
+                            setLightbox({
+                              photos: strip,
+                              index: i,
+                            })
+                          }
+                          className="h-12 w-12 shrink-0 cursor-pointer overflow-hidden rounded-md border-0 p-0"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={p.url}
+                            alt={p.name || "Job photo"}
+                            className="h-full w-full object-cover"
+                            loading="eager"
+                            decoding="async"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div className="mt-2 grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      disabled={!!acceptingId}
+                      onClick={() => {
+                        const id = job.id;
+                        removeJobAndMaybeNext(id, { defer: false });
+                        void (async () => {
+                          try {
+                            if (isPairingAlert(job)) {
+                              await apiTransition({
+                                jobId: id,
+                                event: "DECLINE",
+                                actor: "repair_pro",
+                                actorId: backendUserId || undefined,
+                                reason: "Currently unavailable",
+                                idempotencyKey: backendUserId
+                                  ? idemFor(job, backendUserId, "DECLINE")
+                                  : undefined,
+                              });
+                            } else {
+                              await apiTransition({
+                                jobId: id,
+                                event: "CANCEL",
+                                actor: "repair_pro",
+                                actorId: backendUserId || undefined,
+                                reason: "pro_declined",
+                              });
+                            }
+                          } catch {
+                            /* panel already updated */
+                          }
+                        })();
+                      }}
+                      className={cn(
+                        "h-10 rounded-xl border-0 text-[13px] font-bold",
+                        isLight
+                          ? "bg-red-500/15 text-red-700"
+                          : "bg-red-500/20 text-red-400"
+                      )}
+                    >
+                      Decline
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!!acceptingId || !backendUserId}
+                      onClick={() => {
+                        const id = job.id;
+                        if (!backendUserId) return;
+                        setSnoozedJob(job);
+                        removeJobAndMaybeNext(id, { defer: false });
+                        void (async () => {
+                          try {
+                            if (isPairingAlert(job)) {
+                              await apiTransition({
+                                jobId: id,
+                                event: "LATER",
+                                actor: "repair_pro",
+                                actorId: backendUserId,
+                                idempotencyKey: idemFor(
+                                  job,
+                                  backendUserId,
+                                  "LATER"
+                                ),
+                              });
+                            } else {
+                              await apiDeferJob(id, backendUserId);
+                            }
+                          } catch {
+                            /* */
+                          }
+                        })();
+                      }}
+                      className={cn(
+                        "h-10 rounded-xl border-0 text-[13px] font-bold",
+                        isLight
+                          ? "bg-black/8 text-slate-900"
+                          : "bg-white/10 text-white"
+                      )}
+                    >
+                      Later
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!!acceptingId || !backendUserId}
+                    onClick={() => setConfirmFix(job)}
+                    className="mt-1.5 inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl border-0 bg-[#FF6B35] text-[14px] font-bold text-white"
+                  >
+                    {accepting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : null}
+                    I can fix this
+                  </button>
+
+                  <div
+                    className="mt-2 h-1 w-full overflow-hidden rounded-full bg-black/10 dark:bg-white/10"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={INCOMING_POPUP_VISIBLE_SEC}
+                    aria-valuenow={timeLeft}
+                    aria-label="Time remaining for this request"
+                  >
+                    <div
+                      className="h-full bg-[#FF6B35] transition-[width] duration-1000 ease-linear"
+                      style={{
+                        width: `${Math.max(
+                          0,
+                          Math.min(
+                            100,
+                            (timeLeft / INCOMING_POPUP_VISIBLE_SEC) * 100
+                          )
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => {
-                const j = alertJob;
-                const id = j.id;
-                if (isPairingAlert(j)) {
-                  void apiTransition({
-                    jobId: id,
-                    event: "DECLINE",
-                    actor: "repair_pro",
-                    actorId: backendUserId || undefined,
-                    reason: "Currently unavailable",
-                    idempotencyKey: backendUserId
-                      ? idemFor(j, backendUserId, "DECLINE")
-                      : undefined,
-                  });
-                } else {
-                  void apiTransition({
-                    jobId: id,
-                    event: "CANCEL",
-                    actor: "repair_pro",
-                    actorId: backendUserId || undefined,
-                    reason: "pro_declined",
-                  });
-                }
-                endCurrentAndMaybeNext({ defer: false });
-              }}
-              className={cn(
-                "h-11 rounded-xl border-0 text-[13px] font-bold",
-                isLight
-                  ? "bg-red-500/15 text-red-700"
-                  : "bg-red-500/20 text-red-400"
-              )}
-            >
-              Decline
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const j = alertJob;
-                const id = j.id;
-                setSnoozed(true);
-                if (!backendUserId) return;
-                if (isPairingAlert(j)) {
-                  void apiTransition({
-                    jobId: id,
-                    event: "LATER",
-                    actor: "repair_pro",
-                    actorId: backendUserId,
-                    idempotencyKey: idemFor(j, backendUserId, "LATER"),
-                  });
-                } else {
-                  void apiDeferJob(id, backendUserId);
-                }
-              }}
-              className={cn(
-                "h-11 rounded-xl border-0 text-[13px] font-bold",
-                isLight
-                  ? "bg-black/8 text-slate-900"
-                  : "bg-white/10 text-white"
-              )}
-            >
-              Later
-            </button>
-          </div>
-          <button
-            type="button"
-            disabled={accepting || !backendUserId}
-            onClick={() => handleFixIt(alertJob)}
-            className="mt-2 inline-flex h-12 w-full items-center justify-center gap-1.5 rounded-xl border-0 bg-[#FF6B35] text-[14px] font-bold text-white"
-          >
-            {accepting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : null}
-            I can fix this
-          </button>
           {actionError ? (
             <p
-              className="mt-2 text-center text-[12px] font-semibold"
+              className="mt-2 shrink-0 text-center text-[12px] font-semibold"
               style={{ color: isLight ? "#b91c1c" : "#fca5a5" }}
             >
               {actionError}
             </p>
           ) : null}
-
-          <div
-            className="mt-3 h-1 w-full overflow-hidden rounded-full bg-black/10 dark:bg-white/10"
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={INCOMING_POPUP_VISIBLE_SEC}
-            aria-valuenow={timeLeft}
-            aria-label="Time remaining for this request"
-          >
-            <div
-              className="h-full bg-[#FF6B35] transition-[width] duration-1000 ease-linear"
-              style={{
-                width: `${Math.max(
-                  0,
-                  Math.min(100, (timeLeft / INCOMING_POPUP_VISIBLE_SEC) * 100)
-                )}%`,
-              }}
-            />
-          </div>
         </div>
       )}
 
-      {alertJob && snoozed && !expandedJob && (
+      {snoozedJob && (
         <div
           className="absolute inset-0 z-[180] flex items-end justify-center bg-black/35 p-3 pb-[max(1rem,env(safe-area-inset-bottom))]"
           role="dialog"
@@ -608,7 +923,7 @@ export function IncomingJobPopup() {
             </p>
             <button
               type="button"
-              onClick={() => endCurrentAndMaybeNext({ defer: false })}
+              onClick={() => setSnoozedJob(null)}
               className="mt-4 h-11 w-full rounded-xl border-0 bg-[#FF6B35] text-[13px] font-bold text-white"
             >
               Got it
@@ -617,104 +932,138 @@ export function IncomingJobPopup() {
         </div>
       )}
 
-      {expandedJob && (
+      {confirmFix && (
         <div
-          className="absolute inset-0 z-[180] flex items-end justify-center bg-black/35 p-3 pb-[max(1rem,env(safe-area-inset-bottom))]"
+          className="absolute inset-0 z-[190] flex items-end justify-center bg-black/45 p-3 pb-[max(1rem,env(safe-area-inset-bottom))]"
           role="dialog"
           aria-modal
-          aria-label="Request detail"
+          aria-label="Confirm you can fix this"
         >
           <div
             className={cn(
-              "flex max-h-[85vh] w-full max-w-[360px] flex-col overflow-hidden rounded-2xl border-0",
+              "w-full max-w-[360px] rounded-2xl border-0 p-5",
               isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white"
             )}
           >
-            <div className="flex items-center justify-between px-4 pt-4">
-              <p className="text-[15px] font-black">{titleFor(expandedJob)}</p>
+            <p className="text-[15px] font-black">Confirm you can fix this</p>
+            <p
+              className={cn(
+                "mt-1.5 text-[13px] font-medium leading-relaxed",
+                isLight ? "text-slate-600" : "text-white/60"
+              )}
+            >
+              You&apos;re confirming you can fix this job as a professional Repair
+              Pro.
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setExpandedJob(null)}
-                className="rounded-full border-0 p-1.5"
-                aria-label="Close"
+                onClick={() => setConfirmFix(null)}
+                className="h-11 rounded-xl border-0 bg-white/10 text-[13px] font-bold text-white"
               >
-                <X className="h-4 w-4" />
+                Cancel
               </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-              <p
-                className={cn(
-                  "text-[13px] font-medium leading-relaxed",
-                  isLight ? "text-slate-700" : "text-white/75"
-                )}
-              >
-                {expandedJob.problem}
-              </p>
-              {expandedJob.voiceNote?.url ? (
-                <div className="mt-3">
-                  <VoiceNotePlayer url={expandedJob.voiceNote.url} isLight={isLight} />
-                </div>
-              ) : null}
-            </div>
-            <div className="grid grid-cols-2 gap-2 p-4 pt-2">
               <button
                 type="button"
-                disabled={accepting}
+                disabled={!!acceptingId}
                 onClick={() => {
-                  const j = expandedJob;
-                  setExpandedJob(null);
-                  endCurrentAndMaybeNext({ defer: false });
-                  if (isPairingAlert(j)) {
-                    void apiTransition({
-                      jobId: j.id,
-                      event: "DECLINE",
-                      actor: "repair_pro",
-                      actorId: backendUserId || undefined,
-                      reason: "Currently unavailable",
-                      idempotencyKey: backendUserId
-                        ? idemFor(j, backendUserId, "DECLINE")
-                        : undefined,
-                    });
-                  } else {
-                    void apiTransition({
-                      jobId: j.id,
-                      event: "CANCEL",
-                      actor: "repair_pro",
-                      actorId: backendUserId || undefined,
-                      reason: "pro_declined",
-                    });
-                  }
+                  const j = confirmFix;
+                  setConfirmFix(null);
+                  void handleFixIt(j);
                 }}
-                className={cn(
-                  "h-11 rounded-xl border-0 text-[13px] font-bold",
-                  isLight
-                    ? "bg-red-500/15 text-red-700"
-                    : "bg-red-500/20 text-red-400"
-                )}
-              >
-                Decline
-              </button>
-              <button
-                type="button"
-                disabled={accepting || !backendUserId}
-                onClick={() => handleFixIt(expandedJob)}
                 className="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl border-0 bg-[#FF6B35] text-[13px] font-bold text-white"
               >
-                {accepting ? (
+                {acceptingId === confirmFix.id ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : null}
-                I can fix this
+                I can fix it
               </button>
             </div>
-            {actionError ? (
-              <p
-                className="px-4 pb-4 text-center text-[12px] font-semibold"
-                style={{ color: isLight ? "#b91c1c" : "#fca5a5" }}
-              >
-                {actionError}
-              </p>
-            ) : null}
           </div>
+        </div>
+      )}
+
+      {lightbox && (
+        <div
+          className="absolute inset-0 z-[200] flex items-center justify-center bg-black/90"
+          role="dialog"
+          aria-modal
+          aria-label="Job photo"
+          onClick={() => setLightbox(null)}
+          onTouchStart={(e) => {
+            lightboxTouchX.current = e.touches[0].clientX;
+          }}
+          onTouchEnd={(e) => {
+            const start = lightboxTouchX.current;
+            lightboxTouchX.current = null;
+            if (start == null) return;
+            const dx = e.changedTouches[0].clientX - start;
+            if (Math.abs(dx) < 48) return;
+            setLightbox((lb) => {
+              if (!lb) return lb;
+              const dir = dx < 0 ? 1 : -1;
+              return {
+                ...lb,
+                index:
+                  (lb.index + dir + lb.photos.length) % lb.photos.length,
+              };
+            });
+          }}
+        >
+          <button
+            type="button"
+            aria-label="Close photo"
+            onClick={() => setLightbox(null)}
+            className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] rounded-full border-0 p-2 text-white"
+          >
+            <X className="h-6 w-6" />
+          </button>
+          {lightbox.photos.length > 1 && (
+            <>
+              <button
+                type="button"
+                aria-label="Previous photo"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightbox((lb) =>
+                    lb
+                      ? {
+                          ...lb,
+                          index:
+                            (lb.index - 1 + lb.photos.length) % lb.photos.length,
+                        }
+                      : lb
+                  );
+                }}
+                className="absolute left-2 z-[201] rounded-full border-0 bg-white/10 p-2 text-white"
+              >
+                <ChevronLeft className="h-6 w-6" />
+              </button>
+              <button
+                type="button"
+                aria-label="Next photo"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightbox((lb) =>
+                    lb ? { ...lb, index: (lb.index + 1) % lb.photos.length } : lb
+                  );
+                }}
+                className="absolute right-2 z-[201] rounded-full border-0 bg-white/10 p-2 text-white"
+              >
+                <ChevronRight className="h-6 w-6" />
+              </button>
+            </>
+          )}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightbox.photos[lightbox.index]?.url}
+            alt={lightbox.photos[lightbox.index]?.name || "Job photo"}
+            className="max-h-[80%] max-w-[90%] rounded-xl object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <p className="absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] text-[12px] font-semibold text-white/80">
+            {lightbox.index + 1} / {lightbox.photos.length}
+          </p>
         </div>
       )}
     </>
