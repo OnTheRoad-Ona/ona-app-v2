@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Loader2, LogOut, Wrench } from "lucide-react";
 import { useNotificationsOptional } from "@/components/notifications/notification-provider";
@@ -20,9 +20,6 @@ import { cn } from "@/lib/utils";
 /** Trade glyph */
 const TRADE_ICON_GLYPH = "#FF6B35";
 
-/** Solid menu icon orange — same as Dashboard tiles / brand accent */
-const MENU_SOLID = "#FF6B35";
-
 type MenuIconName =
   | "dashboard"
   | "history"
@@ -32,7 +29,8 @@ type MenuIconName =
   | "jobs"
   | "payments"
   | "notifications"
-  | "service";
+  | "service"
+  | "shop";
 
 /**
  * Solid orange icons built with DIVs (not SVG).
@@ -100,6 +98,12 @@ function SolidMenuIcon({ name, isLight }: { name: MenuIconName; isLight: boolean
           <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.5 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z" />
         </svg>
       );
+    case "shop":
+      return (
+        <svg className={cls} viewBox="0 0 24 24" fill="#FF6B35" aria-hidden>
+          <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zm10 0c-1.1 0-1.99.9-1.99 2S15.9 22 17 22s2-.9 2-2-.9-2-2-2zM7.16 14.26l.03-.12L8.1 12h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49A1 1 0 0 0 20 3H5.21l-.94-2H1v2h2l3.6 7.59-1.35 2.44C4.52 14.37 5.48 16 7 16h12v-2H7.42c-.14 0-.25-.11-.26-.24z" />
+        </svg>
+      );
     default:
       return null;
   }
@@ -133,6 +137,8 @@ const CLIENT_NAV: {
   { href: "/profile", labelKey: "nav.profile", icon: "profile" },
   { href: "/wallet", labelKey: "nav.referralEarn", icon: "referral" },
   { href: "/settings", labelKey: "menu.settings", icon: "settings" },
+  /** ONA Shop — full repair commerce (catalog, cart, checkout, orders) */
+  { href: "/shop", labelKey: "nav.myShop", icon: "shop" },
 ];
 
 /** Repair Pro: dedicated Payments & Payouts in the side bar → full hub. */
@@ -151,6 +157,8 @@ const PRO_NAV: {
     icon: "payments",
   },
   { href: "/settings", labelKey: "menu.settings", icon: "settings" },
+  /** ONA Shop — same commerce engine as customers (Ona is seller) */
+  { href: "/shop", labelKey: "nav.myShop", icon: "shop" },
 ];
 
 /** Map pro trade id → i18n key so My Service follows chosen language */
@@ -202,7 +210,6 @@ export function AppMenu({
   const t = useT();
   const {
     theme,
-    userMode,
     accountType,
     proServices,
     hasMotoristAccount,
@@ -214,10 +221,34 @@ export function AppMenu({
     backendUserId,
   } = useApp();
   const isLight = theme === "light";
-  const isPro =
-    accountType === "professional" ||
-    userMode === "professional";
-  const nav = isPro ? PRO_NAV : CLIENT_NAV;
+  /**
+   * Menu role must follow active accountType only.
+   * userMode can lag/mismatch dual-role and wrongly show Pro nav (or hide
+   * customer-only placement). My Shop lives on both CLIENT_NAV and PRO_NAV.
+   */
+  const isPro = accountType === "professional";
+  /**
+   * Pro My Shop deep-link: single-trade Pros land directly inside their own
+   * trade shop (e.g. /shop/c/solar). Multi-trade / customers stay general.
+   */
+  const myShopHref =
+    isPro && proServices.length === 1
+      ? `/shop/c/${proServices[0]}`
+      : "/shop";
+  const navBase = (isPro ? PRO_NAV : CLIENT_NAV).map((i) =>
+    i.href === "/shop" ? { ...i, href: myShopHref } : i
+  );
+  /** Hard-guarantee My Shop is present for both roles (never drop the row). */
+  const nav = navBase.some((i) => i.href === myShopHref)
+    ? navBase
+    : [
+        ...navBase,
+        {
+          href: myShopHref,
+          labelKey: "nav.myShop" as MessageKey,
+          icon: "shop" as MenuIconName,
+        },
+      ];
   /** Active account first (left Use-as button when dual) */
   const useAsOrder: AccountType[] =
     hasMotoristAccount && hasProAccount
@@ -334,7 +365,7 @@ export function AppMenu({
 
   if (!mounted) return null;
 
-  const useAsBtnClass = (active: boolean) =>
+  const asBtnClass = (active: boolean) =>
     cn(
       "rounded-lg border-0 px-2 py-2 text-[12px] font-bold transition-colors",
       active
@@ -457,12 +488,17 @@ export function AppMenu({
 
         <nav className="min-h-0 flex-1 space-y-0 overflow-y-auto overflow-x-hidden px-2 pb-1 pt-2.5 scrollbar-hide">
           {nav.map(({ href, labelKey, icon }) => {
-            const label = t(labelKey);
+            // Fallback label if i18n key missing (must never blank the My Shop row)
+            const label =
+              labelKey === "nav.myShop"
+                ? t(labelKey) || "My Shop"
+                : t(labelKey);
             const roleHome = defaultBackHref(accountType);
             const isHomeItem =
               href === "/" || href === "/dashboard" || href === roleHome;
             const isPaymentsItem = href === "/settings/payments";
             const isSettingsRoot = href === "/settings";
+            const isShopItem = href === myShopHref || href === "/shop";
             const active = isHomeItem
               ? pathname === "/" ||
                 pathname === "/dashboard" ||
@@ -474,11 +510,14 @@ export function AppMenu({
                   ? pathname === "/settings" ||
                     (pathname.startsWith("/settings/") &&
                       !pathname.startsWith("/settings/payments"))
-                  : pathname === href || pathname.startsWith(`${href}/`);
+                  : isShopItem
+                    ? pathname === "/shop" || pathname.startsWith("/shop/")
+                    : pathname === href || pathname.startsWith(`${href}/`);
             return (
               <button
                 key={href + labelKey}
                 type="button"
+                data-menu-item={isShopItem ? "my-shop" : undefined}
                 onClick={() => {
                   onClose();
                   if (isHomeItem) {
@@ -494,7 +533,9 @@ export function AppMenu({
                 )}
               >
                 {renderMenuIcon(icon)}
-                <span className="leading-none">{label}</span>
+                <span className="leading-none">
+                  {label === "nav.myShop" ? "My Shop" : label}
+                </span>
               </button>
             );
           })}
@@ -605,7 +646,7 @@ export function AppMenu({
                     disabled={switching}
                     onClick={() => void onSwitch(role)}
                     className={cn(
-                      useAsBtnClass(active),
+                      asBtnClass(active),
                       switching && "relative"
                     )}
                     aria-current={active ? "true" : undefined}
