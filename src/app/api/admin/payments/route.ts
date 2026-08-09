@@ -13,6 +13,7 @@ import {
   type AdminRole,
 } from "@/lib/server/modules/admin-roles";
 import {
+  expireStalePendingPayments,
   getEscrowByRequest,
   updateEscrow,
 } from "@/lib/server/payments/escrow-store";
@@ -42,6 +43,8 @@ function effectiveEscrowStatus(row: Record<string, unknown>): string {
     return "released";
   }
   if (esc === "refunded" || st === "refunded") return "refunded";
+  // Unpaid draft replaced by a newer payment intent (double-submit / pay-again)
+  if (meta.superseded === true) return "superseded";
   if (
     payout === "suspended_admin" ||
     meta.payoutSuspended === true
@@ -84,6 +87,8 @@ function displayEscrowLabel(effective: string): string {
       return "Escrow held";
     case "refunded":
       return "Refunded";
+    case "superseded":
+      return "Superseded (not paid)";
     case "failed":
       return "Failed";
     case "pending_payment":
@@ -104,10 +109,15 @@ function shapePayment(
   const amount =
     Number(row.amount_kobo ?? row.amount_minor ?? row.amount ?? 0) || 0;
   const meta = (row.meta as Record<string, unknown>) || {};
+  const sr = (row.service_requests as Record<string, unknown> | null) || {};
   const effective = effectiveEscrowStatus(row);
   const base: Record<string, unknown> = {
     id: row.id,
     request_id: row.request_id ?? row.job_id ?? null,
+    motorist_id: row.motorist_id ?? null,
+    repair_pro_id: row.repair_pro_id ?? null,
+    motorist_name: String(sr.motorist_name || row.motorist_name || ""),
+    repair_pro_name: String(sr.repair_pro_name || row.repair_pro_name || ""),
     amount_kobo: amount,
     currency: row.currency || "NGN",
     status: row.status || row.escrow_status || "unknown",
@@ -149,6 +159,7 @@ function buildFilterCounts(
     released: 0,
     failed: 0,
     refunded: 0,
+    superseded: 0,
     disputed: 0,
   };
   for (const row of rows) {
@@ -159,6 +170,7 @@ function buildFilterCounts(
     else if (e === "released") counts.released += 1;
     else if (e === "failed") counts.failed += 1;
     else if (e === "refunded") counts.refunded += 1;
+    else if (e === "superseded") counts.superseded += 1;
     else if (row._disputed) counts.disputed += 1;
   }
   return counts;
@@ -175,13 +187,22 @@ export async function GET() {
     const canCancel = roleHasPermission(adminRole, "escrow_refund");
     const supabase = createServiceSupabase();
 
+    // Self-heal: expire unpaid draft charges whose payment window closed so the
+    // board never shows a stuck "Awaiting payment" for an abandoned VA.
+    const staleExpired = await expireStalePendingPayments();
+    if (staleExpired > 0) {
+      console.log(
+        `[admin/payments] expired ${staleExpired} stale pending charge(s)`
+      );
+    }
+
     // Prefer active money first, then recency — so Released / Held are not buried
     // under a wall of cancelled drafts when ops review the board.
     const { data, error } = await supabase
       .from("payments")
-      .select("*")
+      .select("*, service_requests(motorist_name, repair_pro_name)")
       .order("updated_at", { ascending: false })
-      .limit(300);
+      .limit(500);
     if (error) return apiFail(error.message, 500);
 
     const raw = (data ?? []) as Record<string, unknown>[];
@@ -192,6 +213,7 @@ export async function GET() {
       if (e === "failed") return 2;
       if (e === "released") return 3;
       if (e === "refunded") return 4;
+      if (e === "superseded") return 4;
       return 5;
     };
     raw.sort((a, b) => {

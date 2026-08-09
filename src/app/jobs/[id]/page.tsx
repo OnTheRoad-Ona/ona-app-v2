@@ -4,6 +4,15 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { JobFlowScreen } from "@/components/jobs/job-flow-screen";
 import { apiGetJob } from "@/lib/jobs/client";
+import {
+  clearJobShown,
+  isProPanelOnlyPairingStatus,
+  requestForceIncomingPanel,
+} from "@/lib/jobs/incoming-popup-timing";
+import {
+  homePathForForbidden,
+  isForbiddenMessage,
+} from "@/lib/navigation";
 import { useApp } from "@/lib/store";
 
 function JobPageInner() {
@@ -48,6 +57,10 @@ function JobPageInner() {
           router.replace(accountType === "professional" ? "/jobs" : "/");
           return;
         }
+        if (isForbiddenMessage(res.message)) {
+          router.replace(homePathForForbidden(accountType));
+          return;
+        }
         return;
       }
       const j = res.data.job;
@@ -55,8 +68,23 @@ function JobPageInner() {
         setViewer("motorist");
       } else if (j.repairProId && j.repairProId === actorId) {
         setViewer("repair_pro");
+        // Pairing request = lower panel only — never full /jobs page for pro
+        if (isProPanelOnlyPairingStatus(j.status)) {
+          clearJobShown(j.id, actorId);
+          requestForceIncomingPanel(j.id);
+          router.replace("/dashboard");
+          return;
+        }
       } else {
         setViewer(accountType === "professional" ? "repair_pro" : "motorist");
+        if (
+          accountType === "professional" &&
+          isProPanelOnlyPairingStatus(j.status)
+        ) {
+          requestForceIncomingPanel(j.id);
+          router.replace("/dashboard");
+          return;
+        }
       }
     })();
     return () => {

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import { AppConfigProvider } from "@/components/app-config-provider";
 import { AppFrame } from "@/components/layout/app-frame";
+import { ONA_BUILD_ID } from "@/lib/build-id";
 import { I18nProvider } from "@/lib/i18n";
 import { AppProvider } from "@/lib/store";
 import "./globals.css";
@@ -64,6 +65,7 @@ export default function RootLayout({
     <html
       lang="en"
       data-theme="light"
+      data-ona-build={ONA_BUILD_ID}
       className={`${interSans.variable} ${geistMono.variable} h-full max-h-full overflow-hidden antialiased`}
       style={{ height: "100%", maxHeight: "100%" }}
     >

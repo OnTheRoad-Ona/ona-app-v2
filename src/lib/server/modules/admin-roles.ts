@@ -50,7 +50,9 @@ export type CarePermission =
   | "system_settings"
   | "manage_staff_l1_l3" // create/edit L1–L3
   | "role_change" // all staff levels (L5)
-  | "health";
+  | "health"
+  /** ONA Shop catalog: products, prices, stock, images */
+  | "shop_catalog";
 
 const ALL: CarePermission[] = [
   "view_jobs",
@@ -76,6 +78,7 @@ const ALL: CarePermission[] = [
   "manage_staff_l1_l3",
   "role_change",
   "health",
+  "shop_catalog",
 ];
 
 /** L1 – Customer Care */
@@ -116,6 +119,7 @@ const L4: CarePermission[] = [
   ...L3,
   "content_edit",
   "manage_staff_l1_l3",
+  "shop_catalog",
 ];
 
 const ROLE_PERMS: Record<AdminRole, CarePermission[]> = {

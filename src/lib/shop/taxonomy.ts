@@ -1,0 +1,373 @@
+"use client";
+
+/**
+ * ONA Shop taxonomy — single source of truth for the 14 Repair Pro trades.
+ *
+ * Each trade maps to its own independent shop category tree. Automotive
+ * fitment (vehicle make/model/year/garage) is ONLY available to vehicle-based
+ * trades. Non-vehicle trades (solar, plumber, carpenter, generator, painter,
+ * wash) never inherit the vehicle stack — enforced in the schema, backend and UI.
+ *
+ * Trade keys match PRO_TRADE_OPTIONS ids in @/lib/services.
+ */
+
+export const SHOP_TRADE_KEYS = [
+  "mechanic",
+  "vulcanizer",
+  "towing",
+  "ac",
+  "battery",
+  "body",
+  "electrical",
+  "diagnostics",
+  "wash",
+  "plumber",
+  "carpenter",
+  "painter",
+  "solar",
+  "generator",
+] as const;
+
+export type ShopTradeKey = (typeof SHOP_TRADE_KEYS)[number];
+
+/** Trades that may use vehicle fitment (Make/Model/Year/Engine/Garage). */
+export const VEHICLE_BASED_TRADES: ReadonlySet<ShopTradeKey> = new Set([
+  "mechanic",
+  "vulcanizer",
+  "towing",
+  "ac",
+  "battery",
+  "body",
+  "electrical",
+  "diagnostics",
+]);
+
+export function isVehicleTrade(tradeKey: string | null | undefined): boolean {
+  if (!tradeKey) return false;
+  return VEHICLE_BASED_TRADES.has(tradeKey as ShopTradeKey);
+}
+
+export function isShopTrade(tradeKey: string | null | undefined): boolean {
+  if (!tradeKey) return false;
+  return (SHOP_TRADE_KEYS as readonly string[]).includes(tradeKey);
+}
+
+export type TradeCategorySeed = {
+  /** Unique within trade. kebab-case slug. */
+  slug: string;
+  name: string;
+  /** Optional children (depth 2) — currently flat roots only in Phase 1. */
+  children?: TradeCategorySeed[];
+};
+
+export type TradeSeed = {
+  key: ShopTradeKey;
+  name: string;
+  vehicleBased: boolean;
+  roots: TradeCategorySeed[];
+};
+
+/** Root category taxonomy per trade (Phase 1 scope). */
+export const SHOP_TRADE_TAXONOMY: TradeSeed[] = [
+  {
+    key: "mechanic",
+    name: "Mechanic",
+    vehicleBased: true,
+    roots: [
+      { slug: "engine", name: "Engine" },
+      { slug: "transmission", name: "Transmission" },
+      { slug: "brakes", name: "Brakes" },
+      { slug: "suspension", name: "Suspension" },
+      { slug: "steering", name: "Steering" },
+      { slug: "cooling", name: "Cooling" },
+      { slug: "fuel", name: "Fuel" },
+      { slug: "exhaust", name: "Exhaust" },
+      { slug: "electrical", name: "Electrical" },
+      { slug: "sensors", name: "Sensors" },
+      { slug: "filters", name: "Filters" },
+      { slug: "lighting", name: "Lighting" },
+      { slug: "maintenance", name: "Maintenance" },
+      { slug: "tools", name: "Tools" },
+      { slug: "garage-equipment", name: "Garage Equipment" },
+    ],
+  },
+  {
+    key: "vulcanizer",
+    name: "Vulcanizer",
+    vehicleBased: true,
+    roots: [
+      { slug: "tires", name: "Tires" },
+      { slug: "tubes", name: "Tubes" },
+      { slug: "rims", name: "Rims" },
+      { slug: "wheels", name: "Wheels" },
+      { slug: "tpms", name: "TPMS" },
+      { slug: "valves", name: "Valves" },
+      { slug: "patches", name: "Patches" },
+      { slug: "tire-repair", name: "Tire Repair" },
+      { slug: "balancing", name: "Balancing" },
+      { slug: "alignment", name: "Alignment" },
+      { slug: "tire-changers", name: "Tire Changers" },
+      { slug: "compressors", name: "Compressors" },
+      { slug: "vulcanizing-equipment", name: "Vulcanizing Equipment" },
+    ],
+  },
+  {
+    key: "towing",
+    name: "Tow",
+    vehicleBased: true,
+    roots: [
+      { slug: "tow-straps", name: "Tow Straps" },
+      { slug: "chains", name: "Chains" },
+      { slug: "winches", name: "Winches" },
+      { slug: "tow-bars", name: "Tow Bars" },
+      { slug: "dollies", name: "Dollies" },
+      { slug: "recovery-equipment", name: "Recovery Equipment" },
+      { slug: "warning-equipment", name: "Warning Equipment" },
+      { slug: "trailer-equipment", name: "Trailer Equipment" },
+      { slug: "towing-accessories", name: "Towing Accessories" },
+    ],
+  },
+  {
+    key: "ac",
+    name: "A/C",
+    vehicleBased: true,
+    roots: [
+      { slug: "vehicle-ac", name: "Vehicle A/C" },
+      { slug: "commercial-ac", name: "Commercial A/C" },
+      { slug: "industrial-ac", name: "Industrial A/C" },
+      { slug: "compressors", name: "Compressors" },
+      { slug: "condensers", name: "Condensers" },
+      { slug: "evaporators", name: "Evaporators" },
+      { slug: "blowers", name: "Blowers" },
+      { slug: "fans", name: "Fans" },
+      { slug: "controls", name: "Controls" },
+      { slug: "sensors", name: "Sensors" },
+      { slug: "refrigeration-equipment", name: "Refrigeration Equipment" },
+      { slug: "ac-tools", name: "A/C Tools" },
+    ],
+  },
+  {
+    key: "battery",
+    name: "Battery",
+    vehicleBased: true,
+    roots: [
+      { slug: "vehicle-batteries", name: "Vehicle Batteries" },
+      { slug: "battery-chargers", name: "Battery Chargers" },
+      { slug: "battery-testers", name: "Battery Testers" },
+      { slug: "jump-starters", name: "Jump Starters" },
+      { slug: "terminals", name: "Terminals" },
+      { slug: "cables", name: "Cables" },
+      { slug: "battery-boxes", name: "Battery Boxes" },
+      { slug: "battery-accessories", name: "Battery Accessories" },
+      { slug: "diagnostic-equipment", name: "Diagnostic Equipment" },
+    ],
+  },
+  {
+    key: "body",
+    name: "Body",
+    vehicleBased: true,
+    roots: [
+      { slug: "doors", name: "Doors" },
+      { slug: "bonnets", name: "Bonnets" },
+      { slug: "trunks", name: "Trunks" },
+      { slug: "fenders", name: "Fenders" },
+      { slug: "bumpers", name: "Bumpers" },
+      { slug: "grilles", name: "Grilles" },
+      { slug: "mirrors", name: "Mirrors" },
+      { slug: "panels", name: "Panels" },
+      { slug: "headlights", name: "Headlights" },
+      { slug: "tail-lights", name: "Tail Lights" },
+      { slug: "glass", name: "Glass" },
+      { slug: "body-hardware", name: "Body Hardware" },
+      { slug: "paint", name: "Paint" },
+      { slug: "body-repair", name: "Body Repair" },
+      { slug: "body-tools", name: "Body Tools" },
+    ],
+  },
+  {
+    key: "electrical",
+    name: "Electric",
+    vehicleBased: true,
+    roots: [
+      { slug: "cables", name: "Cables" },
+      { slug: "wires", name: "Wires" },
+      { slug: "switches", name: "Switches" },
+      { slug: "sockets", name: "Sockets" },
+      { slug: "breakers", name: "Breakers" },
+      { slug: "contactors", name: "Contactors" },
+      { slug: "relays", name: "Relays" },
+      { slug: "transformers", name: "Transformers" },
+      { slug: "motors", name: "Motors" },
+      { slug: "panels", name: "Panels" },
+      { slug: "distribution", name: "Distribution" },
+      { slug: "lighting", name: "Lighting" },
+      { slug: "testing-equipment", name: "Testing Equipment" },
+      { slug: "industrial-electrical", name: "Industrial Electrical" },
+      { slug: "automotive-electrical", name: "Automotive Electrical" },
+    ],
+  },
+  {
+    key: "diagnostics",
+    name: "Scan",
+    vehicleBased: true,
+    roots: [
+      { slug: "obd-scanners", name: "OBD Scanners" },
+      { slug: "diagnostic-scanners", name: "Diagnostic Scanners" },
+      { slug: "code-readers", name: "Code Readers" },
+      { slug: "diagnostic-cables", name: "Diagnostic Cables" },
+      { slug: "adapters", name: "Adapters" },
+      { slug: "oscilloscopes", name: "Oscilloscopes" },
+      { slug: "battery-testers", name: "Battery Testers" },
+      { slug: "tpms-tools", name: "TPMS Tools" },
+      { slug: "ecu-tools", name: "ECU Tools" },
+      { slug: "diagnostic-accessories", name: "Diagnostic Accessories" },
+      { slug: "vehicle-coverage", name: "Vehicle Coverage" },
+    ],
+  },
+  {
+    key: "wash",
+    name: "Wash",
+    vehicleBased: false,
+    roots: [
+      { slug: "pressure-washers", name: "Pressure Washers" },
+      { slug: "vacuum", name: "Vacuum" },
+      { slug: "foam-cannons", name: "Foam Cannons" },
+      { slug: "hoses", name: "Hoses" },
+      { slug: "nozzles", name: "Nozzles" },
+      { slug: "brushes", name: "Brushes" },
+      { slug: "vehicle-wash", name: "Vehicle Wash" },
+      { slug: "detailing", name: "Detailing" },
+      { slug: "interior-cleaning", name: "Interior Cleaning" },
+      { slug: "exterior-cleaning", name: "Exterior Cleaning" },
+      { slug: "commercial-cleaning", name: "Commercial Cleaning" },
+      { slug: "cleaning-equipment", name: "Cleaning Equipment" },
+    ],
+  },
+  {
+    key: "plumber",
+    name: "Plumber",
+    vehicleBased: false,
+    roots: [
+      { slug: "pipes", name: "Pipes" },
+      { slug: "fittings", name: "Fittings" },
+      { slug: "valves", name: "Valves" },
+      { slug: "pumps", name: "Pumps" },
+      { slug: "taps", name: "Taps" },
+      { slug: "toilets", name: "Toilets" },
+      { slug: "sinks", name: "Sinks" },
+      { slug: "water-heaters", name: "Water Heaters" },
+      { slug: "connectors", name: "Connectors" },
+      { slug: "seals", name: "Seals" },
+      { slug: "adhesives", name: "Adhesives" },
+      { slug: "drainage", name: "Drainage" },
+      { slug: "water-storage", name: "Water Storage" },
+      { slug: "pressure-equipment", name: "Pressure Equipment" },
+      { slug: "plumbing-tools", name: "Plumbing Tools" },
+    ],
+  },
+  {
+    key: "carpenter",
+    name: "Carpenter",
+    vehicleBased: false,
+    roots: [
+      { slug: "timber", name: "Timber" },
+      { slug: "boards", name: "Boards" },
+      { slug: "plywood", name: "Plywood" },
+      { slug: "mdf", name: "MDF" },
+      { slug: "fasteners", name: "Fasteners" },
+      { slug: "nails", name: "Nails" },
+      { slug: "screws", name: "Screws" },
+      { slug: "hinges", name: "Hinges" },
+      { slug: "handles", name: "Handles" },
+      { slug: "saws", name: "Saws" },
+      { slug: "drills", name: "Drills" },
+      { slug: "planers", name: "Planers" },
+      { slug: "sanders", name: "Sanders" },
+      { slug: "routers", name: "Routers" },
+      { slug: "measuring-tools", name: "Measuring Tools" },
+      { slug: "adhesives", name: "Adhesives" },
+      { slug: "workshop-equipment", name: "Workshop Equipment" },
+    ],
+  },
+  {
+    key: "painter",
+    name: "Painter",
+    vehicleBased: false,
+    roots: [
+      { slug: "interior-paint", name: "Interior Paint" },
+      { slug: "exterior-paint", name: "Exterior Paint" },
+      { slug: "industrial-coatings", name: "Industrial Coatings" },
+      { slug: "automotive-paint", name: "Automotive Paint" },
+      { slug: "primer", name: "Primer" },
+      { slug: "thinner", name: "Thinner" },
+      { slug: "brushes", name: "Brushes" },
+      { slug: "rollers", name: "Rollers" },
+      { slug: "spray-guns", name: "Spray Guns" },
+      { slug: "sandpaper", name: "Sandpaper" },
+      { slug: "masking", name: "Masking" },
+      { slug: "protective-equipment", name: "Protective Equipment" },
+      { slug: "painting-equipment", name: "Painting Equipment" },
+    ],
+  },
+  {
+    key: "solar",
+    name: "Solar",
+    vehicleBased: false,
+    roots: [
+      { slug: "solar-panels", name: "Solar Panels" },
+      { slug: "inverters", name: "Inverters" },
+      { slug: "batteries", name: "Batteries" },
+      { slug: "charge-controllers", name: "Charge Controllers" },
+      { slug: "mppt", name: "MPPT" },
+      { slug: "mounting", name: "Mounting" },
+      { slug: "solar-cables", name: "Solar Cables" },
+      { slug: "mc4", name: "MC4" },
+      { slug: "combiner-boxes", name: "Combiner Boxes" },
+      { slug: "dc-protection", name: "DC Protection" },
+      { slug: "ac-protection", name: "AC Protection" },
+      { slug: "monitoring", name: "Monitoring" },
+      { slug: "solar-pumps", name: "Solar Pumps" },
+      { slug: "solar-lighting", name: "Solar Lighting" },
+      { slug: "installation-tools", name: "Installation Tools" },
+      { slug: "accessories", name: "Accessories" },
+    ],
+  },
+  {
+    key: "generator",
+    name: "Generator",
+    vehicleBased: false,
+    roots: [
+      { slug: "portable-generators", name: "Portable Generators" },
+      { slug: "standby-generators", name: "Standby Generators" },
+      { slug: "industrial-generators", name: "Industrial Generators" },
+      { slug: "diesel", name: "Diesel" },
+      { slug: "petrol", name: "Petrol" },
+      { slug: "engines", name: "Engines" },
+      { slug: "alternators", name: "Alternators" },
+      { slug: "avr", name: "AVR" },
+      { slug: "control-panels", name: "Control Panels" },
+      { slug: "starters", name: "Starters" },
+      { slug: "fuel-systems", name: "Fuel Systems" },
+      { slug: "cooling", name: "Cooling" },
+      { slug: "exhaust", name: "Exhaust" },
+      { slug: "filters", name: "Filters" },
+      { slug: "batteries", name: "Batteries" },
+      { slug: "sensors", name: "Sensors" },
+      { slug: "transfer-switches", name: "Transfer Switches" },
+      { slug: "generator-tools", name: "Generator Tools" },
+      { slug: "maintenance-parts", name: "Maintenance Parts" },
+    ],
+  },
+];
+
+export function getRootCategoriesForTrade(tradeKey: string): TradeCategorySeed[] {
+  return SHOP_TRADE_TAXONOMY.find((t) => t.key === tradeKey)?.roots ?? [];
+}
+
+export function getTradeSeed(tradeKey: string): TradeSeed | undefined {
+  return SHOP_TRADE_TAXONOMY.find((t) => t.key === tradeKey);
+}
+
+export function getTradeDisplayName(tradeKey: string): string {
+  return getTradeSeed(tradeKey)?.name ?? tradeKey;
+}

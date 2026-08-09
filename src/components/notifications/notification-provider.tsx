@@ -25,6 +25,10 @@ import {
 } from "@/lib/notifications/types";
 import { shouldShowToast } from "@/lib/notifications/quiet-hours";
 import {
+  isNonStackNotification,
+  TOAST_MAX_NON_STACK,
+} from "@/lib/notifications/stack-rules";
+import {
   TOAST_MAX_STACK,
   TOAST_VISIBLE_MS,
   canAutoShowToast,
@@ -110,36 +114,43 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     if (toastedIds.current.has(n.id)) return;
 
     const now = Date.now();
-    const gate = canAutoShowToast(lastToastWaveAt.current, now);
-    if (!gate.allow) {
-      // Still land in center list (caller may have added it) — no popup spam
-      return;
-    }
+    const nonStack = isNonStackNotification(n);
 
-    if (gate.reason === "new_wave") {
-      lastToastWaveAt.current = now;
+    // Chat / call / payment / accept always surface as full rows under the
+    // pile — never blocked by stack throttle.
+    if (!nonStack) {
+      const gate = canAutoShowToast(lastToastWaveAt.current, now);
+      if (!gate.allow) {
+        // Still land in center list — no popup spam for stackable types
+        return;
+      }
+      if (gate.reason === "new_wave") {
+        lastToastWaveAt.current = now;
+      }
     }
 
     toastedIds.current.add(n.id);
     const isMessage = n.category === "messages" || n.actionType === "open_chat";
     const id = `toast-${n.id}-${now}`;
-    // Each toast (and pile in same wave) expires after TOAST_VISIBLE_MS (3s)
-    const waveStart =
-      gate.reason === "pile" && lastToastWaveAt.current > 0
-        ? lastToastWaveAt.current
-        : now;
-    const expiresAt = waveStart + TOAST_VISIBLE_MS;
+    // Full-row (non-stack) timers are independent; stacked cards share wave end
+    const expiresAt = nonStack
+      ? now + TOAST_VISIBLE_MS
+      : (lastToastWaveAt.current > 0 ? lastToastWaveAt.current : now) +
+        TOAST_VISIBLE_MS;
 
-    setToasts((prev) =>
-      [
-        {
-          id,
-          notification: n,
-          expiresAt,
-        },
-        ...prev,
-      ].slice(0, TOAST_MAX_STACK)
-    );
+    setToasts((prev) => {
+      const next = [{ id, notification: n, expiresAt }, ...prev];
+      const stack: typeof next = [];
+      const full: typeof next = [];
+      for (const t of next) {
+        if (isNonStackNotification(t.notification)) full.push(t);
+        else stack.push(t);
+      }
+      return [
+        ...full.slice(0, TOAST_MAX_NON_STACK),
+        ...stack.slice(0, TOAST_MAX_STACK),
+      ];
+    });
     if (isMessage) {
       playAppSound("success_soft");
     } else if (n.priority === "critical" || n.priority === "high") {
@@ -262,7 +273,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     };
   }, [backendUserId, isAuthenticated, pushToast]);
 
-  // Auto-dismiss after 3s (poll often so hide is on-time)
+  // Auto-dismiss after 3s — 1s tick is enough (was 250ms → needless React work)
   useEffect(() => {
     const t = window.setInterval(() => {
       const now = Date.now();
@@ -270,7 +281,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         const next = prev.filter((x) => x.expiresAt > now);
         return next.length === prev.length ? prev : next;
       });
-    }, 250);
+    }, 1000);
     return () => window.clearInterval(t);
   }, []);
 

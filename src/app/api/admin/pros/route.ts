@@ -2,6 +2,7 @@ import { AdminAuthError, requireAdmin } from "@/lib/server/admin-auth";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
+import { hasRecentLiveHeartbeat } from "@/lib/matching";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,7 +27,7 @@ export async function GET(req: Request) {
     let proQ = supabase
       .from("repair_pro_profiles")
       .select(
-        "user_id, business_name, primary_service, status, verified, is_online, nin_verified, bvn_verified, visibility_tier, rating_avg, rating_count, created_at, updated_at"
+        "user_id, business_name, primary_service, status, verified, is_online, location_updated_at, nin_verified, bvn_verified, visibility_tier, rating_avg, rating_count, created_at, updated_at"
       )
       .order("created_at", { ascending: false })
       .limit(500);
@@ -84,6 +85,12 @@ export async function GET(req: Request) {
 
     let users = rows.map((pr) => {
       const p = profiles[pr.user_id];
+      // Effective online = Live flag + fresh heartbeat. A stale is_online (pro
+      // closed the app without going Away) should not show as online.
+      const isOnline = Boolean(pr.is_online) && hasRecentLiveHeartbeat(
+        (pr as { location_updated_at?: string | null }).location_updated_at,
+        Date.now()
+      );
       return {
         id: pr.user_id,
         full_name: p?.full_name || pr.business_name || "—",
@@ -98,7 +105,7 @@ export async function GET(req: Request) {
           status: pr.status,
           primary_service: pr.primary_service,
           verified: Boolean(pr.verified),
-          is_online: Boolean(pr.is_online),
+          is_online: isOnline,
           nin_verified: Boolean(pr.nin_verified),
           bvn_verified: Boolean(pr.bvn_verified),
           business_name: pr.business_name,

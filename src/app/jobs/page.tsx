@@ -11,12 +11,13 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Loader2, X } from "lucide-react";
+import { ChevronRight, Loader2 } from "lucide-react";
 import { JobShell } from "@/components/jobs/job-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { ExpiredDialog } from "@/components/ui/expired-dialog";
 import { JOB_CLOSED_MESSAGE } from "@/lib/chat-expired";
-import { apiDeferJob, apiListJobs, apiTransition } from "@/lib/jobs/client";
+import { apiListJobs } from "@/lib/jobs/client";
+import { windowStillOpen } from "@/lib/jobs/deadline";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
@@ -34,21 +35,6 @@ const PRO_PAST = new Set<JobFlowStatus>([
   "disputed",
   "under_appeal",
   "refunded",
-]);
-
-/** Still open for pro (back from live job flow / multi-request) */
-const PRO_ACTIVE = new Set<JobFlowStatus>([
-  "waiting_for_selected",
-  "selected_review",
-  "sequential_pairing",
-  "waiting_for_pro",
-  "reserved",
-  "negotiating",
-  "agreed",
-  "paid_booked",
-  "en_route",
-  "arrived",
-  "in_progress",
 ]);
 
 const MOTORIST_ACTIVE = new Set([
@@ -165,7 +151,7 @@ export default function JobsInboxPage() {
   );
 }
 
-/** Menu → Jobs for Repair Pro: past jobs (full detail) + active if any */
+/** Menu → Jobs for Repair Pro: past jobs with full detail links */
 function ProJobsPage({
   isLight,
   backendUserId,
@@ -174,39 +160,15 @@ function ProJobsPage({
   backendUserId: string | null | undefined;
 }) {
   const router = useRouter();
-  const [active, setActive] = useState<JobRecord[]>([]);
   const [past, setPast] = useState<JobRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [closedOpen, setClosedOpen] = useState(false);
   const [viewHref, setViewHref] = useState<string | null>(null);
-  const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => {
-    if (typeof window === "undefined") return new Set();
-    try {
-      const raw = sessionStorage.getItem("om-jobs-hidden");
-      return new Set(JSON.parse(raw || "[]"));
-    } catch {
-      return new Set();
-    }
-  });
-
-  const hideJob = useCallback((id: string) => {
-    setHiddenIds((prev) => {
-      const next = new Set(prev);
-      next.add(id);
-      try {
-        sessionStorage.setItem("om-jobs-hidden", JSON.stringify([...next]));
-      } catch {
-        /* */
-      }
-      return next;
-    });
-  }, []);
 
   const stage = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-700" : "text-white/75";
-  const hairline = isLight ? "border-black/10" : "border-white/10";
 
   const load = useCallback(async () => {
     // Backup: auto-cancel Booked jobs past 6h (server enforces + refunds)
@@ -217,7 +179,6 @@ function ProJobsPage({
       /* ignore */
     }
     if (!backendUserId) {
-      setActive([]);
       setPast([]);
       setLoading(false);
       return;
@@ -225,39 +186,15 @@ function ProJobsPage({
     const res = await apiListJobs(backendUserId, "repair_pro");
     if (!res.ok) {
       setErr(res.message);
-      setActive([]);
       setPast([]);
       setLoading(false);
       return;
     }
-    const now = Date.now();
     const mine = res.data.jobs.filter((j) => {
       if (j.repairProId !== backendUserId) return false;
       if (!j.motoristId || !j.problem?.trim()) return false;
       return true;
     });
-
-    const open = mine
-      .filter((j) => {
-        if (!PRO_ACTIVE.has(j.status)) return false;
-        if (
-          j.status === "negotiating" &&
-          j.negotiateEndsAt &&
-          now > new Date(j.negotiateEndsAt).getTime()
-        ) {
-          return false;
-        }
-        return true;
-      })
-      .sort((a, b) => {
-        const rank = (s: string) =>
-          s === "negotiating" ? 0 : s === "agreed" ? 1 : 2;
-        const d = rank(a.status) - rank(b.status);
-        if (d !== 0) return d;
-        return (
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-      });
 
     const finished = mine
       .filter((j) => PRO_PAST.has(j.status))
@@ -268,7 +205,6 @@ function ProJobsPage({
       )
       .slice(0, 40);
 
-    setActive(open);
     setPast(finished);
     setErr(null);
     setLoading(false);
@@ -276,11 +212,11 @@ function ProJobsPage({
 
   useEffect(() => {
     void load();
-    // Realtime is primary; backup poll only (was 30s, stacked with global jobs poll)
+    // Realtime is primary; backup poll only (past jobs list)
     const t = window.setInterval(() => {
       if (document.hidden) return;
       void load();
-    }, 60_000);
+    }, 120_000);
     const onVis = () => {
       if (document.visibilityState === "visible") void load();
     };
@@ -307,136 +243,14 @@ function ProJobsPage({
           </p>
         )}
 
-        {/* Active — card-style with Decline / Later / Open (matching IncomingJobPopup) */}
-        {!loading && active.length > 0 && (
-          <section className="mb-6">
-            <p
-              className={cn(
-                "mb-2 text-[11px] font-semibold uppercase tracking-wide",
-                muted
-              )}
-            >
-              Active
-            </p>
-            <ul className="space-y-3">
-              {(() => {
-                const visible = active.filter((j) => !hiddenIds.has(j.id));
-                return visible.length > 0
-                  ? visible.map((j) => {
-                      const price =
-                        j.agreedMajor != null
-                          ? formatMoney(j.agreedMajor, j.currency)
-                          : null;
-                      return (
-                        <li
-                          key={j.id}
-                          className={cn(
-                            "rounded-xl p-4",
-                            isLight ? "bg-white" : "bg-[#1c1c1e]"
-                          )}
-                        >
-                          <div className="mb-2 flex items-start justify-between gap-2">
-                            <div>
-                              <p className="text-[11px] font-black uppercase tracking-wide text-[#FF6B35]">
-                                Service Request
-                              </p>
-                              <p className="mt-0.5 text-[16px] font-black leading-tight">
-                                {isAutomotiveTrade(j.serviceType) && j.motoristVehicle?.trim()
-                                  ? j.motoristVehicle.trim()
-                                  : j.motoristName?.split(/\s+/)[0] || PRO_SERVICE_LABELS[j.serviceType] || "Service Request"}
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => hideJob(j.id)}
-                              className={cn(
-                                "rounded-full border-0 p-1.5",
-                                isLight ? "bg-black/5" : "bg-white/10"
-                              )}
-                              aria-label="Dismiss"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          </div>
-                          <p
-                            className={cn(
-                              "text-[13px] font-semibold leading-snug",
-                              isLight ? "text-slate-700" : "text-white/80"
-                            )}
-                          >
-                            {j.problem}
-                          </p>
-                          <p
-                            className={cn(
-                              "mt-1 text-[11px] font-medium",
-                              isLight ? "text-slate-500" : "text-white/50"
-                            )}
-                          >
-                            {PRO_SERVICE_LABELS[j.serviceType] || j.serviceType}
-                            {price ? ` · ${price}` : ""}
-                          </p>
-                          <div className="mt-4 grid grid-cols-3 gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                void apiTransition({
-                                  jobId: j.id,
-                                  event: "CANCEL",
-                                  actor: "repair_pro",
-                                  actorId: backendUserId || undefined,
-                                  reason: "pro_declined",
-                                }).then(() => load());
-                              }}
-                              className={cn(
-                                "h-11 rounded-xl border-0 text-[13px] font-bold",
-                                isLight
-                                  ? "bg-red-500/20 text-red-700"
-                                  : "bg-red-500/20 text-red-400"
-                              )}
-                            >
-                              Not available
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (backendUserId) {
-                                  void apiDeferJob(j.id, backendUserId).then(() => load());
-                                }
-                              }}
-                              className={cn(
-                                "h-11 rounded-xl border-0 text-[13px] font-bold",
-                                isLight
-                                  ? "bg-black/8 text-slate-900"
-                                  : "bg-white/10 text-white"
-                              )}
-                            >
-                              Later
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => router.push(`/jobs/${j.id}`)}
-                              className="h-11 rounded-xl border-0 bg-[#FF6B35] text-[13px] font-bold text-white"
-                            >
-                              Open
-                            </button>
-                          </div>
-                        </li>
-                      );
-                    })
-                  : null;
-              })()}
-            </ul>
-          </section>
-        )}
-
         {/* Past job rows — open full process on /requests/[id] */}
         {!loading && (
           <section>
-            {past.length === 0 && active.length === 0 ? (
+            {past.length === 0 ? (
               <p className={cn("py-10 text-center text-[14px] font-semibold", muted)}>
                 No jobs yet
               </p>
-            ) : past.length === 0 ? null : (
+            ) : (
               <ul className="space-y-0">
                 {past.map((j) => {
                   const addr = meetAddress(j);
@@ -588,7 +402,6 @@ function MotoristJobsPage({
         setLoading(false);
         return;
       }
-      const now = Date.now();
       const list = res.data.jobs
         .filter((j) => {
           if (!MOTORIST_ACTIVE.has(j.status)) return false;
@@ -596,7 +409,7 @@ function MotoristJobsPage({
           if (
             j.status === "negotiating" &&
             j.negotiateEndsAt &&
-            now > new Date(j.negotiateEndsAt).getTime()
+            !windowStillOpen(j.negotiateEndsAt)
           ) {
             return false;
           }
@@ -654,10 +467,11 @@ function MotoristJobsPage({
       }
     };
     void load();
+    // Global store + Realtime cover active jobs; this page is a light backup
     const t = window.setInterval(() => {
       if (document.hidden) return;
       void load();
-    }, 15_000);
+    }, 45_000);
     return () => {
       cancelled = true;
       window.clearInterval(t);

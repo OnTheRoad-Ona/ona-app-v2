@@ -14,6 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "db:apply": "node scripts/apply-schema.mjs",
     "db:sync": "node scripts/sync-db-latest.mjs",
     "db:setup": "node scripts/apply-schema.mjs && node scripts/seed-admin.mjs && node scripts/sync-db-latest.mjs",

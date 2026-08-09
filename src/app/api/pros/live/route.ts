@@ -22,7 +22,7 @@ const bodySchema = z.object({
 });
 
 const PRO_SELECT_FULL =
-  "user_id, lat, lng, docs_status, status, visibility_tier, go_live_window_ends_at, is_online, location_updated_at, gov_id_review_status, verified, nin_verified, bvn_verified, face_liveness_verified, tier2_approved_at";
+  "user_id, lat, lng, docs_status, status, visibility_tier, go_live_window_ends_at, is_online, location_updated_at, gov_id_review_status, verified, nin_verified, bvn_verified, face_liveness_verified, tier2_approved_at, pipeline_status";
 const PRO_SELECT_BASE =
   "user_id, lat, lng, docs_status, status, is_online";
 
@@ -130,6 +130,27 @@ export async function POST(req: Request) {
         .update(awayPatch)
         .eq("user_id", userId);
       if (awayErr) return apiFail(awayErr.message, 500);
+
+      // Public presence row (Realtime for customers — table from migration 049)
+      {
+        const { error: presErr } = await sb.from("pro_presence").upsert(
+          {
+            user_id: userId,
+            is_online: false,
+            lat: proRow.lat ?? null,
+            lng: proRow.lng ?? null,
+            location_updated_at: proRow.location_updated_at ?? null,
+            primary_service: proRow.primary_service
+              ? String(proRow.primary_service)
+              : null,
+            updated_at: nowIso,
+          },
+          { onConflict: "user_id" }
+        );
+        if (presErr) {
+          console.warn("[pros/live] pro_presence upsert (away)", presErr.message);
+        }
+      }
 
       // Availability changed → refresh the pro's merit score (fire-and-forget).
       void recalculateMerit(userId);
@@ -261,7 +282,18 @@ export async function POST(req: Request) {
         ).toISOString();
       }
     }
-    if (proRow.status === "pending" || !proRow.status) {
+    // Do NOT invent marketplace approval. Only re-assert online for Care-approved
+    // pros. (Pending/unverified must stay pending until Care T2 approve.)
+    const t2Ok =
+      String(proRow.gov_id_review_status || "") === "approved" ||
+      Boolean(proRow.verified) ||
+      (Boolean(proRow.nin_verified) && Boolean(proRow.bvn_verified));
+    if (
+      t2Ok &&
+      (proRow.status === "pending" || !proRow.status) &&
+      String(proRow.pipeline_status || "") !== "needs_resubmit"
+    ) {
+      // Recovery only: if T2 is approved but status was wrongly demoted to pending
       patch.status = "approved";
     }
 
@@ -285,6 +317,29 @@ export async function POST(req: Request) {
     }
 
     if (upErr) return apiFail(upErr.message, 500);
+
+    // Public presence for customer Realtime (safe columns only)
+    {
+      const presenceLat = hasGps ? lat : proRow.lat ?? null;
+      const presenceLng = hasGps ? lng : proRow.lng ?? null;
+      const { error: presErr } = await sb.from("pro_presence").upsert(
+        {
+          user_id: userId,
+          is_online: true,
+          lat: presenceLat,
+          lng: presenceLng,
+          location_updated_at: nowIso,
+          primary_service: proRow.primary_service
+            ? String(proRow.primary_service)
+            : null,
+          updated_at: nowIso,
+        },
+        { onConflict: "user_id" }
+      );
+      if (presErr) {
+        console.warn("[pros/live] pro_presence upsert (live)", presErr.message);
+      }
+    }
 
     // Availability changed → refresh the pro's merit score (fire-and-forget).
     void recalculateMerit(userId);

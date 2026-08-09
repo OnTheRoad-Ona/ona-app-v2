@@ -39,6 +39,8 @@ const createSchema = z.object({
   lat: z.number(),
   lng: z.number(),
   motoristVehicle: z.string().max(200).optional().nullable(),
+  /** Customer home radius slider (km) — caps SSPE pairing expansion */
+  radiusKm: z.number().min(0).max(100).optional().nullable(),
 });
 
 export async function POST(req: Request) {
@@ -75,8 +77,9 @@ export async function POST(req: Request) {
       proBaseMajor: b.proBaseMajor ?? null,
       locationLabel: b.locationLabel,
       motoristLocation: { lat: b.lat, lng: b.lng },
+      radiusKm: b.radiusKm ?? null,
     });
-    return apiOk({ job });
+    return apiOk({ job, serverNow: new Date().toISOString() });
   } catch (e) {
     return apiFail(
       e instanceof Error ? e.message : "Could not create job",
@@ -101,7 +104,7 @@ export async function GET(req: Request) {
       return apiFail("Forbidden", 403, "forbidden");
     }
     const jobs = await listJobsForUser(userId, role);
-    return apiOk({ jobs });
+    return apiOk({ jobs, serverNow: new Date().toISOString() });
   } catch (e) {
     return apiFail(e instanceof Error ? e.message : "List failed", 500);
   }

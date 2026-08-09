@@ -15,14 +15,21 @@ export const dynamic = "force-dynamic";
  * Production/preview: secret required for unauthenticated callers (fail closed).
  */
 async function authorized(req: Request): Promise<boolean> {
-  const secret =
-    process.env.CRON_SECRET?.trim() ||
-    process.env.JOB_EXPIRE_SECRET?.trim() ||
-    "";
+  // Accept any configured cron secret (cron-job.org / Vercel / local).
+  const secrets = [
+    process.env.CRON_SECRET?.trim(),
+    process.env.JOB_EXPIRE_SECRET?.trim(),
+    process.env.ONA_CRON_SECRET?.trim(),
+  ].filter((s): s is string => Boolean(s));
   const auth = req.headers.get("authorization") || "";
-  const header = req.headers.get("x-cron-secret") || "";
-  if (secret) {
+  const header =
+    req.headers.get("x-cron-secret") ||
+    req.headers.get("x-job-expire-secret") ||
+    "";
+  // cron-job.org often sends Bearer <token> or raw token in custom headers
+  for (const secret of secrets) {
     if (auth === `Bearer ${secret}`) return true;
+    if (auth === secret) return true;
     if (header === secret) return true;
   }
   try {
@@ -37,7 +44,7 @@ async function authorized(req: Request): Promise<boolean> {
     process.env.VERCEL_ENV === "production" ||
     process.env.VERCEL_ENV === "preview";
   if (isProd) return false;
-  if (!secret) return true;
+  if (secrets.length === 0) return true;
   return false;
 }
 

@@ -9,18 +9,13 @@ import {
 } from "react";
 import { ChevronLeft, Clock, Hammer, MapPin, Paintbrush, Wrench, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useJsApiLoader } from "@react-google-maps/api";
 import { CategoryTabs } from "@/components/home/category-tabs";
 import { FilterChips } from "@/components/home/filter-chips";
 import { RadiusSlider } from "@/components/home/radius-slider";
 import { SpecialtyFilterBar } from "@/components/home/specialty-filter-bar";
 import { TechCard } from "@/components/technician/tech-card";
-import {
-  getGoogleMapsApiKey,
-  GOOGLE_MAPS_LIBRARIES,
-  GOOGLE_MAPS_LOADER_ID,
-  shouldUseLiveMaps,
-} from "@/lib/google-maps";
+import { shouldUseLiveMaps } from "@/lib/google-maps";
+import { useOnaGoogleMaps } from "@/lib/google-maps-loader";
 import {
   knownPlaceToPick,
   matchKnownPlaces,
@@ -138,6 +133,29 @@ export function HomePanel({
   const isLight = theme === "light";
   const [refreshingPros, setRefreshingPros] = useState(false);
 
+  /** Delay the verify panel until the page has fully loaded + painted */
+  const [verifyPanelReady, setVerifyPanelReady] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const show = () => {
+      if (cancelled) return;
+      // rAF after load → ensure the shell/list has painted first
+      window.requestAnimationFrame(() => {
+        if (cancelled) return;
+        setVerifyPanelReady(true);
+      });
+    };
+    if (document.readyState === "complete") {
+      show();
+    } else {
+      window.addEventListener("load", show, { once: true });
+    }
+    return () => {
+      cancelled = true;
+      window.removeEventListener("load", show);
+    };
+  }, []);
+
   /** Address confirmed → show trade strip under the field (no chip). */
   const addressConfirmed = helpingSomeoneElse;
 
@@ -156,12 +174,11 @@ export function HomePanel({
     : null;
 
   const liveMaps = shouldUseLiveMaps();
-  const apiKey = getGoogleMapsApiKey();
-  const { isLoaded: mapsLoaded } = useJsApiLoader({
-    id: GOOGLE_MAPS_LOADER_ID,
-    googleMapsApiKey: liveMaps ? apiKey : "disabled",
-    libraries: GOOGLE_MAPS_LIBRARIES,
-  });
+  // Same loader options as every other map surface — never apiKey "disabled"
+  // (that crashed re-search after pro decline with different loader options).
+  const { isLoaded: mapsLoaded } = useOnaGoogleMaps();
+  // Places Autocomplete only when help mode is open (script may already be ready).
+  const needPlaces = helpMode && liveMaps;
 
   const { byPro: jobsByPro } = useMotoristJobsByPro();
 
@@ -663,7 +680,7 @@ export function HomePanel({
 
       {/* Repair Pro list — scrollable when items present */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-0 scrollbar-hide">
-        {showVerifyPanel ? (
+        {showVerifyPanel && verifyPanelReady ? (
           <div className="mb-2 shrink-0">
             <HomeVerifyPanel message={verifyMessage} isLight={isLight} />
           </div>

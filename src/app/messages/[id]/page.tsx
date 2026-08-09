@@ -141,7 +141,8 @@ function ChatThreadInner({
         .filter(
           (n) =>
             !n.readAt &&
-            n.category === "messages" &&
+            (n.category === "messages" ||
+              n.category === "requests") &&
             (n.href === `/messages/${id}` ||
               n.href === `/messages/${thread.id}` ||
               (thread.requestId != null && n.jobId === thread.requestId))

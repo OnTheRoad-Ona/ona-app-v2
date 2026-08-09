@@ -13,16 +13,31 @@
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { NEGOTIATE_WINDOW_MS } from "@/lib/jobs/constants";
+import { hasRecentLiveHeartbeat } from "@/lib/matching";
 import { orderCandidatesByMerit } from "@/lib/server/merit/merit-engine";
+import { isSyntheticAccount } from "@/lib/server/synthetic-accounts";
 
 export const PAIRING_WINDOW_MS = 66_000; // 66s per pro (display + enforce)
-export const DEFER_DURATION_MS = 5 * 60_000; // Later = 5 min per pro (D5)
-export const RADIUS_STEPS_KM = [15, 20, 30, 50];
+export const DEFER_DURATION_MS = 5 * 60_000; // Later = 5 min exclusion from re-offer
+// Search starts tight (1 km) and expands toward the customer's chosen radius
+// (0–10 km slider), capped at 10 km. The customer's radius caps each request
+// via service_requests.radius_km (see nextRadiusKm's maxKm).
+export const RADIUS_STEPS_KM = [1, 2, 3, 5, 8, 10];
 export const MAX_PAIRING_RADIUS_KM = RADIUS_STEPS_KM[RADIUS_STEPS_KM.length - 1];
-/** Dispatch rounds before the request auto-cancels (customer side, 66s each). */
-export const MAX_PAIRING_ATTEMPTS = 5;
-/** Minimum job age before we expire it when candidates are exhausted. */
-const MIN_EXHAUSTED_HOLD_MS = 2 * 60_000;
+/**
+ * Pros contacted per search round (one-by-one, 66s each).
+ * Cap is a safety ceiling when many Live pros exist. Once every unique Live
+ * pro in the customer radius has been tried (timeout / later / decline),
+ * the round ends immediately → expired → customer Retry. We never re-offer
+ * the same pro inside one wave (that created "ghost 3rd pro" links).
+ */
+export const MAX_PAIRING_ATTEMPTS = 6;
+/**
+ * Only hold "searching" briefly when nobody has been tried yet (cold start).
+ * After at least one real offer, empty pool → expire immediately so Retry
+ * appears instead of re-linking a timed-out pro.
+ */
+const MIN_EXHAUSTED_HOLD_MS = 15_000;
 
 export const PAIRING_STAGES = [
   "waiting_for_selected",
@@ -59,6 +74,7 @@ type PairingRow = {
   pairing_stage: string | null;
   pairing_deadline: string | null;
   pairing_radius_km: number | null;
+  radius_km: number | null;
   queue_position: number | null;
   remaining_candidates: number | null;
   reservation_status: string | null;
@@ -101,6 +117,7 @@ async function loadPairingRow(
         "pairing_stage",
         "pairing_deadline",
         "pairing_radius_km",
+        "radius_km",
         "queue_position",
         "remaining_candidates",
         "reservation_status",
@@ -145,19 +162,16 @@ function offersTrade(serviceType: string, p: { primary_service?: string | null; 
 }
 
 /**
- * Next eligible pro of the same trade within `radiusKm`, ordered by merit
- * (score desc, distance as tiebreak within merit bands). Pros already
- * resolved in this request's queue are excluded (per-request exclusion, D6;
- * deferral lasts 5 min, D5) unless `allowRecycle` — the "no other pro nearby"
- * fallback that re-offers a previously timed-out/declined pro so the request
- * can still run its 5 dispatch rounds. Returns the candidate plus how many
- * more candidates were still available (for remaining_candidates).
+ * Next eligible pro of the same trade within `radiusKm`, ordered by merit.
+ * Any pro already in this request's queue (offered / timed_out / deferred /
+ * declined / accepted / skipped) is permanently excluded for this wave.
+ * Retry search clears passive outcomes so a new wave can re-offer.
+ * Never re-offers the same pro mid-wave (ghost re-link bug).
  */
 async function findCandidate(
   sb: ReturnType<typeof createServiceSupabase>,
   row: PairingRow,
-  radiusKm: number,
-  allowRecycle = false
+  radiusKm: number
 ): Promise<{ candidate: ProCandidate; remaining: number } | null> {
   const { data: queue } = await sb
     .from("request_pairing_queue")
@@ -168,26 +182,24 @@ async function findCandidate(
   const blocked = new Set<string>();
   for (const q of queue ?? []) {
     const status = String(q.status || "");
-    if (QUEUE_TERMINAL.has(status)) {
-      // Distinct pass excludes resolved pros; recycle pass re-admits them so
-      // the request keeps cycling when no new pros exist nearby.
-      if (!allowRecycle) blocked.add(String(q.pro_id));
-      continue;
-    }
-    if (status === "deferred") {
-      const at = q.responded_at ? Date.parse(String(q.responded_at)) : 0;
-      if (!Number.isFinite(at) || now - at < DEFER_DURATION_MS) {
-        blocked.add(String(q.pro_id));
-      }
+    // Anyone already contacted this wave is out — including timed_out.
+    // Re-offering created "3rd pro doesn't exist" on the pro phone (same
+    // job already_shown, no popup) while the job still pointed at them.
+    if (
+      QUEUE_TERMINAL.has(status) ||
+      status === "deferred" ||
+      status === "offered"
+    ) {
+      blocked.add(String(q.pro_id));
     }
   }
-  // The current pro (already offered / awaiting) is never re-dispatched here.
+  // Current assignee is never re-dispatched until queue settles them.
   if (row.repair_pro_id) blocked.add(row.repair_pro_id);
 
   const { data: pros } = await sb
     .from("repair_pro_profiles")
     .select(
-      "user_id, business_name, primary_service, services, lat, lng, location_updated_at, visibility_tier, is_online"
+      "user_id, business_name, primary_service, services, lat, lng, location_updated_at, visibility_tier, is_online, profiles(email, full_name)"
     )
     .eq("is_online", true)
     .neq("status", "suspended")
@@ -205,11 +217,27 @@ async function findCandidate(
     services?: unknown;
     lat: number | null;
     lng: number | null;
+    location_updated_at?: string | null;
+    profiles?: { email?: string | null; full_name?: string | null } | null;
   }>)
     .filter((p) => {
       if (blocked.has(String(p.user_id))) return false;
       if (p.lat == null || p.lng == null) return false;
+      // Live flag alone can be stale (pro closed the app without going Away).
+      // Require a fresh heartbeat like the marketplace feed, so we never
+      // dispatch to a pro who is not actually reachable ("ghost online").
+      if (!hasRecentLiveHeartbeat(p.location_updated_at, now)) return false;
       if (!offersTrade(row.service_type, p)) return false;
+      // Never pair a real customer with a demo/audit pro.
+      if (
+        isSyntheticAccount({
+          email: p.profiles?.email,
+          fullName: p.profiles?.full_name,
+          businessName: p.business_name,
+        })
+      ) {
+        return false;
+      }
       return true;
     })
     .map((p) => {
@@ -272,17 +300,29 @@ async function notifyPro(
       actionPayload: { jobId },
       jobId,
       jobStatus,
+      groupKey: `service-request-${jobId}`,
     });
   } catch {
     /* notifications optional */
   }
 }
 
-/** Next radius step, or null when already at max. */
-export function nextRadiusKm(current: number | null): number | null {
+/** Next radius step, or null when already at the max for this customer.
+ * `maxKm` caps expansion at the customer's chosen radius (0–10 slider); when
+ * absent it falls back to the global MAX_PAIRING_RADIUS_KM (10 km). */
+export function nextRadiusKm(
+  current: number | null,
+  maxKm?: number | null
+): number | null {
   const cur = Number(current);
-  const idx = RADIUS_STEPS_KM.findIndex((r) => r > cur);
-  return idx >= 0 ? RADIUS_STEPS_KM[idx] : null;
+  const cap = Math.min(
+    maxKm && maxKm > 0 ? maxKm : MAX_PAIRING_RADIUS_KM,
+    MAX_PAIRING_RADIUS_KM
+  );
+  for (const r of RADIUS_STEPS_KM) {
+    if (r > cur && r <= cap) return r;
+  }
+  return null;
 }
 
 /**
@@ -356,14 +396,11 @@ async function dispatchCandidate(
 }
 
 /**
- * Advance an exhausted / responsive request to the next pro.
- * - attempts >= MAX_PAIRING_ATTEMPTS → expire (auto-cancel after 5 rounds)
- * - new candidate found              → waiting_for_pro + 66s deadline + notify
- * - none at radius                   → expand radius and retry once
- * - distinct pros exhausted (max)    → recycle a tried pro (no new pro nearby)
- * - none at all                      → expire only after MIN_EXHAUSTED_HOLD_MS,
- *                                       else stay in sequential_pairing (sweep
- *                                       retries, screen stays alive)
+ * Advance to the next unique Live pro in the current search wave.
+ * - attempts >= MAX → expire (customer Retry)
+ * - new Live pro in radius → waiting_for_pro + shared 66s pairing_deadline
+ * - none at radius → expand within customer cap, then continue
+ * - unique pool empty → expire immediately (Retry). No same-pro recycle.
  */
 export async function advancePairing(jobId: string): Promise<PairingResult> {
   if (!isSupabaseAdminConfigured()) {
@@ -372,10 +409,7 @@ export async function advancePairing(jobId: string): Promise<PairingResult> {
   const sb = createServiceSupabase();
   const row = await loadPairingRow(sb, jobId);
   if (!row) return { ok: false, error: "Job not found", status: 404 };
-  // Guard: never re-advance an already-assigned / negotiating job. A stale
-  // decline/defer/timeout/sequential call can reach here AFTER a pro confirmed
-  // ("I can fix this"), and would otherwise clobber the active 20-min
-  // negotiation back to sequential pairing — making it "close after seconds".
+  // Guard: never re-advance an already-assigned / negotiating job.
   if (!PAIRING_STAGES.includes(row.pairing_stage as PairingStage)) {
     return { ok: true, noop: true, jobId: row.id };
   }
@@ -383,7 +417,7 @@ export async function advancePairing(jobId: string): Promise<PairingResult> {
   const radius = Number(row.pairing_radius_km) || RADIUS_STEPS_KM[0];
   const attempts = Number(row.queue_position) || 0;
 
-  // 5 dispatch rounds max (66s each) — the customer's request auto-cancels.
+  // Cap: 6 unique pros per round, then customer must Retry for the next wave.
   if (attempts >= MAX_PAIRING_ATTEMPTS) {
     return markExhausted(sb, row);
   }
@@ -393,8 +427,8 @@ export async function advancePairing(jobId: string): Promise<PairingResult> {
     return dispatchCandidate(sb, row, found.candidate, found.remaining, "pairing");
   }
 
-  // No candidate at current radius — expand and retry once.
-  const nextRadius = nextRadiusKm(radius);
+  // Expand radius within the customer's search radius (not random outside).
+  const nextRadius = nextRadiusKm(radius, row.radius_km);
   if (nextRadius != null) {
     const { error } = await sb
       .from("service_requests")
@@ -406,25 +440,28 @@ export async function advancePairing(jobId: string): Promise<PairingResult> {
     }
   }
 
-  // Distinct pros exhausted at max radius — recycle a previously tried pro so
-  // the request still runs its full 5 rounds when no new pro is nearby.
-  const recycled = await findCandidate(sb, row, radius, true);
-  if (recycled) {
-    return dispatchCandidate(sb, row, recycled.candidate, recycled.remaining, "pairing");
-  }
-
-  // No pro available at all. Hold briefly to keep the screen alive, then
-  // expire so the customer sees the retry state (existing semantics).
-  const created = row.created_at ? Date.parse(row.created_at) : Date.now();
-  if (Number.isFinite(created) && Date.now() - created < MIN_EXHAUSTED_HOLD_MS) {
-    // Refresh a pairing_deadline so the sweep re-runs advancePairing while we
-    // wait for a pro to free up (no deadline would orphan the hold forever).
-    await sb
-      .from("service_requests")
-      .update({ pairing_deadline: deadlineIso(), updated_at: nowIso() })
-      .eq("id", row.id)
-      .eq("pairing_stage", row.pairing_stage);
-    return { ok: true, jobId: row.id, currentProId: currentPro(row), noop: true };
+  // Unique pool empty — never recycle the same pro in this wave.
+  // Brief hold only on cold start (nobody offered yet); otherwise expire so
+  // the customer gets Retry immediately after the last real pro.
+  const triedAnyone = attempts >= 1;
+  if (!triedAnyone) {
+    const created = row.created_at ? Date.parse(row.created_at) : Date.now();
+    if (Number.isFinite(created) && Date.now() - created < MIN_EXHAUSTED_HOLD_MS) {
+      await sb
+        .from("service_requests")
+        .update({
+          pairing_stage: "sequential_pairing",
+          flow_status: "sequential_pairing",
+          pairing_deadline: deadlineIso(),
+          // Unlink so no ghost "assigned to pro X" while empty-searching
+          repair_pro_id: null,
+          repair_pro_name: null,
+          updated_at: nowIso(),
+        })
+        .eq("id", row.id)
+        .eq("pairing_stage", row.pairing_stage);
+      return { ok: true, jobId: row.id, currentProId: null, noop: true };
+    }
   }
 
   return markExhausted(sb, row);
@@ -442,6 +479,9 @@ async function markExhausted(
       pairing_deadline: null,
       flow_status: "expired",
       status: "expired",
+      // Clear assignee so expired UI is not "linked" to the last timed-out pro
+      repair_pro_id: null,
+      repair_pro_name: null,
       updated_at: ts,
       status_history: [
         ...history(row),
@@ -457,7 +497,90 @@ async function markExhausted(
   if (!data || data.length === 0) {
     return { ok: true, noop: true, jobId: row.id, currentProId: currentPro(row) };
   }
-  return { ok: true, jobId: row.id, currentProId: currentPro(row), expired: true };
+  return { ok: true, jobId: row.id, currentProId: null, expired: true };
+}
+
+/** Max times a customer can re-run a pairing-exhausted search. */
+export const MAX_PAIRING_RETRIES = 3;
+
+/**
+ * Customer Retry search after a round of up to 6 pros.
+ * - Stays on the same job (flow → sequential_pairing / waiting_for_pro)
+ * - Keeps declined pros excluded permanently for this request
+ * - Clears timed_out / deferred / skipped so the next 6 can include new pros
+ *   in the customer radius, or reshuffle the same small pool in sequence
+ */
+export async function retrySearch(jobId: string): Promise<PairingResult> {
+  if (!isSupabaseAdminConfigured()) {
+    return { ok: false, error: "Supabase is not configured", status: 503 };
+  }
+  const sb = createServiceSupabase();
+  const row = await loadPairingRow(sb, jobId);
+  if (!row) return { ok: false, error: "Job not found", status: 404 };
+
+  const exhausted = (row.status_history as Array<{ by?: string }> | null) ?? [];
+  const retried = exhausted.filter((h) => h.by === "retry_search").length;
+  if (retried >= MAX_PAIRING_RETRIES) {
+    return {
+      ok: true,
+      noop: true,
+      jobId: row.id,
+      currentProId: currentPro(row),
+    };
+  }
+  const isExpired =
+    row.flow_status === "expired" || row.status === "expired";
+  if (!isExpired) {
+    return { ok: false, error: "Request is not finished", status: 409 };
+  }
+
+  const ts = nowIso();
+  const patch = {
+    pairing_stage: "sequential_pairing",
+    // Fresh shared 66s clock — customer ring + pro popup both use this field
+    pairing_deadline: deadlineIso(),
+    pairing_radius_km: RADIUS_STEPS_KM[0],
+    repair_pro_id: null as string | null,
+    repair_pro_name: null as string | null,
+    queue_position: 0,
+    remaining_candidates: null as number | null,
+    reservation_status: "none",
+    assignment_status: "none",
+    flow_status: "sequential_pairing",
+    status: "requested",
+    updated_at: ts,
+    status_history: [
+      ...history(row),
+      { status: "sequential_pairing", at: ts, by: "retry_search" },
+    ],
+  };
+
+  const { data: updated, error } = await sb
+    .from("service_requests")
+    .update(patch)
+    .eq("id", row.id)
+    .select("id");
+  if (error) return { ok: false, error: error.message, status: 500 };
+  if (!updated?.length) {
+    return { ok: false, error: "Could not restart search", status: 409 };
+  }
+
+  // Keep permanent declines (and accepts); clear passive outcomes so the next
+  // wave can expand to pros not yet tried, or reshuffle timed-out ones.
+  await sb
+    .from("request_pairing_queue")
+    .delete()
+    .eq("request_id", jobId)
+    .in("status", ["timed_out", "deferred", "skipped", "offered"]);
+
+  // Dispatch the first pro of the new round immediately (no long lag).
+  const next = await advancePairing(jobId);
+  return {
+    ok: true,
+    jobId: row.id,
+    currentProId: next.ok ? (next.currentProId ?? null) : null,
+    nextProId: next.ok ? (next.nextProId ?? null) : null,
+  };
 }
 
 /**
@@ -584,7 +707,8 @@ export async function confirmRequest(
     .eq("pro_id", proId);
 
   const patch: Record<string, unknown> = {
-    pairing_stage: "negotiating",
+    // Clear pairing stage so post-assign paths never re-enter SSPE decline/timeout.
+    pairing_stage: null,
     pairing_deadline: null,
     flow_status: "negotiating",
     status: "requested",
@@ -638,16 +762,21 @@ async function settleCurrentPro(
   const proId = currentPro(row);
   const ts = nowIso();
   if (!proId) return { error: null };
-  // CAS on `status = offered`: a pro who already confirmed ("accepted") or
-  // deferred ("deferred") must never be re-marked timed_out/declined by a
-  // racing sweep. The stage CAS in the caller is the real gate; this keeps
-  // the queue audit trail consistent under the confirm/timeout race.
+  // Prefer offered → outcome. For Later/Decline after a race where sweep
+  // already set timed_out, still upgrade to deferred/declined so that pro
+  // is never treated as a recyclable timed_out and re-offered 3s later.
+  const fromStatuses =
+    status === "timed_out"
+      ? ["offered"]
+      : status === "deferred" || status === "declined"
+        ? ["offered", "timed_out"]
+        : ["offered"];
   const { error: qErr } = await sb
     .from("request_pairing_queue")
     .update({ status, responded_at: ts, result_note: reason || null })
     .eq("request_id", row.id)
     .eq("pro_id", proId)
-    .eq("status", "offered");
+    .in("status", fromStatuses);
   if (qErr) return { error: qErr.message };
 
   // Only release reservations whose window actually lapsed. openRequest /
@@ -660,6 +789,22 @@ async function settleCurrentPro(
     .eq("status", "active")
     .lte("expires_at", ts);
   return { error: rErr?.message || null };
+}
+
+/** Patch used when leaving a pro (timeout / later / decline) → searching next. */
+function sequentialUnlinkPatch(row: PairingRow, ts: string, historyExtra: object[]) {
+  return {
+    pairing_stage: "sequential_pairing" as const,
+    pairing_deadline: null as string | null,
+    flow_status: "sequential_pairing",
+    status: "requested",
+    reservation_status: "none",
+    // Critical: do not stay linked to the previous pro while finding another
+    repair_pro_id: null as string | null,
+    repair_pro_name: null as string | null,
+    updated_at: ts,
+    status_history: [...history(row), ...historyExtra],
+  };
 }
 
 /** Pro declined → per-request permanent exclusion (D6) + immediate next pro. */
@@ -687,20 +832,17 @@ export async function declineRequest(
 
   const { error } = await sb
     .from("service_requests")
-    .update({
-      pairing_stage: "sequential_pairing",
-      pairing_deadline: null,
-      flow_status: "sequential_pairing",
-      status: "requested",
-      reservation_status: "none",
-      updated_at: ts,
-      status_history: [
-        ...history(row),
-        // per-request permanent exclusion marker (legacy compat + audit)
+    .update(
+      sequentialUnlinkPatch(row, ts, [
         { status: "sequential_pairing", at: ts, by: `excluded:${proId}` },
-        { status: "sequential_pairing", at: ts, by: `declined:${proId}`, note: reason || undefined },
-      ],
-    })
+        {
+          status: "sequential_pairing",
+          at: ts,
+          by: `declined:${proId}`,
+          note: reason || undefined,
+        },
+      ])
+    )
     .eq("id", row.id)
     .eq("pairing_stage", row.pairing_stage);
   if (error) return { ok: false, error: error.message, status: 500 };
@@ -710,11 +852,8 @@ export async function declineRequest(
 }
 
 /**
- * Pro tapped Later → keep the request in the pro's incoming list and still
- * acceptable until the 66s pairing deadline expires (new spec). We record the
- * pro's intent as `deferred` for the queue audit trail, but do NOT advance:
- * pairing_stage / pairing_deadline / reservation stay untouched so the sweep
- * enforces the window and advances to the next pro once it lapses.
+ * Pro tapped Later → defer this pro 5 min (queue) and immediately advance to
+ * the next merit-ranked pro (product D5 / state-machine LATER → sequential_pairing).
  */
 export async function deferRequest(
   jobId: string,
@@ -734,20 +873,35 @@ export async function deferRequest(
   }
 
   const ts = nowIso();
-  await sb
-    .from("request_pairing_queue")
-    .update({
-      status: "deferred",
-      responded_at: ts,
-      result_note: "pro_later",
-    })
-    .eq("request_id", row.id)
-    .eq("pro_id", proId)
-    .eq("status", "offered");
+  const settled = await settleCurrentPro(sb, row, "deferred", "pro_later");
+  if (settled.error) return { ok: false, error: settled.error, status: 500 };
 
-  // No pairing state change — the request stays with this pro until the
-  // deadline, after which the sweep times it out and advances.
-  return { ok: true, jobId: row.id, currentProId: proId };
+  // Release any active reservation so the next pro can open cleanly.
+  await sb
+    .from("request_reservations")
+    .update({ status: "released", released_at: ts, released_by: "pro_later" })
+    .eq("request_id", row.id)
+    .eq("status", "active");
+
+  const { error } = await sb
+    .from("service_requests")
+    .update(
+      sequentialUnlinkPatch(row, ts, [
+        { status: "sequential_pairing", at: ts, by: `deferred:${proId}` },
+        { status: "sequential_pairing", at: ts, by: `later:${proId}` },
+      ])
+    )
+    .eq("id", row.id)
+    .eq("pairing_stage", row.pairing_stage);
+  if (error) return { ok: false, error: error.message, status: 500 };
+
+  const next = await advancePairing(jobId);
+  return {
+    ok: true,
+    jobId: row.id,
+    currentProId: null,
+    nextProId: next.ok ? next.currentProId ?? null : null,
+  };
 }
 
 /** Server sweep: current pro did not respond within the 66s deadline. */
@@ -785,18 +939,11 @@ export async function timeoutRequest(jobId: string): Promise<PairingResult> {
   // owns it now and the sweep already refreshed its deadline.
   const { data, error } = await sb
     .from("service_requests")
-    .update({
-      pairing_stage: "sequential_pairing",
-      pairing_deadline: null,
-      flow_status: "sequential_pairing",
-      status: "requested",
-      reservation_status: "none",
-      updated_at: ts,
-      status_history: [
-        ...history(fresh),
+    .update(
+      sequentialUnlinkPatch(fresh, ts, [
         { status: "sequential_pairing", at: ts, by: "sweep:timeout" },
-      ],
-    })
+      ])
+    )
     .eq("id", row.id)
     .eq("pairing_stage", fresh.pairing_stage)
     .select("id");

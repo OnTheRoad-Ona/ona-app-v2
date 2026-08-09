@@ -44,6 +44,7 @@ import {
   createEscrowPayment,
   getEscrowByRef,
   getEscrowByRequest,
+  supersedePendingPaymentsForRequest,
   updateEscrow,
 } from "@/lib/server/payments/escrow-store";
 import {
@@ -53,11 +54,34 @@ import {
 } from "@/lib/server/payments/providers";
 import { orderCandidatesByMerit } from "@/lib/server/merit/merit-engine";
 import { PAIRING_WINDOW_MS } from "@/lib/server/pairing/pairing-engine";
+import { isSyntheticAccount } from "@/lib/server/synthetic-accounts";
+import { hasRecentLiveHeartbeat, MAX_RADIUS_KM } from "@/lib/matching";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { randomUUID } from "node:crypto";
 
 const memory = new Map<string, JobRecord>();
+
+/**
+ * In-process read-through cache. Every poll / click used to trigger a full
+ * Supabase round-trip (≈300–1000ms); writes already keep `memory` fresh, so
+ * reads inside this window short-circuit without hitting the network.
+ */
+const READ_CACHE_MS = 3_000;
+
+function cacheJob(job: JobRecord): JobRecord {
+  memory.set(job.id, job);
+  if (memory.size > 512) {
+    const now = Date.now();
+    for (const [k, v] of memory) {
+      const at = v.updatedAt ? new Date(v.updatedAt).getTime() : Number.NaN;
+      if (!Number.isFinite(at) || now - at > 5 * 60 * 1000) {
+        memory.delete(k);
+      }
+    }
+  }
+  return job;
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -238,6 +262,7 @@ function rowToJob(row: Record<string, unknown>): JobRecord {
     chosenProId: row.chosen_pro_id ? String(row.chosen_pro_id) : null,
     pairingRadiusKm:
       row.pairing_radius_km != null ? Number(row.pairing_radius_km) : null,
+    radiusKm: row.radius_km != null ? Number(row.radius_km) : null,
   };
 }
 
@@ -342,13 +367,14 @@ function jobToDbPatch(job: JobRecord): Record<string, unknown> {
     reservation_status: job.reservationStatus ?? null,
     assignment_status: job.assignmentStatus ?? null,
     pairing_radius_km: job.pairingRadiusKm ?? null,
+    radius_km: job.radiusKm ?? null,
     chosen_pro_id: job.chosenProId ?? null,
     updated_at: job.updatedAt,
   };
 }
 
 async function persist(job: JobRecord): Promise<JobRecord> {
-  memory.set(job.id, job);
+  cacheJob(job);
   if (!isSupabaseAdminConfigured()) return job;
   try {
     const sb = createServiceSupabase();
@@ -411,6 +437,15 @@ async function persist(job: JobRecord): Promise<JobRecord> {
   return job;
 }
 
+/** Customer's chosen search radius (0–10 slider), clamped to a usable minimum
+ * so pairing always has a tight starting circle and a sane cap. */
+function clampCustomerRadius(radius: number | null | undefined): number {
+  if (radius == null || !Number.isFinite(radius) || radius <= 0) {
+    return MAX_RADIUS_KM;
+  }
+  return Math.min(MAX_RADIUS_KM, Math.max(1, Math.round(radius)));
+}
+
 export async function createJob(input: CreateJobInput): Promise<JobRecord> {
   const ts = nowIso();
   // Negotiation clock does NOT start until Repair Pro taps “I can fix this”.
@@ -465,7 +500,8 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
     remainingCandidates: null,
     reservationStatus: null,
     assignmentStatus: null,
-    pairingRadiusKm: 15,
+    pairingRadiusKm: 1,
+    radiusKm: clampCustomerRadius(input.radiusKm),
     chosenProId: input.repairProId,
     createdAt: ts,
     updatedAt: ts,
@@ -486,13 +522,12 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
           pickup_lat: input.motoristLocation.lat,
           pickup_lng: input.motoristLocation.lng,
           pickup_address: input.locationLabel,
-          radius_km: 10,
+          radius_km: clampCustomerRadius(input.radiusKm),
           ...jobToDbPatch(job),
           flow_status: "waiting_for_selected",
           pairing_stage: "waiting_for_selected",
           pairing_deadline: job.pairingDeadline,
           queue_position: 1,
-          pairing_radius_km: 15,
           chosen_pro_id: input.repairProId,
           created_at: ts,
         })
@@ -552,13 +587,12 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
           pickup_lat: input.motoristLocation.lat,
           pickup_lng: input.motoristLocation.lng,
           pickup_address: input.locationLabel,
-          radius_km: 10,
+          radius_km: clampCustomerRadius(input.radiusKm),
           ...jobToDbPatch(job),
           flow_status: "waiting_for_selected",
           pairing_stage: "waiting_for_selected",
           pairing_deadline: job.pairingDeadline,
           queue_position: 1,
-          pairing_radius_km: 15,
           chosen_pro_id: input.repairProId,
           created_at: ts,
         } as Record<string, unknown>;
@@ -624,7 +658,7 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
     }
   }
 
-  memory.set(id, job);
+  cacheJob(job);
   return job;
 }
 
@@ -807,6 +841,16 @@ export async function reconcileJobPayment(
 
 /** Load job without payment reconciliation (avoids getJob ↔ markPaid loops). */
 async function getJobRaw(id: string): Promise<JobRecord | null> {
+  // Fast path — a copy this process persisted or read within the last
+  // READ_CACHE_MS is served from memory instead of a Supabase round-trip.
+  const fast = memory.get(id);
+  if (fast) {
+    const at = fast.updatedAt ? new Date(fast.updatedAt).getTime() : Number.NaN;
+    if (Number.isFinite(at) && Date.now() - at < READ_CACHE_MS) {
+      return fast;
+    }
+    memory.delete(id);
+  }
   if (isSupabaseAdminConfigured()) {
     try {
       const sb = createServiceSupabase();
@@ -822,8 +866,8 @@ async function getJobRaw(id: string): Promise<JobRecord | null> {
         if (!job.motoristVehicle?.trim() && memHit?.motoristVehicle) {
           job = { ...job, motoristVehicle: memHit.motoristVehicle };
         }
-        job = await hydrateMotoristPhoto(job);
         job = await hydrateJobPhones(job);
+        job = await hydrateMotoristPhoto(job);
         job = await hydrateMotoristVehicle(job);
         memory.set(id, job);
         return job;
@@ -850,21 +894,30 @@ export async function getJob(id: string): Promise<JobRecord | null> {
 }
 
 /**
+ * A payout may only be *recovered* (marked released) once a release was actually
+ * attempted or confirmed — STATUS satisfied or escrow release_pending /
+ * pending_settlement. Merely holding escrow ("held"/ paid_booked) or being
+ * "completed" is never enough: the customer must release first.
+ */
+export function canRecoverReleaseFromJob(job: {
+  status?: string;
+  releasedAt?: string | null;
+  escrowStatus?: string | null;
+}): boolean {
+  if (job.releasedAt || job.status === "released") return false;
+  if (job.status === "satisfied") return true;
+  if (job.escrowStatus === "release_pending") return true;
+  return job.escrowStatus === "pending_settlement";
+}
+
+/**
  * If FLW already paid the pro transfer but job still shows satisfied/held
  * (cancel race or missed finalize), mark released so UI leaves “Payout processing”.
  */
 async function recoverReleasedFromFlutterwave(
   job: JobRecord
 ): Promise<JobRecord> {
-  if (job.releasedAt || job.status === "released") return job;
-  if (
-    job.status !== "satisfied" &&
-    job.status !== "completed" &&
-    job.escrowStatus !== "pending_settlement" &&
-    job.escrowStatus !== "held"
-  ) {
-    return job;
-  }
+  if (!canRecoverReleaseFromJob(job)) return job;
   try {
     const { attemptProPayout } = await import(
       "@/lib/server/payments/payout-settlement"
@@ -945,35 +998,17 @@ async function clearFalseSatisfiedStamp(job: JobRecord): Promise<JobRecord> {
 }
 
 /**
- * Mark pending Flutterwave / escrow charge as expired so customer can
- * generate a fresh payment request (job stays agreed).
+ * Mark ALL pending Flutterwave / escrow charges as expired so the customer can
+ * generate a fresh payment request (job stays agreed). Supersedes every unpaid
+ * draft — not just the most recent — so a concurrent burst never leaves stale
+ * "awaiting payment" rows behind.
  */
 async function expirePendingPaymentForJob(
   job: JobRecord,
   reason = "payment_window_20m"
 ): Promise<void> {
   try {
-    const esc = await getEscrowByRequest(job.id);
-    if (!esc) return;
-    if (
-      esc.escrowStatus === "pending_payment" ||
-      esc.status === "pending" ||
-      (!esc.paidAt &&
-        esc.escrowStatus !== "held" &&
-        esc.escrowStatus !== "released" &&
-        esc.escrowStatus !== "refunded")
-    ) {
-      await updateEscrow(esc.id, {
-        status: "expired",
-        escrowStatus: "failed",
-        meta: {
-          ...esc.meta,
-          expiredAt: nowIso(),
-          expiredReason: reason,
-          paymentWindowMs: PAYMENT_WINDOW_MS,
-        },
-      });
-    }
+    await supersedePendingPaymentsForRequest(job.id, null, reason);
   } catch (e) {
     console.error("expirePendingPaymentForJob", job.id, e);
   }
@@ -1521,7 +1556,25 @@ async function findNextPro(
     if (triedProIds.has(p.user_id) || p.lat == null || p.lng == null) {
       return false;
     }
+    // Stale is_online (pro closed the app without going Away) must not receive
+    // a reroute — require a fresh heartbeat like the marketplace feed.
+    if (
+      !hasRecentLiveHeartbeat(
+        (p as { location_updated_at?: string | null }).location_updated_at,
+        Date.now()
+      )
+    ) {
+      return false;
+    }
     if (!offersTrade(p)) return false;
+    // Never reroute a real customer to a demo/audit pro.
+    if (
+      isSyntheticAccount({
+        businessName: (p as { business_name?: string | null }).business_name,
+      })
+    ) {
+      return false;
+    }
     return true;
   });
   if (!available.length) return null;
@@ -2173,7 +2226,7 @@ export async function listJobsForUser(
         .limit(40);
       const rows = data || [];
       // Parallel light processing (was sequential N+1 → multi-second hangs)
-      const mapped = await Promise.all(
+      let mapped = await Promise.all(
         rows.map(async (row) => {
           let j = rowToJob(row as Record<string, unknown>);
           // Only run expire checks on statuses that can auto-advance
@@ -2196,6 +2249,50 @@ export async function listJobsForUser(
           return j;
         })
       );
+
+      // Batch-fill missing customer profile photos for open pro requests
+      // (service request image placeholder / popup avatar).
+      if (role === "repair_pro") {
+        const needPhoto = mapped.filter(
+          (j) =>
+            !j.motoristPhoto?.trim() &&
+            j.motoristId &&
+            [
+              "waiting_for_selected",
+              "selected_review",
+              "waiting_for_pro",
+              "reserved",
+              "negotiating",
+              "agreed",
+            ].includes(j.status)
+        );
+        const ids = [
+          ...new Set(needPhoto.map((j) => j.motoristId).filter(Boolean)),
+        ];
+        if (ids.length) {
+          try {
+            const { data: profiles } = await sb
+              .from("profiles")
+              .select("id, avatar_url")
+              .in("id", ids);
+            const byId = new Map(
+              (profiles || [])
+                .filter((p) => p.avatar_url)
+                .map((p) => [String(p.id), String(p.avatar_url)])
+            );
+            if (byId.size) {
+              mapped = mapped.map((j) => {
+                if (j.motoristPhoto?.trim()) return j;
+                const url = byId.get(j.motoristId);
+                return url ? { ...j, motoristPhoto: url } : j;
+              });
+            }
+          } catch {
+            /* optional */
+          }
+        }
+      }
+
       for (const j of mapped) {
         if (role === "repair_pro" && isDeferredByPro(j, userId)) continue;
         if (!out.find((x) => x.id === j.id)) out.push(j);
@@ -2204,12 +2301,32 @@ export async function listJobsForUser(
       /* */
     }
   }
+  /** Open pairing / negotiate jobs for pros — keep customer photos+voice so the
+   * incoming popup can show them with the request (not after a second fetch). */
+  const KEEP_MEDIA_STATUSES = new Set<string>([
+    "waiting_for_selected",
+    "selected_review",
+    "waiting_for_pro",
+    "reserved",
+    "sequential_pairing",
+    "negotiating",
+    "agreed",
+  ]);
+
   return out
     .filter((j) => {
       // Keep finished jobs (released / completed / etc.) for Recent Bookings + History.
       // Only drop empty demo shells.
       if (!j.motoristId || !j.problem?.trim()) return false;
       return true;
+    })
+    .map((j) => {
+      // Lean list for history/terminal jobs (base64 media is heavy).
+      // Pro open requests keep photos so popup + request appear together.
+      if (role === "repair_pro" && KEEP_MEDIA_STATUSES.has(j.status)) {
+        return j;
+      }
+      return { ...j, photos: [], voiceNote: null };
     })
     .sort(
       (a, b) =>
@@ -2376,58 +2493,131 @@ async function applyEvent(
     // Customer “I am satisfied” → try instant pro transfer (87.5% of service).
     // If FLW Available is not ready → PENDING_SETTLEMENT (escrow kept, auto-retry).
     // Customer is not asked to manual-retry for settlement delays.
-    const payout = await releaseJobEscrow({
+    //
+    // UX: never leave the client hanging until FLW finishes (caused “signal aborted”
+    // at 15s). Race payout for a short budget; if still running, return confirmed
+    // pending_settlement and finish release in the background (idempotent).
+    const confirmedBase: JobRecord = {
       ...updated,
+      status: "satisfied",
       satisfiedAt: ts,
-    });
+      escrowStatus: "pending_settlement",
+      statusHistory: [
+        ...job.statusHistory,
+        { status: "satisfied", at: ts, by: actor },
+      ],
+      updatedAt: ts,
+    };
 
-    if (payout.ok) {
-      const released: JobRecord = {
-        ...updated,
-        status: "released",
-        releasedAt: ts,
-        escrowStatus: "released",
-        satisfiedAt: ts,
-        amountMinor: payout.totalMinor ?? updated.amountMinor,
-        proPayoutMinor: payout.proPayoutMinor ?? updated.proPayoutMinor,
-        platformFeeMinor: payout.platformFeeMinor ?? updated.platformFeeMinor,
-        statusHistory: [
-          ...job.statusHistory,
-          { status: "satisfied", at: ts, by: actor },
-          { status: "released", at: ts, by: "system" },
-        ],
-        updatedAt: ts,
-      };
-      await bumpProJobsCompleted(job.repairProId);
-      await notifyPayoutReleased(released);
-      return persist(released);
-    }
+    const payoutJob = { ...confirmedBase, satisfiedAt: ts };
+    const payoutPromise = releaseJobEscrow(payoutJob);
+    const PAYOUT_BUDGET_MS = 10_000;
+    type PayoutResult = Awaited<ReturnType<typeof releaseJobEscrow>>;
+    const raced = await Promise.race([
+      payoutPromise.then((p) => ({ kind: "done" as const, p })),
+      new Promise<{ kind: "timeout" }>((resolve) =>
+        setTimeout(() => resolve({ kind: "timeout" }), PAYOUT_BUDGET_MS)
+      ),
+    ]);
 
-    if (payout.pendingSettlement) {
-      // Confirmed by customer; payout queued until FLW Available is enough
-      const pending: JobRecord = {
-        ...updated,
-        status: "satisfied",
-        satisfiedAt: ts,
-        escrowStatus: "pending_settlement",
-        amountMinor: payout.totalMinor ?? updated.amountMinor,
-        proPayoutMinor: payout.proPayoutMinor ?? updated.proPayoutMinor,
-        platformFeeMinor: payout.platformFeeMinor ?? updated.platformFeeMinor,
-        statusHistory: [
-          ...job.statusHistory,
-          { status: "satisfied", at: ts, by: actor },
-        ],
-        updatedAt: ts,
-      };
+    const finishFromPayout = async (payout: PayoutResult): Promise<JobRecord> => {
+      if (payout.ok) {
+        const released: JobRecord = {
+          ...confirmedBase,
+          status: "released",
+          releasedAt: nowIso(),
+          escrowStatus: "released",
+          amountMinor: payout.totalMinor ?? confirmedBase.amountMinor,
+          proPayoutMinor: payout.proPayoutMinor ?? confirmedBase.proPayoutMinor,
+          platformFeeMinor:
+            payout.platformFeeMinor ?? confirmedBase.platformFeeMinor,
+          statusHistory: [
+            ...job.statusHistory,
+            { status: "satisfied", at: ts, by: actor },
+            { status: "released", at: nowIso(), by: "system" },
+          ],
+          updatedAt: nowIso(),
+        };
+        await bumpProJobsCompleted(job.repairProId);
+        await notifyPayoutReleased(released);
+        return persist(released);
+      }
+      if (payout.pendingSettlement) {
+        const pending: JobRecord = {
+          ...confirmedBase,
+          amountMinor: payout.totalMinor ?? confirmedBase.amountMinor,
+          proPayoutMinor: payout.proPayoutMinor ?? confirmedBase.proPayoutMinor,
+          platformFeeMinor:
+            payout.platformFeeMinor ?? confirmedBase.platformFeeMinor,
+        };
+        await notifyPayoutPendingSettlement(pending);
+        return persist(pending);
+      }
+      // Hard fail (bad bank, etc.) — stay completed so customer can retry or open dispute
+      throw new Error(
+        payout.message ||
+          "Could not pay the Repair Pro (87.5%). Funds stay held. Fix pro bank details or contact support."
+      );
+    };
+
+    if (raced.kind === "timeout") {
+      // Confirm immediately so the customer can rate/review without aborting.
+      const pending = await persist(confirmedBase);
       await notifyPayoutPendingSettlement(pending);
-      return persist(pending);
+      void payoutPromise
+        .then(async (payout) => {
+          try {
+            // Only advance if still waiting on settlement (never double-release).
+            const fresh = await getJob(job.id);
+            if (!fresh) return;
+            if (
+              fresh.status === "released" ||
+              fresh.escrowStatus === "released" ||
+              fresh.releasedAt
+            ) {
+              return;
+            }
+            if (payout.ok) {
+              await finishFromPayout(payout);
+              return;
+            }
+            if (payout.pendingSettlement) {
+              await finishFromPayout(payout);
+              return;
+            }
+            // Hard fail (bad bank etc.) after the client already left completed:
+            // bounce back so customer can fix / dispute — not silent forever-pending.
+            const revert: JobRecord = {
+              ...fresh,
+              status: "completed",
+              satisfiedAt: null,
+              escrowStatus: "held",
+              updatedAt: nowIso(),
+              statusHistory: [
+                ...fresh.statusHistory,
+                {
+                  status: "completed",
+                  at: nowIso(),
+                  by: "system",
+                  note: `payout_hard_fail:${payout.message || "unknown"}`,
+                },
+              ],
+            };
+            await persist(revert);
+            console.error(
+              "SATISFIED background hard fail — reverted to completed",
+              job.id,
+              payout.message
+            );
+          } catch (e) {
+            console.error("SATISFIED background payout", job.id, e);
+          }
+        })
+        .catch((e) => console.error("SATISFIED background payout", job.id, e));
+      return pending;
     }
 
-    // Hard fail (bad bank, etc.) — stay completed so customer can retry or open dispute
-    throw new Error(
-      payout.message ||
-        "Could not pay the Repair Pro (87.5%). Funds stay held. Fix pro bank details or contact support."
-    );
+    return finishFromPayout(raced.p);
   }
   if (next === "released") {
     updated.releasedAt = ts;
@@ -2716,64 +2906,150 @@ async function loadProPayoutBank(repairProId: string): Promise<{
   }
 }
 
+/**
+ * Optimistic lock via updated_at — prevents lost offers under concurrent place/accept.
+ * Returns null when another writer won the race.
+ */
+async function persistIfUnchanged(
+  job: JobRecord,
+  expectedUpdatedAt: string
+): Promise<JobRecord | null> {
+  cacheJob(job);
+  if (!isSupabaseAdminConfigured()) {
+    const mem = memory.get(job.id);
+    if (mem && mem.updatedAt !== expectedUpdatedAt) return null;
+    memory.set(job.id, job);
+    return job;
+  }
+  try {
+    const sb = createServiceSupabase();
+    const patch = jobToDbPatch(job);
+    const { data, error } = await sb
+      .from("service_requests")
+      .update(patch)
+      .eq("id", job.id)
+      .eq("updated_at", expectedUpdatedAt)
+      .select("*")
+      .maybeSingle();
+    if (error) {
+      console.error("job persist CAS failed", job.id, error.message);
+      return null;
+    }
+    if (!data) return null;
+    const mapped = rowToJob(data as Record<string, unknown>);
+    // Preserve in-memory-only media if DB dropped them
+    mapped.photos = job.photos?.length ? job.photos : mapped.photos;
+    mapped.voiceNote = job.voiceNote || mapped.voiceNote;
+    cacheJob(mapped);
+    try {
+      await sb.from("job_events").insert({
+        request_id: job.id,
+        event_type: "status",
+        payload: { status: job.status, offers: job.offers.length },
+      });
+    } catch {
+      /* optional */
+    }
+    return mapped;
+  } catch (e) {
+    console.error("job persist CAS exception", e);
+    return null;
+  }
+}
+
+async function notifyOfferPlaced(job: JobRecord, offer: JobOffer) {
+  try {
+    const { insertNotification } = await import(
+      "@/lib/server/notifications"
+    );
+    const toUserId =
+      offer.side === "repair_pro" ? job.motoristId : job.repairProId;
+    if (!toUserId) return;
+    const who = offer.side === "repair_pro" ? "Repair Pro" : "Customer";
+    await insertNotification({
+      userId: toUserId,
+      category: "requests",
+      priority: "high",
+      title: "New labour price",
+      body: `${who} offered ₦${offer.amountMajor.toLocaleString("en-NG")}`,
+      href: `/jobs/${job.id}`,
+      actionType: "open_job",
+      actionPayload: { jobId: job.id },
+      jobId: job.id,
+      jobStatus: job.status,
+      groupKey: `offer-${job.id}-${offer.offerIndex}`,
+    });
+  } catch {
+    /* optional */
+  }
+}
+
 export async function placeOffer(input: {
   jobId: string;
   side: OfferSide;
   amountMajor: number;
   actorId: string;
 }): Promise<{ job: JobRecord } | { error: string }> {
-  const job = await getJob(input.jobId);
-  if (!job) return { error: "Job not found" };
+  // Up to 2 attempts under CAS conflict
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const job = await getJob(input.jobId);
+    if (!job) return { error: "Job not found" };
 
-  if (input.side === "repair_pro" && job.repairProId !== input.actorId) {
-    // allow demo ids
-    if (!input.actorId.startsWith("demo") && input.actorId !== job.repairProId) {
-      /* soft: still allow if matches names for local demo */
+    const gate = canPlaceOffer({
+      status: job.status,
+      offerCount: job.offers.length,
+      side: input.side,
+      negotiateEndsAt: job.negotiateEndsAt,
+    });
+    if (!gate.ok) return { error: gate.reason };
+
+    const lastPro = [...job.offers]
+      .reverse()
+      .find((o) => o.side === "repair_pro");
+    const amountCheck = validateOfferAmount({
+      side: input.side,
+      amountMajor: input.amountMajor,
+      proBaseMajor: job.proBaseMajor,
+      lastProOfferMajor: lastPro?.amountMajor ?? null,
+    });
+    if (!amountCheck.ok) return { error: amountCheck.reason };
+
+    const expectedUpdatedAt = job.updatedAt;
+    const offer: JobOffer = {
+      id: uid("off"),
+      side: input.side,
+      amountMajor: input.amountMajor,
+      amountMinor: toMinorUnits(input.amountMajor, job.currency),
+      currency: job.currency,
+      createdAt: nowIso(),
+      offerIndex: job.offers.length + 1,
+    };
+
+    const proBase =
+      input.side === "repair_pro"
+        ? input.amountMajor
+        : job.proBaseMajor ?? lastPro?.amountMajor ?? null;
+
+    const next: JobRecord = {
+      ...job,
+      // Negotiation owns the row — never re-write stale pairing stages.
+      pairingStage: null,
+      pairingDeadline: null,
+      offers: [...job.offers, offer],
+      proBaseMajor: proBase,
+      updatedAt: nowIso(),
+    };
+    const saved = await persistIfUnchanged(next, expectedUpdatedAt);
+    if (!saved) {
+      if (attempt === 0) continue;
+      return {
+        error: "Price updated by the other party. Refresh and try again.",
+      };
     }
+    await notifyOfferPlaced(saved, offer);
+    return { job: saved };
   }
-
-  const gate = canPlaceOffer({
-    status: job.status,
-    offerCount: job.offers.length,
-    side: input.side,
-    negotiateEndsAt: job.negotiateEndsAt,
-  });
-  if (!gate.ok) return { error: gate.reason };
-
-  const lastPro = [...job.offers]
-    .reverse()
-    .find((o) => o.side === "repair_pro");
-  const amountCheck = validateOfferAmount({
-    side: input.side,
-    amountMajor: input.amountMajor,
-    proBaseMajor: job.proBaseMajor,
-    lastProOfferMajor: lastPro?.amountMajor ?? null,
-  });
-  if (!amountCheck.ok) return { error: amountCheck.reason };
-
-  const offer: JobOffer = {
-    id: uid("off"),
-    side: input.side,
-    amountMajor: input.amountMajor,
-    amountMinor: toMinorUnits(input.amountMajor, job.currency),
-    currency: job.currency,
-    createdAt: nowIso(),
-    offerIndex: job.offers.length + 1,
-  };
-
-  const proBase =
-    input.side === "repair_pro"
-      ? input.amountMajor
-      : job.proBaseMajor ?? lastPro?.amountMajor ?? null;
-
-  const next: JobRecord = {
-    ...job,
-    offers: [...job.offers, offer],
-    proBaseMajor: proBase,
-    updatedAt: nowIso(),
-  };
-  await persist(next);
-  return { job: next };
+  return { error: "Could not place offer. Try again." };
 }
 
 export async function acceptOffer(input: {
@@ -2781,35 +3057,65 @@ export async function acceptOffer(input: {
   by: "motorist" | "repair_pro";
   actorId: string;
 }): Promise<{ job: JobRecord } | { error: string }> {
-  const job = await getJob(input.jobId);
-  if (!job) return { error: "Job not found" };
-  if (job.offers.length === 0) {
-    return { error: "No offer to accept yet." };
-  }
-  const last = job.offers[job.offers.length - 1];
-  // Accepting party must be the other side
-  if (last.side === input.by) {
-    return { error: "You cannot accept your own offer. Wait for a counter." };
-  }
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const job = await getJob(input.jobId);
+    if (!job) return { error: "Job not found" };
+    if (job.status !== "negotiating") {
+      return { error: "Negotiation is closed." };
+    }
+    if (job.offers.length === 0) {
+      return { error: "No offer to accept yet." };
+    }
+    const last = job.offers[job.offers.length - 1];
+    // Accepting party must be the other side
+    if (last.side === input.by) {
+      return { error: "You cannot accept your own offer. Wait for a counter." };
+    }
 
-  const agreedMajor = last.amountMajor;
-  const amountMinor = last.amountMinor;
-  const split = splitMinor(amountMinor);
+    let nextStatus: JobFlowStatus;
+    try {
+      nextStatus = assertTransition(job.status, {
+        type: "ACCEPT_OFFER",
+        by: input.by,
+      });
+    } catch (e) {
+      return {
+        error: e instanceof Error ? e.message : "Cannot accept offer now",
+      };
+    }
 
-  let updated: JobRecord = {
-    ...job,
-    agreedMajor,
-    amountMinor,
-    platformFeeMinor: split.platformFeeMinor,
-    proPayoutMinor: split.proPayoutMinor,
-    updatedAt: nowIso(),
-  };
-  updated = await applyEvent(
-    updated,
-    { type: "ACCEPT_OFFER", by: input.by },
-    input.by
-  );
-  return { job: updated };
+    const expectedUpdatedAt = job.updatedAt;
+    const agreedMajor = last.amountMajor;
+    const amountMinor = last.amountMinor;
+    const split = splitMinor(amountMinor);
+    const ts = nowIso();
+
+    const updated: JobRecord = {
+      ...job,
+      status: nextStatus,
+      pairingStage: null,
+      pairingDeadline: null,
+      agreedMajor,
+      amountMinor,
+      platformFeeMinor: split.platformFeeMinor,
+      proPayoutMinor: split.proPayoutMinor,
+      statusHistory: [
+        ...job.statusHistory,
+        { status: nextStatus, at: ts, by: input.by },
+      ],
+      updatedAt: ts,
+    };
+
+    const saved = await persistIfUnchanged(updated, expectedUpdatedAt);
+    if (!saved) {
+      if (attempt === 0) continue;
+      return {
+        error: "Job changed while accepting. Refresh and try again.",
+      };
+    }
+    return { job: saved };
+  }
+  return { error: "Could not accept offer. Refresh and try again." };
 }
 
 export async function mockPayJob(input: {

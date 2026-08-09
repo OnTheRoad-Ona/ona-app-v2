@@ -64,4 +64,14 @@ export {
   canAutoShowToast,
 } from "@/lib/notifications/toast-timing";
 
+export {
+  isNonStackNotification,
+  isStackableNotification,
+  isChatNotification,
+  isCallNotification,
+  isPaymentNotification,
+  isRequestAcceptNotification,
+  TOAST_MAX_NON_STACK,
+} from "@/lib/notifications/stack-rules";
+
 export { localSampleNotifications } from "@/lib/notifications/sample-local";

@@ -293,5 +293,15 @@
   "menu.needLogin": "Log in to switch between Customer and Repair Pro.",
   "menu.noMotorist": "You don't have a Customer account yet.",
   "menu.noPro": "You don't have a Repair Pro account yet. Finish signup to go Live and receive jobs.",
-  "menu.couldNotSwitch": "Could not switch."
+  "menu.couldNotSwitch": "Could not switch.",
+  "trade.shop": "Shop",
+  "nav.shop": "Shop",
+  "shop.title": "Shop",
+  "shop.searchPlaceholder": "What are you looking for?",
+  "shop.browseByTrade": "Browse by trade",
+  "shop.popular": "Popular",
+  "shop.newArrivals": "New arrivals",
+  "shop.empty": "No products yet. Catalog is loading.",
+  "shop.setupRequired": "Shop is almost ready — catalog database will appear after setup.",
+  "nav.myShop": "My Shop"
 }

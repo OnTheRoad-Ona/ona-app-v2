@@ -41,12 +41,14 @@ function candidates() {
     "ap-southeast-1",
   ];
   for (const r of regions) {
-    list.push(
-      `postgresql://postgres.${REF}:${enc}@aws-0-${r}.pooler.supabase.com:6543/postgres`
-    );
-    list.push(
-      `postgresql://postgres.${REF}:${enc}@aws-0-${r}.pooler.supabase.com:5432/postgres`
-    );
+    for (const p of ["aws-0", "aws-1"]) {
+      list.push(
+        `postgresql://postgres.${REF}:${enc}@${p}-${r}.pooler.supabase.com:6543/postgres`
+      );
+      list.push(
+        `postgresql://postgres.${REF}:${enc}@${p}-${r}.pooler.supabase.com:5432/postgres`
+      );
+    }
   }
   list.push(
     `postgresql://postgres:${enc}@db.${REF}.supabase.co:5432/postgres`
@@ -89,17 +91,43 @@ async function main() {
 
   const client = await connect();
   try {
+    // Migration tracking table: prevents re-applying data-DML migrations
+    // (e.g. 029_reset_all_approvals_neutral) over populated data.
+    await client.query(`
+      create table if not exists public.schema_migrations (
+        filename text primary key,
+        applied_at timestamptz not null default now()
+      )
+    `);
+
     const migDir = resolve(root, "supabase/migrations");
     const files = readdirSync(migDir)
       .filter((f) => f.endsWith(".sql"))
       .sort();
 
+    const { rows: appliedRows } = await client.query(
+      `select filename from public.schema_migrations`
+    );
+    const applied = new Set(appliedRows.map((r) => r.filename));
+    const skipped = files.filter((f) => applied.has(f));
+    if (skipped.length) {
+      console.log(`[db:sync] Skipping ${skipped.length} already-applied migration(s)`);
+    }
+
     for (const f of files) {
+      if (applied.has(f)) continue;
       const sql = readFileSync(resolve(migDir, f), "utf8");
       try {
+        await client.query("begin");
         await client.query(sql);
+        await client.query(
+          `insert into public.schema_migrations (filename) values ($1) on conflict (filename) do nothing`,
+          [f]
+        );
+        await client.query("commit");
         console.log("[db:sync] OK", f);
       } catch (e) {
+        await client.query("rollback");
         console.warn(
           "[db:sync] WARN",
           f,

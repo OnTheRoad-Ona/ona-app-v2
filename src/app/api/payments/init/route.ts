@@ -8,6 +8,10 @@ import {
 } from "@/lib/pricing";
 import { createEscrowPayment } from "@/lib/server/payments/escrow-store";
 import { initCharge } from "@/lib/server/payments/providers";
+import {
+  isSamePerson,
+  type IdentityCheck,
+} from "@/lib/server/payments/self-payment-guard";
 import type { ProService } from "@/lib/types";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
@@ -107,6 +111,53 @@ export async function POST(req: Request) {
         proBankCode = (pro.data?.bank_code as string) || null;
       } catch {
         /* optional */
+      }
+    }
+
+    // Anti self-payment — a Repair Pro must never pay escrow to themselves.
+    // Same name AND same BVN/NIN means both accounts belong to one person.
+    if (isSupabaseAdminConfigured()) {
+      const sb = createServiceSupabase();
+      const [motName, proName, motIdentity, proIdentity] = await Promise.all([
+        sb
+          .from("profiles")
+          .select("full_name")
+          .eq("id", b.motoristId)
+          .maybeSingle(),
+        sb
+          .from("profiles")
+          .select("full_name")
+          .eq("id", b.repairProId)
+          .maybeSingle(),
+        sb
+          .from("motorist_profiles")
+          .select("nin_last4, bvn_last4")
+          .eq("user_id", b.motoristId)
+          .maybeSingle(),
+        sb
+          .from("repair_pro_profiles")
+          .select("nin_last4, bvn_last4")
+          .eq("user_id", b.repairProId)
+          .maybeSingle(),
+      ]);
+
+      const payerIdentity: IdentityCheck = {
+        fullName: (motName.data?.full_name as string | undefined) || "",
+        ninLast4: (motIdentity.data?.nin_last4 as string | undefined) || null,
+        bvnLast4: (motIdentity.data?.bvn_last4 as string | undefined) || null,
+      };
+      const recieverIdentity: IdentityCheck = {
+        fullName: (proName.data?.full_name as string | undefined) || "",
+        ninLast4: (proIdentity.data?.nin_last4 as string | undefined) || null,
+        bvnLast4: (proIdentity.data?.bvn_last4 as string | undefined) || null,
+      };
+
+      if (isSamePerson(payerIdentity, recieverIdentity)) {
+        return apiFail(
+          "You cannot send money to yourself. Pick a different Repair Pro.",
+          403,
+          "self_payment_blocked"
+        );
       }
     }
 

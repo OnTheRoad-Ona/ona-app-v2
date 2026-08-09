@@ -9,19 +9,22 @@
 
 import { useCallback, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
-import { GoogleMap, Marker, useJsApiLoader } from "@react-google-maps/api";
-import {
-  getGoogleMapsApiKey,
-  GOOGLE_MAPS_LIBRARIES,
-  GOOGLE_MAPS_LOADER_ID,
-  shouldUseLiveMaps,
-} from "@/lib/google-maps";
+import { GoogleMap, Marker } from "@react-google-maps/api";
+import { shouldUseLiveMaps } from "@/lib/google-maps";
+import { useOnaGoogleMaps } from "@/lib/google-maps-loader";
 import {
   USER_MAP_PIN_ANCHOR,
   USER_MAP_PIN_SIZE,
   userMapPinUrl,
 } from "@/lib/map-user-pin";
-import { mapThemeForApp } from "@/lib/map-theme";
+import { MapTintOverlay } from "@/components/map/map-tint-overlay";
+import {
+  MAP_STYLE_REVISION,
+  applyOnaMapTheme,
+  mapContainerStyle,
+  mapRenderOptions,
+  mapThemeForApp,
+} from "@/lib/map-theme";
 import type { JobRecord } from "@/lib/jobs/types";
 
 const OsmFallback = dynamic(
@@ -44,15 +47,19 @@ function GoogleSearchingMap({
     [job.motoristLocation]
   );
 
-  const { isLoaded } = useJsApiLoader({
-    id: GOOGLE_MAPS_LOADER_ID,
-    googleMapsApiKey: getGoogleMapsApiKey(),
-    libraries: GOOGLE_MAPS_LIBRARIES,
-  });
+  const { isLoaded, loadError } = useOnaGoogleMaps();
 
-  const onLoad = useCallback((map: google.maps.Map) => {
-    mapRef.current = map;
-  }, []);
+  const onLoad = useCallback(
+    (map: google.maps.Map) => {
+      mapRef.current = map;
+      applyOnaMapTheme(map, isLight);
+    },
+    [isLight]
+  );
+
+  if (loadError) {
+    return <OsmFallback technicians={[]} />;
+  }
 
   if (!isLoaded) {
     return (
@@ -66,13 +73,21 @@ function GoogleSearchingMap({
   }
 
   return (
-    <div className="relative h-full w-full">
+    <div
+      className="relative h-full w-full"
+      data-map-surface
+      data-map-engine="google"
+      data-map-theme={isLight ? "light" : "dark"}
+      data-map-rev={MAP_STYLE_REVISION}
+    >
       <GoogleMap
-        mapContainerStyle={{ width: "100%", height: "100%" }}
+        key={`search-${MAP_STYLE_REVISION}-${isLight ? "light" : "dark"}`}
+        mapContainerStyle={mapContainerStyle(isLight)}
         center={motoristPos}
-        zoom={15}
+        zoom={16}
         onLoad={onLoad}
         options={{
+          ...mapRenderOptions(isLight),
           disableDefaultUI: true,
           zoomControl: true,
           zoomControlOptions: {
@@ -81,9 +96,9 @@ function GoogleSearchingMap({
                 ? google.maps.ControlPosition.RIGHT_BOTTOM
                 : 9,
           },
-          styles: theme.styles,
-          clickableIcons: false,
           gestureHandling: "greedy",
+          minZoom: 12,
+          maxZoom: 19,
         }}
       >
         {/* Motorist pin */}
@@ -104,21 +119,21 @@ function GoogleSearchingMap({
           zIndex={500}
         />
       </GoogleMap>
+      <MapTintOverlay isLight={isLight} />
 
-      {/* Searching radar ring anchored over the pin — InDrive style */}
-      {/* Light app theme → dark green map: green pulse · Dark app theme → red-black map: reddish-brown pulse */}
+      {/* Searching radar — green on light map, soft red on Aug-1 dark red-black map */}
       <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
         <div className="relative h-24 w-24">
           <span
             className="absolute inset-0 animate-ping rounded-full border-2 opacity-60"
             style={{
-              borderColor: isLight ? "#34d399" : "#a8502f",
+              borderColor: isLight ? "#34d399" : "#e8b4b0",
             }}
           />
           <span
             className="absolute inset-3 animate-ping rounded-full border-2 opacity-40 [animation-delay:180ms]"
             style={{
-              borderColor: isLight ? "#34d399" : "#a8502f",
+              borderColor: isLight ? "#34d399" : "#e8b4b0",
             }}
           />
         </div>

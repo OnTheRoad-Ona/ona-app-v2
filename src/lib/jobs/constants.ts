@@ -17,11 +17,36 @@ export const NEGOTIATE_WINDOW_MS = 20 * 60 * 1000;
  */
 export const PAIRING_WINDOW_MS = 66 * 1000;
 /**
+ * Max unique Live pro offers in one customer search wave. After this many
+ * (or sooner if the Live pool is smaller), show Retry search. Not “6 retries”
+ * of the same pro — one offer per pro, up to 6 pros per wave.
+ */
+export const MAX_PAIRING_OFFERS_PER_WAVE = 6;
+
+/**
+ * Customer pairing status line under the timer.
+ * e.g. "1 Mechanic is near you" / "3 Mechanics are near you"
+ */
+export function nearbyProsStatusLine(
+  count: number,
+  tradeLabel: string
+): string | null {
+  if (count <= 0) return null;
+  const base =
+    String(tradeLabel || "pro")
+      .replace(/\s*Pro$/i, "")
+      .trim() || "pro";
+  if (count === 1) return `1 ${base} is near you`;
+  const plural = /s$/i.test(base) ? base : `${base}s`;
+  return `${count} ${plural} are near you`;
+}
+/**
  * After a payment session starts (Pay / Pay again), customer has this long
  * to complete Flutterwave. Only a full unpaid window counts as one attempt.
  */
-export const PAYMENT_WINDOW_MS = 20 * 60 * 1000;
-/** Max unpaid 20‑min windows before system cancels the booking */
+/** Open pay session length (11 minutes) — UI must match this, not a stale “20 min”. */
+export const PAYMENT_WINDOW_MS = 11 * 60 * 1000;
+/** Max unpaid payment windows before system cancels the booking */
 export const MAX_PAYMENT_ATTEMPTS = 3;
 
 /** statusHistory.by markers for pay-to-book lifecycle */
@@ -150,7 +175,7 @@ export function paymentWindowsExpiredCount(job: {
 /**
  * Open pay session = last payment_session_start with no later
  * cancel / window_expired / paid_booked.
- * Closing Flutterwave (SESSION_CANCELLED) ends the session so the next Pay gets a fresh 20 min.
+ * Closing Flutterwave (SESSION_CANCELLED) ends the session so the next Pay gets a fresh payment window.
  */
 export function getOpenPaymentSessionStartMs(job: {
   status?: string;
@@ -212,7 +237,7 @@ export function paymentEndsAtIso(job: {
   return new Date(start + PAYMENT_WINDOW_MS).toISOString();
 }
 
-/** True when an open pay session has passed 20 min unpaid */
+/** True when an open pay session has passed PAYMENT_WINDOW_MS unpaid */
 export function isAgreedPastPaymentDeadline(
   job: {
     status: string;
@@ -352,8 +377,14 @@ export function isPayoutPendingSettlement(job: {
 }
 
 /** Platform / pro split on release */
+/** Ona platform fee share of service charge S (VAT 7.5% is held on FLW separately). */
 export const PLATFORM_FEE_PERCENT = 5;
-export const PRO_PAYOUT_PERCENT = 95;
+/**
+ * @deprecated Misleading name — pro net is 87.5% of S (not 95%).
+ * Prefer PRO_NET_PAYOUT_PERCENT from @/lib/pricing (0.875).
+ * Kept numeric only for legacy readers; do not use for new math.
+ */
+export const PRO_PAYOUT_PERCENT = 87.5;
 
 export const DISPUTE_REASONS: {
   id: DisputeReason;

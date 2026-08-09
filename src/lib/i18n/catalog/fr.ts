@@ -363,4 +363,15 @@ export const FR: MessageDict = {
   "common.customer": "Client",
   "common.repairPro": "Repair Pro",
   "common.codeSent": "Code envoyé. Saisissez-le ci-dessous.",
+  "nav.shop": "Shop",
+  "nav.myShop": "My Shop",
+  "trade.shop": "Shop",
+  "shop.title": "Shop",
+  "shop.searchPlaceholder": "What are you looking for?",
+  "shop.browseByTrade": "Browse by trade",
+  "shop.popular": "Popular",
+  "shop.newArrivals": "New arrivals",
+  "shop.empty": "No products yet. Catalog is loading.",
+  "shop.setupRequired": "Shop is almost ready — catalog database will appear after setup.",
 };
+

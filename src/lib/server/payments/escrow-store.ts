@@ -84,6 +84,125 @@ function rowToEscrow(row: Record<string, unknown>): EscrowPayment {
   };
 }
 
+/**
+ * Supersede every live-but-unpaid payment intent for a request so only the
+ * newest pending session stays actionable. A new charge always supersedes old
+ * drafts (double-submit / pay-again bursts). Never touches money rows
+ * (held / releasing / released / refunded / paid). Idempotent — safe to call
+ * before every insert. Returns how many rows were superseded.
+ */
+export async function supersedePendingPaymentsForRequest(
+  requestId: string,
+  supersededBy?: string | null,
+  reason = "superseded_by_new_payment"
+): Promise<number> {
+  if (!isSupabaseAdminConfigured()) return 0;
+  try {
+    const sb = createServiceSupabase();
+    const { data } = await sb
+      .from("payments")
+      .select("*")
+      .eq("request_id", requestId)
+      .or("escrow_status.eq.pending_payment,status.eq.pending");
+    const rows = (data ?? []) as Record<string, unknown>[];
+    let n = 0;
+    const ts = nowIso();
+    for (const row of rows) {
+      const esc = String(row.escrow_status || "");
+      if (
+        row.paid_at ||
+        row.released_at ||
+        row.refunded_at ||
+        ["held", "release_pending", "pending_settlement", "released", "refunded"].includes(esc)
+      ) {
+        continue;
+      }
+      const prevMeta = (row.meta as Record<string, unknown>) || {};
+      if (esc === "failed" && String(row.status) === "failed" && prevMeta.superseded === true) {
+        continue;
+      }
+      await sb
+        .from("payments")
+        .update({
+          status: "failed",
+          escrow_status: "failed",
+          meta: {
+            ...prevMeta,
+            superseded: true,
+            supersededBy: supersededBy || null,
+            supersededAt: ts,
+            expiredAt: ts,
+            expiredReason: reason,
+          },
+          updated_at: ts,
+        })
+        .eq("id", String(row.id));
+      n += 1;
+    }
+    return n;
+  } catch (e) {
+    console.error("supersedePendingPaymentsForRequest", requestId, e);
+    return 0;
+  }
+}
+
+/**
+ * Admin-facing self-heal: mark unpaid draft charges whose payment session has
+ * closed as superseded so the Control Center never shows a stuck
+ * "Awaiting payment" for an abandoned bank-transfer VA. Skips anything funded.
+ * A grace period past the session end gives a delayed webhook time to mark a
+ * funded charge held before we expire it.
+ */
+export async function expireStalePendingPayments(
+  now: Date = new Date()
+): Promise<number> {
+  if (!isSupabaseAdminConfigured()) return 0;
+  try {
+    const sb = createServiceSupabase();
+    const { data, error } = await sb
+      .from("payments")
+      .select("id, request_id, meta, created_at")
+      .or("escrow_status.eq.pending_payment,status.eq.pending");
+    if (error) return 0;
+    const rows = (data ?? []) as Record<string, unknown>[];
+    const nowMs = now.getTime();
+    // Funded charges flip to held within minutes; 10 min past the session end
+    // is a safe window before we treat the VA as abandoned.
+    const sessionGraceMs = 10 * 60 * 1000;
+    // Rows recorded before meta carried a session end: expire once old enough
+    // that any real bank transfer would have settled or the VA expired.
+    const noSessionFallbackMs = 45 * 60 * 1000;
+    const stale = new Set<string>();
+    for (const row of rows) {
+      if (String(row.escrow_status || "") !== "pending_payment") continue;
+      const meta = (row.meta as Record<string, unknown>) || {};
+      const sessionEnds = String(meta.paymentSessionEndsAt || "");
+      const createdMs = Date.parse(String(row.created_at || "")) || 0;
+      let expiredMs = 0;
+      if (sessionEnds) {
+        expiredMs = Date.parse(sessionEnds) + sessionGraceMs;
+      } else if (createdMs) {
+        expiredMs = createdMs + noSessionFallbackMs;
+      }
+      if (expiredMs && nowMs > expiredMs) {
+        stale.add(String(row.request_id || row.id || ""));
+      }
+    }
+    let n = 0;
+    for (const requestId of stale) {
+      n += await supersedePendingPaymentsForRequest(
+        requestId,
+        null,
+        "payment_window_expired_admin"
+      );
+    }
+    return n;
+  } catch (e) {
+    console.error("expireStalePendingPayments", e);
+    return 0;
+  }
+}
+
 export async function createEscrowPayment(input: {
   requestId: string;
   motoristId: string;
@@ -123,6 +242,12 @@ export async function createEscrowPayment(input: {
 
   if (isSupabaseAdminConfigured()) {
     try {
+      // A fresh intent supersedes any older unpaid drafts (race-safe: even
+      // concurrent double-submits converge — last writer wins).
+      await supersedePendingPaymentsForRequest(
+        input.requestId,
+        input.providerRef
+      );
       const sb = createServiceSupabase();
       const { data, error } = await sb
         .from("payments")

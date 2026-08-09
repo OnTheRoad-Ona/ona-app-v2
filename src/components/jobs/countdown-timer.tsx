@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NEGOTIATE_WINDOW_MS } from "@/lib/jobs/constants";
+import { serverNow } from "@/lib/jobs/server-clock";
 import { cn } from "@/lib/utils";
 
 export function CountdownTimer({
@@ -22,36 +23,57 @@ export function CountdownTimer({
   /** Ring diameter in px */
   size?: number;
 }) {
+  // Keep the latest onExpire in a ref so the interval below only re-arms when
+  // endsAt actually changes — parent re-renders (job polling every few seconds)
+  // used to create a new onExpire each render and restart the interval every
+  // time. Interval churn is invisible for the countdown value, but it is wasted
+  // work and restarts the "fired" guard on every poll.
+  const onExpireRef = useRef(onExpire);
+  useEffect(() => {
+    onExpireRef.current = onExpire;
+  });
+
   const [left, setLeft] = useState(() =>
-    Math.max(0, new Date(endsAt).getTime() - Date.now())
+    Math.max(0, new Date(endsAt).getTime() - serverNow())
   );
 
   useEffect(() => {
     let fired = false;
     const tick = () => {
-      const ms = Math.max(0, new Date(endsAt).getTime() - Date.now());
+      const ms = Math.max(0, new Date(endsAt).getTime() - serverNow());
       setLeft(ms);
       if (ms <= 0 && !fired) {
         fired = true;
-        onExpire?.();
+        onExpireRef.current?.();
       }
     };
     tick();
-    const id = window.setInterval(tick, 250);
+    // Seconds-granularity display — 1s tick is plenty and costs ~25% the
+    // renders of a 250ms interval (matters on the 6h auto-release screen).
+    const id = window.setInterval(tick, 1000);
     return () => window.clearInterval(id);
-  }, [endsAt, onExpire]);
+  }, [endsAt]);
 
   const totalSec = Math.floor(left / 1000);
   const h = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;
-  // Show HH:MM:SS for windows ≥ 1h (e.g. 6h auto-release); else MM:SS
-  const timeLabel =
-    h > 0
+  /**
+   * Pairing is 66s — show "66s"… not "01:06" (reads as 1 minute).
+   * Short windows ≤ 99s always display remaining seconds only.
+   */
+  const shortSecondsOnly = totalMs > 0 && totalMs <= 99_000;
+  const timeLabel = shortSecondsOnly
+    ? `${totalSec}s`
+    : h > 0
       ? `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
       : `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  // Last hour red for multi-hour windows; last minute for short (e.g. 20 min) windows
-  const urgent = h > 0 ? totalSec <= 3600 : totalSec <= 60;
+  // Last hour red for multi-hour windows; last 15s for short pairing; last min for negotiate
+  const urgent = shortSecondsOnly
+    ? totalSec <= 15
+    : h > 0
+      ? totalSec <= 3600
+      : totalSec <= 60;
   const denom = totalMs > 0 ? totalMs : NEGOTIATE_WINDOW_MS;
   const pct = Math.min(100, Math.max(0, (left / denom) * 100));
 

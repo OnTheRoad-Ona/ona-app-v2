@@ -39,6 +39,8 @@ export function isSharedAppPath(pathname: string): boolean {
   if (pathname.startsWith("/artisan")) return true;
   if (pathname.startsWith("/logout")) return true;
   if (pathname.startsWith("/wallet")) return true;
+  // ONA Shop — customers + repair pros are buyers
+  if (pathname.startsWith("/shop")) return true;
   return false;
 }
 

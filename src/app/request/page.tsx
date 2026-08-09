@@ -30,7 +30,7 @@ import { useApp } from "@/lib/store";
 import type { ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const MAX_PHOTOS = 6;
+const MAX_PHOTOS = 4;
 
 function RequestInner() {
   const router = useRouter();
@@ -45,6 +45,7 @@ function RequestInner() {
     backendUserId,
     helpingSomeoneElse,
     helpingSomeoneLabel,
+    radiusKm,
   } = useApp();
   const isLight = theme === "light";
   const fileRef = useRef<HTMLInputElement>(null);
@@ -269,6 +270,7 @@ function RequestInner() {
           : location.label,
         lat: location.coordinates.lat,
         lng: location.coordinates.lng,
+        radiusKm,
       });
     } catch {
       setBusy(false);

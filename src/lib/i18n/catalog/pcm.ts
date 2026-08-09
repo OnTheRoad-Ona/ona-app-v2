@@ -363,4 +363,15 @@ export const PCM: MessageDict = {
   "common.customer": "Customer",
   "common.repairPro": "Repair Pro",
   "common.codeSent": "Code don send. Enter am below.",
+  "nav.shop": "Shop",
+  "nav.myShop": "My Shop",
+  "trade.shop": "Shop",
+  "shop.title": "Shop",
+  "shop.searchPlaceholder": "What are you looking for?",
+  "shop.browseByTrade": "Browse by trade",
+  "shop.popular": "Popular",
+  "shop.newArrivals": "New arrivals",
+  "shop.empty": "No products yet. Catalog is loading.",
+  "shop.setupRequired": "Shop is almost ready — catalog database will appear after setup.",
 };
+

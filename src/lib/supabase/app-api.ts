@@ -29,6 +29,7 @@ import type {
   RequestStatus,
 } from "@/lib/types";
 import { isProService } from "@/lib/services";
+import { isSyntheticAccount } from "@/lib/server/synthetic-accounts";
 
 export { isAppBackendOnline };
 export type { MessageRow };
@@ -1138,6 +1139,15 @@ export async function backendFetchPros(userCoords: {
       }
       const profile = byId.get(pro.user_id);
       if (!profile || profile.role === "motorist") return false;
+      // Never surface demo/audit pros to real customers (client fallback feed)
+      if (
+        isSyntheticAccount({
+          businessName: pro.business_name,
+          fullName: profile.full_name,
+        })
+      ) {
+        return false;
+      }
       return true;
     })
     .map((pro) =>
@@ -1393,7 +1403,10 @@ export async function backendFetchJobsForUser(
     ascending: false,
   });
   if (role === "motorist") q = q.eq("motorist_id", userId);
-  else q = q.or(`repair_pro_id.eq.${userId},status.in.(requested,matched)`);
+  // Pros only ever see jobs assigned to them. The old `status.in.(requested,matched)`
+  // broad clause made EVERY open job visible to every pro — leaking another
+  // pro's accepted jobs into the store / Orders desk (account isolation bug).
+  else q = q.eq("repair_pro_id", userId);
 
   const { data, error } = await q.limit(30);
   if (error || !data) return [];
@@ -1712,54 +1725,94 @@ export function backendSubscribeJobs(
   };
 }
 
+export type ProPresenceChangeReason = "presence" | "heartbeat";
+
 /**
- * Pros Realtime — throttled so GPS heartbeats don't trigger re-fetches.
- * Only fires when is_online flips (goes Live or Away).
+ * Pros Live presence Realtime for the customer marketplace.
+ *
+ * Subscribes to `pro_presence` (public, non-sensitive). The old
+ * `repair_pro_profiles` channel never delivered other pros' rows to motorists
+ * because RLS is own-row-only — so Live never appeared without a full refresh.
+ *
+ * - Live/Away flips → immediate `presence` callback (no 60s throttle)
+ * - GPS heartbeats → `heartbeat` at most ~every 25s
  */
 export function backendSubscribePros(
-  onChange: () => void
+  onChange: (reason?: ProPresenceChangeReason) => void
 ): (() => void) | null {
   if (typeof window === "undefined") return null;
   const sb = getAppSupabase();
   if (!sb) return null;
 
-  let lastFire = 0;
+  let lastPresenceFire = 0;
+  let lastHeartbeatFire = 0;
 
+  type PresenceRow = {
+    user_id?: string;
+    is_online?: boolean;
+    lat?: number | null;
+    lng?: number | null;
+    location_updated_at?: string | null;
+  };
+
+  const handle = (payload: {
+    eventType?: string;
+    new?: PresenceRow;
+    old?: PresenceRow;
+  }) => {
+    const neu = payload.new;
+    const old = payload.old;
+    if (!neu && payload.eventType !== "DELETE") return;
+
+    const onlineNow = Boolean(neu?.is_online);
+    const onlineWas =
+      old && typeof old.is_online === "boolean" ? old.is_online : null;
+    const flipped =
+      payload.eventType === "INSERT" ||
+      payload.eventType === "DELETE" ||
+      onlineWas === null ||
+      onlineWas !== onlineNow;
+
+    const now = Date.now();
+    if (flipped) {
+      // Coalesce double Live events within 400ms, never block for 60s
+      if (now - lastPresenceFire < 400) return;
+      lastPresenceFire = now;
+      onChange("presence");
+      return;
+    }
+
+    // Location/heartbeat only — keep map pins fresh without hammering /api/pros
+    if (now - lastHeartbeatFire < 25_000) return;
+    lastHeartbeatFire = now;
+    onChange("heartbeat");
+  };
+
+  const channelName = `pros-presence:${Math.random().toString(36).slice(2, 8)}`;
   const sub = sb
-    .channel(`pros-live:${Math.random().toString(36).slice(2, 8)}`)
+    .channel(channelName)
     .on(
       "postgres_changes",
       {
-        event: "UPDATE",
+        event: "*",
         schema: "public",
-        table: "repair_pro_profiles",
-        filter: `is_online=eq.true`,
+        table: "pro_presence",
       },
-      () => {
-        const now = Date.now();
-        if (now - lastFire < 60_000) return;
-        lastFire = now;
-        onChange();
+      (payload) => {
+        handle({
+          eventType: payload.eventType,
+          new: (payload.new || undefined) as PresenceRow | undefined,
+          old: (payload.old || undefined) as PresenceRow | undefined,
+        });
       }
     )
-    .on(
-      "postgres_changes",
-      {
-        event: "UPDATE",
-        schema: "public",
-        table: "repair_pro_profiles",
-        filter: `is_online=eq.false`,
-      },
-      () => {
-        const now = Date.now();
-        if (now - lastFire < 60_000) return;
-        lastFire = now;
-        onChange();
+    .subscribe((status) => {
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+        console.warn("[ona] pro_presence Realtime:", status);
       }
-    )
-    .subscribe();
+    });
 
   return () => {
-    sb.removeChannel(sub);
+    void sb.removeChannel(sub);
   };
 }

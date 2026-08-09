@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { protectMotoristClientPatch } from "@/lib/server/identity/protect-approval";
 import {
   getSupabaseAnonKey,
   getSupabaseUrl,
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * Customer submits full government ID package for Tier 2 admin review.
- * Stores numbers, both photos, country, kind — everything care needs to approve.
+ * Care-approved T2 is sticky — re-submit cannot demote approval.
  */
 const bodySchema = z.object({
   access_token: z.string().min(10),
@@ -35,7 +36,6 @@ function last4Digits(raw: string): string | null {
 
 function capPhoto(url: string | null | undefined): string | null {
   if (!url) return null;
-  // ~1.5MB text cap for Postgres row comfort
   if (url.length > 1_500_000) return null;
   return url;
 }
@@ -82,7 +82,6 @@ export async function POST(req: Request) {
 
     const admin = createServiceSupabase();
 
-    // Snapshot account profile for admin review (name/phone/city)
     const { data: profile } = await admin
       .from("profiles")
       .select("full_name, email, phone, city, area, created_at")
@@ -92,7 +91,7 @@ export async function POST(req: Request) {
     const { data: existingMot } = await admin
       .from("motorist_profiles")
       .select(
-        "user_id, vehicle_make, vehicle_model, vehicle_year, plate_number, vehicles, phone_verified, first_service_at"
+        "user_id, vehicle_make, vehicle_model, vehicle_year, plate_number, vehicles, phone_verified, first_service_at, identity_review_status, identity_verified_at, nin_verified, bvn_verified, identity_rejection_reason"
       )
       .eq("user_id", userId)
       .maybeSingle();
@@ -111,7 +110,6 @@ export async function POST(req: Request) {
       gov_id_kind: parsed.data.govIdKind || null,
       gov_id_front_url: front,
       gov_id_back_url: back,
-      // Full numbers for care review (also mirrored to encrypted columns)
       gov_id_number: primary,
       bank_id_number: bank || null,
       nin_encrypted: primary,
@@ -150,34 +148,45 @@ export async function POST(req: Request) {
       updated_at: now,
     };
 
+    const protectedApply = protectMotoristClientPatch(existingMot, payload, {
+      identityRejectionReason: existingMot?.identity_rejection_reason
+        ? String(existingMot.identity_rejection_reason)
+        : null,
+    });
+    const finalPayload = protectedApply.patch;
+
     if (existingMot?.user_id) {
       const { error } = await admin
         .from("motorist_profiles")
-        .update(payload)
+        .update(finalPayload)
         .eq("user_id", userId);
       if (error) {
-        // Retry without newer columns if migration lag
         if (
           error.message.includes("gov_id_number") ||
           error.message.includes("identity_country") ||
           error.message.includes("review_checklist")
         ) {
-          const slim = {
+          const slim: Record<string, unknown> = {
             nin_last4: ninLast4,
             bvn_last4: bvnLast4,
-            nin_verified: false,
-            bvn_verified: false,
-            identity_verified_at: null,
-            identity_review_status: "submitted",
-            identity_submitted_at: now,
             gov_id_kind: parsed.data.govIdKind || null,
             gov_id_front_url: front,
             gov_id_back_url: back,
             nin_encrypted: primary,
             bvn_encrypted: bank || null,
-            gov_id_meta: payload.gov_id_meta,
+            gov_id_meta: finalPayload.gov_id_meta,
             updated_at: now,
           };
+          if (finalPayload.identity_review_status)
+            slim.identity_review_status = finalPayload.identity_review_status;
+          if (finalPayload.identity_verified_at != null)
+            slim.identity_verified_at = finalPayload.identity_verified_at;
+          if (finalPayload.nin_verified != null)
+            slim.nin_verified = finalPayload.nin_verified;
+          if (finalPayload.bvn_verified != null)
+            slim.bvn_verified = finalPayload.bvn_verified;
+          if (finalPayload.identity_submitted_at)
+            slim.identity_submitted_at = finalPayload.identity_submitted_at;
           const { error: e2 } = await admin
             .from("motorist_profiles")
             .update(slim)
@@ -190,13 +199,11 @@ export async function POST(req: Request) {
     } else {
       const { error } = await admin.from("motorist_profiles").insert({
         user_id: userId,
-        ...payload,
+        ...finalPayload,
       });
       if (error) return apiFail(error.message, 500);
     }
 
-    // Signup/verification-time duplicate detection: if this ID matches another
-    // (non-deleted) account, queue the pair for admin review.
     try {
       const { detectMergeCandidatesForUser } = await import(
         "@/lib/server/identity/identity-sync"
@@ -210,8 +217,11 @@ export async function POST(req: Request) {
     }
 
     return apiOk({
-      status: "submitted",
-      message: "ID submitted for admin / customer care review.",
+      status: protectedApply.locked ? "approved_preserved" : "submitted",
+      approvalLocked: protectedApply.locked,
+      message: protectedApply.locked
+        ? "ID details updated. Care approval remains in place."
+        : "ID submitted for admin / customer care review.",
       submittedAt: now,
       stored: {
         hasFront: Boolean(front),

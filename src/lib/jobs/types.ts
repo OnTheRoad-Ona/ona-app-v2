@@ -196,6 +196,7 @@ export type JobRecord = {
   assignmentStatus?: string | null;
   chosenProId?: string | null;
   pairingRadiusKm?: number | null;
+  radiusKm?: number | null;
 };
 
 export type CreateJobInput = {
@@ -215,4 +216,6 @@ export type CreateJobInput = {
   proBaseMajor?: number | null;
   locationLabel: string;
   motoristLocation: Coordinates;
+  /** Customer's chosen search radius (0–10 km slider); caps pairing expansion */
+  radiusKm?: number | null;
 };

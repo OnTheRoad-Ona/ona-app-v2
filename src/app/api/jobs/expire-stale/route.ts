@@ -23,14 +23,19 @@ let lastPairingSweepAt = 0;
  * Local/dev without secret: open only when NODE_ENV is not production and not Vercel prod.
  */
 async function authorized(req: Request): Promise<boolean> {
-  const secret =
-    process.env.CRON_SECRET?.trim() ||
-    process.env.JOB_EXPIRE_SECRET?.trim() ||
-    "";
+  const secrets = [
+    process.env.CRON_SECRET?.trim(),
+    process.env.JOB_EXPIRE_SECRET?.trim(),
+    process.env.ONA_CRON_SECRET?.trim(),
+  ].filter((s): s is string => Boolean(s));
   const auth = req.headers.get("authorization") || "";
-  const header = req.headers.get("x-cron-secret") || "";
-  if (secret) {
+  const header =
+    req.headers.get("x-cron-secret") ||
+    req.headers.get("x-job-expire-secret") ||
+    "";
+  for (const secret of secrets) {
     if (auth === `Bearer ${secret}`) return true;
+    if (auth === secret) return true;
     if (header === secret) return true;
   }
 
@@ -50,7 +55,7 @@ async function authorized(req: Request): Promise<boolean> {
   // Fail closed outside local: require secret or user session
   if (isProd) return false;
   // Local dev without secret configured — allow for DX
-  if (!secret) return true;
+  if (secrets.length === 0) return true;
   return false;
 }
 
@@ -122,7 +127,7 @@ async function run(req: Request) {
       pairing: pairingResult,
       payoutRetry,
       rule:
-        "Agreed unpaid: payment details expire after 20 min; Booked not completed within 6h: cancel + refund; Completed 6h: auto-release pro 87.5%; PENDING_SETTLEMENT: auto-retry when FLW Available is enough",
+        "Agreed unpaid: payment details expire after 11 min; Booked not completed within 6h: cancel + refund; Completed 6h: auto-release pro 87.5%; PENDING_SETTLEMENT: auto-retry when FLW Available is enough",
     });
   } catch (e) {
     return apiFail(

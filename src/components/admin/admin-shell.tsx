@@ -38,6 +38,7 @@ const NAV_GROUPS: {
       { href: "/admin/jobs", label: "Live jobs" },
       { href: "/admin/disputes", label: "Disputes & appeals" },
       { href: "/admin/payments/control-center", label: "Payment Control Center" },
+      { href: "/admin/shop", label: "Shop orders & delivery" },
       { href: "/admin/security", label: "Security" },
       { href: "/admin/deletion-requests", label: "Deletion Requests" },
       { href: "/admin/credit-control", label: "Credit Control" },

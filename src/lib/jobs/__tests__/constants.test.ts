@@ -27,6 +27,7 @@ import {
   isPayoutPendingSettlement,
   canOpenDisputeNow,
   isNegotiationTimerArmed,
+  nearbyProsStatusLine,
   PAY_HISTORY,
 } from "@/lib/jobs/constants";
 
@@ -446,5 +447,23 @@ describe("isNegotiationTimerArmed", () => {
   it("returns true when endsAt is within negotiation window", () => {
     const nearFuture = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     expect(isNegotiationTimerArmed({ negotiateEndsAt: nearFuture })).toBe(true);
+  });
+});
+
+describe("nearbyProsStatusLine", () => {
+  it("formats singular and plural", () => {
+    expect(nearbyProsStatusLine(1, "Mechanic")).toBe(
+      "1 Mechanic is near you"
+    );
+    expect(nearbyProsStatusLine(3, "Mechanic")).toBe(
+      "3 Mechanics are near you"
+    );
+    expect(nearbyProsStatusLine(6, "Carpenter")).toBe(
+      "6 Carpenters are near you"
+    );
+  });
+
+  it("returns null when none nearby", () => {
+    expect(nearbyProsStatusLine(0, "Mechanic")).toBeNull();
   });
 });

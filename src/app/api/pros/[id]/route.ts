@@ -7,6 +7,7 @@ import {
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { mapProToTechnician } from "@/lib/supabase/mappers";
+import { isSyntheticAccount } from "@/lib/server/synthetic-accounts";
 import type { ProfileRow, RepairProRow } from "@/lib/supabase/types";
 
 export const runtime = "nodejs";
@@ -76,6 +77,21 @@ export async function GET(
       .maybeSingle();
 
     if (!profile) {
+      return apiFail(
+        "This Repair Pro is Away or not available right now.",
+        404,
+        "pro_offline"
+      );
+    }
+
+    // Never expose a demo/audit pro to a real customer deep-link.
+    if (
+      isSyntheticAccount({
+        email: (profile as ProfileRow).email,
+        fullName: (profile as ProfileRow).full_name,
+        businessName: proRow.business_name,
+      })
+    ) {
       return apiFail(
         "This Repair Pro is Away or not available right now.",
         404,

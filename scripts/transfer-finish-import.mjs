@@ -16,7 +16,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 config({ path: resolve(root, ".env.local") });
 
 const NEW_URL =
-  process.env.NEW_SUPABASE_URL || "https://rvhvzcphzusemwmlffdb.supabase.co";
+  process.env.NEW_SUPABASE_URL || "https://qqdokblnpakbxhthgjqv.supabase.co";
 const NEW_SERVICE =
   process.env.NEW_SUPABASE_SERVICE_ROLE_KEY ||
   "***REMOVED***";
@@ -33,6 +33,7 @@ async function connect(ref, password) {
   const enc = encodeURIComponent(password || "");
   const urls = [
     `postgresql://postgres.${ref}:${enc}@aws-0-eu-west-1.pooler.supabase.com:5432/postgres`,
+    `postgresql://postgres.${ref}:${enc}@aws-1-eu-west-1.pooler.supabase.com:6543/postgres`,
     `postgresql://postgres.${ref}:${enc}@aws-0-eu-west-1.pooler.supabase.com:6543/postgres`,
     `postgresql://postgres:${enc}@db.${ref}.supabase.co:5432/postgres`,
   ];

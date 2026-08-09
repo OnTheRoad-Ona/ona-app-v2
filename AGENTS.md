@@ -25,3 +25,19 @@ Consumer UI is a fixed phone frame (`#ona-phone`). Preserve `h-full min-h-0` fle
 ### After related edits
 
 Run through the smoke list in `docs/ANTI_REGRESSION.md` §7 before considering the task done.
+
+### Pre-merge gate (mandatory, no exceptions)
+
+Before committing **any** change, run all three — a failure in any of them blocks the commit:
+
+```bash
+npm run lint && npm run typecheck && npm run test
+```
+
+- Fix, don't suppress: never disable rules or add `eslint-disable` to make lint pass.
+- One concern per commit (fix the bug OR change the style, not both) so regressions can be cleanly reverted.
+- Any edit to **timer / pairing / payment / clock** logic must keep a single source of truth:
+  - Use the helpers in `src/lib/jobs/deadline.ts` (`windowLeftMs` / `windowStillOpen`, server-clock base).
+  - Never re-derive "past deadline?" with raw `Date.now()` in a screen, list, or popup.
+  - Never hardcode `66`, `20 * 60 * 1000`, or a pay/countdown window — import from `src/lib/jobs/constants.ts`.
+- Deadlines are server-owned: clients only render `pairing_deadline` / `negotiate_ends_at` / `payment_session_ends_at`; the server sweep enforces them.

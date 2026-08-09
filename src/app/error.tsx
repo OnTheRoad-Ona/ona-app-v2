@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  homePathForForbidden,
+  isForbiddenMessage,
+} from "@/lib/navigation";
 
 const UNRECOVERABLE_KEYWORDS = [
   "supabase",
@@ -17,6 +21,27 @@ function isUnrecoverable(msg: string): boolean {
   return UNRECOVERABLE_KEYWORDS.some((k) => msg.toLowerCase().includes(k));
 }
 
+function roleHomeFromStorage(): string {
+  try {
+    const raw = localStorage.getItem("ona-account-type");
+    if (raw === "professional") return homePathForForbidden("professional");
+    if (raw === "motorist" || raw === "customer") {
+      return homePathForForbidden("motorist");
+    }
+  } catch {
+    /* */
+  }
+  // Prefer last path heuristic: /dashboard users → pro home
+  try {
+    if (typeof window !== "undefined" && window.location.pathname.startsWith("/dashboard")) {
+      return "/dashboard";
+    }
+  } catch {
+    /* */
+  }
+  return "/";
+}
+
 export default function AppError({
   error,
   reset,
@@ -26,8 +51,22 @@ export default function AppError({
 }) {
   const router = useRouter();
   const [redirectSec, setRedirectSec] = useState(0);
-  const msg = error?.message ?? "";
-  const unrecoverable = isUnrecoverable(msg);
+  const rawMsg = error?.message ?? "";
+  // Never show full Google Maps loader JSON (includes API key)
+  const msg = rawMsg.includes("Loader must not be called again")
+    ? "Map failed to load. Tap Try again."
+    : rawMsg.replace(
+        /("apiKey"\s*:\s*")[^"]+/gi,
+        '$1[redacted]'
+      );
+  const forbidden = isForbiddenMessage(rawMsg);
+  const unrecoverable = !forbidden && isUnrecoverable(rawMsg);
+
+  // Forbidden → leave immediately for role home (never stick on Forbidden UI)
+  useEffect(() => {
+    if (!forbidden) return;
+    router.replace(roleHomeFromStorage());
+  }, [forbidden, router]);
 
   useEffect(() => {
     if (!unrecoverable) return;
@@ -36,7 +75,7 @@ export default function AppError({
       setRedirectSec((s) => {
         if (s <= 1) {
           clearInterval(t);
-          router.replace("/dashboard");
+          router.replace(roleHomeFromStorage());
           return 0;
         }
         return s - 1;
@@ -44,6 +83,21 @@ export default function AppError({
     }, 1000);
     return () => clearInterval(t);
   }, [unrecoverable, router]);
+
+  if (forbidden) {
+    return (
+      <div
+        className="flex min-h-[100vh] min-h-[100dvh] flex-col items-center justify-center gap-3 bg-[#0a0a0a] px-6 text-center text-white"
+        role="status"
+      >
+        <p className="text-[22px] font-black tracking-tight" aria-label="Ona">
+          <span className="text-[#FF6B35]">O</span>
+          <span className="text-[#C8C9CD]">na</span>
+        </p>
+        <p className="text-[13px] font-medium text-white/60">Opening home…</p>
+      </div>
+    );
+  }
 
   return (
     <div

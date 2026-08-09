@@ -2,15 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { GoogleMap, Marker, useJsApiLoader } from "@react-google-maps/api";
+import { GoogleMap, Marker } from "@react-google-maps/api";
 import { Crosshair, MapPin, Navigation, Building2 } from "lucide-react";
-import {
-  getGoogleMapsApiKey,
-  GOOGLE_MAPS_LIBRARIES,
-  GOOGLE_MAPS_LOADER_ID,
-  reverseGeocodeLatLng,
-  shouldUseLiveMaps,
-} from "@/lib/google-maps";
+import { reverseGeocodeLatLng, shouldUseLiveMaps } from "@/lib/google-maps";
+import { useOnaGoogleMaps } from "@/lib/google-maps-loader";
 import { DEFAULT_USER_LOCATION } from "@/lib/data/technicians";
 import {
   knownPlaceToPick,
@@ -18,7 +13,14 @@ import {
   resolveKnownPlace,
   type KnownPlace,
 } from "@/lib/known-places";
-import { mapThemeForApp } from "@/lib/map-theme";
+import { MapTintOverlay } from "@/components/map/map-tint-overlay";
+import {
+  MAP_STYLE_REVISION,
+  applyOnaMapTheme,
+  mapContainerStyle as onaMapContainerStyle,
+  mapRenderOptions,
+  mapThemeForApp,
+} from "@/lib/map-theme";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -50,7 +52,7 @@ type Props = {
   compact?: boolean;
 };
 
-const mapContainerStyle = { width: "100%", height: "100%" };
+
 
 type GoogleSuggestion = {
   id: string;
@@ -103,25 +105,18 @@ export function LocationPickerMap({
   const isLight = theme === "light";
   const mapTheme = mapThemeForApp(isLight);
   const mapH = compact ? "h-36" : "h-52";
-  const apiKey = getGoogleMapsApiKey();
   const live = shouldUseLiveMaps();
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: GOOGLE_MAPS_LOADER_ID,
-    googleMapsApiKey: live ? apiKey : "disabled",
-    libraries: GOOGLE_MAPS_LIBRARIES,
-  });
+  // Shared loader — never pass a different apiKey than other maps.
+  const { isLoaded, loadError } = useOnaGoogleMaps();
 
   const mapRef = useRef<google.maps.Map | null>(null);
 
-  // Match home/dashboard map when light ↔ dark toggles
+  // Match home map palette + street names when light ↔ dark toggles
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    map.setOptions({
-      styles: mapTheme.styles,
-      backgroundColor: mapTheme.backgroundColor,
-    });
-  }, [mapTheme.styles, mapTheme.backgroundColor]);
+    applyOnaMapTheme(map, isLight);
+  }, [isLight]);
   const [center, setCenter] = useState({
     lat: value?.lat ?? DEFAULT_USER_LOCATION.coordinates.lat,
     lng: value?.lng ?? DEFAULT_USER_LOCATION.coordinates.lng,
@@ -565,21 +560,22 @@ export function LocationPickerMap({
           "relative overflow-hidden rounded-md border border-black/30 shadow-[inset_0_1px_2px_rgba(0,0,0,0.25)]",
           mapH
         )}
+        data-map-surface
+        data-map-engine="google"
+        data-map-theme={isLight ? "light" : "dark"}
+        data-map-rev={MAP_STYLE_REVISION}
         style={{ backgroundColor: mapTheme.backgroundColor }}
       >
         <GoogleMap
-          mapContainerStyle={{
-            ...mapContainerStyle,
+          key={`pick-${MAP_STYLE_REVISION}-${isLight ? "light" : "dark"}`}
+          mapContainerStyle={onaMapContainerStyle(isLight, {
             backgroundColor: mapTheme.backgroundColor,
-          }}
+          })}
           center={center}
-          zoom={15}
+          zoom={16}
           onLoad={(map) => {
             mapRef.current = map;
-            map.setOptions({
-              styles: mapTheme.styles,
-              backgroundColor: mapTheme.backgroundColor,
-            });
+            applyOnaMapTheme(map, isLight);
           }}
           onClick={(e) => {
             const lat = e.latLng?.lat();
@@ -588,14 +584,14 @@ export function LocationPickerMap({
             placePin(lat, lng, true);
           }}
           options={{
+            ...mapRenderOptions(isLight),
             disableDefaultUI: true,
             zoomControl: true,
             mapTypeControl: false,
             streetViewControl: false,
             fullscreenControl: false,
-            clickableIcons: false,
-            styles: mapTheme.styles,
-            backgroundColor: mapTheme.backgroundColor,
+            minZoom: 12,
+            maxZoom: 19,
           }}
         >
           <Marker
@@ -610,6 +606,7 @@ export function LocationPickerMap({
             }}
           />
         </GoogleMap>
+        <MapTintOverlay isLight={isLight} />
 
         <button
           type="button"

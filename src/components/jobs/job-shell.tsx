@@ -21,6 +21,8 @@ export function JobShell({
   fillBody = false,
   /** Override the back icon (default: ArrowLeft) */
   backIcon,
+  /** Right-side slot (e.g. ☰ menu) rendered opposite the back button */
+  rightSlot,
 }: {
   isLight: boolean;
   title: string;
@@ -33,6 +35,7 @@ export function JobShell({
   compactHeader?: boolean;
   fillBody?: boolean;
   backIcon?: ReactNode;
+  rightSlot?: ReactNode;
 }) {
   const stage = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const ink = isLight ? "text-slate-900" : "text-white";
@@ -80,6 +83,7 @@ export function JobShell({
             </p>
           )}
         </div>
+        {rightSlot}
       </header>
 
       <div

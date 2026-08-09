@@ -51,17 +51,45 @@ const nextConfig: NextConfig = {
   compress: true,
   productionBrowserSourceMaps: false,
   poweredByHeader: false,
+  // Smaller client bundles — tree-shake heavy icon/UI packages (no UI change)
+  experimental: {
+    optimizePackageImports: ["lucide-react", "@radix-ui/react-avatar", "@radix-ui/react-dialog"],
+  },
   images: {
+    formats: ["image/avif", "image/webp"],
     remotePatterns: [
       {
         protocol: "https",
         hostname: "images.unsplash.com",
+      },
+      {
+        protocol: "https",
+        hostname: "*.supabase.co",
       },
     ],
   },
   // Cache static assets aggressively on Vercel CDN
   async headers() {
     return [
+      // App shell / HTML must revalidate so phones pick up new JS after deploys
+      {
+        source: "/",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-store, no-cache, must-revalidate, max-age=0",
+          },
+        ],
+      },
+      {
+        source: "/((?!_next/static|_next/image|media|brand|technicians|favicon.ico|api).*)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-store, no-cache, must-revalidate, max-age=0",
+          },
+        ],
+      },
       {
         source: "/media/:path*",
         headers: [
@@ -77,6 +105,34 @@ const nextConfig: NextConfig = {
           {
             key: "Cache-Control",
             value: "public, max-age=86400, stale-while-revalidate=604800",
+          },
+        ],
+      },
+      {
+        source: "/technicians/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, stale-while-revalidate=604800",
+          },
+        ],
+      },
+      {
+        source: "/favicon.ico",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, stale-while-revalidate=604800",
+          },
+        ],
+      },
+      // Immutable hashed Next assets — max CDN hit, less mobile re-download
+      {
+        source: "/_next/static/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
           },
         ],
       },

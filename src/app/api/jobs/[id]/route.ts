@@ -14,7 +14,7 @@ async function loadJobForUser(req: Request, id: string, bodyToken?: string | nul
   if (!isJobParty(auth.userId, job)) {
     return apiFail("Forbidden", 403, "forbidden");
   }
-  return apiOk({ job });
+  return apiOk({ job, serverNow: new Date().toISOString() });
 }
 
 export async function GET(

@@ -9,19 +9,26 @@ import {
   type TouchEvent as ReactTouchEvent,
   type WheelEvent as ReactWheelEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   Loader2,
+  Menu,
   Minimize2,
   Navigation,
   ShieldAlert,
   Star,
   Wrench,
+  X,
 } from "lucide-react";
 import { useInAppCall } from "@/components/call/in-app-call";
+import { AppMenu } from "@/components/layout/app-menu";
+import { useNotificationsOptional } from "@/components/notifications/notification-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CountdownTimer } from "@/components/jobs/countdown-timer";
 import { LiveJobTrackMap } from "@/components/jobs/live-job-track-map";
@@ -50,13 +57,14 @@ import {
   apiPlaceOffer,
   apiPushTripLocation,
   apiRateJob,
+  apiRetrySearch,
   apiTransition,
   getCurrentPosition,
   processPendingOffers,
 } from "@/lib/jobs/client";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { SwipeToRelease } from "@/components/jobs/motorist-release-pay-gate";
-import { apiCreateReview } from "@/lib/reviews/client";
+
 import {
   canOpenDisputeNow,
   COMPLETED_AUTO_RELEASE_WINDOW_MS,
@@ -65,6 +73,7 @@ import {
   isPayoutPendingSettlement,
   MAX_OFFER_DIGITS,
   MIN_OFFER_AMOUNT_MAJOR,
+  nearbyProsStatusLine,
   PAIRING_WINDOW_MS,
   paymentEndsAtIso,
   PRO_TRIP_STATUS_COPY,
@@ -73,6 +82,7 @@ import {
 } from "@/lib/jobs/constants";
 import { negotiationUiStatus } from "@/lib/jobs/state-machine";
 import type { DisputeReason, JobRecord } from "@/lib/jobs/types";
+import { logPayGate } from "@/lib/pay-telemetry";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { tradeIconDataUrl } from "@/lib/map-trade-icons";
 import {
@@ -81,6 +91,15 @@ import {
   fromMinorUnits,
   LABOUR_SPLIT_LINE_PRO,
 } from "@/lib/pricing";
+import {
+  clearJobShown,
+  isProPanelOnlyPairingStatus,
+  requestForceIncomingPanel,
+} from "@/lib/jobs/incoming-popup-timing";
+import {
+  homePathForForbidden,
+  isForbiddenMessage,
+} from "@/lib/navigation";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import type { ServiceRequest } from "@/lib/types";
@@ -96,6 +115,270 @@ const CANCEL_REASONS = [
   "Emergency",
   "Other",
 ] as const;
+
+/** ☰ header button (same look as the Dashboard) portaled into the phone shell.
+ * Self-contained so opening the menu never re-renders the whole job screen. */
+function HeaderMenu({ isLight }: { isLight: boolean }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [mount, setMount] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setMount(document.getElementById("ona-phone"));
+  }, []);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setMenuOpen(true)}
+        className={cn(
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border-0",
+          isLight ? "bg-[#c8c9cd]" : "bg-black"
+        )}
+        style={{ backgroundColor: isLight ? "#c8c9cd" : "#000000" }}
+        aria-label="Open menu"
+        aria-expanded={menuOpen}
+      >
+        <Menu className="h-[18px] w-[18px]" strokeWidth={2.35} style={{ color: "#FF6B35" }} />
+      </button>
+      {mount &&
+        createPortal(
+          <AppMenu open={menuOpen} onClose={() => setMenuOpen(false)} />,
+          mount
+        )}
+    </>
+  );
+}
+
+/** Customer photos in a single non-scrolling row that shrinks to fit.
+ *  Tapping a thumbnail opens a full-screen lightbox (arrows + swipe + counter),
+ *  matching the incoming-job panel preview.
+ *  When no job photos: show customer profile picture in the placeholder slot. */
+function PhotoStrip({
+  photos,
+  isLight,
+  profilePhotoUrl,
+  profileName,
+}: {
+  photos: { id: string; url: string; name?: string | null }[];
+  isLight: boolean;
+  /** Customer profile picture — fills the image placeholder when no job photos */
+  profilePhotoUrl?: string | null;
+  profileName?: string | null;
+}) {
+  const [lightbox, setLightbox] = useState<{
+    photos: { id: string; url: string; name?: string | null }[];
+    index: number;
+  } | null>(null);
+  const touchX = useRef<number | null>(null);
+
+  const displayPhotos =
+    photos.length > 0
+      ? photos
+      : profilePhotoUrl?.trim()
+        ? [
+            {
+              id: "customer-profile",
+              url: profilePhotoUrl.trim(),
+              name: profileName?.trim() || "Customer",
+            },
+          ]
+        : [];
+
+  if (!displayPhotos.length) {
+    // Empty visual placeholder (initials) when no photo at all
+    return (
+      <div className="mt-1 flex items-stretch gap-1.5 overflow-hidden">
+        <div
+          className={cn(
+            "flex h-20 w-20 shrink-0 items-center justify-center rounded-lg text-[18px] font-black",
+            isLight ? "bg-black/10 text-slate-700" : "bg-white/12 text-white"
+          )}
+          aria-label="Customer photo placeholder"
+        >
+          {avatarInitials(profileName, "CU")}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="mt-1 flex items-stretch gap-1.5 overflow-hidden">
+        {displayPhotos.map((p, i) => (
+          <button
+            key={p.id}
+            type="button"
+            aria-label={p.name || "View photo"}
+            onClick={() => setLightbox({ photos: displayPhotos, index: i })}
+            className="min-w-0 flex-1 basis-0 overflow-hidden rounded-lg border-0 p-0"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={p.url}
+              alt={p.name || "Job photo"}
+              className="h-20 w-full object-cover"
+            />
+          </button>
+        ))}
+      </div>
+
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90"
+          role="dialog"
+          aria-modal
+          aria-label="Job photo"
+          onClick={() => setLightbox(null)}
+          onTouchStart={(e) => {
+            touchX.current = e.touches[0].clientX;
+          }}
+          onTouchEnd={(e) => {
+            const start = touchX.current;
+            touchX.current = null;
+            if (start == null) return;
+            const dx = e.changedTouches[0].clientX - start;
+            if (Math.abs(dx) < 48) return;
+            setLightbox((lb) => {
+              if (!lb) return lb;
+              const dir = dx < 0 ? 1 : -1;
+              return {
+                ...lb,
+                index: (lb.index + dir + lb.photos.length) % lb.photos.length,
+              };
+            });
+          }}
+        >
+          <button
+            type="button"
+            aria-label="Close photo"
+            onClick={() => setLightbox(null)}
+            className={cn(
+              "absolute right-4 top-[max(1rem,env(safe-area-inset-top))] rounded-full border-0 p-2 text-white",
+              !isLight && "bg-white/10"
+            )}
+          >
+            <X className="h-6 w-6" />
+          </button>
+          {lightbox.photos.length > 1 && (
+            <>
+              <button
+                type="button"
+                aria-label="Previous photo"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightbox((lb) =>
+                    lb
+                      ? {
+                          ...lb,
+                          index:
+                            (lb.index - 1 + lb.photos.length) % lb.photos.length,
+                        }
+                      : lb
+                  );
+                }}
+                className="absolute left-2 z-[201] rounded-full border-0 bg-white/10 p-2 text-white"
+              >
+                <ChevronLeft className="h-6 w-6" />
+              </button>
+              <button
+                type="button"
+                aria-label="Next photo"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightbox((lb) =>
+                    lb
+                      ? { ...lb, index: (lb.index + 1) % lb.photos.length }
+                      : lb
+                  );
+                }}
+                className="absolute right-2 z-[201] rounded-full border-0 bg-white/10 p-2 text-white"
+              >
+                <ChevronRight className="h-6 w-6" />
+              </button>
+            </>
+          )}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightbox.photos[lightbox.index]?.url}
+            alt={lightbox.photos[lightbox.index]?.name || "Job photo"}
+            className="max-h-[80%] max-w-[90%] rounded-xl object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <p className="absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] text-[12px] font-semibold text-white/80">
+            {lightbox.index + 1} / {lightbox.photos.length}
+          </p>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Confirm-before-cancel bottom sheet (destructive action guard). */
+function CancelConfirmSheet({
+  open,
+  isLight,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  isLight: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  if (!open) return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[500] flex items-end justify-center bg-black/50 p-3">
+      <div
+        className={cn(
+          "w-full max-w-md overflow-hidden rounded-2xl shadow-2xl",
+          isLight ? "bg-white" : "bg-[#1c1c1e]"
+        )}
+        role="dialog"
+        aria-modal
+        aria-label="Confirm cancel"
+      >
+        <div className="px-4 pb-2 pt-4">
+          <p
+            className={cn(
+              "text-center text-[15px] font-black",
+              isLight ? "text-slate-900" : "text-white"
+            )}
+          >
+            Cancel this request?
+          </p>
+          <p
+            className={cn(
+              "mt-1 text-center text-[12px] font-medium",
+              isLight ? "text-slate-500" : "text-white/55"
+            )}
+          >
+            The request will be closed and the other party will be notified. Are
+            you sure you want to cancel?
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onConfirm}
+          className={cn(
+            "flex h-12 w-full items-center justify-center border-0 text-[14px] font-bold text-red-500"
+          )}
+        >
+          Yes, cancel
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className={cn(
+            "flex h-12 w-full items-center justify-center border-0 text-[14px] font-bold",
+            isLight ? "text-slate-900" : "text-white"
+          )}
+        >
+          Keep request
+        </button>
+      </div>
+    </div>,
+    document.getElementById("ona-phone") || document.body
+  );
+}
 
 /** Prefer newer job snapshots so stale polls never undo Start trip etc. */
 function isJobNewer(next: JobRecord, prev: JobRecord | null): boolean {
@@ -145,6 +428,9 @@ export function JobFlowScreen({
 }) {
   const router = useRouter();
   const { startCall } = useInAppCall();
+  const notif = useNotificationsOptional();
+  const notifRef = useRef(notif);
+  notifRef.current = notif;
   const {
     technicians,
     ensureChatForRequestAsync,
@@ -179,8 +465,10 @@ export function JobFlowScreen({
   const [chatGateViewHref, setChatGateViewHref] = useState<string | null>(
     null
   );
-  /** Repair Pro must confirm they can fix the job before negotiating */
-  const [proCanFixAccepted, setProCanFixAccepted] = useState(false);
+
+  const [retryingSearch, setRetryingSearch] = useState(false);
+  /** Live pros of this trade in customer radius — pairing status under timer */
+  const [nearbyLiveCount, setNearbyLiveCount] = useState<number | null>(null);
   /** Arrived / Work in progress: home-style swipe sheet */
   const [tripSheetExpanded, setTripSheetExpanded] = useState(false);
   const tripGestureY = useRef<number | null>(null);
@@ -189,6 +477,10 @@ export function JobFlowScreen({
   /** Pro cancel reason modal */
   const [showCancelReasons, setShowCancelReasons] = useState(false);
   const [cancelReason, setCancelReason] = useState<string | null>(null);
+  /** Confirm-before-cancel: actor stored until the user confirms */
+  const [confirmCancel, setConfirmCancel] = useState<{
+    actor: "motorist" | "repair_pro";
+  } | null>(null);
   /** Reroute notification overlay */
   const [rerouteAlert, setRerouteAlert] = useState<string | null>(null);
 
@@ -292,33 +584,37 @@ export function JobFlowScreen({
     [startCall, technicians, viewer]
   );
 
-  useEffect(() => {
-    try {
-      if (
-        typeof window !== "undefined" &&
-        sessionStorage.getItem(`om-can-fix-${jobId}`) === "1"
-      ) {
-        setProCanFixAccepted(true);
-      }
-    } catch {
-      /* */
-    }
-  }, [jobId]);
-
-  /* Auto-close: terminal status → customer job details, pro dashboard (fast, no gesture).
-   * A pro whose request has been passed to another pro stays on the explicit
-   * "Request passed on" screen (see SSPE block) instead of being silently bounced. */
+  /* Auto-close: terminal status → customer & pro both go straight to their
+   * dashboard (no summary page). A pro whose request has been passed to another
+   * pro stays on the explicit "Request passed on" screen (see SSPE block). */
   useEffect(() => {
     if (!job) return;
     const isPro = viewer === "repair_pro";
+    // Exhausted requests (no pro available after all rounds) must keep showing
+    // the explicit "No pro available / Request again" screen — including after
+    // a refresh — instead of auto-closing to the dashboard.
+    const isExhausted = job.statusHistory.some(
+      (h) => h.by === "pairing_exhausted" || h.by === "reroute_exhausted"
+    );
+    if (isExhausted) return;
     if (isJobHistoryOnlyStatus(job.status)) {
       const path = window.location.pathname || "";
       if (path.startsWith("/jobs/")) {
         setRedirecting(true);
-        router.replace(isPro ? "/dashboard" : `/requests/${job.id}`);
+        router.replace(isPro ? "/dashboard" : "/");
       }
     }
   }, [job, viewer, router]);
+
+  // Opening a job clears its pending Service Request notifications so the
+  // unread badge (bell) doesn't stay stuck after the pro has read the request.
+  useEffect(() => {
+    if (!job || !notif) return;
+    const ids = notif.notifications
+      .filter((n) => !n.readAt && n.jobId === job.id)
+      .map((n) => n.id);
+    if (ids.length) void notif.markRead(ids);
+  }, [job?.id, notif?.notifications, notif?.markRead]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const REVIEW_MAX = 144;
 
@@ -341,7 +637,19 @@ export function JobFlowScreen({
     const res = await apiGetJob(jobId);
     if (!res.ok) {
       if (res.message === "Job not found") {
+        const current = notifRef.current;
+        if (current) {
+          const ids = current.notifications
+            .filter((n) => !n.readAt && n.jobId === jobId)
+            .map((n) => n.id);
+          if (ids.length) void current.markRead(ids);
+        }
         router.replace(accountType === "professional" ? "/jobs" : "/");
+        return;
+      }
+      // Never park on a Forbidden error screen — role home immediately
+      if (isForbiddenMessage(res.message)) {
+        router.replace(homePathForForbidden(accountType));
         return;
       }
       // Soft auth failure: keep spinner, let poll retry — don't stick forever
@@ -367,12 +675,50 @@ export function JobFlowScreen({
     ) {
       setStickyReleaseErr(null);
     }
-  }, [jobId, commitJob, stickyReleaseErr, accountType, router]);
+  }, [jobId, commitJob, stickyReleaseErr, accountType, router]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Replay any offers that failed due to network (offline queue)
   useEffect(() => {
     void processPendingOffers();
   }, []);
+
+  // If Forbidden ever lands in UI state, leave immediately (no stuck screen)
+  useEffect(() => {
+    if (!err || !isForbiddenMessage(err)) return;
+    setErr(null);
+    router.replace(homePathForForbidden(accountType));
+  }, [err, accountType, router]);
+
+  // Pro pairing request = lower panel only. Never keep a full /jobs page.
+  // Bounce to dashboard and force the incoming panel to open.
+  useEffect(() => {
+    if (viewer !== "repair_pro" || !job) return;
+    if (!isProPanelOnlyPairingStatus(job.status)) return;
+    try {
+      clearJobShown(job.id, backendUserId || undefined);
+      requestForceIncomingPanel(job.id);
+    } catch {
+      /* */
+    }
+    router.replace("/dashboard");
+  }, [viewer, job?.id, job?.status, backendUserId, router]);
+
+  // Telemetry: if `busy` sticks true > 5s every job CTA (incl. "Pay now to
+  // book") renders disabled and taps do nothing. Log once so we can tell a
+  // dead tap from a stuck-updating flag.
+  useEffect(() => {
+    if (!busy || !job) return;
+    const t = window.setTimeout(() => {
+      if (busy) {
+        void logPayGate("busy-stuck", {
+          jobId: job.id,
+          status: job.status,
+          viewer,
+        });
+      }
+    }, 5000);
+    return () => window.clearTimeout(t);
+  }, [busy, job, viewer]);
 
   // Client backup: sweep overdue jobs + retry PENDING_SETTLEMENT payouts while open
   useEffect(() => {
@@ -393,8 +739,8 @@ export function JobFlowScreen({
       }
     };
     void sweep();
-    // Faster poll while payout is stuck processing (funds may already be Available)
-    const intervalMs = pendingPayout ? 20_000 : 120_000;
+    // PENDING_SETTLEMENT: poll moderately; otherwise rare backup only
+    const intervalMs = pendingPayout ? 45_000 : 180_000;
     const t = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void sweep();
@@ -466,27 +812,32 @@ export function JobFlowScreen({
       await load();
     };
     void tick();
-    // Real-time feel: negotiate/agreed fast; trip moderate; completed fast for customer
+    // Pairing must poll fast so customer picks up the same pairing_deadline
+    // as the pro (pro popup was starting first with a 12s customer lag).
+    const pairingLive =
+      job &&
+      (job.status === "waiting_for_selected" ||
+        job.status === "selected_review" ||
+        job.status === "sequential_pairing" ||
+        job.status === "waiting_for_pro" ||
+        job.status === "reserved");
     const ms = !job
-      ? 2_000
-      : job.status === "negotiating" ||
-          job.status === "searching" ||
-          job.status === "agreed" ||
-          job.status === "waiting_for_selected" ||
-          job.status === "selected_review" ||
-          job.status === "sequential_pairing" ||
-          job.status === "waiting_for_pro" ||
-          job.status === "reserved"
+      ? 8_000
+      : pairingLive
         ? 2_500
-        : job.status === "completed"
-          ? 2_000
-          : ["paid_booked", "en_route", "arrived", "in_progress"].includes(
-                job.status
-              )
-            ? 5_000
+        : job.status === "negotiating" ||
+            job.status === "searching" ||
+            job.status === "agreed"
+          ? 8_000
+          : job.status === "completed"
+            ? 15_000
+            : ["paid_booked", "en_route", "arrived", "in_progress"].includes(
+                  job.status
+                )
+            ? 15_000
             : job.status === "released" || job.status === "satisfied"
-              ? 12_000
-              : 20_000;
+              ? 45_000
+              : 60_000;
     const id = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void tick();
@@ -496,6 +847,85 @@ export function JobFlowScreen({
       window.clearInterval(id);
     };
   }, [load, job?.status, job, authReady, isAuthenticated]);
+
+  // Realtime job row → customer/pro share the same pairing_deadline instantly
+  // (fixes pro timer starting before customer ring updates).
+  useEffect(() => {
+    if (!authReady || !isAuthenticated || !actorId) return;
+    let unsub: (() => void) | null = null;
+    let cancelled = false;
+    void import("@/lib/supabase/app-api").then(({ backendSubscribeJobs }) => {
+      if (cancelled) return;
+      unsub = backendSubscribeJobs(actorId, () => {
+        void load();
+      });
+    });
+    return () => {
+      cancelled = true;
+      unsub?.();
+    };
+  }, [authReady, isAuthenticated, actorId, load]);
+
+  // Live nearby count for customer while pairing only (hide on Retry/expired).
+  // Can increase mid-wave if more pros go Live in radius.
+  useEffect(() => {
+    const pairing =
+      job &&
+      viewer === "motorist" &&
+      (job.status === "waiting_for_selected" ||
+        job.status === "selected_review" ||
+        job.status === "sequential_pairing" ||
+        job.status === "waiting_for_pro" ||
+        job.status === "reserved" ||
+        job.status === "searching");
+    if (!pairing || !job?.motoristLocation) {
+      setNearbyLiveCount(null);
+      return;
+    }
+    let cancelled = false;
+    const lat = job.motoristLocation.lat;
+    const lng = job.motoristLocation.lng;
+    const radius =
+      typeof job.radiusKm === "number" && job.radiusKm > 0
+        ? job.radiusKm
+        : 10;
+    const trade = job.serviceType;
+    const tick = async () => {
+      try {
+        const { backendFetchPros } = await import("@/lib/supabase/app-api");
+        const list = await backendFetchPros({ lat, lng });
+        if (cancelled) return;
+        const n = list.filter((t) => {
+          if (t.serviceType !== trade) return false;
+          const d =
+            typeof t.distanceKm === "number" && Number.isFinite(t.distanceKm)
+              ? t.distanceKm
+              : Infinity;
+          return d <= radius + 0.75;
+        }).length;
+        setNearbyLiveCount(n);
+      } catch {
+        /* keep last count */
+      }
+    };
+    void tick();
+    const id = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      void tick();
+    }, 8_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [
+    job?.id,
+    job?.status,
+    job?.motoristLocation?.lat,
+    job?.motoristLocation?.lng,
+    job?.radiusKm,
+    job?.serviceType,
+    viewer,
+  ]);
 
   /** My jobs list — stay on open negotiation without cancelling */
   const goJobsList = useCallback(() => {
@@ -608,6 +1038,54 @@ export function JobFlowScreen({
     setFlash(null);
   };
 
+  /**
+   * Cancel request: close UI instantly (optimistic), API in background.
+   * Avoids hanging on network for CANCEL during pairing / negotiate / agreed.
+   */
+  const cancelRequestInstant = useCallback(
+    (actor: "motorist" | "repair_pro") => {
+      const j = jobRef.current;
+      if (!j) return;
+      setConfirmCancel(null);
+      setBusy(false);
+      setErr(null);
+      const ts = new Date().toISOString();
+      commitJob(
+        {
+          ...j,
+          status: "cancelled",
+          pairingStage: null,
+          pairingDeadline: null,
+          updatedAt: ts,
+          statusHistory: [
+            ...(j.statusHistory || []),
+            { status: "cancelled", at: ts, by: actor },
+          ],
+        },
+        true
+      );
+      // Leave the screen immediately — no wait for server
+      if (actor === "repair_pro") {
+        router.replace("/dashboard");
+      } else {
+        router.replace("/");
+      }
+      void apiTransition({
+        jobId: j.id,
+        event: "CANCEL",
+        actor,
+        actorId: actorId || undefined,
+      })
+        .then((res) => {
+          if (res.ok) commitJob(res.data.job, true);
+        })
+        .catch(() => {
+          /* optimistic cancel already applied */
+        });
+    },
+    [actorId, commitJob, router]
+  );
+
   const run = async (fn: () => Promise<{ ok: true; data: { job: JobRecord } } | { ok: false; message: string }>) => {
     setBusy(true);
     setErr(null);
@@ -625,6 +1103,11 @@ export function JobFlowScreen({
         ) {
           setErr(null);
           void load();
+          return;
+        }
+        if (isForbiddenMessage(res.message)) {
+          setErr(null);
+          router.replace(homePathForForbidden(accountType));
           return;
         }
         setErr(res.message);
@@ -671,7 +1154,13 @@ export function JobFlowScreen({
         /* audio optional */
       }
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Something went wrong. Try again.");
+      const msg = e instanceof Error ? e.message : "Something went wrong. Try again.";
+      if (isForbiddenMessage(msg)) {
+        setErr(null);
+        router.replace(homePathForForbidden(accountType));
+        return;
+      }
+      setErr(msg);
       try {
         const { playAppSound } = await import("@/lib/sound-tone");
         playAppSound("error");
@@ -712,12 +1201,13 @@ export function JobFlowScreen({
         isLight={isLight}
         title="Job closed"
         compactHeader
-        onBack={goJobsList}
+        onBack={viewer === "repair_pro" ? () => router.replace("/dashboard") : () => router.replace("/")}
+        rightSlot={<HeaderMenu isLight={isLight} />}
       >
         <p className={cn("px-0.5 pt-4 text-[14px] font-medium", ink)}>
           {JOB_CLOSED_MESSAGE}
         </p>
-        <p className={cn("mt-2 text-[12px]", muted)}>Opening summary…</p>
+        <p className={cn("mt-2 text-[12px]", muted)}>Opening dashboard…</p>
       </JobShell>
     );
   }
@@ -725,22 +1215,79 @@ export function JobFlowScreen({
   /* ─── EXPIRED — pure history, no action buttons ─── */
   if (job.status === "expired" || negStatus === "expired") {
     const isPro = viewer === "repair_pro";
+    const tradeLabel =
+      PRO_SERVICE_LABELS[job.serviceType as keyof typeof PRO_SERVICE_LABELS] ||
+      "Repair Pro";
     const isRerouteExhausted = job.statusHistory.some(
-      (h) => h.by === "reroute_exhausted"
+      (h) => h.by === "reroute_exhausted" || h.by === "pairing_exhausted"
     );
+    const retriesUsed = job.statusHistory.filter(
+      (h) => h.by === "retry_search"
+    ).length;
+    const retriesLeft = Math.max(0, 3 - retriesUsed);
+
+    const onRetry = async () => {
+      if (retryingSearch || retriesLeft <= 0) return;
+      setRetryingSearch(true);
+      setErr(null);
+      try {
+        const { playAppSound } = await import("@/lib/sound-tone");
+        playAppSound("request_new");
+      } catch {
+        /* */
+      }
+      // Stay on the same job shell — no navigation. Server restarts pairing and
+      // dispatches the first of up to 6 pros in the customer radius immediately.
+      const res = await apiRetrySearch(job.id);
+      if (res.ok && res.data.job) {
+        commitJob(res.data.job, true);
+        setErr(null);
+        // Immediate second fetch so pairing_deadline / waiting_for_pro paint without lag
+        window.setTimeout(() => {
+          void load();
+        }, 200);
+      } else if (!res.ok) {
+        setErr(res.message || "Could not retry search");
+      }
+      setRetryingSearch(false);
+    };
+
+    const onChooseOther = () => {
+      goHome();
+    };
 
     return (
       <JobShell
         isLight={isLight}
-        title={isRerouteExhausted ? "No pro available" : "Negotiation expired"}
+        title={
+          isRerouteExhausted
+            ? `No ${tradeLabel} available`
+            : "Negotiation expired"
+        }
         compactHeader
         onBack={isPro ? () => router.push("/dashboard") : goJobsList}
+        rightSlot={<HeaderMenu isLight={isLight} />}
+        footer={
+          isPro || !isRerouteExhausted ? undefined : (
+            <div className="space-y-2">
+              <CopperButton
+                onClick={onRetry}
+                disabled={retryingSearch || retriesLeft <= 0}
+              >
+                {retryingSearch ? "Searching…" : "Retry search"}
+              </CopperButton>
+              <GhostButton isLight={isLight} onClick={onChooseOther}>
+                Choose another {tradeLabel}
+              </GhostButton>
+            </div>
+          )
+        }
       >
         <p className={cn("px-0.5 pt-4 text-[14px] font-medium leading-relaxed", ink)}>
           {isRerouteExhausted
             ? isPro
               ? "This request was rerouted but no pro accepted in time."
-              : "Request again. You can also adjust your filter for faster result."
+              : "No Pro Available, retry search or adjust your search radius and try again"
             : isPro
               ? `This request ended between you and ${job.motoristName}. No agreement was reached.`
               : `No agreement was reached with ${job.repairProName}.`}
@@ -753,6 +1300,7 @@ export function JobFlowScreen({
    * waiting_for_selected / selected_review / sequential_pairing /
    * waiting_for_pro / reserved. All countdowns render pairing_deadline
    * (display-only, D3) — the server sweep owns timing.
+   * Repair Pro: full-page UI deleted for these — panel only (see useEffect).
    */
   if (
     job.status === "waiting_for_selected" ||
@@ -761,17 +1309,29 @@ export function JobFlowScreen({
     job.status === "waiting_for_pro" ||
     job.status === "reserved"
   ) {
+    // Pro never sees this full page — redirect effect sends them to dashboard.
+    if (viewer === "repair_pro") {
+      return (
+        <JobShell isLight={isLight} title="Service Request" compactHeader>
+          <p className={cn("px-0.5 pt-8 text-center text-[13px] font-medium", muted)}>
+            Opening request…
+          </p>
+        </JobShell>
+      );
+    }
+
     const deadline = job.pairingDeadline || null;
-    const isCurrentPro =
-      viewer === "repair_pro" &&
-      job.repairProId === (backendUserId || "");
     const reviewing =
       job.status === "selected_review" || job.status === "reserved";
     const finding = job.status === "sequential_pairing";
-    // A pro is never actionable while pairing actively advances between pros.
-    const proPassedOn =
-      viewer === "repair_pro" && (!isCurrentPro || finding);
-    const idem = (e: string) => `${e}:${job.id}:${(actorId || "").slice(0, 8)}`;
+    const proLabel = PRO_SERVICE_LABELS[job.serviceType] || job.serviceType;
+    const nearbyLine =
+      viewer === "motorist"
+        ? nearbyProsStatusLine(
+            nearbyLiveCount ?? 0,
+            proLabel
+          )
+        : null;
 
     // Customer: sequential pairing actively pings pros → full search screen.
     if (viewer === "motorist" && finding) {
@@ -783,125 +1343,52 @@ export function JobFlowScreen({
           isLight={isLight}
           err={err}
           onBack={goJobsList}
+          nearbyLine={nearbyLine}
         />
       );
     }
 
-    const proLabel = PRO_SERVICE_LABELS[job.serviceType] || job.serviceType;
-
+    // Customer-only full page (pro uses lower panel exclusively)
     const title =
-      viewer === "repair_pro"
-        ? proPassedOn
-          ? "Request passed on"
-          : reviewing
-            ? "Can you fix this?"
-            : "New Service Request"
-        : job.status === "waiting_for_selected"
-          ? `Waiting for ${proLabel}`
-          : reviewing
-            ? "Repair Pro reviewing your request"
-            : "Finding another pro…";
+      job.status === "waiting_for_selected"
+        ? `Waiting for ${proLabel}`
+        : reviewing
+          ? "Repair Pro reviewing your request"
+          : "Finding another pro…";
 
     const subtitle =
-      viewer === "repair_pro"
-        ? proPassedOn
-          ? "This request is no longer available to you."
-          : reviewing
-            ? "Confirm you can complete this job to start the negotiation."
-            : "Open the request to review the details. You have 66 seconds."
-        : job.status === "waiting_for_selected"
-          ? `${firstNameOnly(
-              job.repairProName === "Repair Pro" ? null : job.repairProName,
-              proLabel
-            )} has received your request and will respond shortly.`
-          : reviewing
-            ? "The Repair Pro is reviewing your request and will respond shortly."
-            : finding
-              ? "We’re finding another pro with the same skill."
-              : "A pro is checking your request."
+      job.status === "waiting_for_selected"
+        ? `${firstNameOnly(
+            job.repairProName === "Repair Pro" ? null : job.repairProName,
+            proLabel
+          )} has received your request and will respond shortly.`
+        : reviewing
+          ? "The Repair Pro is reviewing your request and will respond shortly."
+          : finding
+            ? "We’re finding another pro with the same skill."
+            : "A pro is checking your request.";
 
     const body = (
       <div className="flex min-h-0 flex-col bg-transparent px-0.5 pt-1">
         <div className="shrink-0 space-y-3 bg-transparent">
-          {viewer === "repair_pro" ? (
-            <>
-              {isAutomotiveTrade(job.serviceType) ? (
-                <div>
-                  <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
-                    Vehicle
-                  </p>
-                  <p className={cn("mt-1 text-[15px] font-semibold", ink)}>
-                    {job.motoristVehicle?.trim() || "Vehicle details on request"}
-                  </p>
-                </div>
-              ) : null}
-              <div>
-                <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
-                  Common issues
-                </p>
-                <p className={cn("mt-1 text-[15px] font-medium leading-relaxed", ink)}>
-                  {job.problem}
-                </p>
+          <div>
+            <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
+              Problem description
+            </p>
+            <p className={cn("mt-1 text-[15px] font-medium leading-relaxed", ink)}>
+              {job.problem}
+            </p>
+            {job.voiceNote?.url && (
+              <div className="mt-2.5">
+                <VoiceNotePlayer
+                  url={job.voiceNote.url}
+                  durationSec={job.voiceNote.durationSec}
+                  isLight={isLight}
+                  label="Your voice note"
+                />
               </div>
-              <div>
-                <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
-                  Your matching skill
-                </p>
-                <p className={cn("mt-1 text-[15px] font-semibold", ink)}>{proLabel}</p>
-              </div>
-              {job.voiceNote?.url && (
-                <div>
-                  <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
-                    Problem voice note
-                  </p>
-                  <div className="mt-1">
-                    <VoiceNotePlayer
-                      url={job.voiceNote.url}
-                      durationSec={job.voiceNote.durationSec}
-                      isLight={isLight}
-                    />
-                  </div>
-                </div>
-              )}
-              {job.photos.length > 0 && (
-                <div>
-                  <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
-                    Photos
-                  </p>
-                  <div className="mt-1 grid grid-cols-3 gap-1.5">
-                    {job.photos.map((p) => (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        key={p.id}
-                        src={p.url}
-                        alt={p.name || "Problem photo"}
-                        className="h-20 w-full rounded-lg object-cover"
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div>
-              <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
-                Problem description
-              </p>
-              <p className={cn("mt-1 text-[15px] font-medium leading-relaxed", ink)}>
-                {job.problem}
-              </p>
-              {job.voiceNote?.url && (
-                <div className="mt-2.5">
-                  <VoiceNotePlayer
-                    url={job.voiceNote.url}
-                    durationSec={job.voiceNote.durationSec}
-                    isLight={isLight}
-                    label="Your voice note"
-                  />
-                </div>
-              )}
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         <div className="flex min-h-[40vh] flex-1 flex-col items-center justify-center bg-transparent py-5">
@@ -910,145 +1397,72 @@ export function JobFlowScreen({
               variant="ring"
               endsAt={deadline}
               totalMs={PAIRING_WINDOW_MS}
-              onExpire={() => void load()}
+              onExpire={() => {
+                // Keep the expired ring at 0s — do NOT null pairingDeadline
+                // (that made the customer timer "skip" while pro already had
+                // the next shared deadline). Sweep + load picks up the next
+                // pro's pairing_deadline or expired/Retry without blanking first.
+                void (async () => {
+                  try {
+                    const { apiExpireStaleBookedJobs } = await import(
+                      "@/lib/jobs/client"
+                    );
+                    await apiExpireStaleBookedJobs();
+                  } catch {
+                    /* */
+                  }
+                  await load();
+                })();
+              }}
               className={ink}
             />
           ) : (
             <div className="mb-4 h-10 w-10 animate-spin rounded-full border-2 border-[#FF6B35] border-t-transparent" />
           )}
-          <p className={cn("mt-4 max-w-[280px] text-center text-[13px] font-semibold leading-snug", muted)}>
+          {viewer === "motorist" && nearbyLine ? (
+            <p
+              className={cn(
+                "mt-3 max-w-[280px] text-center text-[13px] font-bold leading-snug",
+                ink
+              )}
+            >
+              {nearbyLine}
+            </p>
+          ) : null}
+          <p
+            className={cn(
+              "mt-2 max-w-[280px] text-center text-[13px] font-semibold leading-snug",
+              muted
+            )}
+          >
             {subtitle}
           </p>
         </div>
       </div>
     );
 
-    const footer =
-      viewer === "motorist" ? (
-        <div className="space-y-2">
-          {err && (
-            <p className="text-center text-[12px] font-semibold text-red-500">
-              {err}
-            </p>
+    const footer = (
+      <div className="space-y-2">
+        {err && (
+          <p className="text-center text-[12px] font-semibold text-red-500">
+            {err}
+          </p>
+        )}
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setConfirmCancel({ actor: "motorist" })}
+          className={cn(
+            "inline-flex h-11 w-full items-center justify-center rounded-md border-0 text-[13px] font-semibold",
+            isLight
+              ? "bg-black/10 text-slate-900"
+              : "bg-[#2c2c2e] text-white"
           )}
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() =>
-              void run(() =>
-                apiTransition({
-                  jobId: job.id,
-                  event: "CANCEL",
-                  actor: "motorist",
-                  actorId,
-                })
-              )
-            }
-            className={cn(
-              "inline-flex h-11 w-full items-center justify-center rounded-md border-0 text-[13px] font-semibold",
-              isLight
-                ? "bg-black/10 text-slate-900"
-                : "bg-[#2c2c2e] text-white"
-            )}
-          >
-            Cancel request
-          </button>
-        </div>
-      ) : proPassedOn ? (
-        null
-      ) : reviewing ? (
-        <div className="space-y-2">
-          {err && (
-            <p className="text-center text-[12px] font-semibold text-red-500">
-              {err}
-            </p>
-          )}
-          <CopperButton
-            disabled={busy}
-            onClick={() =>
-              void run(() =>
-                apiTransition({
-                  jobId: job.id,
-                  event: "CONFIRM",
-                  actor: "repair_pro",
-                  actorId,
-                  idempotencyKey: idem("confirm"),
-                })
-              )
-            }
-          >
-            I can fix this
-          </CopperButton>
-          <GhostButton
-            isLight={isLight}
-            onClick={() => setShowCancelReasons(true)}
-          >
-            I cannot fix this
-          </GhostButton>
-        </div>
-      ) : (
-        <div className="grid grid-cols-3 gap-2">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() =>
-              void run(() =>
-                apiTransition({
-                  jobId: job.id,
-                  event: "DECLINE",
-                  actor: "repair_pro",
-                  actorId,
-                  idempotencyKey: idem("decline"),
-                })
-              )
-            }
-            className="h-11 rounded-md border-0 bg-red-500/15 text-[13px] font-bold text-red-600"
-          >
-            Decline
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() =>
-              void run(() =>
-                apiTransition({
-                  jobId: job.id,
-                  event: "LATER",
-                  actor: "repair_pro",
-                  actorId,
-                  idempotencyKey: idem("later"),
-                })
-              )
-            }
-            className={cn(
-              "h-11 rounded-md border-0 text-[13px] font-bold",
-              isLight
-                ? "bg-black/10 text-slate-900"
-                : "bg-[#2c2c2e] text-white"
-            )}
-          >
-            Later
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() =>
-              void run(() =>
-                apiTransition({
-                  jobId: job.id,
-                  event: "OPEN",
-                  actor: "repair_pro",
-                  actorId,
-                  idempotencyKey: idem("open"),
-                })
-              )
-            }
-            className="h-11 rounded-md border-0 bg-[#FF6B35] text-[13px] font-bold text-white"
-          >
-            Open
-          </button>
-        </div>
-      );
+        >
+          Cancel request
+        </button>
+      </div>
+    );
 
     return (
       <>
@@ -1057,68 +1471,21 @@ export function JobFlowScreen({
           title={title}
           compactHeader
           onBack={goJobsList}
-          footer={footer || undefined}
+          footer={footer}
         >
           {body}
-          {err && viewer === "repair_pro" && (
-            <p className="mt-1 text-center text-[12px] font-medium text-red-500">
-              {err}
-            </p>
-          )}
         </JobShell>
 
-        {/* Decline reason modal (shares state with negotiating branch) */}
-        {showCancelReasons && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 pb-12">
-            <div
-              className={cn(
-                "w-full max-w-[390px] rounded-t-2xl px-5 pb-6 pt-5",
-                isLight ? "bg-[#c8c9cd]" : "bg-[#1c1c1e]"
-              )}
-            >
-              <h2 className={cn("mb-4 text-[16px] font-bold", ink)}>
-                Why can’t you fix this?
-              </h2>
-              <div className="space-y-2">
-                {CANCEL_REASONS.map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => {
-                      setCancelReason(r);
-                      setShowCancelReasons(false);
-                      void run(() =>
-                        apiTransition({
-                          jobId: job.id,
-                          event: "DECLINE",
-                          actor: "repair_pro",
-                          actorId,
-                          reason: r,
-                          idempotencyKey: idem("decline"),
-                        })
-                      );
-                    }}
-                    className={cn(
-                      "flex w-full items-center rounded-lg px-4 py-3 text-left text-[14px] font-medium transition active:scale-[0.98]",
-                      isLight
-                        ? "bg-white/70 text-slate-900 active:bg-white"
-                        : "bg-[#2c2c2e] text-white active:bg-[#3a3a3c]"
-                    )}
-                  >
-                    {r}
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                className="mt-4 w-full py-3 text-center text-[13px] font-medium text-red-500"
-                onClick={() => setShowCancelReasons(false)}
-              >
-                Go back
-              </button>
-            </div>
-          </div>
-        )}
+        <CancelConfirmSheet
+          open={!!confirmCancel}
+          isLight={isLight}
+          onClose={() => setConfirmCancel(null)}
+          onConfirm={() => {
+            const a = confirmCancel;
+            if (!a) return;
+            cancelRequestInstant(a.actor);
+          }}
+        />
       </>
     );
   }
@@ -1136,178 +1503,7 @@ export function JobFlowScreen({
         ? last
         : [...job.offers].reverse().find((o) => o.side !== mySide);
 
-    // D2: first time pro opens this request — confirm they can fix it.
-    // SSPE jobs already confirmed via the "I can fix this" sheet → skip gate.
-    const confirmedViaSspe =
-      job.reservationStatus === "confirmed" ||
-      job.assignmentStatus === "assigned" ||
-      (job.statusHistory || []).some((h) => h.by === "confirmed");
-    const needsProCanFixGate =
-      viewer === "repair_pro" &&
-      !proCanFixAccepted &&
-      job.offers.length === 0 &&
-      !confirmedViaSspe;
-
-    if (needsProCanFixGate) {
-      return (
-        <>
-          <JobShell
-          isLight={isLight}
-          title="Can you fix this?"
-          compactHeader
-          onBack={goJobsList}
-          footer={
-            <div className="space-y-2">
-              <CopperButton
-                disabled={busy}
-                onClick={() => {
-                  void run(async () => {
-                    const res = await apiTransition({
-                      jobId: job.id,
-                      event: "START_NEGOTIATION",
-                      actor: "repair_pro",
-                      actorId,
-                    });
-                    if (res.ok) {
-                      setProCanFixAccepted(true);
-                      try {
-                        sessionStorage.setItem(`om-can-fix-${job.id}`, "1");
-                      } catch {
-                        /* */
-                      }
-                    }
-                    return res;
-                  });
-                }}
-              >
-                I can fix this
-              </CopperButton>
-              <GhostButton
-                isLight={isLight}
-                onClick={() => setShowCancelReasons(true)}
-              >
-                Cancel · I cannot fix this
-              </GhostButton>
-            </div>
-          }
-        >
-          <div className="space-y-4 px-0.5 pt-2">
-            <p className={cn("text-[15px] font-semibold leading-snug", ink)}>
-              Service Request — {isAutomotiveTrade(job.serviceType) ? "vehicle & issues only" : "issues only"}
-            </p>
-            <div className="space-y-3">
-              {isAutomotiveTrade(job.serviceType) ? (
-                <div>
-                  <p className={cn("text-[11px] font-medium uppercase", muted)}>
-                    Vehicle
-                  </p>
-                  <p className={cn("mt-1 text-[14px] font-semibold", ink)}>
-                    {job.motoristVehicle?.trim() || "Vehicle details on request"}
-                  </p>
-                </div>
-              ) : null}
-              <div>
-                <p className={cn("text-[11px] font-medium uppercase", muted)}>
-                  Common issues
-                </p>
-                <p className={cn("mt-1 text-[14px] font-medium leading-relaxed", ink)}>
-                  {job.problem}
-                </p>
-              </div>
-              <div>
-                <p className={cn("text-[11px] font-medium uppercase", muted)}>
-                  Your matching skill
-                </p>
-                <p className={cn("mt-1 text-[14px] font-semibold", ink)}>
-                  {PRO_SERVICE_LABELS[job.serviceType] || job.serviceType}
-                </p>
-              </div>
-              {job.voiceNote?.url && (
-                <div className="mt-1">
-                  <VoiceNotePlayer
-                    url={job.voiceNote.url}
-                    durationSec={job.voiceNote.durationSec}
-                    isLight={isLight}
-                    label="Problem voice note"
-                  />
-                </div>
-              )}
-            </div>
-            <p className={cn("text-[13px] font-medium leading-relaxed", muted)}>
-              By tapping{" "}
-              <span className="font-semibold text-[#FF6B35]">I can fix this</span>
-              , you confirm you can complete this job.
-            </p>
-            <p className={cn("text-[12px] leading-relaxed", muted)}>
-              By proceeding, you re-affirm that you are a certified professional
-              and can complete this job. Customers trust Ona to match them with
-              verified pros.
-            </p>
-            {err && (
-              <p className="text-center text-[12px] font-semibold text-red-500">
-                {err}
-              </p>
-            )}
-          </div>
-        </JobShell>
-
-        {/* Cancel reason modal */}
-        {showCancelReasons && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 pb-12">
-            <div
-              className={cn(
-                "w-full max-w-[390px] rounded-t-2xl px-5 pb-6 pt-5",
-                isLight ? "bg-[#c8c9cd]" : "bg-[#1c1c1e]"
-              )}
-            >
-              <h2 className={cn("mb-4 text-[16px] font-bold", ink)}>
-                Why are you cancelling?
-              </h2>
-              <div className="space-y-2">
-                {CANCEL_REASONS.map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => {
-                      setCancelReason(r);
-                      setShowCancelReasons(false);
-                      void run(() =>
-                        apiTransition({
-                          jobId: job.id,
-                          event: "CANCEL",
-                          actor: "repair_pro",
-                          actorId,
-                          reason: "pro_declined",
-                          cancelReason: r,
-                        })
-                      );
-                    }}
-                    className={cn(
-                      "flex w-full items-center rounded-lg px-4 py-3 text-left text-[14px] font-medium transition active:scale-[0.98]",
-                      isLight
-                        ? "bg-white/70 text-slate-900 active:bg-white"
-                        : "bg-[#2c2c2e] text-white active:bg-[#3a3a3c]"
-                    )}
-                  >
-                    {r}
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                className="mt-4 w-full py-3 text-center text-[13px] font-medium text-red-500"
-                onClick={() => setShowCancelReasons(false)}
-              >
-                Go back
-              </button>
-            </div>
-          </div>
-        )}
-      </>
-    );
-  }
-
-  return (
+    return (
     <>
       <JobShell
         isLight={isLight}
@@ -1414,14 +1610,9 @@ export function JobFlowScreen({
                 ink
               )}
               onClick={() =>
-                void run(() =>
-                  apiTransition({
-                    jobId: job.id,
-                    event: "CANCEL",
-                    actor: viewer,
-                    actorId,
-                  })
-                )
+                setConfirmCancel({
+                  actor: viewer === "repair_pro" ? "repair_pro" : "motorist",
+                })
               }
             >
               Cancel request
@@ -1429,6 +1620,7 @@ export function JobFlowScreen({
           </div>
         }
       >
+        {/* Top: vehicle/service/problem + offers · Middle: ring timer */}
         {/* Top: vehicle/service/problem + offers · Middle: ring timer */}
         <div className="flex min-h-0 flex-col bg-transparent px-0.5 pt-1">
           <div className="shrink-0 space-y-4 bg-transparent">
@@ -1491,6 +1683,22 @@ export function JobFlowScreen({
                     />
                   </div>
                 )}
+                <div>
+                  <p
+                    className={cn(
+                      "text-[11px] font-semibold uppercase tracking-wide",
+                      muted
+                    )}
+                  >
+                    {job.photos.length > 0 ? "Customer photos" : "Customer"}
+                  </p>
+                  <PhotoStrip
+                    photos={job.photos}
+                    isLight={isLight}
+                    profilePhotoUrl={job.motoristPhoto}
+                    profileName={job.motoristName}
+                  />
+                </div>
               </div>
             ) : (
               <div className="bg-transparent">
@@ -1500,7 +1708,7 @@ export function JobFlowScreen({
                     muted
                   )}
                 >
-                  {proCanFixAccepted ? "I ADMIT TO FIX IT" : "Problem description"}
+                  Problem description
                 </p>
                 <p
                   className={cn(
@@ -1518,6 +1726,19 @@ export function JobFlowScreen({
                       isLight={isLight}
                       label="Your voice note"
                     />
+                  </div>
+                )}
+                {job.photos.length > 0 && (
+                  <div className="mt-2.5">
+                    <p
+                      className={cn(
+                        "text-[11px] font-semibold uppercase tracking-wide",
+                        muted
+                      )}
+                    >
+                      Your photos
+                    </p>
+                    <PhotoStrip photos={job.photos} isLight={isLight} />
                   </div>
                 )}
               </div>
@@ -1576,13 +1797,34 @@ export function JobFlowScreen({
                 variant="ring"
                 endsAt={job.negotiateEndsAt}
                 onExpire={() => {
-                  void run(() =>
-                    apiTransition({
-                      jobId: job.id,
-                      event: "EXPIRE_NEGOTIATION",
-                      actor: "system",
+                  // Instant UI → expired; server expire in background
+                  const j = jobRef.current;
+                  if (j) {
+                    const ts = new Date().toISOString();
+                    commitJob(
+                      {
+                        ...j,
+                        status: "expired",
+                        updatedAt: ts,
+                        statusHistory: [
+                          ...(j.statusHistory || []),
+                          { status: "expired", at: ts, by: "system" },
+                        ],
+                      },
+                      true
+                    );
+                  }
+                  void apiTransition({
+                    jobId: job.id,
+                    event: "EXPIRE_NEGOTIATION",
+                    actor: "system",
+                  })
+                    .then((res) => {
+                      if (res.ok) commitJob(res.data.job, true);
                     })
-                  );
+                    .catch(() => {
+                      /* optimistic expired already applied */
+                    });
                 }}
                 className={ink}
               />
@@ -1627,13 +1869,41 @@ export function JobFlowScreen({
           </div>
         </div>
       )}
+
+      <CancelConfirmSheet
+        open={!!confirmCancel}
+        isLight={isLight}
+        onClose={() => setConfirmCancel(null)}
+        onConfirm={() => {
+          const a = confirmCancel;
+          if (!a) return;
+          cancelRequestInstant(a.actor);
+        }}
+      />
     </>
     );
   }
 
   /* ─── SEARCHING (pro cancelled, finding another) ─── */
   if (job.status === "searching") {
-    return <SearchingScreen job={job} viewer={viewer} backendUserId={backendUserId} isLight={isLight} err={err} onBack={goJobsList} />;
+    return (
+      <SearchingScreen
+        job={job}
+        viewer={viewer}
+        backendUserId={backendUserId}
+        isLight={isLight}
+        err={err}
+        onBack={goJobsList}
+        nearbyLine={
+          viewer === "motorist"
+            ? nearbyProsStatusLine(
+                nearbyLiveCount ?? 0,
+                PRO_SERVICE_LABELS[job.serviceType] || job.serviceType
+              )
+            : null
+        }
+      />
+    );
   }
 
   /* ─── AGREED ─── */
@@ -1645,7 +1915,7 @@ export function JobFlowScreen({
     const counterpartPhoto =
       viewer === "motorist"
         ? job.repairProPhoto || DEFAULT_VENDOR_PHOTO
-        : DEFAULT_VENDOR_PHOTO;
+        : job.motoristPhoto || DEFAULT_VENDOR_PHOTO;
     const counterpartLabel =
       viewer === "motorist"
         ? PRO_SERVICE_LABELS[job.serviceType]
@@ -1670,6 +1940,15 @@ export function JobFlowScreen({
                 isLight={isLight}
                 disabled={busy}
                 onClick={() => {
+                  // Telemetry: a fired tap proves the CTA is clickable; a
+                  // missing log means an overlay swallows the tap.
+                  void logPayGate("pay-cta-tapped", {
+                    jobId: job.id,
+                    status: job.status,
+                    hasPaymentSessionEndsAt: Boolean(
+                      job.paymentSessionEndsAt
+                    ),
+                  });
                   router.push(
                     `/payments/checkout?jobId=${encodeURIComponent(job.id)}`
                   );
@@ -1682,9 +1961,16 @@ export function JobFlowScreen({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => setPayCancelOpen(true)}
+                onClick={() => {
+                  void logPayGate("pay-cancel-tapped", {
+                    jobId: job.id,
+                    status: job.status,
+                  });
+                  setPayCancelOpen(true);
+                }}
                 className={cn(
                   "inline-flex h-11 w-full items-center justify-center rounded-md border-0 text-[13px] font-semibold",
+                  "relative z-10",
                   isLight
                     ? "bg-black/10 text-slate-900"
                     : "bg-[#2c2c2e] text-white"
@@ -1706,16 +1992,7 @@ export function JobFlowScreen({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() =>
-                  void run(() =>
-                    apiTransition({
-                      jobId: job.id,
-                      event: "CANCEL",
-                      actor: "repair_pro",
-                      actorId,
-                    })
-                  )
-                }
+                onClick={() => setConfirmCancel({ actor: "repair_pro" })}
                 className={cn(
                   "inline-flex h-11 w-full items-center justify-center rounded-md border-0 text-[13px] font-semibold",
                   isLight
@@ -1788,6 +2065,25 @@ export function JobFlowScreen({
         ) : (
           <JobCard isLight={isLight}>
             <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-12 w-12 rounded-full">
+                  <AvatarImage
+                    src={counterpartPhoto}
+                    className="object-cover"
+                  />
+                  <AvatarFallback>
+                    {avatarInitials(counterpartName)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <p className={cn("truncate text-[15px] font-black", ink)}>
+                    {counterpartName}
+                  </p>
+                  <p className={cn("text-[12px] font-semibold", muted)}>
+                    {counterpartLabel}
+                  </p>
+                </div>
+              </div>
               {isAutomotiveTrade(job.serviceType) && job.motoristVehicle ? (
                 <p className={cn("text-[14px] font-semibold", ink)}>
                   <span className={cn("text-[11px] uppercase", muted)}>
@@ -1817,15 +2113,16 @@ export function JobFlowScreen({
           </p>
         )}
         {payCancelOpen ? (
-          <div className="fixed inset-0 z-[500] flex items-end justify-center bg-black/50 p-3">
-            <div
-              className={cn(
-                "w-full max-w-md overflow-hidden rounded-2xl shadow-2xl",
-                isLight ? "bg-white" : "bg-[#1c1c1e]"
-              )}
-              role="dialog"
-              aria-label="Cancel options"
-            >
+          createPortal(
+            <div className="fixed inset-0 z-[500] flex items-end justify-center bg-black/50 p-3">
+              <div
+                className={cn(
+                  "w-full max-w-md overflow-hidden rounded-2xl shadow-2xl",
+                  isLight ? "bg-white" : "bg-[#1c1c1e]"
+                )}
+                role="dialog"
+                aria-label="Cancel options"
+              >
               <div className="px-4 pb-2 pt-4">
                 <p
                   className={cn(
@@ -1860,16 +2157,9 @@ export function JobFlowScreen({
               <button
                 type="button"
                 disabled={busy}
-                onClick={async () => {
-                  await run(() =>
-                    apiTransition({
-                      jobId: job.id,
-                      event: "CANCEL",
-                      actor: "motorist",
-                      actorId,
-                    })
-                  );
+                onClick={() => {
                   setPayCancelOpen(false);
+                  cancelRequestInstant("motorist");
                 }}
                 className={cn(
                   "flex h-12 w-full items-center justify-center border-0 text-[14px] font-bold text-red-500"
@@ -1888,8 +2178,21 @@ export function JobFlowScreen({
                 Keep paying
               </button>
             </div>
-          </div>
+            </div>,
+            document.getElementById("ona-phone") || document.body
+          )
         ) : null}
+
+        <CancelConfirmSheet
+          open={!!confirmCancel}
+          isLight={isLight}
+          onClose={() => setConfirmCancel(null)}
+          onConfirm={() => {
+            const a = confirmCancel;
+            if (!a) return;
+            cancelRequestInstant(a.actor);
+          }}
+        />
       </JobShell>
     );
   }
@@ -1905,6 +2208,17 @@ export function JobFlowScreen({
         title: "Booked",
         subtitle: "",
       };
+    /** Short catalog trade — Mechanic, Vulcanizer, Tow, etc. */
+    const tradeLabel =
+      PRO_SERVICE_LABELS[job.serviceType] || job.serviceType || "Repair Pro";
+    /**
+     * Customer track-trip header: trade name, not generic "Repair Pro".
+     * e.g. "Mechanic is OnTheRoad"
+     */
+    const trackTripTitle =
+      viewer === "motorist" && job.status === "en_route"
+        ? `${tradeLabel} is OnTheRoad`
+        : copy.title;
     const statusLabel: Record<string, string> = {
       paid_booked: "Booked",
       // Exact product label — do not uppercase in CSS (would become ONTHEROAD)
@@ -2300,23 +2614,14 @@ export function JobFlowScreen({
               isLight ? "text-slate-700" : "text-[#c8c9cd]"
             )}
           >
-            Repair Pro is OnTheRoad
+            {tradeLabel} is OnTheRoad
             {job.etaMinutes != null ? ` · ETA ${job.etaMinutes} min` : ""}
           </p>
         )}
         {viewer === "motorist" && job.status === "paid_booked" && (
           <button
             type="button"
-            onClick={() =>
-              void run(() =>
-                apiTransition({
-                  jobId: job.id,
-                  event: "CANCEL",
-                  actor: "motorist",
-                  actorId,
-                })
-              )
-            }
+            onClick={() => cancelRequestInstant("motorist")}
             className="inline-flex h-12 w-full items-center justify-center rounded-sm border-0 bg-[#3a3a3c] text-[14px] font-bold text-white transition active:scale-[0.99]"
           >
             Cancel full refund
@@ -2328,16 +2633,7 @@ export function JobFlowScreen({
             job.status === "in_progress") && (
             <button
               type="button"
-              onClick={() =>
-                void run(() =>
-                  apiTransition({
-                    jobId: job.id,
-                    event: "CANCEL",
-                    actor: "motorist",
-                    actorId,
-                  })
-                )
-              }
+              onClick={() => cancelRequestInstant("motorist")}
               className="inline-flex h-12 w-full items-center justify-center rounded-sm border-0 bg-[#3a3a3c] text-[14px] font-bold text-white transition active:scale-[0.99]"
             >
               Cancel full refund
@@ -2412,7 +2708,7 @@ export function JobFlowScreen({
       <>
         <JobShell
           isLight={isLight}
-          title={copy.title}
+          title={trackTripTitle}
           subtitle={undefined}
           compactHeader
           onBack={goJobsList}
@@ -2612,9 +2908,35 @@ export function JobFlowScreen({
             actor: "motorist",
             actorId: motoristActor,
           });
+          // Always re-fetch — release may have finished even if the response raced.
           try {
             const again = await apiGetJob(job.id);
-            if (again.ok && again.data.job) commitJob(again.data.job, true);
+            if (again.ok && again.data.job) {
+              commitJob(again.data.job, true);
+              if (!res.ok) {
+                const j = again.data.job;
+                if (
+                  j.status === "released" ||
+                  j.status === "satisfied" ||
+                  j.releasedAt ||
+                  j.escrowStatus === "released" ||
+                  j.escrowStatus === "pending_settlement" ||
+                  j.escrowStatus === "release_pending"
+                ) {
+                  setStickyReleaseErr(null);
+                  setErr(null);
+                  applyJob(j);
+                  try {
+                    const { playAppSound } = await import("@/lib/sound-tone");
+                    playAppSound("success_soft");
+                  } catch {
+                    /* */
+                  }
+                  // Stay on job → review screen (do not bounce to dashboard).
+                  return;
+                }
+              }
+            }
           } catch {
             /* */
           }
@@ -2645,11 +2967,31 @@ export function JobFlowScreen({
           } catch {
             /* */
           }
-          // Customer → dashboard immediately after confirm
-          window.setTimeout(() => {
-            router.replace("/dashboard");
-          }, 600);
+          // Stay on this job shell → rating + text review, then completion.
+          // (Do not router.replace dashboard — that skipped the review flow.)
         } catch (e) {
+          // Abort/timeout: poll once more before showing failure.
+          try {
+            const again = await apiGetJob(job.id);
+            if (again.ok && again.data.job) {
+              const j = again.data.job;
+              if (
+                j.status === "released" ||
+                j.status === "satisfied" ||
+                j.releasedAt ||
+                j.escrowStatus === "released" ||
+                j.escrowStatus === "pending_settlement" ||
+                j.escrowStatus === "release_pending"
+              ) {
+                setStickyReleaseErr(null);
+                setErr(null);
+                applyJob(j);
+                return;
+              }
+            }
+          } catch {
+            /* */
+          }
           const msg =
             e instanceof Error
               ? e.message
@@ -2912,29 +3254,25 @@ export function JobFlowScreen({
     );
   }
 
-  /* ─── PENDING SETTLEMENT (customer confirmed, payout auto-retrying) ─── */
-  if (isPayoutPendingSettlement(job) && job.status !== "released") {
+  /* ─── PENDING SETTLEMENT (pro view only — customer goes to review first) ─── */
+  if (
+    isPayoutPendingSettlement(job) &&
+    job.status !== "released" &&
+    viewer === "repair_pro"
+  ) {
     return (
       <JobShell
         isLight={isLight}
         title="Payout processing"
         compactHeader
-        onBack={() =>
-          router.replace(
-            viewer === "repair_pro" ? "/settings/payments" : "/dashboard"
-          )
-        }
+        onBack={() => router.replace("/settings/payments")}
         footer={
           <button
             type="button"
-            onClick={() =>
-              router.replace(
-                viewer === "repair_pro" ? "/settings/payments" : "/dashboard"
-              )
-            }
+            onClick={() => router.replace("/settings/payments")}
             className="inline-flex h-12 w-full items-center justify-center rounded-md border-0 bg-[#FF6B35] text-[14px] font-black text-white"
           >
-            Back to Dashboard
+            Payment status
           </button>
         }
       >
@@ -2944,9 +3282,8 @@ export function JobFlowScreen({
             Payout processing
           </p>
           <p className={cn("mt-2 text-[13px] leading-snug", muted)}>
-            {viewer === "repair_pro"
-              ? "Your payout is being processed automatically. You’ll be notified when it’s released to your bank."
-              : "Your payment is being processed. You’ll get a notification when it’s fully released. No further action needed."}
+            Your payout is being processed automatically. You’ll be notified
+            when it’s released to your bank.
           </p>
           {job.agreedMajor != null ? (
             <p className={cn("mt-4 text-[22px] font-black tabular-nums", ink)}>
@@ -2958,7 +3295,7 @@ export function JobFlowScreen({
     );
   }
 
-  /* ─── RELEASED / SATISFIED ─── */
+  /* ─── RELEASED / SATISFIED → customer review, then job completion ─── */
   if (job.status === "released" || job.status === "satisfied") {
     // Only motorist rates the Repair Pro. Both sides can view the result.
     const hasRating = job.rating != null && job.rating > 0;
@@ -2966,6 +3303,8 @@ export function JobFlowScreen({
     const displayRating = hasRating ? Number(job.rating) : rating;
     const displayNote = (job.ratingNote || "").trim();
     const reviewChars = reviewText.length;
+    const payoutPending =
+      isPayoutPendingSettlement(job) && job.status !== "released";
 
     const submitReview = async () => {
       if (viewer !== "motorist") return;
@@ -2989,17 +3328,18 @@ export function JobFlowScreen({
         return;
       }
       commitJob(res.data.job, true);
-      // Save pro-level review (new — median + confidence aggregation)
-      await apiCreateReview({
-        jobId: job.id,
-        repairProId: job.repairProId,
-        rating,
-        comment: note || undefined,
-      }).catch(() => null);
+      // rateJob server path already publishes pro profile review aggregates.
+      // Do not dual-write /api/reviews here (diverged stats).
       setReviewLeft(true);
       setFlash("Thanks for your review");
       window.setTimeout(() => setFlash(null), 2500);
       setBusy(false);
+      try {
+        const { playAppSound } = await import("@/lib/sound-tone");
+        playAppSound("job_complete");
+      } catch {
+        /* */
+      }
     };
 
     const starRow = (value: number, interactive: boolean) => (
@@ -3062,27 +3402,37 @@ export function JobFlowScreen({
     );
 
     const canDisputeClosed = canOpenDisputeNow(job);
+    /** Customer: stars + text first, then job completion ceremony. */
+    const showReviewForm = viewer === "motorist" && !alreadyLeft;
+    const showJobComplete =
+      viewer === "motorist" ? alreadyLeft : true;
 
     return (
       <JobShell
         isLight={isLight}
         title={
-          isPayoutPendingSettlement(job) && job.status !== "released"
-            ? "Payout processing"
-            : job.status === "released"
-              ? "Payment released"
-              : "Confirmed"
+          showReviewForm
+            ? "Rate & review"
+            : payoutPending
+              ? "Job complete"
+              : job.status === "released"
+                ? "Job complete"
+                : "Job complete"
         }
         compactHeader
-        onBack={viewer === "repair_pro" ? () => router.replace("/settings/payments") : goHome}
+        onBack={
+          viewer === "repair_pro"
+            ? () => router.replace("/settings/payments")
+            : goHome
+        }
         footer={
           <div className="flex w-full flex-col gap-2">
-            {viewer === "motorist" && !alreadyLeft ? (
+            {showReviewForm ? (
               <CopperButton
                 disabled={busy || rating < 1}
                 onClick={() => void submitReview()}
               >
-                {busy ? "Saving…" : "Leave review"}
+                {busy ? "Saving…" : "Submit review"}
               </CopperButton>
             ) : null}
             {canDisputeClosed ? (
@@ -3095,18 +3445,16 @@ export function JobFlowScreen({
                 Open a dispute (48h window)
               </button>
             ) : null}
-            {viewer === "motorist" ? (
+            {showJobComplete && viewer === "motorist" ? (
               <button
                 type="button"
                 onClick={() => router.replace("/dashboard")}
-                className={cn(
-                  "w-full text-center text-[12px] font-semibold",
-                  muted
-                )}
+                className="inline-flex h-12 w-full items-center justify-center rounded-md border-0 bg-[#FF6B35] text-[14px] font-black text-white"
               >
-                Go to dashboard
+                Done · Home
               </button>
-            ) : (
+            ) : null}
+            {viewer === "repair_pro" ? (
               <button
                 type="button"
                 onClick={() => router.replace("/settings/payments")}
@@ -3117,158 +3465,182 @@ export function JobFlowScreen({
               >
                 Payment status
               </button>
-            )}
+            ) : null}
           </div>
         }
       >
-        {/* Flat success layout — no cards / no tinted panels (both themes) */}
-        <div className="flex flex-col items-center px-2 pt-6 text-center">
-          <CheckCircle2
-            className="h-14 w-14 text-emerald-500"
-            strokeWidth={1.75}
-            aria-hidden
-          />
-          <p className={cn("mt-4 text-[22px] font-black tracking-tight", ink)}>
-            Success
-          </p>
-          {job.agreedMajor != null && (
-            <p className={cn("mt-3 text-[32px] font-black tabular-nums tracking-tight", ink)}>
-              {formatMoney(job.agreedMajor, job.currency)}
+        {/* ── Step 1: customer review (stars + text) ── */}
+        {showReviewForm ? (
+          <div className="flex flex-col items-center px-2 pt-5 text-center">
+            <p className={cn("text-[20px] font-black tracking-tight", ink)}>
+              How was the job?
             </p>
-          )}
-          <p className={cn("mt-1 text-[12px] font-semibold", muted)}>
-            Labour only
-          </p>
-
-          {/* Receipt: hidden until tapped */}
-          <button
-            type="button"
-            onClick={() => setReceiptOpen((o) => !o)}
-            className={cn(
-              "mt-6 inline-flex items-center gap-1 border-0 bg-transparent px-0 text-[13px] font-bold",
-              isLight ? "text-slate-800" : "text-white"
-            )}
-          >
-            Receipt
-            {receiptOpen ? (
-              <ChevronUp className="h-4 w-4" />
+            <p className={cn("mt-1.5 text-[13px] font-medium leading-snug", muted)}>
+              Rate your {PRO_SERVICE_LABELS[job.serviceType] || "Repair Pro"} and
+              leave a short review
+            </p>
+            {payoutPending ? (
+              <p className="mt-3 rounded-md bg-[#FF6B35]/15 px-3 py-1.5 text-[11px] font-bold text-[#FF6B35]">
+                Payment confirmed · payout processing
+              </p>
             ) : (
-              <ChevronDown className="h-4 w-4" />
+              <p className="mt-3 rounded-md bg-emerald-500/15 px-3 py-1.5 text-[11px] font-bold text-emerald-600">
+                Payment released
+              </p>
             )}
-          </button>
-          {receiptOpen && (
-            <div className={cn("mt-2 space-y-1 text-[12px] font-medium", muted)}>
-              <p>Ref {job.paymentReference || job.id}</p>
-              <p>Escrow {job.escrowStatus || "released"}</p>
+            <div className="mt-8 w-full max-w-md text-left">
+              <p className={cn("mb-3 text-center text-[14px] font-bold", ink)}>
+                Star rating
+              </p>
+              {starRow(rating, true)}
+              <div className="mt-5">
+                <label
+                  htmlFor="job-review-text"
+                  className={cn("mb-1.5 block text-[12px] font-bold", ink)}
+                >
+                  Write a review
+                </label>
+                <textarea
+                  id="job-review-text"
+                  value={reviewText}
+                  onChange={(e) =>
+                    setReviewText(e.target.value.slice(0, REVIEW_MAX))
+                  }
+                  maxLength={REVIEW_MAX}
+                  rows={4}
+                  placeholder="How was the repair? (optional)"
+                  className={cn(
+                    "w-full resize-none rounded-md border-0 px-3 py-2.5 text-[13px] font-medium outline-none ring-1 transition placeholder:opacity-50",
+                    isLight
+                      ? "bg-transparent text-slate-900 ring-black/15 focus:ring-[#FF6B35]/50"
+                      : "bg-transparent text-white ring-white/20 focus:ring-[#FF6B35]/50"
+                  )}
+                />
+                <p
+                  className={cn(
+                    "mt-1 text-right text-[11px] font-semibold tabular-nums",
+                    reviewChars >= REVIEW_MAX ? "text-[#FF6B35]" : muted
+                  )}
+                >
+                  {reviewChars}/{REVIEW_MAX}
+                </p>
+              </div>
+              {err && (
+                <p className="mt-3 text-center text-[12px] font-semibold text-red-500">
+                  {err}
+                </p>
+              )}
             </div>
-          )}
-
-          {/* Rating: motorist writes; both motorist + pro can read */}
-          <div className="mt-10 w-full max-w-md text-left">
-            {viewer === "motorist" && !alreadyLeft ? (
-              <>
-                <p className={cn("mb-3 text-center text-[14px] font-bold", ink)}>
-                  Rate your Repair Pro
-                </p>
-                {starRow(rating, true)}
-                <div className="mt-5">
-                  <label
-                    htmlFor="job-review-text"
-                    className={cn("mb-1.5 block text-[12px] font-bold", ink)}
-                  >
-                    Write a review
-                  </label>
-                  <textarea
-                    id="job-review-text"
-                    value={reviewText}
-                    onChange={(e) =>
-                      setReviewText(e.target.value.slice(0, REVIEW_MAX))
-                    }
-                    maxLength={REVIEW_MAX}
-                    rows={3}
-                    placeholder="How was the repair? (optional)"
-                    className={cn(
-                      "w-full resize-none rounded-md border-0 px-3 py-2.5 text-[13px] font-medium outline-none ring-1 transition placeholder:opacity-50",
-                      isLight
-                        ? "bg-transparent text-slate-900 ring-black/15 focus:ring-[#FF6B35]/50"
-                        : "bg-transparent text-white ring-white/20 focus:ring-[#FF6B35]/50"
-                    )}
-                  />
-                  <p
-                    className={cn(
-                      "mt-1 text-right text-[11px] font-semibold tabular-nums",
-                      reviewChars >= REVIEW_MAX ? "text-[#FF6B35]" : muted
-                    )}
-                  >
-                    {reviewChars}/{REVIEW_MAX}
-                  </p>
-                </div>
-              </>
-            ) : hasRating ? (
-              <>
-                <p className={cn("mb-3 text-center text-[14px] font-bold", ink)}>
-                  {viewer === "repair_pro"
-                    ? "Customer rating"
-                    : "Your review of the Repair Pro"}
-                </p>
-                {starRow(displayRating, false)}
-                {displayNote ? (
-                  <p
-                    className={cn(
-                      "mt-4 rounded-md px-3 py-2.5 text-[13px] font-medium leading-snug break-words",
-                      isLight
-                        ? "bg-[#bebfc4]/60 text-slate-900"
-                        : "bg-[#1a1a1a] text-white/90"
-                    )}
-                  >
-                    “{displayNote}”
-                  </p>
-                ) : (
-                  <p
-                    className={cn(
-                      "mt-3 text-center text-[12px] font-semibold",
-                      muted
-                    )}
-                  >
-                    No written review
-                  </p>
-                )}
-                {viewer === "motorist" && (
-                  <p
-                    className={cn(
-                      "mt-3 text-center text-[12px] font-semibold",
-                      muted
-                    )}
-                  >
-                    Review submitted
-                  </p>
-                )}
-              </>
-            ) : (
+          </div>
+        ) : (
+          /* ── Step 2: job completion / execution complete ── */
+          <div className="flex flex-col items-center px-2 pt-6 text-center">
+            <CheckCircle2
+              className="h-14 w-14 text-emerald-500"
+              strokeWidth={1.75}
+              aria-hidden
+            />
+            <p className={cn("mt-4 text-[22px] font-black tracking-tight", ink)}>
+              Job complete
+            </p>
+            <p className={cn("mt-1.5 text-[13px] font-medium leading-snug", muted)}>
+              {payoutPending
+                ? "Thanks — your payment is confirmed. Payout is processing."
+                : "Thanks — payment released and job closed."}
+            </p>
+            {job.agreedMajor != null && (
               <p
                 className={cn(
-                  "text-center text-[13px] font-semibold leading-snug",
-                  muted
+                  "mt-3 text-[32px] font-black tabular-nums tracking-tight",
+                  ink
                 )}
               >
-                {viewer === "repair_pro"
-                  ? "Waiting for the motorist to rate and review this job."
-                  : "Rate this job when you’re ready."}
+                {formatMoney(job.agreedMajor, job.currency)}
               </p>
+            )}
+            <p className={cn("mt-1 text-[12px] font-semibold", muted)}>
+              Labour only
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setReceiptOpen((o) => !o)}
+              className={cn(
+                "mt-6 inline-flex items-center gap-1 border-0 bg-transparent px-0 text-[13px] font-bold",
+                isLight ? "text-slate-800" : "text-white"
+              )}
+            >
+              Receipt
+              {receiptOpen ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </button>
+            {receiptOpen && (
+              <div className={cn("mt-2 space-y-1 text-[12px] font-medium", muted)}>
+                <p>Ref {job.paymentReference || job.id}</p>
+                <p>Escrow {job.escrowStatus || "released"}</p>
+              </div>
             )}
 
-            {flash && (
-              <p className="mt-2 text-center text-[12px] font-bold text-[#FF6B35]">
-                {flash}
-              </p>
-            )}
-            {err && (
-              <p className="mt-2 text-center text-[12px] font-semibold text-red-500">
-                {err}
-              </p>
-            )}
+            <div className="mt-10 w-full max-w-md text-left">
+              {hasRating || alreadyLeft ? (
+                <>
+                  <p className={cn("mb-3 text-center text-[14px] font-bold", ink)}>
+                    {viewer === "repair_pro"
+                      ? "Customer rating"
+                      : "Your review"}
+                  </p>
+                  {starRow(displayRating, false)}
+                  {displayNote ? (
+                    <p
+                      className={cn(
+                        "mt-4 rounded-md px-3 py-2.5 text-[13px] font-medium leading-snug break-words",
+                        isLight
+                          ? "bg-[#bebfc4]/60 text-slate-900"
+                          : "bg-[#1a1a1a] text-white/90"
+                      )}
+                    >
+                      “{displayNote}”
+                    </p>
+                  ) : viewer === "motorist" ? (
+                    <p
+                      className={cn(
+                        "mt-3 text-center text-[12px] font-semibold",
+                        muted
+                      )}
+                    >
+                      No written review
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <p
+                  className={cn(
+                    "text-center text-[13px] font-semibold leading-snug",
+                    muted
+                  )}
+                >
+                  {viewer === "repair_pro"
+                    ? "Waiting for the motorist to rate and review this job."
+                    : "Review saved."}
+                </p>
+              )}
+
+              {flash && (
+                <p className="mt-2 text-center text-[12px] font-bold text-[#FF6B35]">
+                  {flash}
+                </p>
+              )}
+              {err && (
+                <p className="mt-2 text-center text-[12px] font-semibold text-red-500">
+                  {err}
+                </p>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {job.dispute?.decision && !job.dispute.appeal && (
           <button
@@ -3366,21 +3738,27 @@ export function JobFlowScreen({
       compactHeader
       onBack={goJobsList}
       footer={
-        <div className="space-y-2">
-          <CopperButton
-            onClick={() => router.push(`/request?tech=${job.repairProId}`)}
-          >
-            Request again
-          </CopperButton>
-          <GhostButton
-            isLight={isLight}
-            onClick={() =>
-              router.push(viewer === "repair_pro" ? "/dashboard" : "/")
-            }
-          >
-            {viewer === "repair_pro" ? "Home" : "Choose another pro"}
-          </GhostButton>
-        </div>
+        viewer === "repair_pro" ? (
+          <div className="space-y-2">
+            <GhostButton
+              isLight={isLight}
+              onClick={() => router.push("/dashboard")}
+            >
+              Home
+            </GhostButton>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <CopperButton
+              onClick={() => router.push(`/request?tech=${job.repairProId}`)}
+            >
+              Request again
+            </CopperButton>
+            <GhostButton isLight={isLight} onClick={() => router.push("/")}>
+              Choose another pro
+            </GhostButton>
+          </div>
+        )
       }
     >
       <JobCard isLight={isLight}>
@@ -3527,6 +3905,7 @@ function SearchingScreen({
   isLight,
   err,
   onBack,
+  nearbyLine,
 }: {
   job: JobRecord;
   viewer: "motorist" | "repair_pro";
@@ -3534,6 +3913,8 @@ function SearchingScreen({
   isLight: boolean;
   err: string | null;
   onBack: () => void;
+  /** e.g. "2 Mechanics are near you" under the search feedback */
+  nearbyLine?: string | null;
 }) {
   const router = useRouter();
   const ink = isLight ? "text-slate-900" : "text-white";
@@ -3561,19 +3942,18 @@ function SearchingScreen({
   }, [messages.length]);
 
   const cancelSearch = useCallback(
-    async (auto: boolean) => {
-      try {
-        await apiTransition({
-          jobId: job.id,
-          event: "CANCEL",
-          actor: "motorist",
-          actorId: job.motoristId,
-          reason: "motorist_cancelled_search",
-        });
-      } catch {
-        /* ignore */
-      }
+    (auto: boolean) => {
+      // Navigate first — no hang waiting on CANCEL network
       router.replace(auto ? `/requests/${job.id}` : "/");
+      void apiTransition({
+        jobId: job.id,
+        event: "CANCEL",
+        actor: "motorist",
+        actorId: job.motoristId,
+        reason: "motorist_cancelled_search",
+      }).catch(() => {
+        /* ignore */
+      });
     },
     [job.id, job.motoristId, router]
   );
@@ -3593,83 +3973,14 @@ function SearchingScreen({
     return () => window.clearTimeout(t);
   }, [cancelSearch]);
 
+  // Pro never uses this full-page searching UI for requests — panel only
   if (viewer === "repair_pro") {
-    const isAssignedToThisPro = job.repairProId === backendUserId;
-    if (isAssignedToThisPro) {
-      return (
-        <JobShell isLight={isLight} title="Service Request" compactHeader>
-          <div className="flex flex-col items-center px-4 pt-8 text-center">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#FF6B35]/20">
-              <Wrench className="h-7 w-7 text-[#FF6B35]" />
-            </div>
-            <h2 className={cn("text-[18px] font-black", ink)}>
-              New Request from {job.motoristName}
-            </h2>
-            <p className={cn("mt-1 text-[13px]", muted)}>
-              {job.problem}
-            </p>
-            <div className="mt-4 rounded-xl bg-[#FF6B35]/10 px-4 py-2 text-[13px] font-bold text-[#FF6B35]">
-              Request expires in 30s
-            </div>
-            <div className="mt-6 grid w-full grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={async () => {
-                  await apiTransition({
-                    jobId: job.id,
-                    event: "CANCEL",
-                    actor: "repair_pro",
-                    actorId: backendUserId || undefined,
-                    reason: "pro_declined",
-                  });
-                  router.replace("/jobs");
-                }}
-                className="h-11 rounded-xl border-0 bg-red-500/15 text-[13px] font-bold text-red-600"
-              >
-                Decline
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  if (backendUserId) await apiDeferJob(job.id, backendUserId);
-                  router.replace("/jobs");
-                }}
-                className={cn(
-                  "h-11 rounded-xl border-0 text-[13px] font-bold",
-                  isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white"
-                )}
-              >
-                Later
-              </button>
-              <button
-                type="button"
-                onClick={() => router.replace(`/jobs/${job.id}`)}
-                className="h-11 rounded-xl border-0 bg-[#FF6B35] text-[13px] font-bold text-white"
-              >
-                Open
-              </button>
-            </div>
-          </div>
-        </JobShell>
-      );
-    }
-
+    router.replace("/dashboard");
     return (
       <JobShell isLight={isLight} title="Service Request" compactHeader>
-        <div className="flex flex-col items-center justify-center px-0.5 pt-12">
-          <div className="mb-6 h-10 w-10 animate-spin rounded-full border-2 border-[#FF6B35] border-t-transparent" />
-          <h2 className={cn("mb-2 text-center text-[18px] font-bold", ink)}>
-            Request passed to another pro
-          </h2>
-          <p className={cn("mb-1 text-center text-[13px] font-medium", muted)}>
-            This request is no longer available to you.
-          </p>
-        </div>
-        {err && (
-          <p className="mt-4 text-center text-[12px] font-medium text-red-500">
-            {err}
-          </p>
-        )}
+        <p className={cn("px-0.5 pt-8 text-center text-[13px] font-medium", muted)}>
+          Opening dashboard…
+        </p>
       </JobShell>
     );
   }
@@ -3707,6 +4018,11 @@ function SearchingScreen({
           <p className="mt-3 text-center text-[10px] font-black uppercase tracking-[0.14em] text-[#FF6B35]">
             Searching for the nearest {skillLabel}
           </p>
+          {nearbyLine ? (
+            <p className={cn("mt-2 text-center text-[14px] font-bold", ink)}>
+              {nearbyLine}
+            </p>
+          ) : null}
           <h2
             key={idx}
             className={cn(

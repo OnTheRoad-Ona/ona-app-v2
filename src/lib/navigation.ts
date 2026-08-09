@@ -25,6 +25,24 @@ export function defaultBackHref(
   return accountType === "professional" ? "/dashboard" : "/";
 }
 
+/** True when API/UI message is a Forbidden / access-denied style error. */
+export function isForbiddenMessage(msg?: string | null): boolean {
+  if (!msg) return false;
+  return /forbidden|not allowed|access denied|permission denied|403\b/i.test(
+    msg
+  );
+}
+
+/**
+ * Never leave the user on a Forbidden screen — send them to their home.
+ * Pro → /dashboard · Customer → /
+ */
+export function homePathForForbidden(
+  accountType?: AccountType | null | undefined
+): string {
+  return defaultBackHref(accountType);
+}
+
 function pathOnly(href: string): string {
   return (href || "/").split("?")[0].split("#")[0] || "/";
 }
@@ -55,6 +73,13 @@ export function smartBackFallback(
   // ── Profile & payments ────────────────────────────────────
   if (path === "/profile") return home;
   if (path.startsWith("/payments")) return "/settings";
+
+  // ── ONA Shop ──────────────────────────────────────────────
+  if (path.startsWith("/shop/checkout")) return "/shop/cart";
+  if (path.startsWith("/shop/orders/")) return "/shop/orders";
+  if (path === "/shop/orders" || path === "/shop/cart") return "/shop";
+  if (path.startsWith("/shop/p/") || path.startsWith("/shop/c/")) return "/shop";
+  if (path === "/shop") return home;
 
   // ── Jobs / requests / history ─────────────────────────────
   if (/^\/jobs\/[^/]+$/.test(path)) return "/jobs";

@@ -2293,6 +2293,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDisplayName("Guest");
     setUserProfile(null);
     setCloudTechs([]);
+    setRequests([]);
+    setMessages([]);
     // Keep dual vault so both accounts remain for future login / switch after re-auth
     try {
       clearProSetupSheetState(uid);
@@ -3023,46 +3025,79 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const prosFetchLock = useRef(false);
   const lastProsFetchAt = useRef(0);
+  const prosForcePending = useRef(false);
 
-  const refreshCloudPros = useCallback(() => {
-    // Motorist marketplace only — pros never load "nearby" discovery feed
-    // Guests / login screens must not burn mobile data on map lists
-    if (!isAuthenticated || accountType === "professional") {
-      setCloudTechs(accountType === "professional" ? [] : null);
-      return;
-    }
-    // Dedupe stacked polls / realtime bursts (data saver)
-    const now = Date.now();
-    if (prosFetchLock.current || now - lastProsFetchAt.current < 3_500) {
-      return;
-    }
-    prosFetchLock.current = true;
-    lastProsFetchAt.current = now;
-    // /api/pros returns only Live Repair Pros (online + pro role + range)
-    void backendFetchPros({ lat: userLat, lng: userLng })
-      .then((list) => {
-        // [] is valid: no one is Live right now (do not re-show demo seeds)
-        setCloudTechs(list);
-      })
-      .finally(() => {
-        prosFetchLock.current = false;
-      });
-  }, [userLat, userLng, accountType, isAuthenticated]);
+  /**
+   * @param force — Live/Away Realtime: bypass the normal 3.5s debounce so
+   * customers see a pro appear/disappear without a full page refresh.
+   */
+  const refreshCloudPros = useCallback(
+    (opts?: { force?: boolean }) => {
+      // Motorist marketplace only — pros never load "nearby" discovery feed
+      // Guests / login screens must not burn mobile data on map lists
+      if (!isAuthenticated || accountType === "professional") {
+        setCloudTechs(accountType === "professional" ? [] : null);
+        return;
+      }
+      const force = Boolean(opts?.force);
+      const now = Date.now();
+      if (prosFetchLock.current) {
+        if (force) prosForcePending.current = true;
+        return;
+      }
+      // Dedupe stacked polls / GPS heartbeats (data saver)
+      if (!force && now - lastProsFetchAt.current < 5_000) {
+        return;
+      }
+      prosFetchLock.current = true;
+      lastProsFetchAt.current = now;
+      // /api/pros returns only Live Repair Pros (online + pro role + range)
+      void backendFetchPros({ lat: userLat, lng: userLng })
+        .then((list) => {
+          // [] is valid: no one is Live right now (do not re-show demo seeds)
+          setCloudTechs(list);
+        })
+        .catch((e) => {
+          console.warn("[ona] refreshCloudPros failed", e);
+        })
+        .finally(() => {
+          prosFetchLock.current = false;
+          if (prosForcePending.current) {
+            prosForcePending.current = false;
+            window.setTimeout(() => {
+              refreshCloudPros({ force: true });
+            }, 300);
+          }
+        });
+    },
+    [userLat, userLng, accountType, isAuthenticated]
+  );
 
   /** Public: motorist empty-state Refresh — pros list only */
   const refreshNearbyPros = useCallback(() => {
-    refreshCloudPros();
+    refreshCloudPros({ force: true });
   }, [refreshCloudPros]);
 
   const refreshCloudJobs = useCallback(() => {
     if (!isAppBackendOnline() || !backendUserId || !accountType) return;
-    void backendFetchJobsForUser(backendUserId, accountType).then((jobs) => {
-      if (jobs.length > 0) setRequests((prev) => {
-        const prevJson = JSON.stringify(prev);
-        const nextJson = JSON.stringify(jobs);
-        return prevJson === nextJson ? prev : jobs;
+    void backendFetchJobsForUser(backendUserId, accountType)
+      .then((jobs) => {
+        if (jobs.length === 0) return;
+        setRequests((prev) => {
+          // Cheap signature — avoid JSON.stringify of full job trees every poll
+          const sig = (list: ServiceRequest[]) =>
+            list
+              .map(
+                (j) =>
+                  `${j.id}:${j.status}:${j.createdAt}:${j.escrowStatus || ""}:${j.paymentReference || ""}:${j.negotiationStatus || ""}:${j.labourAgreedMajor ?? ""}`
+              )
+              .join("|");
+          return sig(prev) === sig(jobs) ? prev : jobs;
+        });
+      })
+      .catch((e) => {
+        console.warn("[ona] refreshCloudJobs failed", e);
       });
-    });
   }, [backendUserId, accountType]);
 
   const refreshCloudChats = useCallback(() => {
@@ -3074,19 +3109,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, [backendUserId, accountType]);
 
-  // Customer marketplace: Realtime is primary; slow poll is backup only (data saver)
+  // Account isolation: never let the previous user's jobs/chats bleed into the
+  // next account on the same browser (two separate pros sharing accept state).
+  const prevJobsUserId = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (prevJobsUserId.current !== backendUserId) {
+      prevJobsUserId.current = backendUserId;
+      setRequests([]);
+      setMessages([]);
+    }
+  }, [backendUserId]);
+
+  // Customer marketplace: Realtime presence is primary; poll is backup only.
   useEffect(() => {
     if (!isAuthenticated || accountType === "professional") {
       if (accountType === "professional") setCloudTechs([]);
       return;
     }
-    const first = window.setTimeout(() => refreshCloudPros(), 100);
+    const first = window.setTimeout(() => refreshCloudPros({ force: true }), 100);
+    // Backup if Realtime drops — Realtime is primary (keep map/presence snappy)
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudPros();
-    }, 5_000);
+    }, 45_000);
     const onVis = () => {
-      if (document.visibilityState === "visible") refreshCloudPros();
+      if (document.visibilityState === "visible") {
+        refreshCloudPros({ force: true });
+      }
     };
     document.addEventListener("visibilitychange", onVis);
     return () => {
@@ -3096,20 +3145,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [refreshCloudPros, isAuthenticated, accountType]);
 
-  // Pros Realtime — instant Live/Presence updates (throttled)
+  // Pros Realtime via public pro_presence — Live/Away without page refresh
   useEffect(() => {
-    if (!isAppBackendOnline() || !backendUserId || accountType === "professional") return;
+    if (
+      !isAppBackendOnline() ||
+      !backendUserId ||
+      accountType === "professional" ||
+      !isAuthenticated
+    ) {
+      return;
+    }
     let prosTimer: ReturnType<typeof setTimeout> | null = null;
-    const unsubPros = backendSubscribePros(() => {
+    const unsubPros = backendSubscribePros((reason) => {
       if (prosTimer) clearTimeout(prosTimer);
-      // Coalesce bursts so we do not re-fetch the full pros list every event
-      prosTimer = setTimeout(() => refreshCloudPros(), 1_200);
+      // Live/Away: near-instant. GPS heartbeat: short coalesce only.
+      const delay = reason === "heartbeat" ? 1_200 : 200;
+      prosTimer = setTimeout(() => {
+        refreshCloudPros({ force: reason === "presence" });
+      }, delay);
     });
     return () => {
       if (prosTimer) clearTimeout(prosTimer);
       unsubPros?.();
     };
-  }, [backendUserId, accountType, refreshCloudPros]);
+  }, [backendUserId, accountType, isAuthenticated, refreshCloudPros]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -3134,22 +3193,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // First stale sweep once after open (not on every jobs poll)
     const staleTimer = window.setTimeout(() => {
       lastStaleSweep = Date.now();
-      import("@/lib/jobs/client").then((m) =>
-        m.apiExpireStaleBookedJobs().catch(() => null)
-      );
+      import("@/lib/jobs/client")
+        .then((m) => m.apiExpireStaleBookedJobs())
+        .catch((e) => console.warn("[ona] expire-stale (open)", e));
     }, 12_000);
-    // Backup poll if Realtime drops — was 30s + expire every tick (heavy)
+    // Backup poll if Realtime drops (pairing screens still poll locally / job page)
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudJobs();
       const now = Date.now();
-      if (now - lastStaleSweep >= 120_000) {
+      // Expire-stale is heavy (DB sweeps + pairing + payout) — keep rare
+      if (now - lastStaleSweep >= 240_000) {
         lastStaleSweep = now;
-        import("@/lib/jobs/client").then((m) =>
-          m.apiExpireStaleBookedJobs().catch(() => null)
-        );
+        import("@/lib/jobs/client")
+          .then((m) => m.apiExpireStaleBookedJobs())
+          .catch((e) => console.warn("[ona] expire-stale (poll)", e));
       }
-    }, 60_000);
+    }, 120_000);
     const onVis = () => {
       if (document.visibilityState === "visible") refreshCloudJobs();
     };
@@ -3171,11 +3231,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (chatTimer) clearTimeout(chatTimer);
       chatTimer = setTimeout(() => refreshCloudChats(), 600);
     });
-    // Rare backup only — was 30s and stacked with jobs/pros polls
+    // Rare backup — chat Realtime + open thread poll stay primary
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudChats();
-    }, 180_000);
+    }, 240_000);
     return () => {
       if (chatTimer) clearTimeout(chatTimer);
       unsub?.();

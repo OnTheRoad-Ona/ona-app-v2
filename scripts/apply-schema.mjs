@@ -75,10 +75,19 @@ async function main() {
       `postgresql://postgres.${REF}:${enc}@aws-0-eu-west-1.pooler.supabase.com:6543/postgres`
     );
     candidates.push(
+      `postgresql://postgres.${REF}:${enc}@aws-1-eu-west-1.pooler.supabase.com:6543/postgres`
+    );
+    candidates.push(
       `postgresql://postgres.${REF}:${enc}@aws-0-us-east-1.pooler.supabase.com:6543/postgres`
     );
     candidates.push(
+      `postgresql://postgres.${REF}:${enc}@aws-1-us-east-1.pooler.supabase.com:6543/postgres`
+    );
+    candidates.push(
       `postgresql://postgres.${REF}:${enc}@aws-0-eu-central-1.pooler.supabase.com:6543/postgres`
+    );
+    candidates.push(
+      `postgresql://postgres.${REF}:${enc}@aws-1-eu-central-1.pooler.supabase.com:6543/postgres`
     );
     candidates.push(
       `postgresql://postgres:${enc}@db.${REF}.supabase.co:6543/postgres`

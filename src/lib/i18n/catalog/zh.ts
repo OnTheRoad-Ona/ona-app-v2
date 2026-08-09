@@ -363,4 +363,15 @@ export const ZH: MessageDict = {
   "common.customer": "客户",
   "common.repairPro": "技工",
   "common.codeSent": "验证码已发送。请在下方输入。",
+  "nav.shop": "Shop",
+  "nav.myShop": "My Shop",
+  "trade.shop": "Shop",
+  "shop.title": "Shop",
+  "shop.searchPlaceholder": "What are you looking for?",
+  "shop.browseByTrade": "Browse by trade",
+  "shop.popular": "Popular",
+  "shop.newArrivals": "New arrivals",
+  "shop.empty": "No products yet. Catalog is loading.",
+  "shop.setupRequired": "Shop is almost ready — catalog database will appear after setup.",
 };
+

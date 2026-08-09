@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
 import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
-import { withSensitivePassword } from "@/components/admin/sensitive-unlock";
 import {
   adminRoleLabel,
   canCancelEscrowUi,
@@ -24,7 +23,7 @@ type Ops = {
     exhaustedCount: number; suspendedCount: number;
   };
 };
-type FilterKey = "all" | "held" | "pending" | "released" | "failed" | "refunded" | "disputed" | "cancelled";
+type FilterKey = "all" | "held" | "pending" | "released" | "failed" | "refunded" | "disputed" | "cancelled" | "superseded";
 type TabKey = "payments" | "disputes" | "audit" | "failed" | "commission";
 
 const FILTERS: { key: FilterKey; label: string }[] = [
@@ -32,6 +31,7 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "pending", label: "Pending" }, { key: "released", label: "Paid" },
   { key: "failed", label: "Failed" }, { key: "refunded", label: "Refunded" },
   { key: "disputed", label: "Disputed" }, { key: "cancelled", label: "Cancelled" },
+  { key: "superseded", label: "Superseded" },
 ];
 
 const DISPUTE_OUTCOMES = ["full_release_pro", "full_refund_motorist", "partial_split"] as const;
@@ -45,6 +45,7 @@ function effectiveOf(p: Payment): string {
   if (p._disputed) return "disputed";
   if (esc === "released" || p.released_at) return "released";
   if (esc === "refunded") return "refunded";
+  if (meta.superseded === true) return "superseded";
   if (payout === "suspended_admin" || meta.payoutSuspended === true) return "suspended";
   if (esc === "failed" || payout === "failed" || meta.payoutFailedAt) return "failed";
   if (esc === "disputed") return "disputed";
@@ -63,6 +64,7 @@ function badgeStyle(type: string): React.CSSProperties {
     refunded: ["var(--om-text-muted)", "var(--om-panel)"],
     disputed: ["#854d0e", "#fef08a"],
     cancelled: ["var(--om-text-muted)", "var(--om-panel)"],
+    superseded: ["var(--om-text-muted)", "var(--om-panel)"],
   };
   const [fg, bg] = m[type] || ["var(--om-text-muted)", "var(--om-panel)"];
   return { display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: bg, color: fg };
@@ -78,6 +80,11 @@ export default function PaymentControlCenter() {
 
   const [tab, setTab] = useState<TabKey>("payments");
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
   const [payments, setPayments] = useState<Payment[]>([]);
   const [filterCounts, setFilterCounts] = useState<Record<string, number>>({});
   const [ops, setOps] = useState<Ops | null>(null);
@@ -184,23 +191,52 @@ export default function PaymentControlCenter() {
   }
 
   const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const from = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
+    const to = dateTo ? new Date(`${dateTo}T23:59:59.999`) : null;
+    const min = Number(minAmount);
+    const max = Number(maxAmount);
     return payments.filter(p => {
       const e = effectiveOf(p);
-      if (filter === "all") return true;
-      if (filter === "held") return e === "held" || e === "pending_payment";
-      if (filter === "pending") return e === "pending" || e === "release_pending" || e === "pending_settlement";
-      if (filter === "released") return e === "released";
-      if (filter === "failed") return e === "failed";
-      if (filter === "refunded") return e === "refunded";
-      if (filter === "disputed") return e === "disputed";
-      if (filter === "cancelled") return e === "cancelled" || String(p.status).toLowerCase() === "cancelled";
+      if (filter !== "all") {
+        if (filter === "held") { if (e !== "held" && e !== "pending_payment") return false; }
+        else if (filter === "pending") { if (e !== "pending" && e !== "release_pending" && e !== "pending_settlement") return false; }
+        else if (filter === "released") { if (e !== "released") return false; }
+        else if (filter === "failed") { if (e !== "failed") return false; }
+        else if (filter === "refunded") { if (e !== "refunded") return false; }
+        else if (filter === "disputed") { if (e !== "disputed") return false; }
+        else if (filter === "cancelled") { if (e !== "cancelled" && String(p.status).toLowerCase() !== "cancelled") return false; }
+        else if (filter === "superseded") { if (e !== "superseded") return false; }
+      }
+      if (q) {
+        const haystack = [
+          p.id, p.request_id, p.provider_ref,
+          p.motorist_id, p.repair_pro_id,
+          p.motorist_name, p.repair_pro_name,
+        ].map(v => String(v || "")).join(" ").toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      if (from || to) {
+        const t = p.paid_at
+          ? new Date(String(p.paid_at))
+          : p.created_at ? new Date(String(p.created_at)) : null;
+        if (t) {
+          if (from && t < from) return false;
+          if (to && t > to) return false;
+        }
+      }
+      if (min > 0 || max > 0) {
+        const a = Number(p.amount_kobo || 0);
+        if (min > 0 && a < min * 100) return false;
+        if (max > 0 && a > max * 100) return false;
+      }
       return true;
     });
-  }, [payments, filter]);
+  }, [payments, filter, search, dateFrom, dateTo, minAmount, maxAmount]);
 
   const counts = useMemo(() => {
     if (filterCounts.all != null) return filterCounts;
-    const c: Record<string, number> = { all: payments.length, held: 0, pending: 0, released: 0, failed: 0, refunded: 0, disputed: 0, cancelled: 0 };
+    const c: Record<string, number> = { all: payments.length, held: 0, pending: 0, released: 0, failed: 0, refunded: 0, disputed: 0, cancelled: 0, superseded: 0 };
     for (const p of payments) {
       const e = effectiveOf(p);
       if (e === "disputed") c.disputed += 1;
@@ -209,6 +245,7 @@ export default function PaymentControlCenter() {
       else if (e === "released") c.released += 1;
       else if (e === "failed") c.failed += 1;
       else if (e === "refunded") c.refunded += 1;
+      else if (e === "superseded") c.superseded += 1;
       else if (e === "cancelled" || String(p.status).toLowerCase() === "cancelled") c.cancelled += 1;
     }
     return c;
@@ -307,6 +344,17 @@ export default function PaymentControlCenter() {
             ))}
           </div>
 
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 12 }}>
+            <input style={{ ...s.inp, width: 230 }} placeholder="Search id, ref, customer, pro…" value={search} onChange={e => setSearch(e.target.value)} />
+            <input style={{ ...s.inp, width: 150 }} type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} aria-label="From date" />
+            <input style={{ ...s.inp, width: 150 }} type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} aria-label="To date" />
+            <input style={{ ...s.inp, width: 110 }} type="number" min="0" placeholder="Min ₦" value={minAmount} onChange={e => setMinAmount(e.target.value)} aria-label="Minimum amount" />
+            <input style={{ ...s.inp, width: 110 }} type="number" min="0" placeholder="Max ₦" value={maxAmount} onChange={e => setMaxAmount(e.target.value)} aria-label="Maximum amount" />
+            <button style={s.btn} onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); setMinAmount(""); setMaxAmount(""); }}>
+              Clear
+            </button>
+          </div>
+
           <div style={s.panel}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12, alignItems: "center" }}>
               <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0, flex: 1 }}>All Transactions</h2>
@@ -337,7 +385,7 @@ export default function PaymentControlCenter() {
                 </tr></thead>
                 <tbody>
                   {loading && payments.length === 0 ? <tr><td colSpan={11} style={{ ...s.td, ...s.muted }}>Loading...</td></tr>
-                  : filtered.length === 0 ? <tr><td colSpan={11} style={{ ...s.td, ...s.muted }}>No payments in <strong>{filter}</strong>.</td></tr>
+                  : filtered.length === 0 ? <tr><td colSpan={11} style={{ ...s.td, ...s.muted }}>No payments match <strong>{filter}</strong> with the current search and filters.</td></tr>
                   : filtered.map(pm => {
                     const e = effectiveOf(pm);
                     const amt = Number(pm.amount_kobo || 0);
@@ -525,7 +573,7 @@ export default function PaymentControlCenter() {
                   </>
                 )}
                 {modal === "manual" && (
-                  <ManualPayoutForm api={api} onDone={() => { setModal(null); void load(); }} s={s} btn={s.btn} btnP={s.btnP} btnD={s.btnD} muted={s.muted} inp={s.inp} />
+                  <ManualPayoutForm api={api} onDone={() => { setModal(null); void load(); }} btn={s.btn} btnP={s.btnP} muted={s.muted} inp={s.inp} />
                 )}
               </div>
             </div>
@@ -871,11 +919,10 @@ export default function PaymentControlCenter() {
   );
 }
 
-function ManualPayoutForm({ api, onDone, s, btn, btnP, btnD, muted, inp }: {
+function ManualPayoutForm({ api, onDone, btn, btnP, muted, inp }: {
   api: ReturnType<typeof useAdminGate>["api"];
   onDone: () => void;
-  s: Record<string, React.CSSProperties>;
-  btn: React.CSSProperties; btnP: React.CSSProperties; btnD: React.CSSProperties;
+  btn: React.CSSProperties; btnP: React.CSSProperties;
   muted: React.CSSProperties; inp: React.CSSProperties;
 }) {
   const [amount, setAmount] = useState("");

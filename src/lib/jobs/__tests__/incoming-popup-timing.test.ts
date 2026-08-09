@@ -34,10 +34,21 @@ describe("canSurfaceIncomingJob", () => {
     });
   });
 
-  it("blocks already shown jobs", () => {
-    markJobShown("j1");
-    expect(canSurfaceIncomingJob("j1").allow).toBe(false);
-    expect(readShownJobIds().has("j1")).toBe(true);
+  it("blocks already shown jobs for the same offer window", () => {
+    const dl = "2026-08-08T12:00:00.000Z";
+    markJobShown("j1", undefined, dl);
+    expect(
+      canSurfaceIncomingJob("j1", { pairingDeadline: dl }).allow
+    ).toBe(false);
+  });
+
+  it("allows re-surface when pairing deadline changes (new offer / Retry)", () => {
+    markJobShown("j1", undefined, "2026-08-08T12:00:00.000Z");
+    expect(
+      canSurfaceIncomingJob("j1", {
+        pairingDeadline: "2026-08-08T12:01:06.000Z",
+      }).allow
+    ).toBe(true);
   });
 
   it("piles when a wave is open", () => {

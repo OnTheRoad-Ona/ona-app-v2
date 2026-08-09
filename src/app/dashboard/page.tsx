@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChevronRight, Clock, Loader2, Radio, Shield } from "lucide-react";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { BankForcePanel } from "@/components/auth/bank-force-panel";
@@ -21,6 +22,11 @@ import {
 import { nextProEmbedTierStep } from "@/lib/artisan/verification-order";
 import type { ArtisanVerificationProfile } from "@/lib/artisan/types";
 import { apiListJobs } from "@/lib/jobs/client";
+import { windowStillOpen } from "@/lib/jobs/deadline";
+import {
+  clearJobShown,
+  requestForceIncomingPanel,
+} from "@/lib/jobs/incoming-popup-timing";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
 import { useT } from "@/lib/i18n";
 import { isProService, PRO_SERVICE_LABELS } from "@/lib/services";
@@ -173,6 +179,7 @@ function skillDashboardTitle(skill: ProService | string | null | undefined): str
 }
 
 export default function TechnicianDashboardPage() {
+  const router = useRouter();
   const {
     theme,
     proLive,
@@ -267,10 +274,11 @@ export default function TechnicianDashboardPage() {
       }
     };
     void sync();
+    // Data saver: care profile changes rarely — 3 min backup
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void sync();
-    }, 4000);
+    }, 180_000);
     return () => {
       cancelled = true;
       window.clearInterval(poll);
@@ -292,7 +300,6 @@ export default function TechnicianDashboardPage() {
     }
     const res = await apiListJobs(backendUserId, "repair_pro");
     if (res.ok) {
-      const now = Date.now();
       const mine = res.data.jobs.filter((j) => {
         if (j.repairProId !== backendUserId) return false;
         if (!j.motoristId || !j.problem?.trim()) return false;
@@ -302,16 +309,10 @@ export default function TechnicianDashboardPage() {
       const open = mine
         .filter((j) => {
           if (!INCOMING_STATUSES.has(j.status)) return false;
-          if (
-            j.negotiateEndsAt &&
-            now > new Date(j.negotiateEndsAt).getTime()
-          ) {
+          if (j.negotiateEndsAt && !windowStillOpen(j.negotiateEndsAt)) {
             return false;
           }
-          if (
-            j.pairingDeadline &&
-            now > new Date(j.pairingDeadline).getTime()
-          ) {
+          if (j.pairingDeadline && !windowStillOpen(j.pairingDeadline)) {
             return false;
           }
           return true;
@@ -351,10 +352,11 @@ export default function TechnicianDashboardPage() {
 
   useEffect(() => {
     void loadJobs();
+    // Realtime + IncomingJobPopup keep requests live; list is a soft refresh
     const t = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void loadJobs();
-    }, 180_000);
+    }, 240_000);
     return () => window.clearInterval(t);
   }, [loadJobs]);
 
@@ -639,9 +641,15 @@ export default function TechnicianDashboardPage() {
                 const addr = meetAddress(j);
                 return (
                   <li key={j.id}>
-                    <Link
-                      href={`/jobs/${j.id}`}
-                      className="flex items-center gap-3 border-0 bg-transparent py-3.5 active:opacity-90"
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-3 border-0 bg-transparent py-3.5 text-left active:opacity-90"
+                      onClick={() => {
+                        clearJobShown(j.id, backendUserId || undefined);
+                        requestForceIncomingPanel(j.id);
+                        // Stay on dashboard — lower panel only (no full /jobs page)
+                        router.replace("/dashboard");
+                      }}
                     >
                       <div className="min-w-0 flex-1">
                         <p
@@ -676,7 +684,7 @@ export default function TechnicianDashboardPage() {
                         ) : null}
                       </div>
                       <ChevronRight className={cn("h-4 w-4 shrink-0", muted)} />
-                    </Link>
+                    </button>
                   </li>
                 );
               })}

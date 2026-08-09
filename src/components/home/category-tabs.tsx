@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   Car,
   ChevronRight,
@@ -44,7 +45,8 @@ const ALL_TABS: {
   { id: "painter", labelKey: "trade.painter", icon: PaintRoller },
   { id: "solar", labelKey: "trade.solar", icon: Sun },
   { id: "generator", labelKey: "trade.generator", icon: Zap },
-  { id: "all", labelKey: "trade.all", icon: Grid2x2 },
+  /** Replaces former "All" — opens ONA Shop (repair commerce) */
+  { id: "all", labelKey: "trade.shop", icon: Grid2x2 },
 ];
 
 /**
@@ -69,6 +71,7 @@ export function CategoryTabs({
 }) {
   const { category, setCategory, openSpecialtyPicker, theme } = useApp();
   const t = useT();
+  const router = useRouter();
   const isLight = theme === "light";
   const start = useRef<{ x: number; y: number } | null>(null);
   const moved = useRef(false);
@@ -184,6 +187,11 @@ export function CategoryTabs({
               onClick={() => {
                 // Ignore click if this was a swipe
                 if (moved.current) return;
+                // Former "All" → ONA Shop (repair commerce)
+                if (id === "all") {
+                  router.push("/shop");
+                  return;
+                }
                 // Re-tap same specialty trade → show Home/Office/… strip again
                 if (id === category && isSpecialtyPickerTrade(id)) {
                   openSpecialtyPicker();

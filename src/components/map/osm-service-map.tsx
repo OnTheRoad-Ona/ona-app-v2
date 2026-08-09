@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo } from "react";
 import { MapContainer, Marker, TileLayer, useMap } from "react-leaflet";
+import { MAP_STYLE_REVISION, mapThemeForApp } from "@/lib/map-theme";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { tradeIconHtml } from "@/lib/map-trade-icons";
@@ -104,6 +105,7 @@ export function OsmServiceMap({
 }) {
   const { location, radiusKm, selectedTechId, theme } = useApp();
   const isLight = theme === "light";
+  const mapTheme = mapThemeForApp(isLight);
 
   const center = useMemo(
     () => ({
@@ -113,11 +115,15 @@ export function OsmServiceMap({
     [location.coordinates.lat, location.coordinates.lng]
   );
 
-  const tileUrl =
-    "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
-
   return (
-    <div data-map-surface className="relative h-full w-full">
+    <div
+      data-map-surface
+      data-map-engine="osm"
+      data-map-theme={isLight ? "light" : "dark"}
+      data-map-rev={MAP_STYLE_REVISION}
+      className="relative h-full w-full overflow-hidden"
+      style={{ backgroundColor: mapTheme.backgroundColor }}
+    >
       {/* Thought-style nearby label — no pill background */}
       <div
         className="pointer-events-none absolute inset-x-0 top-2.5 z-[500] flex justify-center px-10"
@@ -129,6 +135,7 @@ export function OsmServiceMap({
       </div>
 
       <MapContainer
+        key={`osm-${MAP_STYLE_REVISION}-${isLight ? "light" : "dark"}`}
         center={[center.lat, center.lng]}
         zoom={15}
         className="h-full w-full z-0"
@@ -137,13 +144,12 @@ export function OsmServiceMap({
         style={{
           height: "100%",
           width: "100%",
-          background: isLight ? "#0a1610" : "#0a0000",
-          filter: isLight
-            ? "none"
-            : "sepia(0.55) hue-rotate(-25deg) saturate(1.35) brightness(0.88)",
+          background: mapTheme.backgroundColor,
+          filter: "none",
+          opacity: 1,
         }}
       >
-        <TileLayer url={tileUrl} />
+        <TileLayer url={mapTheme.osmTileUrl} />
         <MapSync center={center} technicians={technicians} radiusKm={radiusKm} />
         <Marker
           position={[center.lat, center.lng]}

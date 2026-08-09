@@ -3,7 +3,8 @@
 /**
  * Live trip map: dual pins + copper route.
  * Motorist sees Repair Pro movement; pro sees motorist location.
- * Pins labeled: You | Repair Pro | Motorist
+ * Colors match customer dashboard map in both themes
+ * (light → green-black, dark → red-black) with street/POI labels forced on.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -14,14 +15,19 @@ import {
   Marker,
   OverlayViewF,
   OVERLAY_MOUSE_TARGET,
-  useJsApiLoader,
 } from "@react-google-maps/api";
+import { shouldUseLiveMaps } from "@/lib/google-maps";
+import { useOnaGoogleMaps } from "@/lib/google-maps-loader";
+import { MapTintOverlay } from "@/components/map/map-tint-overlay";
 import {
-  getGoogleMapsApiKey,
-  GOOGLE_MAPS_LIBRARIES,
-  GOOGLE_MAPS_LOADER_ID,
-  shouldUseLiveMaps,
-} from "@/lib/google-maps";
+  MAP_ROUTE_STROKE,
+  MAP_STYLE_REVISION,
+  applyOnaMapTheme,
+  mapContainerStyle,
+  mapRenderOptions,
+  mapThemeForApp,
+  mapThemeForTrackTrip,
+} from "@/lib/map-theme";
 import type { JobRecord } from "@/lib/jobs/types";
 import {
   USER_MAP_PIN_ANCHOR,
@@ -36,24 +42,6 @@ const OsmFallback = dynamic(
     import("@/components/map/osm-service-map").then((m) => m.OsmServiceMap),
   { ssr: false }
 );
-
-const MAP_STYLES: google.maps.MapTypeStyle[] = [
-  { elementType: "geometry", stylers: [{ color: "#0f1f16" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#060d0a" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#a8c9b5" }] },
-  {
-    featureType: "road",
-    elementType: "geometry",
-    stylers: [{ color: "#1e4030" }],
-  },
-  {
-    featureType: "water",
-    elementType: "geometry",
-    stylers: [{ color: "#060d0a" }],
-  },
-  { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
-  { featureType: "transit", stylers: [{ visibility: "off" }] },
-];
 
 /**
  * Map-only chrome: Time · Distance · Escrow Held.
@@ -214,6 +202,12 @@ function GoogleTrackMap({
   viewer: "motorist" | "repair_pro";
 }) {
   const mapRef = useRef<google.maps.Map | null>(null);
+  /** Once user pans/zooms, never auto fitBounds / pan back. */
+  const userHasMovedMapRef = useRef(false);
+  /** First auto-frame only (pins visible). */
+  const didInitialFitRef = useRef(false);
+  /** Ignore zoom_changed fired by our own fitBounds. */
+  const programmaticCameraRef = useRef(false);
   const [directions, setDirections] =
     useState<google.maps.DirectionsResult | null>(null);
   const [routeEta, setRouteEta] = useState<{
@@ -226,29 +220,100 @@ function GoogleTrackMap({
   const motoristPos = job.motoristLocation;
   const proPos = job.proLocation || null;
 
-  const center = useMemo(() => {
-    if (proPos) {
-      return {
-        lat: (proPos.lat + motoristPos.lat) / 2,
-        lng: (proPos.lng + motoristPos.lng) / 2,
-      };
-    }
-    return motoristPos;
-  }, [proPos, motoristPos]);
+  // Same green/red dashboard map colors as customer home — both theme modes.
+  const theme = mapThemeForApp(isLight);
+  const tripTheme = useMemo(() => mapThemeForTrackTrip(isLight), [isLight]);
 
-  const { isLoaded } = useJsApiLoader({
-    id: GOOGLE_MAPS_LOADER_ID,
-    googleMapsApiKey: getGoogleMapsApiKey(),
-    libraries: GOOGLE_MAPS_LIBRARIES,
+  /**
+   * Stable initial center only — live GPS must NOT update the GoogleMap `center`
+   * prop or React will snap the viewport every pro location tick.
+   */
+  const initialCenterRef = useRef({
+    lat: proPos
+      ? (proPos.lat + motoristPos.lat) / 2
+      : motoristPos.lat,
+    lng: proPos
+      ? (proPos.lng + motoristPos.lng) / 2
+      : motoristPos.lng,
   });
 
-  const onLoad = useCallback((map: google.maps.Map) => {
-    mapRef.current = map;
-  }, []);
+  const fitTripIfAllowed = useCallback(
+    (map?: google.maps.Map | null) => {
+      const m = map ?? mapRef.current;
+      // Never re-frame after first auto-fit or after the user takes the camera.
+      if (!m || userHasMovedMapRef.current || didInitialFitRef.current) return;
+      try {
+        programmaticCameraRef.current = true;
+        if (proPos) {
+          const bounds = new google.maps.LatLngBounds();
+          bounds.extend(proPos);
+          bounds.extend(motoristPos);
+          m.fitBounds(bounds, 56);
+          didInitialFitRef.current = true;
+        } else {
+          m.panTo(motoristPos);
+          m.setZoom(16);
+          didInitialFitRef.current = true;
+        }
+        window.setTimeout(() => {
+          programmaticCameraRef.current = false;
+        }, 400);
+      } catch {
+        programmaticCameraRef.current = false;
+      }
+    },
+    [proPos, motoristPos]
+  );
+
+  const { isLoaded, loadError } = useOnaGoogleMaps();
+
+  const onLoad = useCallback(
+    (map: google.maps.Map) => {
+      mapRef.current = map;
+      applyOnaMapTheme(map, isLight);
+      map.setOptions({
+        ...mapRenderOptions(isLight),
+        draggable: true,
+        scrollwheel: true,
+        disableDoubleClickZoom: false,
+        gestureHandling: "greedy",
+      });
+
+      // User drag / pinch-zoom / zoom control → free camera (stop auto-reset).
+      map.addListener("dragstart", () => {
+        userHasMovedMapRef.current = true;
+      });
+      map.addListener("zoom_changed", () => {
+        if (programmaticCameraRef.current) return;
+        if (didInitialFitRef.current) {
+          userHasMovedMapRef.current = true;
+        }
+      });
+
+      const bump = () => {
+        try {
+          google.maps.event.trigger(map, "resize");
+        } catch {
+          /* ignore */
+        }
+        fitTripIfAllowed(map);
+      };
+      bump();
+      window.setTimeout(bump, 80);
+      window.setTimeout(bump, 320);
+    },
+    [isLight, fitTripIfAllowed]
+  );
+
+  // Keep palette + street names in sync on theme toggle (no camera steal).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isLoaded) return;
+    applyOnaMapTheme(map, isLight);
+  }, [isLoaded, isLight]);
 
   // Directions: pro → motorist when both known.
-  // If Directions API is denied/unavailable, fall back to straight-line ETA
-  // so the trip UI never hangs on REQUEST_DENIED noise.
+  // Updates route line + ETA only — does not re-center after user pans.
   useEffect(() => {
     if (!proPos) {
       setDirections(null);
@@ -276,14 +341,7 @@ function GoogleTrackMap({
         distanceText: km < 1 ? `${Math.round(km * 1000)} m` : `${km} km`,
       });
       setDirections(null);
-      try {
-        const bounds = new google.maps.LatLngBounds();
-        bounds.extend(proPos);
-        bounds.extend(motoristPos);
-        mapRef.current?.fitBounds(bounds, 56);
-      } catch {
-        /* map not ready */
-      }
+      fitTripIfAllowed();
     };
 
     if (!isLoaded || !window.google?.maps?.DirectionsService) {
@@ -314,10 +372,8 @@ function GoogleTrackMap({
               distanceText: leg.distance?.text,
             });
           }
-          const bounds = new google.maps.LatLngBounds();
-          bounds.extend(proPos);
-          bounds.extend(motoristPos);
-          mapRef.current?.fitBounds(bounds, 56);
+          // First auto-frame only; later GPS ticks only move pins, not the camera.
+          fitTripIfAllowed();
         } else {
           // REQUEST_DENIED / ZERO_RESULTS / OVER_QUERY_LIMIT → still show ETA
           applyHaversineEta();
@@ -327,7 +383,14 @@ function GoogleTrackMap({
     return () => {
       cancelled = true;
     };
-  }, [isLoaded, proPos?.lat, proPos?.lng, motoristPos.lat, motoristPos.lng]);
+  }, [
+    isLoaded,
+    proPos?.lat,
+    proPos?.lng,
+    motoristPos.lat,
+    motoristPos.lng,
+    fitTripIfAllowed,
+  ]);
 
   const motoristTitle = viewer === "motorist" ? "You" : "Customer";
   const proLabel = viewer === "repair_pro" ? "You" : "Repair Pro";
@@ -343,22 +406,84 @@ function GoogleTrackMap({
     routeEta?.distanceText ||
     (displayDist != null ? formatDistance(displayDist) : "Not set");
 
+  if (loadError) {
+    return (
+      <div
+        className="relative h-full w-full"
+        style={{ backgroundColor: theme.backgroundColor }}
+      >
+        <OsmFallback
+          technicians={
+            proPos
+              ? [
+                  {
+                    id: job.repairProId,
+                    name: job.repairProName,
+                    shortName: job.repairProName.split(" ")[0] || "Pro",
+                    serviceType: job.serviceType,
+                    roleLabel: "Repair Pro",
+                    photo: job.repairProPhoto || "",
+                    rating: 5,
+                    reviewCount: 0,
+                    distanceKm: job.distanceKm ?? 0,
+                    etaMinutes: job.etaMinutes ?? 0,
+                    status: "available" as const,
+                    verified: true,
+                    fastResponse: true,
+                    specialties: [],
+                    description: "",
+                    phone: "",
+                    serviceRadiusKm: 10,
+                    location: proPos,
+                    responseSpeedScore: 1,
+                    currentLoad: 0,
+                  },
+                ]
+              : []
+          }
+        />
+        <TripMapStatsBar
+          time={timeValue}
+          distance={distValue}
+          isLight={isLight}
+        />
+      </div>
+    );
+  }
+
   if (!isLoaded) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-[#0a1610] text-sm text-[#a8c9b5]">
+      <div
+        className="flex h-full w-full items-center justify-center text-sm text-[#a8c9b5]"
+        style={{ backgroundColor: tripTheme.backgroundColor }}
+      >
         Loading live map…
       </div>
     );
   }
 
   return (
-    <div className="relative h-full w-full">
+    <div
+      className="relative h-full w-full"
+      data-map-surface="track-trip"
+      data-map-engine="google"
+      data-map-theme={isLight ? "light" : "dark"}
+      data-map-rev={MAP_STYLE_REVISION}
+      style={{ backgroundColor: tripTheme.backgroundColor }}
+    >
       <GoogleMap
-        mapContainerStyle={{ width: "100%", height: "100%" }}
-        center={center}
-        zoom={proPos ? 13 : 15}
+        key={`track-${MAP_STYLE_REVISION}-${isLight ? "light" : "dark"}`}
+        mapContainerStyle={mapContainerStyle(isLight, {
+          backgroundColor: tripTheme.backgroundColor,
+        })}
+        // Stable initial center only — do not pass live GPS midpoints or the map snaps back.
+        center={initialCenterRef.current}
+        zoom={16}
         onLoad={onLoad}
         options={{
+          ...mapRenderOptions(isLight),
+          styles: tripTheme.styles,
+          backgroundColor: tripTheme.backgroundColor,
           disableDefaultUI: true,
           zoomControl: true,
           zoomControlOptions: {
@@ -367,9 +492,15 @@ function GoogleTrackMap({
                 ? google.maps.ControlPosition.RIGHT_BOTTOM
                 : 9,
           },
-          styles: MAP_STYLES,
-          clickableIcons: false,
+          mapTypeId:
+            typeof google !== "undefined"
+              ? google.maps.MapTypeId.ROADMAP
+              : "roadmap",
+          draggable: true,
+          scrollwheel: true,
           gestureHandling: "greedy",
+          maxZoom: 19,
+          minZoom: 12,
         }}
       >
         {directions && (
@@ -377,8 +508,10 @@ function GoogleTrackMap({
             directions={directions}
             options={{
               suppressMarkers: true,
+              // Critical: route updates must not re-center the map under the user.
+              preserveViewport: true,
               polylineOptions: {
-                strokeColor: "#FF6B35",
+                strokeColor: MAP_ROUTE_STROKE,
                 strokeWeight: 5,
                 strokeOpacity: 0.92,
               },
@@ -413,6 +546,7 @@ function GoogleTrackMap({
           />
         )}
       </GoogleMap>
+      <MapTintOverlay isLight={isLight} />
 
       <TripMapStatsBar
         time={timeValue}
@@ -459,7 +593,10 @@ export function LiveJobTrackMap({
 }) {
   if (!shouldUseLiveMaps()) {
     return (
-      <div className="relative h-full w-full bg-[#0a1610]">
+      <div
+        className="relative h-full w-full"
+        style={{ backgroundColor: mapThemeForApp(isLight).backgroundColor }}
+      >
         <OsmFallback
           technicians={
             job.proLocation

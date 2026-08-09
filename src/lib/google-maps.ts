@@ -1,14 +1,27 @@
 /**
- * Shared Google Maps config for homepage + pickers.
- * Homepage only needs Maps JavaScript API (no Places library required).
+ * Shared Google Maps config for the whole app.
+ *
+ * CRITICAL: Every useJsApiLoader call must use the same id + apiKey +
+ * libraries + version. Passing "disabled" in one place and the real key
+ * elsewhere throws: "Loader must not be called again with different options"
+ * and crashes the customer searching screen after pro decline/later.
+ *
+ * Prefer `useOnaGoogleMaps()` from `@/lib/google-maps-loader` in components.
  */
 
-/** Bump when the Maps API key or libraries change so the JS loader reloads cleanly. */
-export const GOOGLE_MAPS_LOADER_ID = "ona-google-maps-v3-places";
+/** Bump when loader options change (forces clean Maps script reload). */
+export const GOOGLE_MAPS_LOADER_ID = "ona-google-maps-v4-raster-styles";
+
+/**
+ * Pinned version so all loaders match. Prefer quarterly over weekly —
+ * weekly vector maps often ignore JSON `styles` unless RASTER is forced.
+ */
+export const GOOGLE_MAPS_LOADER_VERSION = "quarterly" as const;
 
 /**
  * Places is required for Uber-style address suggestions
  * (“Help someone else” + location pickers).
+ * Module-level array — same reference for every loader call.
  */
 export const GOOGLE_MAPS_LIBRARIES: (
   | "places"

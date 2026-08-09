@@ -2,57 +2,66 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { GoogleMap, Marker, useJsApiLoader } from "@react-google-maps/api";
+import { GoogleMap, Marker } from "@react-google-maps/api";
 import { LiveProPin } from "@/components/map/live-pro-pin";
-import {
-  getGoogleMapsApiKey,
-  GOOGLE_MAPS_LIBRARIES,
-  GOOGLE_MAPS_LOADER_ID,
-  shouldUseLiveMaps,
-} from "@/lib/google-maps";
+import { getGoogleMapsApiKey, shouldUseLiveMaps } from "@/lib/google-maps";
+import { useOnaGoogleMaps } from "@/lib/google-maps-loader";
 import { MAP_NEAR_ZOOM } from "@/lib/matching";
 import {
   USER_MAP_PIN_ANCHOR,
   USER_MAP_PIN_SIZE,
   userMapPinUrl,
 } from "@/lib/map-user-pin";
-import { tradeIconDataUrl } from "@/lib/map-trade-icons";
-import {
-  MAP_BG_DARK,
-  MAP_BG_LIGHT,
-  MAP_STYLES_DARK,
-  MAP_STYLES_LIGHT,
-} from "@/lib/map-theme";
+import * as mapTheme from "@/lib/map-theme";
 import { useApp } from "@/lib/store";
 import type { Technician } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+/** Namespace import avoids Turbopack named-export partial-init glitches */
+const {
+  MAP_STYLE_REVISION,
+  applyOnaMapTheme,
+  mapContainerStyle,
+  mapRenderOptions,
+  mapSurfaceStyle,
+  mapThemeForApp,
+} = mapTheme;
+
+function safeMapContainerStyle(
+  isLight: boolean
+): Record<string, string | number> {
+  if (typeof mapContainerStyle === "function") {
+    return mapContainerStyle(isLight);
+  }
+  // Hard fallback if module init was partial (must never crash the app shell)
+  return {
+    width: "100%",
+    height: "100%",
+    backgroundColor: isLight ? "#0a1610" : "#0a0000",
+  };
+}
 
 const OsmServiceMap = dynamic(
   () => import("./osm-service-map").then((m) => m.OsmServiceMap),
   {
     ssr: false,
-    loading: () => (
-      <div className="flex h-full w-full items-center justify-center bg-[#0a1610] text-sm text-[#a8c9b5]">
-        Loading live map…
-      </div>
-    ),
+    loading: () => <MapLoading />,
   }
 );
 
-const MAP_ID_CONTAINER = { width: "100%", height: "100%" };
-
-/** Solid Message-orange trade glyph only — no plate / glow */
-function proMarkerIconUrl(t: Technician, selected: boolean): string {
-  return tradeIconDataUrl(t.serviceType, {
-    size: 24,
-    selected,
-  });
+/** Themed map loading placeholder — matches dashboard light/dark map colors */
+function MapLoading() {
+  const { theme } = useApp();
+  const { backgroundColor } = mapThemeForApp(theme === "light");
+  return (
+    <div
+      className="flex h-full w-full items-center justify-center text-sm text-[#a8c9b5]"
+      style={{ backgroundColor }}
+    >
+      Loading live map…
+    </div>
+  );
 }
-
-/**
- * Google Maps can’t animate SVG data-URLs easily — use a slightly larger
- * soft glow via canvas-free double marker approach in LiveGoogleMap.
- */
 
 /**
  * inDrive-style “thought” bar: top-center, no pill background.
@@ -79,175 +88,9 @@ function NearbyCountBadge({ count }: { count: number }) {
 }
 
 /**
- * City map preview.
- * Light chrome → dark green map · Dark chrome → reddish-brown map.
+ * Homepage map: force Google Maps when a live key is present.
+ * OpenStreetMap only if the key is missing or Google hard-fails this session.
  */
-function MockupMap({
-  technicians,
-  onSelect,
-}: {
-  technicians: Technician[];
-  onSelect?: (id: string) => void;
-}) {
-  const { location, selectedTechId, theme } = useApp();
-  const isLight = theme === "light";
-
-  const positions = [
-    { top: "22%", left: "24%" },
-    { top: "18%", left: "58%" },
-    { top: "34%", left: "72%" },
-    { top: "58%", left: "18%" },
-    { top: "50%", left: "78%" },
-  ];
-
-  // Light map = green/black · Dark map = deep red/black
-  const baseBg = isLight ? "bg-[#0a1610]" : "bg-[#0a0000]";
-  const gridColor = isLight
-    ? "rgba(80,140,100,0.28)"
-    : "rgba(140,40,40,0.35)";
-  const landCenter = isLight ? "#0f1f16" : "#1a0808";
-  const landEdge = isLight ? "#060d0a" : "#050000";
-  const parkBlob = isLight ? "bg-[#14281c]/70" : "bg-[#2a1010]/55";
-  const roadColor = isLight ? "#1e4030" : "#4a1414";
-  const roadSoft = isLight ? "#14281c" : "#2a1010";
-  const routeStroke = isLight ? "#34d399" : "#c96a45";
-  const youRing = isLight ? "bg-emerald-400/30" : "bg-[#a8502f]/30";
-  const youDot = isLight ? "bg-emerald-600" : "bg-[#a8502f]";
-
-  return (
-    <div
-      data-map-surface
-      className={cn("relative h-full w-full overflow-hidden", baseBg)}
-    >
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundImage: `
-            linear-gradient(${gridColor} 1px, transparent 1px),
-            linear-gradient(90deg, ${gridColor} 1px, transparent 1px),
-            radial-gradient(ellipse at 45% 48%, ${landCenter} 0%, ${landEdge} 72%)
-          `,
-          backgroundSize: isLight
-            ? "36px 36px, 36px 36px, 100% 100%"
-            : "40px 40px, 40px 40px, 100% 100%",
-        }}
-      />
-
-      <div
-        className={cn("pointer-events-none absolute rounded-full", parkBlob)}
-        style={{ width: "18%", height: "14%", top: "28%", left: "12%" }}
-      />
-      <div
-        className={cn("pointer-events-none absolute rounded-full", parkBlob)}
-        style={{ width: "14%", height: "12%", top: "55%", left: "62%" }}
-      />
-
-      <div
-        className="pointer-events-none absolute inset-0 opacity-55"
-        style={{
-          backgroundImage: `
-            linear-gradient(112deg, transparent 46%, ${roadColor} 46.8%, ${roadColor} 50%, transparent 50.8%),
-            linear-gradient(25deg, transparent 38%, ${roadSoft} 38.6%, ${roadSoft} 41.2%, transparent 41.8%),
-            linear-gradient(-30deg, transparent 52%, ${roadSoft} 52.5%, ${roadSoft} 55%, transparent 55.5%)
-          `,
-        }}
-      />
-
-      <svg
-        className="pointer-events-none absolute inset-0 z-10 h-full w-full"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        aria-hidden
-      >
-        <path
-          d="M 50 50 C 55 42, 62 32, 58 22"
-          fill="none"
-          stroke={routeStroke}
-          strokeWidth="1.4"
-          strokeLinecap="round"
-          opacity="0.9"
-        />
-      </svg>
-
-      <div className="absolute left-1/2 top-[48%] z-20 -translate-x-1/2 -translate-y-1/2 text-center">
-        <div className="relative mx-auto flex h-14 w-14 items-center justify-center">
-          <span
-            className={cn(
-              "absolute inset-0 animate-ping rounded-full",
-              youRing
-            )}
-          />
-          <span
-            className={cn(
-              "relative flex h-10 w-10 items-center justify-center rounded-full shadow-xl ring-[3px] ring-white",
-              youDot
-            )}
-          >
-            <span className="h-3 w-3 rounded-full bg-white" />
-          </span>
-        </div>
-        <span
-          className={cn(
-            "mt-0.5 inline-block rounded-md px-2 py-0.5 text-[10px] font-semibold shadow-sm",
-            isLight
-              ? "bg-[#0f2a1f]/90 text-[#d4efe0]"
-              : "bg-[#2a1c16]/90 text-[#f0d4c4]"
-          )}
-        >
-          You
-        </span>
-      </div>
-
-      {/* Technician pins — filled metallic orange trade icons */}
-      {technicians.slice(0, 5).map((t, i) => {
-        const pos = positions[i % positions.length];
-        const isSel = t.id === selectedTechId || (!selectedTechId && i === 1);
-        const pinUrl = proMarkerIconUrl(t, isSel);
-
-        return (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => onSelect?.(t.id)}
-            className="om-live-pin absolute z-20 -translate-x-1/2 -translate-y-1/2 text-center"
-            style={{ top: pos.top, left: pos.left }}
-            aria-label={`${t.name}, ${t.etaMinutes} min`}
-          >
-            <span className="relative mx-auto flex h-9 w-9 items-center justify-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={pinUrl}
-                alt=""
-                width={24}
-                height={24}
-                className="om-live-glyph om-live-glyph--pulse relative z-[1] block"
-                style={{ filter: "none" }}
-                draggable={false}
-              />
-            </span>
-            <span
-              className={cn(
-                "mt-0.5 inline-block rounded-md px-1.5 py-0.5 text-[9px] font-bold shadow",
-                isLight
-                  ? "bg-white text-slate-800 ring-1 ring-slate-100"
-                  : "bg-black/80 text-white"
-              )}
-            >
-              {t.etaMinutes} min
-            </span>
-          </button>
-        );
-      })}
-
-      <NearbyCountBadge count={technicians.length} />
-
-      <p className="sr-only">
-        Map near {location.label}. {technicians.length} technicians visible.
-      </p>
-    </div>
-  );
-}
-
 function GoogleServiceMap({
   technicians,
   onSelect,
@@ -259,8 +102,6 @@ function GoogleServiceMap({
 }) {
   const { location, selectedTechId, theme } = useApp();
   const isLight = theme === "light";
-  const mapStyles = isLight ? MAP_STYLES_LIGHT : MAP_STYLES_DARK;
-  const mapBg = isLight ? MAP_BG_LIGHT : MAP_BG_DARK;
   const [map, setMap] = useState<google.maps.Map | null>(null);
 
   const center = useMemo(
@@ -273,6 +114,12 @@ function GoogleServiceMap({
 
   const onLoad = useCallback(
     (m: google.maps.Map) => {
+      // Deep force: styles + grayscale chroma-kill (no sepia/orange)
+      applyOnaMapTheme(m, isLight);
+      window.requestAnimationFrame(() => applyOnaMapTheme(m, isLight));
+      // Re-paint after Google finishes first tile pass (kills late orange roads)
+      const t1 = window.setTimeout(() => applyOnaMapTheme(m, isLight), 400);
+      const t2 = window.setTimeout(() => applyOnaMapTheme(m, isLight), 1200);
       setMap(m);
       let checks = 0;
       const id = window.setInterval(() => {
@@ -287,27 +134,33 @@ function GoogleServiceMap({
           window.clearInterval(id);
         }
       }, 200);
-      (m as google.maps.Map & { __omTimer?: number }).__omTimer = id;
+      const bag = m as google.maps.Map & {
+        __omTimer?: number;
+        __omPaint?: number[];
+      };
+      bag.__omTimer = id;
+      bag.__omPaint = [t1, t2];
     },
-    [onFatalError]
+    [onFatalError, isLight]
   );
 
   const onUnmount = useCallback(() => {
     if (map) {
-      const t = (map as google.maps.Map & { __omTimer?: number }).__omTimer;
-      if (t) window.clearInterval(t);
+      const bag = map as google.maps.Map & {
+        __omTimer?: number;
+        __omPaint?: number[];
+      };
+      if (bag.__omTimer) window.clearInterval(bag.__omTimer);
+      bag.__omPaint?.forEach((t) => window.clearTimeout(t));
     }
     setMap(null);
   }, [map]);
 
-  // Re-tint map when light/dark toggles
+  // Re-apply green/red (CSS filter + styles) when theme flips
   useEffect(() => {
     if (!map) return;
-    map.setOptions({
-      styles: mapStyles,
-      backgroundColor: mapBg,
-    });
-  }, [map, mapStyles, mapBg]);
+    applyOnaMapTheme(map, isLight);
+  }, [map, isLight]);
 
   // Only pros with a real live GPS pin on the map
   const livePros = technicians.filter(
@@ -323,7 +176,8 @@ function GoogleServiceMap({
     if (!map || typeof google === "undefined") return;
     if (livePros.length === 0) {
       map.panTo(center);
-      map.setZoom(MAP_NEAR_ZOOM + 1);
+      // Street names need ~16+ zoom (Uber/inDrive density)
+      map.setZoom(Math.max(MAP_NEAR_ZOOM + 1, 16));
       return;
     }
     const bounds = new google.maps.LatLngBounds();
@@ -332,34 +186,51 @@ function GoogleServiceMap({
       bounds.extend({ lat: t.location.lat, lng: t.location.lng })
     );
     map.fitBounds(bounds, { top: 56, right: 40, bottom: 40, left: 40 });
-    // Allow deeper zoom for close pros (street-level)
+    // Street-level: don't zoom out so far that names disappear
     const z = map.getZoom();
     if (z != null && z > 18) map.setZoom(18);
-    if (z != null && z < 13 && livePros.length === 1) map.setZoom(15);
+    if (z != null && z < 15) map.setZoom(15);
   }, [map, center.lat, center.lng, livePros]);
 
+  const mapOptions = useMemo(
+    () => ({
+      ...mapRenderOptions(isLight),
+      disableDefaultUI: true,
+      zoomControl: false,
+      gestureHandling: "greedy" as const,
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: false,
+      maxZoom: 19,
+      minZoom: 12,
+    }),
+    [isLight]
+  );
+
   return (
-    <div data-map-surface className="relative h-full w-full">
+    <div
+      data-map-surface
+      data-map-engine="google"
+      data-map-theme={isLight ? "light" : "dark"}
+      data-map-rev={MAP_STYLE_REVISION}
+      className="relative h-full w-full overflow-hidden"
+      style={{
+        backgroundColor: mapSurfaceStyle(isLight).backgroundColor,
+        // Never dim the home map shell
+        opacity: 1,
+        filter: "none",
+      }}
+    >
       <NearbyCountBadge count={livePros.length} />
       <GoogleMap
-        mapContainerStyle={MAP_ID_CONTAINER}
+        key={`gm-${MAP_STYLE_REVISION}-${isLight ? "light" : "dark"}`}
+        mapContainerStyle={safeMapContainerStyle(isLight)}
+        mapContainerClassName="ona-home-map-visible"
         center={center}
-        zoom={MAP_NEAR_ZOOM + 1}
+        zoom={16}
         onLoad={onLoad}
         onUnmount={onUnmount}
-        options={{
-          styles: mapStyles,
-          disableDefaultUI: true,
-          zoomControl: false,
-          clickableIcons: false,
-          gestureHandling: "greedy",
-          backgroundColor: mapBg,
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: false,
-          maxZoom: 19,
-          minZoom: 11,
-        }}
+        options={mapOptions}
       >
         <Marker
           position={center}
@@ -389,6 +260,7 @@ function GoogleServiceMap({
           );
         })}
       </GoogleMap>
+      {/* No tint overlay — real styled tiles only (full visibility + gestures) */}
     </div>
   );
 }
@@ -460,7 +332,6 @@ export function ServiceMap({
       key={`${apiKey.slice(-6)}-${retryTick}`}
       technicians={technicians}
       onSelect={onSelect}
-      apiKey={apiKey}
       onFatalError={() => {
         setMapFailed(true);
       }}
@@ -471,20 +342,14 @@ export function ServiceMap({
 function LiveGoogleMap({
   technicians,
   onSelect,
-  apiKey,
   onFatalError,
 }: {
   technicians: Technician[];
   onSelect?: (id: string) => void;
-  apiKey: string;
   onFatalError: (reason?: string) => void;
 }) {
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: GOOGLE_MAPS_LOADER_ID,
-    googleMapsApiKey: apiKey,
-    // Empty libraries: only Maps JavaScript API needed for homepage
-    libraries: GOOGLE_MAPS_LIBRARIES,
-  });
+  const { isLoaded, loadError } = useOnaGoogleMaps();
+  const { theme } = useApp();
 
   useEffect(() => {
     if (loadError) {
@@ -498,14 +363,17 @@ function LiveGoogleMap({
   if (loadError) {
     return (
       <div className="relative h-full w-full">
-        <MockupMap technicians={technicians} onSelect={onSelect} />
+        <OsmServiceMap technicians={technicians} onSelect={onSelect} />
       </div>
     );
   }
 
   if (!isLoaded) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-[#0a1610] text-sm text-[#a8c9b5]">
+      <div
+        className="flex h-full w-full items-center justify-center text-sm text-[#a8c9b5]"
+        style={{ backgroundColor: mapThemeForApp(theme === "light").backgroundColor }}
+      >
         <div className="flex flex-col items-center gap-2">
           <span className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
           Loading live Google Maps…

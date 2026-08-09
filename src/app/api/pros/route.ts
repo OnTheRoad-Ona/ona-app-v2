@@ -5,6 +5,7 @@ import { DOCS_PENDING_MAX_RADIUS_KM } from "@/lib/skill-questions";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { getMeritScoresForPros } from "@/lib/server/merit/merit-engine";
+import { isSyntheticAccount } from "@/lib/server/synthetic-accounts";
 import { mapProToTechnician } from "@/lib/supabase/mappers";
 import type { ProfileRow, RepairProRow } from "@/lib/supabase/types";
 
@@ -176,6 +177,16 @@ export async function GET(req: Request) {
         // Prefer repair_pro role, but if they are Live (is_online) still show
         // even when role lag/switch briefly says motorist — reduces empty lists.
         if (profile.role === "motorist" && !p.is_online) return false;
+        // Never surface demo/audit pros to real customers.
+        if (
+          isSyntheticAccount({
+            email: profile.email,
+            fullName: profile.full_name,
+            businessName: p.business_name,
+          })
+        ) {
+          return false;
+        }
         return true;
       })
       .filter((p) => {

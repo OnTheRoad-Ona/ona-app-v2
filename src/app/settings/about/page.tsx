@@ -2,6 +2,7 @@
 
 import { PageHeader } from "@/components/layout/page-header";
 import { useAppConfig } from "@/components/app-config-provider";
+import { ONA_BUILD_ID, ONA_BUILD_LABEL } from "@/lib/build-id";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +47,22 @@ export default function SettingsAboutPage() {
           </p>
           <p className="mt-3 text-[11px] font-bold text-[#FF6B35]">
             Version {version}
+          </p>
+          <p
+            className={cn(
+              "mt-1 text-[10px] font-semibold tabular-nums",
+              isLight ? "text-slate-500" : "text-white/45"
+            )}
+          >
+            {ONA_BUILD_LABEL}
+          </p>
+          <p
+            className={cn(
+              "mt-0.5 text-[9px] font-mono",
+              isLight ? "text-slate-400" : "text-white/30"
+            )}
+          >
+            {ONA_BUILD_ID}
           </p>
         </div>
         <p

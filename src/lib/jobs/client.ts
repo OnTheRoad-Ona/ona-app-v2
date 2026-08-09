@@ -5,11 +5,14 @@ import {
   ensureAppSession,
   SESSION_RELOGIN_MESSAGE,
 } from "@/lib/supabase/session";
+import { syncServerClock } from "@/lib/jobs/server-clock";
 
 type ApiOk<T> = { ok: true; data: T };
 type ApiErr = { ok: false; message: string };
 
 const FETCH_TIMEOUT = 15_000;
+/** Release/payout can wait on Flutterwave transfer — must not abort at 15s. */
+const RELEASE_FETCH_TIMEOUT = 90_000;
 
 /**
  * Attach Bearer token so job APIs can enforce auth server-side.
@@ -41,15 +44,38 @@ async function authHeaders(
   return headers;
 }
 
+function isAbortError(e: unknown): boolean {
+  if (!e || typeof e !== "object") return false;
+  const name = (e as { name?: string }).name;
+  const msg = String((e as { message?: string }).message || "").toLowerCase();
+  return (
+    name === "AbortError" ||
+    msg.includes("aborted") ||
+    msg.includes("abort")
+  );
+}
+
 async function fetchWithTimeout(
   url: string,
-  init: RequestInit = {}
+  init: RequestInit = {},
+  timeoutMs = FETCH_TIMEOUT
 ): Promise<Response> {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(url, { ...init, signal: ctrl.signal });
     return res;
+  } catch (e) {
+    if (isAbortError(e)) {
+      const err = new Error(
+        timeoutMs >= RELEASE_FETCH_TIMEOUT
+          ? "Release is taking longer than expected. Checking status…"
+          : "Request timed out. Please try again."
+      );
+      err.name = "AbortError";
+      throw err;
+    }
+    throw e;
   } finally {
     clearTimeout(timer);
   }
@@ -61,7 +87,8 @@ async function fetchWithTimeout(
  */
 async function jobFetch(
   url: string,
-  init: RequestInit = {}
+  init: RequestInit = {},
+  timeoutMs = FETCH_TIMEOUT
 ): Promise<Response> {
   const headers1 = await authHeaders(
     init.headers as Record<string, string> | undefined
@@ -82,10 +109,14 @@ async function jobFetch(
         { status: 401, headers: { "Content-Type": "application/json" } }
       );
     }
-    return fetchWithTimeout(url, { ...init, headers: headersRetry });
+    return fetchWithTimeout(url, { ...init, headers: headersRetry }, timeoutMs);
   }
 
-  const res = await fetchWithTimeout(url, { ...init, headers: headers1 });
+  const res = await fetchWithTimeout(
+    url,
+    { ...init, headers: headers1 },
+    timeoutMs
+  );
   if (res.status !== 401) return res;
 
   // Token rejected — refresh once and retry
@@ -94,13 +125,13 @@ async function jobFetch(
     { forceRefresh: true }
   );
   if (!headers2.Authorization) return res;
-  return fetchWithTimeout(url, { ...init, headers: headers2 });
+  return fetchWithTimeout(url, { ...init, headers: headers2 }, timeoutMs);
 }
 
 async function parse<T>(res: Response): Promise<ApiOk<T> | ApiErr> {
   const json = (await res.json().catch(() => null)) as {
     ok?: boolean;
-    data?: T;
+    data?: T & { serverNow?: string };
     error?: { message?: string };
   } | null;
   if (!json?.ok) {
@@ -113,6 +144,7 @@ async function parse<T>(res: Response): Promise<ApiOk<T> | ApiErr> {
           : `Request failed (${res.status})`),
     };
   }
+  syncServerClock(json.data?.serverNow);
   return { ok: true, data: json.data as T };
 }
 
@@ -245,6 +277,14 @@ export async function processPendingOffers(): Promise<void> {
   const remaining: typeof queue = [];
   for (const item of queue) {
     try {
+      // Drop queue items once negotiation is closed / terminal.
+      const jobRes = await apiGetJob(item.jobId);
+      if (jobRes.ok) {
+        const st = jobRes.data.job.status;
+        if (st !== "negotiating") {
+          continue; // drop — no longer placeable
+        }
+      }
       const res = await jobFetch(`/api/jobs/${item.jobId}/offer`, {
         method: "POST",
         body: JSON.stringify({
@@ -254,7 +294,13 @@ export async function processPendingOffers(): Promise<void> {
           amountMajor: item.amountMajor,
         }),
       });
-      if (!res.ok) remaining.push(item);
+      if (!res.ok) {
+        // Permanent client/server rejection — drop, don't retry forever.
+        if (res.status === 400 || res.status === 403 || res.status === 409) {
+          continue;
+        }
+        remaining.push(item);
+      }
     } catch {
       remaining.push(item);
     }
@@ -412,11 +458,51 @@ export async function apiTransition(input: {
   proLat?: number;
   proLng?: number;
 }) {
-  const res = await jobFetch(`/api/jobs/${input.jobId}/transition`, {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
-  return parse<{ job: JobRecord }>(res);
+  // SATISFIED/RELEASE may call Flutterwave transfer — allow up to 90s.
+  const timeoutMs =
+    input.event === "SATISFIED" || input.event === "RELEASE"
+      ? RELEASE_FETCH_TIMEOUT
+      : FETCH_TIMEOUT;
+  try {
+    const res = await jobFetch(
+      `/api/jobs/${input.jobId}/transition`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+      timeoutMs
+    );
+    return parse<{ job: JobRecord }>(res);
+  } catch (e) {
+    // Network/abort mid-release: payout may still have completed on server.
+    if (
+      (input.event === "SATISFIED" || input.event === "RELEASE") &&
+      isAbortError(e)
+    ) {
+      for (let i = 0; i < 4; i++) {
+        await new Promise((r) => setTimeout(r, 800 + i * 400));
+        const again = await apiGetJob(input.jobId);
+        if (
+          again.ok &&
+          (again.data.job.status === "released" ||
+            again.data.job.status === "satisfied" ||
+            again.data.job.releasedAt ||
+            again.data.job.escrowStatus === "released" ||
+            again.data.job.escrowStatus === "pending_settlement" ||
+            again.data.job.escrowStatus === "release_pending")
+        ) {
+          return { ok: true as const, data: { job: again.data.job } };
+        }
+      }
+    }
+    return {
+      ok: false as const,
+      message:
+        e instanceof Error
+          ? e.message
+          : "Could not update job. Please try again.",
+    };
+  }
 }
 
 export async function apiDeferJob(
@@ -426,6 +512,16 @@ export async function apiDeferJob(
   const res = await jobFetch(`/api/jobs/${jobId}/defer`, {
     method: "POST",
     body: JSON.stringify({ proId }),
+  });
+  return parse<{ job: JobRecord }>(res);
+}
+
+/** Customer re-runs a pairing-exhausted search (max MAX_PAIRING_RETRIES). */
+export async function apiRetrySearch(
+  jobId: string
+): Promise<ApiOk<{ job: JobRecord }> | ApiErr> {
+  const res = await jobFetch(`/api/jobs/${jobId}/retry`, {
+    method: "POST",
   });
   return parse<{ job: JobRecord }>(res);
 }

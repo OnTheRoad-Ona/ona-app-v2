@@ -6,7 +6,6 @@ import {
   Clock3,
   MapPin,
   Navigation,
-  Phone,
   XCircle,
 } from "lucide-react";
 import {
@@ -20,14 +19,15 @@ import { PRO_SERVICE_LABELS } from "@/lib/services";
 import type { RequestStatus, ServiceRequest } from "@/lib/types";
 import { cn, formatDistance, formatEta } from "@/lib/utils";
 
+/** Coarse labels — live truth is flow_status on /jobs/[id]; desk maps cloud jobs into RequestStatus. */
 const STATUS_LABEL: Record<RequestStatus, string> = {
-  pending: "Service Request",
-  accepted: "Accepted",
-  en_route: "En route",
+  pending: "Service Request / pairing / negotiate",
+  accepted: "Booked (paid)",
+  en_route: "OnTheRoad",
   arrived: "Arrived",
-  in_progress: "In progress",
-  completed: "Completed",
-  cancelled: "Cancelled",
+  in_progress: "Working",
+  completed: "Completed / release / paid out",
+  cancelled: "Cancelled / expired",
 };
 
 /**
@@ -43,6 +43,7 @@ export default function ProOrdersPage() {
     accountType,
     proServices,
     displayName,
+    backendUserId,
   } = useApp();
   const isLight = theme === "light";
   const [filter, setFilter] = useState<"open" | "all">("open");
@@ -65,6 +66,11 @@ export default function ProOrdersPage() {
 
   const list = useMemo(() => {
     let rows = [...requests];
+    // Account isolation: a pro's desk only ever shows THEIR assigned jobs,
+    // never another pro's requests (defense in depth behind the per-user feed).
+    if (isPro && backendUserId) {
+      rows = rows.filter((r) => r.technicianId === backendUserId);
+    }
     if (filter === "open") {
       rows = rows.filter(
         (r) => !["completed", "cancelled"].includes(r.status)
@@ -74,7 +80,7 @@ export default function ProOrdersPage() {
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
-  }, [requests, filter]);
+  }, [requests, filter, isPro, backendUserId]);
 
   if (!isPro) {
     return (

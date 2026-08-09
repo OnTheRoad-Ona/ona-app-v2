@@ -119,6 +119,18 @@ export function SwipeToRelease({
   const [progress, setProgress] = useState(0);
   const [dragging, setDragging] = useState(false);
   const released = useRef(false);
+  const wasBusy = useRef(false);
+
+  // Re-arm after a failed release (busy → idle while still on this screen).
+  // Success navigates/unmounts; failure must allow another swipe.
+  useEffect(() => {
+    if (wasBusy.current && !busy && released.current) {
+      released.current = false;
+      setProgress(0);
+      setDragging(false);
+    }
+    wasBusy.current = busy;
+  }, [busy]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (busy || released.current) return;
@@ -260,6 +272,7 @@ export function MotoristReleasePayGate() {
   const router = useRouter();
   const pathname = usePathname() || "";
   const knownCompleted = useRef<Set<string>>(new Set());
+  const lastSweepRef = useRef(0);
   const [pending, setPending] = useState<JobRecord | null>(null);
   const [minimized, setMinimizedUi] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -277,12 +290,18 @@ export function MotoristReleasePayGate() {
       setPending(null);
       return;
     }
-    // Soft sweep — never re-open UI for done jobs
-    try {
-      const { apiExpireStaleBookedJobs } = await import("@/lib/jobs/client");
-      await apiExpireStaleBookedJobs();
-    } catch {
-      /* */
+    // Soft sweep — never re-open UI for done jobs.
+    // Data saver: the expire-stale POST is heavy (server DB sweep), so throttle
+    // it to ~2 min even though the list poll runs more often.
+    const now = Date.now();
+    if (now - lastSweepRef.current >= 120_000) {
+      lastSweepRef.current = now;
+      try {
+        const { apiExpireStaleBookedJobs } = await import("@/lib/jobs/client");
+        await apiExpireStaleBookedJobs();
+      } catch {
+        /* */
+      }
     }
 
     const res = await apiListJobs(backendUserId, "motorist");
@@ -354,7 +373,7 @@ export function MotoristReleasePayGate() {
     void poll();
     const t = window.setInterval(() => {
       void poll();
-    }, 8_000);
+    }, 30_000);
     return () => {
       cancelled = true;
       window.clearInterval(t);
@@ -452,12 +471,22 @@ export function MotoristReleasePayGate() {
         });
         setSuccess(true);
         setPending(null);
+        // Land on the job shell so the customer can rate + review immediately.
+        window.setTimeout(() => {
+          router.replace(`/jobs/${job.id}`);
+        }, 900);
       } else {
-        router.replace("/dashboard");
+        // Still open the job for status / review recovery.
+        router.replace(`/jobs/${pending.id}`);
       }
     } catch (e) {
-      markDone(pending.id);
+      // Abort mid-release: open job shell — release may have completed server-side.
+      const id = pending.id;
+      markDone(id);
       setErr(e instanceof Error ? e.message : "Release failed");
+      window.setTimeout(() => {
+        router.replace(`/jobs/${id}`);
+      }, 1200);
     }
     setBusy(false);
   };

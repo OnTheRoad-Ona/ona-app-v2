@@ -1450,10 +1450,31 @@ button.om-cta-dark-gray:disabled,
   }
 }
 
-/* Leaflet live map (OpenStreetMap fallback) */
+/**
+ * Home map: full visibility. Color = real Google styles (dark green / dark red).
+ * No grayscale/sepia/multiply — those made the map look dim.
+ */
+[data-map-surface] {
+  opacity: 1 !important;
+  filter: none !important;
+}
+[data-map-surface][data-map-theme="light"] {
+  background-color: #0a1610 !important;
+}
+[data-map-surface][data-map-theme="dark"] {
+  background-color: #0a0000 !important;
+}
+.ona-home-map-visible,
+.ona-home-map-visible .gm-style {
+  opacity: 1 !important;
+  filter: none !important;
+}
+/* Leaflet fallback — readable dark base */
 .leaflet-container {
   font: inherit;
-  background: #1a3d2e;
+  background: #0a1610;
+  filter: none !important;
+  opacity: 1 !important;
 }
 .leaflet-tooltip.om-you-tip,
 .leaflet-tooltip {

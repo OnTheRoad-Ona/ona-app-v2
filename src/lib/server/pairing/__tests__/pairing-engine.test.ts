@@ -21,35 +21,39 @@ describe("pairing-engine constants", () => {
     ]);
   });
 
-  it("max radius is the last step (50 km)", () => {
-    expect(MAX_PAIRING_RADIUS_KM).toBe(50);
+  it("max radius is the last step (10 km)", () => {
+    expect(MAX_PAIRING_RADIUS_KM).toBe(10);
   });
 });
 
 describe("nextRadiusKm", () => {
-  it("returns 20 when current is 15", () => {
-    expect(nextRadiusKm(15)).toBe(20);
+  it("expands step by step from the customer's radius cap", () => {
+    expect(nextRadiusKm(1)).toBe(2);
+    expect(nextRadiusKm(2)).toBe(3);
+    expect(nextRadiusKm(3)).toBe(5);
+    expect(nextRadiusKm(5)).toBe(8);
+    expect(nextRadiusKm(8)).toBe(10);
   });
 
-  it("returns 30 when current is 20", () => {
-    expect(nextRadiusKm(20)).toBe(30);
-  });
-
-  it("returns 50 when current is 30", () => {
-    expect(nextRadiusKm(30)).toBe(50);
+  it("caps expansion at the customer's chosen radius", () => {
+    expect(nextRadiusKm(1, 3)).toBe(2);
+    expect(nextRadiusKm(2, 3)).toBe(3);
+    expect(nextRadiusKm(3, 3)).toBeNull();
+    expect(nextRadiusKm(5, 3)).toBeNull();
   });
 
   it("returns null when at max radius", () => {
-    expect(nextRadiusKm(50)).toBeNull();
+    expect(nextRadiusKm(10)).toBeNull();
     expect(nextRadiusKm(60)).toBeNull();
   });
 
   it("returns the first step for a missing radius", () => {
-    expect(nextRadiusKm(null)).toBe(15);
+    expect(nextRadiusKm(null)).toBe(1);
   });
 
   it("returns the next strict step for an intermediate value", () => {
-    expect(nextRadiusKm(0)).toBe(15);
-    expect(nextRadiusKm(22)).toBe(30);
+    expect(nextRadiusKm(0)).toBe(1);
+    expect(nextRadiusKm(4)).toBe(5);
+    expect(nextRadiusKm(22)).toBeNull();
   });
 });

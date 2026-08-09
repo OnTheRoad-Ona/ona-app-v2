@@ -44,12 +44,14 @@ function dbCandidates() {
   if (process.env.NEW_DATABASE_URL) list.push(process.env.NEW_DATABASE_URL);
   if (!NEW_DB_PASS) return list;
   for (const r of ["eu-west-1", "eu-central-1", "us-east-1", "us-west-1"]) {
-    list.push(
-      `postgresql://postgres.${REF}:${enc}@aws-0-${r}.pooler.supabase.com:6543/postgres`
-    );
-    list.push(
-      `postgresql://postgres.${REF}:${enc}@aws-0-${r}.pooler.supabase.com:5432/postgres`
-    );
+    for (const p of ["aws-0", "aws-1"]) {
+      list.push(
+        `postgresql://postgres.${REF}:${enc}@${p}-${r}.pooler.supabase.com:6543/postgres`
+      );
+      list.push(
+        `postgresql://postgres.${REF}:${enc}@${p}-${r}.pooler.supabase.com:5432/postgres`
+      );
+    }
   }
   list.push(`postgresql://postgres:${enc}@db.${REF}.supabase.co:5432/postgres`);
   return list;

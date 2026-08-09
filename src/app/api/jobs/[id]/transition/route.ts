@@ -136,6 +136,7 @@ export async function POST(
         job: updatedJob,
         rerouted: Boolean(res.nextProId),
         noop: Boolean(res.noop),
+        serverNow: new Date().toISOString(),
       });
     }
 
@@ -181,6 +182,7 @@ export async function POST(
         etaText,
         distanceText,
         etaSource,
+        serverNow: new Date().toISOString(),
       });
     }
 
@@ -199,6 +201,7 @@ export async function POST(
       etaText,
       distanceText,
       etaSource,
+      serverNow: new Date().toISOString(),
     });
   } catch (e) {
     return apiFail(

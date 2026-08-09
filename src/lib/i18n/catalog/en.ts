@@ -9,6 +9,8 @@ export const EN = {
   "nav.requests": "Requests",
   "nav.messages": "Messages",
   "nav.profile": "Profile",
+  "nav.shop": "Shop",
+  "nav.myShop": "My Shop",
   "nav.dashboard": "Dashboard",
   "nav.settings": "Settings",
   "nav.history": "History",
@@ -210,6 +212,7 @@ export const EN = {
   "trade.painter": "Painter",
   "trade.solar": "Solar",
   "trade.generator": "Generator",
+  "trade.shop": "Shop",
   "trade.all": "All",
   "gate.finishBeforeLive":
     "Complete your verification in settings first. Submit your profile for review.",
@@ -373,6 +376,13 @@ export const EN = {
   "common.customer": "Customer",
   "common.repairPro": "Repair Pro",
   "common.codeSent": "Code sent. Enter it below.",
+  "shop.title": "Shop",
+  "shop.searchPlaceholder": "What are you looking for?",
+  "shop.browseByTrade": "Browse by trade",
+  "shop.popular": "Popular",
+  "shop.newArrivals": "New arrivals",
+  "shop.empty": "No products yet. Catalog is loading.",
+  "shop.setupRequired": "Shop is almost ready — catalog database will appear after setup."
 } as const;
 
 export type MessageKey = keyof typeof EN;

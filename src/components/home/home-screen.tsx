@@ -12,8 +12,8 @@ import { MAX_TECHNICIANS } from "@/lib/matching";
 import { cn } from "@/lib/utils";
 
 /**
- * Data-saver home:
- * - List sheet first (no map tiles / Google JS until user opens map)
+ * Data-saver home (customer):
+ * - Map area is always reserved (40%) but stays blank until user taps it
  * - Map loads only on demand (tap “Show map”)
  * - Nearby pros refresh lives in AppProvider (slow poll), not on every open
  */
@@ -23,7 +23,7 @@ const ServiceMap = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-full w-full items-center justify-center bg-[#0a1610] text-sm text-[#a8c9b5]">
+      <div className="flex h-full w-full items-center justify-center bg-[#0a1610] text-sm text-[#e2eee8]">
         Loading map…
       </div>
     ),
@@ -39,9 +39,9 @@ export function HomeScreen() {
   } = useApp();
   const { config } = useAppConfig();
   const isLight = theme === "light";
-  /** Open with lower panel down (collapsed) — map on top, sheet ~60% bottom */
+  /** Open with lower panel down (collapsed) — map slot on top, sheet ~60% bottom */
   const [sheetExpanded, setSheetExpanded] = useState(false);
-  /** Data-saver: no map tiles until the user taps Show map */
+  /** Data-saver: no map tiles until the user taps the blank map area */
   const [mapEnabled, setMapEnabled] = useState(false);
 
   useEffect(() => {
@@ -82,9 +82,10 @@ export function HomeScreen() {
     .filter((t) => t.status !== "offline")
     .slice(0, Math.min(4, MAX_TECHNICIANS));
 
+  /** One tap: enable map once and reveal the map slot (no second click). */
   const openMap = () => {
-    setMapEnabled(true);
-    setSheetExpanded(false);
+    if (!mapEnabled) setMapEnabled(true);
+    if (sheetExpanded) setSheetExpanded(false);
   };
 
   return (
@@ -115,12 +116,15 @@ export function HomeScreen() {
               onClick={openMap}
               className={cn(
                 "flex h-full w-full flex-col items-center justify-center gap-1 border-0 px-4 text-center",
-                isLight ? "bg-[#b8b9be] text-slate-800" : "bg-[#0a1610] text-[#a8c9b5]"
+                // Match map palette (not pale gray) so home never looks “white”
+                isLight
+                  ? "bg-[#0a1610] text-[#e2eee8]"
+                  : "bg-[#0a0000] text-[#f0e4e4]"
               )}
             >
               <span className="text-[13px] font-semibold">Show map</span>
               <span className="text-[11px] opacity-80">
-                Loads map only when you need it
+                Tap once to load map
               </span>
             </button>
           )}
@@ -141,6 +145,7 @@ export function HomeScreen() {
             expanded={sheetExpanded}
             onExpand={() => setSheetExpanded(true)}
             onCollapse={() => {
+              // Expanding down to map: enable map so user sees tiles after swipe
               setMapEnabled(true);
               setSheetExpanded(false);
             }}

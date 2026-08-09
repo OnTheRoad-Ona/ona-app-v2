@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { apiFail, apiOk } from "@/lib/server/api-json";
+import { protectProClientPatch } from "@/lib/server/identity/protect-approval";
 import {
   getSupabaseAnonKey,
   getSupabaseUrl,
@@ -14,6 +15,8 @@ export const dynamic = "force-dynamic";
 /**
  * Repair Pro submits government ID / NIN / skill docs for admin review.
  * Writes to repair_pro_profiles so care queues see media + numbers instantly.
+ *
+ * IMPORTANT: Care-approved T2 / account status is sticky — re-submit cannot demote.
  */
 const bodySchema = z.object({
   access_token: z.string().min(10),
@@ -73,7 +76,9 @@ export async function POST(req: Request) {
 
     const { data: existing } = await admin
       .from("repair_pro_profiles")
-      .select("user_id, primary_service, status")
+      .select(
+        "user_id, primary_service, status, gov_id_review_status, verified, nin_verified, bvn_verified, tier2_approved_at, pipeline_status, rejection_reason, pipeline_notes, docs_status, gov_id_meta"
+      )
       .eq("user_id", userId)
       .maybeSingle();
 
@@ -86,6 +91,7 @@ export async function POST(req: Request) {
       });
     }
 
+    // Default pending only for net-new unapproved rows — protect-approval will re-assert approved
     const patch: Record<string, unknown> = {
       updated_at: now,
       status: "pending",
@@ -133,7 +139,6 @@ export async function POST(req: Request) {
       patch.nin_last4 = last4(nin);
       patch.bvn_last4 = last4(nin);
       patch.bank_id_number = nin;
-      // Keep gov_id_review submitted so care sees secondary ID too
       if (!patch.gov_id_review_status) {
         patch.gov_id_review_status = "submitted";
         patch.gov_id_submitted_at = now;
@@ -147,15 +152,9 @@ export async function POST(req: Request) {
         ninLast4: last4(nin),
         ninSubmittedAt: now,
       };
-      // merge meta
-      const { data: cur } = await admin
-        .from("repair_pro_profiles")
-        .select("gov_id_meta")
-        .eq("user_id", userId)
-        .maybeSingle();
       const prev =
-        cur?.gov_id_meta && typeof cur.gov_id_meta === "object"
-          ? (cur.gov_id_meta as Record<string, unknown>)
+        existing?.gov_id_meta && typeof existing.gov_id_meta === "object"
+          ? (existing.gov_id_meta as Record<string, unknown>)
           : {};
       patch.gov_id_meta = { ...prev, ...metaExtra };
     }
@@ -195,30 +194,36 @@ export async function POST(req: Request) {
       }
     }
 
+    const protectedApply = protectProClientPatch(existing, patch);
+    const finalPatch = protectedApply.patch;
+
     const { error } = await admin
       .from("repair_pro_profiles")
-      .update(patch)
+      .update(finalPatch)
       .eq("user_id", userId);
 
     if (error) {
-      // Retry without newer columns
       if (
         /gov_id_|skill_proof|pipeline_|certification_/i.test(error.message)
       ) {
         const slim: Record<string, unknown> = {
           updated_at: now,
-          status: "pending",
-          nin_last4: patch.nin_last4,
-          bvn_last4: patch.bvn_last4,
-          nin_verified: false,
-          bvn_verified: false,
-          verified: false,
         };
-        if (patch.docs_status) slim.docs_status = patch.docs_status;
-        if (patch.certification_file_url)
-          slim.certification_file_url = patch.certification_file_url;
-        if (patch.certification_file_name)
-          slim.certification_file_name = patch.certification_file_name;
+        if (finalPatch.status) slim.status = finalPatch.status;
+        if (finalPatch.nin_last4 != null) slim.nin_last4 = finalPatch.nin_last4;
+        if (finalPatch.bvn_last4 != null) slim.bvn_last4 = finalPatch.bvn_last4;
+        if (finalPatch.nin_verified != null)
+          slim.nin_verified = finalPatch.nin_verified;
+        if (finalPatch.bvn_verified != null)
+          slim.bvn_verified = finalPatch.bvn_verified;
+        if (finalPatch.verified != null) slim.verified = finalPatch.verified;
+        if (finalPatch.gov_id_review_status)
+          slim.gov_id_review_status = finalPatch.gov_id_review_status;
+        if (finalPatch.docs_status) slim.docs_status = finalPatch.docs_status;
+        if (finalPatch.certification_file_url)
+          slim.certification_file_url = finalPatch.certification_file_url;
+        if (finalPatch.certification_file_name)
+          slim.certification_file_name = finalPatch.certification_file_name;
         const { error: e2 } = await admin
           .from("repair_pro_profiles")
           .update(slim)
@@ -234,8 +239,6 @@ export async function POST(req: Request) {
       .update({ role: "repair_pro", updated_at: now })
       .eq("id", userId);
 
-    // Signup/onboarding-time duplicate detection: if this ID matches another
-    // (non-deleted) account, queue the pair for admin review.
     if (kind === "gov_id" || kind === "nin") {
       try {
         const { detectMergeCandidatesForUser } = await import(
@@ -250,15 +253,22 @@ export async function POST(req: Request) {
       }
     }
 
+    const lockedMsg = protectedApply.locked
+      ? " Your Care-approved verification was kept (cannot be undone by re-submit)."
+      : "";
+
     return apiOk({
       kind,
-      status: "submitted",
+      status: protectedApply.locked ? "approved_preserved" : "submitted",
+      approvalLocked: protectedApply.locked,
       message:
         kind === "skill_docs"
-          ? "Skill document submitted for admin review."
+          ? `Skill document submitted for admin review.${lockedMsg}`
           : kind === "profile_submit"
-            ? "Profile submitted for admin review."
-            : "Document submitted for admin / customer care review.",
+            ? `Profile submitted for admin review.${lockedMsg}`
+            : protectedApply.locked
+              ? "ID details updated. Care approval remains in place."
+              : "Document submitted for admin / customer care review.",
       submittedAt: now,
     });
   } catch {

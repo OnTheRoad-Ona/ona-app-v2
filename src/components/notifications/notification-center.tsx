@@ -159,6 +159,29 @@ export function NotificationCenter() {
 
   const runAction = async (n: AppNotification) => {
     void markRead([n.id]);
+    // Pro pairing request → dashboard + lower panel only
+    if (
+      accountType === "professional" &&
+      (n.actionType === "accept_request" ||
+        (n.category === "requests" &&
+          (n.groupKey || "").startsWith("service-request")))
+    ) {
+      try {
+        const {
+          clearJobShown,
+          requestForceIncomingPanel,
+        } = await import("@/lib/jobs/incoming-popup-timing");
+        if (n.jobId) {
+          clearJobShown(n.jobId);
+          requestForceIncomingPanel(n.jobId);
+        }
+      } catch {
+        /* */
+      }
+      closeCenter();
+      router.replace("/dashboard");
+      return;
+    }
     if (!n.href) return;
     let liveStatus: string | undefined = n.jobStatus || undefined;
     if (n.jobId) {
