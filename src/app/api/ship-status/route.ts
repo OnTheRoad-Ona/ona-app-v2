@@ -47,9 +47,9 @@ export async function GET(req: Request) {
           flatSelectDataAttr: "data-om-flat-select=1",
           usesNativeSelect: false,
           listMaxHeight: "80% of #ona-phone",
-          listAnchor: "under field, expands downward",
+          listAnchor: "bottom sheet pinned to phone bottom",
           listRender:
-            "position:fixed portal to document.body at 80% of #ona-phone height (escapes all overflow)",
+            "absolute sheet height:80% bottom:0 inside #ona-phone (cannot clip short)",
           scope: "all FlatSelect instances app-wide",
           introCopy: "Pick your vehicle to browse ALL PARTS.",
           removedCopy:

@@ -76,10 +76,12 @@ export function runShipChecks(): ShipStatus {
         ONA_BUILD_ID.includes("80pct") ||
         ONA_BUILD_ID.includes("portal") ||
         ONA_BUILD_ID.includes("fixed-80") ||
+        ONA_BUILD_ID.includes("sheet-80") ||
         ONA_BUILD_LABEL.toLowerCase().includes("filters array") ||
         ONA_BUILD_LABEL.toLowerCase().includes("flatselect") ||
         ONA_BUILD_LABEL.toLowerCase().includes("80%") ||
         ONA_BUILD_LABEL.toLowerCase().includes("portal") ||
+        ONA_BUILD_LABEL.toLowerCase().includes("sheet") ||
         ONA_BUILD_LABEL.toLowerCase().includes("fixed"),
       `buildId=${ONA_BUILD_ID}`
     )

@@ -1,22 +1,16 @@
 "use client";
 
 /**
- * True 2D select — no native <select>.
+ * Flat 2D picker — no native <select>.
  *
- * List uses position:fixed (viewport coords) at 80% of #ona-phone height.
- * Fixed escapes ALL ancestor overflow (page scroll + #ona-phone overflow:hidden),
- * which is why absolute-in-phone lists still looked short on localhost.
+ * Open state: full-width BOTTOM SHEET = 80% of #ona-phone height.
+ * Portaled into #ona-phone with position:absolute + height:80% + bottom:0
+ * so overflow:hidden cannot clip it to a short strip under the field.
  */
 
-import {
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type FlatSelectOption = { value: string; label: string };
@@ -31,56 +25,6 @@ type Props = {
   "aria-label"?: string;
 };
 
-/** Viewport-fixed box for the list panel. */
-type ListBox = {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-};
-
-function phoneRect(): DOMRect | null {
-  if (typeof document === "undefined") return null;
-  const phone = document.getElementById("ona-phone");
-  return phone ? phone.getBoundingClientRect() : null;
-}
-
-/**
- * 80% of phone shell height, fixed under the field (or shifted up so the
- * full panel stays inside the phone frame).
- */
-function measureFixedListBox(field: HTMLElement): ListBox {
-  const p = phoneRect();
-  const f = field.getBoundingClientRect();
-  const shellTop = p?.top ?? 0;
-  const shellBottom = p?.bottom ?? window.innerHeight;
-  const shellLeft = p?.left ?? 0;
-  const shellRight = p?.right ?? window.innerWidth;
-  const shellH = Math.max(320, (p?.height ?? window.innerHeight) || 600);
-  const shellW = Math.max(200, (p?.width ?? window.innerWidth) || 360);
-
-  // Hard 80% of the phone frame — never the leftover strip under the field.
-  const height = Math.round(shellH * 0.8);
-  const gap = 4;
-  let top = f.bottom + gap;
-  const minTop = shellTop + 8;
-  const maxTop = shellBottom - height - 8;
-  if (top > maxTop) top = Math.max(minTop, maxTop);
-  if (top < minTop) top = minTop;
-
-  let left = f.left;
-  let width = f.width;
-  // Keep inside phone horizontally
-  if (left < shellLeft + 8) left = shellLeft + 8;
-  if (left + width > shellRight - 8) {
-    width = Math.max(140, shellRight - 8 - left);
-  }
-  // Prefer matching field width but not wider than shell
-  width = Math.min(width, shellW - 16);
-
-  return { top, left, width, height };
-}
-
 export function FlatSelect({
   value,
   options,
@@ -91,71 +35,31 @@ export function FlatSelect({
   "aria-label": ariaLabel,
 }: Props) {
   const [open, setOpen] = useState(false);
-  const [box, setBox] = useState<ListBox | null>(null);
-  const [portalReady, setPortalReady] = useState(false);
+  const [phone, setPhone] = useState<HTMLElement | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
   const listId = useId();
 
   const selected = options.find((o) => o.value === value);
   const label = selected?.label || placeholder;
+  const title = ariaLabel || placeholder;
 
   useEffect(() => {
-    setPortalReady(true);
+    setPhone(document.getElementById("ona-phone"));
   }, []);
 
-  const remeasure = () => {
-    const field = rootRef.current;
-    if (!field) return;
-    setBox(measureFixedListBox(field));
-  };
-
-  useLayoutEffect(() => {
-    if (!open) {
-      setBox(null);
-      return;
-    }
-    remeasure();
-  }, [open, options.length]);
-
   useEffect(() => {
     if (!open) return;
-    const onResize = () => remeasure();
-    window.addEventListener("resize", onResize);
-    // Capture scroll from any parent (page scroll, phone interior)
-    window.addEventListener("scroll", onResize, true);
-    const phone = document.getElementById("ona-phone");
-    const ro =
-      typeof ResizeObserver !== "undefined" && phone
-        ? new ResizeObserver(onResize)
-        : null;
-    if (phone && ro) ro.observe(phone);
-    return () => {
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("scroll", onResize, true);
-      ro?.disconnect();
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent | TouchEvent) => {
-      const t = e.target;
-      if (!(t instanceof Node)) return;
-      if (rootRef.current?.contains(t)) return;
-      if (listRef.current?.contains(t)) return;
-      setOpen(false);
-    };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("touchstart", onDoc);
     document.addEventListener("keydown", onKey);
+    // Lock body scroll while sheet open (mobile)
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("touchstart", onDoc);
       document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
     };
   }, [open]);
 
@@ -168,95 +72,139 @@ export function FlatSelect({
   const muted = isLight ? "text-slate-500" : "text-white/45";
   const panelBg = isLight ? "#e8e9ed" : "#1c1c1e";
   const hoverBg = isLight ? "hover:bg-black/5" : "hover:bg-white/10";
-  const activeBg = isLight ? "bg-black/8" : "bg-white/12";
+  const activeBg = isLight ? "bg-black/10" : "bg-white/12";
+  const ink = isLight ? "text-slate-900" : "text-white";
 
-  const listNode =
-    portalReady && open && !disabled && box
+  const sheet =
+    open && !disabled && phone
       ? createPortal(
           <>
-            {/* Dim scrim inside phone frame so tall panel is obvious */}
+            {/* Scrim covers whole phone */}
             <button
               type="button"
-              aria-label="Close list"
+              aria-label="Close"
               data-om-flat-select-scrim="1"
               className="border-0 p-0"
               style={{
-                position: "fixed",
+                position: "absolute",
                 inset: 0,
-                zIndex: 190,
-                background: "rgba(0,0,0,0.35)",
+                zIndex: 400,
+                background: "rgba(0,0,0,0.45)",
                 border: "none",
                 cursor: "default",
               }}
               onClick={() => setOpen(false)}
             />
-            <ul
-              ref={listRef}
-              id={listId}
-              role="listbox"
-              aria-label={ariaLabel || placeholder}
-              data-om-flat-select-list="1"
+            {/* 80% height sheet pinned to bottom of phone */}
+            <div
+              ref={sheetRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label={title}
+              data-om-flat-select-sheet="1"
               data-om-flat-list-max-pct="80"
-              data-om-flat-list-height={String(box.height)}
-              className="overflow-y-auto overscroll-contain rounded-md border-0 py-1"
+              className="flex flex-col border-0 shadow-none"
               style={{
-                position: "fixed",
-                top: box.top,
-                left: box.left,
-                width: box.width,
-                height: box.height,
-                maxHeight: box.height,
-                minHeight: box.height,
-                zIndex: 200,
+                position: "absolute",
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: "80%",
+                maxHeight: "80%",
+                minHeight: "80%",
+                zIndex: 410,
                 backgroundColor: panelBg,
                 backgroundImage: "none",
                 border: "none",
-                boxShadow: isLight
-                  ? "0 16px 40px rgba(0,0,0,0.22)"
-                  : "0 16px 40px rgba(0,0,0,0.6)",
+                borderTopLeftRadius: 12,
+                borderTopRightRadius: 12,
+                boxShadow: "0 -8px 32px rgba(0,0,0,0.35)",
               }}
             >
-              {options.length === 0 ? (
-                <li className={cn("px-3 py-2.5 text-[12px] font-medium", muted)}>
-                  No options
-                </li>
-              ) : (
-                options.map((o) => {
-                  const active = o.value === value;
-                  return (
-                    <li
-                      key={o.value || "__empty__"}
-                      role="option"
-                      aria-selected={active}
-                    >
-                      <button
-                        type="button"
-                        className={cn(
-                          "flex w-full items-center justify-between gap-2 border-0 bg-transparent px-3 py-2.5 text-left text-[13px] font-semibold outline-none",
-                          hoverBg,
-                          active && activeBg,
-                          isLight ? "text-slate-900" : "text-white"
-                        )}
-                        onClick={() => {
-                          onChange(o.value);
-                          setOpen(false);
-                        }}
+              <div
+                className="flex shrink-0 items-center justify-between gap-2 px-3 py-2.5"
+                style={{
+                  borderBottom: isLight
+                    ? "1px solid rgba(0,0,0,0.08)"
+                    : "1px solid rgba(255,255,255,0.08)",
+                }}
+              >
+                <p className={cn("text-[14px] font-black", ink)}>{title}</p>
+                <button
+                  type="button"
+                  aria-label="Close list"
+                  onClick={() => setOpen(false)}
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-md border-0 bg-transparent",
+                    muted
+                  )}
+                >
+                  <X className="h-4 w-4" strokeWidth={2.5} />
+                </button>
+              </div>
+              <ul
+                id={listId}
+                role="listbox"
+                aria-label={title}
+                data-om-flat-select-list="1"
+                className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 py-1"
+              >
+                {options.length === 0 ? (
+                  <li
+                    className={cn(
+                      "px-3 py-3 text-[12px] font-medium",
+                      muted
+                    )}
+                  >
+                    No options
+                  </li>
+                ) : (
+                  options.map((o) => {
+                    const active = o.value === value;
+                    return (
+                      <li
+                        key={o.value || "__empty__"}
+                        role="option"
+                        aria-selected={active}
                       >
-                        <span className="min-w-0 truncate">{o.label}</span>
-                        {active ? (
-                          <Check
-                            className="h-3.5 w-3.5 shrink-0 text-[#FF6B35]"
-                            strokeWidth={2.5}
-                          />
-                        ) : null}
-                      </button>
-                    </li>
-                  );
-                })
-              )}
-            </ul>
+                        <button
+                          type="button"
+                          className={cn(
+                            "flex w-full items-center justify-between gap-2 border-0 bg-transparent px-3 py-3 text-left text-[14px] font-semibold outline-none",
+                            hoverBg,
+                            active && activeBg,
+                            ink
+                          )}
+                          onClick={() => {
+                            onChange(o.value);
+                            setOpen(false);
+                          }}
+                        >
+                          <span className="min-w-0 truncate">{o.label}</span>
+                          {active ? (
+                            <Check
+                              className="h-4 w-4 shrink-0 text-[#FF6B35]"
+                              strokeWidth={2.5}
+                            />
+                          ) : null}
+                        </button>
+                      </li>
+                    );
+                  })
+                )}
+              </ul>
+              <p
+                className={cn(
+                  "shrink-0 px-3 py-2 text-center text-[10px] font-semibold",
+                  muted
+                )}
+              >
+                {options.length} option{options.length === 1 ? "" : "s"} · 80%
+                height
+              </p>
+            </div>
           </>,
-          document.body
+          phone
         )
       : null;
 
@@ -265,10 +213,10 @@ export function FlatSelect({
       <button
         type="button"
         disabled={disabled}
-        aria-haspopup="listbox"
+        aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={listId}
-        aria-label={ariaLabel || placeholder}
+        aria-label={title}
         data-om-flat-select="1"
         data-om-flat-list-max-pct="80"
         onClick={() => {
@@ -301,7 +249,7 @@ export function FlatSelect({
           aria-hidden
         />
       </button>
-      {listNode}
+      {sheet}
     </div>
   );
 }
