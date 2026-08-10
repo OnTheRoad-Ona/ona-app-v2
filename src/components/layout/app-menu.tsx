@@ -338,7 +338,24 @@ export function AppMenu({
     setSignupTarget(null);
     setSwitching(true);
     try {
-      const result = await switchAccount(type);
+      let result = await switchAccount(type);
+      // Cold-start / navigation race: the very first tap can hit a session that
+      // is still rehydrating (getSession empty) and fail; a manual re-tap then
+      // succeeds. Absorb it here with ONE automatic retry so users never have
+      // to tap twice. Real needs_* outcomes are not retried and surfaced as-is.
+      if (
+        result !== null &&
+        result !== "needs_login" &&
+        result !== "needs_signup"
+      ) {
+        try {
+          const { ensureAppSession } = await import("@/lib/supabase/session");
+          await ensureAppSession({ waitForSessionMs: 2200, forceRefresh: true });
+        } catch {
+          /* retry anyway */
+        }
+        result = await switchAccount(type);
+      }
       if (result === null) {
         // Only “Use as” switches roles — reset stack so Back stays in this role
         resetNavStack(homeForRole(type));

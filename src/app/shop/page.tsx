@@ -31,7 +31,46 @@ type ProductCard = {
   fromPriceMinor: number | null;
   currency: string;
   inStock: boolean;
+  status?: string | null;
+  availabilityLabel?: string | null;
 };
+
+/** Availability buckets that match real catalog states (see catalog-status). */
+type AvailabilityKey =
+  | "all"
+  | "in_stock"
+  | "out_of_stock"
+  | "coming_soon"
+  | "discontinued"
+  | "source_pending";
+
+const AVAILABILITY_CHIPS: { key: AvailabilityKey; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "in_stock", label: "In stock" },
+  { key: "out_of_stock", label: "Out of stock" },
+  { key: "coming_soon", label: "Coming soon" },
+  { key: "discontinued", label: "Discontinued" },
+  { key: "source_pending", label: "Awaiting source" },
+];
+
+function productMatchesAvailability(
+  p: ProductCard,
+  key: AvailabilityKey
+): boolean {
+  if (key === "all") return true;
+  if (key === "in_stock") return Boolean(p.inStock);
+  if (key === "out_of_stock") {
+    return (
+      !p.inStock &&
+      p.status !== "future_product" &&
+      p.status !== "discontinued" &&
+      p.status !== "source_pending"
+    );
+  }
+  if (key === "coming_soon") return p.status === "future_product";
+  if (key === "discontinued") return p.status === "discontinued";
+  return p.status === "source_pending";
+}
 
 function formatNgn(minor: number | null): string {
   if (minor == null) return "—";
@@ -54,6 +93,7 @@ export default function ShopHomePage() {
   const [results, setResults] = useState<ProductCard[] | null>(null);
   const [intentLabel, setIntentLabel] = useState<string | null>(null);
   const [suggestedTrade, setSuggestedTrade] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<AvailabilityKey>("all");
 
   const loadHome = useCallback(async () => {
     setLoading(true);
@@ -139,6 +179,11 @@ export default function ShopHomePage() {
   /** Full-width listing rows — easy vertical scroll (not a grid of boxes). */
   const productList = (items: ProductCard[]) => (
     <div className="flex flex-col gap-1.5 px-3">
+      {items.length === 0 ? (
+        <p className={cn("px-1 py-2 text-[12px] italic", muted)}>
+          Nothing here matches the filter.
+        </p>
+      ) : null}
       {items.map((p) => (
         <button
           key={p.id}
@@ -335,6 +380,44 @@ export default function ShopHomePage() {
           </>
         ) : (
           <>
+            {/* Availability filter — segmented chips like the customer home
+                (All / In stock / Out of stock / Coming soon / …). Filters the
+                Popular + New arrivals rows below AND leaves the trade grid. */}
+            <div className="px-3 pt-3">
+              <div
+                className={cn(
+                  "flex w-full gap-px overflow-x-auto rounded-lg",
+                  isLight ? "bg-[#b4b6bd]" : "bg-[#2a2a2a]"
+                )}
+                role="group"
+                aria-label="Availability"
+              >
+                {AVAILABILITY_CHIPS.map((chip) => {
+                  const active = availability === chip.key;
+                  return (
+                    <button
+                      key={chip.key}
+                      type="button"
+                      onClick={() => setAvailability(chip.key)}
+                      className={cn(
+                        "inline-flex min-w-0 flex-1 items-center justify-center gap-0.5 whitespace-nowrap rounded-none border-0 px-2 py-1.5 text-[10px] font-bold transition-colors",
+                        active
+                          ? isLight
+                            ? "bg-white text-slate-900 shadow-sm"
+                            : "bg-[#3d3d3d] text-white"
+                          : isLight
+                            ? "bg-transparent text-slate-800 hover:bg-white/60"
+                            : "bg-transparent text-[#d0d0d0] hover:bg-white/[0.06] hover:text-white"
+                      )}
+                      aria-pressed={active}
+                    >
+                      {chip.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Browse by trade — original box grid (not product listings) */}
             <p className="px-3 pt-4 pb-2 text-[13px] font-black tracking-tight">
               Browse by trade
@@ -393,7 +476,11 @@ export default function ShopHomePage() {
             {popular.length > 0 ? (
               <>
                 <p className="px-3 pt-5 pb-2 text-[13px] font-black">Popular</p>
-                {productList(popular)}
+                {productList(
+                  popular.filter((p) =>
+                    productMatchesAvailability(p, availability)
+                  )
+                )}
               </>
             ) : null}
 
@@ -402,7 +489,11 @@ export default function ShopHomePage() {
                 <p className="px-3 pt-5 pb-2 text-[13px] font-black">
                   New arrivals
                 </p>
-                {productList(newArrivals)}
+                {productList(
+                  newArrivals.filter((p) =>
+                    productMatchesAvailability(p, availability)
+                  )
+                )}
               </>
             ) : null}
           </>

@@ -7,6 +7,7 @@ import { AppHeader } from "@/components/home/app-header";
 import { HomePanel } from "@/components/home/home-panel";
 import { SearchBar } from "@/components/home/search-bar";
 import { useAppConfig } from "@/components/app-config-provider";
+import { useOnaGoogleMaps } from "@/lib/google-maps-loader";
 import { useApp } from "@/lib/store";
 import { MAX_TECHNICIANS } from "@/lib/matching";
 import { cn } from "@/lib/utils";
@@ -43,6 +44,16 @@ export function HomeScreen() {
   const [sheetExpanded, setSheetExpanded] = useState(false);
   /** Data-saver: no map tiles until the user taps the blank map area */
   const [mapEnabled, setMapEnabled] = useState(false);
+
+  // Pre-warm the map work stream as soon as the customer home opens so that a
+  // tap on “Show map” paints the real street map immediately — no green
+  // “Loading map…” placeholder flash. Tiles themselves still only download
+  // after the tap (data-saver), but the code + Google script are already warm.
+  useOnaGoogleMaps();
+  useEffect(() => {
+    void import("@/components/map/service-map");
+    void import("@/components/map/osm-service-map");
+  }, []);
 
   useEffect(() => {
     if (

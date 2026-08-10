@@ -748,7 +748,13 @@ export async function backendSwitchRole(
   const { ensureAppSession, SESSION_RELOGIN_MESSAGE } = await import(
     "@/lib/supabase/session"
   );
-  const session = await ensureAppSession();
+  // Wait for storage rehydrate: after navigation / cold start getSession can
+  // be empty for a moment, which made the FIRST "Use as" tap fail and only a
+  // manual re-tap succeed. The retry worked because the session had rehydrated.
+  const session = await ensureAppSession({
+    waitForSessionMs: 3000,
+    forceRefresh: true,
+  });
   const token = session?.accessToken;
   if (!token) return { error: SESSION_RELOGIN_MESSAGE };
 
