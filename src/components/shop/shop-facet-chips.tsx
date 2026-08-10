@@ -52,15 +52,24 @@ export function ShopFacetChips({ tradeKey, filters, onChange }: Props) {
         ]);
         const fJson = (await fRes.json()) as {
           ok?: boolean;
-          data?: { filters?: FilterDef[] };
+          data?: { filters?: FilterDef[] | { filters?: FilterDef[] } };
         };
         const cJson = (await cRes.json()) as {
           ok?: boolean;
           data?: { categories?: Category[] };
         };
         if (!cancelled) {
-          setDefs(fJson.data?.filters ?? []);
-          setCats(cJson.data?.categories ?? []);
+          // API returns filters[] — also accept nested { filters: [] } if mis-shaped.
+          const raw = fJson.data?.filters;
+          const list = Array.isArray(raw)
+            ? raw
+            : raw && typeof raw === "object" && Array.isArray(raw.filters)
+              ? raw.filters
+              : [];
+          setDefs(list);
+          setCats(
+            Array.isArray(cJson.data?.categories) ? cJson.data.categories : []
+          );
         }
       } catch {
         if (!cancelled) {
@@ -74,9 +83,10 @@ export function ShopFacetChips({ tradeKey, filters, onChange }: Props) {
     };
   }, [tradeKey]);
 
-  const hasAvailability = defs.some((d) => d.kind === "availability");
-  const hasPrice = defs.some((d) => d.kind === "price");
-  const attrDefs = defs.filter(
+  const safeDefs = Array.isArray(defs) ? defs : [];
+  const hasAvailability = safeDefs.some((d) => d.kind === "availability");
+  const hasPrice = safeDefs.some((d) => d.kind === "price");
+  const attrDefs = safeDefs.filter(
     (d): d is Extract<FilterDef, { kind: "attribute" }> =>
       d.kind === "attribute" && d.type === "enum" && Boolean(d.options?.length)
   );

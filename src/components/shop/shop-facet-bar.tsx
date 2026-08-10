@@ -55,15 +55,23 @@ export function ShopFacetBar({ tradeKey, filters, onChange }: Props) {
         ]);
         const fJson = (await fRes.json()) as {
           ok?: boolean;
-          data?: { filters?: FilterDef[] };
+          data?: { filters?: FilterDef[] | { filters?: FilterDef[] } };
         };
         const cJson = (await cRes.json()) as {
           ok?: boolean;
           data?: { categories?: Category[] };
         };
         if (!cancelled) {
-          setDefs(fJson.data?.filters ?? []);
-          setCats(cJson.data?.categories ?? []);
+          const raw = fJson.data?.filters;
+          const list = Array.isArray(raw)
+            ? raw
+            : raw && typeof raw === "object" && Array.isArray(raw.filters)
+              ? raw.filters
+              : [];
+          setDefs(list);
+          setCats(
+            Array.isArray(cJson.data?.categories) ? cJson.data.categories : []
+          );
         }
       } catch {
         if (!cancelled) {
@@ -110,12 +118,13 @@ export function ShopFacetBar({ tradeKey, filters, onChange }: Props) {
     });
   };
 
-  const attrDefs = defs.filter(
+  const safeDefs = Array.isArray(defs) ? defs : [];
+  const attrDefs = safeDefs.filter(
     (d): d is Extract<FilterDef, { kind: "attribute" }> => d.kind === "attribute"
   );
-  const hasPrice = defs.some((d) => d.kind === "price");
+  const hasPrice = safeDefs.some((d) => d.kind === "price");
   const hasCategory = cats.length > 0;
-  const hasAvailability = defs.some((d) => d.kind === "availability");
+  const hasAvailability = safeDefs.some((d) => d.kind === "availability");
 
   if (!hasPrice && !hasCategory && !hasAvailability && attrDefs.length === 0) {
     return null;
