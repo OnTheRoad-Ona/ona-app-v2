@@ -1,7 +1,7 @@
-"use client";
-
 /**
  * ONA Shop product lifecycle + availability model (Phase 2).
+ *
+ * Shared server + client (no "use client") so catalog APIs can import it.
  *
  * Availability is SEPARATE from catalog existence:
  *  - a product can exist in the catalog but be "unavailable" (no stock/price)
