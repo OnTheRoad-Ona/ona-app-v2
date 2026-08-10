@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Car, Check, Loader2, Trash2 } from "lucide-react";
+import { Car, Check, ChevronDown, Loader2, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import {
   writeSessionVehicle,
@@ -12,18 +12,38 @@ import { authFetch } from "@/lib/api-auth-headers";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
+type VehicleType = { slug: string; name: string };
 type Make = { id: string; name: string; slug: string };
 type Model = { id: string; name: string; slug: string };
 type GarageV = ActiveVehicle & { id: string; isDefault?: boolean };
+
+const TYPE_LABELS: Record<string, string> = {
+  automobile: "Automobile",
+  motorcycle: "Motorcycle",
+  truck: "Truck",
+  van: "Van",
+  bus: "Bus",
+  trailer: "Trailer",
+  motorhome: "Motorhome / RV",
+  atv_utv: "ATV / UTV",
+  construction_ag: "Construction & Ag",
+  other: "Other",
+};
+
+function typeName(slug: string): string {
+  return TYPE_LABELS[slug] || "Automobile";
+}
 
 export default function ShopVehiclesPage() {
   const { theme, isAuthenticated } = useApp();
   const isLight = theme === "light";
   const router = useRouter();
   const [garage, setGarage] = useState<GarageV[]>([]);
+  const [types, setTypes] = useState<VehicleType[]>([]);
   const [makes, setMakes] = useState<Make[]>([]);
   const [models, setModels] = useState<Model[]>([]);
   const [years, setYears] = useState<number[]>([]);
+  const [typeSlug, setTypeSlug] = useState("automobile");
   const [makeId, setMakeId] = useState("");
   const [modelId, setModelId] = useState("");
   const [year, setYear] = useState<number | "">("");
@@ -31,8 +51,8 @@ export default function ShopVehiclesPage() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const bg = isLight ? "bg-[#c8c9cd]" : "bg-black";
-  const card = isLight ? "bg-white/90 text-slate-900" : "bg-[#1c1c1e] text-white";
   const muted = isLight ? "text-slate-600" : "text-white/55";
+  const chevronClass = isLight ? "text-slate-500" : "text-white/70";
 
   const loadGarage = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -46,15 +66,34 @@ export default function ShopVehiclesPage() {
 
   useEffect(() => {
     void (async () => {
-      const res = await fetch("/api/shop/vehicles/catalog?level=makes");
+      const res = await fetch("/api/shop/vehicles/catalog?level=types");
+      const json = (await res.json()) as {
+        ok?: boolean;
+        data?: { types?: VehicleType[] };
+      };
+      if (json.ok && json.data?.types?.length) setTypes(json.data.types);
+    })();
+    void loadGarage();
+  }, [loadGarage]);
+
+  useEffect(() => {
+    setMakes([]);
+    setModels([]);
+    setModelId("");
+    setYears([]);
+    setYear("");
+    setMakeId("");
+    void (async () => {
+      const res = await fetch(
+        `/api/shop/vehicles/catalog?level=makes&type=${encodeURIComponent(typeSlug)}`
+      );
       const json = (await res.json()) as {
         ok?: boolean;
         data?: { makes?: Make[] };
       };
       if (json.ok) setMakes(json.data?.makes ?? []);
     })();
-    void loadGarage();
-  }, [loadGarage]);
+  }, [typeSlug]);
 
   useEffect(() => {
     if (!makeId) {
@@ -95,12 +134,13 @@ export default function ShopVehiclesPage() {
   const makeName = makes.find((m) => m.id === makeId)?.name || "";
   const modelName = models.find((m) => m.id === modelId)?.name || "";
 
-  const useVehicle = async (save: boolean) => {
+  const applyVehicle = async (save: boolean) => {
     if (!makeName || !modelName) {
       setMsg("Pick make and model");
       return;
     }
     const v: ActiveVehicle = {
+      vehicleTypeSlug: typeSlug,
       makeId: makeId || null,
       modelId: modelId || null,
       makeName,
@@ -115,6 +155,7 @@ export default function ShopVehiclesPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          vehicleTypeSlug: typeSlug,
           makeId,
           modelId,
           makeName,
@@ -132,7 +173,7 @@ export default function ShopVehiclesPage() {
       await loadGarage();
     }
     router.push(
-      `/shop/c/mechanic?allParts=1&makeName=${encodeURIComponent(makeName)}&modelName=${encodeURIComponent(modelName)}${v.year ? `&year=${v.year}` : ""}&makeId=${makeId}&modelId=${modelId}`
+      `/shop/c/mechanic?allParts=1&makeName=${encodeURIComponent(makeName)}&modelName=${encodeURIComponent(modelName)}${v.year ? `&year=${v.year}` : ""}&makeId=${makeId}&modelId=${modelId}&vehicleType=${encodeURIComponent(typeSlug)}`
     );
   };
 
@@ -161,69 +202,119 @@ export default function ShopVehiclesPage() {
       <PageHeader title="My vehicles" backHref="/shop" />
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-8 pt-2">
         <p className={cn("mb-3 text-[12px] leading-relaxed", muted)}>
-          Pick your vehicle to browse ALL PARTS with fitment. Free catalog from
-          public vehicle data + Ona products (NGN).
+          Pick your vehicle to browse ALL PARTS.
         </p>
 
         {!isAuthenticated ? (
-          <p className={cn("mb-3 rounded-xl px-3 py-2 text-[12px]", card)}>
+          <p
+            className={cn(
+              "mb-3 rounded-md border-0 px-3 py-2 text-[12px]",
+              isLight ? "text-slate-700" : "text-white/70"
+            )}
+          >
             Sign in to save vehicles to your garage. You can still browse with a
             temporary selection.
           </p>
         ) : null}
 
-        <div className={cn("rounded-2xl p-3", card)}>
-          <p className="text-[13px] font-black">Select vehicle</p>
+        <div className="border-0 p-0 shadow-none ring-0">
+          <p
+            className={cn(
+              "text-[13px] font-black",
+              isLight ? "text-slate-900" : "text-white"
+            )}
+          >
+            Select vehicle
+          </p>
           <div className="mt-2 flex flex-col gap-2">
-            <select
-              className={cn(
-                "h-11 w-full rounded-xl border-0 px-3 text-[13px] font-semibold outline-none",
-                isLight ? "bg-black/5" : "bg-white/10"
-              )}
-              value={makeId}
-              onChange={(e) => setMakeId(e.target.value)}
-            >
-              <option value="">Make</option>
-              {makes.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-            <select
-              className={cn(
-                "h-11 w-full rounded-xl border-0 px-3 text-[13px] font-semibold outline-none",
-                isLight ? "bg-black/5" : "bg-white/10"
-              )}
-              value={modelId}
-              onChange={(e) => setModelId(e.target.value)}
-              disabled={!makeId}
-            >
-              <option value="">Model</option>
-              {models.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-            <select
-              className={cn(
-                "h-11 w-full rounded-xl border-0 px-3 text-[13px] font-semibold outline-none",
-                isLight ? "bg-black/5" : "bg-white/10"
-              )}
-              value={year === "" ? "" : String(year)}
-              onChange={(e) =>
-                setYear(e.target.value ? Number(e.target.value) : "")
-              }
-              disabled={!modelId}
-            >
-              <option value="">Year (optional)</option>
-              {years.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
+            <div className="om-flat-select-wrap">
+              <select
+                className="om-flat-select"
+                value={typeSlug}
+                onChange={(e) => setTypeSlug(e.target.value)}
+              >
+                {(types.length
+                  ? types
+                  : [
+                      { slug: "automobile", name: "Automobile" },
+                      { slug: "truck", name: "Truck" },
+                      { slug: "trailer", name: "Trailer" },
+                      { slug: "motorcycle", name: "Motorcycle" },
+                      { slug: "motorhome", name: "Motorhome / RV" },
+                    ]
+                ).map((t) => (
+                  <option key={t.slug} value={t.slug}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                className={cn("om-flat-select-chevron", chevronClass)}
+                strokeWidth={2.5}
+                aria-hidden
+              />
+            </div>
+            <div className="om-flat-select-wrap">
+              <select
+                className="om-flat-select"
+                value={makeId}
+                onChange={(e) => setMakeId(e.target.value)}
+              >
+                <option value="">Make</option>
+                {makes.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                className={cn("om-flat-select-chevron", chevronClass)}
+                strokeWidth={2.5}
+                aria-hidden
+              />
+            </div>
+            <div className="om-flat-select-wrap">
+              <select
+                className="om-flat-select"
+                value={modelId}
+                onChange={(e) => setModelId(e.target.value)}
+                disabled={!makeId}
+              >
+                <option value="">Model</option>
+                {models.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                className={cn("om-flat-select-chevron", chevronClass)}
+                strokeWidth={2.5}
+                aria-hidden
+              />
+            </div>
+            <div className="om-flat-select-wrap">
+              <select
+                className="om-flat-select"
+                value={year === "" ? "" : String(year)}
+                onChange={(e) =>
+                  setYear(e.target.value ? Number(e.target.value) : "")
+                }
+                disabled={!modelId}
+              >
+                <option value="">Year (optional)</option>
+                {years.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                className={cn("om-flat-select-chevron", chevronClass)}
+                strokeWidth={2.5}
+                aria-hidden
+              />
+            </div>
           </div>
           {msg ? (
             <p className="mt-2 text-[12px] font-semibold text-red-500">{msg}</p>
@@ -232,8 +323,14 @@ export default function ShopVehiclesPage() {
             <button
               type="button"
               disabled={busy || !makeId || !modelId}
-              onClick={() => void useVehicle(false)}
-              className="h-11 flex-1 rounded-xl border-0 bg-[#FF6B35] text-[13px] font-bold text-white disabled:opacity-50"
+              onClick={() => void applyVehicle(false)}
+              className="h-11 flex-1 rounded-md border-0 bg-[#FF6B35] text-[13px] font-bold text-white shadow-none outline-none ring-0 disabled:opacity-50"
+              style={{
+                backgroundColor: "#FF6B35",
+                backgroundImage: "none",
+                border: "none",
+                boxShadow: "none",
+              }}
             >
               Browse ALL PARTS
             </button>
@@ -241,11 +338,17 @@ export default function ShopVehiclesPage() {
               <button
                 type="button"
                 disabled={busy || !makeId || !modelId}
-                onClick={() => void useVehicle(true)}
+                onClick={() => void applyVehicle(true)}
                 className={cn(
-                  "h-11 flex-1 rounded-xl border-0 text-[13px] font-bold disabled:opacity-50",
-                  isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white"
+                  "h-11 flex-1 rounded-md border-0 text-[13px] font-bold shadow-none outline-none ring-0 disabled:opacity-50",
+                  isLight ? "text-slate-900" : "text-white"
                 )}
+                style={{
+                  backgroundColor: isLight ? "#d8d9dd" : "#3a3a3c",
+                  backgroundImage: "none",
+                  border: "none",
+                  boxShadow: "none",
+                }}
               >
                 {busy ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : "Save & browse"}
               </button>
@@ -261,8 +364,8 @@ export default function ShopVehiclesPage() {
                 <div
                   key={v.id}
                   className={cn(
-                    "flex items-center gap-2 rounded-xl px-3 py-2.5",
-                    card
+                    "flex items-center gap-2 rounded-xl border-0 px-3 py-2.5 shadow-none ring-0",
+                    isLight ? "bg-[#f0f0f2] text-slate-900" : "bg-[#2c2c2e] text-white"
                   )}
                 >
                   <Car className="h-4 w-4 shrink-0 text-[#FF6B35]" />
@@ -272,18 +375,19 @@ export default function ShopVehiclesPage() {
                     onClick={() => {
                       writeSessionVehicle(v);
                       router.push(
-                        `/shop/c/mechanic?allParts=1&makeName=${encodeURIComponent(v.makeName)}&modelName=${encodeURIComponent(v.modelName)}${v.year ? `&year=${v.year}` : ""}`
+                        `/shop/c/mechanic?allParts=1&makeName=${encodeURIComponent(v.makeName)}&modelName=${encodeURIComponent(v.modelName)}${v.year ? `&year=${v.year}` : ""}${v.vehicleTypeSlug ? `&vehicleType=${encodeURIComponent(v.vehicleTypeSlug)}` : ""}`
                       );
                     }}
                   >
                     <p className="text-[13px] font-bold">
                       {[v.year, v.makeName, v.modelName].filter(Boolean).join(" ")}
                     </p>
-                    {v.isDefault ? (
-                      <p className="text-[10px] font-semibold text-emerald-600">
-                        Active
-                      </p>
-                    ) : null}
+                    <p className="mt-0.5 text-[10px] font-semibold text-[#FF6B35]">
+                      {v.vehicleTypeSlug
+                        ? typeName(v.vehicleTypeSlug)
+                        : "Automobile"}
+                      {v.isDefault ? " · Active" : null}
+                    </p>
                   </button>
                   <button
                     type="button"

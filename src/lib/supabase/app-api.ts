@@ -1071,10 +1071,14 @@ export async function backendLoadUserProfile(
   });
 }
 
-export async function backendFetchPros(userCoords: {
-  lat: number;
-  lng: number;
-}): Promise<Technician[]> {
+export async function backendFetchPros(
+  userCoords: {
+    lat: number;
+    lng: number;
+  },
+  opts?: { trade?: ProService | null }
+): Promise<Technician[]> {
+  const trade = opts?.trade && isProService(opts.trade) ? opts.trade : null;
   // Prefer server route (service role) so every approved pro + name reaches the app
   try {
     const qs = new URLSearchParams({
@@ -1082,6 +1086,7 @@ export async function backendFetchPros(userCoords: {
       lng: String(userCoords.lng),
     });
     // authFetch so server can exclude the signed-in dual-role user from results
+    // NOTE: no trade param — /api/pros derives the pro's trade from the session.
     const { authFetch } = await import("@/lib/api-auth-headers");
     const res = await authFetch(`/api/pros?${qs.toString()}`, {
       method: "GET",
@@ -1102,13 +1107,14 @@ export async function backendFetchPros(userCoords: {
   if (!sb) return [];
 
   // Client fallback: slim columns only (never pull cert base64 / skills blobs)
-  const { data: pros, error } = await sb
-    .from("repair_pro_profiles")
-    .select(
+  let prosQuery = sb.from("repair_pro_profiles").select(
       "user_id, business_name, primary_service, services, status, is_online, rating_avg, rating_count, lat, lng, location_updated_at, service_radius_km, years_experience, bio, verified, labour_prices, pricing_currency, vehicle_focus, skills, jobs_completed, docs_status, face_liveness_verified, in_person_verified, visibility_tier, is_new_artisan, go_live_window_ends_at"
-    )
-    .eq("is_online", true)
-    .limit(60);
+    );
+  // Client fallback for pros must respect the same trade scope as the server
+  // route — otherwise a Repair Pro could widen their market via this fallback.
+  if (trade) prosQuery = prosQuery.eq("primary_service", trade);
+  prosQuery = prosQuery.eq("is_online", true).limit(60);
+  const { data: pros, error } = await prosQuery;
 
   if (error || !pros?.length) return [];
 

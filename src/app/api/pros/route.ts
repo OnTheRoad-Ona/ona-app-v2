@@ -7,6 +7,7 @@ import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { getMeritScoresForPros } from "@/lib/server/merit/merit-engine";
 import { isSyntheticAccount } from "@/lib/server/synthetic-accounts";
 import { mapProToTechnician } from "@/lib/supabase/mappers";
+import { resolveMarketViewer } from "@/lib/server/market-scope";
 import type { ProfileRow, RepairProRow } from "@/lib/supabase/types";
 
 export const runtime = "nodejs";
@@ -41,6 +42,11 @@ export async function GET(req: Request) {
     // (even when Live on the Repair Pro side).
     const viewer = await getUserFromRequest(req);
     const excludeSelfId = viewer?.id ? String(viewer.id) : null;
+
+    // Role-aware market: an ACTIVE Repair Pro only ever sees their own
+    // primary trade's Live pros. Derived from the session — not a client param.
+    const marketViewer = await resolveMarketViewer(req, supabase);
+    const viewerTrade = marketViewer.trade ?? null;
 
     // Live only — not suspended/rejected. Pending+approved both OK when Live.
     // Slim columns only: never pull certification_file_url / skills base64 (multi-MB thrash).
@@ -86,12 +92,13 @@ export async function GET(req: Request) {
       .neq("status", "rejected")
       .order("rating_avg", { ascending: false })
       .limit(120);
+    if (viewerTrade) prosQuery.eq("primary_service", viewerTrade);
 
     let { data: pros, error } = await prosQuery;
 
     // Pre-migration fallback: no visibility_tier column yet
     if (error && /visibility_tier|location_updated_at|column/i.test(error.message)) {
-      const fallback = await supabase
+      let fallbackBuilder = supabase
         .from("repair_pro_profiles")
         .select(
           [
@@ -122,7 +129,11 @@ export async function GET(req: Request) {
         )
         .eq("is_online", true)
         .neq("status", "suspended")
-        .neq("status", "rejected")
+        .neq("status", "rejected");
+      if (viewerTrade) {
+        fallbackBuilder = fallbackBuilder.eq("primary_service", viewerTrade);
+      }
+      const fallback = await fallbackBuilder
         .order("rating_avg", { ascending: false })
         .limit(80);
       pros = fallback.data;
@@ -249,6 +260,7 @@ export async function GET(req: Request) {
         afterRadius: techniciansFinal.length,
         etaSource: "haversine_fast",
         sort: sort === "merit" ? "merit" : "nearest",
+        marketScope: viewerTrade ? `trade:${viewerTrade}` : "all",
       },
     });
   } catch (e) {

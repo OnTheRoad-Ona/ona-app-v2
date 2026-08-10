@@ -349,16 +349,21 @@ export async function initCharge(
   const base =
     process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
     "http://localhost:3000";
+  const isShop = input.metadata?.kind === "ona_shop";
+  const query = new URLSearchParams({
+    ref: input.reference,
+    amount: String(input.amountMinor),
+    currency: input.currency,
+  });
+  if (input.metadata?.jobId) query.set("jobId", String(input.metadata.jobId));
+  if (isShop && input.metadata?.orderId) {
+    query.set("kind", "ona_shop");
+    query.set("orderId", String(input.metadata.orderId));
+  }
   return {
     provider: "mock",
     reference: input.reference,
-    authorizationUrl: `${base}/payments/mock-checkout?ref=${encodeURIComponent(
-      input.reference
-    )}&amount=${input.amountMinor}&currency=${input.currency}${
-      input.metadata?.jobId
-        ? `&jobId=${encodeURIComponent(String(input.metadata.jobId))}`
-        : ""
-    }`,
+    authorizationUrl: `${base}/payments/mock-checkout?${query.toString()}`,
     splitEnabled: false,
   };
 }
@@ -443,6 +448,9 @@ async function initFlutterwave(
     .replace(/\s+/g, "")
     .trim() || "08000000000";
 
+  // Shop retail is direct-to-Ona collection (never job escrow).
+  const isShop = input.metadata?.kind === "ona_shop";
+
   // Force NGN for Nigerian market — never surface GBP/USD for NG accounts
   let payCurrency = input.currency || "NGN";
   if (process.env.FLUTTERWAVE_FORCE_NGN !== "false") {
@@ -484,15 +492,25 @@ async function initFlutterwave(
     },
     customizations: {
       title: "Ona",
-      description: "Labour / service fee escrow · Bank transfer only",
+      description: isShop
+        ? "Ona Shop purchase · Bank transfer only"
+        : "Labour / service fee escrow · Bank transfer only",
     },
     meta: {
       ...(input.metadata ?? {}),
-      labourOnly: true,
+      ...(isShop
+        ? {
+            escrowMode: "none",
+            splitEnabled: false,
+            shop: true,
+          }
+        : {
+            labourOnly: true,
+            // Escrow: hold full amount on main account unless explicit split opt-in
+            splitEnabled: false,
+            escrowMode: "main_merchant",
+          }),
       platformFeePercent: feePct,
-      // Escrow: hold full amount on main account unless explicit split opt-in
-      splitEnabled: false,
-      escrowMode: "main_merchant",
       preferredPaymentMethod: "banktransfer",
       paymentMethodsAllowed: "banktransfer",
     },

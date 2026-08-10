@@ -2350,12 +2350,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /** Live marketplace pros only (no demo seed — keeps first paint light). */
   const technicians = useMemo(() => {
     // Marketplace: only server Live pros (is_online + repair_pro role).
-    const base =
-      accountType === "professional"
-        ? []
-        : cloudTechs !== null
-          ? cloudTechs
-          : [];
+    // /api/pros is role-aware: an active Repair Pro only ever receives their
+    // own trade's Live pros (server-side), so pros use the same feed too.
+    const base = cloudTechs !== null ? cloudTechs : [];
 
     // Always recompute distance/ETA from the active pin (my GPS or
     // “help someone else” meet location) so radius is correct for both.
@@ -2409,7 +2406,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     cloudTechs,
     location.coordinates.lat,
     location.coordinates.lng,
-    accountType,
     backendUserId,
   ]);
 
@@ -2460,9 +2456,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       Array.from(discoveryExcludeProIds || []).map((id) => String(id))
     );
     if (backendUserId) exclude.add(String(backendUserId));
+    // An active Repair Pro's market is pinned to their own primary trade
+    // (server-enforced). Pin the client category too so search / filters stay
+    // inside that trade and the category tab cannot widen the feed.
+    const effectiveCategory: ServiceCategory =
+      accountType === "professional"
+        ? (
+            isProService(registeredAs)
+              ? registeredAs
+              : proServices[0]
+          ) ?? "all"
+        : category;
     return filterAndRankTechnicians(technicians, {
       radiusKm,
-      category,
+      category: effectiveCategory,
       query,
       filters,
       specialtyFilter,
@@ -2480,6 +2487,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     discoveryExcludeProIds,
     discoveryDemoteProIds,
     backendUserId,
+    accountType,
+    registeredAs,
+    proServices,
   ]);
 
   const toggleFilter = useCallback((key: keyof AppFilters) => {
@@ -3033,10 +3043,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
    */
   const refreshCloudPros = useCallback(
     (opts?: { force?: boolean }) => {
-      // Motorist marketplace only — pros never load "nearby" discovery feed
-      // Guests / login screens must not burn mobile data on map lists
-      if (!isAuthenticated || accountType === "professional") {
-        setCloudTechs(accountType === "professional" ? [] : null);
+      // Client Marketplace: motorists see full feed; an active Repair Pro only
+      // sees their own primary trade (scoped server-side in /api/pros).
+      // Guests / login screens must not burn mobile data on map lists.
+      if (!isAuthenticated) {
+        setCloudTechs(null);
         return;
       }
       const force = Boolean(opts?.force);
@@ -3051,8 +3062,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       prosFetchLock.current = true;
       lastProsFetchAt.current = now;
-      // /api/pros returns only Live Repair Pros (online + pro role + range)
-      void backendFetchPros({ lat: userLat, lng: userLng })
+      const trade =
+        accountType === "professional"
+          ? isProService(registeredAs)
+            ? registeredAs
+            : proServices[0] ?? null
+          : null;
+      // /api/pros returns only Live Repair Pros (online + pro role + range); for
+      // pros that is further scoped to their own trade (server-side).
+      void backendFetchPros({ lat: userLat, lng: userLng }, { trade })
         .then((list) => {
           // [] is valid: no one is Live right now (do not re-show demo seeds)
           setCloudTechs(list);
@@ -3070,7 +3088,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
         });
     },
-    [userLat, userLng, accountType, isAuthenticated]
+    [userLat, userLng, accountType, isAuthenticated, registeredAs, proServices]
   );
 
   /** Public: motorist empty-state Refresh — pros list only */
@@ -3120,12 +3138,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [backendUserId]);
 
-  // Customer marketplace: Realtime presence is primary; poll is backup only.
+  // Marketplace (motorist full feed / pro own-trade feed):
+  // Realtime presence is primary; poll is backup only.
   useEffect(() => {
-    if (!isAuthenticated || accountType === "professional") {
-      if (accountType === "professional") setCloudTechs([]);
+    if (!isAuthenticated) {
+      setCloudTechs(null);
       return;
     }
+    // Role switch should never leave a stale-scope feed behind. /api/pros
+    // re-scopes server-side, but drop old results so a pro never sees the
+    // motorist feed (and vice versa) between switch and refetch.
+    setCloudTechs(null);
     const first = window.setTimeout(() => refreshCloudPros({ force: true }), 100);
     // Backup if Realtime drops — Realtime is primary (keep map/presence snappy)
     const poll = window.setInterval(() => {
@@ -3146,13 +3169,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [refreshCloudPros, isAuthenticated, accountType]);
 
   // Pros Realtime via public pro_presence — Live/Away without page refresh
+  // (motorists see the full feed; pros see their own-trade subset — both
+  // derive from the same realtime stream and re-scope server-side on fetch).
   useEffect(() => {
-    if (
-      !isAppBackendOnline() ||
-      !backendUserId ||
-      accountType === "professional" ||
-      !isAuthenticated
-    ) {
+    if (!isAppBackendOnline() || !backendUserId || !isAuthenticated) {
       return;
     }
     let prosTimer: ReturnType<typeof setTimeout> | null = null;

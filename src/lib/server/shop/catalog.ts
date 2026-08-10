@@ -3,6 +3,8 @@
  */
 
 import { createServiceSupabase } from "@/lib/supabase/server";
+import { availabilityState } from "@/lib/shop/catalog-status";
+import { getUserFromRequest } from "@/lib/server/auth-utils";
 import type {
   ShopAccountContext,
   ShopCategory,
@@ -12,6 +14,30 @@ import type {
 /** Parse ?ctx= from a request into a shop account context (default motorist). */
 export function shopCtxFromQuery(value: string | null): ShopAccountContext {
   return value === "professional" ? "professional" : "motorist";
+}
+
+/**
+ * Resolve the buyer's account context from the REAL session — never from a
+ * query param. Guests are always motorist. A guest sending ?ctx=professional
+ * cannot bypass the professional-only product gate.
+ */
+export async function resolveAccountContext(
+  req: Request
+): Promise<ShopAccountContext> {
+  try {
+    const user = await getUserFromRequest(req);
+    if (!user) return "motorist";
+    const sb = createServiceSupabase();
+    const { data: profile } = await sb
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (profile?.role === "repair_pro") return "professional";
+    return "motorist";
+  } catch {
+    return "motorist";
+  }
 }
 
 function mapCategory(row: Record<string, unknown>): ShopCategory {
@@ -82,9 +108,22 @@ export async function getShopHomeSections(opts?: {
   return { trades, popular, newArrivals };
 }
 
+export type ProductFilterOptions = {
+  /** Category slug (resolved inside listProducts via trade). */
+  categorySlug?: string;
+  /** Availability: "in_stock" filters to available-only; "all" shows everything. */
+  availability?: "in_stock" | "all";
+  /** Price range in minor units (filters on the active price for a variant). */
+  minPriceMinor?: number;
+  maxPriceMinor?: number;
+  /** Trade-specific dynamic attribute filters (validated per trade schema). */
+  attributes?: Record<string, string | number | boolean>;
+};
+
 export async function listProducts(opts: {
   tradeKey?: string;
   categoryId?: string;
+  categorySlug?: string;
   q?: string;
   /** Optional pre-split tokens — OR across fields; products matching any token. */
   tokens?: string[];
@@ -93,24 +132,11 @@ export async function listProducts(opts: {
   order?: "created_at" | "name";
   /** Motorist/guest never sees professional-only stock. */
   accountContext?: ShopAccountContext;
+  /** Phase 2 filter engine — irrelevant filters are dropped. */
+  filters?: ProductFilterOptions;
 }): Promise<ShopProductCard[]> {
   const sb = createServiceSupabase();
   const limit = Math.min(Math.max(opts.limit ?? 24, 1), 100);
-
-  let q = sb
-    .from("shop_products")
-    .select(
-      "id, slug, name, subtitle, trade_key, primary_image_url, condition_type, status, created_at"
-    )
-    .eq("status", opts.status ?? "active")
-    .limit(limit);
-
-  if (opts.tradeKey) q = q.eq("trade_key", opts.tradeKey);
-  if (opts.categoryId) q = q.eq("category_id", opts.categoryId);
-  // Role-gate professional-only products (guest + motorist = excluded)
-  if (opts.accountContext !== "professional") {
-    q = q.eq("is_professional_only", false);
-  }
 
   const tokens = (
     opts.tokens?.length
@@ -123,13 +149,93 @@ export async function listProducts(opts: {
     .filter((t) => t.length >= 2)
     .slice(0, 12);
 
+  // Resolve categorySlug -> categoryId so the filter engine can use slugs.
+  let effectiveCategoryId = opts.categoryId;
+  if (!effectiveCategoryId && opts.categorySlug && opts.tradeKey) {
+    const { data: cat } = await sb
+      .from("shop_trade_categories")
+      .select("id")
+      .eq("trade_key", opts.tradeKey)
+      .eq("slug", opts.categorySlug)
+      .maybeSingle();
+    if (cat) effectiveCategoryId = String(cat.id);
+  }
+
+  const partTerms = tokens
+    .flatMap((t) => [`sku.ilike.%${t}%`, `mpn.ilike.%${t}%`, `oem_number.ilike.%${t}%`])
+    .join(",");
+  const { data: variantIds } = partTerms
+    ? await sb
+        .from("shop_product_variants")
+        .select("product_id")
+        .or(partTerms)
+        .limit(500)
+    : { data: null };
+
+  let q = sb
+    .from("shop_products")
+    .select(
+      "id, slug, name, subtitle, trade_key, brand_id, shop_brands(name), primary_image_url, condition_type, status, attributes, created_at"
+    )
+    .eq("status", opts.status ?? "active")
+    .limit(limit);
+
+  if (opts.tradeKey) q = q.eq("trade_key", opts.tradeKey);
+  if (effectiveCategoryId) q = q.eq("category_id", effectiveCategoryId);
+  // Role-gate professional-only products (guest + motorist = excluded)
+  if (opts.accountContext !== "professional") {
+    q = q.eq("is_professional_only", false);
+  }
+
+  // Availability filter (Phase 2): in_stock must be explicitly requested.
+  if (opts.filters?.availability === "in_stock") {
+    q = q.in(
+      "id",
+      await availableProductIds(sb)
+    );
+  }
+
+  // Price range filter: product must have an active price within [min, max].
+  const minP = opts.filters?.minPriceMinor;
+  const maxP = opts.filters?.maxPriceMinor;
+  if (minP != null || maxP != null) {
+    let pq = sb
+      .from("shop_prices")
+      .select("variant_id")
+      .eq("is_active", true);
+    if (minP != null) pq = pq.gte("amount_minor", minP);
+    if (maxP != null) pq = pq.lte("amount_minor", maxP);
+    pq = pq.limit(2000);
+    const { data: pricedVariants } = await pq;
+    const pricedVariantIds = new Set(
+      ((pricedVariants ?? []) as Array<{ variant_id: string }>).map((r) =>
+        String(r.variant_id)
+      )
+    );
+    if (pricedVariantIds.size === 0) return [];
+    const { data: pricedProductIds } = await sb
+      .from("shop_product_variants")
+      .select("product_id")
+      .in("id", [...pricedVariantIds].slice(0, 1000))
+      .limit(2000);
+    const pids = [
+      ...new Set(
+        ((pricedProductIds ?? []) as Array<{ product_id: string }>).map((r) =>
+          String(r.product_id)
+        )
+      ),
+    ];
+    if (!pids.length) return [];
+    q = q.in("id", pids);
+  }
+
+  // Search: name/subtitle/slug/keywords OR part-identity matches.
   if (tokens.length === 1) {
     const term = tokens[0];
     q = q.or(
-      `name.ilike.%${term}%,subtitle.ilike.%${term}%,slug.ilike.%${term}%`
+      `name.ilike.%${term}%,subtitle.ilike.%${term}%,slug.ilike.%${term}%,keywords.cs.{${term}}`
     );
   } else if (tokens.length > 1) {
-    // OR each token against name/subtitle/slug so multi-word intent still hits
     const parts: string[] = [];
     for (const term of tokens) {
       parts.push(`name.ilike.%${term}%`);
@@ -139,12 +245,41 @@ export async function listProducts(opts: {
     q = q.or(parts.join(","));
   }
 
+  // Dynamic attribute filters (validated per trade by the filter engine).
+  const attrs = opts.filters?.attributes ?? {};
+  for (const [key, value] of Object.entries(attrs)) {
+    if (value === undefined || value === "") continue;
+    const search = `attributes->>'${key}'`;
+    q = q.ilike(search, `%${String(value)}%`);
+  }
+
   if (opts.order === "name") q = q.order("name", { ascending: true });
   else q = q.order("created_at", { ascending: false });
 
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   let products = (data ?? []) as Array<Record<string, unknown>>;
+
+  // Merge part-identity matches (sku/mpn/oem) into results.
+  if (variantIds?.length) {
+    const ids = new Set(products.map((p) => String(p.id)));
+    const matchedProductIds = new Set(variantIds.map((v) => String(v.product_id)));
+    if (matchedProductIds.size && !ids.size) {
+      const { data: extra } = await sb
+        .from("shop_products")
+        .select(
+          "id, slug, name, subtitle, trade_key, brand_id, shop_brands(name), primary_image_url, condition_type, status, attributes, created_at"
+        )
+        .eq("status", opts.status ?? "active")
+        .in("id", [...matchedProductIds].slice(0, limit));
+      products = extra ?? [];
+    } else if (matchedProductIds.size) {
+      // keep original ordering; part matches already surfaced via search or will
+      // be appended at end (bounded)
+      const extra = products.filter((p) => matchedProductIds.has(String(p.id)));
+      if (extra.length) products = extra;
+    }
+  }
 
   // Soft re-score client-side when multi-token: prefer products matching more tokens
   if (tokens.length > 1 && products.length > 0) {
@@ -167,21 +302,45 @@ export async function listProducts(opts: {
 
   return products.map((p) => {
     const id = String(p.id);
+    const price = prices.get(id) ?? null;
+    const hasStock = stock.get(id) ?? false;
+    const av = availabilityState({
+      status: p.status ? String(p.status) : "active",
+      priced: price != null,
+      inStock: hasStock,
+    });
     return {
       id,
       slug: String(p.slug),
       name: String(p.name),
       subtitle: p.subtitle ? String(p.subtitle) : null,
       tradeKey: String(p.trade_key),
+      brandName: brandNameOf(p),
       primaryImageUrl: p.primary_image_url
         ? String(p.primary_image_url)
         : null,
       conditionType: p.condition_type ? String(p.condition_type) : null,
-      fromPriceMinor: prices.get(id) ?? null,
+      fromPriceMinor: price,
       currency: "NGN",
-      inStock: stock.get(id) ?? false,
+      inStock: av.available,
+      status: p.status ? String(p.status) : "active",
+      availabilityLabel: av.label,
+      attributes: p.attributes
+        ? (p.attributes as Record<string, unknown>)
+        : undefined,
     };
   });
+}
+
+async function availableProductIds(
+  sb: ReturnType<typeof createServiceSupabase>
+): Promise<string[]> {
+  const { data } = await sb
+    .from("shop_availability_view")
+    .select("product_id")
+    .eq("available", true)
+    .limit(500);
+  return (data ?? []).map((r) => String(r.product_id));
 }
 
 async function loadFromPrices(
@@ -248,6 +407,19 @@ async function loadInStock(productIds: string[]): Promise<Map<string, boolean>> 
   return out;
 }
 
+function brandNameOf(p: Record<string, unknown>): string | null {
+  const emb = p.shop_brands as
+    | { name?: unknown }
+    | null
+    | undefined;
+  const name = emb?.name;
+  return typeof name === "string" && name.trim()
+    ? name.trim()
+    : typeof p.brand_name === "string"
+      ? p.brand_name
+      : null;
+}
+
 export async function getProductBySlug(
   slug: string,
   accountContext?: ShopAccountContext
@@ -258,13 +430,17 @@ export async function getProductBySlug(
   images: Record<string, unknown>[];
 } | null> {
   const sb = createServiceSupabase();
-  const { data: product, error } = await sb
+  const { data: rawProduct, error } = await sb
     .from("shop_products")
-    .select("*")
+    .select("*, shop_brands(name)")
     .eq("slug", slug)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!product) return null;
+  if (!rawProduct) return null;
+  const product = {
+    ...rawProduct,
+    brandName: brandNameOf(rawProduct as Record<string, unknown>),
+  };
   // Role-gate professional-only product detail
   if (
     Boolean(product.is_professional_only) &&
@@ -282,6 +458,35 @@ export async function getProductBySlug(
   const vids = ((variants ?? []) as Array<Record<string, unknown>>).map((v) =>
     String(v.id)
   );
+
+  // Per-variant available stock (sum across active locations).
+  let stockByVariant = new Map<string, number>();
+  if (vids.length) {
+    try {
+      const { data: inv } = await sb
+        .from("shop_inventory")
+        .select("variant_id, qty_on_hand, qty_reserved")
+        .in("variant_id", vids);
+      for (const row of (inv ?? []) as Array<{
+        variant_id: string;
+        qty_on_hand: number;
+        qty_reserved: number;
+      }>) {
+        const cur = stockByVariant.get(String(row.variant_id)) ?? 0;
+        stockByVariant.set(
+          String(row.variant_id),
+          cur + Math.max(0, Number(row.qty_on_hand) - Number(row.qty_reserved))
+        );
+      }
+    } catch {
+      stockByVariant = new Map();
+    }
+  }
+  const variantsWithStock = (variants ?? []).map((v) => ({
+    ...(v as Record<string, unknown>),
+    stock_available: stockByVariant.get(String((v as { id?: string }).id)) ?? 0,
+  }));
+
   let prices: Record<string, unknown>[] = [];
   if (vids.length) {
     const { data: pr } = await sb
@@ -323,7 +528,7 @@ export async function getProductBySlug(
 
   return {
     product: product as Record<string, unknown>,
-    variants: (variants ?? []) as Record<string, unknown>[],
+    variants: variantsWithStock as Record<string, unknown>[],
     prices,
     images,
   };

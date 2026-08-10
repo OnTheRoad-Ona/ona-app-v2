@@ -9,7 +9,10 @@ import {
   verifyCharge,
 } from "@/lib/server/payments/providers";
 import type { AppCurrency } from "@/lib/pricing";
-import { markShopOrderPaid } from "@/lib/server/shop/orders";
+import {
+  markShopOrderPaid,
+  releaseInventoryForOrder,
+} from "@/lib/server/shop/orders";
 
 export async function createShopPaymentAndInit(opts: {
   orderId: string;
@@ -169,10 +172,14 @@ export async function verifyShopPayment(opts: {
     return { success: false, orderId: String(payment.order_id) };
   }
 
-  // Amount check (tolerance 1 minor unit)
-  if (
-    Math.abs(Number(verified.amountMinor) - Number(payment.amount_minor)) > 1
-  ) {
+  // Amount check (tolerance 1 minor unit). Mock verify carries no real amount,
+  // so the recorded payment amount is authoritative for the mock provider.
+  const amountOk =
+    payment.provider === "mock"
+      ? true
+      : Math.abs(Number(verified.amountMinor) - Number(payment.amount_minor)) <=
+        1;
+  if (!amountOk) {
     await sb
       .from("shop_payments")
       .update({
@@ -194,11 +201,51 @@ export async function verifyShopPayment(opts: {
     })
     .eq("id", payment.id);
 
-  await markShopOrderPaid({
-    orderId: String(payment.order_id),
-    paymentId: String(payment.id),
-    providerRef: opts.reference,
-  });
+  // Reserve inventory atomically. If stock ran out between checkout and pay,
+  // the money was captured but we cannot fulfill — mark order refunded and
+  // surface a clear failure so the buyer is never left "paid, no stock".
+  try {
+    await markShopOrderPaid({
+      orderId: String(payment.order_id),
+      paymentId: String(payment.id),
+      providerRef: opts.reference,
+    });
+  } catch (e) {
+    const orderId = String(payment.order_id);
+    await releaseInventoryForOrder(orderId).catch(() => 0);
+    await sb
+      .from("shop_orders")
+      .update({
+        status: "refunded",
+        refunded_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", orderId);
+    await sb
+      .from("shop_payments")
+      .update({
+        status: "refunded",
+        refunded_at: new Date().toISOString(),
+        raw_verify: {
+          ...((verified.raw as object) || {}),
+          refundReason: "stock_unavailable",
+        },
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", payment.id);
+    await sb.from("shop_order_events").insert({
+      order_id: orderId,
+      event_type: "refunded",
+      payload: {
+        reason: "stock_unavailable",
+        detail: e instanceof Error ? e.message : "Insufficient stock",
+      },
+      actor_id: null,
+    });
+    throw new Error(
+      "Payment received but the item went out of stock — your order has been refunded."
+    );
+  }
 
   return { success: true, orderId: String(payment.order_id) };
 }

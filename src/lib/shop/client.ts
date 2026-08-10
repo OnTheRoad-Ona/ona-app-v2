@@ -55,6 +55,7 @@ export async function shopUpdateCartItem(itemId: string, qty: number) {
 export async function shopCheckout(opts: {
   accountContext?: "motorist" | "professional";
   addressId?: string | null;
+  zoneCode?: string | null;
   notes?: string;
 }) {
   const headers = await authHeaders();
@@ -117,5 +118,73 @@ export async function shopGetOrder(
     order: Record<string, unknown>;
     items: Array<Record<string, unknown>>;
     delivery: Record<string, unknown> | null;
+    payments: Array<Record<string, unknown>>;
+    events: Array<Record<string, unknown>>;
   }>(res);
+}
+
+export type SavedAddress = {
+  id: string;
+  label: string;
+  address_text: string;
+  delivery_zone_code: string | null;
+  is_default: boolean;
+};
+
+export async function shopListAddresses(userId: string): Promise<SavedAddress[]> {
+  const headers = await authHeadersGet();
+  const res = await authFetch(
+    `/api/addresses?userId=${encodeURIComponent(userId)}`,
+    { headers }
+  );
+  const data = await parseJson<{ addresses: SavedAddress[] }>(res);
+  return data.addresses;
+}
+
+export async function shopCreateAddress(opts: {
+  userId: string;
+  label: string;
+  addressText: string;
+  isDefault?: boolean;
+}): Promise<SavedAddress> {
+  const headers = await authHeaders();
+  const res = await authFetch("/api/addresses", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(opts),
+  });
+  const data = await parseJson<{ address: SavedAddress }>(res);
+  return data.address;
+}
+
+export type DeliveryEstimateView = {
+  estimate: {
+    deliveryFeeMinor: number;
+    zoneCode: string;
+    zoneName: string;
+    serviceCode: string;
+    serviceName: string;
+    etaMinutesMin: number;
+    etaMinutesMax: number;
+    freeDelivery: boolean;
+  };
+  zones: Array<{ code: string; name: string }>;
+};
+
+export async function shopEstimateDelivery(opts: {
+  addressId: string;
+  subtotalMinor: number;
+  zoneCode?: string | null;
+}): Promise<DeliveryEstimateView> {
+  const headers = await authHeadersGet();
+  const params = new URLSearchParams({
+    addressId: opts.addressId,
+    subtotalMinor: String(opts.subtotalMinor),
+  });
+  if (opts.zoneCode) params.set("zoneCode", opts.zoneCode);
+  const res = await authFetch(
+    `/api/shop/delivery/estimate?${params.toString()}`,
+    { headers }
+  );
+  return parseJson<DeliveryEstimateView>(res);
 }

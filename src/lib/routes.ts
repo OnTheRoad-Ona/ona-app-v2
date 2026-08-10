@@ -30,6 +30,7 @@ export function isProAppPath(pathname: string): boolean {
 
 /** Shared authenticated paths */
 export function isSharedAppPath(pathname: string): boolean {
+  if (pathname === "/") return true;
   if (pathname.startsWith("/messages")) return true;
   if (pathname.startsWith("/profile")) return true;
   if (pathname.startsWith("/settings")) return true;

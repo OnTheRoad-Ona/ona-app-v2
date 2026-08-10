@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import {
   getProductBySlug,
-  shopCtxFromQuery,
+  resolveAccountContext,
 } from "@/lib/server/shop/catalog";
 
 export const runtime = "nodejs";
@@ -16,7 +16,7 @@ export async function GET(
     const { slug } = await ctx.params;
     const data = await getProductBySlug(
       slug,
-      shopCtxFromQuery(req.nextUrl.searchParams.get("ctx"))
+      await resolveAccountContext(req)
     );
     if (!data) return apiFail("Product not found", 404, "NOT_FOUND");
     return apiOk(data);

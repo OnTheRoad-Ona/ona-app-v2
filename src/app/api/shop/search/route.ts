@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { requireUser } from "@/lib/server/auth-utils";
 import { searchShop } from "@/lib/server/shop/search";
-import { shopCtxFromQuery } from "@/lib/server/shop/catalog";
+import { resolveAccountContext } from "@/lib/server/shop/catalog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,12 +29,38 @@ export async function GET(req: NextRequest) {
     const auth = await requireUser(req);
     if (auth.ok) userId = auth.userId;
 
+    // Facet filters: category, price range, availability.
+    const sp = req.nextUrl.searchParams;
+    const filters: import("@/lib/server/shop/catalog").ProductFilterOptions = {};
+    const categorySlug = sp.get("category");
+    if (categorySlug) filters.categorySlug = categorySlug;
+    const minPrice = sp.get("minPrice");
+    const maxPrice = sp.get("maxPrice");
+    if (minPrice && !Number.isNaN(Number(minPrice))) {
+      filters.minPriceMinor = Math.max(0, Math.round(Number(minPrice)));
+    }
+    if (maxPrice && !Number.isNaN(Number(maxPrice))) {
+      filters.maxPriceMinor = Math.max(0, Math.round(Number(maxPrice)));
+    }
+    if (sp.get("availability") === "in_stock") {
+      filters.availability = "in_stock";
+    }
+    const attrs: Record<string, string | number | boolean> = {};
+    for (const key of sp.keys()) {
+      if (key.startsWith("attr.")) {
+        const val = sp.get(key);
+        if (val != null && val !== "") attrs[key.slice(5)] = val;
+      }
+    }
+    if (Object.keys(attrs).length) filters.attributes = attrs;
+
     const data = await searchShop(q, {
       userId,
       limit: 40,
       tradeKey,
       lockTrade: lockTrade && Boolean(tradeKey),
-      accountContext: shopCtxFromQuery(req.nextUrl.searchParams.get("ctx")),
+      accountContext: await resolveAccountContext(req),
+      filters,
     });
     return apiOk(data);
   } catch (e) {

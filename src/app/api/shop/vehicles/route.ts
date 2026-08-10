@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as {
       action?: string;
       vehicleId?: string;
+      vehicleTypeSlug?: string;
       makeId?: string;
       modelId?: string;
       makeName?: string;
@@ -65,6 +66,7 @@ export async function POST(req: NextRequest) {
       return apiFail("makeName and modelName required", 400);
     }
     const vehicle = await addUserVehicle(auth.userId, {
+      vehicleTypeSlug: body.vehicleTypeSlug,
       makeId: body.makeId,
       modelId: body.modelId,
       makeName: body.makeName,

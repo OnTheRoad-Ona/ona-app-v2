@@ -1,6 +1,13 @@
 /**
- * Shop order engine — inventory reserve on pay, delivery row on paid.
+ * Shop order engine (Phase 3) — inventory reserve on pay, delivery on paid.
  * Separate from job desk /orders.
+ *
+ * Idempotency: a server-generated checkout_token makes one checkout create at
+ * most one order (double-click / retry safe).
+ * Inventory: atomic reserve via `ona_shop_reserve` RPC; release on payment
+ * failure/cancel via `ona_shop_release`; deduct on delivery via
+ * `ona_shop_fulfill_deduct`.
+ * Delivery fee: always supplied by the delivery engine (never the client).
  */
 
 import { createServiceSupabase } from "@/lib/supabase/server";
@@ -13,27 +20,61 @@ function orderNumber(): string {
   return `OS-${t}-${r}`;
 }
 
+export type DeliveryFeeEstimate = {
+  deliveryFeeMinor: number;
+  zoneCode: string;
+  zoneName: string;
+  serviceCode: string;
+  etaMinutesMin: number;
+  etaMinutesMax: number;
+};
+
 export type CreateOrderInput = {
   userId: string;
   accountContext: ShopAccountContext;
   cartId: string;
+  /** Idempotency key — duplicate token returns the existing order. */
+  checkoutToken: string;
   shipToAddressId?: string | null;
   shipToSnapshot?: Record<string, unknown>;
-  deliveryFeeMinor?: number;
+  delivery: DeliveryFeeEstimate;
   notes?: string;
+};
+
+export type CreateOrderResult = {
+  orderId: string;
+  orderNumber: string;
+  totalMinor: number;
+  alreadyExists: boolean;
 };
 
 export async function createOrderFromCart(
   input: CreateOrderInput
-): Promise<{ orderId: string; orderNumber: string; totalMinor: number }> {
+): Promise<CreateOrderResult> {
+  const sb = createServiceSupabase();
+
+  // Idempotency: re-use an order already created for this checkout token.
+  const { data: existing } = await sb
+    .from("shop_orders")
+    .select("id, order_number, total_minor")
+    .eq("checkout_token", input.checkoutToken)
+    .maybeSingle();
+  if (existing) {
+    return {
+      orderId: String(existing.id),
+      orderNumber: String(existing.order_number),
+      totalMinor: Number(existing.total_minor),
+      alreadyExists: true,
+    };
+  }
+
   const cart = await loadCart(input.cartId);
   if (cart.userId !== input.userId) throw new Error("Forbidden");
   const v = validateCartForCheckout(cart);
   if (!v.ok) throw new Error(v.errors.join("; "));
 
-  const deliveryFee = Math.max(0, input.deliveryFeeMinor ?? 0);
+  const deliveryFee = Math.max(0, input.delivery.deliveryFeeMinor ?? 0);
   const total = cart.subtotalMinor + deliveryFee;
-  const sb = createServiceSupabase();
   const num = orderNumber();
 
   const { data: order, error } = await sb
@@ -51,6 +92,13 @@ export async function createOrderFromCart(
       ship_to_address_id: input.shipToAddressId || null,
       ship_to_snapshot: input.shipToSnapshot || {},
       notes: input.notes || null,
+      checkout_token: input.checkoutToken,
+      delivery_zone_code: input.delivery.zoneCode,
+      delivery_service_code: input.delivery.serviceCode,
+      delivery_eta_minutes:
+        Math.round(
+          (input.delivery.etaMinutesMin + input.delivery.etaMinutesMax) / 2
+        ) || null,
     })
     .select("id, order_number, total_minor")
     .single();
@@ -81,10 +129,55 @@ export async function createOrderFromCart(
     orderId: String(order.id),
     orderNumber: String(order.order_number),
     totalMinor: Number(order.total_minor),
+    alreadyExists: false,
   };
 }
 
-/** After successful shop payment: mark paid, reserve stock, open delivery, close cart. */
+/**
+ * Atomic inventory reserve for an order. Throws when any variant cannot be
+ * satisfied, so the caller can treat the whole order as unreserved.
+ */
+export async function reserveInventoryForOrder(
+  orderId: string
+): Promise<void> {
+  const sb = createServiceSupabase();
+  const { data: items } = await sb
+    .from("shop_order_items")
+    .select("variant_id, qty, sku")
+    .eq("order_id", orderId);
+  for (const it of items ?? []) {
+    const ok = await sb.rpc("ona_shop_reserve", {
+      p_variant_id: it.variant_id,
+      p_qty: it.qty,
+      p_order_id: orderId,
+    });
+    if (ok.error || ok.data !== true) {
+      throw new Error(`Insufficient stock for ${it.sku}`);
+    }
+  }
+}
+
+/** Release any reserves held for an order (payment fail / cancel / refund). */
+export async function releaseInventoryForOrder(orderId: string): Promise<number> {
+  const sb = createServiceSupabase();
+  const { data, error } = await sb.rpc("ona_shop_release", {
+    p_order_id: orderId,
+  });
+  if (error) throw new Error(error.message);
+  return Number(data ?? 0);
+}
+
+/** Deduct sold stock when the delivery completes. */
+export async function deductInventoryForOrder(orderId: string): Promise<number> {
+  const sb = createServiceSupabase();
+  const { data, error } = await sb.rpc("ona_shop_fulfill_deduct", {
+    p_order_id: orderId,
+  });
+  if (error) throw new Error(error.message);
+  return Number(data ?? 0);
+}
+
+/** After successful shop payment: reserve stock, mark paid, open delivery, close cart. */
 export async function markShopOrderPaid(opts: {
   orderId: string;
   paymentId: string;
@@ -99,46 +192,8 @@ export async function markShopOrderPaid(opts: {
   if (!order) throw new Error("Order not found");
   if (order.status === "paid" || order.status === "fulfilling") return;
 
-  const { data: items } = await sb
-    .from("shop_order_items")
-    .select("*")
-    .eq("order_id", opts.orderId);
-
-  // Reserve inventory at first active location for each variant
-  for (const it of items ?? []) {
-    const variantId = String(it.variant_id);
-    const qty = Number(it.qty);
-    const { data: invRows } = await sb
-      .from("shop_inventory")
-      .select("*")
-      .eq("variant_id", variantId)
-      .order("qty_on_hand", { ascending: false })
-      .limit(1);
-    const inv = invRows?.[0];
-    if (!inv) continue;
-    const onHand = Number(inv.qty_on_hand);
-    const reserved = Number(inv.qty_reserved);
-    const avail = onHand - reserved;
-    if (avail < qty) {
-      throw new Error(`Insufficient stock for ${it.sku}`);
-    }
-    await sb
-      .from("shop_inventory")
-      .update({
-        qty_reserved: reserved + qty,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", inv.id);
-
-    await sb.from("shop_inventory_transactions").insert({
-      variant_id: variantId,
-      location_id: inv.location_id,
-      delta: -qty,
-      reason: "reserve_on_pay",
-      ref_type: "shop_order",
-      ref_id: opts.orderId,
-    });
-  }
+  // Reserve first (atomic, all-or-nothing) — never mark paid without stock.
+  await reserveInventoryForOrder(opts.orderId);
 
   await sb
     .from("shop_orders")
@@ -155,19 +210,28 @@ export async function markShopOrderPaid(opts: {
     payload: {
       paymentId: opts.paymentId,
       providerRef: opts.providerRef,
+      reserved: true,
     },
   });
 
-  // Delivery stub for admin assign later
+  // Delivery row (zone/service/ETA snapshot from checkout) — admin assigns courier.
+  const snapshot = (order.ship_to_snapshot ?? {}) as Record<string, unknown>;
+  const zoneName = String(
+    snapshot.deliveryZoneName ?? order.delivery_zone_code ?? "Default"
+  );
   await sb.from("shop_deliveries").upsert(
     {
       order_id: opts.orderId,
       status: "pending",
+      zone_code: order.delivery_zone_code ?? null,
+      zone_name: zoneName,
+      service_code: order.delivery_service_code ?? null,
+      eta_minutes: order.delivery_eta_minutes ?? null,
       events: [
         {
           at: new Date().toISOString(),
           status: "pending",
-          note: "Awaiting courier assignment",
+          note: "Order paid — awaiting delivery assignment",
         },
       ],
     },
@@ -210,6 +274,109 @@ export async function markShopOrderPaid(opts: {
   }
 }
 
+/**
+ * Cancel an unpaid order (customer): releases nothing (no reserve yet) and
+ * voids any pending payment row.
+ */
+export async function cancelUnpaidOrder(opts: {
+  orderId: string;
+  userId: string;
+}): Promise<void> {
+  const sb = createServiceSupabase();
+  const { data: order } = await sb
+    .from("shop_orders")
+    .select("id, user_id, status, order_number")
+    .eq("id", opts.orderId)
+    .eq("user_id", opts.userId)
+    .maybeSingle();
+  if (!order) throw new Error("Order not found");
+  if (order.status !== "pending_payment") {
+    throw new Error("Only unpaid orders can be cancelled by the buyer");
+  }
+
+  await sb
+    .from("shop_orders")
+    .update({
+      status: "cancelled" satisfies ShopOrderStatus,
+      cancelled_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", opts.orderId);
+
+  await sb
+    .from("shop_payments")
+    .update({
+      status: "cancelled",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("order_id", opts.orderId)
+    .eq("status", "pending");
+
+  await sb.from("shop_order_events").insert({
+    order_id: opts.orderId,
+    event_type: "cancelled",
+    payload: { reason: "buyer_cancel_unpaid" },
+    actor_id: opts.userId,
+  });
+}
+
+/**
+ * Refund a paid order (admin/ops): release reserved stock and mark refunded.
+ * Optional provider-level refund via attemptFlutterwaveRefund when configured.
+ */
+export async function refundShopOrder(opts: {
+  orderId: string;
+  actorId?: string | null;
+  reason?: string;
+}): Promise<void> {
+  const sb = createServiceSupabase();
+  const { data: order } = await sb
+    .from("shop_orders")
+    .select("*")
+    .eq("id", opts.orderId)
+    .maybeSingle();
+  if (!order) throw new Error("Order not found");
+  if (order.status !== "paid" && order.status !== "fulfilling") {
+    throw new Error("Only paid orders can be refunded");
+  }
+
+  await releaseInventoryForOrder(opts.orderId);
+
+  await sb
+    .from("shop_orders")
+    .update({
+      status: "refunded" satisfies ShopOrderStatus,
+      refunded_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", opts.orderId);
+
+  await sb
+    .from("shop_payments")
+    .update({
+      status: "refunded",
+      refunded_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("order_id", opts.orderId)
+    .eq("status", "succeeded");
+
+  await sb
+    .from("shop_deliveries")
+    .update({
+      status: "cancelled",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("order_id", opts.orderId);
+
+  await sb.from("shop_order_events").insert({
+    order_id: opts.orderId,
+    event_type: "refunded",
+    payload: { reason: opts.reason ?? "admin_refund" },
+    actor_id: opts.actorId ?? null,
+  });
+}
+
 export async function getUserOrders(
   userId: string,
   accountContext: ShopAccountContext = "motorist",
@@ -245,11 +412,28 @@ export async function getOrderForUser(
   const { data: items } = await sb
     .from("shop_order_items")
     .select("*")
-    .eq("order_id", orderId);
+    .eq("order_id", orderId)
+    .order("created_at", { ascending: true });
   const { data: delivery } = await sb
     .from("shop_deliveries")
     .select("*")
     .eq("order_id", orderId)
     .maybeSingle();
-  return { order, items: items ?? [], delivery };
+  const { data: payments } = await sb
+    .from("shop_payments")
+    .select("*")
+    .eq("order_id", orderId)
+    .order("created_at", { ascending: true });
+  const { data: events } = await sb
+    .from("shop_order_events")
+    .select("*")
+    .eq("order_id", orderId)
+    .order("created_at", { ascending: true });
+  return {
+    order,
+    items: items ?? [],
+    delivery,
+    payments: payments ?? [],
+    events: events ?? [],
+  };
 }

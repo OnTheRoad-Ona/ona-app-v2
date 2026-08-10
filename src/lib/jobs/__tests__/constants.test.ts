@@ -48,8 +48,8 @@ describe("constants", () => {
     expect(NEGOTIATE_WINDOW_MS).toBe(20 * 60 * 1000);
   });
 
-  it("payment window is 20 minutes", () => {
-    expect(PAYMENT_WINDOW_MS).toBe(20 * 60 * 1000);
+  it("payment window is 11 minutes", () => {
+    expect(PAYMENT_WINDOW_MS).toBe(11 * 60 * 1000);
   });
 
   it("max payment attempts is 3", () => {
@@ -64,8 +64,8 @@ describe("constants", () => {
     expect(COMPLETED_AUTO_RELEASE_WINDOW_MS).toBe(6 * 60 * 60 * 1000);
   });
 
-  it("pro payout is 95% and platform fee is 5%", () => {
-    expect(PRO_PAYOUT_PERCENT).toBe(95);
+  it("pro payout is 87.5% and platform fee is 5%", () => {
+    expect(PRO_PAYOUT_PERCENT).toBe(87.5);
     expect(PLATFORM_FEE_PERCENT).toBe(5);
   });
 

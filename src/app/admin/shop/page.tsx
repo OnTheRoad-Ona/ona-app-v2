@@ -214,6 +214,28 @@ export default function AdminShopPage() {
     await loadOrders();
   };
 
+  const runOrderAction = async (
+    orderId: string,
+    status: string,
+    action: "cancel" | "refund"
+  ) => {
+    setBusyId(`action-${orderId}`);
+    setMessage(null);
+    setError(null);
+    const res = await api(`/api/admin/shop/orders/${orderId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, reason: `admin ${action} (${status})` }),
+    });
+    setBusyId(null);
+    if (!res.ok) {
+      setError(res.message);
+      return;
+    }
+    setMessage(action === "refund" ? "Order refunded" : "Order cancelled");
+    await loadOrders();
+  };
+
   const createProduct = async () => {
     setCreateBusy(true);
     setError(null);
@@ -1037,6 +1059,37 @@ export default function AdminShopPage() {
                         >
                           {busyId === o.id ? "Saving…" : "Save delivery"}
                         </button>
+                        {o.status === "pending_payment" ? (
+                          <button
+                            type="button"
+                            className="om-admin-btn"
+                            style={{ color: "#d33" }}
+                            disabled={busyId === `action-${o.id}`}
+                            onClick={() =>
+                              void runOrderAction(
+                                o.id,
+                                o.status,
+                                "cancel"
+                              )
+                            }
+                          >
+                            Cancel (unpaid)
+                          </button>
+                        ) : null}
+                        {o.status === "paid" ||
+                        o.status === "fulfilling" ? (
+                          <button
+                            type="button"
+                            className="om-admin-btn"
+                            style={{ color: "#d33" }}
+                            disabled={busyId === `action-${o.id}`}
+                            onClick={() =>
+                              void runOrderAction(o.id, o.status, "refund")
+                            }
+                          >
+                            Refund
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

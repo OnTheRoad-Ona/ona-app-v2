@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
+import { createHash } from "node:crypto";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { requireUser } from "@/lib/server/auth-utils";
 import { createServiceSupabase } from "@/lib/supabase/server";
@@ -9,6 +10,7 @@ import {
 } from "@/lib/server/shop/cart";
 import { createOrderFromCart } from "@/lib/server/shop/orders";
 import { createShopPaymentAndInit } from "@/lib/server/shop/payments";
+import { estimateDelivery } from "@/lib/server/shop/delivery";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +18,7 @@ export const dynamic = "force-dynamic";
 const bodySchema = z.object({
   accountContext: z.enum(["motorist", "professional"]).optional(),
   addressId: z.string().uuid().optional().nullable(),
-  deliveryFeeMinor: z.number().int().min(0).optional(),
+  zoneCode: z.string().max(40).optional().nullable(),
   notes: z.string().max(500).optional(),
   email: z.string().email().optional(),
 });
@@ -35,38 +37,78 @@ export async function POST(req: NextRequest) {
     const v = validateCartForCheckout(cart);
     if (!v.ok) return apiFail(v.errors.join("; "), 400, "cart_invalid");
 
-    let shipSnapshot: Record<string, unknown> = {};
-    if (parsed.data.addressId) {
-      const sb = createServiceSupabase();
-      const { data: addr } = await sb
-        .from("user_addresses")
-        .select("*")
-        .eq("id", parsed.data.addressId)
-        .eq("user_id", auth.userId)
-        .maybeSingle();
-      if (addr) {
-        shipSnapshot = {
-          id: addr.id,
-          label: addr.label,
-          address: addr.address_text || addr.address || addr.line1,
-          lat: addr.lat,
-          lng: addr.lng,
-        };
-      }
+    // Delivery address is mandatory for a payable order.
+    if (!parsed.data.addressId) {
+      return apiFail("A delivery address is required", 400, "address_required");
     }
 
-    // Flat delivery fee placeholder (admin/courier later) — ₦1,500 default Lagos hub
-    const deliveryFeeMinor =
-      parsed.data.deliveryFeeMinor ??
-      (cart.subtotalMinor > 0 ? 1500_00 : 0);
+    const sb = createServiceSupabase();
+    const { data: addr } = await sb
+      .from("user_addresses")
+      .select("*")
+      .eq("id", parsed.data.addressId)
+      .eq("user_id", auth.userId)
+      .maybeSingle();
+    if (!addr) {
+      return apiFail("Delivery address not found", 404, "address_not_found");
+    }
+
+    // Persist chosen zone on the address so future checkouts remember it.
+    if (parsed.data.zoneCode) {
+      await sb
+        .from("user_addresses")
+        .update({ delivery_zone_code: parsed.data.zoneCode })
+        .eq("id", addr.id)
+        .eq("user_id", auth.userId);
+    }
+
+    const shipSnapshot = {
+      id: addr.id,
+      label: addr.label,
+      address: addr.address_text || addr.address || addr.line1,
+      lat: addr.lat,
+      lng: addr.lng,
+    };
+
+    // Delivery fee is ALWAYS server-computed by the delivery engine.
+    const delivery = await estimateDelivery({
+      addressId: String(addr.id),
+      userId: auth.userId,
+      zoneCode: parsed.data.zoneCode || addr.delivery_zone_code || null,
+      subtotalMinor: cart.subtotalMinor,
+    });
+
+    const shipToSnapshot = {
+      ...shipSnapshot,
+      deliveryZoneCode: delivery.zoneCode,
+      deliveryZoneName: delivery.zoneName,
+      deliveryServiceCode: delivery.serviceCode,
+    };
+
+    // Idempotent checkout token: same cart + same items => same order.
+    const itemSig = cart.items
+      .map((i) => `${i.variantId}:${i.qty}`)
+      .join("|");
+    const checkoutToken = `cart:${cart.id}:${createHash("sha256")
+      .update(itemSig)
+      .digest("hex")
+      .slice(0, 16)}`;
 
     const order = await createOrderFromCart({
       userId: auth.userId,
       accountContext: ctx,
       cartId: cart.id,
-      shipToAddressId: parsed.data.addressId || null,
-      shipToSnapshot: shipSnapshot,
-      deliveryFeeMinor,
+      checkoutToken,
+      shipToAddressId: String(addr.id),
+      shipToSnapshot: shipToSnapshot,
+      delivery: {
+        deliveryFeeMinor: delivery.deliveryFeeMinor,
+        zoneCode: delivery.zoneCode,
+        zoneName: delivery.zoneName,
+        serviceCode: delivery.serviceCode,
+        etaMinutesMin: delivery.etaMinutesMin,
+        etaMinutesMax: delivery.etaMinutesMax,
+      },
       notes: parsed.data.notes,
     });
 
@@ -88,6 +130,7 @@ export async function POST(req: NextRequest) {
     return apiOk({
       orderId: order.orderId,
       orderNumber: order.orderNumber,
+      alreadyExists: order.alreadyExists,
       totalMinor: order.totalMinor,
       payment: {
         paymentId: pay.paymentId,
@@ -96,7 +139,15 @@ export async function POST(req: NextRequest) {
         provider: pay.provider,
         amountMinor: pay.amountMinor,
       },
-      deliveryFeeMinor,
+      delivery: {
+        deliveryFeeMinor: delivery.deliveryFeeMinor,
+        zoneCode: delivery.zoneCode,
+        zoneName: delivery.zoneName,
+        serviceCode: delivery.serviceCode,
+        etaMinutesMin: delivery.etaMinutesMin,
+        etaMinutesMax: delivery.etaMinutesMax,
+        freeDelivery: delivery.freeDelivery,
+      },
       subtotalMinor: cart.subtotalMinor,
     });
   } catch (e) {

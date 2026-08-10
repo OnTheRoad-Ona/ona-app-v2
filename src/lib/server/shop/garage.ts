@@ -6,6 +6,7 @@ import { createServiceSupabase } from "@/lib/supabase/server";
 
 export type GarageVehicle = {
   id: string;
+  vehicleTypeSlug: string;
   makeId: string | null;
   modelId: string | null;
   makeName: string;
@@ -16,9 +17,39 @@ export type GarageVehicle = {
   isDefault: boolean;
 };
 
+export type VehicleType = {
+  slug: string;
+  name: string;
+  sortOrder: number;
+};
+
+export const VEHICLE_TYPES: VehicleType[] = [
+  { slug: "automobile", name: "Automobile", sortOrder: 1 },
+  { slug: "motorcycle", name: "Motorcycle", sortOrder: 2 },
+  { slug: "truck", name: "Truck", sortOrder: 3 },
+  { slug: "van", name: "Van", sortOrder: 4 },
+  { slug: "bus", name: "Bus", sortOrder: 5 },
+  { slug: "trailer", name: "Trailer", sortOrder: 6 },
+  { slug: "motorhome", name: "Motorhome / RV", sortOrder: 7 },
+  { slug: "atv_utv", name: "ATV / UTV", sortOrder: 8 },
+  { slug: "construction_ag", name: "Construction & Ag", sortOrder: 9 },
+  { slug: "other", name: "Other", sortOrder: 10 },
+];
+
+export function vehicleTypeName(slug: string | null | undefined): string {
+  return (
+    VEHICLE_TYPES.find((t) => t.slug === slug)?.name ||
+    VEHICLE_TYPES[0].name
+  );
+}
+
 function mapVehicle(row: Record<string, unknown>): GarageVehicle {
+  const typeSlug = row.vehicle_type_slug
+    ? String(row.vehicle_type_slug)
+    : "automobile";
   return {
     id: String(row.id),
+    vehicleTypeSlug: typeSlug,
     makeId: row.make_id ? String(row.make_id) : null,
     modelId: row.model_id ? String(row.model_id) : null,
     makeName: String(row.make_name || ""),
@@ -72,6 +103,7 @@ export async function setDefaultVehicle(
 export async function addUserVehicle(
   userId: string,
   input: {
+    vehicleTypeSlug?: string;
     makeId?: string | null;
     modelId?: string | null;
     makeName: string;
@@ -87,6 +119,8 @@ export async function addUserVehicle(
   const modelName = input.modelName.trim();
   if (!makeName || !modelName) throw new Error("Make and model required");
 
+  const typeSlug = input.vehicleTypeSlug || "automobile";
+
   if (input.setDefault !== false) {
     await sb
       .from("user_vehicles")
@@ -98,6 +132,7 @@ export async function addUserVehicle(
     .from("user_vehicles")
     .insert({
       user_id: userId,
+      vehicle_type_slug: typeSlug,
       make_id: input.makeId || null,
       model_id: input.modelId || null,
       make_name: makeName,
@@ -126,14 +161,38 @@ export async function deleteUserVehicle(
   if (error) throw new Error(error.message);
 }
 
-/** Cascading free catalog: makes → models (optionally year filter from model years). */
-export async function listVehicleMakes(q?: string) {
+/** Cascading free catalog: types → makes → models (optionally year filter from model years). */
+export async function listVehicleTypes(): Promise<VehicleType[]> {
+  const sb = createServiceSupabase();
+  const { data, error } = await sb
+    .from("vehicle_types")
+    .select("slug, name, sort_order")
+    .order("sort_order", { ascending: true });
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as Array<Record<string, unknown>>;
+  if (rows.length > 0) {
+    return rows.map((r) => ({
+      slug: String(r.slug),
+      name: String(r.name || r.slug),
+      sortOrder: Number(r.sort_order ?? 99),
+    }));
+  }
+  return VEHICLE_TYPES;
+}
+
+export async function listVehicleMakes(
+  vehicleType?: string,
+  q?: string
+) {
   const sb = createServiceSupabase();
   let query = sb
     .from("vehicle_makes")
-    .select("id, slug, name, source")
+    .select("id, slug, name, source, type_slugs")
     .order("name", { ascending: true })
-    .limit(200);
+    .limit(300);
+  if (vehicleType && vehicleType !== "all") {
+    query = query.contains("type_slugs", [vehicleType]);
+  }
   if (q?.trim()) query = query.ilike("name", `%${q.trim().replace(/%/g, "")}%`);
   const { data, error } = await query;
   if (error) throw new Error(error.message);

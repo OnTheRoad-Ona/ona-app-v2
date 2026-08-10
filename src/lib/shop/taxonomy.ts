@@ -1,12 +1,8 @@
-"use client";
-
 /**
  * ONA Shop taxonomy — single source of truth for the 14 Repair Pro trades.
  *
- * Each trade maps to its own independent shop category tree. Automotive
- * fitment (vehicle make/model/year/garage) is ONLY available to vehicle-based
- * trades. Non-vehicle trades (solar, plumber, carpenter, generator, painter,
- * wash) never inherit the vehicle stack — enforced in the schema, backend and UI.
+ * Shared server + client module (no "use client"). Each trade maps to its own
+ * category tree. Vehicle fitment is only for vehicle-based trades.
  *
  * Trade keys match PRO_TRADE_OPTIONS ids in @/lib/services.
  */

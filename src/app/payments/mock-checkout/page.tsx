@@ -19,18 +19,32 @@ function MockInner() {
   const amount = Number(params.get("amount") || 0);
   const currency = (params.get("currency") || "NGN") as AppCurrency;
   const jobId = params.get("jobId") || params.get("job") || "";
+  const isShop = params.get("kind") === "ona_shop" || Boolean(params.get("orderId"));
+  const orderId = params.get("orderId") || "";
   const [cancelOpen, setCancelOpen] = useState(false);
 
   const pay = async () => {
     // Works in-app (iframe) or full page — promote to Ona shell after verify
-    await fetch("/api/payments/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reference: ref, provider: "mock" }),
-    });
-    const dest = `/payments/callback?ref=${encodeURIComponent(ref)}${
-      jobId ? `&jobId=${encodeURIComponent(jobId)}` : ""
-    }`;
+    if (isShop) {
+      await fetch("/api/shop/payments/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reference: ref }),
+      });
+    } else {
+      await fetch("/api/payments/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reference: ref, provider: "mock" }),
+      });
+    }
+    const dest = isShop
+      ? `/shop/checkout/callback?ref=${encodeURIComponent(ref)}${
+          orderId ? `&order=${encodeURIComponent(orderId)}` : ""
+        }`
+      : `/payments/callback?ref=${encodeURIComponent(ref)}${
+          jobId ? `&jobId=${encodeURIComponent(jobId)}` : ""
+        }`;
     try {
       if (window.top && window.top !== window.self) {
         window.top.location.replace(dest);
@@ -63,8 +77,9 @@ function MockInner() {
           isLight ? "text-slate-600" : "text-white/60"
         )}
       >
-        Bank transfer only (simulated). Labour fee only — no spare
-        parts. Funds held in escrow.
+        {isShop
+          ? "Bank transfer only (simulated). Spare parts purchase — funds paid to Ona on order confirm."
+          : "Bank transfer only (simulated). Labour fee only — no spare parts. Funds held in escrow."}
       </p>
       <p className="text-[22px] font-black text-brand">
         {formatMoneyMinor(amount, currency)}
@@ -75,7 +90,7 @@ function MockInner() {
         onClick={() => void pay()}
         className="rounded-xl border-0 bg-brand py-3.5 text-[14px] font-bold text-white"
       >
-        Pay & hold in escrow
+        {isShop ? "Pay for order" : "Pay & hold in escrow"}
       </button>
       <button
         type="button"

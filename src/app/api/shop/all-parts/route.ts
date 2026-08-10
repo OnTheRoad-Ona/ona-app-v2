@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { getAllPartsForVehicle } from "@/lib/server/shop/all-parts";
 import { getDefaultVehicle, listUserVehicles } from "@/lib/server/shop/garage";
-import { shopCtxFromQuery } from "@/lib/server/shop/catalog";
+import { resolveAccountContext } from "@/lib/server/shop/catalog";
 import { requireUser } from "@/lib/server/auth-utils";
 
 export const runtime = "nodejs";
@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
       vehicle,
       categoryId,
       limit: 48,
-      accountContext: shopCtxFromQuery(sp.get("ctx")),
+      accountContext: await resolveAccountContext(req),
     });
     return apiOk(tree);
   } catch (e) {

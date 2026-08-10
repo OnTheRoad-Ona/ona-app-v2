@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import {
   isPasswordGatedPath,
   promptSensitivePassword,
   SensitivePasswordHost,
 } from "@/components/admin/sensitive-unlock";
+import { cn } from "@/lib/utils";
 import {
   adminRoleTheme,
   canAccessAdminPathUi,
@@ -110,6 +112,21 @@ export function AdminShell({
     useState<AdminRoleUi>("super_admin");
   /** Fast search across every admin directory / nav item */
   const [navSearch, setNavSearch] = useState("");
+  /** Manual collapse — nav becomes a compact horizontal scroll strip */
+  const [navCollapsed, setNavCollapsed] = useState<boolean>(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("ona-admin-nav-collapsed");
+    if (saved === "1") setNavCollapsed(true);
+  }, []);
+
+  function toggleNavCollapsed() {
+    setNavCollapsed((v) => {
+      const next = !v;
+      localStorage.setItem("ona-admin-nav-collapsed", next ? "1" : "0");
+      return next;
+    });
+  }
 
   const role = normalizeAdminRoleUi(adminRoleProp || resolvedRole);
   const roleUi = adminRoleTheme(role);
@@ -241,13 +258,38 @@ export function AdminShell({
   }
 
   return (
-    <div className="om-admin-shell" data-admin-role={role}>
+    <div
+      className={cn(
+        "om-admin-shell",
+        navCollapsed && "om-admin-shell--collapsed"
+      )}
+      data-admin-role={role}
+    >
       <SensitivePasswordHost />
       <aside className="om-admin-nav">
         <div className="om-admin-brand">
           <span className="om-admin-brand-mark" aria-hidden />
           {roleUi.brandTitle}
         </div>
+        <button
+          type="button"
+          className="om-admin-nav-toggle"
+          onClick={toggleNavCollapsed}
+          title={navCollapsed ? "Expand navigation" : "Collapse to a compact strip"}
+          aria-label={
+            navCollapsed ? "Expand navigation" : "Collapse navigation"
+          }
+          aria-pressed={navCollapsed}
+        >
+          {navCollapsed ? (
+            <PanelLeftOpen className="om-admin-nav-toggle-ic" />
+          ) : (
+            <PanelLeftClose className="om-admin-nav-toggle-ic" />
+          )}
+          <span className="om-admin-nav-toggle-label">
+            {navCollapsed ? "Expand" : "Collapse"}
+          </span>
+        </button>
         <p className="om-admin-nav-tagline">{roleUi.brandSub}</p>
 
         <div className="om-admin-role-chip" title={displayRole}>
@@ -285,7 +327,7 @@ export function AdminShell({
         </label>
 
         {visibleGroups.map((group) => (
-          <div key={group.label}>
+          <div className="om-admin-nav-group" key={group.label}>
             <div
               className={
                 group.label === "Care tools" || group.label === "System"

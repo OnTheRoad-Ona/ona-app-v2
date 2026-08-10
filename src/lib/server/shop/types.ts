@@ -54,11 +54,16 @@ export type ShopProductCard = {
   name: string;
   subtitle: string | null;
   tradeKey: string;
+  brandName: string | null;
   primaryImageUrl: string | null;
   conditionType: string | null;
   fromPriceMinor: number | null;
   currency: string;
   inStock: boolean;
+  /** Phase 2: availability separated from catalog existence. */
+  status?: string | null;
+  availabilityLabel?: string | null;
+  attributes?: Record<string, unknown>;
 };
 
 export type ShopSearchIntent = {

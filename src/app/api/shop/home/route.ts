@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import {
   getShopHomeSections,
-  shopCtxFromQuery,
+  resolveAccountContext,
 } from "@/lib/server/shop/catalog";
 
 export const runtime = "nodejs";
@@ -10,9 +10,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const accountContext = shopCtxFromQuery(
-      req.nextUrl.searchParams.get("ctx")
-    );
+    const accountContext = await resolveAccountContext(req);
     const data = await getShopHomeSections({ accountContext });
     return apiOk(data);
   } catch (e) {

@@ -3,6 +3,7 @@ import { apiFail, apiOk } from "@/lib/server/api-json";
 import {
   listVehicleMakes,
   listVehicleModels,
+  listVehicleTypes,
   listVehicleYears,
 } from "@/lib/server/shop/garage";
 
@@ -11,16 +12,24 @@ export const dynamic = "force-dynamic";
 
 /**
  * Public cascading vehicle catalog (NHTSA-backed rows in Ona DB).
- * GET ?level=makes&q=
+ * GET ?level=types
+ * GET ?level=makes&type=&q=
  * GET ?level=models&makeId=
  * GET ?level=years&modelId=
  */
 export async function GET(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams;
-    const level = sp.get("level") || "makes";
+    const level = sp.get("level") || "types";
+    if (level === "types") {
+      const types = await listVehicleTypes();
+      return apiOk({ types });
+    }
     if (level === "makes") {
-      const makes = await listVehicleMakes(sp.get("q") || undefined);
+      const makes = await listVehicleMakes(
+        sp.get("type") || undefined,
+        sp.get("q") || undefined
+      );
       return apiOk({ makes });
     }
     if (level === "models") {

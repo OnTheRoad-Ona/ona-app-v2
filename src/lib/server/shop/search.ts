@@ -16,6 +16,9 @@ export type ShopSearchResultCard = ShopProductCard & {
   fitmentStatus: FitmentStatus;
   fitmentScore: number;
   matchReasons: string[];
+  /** Phase 3 ranking ladder score (exact > sku > brand > category > trade > attribute > partial). */
+  relevance: number;
+  relevanceReason: string;
 };
 
 export type SearchShopOptions = {
@@ -30,6 +33,8 @@ export type SearchShopOptions = {
   lockTrade?: boolean;
   /** Role gate for professional-only products + search analytics. */
   accountContext?: ShopAccountContext;
+  /** Facet filters (category, price, availability, attributes) applied before ranking. */
+  filters?: import("@/lib/server/shop/catalog").ProductFilterOptions;
 };
 
 const FITMENT_RANK: Record<FitmentStatus, number> = {
@@ -118,6 +123,105 @@ function softFitmentScore(
   else if (score >= 12) status = "conditional";
 
   return { status, score, reasons };
+}
+
+/**
+ * Phase 3 relevance ladder (Priority: exact product > exact SKU/part >
+ * exact brand > category > trade > attribute > partial text).
+ * Returns a score in (0..100] plus a human-readable reason.
+ */
+export function relevanceScore(opts: {
+  product: ShopProductCard;
+  query: string;
+  tokens: string[];
+  intent: Pick<ShopSearchIntent, "tradeKey">;
+  partMatch: "exact" | "contains" | null;
+}): { score: number; reason: string } {
+  const q = opts.query.trim().toLowerCase();
+  const name = opts.product.name.toLowerCase();
+  const subtitle = (opts.product.subtitle || "").toLowerCase();
+  const brand = (opts.product.brandName || "").toLowerCase();
+
+  // 1. exact product name
+  if (q.length >= 2 && name === q) return { score: 100, reason: "exact name" };
+
+  // 2. exact SKU / part number / OEM / MPN
+  if (opts.partMatch === "exact") return { score: 90, reason: "exact sku/part" };
+
+  // 3. exact brand
+  if (q.length >= 2 && brand === q) return { score: 80, reason: "exact brand" };
+
+  // 4. contains part identity (sku/oem/mpn substring)
+  if (opts.partMatch === "contains") return { score: 65, reason: "part match" };
+
+  // 5. category/slug match
+  if (opts.tokens.some((t) => opts.product.slug.includes(t))) {
+    return { score: 60, reason: "category match" };
+  }
+
+  // 6. trade match
+  if (opts.intent.tradeKey && opts.product.tradeKey === opts.intent.tradeKey) {
+    return { score: 50, reason: "trade match" };
+  }
+
+  // 7. attribute value match
+  const attrs = opts.product.attributes ?? {};
+  for (const [key, value] of Object.entries(attrs)) {
+    const sv = String(value).toLowerCase();
+    if (opts.tokens.some((t) => sv.includes(t))) {
+      return { score: 40, reason: `attribute:${key}` };
+    }
+  }
+
+  // 8. partial text match
+  if (
+    (q.length >= 2 && name.includes(q)) ||
+    (q.length >= 2 && subtitle.includes(q))
+  ) {
+    return { score: 30, reason: "partial text" };
+  }
+
+  return { score: 10, reason: "weak" };
+}
+
+/** Map productId -> how well its variant part-identities matched the query. */
+async function loadPartMatchMap(
+  productIds: string[],
+  tokens: string[]
+): Promise<Map<string, "exact" | "contains">> {
+  const out = new Map<string, "exact" | "contains">();
+  if (!productIds.length) return out;
+
+  const sb = createServiceSupabase();
+  const { data: variants } = await sb
+    .from("shop_product_variants")
+    .select("product_id, sku, mpn, oem_number")
+    .in("product_id", productIds)
+    .eq("status", "active");
+  const vlist = (variants ?? []) as Array<{
+    product_id: string;
+    sku: string | null;
+    mpn: string | null;
+    oem_number: string | null;
+  }>;
+
+  for (const v of vlist) {
+    const identities = [v.sku, v.mpn, v.oem_number]
+      .filter((x): x is string => Boolean(x))
+      .map((x) => x.trim().toLowerCase().replace(/[\s-]/g, ""));
+    const pid = String(v.product_id);
+    for (const t of tokens) {
+      const norm = t.toLowerCase().replace(/[\s-]/g, "");
+      if (identities.some((id) => id === norm)) {
+        out.set(pid, "exact");
+        break;
+      }
+      if (identities.some((id) => id.includes(norm))) {
+        if (out.get(pid) !== "exact") out.set(pid, "contains");
+      }
+    }
+  }
+  return out;
 }
 
 async function loadDbFitmentScores(
@@ -270,6 +374,7 @@ export async function searchShop(
     tokens,
     limit: Math.min(Math.max(opts?.limit ?? 40, 1), 80),
     accountContext: opts?.accountContext,
+    filters: opts?.filters,
   });
 
   // If token AND is too strict and empty, fall back to first product hint or raw
@@ -280,11 +385,13 @@ export async function searchShop(
       tokens: [intent.productHints[0] || tokens[0] || query],
       limit: opts?.limit ?? 40,
       accountContext: opts?.accountContext,
+      filters: opts?.filters,
     });
   }
 
   const ids = results.map((r) => r.id);
   const dbFit = await loadDbFitmentScores(ids, intent);
+  const partMatches = await loadPartMatchMap(ids, tokens);
 
   const scored: ShopSearchResultCard[] = results.map((p) => {
     const soft = softFitmentScore(p, intent);
@@ -296,15 +403,26 @@ export async function searchShop(
       ...(hard?.reasons ?? []),
       ...soft.reasons.filter((r) => !(hard?.reasons ?? []).includes(r)),
     ];
+    const rel = relevanceScore({
+      product: p,
+      query,
+      tokens,
+      intent,
+      partMatch: partMatches.get(p.id) ?? null,
+    });
     return {
       ...p,
       fitmentStatus,
       fitmentScore,
       matchReasons,
+      relevance: rel.score,
+      relevanceReason: rel.reason,
     };
   });
 
   scored.sort((a, b) => {
+    // Phase 3 ladder first (exact > sku > brand > category > trade > attribute > partial)
+    if (a.relevance !== b.relevance) return b.relevance - a.relevance;
     if (a.fitmentScore !== b.fitmentScore) return b.fitmentScore - a.fitmentScore;
     if (a.inStock !== b.inStock) return a.inStock ? -1 : 1;
     // Prefer lower price as soft tie-break for same fit

@@ -14,6 +14,7 @@ import { isVehicleTrade } from "@/lib/shop/taxonomy";
 
 export type ActiveVehicle = {
   id?: string;
+  vehicleTypeSlug?: string;
   makeName: string;
   modelName: string;
   year: number | null;
@@ -81,6 +82,7 @@ export function ShopVehicleBar({
             const a = json.data.active;
             apply({
               id: a.id,
+              vehicleTypeSlug: a.vehicleTypeSlug,
               makeName: a.makeName,
               modelName: a.modelName,
               year: a.year,
@@ -148,7 +150,7 @@ export function ShopVehicleBar({
             type="button"
             onClick={() =>
               router.push(
-                `/shop/c/${tradeKey}?allParts=1&makeName=${encodeURIComponent(active.makeName)}&modelName=${encodeURIComponent(active.modelName)}${active.year ? `&year=${active.year}` : ""}${active.makeId ? `&makeId=${active.makeId}` : ""}${active.modelId ? `&modelId=${active.modelId}` : ""}`
+                `/shop/c/${tradeKey}?allParts=1&makeName=${encodeURIComponent(active.makeName)}&modelName=${encodeURIComponent(active.modelName)}${active.year ? `&year=${active.year}` : ""}${active.makeId ? `&makeId=${active.makeId}` : ""}${active.modelId ? `&modelId=${active.modelId}` : ""}${active.vehicleTypeSlug ? `&vehicleType=${encodeURIComponent(active.vehicleTypeSlug)}` : ""}`
               )
             }
             className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border-0 bg-[#FF6B35] px-2.5 py-1.5 text-[11px] font-bold text-white"

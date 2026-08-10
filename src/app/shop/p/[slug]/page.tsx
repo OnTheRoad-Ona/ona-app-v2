@@ -1,12 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Loader2, ShoppingBag } from "lucide-react";
+import { Loader2, Minus, Plus, ShoppingBag } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { shopAddToCart } from "@/lib/shop/client";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
+
+type Variant = {
+  id: string;
+  sku: string;
+  mpn?: string | null;
+  oem_number?: string | null;
+  title?: string;
+  option_label?: string | null;
+  stock_available?: number;
+};
+
+type Price = {
+  variant_id: string;
+  amount_minor: number;
+  compare_at_minor?: number | null;
+};
+
+function formatNgn(minor: number): string {
+  return `₦${Math.round(minor / 100).toLocaleString("en-NG")}`;
+}
 
 export default function ShopProductPage() {
   const params = useParams();
@@ -14,15 +34,15 @@ export default function ShopProductPage() {
   const router = useRouter();
   const { theme, accountType, isAuthenticated } = useApp();
   const isLight = theme === "light";
-  const ctx =
-    accountType === "professional" ? "professional" : "motorist";
   const [loading, setLoading] = useState(true);
   const [product, setProduct] = useState<Record<string, unknown> | null>(null);
-  const [variants, setVariants] = useState<Record<string, unknown>[]>([]);
-  const [prices, setPrices] = useState<Record<string, unknown>[]>([]);
+  const [variants, setVariants] = useState<Variant[]>([]);
+  const [prices, setPrices] = useState<Price[]>([]);
   const [images, setImages] = useState<Array<{ url: string; alt_text?: string }>>(
     []
   );
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
+  const [qty, setQty] = useState(1);
   const [adding, setAdding] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -32,14 +52,16 @@ export default function ShopProductPage() {
       setLoading(true);
       try {
         const res = await fetch(
-          `/api/shop/products/${encodeURIComponent(slug)}?ctx=${encodeURIComponent(ctx)}`
+          `/api/shop/products/${encodeURIComponent(slug)}?ctx=${encodeURIComponent(
+            accountType === "professional" ? "professional" : "motorist"
+          )}`
         );
         const json = (await res.json()) as {
           ok?: boolean;
           data?: {
             product?: Record<string, unknown>;
-            variants?: Record<string, unknown>[];
-            prices?: Record<string, unknown>[];
+            variants?: Variant[];
+            prices?: Price[];
             images?: Array<{ url: string; alt_text?: string }>;
           };
         };
@@ -48,6 +70,12 @@ export default function ShopProductPage() {
           setVariants(json.data.variants ?? []);
           setPrices(json.data.prices ?? []);
           setImages(json.data.images ?? []);
+          const first = json.data.variants?.find(
+            (v) => Number(v.stock_available ?? 0) > 0
+          )?.id;
+          setSelectedVariantId(
+            (first ?? json.data.variants?.[0]?.id) || null
+          );
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -56,13 +84,41 @@ export default function ShopProductPage() {
     return () => {
       cancelled = true;
     };
-  }, [slug, ctx]);
+  }, [slug, accountType]);
+
+  const priceFor = useCallback(
+    (variantId: string | null): Price | undefined =>
+      prices.find((p) => p.variant_id === variantId),
+    [prices]
+  );
+
+  const selectedVariant = useMemo(
+    () => variants.find((v) => v.id === selectedVariantId) ?? null,
+    [variants, selectedVariantId]
+  );
+  const selectedPrice = priceFor(selectedVariantId);
+  const available = Number(selectedVariant?.stock_available ?? 0);
+  const outOfStock = !selectedVariant || available <= 0;
+
+  const clampQty = useCallback((n: number) => {
+    const max = Math.max(1, Math.min(99, available));
+    return Math.max(1, Math.min(max, n));
+  }, [available]);
+
+  useEffect(() => {
+    if (!selectedVariantId) return;
+    setQty((q) => (available > 0 ? clampQty(q) : 1));
+  }, [selectedVariantId, available, clampQty]);
 
   const bg = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const muted = isLight ? "text-slate-600" : "text-white/55";
-  const price = prices[0]
-    ? `₦${Math.round(Number(prices[0].amount_minor) / 100).toLocaleString("en-NG")}`
+  const border = isLight ? "border-black/10" : "border-white/10";
+  const price = selectedPrice
+    ? formatNgn(selectedPrice.amount_minor)
     : "—";
+  const compareAt = selectedPrice?.compare_at_minor
+    ? formatNgn(selectedPrice.compare_at_minor)
+    : null;
 
   return (
     <div className={cn("flex h-full min-h-0 flex-col overflow-hidden", bg)}>
@@ -122,20 +178,108 @@ export default function ShopProductPage() {
                 {String(product.subtitle)}
               </p>
             ) : null}
-            <p className="mt-3 text-[22px] font-black text-[#FF6B35]">{price}</p>
+            <div className="mt-3 flex items-baseline gap-2">
+              <p className="text-[22px] font-black text-[#FF6B35]">{price}</p>
+              {compareAt ? (
+                <p className={cn("text-[13px] font-semibold line-through", muted)}>
+                  {compareAt}
+                </p>
+              ) : null}
+            </div>
             {product.description ? (
               <p className={cn("mt-3 text-[13px] leading-relaxed", muted)}>
                 {String(product.description)}
               </p>
             ) : null}
-            {variants[0] ? (
+
+            {/* Variant selector */}
+            {variants.length > 1 ? (
+              <div className={cn("mt-3 border-t pt-3", border)}>
+                <p className="text-[12px] font-bold">Options</p>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {variants.map((v) => {
+                    const vAvail = Number(v.stock_available ?? 0);
+                    const vPrice = priceFor(v.id);
+                    const soldOut = vAvail <= 0;
+                    return (
+                      <button
+                        key={v.id}
+                        type="button"
+                        disabled={soldOut}
+                        onClick={() => {
+                          setSelectedVariantId(v.id);
+                          setMsg(null);
+                        }}
+                        className={cn(
+                          "rounded-lg border px-2.5 py-1.5 text-left disabled:opacity-40",
+                          selectedVariantId === v.id
+                            ? "border-[#FF6B35] bg-[#FF6B35]/10"
+                            : border
+                        )}
+                      >
+                        <span className="block text-[12px] font-bold">
+                          {v.option_label || v.title || v.sku}
+                        </span>
+                        <span className={cn("block text-[11px]", muted)}>
+                          {vPrice ? formatNgn(vPrice.amount_minor) : "—"}
+                          {soldOut ? " · Sold out" : ""}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            {selectedVariant ? (
               <p className={cn("mt-2 text-[11px] font-semibold", muted)}>
-                SKU {String(variants[0].sku)}
-                {variants[0].oem_number
-                  ? ` · OEM ${String(variants[0].oem_number)}`
+                SKU {selectedVariant.sku}
+                {selectedVariant.oem_number
+                  ? ` · OEM ${String(selectedVariant.oem_number)}`
+                  : ""}
+                {selectedVariant.mpn
+                  ? ` · MPN ${String(selectedVariant.mpn)}`
                   : ""}
               </p>
             ) : null}
+
+            {/* Quantity selector */}
+            {!outOfStock ? (
+              <div
+                className={cn(
+                  "mt-3 flex items-center justify-between rounded-xl p-2.5",
+                  isLight ? "bg-white/90" : "bg-[#1c1c1e]"
+                )}
+              >
+                <span className="text-[12px] font-bold">Quantity</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setQty((q) => clampQty(q - 1))}
+                    className={cn(
+                      "flex h-8 w-8 items-center justify-center rounded-lg border-0 text-[14px] font-bold",
+                      isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white"
+                    )}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <span className="min-w-6 text-center text-[14px] font-black">
+                    {qty}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setQty((q) => clampQty(q + 1))}
+                    className={cn(
+                      "flex h-8 w-8 items-center justify-center rounded-lg border-0 text-[14px] font-bold",
+                      isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white"
+                    )}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             {msg ? (
               <p
                 className={cn(
@@ -148,20 +292,19 @@ export default function ShopProductPage() {
             ) : null}
             <button
               type="button"
-              disabled={adding || !variants[0]}
+              disabled={adding || outOfStock}
               onClick={async () => {
                 if (!isAuthenticated) {
                   router.push("/login");
                   return;
                 }
-                const vid = String(variants[0]?.id || "");
-                if (!vid) return;
+                if (!selectedVariant) return;
                 setAdding(true);
                 setMsg(null);
                 try {
                   await shopAddToCart({
-                    variantId: vid,
-                    qty: 1,
+                    variantId: selectedVariant.id,
+                    qty,
                     accountContext:
                       accountType === "professional"
                         ? "professional"
@@ -177,7 +320,7 @@ export default function ShopProductPage() {
               className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border-0 bg-[#FF6B35] text-[14px] font-bold text-white disabled:opacity-60"
             >
               {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Add to cart
+              {outOfStock ? "Out of stock" : `Add ${qty} to cart`}
             </button>
             <button
               type="button"

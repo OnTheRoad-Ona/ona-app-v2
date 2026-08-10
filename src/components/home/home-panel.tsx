@@ -163,6 +163,9 @@ export function HomePanel({
     isAuthenticated &&
     (accountType === "motorist" || accountType == null);
 
+  /** Repair Pro in professional mode — market shows ONLY their primary trade. */
+  const isProMode = accountType === "professional";
+
   /**
    * Lower panel only: every home open when phone is still unverified
    * after the 30-day free window from first request. Hidden once phone is verified.
@@ -416,17 +419,10 @@ export function HomePanel({
           Default: trade strip only.
           Help mode: quiet “Where are they?” on top.
           After confirm: address stays + trade strip below (no chip).
+          Repair Pro mode: no trade strip — the market is pinned to their
+          own trade (server-enforced), so there is nothing to switch between.
         */}
-        {!helpMode ? (
-          <CategoryTabs
-            expanded={expanded}
-            onExpand={onExpand}
-            onCollapse={onCollapse}
-            onSwipeLeft={isMotorist ? openHelpSomeone : undefined}
-            onOpenHelp={isMotorist ? openHelpSomeone : undefined}
-            menuOpen={menuOpen}
-          />
-        ) : (
+        {helpMode ? (
           <>
             <div
               className="px-3 pb-1 pt-1"
@@ -608,7 +604,16 @@ export function HomePanel({
               />
             )}
           </>
-        )}
+        ) : !isProMode ? (
+          <CategoryTabs
+            expanded={expanded}
+            onExpand={onExpand}
+            onCollapse={onCollapse}
+            onSwipeLeft={isMotorist ? openHelpSomeone : undefined}
+            onOpenHelp={isMotorist ? openHelpSomeone : undefined}
+            menuOpen={menuOpen}
+          />
+        ) : null}
 
         {/* Radius first (or specialty strip for Plumber/Carpenter/etc. until pick) */}
         {specialtyPickerOpen ? <SpecialtyFilterBar /> : <RadiusSlider />}

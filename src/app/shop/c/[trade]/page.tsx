@@ -5,7 +5,15 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Search, ShoppingBag } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { ShopVehicleBar } from "@/components/shop/shop-vehicle-bar";
+import {
+  ShopFacetChips,
+} from "@/components/shop/shop-facet-chips";
+import type { FacetFilters } from "@/components/shop/shop-facet-bar";
 import { PRO_TRADE_OPTIONS } from "@/lib/services";
+import {
+  getRootCategoriesForTrade,
+  isVehicleTrade,
+} from "@/lib/shop/taxonomy";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +43,26 @@ function formatNgn(minor: number | null): string {
   return `₦${Math.round(minor / 100).toLocaleString("en-NG")}`;
 }
 
+/** Trade-skill example inside the search box — derived from each trade's
+ * PRO_TRADE_OPTIONS hint so it references the skill, not a generic car part
+ * like "Camry brake pad". */
+const TRADE_SEARCH_EXAMPLES: Record<string, string> = {
+  mechanic: "engine, brakes",
+  vulcanizer: "tyres, tubes",
+  towing: "tow rope, winch",
+  battery: "battery, jumper",
+  ac: "gas, condenser",
+  body: "bumper, panel",
+  electrical: "alternator, wiring",
+  diagnostics: "scanner, fault code",
+  wash: "foam, polish",
+  plumber: "pipe, faucet",
+  carpenter: "timber, hinge",
+  painter: "paint, roller",
+  solar: "panel, inverter",
+  generator: "spark plug, filter",
+};
+
 function fitmentBadge(status?: string | null, badge?: string | null): string | null {
   if (badge) return badge;
   if (!status || status === "unknown") return null;
@@ -58,6 +86,13 @@ function ShopTradePageInner() {
   const [searched, setSearched] = useState(false);
   const [results, setResults] = useState<ProductCard[]>([]);
   const [intentLabel, setIntentLabel] = useState<string | null>(null);
+  const [facets, setFacets] = useState<FacetFilters>({
+    availability: "all",
+    categorySlug: null,
+    minPriceMinor: null,
+    maxPriceMinor: null,
+    attributes: {},
+  });
 
   // ALL PARTS mode (C3: tree then list)
   const allParts = searchParams.get("allParts") === "1";
@@ -71,6 +106,21 @@ function ShopTradePageInner() {
 
   const label =
     PRO_TRADE_OPTIONS.find((t) => t.id === trade)?.homeLabel || trade;
+  const searchExample = TRADE_SEARCH_EXAMPLES[trade] || "part name";
+
+  // Trade-skill aware empty-state suggestion (this trade's catalog terms).
+  const emptyStateSuggestion = (() => {
+    const roots = getRootCategoriesForTrade(trade).slice(0, 3);
+    const names = roots.map((r) => r.name.toLowerCase());
+    const list =
+      names.length > 2
+        ? `${names.slice(0, 2).join(", ")}, or ${names[2]}`
+        : names.join(", ");
+    const allPartsHint = isVehicleTrade(trade)
+      ? " — or use ALL PARTS on the vehicle bar."
+      : "";
+    return `Look for ${list}${allPartsHint}`;
+  })();
 
   const loadAllParts = useCallback(async () => {
     if (!allParts) return;
@@ -119,8 +169,9 @@ function ShopTradePageInner() {
   }, [loadAllParts]);
 
   const runSearch = useCallback(
-    async (override?: string) => {
+    async (override?: string, overrideFacets?: FacetFilters) => {
       const query = (override ?? q).trim();
+      const f = overrideFacets ?? facets;
       if (!query) {
         setSearched(false);
         setResults([]);
@@ -130,9 +181,20 @@ function ShopTradePageInner() {
       setSearching(true);
       setSearched(true);
       try {
-        const res = await fetch(
-          `/api/shop/search?q=${encodeURIComponent(query)}&trade=${encodeURIComponent(trade)}&lockTrade=1&ctx=${encodeURIComponent(ctx)}`
-        );
+        const qs = new URLSearchParams({
+          q: query,
+          trade,
+          lockTrade: "1",
+          ctx,
+        });
+        if (f.availability === "in_stock") qs.set("availability", "in_stock");
+        if (f.categorySlug) qs.set("category", f.categorySlug);
+        if (f.minPriceMinor != null) qs.set("minPrice", String(f.minPriceMinor));
+        if (f.maxPriceMinor != null) qs.set("maxPrice", String(f.maxPriceMinor));
+        for (const [k, v] of Object.entries(f.attributes)) {
+          if (v !== "" && v != null) qs.set(`attr.${k}`, String(v));
+        }
+        const res = await fetch(`/api/shop/search?${qs.toString()}`);
         const json = (await res.json()) as {
           ok?: boolean;
           data?: {
@@ -165,7 +227,7 @@ function ShopTradePageInner() {
         setSearching(false);
       }
     },
-    [q, trade, label, ctx]
+    [q, trade, label, ctx, facets]
   );
 
   useEffect(() => {
@@ -175,9 +237,17 @@ function ShopTradePageInner() {
     setSearched(false);
     setResults([]);
     setIntentLabel(null);
-    if (initial) void runSearch(initial);
+    if (initial) void runSearch(initial, facets);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trade, searchParams, allParts]);
+
+  // Re-run the active search when facet filters change.
+  useEffect(() => {
+    if (!searched) return;
+    if (!q.trim()) return;
+    void runSearch(q, facets);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [facets]);
 
   const bg = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const card = isLight ? "bg-white/90" : "bg-[#1c1c1e]";
@@ -328,7 +398,7 @@ function ShopTradePageInner() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") void runSearch();
                   }}
-                  placeholder={`Search ${label}… e.g. Camry brake pad`}
+                  placeholder={`Search ${label}… e.g. ${searchExample}`}
                   className={cn(
                     "min-w-0 flex-1 border-0 bg-transparent text-[14px] outline-none",
                     isLight
@@ -349,10 +419,13 @@ function ShopTradePageInner() {
                   )}
                 </button>
               </div>
-              <p className={cn("mt-1.5 text-[11px]", muted)}>
-                Smart search in this trade — or pick a vehicle for ALL PARTS.
-              </p>
             </div>
+
+            <ShopFacetChips
+              tradeKey={trade}
+              filters={facets}
+              onChange={setFacets}
+            />
 
             {!searched ? (
               <div className="px-4 py-14 text-center">
@@ -361,8 +434,7 @@ function ShopTradePageInner() {
                   Search {label} parts &amp; supplies
                 </p>
                 <p className={cn("mt-1.5 text-[12px] leading-relaxed", muted)}>
-                  Type a part name, brand, or vehicle — or use ALL PARTS on the
-                  vehicle bar.
+                  {emptyStateSuggestion}
                 </p>
               </div>
             ) : searching ? (
