@@ -2,10 +2,10 @@
 
 /**
  * True 2D select — no native <select> (WebKit paints metallic chrome).
- * Solid fill, no border, no glass/gradient, simple chevron + list panel.
+ * Dropdown list height = 80% of #ona-phone shell, anchored under the field.
  */
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +21,14 @@ type Props = {
   "aria-label"?: string;
 };
 
+/** 80% of phone shell height (falls back to viewport). */
+function phoneListMaxHeightPx(): number {
+  if (typeof document === "undefined") return 480;
+  const phone = document.getElementById("ona-phone");
+  const h = phone?.clientHeight || window.innerHeight || 600;
+  return Math.max(200, Math.round(h * 0.8));
+}
+
 export function FlatSelect({
   value,
   options,
@@ -31,11 +39,35 @@ export function FlatSelect({
   "aria-label": ariaLabel,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [listMaxH, setListMaxH] = useState(480);
   const rootRef = useRef<HTMLDivElement>(null);
   const listId = useId();
 
   const selected = options.find((o) => o.value === value);
   const label = selected?.label || placeholder;
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    setListMaxH(phoneListMaxHeightPx());
+    // Pin field near top of scroll area so the 80% list can grow downward.
+    rootRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onResize = () => setListMaxH(phoneListMaxHeightPx());
+    window.addEventListener("resize", onResize);
+    const phone = document.getElementById("ona-phone");
+    const ro =
+      typeof ResizeObserver !== "undefined" && phone
+        ? new ResizeObserver(onResize)
+        : null;
+    if (phone && ro) ro.observe(phone);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      ro?.disconnect();
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -78,6 +110,7 @@ export function FlatSelect({
         aria-controls={listId}
         aria-label={ariaLabel || placeholder}
         data-om-flat-select="1"
+        data-om-flat-list-max-pct="80"
         onClick={() => {
           if (!disabled) setOpen((o) => !o);
         }}
@@ -110,8 +143,11 @@ export function FlatSelect({
           id={listId}
           role="listbox"
           aria-label={ariaLabel || placeholder}
-          className="absolute left-0 right-0 z-40 mt-1 max-h-56 overflow-y-auto rounded-md border-0 py-1 shadow-none"
+          data-om-flat-select-list="1"
+          className="absolute left-0 right-0 z-50 mt-1 overflow-y-auto overscroll-contain rounded-md border-0 py-1 shadow-none"
           style={{
+            maxHeight: listMaxH,
+            height: listMaxH,
             backgroundColor: panelBg,
             backgroundImage: "none",
             border: "none",
@@ -144,7 +180,10 @@ export function FlatSelect({
                   >
                     <span className="min-w-0 truncate">{o.label}</span>
                     {active ? (
-                      <Check className="h-3.5 w-3.5 shrink-0 text-[#FF6B35]" strokeWidth={2.5} />
+                      <Check
+                        className="h-3.5 w-3.5 shrink-0 text-[#FF6B35]"
+                        strokeWidth={2.5}
+                      />
                     ) : null}
                   </button>
                 </li>

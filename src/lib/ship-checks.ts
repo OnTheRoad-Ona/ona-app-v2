@@ -67,14 +67,16 @@ export function runShipChecks(): ShipStatus {
   checks.push(
     check(
       "filters-array-fix-stamp",
-      "Ship includes filters-array / vehicles-flat fix line",
+      "Ship includes filters-array / vehicles-flat / 80pct fix line",
       ONA_BUILD_ID.includes("filters-array-fix") ||
         ONA_BUILD_ID.includes("shop-filters") ||
         ONA_BUILD_ID.includes("ship-status") ||
         ONA_BUILD_ID.includes("vehicles-flat") ||
         ONA_BUILD_ID.includes("flat-select") ||
+        ONA_BUILD_ID.includes("80pct") ||
         ONA_BUILD_LABEL.toLowerCase().includes("filters array") ||
-        ONA_BUILD_LABEL.toLowerCase().includes("flatselect"),
+        ONA_BUILD_LABEL.toLowerCase().includes("flatselect") ||
+        ONA_BUILD_LABEL.toLowerCase().includes("80%"),
       `buildId=${ONA_BUILD_ID}`
     )
   );
