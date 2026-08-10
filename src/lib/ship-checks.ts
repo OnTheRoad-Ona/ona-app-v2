@@ -74,9 +74,11 @@ export function runShipChecks(): ShipStatus {
         ONA_BUILD_ID.includes("vehicles-flat") ||
         ONA_BUILD_ID.includes("flat-select") ||
         ONA_BUILD_ID.includes("80pct") ||
+        ONA_BUILD_ID.includes("portal") ||
         ONA_BUILD_LABEL.toLowerCase().includes("filters array") ||
         ONA_BUILD_LABEL.toLowerCase().includes("flatselect") ||
-        ONA_BUILD_LABEL.toLowerCase().includes("80%"),
+        ONA_BUILD_LABEL.toLowerCase().includes("80%") ||
+        ONA_BUILD_LABEL.toLowerCase().includes("portal"),
       `buildId=${ONA_BUILD_ID}`
     )
   );

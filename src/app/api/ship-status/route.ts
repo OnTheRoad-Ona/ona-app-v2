@@ -48,6 +48,7 @@ export async function GET(req: Request) {
           usesNativeSelect: false,
           listMaxHeight: "80% of #ona-phone",
           listAnchor: "under field, expands downward",
+          listRender: "portal into #ona-phone (escapes page overflow clip)",
           scope: "all FlatSelect instances app-wide",
           introCopy: "Pick your vehicle to browse ALL PARTS.",
           removedCopy:
