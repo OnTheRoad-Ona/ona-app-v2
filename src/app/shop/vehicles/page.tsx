@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Car, Check, ChevronDown, Loader2, Trash2 } from "lucide-react";
+import { Car, Check, Loader2, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import {
   writeSessionVehicle,
   type ActiveVehicle,
 } from "@/components/shop/shop-vehicle-bar";
+import { FlatSelect } from "@/components/shop/flat-select";
 import { authFetch } from "@/lib/api-auth-headers";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,14 @@ const TYPE_LABELS: Record<string, string> = {
   construction_ag: "Construction & Ag",
   other: "Other",
 };
+
+const FALLBACK_TYPES: VehicleType[] = [
+  { slug: "automobile", name: "Automobile" },
+  { slug: "truck", name: "Truck" },
+  { slug: "trailer", name: "Trailer" },
+  { slug: "motorcycle", name: "Motorcycle" },
+  { slug: "motorhome", name: "Motorhome / RV" },
+];
 
 function typeName(slug: string): string {
   return TYPE_LABELS[slug] || "Automobile";
@@ -52,7 +61,6 @@ export default function ShopVehiclesPage() {
 
   const bg = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const muted = isLight ? "text-slate-600" : "text-white/55";
-  const chevronClass = isLight ? "text-slate-500" : "text-white/70";
 
   const loadGarage = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -134,6 +142,36 @@ export default function ShopVehiclesPage() {
   const makeName = makes.find((m) => m.id === makeId)?.name || "";
   const modelName = models.find((m) => m.id === modelId)?.name || "";
 
+  const typeOptions = useMemo(
+    () =>
+      (types.length ? types : FALLBACK_TYPES).map((t) => ({
+        value: t.slug,
+        label: t.name,
+      })),
+    [types]
+  );
+  const makeOptions = useMemo(
+    () => [
+      { value: "", label: "Make" },
+      ...makes.map((m) => ({ value: m.id, label: m.name })),
+    ],
+    [makes]
+  );
+  const modelOptions = useMemo(
+    () => [
+      { value: "", label: "Model" },
+      ...models.map((m) => ({ value: m.id, label: m.name })),
+    ],
+    [models]
+  );
+  const yearOptions = useMemo(
+    () => [
+      { value: "", label: "Year (optional)" },
+      ...years.map((y) => ({ value: String(y), label: String(y) })),
+    ],
+    [years]
+  );
+
   const applyVehicle = async (save: boolean) => {
     if (!makeName || !modelName) {
       setMsg("Pick make and model");
@@ -164,7 +202,10 @@ export default function ShopVehiclesPage() {
           setDefault: true,
         }),
       });
-      const json = (await res.json()) as { ok?: boolean; error?: { message?: string } };
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: { message?: string };
+      };
       setBusy(false);
       if (!json.ok) {
         setMsg(json.error?.message || "Could not save");
@@ -198,9 +239,13 @@ export default function ShopVehiclesPage() {
   };
 
   return (
-    <div className={cn("flex h-full min-h-0 flex-col overflow-hidden", bg)}>
+    <div
+      className={cn("flex h-full min-h-0 flex-col overflow-hidden", bg)}
+      data-om-vehicles-page="flat-2d-v2"
+    >
       <PageHeader title="My vehicles" backHref="/shop" />
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-8 pt-2">
+        {/* Intro — short only; no catalog/fitment blurb */}
         <p className={cn("mb-3 text-[12px] leading-relaxed", muted)}>
           Pick your vehicle to browse ALL PARTS.
         </p>
@@ -217,7 +262,8 @@ export default function ShopVehiclesPage() {
           </p>
         ) : null}
 
-        <div className="border-0 p-0 shadow-none ring-0">
+        {/* No card border / panel edge — flush with page */}
+        <div className="border-0 p-0 shadow-none ring-0" data-om-vehicles-form="1">
           <p
             className={cn(
               "text-[13px] font-black",
@@ -227,94 +273,39 @@ export default function ShopVehiclesPage() {
             Select vehicle
           </p>
           <div className="mt-2 flex flex-col gap-2">
-            <div className="om-flat-select-wrap">
-              <select
-                className="om-flat-select"
-                value={typeSlug}
-                onChange={(e) => setTypeSlug(e.target.value)}
-              >
-                {(types.length
-                  ? types
-                  : [
-                      { slug: "automobile", name: "Automobile" },
-                      { slug: "truck", name: "Truck" },
-                      { slug: "trailer", name: "Trailer" },
-                      { slug: "motorcycle", name: "Motorcycle" },
-                      { slug: "motorhome", name: "Motorhome / RV" },
-                    ]
-                ).map((t) => (
-                  <option key={t.slug} value={t.slug}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                className={cn("om-flat-select-chevron", chevronClass)}
-                strokeWidth={2.5}
-                aria-hidden
-              />
-            </div>
-            <div className="om-flat-select-wrap">
-              <select
-                className="om-flat-select"
-                value={makeId}
-                onChange={(e) => setMakeId(e.target.value)}
-              >
-                <option value="">Make</option>
-                {makes.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                className={cn("om-flat-select-chevron", chevronClass)}
-                strokeWidth={2.5}
-                aria-hidden
-              />
-            </div>
-            <div className="om-flat-select-wrap">
-              <select
-                className="om-flat-select"
-                value={modelId}
-                onChange={(e) => setModelId(e.target.value)}
-                disabled={!makeId}
-              >
-                <option value="">Model</option>
-                {models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                className={cn("om-flat-select-chevron", chevronClass)}
-                strokeWidth={2.5}
-                aria-hidden
-              />
-            </div>
-            <div className="om-flat-select-wrap">
-              <select
-                className="om-flat-select"
-                value={year === "" ? "" : String(year)}
-                onChange={(e) =>
-                  setYear(e.target.value ? Number(e.target.value) : "")
-                }
-                disabled={!modelId}
-              >
-                <option value="">Year (optional)</option>
-                {years.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                className={cn("om-flat-select-chevron", chevronClass)}
-                strokeWidth={2.5}
-                aria-hidden
-              />
-            </div>
+            <FlatSelect
+              isLight={isLight}
+              aria-label="Vehicle type"
+              value={typeSlug}
+              options={typeOptions}
+              onChange={setTypeSlug}
+            />
+            <FlatSelect
+              isLight={isLight}
+              aria-label="Make"
+              value={makeId}
+              options={makeOptions}
+              placeholder="Make"
+              onChange={setMakeId}
+            />
+            <FlatSelect
+              isLight={isLight}
+              aria-label="Model"
+              value={modelId}
+              options={modelOptions}
+              placeholder="Model"
+              disabled={!makeId}
+              onChange={setModelId}
+            />
+            <FlatSelect
+              isLight={isLight}
+              aria-label="Year"
+              value={year === "" ? "" : String(year)}
+              options={yearOptions}
+              placeholder="Year (optional)"
+              disabled={!modelId}
+              onChange={(v) => setYear(v ? Number(v) : "")}
+            />
           </div>
           {msg ? (
             <p className="mt-2 text-[12px] font-semibold text-red-500">{msg}</p>
@@ -324,7 +315,7 @@ export default function ShopVehiclesPage() {
               type="button"
               disabled={busy || !makeId || !modelId}
               onClick={() => void applyVehicle(false)}
-              className="h-11 flex-1 rounded-md border-0 bg-[#FF6B35] text-[13px] font-bold text-white shadow-none outline-none ring-0 disabled:opacity-50"
+              className="h-11 flex-1 rounded-md border-0 text-[13px] font-bold text-white shadow-none outline-none ring-0 disabled:opacity-50"
               style={{
                 backgroundColor: "#FF6B35",
                 backgroundImage: "none",
@@ -350,7 +341,11 @@ export default function ShopVehiclesPage() {
                   boxShadow: "none",
                 }}
               >
-                {busy ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : "Save & browse"}
+                {busy ? (
+                  <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+                ) : (
+                  "Save & browse"
+                )}
               </button>
             ) : null}
           </div>
@@ -364,9 +359,14 @@ export default function ShopVehiclesPage() {
                 <div
                   key={v.id}
                   className={cn(
-                    "flex items-center gap-2 rounded-xl border-0 px-3 py-2.5 shadow-none ring-0",
-                    isLight ? "bg-[#f0f0f2] text-slate-900" : "bg-[#2c2c2e] text-white"
+                    "flex items-center gap-2 rounded-md border-0 px-3 py-2.5 shadow-none ring-0"
                   )}
+                  style={{
+                    backgroundColor: isLight ? "#f0f0f2" : "#2c2c2e",
+                    backgroundImage: "none",
+                    border: "none",
+                    color: isLight ? "#0f172a" : "#ffffff",
+                  }}
                 >
                   <Car className="h-4 w-4 shrink-0 text-[#FF6B35]" />
                   <button
@@ -393,7 +393,7 @@ export default function ShopVehiclesPage() {
                     type="button"
                     title="Set active"
                     onClick={() => void setDefault(v.id)}
-                    className="rounded-lg border-0 bg-transparent p-1.5 text-[#FF6B35]"
+                    className="rounded-md border-0 bg-transparent p-1.5 text-[#FF6B35]"
                   >
                     <Check className="h-4 w-4" />
                   </button>
@@ -402,7 +402,7 @@ export default function ShopVehiclesPage() {
                     title="Remove"
                     onClick={() => void remove(v.id)}
                     className={cn(
-                      "rounded-lg border-0 bg-transparent p-1.5",
+                      "rounded-md border-0 bg-transparent p-1.5",
                       muted
                     )}
                   >

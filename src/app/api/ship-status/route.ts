@@ -39,15 +39,29 @@ export async function GET(req: Request) {
     {
       ...status,
       liveFilters: sample,
+      vehiclesPage: {
+        path: "/shop/vehicles",
+        markers: {
+          pageDataAttr: "data-om-vehicles-page=flat-2d-v2",
+          formDataAttr: "data-om-vehicles-form=1",
+          flatSelectDataAttr: "data-om-flat-select=1",
+          usesNativeSelect: false,
+          introCopy: "Pick your vehicle to browse ALL PARTS.",
+          removedCopy:
+            "with fitment. Free catalog from public vehicle data + Ona products (NGN).",
+          style: "solid 2D fields, no border, no metal/glass native select",
+        },
+      },
       verify: {
         htmlBuildAttr: `data-ona-build="${status.buildId}"`,
         endpoints: {
           this: "/api/ship-status",
           filters: `/api/shop/filters?trade=${encodeURIComponent(trade)}`,
           healthPublic: "/api/health?public=1",
+          vehiclesPage: "/shop/vehicles",
         },
         howToConfirm: [
-          "curl -s https://ona-mi.vercel.app/api/ship-status | jq .data.allPassed",
+          "curl -s https://ona-mi.vercel.app/api/ship-status | jq '.data | {allPassed,buildId,vehiclesPage}'",
           "curl -s https://ona-mi.vercel.app/api/shop/filters?trade=mechanic | jq '.data.filters | type'",
           "curl -s https://ona-mi.vercel.app | grep data-ona-build",
         ],

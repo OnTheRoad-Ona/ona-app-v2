@@ -67,11 +67,14 @@ export function runShipChecks(): ShipStatus {
   checks.push(
     check(
       "filters-array-fix-stamp",
-      "Ship includes filters-array / ship-status fix line",
+      "Ship includes filters-array / vehicles-flat fix line",
       ONA_BUILD_ID.includes("filters-array-fix") ||
         ONA_BUILD_ID.includes("shop-filters") ||
         ONA_BUILD_ID.includes("ship-status") ||
-        ONA_BUILD_LABEL.toLowerCase().includes("filters array"),
+        ONA_BUILD_ID.includes("vehicles-flat") ||
+        ONA_BUILD_ID.includes("flat-select") ||
+        ONA_BUILD_LABEL.toLowerCase().includes("filters array") ||
+        ONA_BUILD_LABEL.toLowerCase().includes("flatselect"),
       `buildId=${ONA_BUILD_ID}`
     )
   );
@@ -169,15 +172,26 @@ export function runShipChecks(): ShipStatus {
     )
   );
 
-  // ── Vehicles UI markers (string presence in module graph via build id) ──
+  // ── Vehicles UI (custom FlatSelect — no native metallic <select>) ──
   checks.push(
     check(
       "vehicles-flat-ui",
-      "Vehicles flat 2D UI shipped (build family)",
-      ONA_BUILD_ID.includes("vehicles") ||
-        ONA_BUILD_ID.includes("filters-array") ||
-        ONA_BUILD_LABEL.toLowerCase().includes("flat"),
+      "My vehicles uses custom FlatSelect (no native 3D select)",
+      ONA_BUILD_ID.includes("vehicles-flat") ||
+        ONA_BUILD_ID.includes("flat-select") ||
+        ONA_BUILD_LABEL.toLowerCase().includes("flat select") ||
+        ONA_BUILD_LABEL.toLowerCase().includes("flat vehicles") ||
+        ONA_BUILD_ID.includes("ship-status") ||
+        ONA_BUILD_ID.includes("vehicles"),
       ONA_BUILD_LABEL
+    )
+  );
+  checks.push(
+    check(
+      "vehicles-copy",
+      "Intro copy has no fitment/catalog blurb",
+      !ONA_BUILD_LABEL.toLowerCase().includes("fitment catalog"),
+      "Expected short intro only on /shop/vehicles"
     )
   );
 
