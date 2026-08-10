@@ -28,6 +28,25 @@ describe("shopUiScopeFromViewer", () => {
     expect(s.allowedTradeKeys).toEqual(["plumber"]);
     expect(s.allowBrowseAllParts).toBe(false);
   });
+
+  it("vulcanizer pro gets the Vulcanizer Shop only (tyres/tubes)", () => {
+    const s = shopUiScopeFromViewer({ trade: "vulcanizer", isPro: true });
+    expect(s.allowedTradeKeys).toEqual(["vulcanizer"]);
+    expect(s.shopTitle).toBe("Vulcanizer Shop");
+    expect(s.defaultTradeKey).toBe("vulcanizer");
+    expect(s.allowBrowseAllParts).toBe(false);
+    expect(
+      s.allowedTradeKeys!.some((t) => t === "mechanic" || t === "plumber")
+    ).toBe(false);
+  });
+
+  it("every pro is capped to exactly one trade (single-seller Ona shop)", () => {
+    for (const trade of ["mechanic", "vulcanizer", "battery", "solar", "plumber"] as const) {
+      const s = shopUiScopeFromViewer({ trade, isPro: true });
+      expect(s.allowedTradeKeys).toEqual([trade]);
+      expect(s.accountContext).toBe("professional");
+    }
+  });
 });
 
 describe("listing status", () => {

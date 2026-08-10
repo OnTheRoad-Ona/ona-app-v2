@@ -64,6 +64,8 @@ export type ShopProductCard = {
   status?: string | null;
   availabilityLabel?: string | null;
   attributes?: Record<string, unknown>;
+  /** First active, in-stock variant — enables quick add-to-cart from a card. */
+  defaultVariantId?: string | null;
 };
 
 export type ShopSearchIntent = {
@@ -76,4 +78,8 @@ export type ShopSearchIntent = {
   year: number | null;
   position: string | null;
   specs: Record<string, string | number>;
+  /** Canonical tyre size when the query carries one, e.g. "205/55R16". */
+  tyreSize?: string | null;
+  /** True when the query matched tyre/tire or vulcanizer/vulcaniser synonyms. */
+  tyreSynonymExpanded?: boolean;
 };

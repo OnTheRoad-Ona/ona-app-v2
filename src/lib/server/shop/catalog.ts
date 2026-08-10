@@ -4,6 +4,7 @@
 
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { availabilityState } from "@/lib/shop/catalog-status";
+import { productStatusesForListing } from "@/lib/shop/listing-status";
 import { getUserFromRequest } from "@/lib/server/auth-utils";
 import type {
   ShopAccountContext,
@@ -140,6 +141,8 @@ export type ProductFilterOptions = {
   categorySlug?: string;
   /** Availability: "in_stock" filters to available-only; "all" shows everything. */
   availability?: "in_stock" | "all";
+  /** Listing-status filter: maps to the product status set the chip represents. */
+  listingStatus?: "all" | "available" | "low_stock" | "out_of_stock" | "pre_order" | "coming_soon" | "discontinued";
   /** Price range in minor units (filters on the active price for a variant). */
   minPriceMinor?: number;
   maxPriceMinor?: number;
@@ -204,8 +207,17 @@ export async function listProducts(opts: {
     .select(
       "id, slug, name, subtitle, trade_key, brand_id, shop_brands(name), primary_image_url, condition_type, status, attributes, created_at"
     )
-    .eq("status", opts.status ?? "active")
     .limit(limit);
+
+  // Serving status: explicit active by default, unless a listing-status filter
+  // (6 chips) widens the set (pre_order/coming_soon/discontinued are catalog
+  // products that are NOT "active" but have their own lifecycle status).
+  const listingStatii = opts.filters?.listingStatus
+    ? productStatusesForListing(opts.filters.listingStatus)
+    : null;
+  const queryStatus = opts.status ?? "active";
+  if (listingStatii) q = q.in("status", [...listingStatii]);
+  else q = q.eq("status", queryStatus);
 
   if (opts.tradeKey) q = q.eq("trade_key", opts.tradeKey);
   if (effectiveCategoryId) q = q.eq("category_id", effectiveCategoryId);
@@ -292,13 +304,15 @@ export async function listProducts(opts: {
     const ids = new Set(products.map((p) => String(p.id)));
     const matchedProductIds = new Set(variantIds.map((v) => String(v.product_id)));
     if (matchedProductIds.size && !ids.size) {
-      const { data: extra } = await sb
+      let extraQ = sb
         .from("shop_products")
         .select(
           "id, slug, name, subtitle, trade_key, brand_id, shop_brands(name), primary_image_url, condition_type, status, attributes, created_at"
         )
-        .eq("status", opts.status ?? "active")
         .in("id", [...matchedProductIds].slice(0, limit));
+      if (listingStatii) extraQ = extraQ.in("status", [...listingStatii]);
+      else extraQ = extraQ.eq("status", opts.status ?? "active");
+      const { data: extra } = await extraQ;
       products = extra ?? [];
     } else if (matchedProductIds.size) {
       // keep original ordering; part matches already surfaced via search or will
@@ -326,6 +340,7 @@ export async function listProducts(opts: {
   const ids = products.map((p) => String(p.id));
   const prices = await loadFromPrices(ids);
   const stock = await loadInStock(ids);
+  const defaultVariantIds = await loadDefaultVariantIds(ids);
 
   return products.map((p) => {
     const id = String(p.id);
@@ -355,6 +370,7 @@ export async function listProducts(opts: {
       attributes: p.attributes
         ? (p.attributes as Record<string, unknown>)
         : undefined,
+      defaultVariantId: defaultVariantIds.get(id) ?? null,
     };
   });
 }
@@ -430,6 +446,53 @@ async function loadInStock(productIds: string[]): Promise<Map<string, boolean>> 
       Number(row.qty_on_hand ?? 0) - Number(row.qty_reserved ?? 0) > 0;
     if (avail) out.set(pid, true);
     else if (!out.has(pid)) out.set(pid, false);
+  }
+  return out;
+}
+
+/**
+ * First active, in-stock variant per product, used for quick add-to-cart from
+ * a product card. Falls back to the first active variant when none are stocked.
+ */
+async function loadDefaultVariantIds(
+  productIds: string[]
+): Promise<Map<string, string>> {
+  const sb = createServiceSupabase();
+  const { data: variants } = await sb
+    .from("shop_product_variants")
+    .select("id, product_id")
+    .in("product_id", productIds)
+    .eq("status", "active")
+    .order("sort_order", { ascending: true, nullsFirst: false })
+    .limit(500);
+  const vlist = (variants ?? []) as Array<Record<string, unknown>>;
+  if (vlist.length === 0) return new Map();
+
+  const variantByProduct = new Map<string, string[]>();
+  for (const v of vlist) {
+    const pid = String(v.product_id);
+    const list = variantByProduct.get(pid) ?? [];
+    list.push(String(v.id));
+    variantByProduct.set(pid, list);
+  }
+  const variantIds = vlist.map((v) => String(v.id));
+  const out = new Map<string, string>();
+  if (variantIds.length === 0) return out;
+
+  const { data: inv } = await sb
+    .from("shop_inventory")
+    .select("variant_id, qty_on_hand, qty_reserved")
+    .in("variant_id", variantIds);
+
+  const stocked = new Set<string>();
+  for (const row of (inv ?? []) as Array<Record<string, unknown>>) {
+    if (Number(row.qty_on_hand ?? 0) - Number(row.qty_reserved ?? 0) > 0) {
+      stocked.add(String(row.variant_id));
+    }
+  }
+  for (const [pid, vidList] of variantByProduct) {
+    const first = vidList.find((vid) => stocked.has(vid)) ?? vidList[0];
+    if (first) out.set(pid, first);
   }
   return out;
 }

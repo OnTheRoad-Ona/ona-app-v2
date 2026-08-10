@@ -1,6 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  Box,
+  Car,
+  Cog,
+  Disc,
+  Fan,
+  Fuel,
+  Lamp,
+  PackageCheck,
+  Plug,
+  Shield,
+  Tags,
+  Thermometer,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/store";
 import type { FacetFilters } from "@/components/shop/shop-facet-bar";
@@ -26,11 +42,24 @@ type Props = {
   onChange: (next: FacetFilters) => void;
 };
 
-/**
- * Segmented facet chips for the trade parts page — same interaction style as
- * the customer-dashboard FilterChips, but each chip maps to a product facet
- * (in-stock, category, price, attributes) instead of a technician signal.
- */
+/** Pick a small icon from the category / attribute name (keyword match). */
+function iconForName(name: string): LucideIcon {
+  const hay = name.toLowerCase();
+  if (/engine|motor|gearbox|clutch|transmission/.test(hay)) return Cog;
+  if (/brake|disc|pad/.test(hay)) return Disc;
+  if (/tire|tyre|wheel|rim/.test(hay)) return Car;
+  if (/cool|radiator|ac|heater|temperature/.test(hay)) return Thermometer;
+  if (/fuel|filter|oil|lubricant|fluid/.test(hay)) return Fuel;
+  if (/electric|battery|cable|wire|charg|solar|panel/.test(hay)) return Plug;
+  if (/light|headlight|bulb|led/.test(hay)) return Lamp;
+  if (/paint|coat|body|panel|bumper|door|glass/.test(hay)) return Box;
+  if (/fan|blower/.test(hay)) return Fan;
+  if (/safety|ppe|helmet|glove/.test(hay)) return Shield;
+  if (/tool|equipment|hardware|fastener/.test(hay)) return Box;
+  if (/wheel/.test(hay)) return Car;
+  return Box;
+}
+
 export function ShopFacetChips({ tradeKey, filters, onChange }: Props) {
   const { theme } = useApp();
   const isLight = theme === "light";
@@ -59,7 +88,6 @@ export function ShopFacetChips({ tradeKey, filters, onChange }: Props) {
           data?: { categories?: Category[] };
         };
         if (!cancelled) {
-          // API returns filters[] — also accept nested { filters: [] } if mis-shaped.
           const raw = fJson.data?.filters;
           const list = Array.isArray(raw)
             ? raw
@@ -127,30 +155,42 @@ export function ShopFacetChips({ tradeKey, filters, onChange }: Props) {
     setPriceOpen(false);
   };
 
-  const muted = isLight ? "text-slate-600" : "text-white/55";
+  const activeBox = isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white";
+  const inactiveBox = isLight
+    ? "bg-transparent text-slate-800"
+    : "bg-transparent text-[#d0d0d0]";
+  const subMuted = isLight ? "text-slate-500" : "text-white/50";
 
-  const chipBase = cn(
-    "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-none border-0",
-    "px-2.5 py-1.5 text-[10px] font-bold transition-colors"
-  );
-  const chipActive = isLight
-    ? "bg-white text-slate-900 shadow-sm"
-    : "bg-[#3d3d3d] text-white";
-  const chipInactive = isLight
-    ? "bg-transparent text-slate-800 hover:bg-white/50"
-    : "bg-transparent text-[#d0d0d0] hover:bg-white/[0.06] hover:text-white";
+  const tile = (active: boolean) =>
+    cn(
+      "flex min-w-[64px] flex-1 flex-col items-center justify-center gap-1 rounded-lg border-0 px-1 py-2 transition-colors",
+      active ? activeBox : inactiveBox
+    );
 
-  const chip = (active: boolean) =>
-    cn(chipBase, active ? chipActive : chipInactive);
+  const iconCls = (active: boolean) =>
+    cn(
+      "h-5 w-5",
+      active
+        ? "text-[#FF6B35]"
+        : isLight
+          ? "text-slate-700"
+          : "text-[#d0d0d0]"
+    );
+
+  const labelCls = (active: boolean) =>
+    cn(
+      "whitespace-normal text-center text-[9px] font-bold leading-tight",
+      active ? undefined : subMuted
+    );
 
   return (
     <div className="px-3 py-1">
-<div
-          className={cn(
-            "flex items-center gap-px overflow-x-auto rounded-md",
-            "scrollbar-hide",
-            isLight ? "bg-[#c5ccd6]" : "bg-[#2a2a2a]"
-          )}
+      <div
+        className={cn(
+          "flex flex-wrap items-stretch gap-1 rounded-xl p-1",
+          "scrollbar-hide",
+          isLight ? "bg-[#c5ccd6]" : "bg-[#2a2a2a]"
+        )}
         role="group"
         aria-label="Filters"
       >
@@ -166,12 +206,17 @@ export function ShopFacetChips({ tradeKey, filters, onChange }: Props) {
                   filters.availability === "in_stock" ? "all" : "in_stock",
               })
             }
-            className={cn(
-              chip(filters.availability === "in_stock"),
-              filters.availability === "in_stock" && "text-emerald-600"
-            )}
+            className={tile(filters.availability === "in_stock")}
           >
-            In stock
+            <PackageCheck
+              className={cn(
+                iconCls(filters.availability === "in_stock"),
+                filters.availability === "in_stock" && "text-emerald-500"
+              )}
+            />
+            <span className={labelCls(filters.availability === "in_stock")}>
+              In stock
+            </span>
           </button>
         ) : null}
 
@@ -185,23 +230,28 @@ export function ShopFacetChips({ tradeKey, filters, onChange }: Props) {
               priceOpen
             }
             onClick={() => setPriceOpen((o) => !o)}
-            className={chip(
+            className={tile(
               filters.minPriceMinor != null ||
                 filters.maxPriceMinor != null ||
                 priceOpen
             )}
           >
-            ₦ Price
-            {filters.minPriceMinor != null || filters.maxPriceMinor != null ? (
-              <span className="rounded-full bg-[#FF6B35] px-1.5 py-0.5 text-[10px] font-black text-white">
-                1
-              </span>
-            ) : null}
+            <Wallet className={iconCls(filters.minPriceMinor != null || filters.maxPriceMinor != null || priceOpen)} />
+            <span
+              className={labelCls(
+                filters.minPriceMinor != null ||
+                  filters.maxPriceMinor != null ||
+                  priceOpen
+              )}
+            >
+              Price
+            </span>
           </button>
         ) : null}
 
         {cats.map((c) => {
           const active = filters.categorySlug === c.slug;
+          const Icon = iconForName(c.name);
           return (
             <button
               key={c.id}
@@ -214,18 +264,24 @@ export function ShopFacetChips({ tradeKey, filters, onChange }: Props) {
                   categorySlug: active ? null : c.slug,
                 })
               }
-              className={chip(active)}
+              className={tile(active)}
             >
-              {c.name}
-              <span className={cn("text-[9px] font-semibold", muted)}>
-                {c.productCount}
+              <span className="relative">
+                <Icon className={iconCls(active)} />
+                {c.productCount > 0 ? (
+                  <span className="absolute -right-1.5 -top-1.5 rounded-full bg-[#FF6B35] px-1 text-[8px] font-black leading-3 text-white">
+                    {c.productCount}
+                  </span>
+                ) : null}
               </span>
+              <span className={labelCls(active)}>{c.name}</span>
             </button>
           );
         })}
 
-        {attrDefs.map((d) =>
-          (d.options ?? []).map((opt) => {
+        {attrDefs.map((d) => {
+          const Icon = iconForName(d.label);
+          return (d.options ?? []).map((opt) => {
             const active = filters.attributes[d.key] === opt;
             return (
               <button
@@ -241,24 +297,27 @@ export function ShopFacetChips({ tradeKey, filters, onChange }: Props) {
                     },
                   })
                 }
-                className={chip(active)}
+                className={tile(active)}
               >
-                {d.label}: {opt}
+                <Icon className={iconCls(active)} />
+                <span className={labelCls(active)}>
+                  {d.label}: {opt}
+                </span>
               </button>
             );
-          })
-        )}
+          });
+        })}
 
         {activeCount > 0 ? (
           <button
             type="button"
             onClick={clearAll}
             className={cn(
-              chipBase,
-              "font-black text-[#FF6B35] hover:text-[#FF6B35]/80"
+              "flex min-w-[64px] flex-1 flex-col items-center justify-center gap-1 rounded-lg border-0 px-2 py-2 text-[9px] font-black text-[#FF6B35] hover:text-[#FF6B35]/80"
             )}
           >
-            Clear all
+            <Tags className={cn("h-5 w-5", iconCls(true), "!text-[#FF6B35]")} />
+            Clear
           </button>
         ) : null}
       </div>
@@ -266,7 +325,7 @@ export function ShopFacetChips({ tradeKey, filters, onChange }: Props) {
       {hasPrice && priceOpen ? (
         <div
           className={cn(
-            "mt-2 flex items-center gap-2 rounded-md px-2 py-2",
+            "mt-2 flex items-center gap-2 rounded-xl px-2 py-2",
             isLight ? "bg-[#e2e3e6]" : "bg-[#232323]"
           )}
         >
@@ -283,7 +342,7 @@ export function ShopFacetChips({ tradeKey, filters, onChange }: Props) {
               isLight ? "bg-black/5 text-slate-900" : "bg-white/10 text-white"
             )}
           />
-          <span className={muted}>–</span>
+          <span className={subMuted}>–</span>
           <input
             inputMode="numeric"
             value={maxInput}

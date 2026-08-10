@@ -28,6 +28,8 @@ export type BottomSheetProps = {
   children: ReactNode;
   titleId?: string;
   className?: string;
+  /** Panel height as a percentage of the phone shell (default 25). */
+  heightPercent?: number;
 };
 
 const SPRING = "transform 0.48s cubic-bezier(0.32, 0.72, 0, 1)";
@@ -40,6 +42,7 @@ export function BottomSheet({
   children,
   titleId,
   className,
+  heightPercent = 25,
 }: BottomSheetProps) {
   const { theme } = useApp();
   const isLight = theme === "light";
@@ -262,9 +265,9 @@ export function BottomSheet({
           className
         )}
         style={{
-          height: "25%",
-          minHeight: "25%",
-          maxHeight: "25%",
+          height: `${heightPercent}%`,
+          minHeight: `${heightPercent}%`,
+          maxHeight: `${heightPercent}%`,
           backgroundColor: sheetBg,
           transform: "translate3d(0, 100%, 0)",
           willChange: "transform",

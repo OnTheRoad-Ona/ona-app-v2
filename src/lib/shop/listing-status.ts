@@ -3,6 +3,8 @@
  * "all" is a UI convenience filter only — not a stored status.
  */
 
+import type { ProductStatus } from "@/lib/shop/catalog-status";
+
 export const LISTING_STATUSES = [
   "available",
   "low_stock",
@@ -55,4 +57,58 @@ export function deriveListingStatus(input: {
 /** Purchasable today from a listing. */
 export function listingIsPurchasable(status: ListingStatus): boolean {
   return status === "available" || status === "low_stock" || status === "pre_order";
+}
+
+/**
+ * Product-status set that a listing filter maps to when querying the catalog.
+ * - all / available / low_stock / out_of_stock → `active` (availability is
+ *   stock-derived, so filtering happens per-card)
+ * - pre_order → future purchased-from-ahead products
+ * - coming_soon → future / pending products
+ * - discontinued → discontinued only
+ * Returns null for "all" (no status constraint).
+ */
+export function productStatusesForListing(
+  key: ListingFilterKey
+): readonly ProductStatus[] | null {
+  if (key === "all") return null;
+  if (key === "available" || key === "low_stock" || key === "out_of_stock") {
+    return ["active"];
+  }
+  if (key === "pre_order") return ["future_product"];
+  if (key === "coming_soon") {
+    return ["future_product", "source_pending", "pending_verification"];
+  }
+  if (key === "discontinued") return ["discontinued"];
+  return null;
+}
+
+/** Client-side matcher for a product card against a listing filter chip. */
+export function listingMatchesCard(
+  card: {
+    inStock: boolean;
+    status?: string | null;
+    availabilityLabel?: string | null;
+  },
+  key: ListingFilterKey
+): boolean {
+  if (key === "all") return true;
+  const st = (card.availabilityLabel || card.status || "").toLowerCase();
+  if (key === "available") return Boolean(card.inStock) || st.includes("available");
+  if (key === "low_stock") return st.includes("low");
+  if (key === "out_of_stock") {
+    return (
+      !card.inStock &&
+      !st.includes("discontinued") &&
+      !st.includes("coming") &&
+      !st.includes("pre") &&
+      card.status !== "future_product"
+    );
+  }
+  if (key === "pre_order") return st.includes("pre");
+  if (key === "coming_soon")
+    return st.includes("coming") || card.status === "future_product";
+  if (key === "discontinued")
+    return st.includes("discontinued") || card.status === "discontinued";
+  return true;
 }

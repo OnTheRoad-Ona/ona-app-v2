@@ -77,6 +77,11 @@ export const TRADE_ATTRIBUTE_SCHEMAS: TradeAttributeSchema[] = [
       { key: "loadIndex", label: "Load index", type: "number", filterable: true },
       { key: "speedRating", label: "Speed rating", type: "enum", filterable: true, options: ["S", "T", "H", "V", "W", "Y"] },
       { key: "tubeType", label: "Tube type", type: "enum", filterable: true, options: ["Tubeless", "Tube", "Run-flat"] },
+      // Vulcanizer shop equipment attributes (compressors, gauges, jacks, tools)
+      { key: "voltage", label: "Voltage", type: "number", unit: "V", filterable: true },
+      { key: "capacity", label: "Capacity", type: "number", unit: "L", filterable: true },
+      { key: "powerW", label: "Power", type: "number", unit: "W", filterable: true },
+      { key: "pressure", label: "Pressure", type: "number", unit: "PSI", filterable: true },
       ...HARDWARE,
     ],
   },

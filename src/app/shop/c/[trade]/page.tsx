@@ -1,19 +1,24 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { Loader2, Search, ShoppingBag } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { ShopVehicleBar } from "@/components/shop/shop-vehicle-bar";
+import { ShopProductCard } from "@/components/shop/product-card";
 import {
   ShopFacetChips,
 } from "@/components/shop/shop-facet-chips";
+import { ShopAvailabilityChips } from "@/components/shop/shop-availability-chips";
 import type { FacetFilters } from "@/components/shop/shop-facet-bar";
 import { PRO_TRADE_OPTIONS } from "@/lib/services";
 import {
   getRootCategoriesForTrade,
   isVehicleTrade,
 } from "@/lib/shop/taxonomy";
+import {
+  type ListingFilterKey,
+} from "@/lib/shop/listing-status";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -24,10 +29,13 @@ type ProductCard = {
   subtitle: string | null;
   fromPriceMinor: number | null;
   inStock: boolean;
+  status?: string | null;
+  availabilityLabel?: string | null;
   fitmentStatus?: string | null;
   fitmentBadge?: string | null;
   fitmentScore?: number;
   matchReasons?: string[];
+  defaultVariantId?: string | null;
 };
 
 type AllPartsCat = {
@@ -37,11 +45,6 @@ type AllPartsCat = {
   productCount: number;
   depth: number;
 };
-
-function formatNgn(minor: number | null): string {
-  if (minor == null) return "—";
-  return `₦${Math.round(minor / 100).toLocaleString("en-NG")}`;
-}
 
 /** Trade-skill example inside the search box — derived from each trade's
  * PRO_TRADE_OPTIONS hint so it references the skill, not a generic car part
@@ -63,22 +66,12 @@ const TRADE_SEARCH_EXAMPLES: Record<string, string> = {
   generator: "spark plug, filter",
 };
 
-function fitmentBadge(status?: string | null, badge?: string | null): string | null {
-  if (badge) return badge;
-  if (!status || status === "unknown") return null;
-  if (status === "direct_fit") return "Fits your vehicle";
-  if (status === "compatible") return "Compatible";
-  if (status === "conditional") return "Check fit";
-  return null;
-}
-
 function ShopTradePageInner() {
   const params = useParams();
   const searchParams = useSearchParams();
   const trade = String(params.trade || "");
   const { theme, accountType } = useApp();
   const isLight = theme === "light";
-  const router = useRouter();
   const ctx =
     accountType === "professional" ? "professional" : "motorist";
   const [q, setQ] = useState("");
@@ -86,6 +79,7 @@ function ShopTradePageInner() {
   const [searched, setSearched] = useState(false);
   const [results, setResults] = useState<ProductCard[]>([]);
   const [intentLabel, setIntentLabel] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<ListingFilterKey>("all");
   const [facets, setFacets] = useState<FacetFilters>({
     availability: "all",
     categorySlug: null,
@@ -187,6 +181,7 @@ function ShopTradePageInner() {
           lockTrade: "1",
           ctx,
         });
+        if (availability !== "all") qs.set("listingStatus", availability);
         if (f.availability === "in_stock") qs.set("availability", "in_stock");
         if (f.categorySlug) qs.set("category", f.categorySlug);
         if (f.minPriceMinor != null) qs.set("minPrice", String(f.minPriceMinor));
@@ -227,7 +222,7 @@ function ShopTradePageInner() {
         setSearching(false);
       }
     },
-    [q, trade, label, ctx, facets]
+    [q, trade, label, ctx, facets, availability]
   );
 
   useEffect(() => {
@@ -241,57 +236,36 @@ function ShopTradePageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trade, searchParams, allParts]);
 
-  // Re-run the active search when facet filters change.
+  // Re-run the active search when facet filters or availability chips change.
   useEffect(() => {
     if (!searched) return;
     if (!q.trim()) return;
     void runSearch(q, facets);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [facets]);
+  }, [facets, availability]);
 
   const bg = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const card = isLight ? "bg-white/90" : "bg-[#1c1c1e]";
   const muted = isLight ? "text-slate-600" : "text-white/55";
 
   const productRows = (items: ProductCard[]) => (
-    <div className="flex flex-col gap-1.5 px-3">
-      {items.map((p) => {
-        const badge = fitmentBadge(p.fitmentStatus, p.fitmentBadge);
-        return (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => router.push(`/shop/p/${p.slug}`)}
-            className={cn(
-              "flex w-full items-center justify-between gap-3 rounded-xl border-0 px-3 py-2.5 text-left",
-              card,
-              isLight ? "text-slate-900" : "text-white"
-            )}
-          >
-            <div className="min-w-0 flex-1">
-              <p className="line-clamp-1 text-[13px] font-bold">{p.name}</p>
-              {p.subtitle ? (
-                <p className={cn("mt-0.5 line-clamp-1 text-[11px]", muted)}>
-                  {p.subtitle}
-                </p>
-              ) : null}
-              {badge ? (
-                <p className="mt-0.5 text-[10px] font-semibold text-emerald-600">
-                  {badge}
-                </p>
-              ) : null}
-            </div>
-            <div className="shrink-0 text-right">
-              <p className="text-[14px] font-black text-[#FF6B35]">
-                {formatNgn(p.fromPriceMinor)}
-              </p>
-              <p className={cn("text-[10px] font-semibold", muted)}>
-                {p.inStock ? "In stock" : "Check stock"}
-              </p>
-            </div>
-          </button>
-        );
-      })}
+    <div className="flex flex-col gap-2 px-3">
+      {items.map((p) => (
+        <ShopProductCard
+          key={p.id}
+          product={{
+            id: p.id,
+            slug: p.slug,
+            name: p.name,
+            subtitle: p.subtitle,
+            fromPriceMinor: p.fromPriceMinor,
+            inStock: p.inStock,
+            fitmentStatus: p.fitmentStatus,
+            fitmentBadge: p.fitmentBadge,
+            defaultVariantId: p.defaultVariantId,
+          }}
+        />
+      ))}
     </div>
   );
 
@@ -420,6 +394,11 @@ function ShopTradePageInner() {
                 </button>
               </div>
             </div>
+
+            <ShopAvailabilityChips
+              value={availability}
+              onChange={setAvailability}
+            />
 
             <ShopFacetChips
               tradeKey={trade}

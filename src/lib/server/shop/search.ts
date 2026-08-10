@@ -4,6 +4,7 @@
 
 import { listProducts } from "@/lib/server/shop/catalog";
 import { interpretShopQuery } from "@/lib/server/shop/intent";
+import { parseTyreSize } from "@/lib/shop/tyre-size";
 import type {
   FitmentStatus,
   ShopAccountContext,
@@ -52,6 +53,16 @@ function tokenizeForSearch(intent: ShopSearchIntent, raw: string): string[] {
     if (t.length >= 2) bag.add(t);
   };
   push(intent.normalizedQuery);
+
+  // Tyre-size query: "205 55 16" and "205/55 R16" and "205/55R16" are all the
+  // same tyre. Tokenize with the canonical size forms so the OR-search matches
+  // the one product regardless of the user's spacing/punctuation.
+  const tyre = parseTyreSize(raw);
+  if (tyre?.canonical) {
+    for (const t of tyre.tokens) push(t);
+    push(tyre.canonical.toLowerCase());
+  }
+
   for (const h of intent.productHints) push(h);
   push(intent.make);
   push(intent.model);

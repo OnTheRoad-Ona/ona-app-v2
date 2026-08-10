@@ -4,6 +4,7 @@
  */
 
 import type { ShopSearchIntent } from "@/lib/server/shop/types";
+import { expandSynonyms, parseTyreSize } from "@/lib/shop/tyre-size";
 
 const TRADE_ALIASES: Record<string, string[]> = {
   mechanic: ["mechanic", "brake", "engine", "oil", "spark", "filter", "car", "auto"],
@@ -112,6 +113,24 @@ export function interpretShopQuery(raw: string): ShopSearchIntent {
   const mm = normalized.match(/(\d+)\s*mm\b/);
   if (mm) specs.diameterMm = Number(mm[1]);
 
+  // Tyre-size awareness: "205/55 R16" == "205 55 16" == "205/55R16" ==
+  // "205/55/16". Store the canonical size in specs so search + fitment can
+  // use it, and hint `tyre` as the product class.
+  const tyreSize = parseTyreSize(raw);
+  if (tyreSize?.canonical) {
+    if (tyreSize.width) specs.tireWidth = tyreSize.width;
+    if (tyreSize.aspect) specs.aspectRatio = tyreSize.aspect;
+    if (tyreSize.rim) specs.rimSize = tyreSize.rim;
+    if (tyreSize.loadIndex) specs.loadIndex = tyreSize.loadIndex;
+    if (tyreSize.speedRating) specs.speedRating = tyreSize.speedRating;
+    if (!productHints.includes("tire")) productHints.push("tire");
+    if (tradeKey !== "vulcanizer" && !tradeKey) tradeKey = "vulcanizer";
+  }
+
+  // Synonyms: "tyre" ↔ "tire", "vulcanizer" ↔ "vulcaniser" are the same query
+  // (never surfaced twice in suggestions).
+  const synExpanded = expandSynonyms(raw).length > 1;
+
   return {
     rawQuery: raw,
     normalizedQuery: normalized,
@@ -122,5 +141,7 @@ export function interpretShopQuery(raw: string): ShopSearchIntent {
     year,
     position,
     specs,
+    tyreSize: tyreSize?.canonical ?? null,
+    tyreSynonymExpanded: synExpanded,
   };
 }

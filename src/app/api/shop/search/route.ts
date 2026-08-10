@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { requireUser } from "@/lib/server/auth-utils";
 import { searchShop } from "@/lib/server/shop/search";
+import { isListingStatus } from "@/lib/shop/listing-status";
 import { resolveAccountContext } from "@/lib/server/shop/catalog";
 import {
   assertTradeAllowed,
@@ -57,6 +58,11 @@ export async function GET(req: NextRequest) {
     }
     if (sp.get("availability") === "in_stock") {
       filters.availability = "in_stock";
+    }
+    if (isListingStatus(sp.get("listingStatus"))) {
+      filters.listingStatus = sp.get("listingStatus") as NonNullable<
+        typeof filters.listingStatus
+      >;
     }
     const attrs: Record<string, string | number | boolean> = {};
     for (const key of sp.keys()) {

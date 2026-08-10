@@ -5,6 +5,7 @@ import {
   resolveAccountContext,
 } from "@/lib/server/shop/catalog";
 import { applyTradeFilters } from "@/lib/shop/trade-filters";
+import { isListingStatus } from "@/lib/shop/listing-status";
 import {
   assertTradeAllowed,
   resolveShopUiScope,
@@ -12,6 +13,8 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+type ProductFilterOptions = import("@/lib/server/shop/catalog").ProductFilterOptions;
 
 export async function GET(req: NextRequest) {
   try {
@@ -49,9 +52,13 @@ export async function GET(req: NextRequest) {
     if (sp.get("availability")) {
       selected.availability = sp.get("availability") || "";
     }
-    const filters = tradeKey
-      ? applyTradeFilters(tradeKey, selected)
+    const listingStatus = isListingStatus(sp.get("listingStatus"))
+      ? (sp.get("listingStatus") as "all" | "available" | "low_stock" | "out_of_stock" | "pre_order" | "coming_soon" | "discontinued")
       : undefined;
+    const filters: ProductFilterOptions = tradeKey
+      ? applyTradeFilters(tradeKey, selected)
+      : {};
+    if (listingStatus) filters.listingStatus = listingStatus;
 
     // Enforce pro trade cap when client omits trade
     const effectiveTrade =

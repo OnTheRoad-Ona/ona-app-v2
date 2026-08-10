@@ -10,11 +10,8 @@ import { useRouter } from "next/navigation";
 import { Loader2, Search, ShoppingBag, ShoppingCart } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { ShopVehicleBar } from "@/components/shop/shop-vehicle-bar";
+import { ShopProductCard } from "@/components/shop/product-card";
 import { PRO_TRADE_OPTIONS } from "@/lib/services";
-import {
-  LISTING_FILTER_CHIPS,
-  type ListingFilterKey,
-} from "@/lib/shop/listing-status";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -35,39 +32,8 @@ type ProductCard = {
   fromPriceMinor: number | null;
   currency: string;
   inStock: boolean;
-  status?: string | null;
-  availabilityLabel?: string | null;
+  defaultVariantId?: string | null;
 };
-
-function productMatchesAvailability(
-  p: ProductCard,
-  key: ListingFilterKey
-): boolean {
-  if (key === "all") return true;
-  const st = (p.availabilityLabel || p.status || "").toLowerCase();
-  if (key === "available") return Boolean(p.inStock) || st.includes("available");
-  if (key === "low_stock") return st.includes("low");
-  if (key === "out_of_stock") {
-    return (
-      !p.inStock &&
-      !st.includes("discontinued") &&
-      !st.includes("coming") &&
-      !st.includes("pre")
-    );
-  }
-  if (key === "pre_order") return st.includes("pre");
-  if (key === "coming_soon")
-    return st.includes("coming") || p.status === "future_product";
-  if (key === "discontinued")
-    return st.includes("discontinued") || p.status === "discontinued";
-  return true;
-}
-
-function formatNgn(minor: number | null): string {
-  // Master catalog has no price — show em dash until listing price exists
-  if (minor == null) return "—";
-  return `₦${Math.round(minor / 100).toLocaleString("en-NG")}`;
-}
 
 export default function ShopHomePage() {
   const { theme, isAuthenticated, accountType } = useApp();
@@ -85,7 +51,6 @@ export default function ShopHomePage() {
   const [results, setResults] = useState<ProductCard[] | null>(null);
   const [intentLabel, setIntentLabel] = useState<string | null>(null);
   const [suggestedTrade, setSuggestedTrade] = useState<string | null>(null);
-  const [availability, setAvailability] = useState<ListingFilterKey>("all");
   const [shopTitle, setShopTitle] = useState("Shop");
   const [allowBrowseAllParts, setAllowBrowseAllParts] = useState(true);
   const [defaultTradeKey, setDefaultTradeKey] = useState<string | null>(null);
@@ -185,58 +150,26 @@ export default function ShopHomePage() {
 
   /** Full-width listing rows — easy vertical scroll (not a grid of boxes). */
   const productList = (items: ProductCard[]) => (
-    <div className="flex flex-col gap-1.5 px-3">
+    <div className="flex flex-col gap-2 px-3">
       {items.length === 0 ? (
         <p className={cn("px-1 py-2 text-[12px] italic", muted)}>
           Nothing here matches the filter.
         </p>
       ) : null}
       {items.map((p) => (
-        <button
+        <ShopProductCard
           key={p.id}
-          type="button"
-          onClick={() => router.push(`/shop/p/${p.slug}`)}
-          className={cn(
-            "flex w-full items-center gap-3 rounded-xl border-0 px-2.5 py-2 text-left",
-            card
-          )}
-        >
-          <div
-            className={cn(
-              "flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg",
-              isLight ? "bg-black/5" : "bg-white/5"
-            )}
-          >
-            {p.primaryImageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={p.primaryImageUrl}
-                alt=""
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <ShoppingBag className="h-6 w-6 text-[#FF6B35]/80" />
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="line-clamp-1 text-[13px] font-bold leading-snug">
-              {p.name}
-            </p>
-            {p.subtitle ? (
-              <p className={cn("mt-0.5 line-clamp-1 text-[11px]", muted)}>
-                {p.subtitle}
-              </p>
-            ) : null}
-            <div className="mt-1 flex items-center gap-2">
-              <p className="text-[14px] font-black text-[#FF6B35]">
-                {formatNgn(p.fromPriceMinor)}
-              </p>
-              <p className={cn("text-[10px] font-semibold", muted)}>
-                {p.inStock ? "In stock" : "Check availability"}
-              </p>
-            </div>
-          </div>
-        </button>
+          product={{
+            id: p.id,
+            slug: p.slug,
+            name: p.name,
+            subtitle: p.subtitle,
+            fromPriceMinor: p.fromPriceMinor,
+            inStock: p.inStock,
+            primaryImageUrl: p.primaryImageUrl,
+            defaultVariantId: p.defaultVariantId,
+          }}
+        />
       ))}
     </div>
   );
@@ -446,44 +379,6 @@ export default function ShopHomePage() {
           </>
         ) : (
           <>
-            {/* Availability filter — segmented chips like the customer home
-                (All / In stock / Out of stock / Coming soon / …). Filters the
-                Popular + New arrivals rows below AND leaves the trade grid. */}
-            <div className="px-3 pt-3">
-              <div
-                className={cn(
-                  "flex w-full gap-px overflow-x-auto rounded-lg",
-                  isLight ? "bg-[#b4b6bd]" : "bg-[#2a2a2a]"
-                )}
-                role="group"
-                aria-label="Availability"
-              >
-                {LISTING_FILTER_CHIPS.map((chip) => {
-                  const active = availability === chip.key;
-                  return (
-                    <button
-                      key={chip.key}
-                      type="button"
-                      onClick={() => setAvailability(chip.key)}
-                      className={cn(
-                        "inline-flex min-w-0 flex-1 items-center justify-center gap-0.5 whitespace-nowrap rounded-none border-0 px-2 py-1.5 text-[10px] font-bold transition-colors",
-                        active
-                          ? isLight
-                            ? "bg-white text-slate-900 shadow-sm"
-                            : "bg-[#3d3d3d] text-white"
-                          : isLight
-                            ? "bg-transparent text-slate-800 hover:bg-white/60"
-                            : "bg-transparent text-[#d0d0d0] hover:bg-white/[0.06] hover:text-white"
-                      )}
-                      aria-pressed={active}
-                    >
-                      {chip.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
             {/* Browse by trade — original box grid (not product listings) */}
             <p className="px-3 pt-4 pb-2 text-[13px] font-black tracking-tight">
               Browse by trade
@@ -498,14 +393,19 @@ export default function ShopHomePage() {
                     name: t.homeLabel,
                   }))
               )
-                // Never show the same trade twice (guards double-seeded categories)
-                .filter(
-                  (tr, i, arr) =>
-                    arr.findIndex(
-                      (x) =>
-                        (x.tradeKey || x.slug) === (tr.tradeKey || tr.slug)
-                    ) === i
-                )
+                // One tile per trade. Keep ONLY the trade's canonical root
+                // (slug === tradeKey, e.g. mechanic/mechanic) when it exists —
+                // otherwise the newer taxonomy branches (mechanic/engine-engine-parts
+                // etc.) share the same tradeKey and would eat the "Mechanic" tile.
+                .filter((tr, i, arr) => {
+                  const key = (x: { tradeKey?: string; slug?: string }) =>
+                    x.tradeKey || x.slug;
+                  const canonical = arr.findIndex(
+                    (x) => key(x) === key(tr) && x.slug === x.tradeKey
+                  );
+                  if (canonical !== -1) return i === canonical;
+                  return arr.findIndex((x) => key(x) === key(tr)) === i;
+                })
                 .map((tr) => {
                 const opt = PRO_TRADE_OPTIONS.find(
                   (x) => x.id === tr.tradeKey || x.id === tr.slug
@@ -542,11 +442,7 @@ export default function ShopHomePage() {
             {popular.length > 0 ? (
               <>
                 <p className="px-3 pt-5 pb-2 text-[13px] font-black">Popular</p>
-                {productList(
-                  popular.filter((p) =>
-                    productMatchesAvailability(p, availability)
-                  )
-                )}
+                {productList(popular)}
               </>
             ) : null}
 
@@ -555,11 +451,7 @@ export default function ShopHomePage() {
                 <p className="px-3 pt-5 pb-2 text-[13px] font-black">
                   New arrivals
                 </p>
-                {productList(
-                  newArrivals.filter((p) =>
-                    productMatchesAvailability(p, availability)
-                  )
-                )}
+                {productList(newArrivals)}
               </>
             ) : null}
           </>
