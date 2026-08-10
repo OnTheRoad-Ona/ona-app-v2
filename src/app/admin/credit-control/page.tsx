@@ -16,10 +16,56 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "settings", label: "Settings" },
 ];
 
+type AdminSection = Record<string, unknown>;
+type AdminRow = {
+  id?: string;
+  status?: string;
+  userId?: string;
+  referrerUserId?: string;
+  referredUserId?: string;
+  rewardAmount?: number;
+  transactionType?: string;
+  amount?: number;
+  createdAt?: string;
+  requestedAmount?: number;
+  feeAmount?: number;
+  netAmount?: number;
+  key?: string;
+  value?: unknown;
+  changeType?: string;
+  oldValue?: string;
+  newValue?: string;
+  riskScore?: number;
+  currentName?: string;
+  requestedName?: string;
+  reason?: string;
+  flagType?: string;
+  riskLevel?: string;
+  description?: string;
+  adminName?: string;
+  adminId?: string;
+  actionType?: string;
+  targetType?: string;
+  targetId?: string;
+};
+
+function sectionData(data: Record<string, unknown>, key: string): AdminSection {
+  const v = data[key];
+  return v && typeof v === "object" ? (v as AdminSection) : {};
+}
+function rowsOf(section: AdminSection, key: string): AdminRow[] {
+  const v = section[key];
+  return Array.isArray(v) ? (v as AdminRow[]) : [];
+}
+function statsOf(section: AdminSection): Record<string, string | number | undefined> {
+  const v = section.stats;
+  return v && typeof v === "object" ? (v as Record<string, string | number | undefined>) : {};
+}
+
 export default function AdminCreditControlPage() {
   const gate = useAdminGate();
   const [tab, setTab] = useState<Tab>("overview");
-  const [data, setData] = useState<Record<string, any>>({});
+  const [data, setData] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
 
@@ -39,7 +85,7 @@ export default function AdminCreditControlPage() {
     void fetchSection("overview");
   }, [gate.ready, fetchSection]);
 
-  const onAction = useCallback(async (action: string, body: Record<string, any>) => {
+  const onAction = useCallback(async (action: string, body: Record<string, unknown>) => {
     setActionMsg(null);
     try {
       const res = await fetch("/api/admin/security", {
@@ -61,11 +107,12 @@ export default function AdminCreditControlPage() {
   if (!gate.ready) return <AdminShell><div className="p-6 text-[var(--om-text-muted)]">Loading...</div></AdminShell>;
   if (gate.error) return <AdminShell><div className="p-6 text-red-500">{gate.error}</div></AdminShell>;
 
-  const stats = data.overview?.stats || {};
-  const refEvents = data.referrals?.events || [];
-  const txs = data.credits?.transactions || [];
-  const cashoutList = data.cashouts?.requests || [];
-  const settings = data.settings?.settings || [];
+  const overview = sectionData(data, "overview");
+  const stats = statsOf(overview);
+  const refEvents = rowsOf(sectionData(data, "referrals"), "events");
+  const txs = rowsOf(sectionData(data, "credits"), "transactions");
+  const cashoutList = rowsOf(sectionData(data, "cashouts"), "requests");
+  const settings = rowsOf(sectionData(data, "settings"), "settings");
 
   const card = "rounded-xl border border-[var(--om-border)] bg-[var(--om-panel)] p-4";
   const badge = (cls: string) => `inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${cls}`;
@@ -102,10 +149,10 @@ export default function AdminCreditControlPage() {
           </tr>
         </thead>
         <tbody>
-          {refEvents.map((ev: any) => (
-            <tr key={ev.id} className="border-b border-[var(--om-border-soft)]">
-              <td className="p-2 font-medium">{ev.referrerUserId?.slice(0, 8)}</td>
-              <td className="p-2">{ev.referredUserId?.slice(0, 8)}</td>
+          {refEvents.map((ev) => (
+            <tr key={String(ev.id)} className="border-b border-[var(--om-border-soft)]">
+              <td className="p-2 font-medium">{String(ev.referrerUserId ?? "").slice(0, 8)}</td>
+              <td className="p-2">{String(ev.referredUserId ?? "").slice(0, 8)}</td>
               <td className="p-2">₦{ev.rewardAmount}</td>
               <td className="p-2"><span className={badge(
                 ev.status === "approved" ? "bg-green-50 text-green-700" :
@@ -148,15 +195,15 @@ export default function AdminCreditControlPage() {
           </tr>
         </thead>
         <tbody>
-          {txs.map((tx: any) => (
-            <tr key={tx.id} className="border-b border-[var(--om-border-soft)]">
-              <td className="p-2 font-medium">{tx.userId?.slice(0, 8)}</td>
-              <td className="p-2 capitalize">{tx.transactionType?.replace("_", " ")}</td>
-              <td className="p-2">₦{tx.amount?.toLocaleString()}</td>
+          {txs.map((tx) => (
+            <tr key={String(tx.id)} className="border-b border-[var(--om-border-soft)]">
+              <td className="p-2 font-medium">{String(tx.userId ?? "").slice(0, 8)}</td>
+              <td className="p-2 capitalize">{String(tx.transactionType ?? "").replace("_", " ")}</td>
+              <td className="p-2">₦{Number(tx.amount ?? 0).toLocaleString()}</td>
               <td className="p-2"><span className={badge(
                 tx.status === "completed" ? "bg-green-50 text-green-700" : "bg-yellow-50 text-yellow-700"
               )}>{tx.status}</span></td>
-              <td className="p-2 text-[var(--om-text-muted)]">{new Date(tx.createdAt).toLocaleDateString()}</td>
+              <td className="p-2 text-[var(--om-text-muted)]">{new Date(String(tx.createdAt ?? "")).toLocaleDateString()}</td>
             </tr>
           ))}
           {txs.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-[var(--om-text-muted)]">No transactions</td></tr>}
@@ -191,12 +238,12 @@ export default function AdminCreditControlPage() {
           </tr>
         </thead>
         <tbody>
-          {cashoutList.map((c: any) => (
-            <tr key={c.id} className="border-b border-[var(--om-border-soft)]">
-              <td className="p-2 font-medium">{c.userId?.slice(0, 8)}</td>
-              <td className="p-2">₦{c.requestedAmount?.toLocaleString()}</td>
+          {cashoutList.map((c) => (
+            <tr key={String(c.id)} className="border-b border-[var(--om-border-soft)]">
+              <td className="p-2 font-medium">{String(c.userId ?? "").slice(0, 8)}</td>
+              <td className="p-2">₦{Number(c.requestedAmount ?? 0).toLocaleString()}</td>
               <td className="p-2 text-[var(--om-text-muted)]">₦{c.feeAmount}</td>
-              <td className="p-2">₦{c.netAmount?.toLocaleString()}</td>
+              <td className="p-2">₦{Number(c.netAmount ?? 0).toLocaleString()}</td>
               <td className="p-2"><span className={badge(
                 c.status === "paid" ? "bg-green-50 text-green-700" :
                 c.status === "pending" ? "bg-yellow-50 text-yellow-700" :
@@ -228,17 +275,17 @@ export default function AdminCreditControlPage() {
 
   const renderSettings = () => (
     <div className="space-y-4">
-      {settings.map((s: any) => (
-        <div key={s.key} className={cn("flex items-center justify-between rounded-xl border border-[var(--om-border)] bg-[var(--om-panel)] p-4")}>
+      {settings.map((s) => (
+        <div key={String(s.key)} className={cn("flex items-center justify-between rounded-xl border border-[var(--om-border)] bg-[var(--om-panel)] p-4")}>
           <div>
-            <p className="text-[13px] font-semibold text-[var(--om-text)]">{s.key.replace(/_/g, " ")}</p>
+            <p className="text-[13px] font-semibold text-[var(--om-text)]">{String(s.key ?? "").replace(/_/g, " ")}</p>
             <p className="text-[12px] text-[var(--om-text-muted)]">Current: {JSON.stringify(s.value)}</p>
           </div>
           <div className="flex items-center gap-2">
-            <input id={`set-${s.key}`} defaultValue={typeof s.value === "string" ? s.value : JSON.stringify(s.value)}
+            <input id={`set-${String(s.key)}`} defaultValue={typeof s.value === "string" ? s.value : JSON.stringify(s.value)}
               className="w-32 rounded-lg border border-[var(--om-border)] bg-[var(--om-input)] px-3 py-1.5 text-[12px] outline-none" />
             <button type="button" onClick={() => {
-              const el = document.getElementById(`set-${s.key}`) as HTMLInputElement;
+              const el = document.getElementById(`set-${String(s.key)}`) as HTMLInputElement;
               if (el) onAction("update-setting", { key: s.key, value: el.value });
             }} className="rounded-lg bg-[var(--om-accent)] px-3 py-1.5 text-[11px] font-bold text-white">Save</button>
           </div>

@@ -65,7 +65,7 @@ async function withWalletLock<T>(userId: string, fn: () => Promise<T>): Promise<
 
 let settingCounter = 0;
 let contactCounter = 0;
-let sessionCounter = 0;
+const sessionCounter = 0;
 let refCodeCounter = 0;
 let refEventCounter = 0;
 let walletCounter = 0;
@@ -316,8 +316,9 @@ export async function verifyContactChangeCode(
         .select("old_code,new_code")
         .eq("id", id)
         .single();
-      const expected = check
-        ? (target === "old" ? (check as any).old_code : (check as any).new_code)
+      const codes = check as { old_code?: string | null; new_code?: string | null } | null;
+      const expected = codes
+        ? (target === "old" ? codes.old_code : codes.new_code)
         : null;
       if (String(expected ?? "") !== code) {
         return { error: "Invalid verification code" };

@@ -231,6 +231,56 @@ type Props = {
   onSaved?: (state: NotificationSettingsState) => void;
 };
 
+
+function NotificationToggle({
+  on,
+  onChange,
+  label,
+  describedBy,
+  accent,
+  trackOff,
+  knobOn,
+  knobOff,
+}: {
+  on: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  describedBy?: string;
+  accent: string;
+  trackOff: string;
+  knobOn: string;
+  knobOff: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      aria-describedby={describedBy}
+      onClick={() => onChange(!on)}
+      className="relative h-7 w-12 shrink-0 rounded-full border-0 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+      style={{
+        backgroundColor: on ? accent : trackOff,
+        outlineColor: accent,
+        boxShadow: "none",
+      }}
+    >
+      <span
+        className={cn(
+          "absolute top-0.5 h-6 w-6 rounded-full transition-transform",
+          on ? "left-[1.35rem]" : "left-0.5"
+        )}
+        style={{
+          backgroundColor: on ? knobOn : knobOff,
+          boxShadow: "none",
+        }}
+        aria-hidden
+      />
+    </button>
+  );
+}
+
 export function NotificationSettings({ className, onSaved }: Props) {
   const { theme, backendUserId, displayName } = useApp();
   const isLight = theme === "light";
@@ -320,44 +370,6 @@ export function NotificationSettings({ className, onSaved }: Props) {
   const knobOn = "#ffffff";
   const knobOff = isLight ? "#f4f4f5" : "#ffffff";
 
-  const Toggle = ({
-    on,
-    onChange,
-    label,
-    describedBy,
-  }: {
-    on: boolean;
-    onChange: (v: boolean) => void;
-    label: string;
-    describedBy?: string;
-  }) => (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      aria-describedby={describedBy}
-      onClick={() => onChange(!on)}
-      className="relative h-7 w-12 shrink-0 rounded-full border-0 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-      style={{
-        backgroundColor: on ? accent : trackOff,
-        outlineColor: accent,
-        boxShadow: "none",
-      }}
-    >
-      <span
-        className={cn(
-          "absolute top-0.5 h-6 w-6 rounded-full transition-transform",
-          on ? "left-[1.35rem]" : "left-0.5"
-        )}
-        style={{
-          backgroundColor: on ? knobOn : knobOff,
-          boxShadow: "none",
-        }}
-        aria-hidden
-      />
-    </button>
-  );
 
   const sectionLabel = (text: string) => (
     <p
@@ -398,7 +410,11 @@ export function NotificationSettings({ className, onSaved }: Props) {
                 : "Choose what reaches you and how"}
             </p>
           </div>
-          <Toggle
+          <NotificationToggle
+            accent={accent}
+            trackOff={trackOff}
+            knobOn={knobOn}
+            knobOff={knobOff}
             on={state.enabled}
             onChange={(v) => patch({ enabled: v })}
             label="All notifications"
@@ -436,7 +452,11 @@ export function NotificationSettings({ className, onSaved }: Props) {
                       {row.detail}
                     </p>
                   </div>
-                  <Toggle
+                  <NotificationToggle
+            accent={accent}
+            trackOff={trackOff}
+            knobOn={knobOn}
+            knobOff={knobOff}
                     on={state.categories[row.key]}
                     onChange={(v) => patchCategory(row.key, v)}
                     label={row.label}
@@ -471,7 +491,11 @@ export function NotificationSettings({ className, onSaved }: Props) {
                       {row.detail}
                     </p>
                   </div>
-                  <Toggle
+                  <NotificationToggle
+            accent={accent}
+            trackOff={trackOff}
+            knobOn={knobOn}
+            knobOff={knobOff}
                     on={state.delivery[row.key]}
                     onChange={(v) => patchDelivery(row.key, v)}
                     label={`${row.label} delivery`}
@@ -498,7 +522,11 @@ export function NotificationSettings({ className, onSaved }: Props) {
                 Critical alerts still break through
               </p>
             </div>
-            <Toggle
+            <NotificationToggle
+            accent={accent}
+            trackOff={trackOff}
+            knobOn={knobOn}
+            knobOff={knobOff}
               on={state.quietHours.enabled}
               onChange={(v) => patchQuiet({ enabled: v })}
               label="Quiet hours"

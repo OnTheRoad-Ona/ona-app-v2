@@ -340,22 +340,29 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
   }, [clearTimers, closePeer, pushSignal, stopMedia]);
 
   const attachRemote = useCallback((stream: MediaStream) => {
-    let el = remoteAudioRef.current;
-    if (!el) {
-      el = document.createElement("audio");
-      el.autoplay = true;
-      el.setAttribute("playsinline", "true");
-      // iOS / Chrome remote playback
-      (el as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
-      el.style.display = "none";
-      document.body.appendChild(el);
-      remoteAudioRef.current = el;
+    const existing = remoteAudioRef.current;
+    if (existing) {
+      existing.srcObject = stream;
+      existing.volume = 1;
+      existing.muted = false;
+      void existing.play().catch(() => {
+        window.setTimeout(() => {
+          void remoteAudioRef.current?.play().catch(() => undefined);
+        }, 200);
+      });
+      return;
     }
+    const el = document.createElement("audio");
+    el.autoplay = true;
+    el.setAttribute("playsinline", "true");
+    (el as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
+    el.style.display = "none";
     el.srcObject = stream;
     el.volume = 1;
     el.muted = false;
+    document.body.appendChild(el);
+    remoteAudioRef.current = el;
     void el.play().catch(() => {
-      // Retry after brief delay (autoplay policy)
       window.setTimeout(() => {
         void remoteAudioRef.current?.play().catch(() => undefined);
       }, 200);

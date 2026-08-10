@@ -542,6 +542,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const ownLocationBackup = useRef<UserLocation | null>(null);
   /** User manually pinned a place — don't overwrite with GPS until Retry */
   const manualPinRef = useRef(false);
+  /** Late-bound session helpers (effects run before useCallback declarations) */
+  const applySessionRef = useRef<(profile: UserProfile) => void>(() => {});
+  const applyAccountThemeRef = useRef<(userId: string | null | undefined) => void>(() => {});
+  const refreshCloudProsRef = useRef<(opts?: { force?: boolean }) => void>(() => {});
 
   const [location, setLocation] = useState(() => {
     if (typeof window === "undefined") return DEFAULT_USER_LOCATION;
@@ -707,7 +711,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!raw) return false;
         const p = JSON.parse(raw) as UserProfile;
         if (!p?.fullName && !p?.email && !p?.phone) return false;
-        applySession(p);
+        applySessionRef.current(p);
         return true;
       } catch {
         return false;
@@ -736,7 +740,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           return;
         }
         setBackendUserId(uid);
-        applyAccountTheme(uid);
+        applyAccountThemeRef.current(uid);
 
         let profile: UserProfile | null = null;
         let flags: {
@@ -828,7 +832,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         } catch {
           /* keep server profile */
         }
-        applySession(sessionProfile);
+        applySessionRef.current(sessionProfile);
         // Re-assert server dual-role flags after applySession (vault must not win)
         setHasMotoristAccount((prev) => prev || bootHasMotorist);
         setHasProAccount((prev) => prev || bootHasPro);
@@ -1131,6 +1135,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       )
     );
   }, [applyAccountTheme, primaryAccountType]);
+
 
   const switchAccount = useCallback(
     async (
@@ -3083,13 +3088,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (prosForcePending.current) {
             prosForcePending.current = false;
             window.setTimeout(() => {
-              refreshCloudPros({ force: true });
+              refreshCloudProsRef.current({ force: true });
             }, 300);
           }
         });
     },
     [userLat, userLng, accountType, isAuthenticated, registeredAs, proServices]
   );
+
+  // Keep late-bound refs in sync without breaking React Compiler memoization
+  useEffect(() => {
+    applyAccountThemeRef.current = applyAccountTheme;
+  }, [applyAccountTheme]);
+  useEffect(() => {
+    applySessionRef.current = applySession;
+  }, [applySession]);
+  useEffect(() => {
+    refreshCloudProsRef.current = refreshCloudPros;
+  }, [refreshCloudPros]);
 
   /** Public: motorist empty-state Refresh — pros list only */
   const refreshNearbyPros = useCallback(() => {

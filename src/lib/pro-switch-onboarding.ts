@@ -197,7 +197,7 @@ export function applyCustomerTiersToArtisan(
   artisan: ArtisanVerificationProfile,
   profile: UserProfile | null | undefined
 ): ArtisanVerificationProfile {
-  let next = { ...artisan, tiers: { ...artisan.tiers } };
+  const next = { ...artisan, tiers: { ...artisan.tiers } };
   if (customerHasT1(profile)) {
     next.tiers.tier1_phone = true;
   }

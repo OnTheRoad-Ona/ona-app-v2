@@ -31,45 +31,22 @@ function load(userId: string): Prefs {
   }
 }
 
-export default function SettingsPrivacyPage() {
-  const { theme, userProfile, accountType, backendUserId } = useApp();
-  const isLight = theme === "light";
-  const isPro = accountType === "professional";
-  const uid = backendUserId || userProfile?.email || "guest";
-  const [prefs, setPrefs] = useState<Prefs>(DEFAULT);
 
-  useEffect(() => {
-    setPrefs(load(uid));
-  }, [uid]);
-
-  const set = (partial: Partial<Prefs>) => {
-    setPrefs((p) => {
-      const next = { ...p, ...partial };
-      try {
-        localStorage.setItem(`${KEY}:${uid}`, JSON.stringify(next));
-      } catch {
-        /* */
-      }
-      return next;
-    });
-  };
-
-  const Toggle = ({
-    on,
-    onChange,
-    label,
-    detail,
-  }: {
-    on: boolean;
-    onChange: (v: boolean) => void;
-    label: string;
-    detail: string;
-  }) => (
-    <div
-      className={cn(
-        "flex items-center justify-between gap-3 px-3 py-3"
-      )}
-    >
+function PrivacyToggle({
+  isLight,
+  on,
+  onChange,
+  label,
+  detail,
+}: {
+  isLight: boolean;
+  on: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  detail: string;
+}) {
+  return (
+    <div className={cn("flex items-center justify-between gap-3 px-3 py-3")}>
       <div className="min-w-0">
         <p
           className={cn(
@@ -107,6 +84,30 @@ export default function SettingsPrivacyPage() {
       </button>
     </div>
   );
+}
+
+export default function SettingsPrivacyPage() {
+  const { theme, userProfile, accountType, backendUserId } = useApp();
+  const isLight = theme === "light";
+  const isPro = accountType === "professional";
+  const uid = backendUserId || userProfile?.email || "guest";
+  const [prefs, setPrefs] = useState<Prefs>(DEFAULT);
+
+  useEffect(() => {
+    setPrefs(load(uid));
+  }, [uid]);
+
+  const set = (partial: Partial<Prefs>) => {
+    setPrefs((p) => {
+      const next = { ...p, ...partial };
+      try {
+        localStorage.setItem(`${KEY}:${uid}`, JSON.stringify(next));
+      } catch {
+        /* */
+      }
+      return next;
+    });
+  };
 
   return (
     <div
@@ -128,21 +129,24 @@ export default function SettingsPrivacyPage() {
           )}
         >
           {!isPro ? (
-            <Toggle
+            <PrivacyToggle
+              isLight={isLight}
               on={prefs.profilePrivate}
               onChange={(v) => set({ profilePrivate: v })}
               label="Keep profile private"
               detail="Default ON. Details stay private until needed for a booking."
             />
           ) : (
-            <Toggle
+            <PrivacyToggle
+              isLight={isLight}
               on={prefs.searchVisible}
               onChange={(v) => set({ searchVisible: v })}
               label="Discoverable in search"
               detail="When ON and you are Live/approved, customers can find you. Off hides you from discovery."
             />
           )}
-          <Toggle
+          <PrivacyToggle
+              isLight={isLight}
             on={prefs.shareAnalytics}
             onChange={(v) => set({ shareAnalytics: v })}
             label="Share usage analytics"

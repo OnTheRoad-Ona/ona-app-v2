@@ -17,6 +17,11 @@ import type {
 } from "@/lib/supabase/types";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { DEFAULT_USER_LOCATION } from "@/lib/data/technicians";
+import { getArtisanProfile } from "@/lib/artisan/local-store";
+import {
+  resolveVisibilityTier,
+  rulesForTier,
+} from "@/lib/artisan/visibility-tiers";
 
 export function haversineKm(
   a: { lat: number; lng: number },
@@ -268,13 +273,6 @@ export function mapProToTechnician(
             isNewArtisan: false,
           };
         }
-        const {
-          getArtisanProfile,
-        } = require("@/lib/artisan/local-store") as typeof import("@/lib/artisan/local-store");
-        const {
-          resolveVisibilityTier,
-          rulesForTier,
-        } = require("@/lib/artisan/visibility-tiers") as typeof import("@/lib/artisan/visibility-tiers");
         const art = getArtisanProfile(pro.user_id);
         if (!art) {
           return {

@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 export default function NotFound() {
   return (
     <div
@@ -13,14 +15,14 @@ export default function NotFound() {
         Page not found
       </p>
       <p className="max-w-xs text-[11px] text-white/40">
-        The page you're looking for doesn't exist or has been moved.
+        The page you&apos;re looking for doesn&apos;t exist or has been moved.
       </p>
-      <a
+      <Link
         href="/"
         className="mt-2 text-[13px] font-semibold text-[#FF6B35] no-underline"
       >
         Go home
-      </a>
+      </Link>
     </div>
   );
 }

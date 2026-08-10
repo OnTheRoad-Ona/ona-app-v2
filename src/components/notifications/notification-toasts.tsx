@@ -7,7 +7,7 @@
  *    (never deck-stacked; newest first by time)
  */
 
-import { useState } from "react";
+import { createElement, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bell,
@@ -111,7 +111,7 @@ function ToastCard({
   const historyClosed = isJobHistoryClosedStatus(n.jobStatus);
   const blocked =
     !releasePay && (isNavigationBlocked(n) || closed || historyClosed);
-  const Icon = categoryIcon(n);
+  const iconType = categoryIcon(n);
   const scale = stacked && depth > 0 ? 1 - depth * 0.03 : 1;
   const y = stacked && depth > 0 ? depth * 6 : 0;
   const opacity = stacked && depth > 0 ? 1 - depth * 0.12 : 1;
@@ -180,16 +180,16 @@ function ToastCard({
             style={{ backgroundColor: iconBg }}
             aria-hidden
           >
-            <Icon
-              className="h-[18px] w-[18px]"
-              style={{
+            {createElement(iconType, {
+              className: "h-[18px] w-[18px]",
+              style: {
                 color:
                   n.priority === "critical" || n.priority === "high"
                     ? accent
                     : muted,
-              }}
-              strokeWidth={2}
-            />
+              },
+              strokeWidth: 2,
+            })}
           </div>
           <div className="min-w-0 flex-1 pt-0.5">
             <div className="flex items-center gap-1.5">

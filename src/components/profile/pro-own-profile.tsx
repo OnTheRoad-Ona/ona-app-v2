@@ -84,7 +84,7 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
       userProfile?.identityId
         ? getArtisanProfile(userProfile.identityId)
         : null,
-    [userProfile?.identityId]
+    [userProfile]
   );
   const canSetExperience = isExperienceUnset(userProfile?.yearsExperience);
 

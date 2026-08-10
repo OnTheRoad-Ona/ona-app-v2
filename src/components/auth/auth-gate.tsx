@@ -91,9 +91,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const [splashExiting, setSplashExiting] = useState(false);
   /** Soft exit of Welcome before Log In / Sign Up route */
   const [entryExiting, setEntryExiting] = useState(false);
-  const bootStartedAt = useRef(
-    typeof performance !== "undefined" ? performance.now() : Date.now()
-  );
+  /** Set on first splash timing effect (keep render pure). */
+  const bootStartedAt = useRef<number | null>(null);
   const handoffTimer = useRef<number | null>(null);
   /** Prevents welcome effect from undoing a Log In / Sign Up navigation */
   const navigatingAwayRef = useRef(false);
@@ -136,9 +135,13 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const elapsed =
-      (typeof performance !== "undefined" ? performance.now() : Date.now()) -
-      bootStartedAt.current;
+    if (bootStartedAt.current == null) {
+      bootStartedAt.current =
+        typeof performance !== "undefined" ? performance.now() : Date.now();
+    }
+    const now =
+      typeof performance !== "undefined" ? performance.now() : Date.now();
+    const elapsed = now - bootStartedAt.current;
     const wait = Math.max(0, SPLASH_MIN_MS - elapsed);
 
     const tmr = window.setTimeout(() => {

@@ -217,7 +217,7 @@ export function LocationPickerMap({
     [reverseGeocode]
   );
 
-  const useMyLocation = useCallback(() => {
+  const goToMyLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setStatus("GPS not available on this device");
       return;
@@ -421,7 +421,7 @@ export function LocationPickerMap({
   // Initial GPS once
   useEffect(() => {
     if (!value) {
-      useMyLocation();
+      goToMyLocation();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -610,7 +610,7 @@ export function LocationPickerMap({
 
         <button
           type="button"
-          onClick={useMyLocation}
+          onClick={goToMyLocation}
           disabled={busy}
           className="absolute bottom-2 right-2 z-10 inline-flex items-center gap-1 rounded-md border-0 bg-[#323231] px-2.5 py-1.5 text-[11px] font-bold text-white shadow-md active:opacity-90 disabled:opacity-60"
         >

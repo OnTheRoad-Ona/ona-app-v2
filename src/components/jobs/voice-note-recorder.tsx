@@ -16,6 +16,10 @@ import type { JobMedia } from "@/lib/jobs/types";
 
 type Phase = "idle" | "arming" | "recording" | "saving";
 
+function wallClockMs(): number {
+  return Date.now();
+}
+
 /**
  * Browser MediaRecorder voice note — record, listen back, re-record.
  * Tuned to avoid UI lag: instant button feedback, low bitrate, less re-render.
@@ -118,14 +122,14 @@ export function VoiceNoteRecorder({
       // 1s timeslice: fewer callbacks than 200ms (was a source of main-thread lag)
       rec.start(1000);
       await waitRecorderStart(rec);
-      startedAt.current = Date.now();
+      startedAt.current = wallClockMs();
       setPhase("recording");
       paintElapsed(0);
 
       clearTimer();
       // 250ms is enough for a smooth counter without thrashing React
       timer.current = window.setInterval(() => {
-        const sec = Math.floor((Date.now() - startedAt.current) / 1000);
+        const sec = Math.floor((wallClockMs() - startedAt.current) / 1000);
         paintElapsed(sec);
         if (sec >= VOICE_MAX_SEC) {
           void finishRecording();
@@ -156,7 +160,7 @@ export function VoiceNoteRecorder({
       1,
       Math.min(
         VOICE_MAX_SEC,
-        Math.round((Date.now() - startedAt.current) / 1000)
+        Math.round((wallClockMs() - startedAt.current) / 1000)
       )
     );
 

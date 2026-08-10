@@ -20,6 +20,12 @@ import {
   listNameChangeRequests,
   updateNameChangeStatus,
 } from "@/lib/server/security/security-store";
+import type {
+  CashoutStatus,
+  ContactRequestStatus,
+  FlagStatus,
+  ReferralEventStatus,
+} from "@/lib/security/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -120,13 +126,13 @@ export async function POST(req: Request) {
       case "reverse-contact-change": {
         const { id, reason } = body;
         if (!id) return apiFail("Missing id", 400);
-        const statusMap: Record<string, string> = {
+        const statusMap: Record<string, ContactRequestStatus> = {
           "approve-contact-change": "approved",
           "reject-contact-change": "rejected",
           "hold-contact-change": "under_review",
           "reverse-contact-change": "reversed",
         };
-        const result = await updateContactChangeStatus(id, statusMap[action] as any, adminId, reason);
+        const result = await updateContactChangeStatus(id, statusMap[action], adminId, reason);
         if ("error" in result) return apiFail(result.error, 400);
         await logAdminAction({ adminId, adminName, targetType: "contact_change", targetId: id, actionType: action, reason });
         return apiOk({ request: result.request });
@@ -155,12 +161,12 @@ export async function POST(req: Request) {
       case "reverse-referral": {
         const { id, reason, rewardAmount } = body;
         if (!id) return apiFail("Missing id", 400);
-        const statusMap: Record<string, string> = {
+        const statusMap: Record<string, ReferralEventStatus> = {
           "approve-referral": "approved",
           "reject-referral": "rejected",
           "reverse-referral": "reversed",
         };
-        const result = await updateReferralEvent(id, statusMap[action] as any, adminId, reason, rewardAmount);
+        const result = await updateReferralEvent(id, statusMap[action], adminId, reason, rewardAmount);
         if ("error" in result) return apiFail(result.error, 400);
         if (action === "approve-referral" && rewardAmount) {
           await createCreditTransaction({
@@ -184,13 +190,13 @@ export async function POST(req: Request) {
       case "fail-cashout": {
         const { id, reason } = body;
         if (!id) return apiFail("Missing id", 400);
-        const statusMap: Record<string, string> = {
+        const statusMap: Record<string, CashoutStatus> = {
           "approve-cashout": "approved",
           "reject-cashout": "rejected",
           "pay-cashout": "paid",
           "fail-cashout": "failed",
         };
-        const result = await updateCashoutStatus(id, statusMap[action] as any, adminId, reason);
+        const result = await updateCashoutStatus(id, statusMap[action], adminId, reason);
         if ("error" in result) return apiFail(result.error, 400);
         await logAdminAction({ adminId, adminName, targetType: "cashout", targetId: id, actionType: action, reason });
         return apiOk({ cashout: result.cashout });
@@ -201,11 +207,11 @@ export async function POST(req: Request) {
       case "block-fraud": {
         const { id } = body;
         if (!id) return apiFail("Missing id", 400);
-        const statusMap: Record<string, string> = {
+        const statusMap: Record<string, FlagStatus> = {
           "resolve-fraud": "resolved",
           "block-fraud": "blocked",
         };
-        const result = await updateFraudFlagStatus(id, statusMap[action] as any, adminId);
+        const result = await updateFraudFlagStatus(id, statusMap[action], adminId);
         if ("error" in result) return apiFail(result.error, 400);
         await logAdminAction({ adminId, adminName, targetType: "fraud_flag", targetId: id, actionType: action });
         return apiOk({ flag: result.flag });

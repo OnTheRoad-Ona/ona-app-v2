@@ -1012,14 +1012,24 @@ export async function backendLoadUserProfile(
         pr?.bank_account_number || mot?.bank_account_number || undefined,
       bankCode: pr?.bank_code || mot?.bank_code || undefined,
       guarantor: guarantorRes.data
-        ? {
-            fullName: (guarantorRes.data as any).full_name,
-            phone: (guarantorRes.data as any).phone,
-            address: (guarantorRes.data as any).address || undefined,
-            occupation: (guarantorRes.data as any).occupation || undefined,
-            relationship: (guarantorRes.data as any).relationship,
-            linkedUserId: (guarantorRes.data as any).linked_user_id || undefined,
-          }
+        ? (() => {
+            const g = guarantorRes.data as {
+              full_name?: string | null;
+              phone?: string | null;
+              address?: string | null;
+              occupation?: string | null;
+              relationship?: string | null;
+              linked_user_id?: string | null;
+            };
+            return {
+              fullName: g.full_name || "",
+              phone: g.phone || "",
+              address: g.address || undefined,
+              occupation: g.occupation || undefined,
+              relationship: g.relationship || "",
+              linkedUserId: g.linked_user_id || undefined,
+            };
+          })()
         : undefined,
       phoneVerified:
         Boolean(

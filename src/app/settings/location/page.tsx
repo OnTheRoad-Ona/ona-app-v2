@@ -113,7 +113,7 @@ export default function SettingsLocationPage() {
     saveAddresses(uid, next);
   };
 
-  const useAddress = (a: SavedAddress) => {
+  const applySavedAddress = (a: SavedAddress) => {
     setManualLocation(a.text, { lat: a.lat, lng: a.lng });
     setSaved(true);
     window.setTimeout(() => setSaved(false), 2000);
@@ -240,7 +240,7 @@ export default function SettingsLocationPage() {
                       <button
                         type="button"
                         className="text-[11px] font-bold text-[#FF6B35]"
-                        onClick={() => useAddress(a)}
+                        onClick={() => applySavedAddress(a)}
                       >
                         Use
                       </button>

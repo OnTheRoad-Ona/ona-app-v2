@@ -48,9 +48,13 @@ export default function AdminDeletionRequestsPage() {
     setActioning(null);
   };
 
+  const [nowMs, setNowMs] = useState(0);
+  useEffect(() => {
+    setNowMs(Date.now());
+  }, [requests]);
   const daysLeft = (scheduled: string | null) => {
-    if (!scheduled) return null;
-    const diff = new Date(scheduled).getTime() - Date.now();
+    if (!scheduled || !nowMs) return null;
+    const diff = new Date(scheduled).getTime() - nowMs;
     return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
   };
 

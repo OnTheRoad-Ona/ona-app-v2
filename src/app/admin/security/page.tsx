@@ -16,10 +16,56 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "audit", label: "Audit Trail" },
 ];
 
+type AdminSection = Record<string, unknown>;
+type AdminRow = {
+  id?: string;
+  status?: string;
+  userId?: string;
+  referrerUserId?: string;
+  referredUserId?: string;
+  rewardAmount?: number;
+  transactionType?: string;
+  amount?: number;
+  createdAt?: string;
+  requestedAmount?: number;
+  feeAmount?: number;
+  netAmount?: number;
+  key?: string;
+  value?: unknown;
+  changeType?: string;
+  oldValue?: string;
+  newValue?: string;
+  riskScore?: number;
+  currentName?: string;
+  requestedName?: string;
+  reason?: string;
+  flagType?: string;
+  riskLevel?: string;
+  description?: string;
+  adminName?: string;
+  adminId?: string;
+  actionType?: string;
+  targetType?: string;
+  targetId?: string;
+};
+
+function sectionData(data: Record<string, unknown>, key: string): AdminSection {
+  const v = data[key];
+  return v && typeof v === "object" ? (v as AdminSection) : {};
+}
+function rowsOf(section: AdminSection, key: string): AdminRow[] {
+  const v = section[key];
+  return Array.isArray(v) ? (v as AdminRow[]) : [];
+}
+function statsOf(section: AdminSection): Record<string, string | number | undefined> {
+  const v = section.stats;
+  return v && typeof v === "object" ? (v as Record<string, string | number | undefined>) : {};
+}
+
 export default function AdminSecurityPage() {
   const gate = useAdminGate();
   const [tab, setTab] = useState<Tab>("overview");
-  const [data, setData] = useState<Record<string, any>>({});
+  const [data, setData] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
 
@@ -39,7 +85,7 @@ export default function AdminSecurityPage() {
     void fetchSection("overview");
   }, [gate.ready, fetchSection]);
 
-  const onAction = useCallback(async (action: string, body: Record<string, any>) => {
+  const onAction = useCallback(async (action: string, body: Record<string, unknown>) => {
     setActionMsg(null);
     try {
       const res = await fetch("/api/admin/security", {
@@ -61,11 +107,12 @@ export default function AdminSecurityPage() {
   if (!gate.ready) return <AdminShell><div className="p-6 text-[var(--om-text-muted)]">Loading...</div></AdminShell>;
   if (gate.error) return <AdminShell><div className="p-6 text-red-500">{gate.error}</div></AdminShell>;
 
-  const stats = data.overview?.stats || {};
-  const requests = data["contact-changes"]?.requests || [];
-  const nameRequests = data["name-changes"]?.requests || [];
-  const flags = data.fraud?.flags || [];
-  const actions = data.audit?.actions || [];
+  const overview = sectionData(data, "overview");
+  const stats = statsOf(overview);
+  const requests = rowsOf(sectionData(data, "contact-changes"), "requests");
+  const nameRequests = rowsOf(sectionData(data, "name-changes"), "requests");
+  const flags = rowsOf(sectionData(data, "fraud"), "flags");
+  const actions = rowsOf(sectionData(data, "audit"), "actions");
 
   const card = "rounded-xl border border-[var(--om-border)] bg-[var(--om-panel)] p-4";
   const badge = (cls: string) => `inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${cls}`;
@@ -112,9 +159,9 @@ export default function AdminSecurityPage() {
             </tr>
           </thead>
           <tbody>
-            {requests.map((r: any) => (
-              <tr key={r.id} className="border-b border-[var(--om-border-soft)]">
-                <td className="p-2 font-medium">{r.userId?.slice(0, 8)}</td>
+            {requests.map((r) => (
+              <tr key={String(r.id)} className="border-b border-[var(--om-border-soft)]">
+                <td className="p-2 font-medium">{String(r.userId ?? "").slice(0, 8)}</td>
                 <td className="p-2">{r.changeType}</td>
                 <td className="p-2 text-[var(--om-text-muted)]">{r.oldValue}</td>
                 <td className="p-2 text-[var(--om-text-muted)]">{r.newValue}</td>
@@ -166,9 +213,9 @@ export default function AdminSecurityPage() {
             </tr>
           </thead>
           <tbody>
-            {nameRequests.map((r: any) => (
-              <tr key={r.id} className="border-b border-[var(--om-border-soft)]">
-                <td className="p-2 font-medium">{r.userId?.slice(0, 8)}</td>
+            {nameRequests.map((r) => (
+              <tr key={String(r.id)} className="border-b border-[var(--om-border-soft)]">
+                <td className="p-2 font-medium">{String(r.userId ?? "").slice(0, 8)}</td>
                 <td className="p-2">{r.currentName}</td>
                 <td className="p-2 font-semibold">{r.requestedName}</td>
                 <td className="p-2 text-[var(--om-text-muted)] max-w-[200px] truncate">{r.reason || "—"}</td>
@@ -211,10 +258,10 @@ export default function AdminSecurityPage() {
           </tr>
         </thead>
         <tbody>
-          {flags.map((f: any) => (
-            <tr key={f.id} className="border-b border-[var(--om-border-soft)]">
-              <td className="p-2 font-medium">{f.userId?.slice(0, 8)}</td>
-              <td className="p-2 capitalize">{f.flagType?.replace("_", " ")}</td>
+          {flags.map((f) => (
+            <tr key={String(f.id)} className="border-b border-[var(--om-border-soft)]">
+              <td className="p-2 font-medium">{String(f.userId ?? "").slice(0, 8)}</td>
+              <td className="p-2 capitalize">{String(f.flagType ?? "").replace("_", " ")}</td>
               <td className="p-2"><span className={badge(
                 f.riskLevel === "critical" ? "bg-red-50 text-red-700" :
                 f.riskLevel === "high" ? "bg-orange-50 text-orange-700" :
@@ -263,14 +310,14 @@ export default function AdminSecurityPage() {
             </tr>
           </thead>
           <tbody>
-            {actions.map((a: any) => (
-              <tr key={a.id} className="border-b border-[var(--om-border-soft)]">
-                <td className="p-2 font-medium">{a.adminName || a.adminId?.slice(0, 8)}</td>
+            {actions.map((a) => (
+              <tr key={String(a.id)} className="border-b border-[var(--om-border-soft)]">
+                <td className="p-2 font-medium">{a.adminName || String(a.adminId ?? "").slice(0, 8)}</td>
                 <td className="p-2">{a.actionType}</td>
-                <td className="p-2 text-[var(--om-text-muted)]">{a.targetType}:{a.targetId?.slice(0, 8)}</td>
+                <td className="p-2 text-[var(--om-text-muted)]">{a.targetType}:{String(a.targetId ?? "").slice(0, 8)}</td>
                 <td className="p-2 text-[var(--om-text-muted)]">{a.reason || "—"}</td>
                 <td className="p-2"><span className={badge(a.status === "completed" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700")}>{a.status}</span></td>
-                <td className="p-2 text-[var(--om-text-muted)]">{new Date(a.createdAt).toLocaleString()}</td>
+                <td className="p-2 text-[var(--om-text-muted)]">{new Date(String(a.createdAt ?? "")).toLocaleString()}</td>
               </tr>
             ))}
             {actions.length === 0 && <tr><td colSpan={6} className="p-4 text-center text-[var(--om-text-muted)]">No audit entries</td></tr>}

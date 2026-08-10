@@ -65,7 +65,7 @@ export default function VerifyIdentityPage() {
       return splitStoredPhone(userProfile.phone).iso.toUpperCase();
     }
     return "NG";
-  }, [userProfile?.identityCountryIso, userProfile?.phone]);
+  }, [userProfile]);
 
   const pack = useMemo(() => getCountryIdPack(countryIso), [countryIso]);
   /** Primary ID types for this country (exclude bank-only as standalone pick) */

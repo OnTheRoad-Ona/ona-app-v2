@@ -71,7 +71,7 @@ export function SignInForm() {
   /** Never surface demo codes or SMS-config internals in the UI */
   function publicMessage(raw?: string, fallback = "Something went wrong.") {
     if (!raw) return fallback;
-    let s = raw
+    const s = raw
       .replace(/SMS not configured[^.]*\.?/gi, "")
       .replace(/SMS not sent[^.]*\.?/gi, "")
       .replace(/\s*demo code\s*\d+/gi, "")

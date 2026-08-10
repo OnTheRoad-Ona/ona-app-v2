@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   homePathForForbidden,
@@ -127,14 +128,14 @@ export default function AppError({
           Try again
         </button>
       ) : null}
-      <a
+      <Link
         href="/"
         className="text-[13px] font-semibold text-[#FF6B35] no-underline"
       >
         {unrecoverable && redirectSec > 0
           ? `Go home (${redirectSec}s)`
           : "Go home"}
-      </a>
+      </Link>
     </div>
   );
 }

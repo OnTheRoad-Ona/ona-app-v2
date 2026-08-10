@@ -235,7 +235,7 @@ export function filterAndRankTechnicians(
     demote.has(String(t.id)) ? t.distanceKm * 2 : t.distanceKm;
 
   // Pass 1: hard gates only (Live · tier · distance · trade later)
-  let eligible = technicians.filter((t) => {
+  const eligible = technicians.filter((t) => {
     if (exclude.has(String(t.id))) return false;
     // Marketplace: Live only (Away / offline never listed)
     if (t.status !== "available") return false;

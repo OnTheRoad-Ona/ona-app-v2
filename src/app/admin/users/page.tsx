@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
+import Link from "next/link";
 
 type UserRow = {
   id: string;
@@ -114,7 +115,7 @@ export default function AdminUsersPage() {
       <p className="om-admin-sub">
         All people on Ona: admin · customer · repair pro. Live from Supabase
         (new signups on Vercel show here). Full customer tools: open{" "}
-        <a href="/admin/motorists">Customers</a>.
+        <Link href="/admin/motorists">Customers</Link>.
       </p>
 
       <AdminGuideBanner pageId="users" />
