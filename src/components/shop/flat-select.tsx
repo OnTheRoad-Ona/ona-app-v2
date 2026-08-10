@@ -2,8 +2,10 @@
 
 /**
  * True 2D select — no native <select>.
- * List is portaled into #ona-phone at 80% of shell height so parent
- * overflow:hidden / overflow-y-auto cannot clip it short.
+ *
+ * List uses position:fixed (viewport coords) at 80% of #ona-phone height.
+ * Fixed escapes ALL ancestor overflow (page scroll + #ona-phone overflow:hidden),
+ * which is why absolute-in-phone lists still looked short on localhost.
  */
 
 import {
@@ -29,6 +31,7 @@ type Props = {
   "aria-label"?: string;
 };
 
+/** Viewport-fixed box for the list panel. */
 type ListBox = {
   top: number;
   left: number;
@@ -36,32 +39,45 @@ type ListBox = {
   height: number;
 };
 
-function phoneEl(): HTMLElement | null {
+function phoneRect(): DOMRect | null {
   if (typeof document === "undefined") return null;
-  return document.getElementById("ona-phone");
+  const phone = document.getElementById("ona-phone");
+  return phone ? phone.getBoundingClientRect() : null;
 }
 
-/** Geometry for a list under the field, forced to 80% of phone height. */
-function measureListBox(field: HTMLElement): ListBox | null {
-  const phone = phoneEl();
-  if (!phone) return null;
-  const p = phone.getBoundingClientRect();
+/**
+ * 80% of phone shell height, fixed under the field (or shifted up so the
+ * full panel stays inside the phone frame).
+ */
+function measureFixedListBox(field: HTMLElement): ListBox {
+  const p = phoneRect();
   const f = field.getBoundingClientRect();
-  const phoneH = phone.clientHeight || p.height;
-  const phoneW = phone.clientWidth || p.width;
-  // Full 80% of the phone shell — not remaining space under the field.
-  const height = Math.max(240, Math.round(phoneH * 0.8));
+  const shellTop = p?.top ?? 0;
+  const shellBottom = p?.bottom ?? window.innerHeight;
+  const shellLeft = p?.left ?? 0;
+  const shellRight = p?.right ?? window.innerWidth;
+  const shellH = Math.max(320, (p?.height ?? window.innerHeight) || 600);
+  const shellW = Math.max(200, (p?.width ?? window.innerWidth) || 360);
+
+  // Hard 80% of the phone frame — never the leftover strip under the field.
+  const height = Math.round(shellH * 0.8);
   const gap = 4;
-  let top = f.bottom - p.top + gap;
-  // Keep the full 80% panel inside the shell (shift up if needed).
-  const maxTop = Math.max(8, phoneH - height - 8);
-  if (top > maxTop) top = maxTop;
-  if (top < 8) top = 8;
-  let left = f.left - p.left;
+  let top = f.bottom + gap;
+  const minTop = shellTop + 8;
+  const maxTop = shellBottom - height - 8;
+  if (top > maxTop) top = Math.max(minTop, maxTop);
+  if (top < minTop) top = minTop;
+
+  let left = f.left;
   let width = f.width;
-  // Clamp horizontally inside phone
-  if (left < 8) left = 8;
-  if (left + width > phoneW - 8) width = Math.max(120, phoneW - left - 8);
+  // Keep inside phone horizontally
+  if (left < shellLeft + 8) left = shellLeft + 8;
+  if (left + width > shellRight - 8) {
+    width = Math.max(140, shellRight - 8 - left);
+  }
+  // Prefer matching field width but not wider than shell
+  width = Math.min(width, shellW - 16);
+
   return { top, left, width, height };
 }
 
@@ -76,7 +92,7 @@ export function FlatSelect({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [box, setBox] = useState<ListBox | null>(null);
-  const [mount, setMount] = useState<HTMLElement | null>(null);
+  const [portalReady, setPortalReady] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const listId = useId();
@@ -85,14 +101,13 @@ export function FlatSelect({
   const label = selected?.label || placeholder;
 
   useEffect(() => {
-    setMount(phoneEl());
+    setPortalReady(true);
   }, []);
 
   const remeasure = () => {
     const field = rootRef.current;
     if (!field) return;
-    const next = measureListBox(field);
-    if (next) setBox(next);
+    setBox(measureFixedListBox(field));
   };
 
   useLayoutEffect(() => {
@@ -101,14 +116,15 @@ export function FlatSelect({
       return;
     }
     remeasure();
-  }, [open]);
+  }, [open, options.length]);
 
   useEffect(() => {
     if (!open) return;
     const onResize = () => remeasure();
     window.addEventListener("resize", onResize);
+    // Capture scroll from any parent (page scroll, phone interior)
     window.addEventListener("scroll", onResize, true);
-    const phone = phoneEl();
+    const phone = document.getElementById("ona-phone");
     const ro =
       typeof ResizeObserver !== "undefined" && phone
         ? new ResizeObserver(onResize)
@@ -155,72 +171,92 @@ export function FlatSelect({
   const activeBg = isLight ? "bg-black/8" : "bg-white/12";
 
   const listNode =
-    open && !disabled && box && mount
+    portalReady && open && !disabled && box
       ? createPortal(
-          <ul
-            ref={listRef}
-            id={listId}
-            role="listbox"
-            aria-label={ariaLabel || placeholder}
-            data-om-flat-select-list="1"
-            data-om-flat-list-max-pct="80"
-            className="overflow-y-auto overscroll-contain rounded-md border-0 py-1 shadow-none"
-            style={{
-              position: "absolute",
-              top: box.top,
-              left: box.left,
-              width: box.width,
-              height: box.height,
-              maxHeight: box.height,
-              zIndex: 200,
-              backgroundColor: panelBg,
-              backgroundImage: "none",
-              border: "none",
-              boxShadow: isLight
-                ? "0 12px 32px rgba(0,0,0,0.18)"
-                : "0 12px 32px rgba(0,0,0,0.55)",
-            }}
-          >
-            {options.length === 0 ? (
-              <li className={cn("px-3 py-2.5 text-[12px] font-medium", muted)}>
-                No options
-              </li>
-            ) : (
-              options.map((o) => {
-                const active = o.value === value;
-                return (
-                  <li
-                    key={o.value || "__empty__"}
-                    role="option"
-                    aria-selected={active}
-                  >
-                    <button
-                      type="button"
-                      className={cn(
-                        "flex w-full items-center justify-between gap-2 border-0 bg-transparent px-3 py-2.5 text-left text-[13px] font-semibold outline-none",
-                        hoverBg,
-                        active && activeBg,
-                        isLight ? "text-slate-900" : "text-white"
-                      )}
-                      onClick={() => {
-                        onChange(o.value);
-                        setOpen(false);
-                      }}
+          <>
+            {/* Dim scrim inside phone frame so tall panel is obvious */}
+            <button
+              type="button"
+              aria-label="Close list"
+              data-om-flat-select-scrim="1"
+              className="border-0 p-0"
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 190,
+                background: "rgba(0,0,0,0.35)",
+                border: "none",
+                cursor: "default",
+              }}
+              onClick={() => setOpen(false)}
+            />
+            <ul
+              ref={listRef}
+              id={listId}
+              role="listbox"
+              aria-label={ariaLabel || placeholder}
+              data-om-flat-select-list="1"
+              data-om-flat-list-max-pct="80"
+              data-om-flat-list-height={String(box.height)}
+              className="overflow-y-auto overscroll-contain rounded-md border-0 py-1"
+              style={{
+                position: "fixed",
+                top: box.top,
+                left: box.left,
+                width: box.width,
+                height: box.height,
+                maxHeight: box.height,
+                minHeight: box.height,
+                zIndex: 200,
+                backgroundColor: panelBg,
+                backgroundImage: "none",
+                border: "none",
+                boxShadow: isLight
+                  ? "0 16px 40px rgba(0,0,0,0.22)"
+                  : "0 16px 40px rgba(0,0,0,0.6)",
+              }}
+            >
+              {options.length === 0 ? (
+                <li className={cn("px-3 py-2.5 text-[12px] font-medium", muted)}>
+                  No options
+                </li>
+              ) : (
+                options.map((o) => {
+                  const active = o.value === value;
+                  return (
+                    <li
+                      key={o.value || "__empty__"}
+                      role="option"
+                      aria-selected={active}
                     >
-                      <span className="min-w-0 truncate">{o.label}</span>
-                      {active ? (
-                        <Check
-                          className="h-3.5 w-3.5 shrink-0 text-[#FF6B35]"
-                          strokeWidth={2.5}
-                        />
-                      ) : null}
-                    </button>
-                  </li>
-                );
-              })
-            )}
-          </ul>,
-          mount
+                      <button
+                        type="button"
+                        className={cn(
+                          "flex w-full items-center justify-between gap-2 border-0 bg-transparent px-3 py-2.5 text-left text-[13px] font-semibold outline-none",
+                          hoverBg,
+                          active && activeBg,
+                          isLight ? "text-slate-900" : "text-white"
+                        )}
+                        onClick={() => {
+                          onChange(o.value);
+                          setOpen(false);
+                        }}
+                      >
+                        <span className="min-w-0 truncate">{o.label}</span>
+                        {active ? (
+                          <Check
+                            className="h-3.5 w-3.5 shrink-0 text-[#FF6B35]"
+                            strokeWidth={2.5}
+                          />
+                        ) : null}
+                      </button>
+                    </li>
+                  );
+                })
+              )}
+            </ul>
+          </>,
+          document.body
         )
       : null;
 

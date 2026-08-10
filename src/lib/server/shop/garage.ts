@@ -36,6 +36,102 @@ export const VEHICLE_TYPES: VehicleType[] = [
   { slug: "other", name: "Other", sortOrder: 10 },
 ];
 
+/** Used when DB makes table is empty so the tall picker still has content. */
+const FALLBACK_MAKES: Array<{
+  id: string;
+  slug: string;
+  name: string;
+  source: string;
+  type_slugs: string[];
+}> = [
+  "Toyota",
+  "Honda",
+  "Ford",
+  "Chevrolet",
+  "Nissan",
+  "Hyundai",
+  "Kia",
+  "Mercedes-Benz",
+  "BMW",
+  "Volkswagen",
+  "Audi",
+  "Lexus",
+  "Mazda",
+  "Subaru",
+  "Jeep",
+  "Ram",
+  "GMC",
+  "Dodge",
+  "Chrysler",
+  "Buick",
+  "Cadillac",
+  "Acura",
+  "Infiniti",
+  "Volvo",
+  "Land Rover",
+  "Porsche",
+  "Tesla",
+  "Mitsubishi",
+  "Peugeot",
+  "Renault",
+  "Fiat",
+  "Suzuki",
+  "Isuzu",
+  "Mini",
+  "Jaguar",
+  "Genesis",
+  "Alfa Romeo",
+  "Bentley",
+  "Rolls-Royce",
+  "Maserati",
+  "Ferrari",
+  "Lamborghini",
+  "McLaren",
+  "Bugatti",
+  "Aston Martin",
+  "Opel",
+  "Skoda",
+  "SEAT",
+  "Citroën",
+  "Dacia",
+  "Saab",
+  "Pontiac",
+  "Saturn",
+  "Hummer",
+  "Lincoln",
+  "Mercury",
+  "Oldsmobile",
+  "Scion",
+  "Smart",
+  "Fisker",
+  "Rivian",
+  "Lucid",
+  "Polestar",
+  "BYD",
+  "Geely",
+  "Great Wall",
+  "Chery",
+  "Tata",
+  "Mahindra",
+  "Proton",
+  "Perodua",
+  "Holden",
+  "Vauxhall",
+  "MG",
+  "Rover",
+  "Daihatsu",
+  "SsangYong",
+  "Cupra",
+  "Alpine",
+  "Lancia",
+].map((name) => ({
+  id: `fb-make-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+  slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+  name,
+  source: "fallback",
+  type_slugs: ["automobile", "truck", "van"],
+}));
+
 export function vehicleTypeName(slug: string | null | undefined): string {
   return (
     VEHICLE_TYPES.find((t) => t.slug === slug)?.name ||
@@ -189,14 +285,30 @@ export async function listVehicleMakes(
     .from("vehicle_makes")
     .select("id, slug, name, source, type_slugs")
     .order("name", { ascending: true })
-    .limit(300);
+    .limit(800);
   if (vehicleType && vehicleType !== "all") {
     query = query.contains("type_slugs", [vehicleType]);
   }
   if (q?.trim()) query = query.ilike("name", `%${q.trim().replace(/%/g, "")}%`);
   const { data, error } = await query;
   if (error) throw new Error(error.message);
-  return data ?? [];
+  let rows = data ?? [];
+  // If type filter returned a thin set, fall back to all makes so the list fills.
+  if (vehicleType && vehicleType !== "all" && rows.length < 40 && !q?.trim()) {
+    const { data: all, error: e2 } = await sb
+      .from("vehicle_makes")
+      .select("id, slug, name, source, type_slugs")
+      .order("name", { ascending: true })
+      .limit(800);
+    if (!e2 && all?.length) rows = all;
+  }
+  if (rows.length === 0) {
+    const needle = q?.trim().toLowerCase();
+    return needle
+      ? FALLBACK_MAKES.filter((m) => m.name.toLowerCase().includes(needle))
+      : FALLBACK_MAKES;
+  }
+  return rows;
 }
 
 export async function listVehicleModels(makeId: string, q?: string) {
@@ -206,7 +318,7 @@ export async function listVehicleModels(makeId: string, q?: string) {
     .select("id, slug, name, year_start, year_end")
     .eq("make_id", makeId)
     .order("name", { ascending: true })
-    .limit(300);
+    .limit(800);
   if (q?.trim()) query = query.ilike("name", `%${q.trim().replace(/%/g, "")}%`);
   const { data, error } = await query;
   if (error) throw new Error(error.message);
@@ -226,7 +338,7 @@ export async function listVehicleYears(modelId: string): Promise<number[]> {
   if (ys != null && ye != null && ye >= ys) {
     const out: number[] = [];
     for (let y = ye; y >= ys; y--) out.push(y);
-    return out.slice(0, 40);
+    return out.slice(0, 60);
   }
   const { data: gens } = await sb
     .from("vehicle_generations")
@@ -241,9 +353,9 @@ export async function listVehicleYears(modelId: string): Promise<number[]> {
     }
   }
   if (years.size === 0) {
-    // Fallback: last 25 years for garage UX when source has no range
+    // Fallback: last 50 years so Year list fills the tall picker
     const now = new Date().getFullYear();
-    return Array.from({ length: 25 }, (_, i) => now - i);
+    return Array.from({ length: 50 }, (_, i) => now - i);
   }
-  return [...years].sort((a, b) => b - a).slice(0, 40);
+  return [...years].sort((a, b) => b - a).slice(0, 60);
 }
