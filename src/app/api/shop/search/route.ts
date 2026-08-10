@@ -3,6 +3,10 @@ import { apiFail, apiOk } from "@/lib/server/api-json";
 import { requireUser } from "@/lib/server/auth-utils";
 import { searchShop } from "@/lib/server/shop/search";
 import { resolveAccountContext } from "@/lib/server/shop/catalog";
+import {
+  assertTradeAllowed,
+  resolveShopUiScope,
+} from "@/lib/server/market-scope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,19 +15,28 @@ export const dynamic = "force-dynamic";
  * GET /api/shop/search?q=...&trade=mechanic&lockTrade=1
  * - Global: omit trade (intent may suggest a trade for UI jump)
  * - Per-trade: pass trade + lockTrade=1 so results stay inside that trade
+ * - Mechanic pro: locked to mechanic catalog
  */
 export async function GET(req: NextRequest) {
   try {
     const q = req.nextUrl.searchParams.get("q")?.trim() || "";
     if (!q) return apiFail("Missing q", 400, "BAD_REQUEST");
 
-    const tradeKey =
+    const scope = await resolveShopUiScope(req);
+    let tradeKey =
       req.nextUrl.searchParams.get("trade")?.trim() ||
       req.nextUrl.searchParams.get("tradeKey")?.trim() ||
       undefined;
+    if (scope.allowedTradeKeys?.length === 1) {
+      tradeKey = scope.allowedTradeKeys[0];
+    } else if (tradeKey) {
+      const gate = assertTradeAllowed(scope, tradeKey);
+      if (!gate.ok) return apiFail(gate.message, 403, gate.code);
+    }
     const lockTrade =
       req.nextUrl.searchParams.get("lockTrade") === "1" ||
-      req.nextUrl.searchParams.get("lockTrade") === "true";
+      req.nextUrl.searchParams.get("lockTrade") === "true" ||
+      Boolean(scope.allowedTradeKeys?.length === 1);
 
     let userId: string | undefined;
     const auth = await requireUser(req);

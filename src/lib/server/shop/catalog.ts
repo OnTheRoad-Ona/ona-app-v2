@@ -88,24 +88,51 @@ export async function getTradeCategories(opts?: {
 
 export async function getShopHomeSections(opts?: {
   accountContext?: ShopAccountContext;
+  /** Cap trades to these keys (Mechanic Shop). null = all. */
+  allowedTradeKeys?: string[] | null;
+  defaultTradeKey?: string | null;
 }): Promise<{
   trades: ShopCategory[];
   popular: ShopProductCard[];
   newArrivals: ShopProductCard[];
+  recommended: ShopProductCard[];
 }> {
-  const trades = await getTradeCategories({ rootsOnly: true });
+  let trades = await getTradeCategories({ rootsOnly: true });
+  if (opts?.allowedTradeKeys) {
+    const allow = new Set(opts.allowedTradeKeys);
+    trades = trades.filter((t) => allow.has(t.tradeKey));
+  }
+  // Mechanic shop home: show mechanic root categories, not all 14 trades
+  if (opts?.defaultTradeKey === "mechanic") {
+    trades = await getTradeCategories({
+      tradeKey: "mechanic",
+      rootsOnly: true,
+    });
+  }
+  const tradeFilter =
+    opts?.allowedTradeKeys?.length === 1
+      ? opts.allowedTradeKeys[0]
+      : opts?.defaultTradeKey || undefined;
   const popular = await listProducts({
     limit: 12,
     status: "active",
+    tradeKey: tradeFilter,
     accountContext: opts?.accountContext,
   });
   const newArrivals = await listProducts({
     limit: 12,
     status: "active",
     order: "created_at",
+    tradeKey: tradeFilter,
     accountContext: opts?.accountContext,
   });
-  return { trades, popular, newArrivals };
+  const recommended = await listProducts({
+    limit: 12,
+    status: "active",
+    tradeKey: tradeFilter || "mechanic",
+    accountContext: opts?.accountContext,
+  });
+  return { trades, popular, newArrivals, recommended };
 }
 
 export type ProductFilterOptions = {

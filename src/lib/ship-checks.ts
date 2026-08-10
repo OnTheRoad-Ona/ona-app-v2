@@ -77,11 +77,13 @@ export function runShipChecks(): ShipStatus {
         ONA_BUILD_ID.includes("portal") ||
         ONA_BUILD_ID.includes("fixed-80") ||
         ONA_BUILD_ID.includes("sheet-80") ||
+        ONA_BUILD_ID.includes("mechanic-shop") ||
         ONA_BUILD_LABEL.toLowerCase().includes("filters array") ||
         ONA_BUILD_LABEL.toLowerCase().includes("flatselect") ||
         ONA_BUILD_LABEL.toLowerCase().includes("80%") ||
         ONA_BUILD_LABEL.toLowerCase().includes("portal") ||
         ONA_BUILD_LABEL.toLowerCase().includes("sheet") ||
+        ONA_BUILD_LABEL.toLowerCase().includes("mechanic shop") ||
         ONA_BUILD_LABEL.toLowerCase().includes("fixed"),
       `buildId=${ONA_BUILD_ID}`
     )
@@ -187,11 +189,22 @@ export function runShipChecks(): ShipStatus {
       "My vehicles uses custom FlatSelect (no native 3D select)",
       ONA_BUILD_ID.includes("vehicles-flat") ||
         ONA_BUILD_ID.includes("flat-select") ||
+        ONA_BUILD_ID.includes("mechanic-shop") ||
         ONA_BUILD_LABEL.toLowerCase().includes("flat select") ||
         ONA_BUILD_LABEL.toLowerCase().includes("flat vehicles") ||
+        ONA_BUILD_LABEL.toLowerCase().includes("mechanic shop") ||
         ONA_BUILD_ID.includes("ship-status") ||
         ONA_BUILD_ID.includes("vehicles"),
       ONA_BUILD_LABEL
+    )
+  );
+  checks.push(
+    check(
+      "mechanic-shop-arch",
+      "Mechanic Shop architecture ship line present",
+      ONA_BUILD_ID.includes("mechanic-shop") ||
+        ONA_BUILD_LABEL.toLowerCase().includes("mechanic shop"),
+      ONA_BUILD_ID
     )
   );
   checks.push(

@@ -11,6 +11,10 @@ import { Loader2, Search, ShoppingBag, ShoppingCart } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { ShopVehicleBar } from "@/components/shop/shop-vehicle-bar";
 import { PRO_TRADE_OPTIONS } from "@/lib/services";
+import {
+  LISTING_FILTER_CHIPS,
+  type ListingFilterKey,
+} from "@/lib/shop/listing-status";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -35,44 +39,32 @@ type ProductCard = {
   availabilityLabel?: string | null;
 };
 
-/** Availability buckets that match real catalog states (see catalog-status). */
-type AvailabilityKey =
-  | "all"
-  | "in_stock"
-  | "out_of_stock"
-  | "coming_soon"
-  | "discontinued"
-  | "source_pending";
-
-const AVAILABILITY_CHIPS: { key: AvailabilityKey; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "in_stock", label: "In stock" },
-  { key: "out_of_stock", label: "Out of stock" },
-  { key: "coming_soon", label: "Coming soon" },
-  { key: "discontinued", label: "Discontinued" },
-  { key: "source_pending", label: "Awaiting source" },
-];
-
 function productMatchesAvailability(
   p: ProductCard,
-  key: AvailabilityKey
+  key: ListingFilterKey
 ): boolean {
   if (key === "all") return true;
-  if (key === "in_stock") return Boolean(p.inStock);
+  const st = (p.availabilityLabel || p.status || "").toLowerCase();
+  if (key === "available") return Boolean(p.inStock) || st.includes("available");
+  if (key === "low_stock") return st.includes("low");
   if (key === "out_of_stock") {
     return (
       !p.inStock &&
-      p.status !== "future_product" &&
-      p.status !== "discontinued" &&
-      p.status !== "source_pending"
+      !st.includes("discontinued") &&
+      !st.includes("coming") &&
+      !st.includes("pre")
     );
   }
-  if (key === "coming_soon") return p.status === "future_product";
-  if (key === "discontinued") return p.status === "discontinued";
-  return p.status === "source_pending";
+  if (key === "pre_order") return st.includes("pre");
+  if (key === "coming_soon")
+    return st.includes("coming") || p.status === "future_product";
+  if (key === "discontinued")
+    return st.includes("discontinued") || p.status === "discontinued";
+  return true;
 }
 
 function formatNgn(minor: number | null): string {
+  // Master catalog has no price — show em dash until listing price exists
   if (minor == null) return "—";
   return `₦${Math.round(minor / 100).toLocaleString("en-NG")}`;
 }
@@ -93,7 +85,10 @@ export default function ShopHomePage() {
   const [results, setResults] = useState<ProductCard[] | null>(null);
   const [intentLabel, setIntentLabel] = useState<string | null>(null);
   const [suggestedTrade, setSuggestedTrade] = useState<string | null>(null);
-  const [availability, setAvailability] = useState<AvailabilityKey>("all");
+  const [availability, setAvailability] = useState<ListingFilterKey>("all");
+  const [shopTitle, setShopTitle] = useState("Shop");
+  const [allowBrowseAllParts, setAllowBrowseAllParts] = useState(true);
+  const [defaultTradeKey, setDefaultTradeKey] = useState<string | null>(null);
 
   const loadHome = useCallback(async () => {
     setLoading(true);
@@ -105,14 +100,26 @@ export default function ShopHomePage() {
           trades?: TradeCat[];
           popular?: ProductCard[];
           newArrivals?: ProductCard[];
+          recommended?: ProductCard[];
           setupRequired?: boolean;
+          shopTitle?: string;
+          allowBrowseAllParts?: boolean;
+          defaultTradeKey?: string | null;
         };
       };
       if (json.ok && json.data) {
         setTrades(json.data.trades ?? []);
         setPopular(json.data.popular ?? []);
         setNewArrivals(json.data.newArrivals ?? []);
+        if (json.data.recommended?.length) {
+          setPopular((prev) =>
+            prev.length ? prev : json.data!.recommended ?? []
+          );
+        }
         setSetupRequired(Boolean(json.data.setupRequired));
+        if (json.data.shopTitle) setShopTitle(json.data.shopTitle);
+        setAllowBrowseAllParts(json.data.allowBrowseAllParts !== false);
+        setDefaultTradeKey(json.data.defaultTradeKey ?? null);
       }
     } catch {
       setSetupRequired(true);
@@ -236,9 +243,10 @@ export default function ShopHomePage() {
 
   return (
     <div className={cn("flex h-full min-h-0 flex-col overflow-hidden", bg)}>
-      <PageHeader title="Shop" backHref={undefined} />
+      <PageHeader title={shopTitle} backHref={undefined} />
       <div className="min-h-0 flex-1 overflow-y-auto pb-6">
         <div className="flex justify-end gap-2 px-3 pt-1">
+          {allowBrowseAllParts ? (
           <button
             type="button"
             onClick={() => router.push("/shop/vehicles")}
@@ -249,6 +257,7 @@ export default function ShopHomePage() {
           >
             Vehicles
           </button>
+          ) : null}
           <button
             type="button"
             onClick={() => router.push("/shop/orders")}
@@ -268,7 +277,9 @@ export default function ShopHomePage() {
             Cart
           </button>
         </div>
-        <ShopVehicleBar tradeKey="mechanic" />
+        {allowBrowseAllParts ? (
+          <ShopVehicleBar tradeKey={defaultTradeKey || "mechanic"} />
+        ) : null}
         {/* Search */}
         <div className="px-3 pt-2">
           <div
@@ -284,7 +295,11 @@ export default function ShopHomePage() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") void runSearch();
               }}
-              placeholder="What are you looking for?"
+              placeholder={
+                shopTitle === "Mechanic Shop"
+                  ? "What part, tool, fluid or equipment are you looking for?"
+                  : "What are you looking for?"
+              }
               className={cn(
                 "min-w-0 flex-1 border-0 bg-transparent text-[14px] outline-none",
                 isLight ? "text-slate-900 placeholder:text-slate-400" : "text-white placeholder:text-white/40"
@@ -371,9 +386,60 @@ export default function ShopHomePage() {
               </div>
             ) : null}
             {results.length === 0 ? (
-              <p className={cn("px-4 text-[13px]", muted)}>
-                No matches. Try a brand, part name, or vehicle.
-              </p>
+              <div className="px-4 py-4">
+                <p className={cn("text-[13px] font-semibold", muted)}>
+                  No matching product found.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="rounded-lg border-0 bg-[#FF6B35] px-3 py-2 text-[12px] font-bold text-white"
+                    onClick={() => {
+                      void fetch("/api/shop/product-requests", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          searchTerm: q.trim(),
+                          tradeKey: defaultTradeKey || suggestedTrade || "mechanic",
+                          notify: false,
+                        }),
+                      });
+                    }}
+                  >
+                    Request Product
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      "rounded-lg border-0 px-3 py-2 text-[12px] font-bold",
+                      isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white"
+                    )}
+                    onClick={() => {
+                      void fetch("/api/shop/product-requests", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          searchTerm: q.trim(),
+                          tradeKey: defaultTradeKey || suggestedTrade || "mechanic",
+                          notify: true,
+                        }),
+                      });
+                    }}
+                  >
+                    Notify Me
+                  </button>
+                  <button
+                    type="button"
+                    className="border-0 bg-transparent text-[12px] font-semibold text-[#FF6B35]"
+                    onClick={() => {
+                      setResults(null);
+                      setQ("");
+                    }}
+                  >
+                    Try Another Search
+                  </button>
+                </div>
+              </div>
             ) : (
               productList(results)
             )}
@@ -392,7 +458,7 @@ export default function ShopHomePage() {
                 role="group"
                 aria-label="Availability"
               >
-                {AVAILABILITY_CHIPS.map((chip) => {
+                {LISTING_FILTER_CHIPS.map((chip) => {
                   const active = availability === chip.key;
                   return (
                     <button

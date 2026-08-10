@@ -4,12 +4,15 @@ import { getAllPartsForVehicle } from "@/lib/server/shop/all-parts";
 import { getDefaultVehicle, listUserVehicles } from "@/lib/server/shop/garage";
 import { resolveAccountContext } from "@/lib/server/shop/catalog";
 import { requireUser } from "@/lib/server/auth-utils";
+import { resolveShopUiScope } from "@/lib/server/market-scope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
  * ALL PARTS for active (or specified) garage vehicle.
+ * Mechanic Shop rule: Browse ALL PARTS is Mechanic-only for Repair Pros;
+ * customers may use fitment for any vehicle trade.
  * Guest: pass makeName/modelName/year query (session-style, no save).
  * Signed-in: uses garage default unless vehicleId set.
  */
@@ -17,6 +20,24 @@ export async function GET(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams;
     const tradeKey = sp.get("trade") || "mechanic";
+    const scope = await resolveShopUiScope(req);
+    if (scope.accountContext === "professional" && !scope.allowBrowseAllParts) {
+      return apiFail(
+        "Browse ALL PARTS is only available for Mechanic Repair Pros",
+        403,
+        "ALL_PARTS_FORBIDDEN"
+      );
+    }
+    if (
+      scope.accountContext === "professional" &&
+      tradeKey !== "mechanic"
+    ) {
+      return apiFail(
+        "Browse ALL PARTS is restricted to the Mechanic trade",
+        403,
+        "ALL_PARTS_MECHANIC_ONLY"
+      );
+    }
     const categoryId = sp.get("categoryId") || undefined;
 
     let vehicle: {

@@ -32,7 +32,7 @@ export const DEMO_PRODUCTS: DemoProduct[] = [
   {
     id: "demo-mechanic-brake-pads-bosch-front",
     tradeKey: "mechanic",
-    categorySlug: "brakes",
+    categorySlug: "brake-system",
     brand: { slug: "bosch", name: "Bosch" },
     name: "Bosch Front Brake Pads",
     subtitle: "Ceramic pads · direct fit for Toyota Camry",
@@ -66,7 +66,7 @@ export const DEMO_PRODUCTS: DemoProduct[] = [
   {
     id: "demo-mechanic-spark-plugs-ngk-4",
     tradeKey: "mechanic",
-    categorySlug: "engine",
+    categorySlug: "engine-engine-parts",
     brand: { slug: "ngk", name: "NGK" },
     name: "NGK Iridium Spark Plug (Set of 4)",
     subtitle: "0.6mm fine-wire iridium · long life",
@@ -100,7 +100,7 @@ export const DEMO_PRODUCTS: DemoProduct[] = [
   {
     id: "demo-mechanic-serpentine-belt-dayco",
     tradeKey: "mechanic",
-    categorySlug: "engine",
+    categorySlug: "engine-engine-parts",
     brand: { slug: "dayco", name: "Dayco" },
     name: "Dayco Serpentine Belt",
     subtitle: "6PK1680 · multi-rib accessory belt",
@@ -117,7 +117,7 @@ export const DEMO_PRODUCTS: DemoProduct[] = [
   {
     id: "demo-mechanic-coolant-50-50-5l",
     tradeKey: "mechanic",
-    categorySlug: "cooling",
+    categorySlug: "cooling-system",
     brand: { slug: "ona-pro", name: "Ona Pro" },
     name: "Ona Pro Antifreeze Coolant 50/50 5L",
     subtitle: "Long-life organic coolant · -35°C",
