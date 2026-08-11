@@ -76,16 +76,15 @@ export function PageHeader({
           <button
             type="button"
             onClick={onBack}
-            className={cn(
-              "flex h-8 w-8 items-center justify-center rounded-lg border-0 transition-transform duration-150 active:scale-95",
-              isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white"
-            )}
-            style={{
-              backgroundColor: isLight ? "#c8c9cd" : "#000000",
-            }}
+            className="flex h-8 w-8 items-center justify-center border-0 transition-transform duration-150 active:scale-95"
             aria-label="Back"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft
+              className="h-4 w-4"
+              style={{
+                color: isLight ? "#1f2937" : "#ffffff",
+              }}
+            />
           </button>
         ) : (
           <span className="w-1" aria-hidden />
@@ -115,13 +114,7 @@ export function PageHeader({
         <button
           type="button"
           onClick={() => setMenuOpen(true)}
-          className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-lg border-0",
-            isLight ? "bg-[#c8c9cd]" : "bg-black"
-          )}
-          style={{
-            backgroundColor: isLight ? "#c8c9cd" : "#000000",
-          }}
+          className="flex h-8 w-8 items-center justify-center border-0"
           aria-label="Open menu"
         >
           <Menu

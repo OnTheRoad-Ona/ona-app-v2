@@ -11,7 +11,6 @@ export const LISTING_STATUSES = [
   "out_of_stock",
   "pre_order",
   "coming_soon",
-  "discontinued",
 ] as const;
 
 export type ListingStatus = (typeof LISTING_STATUSES)[number];
@@ -24,7 +23,6 @@ export const LISTING_STATUS_LABELS: Record<ListingStatus, string> = {
   out_of_stock: "Out of Stock",
   pre_order: "Pre-order",
   coming_soon: "Coming Soon",
-  discontinued: "Discontinued",
 };
 
 export const LISTING_FILTER_CHIPS: { key: ListingFilterKey; label: string }[] =
@@ -35,7 +33,6 @@ export const LISTING_FILTER_CHIPS: { key: ListingFilterKey; label: string }[] =
     { key: "out_of_stock", label: "Out of Stock" },
     { key: "pre_order", label: "Pre-order" },
     { key: "coming_soon", label: "Coming Soon" },
-    { key: "discontinued", label: "Discontinued" },
   ];
 
 export function isListingStatus(v: string | null | undefined): v is ListingStatus {
@@ -65,7 +62,6 @@ export function listingIsPurchasable(status: ListingStatus): boolean {
  *   stock-derived, so filtering happens per-card)
  * - pre_order → future purchased-from-ahead products
  * - coming_soon → future / pending products
- * - discontinued → discontinued only
  * Returns null for "all" (no status constraint).
  */
 export function productStatusesForListing(
@@ -79,7 +75,6 @@ export function productStatusesForListing(
   if (key === "coming_soon") {
     return ["future_product", "source_pending", "pending_verification"];
   }
-  if (key === "discontinued") return ["discontinued"];
   return null;
 }
 
@@ -108,7 +103,5 @@ export function listingMatchesCard(
   if (key === "pre_order") return st.includes("pre");
   if (key === "coming_soon")
     return st.includes("coming") || card.status === "future_product";
-  if (key === "discontinued")
-    return st.includes("discontinued") || card.status === "discontinued";
   return true;
 }

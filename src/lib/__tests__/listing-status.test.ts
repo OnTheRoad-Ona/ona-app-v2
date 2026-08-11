@@ -20,9 +20,6 @@ describe("productStatusesForListing", () => {
       "source_pending",
       "pending_verification",
     ]);
-    expect(productStatusesForListing("discontinued")).toEqual([
-      "discontinued",
-    ]);
   });
 });
 
@@ -40,15 +37,9 @@ describe("listingMatchesCard", () => {
     expect(listingMatchesCard({ inStock: true, availabilityLabel: "In stock", status: "active" }, "low_stock")).toBe(false);
   });
 
-  it("out_of_stock excludes discontinued/coming/preorder", () => {
+  it("out_of_stock excludes coming/preorder", () => {
     expect(listingMatchesCard({ inStock: false, status: "active" }, "out_of_stock")).toBe(true);
-    expect(listingMatchesCard({ inStock: false, status: "discontinued" }, "out_of_stock")).toBe(false);
     expect(listingMatchesCard({ inStock: false, status: "future_product" }, "out_of_stock")).toBe(false);
-  });
-
-  it("discontinued matches discontinued status", () => {
-    expect(listingMatchesCard({ inStock: false, status: "discontinued" }, "discontinued")).toBe(true);
-    expect(listingMatchesCard({ inStock: true, status: "active" }, "discontinued")).toBe(false);
   });
 
   it("coming_soon matches future products", () => {
@@ -61,15 +52,14 @@ describe("listingMatchesCard", () => {
 });
 
 describe("LISTING_STATUSES", () => {
-  it("defines all six statuses + all filter", () => {
-    expect(LISTING_STATUSES).toHaveLength(6);
+  it("defines all five statuses + all filter", () => {
+    expect(LISTING_STATUSES).toHaveLength(5);
     expect(LISTING_STATUSES).toEqual([
       "available",
       "low_stock",
       "out_of_stock",
       "pre_order",
       "coming_soon",
-      "discontinued",
     ]);
   });
 });

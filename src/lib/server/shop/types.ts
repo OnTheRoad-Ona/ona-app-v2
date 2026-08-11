@@ -46,6 +46,8 @@ export type ShopCategory = {
   sortOrder: number;
   depth: number;
   path: string;
+  /** Count of non-empty descendant categories that contain products. */
+  productCount?: number;
 };
 
 export type ShopProductCard = {

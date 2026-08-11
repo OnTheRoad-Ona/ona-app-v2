@@ -84,7 +84,79 @@ export async function getTradeCategories(opts?: {
     seen.add(key);
     out.push(c);
   }
-  return out;
+  return await withProductCounts(sb, out);
+}
+
+/** Attach productCount (products directly + under descendant subcategories).
+ * Subtrees are walked by the real parent_id links against the FULL active
+ * category tree, so a category's number EXACTLY equals its own products plus
+ * every subcategory's products — regardless of queried subset or path-string
+ * inconsistencies. */
+async function withProductCounts(
+  sb: ReturnType<typeof createServiceSupabase>,
+  cats: ShopCategory[]
+): Promise<ShopCategory[]> {
+  if (!cats.length) return cats;
+  const tradeKeys = [...new Set(cats.map((c) => c.tradeKey))];
+  const { data: catRows } = await sb
+    .from("shop_trade_categories")
+    .select("id, parent_id")
+    .in("trade_key", tradeKeys)
+    .eq("is_active", true);
+  const childrenOf = new Map<string, Set<string>>();
+  for (const r of catRows ?? []) {
+    const pid = r.parent_id ? String(r.parent_id) : "";
+    if (!pid) continue;
+    let kids = childrenOf.get(pid);
+    if (!kids) {
+      kids = new Set();
+      childrenOf.set(pid, kids);
+    }
+    kids.add(String(r.id));
+  }
+  const { data: rows } = await sb
+    .from("shop_products")
+    .select("category_id")
+    .in("trade_key", tradeKeys)
+    .eq("status", "active");
+  const direct = new Map<string, number>();
+  for (const r of rows ?? []) {
+    const cid = r.category_id ? String(r.category_id) : "";
+    if (!cid) continue;
+    direct.set(cid, (direct.get(cid) || 0) + 1);
+  }
+  const memo = new Map<string, number>();
+  const subtree = (id: string): number => {
+    const seen = memo.get(id);
+    if (seen !== undefined) return seen;
+    let total = direct.get(id) || 0;
+    for (const kid of childrenOf.get(id) ?? []) total += subtree(kid);
+    memo.set(id, total);
+    return total;
+  };
+  return cats.map((c) => ({ ...c, productCount: subtree(c.id) }));
+}
+
+/**
+ * Browse start categories for a trade shop ("My Shop"). Each trade has one
+ * container root (slug === tradeKey) whose children are the actual shop
+ * categories; seed the browse with those children so users see the real
+ * categories immediately instead of a trade-name shell row. Falls back to all
+ * depth-0 roots when the container is missing or has no children.
+ */
+export async function getTradeBrowseStart(
+  tradeKey: string
+): Promise<ShopCategory[]> {
+  const roots = await getTradeCategories({ tradeKey, rootsOnly: true });
+  const container = roots.find((r) => r.slug === tradeKey);
+  if (container) {
+    const children = await getTradeCategories({
+      tradeKey,
+      parentId: container.id,
+    });
+    if (children.length > 0) return children;
+  }
+  return roots;
 }
 
 export async function getShopHomeSections(opts?: {
@@ -142,7 +214,7 @@ export type ProductFilterOptions = {
   /** Availability: "in_stock" filters to available-only; "all" shows everything. */
   availability?: "in_stock" | "all";
   /** Listing-status filter: maps to the product status set the chip represents. */
-  listingStatus?: "all" | "available" | "low_stock" | "out_of_stock" | "pre_order" | "coming_soon" | "discontinued";
+  listingStatus?: "all" | "available" | "low_stock" | "out_of_stock" | "pre_order" | "coming_soon";
   /** Price range in minor units (filters on the active price for a variant). */
   minPriceMinor?: number;
   maxPriceMinor?: number;
@@ -210,8 +282,8 @@ export async function listProducts(opts: {
     .limit(limit);
 
   // Serving status: explicit active by default, unless a listing-status filter
-  // (6 chips) widens the set (pre_order/coming_soon/discontinued are catalog
-  // products that are NOT "active" but have their own lifecycle status).
+  // (5 chips) widens the set (pre_order/coming_soon are catalog products that
+  // are NOT "active" but have their own lifecycle status).
   const listingStatii = opts.filters?.listingStatus
     ? productStatusesForListing(opts.filters.listingStatus)
     : null;

@@ -2,22 +2,16 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { Loader2, Search, ShoppingBag } from "lucide-react";
+import { ChevronRight, Loader2, Search, ShoppingBag } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { ShopVehicleBar } from "@/components/shop/shop-vehicle-bar";
 import { ShopProductCard } from "@/components/shop/product-card";
-import {
-  ShopFacetChips,
-} from "@/components/shop/shop-facet-chips";
 import { ShopAvailabilityChips } from "@/components/shop/shop-availability-chips";
 import type { FacetFilters } from "@/components/shop/shop-facet-bar";
 import { PRO_TRADE_OPTIONS } from "@/lib/services";
 import {
-  getRootCategoriesForTrade,
-  isVehicleTrade,
-} from "@/lib/shop/taxonomy";
-import {
   type ListingFilterKey,
+  listingMatchesCard,
 } from "@/lib/shop/listing-status";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -43,6 +37,15 @@ type AllPartsCat = {
   slug: string;
   name: string;
   productCount: number;
+  depth: number;
+};
+
+/** Neutral browse level — a category or subcategory shown as a listing row. */
+type BrowseCat = {
+  id: string;
+  slug: string;
+  name: string;
+  productCount?: number;
   depth: number;
 };
 
@@ -80,7 +83,7 @@ function ShopTradePageInner() {
   const [results, setResults] = useState<ProductCard[]>([]);
   const [intentLabel, setIntentLabel] = useState<string | null>(null);
   const [availability, setAvailability] = useState<ListingFilterKey>("all");
-  const [facets, setFacets] = useState<FacetFilters>({
+  const [facets] = useState<FacetFilters>({
     availability: "all",
     categorySlug: null,
     minPriceMinor: null,
@@ -98,23 +101,16 @@ function ShopTradePageInner() {
   );
   const [vehicleLabel, setVehicleLabel] = useState<string | null>(null);
 
+  // Neutral browse (no vehicle) — category > subcategory > product listing rows.
+  const [browseStack, setBrowseStack] = useState<BrowseCat[]>([]);
+  const [browseLevel, setBrowseLevel] = useState<BrowseCat[]>([]);
+  const [browseProducts, setBrowseProducts] = useState<ProductCard[] | null>(null);
+  const [browseLoading, setBrowseLoading] = useState(false);
+  const [browseError, setBrowseError] = useState(false);
+
   const label =
     PRO_TRADE_OPTIONS.find((t) => t.id === trade)?.homeLabel || trade;
   const searchExample = TRADE_SEARCH_EXAMPLES[trade] || "part name";
-
-  // Trade-skill aware empty-state suggestion (this trade's catalog terms).
-  const emptyStateSuggestion = (() => {
-    const roots = getRootCategoriesForTrade(trade).slice(0, 3);
-    const names = roots.map((r) => r.name.toLowerCase());
-    const list =
-      names.length > 2
-        ? `${names.slice(0, 2).join(", ")}, or ${names[2]}`
-        : names.join(", ");
-    const allPartsHint = isVehicleTrade(trade)
-      ? " — or use ALL PARTS on the vehicle bar."
-      : "";
-    return `Look for ${list}${allPartsHint}`;
-  })();
 
   const loadAllParts = useCallback(async () => {
     if (!allParts) return;
@@ -235,7 +231,6 @@ function ShopTradePageInner() {
     if (initial) void runSearch(initial, facets);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trade, searchParams, allParts]);
-
   // Re-run the active search when facet filters or availability chips change.
   useEffect(() => {
     if (!searched) return;
@@ -244,9 +239,160 @@ function ShopTradePageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facets, availability]);
 
+  /** Load a neutral browse level — children of `parent`, else roots. */
+  const loadBrowse = useCallback(
+    async (parent?: BrowseCat) => {
+      setBrowseLoading(true);
+      setBrowseError(false);
+      setBrowseProducts(null);
+      try {
+        const qs = new URLSearchParams({ trade });
+        if (parent) qs.set("parent", parent.id);
+        else qs.set("start", "1");
+        const res = await fetch(`/api/shop/categories?${qs.toString()}`);
+        const json = (await res.json()) as {
+          ok?: boolean;
+          data?: { categories?: BrowseCat[] };
+        };
+        if (json.ok) {
+          const list = Array.isArray(json.data?.categories)
+            ? json.data.categories
+            : [];
+          setBrowseLevel(list);
+        } else {
+          setBrowseError(true);
+        }
+      } catch {
+        setBrowseError(true);
+      } finally {
+        setBrowseLoading(false);
+      }
+    },
+    [trade]
+  );
+
+  /** Show products for a selected category row (leaf of the browse tree). */
+  const openBrowseCategory = useCallback(
+    async (cat: BrowseCat) => {
+      setBrowseLoading(true);
+      setBrowseProducts(null);
+      try {
+        const qs = new URLSearchParams({
+          trade,
+          category: cat.slug,
+          limit: "100",
+          ctx,
+        });
+        if (availability !== "all") qs.set("listingStatus", availability);
+        const res = await fetch(`/api/shop/products?${qs.toString()}`);
+        const json = (await res.json()) as {
+          ok?: boolean;
+          data?: { products?: ProductCard[] };
+        };
+        if (json.ok) {
+          setBrowseProducts(json.data?.products ?? []);
+          setBrowseLevel([]);
+        } else {
+          setBrowseProducts([]);
+        }
+      } catch {
+        setBrowseProducts([]);
+      } finally {
+        setBrowseLoading(false);
+      }
+    },
+    [trade, ctx, availability]
+  );
+
+  /** Drill into a category row: children level if present, else its products. */
+  const drillBrowse = useCallback(
+    async (cat: BrowseCat) => {
+      setBrowseLoading(true);
+      setBrowseError(false);
+      setBrowseProducts(null);
+      try {
+        const qs = new URLSearchParams({ trade, parent: cat.id });
+        const res = await fetch(`/api/shop/categories?${qs.toString()}`);
+        const json = (await res.json()) as {
+          ok?: boolean;
+          data?: { categories?: BrowseCat[] };
+        };
+        const children = Array.isArray(json.data?.categories)
+          ? json.data.categories
+          : [];
+        if (children.length > 0) {
+          setBrowseStack((s) => [...s, cat]);
+          setBrowseLevel(children);
+        } else {
+          setBrowseStack((s) => [...s, cat]);
+          await openBrowseCategory(cat);
+        }
+      } catch {
+        setBrowseError(true);
+      } finally {
+        setBrowseLoading(false);
+      }
+    },
+    [trade, openBrowseCategory]
+  );
+
+  /** Pop back one level (or to roots) when a breadcrumb is tapped. */
+  const popBrowse = useCallback(
+    async (keep?: BrowseCat) => {
+      setBrowseProducts(null);
+      if (!keep) {
+        setBrowseStack([]);
+        void loadBrowse();
+        return;
+      }
+      const next = browseStack.filter((c) => c.id !== keep.id);
+      setBrowseStack(next);
+      const parent = next[next.length - 1];
+      void loadBrowse(parent);
+    },
+    [browseStack, loadBrowse]
+  );
+
+  // Seed the neutral browse with root categories on first load (non-ALL PARTS).
+  const browseSeeded = browseStack.length > 0 || browseLevel.length > 0;
+  useEffect(() => {
+    if (allParts) return;
+    if (browseSeeded) return;
+    void loadBrowse();
+  }, [allParts, browseSeeded, loadBrowse]);
+
+  // Reset the neutral browse when switching trades or entering ALL PARTS.
+  useEffect(() => {
+    setBrowseStack([]);
+    setBrowseProducts(null);
+    setBrowseLevel([]);
+  }, [trade, allParts]);
+
+  // When the availability chip changes while a category's products are open,
+  // re-pull that list so the chips act as a product filter (chips only apply
+  // to products, not to category/subcategory rows).
+  useEffect(() => {
+    if (searched) return;
+    if (browseProducts === null) return;
+    if (browseStack.length === 0) return;
+    void openBrowseCategory(browseStack[browseStack.length - 1]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availability]);
+
   const bg = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const card = isLight ? "bg-white/90" : "bg-[#1c1c1e]";
   const muted = isLight ? "text-slate-600" : "text-white/55";
+
+  // The stock chips (All/Available/Low/Out/Pre-order/Coming soon) only appear
+  // alongside a product list, and tapping one narrows THAT list down.
+  const visibleBrowse =
+    availability === "all" || !browseProducts
+      ? browseProducts
+      : browseProducts.filter((p) => listingMatchesCard(p, availability));
+  const visibleResults =
+    availability === "all" || !results
+      ? results
+      : results.filter((p) => listingMatchesCard(p, availability));
 
   const productRows = (items: ProductCard[]) => (
     <div className="flex flex-col gap-2 px-3">
@@ -395,33 +541,123 @@ function ShopTradePageInner() {
               </div>
             </div>
 
-            <ShopAvailabilityChips
-              value={availability}
-              onChange={setAvailability}
-            />
-
-            <ShopFacetChips
-              tradeKey={trade}
-              filters={facets}
-              onChange={setFacets}
-            />
-
             {!searched ? (
-              <div className="px-4 py-14 text-center">
-                <Search className="mx-auto h-9 w-9 text-[#FF6B35]/80" />
-                <p className="mt-3 text-[14px] font-bold">
-                  Search {label} parts &amp; supplies
-                </p>
-                <p className={cn("mt-1.5 text-[12px] leading-relaxed", muted)}>
-                  {emptyStateSuggestion}
-                </p>
+              <div className="px-3 pt-3">
+                {/* Breadcrumb back when browsing deeper than roots */}
+                {browseStack.length > 0 ? (
+                  <div className="mb-2 flex items-center gap-1.5 overflow-x-auto">
+                    <button
+                      type="button"
+                      className="shrink-0 border-0 bg-transparent text-[12px] font-bold text-[#FF6B35]"
+                      onClick={() => void popBrowse()}
+                    >
+                      All categories
+                    </button>
+                    {browseStack.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className="shrink-0 border-0 bg-transparent text-[12px] font-semibold"
+                        onClick={() => void popBrowse(c)}
+                      >
+                        <span className={muted}>/ {c.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+
+                {browseLoading ? (
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="h-7 w-7 animate-spin text-[#FF6B35]" />
+                  </div>
+                ) : browseError ? (
+                  <p className={cn("px-1 py-10 text-center text-[13px]", muted)}>
+                    Could not load categories.
+                  </p>
+                ) : browseProducts ? (
+                  <>
+                    <div className="flex items-center justify-between pb-2">
+                      <p className="text-[13px] font-bold">
+                        {browseStack.length
+                          ? browseStack[browseStack.length - 1].name
+                          : "Products"}
+                      </p>
+                      <button
+                        type="button"
+                        className="border-0 bg-transparent text-[12px] font-semibold text-[#FF6B35]"
+                        onClick={() => void popBrowse()}
+                      >
+                        Back to categories
+                      </button>
+                    </div>
+                    <ShopAvailabilityChips
+                      value={availability}
+                      onChange={setAvailability}
+                    />
+                    {!visibleBrowse || visibleBrowse.length === 0 ? (
+                      <p className={cn("px-1 py-8 text-center text-[13px]", muted)}>
+                        No products in this category yet.
+                      </p>
+                    ) : (
+                      productRows(visibleBrowse)
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="pb-2 text-[13px] font-black">
+                      {browseStack.length
+                        ? browseStack[browseStack.length - 1].name
+                        : "My Shop"}
+                    </p>
+                    {browseLevel.length === 0 ? (
+                      <p className={cn("px-1 py-10 text-center text-[13px]", muted)}>
+                        No categories available yet.
+                      </p>
+                    ) : (
+                      <div className="flex flex-col gap-1.5">
+                        {browseLevel.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => void drillBrowse(c)}
+                            className={cn(
+                              "flex w-full items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left",
+                              card,
+                              isLight ? "text-slate-900" : "text-white"
+                            )}
+                          >
+                            <span className="min-w-0 flex-1 truncate text-[13px] font-bold">
+                              {c.name}
+                            </span>
+                            {typeof c.productCount === "number" &&
+                            c.productCount > 0 ? (
+                              <span
+                                className={cn(
+                                  "shrink-0 text-[11px] font-semibold",
+                                  muted
+                                )}
+                              >
+                                {c.productCount}
+                              </span>
+                            ) : null}
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#FF6B35]" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             ) : searching ? (
               <div className="flex justify-center py-16">
                 <Loader2 className="h-8 w-8 animate-spin text-[#FF6B35]" />
               </div>
-            ) : results.length === 0 ? (
+            ) : (visibleResults ?? []).length === 0 ? (
               <div className="px-4 py-12 text-center">
+                <ShopAvailabilityChips
+                  value={availability}
+                  onChange={setAvailability}
+                />
                 <ShoppingBag className="mx-auto h-9 w-9 text-[#FF6B35]" />
                 <p className={cn("mt-2 text-[13px]", muted)}>
                   No matches in {label}.
@@ -446,7 +682,11 @@ function ShopTradePageInner() {
                     Clear
                   </button>
                 </div>
-                {productRows(results)}
+                <ShopAvailabilityChips
+                  value={availability}
+                  onChange={setAvailability}
+                />
+                {productRows(visibleResults)}
               </>
             )}
           </>

@@ -103,7 +103,7 @@ export function ShopVehicleBar({
 
   const label = active
     ? [active.year, active.makeName, active.modelName].filter(Boolean).join(" ")
-    : "Select vehicle";
+    : "All";
 
   // Vehicle fitment belongs ONLY to vehicle-based trades (mechanic, body,
   // diagnostics, etc.). Non-vehicle trades (solar, plumber, carpenter,
@@ -138,31 +138,43 @@ export function ShopVehicleBar({
               )}
             >
               {active
-                ? "Tap to change · ALL PARTS available"
+                ? "Tap to change"
                 : isAuthenticated
                   ? "Garage · pick make / model / year"
                   : "Sign in to save vehicles"}
             </span>
           </button>
         )}
-        {active && tradeKey ? (
-          <button
-            type="button"
-            onClick={() =>
-              router.push(
-                `/shop/c/${tradeKey}?allParts=1&makeName=${encodeURIComponent(active.makeName)}&modelName=${encodeURIComponent(active.modelName)}${active.year ? `&year=${active.year}` : ""}${active.makeId ? `&makeId=${active.makeId}` : ""}${active.modelId ? `&modelId=${active.modelId}` : ""}${active.vehicleTypeSlug ? `&vehicleType=${encodeURIComponent(active.vehicleTypeSlug)}` : ""}`
-              )
-            }
-            className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border-0 bg-[#FF6B35] px-2.5 py-1.5 text-[11px] font-bold text-white"
-          >
-            ALL PARTS
-            <ChevronRight className="h-3.5 w-3.5" />
-          </button>
+        {active ? (
+          <>
+            {tradeKey ? (
+              <button
+                type="button"
+                onClick={() =>
+                  router.push(
+                    `/shop/c/${tradeKey}?allParts=1&makeName=${encodeURIComponent(active.makeName)}&modelName=${encodeURIComponent(active.modelName)}${active.year ? `&year=${active.year}` : ""}${active.makeId ? `&makeId=${active.makeId}` : ""}${active.modelId ? `&modelId=${active.modelId}` : ""}${active.vehicleTypeSlug ? `&vehicleType=${encodeURIComponent(active.vehicleTypeSlug)}` : ""}`
+                  )
+                }
+                className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border-0 bg-[#FF6B35] px-2.5 py-1.5 text-[11px] font-bold text-white"
+              >
+                ALL PARTS
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              title="Clear vehicle and browse all parts"
+              onClick={() => apply(null)}
+              className="shrink-0 rounded-lg border-0 bg-transparent px-2 py-1.5 text-[11px] font-bold text-[#FF6B35]"
+            >
+              All
+            </button>
+          </>
         ) : (
           <button
             type="button"
             onClick={() => router.push("/shop/vehicles")}
-            className="inline-flex shrink-0 items-center rounded-lg border-0 bg-[#FF6B35]/15 px-2.5 py-1.5 text-[11px] font-bold text-[#FF6B35]"
+            className="inline-flex shrink-0 items-center rounded-lg border-0 bg-[#FF6B35] px-2.5 py-1.5 text-[11px] font-bold text-white"
           >
             Garage
           </button>

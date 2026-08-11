@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Ban,
   CalendarClock,
   LayoutGrid,
   PackageCheck,
@@ -21,7 +20,6 @@ const STOCK_ICONS: Record<string, LucideIcon> = {
   out_of_stock: PackageX,
   pre_order: CalendarClock,
   coming_soon: Timer,
-  discontinued: Ban,
 };
 
 type Props = {
@@ -32,7 +30,7 @@ type Props = {
 
 /**
  * Icon + tiny sub-label inventory filter row: All / Available / Low stock /
- * Out of stock / Pre-order / Coming soon / Discontinued.
+ * Out of stock / Pre-order / Coming soon.
  */
 export function ShopAvailabilityChips({ value, onChange, className }: Props) {
   const { theme } = useApp();

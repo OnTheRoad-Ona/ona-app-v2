@@ -50,8 +50,8 @@ describe("shopUiScopeFromViewer", () => {
 });
 
 describe("listing status", () => {
-  it("has ALL + six statuses", () => {
-    expect(LISTING_FILTER_CHIPS).toHaveLength(7);
+  it("has ALL + five statuses", () => {
+    expect(LISTING_FILTER_CHIPS).toHaveLength(6);
     expect(LISTING_FILTER_CHIPS[0].key).toBe("all");
   });
 
@@ -63,8 +63,8 @@ describe("listing status", () => {
     expect(deriveListingStatus({ qty: 20, reorderLevel: 5 })).toBe("available");
   });
 
-  it("discontinued is not purchasable", () => {
-    expect(listingIsPurchasable("discontinued")).toBe(false);
+  it("availability statuses are not always purchasable", () => {
+    expect(listingIsPurchasable("out_of_stock")).toBe(false);
     expect(listingIsPurchasable("available")).toBe(true);
     expect(listingIsPurchasable("pre_order")).toBe(true);
   });

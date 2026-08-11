@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
       selected.availability = sp.get("availability") || "";
     }
     const listingStatus = isListingStatus(sp.get("listingStatus"))
-      ? (sp.get("listingStatus") as "all" | "available" | "low_stock" | "out_of_stock" | "pre_order" | "coming_soon" | "discontinued")
+      ? (sp.get("listingStatus") as "all" | "available" | "low_stock" | "out_of_stock" | "pre_order" | "coming_soon")
       : undefined;
     const filters: ProductFilterOptions = tradeKey
       ? applyTradeFilters(tradeKey, selected)
@@ -67,9 +67,21 @@ export async function GET(req: NextRequest) {
         ? scope.allowedTradeKeys[0]
         : undefined);
 
+    // Category is sent either as a slug (neutral browse / filters) or as a
+    // UUID (all-parts). Only pass it as categoryId when it is a real UUID;
+    // otherwise let the slug <-> id resolution in listProducts handle it.
+    const rawCategory = sp.get("category") || sp.get("cat");
+    const categoryId =
+      typeof rawCategory === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        rawCategory
+      )
+        ? rawCategory
+        : undefined;
+
     const data = await listProducts({
       tradeKey: effectiveTrade,
-      categoryId: sp.get("category") || undefined,
+      categoryId,
       categorySlug: filters?.categorySlug,
       q: sp.get("q") || undefined,
       limit: Number(sp.get("limit") || 24),
