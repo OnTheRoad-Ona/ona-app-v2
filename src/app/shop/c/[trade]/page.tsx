@@ -395,7 +395,7 @@ function ShopTradePageInner() {
       : results.filter((p) => listingMatchesCard(p, availability));
 
   const productRows = (items: ProductCard[]) => (
-    <div className="flex flex-col gap-2 px-3">
+    <div className="flex flex-col gap-3 px-3 pb-4">
       {items.map((p) => (
         <ShopProductCard
           key={p.id}

@@ -90,7 +90,7 @@ export function ShopProductCard({ product, qty = 1, onAdded }: Props) {
           }
         }}
         className={cn(
-          "relative flex w-full cursor-pointer items-center gap-2.5 rounded-xl border-0 p-2 text-left",
+          "relative flex w-full cursor-pointer items-center gap-3 rounded-xl border-0 p-2.5 text-left",
           card
         )}
       >
