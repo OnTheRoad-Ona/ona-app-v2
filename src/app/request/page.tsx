@@ -60,6 +60,11 @@ function RequestInner() {
 
   const [problem, setProblem] = useState("");
   const [voice, setVoice] = useState<JobMedia | null>(null);
+  const [voicePhase, setVoicePhase] = useState<
+    "idle" | "arming" | "recording" | "saving"
+  >("idle");
+  const voiceBusy =
+    voicePhase === "arming" || voicePhase === "recording" || voicePhase === "saving";
   const [photos, setPhotos] = useState<JobMedia[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -222,6 +227,10 @@ function RequestInner() {
       setError("Describe the problem in a few words.");
       return;
     }
+    if (voiceBusy) {
+      setError("Wait for the voice note to finish saving before sending.");
+      return;
+    }
     setBusy(true);
     setError(null);
     let res;
@@ -346,11 +355,17 @@ function RequestInner() {
       footer={
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || voiceBusy}
           onClick={() => void send()}
           className={grayBtn}
         >
-          {busy ? "Sending…" : "Send request"}
+          {busy
+            ? "Sending…"
+            : voicePhase === "saving"
+              ? "Saving voice…"
+              : voiceBusy
+                ? "Stop recording to send"
+                : "Send request"}
         </button>
       }
     >
@@ -446,6 +461,7 @@ function RequestInner() {
           onChange={setVoice}
           userId={userId}
           isLight={isLight}
+          onPhaseChange={setVoicePhase}
         />
       </section>
 

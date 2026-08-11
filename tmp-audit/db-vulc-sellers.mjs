@@ -1,0 +1,10 @@
+import { createClient } from "@supabase/supabase-js";
+import { config } from "dotenv";
+config({ path: "/Users/mac/Desktop/Code/Ona/.env.local" });
+const sb = createClient(process.env.SUPABASE_URL||process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+const { data: sellers } = await sb.from("shop_sellers").select("id, slug, name, is_active");
+console.log("sellers:", JSON.stringify(sellers));
+const { data: samples } = await sb.from("shop_prices").select("variant_id, currency, amount_minor").limit(3);
+console.log("price sample:", JSON.stringify(samples));
+const { data: prods } = await sb.from("shop_products").select("id, trade_key, status").eq("trade_key","vulcanizer").eq("status","active");
+console.log("active vulcanizer products:", prods?.length);

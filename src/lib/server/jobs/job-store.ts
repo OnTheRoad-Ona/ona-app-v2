@@ -2201,6 +2201,71 @@ export async function adminReassignJob(
   return { ok: true, job: rowToJob(updated as Record<string, unknown>) };
 }
 
+/**
+ * Every column rowToJob reads EXCEPT the heavy base64 media columns
+ * (photos, voice_note). Selecting "*" pulled ~5 MB of embedded data-URLs
+ * per list poll (16s+) — media is re-fetched only for open pro requests.
+ */
+const LEAN_JOB_COLUMNS = [
+  "id",
+  "flow_status",
+  "status",
+  "motorist_id",
+  "motorist_name",
+  "motorist_photo",
+  "motorist_vehicle",
+  "repair_pro_id",
+  "repair_pro_name",
+  "repair_pro_photo",
+  "service_type",
+  "problem_text",
+  "description",
+  "pricing_currency",
+  "pro_base_major",
+  "agreed_major",
+  "offers",
+  "negotiate_ends_at",
+  "max_offers",
+  "pickup_address",
+  "pickup_lat",
+  "pickup_lng",
+  "pro_lat",
+  "pro_lng",
+  "distance_km",
+  "eta_minutes",
+  "eta_text",
+  "distance_text",
+  "eta_source",
+  "pro_location_at",
+  "motorist_location_at",
+  "payment_id",
+  "payment_reference",
+  "escrow_status",
+  "amount_minor",
+  "platform_fee_minor",
+  "pro_payout_minor",
+  "dispute",
+  "evidence",
+  "rating",
+  "rating_note",
+  "status_history",
+  "created_at",
+  "updated_at",
+  "paid_at",
+  "released_at",
+  "cancelled_at",
+  "satisfied_at",
+  "pairing_stage",
+  "pairing_deadline",
+  "queue_position",
+  "remaining_candidates",
+  "reservation_status",
+  "assignment_status",
+  "chosen_pro_id",
+  "pairing_radius_km",
+  "radius_km",
+].join(", ");
+
 export async function listJobsForUser(
   userId: string,
   role: "motorist" | "repair_pro"
@@ -2217,10 +2282,11 @@ export async function listJobsForUser(
     try {
       const sb = createServiceSupabase();
       const col = role === "motorist" ? "motorist_id" : "repair_pro_id";
-      // Keep list lean — full hydrate is for single-job detail, not list polls
+      // Lean list — exclude heavy base64 media columns (photos/voice_note).
+      // Media is hydrated below only for open pro requests the popup needs.
       const { data } = await sb
         .from("service_requests")
-        .select("*")
+        .select(LEAN_JOB_COLUMNS)
         .eq(col, userId)
         .order("created_at", { ascending: false })
         .limit(40);
@@ -2228,7 +2294,7 @@ export async function listJobsForUser(
       // Parallel light processing (was sequential N+1 → multi-second hangs)
       let mapped = await Promise.all(
         rows.map(async (row) => {
-          let j = rowToJob(row as Record<string, unknown>);
+          let j = rowToJob(row as unknown as Record<string, unknown>);
           // Only run expire checks on statuses that can auto-advance
           if (
             j.status === "negotiating" ||
@@ -2289,6 +2355,47 @@ export async function listJobsForUser(
             }
           } catch {
             /* optional */
+          }
+        }
+      }
+
+      // Hydrate photos + voice note for open pro requests only — the incoming
+      // popup needs them, but terminal/history jobs stay lean (base64 is heavy).
+      if (role === "repair_pro") {
+        const needMedia = mapped.filter((j) =>
+          [
+            "waiting_for_selected",
+            "selected_review",
+            "waiting_for_pro",
+            "reserved",
+            "sequential_pairing",
+            "negotiating",
+            "agreed",
+          ].includes(j.status)
+        );
+        const mediaIds = [...new Set(needMedia.map((j) => j.id).filter(Boolean))];
+        if (mediaIds.length) {
+          try {
+            const { data: mediaRows } = await sb
+              .from("service_requests")
+              .select("id, photos, voice_note")
+              .in("id", mediaIds);
+            const mediaById = new Map(
+              (mediaRows || []).map((r) => [String(r.id), r])
+            );
+            if (mediaById.size) {
+              mapped = mapped.map((j) => {
+                const m = mediaById.get(j.id);
+                if (!m) return j;
+                return {
+                  ...j,
+                  photos: (m.photos as JobMedia[]) || j.photos,
+                  voiceNote: (m.voice_note as JobMedia) || j.voiceNote,
+                };
+              });
+            }
+          } catch {
+            /* media is optional */
           }
         }
       }

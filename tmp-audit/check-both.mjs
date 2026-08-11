@@ -1,0 +1,11 @@
+import { createClient } from "@supabase/supabase-js";
+import { config } from "dotenv";
+import { resolve } from "node:path";
+config({ path: resolve("/Users/mac/Desktop/Code/Ona", ".env.local") });
+const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
+const r = await sb.from("repair_pro_profiles").select("user_id", { count: "exact", head: true });
+console.log("LOCAL .env.local project:", process.env.SUPABASE_URL.replace("https://", "").split(".")[0]);
+console.log("status:", r.error?.message ?? "OK, count=" + r.count);
+const old = createClient("https://rvhvzcphzusemwmlffdb.supabase.co", process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
+const r2 = await old.from("repair_pro_profiles").select("user_id", { count: "exact", head: true });
+console.log("OLD project rvhvzcphzusemwmlffdb:", r2.error?.message ?? "OK, count=" + r2.count);

@@ -159,6 +159,32 @@ export async function getTradeBrowseStart(
   return roots;
 }
 
+/** Featured mix for the general shop home: mechanic equipment dominates,
+ * with generator + solar as supporting trades. */
+const FEATURED_MIX: Array<{ tradeKey: string; count: number }> = [
+  { tradeKey: "mechanic", count: 8 },
+  { tradeKey: "generator", count: 2 },
+  { tradeKey: "solar", count: 2 },
+];
+
+async function featuredProducts(opts: {
+  accountContext?: ShopAccountContext;
+  order?: "created_at" | "name";
+}): Promise<ShopProductCard[]> {
+  const out: ShopProductCard[] = [];
+  for (const m of FEATURED_MIX) {
+    const items = await listProducts({
+      tradeKey: m.tradeKey,
+      limit: m.count,
+      status: "active",
+      order: opts.order,
+      accountContext: opts.accountContext,
+    });
+    out.push(...items);
+  }
+  return out.slice(0, 12);
+}
+
 export async function getShopHomeSections(opts?: {
   accountContext?: ShopAccountContext;
   /** Cap trades to these keys (Mechanic Shop). null = all. */
@@ -186,19 +212,28 @@ export async function getShopHomeSections(opts?: {
     opts?.allowedTradeKeys?.length === 1
       ? opts.allowedTradeKeys[0]
       : opts?.defaultTradeKey || undefined;
-  const popular = await listProducts({
-    limit: 12,
-    status: "active",
-    tradeKey: tradeFilter,
-    accountContext: opts?.accountContext,
-  });
-  const newArrivals = await listProducts({
-    limit: 12,
-    status: "active",
-    order: "created_at",
-    tradeKey: tradeFilter,
-    accountContext: opts?.accountContext,
-  });
+  // General shop home: surface the curated mechanic/generator/solar mix.
+  const isGeneralHome = !tradeFilter;
+  const popular = isGeneralHome
+    ? await featuredProducts({ accountContext: opts?.accountContext })
+    : await listProducts({
+        limit: 12,
+        status: "active",
+        tradeKey: tradeFilter,
+        accountContext: opts?.accountContext,
+      });
+  const newArrivals = isGeneralHome
+    ? await featuredProducts({
+        accountContext: opts?.accountContext,
+        order: "created_at",
+      })
+    : await listProducts({
+        limit: 12,
+        status: "active",
+        order: "created_at",
+        tradeKey: tradeFilter,
+        accountContext: opts?.accountContext,
+      });
   const recommended = await listProducts({
     limit: 12,
     status: "active",

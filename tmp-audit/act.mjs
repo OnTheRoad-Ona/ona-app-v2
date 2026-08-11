@@ -1,0 +1,11 @@
+import { createClient } from "@supabase/supabase-js";
+import { config } from "dotenv";
+import { resolve } from "node:path";
+config({ path: resolve("/Users/mac/Desktop/Code/Ona", ".env.local") });
+const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession:false } });
+const pid = "ad5430e2-355d-4889-a6cc-e7f1fe45d8ec";
+const { data: us } = await sb.from("user_sessions").select("id,device_label,user_agent,last_seen_at,revoked_at").eq("user_id", pid).is("revoked_at", null).order("last_seen_at",{ascending:false}).limit(5);
+console.log("ACTIVE SESSIONS Oluwatosin:");
+for (const s of us??[]) console.log("  ", s.id.slice(0,8), s.device_label||"", (s.user_agent||"").slice(0,40), "lastSeen", s.last_seen_at);
+const { data: prof } = await sb.from("pro_profiles").select("id,full_name,is_online,is_active,services").eq("id", pid).maybeSingle();
+console.log("PRO PROFILE:", prof?.full_name, "online", prof?.is_online, "active", prof?.is_active, "services", prof?.services);

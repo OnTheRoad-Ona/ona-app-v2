@@ -1,0 +1,12 @@
+import { createClient } from "@supabase/supabase-js";
+import { config } from "dotenv";
+import { resolve } from "node:path";
+config({ path: resolve("/Users/mac/Desktop/Code/Ona", ".env.local") });
+const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession:false } });
+const id = process.argv[2];
+const { data: q, error: qe } = await sb.from("request_pairing_queue").select("pro_id,position,status,offered_at,responded_at,result_note").eq("request_id", id).order("position",{ascending:true});
+console.log("QUEUE", qe?.message || "");
+for (const r of q??[]) console.log(" pos", r.position, r.pro_id.slice(0,8), r.status, "offered", (r.offered_at||"").slice(11,19), "responded", r.responded_at?(r.responded_at).slice(11,19):"-", r.result_note||"");
+const { data: rv, error: rve } = await sb.from("request_reservations").select("pairing_pro_id,pairing_stage,reservation_status,negotiate_ends_at,confirmed_at,created_at").eq("request_id", id).order("created_at",{ascending:true});
+console.log("RESERVATIONS", rve?.message || "");
+for (const r of rv??[]) console.log(" pro", r.pairing_pro_id.slice(0,8), r.pairing_stage, r.reservation_status, "negEnds", (r.negotiate_ends_at||"").slice(11,19), "confirmed", r.confirmed_at?(r.confirmed_at).slice(11,19):"-");

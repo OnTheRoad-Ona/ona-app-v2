@@ -1,0 +1,11 @@
+import { createClient } from "@supabase/supabase-js";
+import { config } from "dotenv";
+import { resolve } from "node:path";
+config({ path: resolve("/Users/mac/Desktop/Code/Ona", ".env.local.bak-old-project-20260806") });
+const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
+console.log("key present:", Boolean(key));
+const sb = createClient("https://rvhvzcphzusemwmlffdb.supabase.co", key, { auth: { autoRefreshToken: false, persistSession: false } });
+const r = await sb.from("repair_pro_profiles").select("user_id", { count: "exact", head: true });
+console.log("data:", JSON.stringify(r.data), "error:", JSON.stringify(r.error));
+const h = await fetch("https://rvhvzcphzusemwmlffdb.supabase.co/rest/v1/repair_pro_profiles?select=user_id&limit=1", { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+console.log("raw status:", h.status, await h.text());

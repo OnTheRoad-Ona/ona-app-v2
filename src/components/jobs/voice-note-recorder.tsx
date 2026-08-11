@@ -29,13 +29,19 @@ export function VoiceNoteRecorder({
   onChange,
   userId,
   isLight,
+  onPhaseChange,
 }: {
   value: JobMedia | null;
   onChange: (v: JobMedia | null) => void;
   userId: string;
   isLight: boolean;
+  onPhaseChange?: (phase: Phase) => void;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
+
+  useEffect(() => {
+    onPhaseChange?.(phase);
+  }, [phase, onPhaseChange]);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const mediaRef = useRef<MediaRecorder | null>(null);

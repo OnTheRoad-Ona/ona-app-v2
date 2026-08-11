@@ -1,0 +1,10 @@
+import { VULCANIZER_CATEGORY_TREE } from "/Users/mac/Desktop/Code/Ona/src/lib/shop/vulcanizer-taxonomy.ts";
+import { createClient } from "@supabase/supabase-js";
+import { config } from "dotenv";
+config({ path: "/Users/mac/Desktop/Code/Ona/.env.local" });
+const sb = createClient(process.env.SUPABASE_URL||process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+console.log("tree roots:", VULCANIZER_CATEGORY_TREE.length);
+const { data: roots } = await sb.from("shop_trade_categories").select("slug").eq("trade_key","vulcanizer").eq("depth",0);
+const db = new Set(roots.map(r=>r.slug));
+console.log("expected:", VULCANIZER_CATEGORY_TREE.map(r=>r.slug).join(","));
+console.log("missing:", VULCANIZER_CATEGORY_TREE.filter(r=>!db.has(r.slug)).map(r=>r.slug).join(","));

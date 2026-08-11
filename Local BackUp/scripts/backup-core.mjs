@@ -106,12 +106,14 @@ function candidates() {
     "ap-southeast-1",
   ];
   for (const r of regions) {
-    list.push(
-      `postgresql://postgres.${REF}:${enc}@aws-0-${r}.pooler.supabase.com:6543/postgres`
-    );
-    list.push(
-      `postgresql://postgres.${REF}:${enc}@aws-0-${r}.pooler.supabase.com:5432/postgres`
-    );
+    for (const p of ["aws-0", "aws-1"]) {
+      list.push(
+        `postgresql://postgres.${REF}:${enc}@${p}-${r}.pooler.supabase.com:6543/postgres`
+      );
+      list.push(
+        `postgresql://postgres.${REF}:${enc}@${p}-${r}.pooler.supabase.com:5432/postgres`
+      );
+    }
   }
   list.push(
     `postgresql://postgres:${enc}@db.${REF}.supabase.co:5432/postgres`
