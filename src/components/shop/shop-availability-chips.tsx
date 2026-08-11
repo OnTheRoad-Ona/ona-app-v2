@@ -44,10 +44,10 @@ export function ShopAvailabilityChips({ value, onChange, className }: Props) {
   const subMuted = isLight ? "text-slate-500" : "text-white/50";
 
   return (
-    <div className={cn("px-3 pt-3 pb-4", className)}>
+    <div className={cn("px-3 pt-3", className)}>
       <div
         className={cn(
-          "flex w-full items-stretch gap-1 overflow-x-auto rounded-2xl p-1",
+          "flex w-full items-stretch gap-px overflow-x-auto rounded-xl",
           track
         )}
         role="group"
@@ -63,7 +63,7 @@ export function ShopAvailabilityChips({ value, onChange, className }: Props) {
               onClick={() => onChange(chip.key)}
               aria-pressed={active}
               className={cn(
-                "flex min-w-0 flex-1 flex-col items-center justify-center gap-1.5 rounded-xl border-0 px-1.5 py-2 transition-colors",
+                "flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-none border-0 px-1 py-1.5 transition-colors",
                 active ? activeBox : inactiveBox
               )}
             >
@@ -81,7 +81,7 @@ export function ShopAvailabilityChips({ value, onChange, className }: Props) {
               <span className="flex w-full justify-center">
                 <span
                   className={cn(
-                    "text-center text-[10px] font-bold leading-tight",
+                    "text-center text-[9px] font-bold leading-tight",
                     active ? undefined : subMuted
                   )}
                 >
