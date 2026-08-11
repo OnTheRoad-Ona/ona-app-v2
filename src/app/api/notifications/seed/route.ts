@@ -1,26 +1,15 @@
-import { z } from "zod";
-import { apiFail, apiOk } from "@/lib/server/api-json";
-import { requireUser } from "@/lib/server/auth-utils";
-import { insertNotification } from "@/lib/server/notifications";
-import { createServiceSupabase } from "@/lib/supabase/server";
-import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
+import { apiFail } from "@/lib/server/api-json";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const bodySchema = z.object({
-  userId: z.string().min(1),
-  role: z.enum(["motorist", "professional"]).default("motorist"),
-});
-
 /**
  * POST /api/notifications/seed
- * Seeds sample notifications when the user has none (demo + QA).
+ * DISABLED — demo sample seeding removed; the endpoint now refuses to run.
  */
-export async function POST(req: Request) {
-  if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503);
-  }
+export async function POST() {
+  return apiFail("Demo notification seeding is disabled", 404, "seeder_disabled");
+}
   const auth = await requireUser(req);
   if (!auth.ok) return auth.response;
 
