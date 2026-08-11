@@ -44,7 +44,7 @@ export function ShopAvailabilityChips({ value, onChange, className }: Props) {
   const subMuted = isLight ? "text-slate-500" : "text-white/50";
 
   return (
-    <div className={cn("px-3 pt-3", className)}>
+    <div className={cn("px-3 pt-3 pb-3", className)}>
       <div
         className={cn(
           "flex w-full items-stretch gap-px overflow-x-auto rounded-xl",
