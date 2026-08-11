@@ -3,7 +3,7 @@
  * Enforces legal transitions for Ona premium job flow.
  */
 
-import type { JobFlowStatus, OfferSide } from "@/lib/jobs/types";
+import type { JobFlowStatus, JobOffer, OfferSide } from "@/lib/jobs/types";
 import {
   DISPUTABLE_STATUSES,
   MAX_DISCOUNT_PERCENT,
@@ -206,6 +206,22 @@ export function assertTransition(
 }
 
 /** Pro must place offer #1. Max 6 offers total (back-and-forth). */
+/**
+ * True when an offer carrying this client idempotency sticker already exists
+ * on this side. Retries of a lost response reuse the same sticker and must
+ * replay the original result instead of placing a duplicate offer.
+ */
+export function hasIdempotentOffer(
+  offers: readonly JobOffer[],
+  clientOfferId: string | null | undefined,
+  side: OfferSide
+): boolean {
+  if (!clientOfferId) return false;
+  return offers.some(
+    (o) => o.clientOfferId === clientOfferId && o.side === side
+  );
+}
+
 export function canPlaceOffer(input: {
   status: JobFlowStatus;
   offerCount: number;

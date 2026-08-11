@@ -60,7 +60,6 @@ import {
   apiRetrySearch,
   apiTransition,
   getCurrentPosition,
-  processPendingOffers,
 } from "@/lib/jobs/client";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { SwipeToRelease } from "@/components/jobs/motorist-release-pay-gate";
@@ -676,11 +675,6 @@ export function JobFlowScreen({
       setStickyReleaseErr(null);
     }
   }, [jobId, commitJob, stickyReleaseErr, accountType, router]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Replay any offers that failed due to network (offline queue)
-  useEffect(() => {
-    void processPendingOffers();
-  }, []);
 
   // If Forbidden ever lands in UI state, leave immediately (no stuck screen)
   useEffect(() => {

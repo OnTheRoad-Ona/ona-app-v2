@@ -6,6 +6,7 @@ import {
   SESSION_RELOGIN_MESSAGE,
 } from "@/lib/supabase/session";
 import { syncServerClock } from "@/lib/jobs/server-clock";
+import { clearIdemKey, getOrCreateIdemKey } from "@/lib/jobs/idempotency";
 
 type ApiOk<T> = { ok: true; data: T };
 type ApiErr = { ok: false; message: string };
@@ -163,11 +164,31 @@ export async function apiCreateJob(body: Record<string, unknown>) {
   } catch {
     /* keep caller motoristId */
   }
+  // One sticker per composed request (stable payload hash). Retries reuse it
+  // so a lost response can never create the request twice; editing the
+  // request changes the hash and gets a fresh sticker.
+  const intentKey = `request|${hashBody(body)}`;
+  const clientRequestId = getOrCreateIdemKey(intentKey);
   const res = await jobFetch("/api/jobs", {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      ...body,
+      clientRequestId,
+    }),
   });
-  return parse<{ job: JobRecord }>(res);
+  const parsed = await parse<{ job: JobRecord }>(res);
+  if (parsed.ok) clearIdemKey(intentKey);
+  return parsed;
+}
+
+/** Cheap deterministic fingerprint of the request body (djb2). */
+function hashBody(body: Record<string, unknown>): string {
+  const s = JSON.stringify(body);
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  }
+  return h.toString(36);
 }
 
 export async function apiGetJob(id: string) {
@@ -234,90 +255,17 @@ export async function apiListJobs(
   return parse<{ jobs: JobRecord[] }>(res);
 }
 
-const OFFER_QUEUE_KEY = "om-pending-offers";
-
-function enqueuePendingOffer(input: {
-  jobId: string;
-  side: "repair_pro" | "motorist";
-  actorId: string;
-  amountMajor: number;
-}) {
-  try {
-    const raw = localStorage.getItem(OFFER_QUEUE_KEY);
-    const queue = raw ? JSON.parse(raw) : [];
-    queue.push({ ...input, ts: Date.now() });
-    localStorage.setItem(OFFER_QUEUE_KEY, JSON.stringify(queue));
-  } catch {
-    /* localStorage unavailable */
-  }
-}
-
-export async function processPendingOffers(): Promise<void> {
-  let raw: string | null = null;
-  try {
-    raw = localStorage.getItem(OFFER_QUEUE_KEY);
-  } catch {
-    return;
-  }
-  if (!raw) return;
-  let queue: Array<{
-    jobId: string;
-    side: "repair_pro" | "motorist";
-    actorId: string;
-    amountMajor: number;
-    ts: number;
-  }> = [];
-  try {
-    queue = JSON.parse(raw);
-  } catch {
-    localStorage.removeItem(OFFER_QUEUE_KEY);
-    return;
-  }
-  if (!queue.length) return;
-  const remaining: typeof queue = [];
-  for (const item of queue) {
-    try {
-      // Drop queue items once negotiation is closed / terminal.
-      const jobRes = await apiGetJob(item.jobId);
-      if (jobRes.ok) {
-        const st = jobRes.data.job.status;
-        if (st !== "negotiating") {
-          continue; // drop — no longer placeable
-        }
-      }
-      const res = await jobFetch(`/api/jobs/${item.jobId}/offer`, {
-        method: "POST",
-        body: JSON.stringify({
-          action: "place",
-          side: item.side,
-          actorId: item.actorId,
-          amountMajor: item.amountMajor,
-        }),
-      });
-      if (!res.ok) {
-        // Permanent client/server rejection — drop, don't retry forever.
-        if (res.status === 400 || res.status === 403 || res.status === 409) {
-          continue;
-        }
-        remaining.push(item);
-      }
-    } catch {
-      remaining.push(item);
-    }
-  }
-  if (remaining.length) {
-    localStorage.setItem(OFFER_QUEUE_KEY, JSON.stringify(remaining));
-  } else {
-    localStorage.removeItem(OFFER_QUEUE_KEY);
-  }
-}
-
 export async function apiPlaceOffer(input: {
   jobId: string;
   side: "repair_pro" | "motorist";
   actorId: string;
   amountMajor: number;
 }) {
+  // One sticker per (job, side, amount) intent. Retries reuse it so a lost
+  // response can never double-place an offer; a different amount is a new
+  // intent and gets its own sticker.
+  const intentKey = `offer|${input.jobId}|${input.side}|${input.amountMajor}`;
+  const clientOfferId = getOrCreateIdemKey(intentKey);
   try {
     const res = await jobFetch(`/api/jobs/${input.jobId}/offer`, {
       method: "POST",
@@ -326,15 +274,17 @@ export async function apiPlaceOffer(input: {
         side: input.side,
         actorId: input.actorId,
         amountMajor: input.amountMajor,
+        clientOfferId,
       }),
     });
-    return parse<{ job: JobRecord }>(res);
+    const parsed = await parse<{ job: JobRecord }>(res);
+    if (parsed.ok) clearIdemKey(intentKey);
+    return parsed;
   } catch {
-    enqueuePendingOffer(input);
+    // Fail fast — no silent queue. The sticker makes the manual retry safe.
     return {
       ok: false as const,
-      message:
-        "Offer queued — will be sent when connection is restored.",
+      message: "Couldn't send — check your connection and tap Send again.",
     };
   }
 }

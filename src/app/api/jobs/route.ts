@@ -41,6 +41,8 @@ const createSchema = z.object({
   motoristVehicle: z.string().max(200).optional().nullable(),
   /** Customer home radius slider (km) — caps SSPE pairing expansion */
   radiusKm: z.number().min(0).max(100).optional().nullable(),
+  /** Client idempotency sticker — retries of the same request reuse it */
+  clientRequestId: z.string().min(1).max(100).optional().nullable(),
 });
 
 export async function POST(req: Request) {
@@ -78,6 +80,7 @@ export async function POST(req: Request) {
       locationLabel: b.locationLabel,
       motoristLocation: { lat: b.lat, lng: b.lng },
       radiusKm: b.radiusKm ?? null,
+      clientRequestId: b.clientRequestId || null,
     });
     return apiOk({ job, serverNow: new Date().toISOString() });
   } catch (e) {

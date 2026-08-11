@@ -72,6 +72,8 @@ export type JobOffer = {
   createdAt: string;
   /** 1-based index in negotiation (max 6) */
   offerIndex: number;
+  /** Client idempotency sticker — dedupes bad-network retries */
+  clientOfferId?: string | null;
 };
 
 export type JobDispute = {
@@ -121,6 +123,8 @@ export type EvidenceScores = {
 
 export type JobRecord = {
   id: string;
+  /** Client idempotency sticker from the creating request (dedupe) */
+  clientRequestId?: string | null;
   motoristId: string;
   motoristName: string;
   /** Motorist profile avatar URL when set */
@@ -218,4 +222,6 @@ export type CreateJobInput = {
   motoristLocation: Coordinates;
   /** Customer's chosen search radius (0–10 km slider); caps pairing expansion */
   radiusKm?: number | null;
+  /** Client idempotency sticker — dedupes bad-network retries */
+  clientRequestId?: string | null;
 };

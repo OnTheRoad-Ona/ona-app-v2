@@ -20,6 +20,7 @@ import { computeEvidenceScores } from "@/lib/jobs/evidence";
 import {
   assertTransition,
   canPlaceOffer,
+  hasIdempotentOffer,
   validateOfferAmount,
   type TransitionActor,
   type TransitionEvent,
@@ -175,6 +176,7 @@ function rowToJob(row: Record<string, unknown>): JobRecord {
   const status = resolveFlowStatus(row);
   return {
     id: String(row.id),
+    clientRequestId: row.client_request_id ? String(row.client_request_id) : null,
     motoristId: String(row.motorist_id),
     motoristName: String(row.motorist_name || "Customer"),
     motoristPhoto: row.motorist_photo ? String(row.motorist_photo) : null,
@@ -303,6 +305,7 @@ function flowToLegacyStatus(flow: JobFlowStatus): string {
 
 function jobToDbPatch(job: JobRecord): Record<string, unknown> {
   return {
+    client_request_id: job.clientRequestId ?? null,
     flow_status: job.status,
     status: flowToLegacyStatus(job.status),
     problem_text: job.problem,
@@ -471,6 +474,7 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
 
   const job: JobRecord = {
     id,
+    clientRequestId: input.clientRequestId || null,
     motoristId: input.motoristId,
     motoristName: input.motoristName,
     motoristPhoto,
@@ -510,10 +514,26 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
   if (isSupabaseAdminConfigured()) {
     try {
       const sb = createServiceSupabase();
+      // Idempotent replay: a sticker we've seen before already created the
+      // request. Return that job instead of creating a second one.
+      if (input.clientRequestId) {
+        const { data: existing } = await sb
+          .from("service_requests")
+          .select("*")
+          .eq("motorist_id", input.motoristId)
+          .eq("client_request_id", input.clientRequestId)
+          .maybeSingle();
+        if (existing) {
+          const mapped = rowToJob(existing as Record<string, unknown>);
+          memory.set(mapped.id, mapped);
+          return mapped;
+        }
+      }
       const { data, error } = await sb
         .from("service_requests")
         .insert({
           id: job.id,
+          client_request_id: input.clientRequestId || null,
           motorist_id: input.motoristId,
           repair_pro_id: input.repairProId,
           service_type: input.serviceType,
@@ -577,8 +597,27 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
       }
       // Insert may fail if motorist_vehicle column missing — retry without it
       if (error) {
+        // Unique-violation race: an identical request (same sticker) won.
+        // Replay its job instead of creating a duplicate.
+        if (
+          input.clientRequestId &&
+          String((error as { code?: string }).code) === "23505"
+        ) {
+          const { data: raced } = await sb
+            .from("service_requests")
+            .select("*")
+            .eq("motorist_id", input.motoristId)
+            .eq("client_request_id", input.clientRequestId)
+            .maybeSingle();
+          if (raced) {
+            const mapped = rowToJob(raced as Record<string, unknown>);
+            memory.set(mapped.id, mapped);
+            return mapped;
+          }
+        }
         const { motorist_vehicle: _mv, ...rest } = {
           id: job.id,
+          client_request_id: input.clientRequestId || null,
           motorist_id: input.motoristId,
           repair_pro_id: input.repairProId,
           service_type: input.serviceType,
@@ -3096,11 +3135,20 @@ export async function placeOffer(input: {
   side: OfferSide;
   amountMajor: number;
   actorId: string;
+  clientOfferId?: string | null;
 }): Promise<{ job: JobRecord } | { error: string }> {
   // Up to 2 attempts under CAS conflict
   for (let attempt = 0; attempt < 2; attempt++) {
     const job = await getJob(input.jobId);
     if (!job) return { error: "Job not found" };
+
+    // Idempotent replay: this sticker already placed an offer on this side.
+    // Return the job unchanged — a retry after a lost response must never
+    // double-place. Checked before the gate so a now-closed negotiation
+    // still replays the original result instead of erroring.
+    if (hasIdempotentOffer(job.offers, input.clientOfferId, input.side)) {
+      return { job };
+    }
 
     const gate = canPlaceOffer({
       status: job.status,
@@ -3130,6 +3178,7 @@ export async function placeOffer(input: {
       currency: job.currency,
       createdAt: nowIso(),
       offerIndex: job.offers.length + 1,
+      clientOfferId: input.clientOfferId || null,
     };
 
     const proBase =
