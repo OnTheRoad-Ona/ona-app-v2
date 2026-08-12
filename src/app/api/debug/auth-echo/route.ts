@@ -1,14 +1,17 @@
-import { apiOk } from "@/lib/server/api-json";
+import { apiFail, apiOk } from "@/lib/server/api-json";
 import { getBearerToken, getUserFromToken, requireUser } from "@/lib/server/auth-utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Temporary diagnostic — remove after job auth fix ships.
- * GET /api/debug/auth-echo
+ * Diagnostic — disabled by default. Only responds when the operator
+ * explicitly opts in via ENABLE_AUTH_ECHO="true" (non-prod debugging).
  */
 export async function GET(req: Request) {
+  if (process.env.ENABLE_AUTH_ECHO !== "true") {
+    return apiFail("Not found", 404, "not_found");
+  }
   const token = getBearerToken(req);
   const hasAuthHeader = Boolean(req.headers.get("authorization"));
   const hasXAccess = Boolean(req.headers.get("x-access-token"));
