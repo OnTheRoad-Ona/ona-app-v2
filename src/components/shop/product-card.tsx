@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Loader2, Plus, ShoppingBag } from "lucide-react";
 import { ProductSheet } from "@/components/shop/product-sheet";
+import { detectCurrency, formatMoney, fromMinorUnits } from "@/lib/pricing";
 import { shopAddToCart } from "@/lib/shop/client";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -27,9 +28,9 @@ type Props = {
   onAdded?: () => void;
 };
 
-function formatNgn(minor: number | null): string {
+function formatPrice(minor: number | null): string {
   if (minor == null) return "—";
-  return `₦${Math.round(minor / 100).toLocaleString("en-NG")}`;
+  return formatMoney(fromMinorUnits(minor, "NGN"), detectCurrency());
 }
 
 function fitmentBadge(status?: string | null, badge?: string | null): string | null {
@@ -130,7 +131,7 @@ export function ShopProductCard({ product, qty = 1, onAdded }: Props) {
           ) : null}
           <div className="mt-1 flex items-center gap-2">
             <p className="text-[14px] font-black text-[#FF6B35]">
-              {formatNgn(product.fromPriceMinor)}
+              {formatPrice(product.fromPriceMinor)}
             </p>
             <p className={cn("text-[10px] font-semibold", muted)}>
               {inStock ? "In stock" : "Check availability"}

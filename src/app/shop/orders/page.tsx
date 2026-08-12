@@ -4,9 +4,15 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { detectCurrency, formatMoney, fromMinorUnits } from "@/lib/pricing";
 import { shopListOrders } from "@/lib/shop/client";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
+
+function formatPrice(minor: number | null | undefined): string {
+  if (minor == null) return "—";
+  return formatMoney(fromMinorUnits(minor, "NGN"), detectCurrency());
+}
 
 export default function ShopOrdersPage() {
   const { theme, isAuthenticated, accountType } = useApp();
@@ -76,10 +82,7 @@ export default function ShopOrdersPage() {
                   </p>
                 </div>
                 <p className={cn("mt-1 text-[12px]", muted)}>
-                  ₦
-                  {Math.round(Number(o.total_minor) / 100).toLocaleString(
-                    "en-NG"
-                  )}
+                  {formatPrice(Number(o.total_minor))}
                 </p>
               </button>
             ))}

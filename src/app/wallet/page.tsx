@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Copy, Gift, Wallet as WalletIcon, ArrowUpRight, CreditCard, History, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { formatMoney } from "@/lib/pricing";
 import { useT } from "@/lib/i18n";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -133,13 +134,13 @@ export default function WalletPage() {
             <div className={cn("rounded-2xl p-3", card)}>
               <p className={cn("text-[11px] font-semibold", muted)}>Available Credit</p>
               <p className="mt-0.5 text-[24px] font-black" style={{ color: accent }}>
-                ₦{wallet?.availableCredits?.toLocaleString() ?? 0}
+                {formatMoney(wallet?.availableCredits ?? 0)}
               </p>
               <div className="mt-2 grid grid-cols-2 gap-1.5">
-                {statBox("Total Earned", `₦${(wallet?.totalEarned ?? 0).toLocaleString()}`, true)}
-                {statBox("Pending", `₦${(wallet?.pendingCredits ?? 0).toLocaleString()}`, true)}
-                {statBox("Cashable", `₦${(wallet?.cashableCredits ?? 0).toLocaleString()}`, true)}
-                {statBox("Spent", `₦${(wallet?.serviceSpendCredits ?? 0).toLocaleString()}`, true)}
+                {statBox("Total Earned", `${formatMoney(wallet?.totalEarned ?? 0)}`, true)}
+                {statBox("Pending", `${formatMoney(wallet?.pendingCredits ?? 0)}`, true)}
+                {statBox("Cashable", `${formatMoney(wallet?.cashableCredits ?? 0)}`, true)}
+                {statBox("Spent", `${formatMoney(wallet?.serviceSpendCredits ?? 0)}`, true)}
               </div>
             </div>
 
@@ -181,7 +182,8 @@ export default function WalletPage() {
                 <p className={cn("text-[13px] font-bold", ink)}>Cash Out</p>
               </div>
               <p className={cn("mt-0.5 text-[10px] font-medium", muted)}>
-                Convert eligible credits to cash. Minimum ₦2,000.
+                {"Convert eligible credits to cash. Minimum "}
+                {formatMoney(2000)}.
               </p>
               <div className="mt-2 flex items-center gap-2">
                 <input
@@ -233,7 +235,7 @@ export default function WalletPage() {
                         </p>
                       </div>
                       <p className={cn("text-[12px] font-bold", tx.amount > 0 ? "text-green-500" : "text-red-400")}>
-                        {tx.amount > 0 ? "+" : ""}₦{tx.amount.toLocaleString()}
+                        {tx.amount > 0 ? "+" : ""}{formatMoney(tx.amount)}
                       </p>
                     </div>
                   ))}

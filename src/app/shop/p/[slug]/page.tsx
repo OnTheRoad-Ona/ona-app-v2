@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Loader2, Minus, Plus, ShoppingBag } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { detectCurrency, formatMoney, fromMinorUnits } from "@/lib/pricing";
 import { shopAddToCart } from "@/lib/shop/client";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -24,8 +25,8 @@ type Price = {
   compare_at_minor?: number | null;
 };
 
-function formatNgn(minor: number): string {
-  return `₦${Math.round(minor / 100).toLocaleString("en-NG")}`;
+function formatPrice(minor: number): string {
+  return formatMoney(fromMinorUnits(minor, "NGN"), detectCurrency());
 }
 
 export default function ShopProductPage() {
@@ -114,10 +115,10 @@ export default function ShopProductPage() {
   const muted = isLight ? "text-slate-600" : "text-white/55";
   const border = isLight ? "border-black/10" : "border-white/10";
   const price = selectedPrice
-    ? formatNgn(selectedPrice.amount_minor)
+    ? formatPrice(selectedPrice.amount_minor)
     : "—";
   const compareAt = selectedPrice?.compare_at_minor
-    ? formatNgn(selectedPrice.compare_at_minor)
+    ? formatPrice(selectedPrice.compare_at_minor)
     : null;
 
   return (
@@ -221,7 +222,7 @@ export default function ShopProductPage() {
                           {v.option_label || v.title || v.sku}
                         </span>
                         <span className={cn("block text-[11px]", muted)}>
-                          {vPrice ? formatNgn(vPrice.amount_minor) : "—"}
+                          {vPrice ? formatPrice(vPrice.amount_minor) : "—"}
                           {soldOut ? " · Sold out" : ""}
                         </span>
                       </button>

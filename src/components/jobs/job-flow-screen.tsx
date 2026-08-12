@@ -1547,7 +1547,7 @@ export function JobFlowScreen({
                     }}
                     placeholder={
                       mySide === "repair_pro"
-                        ? `Labour price (min ₦${MIN_OFFER_AMOUNT_MAJOR})`
+                        ? `Labour price (min ${formatMoney(MIN_OFFER_AMOUNT_MAJOR)})`
                         : "Counter (max 50% off)"
                     }
                     className={cn(
@@ -1573,7 +1573,7 @@ export function JobFlowScreen({
                           !Number.isFinite(amount) ||
                           amount < MIN_OFFER_AMOUNT_MAJOR
                         ) {
-                          const msg = `Minimum service charge is ₦${MIN_OFFER_AMOUNT_MAJOR.toLocaleString("en-NG")}.`;
+                          const msg = `Minimum service charge is ${formatMoney(MIN_OFFER_AMOUNT_MAJOR)}.`;
                           setErr(msg);
                           return {
                             ok: false as const,

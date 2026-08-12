@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { CheckCircle2, Loader2, MapPin, Truck } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { detectCurrency, formatMoney, fromMinorUnits } from "@/lib/pricing";
 import { shopGetOrder } from "@/lib/shop/client";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -25,9 +26,9 @@ type OrderEvent = {
   created_at?: string;
 };
 
-function formatNgn(minor: number | null | undefined): string {
+function formatPrice(minor: number | null | undefined): string {
   if (minor == null) return "—";
-  return `₦${Math.round(minor / 100).toLocaleString("en-NG")}`;
+  return formatMoney(fromMinorUnits(minor, "NGN"), detectCurrency());
 }
 
 function statusColor(status: string): string {
@@ -123,7 +124,7 @@ export default function ShopOrderDetailPage() {
                 {orderStatus.replace(/_/g, " ")}
               </p>
               <p className={cn("mt-2 text-[13px]", muted)}>
-                Total {formatNgn(Number(order.total_minor))}
+                Total {formatPrice(Number(order.total_minor))}
                 {order.refunded_at ? (
                   <span className="ml-1 text-[11px] font-bold text-red-500">
                     (refunded)
@@ -148,7 +149,7 @@ export default function ShopOrderDetailPage() {
                       {Number(it.qty)}× {String(it.product_name)}
                     </span>
                     <span className="font-bold">
-                      {formatNgn(Number(it.line_total_minor))}
+                      {formatPrice(Number(it.line_total_minor))}
                     </span>
                   </div>
                   {it.sku ? (
@@ -230,7 +231,7 @@ export default function ShopOrderDetailPage() {
                       <span className="font-bold capitalize">
                         {String(p.provider)}
                       </span>{" "}
-                      · {formatNgn(Number(p.amount_minor))} ·{" "}
+                      · {formatPrice(Number(p.amount_minor))} ·{" "}
                       <span className={muted}>{String(p.reference)}</span>
                       {p.refunded_at ? (
                         <span className="ml-1 text-[11px] font-bold text-red-500">

@@ -4,6 +4,7 @@
  */
 
 import type { JobFlowStatus, JobOffer, OfferSide } from "@/lib/jobs/types";
+import { formatMoney } from "@/lib/pricing";
 import {
   DISPUTABLE_STATUSES,
   MAX_DISCOUNT_PERCENT,
@@ -277,7 +278,7 @@ export function validateOfferAmount(input: {
   if (input.amountMajor < MIN_OFFER_AMOUNT_MAJOR) {
     return {
       ok: false,
-      reason: `Minimum service charge is ₦${MIN_OFFER_AMOUNT_MAJOR.toLocaleString("en-NG")} so payout can complete.`,
+      reason: `Minimum service charge is ${formatMoney(MIN_OFFER_AMOUNT_MAJOR)} so payout can complete.`,
     };
   }
   if (input.amountMajor > MAX_OFFER_AMOUNT_MAJOR) {

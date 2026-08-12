@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { detectCurrency, formatMoney, fromMinorUnits } from "@/lib/pricing";
 import type { CartView } from "@/lib/server/shop/cart";
 import {
   shopGetCart,
@@ -12,8 +13,8 @@ import {
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
-function formatNgn(minor: number): string {
-  return `₦${Math.round(minor / 100).toLocaleString("en-NG")}`;
+function formatPrice(minor: number): string {
+  return formatMoney(fromMinorUnits(minor, "NGN"), detectCurrency());
 }
 
 export default function ShopCartPage() {
@@ -88,7 +89,7 @@ export default function ShopCartPage() {
                 <p className={cn("text-[11px]", muted)}>{line.sku}</p>
                 <div className="mt-2 flex items-center justify-between">
                   <p className="text-[14px] font-black text-[#FF6B35]">
-                    {formatNgn(line.lineTotalMinor)}
+                    {formatPrice(line.lineTotalMinor)}
                   </p>
                   <div className="flex items-center gap-1.5">
                     <button
@@ -175,7 +176,7 @@ export default function ShopCartPage() {
               Subtotal ({cart.itemCount} items)
             </span>
             <span className="text-[16px] font-black text-[#FF6B35]">
-              {formatNgn(cart.subtotalMinor)}
+              {formatPrice(cart.subtotalMinor)}
             </span>
           </div>
           <button

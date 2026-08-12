@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, MapPin, Plus } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { detectCurrency, formatMoney, fromMinorUnits } from "@/lib/pricing";
 import type { CartView } from "@/lib/server/shop/cart";
 import {
   shopCheckout,
@@ -17,8 +18,8 @@ import {
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
-function formatNgn(minor: number): string {
-  return `₦${Math.round(minor / 100).toLocaleString("en-NG")}`;
+function formatPrice(minor: number): string {
+  return formatMoney(fromMinorUnits(minor, "NGN"), detectCurrency());
 }
 
 export default function ShopCheckoutPage() {
@@ -321,7 +322,7 @@ export default function ShopCheckoutPage() {
                     <p className={cn("mt-1.5 text-[11px]", muted)}>
                       {estimate.freeDelivery
                         ? "Free delivery on this order."
-                        : `Delivery fee ${formatNgn(estimate.deliveryFeeMinor)} · ${estimate.etaMinutesMin}–${estimate.etaMinutesMax} min via ${estimate.serviceName}.`}
+                        : `Delivery fee ${formatPrice(estimate.deliveryFeeMinor)} · ${estimate.etaMinutesMin}–${estimate.etaMinutesMax} min via ${estimate.serviceName}.`}
                     </p>
                   ) : null}
                 </div>
@@ -340,7 +341,7 @@ export default function ShopCheckoutPage() {
                     <span className="min-w-0 flex-1 truncate pr-2">
                       {l.qty}× {l.productName}
                     </span>
-                    <span>{formatNgn(l.lineTotalMinor)}</span>
+                    <span>{formatPrice(l.lineTotalMinor)}</span>
                   </li>
                 ))}
               </ul>
@@ -352,7 +353,7 @@ export default function ShopCheckoutPage() {
               >
                 <div className="flex justify-between">
                   <span className={muted}>Subtotal</span>
-                  <span>{formatNgn(subtotalMinor)}</span>
+                  <span>{formatPrice(subtotalMinor)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className={muted}>Delivery</span>
@@ -362,13 +363,13 @@ export default function ShopCheckoutPage() {
                     ) : estimate?.freeDelivery ? (
                       "Free"
                     ) : (
-                      formatNgn(deliveryFeeMinor)
+                      formatPrice(deliveryFeeMinor)
                     )}
                   </span>
                 </div>
                 <div className="flex justify-between text-[14px] font-black">
                   <span>Total</span>
-                  <span className="text-[#FF6B35]">{formatNgn(total)}</span>
+                  <span className="text-[#FF6B35]">{formatPrice(total)}</span>
                 </div>
               </div>
             </div>
@@ -394,7 +395,7 @@ export default function ShopCheckoutPage() {
           >
             {paying ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {addressId
-              ? `Pay ${formatNgn(total)}`
+              ? `Pay ${formatPrice(total)}`
               : "Select a delivery address"}
           </button>
         </div>

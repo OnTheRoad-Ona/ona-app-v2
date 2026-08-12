@@ -8,6 +8,8 @@ import {
   settingsInputClass,
 } from "@/components/settings/settings-ui";
 import { PRO_SERVICE_LABELS, isProService } from "@/lib/services";
+import { MIN_OFFER_AMOUNT_MAJOR } from "@/lib/jobs/constants";
+import { formatMoney } from "@/lib/pricing";
 import type { ProService } from "@/lib/types";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -53,9 +55,9 @@ export default function SettingsPricingPage() {
         continue;
       }
       const n = Number(raw);
-      if (!Number.isFinite(n) || n < 120) {
+      if (!Number.isFinite(n) || n < MIN_OFFER_AMOUNT_MAJOR) {
         setErr(
-          `${PRO_SERVICE_LABELS[s]}: minimum labour price is ₦120 so payouts can complete.`
+          `${PRO_SERVICE_LABELS[s]}: minimum labour price is ${formatMoney(MIN_OFFER_AMOUNT_MAJOR)} so payouts can complete.`
         );
         return;
       }
