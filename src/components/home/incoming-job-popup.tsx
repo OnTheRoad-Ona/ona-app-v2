@@ -36,6 +36,10 @@ import {
 } from "@/lib/jobs/incoming-popup-timing";
 import type { JobRecord } from "@/lib/jobs/types";
 import { refreshServerClock, serverNow } from "@/lib/jobs/server-clock";
+import {
+  isDeadlinePast,
+  secondsLeftFloor,
+} from "@/lib/jobs/countdown-math";
 import { formatMoney } from "@/lib/pricing";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
@@ -404,14 +408,14 @@ export function IncomingJobPopup() {
         // Any server-owned deadline (the pairing window) drives the card first
         // — same value the customer's ring counts, so they stay in sync.
         if (Number.isFinite(deadlineMs)) {
-          const remainingMs = deadlineMs - serverNow();
-          // Floor like the customer ring so both phones show the same number,
-          // and expire at the real moment (never a whole tick late).
-          nextMap[j.id] = Math.max(0, Math.floor(remainingMs / 1000));
-          // Pairing cards never auto-defer (the sweep owns each wave and
-          // re-issues pairing_deadline); classic cards defer when their
-          // server window lapses.
-          if (remainingMs <= 0 && !isPairingAlert(j)) expired.push(j.id);
+          // Shared countdown math: floor like the customer ring so both phones
+          // show the same number, and expire at the real moment (never a tick
+          // late). Pairing cards never auto-defer (the sweep owns each wave and
+          // re-issues pairing_deadline); classic cards defer when their server
+          // window lapses.
+          nextMap[j.id] = secondsLeftFloor(deadlineMs, serverNow());
+          if (isDeadlinePast(deadlineMs, serverNow()) && !isPairingAlert(j))
+            expired.push(j.id);
           continue;
         }
         if (isPairingAlert(j)) {
@@ -430,9 +434,8 @@ export function IncomingJobPopup() {
           Number.isFinite(endsMs) &&
           endsMs - serverNow() <= 24 * 60 * 60 * 1000
         ) {
-          const remainingMs = endsMs - serverNow();
-          nextMap[j.id] = Math.max(0, Math.floor(remainingMs / 1000));
-          if (remainingMs <= 0) expired.push(j.id);
+          nextMap[j.id] = secondsLeftFloor(endsMs, serverNow());
+          if (isDeadlinePast(endsMs, serverNow())) expired.push(j.id);
           continue;
         }
         const started = surfacedAtRef.current[j.id] ?? Date.now();

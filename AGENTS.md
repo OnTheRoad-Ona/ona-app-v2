@@ -40,4 +40,5 @@ npm run lint && npm run typecheck && npm run test
   - Use the helpers in `src/lib/jobs/deadline.ts` (`windowLeftMs` / `windowStillOpen`, server-clock base).
   - Never re-derive "past deadline?" with raw `Date.now()` in a screen, list, or popup.
   - Never hardcode `66`, `20 * 60 * 1000`, or a pay/countdown window — import from `src/lib/jobs/constants.ts`.
+  - Countdown contract (do not regress): render with `useExactCountdown` (fires at the exact deadline, never a 1s-late tick), display seconds with `secondsLeftFloor`, and check expiry with `isDeadlinePast` (all in `src/lib/jobs/`). Never reintroduce `Math.round` on remaining time or a `setInterval(…, 1000)`-driven expiry; the shared math has tests that must keep passing.
 - Deadlines are server-owned: clients only render `pairing_deadline` / `negotiate_ends_at` / `payment_session_ends_at`; the server sweep enforces them.

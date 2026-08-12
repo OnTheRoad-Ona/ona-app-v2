@@ -2,6 +2,8 @@
 
 import { NEGOTIATE_WINDOW_MS } from "@/lib/jobs/constants";
 import { useExactCountdown } from "@/lib/jobs/use-exact-countdown";
+import { secondsLeftFloor } from "@/lib/jobs/countdown-math";
+import { serverNow } from "@/lib/jobs/server-clock";
 import { cn } from "@/lib/utils";
 
 export function CountdownTimer({
@@ -27,7 +29,7 @@ export function CountdownTimer({
   // same absolute moment with the same remaining seconds.
   const { displayMs: left } = useExactCountdown(endsAt, onExpire);
 
-  const totalSec = Math.floor(left / 1000);
+  const totalSec = secondsLeftFloor(new Date(endsAt).getTime(), serverNow());
   const h = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;

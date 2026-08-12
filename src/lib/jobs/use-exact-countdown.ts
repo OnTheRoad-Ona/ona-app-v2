@@ -2,6 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { refreshServerClock, serverNow } from "@/lib/jobs/server-clock";
+import {
+  exactFireDelayMs,
+  isDeadlinePast,
+} from "@/lib/jobs/countdown-math";
 
 /**
  * Countdown to a server-issued deadline that FIRES at the exact moment the
@@ -47,24 +51,29 @@ export function useExactCountdown(
       onExpireRef.current?.();
     };
 
-    const schedule = (remaining: number) => {
+    const schedule = (nowMs: number) => {
       window.clearTimeout(fireTimer);
-      if (remaining <= 0) {
+      const delay = exactFireDelayMs(endsMs, nowMs);
+      if (delay <= 0) {
         fire();
         return;
       }
       // Exact moment: fire just after the deadline passes.
-      fireTimer = window.setTimeout(fire, remaining + 25);
+      fireTimer = window.setTimeout(fire, delay);
     };
 
     // Align the clock before measuring, then correct the countdown when the
     // fresher estimate arrives (guarded — never blocks or throws).
-    schedule(Math.max(0, endsMs - serverNow()));
+    schedule(serverNow());
     void refreshServerClock().then(() => {
       if (fired) return;
-      const freshRemaining = Math.max(0, endsMs - serverNow());
-      setDisplayMs(freshRemaining);
-      schedule(freshRemaining);
+      const nowMs = serverNow();
+      setDisplayMs(Math.max(0, endsMs - nowMs));
+      if (isDeadlinePast(endsMs, nowMs)) {
+        fire();
+      } else {
+        schedule(nowMs);
+      }
     });
 
     // Cheap live label while we wait.
