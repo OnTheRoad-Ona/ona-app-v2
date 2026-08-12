@@ -27,9 +27,9 @@ import {
 } from "@/lib/jobs/constants";
 import type { JobRecord } from "@/lib/jobs/types";
 import { logPayGate } from "@/lib/pay-telemetry";
-import { windowLeftMs } from "@/lib/jobs/deadline";
+import { useExactCountdown } from "@/lib/jobs/use-exact-countdown";
 
-/** Very simple pay-window countdown: "Time left · MM:SS". */
+/** Very simple pay-window countdown: "Time left · MM:SS" (fires exactly at 0). */
 function PayTimer({
   deadline,
   onExpire,
@@ -37,24 +37,7 @@ function PayTimer({
   deadline: string;
   onExpire?: () => void;
 }) {
-  const onExpireRef = useRef(onExpire);
-  useEffect(() => {
-    onExpireRef.current = onExpire;
-  });
-
-  const [leftMs, setLeftMs] = useState(() => Math.max(0, windowLeftMs(deadline)));
-
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      const left = Math.max(0, windowLeftMs(deadline));
-      setLeftMs(left);
-      if (left <= 0) {
-        window.clearInterval(id);
-        onExpireRef.current?.();
-      }
-    }, 1000);
-    return () => window.clearInterval(id);
-  }, [deadline]);
+  const { displayMs: leftMs } = useExactCountdown(deadline, onExpire);
 
   const secs = Math.ceil(leftMs / 1000);
   const label = `${String(Math.floor(secs / 60)).padStart(2, "0")}:${String(

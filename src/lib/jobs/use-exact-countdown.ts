@@ -1,0 +1,82 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { refreshServerClock, serverNow } from "@/lib/jobs/server-clock";
+
+/**
+ * Countdown to a server-issued deadline that FIRES at the exact moment the
+ * window ends — never a whole tick late, never a second early.
+ *
+ * The deadline is an absolute server timestamp. Any two phones counting the
+ * same deadline (customer ring + pro popup) therefore hit zero at the same
+ * real moment. When the countdown starts we refresh the server-clock estimate
+ * (only if it is stale) so a slow-to-load phone shows the SAME remaining
+ * seconds as the phone that started earlier.
+ *
+ * - `displayMs`: live remaining ms, updated once per second — cheap even for
+ *   the 6-hour auto-release window.
+ * - `onExpire`: fires ~25ms after the deadline passes, once. A deadline that
+ *   is already in the past fires on mount.
+ */
+export function useExactCountdown(
+  endsAt: string,
+  onExpire?: () => void
+): { displayMs: number } {
+  const onExpireRef = useRef(onExpire);
+  useEffect(() => {
+    onExpireRef.current = onExpire;
+  });
+
+  const endsMs = new Date(endsAt).getTime();
+
+  const [displayMs, setDisplayMs] = useState(() =>
+    Math.max(0, endsMs - serverNow())
+  );
+
+  useEffect(() => {
+    let fired = false;
+
+    let fireTimer = 0;
+    let displayTimer = 0;
+    const fire = () => {
+      if (fired) return;
+      fired = true;
+      window.clearTimeout(fireTimer);
+      window.clearInterval(displayTimer);
+      setDisplayMs(0);
+      onExpireRef.current?.();
+    };
+
+    const schedule = (remaining: number) => {
+      window.clearTimeout(fireTimer);
+      if (remaining <= 0) {
+        fire();
+        return;
+      }
+      // Exact moment: fire just after the deadline passes.
+      fireTimer = window.setTimeout(fire, remaining + 25);
+    };
+
+    // Align the clock before measuring, then correct the countdown when the
+    // fresher estimate arrives (guarded — never blocks or throws).
+    schedule(Math.max(0, endsMs - serverNow()));
+    void refreshServerClock().then(() => {
+      if (fired) return;
+      const freshRemaining = Math.max(0, endsMs - serverNow());
+      setDisplayMs(freshRemaining);
+      schedule(freshRemaining);
+    });
+
+    // Cheap live label while we wait.
+    displayTimer = window.setInterval(() => {
+      setDisplayMs(Math.max(0, endsMs - serverNow()));
+    }, 1000);
+
+    return () => {
+      window.clearTimeout(fireTimer);
+      window.clearInterval(displayTimer);
+    };
+  }, [endsMs]);
+
+  return { displayMs };
+}

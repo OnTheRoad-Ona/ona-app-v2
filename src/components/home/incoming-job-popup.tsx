@@ -35,7 +35,7 @@ import {
   takeForceIncomingPanelJobId,
 } from "@/lib/jobs/incoming-popup-timing";
 import type { JobRecord } from "@/lib/jobs/types";
-import { serverNow } from "@/lib/jobs/server-clock";
+import { refreshServerClock, serverNow } from "@/lib/jobs/server-clock";
 import { formatMoney } from "@/lib/pricing";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
@@ -46,8 +46,21 @@ import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 function isPairingAlert(j: JobRecord): boolean {
-  return PAIRING_ACTION_STAGES.has(j.pairingStage ?? "");
+  return (
+    PAIRING_ACTION_STAGES.has(j.pairingStage ?? "") ||
+    PAIRING_ACTION_STAGES.has(j.status ?? "")
+  );
 }
+
+/** Statuses that mean "still this pro's live request" (card-keep, incl. the
+ *  transient sequential_pairing advance). Pairing stages may be reported in
+ *  either pairingStage or status, so both are checked. */
+const PRO_CARD_KEEP_STATUSES = new Set([
+  ...PAIRING_ACTION_STAGES,
+  "sequential_pairing",
+  "negotiating",
+  "agreed",
+]);
 
 function idemFor(j: JobRecord, proId: string, event: string): string {
   return `${event}:${j.id}:${(proId || "").slice(0, 8)}`;
@@ -65,6 +78,12 @@ export function IncomingJobPopup() {
   const visibleJobsRef = useRef<JobRecord[]>([]);
   const queueRef = useRef<JobRecord[]>([]);
   const osPushed = useRef<Set<string>>(new Set());
+  /** When each card was surfaced (local respond-window fallback when the job
+   *  has no server-owned deadline). */
+  const surfacedAtRef = useRef<Record<string, number>>({});
+  /** Consecutive polls a card's id was missing from the pro list (grace window
+   *  for Supabase/realtime blips before the card is truly dropped). */
+  const missingCountRef = useRef<Record<string, number>>({});
   /** Horizontal swipe origin for the photo lightbox (next/prev without closing). */
   const lightboxTouchX = useRef<number | null>(null);
 
@@ -99,6 +118,8 @@ export function IncomingJobPopup() {
     setActionError(null);
     setTimeLeftById({});
     setAcceptingId(null);
+    surfacedAtRef.current = {};
+    missingCountRef.current = {};
   }, []);
 
   /**
@@ -255,6 +276,7 @@ export function IncomingJobPopup() {
         ...m,
         [job.id]: INCOMING_POPUP_VISIBLE_SEC,
       }));
+      surfacedAtRef.current[job.id] = Date.now();
       unlockAudio();
       playAppSound("request_new");
       vibrateCallPattern();
@@ -334,6 +356,7 @@ export function IncomingJobPopup() {
         delete n[jobId];
         return n;
       });
+      delete surfacedAtRef.current[jobId];
       if (rest.length === 0 && q.length === 0) {
         setSnoozedJob(null);
         setActionError(null);
@@ -366,6 +389,9 @@ export function IncomingJobPopup() {
   const visibleKey = visibleJobs.map((j) => `${j.id}:${j.pairingDeadline || ""}`).join("|");
   useEffect(() => {
     if (visibleJobsRef.current.length === 0 || snoozedJob || lightbox) return;
+    // Align the server clock so the card shows the SAME remaining seconds as
+    // the customer's ring (both count the same absolute pairing_deadline).
+    void refreshServerClock();
     const interval = window.setInterval(() => {
       const jobs = visibleJobsRef.current;
       if (jobs.length === 0) return;
@@ -375,20 +401,51 @@ export function IncomingJobPopup() {
         const deadlineMs = j.pairingDeadline
           ? Date.parse(j.pairingDeadline)
           : Number.NaN;
-        if (!Number.isFinite(deadlineMs)) {
-          nextMap[j.id] = INCOMING_POPUP_VISIBLE_SEC;
+        // Any server-owned deadline (the pairing window) drives the card first
+        // — same value the customer's ring counts, so they stay in sync.
+        if (Number.isFinite(deadlineMs)) {
+          const remainingMs = deadlineMs - serverNow();
+          // Floor like the customer ring so both phones show the same number,
+          // and expire at the real moment (never a whole tick late).
+          nextMap[j.id] = Math.max(0, Math.floor(remainingMs / 1000));
+          // Pairing cards never auto-defer (the sweep owns each wave and
+          // re-issues pairing_deadline); classic cards defer when their
+          // server window lapses.
+          if (remainingMs <= 0 && !isPairingAlert(j)) expired.push(j.id);
           continue;
         }
-        const left = Math.max(0, Math.round((deadlineMs - serverNow()) / 1000));
-        nextMap[j.id] = left;
-        if (left <= 0) expired.push(j.id);
+        if (isPairingAlert(j)) {
+          // Pairing card mid-transition without a deadline: hold at 0.
+          nextMap[j.id] = 0;
+          continue;
+        }
+        // Classic negotiating/agreed: sync to the REAL negotiation deadline
+        // when it's armed (the customer counts it down too). A far-future
+        // negotiate_ends_at means the request isn't accepted yet → use a
+        // local 66s respond window so the card never freezes.
+        const endsMs = j.negotiateEndsAt
+          ? Date.parse(j.negotiateEndsAt)
+          : Number.NaN;
+        if (
+          Number.isFinite(endsMs) &&
+          endsMs - serverNow() <= 24 * 60 * 60 * 1000
+        ) {
+          const remainingMs = endsMs - serverNow();
+          nextMap[j.id] = Math.max(0, Math.floor(remainingMs / 1000));
+          if (remainingMs <= 0) expired.push(j.id);
+          continue;
+        }
+        const started = surfacedAtRef.current[j.id] ?? Date.now();
+        const remainingMs = INCOMING_POPUP_VISIBLE_SEC * 1000 - (Date.now() - started);
+        nextMap[j.id] = Math.max(0, Math.floor(remainingMs / 1000));
+        if (remainingMs <= 0) expired.push(j.id);
       }
       setTimeLeftById((prev) => ({ ...prev, ...nextMap }));
-      // Expire each card independently (defer that request)
+      // Expire each classic card independently (defer that request)
       for (const id of expired) {
         removeRef.current(id, { defer: true });
       }
-    }, 1000);
+    }, 250);
     return () => window.clearInterval(interval);
   }, [visibleKey, snoozedJob, lightbox]);
 
@@ -411,6 +468,51 @@ export function IncomingJobPopup() {
         isIncomingJobOpen(j, backendUserId, now)
       );
       setOtherCount(open.length);
+
+      // Cards survive as long as the request is still THIS pro's live request
+      // (looser than `open`: it stays through a lapsed pairing window between
+      // sweep waves, instead of flickering off then back on).
+      const keepIds = new Set(
+        jobs
+          .filter(
+            (j) =>
+              j.repairProId === backendUserId &&
+              (PRO_CARD_KEEP_STATUSES.has(j.pairingStage ?? "") ||
+                PRO_CARD_KEEP_STATUSES.has(j.status ?? ""))
+          )
+          .map((j) => j.id)
+      );
+      // Grace window: only drop a card after it has been missing for 2
+      // consecutive polls (covers realtime/Supabase blips without waiting on
+      // genuine reassignment/cancellation).
+      const dropIds = new Set<string>();
+      for (const [id, n] of Object.entries(missingCountRef.current)) {
+        if (keepIds.has(id)) {
+          delete missingCountRef.current[id];
+        } else {
+          missingCountRef.current[id] = n + 1;
+          if (n + 1 >= 2) {
+            dropIds.add(id);
+            delete missingCountRef.current[id];
+          }
+        }
+      }
+      // Explicit close: the job is still listed but the server moved it out of
+      // an actionable status (customer cancelled/completed, declined, reassigned
+      // to searching, …). Close its card NOW — no grace. Grace only covers
+      // cards that VANISH from the list (transient realtime blips).
+      for (const j of jobs) {
+        if (
+          j.repairProId === backendUserId &&
+          !(
+            PRO_CARD_KEEP_STATUSES.has(j.pairingStage ?? "") ||
+            PRO_CARD_KEEP_STATUSES.has(j.status ?? "")
+          )
+        ) {
+          dropIds.add(j.id);
+          delete missingCountRef.current[j.id];
+        }
+      }
 
       // Forced open (bounced off full /jobs page → dashboard + panel only)
       const forceId = takeForceIncomingPanelJobId();
@@ -474,8 +576,10 @@ export function IncomingJobPopup() {
           }
           return cur;
         });
-        // Drop cards no longer open
-        const kept = next.filter((j) => openIds.has(j.id));
+        // Drop cards no longer this pro's live request (after grace)
+        const kept = next.filter(
+          (j) => keepIds.has(j.id) && !dropIds.has(j.id)
+        );
         if (kept.length !== prev.length) changed = true;
         if (changed) {
           visibleJobsRef.current = kept;
@@ -502,8 +606,15 @@ export function IncomingJobPopup() {
     };
 
     let polling = false;
+    let pending = false;
     const poll = async () => {
-      if (polling) return;
+      // Never lose an update that arrives mid-fetch: if a poll is already in
+      // flight, remember the request and re-run right after it settles instead
+      // of swallowing it (that was the "close is a few seconds late" bug).
+      if (polling) {
+        pending = true;
+        return;
+      }
       polling = true;
       try {
         const res = await apiListJobs(backendUserId, "repair_pro");
@@ -511,6 +622,27 @@ export function IncomingJobPopup() {
         ingest(res.data.jobs);
       } finally {
         polling = false;
+        if (pending && !cancelled) {
+          pending = false;
+          void poll();
+        }
+      }
+    };
+
+    // A realtime push already contains the row — close a card the instant the
+    // server moves it out of an actionable status (customer cancel/complete,
+    // pro decline, …). No need to wait for the next poll.
+    const applyRealtimeClose = (
+      payload?: {
+        new?: Record<string, unknown>;
+        old?: Record<string, unknown>;
+      }
+    ) => {
+      const row = payload?.new ?? payload?.old;
+      if (!row || typeof row.id !== "string") return;
+      const status = String(row.status ?? "");
+      if (!PRO_CARD_KEEP_STATUSES.has(status)) {
+        removeRef.current(row.id);
       }
     };
 
@@ -530,7 +662,8 @@ export function IncomingJobPopup() {
       };
     schedule();
 
-    const unsub = backendSubscribeJobs(backendUserId, () => {
+    const unsub = backendSubscribeJobs(backendUserId, (payload) => {
+      applyRealtimeClose(payload);
       if (!cancelled) void poll();
     });
 
@@ -557,6 +690,8 @@ export function IncomingJobPopup() {
       primed.current = false;
       knownIds.current = new Set();
       osPushed.current = new Set();
+      surfacedAtRef.current = {};
+      missingCountRef.current = {};
       primedForId.current = backendUserId;
       if (!isAuthenticated || accountType !== "professional") {
         fullyHide();
@@ -589,17 +724,12 @@ export function IncomingJobPopup() {
 
   if (accountType !== "professional") return null;
 
-  const solid = isLight
-    ? "rgba(255,255,255,0.96)"
-    : "rgba(28,28,30,0.96)";
+  const solid = isLight ? "#ffffff" : "#1c1c1e";
   const ink = isLight ? "#0f1419" : "#e7e9ea";
   const muted = isLight ? "#536471" : "#71767b";
   const hairline = isLight
     ? "rgba(0,0,0,0.08)"
     : "rgba(255,255,255,0.08)";
-  const cardBg = isLight
-    ? "rgba(0,0,0,0.04)"
-    : "rgba(255,255,255,0.06)";
 
   const titleFor = (j: JobRecord) =>
     isAutomotiveTrade(j.serviceType) && j.motoristVehicle?.trim()
@@ -629,7 +759,7 @@ export function IncomingJobPopup() {
       {/* Lower panel — medium compact, up to 2 cards; buttons stay full-size */}
       {panelOpen && (
         <div
-          className="pointer-events-auto absolute inset-x-0 bottom-0 z-[180] flex max-h-[min(78dvh,720px)] flex-col rounded-t-2xl px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_28px_rgba(0,0,0,0.28)]"
+          className="pointer-events-auto absolute inset-x-0 bottom-0 z-[180] flex max-h-[min(84dvh,760px)] flex-col rounded-t-2xl px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_28px_rgba(0,0,0,0.28)]"
           style={{
             backgroundColor: solid,
             borderTop: `0.5px solid ${hairline}`,
@@ -658,7 +788,7 @@ export function IncomingJobPopup() {
             </p>
           ) : null}
 
-          <div className="flex min-h-0 flex-col gap-2">
+          <div className="flex min-h-0 flex-col gap-3">
             {visibleJobs.map((job) => {
               const timeLeft =
                 timeLeftById[job.id] ?? INCOMING_POPUP_VISIBLE_SEC;
@@ -679,10 +809,7 @@ export function IncomingJobPopup() {
                 <div
                   key={job.id}
                   className="shrink-0 rounded-xl p-2.5"
-                  style={{
-                    backgroundColor: cardBg,
-                    border: `0.5px solid ${hairline}`,
-                  }}
+                  style={{ border: "none" }}
                 >
                   <div className="flex items-start gap-2">
                     {job.motoristPhoto ? (

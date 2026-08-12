@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { NEGOTIATE_WINDOW_MS } from "@/lib/jobs/constants";
-import { serverNow } from "@/lib/jobs/server-clock";
+import { useExactCountdown } from "@/lib/jobs/use-exact-countdown";
 import { cn } from "@/lib/utils";
 
 export function CountdownTimer({
@@ -23,36 +22,10 @@ export function CountdownTimer({
   /** Ring diameter in px */
   size?: number;
 }) {
-  // Keep the latest onExpire in a ref so the interval below only re-arms when
-  // endsAt actually changes — parent re-renders (job polling every few seconds)
-  // used to create a new onExpire each render and restart the interval every
-  // time. Interval churn is invisible for the countdown value, but it is wasted
-  // work and restarts the "fired" guard on every poll.
-  const onExpireRef = useRef(onExpire);
-  useEffect(() => {
-    onExpireRef.current = onExpire;
-  });
-
-  const [left, setLeft] = useState(() =>
-    Math.max(0, new Date(endsAt).getTime() - serverNow())
-  );
-
-  useEffect(() => {
-    let fired = false;
-    const tick = () => {
-      const ms = Math.max(0, new Date(endsAt).getTime() - serverNow());
-      setLeft(ms);
-      if (ms <= 0 && !fired) {
-        fired = true;
-        onExpireRef.current?.();
-      }
-    };
-    tick();
-    // Seconds-granularity display — 1s tick is plenty and costs ~25% the
-    // renders of a 250ms interval (matters on the 6h auto-release screen).
-    const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
-  }, [endsAt]);
+  // Exact-expiry countdown: fires onExpire at the deadline itself, never a
+  // whole second late, and re-syncs the server clock so both roles count the
+  // same absolute moment with the same remaining seconds.
+  const { displayMs: left } = useExactCountdown(endsAt, onExpire);
 
   const totalSec = Math.floor(left / 1000);
   const h = Math.floor(totalSec / 3600);
