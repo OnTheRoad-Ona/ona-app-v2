@@ -16,12 +16,12 @@ for (const t of trades) {
     .eq("trade_key", t)
     .like("slug", `${t}-demo-%`);
   if (!prods?.length) continue;
-  const catIds = [...new Set(prods.map((p: any) => String(p.category_id)))];
+  const catIds = [...new Set(prods.map((p) => String(p.category_id)))];
   const { data: cats } = await sb
     .from("shop_trade_categories")
     .select("id, name, slug")
     .in("id", catIds);
-  const nameById = new Map((cats ?? []).map((c: any) => [String(c.id), c]));
+  const nameById = new Map((cats ?? []).map((c) => [String(c.id), c]));
   const counts = new Map<string, { name: string; n: number }>();
   for (const p of prods) {
     const c = nameById.get(String(p.category_id));

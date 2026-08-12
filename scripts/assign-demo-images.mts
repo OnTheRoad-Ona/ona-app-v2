@@ -7,6 +7,19 @@ const sb = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
+type WikiPage = {
+  thumbnail?: { source?: string };
+  index?: number;
+  title?: string;
+  imageinfo?: Array<{ thumburl?: string }>;
+};
+
+type DemoProduct = {
+  id: string;
+  trade_key?: string | null;
+  category_id?: unknown;
+};
+
 const UA = "OnaShopDemo/1.0 (curated demo product photos)";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -42,7 +55,7 @@ async function wikiImage(term: string): Promise<string | null> {
         });
       const res = await fetch(u, { headers: { "User-Agent": UA } });
       if (!res.ok) { await sleep(900); continue; }
-      const json = (await res.json()) as { query?: { pages?: Record<string, any> } };
+      const json = (await res.json()) as { query?: { pages?: Record<string, WikiPage> } };
       for (const p of Object.values(json.query?.pages ?? {})) {
         const src = p.thumbnail?.source;
         if (src && (await headOk(src))) return clean(src);
@@ -78,9 +91,9 @@ async function commonsImage(term: string): Promise<string | null> {
         });
       const res = await fetch(u, { headers: { "User-Agent": UA } });
       if (!res.ok) { await sleep(900); continue; }
-      const json = (await res.json()) as { query?: { pages?: Record<string, any> } };
+      const json = (await res.json()) as { query?: { pages?: Record<string, WikiPage> } };
       const pages = Object.values(json.query?.pages ?? {}).sort(
-        (a: any, b: any) => (a.index ?? 99) - (b.index ?? 99)
+        (a: WikiPage, b: WikiPage) => (a.index ?? 99) - (b.index ?? 99)
       );
       for (const p of pages) {
         const title = String(p.title ?? "").toLowerCase();
@@ -199,15 +212,15 @@ const { data: prods, error: e1 } = await sb
   .like("slug", "%-demo-%");
 if (e1) throw e1;
 
-const catIds = [...new Set((prods ?? []).map((p: any) => String(p.category_id)))];
+const catIds = [...new Set((prods ?? []).map((p) => String(p.category_id)))];
 const { data: cats, error: e2 } = await sb
   .from("shop_trade_categories")
   .select("id, name, slug, trade_key")
   .in("id", catIds.length ? catIds : [""]);
 if (e2) throw e2;
-const catById = new Map((cats ?? []).map((c: any) => [String(c.id), c]));
+const catById = new Map((cats ?? []).map((c) => [String(c.id), c]));
 
-const perCat = new Map<string, any[]>();
+const perCat = new Map<string, DemoProduct[]>();
 for (const p of prods ?? []) {
   const k = String(p.category_id);
   if (!perCat.has(k)) perCat.set(k, []);
@@ -225,7 +238,7 @@ for (const [catId, items] of perCat) {
     continue;
   }
   console.log(`ok   ${trade}/${cat?.slug ?? "?"} <- ${url}`);
-  const ids = items.map((p: any) => p.id);
+  const ids = items.map((p) => p.id);
   for (let i = 0; i < ids.length; i += 100) {
     const chunk = ids.slice(i, i + 100);
     const { error } = await sb
