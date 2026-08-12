@@ -15,13 +15,15 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 config({ path: resolve(root, ".env.local") });
 
-const NEW_URL =
-  process.env.NEW_SUPABASE_URL || "https://qqdokblnpakbxhthgjqv.supabase.co";
-const NEW_SERVICE =
-  process.env.NEW_SUPABASE_SERVICE_ROLE_KEY ||
-  "***REMOVED***";
-const NEW_DB_PASS =
-  process.env.NEW_SUPABASE_DB_PASSWORD || "***REMOVED***";
+const NEW_URL = process.env.NEW_SUPABASE_URL;
+const NEW_SERVICE = process.env.NEW_SUPABASE_SERVICE_ROLE_KEY;
+const NEW_DB_PASS = process.env.NEW_SUPABASE_DB_PASSWORD;
+if (!NEW_URL || !NEW_SERVICE || !NEW_DB_PASS) {
+  console.error(
+    "[transfer] Set NEW_SUPABASE_URL, NEW_SUPABASE_SERVICE_ROLE_KEY, and NEW_SUPABASE_DB_PASSWORD in .env.local — no hardcoded credentials."
+  );
+  process.exit(1);
+}
 const OLD_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const OLD_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const OLD_DB_PASS = process.env.SUPABASE_DB_PASSWORD;

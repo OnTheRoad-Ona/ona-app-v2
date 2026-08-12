@@ -9,8 +9,12 @@ config({ path: resolve(root, ".env.local") });
 
 const OLD_REF = process.env.NEXT_PUBLIC_SUPABASE_URL.replace("https://", "").replace(".supabase.co", "").split("/")[0];
 const OLD_PW = process.env.SUPABASE_DB_PASSWORD;
-const NEW_REF = "qqdokblnpakbxhthgjqv";
-const NEW_PW = process.env.NEW_SUPABASE_DB_PASSWORD || "***REMOVED***";
+const NEW_REF = process.env.SUPABASE_PROJECT_REF;
+const NEW_PW = process.env.NEW_SUPABASE_DB_PASSWORD;
+if (!NEW_REF || !NEW_PW) {
+  console.error("[copy] Set SUPABASE_PROJECT_REF and NEW_SUPABASE_DB_PASSWORD in .env.local — no hardcoded credentials.");
+  process.exit(1);
+}
 
 const oldUrl = `postgresql://postgres.${OLD_REF}:${encodeURIComponent(OLD_PW)}@aws-0-eu-west-1.pooler.supabase.com:6543/postgres`;
 const newUrl = `postgresql://postgres.${NEW_REF}:${encodeURIComponent(NEW_PW)}@aws-1-eu-west-1.pooler.supabase.com:6543/postgres`;

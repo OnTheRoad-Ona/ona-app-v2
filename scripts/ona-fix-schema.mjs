@@ -1,14 +1,26 @@
 #!/usr/bin/env node
 import pg from "pg";
+import { config } from "dotenv";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const REF = "qqdokblnpakbxhthgjqv";
-const PW = "***REMOVED***";
-const url = `postgresql://postgres.${REF}:${encodeURIComponent(PW)}@aws-1-eu-west-1.pooler.supabase.com:6543/postgres`;
+config({ path: resolve(root, ".env.local") });
 
+const REF =
+  process.env.SUPABASE_PROJECT_REF ||
+  (process.env.NEXT_PUBLIC_SUPABASE_URL || "")
+    .replace("https://", "")
+    .replace(".supabase.co", "")
+    .split("/")[0];
+const PW = process.env.SUPABASE_DB_PASSWORD || "";
+if (!REF || !PW) {
+  console.error("[fix] Set SUPABASE_DB_PASSWORD (and NEXT_PUBLIC_SUPABASE_URL) in .env.local — no hardcoded credentials.");
+  process.exit(1);
+}
+
+const url = `postgresql://postgres.${REF}:${encodeURIComponent(PW)}@aws-1-eu-west-1.pooler.supabase.com:6543/postgres`;
 const client = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 15000 });
 await client.connect();
 console.log("[fix] connected");
