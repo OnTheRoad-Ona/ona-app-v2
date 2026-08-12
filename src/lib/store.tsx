@@ -683,8 +683,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setRoleReady(true);
 
-    // Restore session without logging the user out on slow networks / timeouts.
-    // Only clear auth when the server confirms there is no session (or user logs out).
+    // First paint straight from the last session we trust on this device —
+    // no network round trip required. The splash hands off after ~120ms for
+    // everyone (signed-in AND guest); the server state is then verified in the
+    // background and simply re-applied when it resolves. Only clear auth when
+    // there is genuinely no local session (it can NEVER be a network-latency
+    // artefact, since getSession() reads persisted state, not the network).
     const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> =>
       new Promise((resolve, reject) => {
         const t = window.setTimeout(
@@ -703,40 +707,64 @@ export function AppProvider({ children }: { children: ReactNode }) {
         );
       });
 
-    /** Optimistic restore from last saved profile so refresh never flashes Guest */
-    const restoreLocalSessionOptimistic = (): boolean => {
+    /** Local session we can safely paint with (last saved profile). */
+    const readStoredSessionProfile = (): UserProfile | null => {
       try {
-        if (localStorage.getItem(AUTH_KEY) !== "1") return false;
+        if (localStorage.getItem(AUTH_KEY) !== "1") return null;
         const raw = localStorage.getItem(PROFILE_KEY);
-        if (!raw) return false;
+        if (!raw) return null;
         const p = JSON.parse(raw) as UserProfile;
-        if (!p?.fullName && !p?.email && !p?.phone) return false;
-        applySessionRef.current(p);
-        return true;
+        if (!p?.fullName && !p?.email && !p?.phone) return null;
+        return p;
       } catch {
-        return false;
+        return null;
       }
     };
 
     void (async () => {
-      const hadOptimistic = restoreLocalSessionOptimistic();
+      // Local-only, ~0ms: do we actually hold a Supabase session on this device?
+      let localUid: string | null = null;
+      try {
+        localUid = await withTimeout(backendGetSessionUserId(), 2000);
+      } catch {
+        localUid = null;
+      }
+      const storedProfile = readStoredSessionProfile();
+      const optimistic = localUid && storedProfile ? storedProfile : null;
+      if (!optimistic) {
+        // No real session under the hood → clear stale markers, paint guest
+        clearLocalAuth();
+      }
+      // Wait one tick so the session helpers (applySessionRef & co.) have bound:
+      // effects run in declaration order and ours is declared before theirs.
+      await new Promise<void>((r) => setTimeout(r, 0));
+      if (cancelled) return;
+      if (optimistic) {
+        setBackendUserId(localUid);
+        applySessionRef.current(optimistic);
+      }
+      setServerSessionReady(true);
+      setAuthReady(true);
+      if (cancelled) return;
+
+      // --- Background server verification (never blocks first paint) ---
       try {
         if (!isAppBackendOnline()) {
-          // Offline: keep local session if we had one; do not force logout
-          if (!hadOptimistic) clearLocalAuth();
+          // Offline: keep the optimistic session we just painted; do not logout
           return;
         }
-        let uid: string | null = null;
-        try {
-          uid = await withTimeout(backendGetSessionUserId(), 12000);
-        } catch {
-          // Timeout / network — keep optimistic session; never logout
-          return;
+        let uid = localUid;
+        if (!uid) {
+          try {
+            uid = await withTimeout(backendGetSessionUserId(), 12000);
+          } catch {
+            // Timeout / network — keep optimistic session; never logout
+            return;
+          }
         }
         if (cancelled) return;
         if (!uid) {
-          // Server confirmed no session → real logout state
-          clearLocalAuth();
+          // No session anywhere — real logout state (already cleared above)
           return;
         }
         setBackendUserId(uid);
@@ -784,7 +812,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setHasProAccount(bootHasPro);
 
         // Last switched role (Use as) must survive reload — prefer local active
-        // account when dual-role and it differs from server profile.role.
+        // account when it differs from server profile.role. Never AWAIT a role
+        // switch in boot (it is ~10 sequential Supabase calls): paint with the
+        // locally preferred role and reconcile the server in the background.
         let sessionProfile: UserProfile = {
           ...profile,
           primaryAccountType:
@@ -792,53 +822,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
             flags.primaryAccountType ||
             undefined,
         };
-        try {
-          const preferred = localStorage.getItem(AUTH_ACCOUNT_KEY) as
-            | AccountType
-            | null;
-          if (
-            (preferred === "motorist" || preferred === "professional") &&
-            preferred !== profile.accountType &&
-            ((preferred === "motorist" && bootHasMotorist) ||
-              (preferred === "professional" && bootHasPro))
-          ) {
-            const switched = await withTimeout(
-              backendSwitchRole(preferred),
-              8000
-            ).catch(() => null);
-            if (switched?.profile && switched.userId) {
-              sessionProfile = {
-                ...switched.profile,
-                primaryAccountType:
-                  switched.primaryAccountType ||
-                  switched.profile.primaryAccountType ||
-                  sessionProfile.primaryAccountType,
-              };
-              setBackendUserId(switched.userId);
-              if (switched.hasMotorist != null) {
-                setHasMotoristAccount(switched.hasMotorist);
-              }
-              if (switched.hasPro != null) {
-                setHasProAccount(switched.hasPro);
-              }
-            } else {
-              // Keep last local role so reload still matches last Use as
-              sessionProfile = {
-                ...sessionProfile,
-                accountType: preferred,
-              };
-            }
-          }
-        } catch {
-          /* keep server profile */
+        const preferred = localStorage.getItem(AUTH_ACCOUNT_KEY) as
+          | AccountType
+          | null;
+        const keptPreferred =
+          (preferred === "motorist" || preferred === "professional") &&
+          preferred !== profile.accountType &&
+          ((preferred === "motorist" && bootHasMotorist) ||
+            (preferred === "professional" && bootHasPro));
+        if (keptPreferred) {
+          sessionProfile = { ...sessionProfile, accountType: preferred };
         }
         applySessionRef.current(sessionProfile);
         // Re-assert server dual-role flags after applySession (vault must not win)
         setHasMotoristAccount((prev) => prev || bootHasMotorist);
         setHasProAccount((prev) => prev || bootHasPro);
+
+        if (keptPreferred) {
+          // Persist the last-used role server-side without delaying the UI.
+          void withTimeout(backendSwitchRole(preferred), 8000)
+            .then((switched) => {
+              if (cancelled) return;
+              if (switched?.profile && switched.userId) {
+                applySessionRef.current({
+                  ...switched.profile,
+                  primaryAccountType:
+                    switched.primaryAccountType ||
+                    switched.profile.primaryAccountType ||
+                    sessionProfile.primaryAccountType,
+                });
+                setBackendUserId(switched.userId);
+                if (switched.hasMotorist != null) {
+                  setHasMotoristAccount(switched.hasMotorist);
+                }
+                if (switched.hasPro != null) {
+                  setHasProAccount(switched.hasPro);
+                }
+              }
+            })
+            .catch(() => {
+              /* keep the locally preferred role */
+            });
+        }
       } catch {
-        // Never force logout on unexpected errors if we restored locally
-        if (!cancelled && !hadOptimistic) clearLocalAuth();
+        // Never force logout after first paint — keep whatever session is live
       } finally {
         if (!cancelled) {
           setServerSessionReady(true);
