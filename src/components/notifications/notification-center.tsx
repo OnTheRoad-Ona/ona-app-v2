@@ -384,6 +384,10 @@ export function NotificationCenter() {
               const navBlocked =
                 !releasePay &&
                 (isNavigationBlocked(n) || closed || historyClosed);
+              // A cancelled/closed job's notification is informational only —
+              // the request is dead, so the row is inert: no navigation, no
+              // tap affordance (mirrors the pro popup card vanishing on cancel).
+              const inert = closed || historyClosed;
               const Icon = categoryIcon(n);
               const spec = actionSpec(n, { navBlocked, accountType, releasePay });
               const go = () => {
@@ -394,10 +398,14 @@ export function NotificationCenter() {
                 <li key={n.id} style={{ borderBottom: `1px solid ${line}` }}>
                   <button
                     type="button"
+                    disabled={inert}
+                    aria-disabled={inert}
                     className={`flex w-full items-start gap-3.5 px-4 py-4 text-left ${
-                      isLight
-                        ? "active:bg-black/[0.06]"
-                        : "active:bg-white/[0.08]"
+                      inert
+                        ? "cursor-default opacity-70"
+                        : isLight
+                          ? "active:bg-black/[0.06]"
+                          : "active:bg-white/[0.08]"
                     }`}
                     style={{ backgroundColor: "transparent" }}
                     onMouseEnter={() => markRead([n.id])}

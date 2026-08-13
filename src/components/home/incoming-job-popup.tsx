@@ -170,10 +170,6 @@ export function IncomingJobPopup() {
       if (!(surfacedAtRef.current[jobId] > 0)) return;
       notifiedCloseRef.current.add(jobId);
       const { job, status = "", movedOn = false } = opts;
-      // Customer-cancelled requests already land as a persistent "Request
-      // cancelled" entry in the notification center — never also pile a
-      // transient top banner every time a request is cancelled.
-      if (!movedOn && String(status).toLowerCase() === "cancelled") return;
       const title =
         movedOn
           ? "Request moved on"

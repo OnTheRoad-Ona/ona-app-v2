@@ -187,8 +187,8 @@ describe("IncomingJobPopup fast status-check poll", () => {
     expect(screen.getByText("Engine won't start")).toBeTruthy();
 
     // Customer cancels; realtime push never arrives. The next ~1s status check
-    // must close the card — the persistent "Request cancelled" entry lives in
-    // the notification center, so no transient top banner is piled for cancels.
+    // must close the card AND surface the "Request cancelled" banner — the pro
+    // is told the moment their live request dies, even when realtime is missed.
     client.apiProIncomingStatus.mockResolvedValue(
       okStatus([
         statusSnapshot({ status: "cancelled", pairingStage: null }),
@@ -200,10 +200,10 @@ describe("IncomingJobPopup fast status-check poll", () => {
 
     expect(screen.queryByText("Engine won't start")).toBeNull();
     expect(client.apiProIncomingStatus).toHaveBeenCalledWith(["j1"]);
+    expect(screen.getByText("Request cancelled")).toBeTruthy();
     expect(
-      screen.queryByText("Mina cancelled the Toyota Camry request.")
-    ).toBeNull();
-    expect(screen.queryByText("Request cancelled")).toBeNull();
+      screen.getByText("Mina cancelled the Toyota Camry request.")
+    ).toBeTruthy();
     expect(showAppNotification).not.toHaveBeenCalled();
   });
 
