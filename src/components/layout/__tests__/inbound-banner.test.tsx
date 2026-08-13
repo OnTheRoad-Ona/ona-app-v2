@@ -98,6 +98,7 @@ function job(id: string, status: string): ServiceRequest {
 const ACTIVE = "negotiating";
 
 beforeEach(() => {
+  sessionStorage.clear();
   state.messages = [];
   state.requests = [];
   state.backendUserId = "u1";
@@ -136,6 +137,37 @@ describe("InboundBanner new-chat popups", () => {
     expect(screen.queryByText("Where are you?")).toBeNull();
     expect(screen.queryByText("I'm close")).toBeNull();
     expect(tone.playPersonTone).not.toHaveBeenCalled();
+  });
+
+  it("reload: old chats stay silent even after an unmount/remount (persisted anchors)", () => {
+    state.requests = [job("r1", ACTIVE)];
+    state.messages = [
+      thread("th1", "r1", [
+        msg("m1", "motorist", "Where are you?", "2026-08-01T09:00:00Z"),
+      ]),
+    ];
+    // First visit: history is seeded and persisted to sessionStorage.
+    const first = render(<InboundBanner />);
+    first.unmount();
+
+    // Fresh mount = page reload. The same old message must NOT re-pop, even
+    // though it's the brand-new component instance with a new in-memory map.
+    const second = render(<InboundBanner />);
+    expect(screen.queryByText("Where are you?")).toBeNull();
+    expect(tone.playPersonTone).not.toHaveBeenCalled();
+    expect(notify.showAppNotification).not.toHaveBeenCalled();
+
+    // A genuinely new message after the reload still pops.
+    notify.canNotify.mockReturnValue(true);
+    state.messages = [
+      thread("th1", "r1", [
+        msg("m1", "motorist", "Where are you?", "2026-08-01T09:00:00Z"),
+        msg("m2", "motorist", "I'm close", "2026-08-01T09:01:00Z"),
+      ]),
+    ];
+    second.rerender(<InboundBanner />);
+    expect(tone.playPersonTone).toHaveBeenCalled();
+    expect(screen.getByText("I'm close")).toBeTruthy();
   });
 
   it("pops ONLY a genuinely new message on an active job chat", () => {

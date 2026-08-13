@@ -30,6 +30,37 @@ type Banner =
     }
   | null;
 
+/**
+ * Anchors survive a reload: store the per-thread "already seen" timestamps in
+ * sessionStorage (keyed by role) so a fresh page load re-seeds from what was
+ * absorbed before and old chat history can never replay as popups.
+ */
+const SEEN_ANCHORS_KEY = "ona-inbound-seen-anchors";
+
+function loadSeenAnchors(role: string): Record<string, string> {
+  try {
+    const raw = window.sessionStorage.getItem(SEEN_ANCHORS_KEY);
+    if (!raw) return {};
+    const all = JSON.parse(raw) as Record<string, Record<string, string>>;
+    return all[role] || {};
+  } catch {
+    return {};
+  }
+}
+
+function saveSeenAnchors(role: string, maps: Map<string, string>): void {
+  try {
+    const raw = window.sessionStorage.getItem(SEEN_ANCHORS_KEY);
+    const all = raw
+      ? (JSON.parse(raw) as Record<string, Record<string, string>>)
+      : {};
+    all[role] = Object.fromEntries(maps);
+    window.sessionStorage.setItem(SEEN_ANCHORS_KEY, JSON.stringify(all));
+  } catch {
+    /* private mode */
+  }
+}
+
 export function InboundBanner() {
   const {
     messages,
@@ -100,7 +131,9 @@ export function InboundBanner() {
     const identity = `${backendUserId}|${accountType}`;
     if (primedFor.current !== identity) {
       primedFor.current = identity;
-      anchors.current = new Map();
+      // Re-seed from what this role already absorbed before the reload — old
+      // chat history stays silent no matter how fast/slow the first fetch is.
+      anchors.current = new Map(Object.entries(loadSeenAnchors(accountType)));
     }
 
     type Inbound = {
@@ -174,6 +207,7 @@ export function InboundBanner() {
         : undefined;
       if (job) anchors.current.set(inbound.threadId, inbound.at);
     }
+    saveSeenAnchors(accountType, anchors.current);
 
     if (!candidates.length) return;
     const latest = candidates.reduce((a, b) => (b.at > a.at ? b : a));
