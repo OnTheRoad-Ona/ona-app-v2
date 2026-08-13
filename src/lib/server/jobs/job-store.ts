@@ -2756,6 +2756,22 @@ async function applyEvent(
           jobStatus: "cancelled",
           groupKey: `request-cancelled-${job.id}`,
         });
+        // OS push (web-push, VAPID) even when the app is closed or the tab is
+        // hidden — the in-app card + banner close from realtime/poll, but the
+        // pro must still hear about the cancel without the app foregrounded.
+        try {
+          const { sendPushToUser } = await import(
+            "@/lib/server/push/webpush"
+          );
+          await sendPushToUser(job.repairProId, {
+            title: "Request cancelled",
+            body,
+            url: "/dashboard",
+            tag: `cancelled-${job.id}`,
+          });
+        } catch {
+          /* push best-effort */
+        }
       } catch {
         /* notifications optional */
       }

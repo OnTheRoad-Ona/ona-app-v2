@@ -44,6 +44,7 @@ import {
 } from "@/lib/jobs/countdown-math";
 import { formatMoney } from "@/lib/pricing";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
+import { enablePushNotifications } from "@/lib/push/client";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { playAppSound, unlockAudio } from "@/lib/sound-tone";
 import { backendSubscribeJobs } from "@/lib/supabase/app-api";
@@ -372,6 +373,10 @@ export function IncomingJobPopup() {
       unlockAudio();
       playAppSound("request_new");
       vibrateCallPattern();
+      // Enroll this device for web-push (once per session) so the server can
+      // reach the pro with a cancellation OS notification even when the app is
+      // closed or the tab hidden. Best-effort; never blocks the card.
+      void enablePushNotifications(backendUserId);
       if (!panelAlreadyOpen) pushOsOnce(job);
     },
     [pushOsOnce, backendUserId]
