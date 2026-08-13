@@ -37,6 +37,30 @@ import { useApp } from "@/lib/store";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { playAppSound } from "@/lib/sound-tone";
 
+/**
+ * Seen-notification ids survive reload + role-switch: seed known/toasted sets
+ * from sessionStorage so Realtime replay of already-acknowledged rows is a
+ * no-op (old rows can never re-toast after a fresh page or a role flip).
+ */
+const SEEN_NOTIF_KEY = "ona-notif-seen-ids";
+
+function readSeenNotifIds(): Set<string> {
+  try {
+    const raw = window.sessionStorage.getItem(SEEN_NOTIF_KEY);
+    return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function persistSeenNotifIds(ids: Set<string>): void {
+  try {
+    window.sessionStorage.setItem(SEEN_NOTIF_KEY, JSON.stringify([...ids]));
+  } catch {
+    /* private mode */
+  }
+}
+
 export type ToastItem = {
   id: string;
   notification: AppNotification;
@@ -98,11 +122,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [search, setSearch] = useState("");
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const primed = useRef(false);
-  const knownIds = useRef<Set<string>>(new Set());
+  const knownIds = useRef<Set<string>>(readSeenNotifIds());
   /** Start of current/last auto-toast wave (throttle + pile window). */
   const lastToastWaveAt = useRef(0);
   /** Avoid double-toast for same notification id. */
-  const toastedIds = useRef<Set<string>>(new Set());
+  const toastedIds = useRef<Set<string>>(readSeenNotifIds());
 
   const role =
     accountType === "professional" ? "professional" : "motorist";
@@ -130,6 +154,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
 
     toastedIds.current.add(n.id);
+    void persistSeenNotifIds(toastedIds.current);
     const isMessage = n.category === "messages" || n.actionType === "open_chat";
     const id = `toast-${n.id}-${now}`;
     // Full-row (non-stack) timers are independent; stacked cards share wave end
@@ -179,7 +204,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         const surface = list.filter(shouldListNotification);
         setNotifications(surface);
         if (!primed.current) {
-          knownIds.current = new Set(list.map((n) => n.id));
+          knownIds.current = new Set([
+            ...readSeenNotifIds(),
+            ...list.map((n) => n.id),
+          ]);
+          void persistSeenNotifIds(knownIds.current);
           primed.current = true;
         }
       } else {
@@ -194,8 +223,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     primed.current = false;
-    knownIds.current = new Set();
-    toastedIds.current = new Set();
+    // Re-seed from storage first so a role flip can never re-toast rows this
+    // browser already saw (Realtime replays missed inserts into fresh sets).
+    knownIds.current = readSeenNotifIds();
+    toastedIds.current = readSeenNotifIds();
     lastToastWaveAt.current = 0;
     setToasts([]);
     void refresh();
@@ -239,6 +270,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           const n = mapRow(row);
           if (knownIds.current.has(n.id)) return;
           knownIds.current.add(n.id);
+          void persistSeenNotifIds(knownIds.current);
           if (shouldListNotification(n)) {
             setNotifications((prev) => [n, ...prev]);
           }
