@@ -305,6 +305,8 @@ interface AppState {
   switchAccount: (
     type: AccountType
   ) => Promise<null | "needs_signup" | "needs_login" | string>;
+  /** True while a role switch is in flight — UI must not flash a wrong-role page. */
+  switchingRole: boolean;
   /**
    * After Tap to Switch: must re-enter phone OTP before using the new role.
    * Cleared only by completePostSwitchPhoneOtp (not by switch payload alone).
@@ -531,6 +533,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [accountType, setAccountType] = useState<AccountType | null>(null);
   const [primaryAccountType, setPrimaryAccountType] =
     useState<AccountType | null>(null);
+  /** True during an explicit role switch — blocks wrong-role page flash. */
+  const [switchingRole, setSwitchingRole] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [registeredAs, setRegisteredAsState] = useState<RegisteredAs>("client");
   const [userMode, setUserModeState] = useState<UserMode>("client");
@@ -1158,9 +1162,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return null;
       }
 
-      // Refresh dual-role from server so stale local vault never blocks a real pro/motorist.
+      setSwitchingRole(true);
       try {
-        const flags = await backendDualRoleFlags(backendUserId);
+        // Refresh dual-role from server so stale local vault never blocks a real pro/motorist.
+        try {
+          const flags = await backendDualRoleFlags(backendUserId);
         if (flags.hasMotorist) setHasMotoristAccount(true);
         if (flags.hasPro) setHasProAccount(true);
         if (type === "motorist" && !flags.hasMotorist) {
@@ -1306,6 +1312,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Fresh nav stack for this role only — Back must not hop to the other role
       resetNavStack(type === "professional" ? "/dashboard" : "/");
       return null;
+      } finally {
+        setSwitchingRole(false);
+      }
     },
     [
       applySession,
@@ -3631,6 +3640,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       helpingSomeoneLabel,
       setHelpingSomeoneElse,
       switchAccount,
+      switchingRole,
       postSwitchPhoneOtpRequired,
       sendPostSwitchPhoneOtp,
       completePostSwitchPhoneOtp,
@@ -3711,6 +3721,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       helpingSomeoneLabel,
       setHelpingSomeoneElse,
       switchAccount,
+      switchingRole,
       postSwitchPhoneOtpRequired,
       sendPostSwitchPhoneOtp,
       completePostSwitchPhoneOtp,
