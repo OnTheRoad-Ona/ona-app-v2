@@ -44,9 +44,12 @@ export function InboundBanner() {
   const pathname = usePathname() || "";
   const router = useRouter();
   const [banner, setBanner] = useState<Banner>(null);
-  const prevSig = useRef<string>("");
-  const primed = useRef(false);
   const hideTimer = useRef<number | null>(null);
+  /** Identity (userId|role) the anchors below were seeded for — changing roles
+   *  or accounts must re-seed so the other role's history never re-pops. */
+  const primedFor = useRef<string>("");
+  /** Per-thread latest inbound message timestamp already absorbed/surfaced. */
+  const anchors = useRef<Map<string, string>>(new Map());
 
   // Initial chat pull so inbound detection has a baseline quickly
   useEffect(() => {
@@ -85,59 +88,95 @@ export function InboundBanner() {
     hideTimer.current = window.setTimeout(() => setBanner(null), 3_000);
   }, []);
 
-  // Detect new inbound messages → tone + system notify + in-app banner
+  // Detect new inbound messages → tone + system notify + in-app banner.
+  // Anchored per thread: history loaded at any time (reload, role switch,
+  // refresh re-ordering) only seeds the anchor — it never re-pops. Only a
+  // message NEWER than what we've already absorbed, on an ACTIVE job chat,
+  // surfaces. Closed / historical job chats never pop, even when the linked
+  // job isn't in the recent live request list.
   useEffect(() => {
-    if (!backendUserId || !messages.length) return;
+    if (!backendUserId || !accountType || !messages.length) return;
 
-    let latest: {
+    const identity = `${backendUserId}|${accountType}`;
+    if (primedFor.current !== identity) {
+      primedFor.current = identity;
+      anchors.current = new Map();
+    }
+
+    type Inbound = {
       at: string;
       who: string;
       text: string;
       threadId: string;
       name: string;
-    } | null = null;
+    };
 
+    const inboundByThread = new Map<string, Inbound>();
     for (const th of messages) {
       // Chat only with a real request — no orphan threads
       if (!th.requestId || th.requestId.startsWith("chat-")) continue;
-      // Closed job chats must never pop up as banners
-      const job = requests.find((r) => r.id === th.requestId);
-      if (job && CHAT_CLOSED_JOB_STATUSES.has(job.status)) continue;
       for (const m of th.messages) {
         if (m.sender === "system") continue;
         const mine =
           (accountType === "professional" && m.sender === "professional") ||
           (accountType === "motorist" && m.sender === "motorist");
         if (mine) continue;
-        const who =
-          m.sender === "professional"
-            ? th.technicianId || th.technicianName
-            : th.motoristName;
-        const name =
-          m.sender === "professional" ? th.technicianName : th.motoristName;
-        if (!latest || m.at > latest.at) {
-          latest = {
+        const prev = inboundByThread.get(th.id);
+        if (!prev || m.at > prev.at) {
+          inboundByThread.set(th.id, {
             at: m.at,
-            who,
+            who:
+              m.sender === "professional"
+                ? th.technicianId || th.technicianName
+                : th.motoristName,
+            name:
+              m.sender === "professional"
+                ? th.technicianName
+                : th.motoristName,
             text: m.text || "New message",
             threadId: th.id,
-            name,
-          };
+          });
         }
       }
     }
 
-    if (!latest) return;
-    const sig = `${latest.threadId}|${latest.at}|${latest.who}`;
-
-    // Prime baseline so login / first load does not spam
-    if (!primed.current) {
-      primed.current = true;
-      prevSig.current = sig;
-      return;
+    // First sighting of a thread = history. Seed it and stay silent. Only a
+    // strictly newer message than the seed can ever pop.
+    const candidates: Inbound[] = [];
+    for (const inbound of inboundByThread.values()) {
+      const prev = anchors.current.get(inbound.threadId);
+      if (prev == null) {
+        anchors.current.set(inbound.threadId, inbound.at);
+        continue;
+      }
+      if (inbound.at <= prev) continue;
+      // Closed / historical job chat — never pop. The job must be live and
+      // present in the recent request list, else it's old history.
+      const thread = messages.find((t) => t.id === inbound.threadId);
+      const job = thread
+        ? requests.find((r) => r.id === thread.requestId)
+        : undefined;
+      if (!job) continue; // job status not loaded yet → hold for a later run
+      if (CHAT_CLOSED_JOB_STATUSES.has(job.status)) {
+        anchors.current.set(inbound.threadId, inbound.at);
+        continue;
+      }
+      candidates.push(inbound);
     }
-    if (sig === prevSig.current) return;
-    prevSig.current = sig;
+    // Absorb everything whose job status is known so identical data never
+    // re-fires; unknown-status threads stay pending until their job loads.
+    for (const inbound of inboundByThread.values()) {
+      const prev = anchors.current.get(inbound.threadId) ?? "";
+      if (inbound.at <= prev) continue;
+      const thread = messages.find((t) => t.id === inbound.threadId);
+      const job = thread
+        ? requests.find((r) => r.id === thread.requestId)
+        : undefined;
+      if (job) anchors.current.set(inbound.threadId, inbound.at);
+    }
+
+    if (!candidates.length) return;
+    const latest = candidates.reduce((a, b) => (b.at > a.at ? b : a));
 
     // Already viewing this thread — soft tone only
     const onThisThread =
@@ -150,7 +189,7 @@ export function InboundBanner() {
     if (!onThisThread) {
       showBanner({
         kind: "message",
-        id: sig,
+        id: latest.threadId,
         title: latest.name || "New message",
         body: latest.text.slice(0, 120),
         href: `/messages/${latest.threadId}`,
@@ -176,7 +215,7 @@ export function InboundBanner() {
         });
       }
     }
-  }, [messages, backendUserId, accountType, pathname, showBanner]);
+  }, [messages, requests, backendUserId, accountType, pathname, showBanner]);
 
   if (!banner) return null;
 
