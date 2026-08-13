@@ -11,7 +11,6 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowRight,
   Info,
   LayoutGrid,
   MessageCircle,
@@ -107,7 +106,7 @@ function categoryIcon(n: AppNotification): LucideIcon {
 }
 
 /** Per-action icon + label that replaces the old text chips (X-style icon actions). */
-type ActionSpec = { icon: LucideIcon; label: string };
+type ActionSpec = { icon: LucideIcon | null; label: string };
 
 function actionSpec(
   n: AppNotification,
@@ -119,7 +118,7 @@ function actionSpec(
   }
   if (n.actionType === "accept_request") {
     return {
-      icon: ArrowRight,
+      icon: null,
       label: navBlocked
         ? "View"
         : accountType === "professional"
@@ -128,7 +127,7 @@ function actionSpec(
     };
   }
   if (n.actionType === "view_tracking") {
-    return { icon: ArrowRight, label: navBlocked ? "View" : "Track" };
+    return { icon: null, label: navBlocked ? "View" : "Track" };
   }
   if (
     n.actionType === "open_job" ||
@@ -136,7 +135,7 @@ function actionSpec(
     (n.category === "payments" && releasePay)
   ) {
     return {
-      icon: ArrowRight,
+      icon: null,
       label: releasePay
         ? "Confirm job & release payment"
         : navBlocked
@@ -151,7 +150,7 @@ function actionSpec(
     return { icon: Star, label: "Rate" };
   }
   if (!n.actionType && n.href) {
-    return { icon: ArrowRight, label: navBlocked ? "View" : "Open" };
+    return { icon: null, label: navBlocked ? "View" : "Open" };
   }
   return null;
 }
@@ -462,7 +461,7 @@ export function NotificationCenter() {
                         </p>
                       ) : null}
                     </div>
-                    {spec ? (
+                    {spec && spec.icon ? (
                       <span
                         className="self-center shrink-0 pl-2"
                         title={spec.label}
