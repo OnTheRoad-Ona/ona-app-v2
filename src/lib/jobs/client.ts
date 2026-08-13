@@ -244,15 +244,58 @@ export async function apiExpireStaleBookedJobs() {
   }>(res);
 }
 
+/**
+ * Enforce overdue SSPE pairing deadlines via the dedicated light route.
+ * Unlike `/api/jobs/expire-stale` (which throttles its pairing sweep to 30s
+ * and runs the heavy cancel/refund sweeps), this runs only `sweepPairing` —
+ * no throttle. Calling it from the customer's pairing countdown `onExpire`
+ * closes the ring into the next pro / expired state within one `load()`
+ * poll instead of waiting on the throttled sweep.
+ */
+export async function apiPairingSweep() {
+  const res = await jobFetch("/api/jobs/pairing-sweep", {
+    method: "POST",
+    cache: "no-store",
+  });
+  return parse<{ checked: number; timedOut: number; expired: number }>(res);
+}
+
 export async function apiListJobs(
   userId: string,
-  role: "motorist" | "repair_pro"
+  role: "motorist" | "repair_pro",
+  opts?: { lean?: boolean }
 ) {
   const qs = new URLSearchParams({ userId, role });
+  // Lean = status-snapshot only (no media hydration / expiry / profile
+  // backfill). The incoming popup polls this for fast close detection; media
+  // is hydrated once when a card is first surfaced.
+  if (opts?.lean) qs.set("lean", "1");
   const res = await jobFetch(`/api/jobs?${qs}`, {
     cache: "no-store",
   });
   return parse<{ jobs: JobRecord[] }>(res);
+}
+
+export type ProIncomingStatus = {
+  id: string;
+  status: string;
+  pairingStage: string | null;
+  pairingDeadline: string | null;
+  repairProId: string;
+  negotiateEndsAt: string;
+  updatedAt: string;
+};
+
+/** Ultra-light status check for the incoming popup's visible cards — one tiny
+ *  query (id, flow_status, status, pairing_stage, pairing_deadline,
+ *  repair_pro_id) so a customer cancellation closes the card within ~1s even
+ *  when the realtime push is missed on a slow connection. */
+export async function apiProIncomingStatus(ids: string[]) {
+  const qs = new URLSearchParams({ ids: ids.join(",") });
+  const res = await jobFetch(`/api/jobs/pro-incoming-status?${qs}`, {
+    cache: "no-store",
+  });
+  return parse<{ jobs: ProIncomingStatus[] }>(res);
 }
 
 export async function apiPlaceOffer(input: {

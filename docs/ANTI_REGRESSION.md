@@ -123,3 +123,40 @@ If any step fails, **do not ship**.
 - Notification open → `/jobs/{id}` with **I’M SATISFIED — RELEASE PAYMENT** CTA
 - Gate navigation with `isNavigationBlocked` / `isJobHistoryOnlyStatus` (not blanket finished)
 - `MotoristReleasePayGate` force-routes motorist to `/jobs/{id}` while status is `completed`
+
+## 10. Repair Pro incoming Service Request lower panel — never regress
+
+**Never:**
+- Put a border/outline on the request **cards** inside the panel (`incoming-job-popup.tsx`) — cards are `border: none`, visually separated by `gap` only
+- Shrink the panel back below **84dvh** (`max-h-[min(84dvh,760px)]`) or tighten the `gap-3` between cards — the panel must stay roomy, never squeezed
+- Restore a second (translucent) background layer: the panel is **one** opaque background, cards are transparent
+- Make card frequency or timer logic depend on a **local-only** countdown when a server deadline exists — the ring must count the same source (`pairing_deadline` / real `negotiate_ends_at`) the customer sees
+- Delay removal of a closed request (customer cancel/complete, pro decline) behind multiple polls — close must be near-instant
+
+**Always:**
+- Close the pro-side card the moment the server moves the job out of an actionable status (realtime payload → `removeJobAndMaybeNext`, plus the next poll)
+- A poll must never lose a realtime/visibility update (use the `pending` re-run flag) — dropping a mid-flight update was the "close is a few seconds late" bug
+- Realtime subscription for the pro (`repair_pro_id=eq.<id>`) passes its row payload through; `<img>` avatars for requests come from `profiles.avatar_url`
+
+## 11. Repair Pro incoming card close-check — single source of truth
+
+**Never:**
+- Hand-roll "is this request card still valid?" in the popup or realtime handler with a local status list / stale check
+- Let a cancelled/closed request linger on the pro's screen past ~1s because the realtime push was missed on a slow connection
+
+**Always:**
+- Use the shared `isProRequestCardKeepable(status, pairingStage)` from `src/lib/jobs/incoming-popup-timing.ts` (with `PRO_CARD_KEEP_STATUSES`) for **every** keep/close decision: list poll (`ingest`), realtime close (`applyRealtimeClose`), and the per-card status check
+- While a card is visible, poll the ultra-light `/api/jobs/pro-incoming-status` (one tiny query scoped to the pro's own requests) every ~1s, and run the full lean list every few cycles to surface new offers and reconcile
+- The poll cadence is decided **when the timer fires** from what is currently visible, and mount / realtime pushes arm the fast 1s interval — a freshly surfaced card must never sit behind a stale 12s idle timer before its first status check
+- The contract is locked by tests in `src/lib/jobs/__tests__/incoming-popup-timing.test.ts` — extend those, never bypass them
+
+## 12. Customer GPS — never show a "timed out" on reload
+
+**Never:**
+- Hardcode a GPS timeout under `GPS_TIMEOUT_FLOOR_MS` in a screen — the 5s boot timeout caused "Location timed out. Check GPS signal, then tap Retry." on every page reload
+- Surface a location error banner from a boot or background refresh when the user already has a usable location (cached fix / manual pin)
+- Reinstate a 5s `navigator.geolocation.getCurrentPosition` anywhere for the customer home
+
+**Always:**
+- Use `src/lib/location-gps.ts` for all GPS timeouts and `shouldSurfaceLocationError()` — boot/refresh is silent when a cached location exists; the banner appears only on an explicit Retry tap or when nothing usable is cached
+- Budget GPS failures quietly (longer `maximumAge`, silent refresh) and let the user Retry explicitly

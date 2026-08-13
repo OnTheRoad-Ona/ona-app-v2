@@ -816,7 +816,7 @@ export function JobFlowScreen({
         job.status === "waiting_for_pro" ||
         job.status === "reserved");
     const ms = !job
-      ? 8_000
+      ? 2_000
       : pairingLive
         ? 2_500
         : job.status === "negotiating" ||
@@ -1394,14 +1394,16 @@ export function JobFlowScreen({
               onExpire={() => {
                 // Keep the expired ring at 0s — do NOT null pairingDeadline
                 // (that made the customer timer "skip" while pro already had
-                // the next shared deadline). Sweep + load picks up the next
-                // pro's pairing_deadline or expired/Retry without blanking first.
+                // the next shared deadline). Run the LIGHT pairing sweep (no
+                // 30s throttle like expire-stale), then load picks up the
+                // next pro's pairing_deadline or expired/Retry without
+                // blanking first.
                 void (async () => {
                   try {
-                    const { apiExpireStaleBookedJobs } = await import(
+                    const { apiPairingSweep } = await import(
                       "@/lib/jobs/client"
                     );
-                    await apiExpireStaleBookedJobs();
+                    await apiPairingSweep();
                   } catch {
                     /* */
                   }

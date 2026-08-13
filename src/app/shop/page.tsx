@@ -379,9 +379,9 @@ export default function ShopHomePage() {
           </>
         ) : (
           <>
-            {/* Browse by trade — original box grid (not product listings) */}
+            {/* Enter shop — original box grid (not product listings) */}
             <p className="px-3 pt-4 pb-2 text-[13px] font-black tracking-tight">
-              Browse by trade
+              Enter shop
             </p>
             <div className="grid grid-cols-4 gap-2 px-3">
               {(trades.length

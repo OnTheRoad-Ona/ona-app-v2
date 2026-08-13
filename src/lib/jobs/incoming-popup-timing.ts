@@ -8,6 +8,7 @@
 import type { JobRecord } from "@/lib/jobs/types";
 import { serverNow } from "@/lib/jobs/server-clock";
 import { windowStillOpen } from "@/lib/jobs/deadline";
+import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 
 export const INCOMING_POPUP_VISIBLE_MS = 66_000;
 /** Seconds counterpart for UI progress line */
@@ -33,6 +34,82 @@ export const PAIRING_ACTION_STAGES = new Set<string>([
 export function isProPanelOnlyPairingStatus(status: string | null | undefined): boolean {
   const s = status ?? "";
   return PAIRING_ACTION_STAGES.has(s) || s === "sequential_pairing";
+}
+
+/** Statuses that mean "still this pro's live request" (card-keep, incl. the
+ *  transient sequential_pairing advance). Pairing stages may be reported in
+ *  either pairingStage or status, so both are checked. */
+export const PRO_CARD_KEEP_STATUSES = new Set<string>([
+  ...PAIRING_ACTION_STAGES,
+  "sequential_pairing",
+  "negotiating",
+  "agreed",
+]);
+
+/** True when a request card should stay visible for this pro: the server still
+ *  reports an actionable stage/status. Once the customer cancels/expires it or
+ *  it moves to another pro, this returns false so the card closes immediately
+ *  (realtime push or the fast status poll) — never wait for the list refresh.
+ *  A stale pairing stage must not outlive a terminal status. */
+export function isProRequestCardKeepable(
+  status?: string | null,
+  pairingStage?: string | null
+): boolean {
+  const s = status ?? "";
+  const stage = pairingStage ?? "";
+  if (!s && !stage) return false;
+  if (PRO_CARD_KEEP_STATUSES.has(s)) {
+    // A terminal status wins over a leftover stage (customer cancelled but
+    // pairing_stage still says waiting_for_pro) — never keep a closed request.
+    return !isProTerminalStatus(s);
+  }
+  return PRO_CARD_KEEP_STATUSES.has(stage) && !isProTerminalStatus(s);
+}
+
+/** Statuses that can never keep a card, no matter what pairing_stage says. */
+function isProTerminalStatus(status: string): boolean {
+  return (
+    status === "cancelled" ||
+    status === "expired" ||
+    status === "refunded" ||
+    status === "disputed" ||
+    status === "under_appeal" ||
+    status === "released" ||
+    status === "completed"
+  );
+}
+
+export type RequestCloseContext = {
+  job?:
+    | Pick<JobRecord, "motoristName" | "motoristVehicle" | "serviceType">
+    | null;
+  status?: string | null;
+  /** Closed because the request moved to another pro (repair_pro_id changed). */
+  movedOn?: boolean;
+};
+
+/** One-line, rich explanation for the pro when a request leaves their panel —
+ *  shown as OS push body and in-app toast so it never "just disappears". */
+export function requestCloseText(input: RequestCloseContext): string {
+  const { job, status = "", movedOn = false } = input;
+  const name = job?.motoristName?.split(/\s+/)[0];
+  const subject =
+    job && isAutomotiveTrade(job.serviceType) && job.motoristVehicle?.trim()
+      ? job.motoristVehicle.trim()
+      : null;
+
+  if (movedOn) return "This request was assigned to another pro.";
+  if (status === "cancelled") {
+    if (name && subject) return `${name} cancelled the ${subject} request.`;
+    if (name) return `${name} cancelled this request.`;
+    return "A customer cancelled this request.";
+  }
+  if (status === "expired") {
+    if (name) return `${name}'s request expired.`;
+    return "This request expired.";
+  }
+  if (name) return `${name}'s request is no longer open.`;
+  return "This request is no longer open.";
 }
 
 /** sessionStorage: force IncomingJobPopup to open this job id on next poll */

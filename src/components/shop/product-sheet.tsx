@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Minus, Plus, ShoppingBag } from "lucide-react";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { shopAddToCart } from "@/lib/shop/client";
+import { detectCurrency, formatMoney, fromMinorUnits } from "@/lib/pricing";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -29,9 +30,9 @@ type Props = {
   onClose: () => void;
 };
 
-function formatNgn(minor: number | null): string {
+function formatPrice(minor: number | null): string {
   if (minor == null) return "—";
-  return `₦${Math.round(minor / 100).toLocaleString("en-NG")}`;
+  return formatMoney(fromMinorUnits(minor, "NGN"), detectCurrency());
 }
 
 export function ProductSheet({ slug, onClose }: Props) {
@@ -129,9 +130,9 @@ export function ProductSheet({ slug, onClose }: Props) {
 
   const muted = isLight ? "text-slate-600" : "text-white/55";
   const border = isLight ? "border-black/10" : "border-white/10";
-  const price = selectedPrice ? formatNgn(selectedPrice.amount_minor) : "—";
+  const price = selectedPrice ? formatPrice(selectedPrice.amount_minor) : "—";
   const compareAt = selectedPrice?.compare_at_minor
-    ? formatNgn(selectedPrice.compare_at_minor)
+    ? formatPrice(selectedPrice.compare_at_minor)
     : null;
 
   return (
@@ -139,7 +140,8 @@ export function ProductSheet({ slug, onClose }: Props) {
       open={open}
       onClose={onClose}
       titleId="product-sheet-title"
-      heightPercent={82}
+      heightPercent={55}
+      growToPercent={82}
     >
       {loading ? (
         <div className="flex justify-center py-10">
@@ -237,7 +239,7 @@ export function ProductSheet({ slug, onClose }: Props) {
                         {v.option_label || v.title || v.sku}
                       </span>
                       <span className={cn("block text-[11px]", muted)}>
-                        {vPrice ? formatNgn(vPrice.amount_minor) : "—"}
+                        {vPrice ? formatPrice(vPrice.amount_minor) : "—"}
                         {soldOut ? " · Sold out" : ""}
                       </span>
                     </button>

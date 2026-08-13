@@ -1,28 +1,29 @@
 "use client";
 
 /**
- * NotificationCenter — icon filters, Twitter-style stacks, cascade expand.
- * Read: solid grey action buttons (no border/glow). Unread: orange.
- * Mark read on card click / hover — no separate “Mark read” control.
+ * NotificationCenter — icon filters, flat X-style notification cards.
+ * Every item renders with the same anatomy as the in-app toasts: category icon
+ * chip (orange for high priority), "Ona · time" header, bold title, muted body,
+ * action chip, unread dot. Read: solid grey action chips. Unread: orange.
+ * Mark read on card click / hover — no separate "Mark read" control.
  */
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  ArrowRight,
+  Info,
   LayoutGrid,
-  Wrench,
   MessageCircle,
-  Wallet,
+  Phone,
   Settings2,
+  Star,
+  Wallet,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 import {
-  groupNotifications,
-  isGroup,
-} from "@/lib/notifications/group";
-import {
   MESSAGE_ORANGE,
-  CHARCOAL,
   blockedActionMessage,
   isChatClosedForNotification,
   isHighPriority,
@@ -30,8 +31,15 @@ import {
   isNavigationBlocked,
   isReleasePayPendingStatus,
   type AppNotification,
+  type NotificationCategory,
   type NotificationFilter,
 } from "@/lib/notifications/types";
+import {
+  isCallNotification,
+  isChatNotification,
+  isPaymentNotification,
+  isRequestAcceptNotification,
+} from "@/lib/notifications/stack-rules";
 import { useNotifications } from "@/components/notifications/notification-provider";
 import { ExpiredDialog } from "@/components/ui/expired-dialog";
 import {
@@ -41,7 +49,6 @@ import {
 } from "@/lib/chat-expired";
 import { apiGetJob } from "@/lib/jobs/client";
 import { useApp } from "@/lib/store";
-import { cn } from "@/lib/utils";
 
 const FILTERS: {
   id: NotificationFilter;
@@ -70,44 +77,83 @@ function formatWhen(iso: string): string {
   }
 }
 
-/** Solid action chip — orange when unread, blended grey when read. No border/glow. */
-function ActionBtn({
-  label,
-  onClick,
-  read,
-  isLight,
-}: {
-  label: string;
-  onClick: () => void;
-  read: boolean;
-  isLight: boolean;
-}) {
-  const orange = MESSAGE_ORANGE;
-  // Well-blended grey, high-contrast text, both themes
-  const bg = read
-    ? isLight
-      ? "#8b8d94"
-      : "#4a4a50"
-    : orange;
-  const color = "#ffffff";
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-      className="h-8 rounded-md border-0 px-3 text-[11px] font-bold active:opacity-85"
-      style={{
-        backgroundColor: bg,
-        color,
-        boxShadow: "none",
-        outline: "none",
-      }}
-    >
-      {label}
-    </button>
-  );
+/** Compact X-style time label for the list: "Ona · now / 5m / 2h / Jan 3 2:31 PM". */
+function toastWhen(iso: string, now = Date.now()): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return "";
+  const s = Math.floor((now - t) / 1000);
+  if (s < 60) return "now";
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  return formatWhen(iso);
+}
+
+/** Same per-category icon the in-app toasts use — identical brand language. */
+function categoryIcon(n: AppNotification): LucideIcon {
+  if (isCallNotification(n)) return Phone;
+  if (isChatNotification(n)) return MessageCircle;
+  if (isPaymentNotification(n)) return Wallet;
+  if (isRequestAcceptNotification(n) || n.category === "requests") return Wrench;
+  switch (n.category as NotificationCategory) {
+    case "requests":
+      return Wrench;
+    case "messages":
+      return MessageCircle;
+    case "payments":
+      return Wallet;
+    default:
+      return Info;
+  }
+}
+
+/** Per-action icon + label that replaces the old text chips (X-style icon actions). */
+type ActionSpec = { icon: LucideIcon; label: string };
+
+function actionSpec(
+  n: AppNotification,
+  opts: { navBlocked: boolean; accountType?: string | null; releasePay: boolean }
+): ActionSpec | null {
+  const { navBlocked, accountType, releasePay } = opts;
+  if (n.actionType === "open_chat" || n.category === "messages") {
+    return { icon: MessageCircle, label: navBlocked ? "View" : "Open chat" };
+  }
+  if (n.actionType === "accept_request") {
+    return {
+      icon: ArrowRight,
+      label: navBlocked
+        ? "View"
+        : accountType === "professional"
+          ? "View request"
+          : "View",
+    };
+  }
+  if (n.actionType === "view_tracking") {
+    return { icon: ArrowRight, label: navBlocked ? "View" : "Track" };
+  }
+  if (
+    n.actionType === "open_job" ||
+    n.category === "requests" ||
+    (n.category === "payments" && releasePay)
+  ) {
+    return {
+      icon: ArrowRight,
+      label: releasePay
+        ? "Confirm job & release payment"
+        : navBlocked
+          ? "View"
+          : "View job",
+    };
+  }
+  if (n.actionType === "view_payment" && !releasePay) {
+    return { icon: Wallet, label: "Payments" };
+  }
+  if (n.actionType === "rate") {
+    return { icon: Star, label: "Rate" };
+  }
+  if (!n.actionType && n.href) {
+    return { icon: ArrowRight, label: navBlocked ? "View" : "Open" };
+  }
+  return null;
 }
 
 export function NotificationCenter() {
@@ -127,18 +173,26 @@ export function NotificationCenter() {
   const { theme, accountType } = useApp();
   const router = useRouter();
   const isLight = theme === "light";
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [blockMsg, setBlockMsg] = useState<string | null>(null);
   const [viewHref, setViewHref] = useState<string | null>(null);
 
   const accent = MESSAGE_ORANGE;
   const stage = isLight ? "#c8c9cd" : "#0a0a0a";
-  const card = isLight ? "#d4d5d9" : CHARCOAL;
   const searchBg = isLight ? "#bebfc4" : "rgba(255,255,255,0.08)";
   const ink = isLight ? "#1a1b1e" : "#ffffff";
   const muted = isLight ? "#5c6370" : "rgba(255,255,255,0.65)";
+  const line = isLight ? "rgba(0,0,0,0.10)" : "rgba(255,255,255,0.12)";
 
-  const grouped = useMemo(() => groupNotifications(filtered), [filtered]);
+  // Flatten: one X-style card per notification, newest first.
+  const sorted = useMemo(
+    () =>
+      [...filtered].sort(
+        (a, b) =>
+          (Date.parse(b.createdAt || "") || 0) -
+          (Date.parse(a.createdAt || "") || 0)
+      ),
+    [filtered]
+  );
 
   if (!centerOpen) return null;
 
@@ -220,10 +274,6 @@ export function NotificationCenter() {
     router.push(n.href);
   };
 
-  const markStackRead = (ids: string[]) => {
-    void markRead(ids);
-  };
-
   return (
     <div
       className="absolute inset-0 z-[95] flex flex-col"
@@ -301,17 +351,17 @@ export function NotificationCenter() {
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 scrollbar-hide">
+        <div className="min-h-0 flex-1 overflow-y-auto pb-8 scrollbar-hide">
           {loading && (
             <p
-              className="py-12 text-center text-[13px] font-medium"
+              className="px-4 py-12 text-center text-[13px] font-medium"
               style={{ color: muted }}
             >
               Loading…
             </p>
           )}
-          {!loading && grouped.length === 0 && (
-            <div className="px-2 py-20 text-center">
+          {!loading && sorted.length === 0 && (
+            <div className="px-4 py-20 text-center">
               <p className="text-[15px] font-semibold" style={{ color: ink }}>
                 You’re all caught up
               </p>
@@ -325,226 +375,104 @@ export function NotificationCenter() {
             </div>
           )}
 
-          <ul className="list-none space-y-2">
-            {grouped.map((item) => {
-              if (isGroup(item)) {
-                const open = expanded[item.key];
-                const head = item.head;
-                const high = isHighPriority(head.priority);
-                const stackRead = item.unread === 0;
-                const ids = item.items.map((i) => i.id);
-                return (
-                  <li
-                    key={item.key}
-                    className="overflow-hidden rounded-md"
-                    style={{ backgroundColor: card }}
-                    onMouseEnter={() => markStackRead(ids)}
+          <ul className="list-none">
+            {sorted.map((n) => {
+              const high = isHighPriority(n.priority);
+              const unread = !n.readAt;
+              const closed = isChatClosedForNotification(n);
+              const historyClosed = isJobHistoryClosedStatus(n.jobStatus);
+              const releasePay = isReleasePayPendingStatus(n.jobStatus);
+              const navBlocked =
+                !releasePay &&
+                (isNavigationBlocked(n) || closed || historyClosed);
+              const Icon = categoryIcon(n);
+              const spec = actionSpec(n, { navBlocked, accountType, releasePay });
+              const go = () => {
+                markRead([n.id]);
+                void runAction(n);
+              };
+              return (
+                <li key={n.id} style={{ borderBottom: `1px solid ${line}` }}>
+                  <button
+                    type="button"
+                    className={`flex w-full items-start gap-3.5 px-4 py-4 text-left ${
+                      isLight
+                        ? "active:bg-black/[0.06]"
+                        : "active:bg-white/[0.08]"
+                    }`}
+                    style={{ backgroundColor: "transparent" }}
+                    onMouseEnter={() => markRead([n.id])}
+                    onClick={go}
                   >
-                    {/* Stack header — type label + count + time */}
-                    <div
-                      className="flex cursor-pointer items-center justify-between gap-2 px-3 py-2.5 active:opacity-80"
-                      onClick={() => {
-                        markStackRead(ids);
-                        setExpanded((e) => ({ ...e, [item.key]: !open }));
-                      }}
-                    >
-                      <div className="flex min-w-0 items-center gap-2">
-                        {high && !stackRead ? (
+                    <Icon
+                      className="mt-1 h-[18px] w-[18px] shrink-0"
+                      style={{ color: high ? accent : muted }}
+                      strokeWidth={2}
+                      aria-hidden
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        {unread ? (
                           <span
                             className="h-2 w-2 shrink-0 rounded-full"
                             style={{ backgroundColor: accent }}
+                            aria-label="Unread"
                           />
                         ) : null}
-                        <p
-                          className="truncate text-[13px] font-bold leading-snug"
+                        <span
+                          className="truncate text-[13px] font-bold leading-tight tracking-[-0.01em]"
                           style={{ color: ink }}
                         >
-                          {item.typeLabel}
-                        </p>
-                        <span
-                          className={cn(
-                            "inline-flex min-w-[1.15rem] items-center justify-center rounded-sm px-1 text-[9px] font-bold",
-                            item.unread > 0
-                              ? "text-white"
-                              : "text-[10px] font-semibold"
-                          )}
-                          style={{
-                            backgroundColor:
-                              item.unread > 0 ? accent : "transparent",
-                            color:
-                              item.unread > 0
-                                ? "#fff"
-                                : muted,
-                          }}
-                        >
-                          {item.items.length}
+                          Ona
                         </span>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
                         <span
-                          className="text-[10px] font-medium"
+                          className="shrink-0 text-[11px] font-medium"
                           style={{ color: muted }}
                         >
-                          {formatWhen(head.createdAt)}
-                        </span>
-                        <span
-                          className="text-[10px] font-bold transition-transform"
-                          style={{
-                            color: accent,
-                            transform: open ? "rotate(180deg)" : "rotate(0deg)",
-                          }}
-                        >
-                          ▼
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Cascade stack — X/Twitter-style nested items */}
-                    {open ? (
-                      <ul
-                        className="border-t pl-0"
-                        style={{
-                          borderColor: isLight
-                            ? "rgba(0,0,0,0.06)"
-                            : "rgba(255,255,255,0.06)",
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {item.items.map((n, idx) => {
-                          const isLast = idx === item.items.length - 1;
-                          return (
-                            <li
-                              key={n.id}
-                              className={cn(
-                                "cursor-pointer px-3 py-2.5 transition-colors",
-                                !isLast &&
-                                  "border-b"
-                              )}
-                              style={{
-                                backgroundColor: "transparent",
-                                borderColor: isLight
-                                  ? "rgba(0,0,0,0.04)"
-                                  : "rgba(255,255,255,0.04)",
-                              }}
-                              onMouseEnter={() => markStackRead([n.id])}
-                              onClick={() => {
-                                markStackRead([n.id]);
-                                void runAction(n);
-                              }}
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <p
-                                  className="text-[12px] font-semibold leading-snug"
-                                  style={{ color: ink }}
-                                >
-                                  {n.title}
-                                </p>
-                                <span
-                                  className="shrink-0 text-[9px] font-medium"
-                                  style={{ color: muted }}
-                                >
-                                  {formatWhen(n.createdAt)}
-                                </span>
-                              </div>
-                              <p
-                                className="mt-0.5 text-[11px] font-medium leading-snug"
-                                style={{ color: muted }}
-                              >
-                                {n.body}
-                              </p>
-                              {n.jobId && !n.jobId.startsWith("demo-") ? (
-                                <p
-                                  className="mt-1 text-[9px] font-semibold uppercase tracking-wide"
-                                  style={{ color: accent }}
-                                >
-                                  Job #{n.jobId.slice(-6)}
-                                </p>
-                              ) : null}
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    ) : (
-                      <div
-                        className="border-t px-3 py-2.5"
-                        style={{
-                          borderColor: isLight
-                            ? "rgba(0,0,0,0.06)"
-                            : "rgba(255,255,255,0.06)",
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <p
-                            className="min-w-0 flex-1 text-[12px] font-medium leading-snug"
-                            style={{ color: muted }}
-                          >
-                            {head.body}
-                          </p>
-                          <ActionBtn
-                            label={
-                              isReleasePayPendingStatus(head.jobStatus)
-                                ? "Release"
-                                : "Open"
-                            }
-                            read={stackRead}
-                            isLight={isLight}
-                            onClick={() => {
-                              markStackRead(ids);
-                              void runAction(head);
-                            }}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </li>
-                );
-              }
-
-              const n = item;
-              const high = isHighPriority(n.priority);
-              const isRead = Boolean(n.readAt);
-              return (
-                <li
-                  key={n.id}
-                  className="overflow-hidden rounded-md"
-                  style={{ backgroundColor: card }}
-                  onMouseEnter={() => markStackRead([n.id])}
-                  onClick={() => {
-                    markStackRead([n.id]);
-                    void runAction(n);
-                  }}
-                >
-                  <div className="flex cursor-pointer items-start gap-2 px-3 py-2.5 active:opacity-80">
-                    {high && !isRead ? (
-                      <span
-                        className="mt-1 h-2 w-2 shrink-0 rounded-full"
-                        style={{ backgroundColor: accent }}
-                      />
-                    ) : null}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <p
-                          className="text-[13px] font-bold leading-snug"
-                          style={{ color: ink }}
-                        >
-                          {n.title}
-                        </p>
-                        <span
-                          className="shrink-0 text-[10px] font-medium"
-                          style={{ color: muted }}
-                        >
-                          {formatWhen(n.createdAt)}
+                          · {toastWhen(n.createdAt)}
                         </span>
                       </div>
                       <p
-                        className="mt-0.5 text-[12px] font-medium leading-snug"
+                        className="mt-1 text-[13px] font-semibold leading-snug tracking-[-0.01em]"
+                        style={{ color: ink }}
+                      >
+                        {n.title}
+                      </p>
+                      <p
+                        className="mt-1.5 line-clamp-2 text-[12px] font-normal leading-snug"
                         style={{ color: muted }}
                       >
-                        {n.body}
+                        {closed && n.messageText ? n.messageText : n.body}
                       </p>
+                      {closed && n.messageText ? (
+                        <p
+                          className="mt-1 text-[10px] font-semibold"
+                          style={{ color: muted }}
+                        >
+                          Job finished. Full message.
+                        </p>
+                      ) : null}
+                      {historyClosed && !closed && n.category === "requests" ? (
+                        <p
+                          className="mt-1 text-[10px] font-semibold"
+                          style={{ color: muted }}
+                        >
+                          Job {n.jobStatus?.replace(/_/g, " ") || "closed"}. Link
+                          unavailable.
+                        </p>
+                      ) : null}
                     </div>
-                  </div>
+                    {spec ? (
+                      <span
+                        className="self-center shrink-0 pl-2"
+                        title={spec.label}
+                        aria-label={spec.label}
+                        style={{ color: unread ? accent : muted }}
+                      >
+                        <spec.icon className="h-[18px] w-[18px]" strokeWidth={2} />
+                      </span>
+                    ) : null}
+                  </button>
                 </li>
               );
             })}
@@ -571,158 +499,6 @@ export function NotificationCenter() {
               : undefined
           }
         />
-      </div>
-    </div>
-  );
-}
-
-function NotificationCardBody({
-  n,
-  ink,
-  muted,
-  isLight,
-  accountType,
-  showMeta,
-  stacked,
-  onAction,
-  onRead,
-}: {
-  n: AppNotification;
-  ink: string;
-  muted: string;
-  isLight: boolean;
-  accountType: string | null;
-  showMeta?: boolean;
-  stacked?: boolean;
-  stackIndex?: number;
-  onAction: () => void;
-  onRead: () => void;
-}) {
-  const closed = isChatClosedForNotification(n);
-  const unread = !n.readAt;
-  const historyClosed = isJobHistoryClosedStatus(n.jobStatus);
-  const releasePay = isReleasePayPendingStatus(n.jobStatus);
-  const navBlocked =
-    !releasePay && (isNavigationBlocked(n) || closed || historyClosed);
-
-  const go = () => {
-    onRead();
-    onAction();
-  };
-
-  return (
-    <div>
-      {showMeta ? (
-        <div className="flex items-start justify-between gap-2">
-          <p
-            className={cn(
-              "text-[13px] font-bold leading-snug",
-              unread && "font-black",
-              stacked && "text-[12px]"
-            )}
-            style={{ color: ink }}
-          >
-            {n.title}
-          </p>
-          <span
-            className="shrink-0 text-[10px] font-medium"
-            style={{ color: muted }}
-          >
-            {formatWhen(n.createdAt)}
-          </span>
-        </div>
-      ) : null}
-      <p
-        className={cn(
-          "text-[12px] font-medium leading-snug",
-          showMeta && "mt-1"
-        )}
-        style={{ color: muted }}
-      >
-        {closed && n.messageText ? n.messageText : n.body}
-      </p>
-      {closed && n.messageText ? (
-        <p className="mt-1 text-[10px] font-semibold" style={{ color: muted }}>
-          Job finished. Full message.
-        </p>
-      ) : null}
-      {historyClosed && !closed && n.category === "requests" ? (
-        <p className="mt-1 text-[10px] font-semibold" style={{ color: muted }}>
-          Job {n.jobStatus?.replace(/_/g, " ") || "closed"}. Link unavailable.
-        </p>
-      ) : null}
-
-      <div className="mt-2.5 flex flex-wrap gap-2">
-        {n.actionType === "open_chat" || n.category === "messages" ? (
-          <ActionBtn
-            label={navBlocked ? "View" : "Open chat"}
-            read={!unread}
-            isLight={isLight}
-            onClick={go}
-          />
-        ) : null}
-        {n.actionType === "accept_request" ? (
-          <ActionBtn
-            label={
-              navBlocked
-                ? "View"
-                : accountType === "professional"
-                  ? "View request"
-                  : "View"
-            }
-            read={!unread}
-            isLight={isLight}
-            onClick={go}
-          />
-        ) : null}
-        {n.actionType === "view_tracking" ? (
-          <ActionBtn
-            label={navBlocked ? "View" : "Track"}
-            read={!unread}
-            isLight={isLight}
-            onClick={go}
-          />
-        ) : null}
-        {n.actionType === "open_job" ||
-        (n.category === "requests" && n.actionType !== "accept_request") ||
-        (n.category === "payments" && releasePay) ? (
-          <ActionBtn
-            label={
-              releasePay
-                ? "Confirm Job & Release Payment"
-                : navBlocked
-                  ? "View"
-                  : "View job"
-            }
-            read={!unread}
-            isLight={isLight}
-            onClick={go}
-          />
-        ) : null}
-        {n.actionType === "view_payment" && !releasePay ? (
-          <ActionBtn
-            label="Payments"
-            read={!unread}
-            isLight={isLight}
-            onClick={go}
-          />
-        ) : null}
-        {n.actionType === "rate" ? (
-          <ActionBtn
-            label="Rate"
-            read={!unread}
-            isLight={isLight}
-            onClick={go}
-          />
-        ) : null}
-        {!n.actionType && n.href ? (
-          <ActionBtn
-            label={navBlocked ? "View" : "Open"}
-            read={!unread}
-            isLight={isLight}
-            onClick={go}
-          />
-        ) : null}
       </div>
     </div>
   );

@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   canSurfaceIncomingJob,
   isIncomingJobOpen,
+  isProRequestCardKeepable,
   markJobShown,
   readShownJobIds,
+  requestCloseText,
 } from "@/lib/jobs/incoming-popup-timing";
 import type { JobRecord } from "@/lib/jobs/types";
 
@@ -194,5 +196,100 @@ describe("isIncomingJobOpen", () => {
         )
       ).toBe(false);
     }
+  });
+});
+
+describe("isProRequestCardKeepable — fast-close contract (never regress)", () => {
+  it("keeps a live pairing card", () => {
+    for (const stage of [
+      "waiting_for_selected",
+      "selected_review",
+      "waiting_for_pro",
+      "reserved",
+    ]) {
+      expect(isProRequestCardKeepable(stage, stage)).toBe(true);
+      // Legacy `status` column is "requested" for pairing rows — must keep.
+      expect(isProRequestCardKeepable("requested", stage)).toBe(true);
+    }
+  });
+
+  it("keeps sequential_pairing / negotiating / agreed", () => {
+    expect(
+      isProRequestCardKeepable("sequential_pairing", "sequential_pairing")
+    ).toBe(true);
+    expect(isProRequestCardKeepable("negotiating", null)).toBe(true);
+    expect(isProRequestCardKeepable("agreed", null)).toBe(true);
+  });
+
+  it("drops a customer-cancelled request even with a stale stage", () => {
+    expect(isProRequestCardKeepable("cancelled", null)).toBe(false);
+    expect(isProRequestCardKeepable("cancelled", "waiting_for_pro")).toBe(
+      false
+    );
+    expect(isProRequestCardKeepable("cancelled", "reserved")).toBe(false);
+    expect(isProRequestCardKeepable("requested", "cancelled")).toBe(false);
+  });
+
+  it("drops terminal statuses and empty rows", () => {
+    for (const status of [
+      "expired",
+      "refunded",
+      "completed",
+      "released",
+      "disputed",
+    ]) {
+      expect(isProRequestCardKeepable(status, null)).toBe(false);
+      expect(isProRequestCardKeepable(status, "waiting_for_pro")).toBe(false);
+    }
+    expect(isProRequestCardKeepable("", null)).toBe(false);
+    expect(isProRequestCardKeepable(null, null)).toBe(false);
+  });
+});
+
+describe("requestCloseText — rich notifications, never a silent vanish", () => {
+  const auto: Pick<JobRecord, "motoristName" | "motoristVehicle" | "serviceType"> = {
+    motoristName: "Mina Smith",
+    motoristVehicle: "Toyota Camry",
+    serviceType: "mechanic",
+  };
+  const generic: Pick<JobRecord, "motoristName" | "serviceType"> = {
+    motoristName: "Bola Ade",
+    serviceType: "electrical",
+  };
+
+  it("names the customer + vehicle for an automotive cancel", () => {
+    expect(requestCloseText({ job: auto, status: "cancelled" })).toBe(
+      "Mina cancelled the Toyota Camry request."
+    );
+  });
+
+  it("falls back to a plain name / generic text without vehicle or job", () => {
+    expect(requestCloseText({ job: generic, status: "cancelled" })).toBe(
+      "Bola cancelled this request."
+    );
+    expect(requestCloseText({ status: "cancelled" })).toBe(
+      "A customer cancelled this request."
+    );
+  });
+
+  it("explains expiry and reassignment distinctly", () => {
+    expect(requestCloseText({ job: generic, status: "expired" })).toBe(
+      "Bola's request expired."
+    );
+    expect(requestCloseText({ job: auto, movedOn: true })).toBe(
+      "This request was assigned to another pro."
+    );
+    expect(requestCloseText({ status: "expired" })).toBe(
+      "This request expired."
+    );
+  });
+
+  it("has a generic fallback for any other close", () => {
+    expect(
+      requestCloseText({ job: generic, status: "refunded" })
+    ).toBe("Bola's request is no longer open.");
+    expect(requestCloseText({ status: "under_appeal" })).toBe(
+      "This request is no longer open."
+    );
   });
 });

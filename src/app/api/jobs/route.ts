@@ -106,7 +106,8 @@ export async function GET(req: Request) {
     if (userId !== auth.userId) {
       return apiFail("Forbidden", 403, "forbidden");
     }
-    const jobs = await listJobsForUser(userId, role);
+    const lean = searchParams.get("lean") === "1";
+    const jobs = await listJobsForUser(userId, role, { lean });
     return apiOk({ jobs, serverNow: new Date().toISOString() });
   } catch (e) {
     return apiFail(e instanceof Error ? e.message : "List failed", 500);

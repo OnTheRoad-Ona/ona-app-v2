@@ -14,6 +14,11 @@ import {
   DEFAULT_USER_LOCATION,
   LAST_GPS_KEY,
 } from "@/lib/data/technicians";
+import {
+  GPS_BOOT_TIMEOUT_MS,
+  GPS_RETRY_TIMEOUT_MS,
+  shouldSurfaceLocationError,
+} from "@/lib/location-gps";
 import { registerIdentity } from "@/lib/account-registry";
 import {
   DEFAULT_RADIUS_KM,
@@ -331,8 +336,13 @@ interface AppState {
   /** Send OTP to phone or email */
   sendLoginOtp: (
     channel: "phone" | "email",
-    target: string
-  ) => Promise<{ error: string | null; message?: string }>;
+    target: string,
+    opts?: { forceResend?: boolean }
+  ) => Promise<{
+    error: string | null;
+    message?: string;
+    maybeSent?: boolean;
+  }>;
   /** Verify SMS OTP and open server session */
   signInWithPhoneOtp: (
     phone: string,
@@ -811,59 +821,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setHasMotoristAccount(bootHasMotorist);
         setHasProAccount(bootHasPro);
 
-        // Last switched role (Use as) must survive reload — prefer local active
-        // account when it differs from server profile.role. Never AWAIT a role
-        // switch in boot (it is ~10 sequential Supabase calls): paint with the
-        // locally preferred role and reconcile the server in the background.
-        let sessionProfile: UserProfile = {
+        // Server role (profiles.role) is the single source of truth for the
+        // active account. The local "ona-account-type" preference must NOT
+        // override it: a stale value left behind by a different account or
+        // session made the Repair Pro boot as a Customer and even reverse-switch
+        // the server role. Role switches are persisted server-side by
+        // /api/auth/switch-role, so a reload already restores the last role
+        // without any local override.
+        const sessionProfile: UserProfile = {
           ...profile,
           primaryAccountType:
             profile.primaryAccountType ||
             flags.primaryAccountType ||
             undefined,
         };
-        const preferred = localStorage.getItem(AUTH_ACCOUNT_KEY) as
-          | AccountType
-          | null;
-        const keptPreferred =
-          (preferred === "motorist" || preferred === "professional") &&
-          preferred !== profile.accountType &&
-          ((preferred === "motorist" && bootHasMotorist) ||
-            (preferred === "professional" && bootHasPro));
-        if (keptPreferred) {
-          sessionProfile = { ...sessionProfile, accountType: preferred };
-        }
         applySessionRef.current(sessionProfile);
         // Re-assert server dual-role flags after applySession (vault must not win)
         setHasMotoristAccount((prev) => prev || bootHasMotorist);
         setHasProAccount((prev) => prev || bootHasPro);
-
-        if (keptPreferred) {
-          // Persist the last-used role server-side without delaying the UI.
-          void withTimeout(backendSwitchRole(preferred), 8000)
-            .then((switched) => {
-              if (cancelled) return;
-              if (switched?.profile && switched.userId) {
-                applySessionRef.current({
-                  ...switched.profile,
-                  primaryAccountType:
-                    switched.primaryAccountType ||
-                    switched.profile.primaryAccountType ||
-                    sessionProfile.primaryAccountType,
-                });
-                setBackendUserId(switched.userId);
-                if (switched.hasMotorist != null) {
-                  setHasMotoristAccount(switched.hasMotorist);
-                }
-                if (switched.hasPro != null) {
-                  setHasProAccount(switched.hasPro);
-                }
-              }
-            })
-            .catch(() => {
-              /* keep the locally preferred role */
-            });
-        }
       } catch {
         // Never force logout after first paint — keep whatever session is live
       } finally {
@@ -1524,13 +1499,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const sendLoginOtp = useCallback(
     async (
       channel: "phone" | "email",
-      target: string
-    ): Promise<{ error: string | null; message?: string }> => {
+      target: string,
+      opts?: { forceResend?: boolean }
+    ): Promise<{ error: string | null; message?: string; maybeSent?: boolean }> => {
       if (!isAppBackendOnline()) {
         return { error: "Server is unavailable." };
       }
-      const res = await backendSendOtp({ channel, target });
-      return { error: res.error, message: res.message };
+      const res = await backendSendOtp(
+        { channel, target },
+        { forceResend: opts?.forceResend }
+      );
+      return { error: res.error, message: res.message, maybeSent: res.maybeSent };
     },
     []
   );
@@ -3523,7 +3502,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       },
       {
         enableHighAccuracy: true,
-        timeout: 12_000,
+        timeout: GPS_RETRY_TIMEOUT_MS,
         maximumAge: 0, // force fresh fix
       }
     );
@@ -3536,36 +3515,51 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     setIsLocating(true);
 
-    const pull = (silent: boolean, highAccuracy: boolean) => {
+    // Boot/refresh pull — low-accuracy, patient, and SILENT when the user
+    // already has a usable (cached) location. A 5s timeout + error-on-reload
+    // was the "Location timed out / Retry" that appeared even though GPS was
+    // fine and a cached fix already existed.
+    const pull = (surface: boolean) => {
       if (cancelled || manualPinRef.current) return;
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           if (cancelled) return;
-          applyGpsFix(pos, silent);
-          if (!silent) setIsLocating(false);
+          applyGpsFix(pos, true);
+          setIsLocating(false);
         },
         (err) => {
           if (cancelled) return;
-          if (!silent) {
-            setLocationError(friendlyGeolocationError(err));
-            setIsLocating(false);
-          }
+          setIsLocating(false);
+          if (surface) setLocationError(friendlyGeolocationError(err));
         },
         {
-          // Prefer cached fix first (low data / battery); refine later if needed
-          enableHighAccuracy: highAccuracy,
-          timeout: highAccuracy ? 10_000 : 5000,
-          maximumAge: highAccuracy ? 60_000 : 180_000,
+          enableHighAccuracy: false,
+          timeout: GPS_BOOT_TIMEOUT_MS,
+          maximumAge: 180_000,
         }
       );
     };
 
-    // Single network-light pull only — no high-accuracy refine (saves GPS + geocode data)
-    pull(false, false);
+    let hasUsableLocation = false;
+    try {
+      hasUsableLocation = Boolean(localStorage.getItem(LAST_GPS_KEY));
+    } catch {
+      /* */
+    }
+
+    // First pull surfaces an error ONLY when nothing usable is cached yet
+    // (explicit "Retry" always surfaces regardless, via retryLocation).
+    pull(
+      shouldSurfaceLocationError({
+        silentRequest: true,
+        hasUsableLocation,
+      })
+    );
     const intervalId = window.setInterval(
       () => {
         if (document.hidden || manualPinRef.current) return;
-        pull(true, false);
+        // Background refresh — never surfaces errors (we already have a fix)
+        pull(false);
       },
       LOCATION_REFRESH_MS
     );

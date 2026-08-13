@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import {
@@ -43,6 +43,7 @@ export function SignInForm() {
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [cooldownLeft, setCooldownLeft] = useState(0);
+  const ambiguousSendRef = useRef(false);
 
   const showPhone = Boolean(preferType);
   const inCooldown = cooldownLeft > 0;
@@ -92,6 +93,7 @@ export function SignInForm() {
 
   function pickRole(type: AccountType) {
     setPreferType(type);
+    ambiguousSendRef.current = false;
     setOtpSent(false);
     setOtp("");
     setFailedAttempts(0);
@@ -127,7 +129,11 @@ export function SignInForm() {
     }
     setBusy(true);
     try {
-      const res = await sendLoginOtp("phone", target);
+      // After a maybe-sent result the next tap is a deliberate resend, so the
+      // idempotency key is cleared and a fresh code genuinely goes out.
+      const res = await sendLoginOtp("phone", target, {
+        forceResend: ambiguousSendRef.current,
+      });
       if (res.error) {
         // Parse server wait if present (after 4 fails)
         const waitMatch = res.error.match(/wait\s+(\d+)\s*s/i);
@@ -142,6 +148,15 @@ export function SignInForm() {
         setError(publicMessage(res.error, "Could not send code."));
         return;
       }
+      if (res.maybeSent) {
+        // Outcome unproven (response lost) — stay neutral, never block.
+        ambiguousSendRef.current = true;
+        setInfo(
+          "Code request may not have gone through. If nothing arrives, tap send again."
+        );
+        return;
+      }
+      ambiguousSendRef.current = false;
       setOtpSent(true);
       const msg = res.message || "Code sent. Enter it below.";
       setInfo(publicMessage(msg, "Code sent. Enter it below."));
@@ -270,6 +285,7 @@ export function SignInForm() {
                   value={phone}
                   onChange={(e) => {
                     setPhone(e.target.value);
+                    ambiguousSendRef.current = false;
                     setOtpSent(false);
                     setOtp("");
                     setFailedAttempts(0);

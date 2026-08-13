@@ -36,6 +36,7 @@ import type {
   OfferSide,
 } from "@/lib/jobs/types";
 import {
+  formatMoney,
   fromMinorUnits,
   splitServiceChargeMinor,
   toMinorUnits,
@@ -588,6 +589,7 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
               actionPayload: { jobId: job.id },
               jobId: job.id,
               jobStatus: "waiting_for_selected",
+              groupKey: `service-request-${job.id}`,
             });
           } catch {
             /* optional */
@@ -684,6 +686,7 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
                 actionType: "open_job",
                 actionPayload: { jobId: job.id },
                 jobId: job.id,
+                groupKey: `service-request-${job.id}`,
               });
             } catch {
               /* optional */
@@ -1663,7 +1666,8 @@ async function findNextPro(
  */
 async function assignNextPro(
   job: JobRecord,
-  sb: ReturnType<typeof createServiceSupabase>
+  sb: ReturnType<typeof createServiceSupabase>,
+  skipNotifyPreviousPro = false
 ): Promise<boolean> {
   const nextPro = await findNextPro(job, sb);
   if (!nextPro) return false;
@@ -1734,9 +1738,40 @@ async function assignNextPro(
       actionPayload: { jobId: job.id },
       jobId: job.id,
       jobStatus: "negotiating",
+      groupKey: `service-request-${job.id}`,
     });
   } catch {
     /* notifications optional */
+  }
+
+  // Quiet persistent entry for the previous pro: the request moved on to
+  // another pro. Skipped for the pro who actively declined (they initiated the
+  // reroute — no need to tell them). groupKey dedupes per job.
+  if (
+    !skipNotifyPreviousPro &&
+    job.repairProId &&
+    job.repairProId !== nextPro.id
+  ) {
+    try {
+      const { insertNotification } = await import(
+        "@/lib/server/notifications"
+      );
+      await insertNotification({
+        userId: job.repairProId,
+        category: "requests",
+        priority: "normal",
+        title: "Request moved on",
+        body: "This request was assigned to another pro.",
+        href: `/jobs/${job.id}`,
+        actionType: "open_job",
+        actionPayload: { jobId: job.id },
+        jobId: job.id,
+        jobStatus: "negotiating",
+        groupKey: `request-moved-on-${job.id}`,
+      });
+    } catch {
+      /* notifications optional */
+    }
   }
 
   return true;
@@ -2001,9 +2036,10 @@ export async function rerouteDeclinedJob(
 
   // 2) Hand off ASAP to the next available pro. When none is available the
   // job stays in "searching" — the expireUnacceptedJobs sweep keeps retrying
-  // and only expires after the 15-minute window.
+  // and only expires after the 15-minute window. Skip notifying the previous
+  // pro — the decliner initiated this reroute, so "moved on" would be noise.
   const jobWithHistory = { ...job, statusHistory: history };
-  await assignNextPro(jobWithHistory, sb);
+  await assignNextPro(jobWithHistory, sb, true);
 
   // Notify customer that the pro declined and we're finding another
   try {
@@ -2226,6 +2262,7 @@ export async function adminReassignJob(
       actionType: "open_job",
       actionPayload: { jobId: job.id },
       jobId: job.id,
+      groupKey: `service-request-${job.id}`,
     });
   } catch {
     /* notifications optional */
@@ -2245,6 +2282,18 @@ export async function adminReassignJob(
  * (photos, voice_note). Selecting "*" pulled ~5 MB of embedded data-URLs
  * per list poll (16s+) — media is re-fetched only for open pro requests.
  */
+/** Repair-pro statuses the incoming popup / dashboard must always show,
+ *  regardless of how many history jobs a pro has accumulated. */
+const PRO_ACTIONABLE_LIST_STATUSES = [
+  "waiting_for_selected",
+  "selected_review",
+  "waiting_for_pro",
+  "reserved",
+  "sequential_pairing",
+  "negotiating",
+  "agreed",
+];
+
 const LEAN_JOB_COLUMNS = [
   "id",
   "flow_status",
@@ -2307,8 +2356,12 @@ const LEAN_JOB_COLUMNS = [
 
 export async function listJobsForUser(
   userId: string,
-  role: "motorist" | "repair_pro"
+  role: "motorist" | "repair_pro",
+  opts?: { lean?: boolean }
 ): Promise<JobRecord[]> {
+  if (opts?.lean) {
+    return listJobsForUserLean(userId, role);
+  }
   const out: JobRecord[] = [];
   for (const j of memory.values()) {
     if (role === "motorist" && j.motoristId === userId) out.push(j);
@@ -2329,7 +2382,27 @@ export async function listJobsForUser(
         .eq(col, userId)
         .order("created_at", { ascending: false })
         .limit(40);
-      const rows = data || [];
+      let rows = data || [];
+      // Never let the windowed history list truncate an OPEN request: when the
+      // pro has >40 jobs (mostly history), an older request still in an
+      // actionable state would silently fall out of the top-40 and the incoming
+      // popup would drop its card ("request disappears and comes back").
+      if (role === "repair_pro") {
+        const { data: openData } = await sb
+          .from("service_requests")
+          .select(LEAN_JOB_COLUMNS)
+          .eq("repair_pro_id", userId)
+          .in("status", PRO_ACTIONABLE_LIST_STATUSES);
+        const openArr = openData || [];
+        if (openArr.length > 0) {
+          const idOf = (r: { id?: unknown }) => String(r.id);
+          const openSet = new Set(openArr.map((r) => idOf(r as { id?: unknown })));
+          rows = [
+            ...openArr,
+            ...rows.filter((r) => !openSet.has(idOf(r as { id?: unknown }))),
+          ];
+        }
+      }
       // Parallel light processing (was sequential N+1 → multi-second hangs)
       let mapped = await Promise.all(
         rows.map(async (row) => {
@@ -2481,6 +2554,74 @@ export async function listJobsForUser(
     );
 }
 
+/**
+ * Fast "status snapshot" for the pro incoming popup poll — no media hydration,
+ * no profile backfill, no expiry checks. Returns this pro's open actionable
+ * jobs (never truncated) plus their recent jobs, in one or two lean queries.
+ * The popup re-hydrates media the first time it surfaces a card, so each poll
+ * stays a cheap round-trip: a request the customer closes/cancels drops the
+ * pro's card within ~1s even when the realtime push is missed on a flaky
+ * mobile connection.
+ */
+async function listJobsForUserLean(
+  userId: string,
+  role: "motorist" | "repair_pro"
+): Promise<JobRecord[]> {
+  const out: JobRecord[] = [];
+  for (const j of memory.values()) {
+    if (role === "motorist" && j.motoristId === userId) out.push(j);
+    if (role === "repair_pro" && j.repairProId === userId) {
+      if (isDeferredByPro(j, userId)) continue;
+      out.push(j);
+    }
+  }
+  if (isSupabaseAdminConfigured()) {
+    try {
+      const sb = createServiceSupabase();
+      const col = role === "motorist" ? "motorist_id" : "repair_pro_id";
+      const { data } = await sb
+        .from("service_requests")
+        .select(LEAN_JOB_COLUMNS)
+        .eq(col, userId)
+        .order("created_at", { ascending: false })
+        .limit(40);
+      let rows = data || [];
+      // Never truncate an OPEN request (same protection as the full list): a
+      // pro with lots of history must still see an actionable offer. Pairing
+      // jobs keep their stage in flow_status, so the open set is matched on
+      // flow_status (not the legacy status column).
+      if (role === "repair_pro") {
+        const { data: openData } = await sb
+          .from("service_requests")
+          .select(LEAN_JOB_COLUMNS)
+          .eq("repair_pro_id", userId)
+          .in("flow_status", PRO_ACTIONABLE_LIST_STATUSES);
+        const openArr = openData || [];
+        if (openArr.length > 0) {
+          const idOf = (r: { id?: unknown }) => String(r.id);
+          const openSet = new Set(
+            openArr.map((r) => idOf(r as { id?: unknown }))
+          );
+          rows = [
+            ...openArr,
+            ...rows.filter((r) => !openSet.has(idOf(r as { id?: unknown }))),
+          ];
+        }
+      }
+      const mapped = rows.map((row) =>
+        rowToJob(row as unknown as Record<string, unknown>)
+      );
+      for (const j of mapped) {
+        if (role === "repair_pro" && isDeferredByPro(j, userId)) continue;
+        if (!out.find((x) => x.id === j.id)) out.push(j);
+      }
+    } catch {
+      /* fall back to memory */
+    }
+  }
+  return out;
+}
+
 export async function listDisputedJobs(): Promise<JobRecord[]> {
   const all: JobRecord[] = [];
   for (const j of memory.values()) {
@@ -2586,6 +2727,39 @@ async function applyEvent(
     updated.cancelledAt = ts;
     updated.paymentSessionEndsAt = null;
     await fireMeritRecalc(job.repairProId);
+    // Customer cancelled → notify the assigned pro so the cancellation PERSISTS
+    // in their notification center list (the in-app banner is transient).
+    // groupKey dedupes, so a cancel never notifies twice.
+    if (actor === "motorist" && job.repairProId) {
+      try {
+        const { insertNotification } = await import(
+          "@/lib/server/notifications"
+        );
+        const cname = job.motoristName?.split(/\s+/)[0];
+        const subject = job.motoristVehicle?.trim();
+        const body =
+          cname && subject
+            ? `${cname} cancelled the ${subject} request.`
+            : cname
+              ? `${cname} cancelled this request.`
+              : "A customer cancelled this request.";
+        await insertNotification({
+          userId: job.repairProId,
+          category: "requests",
+          priority: "high",
+          title: "Request cancelled",
+          body,
+          href: `/jobs/${job.id}`,
+          actionType: "open_job",
+          actionPayload: { jobId: job.id },
+          jobId: job.id,
+          jobStatus: "cancelled",
+          groupKey: `request-cancelled-${job.id}`,
+        });
+      } catch {
+        /* notifications optional */
+      }
+    }
     // Full refund if money was held (so customer can pay fresh on a new request)
     if (
       job.paymentId ||
@@ -2598,6 +2772,32 @@ async function applyEvent(
   }
   if (next === "expired") {
     updated.cancelledAt = ts;
+    // Quiet persistent entry for the assigned pro: the request timed out and
+    // is no longer theirs, even if they missed the live card/banner. groupKey
+    // dedupes so it never notifies twice.
+    if (job.repairProId) {
+      try {
+        const { insertNotification } = await import(
+          "@/lib/server/notifications"
+        );
+        const cname = job.motoristName?.split(/\s+/)[0];
+        await insertNotification({
+          userId: job.repairProId,
+          category: "requests",
+          priority: "normal",
+          title: "Request expired",
+          body: cname ? `${cname}'s request expired.` : "This request expired.",
+          href: `/jobs/${job.id}`,
+          actionType: "open_job",
+          actionPayload: { jobId: job.id },
+          jobId: job.id,
+          jobStatus: "expired",
+          groupKey: `request-expired-${job.id}`,
+        });
+      } catch {
+        /* notifications optional */
+      }
+    }
   }
   if (next === "cancelled" || next === "expired" || next === "refunded") {
     // Leave the pairing flow cleanly: drop pairing stage/timer/reservation so
@@ -3117,7 +3317,7 @@ async function notifyOfferPlaced(job: JobRecord, offer: JobOffer) {
       category: "requests",
       priority: "high",
       title: "New labour price",
-      body: `${who} offered ₦${offer.amountMajor.toLocaleString("en-NG")}`,
+      body: `${who} offered ${formatMoney(offer.amountMajor)}`,
       href: `/jobs/${job.id}`,
       actionType: "open_job",
       actionPayload: { jobId: job.id },

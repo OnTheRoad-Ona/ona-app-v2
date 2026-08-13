@@ -378,7 +378,7 @@ export const EN = {
   "common.codeSent": "Code sent. Enter it below.",
   "shop.title": "Shop",
   "shop.searchPlaceholder": "What are you looking for?",
-  "shop.browseByTrade": "Browse by trade",
+  "shop.browseByTrade": "Enter shop",
   "shop.popular": "Popular",
   "shop.newArrivals": "New arrivals",
   "shop.empty": "No products yet. Catalog is loading.",

@@ -28,8 +28,14 @@ export type BottomSheetProps = {
   children: ReactNode;
   titleId?: string;
   className?: string;
-  /** Panel height as a percentage of the phone shell (default 25). */
+  /** Resting panel height as a percentage of the phone shell (default 25). */
   heightPercent?: number;
+  /**
+   * When set, the panel is content-driven: it starts at `heightPercent`
+   * but grows with its content up to `growToPercent` instead of being
+   * pinned to a fixed height. Omit for fixed-height behavior.
+   */
+  growToPercent?: number;
 };
 
 const SPRING = "transform 0.48s cubic-bezier(0.32, 0.72, 0, 1)";
@@ -43,6 +49,7 @@ export function BottomSheet({
   titleId,
   className,
   heightPercent = 25,
+  growToPercent,
 }: BottomSheetProps) {
   const { theme } = useApp();
   const isLight = theme === "light";
@@ -265,9 +272,13 @@ export function BottomSheet({
           className
         )}
         style={{
-          height: `${heightPercent}%`,
+          height:
+            growToPercent != null ? "auto" : `${heightPercent}%`,
           minHeight: `${heightPercent}%`,
-          maxHeight: `${heightPercent}%`,
+          maxHeight:
+            growToPercent != null
+              ? `${growToPercent}%`
+              : `${heightPercent}%`,
           backgroundColor: sheetBg,
           transform: "translate3d(0, 100%, 0)",
           willChange: "transform",

@@ -62,9 +62,20 @@ export function useExactCountdown(
       fireTimer = window.setTimeout(fire, delay);
     };
 
-    // Align the clock before measuring, then correct the countdown when the
-    // fresher estimate arrives (guarded — never blocks or throws).
+    const startLiveTick = () => {
+      window.clearInterval(displayTimer);
+      displayTimer = window.setInterval(() => {
+        setDisplayMs(Math.max(0, endsMs - serverNow()));
+      }, 1000);
+    };
+
+    // Safety net on the (possibly stale) estimate so expiry is never late.
     schedule(serverNow());
+
+    // Align the clock FIRST, then start the visible countdown from the true
+    // remaining time. The live tick never runs on a stale estimate, so the
+    // timer doesn't "start counting before the visuals load" — the first
+    // painted value is already the freshly-aligned remaining time.
     void refreshServerClock().then(() => {
       if (fired) return;
       const nowMs = serverNow();
@@ -73,13 +84,9 @@ export function useExactCountdown(
         fire();
       } else {
         schedule(nowMs);
+        startLiveTick();
       }
     });
-
-    // Cheap live label while we wait.
-    displayTimer = window.setInterval(() => {
-      setDisplayMs(Math.max(0, endsMs - serverNow()));
-    }, 1000);
 
     return () => {
       window.clearTimeout(fireTimer);

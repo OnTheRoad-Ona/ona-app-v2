@@ -16,7 +16,7 @@ import {
   LOCALE_STORAGE_KEY,
   type LocaleCode,
 } from "@/lib/i18n/locales";
-import { translate, type MessageKey } from "@/lib/i18n/catalog";
+import { translate, loadCatalog, type MessageKey } from "@/lib/i18n/catalog";
 
 type I18nContextValue = {
   locale: LocaleCode;
@@ -41,22 +41,37 @@ function readStoredLocale(): LocaleCode {
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<LocaleCode>(DEFAULT_LOCALE);
   const [ready, setReady] = useState(false);
+  /** Bumped when a non-EN catalog chunk lands so children re-render fresh copy */
+  const [catalogTick, setCatalogTick] = useState(false);
 
   useEffect(() => {
     setLocaleState(readStoredLocale());
     setReady(true);
     if (process.env.NODE_ENV === "development") {
       void import("@/lib/i18n/catalog").then(({ assertCatalogParity }) => {
-        const issues = assertCatalogParity();
-        if (issues.length) {
-          console.warn(
-            `[i18n] ${issues.length} catalog parity issue(s)`,
-            issues.slice(0, 8)
-          );
-        }
+        void assertCatalogParity().then((issues: string[]) => {
+          if (issues.length) {
+            console.warn(
+              `[i18n] ${issues.length} catalog parity issue(s)`,
+              issues.slice(0, 8)
+            );
+          }
+        });
       });
     }
   }, []);
+
+  // Lazy-load the active locale's dictionary once, off the critical chunk.
+  useEffect(() => {
+    if (locale === DEFAULT_LOCALE) return;
+    let cancelled = false;
+    void loadCatalog(locale).then(() => {
+      if (!cancelled) setCatalogTick((v) => !v);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [locale]);
 
   const setLocale = useCallback((code: LocaleCode) => {
     setLocaleState(code);
@@ -138,7 +153,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const t = useCallback(
     (key: MessageKey, vars?: Record<string, string | number>) =>
       translate(locale, key, vars),
-    [locale]
+    // catalogTick re-arms t once a lazily-loaded locale chunk lands
+    [locale, catalogTick]
   );
 
   const value = useMemo(

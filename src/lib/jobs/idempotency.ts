@@ -97,3 +97,44 @@ export function clearIdemKey(intentKey: string): void {
     writeMap(map);
   }
 }
+
+export type IdemVerifyResult =
+  | { status: "done"; result?: unknown }
+  | { status: "error"; error?: string }
+  | { status: "processing" }
+  | { status: "not_found" };
+
+/**
+ * Verify-then-report: after a lost response, ask the server what actually
+ * happened with our idempotency op. "done" -> the action succeeded,
+ * "error" -> it failed for a known reason, anything else -> unproven
+ * (caller must NOT claim failure).
+ */
+export async function apiVerifyIdemOp(input: {
+  opKey: string;
+  actorKind?: string;
+  actorId?: string;
+}): Promise<IdemVerifyResult> {
+  try {
+    const qs = new URLSearchParams({ opKey: input.opKey });
+    if (input.actorKind) qs.set("actorKind", input.actorKind);
+    if (input.actorId) qs.set("actorId", input.actorId);
+    const res = await fetch(`/api/ops/status?${qs.toString()}`, {
+      cache: "no-store",
+    });
+    if (!res.ok) return { status: "not_found" };
+    const json = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      data?: { status?: string; result?: unknown; error?: string | null };
+    } | null;
+    if (!json?.ok || !json.data?.status) return { status: "not_found" };
+    const st = String(json.data.status);
+    if (st === "done") return { status: "done", result: json.data.result };
+    if (st === "error")
+      return { status: "error", error: json.data.error || "Operation failed." };
+    return { status: "processing" };
+  } catch {
+    // Even the verify call failed — treat as unproven, never as failure.
+    return { status: "processing" };
+  }
+}

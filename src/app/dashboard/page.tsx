@@ -236,23 +236,8 @@ export default function TechnicianDashboardPage() {
     } catch {
       setArtisan(null);
     }
-    // Jobs completed = times customers tapped I am Satisfied (released)
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await apiListJobs(backendUserId, "repair_pro");
-        if (cancelled || !res.ok) return;
-        const n = (res.data.jobs || []).filter((j) =>
-          ["satisfied", "released"].includes(j.status)
-        ).length;
-        setJobsCompletedCount(n);
-      } catch {
-        /* keep 0 */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    // Jobs-completed count is derived from the shared loadJobs response below —
+    // never a second /api/jobs round trip on mount.
   }, [backendUserId]);
 
   useEffect(() => {
@@ -274,7 +259,10 @@ export default function TechnicianDashboardPage() {
         /* offline */
       }
     };
-    void sync();
+    // Care profile changes rarely, and the local copy below paints first —
+    // delay the refresh until just after first paint instead of racing the
+    // boot /api/jobs loads.
+    const first = window.setTimeout(() => void sync(), 800);
     // Data saver: care profile changes rarely — 3 min backup
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
@@ -282,6 +270,7 @@ export default function TechnicianDashboardPage() {
     }, 180_000);
     return () => {
       cancelled = true;
+      window.clearTimeout(first);
       window.clearInterval(poll);
     };
   }, [backendUserId, proLive, liveErr]);
@@ -296,6 +285,7 @@ export default function TechnicianDashboardPage() {
       setIncoming([]);
       setOngoing([]);
       setRecent([]);
+      setJobsCompletedCount(0);
       setJobsLoading(false);
       return;
     }
@@ -306,6 +296,11 @@ export default function TechnicianDashboardPage() {
         if (!j.motoristId || !j.problem?.trim()) return false;
         return true;
       });
+
+      // Jobs completed = times customers tapped I am Satisfied (released)
+      setJobsCompletedCount(
+        mine.filter((j) => ["satisfied", "released"].includes(j.status)).length
+      );
 
       const open = mine
         .filter((j) => {

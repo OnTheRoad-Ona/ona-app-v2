@@ -368,7 +368,7 @@ export const ES: MessageDict = {
   "trade.shop": "Shop",
   "shop.title": "Shop",
   "shop.searchPlaceholder": "What are you looking for?",
-  "shop.browseByTrade": "Browse by trade",
+  "shop.browseByTrade": "Enter shop",
   "shop.popular": "Popular",
   "shop.newArrivals": "New arrivals",
   "shop.empty": "No products yet. Catalog is loading.",

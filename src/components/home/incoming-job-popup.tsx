@@ -16,22 +16,24 @@ const MAX_VISIBLE_INCOMING = 2;
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Briefcase, ChevronLeft, ChevronRight, Clock, Loader2, X } from "lucide-react";
+import { Briefcase, ChevronLeft, ChevronRight, Clock, Loader2, Wrench, X } from "lucide-react";
 import {
   canNotify,
   ensureNotifyPermission,
   showAppNotification,
   vibrateCallPattern,
 } from "@/lib/app-notify";
-import { apiDeferJob, apiGetJob, apiListJobs, apiTransition } from "@/lib/jobs/client";
+import { apiDeferJob, apiGetJob, apiListJobs, apiProIncomingStatus, apiTransition } from "@/lib/jobs/client";
 import {
   canSurfaceIncomingJob,
   clearJobShown,
   INCOMING_POPUP_VISIBLE_MS,
   INCOMING_POPUP_VISIBLE_SEC,
   isIncomingJobOpen,
+  isProRequestCardKeepable,
   markJobShown,
   PAIRING_ACTION_STAGES,
+  requestCloseText,
   takeForceIncomingPanelJobId,
 } from "@/lib/jobs/incoming-popup-timing";
 import type { JobRecord } from "@/lib/jobs/types";
@@ -56,18 +58,21 @@ function isPairingAlert(j: JobRecord): boolean {
   );
 }
 
-/** Statuses that mean "still this pro's live request" (card-keep, incl. the
- *  transient sequential_pairing advance). Pairing stages may be reported in
- *  either pairingStage or status, so both are checked. */
-const PRO_CARD_KEEP_STATUSES = new Set([
-  ...PAIRING_ACTION_STAGES,
-  "sequential_pairing",
-  "negotiating",
-  "agreed",
-]);
-
 function idemFor(j: JobRecord, proId: string, event: string): string {
   return `${event}:${j.id}:${(proId || "").slice(0, 8)}`;
+}
+
+/** Server messages that mean "this request is no longer this pro's live
+ *  request" (the customer closed/cancelled it, or it moved to another pro).
+ *  The server already refuses the tap — surface a friendly message and drop
+ *  the card instead of echoing the raw API error. */
+function isStaleRequestError(message?: string | null): boolean {
+  return Boolean(
+    message &&
+      /not open for this action|not awaiting confirmation|moved on while opening|moved on before confirmation|not assigned to this request/i.test(
+        message
+      )
+  );
 }
 
 export function IncomingJobPopup() {
@@ -88,6 +93,9 @@ export function IncomingJobPopup() {
   /** Consecutive polls a card's id was missing from the pro list (grace window
    *  for Supabase/realtime blips before the card is truly dropped). */
   const missingCountRef = useRef<Record<string, number>>({});
+  /** Job ids we already told the pro was closed — so a request that closes
+   *  once doesn't toast/push repeatedly on every realtime ping. */
+  const notifiedCloseRef = useRef<Set<string>>(new Set());
   /** Horizontal swipe origin for the photo lightbox (next/prev without closing). */
   const lightboxTouchX = useRef<number | null>(null);
 
@@ -99,6 +107,15 @@ export function IncomingJobPopup() {
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [snoozedJob, setSnoozedJob] = useState<JobRecord | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  /** Transient X-style banner — "this request was closed". Shown when a live
+   *  card is closed because the customer cancelled, expired, or moved to another
+   *  pro. Renders as an in-app top card (mirrors the app's notification toasts);
+   *  never an OS/browser push. Survives the panel closing. */
+  const [closeBanner, setCloseBanner] = useState<{
+    title: string;
+    body: string;
+    avatarUrl?: string | null;
+  } | null>(null);
   /** Seconds left per job id (server deadline) */
   const [timeLeftById, setTimeLeftById] = useState<Record<string, number>>({});
   const [lightbox, setLightbox] = useState<{
@@ -113,6 +130,12 @@ export function IncomingJobPopup() {
     queueRef.current = queue;
   }, [queue]);
 
+  useEffect(() => {
+    if (!closeBanner) return;
+    const t = window.setTimeout(() => setCloseBanner(null), 4500);
+    return () => window.clearTimeout(t);
+  }, [closeBanner]);
+
   const fullyHide = useCallback(() => {
     setVisibleJobs([]);
     visibleJobsRef.current = [];
@@ -125,6 +148,43 @@ export function IncomingJobPopup() {
     surfacedAtRef.current = {};
     missingCountRef.current = {};
   }, []);
+
+  /** If a request the pro was seeing closed (customer cancelled, request
+   *  expired, or it went to another pro), tell them once with an in-app
+   *  X-style banner. Fires whether the card closes via realtime, the status
+   *  poll, or the list poll. */
+  const notifyRequestClosed = useCallback(
+    (
+      jobId: string,
+      opts: {
+        job?: JobRecord | null;
+        status?: string | null;
+        movedOn?: boolean;
+      }
+    ) => {
+      if (notifiedCloseRef.current.has(jobId)) return;
+      notifiedCloseRef.current.add(jobId);
+      const { job, status = "", movedOn = false } = opts;
+      // Customer-cancelled requests already land as a persistent "Request
+      // cancelled" entry in the notification center — never also pile a
+      // transient top banner every time a request is cancelled.
+      if (!movedOn && String(status).toLowerCase() === "cancelled") return;
+      const title =
+        movedOn
+          ? "Request moved on"
+          : status === "cancelled"
+            ? "Request cancelled"
+            : status === "expired"
+              ? "Request expired"
+              : "Request closed";
+      setCloseBanner({
+        title,
+        body: requestCloseText(opts),
+        avatarUrl: job?.motoristPhoto || null,
+      });
+    },
+    []
+  );
 
   /**
    * One-tap "I can fix this": accepts the request right here (lower panel) and
@@ -153,10 +213,21 @@ export function IncomingJobPopup() {
               idempotencyKey: idemFor(j, backendUserId, "OPEN"),
             });
             if (!openRes.ok) {
-              setActionError(
-                openRes.message ||
-                  "Could not open this request. Please try again."
-              );
+              if (isStaleRequestError(openRes.message)) {
+                removeRef.current(j.id);
+                notifyRequestClosed(j.id, {
+                  job: j,
+                  status: j.status,
+                  movedOn: /not assigned|moved on/i.test(
+                    openRes.message || ""
+                  ),
+                });
+              } else {
+                setActionError(
+                  openRes.message ||
+                    "Could not open this request. Please try again."
+                );
+              }
               return;
             }
           }
@@ -168,10 +239,21 @@ export function IncomingJobPopup() {
             idempotencyKey: idemFor(j, backendUserId, "CONFIRM"),
           });
           if (!confirmRes.ok) {
-            setActionError(
-              confirmRes.message ||
-                "Could not confirm this request. Please try again."
-            );
+            if (isStaleRequestError(confirmRes.message)) {
+              removeRef.current(j.id);
+              notifyRequestClosed(j.id, {
+                job: j,
+                status: j.status,
+                movedOn: /not assigned|moved on/i.test(
+                  confirmRes.message || ""
+                ),
+              });
+            } else {
+              setActionError(
+                confirmRes.message ||
+                  "Could not confirm this request. Please try again."
+              );
+            }
             return;
           }
           fullyHide();
@@ -203,7 +285,7 @@ export function IncomingJobPopup() {
         setAcceptingId(null);
       }
     },
-    [backendUserId, fullyHide, router]
+    [backendUserId, fullyHide, notifyRequestClosed, router]
   );
 
   const pushOsOnce = useCallback((j: JobRecord) => {
@@ -238,6 +320,11 @@ export function IncomingJobPopup() {
         backendUserId || undefined,
         j.pairingDeadline || null
       );
+
+      // OS push only when the incoming panel isn't already on screen — a pro
+      // looking at the request cards sees new work without a browser
+      // notification (same brand rule as the toast pile: no double voice).
+      const panelAlreadyOpen = visibleJobsRef.current.length > 0;
 
       let job = j;
       const hasMedia =
@@ -284,7 +371,7 @@ export function IncomingJobPopup() {
       unlockAudio();
       playAppSound("request_new");
       vibrateCallPattern();
-      pushOsOnce(job);
+      if (!panelAlreadyOpen) pushOsOnce(job);
     },
     [pushOsOnce, backendUserId]
   );
@@ -480,8 +567,7 @@ export function IncomingJobPopup() {
           .filter(
             (j) =>
               j.repairProId === backendUserId &&
-              (PRO_CARD_KEEP_STATUSES.has(j.pairingStage ?? "") ||
-                PRO_CARD_KEEP_STATUSES.has(j.status ?? ""))
+              isProRequestCardKeepable(j.status, j.pairingStage)
           )
           .map((j) => j.id)
       );
@@ -489,6 +575,10 @@ export function IncomingJobPopup() {
       // consecutive polls (covers realtime/Supabase blips without waiting on
       // genuine reassignment/cancellation).
       const dropIds = new Set<string>();
+      const findKnownJob = (id: string): JobRecord | null =>
+        visibleJobsRef.current.find((j) => j.id === id) ||
+        queueRef.current.find((j) => j.id === id) ||
+        null;
       for (const [id, n] of Object.entries(missingCountRef.current)) {
         if (keepIds.has(id)) {
           delete missingCountRef.current[id];
@@ -497,21 +587,27 @@ export function IncomingJobPopup() {
           if (n + 1 >= 2) {
             dropIds.add(id);
             delete missingCountRef.current[id];
+            // Missing for 2 full polls = no longer this pro's live request
+            // (most commonly reassigned to another pro) — tell the pro.
+            notifyRequestClosed(id, {
+              job: findKnownJob(id),
+              status: findKnownJob(id)?.status,
+              movedOn: true,
+            });
           }
         }
       }
       // Explicit close: the job is still listed but the server moved it out of
       // an actionable status (customer cancelled/completed, declined, reassigned
       // to searching, …). Close its card NOW — no grace. Grace only covers
-      // cards that VANISH from the list (transient realtime blips).
+      // cards that VANISH from the list (transient realtime blips). Tell the
+      // pro why it closed.
       for (const j of jobs) {
         if (
           j.repairProId === backendUserId &&
-          !(
-            PRO_CARD_KEEP_STATUSES.has(j.pairingStage ?? "") ||
-            PRO_CARD_KEEP_STATUSES.has(j.status ?? "")
-          )
+          !isProRequestCardKeepable(j.status, j.pairingStage)
         ) {
+          notifyRequestClosed(j.id, { job: j, status: j.status });
           dropIds.add(j.id);
           delete missingCountRef.current[j.id];
         }
@@ -610,6 +706,44 @@ export function IncomingJobPopup() {
 
     let polling = false;
     let pending = false;
+    let tick = 0;
+    /** Ultra-light close check: one tiny query for the visible card ids. Detects
+     *  a customer cancellation/close within ~1s even when the realtime push is
+     *  missed — no list payload, no media, no expiry work. */
+    const statusCheck = async () => {
+      const visible = visibleJobsRef.current;
+      if (visible.length === 0) return;
+      const res = await apiProIncomingStatus(visible.map((j) => j.id));
+      if (cancelled || !res.ok) return;
+      const byId = new Map(res.data.jobs.map((j) => [j.id, j]));
+      for (const cur of visible.slice()) {
+        const s = byId.get(cur.id);
+        if (!s) continue;
+        const movedOn =
+          (Boolean(s.repairProId) && s.repairProId !== backendUserId) ||
+          false;
+        if (!isProRequestCardKeepable(s.status, s.pairingStage) || movedOn) {
+          notifyRequestClosed(cur.id, {
+            job: cur,
+            status: s.status,
+            movedOn,
+          });
+          removeRef.current(cur.id);
+          continue;
+        }
+        // Keep the card's countdown in lockstep with the server deadline.
+        if (
+          s.pairingDeadline &&
+          s.pairingDeadline !== cur.pairingDeadline
+        ) {
+          setVisibleJobs((prev) =>
+            prev.map((j) =>
+              j.id === s.id ? { ...j, pairingDeadline: s.pairingDeadline } : j
+            )
+          );
+        }
+      }
+    };
     const poll = async () => {
       // Never lose an update that arrives mid-fetch: if a poll is already in
       // flight, remember the request and re-run right after it settles instead
@@ -620,9 +754,21 @@ export function IncomingJobPopup() {
       }
       polling = true;
       try {
-        const res = await apiListJobs(backendUserId, "repair_pro");
-        if (cancelled || !res.ok) return;
-        ingest(res.data.jobs);
+        // While a card is on screen, prefer the per-card status check (tiny).
+        // Every few cycles run the full lean list so NEW offers surface and
+        // everything reconciles even when realtime is missed.
+        const visibleCount = visibleJobsRef.current.length;
+        if (visibleCount > 0 && tick < 2) {
+          tick++;
+          await statusCheck();
+        } else {
+          tick = 0;
+          const res = await apiListJobs(backendUserId, "repair_pro", {
+            lean: true,
+          });
+          if (cancelled || !res.ok) return;
+          ingest(res.data.jobs);
+        }
       } finally {
         polling = false;
         if (pending && !cancelled) {
@@ -634,7 +780,9 @@ export function IncomingJobPopup() {
 
     // A realtime push already contains the row — close a card the instant the
     // server moves it out of an actionable status (customer cancel/complete,
-    // pro decline, …). No need to wait for the next poll.
+    // pro decline, …). No need to wait for the next poll. Pairing rows keep
+    // their stage in pairing_stage/flow_status while the legacy `status`
+    // column stays "requested", so keepability checks all three.
     const applyRealtimeClose = (
       payload?: {
         new?: Record<string, unknown>;
@@ -643,17 +791,40 @@ export function IncomingJobPopup() {
     ) => {
       const row = payload?.new ?? payload?.old;
       if (!row || typeof row.id !== "string") return;
-      const status = String(row.status ?? "");
-      if (!PRO_CARD_KEEP_STATUSES.has(status)) {
-        removeRef.current(row.id);
+      const status = String(row.flow_status ?? row.status ?? "");
+      const movedOn =
+        typeof row.repair_pro_id === "string" &&
+        row.repair_pro_id !== backendUserId;
+      const keep = isProRequestCardKeepable(
+        status,
+        String(row.pairing_stage ?? "")
+      );
+      if (!keep || movedOn) {
+        const known =
+          visibleJobsRef.current.find((j) => j.id === row.id) ||
+          queueRef.current.find((j) => j.id === row.id) ||
+          null;
+        notifyRequestClosed(String(row.id), {
+          job: known,
+          status,
+          movedOn,
+        });
+        removeRef.current(String(row.id));
       }
     };
 
     void poll();
-// Pairing hot path stays fast (4s with panel open). Idle pros poll less.
+// A card on screen is time-critical: the customer can close the request at any
+// moment, and a missed realtime event (flaky mobile network) must still drop
+// the card within ~1s — the server already refuses stale taps, but the card
+// shouldn't outlive the request. Idle pros poll less.
       // Local deadline timer + Realtime still wake instantly on new offers.
+      // The cadence is decided at FIRE time from what is visible NOW, and the
+      // wake points (mount, realtime push) arm the fast 1s interval so a card
+      // that just surfaced is not stuck behind a 12s idle timer before its
+      // first status check.
       let timer = 0;
-      const schedule = () => {
+      const schedule = (delay?: number) => {
         timer = window.setTimeout(() => {
           if (typeof document !== "undefined" && document.hidden) {
             schedule();
@@ -661,13 +832,20 @@ export function IncomingJobPopup() {
           }
           void poll();
           schedule();
-        }, visibleJobsRef.current.length || queueRef.current.length ? 4_000 : 12_000);
+        }, delay ?? (visibleJobsRef.current.length || queueRef.current.length ? 1_000 : 12_000));
       };
-    schedule();
+      schedule(1_000);
 
     const unsub = backendSubscribeJobs(backendUserId, (payload) => {
       applyRealtimeClose(payload);
-      if (!cancelled) void poll();
+      if (!cancelled) {
+        void poll();
+        // A push may have surfaced a card while the timer sat armed at the
+        // idle 12s — jump onto the fast 1s cadence so its first status check
+        // isn't delayed.
+        clearTimeout(timer);
+        schedule(1_000);
+      }
     });
 
     const onVis = () => {
@@ -1194,6 +1372,102 @@ export function IncomingJobPopup() {
           <p className="absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] text-[12px] font-semibold text-white/80">
             {lightbox.index + 1} / {lightbox.photos.length}
           </p>
+        </div>
+      )}
+
+      {closeBanner && (
+        <div
+          className="pointer-events-none absolute inset-x-0 top-[max(0.5rem,env(safe-area-inset-top))] z-[190] flex justify-center px-3"
+          aria-live="polite"
+        >
+          <div
+            className="pointer-events-auto w-full max-w-[380px] animate-[om-toast-in_0.32s_cubic-bezier(0.2,0.8,0.2,1)] rounded-[18px] px-3 py-2.5 backdrop-blur-xl"
+            style={{
+              backgroundColor: isLight
+                ? "rgba(255,255,255,0.94)"
+                : "rgba(28,28,30,0.94)",
+              boxShadow: isLight
+                ? "0 8px 28px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.06)"
+                : "0 8px 28px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.06)",
+              border: `0.5px solid ${
+                isLight ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)"
+              }`,
+            }}
+          >
+            <button
+              type="button"
+              className="flex w-full items-start gap-2.5 p-0 text-left"
+              style={{ background: "transparent" }}
+              onClick={() => {
+                setCloseBanner(null);
+                router.push("/jobs");
+              }}
+            >
+              <div
+                className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                style={{
+                  backgroundColor: isLight
+                    ? "rgba(255,107,53,0.12)"
+                    : "rgba(255,107,53,0.18)",
+                }}
+                aria-hidden
+              >
+                <Wrench
+                  className="h-[18px] w-[18px]"
+                  style={{ color: "#FF6B35" }}
+                  strokeWidth={2}
+                />
+              </div>
+              <div className="min-w-0 flex-1 pt-0.5">
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className="truncate text-[13px] font-bold leading-tight tracking-[-0.01em]"
+                    style={{ color: isLight ? "#0f1419" : "#e7e9ea" }}
+                  >
+                    Ona
+                  </span>
+                  <span
+                    className="shrink-0 text-[11px] font-medium"
+                    style={{ color: isLight ? "#536471" : "#71767b" }}
+                  >
+                    · now
+                  </span>
+                  {closeBanner.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={closeBanner.avatarUrl}
+                      alt=""
+                      className="ml-auto h-5 w-5 shrink-0 rounded-full object-cover"
+                    />
+                  ) : null}
+                </div>
+                <p
+                  className="mt-0.5 text-[13px] font-semibold leading-snug tracking-[-0.01em]"
+                  style={{ color: isLight ? "#0f1419" : "#e7e9ea" }}
+                >
+                  {closeBanner.title}
+                </p>
+                <p
+                  className="mt-0.5 line-clamp-2 text-[12px] font-normal leading-snug"
+                  style={{ color: isLight ? "#536471" : "#71767b" }}
+                >
+                  {closeBanner.body}
+                </p>
+              </div>
+            </button>
+            <button
+              type="button"
+              aria-label="Dismiss"
+              className="absolute right-2 top-2 rounded-full p-1"
+              style={{ color: isLight ? "#536471" : "#71767b" }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setCloseBanner(null);
+              }}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       )}
     </>

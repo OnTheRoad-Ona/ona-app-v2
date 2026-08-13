@@ -30,6 +30,11 @@ import type {
 } from "@/lib/types";
 import { isProService } from "@/lib/services";
 import { isSyntheticAccount } from "@/lib/server/synthetic-accounts";
+import {
+  apiVerifyIdemOp,
+  clearIdemKey,
+  getOrCreateIdemKey,
+} from "@/lib/jobs/idempotency";
 
 export { isAppBackendOnline };
 export type { MessageRow };
@@ -572,35 +577,98 @@ export async function backendSignInWithPhoneOtp(input: {
   });
 }
 
-export async function backendSendOtp(input: {
-  channel: "phone" | "email";
-  target: string;
-}): Promise<{ error: string | null; message?: string; demoCode?: string }> {
+export type BackendSendOtpResult = {
+  error: string | null;
+  message?: string;
+  demoCode?: string;
+  /**
+   * True when the outcome was genuinely unproven (response lost, nothing
+   * conclusive from the ledger). UI must show a neutral outcome and offer
+   * a resend — never a hard failure.
+   */
+  maybeSent?: boolean;
+};
+
+type OtpSendResponse = {
+  ok?: boolean;
+  error?: { message?: string };
+  data?: { message?: string; demoCode?: string; pending?: boolean };
+};
+
+export async function backendSendOtp(
+  input: { channel: "phone" | "email"; target: string },
+  opts?: { forceResend?: boolean }
+): Promise<BackendSendOtpResult> {
+  // One sticker per (channel, target). A lost-response retry reuses it so
+  // the server replays "already sent" (no second SMS, no code rotation).
+  // A deliberate resend (forceResend) clears it so a fresh code goes out.
+  const actorId = input.target.trim().toLowerCase();
+  const intentKey = `otp|${input.channel}|${actorId}`;
+  if (opts?.forceResend) clearIdemKey(intentKey);
+  const opKey = getOrCreateIdemKey(intentKey);
+
+  let res: Response | null = null;
+  let parsed: OtpSendResponse | null = null;
   try {
-    const res = await fetch("/api/auth/otp/send", {
+    res = await fetch("/api/auth/otp/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         channel: input.channel,
         target: input.target,
+        opKey,
+        opActorId: actorId,
       }),
     });
-    const json = (await res.json().catch(() => null)) as {
-      ok?: boolean;
-      error?: { message?: string };
-      data?: { message?: string; demoCode?: string };
-    } | null;
-    if (!json?.ok) {
-      return { error: json?.error?.message || "Could not send code." };
+    parsed = (await res.json().catch(() => null)) as OtpSendResponse | null;
+  } catch {
+    /* response lost — verify below */
+  }
+
+  // Clean server answer (non-ambiguous) — trust it.
+  const settled = res && parsed ? parsed : null;
+  if (settled) {
+    if (!settled.ok) {
+      return { error: settled.error?.message || "Could not send code." };
     }
+    if (settled.data?.pending) {
+      // A twin is still settling — verify before reporting anything.
+      return settleSend(opKey, input.channel, actorId, intentKey);
+    }
+    clearIdemKey(intentKey);
     return {
       error: null,
-      message: json.data?.message,
-      demoCode: json.data?.demoCode,
+      message: settled.data?.message,
+      demoCode: settled.data?.demoCode,
     };
-  } catch {
-    return { error: "Network error sending code." };
   }
+
+  // Lost response — find out what actually happened.
+  return settleSend(opKey, input.channel, actorId, intentKey);
+}
+
+async function settleSend(
+  opKey: string | null,
+  channel: "phone" | "email",
+  actorId: string,
+  intentKey: string
+): Promise<BackendSendOtpResult> {
+  if (!opKey) {
+    // Storage unavailable — no sticker means no dedupe; stay neutral.
+    return { error: null, maybeSent: true };
+  }
+  const v = await apiVerifyIdemOp({ opKey, actorKind: channel, actorId });
+  if (v.status === "done") {
+    // It really went through — report success, never "send code again".
+    clearIdemKey(intentKey);
+    const result = (v.result as { message?: string } | null) || null;
+    return { error: null, message: result?.message || "Code sent." };
+  }
+  if (v.status === "error") {
+    return { error: v.error || "Could not send code." };
+  }
+  // Unproven — neutral outcome, offer a resend.
+  return { error: null, maybeSent: true };
 }
 
 export async function backendSendPhoneOtp(
@@ -1715,7 +1783,10 @@ export function backendSubscribeMessages(
  */
 export function backendSubscribeJobs(
   userId: string,
-  onChange: () => void
+  onChange: (payload?: {
+    new?: Record<string, unknown>;
+    old?: Record<string, unknown>;
+  }) => void
 ): (() => void) | null {
   const sb = getAppSupabase();
   if (!sb) return null;
@@ -1729,7 +1800,12 @@ export function backendSubscribeJobs(
         table: "service_requests",
         filter: `motorist_id=eq.${userId}`,
       },
-      () => onChange()
+      (
+        payload: {
+          new?: Record<string, unknown>;
+          old?: Record<string, unknown>;
+        } | null
+      ) => onChange(payload || undefined)
     )
     .on(
       "postgres_changes",
@@ -1739,7 +1815,12 @@ export function backendSubscribeJobs(
         table: "service_requests",
         filter: `repair_pro_id=eq.${userId}`,
       },
-      () => onChange()
+      (
+        payload: {
+          new?: Record<string, unknown>;
+          old?: Record<string, unknown>;
+        } | null
+      ) => onChange(payload || undefined)
     )
     .subscribe();
   return () => {
