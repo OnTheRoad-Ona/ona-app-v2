@@ -82,7 +82,6 @@ function ToastCard({
   solid,
   ink,
   muted,
-  hairline,
   accent,
   iconBg,
   accountType,
@@ -97,7 +96,6 @@ function ToastCard({
   solid: string;
   ink: string;
   muted: string;
-  hairline: string;
   accent: string;
   iconBg: string;
   accountType: string | null | undefined;
@@ -166,13 +164,12 @@ function ToastCard({
         onClick={onTap}
       >
         <div
-          className="flex items-start gap-2.5 rounded-[18px] px-3 py-2.5 shadow-[0_8px_28px_rgba(0,0,0,0.18)] backdrop-blur-xl"
+          className="flex items-start gap-2.5 rounded-sm px-3 py-2.5 shadow-[0_8px_28px_rgba(0,0,0,0.18)] backdrop-blur-xl"
           style={{
             backgroundColor: solid,
             boxShadow: isLight
-              ? "0 8px 28px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.06)"
-              : "0 8px 28px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.06)",
-            border: `0.5px solid ${hairline}`,
+              ? "0 8px 28px rgba(0,0,0,0.12)"
+              : "0 8px 28px rgba(0,0,0,0.45)",
           }}
         >
           <div
@@ -347,9 +344,6 @@ export function NotificationToasts() {
     : "rgba(28,28,30,0.94)";
   const ink = isLight ? "#0f1419" : "#e7e9ea";
   const muted = isLight ? "#536471" : "#71767b";
-  const hairline = isLight
-    ? "rgba(0,0,0,0.08)"
-    : "rgba(255,255,255,0.08)";
   const accent = MESSAGE_ORANGE;
   const iconBg = isLight ? "rgba(0,0,0,0.05)" : "rgba(255,255,255,0.08)";
 
@@ -427,7 +421,6 @@ export function NotificationToasts() {
     solid,
     ink,
     muted,
-    hairline,
     accent,
     iconBg,
     accountType,
@@ -439,7 +432,7 @@ export function NotificationToasts() {
         className="pointer-events-none absolute inset-x-0 top-2 z-[90] flex flex-col items-center px-3"
         aria-live="polite"
       >
-        <div className="flex w-full max-w-[380px] flex-col gap-2">
+        <div className="flex w-full max-w-[300px] flex-col gap-2">
           {/* 1) Stacked pile — general only */}
           {stackable.length > 0 ? (
             <div className="relative w-full">

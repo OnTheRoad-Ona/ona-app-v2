@@ -163,6 +163,11 @@ export function IncomingJobPopup() {
       }
     ) => {
       if (notifiedCloseRef.current.has(jobId)) return;
+      // Only announce a close the pro actually witnessed live this session.
+      // A pre-existing terminal/history job (already expired/cancelled before
+      // this page mounted) must never re-announce on every reload — surface
+      // only the real transition, exactly once.
+      if (!(surfacedAtRef.current[jobId] > 0)) return;
       notifiedCloseRef.current.add(jobId);
       const { job, status = "", movedOn = false } = opts;
       // Customer-cancelled requests already land as a persistent "Request
@@ -1381,17 +1386,14 @@ export function IncomingJobPopup() {
           aria-live="polite"
         >
           <div
-            className="pointer-events-auto w-full max-w-[380px] animate-[om-toast-in_0.32s_cubic-bezier(0.2,0.8,0.2,1)] rounded-[18px] px-3 py-2.5 backdrop-blur-xl"
+            className="pointer-events-auto w-full max-w-[300px] animate-[om-toast-in_0.32s_cubic-bezier(0.2,0.8,0.2,1)] rounded-sm px-3 py-2.5 backdrop-blur-xl"
             style={{
               backgroundColor: isLight
                 ? "rgba(255,255,255,0.94)"
                 : "rgba(28,28,30,0.94)",
               boxShadow: isLight
-                ? "0 8px 28px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.06)"
-                : "0 8px 28px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.06)",
-              border: `0.5px solid ${
-                isLight ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)"
-              }`,
+                ? "0 8px 28px rgba(0,0,0,0.12)"
+                : "0 8px 28px rgba(0,0,0,0.45)",
             }}
           >
             <button

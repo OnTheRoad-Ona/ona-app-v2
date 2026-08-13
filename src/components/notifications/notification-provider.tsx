@@ -127,6 +127,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const lastToastWaveAt = useRef(0);
   /** Avoid double-toast for same notification id. */
   const toastedIds = useRef<Set<string>>(readSeenNotifIds());
+  /** Rows created long before the first toast moment are history — never toast
+   *  them again on reload or role switch. Only live inserts toast, once.
+   *  (Lazily stamped on first use: Date.now() is not render-safe.) */
+  const mountedAtRef = useRef(0);
 
   const role =
     accountType === "professional" ? "professional" : "motorist";
@@ -134,6 +138,17 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const pushToast = useCallback((n: AppNotification) => {
     if (!shouldToastNotification(n)) return;
     if (!shouldShowToast(n.priority)) return;
+    // History is silent: a row created long before the first toast moment (or
+    // with a missing/unparseable timestamp) must never toast on a reload or
+    // role switch. 15s grace absorbs clock skew without letting old rows
+    // resurface.
+    if (mountedAtRef.current === 0) mountedAtRef.current = Date.now();
+    const createdMs = n.createdAt ? Date.parse(n.createdAt) : NaN;
+    if (
+      !Number.isFinite(createdMs) ||
+      createdMs < mountedAtRef.current - 15_000
+    )
+      return;
     // Never re-toast the same notification row
     if (toastedIds.current.has(n.id)) return;
 
