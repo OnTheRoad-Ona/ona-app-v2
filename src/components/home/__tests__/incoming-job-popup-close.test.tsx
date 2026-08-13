@@ -44,8 +44,28 @@ vi.mock("@/lib/store", () => ({
   }),
 }));
 
+// A live realtime push (Supabase postgres_changes UPDATE on service_requests)
+// must close the card and raise the banner WITHOUT waiting for the next poll.
+const realtime = vi.hoisted(() => {
+  let listener: ((payload: unknown) => void) | null = null;
+  return {
+    subscribeJobs: vi.fn(
+      (_userId: string, onChange: (payload: unknown) => void) => {
+        listener = onChange;
+        return () => {
+          listener = null;
+        };
+      }
+    ),
+    emit: (payload: unknown) => {
+      listener?.(payload);
+    },
+  };
+});
+
 vi.mock("@/lib/supabase/app-api", () => ({
-  backendSubscribeJobs: vi.fn(() => () => {}),
+  backendSubscribeJobs: (userId: string, onChange: (p: unknown) => void) =>
+    realtime.subscribeJobs(userId, onChange),
 }));
 
 vi.mock("@/lib/jobs/client", () => client);
@@ -177,6 +197,36 @@ describe("IncomingJobPopup fast status-check poll", () => {
     expect(screen.getByText("Engine won't start")).toBeTruthy();
   });
 
+  it("closes the card instantly when the realtime push carries the cancellation", async () => {
+    client.apiListJobs
+      .mockResolvedValueOnce(okList([openJob]))
+      .mockResolvedValue(okList([]));
+
+    render(<IncomingJobPopup />);
+    await flushPolls();
+    expect(screen.getByText("Engine won't start")).toBeTruthy();
+
+    // Customer cancels → Supabase realtime UPDATE event reaches the pro.
+    await act(async () => {
+      realtime.emit({
+        eventType: "UPDATE",
+        new: {
+          id: "j1",
+          flow_status: "cancelled",
+          status: "cancelled",
+          pairing_stage: "reserved",
+          repair_pro_id: "p1",
+        },
+      });
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText("Engine won't start")).toBeNull();
+    // Cancellation notice is single-voiced through the notification center's
+    // top toast — the popup banner must NOT double it.
+    expect(screen.queryByText("Request cancelled")).toBeNull();
+  });
+
   it("drops the card within ~1s when the status check reports cancelled", async () => {
     client.apiListJobs
       .mockResolvedValueOnce(okList([openJob]))
@@ -187,8 +237,8 @@ describe("IncomingJobPopup fast status-check poll", () => {
     expect(screen.getByText("Engine won't start")).toBeTruthy();
 
     // Customer cancels; realtime push never arrives. The next ~1s status check
-    // must close the card AND surface the "Request cancelled" banner — the pro
-    // is told the moment their live request dies, even when realtime is missed.
+    // must close the card — the cancellation toasts through the notification
+    // center's top toast, not a transient panel banner.
     client.apiProIncomingStatus.mockResolvedValue(
       okStatus([
         statusSnapshot({ status: "cancelled", pairingStage: null }),
@@ -200,10 +250,10 @@ describe("IncomingJobPopup fast status-check poll", () => {
 
     expect(screen.queryByText("Engine won't start")).toBeNull();
     expect(client.apiProIncomingStatus).toHaveBeenCalledWith(["j1"]);
-    expect(screen.getByText("Request cancelled")).toBeTruthy();
     expect(
-      screen.getByText("Mina cancelled the Toyota Camry request.")
-    ).toBeTruthy();
+      screen.queryByText("Mina cancelled the Toyota Camry request.")
+    ).toBeNull();
+    expect(screen.queryByText("Request cancelled")).toBeNull();
     expect(showAppNotification).not.toHaveBeenCalled();
   });
 

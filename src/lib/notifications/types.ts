@@ -220,6 +220,15 @@ export function shouldListNotification(n: AppNotification): boolean {
  */
 export function shouldToastNotification(n: AppNotification): boolean {
   if (isChatClosedForNotification(n)) return false;
+  // A cancelled service request always deserves a toast — the pro must learn
+  // their live request died the moment it happens, on every screen, whether or
+  // not the incoming card was surfaced this session.
+  if (
+    String(n.jobStatus || "") === "cancelled" &&
+    isHighPriority(n.priority)
+  ) {
+    return true;
+  }
   if (
     n.actionType === "open_job" ||
     n.actionType === "accept_request" ||

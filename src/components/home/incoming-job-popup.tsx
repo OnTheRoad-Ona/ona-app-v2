@@ -171,6 +171,10 @@ export function IncomingJobPopup() {
       if (!(surfacedAtRef.current[jobId] > 0)) return;
       notifiedCloseRef.current.add(jobId);
       const { job, status = "", movedOn = false } = opts;
+      // Cancellations toast through the notification center's top toast (live
+      // INSERT on notifications) — never also pile a transient banner here, or
+      // the pro would see two "Request cancelled" notices for the same event.
+      if (!movedOn && String(status).toLowerCase() === "cancelled") return;
       const title =
         movedOn
           ? "Request moved on"
