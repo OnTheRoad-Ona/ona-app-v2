@@ -7,7 +7,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Camera, ImagePlus, X } from "lucide-react";
+import { Camera, ChevronDown, ImagePlus, X } from "lucide-react";
 import { VoiceNoteRecorder } from "@/components/jobs/voice-note-recorder";
 import { JobShell } from "@/components/jobs/job-shell";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -89,6 +89,29 @@ function RequestInner() {
   }, [userProfile]);
 
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>("");
+  const [vehicleMenuOpen, setVehicleMenuOpen] = useState(false);
+  const vehicleMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!vehicleMenuOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (
+        vehicleMenuRef.current &&
+        !vehicleMenuRef.current.contains(e.target as Node)
+      ) {
+        setVehicleMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setVehicleMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [vehicleMenuOpen]);
 
   useEffect(() => {
     if (!profileVehicles.length) {
@@ -411,25 +434,64 @@ function RequestInner() {
               {selectedVehicleLabel}
             </p>
           ) : (
-            <select
-              value={selectedVehicleId}
-              onChange={(e) => setSelectedVehicleId(e.target.value)}
-              className={cn(
-                "h-11 w-full rounded-xl border-0 px-3.5 text-[14px] font-semibold outline-none",
-                field
-              )}
-            >
-              {profileVehicles.map((v) => {
-                const label = [v.vehicleType, v.make, v.model, v.year]
-                  .filter(Boolean)
-                  .join(" ");
-                return (
-                  <option key={v.id} value={v.id}>
-                    {label || "Vehicle"}
-                  </option>
-                );
-              })}
-            </select>
+            <div className="relative" ref={vehicleMenuRef}>
+              <button
+                type="button"
+                onClick={() => setVehicleMenuOpen((v) => !v)}
+                aria-haspopup="listbox"
+                aria-expanded={vehicleMenuOpen}
+                className={cn(
+                  "flex h-11 w-full items-center justify-between gap-2 rounded-xl border-0 px-3.5 text-[14px] font-semibold outline-none",
+                  field
+                )}
+              >
+                <span className="truncate">{selectedVehicleLabel}</span>
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 shrink-0 transition-transform",
+                    vehicleMenuOpen && "rotate-180"
+                  )}
+                  strokeWidth={2}
+                />
+              </button>
+              {vehicleMenuOpen ? (
+                <ul
+                  role="listbox"
+                  className="absolute z-20 mt-2 max-h-60 w-full overflow-y-auto rounded-xl border-0 py-1.5 shadow-none"
+                  style={{
+                    backgroundColor: isLight ? "#ffffff" : "#20242c",
+                  }}
+                >
+                  {profileVehicles.map((v) => {
+                    const label = [v.vehicleType, v.make, v.model, v.year]
+                      .filter(Boolean)
+                      .join(" ");
+                    const active = v.id === selectedVehicleId;
+                    return (
+                      <li key={v.id} role="option" aria-selected={active}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedVehicleId(v.id);
+                            setVehicleMenuOpen(false);
+                          }}
+                          className={cn(
+                            "flex w-full items-center px-3.5 py-2.5 text-left text-[14px] font-semibold",
+                            active
+                              ? "text-brand"
+                              : isLight
+                                ? "text-slate-900"
+                                : "text-white"
+                          )}
+                        >
+                          {label || "Vehicle"}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+            </div>
           )}
         </section>
       ) : null}
