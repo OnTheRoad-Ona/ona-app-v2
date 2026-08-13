@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { AuthGate } from "@/components/auth/auth-gate";
 import { InAppCallProvider } from "@/components/call/in-app-call";
+import { RoleBootstrap } from "@/components/home/role-bootstrap";
 import { InboundBanner } from "@/components/layout/inbound-banner";
 import { PhoneShell } from "@/components/layout/phone-shell";
 import { NotificationCenter } from "@/components/notifications/notification-center";
@@ -55,6 +56,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
         <AuthGate>
           <NotificationProvider>
             <div className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
+              <RoleBootstrap />
               <InboundBanner />
               <NotificationToasts />
               {/* No key={pathname}: remounting every route re-fired auth/GPS and felt like a loop */}

@@ -1,40 +1,40 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useApp } from "@/lib/store";
 
 const SESSION_KEY = "ona-first-open-done";
 
 /**
- * On first app open per browser session, land on the screen
- * matching registration (motorist → home, pro → dashboard).
- * Mode is locked to account type (no free Client ↔ Pro switch).
+ * First open per browser tab: land a Repair Pro on the pro dashboard instead
+ * of the default customer home at "/".
+ *
+ * The decision waits for the AUTHORITATIVE role (`accountType`, applied from
+ * the server profile) — never the stale `registeredAs` / ROLE_KEY from
+ * localStorage. The effect re-runs when `accountType` resolves later (the
+ * optimistic first paint can briefly carry a stale profile), so a pro is
+ * still bounced to /dashboard once the server role arrives. Guests and
+ * motorists stay on the customer home.
  */
 export function RoleBootstrap() {
-  const { roleReady, registeredAs, accountType } = useApp();
+  const { roleReady, accountType } = useApp();
   const router = useRouter();
   const pathname = usePathname();
-  const didRun = useRef(false);
 
   useEffect(() => {
-    if (!roleReady || didRun.current) return;
-    didRun.current = true;
-
+    if (!roleReady) return;
+    // Pros only — customers + guests keep the customer home.
+    if (accountType !== "professional") return;
+    if (pathname !== "/") return;
     try {
       if (sessionStorage.getItem(SESSION_KEY) === "1") return;
       sessionStorage.setItem(SESSION_KEY, "1");
     } catch {
-      /* continue once if storage blocked */
+      /* storage blocked — still redirect */
     }
-
-    // Only redirect from root on first open
-    if (pathname !== "/") return;
-
-    if (accountType === "professional" || registeredAs !== "client") {
-      router.replace("/dashboard");
-    }
-  }, [roleReady, registeredAs, accountType, pathname, router]);
+    router.replace("/dashboard");
+  }, [roleReady, accountType, pathname, router]);
 
   return null;
 }
