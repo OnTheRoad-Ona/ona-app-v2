@@ -235,6 +235,65 @@ export async function hasSuccessfulPayout(input: {
   return false;
 }
 
+/**
+ * Beneficiary duplicate guard: another SUCCESSFUL payout to the SAME account
+ * for the SAME amount within `windowMs` (default 24h) means someone already got
+ * this money — block a second push even when the transfer reference differs.
+ * This is the last line of defence against operator/retry double-pay that the
+ * per-reference UNIQUE index cannot catch (different ref = same person+amount).
+ */
+export async function recentDuplicatePayout(input: {
+  accountNumber?: string | null;
+  accountBank?: string | null;
+  amountMinor: number;
+  currency?: string;
+  windowMs?: number;
+}): Promise<{
+  duplicate: boolean;
+  existing?: LedgerRow;
+}> {
+  if (!isSupabaseAdminConfigured()) {
+    return { duplicate: false };
+  }
+  const last4 = (input.accountNumber || "")
+    .replace(/\D/g, "")
+    .slice(-4)
+    .toLowerCase();
+  if (!last4) return { duplicate: false };
+  const amount = Number(input.amountMinor) || 0;
+  if (amount <= 0) return { duplicate: false };
+  const windowMs = input.windowMs || 24 * 60 * 60 * 1000;
+  const since = new Date(Date.now() - windowMs).toISOString();
+  const sb = createServiceSupabase();
+  const bank = (input.accountBank || "").trim();
+
+  const { data, error } = await sb
+    .from("payout_transfer_ledger")
+    .select("*")
+    .eq("status", "success")
+    .eq("account_number_last4", last4)
+    .eq("amount_minor", amount)
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(5);
+  if (error || !data || data.length === 0) {
+    return { duplicate: false };
+  }
+  const rows = (data as Record<string, unknown>[]).map(rowToLedger);
+  // Match currency + bank when we know them (be conservative; match broad when not)
+  const match = rows.find((r) => {
+    if (input.currency && r.currency && r.currency !== input.currency) {
+      return false;
+    }
+    if (bank && r.accountBank && r.accountBank !== bank) {
+      return false;
+    }
+    return true;
+  });
+  if (!match) return { duplicate: false };
+  return { duplicate: true, existing: match };
+}
+
 export async function listLedgerByPayment(
   paymentId: string
 ): Promise<LedgerRow[]> {

@@ -624,6 +624,58 @@ export async function attemptProPayout(input: {
     };
   }
 
+  // Beneficiary duplicate guard: a SUCCESSFUL payout to the same account for
+  // the same amount inside 24h (even with a different reference) means the money
+  // already moved — never push a second transfer to the same person.
+  {
+    const { recentDuplicatePayout } = await import(
+      "@/lib/server/payments/payout-ledger"
+    );
+    const dup = await recentDuplicatePayout({
+      accountNumber: bank.accountNumber,
+      accountBank: bank.bankCode,
+      amountMinor: proPayoutMinor,
+      currency: String(input.currency || esc.currency || "NGN"),
+    });
+    if (dup.duplicate) {
+      const dupRef = dup.existing?.transferRef || "";
+      console.error(
+        "[attemptProPayout] BLOCKED duplicate payout to same beneficiary+amount",
+        dupRef,
+        "skipping",
+        idempotentRef
+      );
+      // Record on the escrow so support can trace it, but do NOT mark success —
+      // the money for THIS job may not have been sent yet. Block and hold.
+      await updateEscrow(esc.id, {
+        status: "paid",
+        escrowStatus: "pending_settlement",
+        meta: {
+          ...meta,
+          blockedDuplicatePayout: true,
+          duplicateReleaseRef: dupRef,
+          payoutInFlight: false,
+          payoutClaimId: null,
+        },
+      });
+      return {
+        ok: false,
+        pendingSettlement: true,
+        message:
+          "Another successful payout to this account/amount exists within 24h. Held for review to prevent double payment.",
+        totalMinor: total,
+        proPayoutMinor,
+        platformFeeMinor,
+        availableNgn: null,
+        ledgerNgn: null,
+        nextRetryAt: nextPayoutRetryAt(
+          Number(meta.payoutRetryCount) || 0
+        ),
+        retryCount: Number(meta.payoutRetryCount) || 0,
+      };
+    }
+  }
+
   // Hard ledger claim — UNIQUE(transfer_ref). Second worker cannot claim.
   const {
     claimTransferRef,

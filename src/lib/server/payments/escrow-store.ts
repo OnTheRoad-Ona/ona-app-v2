@@ -535,7 +535,7 @@ export async function updateEscrow(
 /** One history row per request — prefer the payment row that matters most.
  *  Multiple attempt rows (failed drafts, re-inits) for the same request must
  *  NOT show as separate entries (a single job is one open payment, never two). */
-function preferPaymentRow(rows: EscrowPayment[]): EscrowPayment[] {
+export function preferPaymentRow(rows: EscrowPayment[]): EscrowPayment[] {
   const rank: Record<string, number> = {
     released: 6,
     pending_settlement: 5,
