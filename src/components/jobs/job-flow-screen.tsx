@@ -2895,6 +2895,19 @@ export function JobFlowScreen({
       }
       setBusy(true);
       setErr(null);
+      // Optimistic: flip to pending_settlement instantly so the 6h auto-release
+      // countdown and the static “Confirming…” disappear at swipe time. The
+      // server is the source of truth; the re-fetch below reconciles (and on a
+      // real hard failure the screen flips back to completed with the error).
+      commitJob(
+        {
+          ...job,
+          status: "satisfied",
+          escrowStatus: "pending_settlement",
+          satisfiedAt: new Date().toISOString(),
+        },
+        true
+      );
       // Keep previous sticky until we know result
       void (async () => {
         try {

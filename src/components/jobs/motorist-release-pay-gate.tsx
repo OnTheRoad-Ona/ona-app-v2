@@ -392,7 +392,7 @@ export function MotoristReleasePayGate() {
     setMinimizedUi(false);
   };
 
-  const onSatisfied = async () => {
+  const onSatisfied = () => {
     if (!pending) return;
     const actor =
       (pending.motoristId && pending.motoristId.length > 10
@@ -403,92 +403,50 @@ export function MotoristReleasePayGate() {
       setErr("Sign in as the customer who booked this job to release payment.");
       return;
     }
-    setBusy(true);
-    setErr(null);
-    try {
-      const res = await apiTransition({
-        jobId: pending.id,
-        event: "SATISFIED",
-        actor: "motorist",
-        actorId: actor,
-      });
+    const jobId = pending.id;
 
-      // Always stop re-prompting after the customer has acted once
-      markDone(pending.id);
-      setMinimized(pending.id, false);
+    // Instant confirm: show “Released” right away and clear the modal (and the
+    // 6h auto-release countdown it carries). The transfer runs in the
+    // background; the job shell we land on reconciles with the real payout.
+    const currency = forceNairaCurrency(pending.currency);
+    const total =
+      pending.agreedMajor != null
+        ? pending.agreedMajor
+        : pending.amountMinor != null
+          ? pending.amountMinor / 100
+          : 0;
+    // Service S: pro 87.5% · Ona 5% · VAT 7.5% on FLW
+    const proShare = Math.round(total * 0.875 * 100) / 100;
+    const platformShare = Math.round(total * 0.05 * 100) / 100;
 
-      if (!res.ok) {
-        setErr(
-          res.message ||
-            "Could not confirm release. Funds stay in escrow. Try again or contact support."
-        );
-        try {
-          const raw = sessionStorage.getItem(DONE_KEY);
-          if (raw) {
-            const arr = (JSON.parse(raw) as string[]).filter(
-              (id) => id !== pending.id
-            );
-            sessionStorage.setItem(DONE_KEY, JSON.stringify(arr));
-          }
-        } catch {
-          /* */
-        }
-        setBusy(false);
-        return;
-      }
-
-      const job = res.data.job;
-      const released =
-        job.status === "released" ||
-        job.escrowStatus === "released" ||
-        Boolean(job.releasedAt);
-      const pendingSettlement =
-        job.status === "satisfied" ||
-        job.escrowStatus === "pending_settlement" ||
-        job.escrowStatus === "release_pending";
-
-      const currency = forceNairaCurrency(job.currency || pending.currency);
-      const total =
-        job.agreedMajor != null
-          ? job.agreedMajor
-          : pending.agreedMajor != null
-            ? pending.agreedMajor
-            : 0;
-      // Service S: pro 87.5% · Ona 5% · VAT 7.5% on FLW
-      const proShare = Math.round(total * 0.875 * 100) / 100;
-      const platformShare = Math.round(total * 0.05 * 100) / 100;
-
-      unlockAudio();
-      playAppSound("payment_success");
-      if (released || pendingSettlement) {
-        setReceipt({
-          amount: formatMoney(total, currency),
-          pro: formatMoney(proShare, currency),
-          platform: formatMoney(platformShare, currency),
-          note: released
-            ? "Payment confirmed"
-            : "Payout processing — waiting for settlement. We’ll notify you when released.",
-        });
-        setSuccess(true);
-        setPending(null);
-        // Land on the job shell so the customer can rate + review immediately.
-        window.setTimeout(() => {
-          router.replace(`/jobs/${job.id}`);
-        }, 900);
-      } else {
-        // Still open the job for status / review recovery.
-        router.replace(`/jobs/${pending.id}`);
-      }
-    } catch (e) {
-      // Abort mid-release: open job shell — release may have completed server-side.
-      const id = pending.id;
-      markDone(id);
-      setErr(e instanceof Error ? e.message : "Release failed");
-      window.setTimeout(() => {
-        router.replace(`/jobs/${id}`);
-      }, 1200);
-    }
+    markDone(jobId);
+    setMinimized(jobId, false);
     setBusy(false);
+    setErr(null);
+    unlockAudio();
+    playAppSound("payment_success");
+    setReceipt({
+      amount: formatMoney(total, currency),
+      pro: formatMoney(proShare, currency),
+      platform: formatMoney(platformShare, currency),
+      note: "Payment confirmed — releasing your Repair Pro's pay.",
+    });
+    setSuccess(true);
+    setPending(null);
+    window.setTimeout(() => {
+      router.replace(`/jobs/${jobId}`);
+    }, 900);
+
+    // Fire-and-reconcile: server owns the truth. On failure the job shell we
+    // land on shows the real status and lets the customer retry/dispute.
+    void apiTransition({
+      jobId,
+      event: "SATISFIED",
+      actor: "motorist",
+      actorId: actor,
+    }).catch(() => {
+      /* job shell re-fetch reconciles */
+    });
   };
 
   if (success && receipt) {
