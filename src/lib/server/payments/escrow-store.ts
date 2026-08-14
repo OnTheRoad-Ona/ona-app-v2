@@ -532,6 +532,32 @@ export async function updateEscrow(
   return result;
 }
 
+/** One history row per request — prefer the payment row that matters most.
+ *  Multiple attempt rows (failed drafts, re-inits) for the same request must
+ *  NOT show as separate entries (a single job is one open payment, never two). */
+function preferPaymentRow(rows: EscrowPayment[]): EscrowPayment[] {
+  const rank: Record<string, number> = {
+    released: 6,
+    pending_settlement: 5,
+    release_pending: 4,
+    held: 3,
+    pending_payment: 2,
+    refunded: 1,
+    failed: 0,
+  };
+  const best = new Map<string, EscrowPayment>();
+  for (const p of rows) {
+    const cur = best.get(p.requestId);
+    const pr = rank[p.escrowStatus] ?? -1;
+    if (!cur || (rank[cur.escrowStatus] ?? -1) < pr) {
+      best.set(p.requestId, p);
+    }
+  }
+  return [...best.values()].sort((a, b) =>
+    (b.createdAt || "").localeCompare(a.createdAt || "")
+  );
+}
+
 export async function listEscrowForUser(
   userId: string
 ): Promise<EscrowPayment[]> {
@@ -545,17 +571,19 @@ export async function listEscrowForUser(
         .order("created_at", { ascending: false })
         .limit(100);
       if (data) {
-        return (data as Record<string, unknown>[]).map(rowToEscrow);
+        return preferPaymentRow(
+          (data as Record<string, unknown>[]).map(rowToEscrow)
+        );
       }
     } catch {
       /* memory */
     }
   }
-  return [...memory.values()]
-    .filter(
+  return preferPaymentRow(
+    [...memory.values()].filter(
       (p) =>
         !String(p.id).startsWith("ref:") &&
         (p.motoristId === userId || p.repairProId === userId)
     )
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  );
 }
