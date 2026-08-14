@@ -83,6 +83,16 @@ export function isFlutterwaveSplitEnabled(): boolean {
   return v === "1" || v === "true" || v === "yes";
 }
 
+/** True on Vercel Production/Preview or when NODE_ENV=production. */
+export function isProductionRuntime(): boolean {
+  const env = process.env.VERCEL_ENV || process.env.NODE_ENV || "";
+  return (
+    env === "production" ||
+    env === "preview" ||
+    (process.env.VERCEL === "1" && env !== "development" && env !== "test")
+  );
+}
+
 export function resolveProvider(
   preferred?: string | null
 ): PaymentProviderId {
@@ -97,7 +107,13 @@ export function resolveProvider(
     .toLowerCase()
     .trim();
 
-  if (raw === "mock") return "mock";
+  if (raw === "mock") {
+    // Fail closed on deployed runtimes: mock-mode payouts are a dev-only tool.
+    // A missing/misconfigured key must NEVER silently "succeed" a real escrow
+    // release (that paid nothing while marking the job released).
+    if (isProductionRuntime()) return "flutterwave";
+    return "mock";
+  }
 
   if (raw === "paystack" && paystackSecret()) return "paystack";
   if (raw === "flutterwave" && flutterwaveSecret()) return "flutterwave";
@@ -105,7 +121,7 @@ export function resolveProvider(
   // Keys win over misconfigured PAYMENT_PROVIDER
   if (flutterwaveSecret()) return "flutterwave";
   if (paystackSecret()) return "paystack";
-  return "mock";
+  return isProductionRuntime() ? "flutterwave" : "mock";
 }
 
 /** Reject instruction sentences wrongly used as bank account names */

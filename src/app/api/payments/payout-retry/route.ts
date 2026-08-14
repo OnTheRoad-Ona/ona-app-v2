@@ -13,22 +13,32 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 function cronAuthorized(req: Request): boolean {
-  const secret = (process.env.CRON_SECRET || process.env.ONA_CRON_SECRET || "").trim();
-  if (!secret) {
-    // Allow Vercel Cron without secret in preview only if explicitly enabled
-    if (process.env.VERCEL === "1" && process.env.ALLOW_OPEN_PAYOUT_CRON === "true") {
-      return true;
-    }
-    // If no secret configured, still accept Vercel cron user-agent + GET from cron
-    const ua = req.headers.get("user-agent") || "";
-    if (ua.includes("vercel-cron")) return true;
-    return false;
-  }
+  // Accept any configured cron secret (cron-job.org / Vercel / local) so the
+  // 10-min pg_cron job, Vercel cron, and external schedulers all authenticate
+  // even when several secrets are set. Mirrors pairing-sweep/route.ts.
+  const secrets = [
+    process.env.CRON_SECRET?.trim(),
+    process.env.ONA_CRON_SECRET?.trim(),
+    process.env.JOB_EXPIRE_SECRET?.trim(),
+  ].filter((s): s is string => Boolean(s));
   const auth = req.headers.get("authorization") || "";
-  if (auth === `Bearer ${secret}`) return true;
-  if (req.headers.get("x-cron-secret") === secret) return true;
+  const header =
+    req.headers.get("x-cron-secret") || req.headers.get("x-job-expire-secret") || "";
   const url = new URL(req.url);
-  if (url.searchParams.get("secret") === secret) return true;
+  const querySecret = url.searchParams.get("secret") || "";
+  for (const secret of secrets) {
+    if (auth === `Bearer ${secret}`) return true;
+    if (auth === secret) return true;
+    if (header === secret) return true;
+    if (querySecret === secret) return true;
+  }
+  if (secrets.length > 0) return false;
+  // No secret configured — allow Vercel Cron in preview only if explicitly enabled
+  if (process.env.VERCEL === "1" && process.env.ALLOW_OPEN_PAYOUT_CRON === "true") {
+    return true;
+  }
+  const ua = req.headers.get("user-agent") || "";
+  if (ua.includes("vercel-cron")) return true;
   return false;
 }
 

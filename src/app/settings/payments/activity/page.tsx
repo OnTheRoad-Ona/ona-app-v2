@@ -7,7 +7,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { formatMoneyMinor } from "@/lib/pricing";
 import {
@@ -339,10 +339,6 @@ export default function PaymentsActivityPage() {
                       </p>
                     ) : null}
                   </div>
-                  <ChevronRight
-                    className={cn("h-4 w-4 shrink-0 opacity-35", muted)}
-                    strokeWidth={2}
-                  />
                 </Link>
               </li>
             );
