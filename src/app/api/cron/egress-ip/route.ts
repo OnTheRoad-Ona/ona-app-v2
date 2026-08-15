@@ -133,7 +133,7 @@ async function run(req: Request) {
     process.env.ADMIN_SEED_EMAIL?.trim() ||
     process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() ||
     "";
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://ona-mi.vercel.app";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://336699.vercel.app";
 
   const subject = "[Ona] Flutterwave payout egress IP changed — whitelist required";
   const text = [

@@ -66,9 +66,9 @@ export async function GET(req: Request) {
           vehiclesPage: "/shop/vehicles",
         },
         howToConfirm: [
-          "curl -s https://ona-mi.vercel.app/api/ship-status | jq '.data | {allPassed,buildId,vehiclesPage}'",
-          "curl -s https://ona-mi.vercel.app/api/shop/filters?trade=mechanic | jq '.data.filters | type'",
-          "curl -s https://ona-mi.vercel.app | grep data-ona-build",
+          "curl -s https://336699.vercel.app/api/ship-status | jq '.data | {allPassed,buildId,vehiclesPage}'",
+          "curl -s https://336699.vercel.app/api/shop/filters?trade=mechanic | jq '.data.filters | type'",
+          "curl -s https://336699.vercel.app | grep data-ona-build",
         ],
       },
     },

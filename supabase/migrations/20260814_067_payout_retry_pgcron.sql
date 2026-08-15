@@ -97,7 +97,7 @@ begin
     'ona-payout-retry',
     '*/10 * * * *',
     $job$select net.http_post(
-      'https://ona-mi.vercel.app/api/payments/payout-retry',
+      'https://336699.vercel.app/api/payments/payout-retry',
       '{}',
       jsonb_build_object(
         'Content-Type', 'application/json',
@@ -112,7 +112,7 @@ begin
 
   select jsonb_build_object('ok', true,
     'job', 'ona-payout-retry', 'schedule', '*/10 * * * *',
-    'endpoint', 'https://ona-mi.vercel.app/api/payments/payout-retry',
+    'endpoint', 'https://336699.vercel.app/api/payments/payout-retry',
     'secret_configured', true,
     'installed_at', to_char(now(), 'YYYY-MM-DD"T"HH24:MI:SS"Z"'))
   into v_status;

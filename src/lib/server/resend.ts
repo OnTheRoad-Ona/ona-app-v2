@@ -70,7 +70,7 @@ export async function sendSignupConfirmationEmail(input: {
     input.accountType === "professional" ? "Repair Pro" : "Customer";
   const first = input.fullName.trim().split(/\s+/)[0] || "there";
   const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://ona-mi.vercel.app";
+    process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://336699.vercel.app";
 
   const subject = `Welcome to Ona — your ${roleLabel} account is ready`;
   const text = [
