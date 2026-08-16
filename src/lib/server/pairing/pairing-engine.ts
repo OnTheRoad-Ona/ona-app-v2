@@ -13,12 +13,20 @@
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { NEGOTIATE_WINDOW_MS } from "@/lib/jobs/constants";
+import { windowLeftMs } from "@/lib/jobs/deadline";
 import { hasRecentLiveHeartbeat } from "@/lib/matching";
 import { orderCandidatesByMerit } from "@/lib/server/merit/merit-engine";
 import { isSyntheticAccount } from "@/lib/server/synthetic-accounts";
 
 export const PAIRING_WINDOW_MS = 66_000; // 66s per pro (display + enforce)
 export const DEFER_DURATION_MS = 5 * 60_000; // Later = 5 min exclusion from re-offer
+/** At open we KEEP the running 66s pairing window as the review window unless
+ *  less than this much remains (then a fresh full window is issued), so the
+ *  customer's ring never visibly jumps back to 66 mid-count. */
+export const OPEN_REARM_FLOOR_MS = 10_000;
+/** Max time an offer sits un-surfaced before the sweep arms the pairing
+ *  deadline itself (fallback when the pro's device never renders the card). */
+export const SURFACE_FALLBACK_GRACE_MS = 8000;
 // Search starts tight (1 km) and expands toward the customer's chosen radius
 // (0–10 km slider), capped at 10 km. The customer's radius caps each request
 // via service_requests.radius_km (see nextRadiusKm's maxKm).
@@ -366,7 +374,10 @@ async function dispatchCandidate(
       pairing_stage: "waiting_for_pro",
       flow_status: "waiting_for_pro",
       status: "requested",
-      pairing_deadline: deadlineIso(),
+      // Deadline stays NULL until the request actually appears on the pro's
+      // screen (surface endpoint arms it exactly once) — otherwise dispatch
+      // and surface both arm it and the shared timer rolls back to 66s.
+      pairing_deadline: null,
       queue_position: position + 1,
       remaining_candidates: remaining,
       reservation_status: "none",
@@ -611,12 +622,20 @@ export async function openRequest(
   const stage: PairingStage = row.pairing_stage === "waiting_for_selected" ? "selected_review" : "reserved";
   const ts = nowIso();
 
+  // Keep the SAME pairing_deadline as the review window whenever it's still
+  // healthy (no visible jump when the pro opens) — the ring/card count straight
+  // through. Only re-arm to a fresh 66s when the current window is unset or
+  // nearly spent, so the pro still gets a real review period.
+  const currentLeftMs = windowLeftMs(row.pairing_deadline);
+  const reviewDeadline =
+    currentLeftMs < OPEN_REARM_FLOOR_MS ? deadlineIso() : String(row.pairing_deadline);
+
   const { error: resErr } = await sb.from("request_reservations").insert({
     request_id: row.id,
     pro_id: proId,
     stage,
     status: "active",
-    expires_at: deadlineIso(),
+    expires_at: reviewDeadline,
   });
   if (resErr) return { ok: false, error: resErr.message, status: 500 };
 
@@ -624,7 +643,7 @@ export async function openRequest(
     pairing_stage: stage,
     flow_status: stage,
     status: "requested",
-    pairing_deadline: deadlineIso(),
+    pairing_deadline: reviewDeadline,
     reservation_status: "active",
     updated_at: ts,
     status_history: [
@@ -969,6 +988,7 @@ export async function sweepPairing(limit = 50): Promise<{
 
   try {
     const sb = createServiceSupabase();
+
     const { data: rows } = await sb
       .from("service_requests")
       .select("id, pairing_stage")
@@ -993,6 +1013,24 @@ export async function sweepPairing(limit = 50): Promise<{
       if (res.ok && res.expired) expired++;
       else if (res.ok && !res.noop) timedOut++;
     }
+
+    // Fallback arming for un-surfaced offers: requests whose card never
+    // rendered on the pro's device (app closed) keep a NULL pairing_deadline
+    // and would never be seen by the timeout query above. Arm them now + 66s
+    // (after the grace window) so a later sweep tick times them out / advances
+    // the pairing exactly as if the offer had been surfaced. Only arms still-
+    // open offers with an assigned union pro or a pending chosen pro.
+    const fallbackCutoff = new Date(
+      Date.now() - SURFACE_FALLBACK_GRACE_MS
+    ).toISOString();
+    const { error: fbErr } = await sb
+      .from("service_requests")
+      .update({ pairing_deadline: deadlineIso() })
+      .in("pairing_stage", PAIRING_STAGES)
+      .or("reservation_status.neq.confirmed,reservation_status.is.null")
+      .is("pairing_deadline", null)
+      .lt("updated_at", fallbackCutoff);
+    if (fbErr) console.error("sweepPairing fallback-arm", fbErr.message);
   } catch (e) {
     console.error("sweepPairing", e);
   }

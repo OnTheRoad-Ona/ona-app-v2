@@ -500,7 +500,11 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
     proLocation: null,
     statusHistory: [{ status: "waiting_for_selected", at: ts, by: "motorist" }],
     pairingStage: "waiting_for_selected",
-    pairingDeadline: new Date(Date.now() + PAIRING_WINDOW_MS).toISOString(),
+    // Timer stays NULL until the request actually appears on the pro's screen.
+    // The surface endpoint arms pairing_deadline exactly once at that moment
+    // (chosen pro + open search alike), so customer ring and pro card both
+    // start from 66 together and never roll back.
+    pairingDeadline: null,
     queuePosition: 1,
     remainingCandidates: null,
     reservationStatus: null,

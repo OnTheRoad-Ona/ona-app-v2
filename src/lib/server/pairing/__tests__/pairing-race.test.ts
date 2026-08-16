@@ -664,9 +664,11 @@ describe("sweepPairing — recovery loop", () => {
       (c) => (c.args[0] as Record<string, unknown>).status === "timed_out"
     );
     expect(timedOut).toHaveLength(1);
-    const advancePatch = callsFor("service_requests", "update").at(-1)
-      ?.args[0] as Record<string, unknown>;
-    expect(advancePatch.repair_pro_id).toBe("pro-2");
+    const advancePatch = callsFor("service_requests", "update")
+      .map((c) => c.args[0] as Record<string, unknown>)
+      .filter((p) => p.repair_pro_id && p.pairing_stage === "waiting_for_pro")
+      .at(0);
+    expect(advancePatch?.repair_pro_id).toBe("pro-2");
   });
 });
 

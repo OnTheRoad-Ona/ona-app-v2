@@ -13,6 +13,7 @@
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IncomingJobPopup } from "@/components/home/incoming-job-popup";
+import { INCOMING_POPUP_STATUS_POLL_MS } from "@/components/home/incoming-job-popup";
 import type { JobRecord } from "@/lib/jobs/types";
 
 const routerPush = vi.fn();
@@ -22,6 +23,7 @@ const client = vi.hoisted(() => ({
   apiGetJob: vi.fn(),
   apiTransition: vi.fn(),
   apiDeferJob: vi.fn(),
+  apiSurfaceJob: vi.fn(() => Promise.resolve({ ok: true })),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -163,7 +165,7 @@ afterEach(() => {
 
 const advanceOnePoll = async () => {
   await act(async () => {
-    vi.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(INCOMING_POPUP_STATUS_POLL_MS);
     await Promise.resolve();
   });
 };

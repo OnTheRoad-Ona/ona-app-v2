@@ -14,6 +14,11 @@
 /** Max concurrent request cards in the lower panel (no scroll for this many). */
 const MAX_VISIBLE_INCOMING = 2;
 
+/** Fast status-check cadence while a request card is on screen — the close
+ *  falls back from realtime to this poll, so a customer cancel lands in ≤ ~½s
+ *  even when the realtime push is missed on a flaky connection. */
+export const INCOMING_POPUP_STATUS_POLL_MS = 500;
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Briefcase, ChevronLeft, ChevronRight, Clock, Loader2, Wrench, X } from "lucide-react";
@@ -44,6 +49,7 @@ import {
 } from "@/lib/jobs/countdown-math";
 import { formatMoney } from "@/lib/pricing";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
+import { DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { enablePushNotifications } from "@/lib/push/client";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { playAppSound, unlockAudio } from "@/lib/sound-tone";
@@ -344,6 +350,8 @@ export function IncomingJobPopup() {
             job = {
               ...j,
               ...full,
+              pairingDeadline:
+                full.pairingDeadline || j.pairingDeadline || null,
               photos: full.photos?.length ? full.photos : j.photos || [],
               voiceNote: full.voiceNote || j.voiceNote || null,
               motoristPhoto: full.motoristPhoto || j.motoristPhoto || null,
@@ -377,6 +385,15 @@ export function IncomingJobPopup() {
       unlockAudio();
       playAppSound("request_new");
       vibrateCallPattern();
+      // The request is now ON this pro's screen. Ask the server to arm the
+      // shared pairing_deadline exactly once (the server noops if a deadline is
+      // already set) so the 66s timer starts at this instant — on this card AND
+      // the customer's ring — and never rolls back. Fire-and-forget.
+      import("@/lib/jobs/client")
+        .then(({ apiSurfaceJob }) => apiSurfaceJob(job.id))
+        .catch(() => {
+          /* surface alignment best-effort */
+        });
       // Enroll this device for web-push (once per session) so the server can
       // reach the pro with a cancellation OS notification even when the app is
       // closed or the tab hidden. Best-effort; never blocks the card.
@@ -668,16 +685,25 @@ export function IncomingJobPopup() {
         const next = prev.map((cur) => {
           if (!openIds.has(cur.id)) return cur;
           const fresh = open.find((j) => j.id === cur.id);
-          if (
-            fresh &&
-            (fresh.pairingDeadline !== cur.pairingDeadline ||
-              fresh.status !== cur.status ||
-              fresh.pairingStage !== cur.pairingStage)
-          ) {
+          if (!fresh) return cur;
+          // Only ADOPT a non-null deadline change. Never let a stale poll
+          // result (fetched before the surface arm, or a server that just
+          // re-dispatched) overwrite an already-armed deadline with null —
+          // that flip would hide+reshow the 66s line (the "bounce").
+          const freshDeadlineHasValue = Boolean(fresh.pairingDeadline);
+          const deadlineChanged =
+            freshDeadlineHasValue &&
+            fresh.pairingDeadline !== cur.pairingDeadline;
+          const restChanged =
+            fresh.status !== cur.status ||
+            fresh.pairingStage !== cur.pairingStage;
+          if (deadlineChanged || restChanged) {
             changed = true;
             return {
               ...cur,
               ...fresh,
+              pairingDeadline:
+                fresh.pairingDeadline || cur.pairingDeadline || null,
               photos: cur.photos?.length ? cur.photos : fresh.photos,
               voiceNote: cur.voiceNote || fresh.voiceNote,
               motoristPhoto: cur.motoristPhoto || fresh.motoristPhoto,
@@ -842,9 +868,9 @@ export function IncomingJobPopup() {
           }
           void poll();
           schedule();
-        }, delay ?? (visibleJobsRef.current.length || queueRef.current.length ? 1_000 : 12_000));
+        }, delay ?? (visibleJobsRef.current.length || queueRef.current.length ? INCOMING_POPUP_STATUS_POLL_MS : 12_000));
       };
-      schedule(1_000);
+      schedule(INCOMING_POPUP_STATUS_POLL_MS);
 
     const unsub = backendSubscribeJobs(backendUserId, (payload) => {
       applyRealtimeClose(payload);
@@ -854,7 +880,7 @@ export function IncomingJobPopup() {
         // idle 12s — jump onto the fast 1s cadence so its first status check
         // isn't delayed.
         clearTimeout(timer);
-        schedule(1_000);
+        schedule(INCOMING_POPUP_STATUS_POLL_MS);
       }
     });
 
@@ -983,19 +1009,10 @@ export function IncomingJobPopup() {
             {visibleJobs.map((job) => {
               const timeLeft =
                 timeLeftById[job.id] ?? INCOMING_POPUP_VISIBLE_SEC;
+              const pairingCard = isPairingAlert(job);
               const accepting = acceptingId === job.id;
               const strip =
-                job.photos?.length > 0
-                  ? job.photos
-                  : job.motoristPhoto?.trim()
-                    ? [
-                        {
-                          id: "customer-profile",
-                          url: job.motoristPhoto.trim(),
-                          name: job.motoristName || "Customer",
-                        },
-                      ]
-                    : [];
+                job.photos?.length > 0 ? job.photos : [];
               return (
                 <div
                   key={job.id}
@@ -1011,20 +1028,12 @@ export function IncomingJobPopup() {
                         className="mt-0.5 h-7 w-7 shrink-0 rounded-full object-cover"
                       />
                     ) : (
-                      <div
-                        className={cn(
-                          "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-black",
-                          isLight
-                            ? "bg-black/10 text-slate-700"
-                            : "bg-white/12 text-white"
-                        )}
-                        aria-hidden
-                      >
-                        {(job.motoristName || "?")
-                          .trim()
-                          .charAt(0)
-                          .toUpperCase()}
-                      </div>
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={DEFAULT_VENDOR_PHOTO}
+                        alt=""
+                        className="mt-0.5 h-7 w-7 shrink-0 rounded-full object-cover"
+                      />
                     )}
                     <div className="min-w-0 flex-1">
                       <p
@@ -1176,27 +1185,31 @@ export function IncomingJobPopup() {
                     I can fix this
                   </button>
 
-                  <div
-                    className="mt-2 h-1 w-full overflow-hidden rounded-full bg-black/10 dark:bg-white/10"
-                    role="progressbar"
-                    aria-valuemin={0}
-                    aria-valuemax={INCOMING_POPUP_VISIBLE_SEC}
-                    aria-valuenow={timeLeft}
-                    aria-label="Time remaining for this request"
-                  >
+                  {/* Pairing cards hide the progress line until the server
+                      arms the 66s deadline — no "full → 0 → count" bounce. */}
+                  {pairingCard && !job.pairingDeadline ? null : (
                     <div
-                      className="h-full bg-[#FF6B35] transition-[width] duration-1000 ease-linear"
-                      style={{
-                        width: `${Math.max(
-                          0,
-                          Math.min(
-                            100,
-                            (timeLeft / INCOMING_POPUP_VISIBLE_SEC) * 100
-                          )
-                        )}%`,
-                      }}
-                    />
-                  </div>
+                      className="mt-2 h-1 w-full overflow-hidden rounded-full bg-black/10 dark:bg-white/10"
+                      role="progressbar"
+                      aria-valuemin={0}
+                      aria-valuemax={INCOMING_POPUP_VISIBLE_SEC}
+                      aria-valuenow={timeLeft}
+                      aria-label="Time remaining for this request"
+                    >
+                      <div
+                        className="h-full bg-[#FF6B35] transition-[width] duration-1000 ease-linear"
+                        style={{
+                          width: `${Math.max(
+                            0,
+                            Math.min(
+                              100,
+                              (timeLeft / INCOMING_POPUP_VISIBLE_SEC) * 100
+                            )
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               );
             })}

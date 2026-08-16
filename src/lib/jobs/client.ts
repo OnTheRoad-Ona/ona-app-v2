@@ -298,6 +298,29 @@ export async function apiProIncomingStatus(ids: string[]) {
   return parse<{ jobs: ProIncomingStatus[] }>(res);
 }
 
+export type SurfaceResult = {
+  id: string;
+  pairingStage: string;
+  pairingDeadline: string | null;
+  armed: boolean;
+  serverNow: string;
+};
+
+/** Tell the server the request just appeared on this pro's screen ("surface").
+ *  Server-owned: it arms `pairing_deadline = now + 66s` EXACTLY ONCE per offer
+ *  (only when it's still NULL), so the 66s pairing timer starts at the moment
+ *  the card renders — on BOTH the pro's popup and the customer's ring (they
+ *  read the same shared deadline). Never re-arms once set, so the timer can't
+ *  roll back to 66. If the pro's device never surfaces, the server sweep arms
+ *  a fallback deadline after ~8s so the offer still times out/advances. */
+export async function apiSurfaceJob(jobId: string) {
+  const res = await jobFetch(`/api/jobs/${encodeURIComponent(jobId)}/surface`, {
+    method: "POST",
+    cache: "no-store",
+  });
+  return parse<SurfaceResult>(res);
+}
+
 export async function apiPlaceOffer(input: {
   jobId: string;
   side: "repair_pro" | "motorist";

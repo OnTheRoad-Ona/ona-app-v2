@@ -114,20 +114,20 @@ function actionSpec(
 ): ActionSpec | null {
   const { navBlocked, accountType, releasePay } = opts;
   if (n.actionType === "open_chat" || n.category === "messages") {
-    return { icon: MessageCircle, label: navBlocked ? "View" : "Open chat" };
+    return { icon: MessageCircle, label: navBlocked ? "Open" : "Open chat" };
   }
   if (n.actionType === "accept_request") {
     return {
       icon: null,
       label: navBlocked
-        ? "View"
+        ? "Open"
         : accountType === "professional"
-          ? "View request"
-          : "View",
+          ? "Open request"
+          : "Open",
     };
   }
   if (n.actionType === "view_tracking") {
-    return { icon: null, label: navBlocked ? "View" : "Track" };
+    return { icon: null, label: navBlocked ? "Open" : "Track" };
   }
   if (
     n.actionType === "open_job" ||
@@ -139,8 +139,8 @@ function actionSpec(
       label: releasePay
         ? "Confirm job & release payment"
         : navBlocked
-          ? "View"
-          : "View job",
+          ? "Open"
+          : "Open job",
     };
   }
   if (n.actionType === "view_payment" && !releasePay) {
@@ -150,7 +150,7 @@ function actionSpec(
     return { icon: Star, label: "Rate" };
   }
   if (!n.actionType && n.href) {
-    return { icon: null, label: navBlocked ? "View" : "Open" };
+    return { icon: null, label: navBlocked ? "Open" : "Open" };
   }
   return null;
 }
