@@ -1556,15 +1556,15 @@ export default function AdminProsHubPage() {
                 <strong>T1</strong>: not in search
                 <br />
                 <strong>T2</strong>: after you <strong>Approve T2 ID</strong>{" "}
-                (limited · ~30% · 1 km · 30-day Go Live window)
+                (limited · ~30% · 5 km · 30-day Go Live window)
                 <br />
                 <strong>T3</strong>: after pro passes{" "}
-                <strong>face liveness + BVN</strong> (wider · ~70% · 3 km · New
+                <strong>face liveness + BVN</strong> (wider · ~70% · 5 km · New
                 badge off · unlimited Go Live)
                 <br />
                 <strong>T4</strong>: after you{" "}
                 <strong>Approve T4 skill docs</strong>, only if T3 already
-                passed (full · 100% · 10 km)
+                passed (full · 100% · 5 km)
               </p>
               <DetailGrid>
                 <DetailField
@@ -1573,10 +1573,10 @@ export default function AdminProsHubPage() {
                     selectedReview.levels.visibility.tier === 1
                       ? "Hidden (needs T2 ID approval)"
                       : selectedReview.levels.visibility.tier === 2
-                        ? "Limited · ~30% · 1 km"
+                        ? "Limited · ~30% · 5 km"
                         : selectedReview.levels.visibility.tier === 3
-                          ? "Wider · ~70% · 3 km (liveness + BVN)"
-                          : "Full · 100% · 10 km"
+                          ? "Wider · ~70% · 5 km (liveness + BVN)"
+                          : "Full · 100% · 5 km"
                   }`}
                 />
                 <DetailField

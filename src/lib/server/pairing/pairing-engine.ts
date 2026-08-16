@@ -14,7 +14,7 @@ import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { NEGOTIATE_WINDOW_MS } from "@/lib/jobs/constants";
 import { windowLeftMs } from "@/lib/jobs/deadline";
-import { hasRecentLiveHeartbeat } from "@/lib/matching";
+import { hasRecentLiveHeartbeat, MAX_RADIUS_KM } from "@/lib/matching";
 import { orderCandidatesByMerit } from "@/lib/server/merit/merit-engine";
 import { isSyntheticAccount } from "@/lib/server/synthetic-accounts";
 
@@ -28,9 +28,9 @@ export const OPEN_REARM_FLOOR_MS = 10_000;
  *  deadline itself (fallback when the pro's device never renders the card). */
 export const SURFACE_FALLBACK_GRACE_MS = 8000;
 // Search starts tight (1 km) and expands toward the customer's chosen radius
-// (0–10 km slider), capped at 10 km. The customer's radius caps each request
+// (0–5 km slider), capped at 5 km. The customer's radius caps each request
 // via service_requests.radius_km (see nextRadiusKm's maxKm).
-export const RADIUS_STEPS_KM = [1, 2, 3, 5, 8, 10];
+export const RADIUS_STEPS_KM = [1, 2, 3, MAX_RADIUS_KM];
 export const MAX_PAIRING_RADIUS_KM = RADIUS_STEPS_KM[RADIUS_STEPS_KM.length - 1];
 /**
  * Pros contacted per search round (one-by-one, 66s each).
@@ -316,8 +316,8 @@ async function notifyPro(
 }
 
 /** Next radius step, or null when already at the max for this customer.
- * `maxKm` caps expansion at the customer's chosen radius (0–10 slider); when
- * absent it falls back to the global MAX_PAIRING_RADIUS_KM (10 km). */
+ * `maxKm` caps expansion at the customer's chosen radius (0–5 slider); when
+ * absent it falls back to the global MAX_PAIRING_RADIUS_KM (5 km). */
 export function nextRadiusKm(
   current: number | null,
   maxKm?: number | null

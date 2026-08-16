@@ -691,7 +691,7 @@ export async function PATCH(req: Request) {
       return apiOk({
         message:
           nextVis >= 4
-            ? "Skill docs approved. Visibility T4 (full · 10 km)."
+            ? "Skill docs approved. Visibility T4 (full · 5 km)."
             : nextVis >= 3
               ? "Skill docs approved. Visibility stays T3 until ladder recompute — check liveness + BVN."
               : nextVis >= 2

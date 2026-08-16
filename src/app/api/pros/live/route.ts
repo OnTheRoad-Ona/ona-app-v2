@@ -29,7 +29,7 @@ const PRO_SELECT_BASE =
 /**
  * Repair Pro Live / Away.
  * When online: forces profiles.role = repair_pro + is_online + GPS pin
- * so customers can discover them within 10 km (2 km if docs pending).
+ * so customers can discover them within 5 km (2 km if docs pending).
  *
  * Away (online=false) only needs is_online flip — never blocked by tier columns.
  */

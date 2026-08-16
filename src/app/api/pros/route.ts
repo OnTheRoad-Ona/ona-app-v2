@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
  *  - approved / marketplace-ready tier
  *  - signed-in active profile (prefer repair_pro role)
  *  - Live: is_online = true + location_updated_at within 5 min
- *  - within MAX_RADIUS_KM (10 km) of the request lat/lng
+ *  - within MAX_RADIUS_KM (5 km) of the request lat/lng
  *
  * Away, stale heartbeat, and signed-out ghost pins are hidden.
  */
@@ -212,7 +212,7 @@ export async function GET(req: Request) {
           !(plat === 0 && plng === 0)
         );
       })
-      // Live + GPS: show within marketplace radius (10 km).
+      // Live + GPS: show within marketplace radius (5 km).
       // Do NOT hard-hide on go_live_window expiry while is_online — that caused
       // "I'm Live but customers see empty" after the 30-day T2 window.
       .map((pro) =>
@@ -226,7 +226,7 @@ export async function GET(req: Request) {
         ) {
           return false;
         }
-        // One simple rule: Live + real pin + within 10 km of customer
+        // One simple rule: Live + real pin + within 5 km of customer
         return t.distanceKm <= MAX_RADIUS_KM + 0.75;
       });
 

@@ -4,9 +4,9 @@ import type { AppFilters, ServiceCategory, Technician } from "@/lib/types";
 /** Max techs returned in any search (keep load reasonable) */
 export const MAX_TECHNICIANS = 24;
 /** Hard max search radius in km — pros farther away are never listed or mapped */
-export const MAX_RADIUS_KM = 10;
+export const MAX_RADIUS_KM = 5;
 /** Default search radius (motorist pin and book-for-someone meet pin) */
-export const DEFAULT_RADIUS_KM = 10;
+export const DEFAULT_RADIUS_KM = 5;
 /** Map camera zoom for ~1 km street view (radius still uses MAX_RADIUS_KM) */
 export const MAP_NEAR_ZOOM = 15;
 
@@ -223,7 +223,7 @@ export function filterAndRankTechnicians(
     excludeProIds,
     radiusDemoteProIds,
   } = options;
-  // Always cap at 10 km — never show pros outside this (self or book-for-someone).
+  // Always cap at 5 km — never show pros outside this (self or book-for-someone).
   const radius = Math.min(Math.max(radiusKm, 0), MAX_RADIUS_KM);
   const exclude = new Set(
     Array.from(excludeProIds || []).map((id) => String(id))
@@ -253,7 +253,7 @@ export function filterAndRankTechnicians(
     if (visPct <= 0) return false;
     const d = t.distanceKm;
     if (typeof d !== "number" || !Number.isFinite(d)) return false;
-    // Live + in customer radius (≤10 km). Tier still gates T1 above;
+    // Live + in customer radius (≤5 km). Tier still gates T1 above;
     // ranking (not hard hide) softens lower tiers via scoreTechnician.
     return d <= radius + 0.75;
   });

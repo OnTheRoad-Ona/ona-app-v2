@@ -8,6 +8,7 @@ import {
 } from "@/lib/supabase/env";
 import { createClient } from "@supabase/supabase-js";
 import { isProService } from "@/lib/services";
+import { clampProServiceRadiusKm } from "@/lib/profile-system";
 import type { ProService } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -415,7 +416,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Existing pro row — lock skill + years; clamp radius to 10 km
+    // Existing pro row — lock skill + years; clamp radius to 5 km
     const { data: existingPro } = await admin
       .from("repair_pro_profiles")
       .select("services, primary_service, years_experience, service_radius_km")
@@ -444,14 +445,10 @@ export async function POST(req: Request) {
           ?.filter((s): s is ProService => isProService(s))
           .slice(0, 9);
 
-    // Hard max 10 km for all pros
-    const PRO_MAX_RADIUS = 10;
+    // Hard max 5 km for all pros
     const clampedRadius =
       b.serviceRadiusKm !== undefined
-        ? Math.min(
-            PRO_MAX_RADIUS,
-            Math.max(1, Number(b.serviceRadiusKm) || 10)
-          )
+        ? clampProServiceRadiusKm(Number(b.serviceRadiusKm))
         : undefined;
 
     const vehicleFocus: Record<string, unknown> = {};

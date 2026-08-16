@@ -6,6 +6,7 @@ import {
   type AppConfig,
   type AppSettingKey,
 } from "@/lib/app-config";
+import { DEFAULT_RADIUS_KM, MAX_RADIUS_KM } from "@/lib/matching";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 
 export async function loadAppConfig(): Promise<AppConfig> {
@@ -33,6 +34,19 @@ export async function saveAppConfigSection(
   const supabase = createServiceSupabase();
   const current = await loadAppConfig();
   const merged = { ...current[key], ...value };
+  if (key === "matching") {
+    const rec = merged as Record<string, unknown>;
+    const maxR = Number(rec.maxRadiusKm);
+    rec.maxRadiusKm = Math.min(
+      MAX_RADIUS_KM,
+      Math.max(1, Number.isFinite(maxR) ? maxR : MAX_RADIUS_KM)
+    );
+    const defR = Number(rec.defaultRadiusKm);
+    rec.defaultRadiusKm = Math.min(
+      MAX_RADIUS_KM,
+      Math.max(0.5, Number.isFinite(defR) ? defR : DEFAULT_RADIUS_KM)
+    );
+  }
 
   const { error } = await supabase.from("app_settings").upsert(
     {

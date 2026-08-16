@@ -221,8 +221,8 @@ export function profileToTechnician(profile: UserProfile): Technician | null {
     serviceRadiusKm:
       profile.docsStatus === "under_review" ||
       profile.docsStatus === "rejected"
-        ? Math.min(profile.serviceRadiusKm ?? 8, 2)
-        : profile.serviceRadiusKm ?? 8,
+        ? Math.min(profile.serviceRadiusKm ?? DEFAULT_RADIUS_KM, 2)
+        : profile.serviceRadiusKm ?? DEFAULT_RADIUS_KM,
     location: DEFAULT_USER_LOCATION.coordinates,
     markerLabel: "You",
     responseSpeedScore: 0.95,
@@ -1033,7 +1033,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       storedPrimary ||
       primaryAccountType ||
       profile.accountType;
-    // Pros: keep only first/primary signup skill; clamp service radius to 10 km
+    // Pros: keep only first/primary signup skill; clamp service radius to 5 km
     const proServicesLocked =
       profile.accountType === "professional"
         ? (profile.services ?? []).filter(isProService).slice(0, 1)
@@ -1843,7 +1843,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           (userProfile.services ?? []).filter(isProService)[0] ??
           (next.services ?? []).filter(isProService)[0];
         next.services = lockedSkill ? [lockedSkill] : userProfile.services;
-        // Service radius hard-cap 10 km
+        // Service radius hard-cap 5 km
         if (next.serviceRadiusKm != null) {
           next.serviceRadiusKm = Math.min(
             MAX_RADIUS_KM,
@@ -2386,7 +2386,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         !Number.isFinite(lat) ||
         !Number.isFinite(lng)
       ) {
-        // No coords → treat as out of range so they never appear in 10 km list
+        // No coords → treat as out of range so they never appear in 5 km list
         return { ...t, distanceKm: Number.POSITIVE_INFINITY };
       }
       const d = haversineKm(origin, { lat, lng });
@@ -3313,7 +3313,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [accountType, backendUserId]);
 
-  // While Live: continuous GPS so motorists get accurate 10 km / 2 km discovery
+  // While Live: continuous GPS so motorists get accurate 5 km / 2 km discovery
   useEffect(() => {
     if (
       !isAppBackendOnline() ||

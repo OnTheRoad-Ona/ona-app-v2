@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Lightweight service-radius preview (no heavy map dependency).
- * Shows pin + radius ring scaled to max 10 km marketplace.
+ * Shows pin + radius ring scaled to max 5 km marketplace.
  */
 export function RadiusMapPreview({
   radiusKm,
@@ -18,9 +18,9 @@ export function RadiusMapPreview({
   isLight: boolean;
   className?: string;
 }) {
-  const r = Math.min(10, Math.max(0.5, radiusKm));
+  const r = Math.min(5, Math.max(0.5, radiusKm));
   // Ring size: 28%–88% of box
-  const pct = 28 + (r / 10) * 60;
+  const pct = 28 + (r / 5) * 60;
 
   return (
     <div

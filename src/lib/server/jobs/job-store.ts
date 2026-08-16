@@ -441,7 +441,7 @@ async function persist(job: JobRecord): Promise<JobRecord> {
   return job;
 }
 
-/** Customer's chosen search radius (0–10 slider), clamped to a usable minimum
+/** Customer's chosen search radius (0–5 slider), clamped to a usable minimum
  * so pairing always has a tight starting circle and a sane cap. */
 function clampCustomerRadius(radius: number | null | undefined): number {
   if (radius == null || !Number.isFinite(radius) || radius <= 0) {
@@ -1568,7 +1568,7 @@ async function findNextPro(
 
   if (!pros?.length) return null;
 
-  const MAX_RADIUS_KM = 15;
+  const REROUTE_RADIUS_KM = MAX_RADIUS_KM;
 
   const offersTrade = (p: {
     primary_service?: string | null;
@@ -1636,7 +1636,7 @@ async function findNextPro(
       const km = Math.hypot(dLat, dLng);
       return { p, km };
     })
-    .filter((x) => x.km <= MAX_RADIUS_KM + 0.75);
+    .filter((x) => x.km <= REROUTE_RADIUS_KM + 0.75);
 
   if (!withDistance.length) return null;
 

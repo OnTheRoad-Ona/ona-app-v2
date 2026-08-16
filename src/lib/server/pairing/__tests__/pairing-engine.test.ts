@@ -21,8 +21,8 @@ describe("pairing-engine constants", () => {
     ]);
   });
 
-  it("max radius is the last step (10 km)", () => {
-    expect(MAX_PAIRING_RADIUS_KM).toBe(10);
+  it("max radius is the last step (5 km)", () => {
+    expect(MAX_PAIRING_RADIUS_KM).toBe(5);
   });
 });
 
@@ -31,8 +31,7 @@ describe("nextRadiusKm", () => {
     expect(nextRadiusKm(1)).toBe(2);
     expect(nextRadiusKm(2)).toBe(3);
     expect(nextRadiusKm(3)).toBe(5);
-    expect(nextRadiusKm(5)).toBe(8);
-    expect(nextRadiusKm(8)).toBe(10);
+    expect(nextRadiusKm(5)).toBeNull();
   });
 
   it("caps expansion at the customer's chosen radius", () => {
@@ -43,6 +42,7 @@ describe("nextRadiusKm", () => {
   });
 
   it("returns null when at max radius", () => {
+    expect(nextRadiusKm(5)).toBeNull();
     expect(nextRadiusKm(10)).toBeNull();
     expect(nextRadiusKm(60)).toBeNull();
   });

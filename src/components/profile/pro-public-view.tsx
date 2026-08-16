@@ -204,7 +204,7 @@ export function ProPublicView({
 
       <ProfileSection title="Service area" isLight={isLight}>
         <RadiusMapPreview
-          radiusKm={tech.serviceRadiusKm || 10}
+          radiusKm={tech.serviceRadiusKm || 5}
           label={tech.servedLocation || tech.name}
           isLight={isLight}
         />

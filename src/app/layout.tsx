@@ -28,7 +28,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Ona: Find mechanics, vulcanizers and tow near you",
   description:
-    "Find and call mechanics, vulcanizers and tow trucks near you, within about 10 km.",
+    "Find and call mechanics, vulcanizers and tow trucks near you, within about 5 km.",
   applicationName: "Ona",
   appleWebApp: {
     capable: true,

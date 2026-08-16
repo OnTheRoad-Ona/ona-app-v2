@@ -1262,7 +1262,7 @@ export async function backendFetchPros(
 
 /**
  * Go Live / Away with GPS. Uses server route so role + pin always stick
- * (service role), then motorists can discover within 10 km / 2 km docs.
+ * (service role), then motorists can discover within 5 km / 2 km docs.
  */
 export async function backendSetProOnline(
   userId: string,

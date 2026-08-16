@@ -5,7 +5,7 @@
  *  T1 — registered; hidden from search; no Go Live
  *  T2 — after care approves government ID → limited search (~30% · 1 km · 30-day Go Live window)
  *  T3 — after face liveness + BVN verified (and T2 done) → wider search (~70% · 3 km · no 30-day cap · New badge off)
- *  T4 — after skill docs approved, and only if T3 already passed → full (~100% · 10 km)
+ *  T4 — after skill docs approved, and only if T3 already passed → full (~100% · 5 km)
  *
  * Motorists are not on this ladder (pros only).
  */
@@ -128,8 +128,8 @@ export const TIER2_GO_LIVE_DAYS = 30;
 export const TIER2_WARN_DAYS_BEFORE = 5;
 /** Tier 2 discovery radius — wide enough that Live pros are findable (was 1 km, too strict) */
 export const TIER2_MAX_RADIUS_KM = 5;
-export const TIER3_MAX_RADIUS_KM = 8;
-export const TIER4_MAX_RADIUS_KM = 10;
+export const TIER3_MAX_RADIUS_KM = 5;
+export const TIER4_MAX_RADIUS_KM = 5;
 
 export type VisibilityTierRules = {
   tier: VisibilityTier;

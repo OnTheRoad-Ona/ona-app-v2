@@ -19,9 +19,11 @@ import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { DEFAULT_USER_LOCATION } from "@/lib/data/technicians";
 import { getArtisanProfile } from "@/lib/artisan/local-store";
 import {
+  clampVisibilityTier,
   resolveVisibilityTier,
   rulesForTier,
 } from "@/lib/artisan/visibility-tiers";
+import { MAX_RADIUS_KM } from "@/lib/matching";
 
 export function haversineKm(
   a: { lat: number; lng: number },
@@ -206,7 +208,7 @@ export function mapProToTechnician(
     description: pro.bio || "",
     phone: profile?.phone || "",
     serviceRadiusKm: (() => {
-      const base = pro.service_radius_km || 10;
+      const base = Math.min(pro.service_radius_km || MAX_RADIUS_KM, MAX_RADIUS_KM);
       const docs = pro.docs_status;
       // Cap advertised radius only while cert is under review / rejected
       // (null / approved / none → full radius)
@@ -251,18 +253,18 @@ export function mapProToTechnician(
         dbTier = 2;
       }
       if (dbTier >= 1 && dbTier <= 4) {
-        const pct =
-          dbTier === 1 ? 0 : dbTier === 2 ? 30 : dbTier === 3 ? 70 : 100;
-        const maxR =
-          dbTier === 1 ? 0 : dbTier === 2 ? 1 : dbTier === 3 ? 3 : 10;
+        const rules = rulesForTier(clampVisibilityTier(dbTier));
         return {
           visibilityTier: dbTier as 1 | 2 | 3 | 4,
-          visibilityPercent: pct,
+          visibilityPercent: rules.visibilityPercent,
           isNewArtisan:
             pro.is_new_artisan != null
               ? Boolean(pro.is_new_artisan)
               : dbTier <= 2,
-          serviceRadiusKm: Math.min(pro.service_radius_km || 10, maxR || 10),
+          serviceRadiusKm: Math.min(
+            pro.service_radius_km || MAX_RADIUS_KM,
+            rules.maxRadiusKm || MAX_RADIUS_KM
+          ),
         };
       }
       try {
@@ -288,8 +290,8 @@ export function mapProToTechnician(
           visibilityPercent: rules.visibilityPercent,
           isNewArtisan: rules.showNewBadge || art.isNewArtisan,
           serviceRadiusKm: Math.min(
-            pro.service_radius_km || 10,
-            rules.maxRadiusKm || 10
+            pro.service_radius_km || MAX_RADIUS_KM,
+            rules.maxRadiusKm || MAX_RADIUS_KM
           ),
         };
       } catch {

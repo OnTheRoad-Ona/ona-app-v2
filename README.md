@@ -1,6 +1,6 @@
 # Ona
 
-Live mechanic discovery and dispatch platform — find nearby mechanics, vulcanizers, and tow trucks within 0–100 miles.
+Live mechanic discovery and dispatch platform — find nearby mechanics, vulcanizers, and tow trucks within 0–5 km.
 
 ## Stack
 
@@ -13,7 +13,7 @@ Live mechanic discovery and dispatch platform — find nearby mechanics, vulcani
 
 - Map-first home with live radius, ETA pins, and smart matching
 - Service categories: Mechanics · Vulcanizers · Tow · All
-- Distance slider 0–100 miles with live result counts
+- Distance slider 0–5 km with live result counts
 - Filters: Nearest, 4.5+, Available Now, Verified, Fast Response
 - Technician profiles, request flow, live request tracking
 - Technician dashboard (online/offline, accept jobs, status updates)

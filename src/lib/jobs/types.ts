@@ -220,7 +220,7 @@ export type CreateJobInput = {
   proBaseMajor?: number | null;
   locationLabel: string;
   motoristLocation: Coordinates;
-  /** Customer's chosen search radius (0–10 km slider); caps pairing expansion */
+  /** Customer's chosen search radius (0–5 km slider); caps pairing expansion */
   radiusKm?: number | null;
   /** Client idempotency sticker — dedupes bad-network retries */
   clientRequestId?: string | null;

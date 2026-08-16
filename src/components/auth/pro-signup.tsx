@@ -201,7 +201,7 @@ export function ProSignup() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [city, setCity] = useState("Lagos");
   const [area, setArea] = useState("");
-  const [serviceRadiusKm, setServiceRadiusKm] = useState(8);
+  const [serviceRadiusKm, setServiceRadiusKm] = useState(5);
 
   const fullPhone = formatInternationalPhone(phoneDial, phoneNational);
 
@@ -2061,8 +2061,8 @@ export function ProSignup() {
                 <input
                   type="range"
                   min={1}
-                  max={10}
-                  step={0.5}
+                  max={5}
+                  step={1}
                   value={serviceRadiusKm}
                   onChange={(e) => setServiceRadiusKm(Number(e.target.value))}
                   className="mt-2 w-full accent-[#FF6B35]"

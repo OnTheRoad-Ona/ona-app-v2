@@ -3,6 +3,8 @@
  * Defaults match current Ona behaviour; DB overrides via app_settings.
  */
 
+import { DEFAULT_RADIUS_KM, MAX_RADIUS_KM } from "@/lib/matching";
+
 export type AppSection = {
   name: string;
   tagline: string;
@@ -106,8 +108,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     identityVerifyEnabled: true,
   },
   matching: {
-    maxRadiusKm: 10,
-    defaultRadiusKm: 5,
+    maxRadiusKm: MAX_RADIUS_KM,
+    defaultRadiusKm: DEFAULT_RADIUS_KM,
     maxTechnicians: 50,
     minRatingFilter: 0,
   },
@@ -209,6 +211,17 @@ export function mergeConfig(
   ) {
     base.verification.trialDays = DEFAULT_APP_CONFIG.verification.trialDays;
   }
+  // Marketplace radius is hard-capped at 5 km — ignore stale DB values above that
+  const maxR = Number(base.matching.maxRadiusKm);
+  base.matching.maxRadiusKm = Math.min(
+    MAX_RADIUS_KM,
+    Math.max(1, Number.isFinite(maxR) ? maxR : MAX_RADIUS_KM)
+  );
+  const defR = Number(base.matching.defaultRadiusKm);
+  base.matching.defaultRadiusKm = Math.min(
+    MAX_RADIUS_KM,
+    Math.max(0.5, Number.isFinite(defR) ? defR : DEFAULT_RADIUS_KM)
+  );
   return base;
 }
 

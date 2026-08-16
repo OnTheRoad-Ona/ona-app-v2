@@ -95,7 +95,7 @@ export default function AdminMatchingPage() {
                   <input
                     type="number"
                     min={1}
-                    max={50}
+                    max={5}
                     value={matching.maxRadiusKm}
                     onChange={(e) =>
                       setMatching({
@@ -110,7 +110,7 @@ export default function AdminMatchingPage() {
                   <input
                     type="number"
                     min={1}
-                    max={50}
+                    max={5}
                     value={matching.defaultRadiusKm}
                     onChange={(e) =>
                       setMatching({

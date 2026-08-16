@@ -155,7 +155,7 @@ export type ArtisanVerificationProfile = {
 
   /**
    * Marketplace visibility ladder (admin-approved).
-   * 1 = register only · 2 = 30% + 30-day Go Live · 3 = 70% + 3 km · 4 = 100% + 10 km
+   * 1 = register only · 2 = 30% + 30-day Go Live · 3 = 70% + 5 km · 4 = 100% + 5 km
    */
   visibilityTier?: 1 | 2 | 3 | 4;
   tier2ApprovedAt?: string | null;
