@@ -13,6 +13,8 @@ function isBackendHost(host: string): boolean {
     return port === "4500";
   }
   return (
+    h.includes("336699-backend") ||
+    h.startsWith("336699-backend") ||
     h.includes("ona-backend") ||
     h.startsWith("ona-backend") ||
     h.includes("ogamecho-backend") ||

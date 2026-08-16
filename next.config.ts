@@ -14,8 +14,6 @@ const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 const apiProxyTarget = process.env.API_PROXY_TARGET;
 const useApiProxy =
   process.env.USE_API_PROXY === "true" && Boolean(apiProxyTarget);
-const isBackend = process.env.IS_BACKEND === "true";
-
 const nextConfig: NextConfig = {
   async rewrites() {
     if (useApiProxy && apiProxyTarget) {
@@ -26,15 +24,6 @@ const nextConfig: NextConfig = {
     return [];
   },
   async redirects() {
-    if (isBackend) {
-      return [
-        {
-          source: "/:path((?!api).*)",
-          destination: "https://ona-mi.vercel.app/:path",
-          permanent: false,
-        },
-      ];
-    }
     return [];
   },
   // Separate dist for admin dev server (port 4500) vs public (3000)
