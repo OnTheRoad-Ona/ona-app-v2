@@ -13,7 +13,7 @@ import { JobShell } from "@/components/jobs/job-shell";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { avatarInitials, DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { compressImageFile } from "@/lib/image-compress";
-import { apiCreateJob } from "@/lib/jobs/client";
+import { apiCreateJob, apiPreviewCallout } from "@/lib/jobs/client";
 import type { JobMedia } from "@/lib/jobs/types";
 import { showsVehicleOnRequest } from "@/lib/artisan/catalog";
 import {
@@ -68,6 +68,11 @@ function RequestInner() {
   const [photos, setPhotos] = useState<JobMedia[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [calloutPreview, setCalloutPreview] = useState<{
+    fee: number;
+    base: number;
+    km: number;
+  } | null>(null);
 
   const profileVehicles = useMemo(() => {
     const list = userProfile?.vehicles?.filter(
@@ -201,6 +206,42 @@ function RequestInner() {
     userProfile?.identityId ||
     userProfile?.email ||
     "motorist-local";
+
+  useEffect(() => {
+    if (!tech) {
+      setCalloutPreview(null);
+      return;
+    }
+    const lat = location.coordinates.lat;
+    const lng = location.coordinates.lng;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    let cancelled = false;
+    const t = window.setTimeout(() => {
+      void (async () => {
+        const res = await apiPreviewCallout({
+          trade: tech.serviceType,
+          lat,
+          lng,
+          proId: tech.id,
+          problem,
+        });
+        if (cancelled) return;
+        if (res.ok && res.data.quote) {
+          setCalloutPreview({
+            fee: res.data.quote.calloutFee,
+            base: res.data.quote.tradeBaseFee,
+            km: res.data.quote.billableDistanceKm,
+          });
+        } else {
+          setCalloutPreview(null);
+        }
+      })();
+    }, 400);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [tech, location.coordinates.lat, location.coordinates.lng, problem]);
 
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-600" : "text-white/60";
@@ -514,6 +555,14 @@ function RequestInner() {
         <p className={cn("mt-2 text-[11px] font-medium leading-snug", muted)}>
           {labourFeeDisclaimerForTrade(tech.serviceType)}
         </p>
+        {calloutPreview ? (
+          <p className={cn("mt-1.5 text-[11px] font-semibold leading-snug", ink)}>
+            Call-out {formatMoney(calloutPreview.fee, currency)}
+            <span className={cn("ml-1 font-medium", muted)}>
+              · travel fee, not labour · {calloutPreview.km} km
+            </span>
+          </p>
+        ) : null}
       </section>
 
       {/* Voice — optional, no box */}

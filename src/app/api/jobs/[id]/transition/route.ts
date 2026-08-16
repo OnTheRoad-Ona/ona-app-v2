@@ -36,6 +36,9 @@ const bodySchema = z.object({
   idempotencyKey: z.string().max(128).optional(),
   proLat: z.number().optional(),
   proLng: z.number().optional(),
+  accuracyM: z.number().optional(),
+  capturedAt: z.string().optional(),
+  mockLocation: z.boolean().optional(),
   /** Optional client overrides — server prefers Google Distance Matrix when GPS present */
   etaMinutes: z.number().optional(),
   distanceKm: z.number().optional(),
@@ -111,7 +114,17 @@ export async function POST(
         if (b.event === "OPEN") {
           res = await openRequest(id, auth.userId, idempotencyKey);
         } else if (b.event === "CONFIRM") {
-          res = await confirmRequest(id, auth.userId, idempotencyKey);
+          const gps =
+            b.proLat != null && b.proLng != null
+              ? {
+                  lat: b.proLat,
+                  lng: b.proLng,
+                  accuracyM: b.accuracyM ?? null,
+                  capturedAt: b.capturedAt ?? new Date().toISOString(),
+                  mockLocation: b.mockLocation ?? null,
+                }
+              : null;
+          res = await confirmRequest(id, auth.userId, idempotencyKey, gps);
         } else if (b.event === "LATER") {
           res = await deferRequest(id, auth.userId);
         } else {

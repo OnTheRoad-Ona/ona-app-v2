@@ -62,6 +62,9 @@ import {
   forceNairaCurrency,
   formatMoney,
 } from "@/lib/pricing";
+import { CalloutFeeLines } from "@/components/jobs/callout-fee-lines";
+import { useJobCallout } from "@/lib/callout/use-job-callout";
+import { composeCustomerPayableMajor } from "@/lib/callout/payable";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
@@ -210,10 +213,15 @@ function CheckoutInner() {
     return () => window.clearInterval(poll);
   }, [phase, jobId, router, reference]);
 
+  const calloutQuote = useJobCallout(job?.id);
+
+  const agreedMajor = job?.agreedMajor ?? null;
   const chargeBreakdown = useMemo(() => {
-    if (!job?.agreedMajor) return null;
-    return buildCustomerChargeMajor(job?.agreedMajor ?? 0);
-  }, [job?.agreedMajor]);
+    if (agreedMajor == null) return null;
+    const labour = buildCustomerChargeMajor(agreedMajor);
+    const payable = composeCustomerPayableMajor(labour.totalMajor, calloutQuote);
+    return { ...labour, ...payable, serviceChargeMajor: labour.totalMajor };
+  }, [agreedMajor, calloutQuote]);
 
   const amountLabel = useMemo(() => {
     if (!chargeBreakdown) return "Not set";
@@ -835,11 +843,30 @@ function CheckoutInner() {
                   <span>Service charge</span>
                   <span className={ink}>
                     {formatMoney(
-                      chargeBreakdown.totalMajor,
+                      chargeBreakdown.serviceChargeMajor,
                       forceNairaCurrency(job?.currency)
                     )}
                   </span>
                 </div>
+                {chargeBreakdown.calloutMajor > 0 ? (
+                  <div className="flex justify-between gap-2">
+                    <span>Call-out</span>
+                    <span className={ink}>
+                      {formatMoney(
+                        chargeBreakdown.calloutMajor,
+                        forceNairaCurrency(job?.currency)
+                      )}
+                    </span>
+                  </div>
+                ) : (
+                  <CalloutFeeLines
+                    quote={calloutQuote}
+                    currency={job?.currency}
+                    ink={ink}
+                    muted={muted}
+                    compact
+                  />
+                )}
                 <p className="pt-1 text-[10px] font-medium leading-snug">
                   Pay this exact amount only. Your bank may add its own transfer
                   fee. Do not change the transfer amount.

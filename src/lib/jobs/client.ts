@@ -228,6 +228,46 @@ export async function apiGetJob(id: string) {
   return last;
 }
 
+export async function apiGetCallout(jobId: string) {
+  const res = await jobFetch(`/api/jobs/${encodeURIComponent(jobId)}/callout`);
+  return parse<{
+    quote: import("@/lib/callout/constants").CalloutQuote | null;
+    labour: {
+      proBaseMajor: number | null;
+      agreedMajor: number | null;
+      currency: string;
+    };
+  }>(res);
+}
+
+export async function apiPreviewCallout(body: {
+  trade: string;
+  lat: number;
+  lng: number;
+  proId?: string | null;
+  problem?: string;
+  atWorkshop?: boolean;
+  remoteConsultation?: boolean;
+}) {
+  const res = await jobFetch("/api/callout/preview", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return parse<{
+    eligible: boolean;
+    reason: string | null;
+    quote: {
+      calloutFee: number;
+      tradeBaseFee: number;
+      distanceCharge: number;
+      billableDistanceKm: number;
+      approvedRouteDistanceKm: number;
+      distanceRate: number;
+      currency: string;
+    } | null;
+  }>(res);
+}
+
 /**
  * Server sweep: Booked jobs not completed within 6h of payment →
  * cancel + full refund. Safe no-op when none are overdue.
@@ -473,6 +513,9 @@ export async function apiTransition(input: {
   /** Real GPS — server computes Google Distance Matrix ETA */
   proLat?: number;
   proLng?: number;
+  accuracyM?: number;
+  capturedAt?: string;
+  mockLocation?: boolean;
 }) {
   // SATISFIED/RELEASE may call Flutterwave transfer — allow up to 90s.
   const timeoutMs =

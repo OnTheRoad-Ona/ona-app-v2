@@ -209,9 +209,11 @@ export type CreateJobInput = {
   motoristPhoto?: string | null;
   /** e.g. "Toyota Camry 2018" — which vehicle needs help */
   motoristVehicle?: string | null;
-  repairProId: string;
-  repairProName: string;
+  /** Empty / omitted → SSPE picks the first Live pro (no customer pick). */
+  repairProId?: string;
+  repairProName?: string;
   repairProPhoto?: string;
+  emergency?: boolean;
   serviceType: ProService;
   problem: string;
   voiceNote?: JobMedia | null;
@@ -224,4 +226,9 @@ export type CreateJobInput = {
   radiusKm?: number | null;
   /** Client idempotency sticker — dedupes bad-network retries */
   clientRequestId?: string | null;
+  /** Optional classification — server still re-derives eligibility. */
+  atWorkshop?: boolean;
+  remoteConsultation?: boolean;
+  physicalAttendanceRequired?: boolean;
+  calloutEligible?: boolean;
 };

@@ -41,6 +41,10 @@ import {
   StageButton,
 } from "@/components/jobs/job-shell";
 import { VoiceNotePlayer } from "@/components/jobs/voice-note-player";
+import { CalloutFeeLines } from "@/components/jobs/callout-fee-lines";
+import { useJobCallout } from "@/lib/callout/use-job-callout";
+import { composeCustomerPayableMajor } from "@/lib/callout/payable";
+import { isWithinArrivalProximity } from "@/lib/callout/arrival";
 import { ExpiredDialog } from "@/components/ui/expired-dialog";
 import {
   CONVERSATION_ENDED_MESSAGE,
@@ -1015,6 +1019,7 @@ export function JobFlowScreen({
   const ink = isLight ? "text-slate-900" : "text-white";
   /** Readable secondary text — avoid pale gray on stage */
   const muted = isLight ? "text-slate-700" : "text-white/75";
+  const calloutQuote = useJobCallout(job?.id);
 
   const negStatus = useMemo(() => {
     if (!job) return "waiting";
@@ -2007,7 +2012,10 @@ export function JobFlowScreen({
             {job.agreedMajor != null
               ? formatMoney(
                   viewer === "motorist"
-                    ? buildCustomerChargeMajor(job.agreedMajor).totalMajor
+                    ? composeCustomerPayableMajor(
+                        buildCustomerChargeMajor(job.agreedMajor).totalMajor,
+                        calloutQuote
+                      ).totalMajor
                     : job.agreedMajor,
                   job.currency
                 )
@@ -2022,6 +2030,15 @@ export function JobFlowScreen({
               Service charge · pay exact amount
             </p>
           ) : null}
+          <div className="mt-2">
+            <CalloutFeeLines
+              quote={calloutQuote}
+              currency={job.currency}
+              ink={ink}
+              muted={muted}
+              compact
+            />
+          </div>
           {/*
             20-min pay timer lives only on checkout after Flutterwave opens.
             Pros never see a pay countdown — only “waiting for customer”.
@@ -2239,9 +2256,16 @@ export function JobFlowScreen({
     // Prefer earliest unfinished step (Start trip → … → Mark complete)
     const nextPro = proActions.find((a) => a.when.includes(job.status));
 
+    const arrivalOk = job.proLocation
+      ? isWithinArrivalProximity(job.proLocation, job.motoristLocation).ok
+      : false;
+    const arrivedBlocked =
+      nextPro?.event === "MARK_ARRIVED" && !arrivalOk;
+
     const proAdvance = async (
       event: "START_TRIP" | "MARK_ARRIVED" | "START_WORK" | "MARK_COMPLETED"
     ) => {
+      if (event === "MARK_ARRIVED" && !arrivalOk) return;
       setBusy(true);
       setErr(null);
       // GPS preferred for live map, but never block the status change
@@ -2260,14 +2284,10 @@ export function JobFlowScreen({
           if (job.proLocation) {
             proLat = job.proLocation.lat;
             proLng = job.proLocation.lng;
-          } else if (job.motoristLocation) {
-            // Start near motorist pin so map still has a pro marker
-            proLat = job.motoristLocation.lat + 0.004;
-            proLng = job.motoristLocation.lng + 0.004;
           }
           if (event === "START_TRIP" || event === "MARK_ARRIVED") {
             setLocHint(
-              "Location is limited. Trip continues. Enable GPS for live ETA"
+              "Location is limited. Enable GPS so we can confirm you are with the customer."
             );
           }
         }
@@ -2385,6 +2405,15 @@ export function JobFlowScreen({
               {formatMoney(job.agreedMajor, job.currency)}
             </p>
           )}
+        </div>
+        <div className="mt-1">
+          <CalloutFeeLines
+            quote={calloutQuote}
+            currency={job.currency}
+            ink={ink}
+            muted={muted}
+            compact
+          />
         </div>
         {viewer === "repair_pro" && isAutomotiveTrade(job.serviceType) ? (
           <div
@@ -2587,7 +2616,7 @@ export function JobFlowScreen({
           <>
             {isLight ? (
               <CopperButton
-                disabled={busy}
+                disabled={busy || arrivedBlocked}
                 onClick={() => void proAdvance(nextPro.event)}
               >
                 {busy ? "Updating job…" : nextPro.label}
@@ -2595,7 +2624,7 @@ export function JobFlowScreen({
             ) : (
               <StageButton
                 isLight={isLight}
-                disabled={busy}
+                disabled={busy || arrivedBlocked}
                 onClick={() => void proAdvance(nextPro.event)}
               >
                 {busy ? "Updating job…" : nextPro.label}
@@ -3299,6 +3328,15 @@ export function JobFlowScreen({
               {formatMoney(job.agreedMajor, job.currency)}
             </p>
           ) : null}
+          <div className="mt-1">
+            <CalloutFeeLines
+              quote={calloutQuote}
+              currency={job.currency}
+              ink={ink}
+              muted={muted}
+              compact
+            />
+          </div>
         </JobCard>
       </JobShell>
     );
@@ -3570,6 +3608,14 @@ export function JobFlowScreen({
             <p className={cn("mt-1 text-[12px] font-semibold", muted)}>
               Labour only
             </p>
+            <div className="mt-1">
+              <CalloutFeeLines
+                quote={calloutQuote}
+                currency={job.currency}
+                ink={ink}
+                muted={muted}
+              />
+            </div>
 
             <button
               type="button"

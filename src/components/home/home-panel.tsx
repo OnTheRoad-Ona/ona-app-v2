@@ -11,6 +11,7 @@ import { ChevronLeft, Clock, Hammer, MapPin, Paintbrush, Wrench, X } from "lucid
 import { useRouter } from "next/navigation";
 import { CategoryTabs } from "@/components/home/category-tabs";
 import { FilterChips } from "@/components/home/filter-chips";
+import { NeedHelpDialogue } from "@/components/home/need-help-dialogue";
 import { RadiusSlider } from "@/components/home/radius-slider";
 import { SpecialtyFilterBar } from "@/components/home/specialty-filter-bar";
 import { TechCard } from "@/components/technician/tech-card";
@@ -618,8 +619,8 @@ export function HomePanel({
         {/* Radius first (or specialty strip for Plumber/Carpenter/etc. until pick) */}
         {specialtyPickerOpen ? <SpecialtyFilterBar /> : <RadiusSlider />}
 
-        {/* Filter chips — always rendered so all panel content slides as one unit */}
-        <FilterChips />
+        {/* Motorist: no nearby list. Pro / browse: keep filters. */}
+        {isMotorist ? null : <FilterChips />}
       </div>
 
       {locationError && (
@@ -638,8 +639,8 @@ export function HomePanel({
         </div>
       )}
 
-      {/* Empty state — kept outside the scrollable area so it stays static during sheet flip */}
-      {list.length === 0 && !showVerifyPanel && (
+      {/* Empty state — only when the nearby list still shows (not motorist talk box) */}
+      {!isMotorist && list.length === 0 && !showVerifyPanel && (
         <div
           className={cn(
             "shrink-0 overflow-hidden rounded-t-lg",
@@ -690,7 +691,9 @@ export function HomePanel({
             <HomeVerifyPanel message={verifyMessage} isLight={isLight} />
           </div>
         ) : null}
-        {list.length > 0 && (
+        {isMotorist ? (
+          <NeedHelpDialogue isLight={isLight} />
+        ) : list.length > 0 && (
           <div
             className={cn(
               "min-h-full overflow-hidden rounded-t-lg",
@@ -762,7 +765,7 @@ export function HomePanel({
           </div>
         )}
 
-        {!expanded && list.length > 0 && (
+        {!isMotorist && !expanded && list.length > 0 && (
           <p
             className={cn(
               "py-2 text-center text-[10px]",

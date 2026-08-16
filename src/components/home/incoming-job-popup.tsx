@@ -28,7 +28,7 @@ import {
   showAppNotification,
   vibrateCallPattern,
 } from "@/lib/app-notify";
-import { apiDeferJob, apiGetJob, apiListJobs, apiProIncomingStatus, apiTransition } from "@/lib/jobs/client";
+import { apiDeferJob, apiGetJob, apiListJobs, apiProIncomingStatus, apiTransition, getCurrentPosition } from "@/lib/jobs/client";
 import {
   canSurfaceIncomingJob,
   clearJobShown,
@@ -243,12 +243,34 @@ export function IncomingJobPopup() {
               return;
             }
           }
+          let gps: {
+            proLat?: number;
+            proLng?: number;
+            accuracyM?: number;
+            capturedAt?: string;
+          } = {};
+          try {
+            const pos = await getCurrentPosition({
+              enableHighAccuracy: true,
+              timeout: 8000,
+              maximumAge: 5000,
+            });
+            gps = {
+              proLat: pos.coords.latitude,
+              proLng: pos.coords.longitude,
+              accuracyM: pos.coords.accuracy,
+              capturedAt: new Date().toISOString(),
+            };
+          } catch {
+            /* server may use a fresh Live pin; never invent coords here */
+          }
           const confirmRes = await apiTransition({
             jobId: j.id,
             event: "CONFIRM",
             actor: "repair_pro",
             actorId: backendUserId,
             idempotencyKey: idemFor(j, backendUserId, "CONFIRM"),
+            ...gps,
           });
           if (!confirmRes.ok) {
             if (isStaleRequestError(confirmRes.message)) {

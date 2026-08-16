@@ -75,6 +75,7 @@ type PairingRow = {
   motorist_name: string | null;
   repair_pro_id: string | null;
   service_type: string;
+  likely_trade_ids?: string[] | null;
   problem_text: string | null;
   description: string | null;
   pickup_lat: number | null;
@@ -118,6 +119,7 @@ async function loadPairingRow(
         "motorist_name",
         "repair_pro_id",
         "service_type",
+        "likely_trade_ids",
         "problem_text",
         "description",
         "pickup_lat",
@@ -218,7 +220,17 @@ async function findCandidate(
     lng: Number(row.pickup_lng) || 0,
   };
 
-  const candidates = ((pros ?? []) as Array<{
+  const { resolveDispatchTrades, proOffersAnyTrade } = await import(
+    "@/lib/callout/dispatch-trades"
+  );
+  const storedTrades = Array.isArray(row.likely_trade_ids)
+    ? row.likely_trade_ids.filter(Boolean)
+    : [];
+  const dispatchTrades = storedTrades.length
+    ? storedTrades
+    : resolveDispatchTrades(problemText(row), row.service_type).dispatchTrades;
+
+  let candidates = ((pros ?? []) as Array<{
     user_id: string;
     business_name: string | null;
     primary_service?: string | null;
@@ -235,7 +247,7 @@ async function findCandidate(
       // Require a fresh heartbeat like the marketplace feed, so we never
       // dispatch to a pro who is not actually reachable ("ghost online").
       if (!hasRecentLiveHeartbeat(p.location_updated_at, now)) return false;
-      if (!offersTrade(row.service_type, p)) return false;
+      if (!proOffersAnyTrade(dispatchTrades, p)) return false;
       // Never pair a real customer with a demo/audit pro.
       if (
         isSyntheticAccount({
@@ -254,8 +266,44 @@ async function findCandidate(
         (Number(p.lng) - cLng) * 111 * Math.cos((cLat * Math.PI) / 180);
       return { p, km: Math.hypot(dLat, dLng) };
     })
-    .filter((x) => x.km <= radiusKm + 0.75)
+    .filter((x) => x.km <= radiusKm)
     .map((x) => x.p);
+
+  if (!candidates.length) return null;
+
+  const roadKm = new Map<string, number>();
+  try {
+    const { loadCalloutPolicy } = await import("@/lib/server/callout/store");
+    const { computeDriveMetricsBatch } = await import("@/lib/server/google-eta");
+    const policy = await loadCalloutPolicy();
+    const maxKm = policy.enabled
+      ? policy.maximumRadiusKm
+      : radiusKm;
+    if (policy.enabled && Number.isFinite(cLat) && Number.isFinite(cLng)) {
+      const dests = candidates.slice(0, 25).map((p) => ({
+        lat: Number(p.lat),
+        lng: Number(p.lng),
+      }));
+      const metrics = await computeDriveMetricsBatch(
+        { lat: cLat, lng: cLng },
+        dests
+      );
+      candidates.slice(0, dests.length).forEach((p, i) => {
+        const m = metrics[i];
+        if (m && m.source === "google_distance_matrix") {
+          roadKm.set(String(p.user_id), m.distanceKm);
+        }
+      });
+      if (roadKm.size > 0) {
+        candidates = candidates.filter((p) => {
+          const road = roadKm.get(String(p.user_id));
+          return road != null && road <= maxKm + 1e-9;
+        });
+      }
+    }
+  } catch {
+    /* keep haversine-filtered pool */
+  }
 
   if (!candidates.length) return null;
 
@@ -263,6 +311,8 @@ async function findCandidate(
     candidates.map((p) => ({ user_id: p.user_id, pro: p })),
     (c) => {
       const pro = c.pro;
+      const road = roadKm.get(String(pro.user_id));
+      if (typeof road === "number") return road;
       const dLat = (Number(pro.lat) - cLat) * 111;
       const dLng =
         (Number(pro.lng) - cLng) * 111 * Math.cos((cLat * Math.PI) / 180);
@@ -683,7 +733,14 @@ export async function openRequest(
 export async function confirmRequest(
   jobId: string,
   proId: string,
-  idempotencyKey?: string | null
+  idempotencyKey?: string | null,
+  gps?: {
+    lat: number;
+    lng: number;
+    accuracyM?: number | null;
+    capturedAt?: string | null;
+    mockLocation?: boolean | null;
+  } | null
 ): Promise<PairingResult> {
   if (!isSupabaseAdminConfigured()) {
     return { ok: false, error: "Supabase is not configured", status: 503 };
@@ -768,6 +825,28 @@ export async function confirmRequest(
   const { recalculateMerit } = await import("@/lib/server/merit/merit-engine");
   void recalculateMerit(proId);
 
+  try {
+    const { lockCalloutOnAcceptance } = await import(
+      "@/lib/server/callout/acceptance"
+    );
+    const destLat = Number(row.pickup_lat);
+    const destLng = Number(row.pickup_lng);
+    if (Number.isFinite(destLat) && Number.isFinite(destLng)) {
+      await lockCalloutOnAcceptance({
+        requestId: row.id,
+        proId,
+        trade: (await import("@/lib/services")).isProService(row.service_type)
+          ? (row.service_type as import("@/lib/types").ProService)
+          : "mechanic",
+        destination: { lat: destLat, lng: destLng },
+        gps: gps || null,
+        idempotencyKey: idempotencyKey || null,
+      });
+    }
+  } catch (e) {
+    console.error("[callout] lock on accept failed", e);
+  }
+
   return { ok: true, jobId: row.id, currentProId: proId };
 }
 
@@ -781,6 +860,14 @@ async function settleCurrentPro(
   const proId = currentPro(row);
   const ts = nowIso();
   if (!proId) return { error: null };
+  try {
+    const { voidCalloutForReroute } = await import(
+      "@/lib/server/callout/acceptance"
+    );
+    await voidCalloutForReroute(row.id, status, proId);
+  } catch {
+    /* call-out optional */
+  }
   // Prefer offered → outcome. For Later/Decline after a race where sweep
   // already set timed_out, still upgrade to deferred/declined so that pro
   // is never treated as a recyclable timed_out and re-offered 3s later.

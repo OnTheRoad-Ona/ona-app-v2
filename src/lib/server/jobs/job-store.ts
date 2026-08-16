@@ -450,6 +450,49 @@ function clampCustomerRadius(radius: number | null | undefined): number {
   return Math.min(MAX_RADIUS_KM, Math.max(1, Math.round(radius)));
 }
 
+async function startOpenSearchIfNeeded(
+  job: JobRecord,
+  input: CreateJobInput
+): Promise<JobRecord> {
+  if (input.repairProId) return job;
+  try {
+    const { advancePairing } = await import(
+      "@/lib/server/pairing/pairing-engine"
+    );
+    await advancePairing(job.id);
+    const fresh = await getJobRaw(job.id);
+    return fresh || job;
+  } catch (e) {
+    console.error("[sspe] open-search start failed", e);
+    return job;
+  }
+}
+
+/** Best-effort Call-Out quote. Never blocks job create / SSPE. */
+async function attachCalloutQuietly(
+  job: JobRecord,
+  input: CreateJobInput
+): Promise<JobRecord> {
+  try {
+    const { attachCalloutToRequest } = await import("@/lib/server/callout/quote");
+    await attachCalloutToRequest({
+      requestId: job.id,
+      problem: input.problem,
+      selectedTrade: input.serviceType,
+      destination: input.motoristLocation,
+      proId: input.repairProId,
+      atWorkshop: input.atWorkshop,
+      remoteConsultation: input.remoteConsultation,
+      physicalAttendanceRequired: input.physicalAttendanceRequired,
+      calloutEligible: input.calloutEligible,
+    });
+  } catch (e) {
+    console.error("[callout] attach failed", e);
+  }
+  const withCallout = job;
+  return startOpenSearchIfNeeded(withCallout, input);
+}
+
 export async function createJob(input: CreateJobInput): Promise<JobRecord> {
   const ts = nowIso();
   // Negotiation clock does NOT start until Repair Pro taps “I can fix this”.
@@ -480,11 +523,13 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
     motoristName: input.motoristName,
     motoristPhoto,
     motoristVehicle: input.motoristVehicle?.trim() || null,
-    repairProId: input.repairProId,
-    repairProName: input.repairProName,
+    repairProId: input.repairProId || "",
+    repairProName: input.repairProName || "",
     repairProPhoto: input.repairProPhoto,
     serviceType: input.serviceType,
-    problem: input.problem,
+    problem: input.emergency
+      ? `EMERGENCY: ${input.problem}`
+      : input.problem,
     voiceNote: input.voiceNote || null,
     photos: input.photos || [],
     status: "waiting_for_selected",
@@ -511,10 +556,20 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
     assignmentStatus: null,
     pairingRadiusKm: 1,
     radiusKm: clampCustomerRadius(input.radiusKm),
-    chosenProId: input.repairProId,
+    chosenProId: input.repairProId || null,
     createdAt: ts,
     updatedAt: ts,
   };
+
+  const openSearch = !input.repairProId;
+  if (openSearch) {
+    job.status = "sequential_pairing";
+    job.pairingStage = "sequential_pairing";
+    job.queuePosition = 0;
+    job.statusHistory = [
+      { status: "sequential_pairing", at: ts, by: "motorist" },
+    ];
+  }
 
   if (isSupabaseAdminConfigured()) {
     try {
@@ -531,7 +586,7 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
         if (existing) {
           const mapped = rowToJob(existing as Record<string, unknown>);
           memory.set(mapped.id, mapped);
-          return mapped;
+          return attachCalloutQuietly(mapped, input);
         }
       }
       const { data, error } = await sb
@@ -540,25 +595,26 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
           id: job.id,
           client_request_id: input.clientRequestId || null,
           motorist_id: input.motoristId,
-          repair_pro_id: input.repairProId,
+          repair_pro_id: input.repairProId || null,
           service_type: input.serviceType,
           status: "requested",
-          description: input.problem,
+          description: job.problem,
           pickup_lat: input.motoristLocation.lat,
           pickup_lng: input.motoristLocation.lng,
           pickup_address: input.locationLabel,
           radius_km: clampCustomerRadius(input.radiusKm),
           ...jobToDbPatch(job),
-          flow_status: "waiting_for_selected",
-          pairing_stage: "waiting_for_selected",
+          flow_status: job.pairingStage,
+          pairing_stage: job.pairingStage,
           pairing_deadline: job.pairingDeadline,
-          queue_position: 1,
-          chosen_pro_id: input.repairProId,
+          queue_position: job.queuePosition,
+          chosen_pro_id: input.repairProId || null,
           created_at: ts,
         })
         .select("*")
         .single();
       if (!error && data) {
+        if (input.repairProId) {
         // The customer-chosen pro is the first queue entry (position 1).
         await sb
           .from("request_pairing_queue")
@@ -570,6 +626,7 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
             status: "offered",
             offered_at: ts,
           });
+        }
         const mapped = rowToJob(data as Record<string, unknown>);
         // preserve client-generated media / vehicle if DB stripped columns
         mapped.photos = job.photos;
@@ -599,7 +656,7 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
             /* optional */
           }
         }
-        return mapped;
+        return attachCalloutQuietly(mapped, input);
       }
       // Insert may fail if motorist_vehicle column missing — retry without it
       if (error) {
@@ -618,27 +675,27 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
           if (raced) {
             const mapped = rowToJob(raced as Record<string, unknown>);
             memory.set(mapped.id, mapped);
-            return mapped;
+            return attachCalloutQuietly(mapped, input);
           }
         }
         const { motorist_vehicle: _mv, ...rest } = {
           id: job.id,
           client_request_id: input.clientRequestId || null,
           motorist_id: input.motoristId,
-          repair_pro_id: input.repairProId,
+          repair_pro_id: input.repairProId || null,
           service_type: input.serviceType,
           status: "requested",
-          description: input.problem,
+          description: job.problem,
           pickup_lat: input.motoristLocation.lat,
           pickup_lng: input.motoristLocation.lng,
           pickup_address: input.locationLabel,
           radius_km: clampCustomerRadius(input.radiusKm),
           ...jobToDbPatch(job),
-          flow_status: "waiting_for_selected",
-          pairing_stage: "waiting_for_selected",
+          flow_status: job.pairingStage,
+          pairing_stage: job.pairingStage,
           pairing_deadline: job.pairingDeadline,
-          queue_position: 1,
-          chosen_pro_id: input.repairProId,
+          queue_position: job.queuePosition,
+          chosen_pro_id: input.repairProId || null,
           created_at: ts,
         } as Record<string, unknown>;
         void _mv;
@@ -648,7 +705,7 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
           .select("*")
           .single();
         if (!retry.error && retry.data) {
-          await sb
+          if (input.repairProId) await sb
             .from("request_pairing_queue")
             .insert({
               request_id: job.id,
@@ -696,7 +753,7 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
               /* optional */
             }
           }
-          return mapped;
+          return attachCalloutQuietly(mapped, input);
         }
       }
     } catch {
@@ -705,7 +762,7 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
   }
 
   cacheJob(job);
-  return job;
+  return attachCalloutQuietly(job, input);
 }
 
 async function hydrateMotoristPhoto(job: JobRecord): Promise<JobRecord> {
@@ -3508,8 +3565,22 @@ export async function mockPayJob(input: {
     return { error: "No agreed price." };
   }
 
-  const amountMinor = toMinorUnits(job.agreedMajor, job.currency);
-  const split = splitMinor(amountMinor);
+  const { getCalloutQuote } = await import("@/lib/server/callout/store");
+  const { lockCalloutQuote } = await import("@/lib/server/callout/quote");
+  const { composeCustomerPayableMajor } = await import("@/lib/callout/payable");
+  let mockQuote = await getCalloutQuote(job.id);
+  if (mockQuote?.calloutStatus === "CALCULATED") {
+    mockQuote = (await lockCalloutQuote(job.id)) ?? mockQuote;
+  }
+  const mockLabourMinor = toMinorUnits(job.agreedMajor, job.currency);
+  const mockSplit = splitMinor(mockLabourMinor);
+  const mockPayable = composeCustomerPayableMajor(job.agreedMajor, mockQuote);
+  const amountMinor = toMinorUnits(mockPayable.totalMajor, job.currency);
+  const calloutMinor = toMinorUnits(mockPayable.calloutMajor, job.currency);
+  const split = {
+    ...mockSplit,
+    proPayoutMinor: mockSplit.proPayoutMinor + calloutMinor,
+  };
   const reference = `mock_${job.id.slice(0, 10)}_${Date.now().toString(36)}`;
 
   const payment = await createEscrowPayment({
@@ -3531,7 +3602,9 @@ export async function mockPayJob(input: {
     meta: {
       mock: true,
       email: input.email,
-      labourMinor: amountMinor,
+      labourMinor: mockLabourMinor,
+      calloutMinor,
+      calloutMajor: mockPayable.calloutMajor,
       vatMinor: split.vatMinor,
       vatHeldOnFlutterwave: true,
       settlementModel: "service_only_v2",
@@ -3673,13 +3746,41 @@ export async function startJobEscrowPayment(input: {
 
   // Customer pays service charge S only. Split: pro 87.5% · Ona 5% · VAT 7.5% on FLW.
   // FLW collection + payout fees come from Ona’s 5% only (Ona absorbs if fees > 5%).
+  // Call-out is a separate line: added to collection and to pro payout, not split.
   const { buildCustomerChargeMajor } = await import("@/lib/pricing");
+  const { getCalloutQuote } = await import("@/lib/server/callout/store");
+  const { attachCalloutToRequest, lockCalloutQuote } = await import(
+    "@/lib/server/callout/quote"
+  );
+  const { composeCustomerPayableMajor } = await import("@/lib/callout/payable");
+  let calloutQuote = await getCalloutQuote(job.id);
+  if (!calloutQuote || calloutQuote.calloutStatus === "PENDING") {
+    try {
+      await attachCalloutToRequest({
+        requestId: job.id,
+        problem: job.problem,
+        selectedTrade: job.serviceType,
+        destination: job.motoristLocation,
+        origin: job.proLocation,
+        proId: job.repairProId,
+      });
+      calloutQuote = await getCalloutQuote(job.id);
+    } catch {
+      /* optional */
+    }
+  }
+  if (calloutQuote?.calloutStatus === "CALCULATED") {
+    calloutQuote = (await lockCalloutQuote(job.id)) ?? calloutQuote;
+  }
   const pricing = buildCustomerChargeMajor(agreedMajor);
-  const amountMinor = toMinorUnits(pricing.totalMajor, currency);
+  const payable = composeCustomerPayableMajor(pricing.totalMajor, calloutQuote);
+  const amountMinor = toMinorUnits(payable.totalMajor, currency);
   const labourMinor = toMinorUnits(pricing.labourMajor, currency);
+  const calloutMinor = toMinorUnits(payable.calloutMajor, currency);
   const platformFeeMinor = toMinorUnits(pricing.platformFeeMajor, currency);
   const vatMinor = toMinorUnits(pricing.vatMajor, currency);
-  const proPayoutMinor = toMinorUnits(pricing.proPayoutMajor, currency);
+  const proPayoutMinor =
+    toMinorUnits(pricing.proPayoutMajor, currency) + calloutMinor;
   const split = { platformFeeMinor, proPayoutMinor, vatMinor };
   const reference = `ona_${job.id.replace(/-/g, "").slice(0, 12)}_${Date.now().toString(36)}`;
   const sessionEndsAt = new Date(Date.now() + PAYMENT_WINDOW_MS).toISOString();
@@ -3744,7 +3845,7 @@ export async function startJobEscrowPayment(input: {
       const shortNarration = `Ona escrow · ${proLabel}`.slice(0, 80);
       const customerNote = `For ${proLabel}. Pay into Ona escrow (account below). Funds are released after the job is confirmed. Transfer the exact amount only.`;
       const va = await createFlutterwaveBankTransfer({
-        amountMajor: pricing.totalMajor,
+        amountMajor: payable.totalMajor,
         currency,
         email: input.email,
         customerName: input.customerName || job.motoristName || null,
@@ -3835,9 +3936,11 @@ export async function startJobEscrowPayment(input: {
       providerRef: charge.reference,
       serviceType: job.serviceType,
       meta: {
-        labourOnly: true,
+        labourOnly: calloutMinor <= 0,
         labourMajor: pricing.labourMajor,
         labourMinor,
+        calloutMajor: payable.calloutMajor,
+        calloutMinor,
         /** Ona 5% of S (gross before FLW fees) — settles to Zenith / platform subaccount */
         platformFeeMajor: pricing.platformFeeMajor,
         platformFeeMinor,
@@ -3845,9 +3948,9 @@ export async function startJobEscrowPayment(input: {
         vatMajor: pricing.vatMajor,
         vatMinor,
         vatHeldOnFlutterwave: true,
-        chargeTotalMajor: pricing.totalMajor,
-        /** Pro net 87.5% of S */
-        proPayoutMajor: pricing.proPayoutMajor,
+        chargeTotalMajor: payable.totalMajor,
+        /** Pro net 87.5% of labour + 100% of call-out */
+        proPayoutMajor: pricing.proPayoutMajor + payable.calloutMajor,
         proPayoutMinor,
         settlementModel: "service_only_v2",
         platformSubaccount:
@@ -3898,7 +4001,7 @@ export async function startJobEscrowPayment(input: {
       /** Native in-app bank transfer (preferred) */
       useInAppBankTransfer: Boolean(bankTransfer),
       bankTransfer,
-      amountMajor: agreedMajor,
+      amountMajor: payable.totalMajor,
       currency,
     };
   } catch (e) {
@@ -3997,7 +4100,88 @@ export async function transitionJob(input: {
         etaSource: input.etaSource ?? job.etaSource,
       };
     }
+    if (input.event.type === "MARK_ARRIVED") {
+      const { isWithinArrivalProximity } = await import("@/lib/callout/arrival");
+      const pin = input.proLocation || job.proLocation;
+      if (!pin) {
+        return {
+          error:
+            "Turn on location so we can confirm you are with the customer.",
+        };
+      }
+      const near = isWithinArrivalProximity(pin, job.motoristLocation);
+      if (!near.ok) {
+        return {
+          error: `You need to be closer to the customer (within ${near.maxMeters} m) to mark arrived.`,
+        };
+      }
+    }
+
     const updated = await applyEvent(job, input.event, input.actor);
+    try {
+      const { syncCalloutStatusFromJob } = await import(
+        "@/lib/server/callout/quote"
+      );
+      await syncCalloutStatusFromJob({
+        requestId: updated.id,
+        flow: updated.status,
+      });
+      if (input.event.type === "START_TRIP") {
+        const { setCalloutTravelPhase } = await import(
+          "@/lib/server/callout/acceptance"
+        );
+        await setCalloutTravelPhase(updated.id, "travelling");
+      }
+      if (input.event.type === "CANCEL") {
+        const { setCalloutTravelPhase } = await import(
+          "@/lib/server/callout/acceptance"
+        );
+        const phase =
+          job.status === "arrived" || job.status === "in_progress"
+            ? "arrived"
+            : job.status === "en_route" || job.status === "paid_booked"
+              ? "travelling"
+              : "before_travel";
+        await setCalloutTravelPhase(updated.id, phase);
+      }
+      if (
+        input.event.type === "CANCEL" &&
+        input.actor === "repair_pro" &&
+        (job.status === "negotiating" ||
+          job.status === "waiting_for_pro" ||
+          job.status === "reserved" ||
+          job.status === "selected_review" ||
+          job.status === "waiting_for_selected")
+      ) {
+        const { voidCalloutForReroute } = await import(
+          "@/lib/server/callout/acceptance"
+        );
+        await voidCalloutForReroute(
+          updated.id,
+          "pro_cancelled_before_travel",
+          input.actorId || job.repairProId
+        );
+      }
+      if (input.event.type === "MARK_ARRIVED") {
+        const { recordArrivalIntegrity } = await import(
+          "@/lib/server/callout/acceptance"
+        );
+        await recordArrivalIntegrity({
+          requestId: updated.id,
+          proId: updated.repairProId,
+          gps: input.proLocation
+            ? {
+                lat: input.proLocation.lat,
+                lng: input.proLocation.lng,
+                capturedAt: new Date().toISOString(),
+              }
+            : null,
+          customer: updated.motoristLocation,
+        });
+      }
+    } catch {
+      /* call-out table optional */
+    }
     return { job: updated };
   } catch (e) {
     return {
@@ -4032,9 +4216,39 @@ export async function updateTripPartyLocation(input: {
   if (input.actor === "repair_pro") {
     next.proLocation = input.location;
     next.proLocationAt = ts;
+    try {
+      const { recordTravelSample } = await import(
+        "@/lib/server/callout/acceptance"
+      );
+      await recordTravelSample({
+        requestId: job.id,
+        proId: job.repairProId,
+        gps: {
+          lat: input.location.lat,
+          lng: input.location.lng,
+          capturedAt: ts,
+        },
+      });
+    } catch {
+      /* optional */
+    }
   } else {
     next.motoristLocation = input.location;
     next.motoristLocationAt = ts;
+    try {
+      const { detectCustomerLocationChange } = await import(
+        "@/lib/server/callout/acceptance"
+      );
+      await detectCustomerLocationChange({
+        requestId: job.id,
+        actorId: job.motoristId,
+        proId: job.repairProId,
+        newLat: input.location.lat,
+        newLng: input.location.lng,
+      });
+    } catch {
+      /* optional */
+    }
   }
   return persist(next);
 }

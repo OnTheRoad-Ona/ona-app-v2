@@ -23,11 +23,12 @@ const createSchema = z.object({
   motoristId: z.string().min(1),
   motoristName: z.string().min(1),
   motoristPhoto: z.string().optional().nullable(),
-  repairProId: z.string().min(1),
-  repairProName: z.string().min(1),
+  repairProId: z.string().min(1).optional().nullable(),
+  repairProName: z.string().optional(),
   repairProPhoto: z.string().optional(),
   serviceType: z.string(),
   problem: z.string().min(3).max(2000),
+  emergency: z.boolean().optional(),
   voiceNote: mediaSchema.nullable().optional(),
   photos: z.array(mediaSchema).optional(),
   currency: z
@@ -43,6 +44,10 @@ const createSchema = z.object({
   radiusKm: z.number().min(0).max(100).optional().nullable(),
   /** Client idempotency sticker — retries of the same request reuse it */
   clientRequestId: z.string().min(1).max(100).optional().nullable(),
+  atWorkshop: z.boolean().optional(),
+  remoteConsultation: z.boolean().optional(),
+  physicalAttendanceRequired: z.boolean().optional(),
+  calloutEligible: z.boolean().optional(),
 });
 
 export async function POST(req: Request) {
@@ -68,11 +73,12 @@ export async function POST(req: Request) {
       motoristName: b.motoristName,
       motoristPhoto: b.motoristPhoto || null,
       motoristVehicle: b.motoristVehicle || null,
-      repairProId: b.repairProId,
-      repairProName: b.repairProName,
+      repairProId: b.repairProId || "",
+      repairProName: b.repairProName || "",
       repairProPhoto: b.repairProPhoto,
       serviceType: b.serviceType,
       problem: b.problem.trim(),
+      emergency: b.emergency,
       voiceNote: (b.voiceNote as JobMedia) || null,
       photos: (b.photos as JobMedia[]) || [],
       currency: b.currency,
@@ -81,6 +87,10 @@ export async function POST(req: Request) {
       motoristLocation: { lat: b.lat, lng: b.lng },
       radiusKm: b.radiusKm ?? null,
       clientRequestId: b.clientRequestId || null,
+      atWorkshop: b.atWorkshop,
+      remoteConsultation: b.remoteConsultation,
+      physicalAttendanceRequired: b.physicalAttendanceRequired,
+      calloutEligible: b.calloutEligible,
     });
     return apiOk({ job, serverNow: new Date().toISOString() });
   } catch (e) {

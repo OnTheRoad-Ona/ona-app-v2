@@ -24,6 +24,8 @@ import {
   readOnlyChatHref,
 } from "@/lib/chat-expired";
 import { apiGetJob } from "@/lib/jobs/client";
+import { CalloutFeeLines } from "@/components/jobs/callout-fee-lines";
+import { useJobCallout } from "@/lib/callout/use-job-callout";
 import type { JobFlowStatus, JobOffer, JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
@@ -223,6 +225,7 @@ export default function RequestProcessPage({
   const stage = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const hairline = isLight ? "border-black/10" : "border-white/10";
   const backHref = isPro ? "/jobs" : "/history";
+  const calloutQuote = useJobCallout(job?.id);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -365,6 +368,14 @@ export default function RequestProcessPage({
               </span>
             </p>
           )}
+          <div className="mt-2">
+            <CalloutFeeLines
+              quote={calloutQuote}
+              currency={job.currency}
+              ink={ink}
+              muted={muted}
+            />
+          </div>
           <div className="mt-2 pt-1">
             <DetailRow
               label="Status"
