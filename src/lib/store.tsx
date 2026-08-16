@@ -840,9 +840,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
             undefined,
         };
         applySessionRef.current(sessionProfile);
-        // Re-assert server dual-role flags after applySession (vault must not win)
-        setHasMotoristAccount((prev) => prev || bootHasMotorist);
-        setHasProAccount((prev) => prev || bootHasPro);
+        // Dual Role label follows the server side-tables, not the vault.
+        setHasMotoristAccount(
+          flags.hasMotorist || profile.accountType === "motorist"
+        );
+        setHasProAccount(
+          flags.hasPro || profile.accountType === "professional"
+        );
       } catch {
         // Never force logout after first paint — keep whatever session is live
       } finally {
@@ -1162,13 +1166,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return null;
       }
 
-      setSwitchingRole(true);
+      // Check both sides BEFORE the full-screen overlay. That overlay used to
+      // unmount the menu, so "You don't have a Repair Pro account yet…" never
+      // appeared for a one-account tap.
       try {
-        // Refresh dual-role from server so stale local vault never blocks a real pro/motorist.
-        try {
-          const flags = await backendDualRoleFlags(backendUserId);
-        if (flags.hasMotorist) setHasMotoristAccount(true);
-        if (flags.hasPro) setHasProAccount(true);
+        const flags = await backendDualRoleFlags(backendUserId);
+        setHasMotoristAccount(flags.hasMotorist);
+        setHasProAccount(flags.hasPro);
         if (type === "motorist" && !flags.hasMotorist) {
           return "needs_signup";
         }
@@ -1176,7 +1180,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
           return "needs_signup";
         }
       } catch {
-        // Fall back to cached flags only if refresh fails
         if (type === "motorist" && !hasMotoristAccount) {
           return "needs_signup";
         }
@@ -1185,6 +1188,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      setSwitchingRole(true);
+      try {
       const res = await backendSwitchRole(type);
       if (res.error || !res.profile || !res.userId) {
         if (res.error === "needs_signup") {

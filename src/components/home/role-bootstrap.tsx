@@ -1,39 +1,52 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useApp } from "@/lib/store";
 
 const SESSION_KEY = "ona-first-open-done";
 
 /**
- * First open per browser tab: land a Repair Pro on the pro dashboard instead
- * of the default customer home at "/".
+ * Land a Repair Pro on the pro dashboard instead of the customer home.
  *
- * The decision waits for the AUTHORITATIVE role (`accountType`, applied from
- * the server profile) — never the stale `registeredAs` / ROLE_KEY from
- * localStorage. The effect re-runs when `accountType` resolves later (the
- * optimistic first paint can briefly carry a stale profile), so a pro is
- * still bounced to /dashboard once the server role arrives. Guests and
- * motorists stay on the customer home.
+ * Waits for the AUTHORITATIVE role (`accountType`). Redirects:
+ *  - first open of this tab as a Repair Pro
+ *  - when the role switches Customer → Repair Pro while still on "/"
+ *
+ * A Repair Pro who later opens "/" on purpose (map) is not bounced again
+ * unless they just switched into that role.
  */
 export function RoleBootstrap() {
   const { roleReady, accountType } = useApp();
   const router = useRouter();
   const pathname = usePathname();
+  const prevRole = useRef(accountType);
 
   useEffect(() => {
     if (!roleReady) return;
-    // Pros only — customers + guests keep the customer home.
+
+    const prev = prevRole.current;
+    prevRole.current = accountType;
+
     if (accountType !== "professional") return;
     if (pathname !== "/") return;
+
+    const justSwitchedToPro =
+      prev !== "professional" && accountType === "professional";
+
+    let firstOpen = false;
     try {
-      if (sessionStorage.getItem(SESSION_KEY) === "1") return;
-      sessionStorage.setItem(SESSION_KEY, "1");
+      if (sessionStorage.getItem(SESSION_KEY) !== "1") {
+        sessionStorage.setItem(SESSION_KEY, "1");
+        firstOpen = true;
+      }
     } catch {
-      /* storage blocked — still redirect */
+      firstOpen = true;
     }
-    router.replace("/dashboard");
+
+    if (firstOpen || justSwitchedToPro) {
+      router.replace("/dashboard");
+    }
   }, [roleReady, accountType, pathname, router]);
 
   return null;

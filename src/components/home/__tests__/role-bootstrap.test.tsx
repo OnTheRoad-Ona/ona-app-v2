@@ -97,4 +97,18 @@ describe("RoleBootstrap first-open landing", () => {
     rerender(<RoleBootstrap />);
     expect(nav.replace).toHaveBeenCalledTimes(1);
   });
+
+  it("redirects when the role switches to professional even if first-open already ran", async () => {
+    sessionStorage.setItem("ona-first-open-done", "1");
+    appState.accountType = "motorist";
+    const { rerender } = render(<RoleBootstrap />);
+    expect(nav.replace).not.toHaveBeenCalled();
+
+    await act(async () => {
+      appState.accountType = "professional";
+    });
+    rerender(<RoleBootstrap />);
+    expect(nav.replace).toHaveBeenCalledTimes(1);
+    expect(nav.replace).toHaveBeenCalledWith("/dashboard");
+  });
 });

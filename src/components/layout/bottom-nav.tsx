@@ -27,9 +27,10 @@ const items: {
 
 export function BottomNav() {
   const pathname = usePathname();
-  const { theme } = useApp();
+  const { theme, accountType } = useApp();
   const t = useT();
   const isLight = theme === "light";
+  const homeHref = accountType === "professional" ? "/dashboard" : "/";
 
   return (
     <nav
@@ -41,12 +42,15 @@ export function BottomNav() {
     >
       <ul className="flex items-stretch justify-between">
         {items.map(({ href, labelKey, icon: Icon }) => {
+          const to = href === "/" ? homeHref : href;
           const active =
-            href === "/" ? pathname === "/" : pathname.startsWith(href);
+            href === "/"
+              ? pathname === "/" || pathname === "/dashboard"
+              : pathname.startsWith(href);
           return (
             <li key={href} className="flex-1">
               <Link
-                href={href}
+                href={to}
                 className={cn(
                   "flex flex-col items-center gap-0.5 py-1 text-[10px] font-medium transition-colors",
                   active

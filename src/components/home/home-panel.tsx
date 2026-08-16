@@ -160,12 +160,13 @@ export function HomePanel({
   /** Address confirmed → show trade strip under the field (no chip). */
   const addressConfirmed = helpingSomeoneElse;
 
-  const isMotorist =
-    isAuthenticated &&
-    (accountType === "motorist" || accountType == null);
+  const isMotorist = isAuthenticated && accountType === "motorist";
 
   /** Repair Pro in professional mode — market shows ONLY their primary trade. */
   const isProMode = accountType === "professional";
+
+  /** Talk box for customers + guests. Never for Repair Pro. */
+  const showTalkBox = !isProMode;
 
   /**
    * Lower panel only: every home open when phone is still unverified
@@ -619,8 +620,8 @@ export function HomePanel({
         {/* Radius first (or specialty strip for Plumber/Carpenter/etc. until pick) */}
         {specialtyPickerOpen ? <SpecialtyFilterBar /> : <RadiusSlider />}
 
-        {/* Motorist: no nearby list. Pro / browse: keep filters. */}
-        {isMotorist ? null : <FilterChips />}
+        {/* Talk box home: no nearby list. Pro: keep filters. */}
+        {showTalkBox ? null : <FilterChips />}
       </div>
 
       {locationError && (
@@ -639,8 +640,8 @@ export function HomePanel({
         </div>
       )}
 
-      {/* Empty state — only when the nearby list still shows (not motorist talk box) */}
-      {!isMotorist && list.length === 0 && !showVerifyPanel && (
+      {/* Empty state — only when the nearby list still shows (not talk box) */}
+      {!showTalkBox && list.length === 0 && !showVerifyPanel && (
         <div
           className={cn(
             "shrink-0 overflow-hidden rounded-t-lg",
@@ -691,7 +692,7 @@ export function HomePanel({
             <HomeVerifyPanel message={verifyMessage} isLight={isLight} />
           </div>
         ) : null}
-        {isMotorist ? (
+        {showTalkBox ? (
           <NeedHelpDialogue isLight={isLight} />
         ) : list.length > 0 && (
           <div
@@ -765,7 +766,7 @@ export function HomePanel({
           </div>
         )}
 
-        {!isMotorist && !expanded && list.length > 0 && (
+        {!showTalkBox && !expanded && list.length > 0 && (
           <p
             className={cn(
               "py-2 text-center text-[10px]",

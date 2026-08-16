@@ -64,6 +64,9 @@ export function AppFrame({ children }: { children: ReactNode }) {
               {!switchingRole ? <InboundBanner /> : null}
               {!switchingRole ? <NotificationToasts /> : null}
               {/* No key={pathname}: remounting every route re-fired auth/GPS and felt like a loop */}
+              <div className="om-page-enter relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+                {children}
+              </div>
               {switchingRole ? (
                 <div
                   className="absolute inset-0 z-[220] flex flex-col items-center justify-center gap-3"
@@ -81,11 +84,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
                     Switching account…
                   </span>
                 </div>
-              ) : (
-                <div className="om-page-enter relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-                  {children}
-                </div>
-              )}
+              ) : null}
               <NotificationCenter />
             </div>
           </NotificationProvider>

@@ -429,10 +429,13 @@ export default function TechnicianDashboardPage() {
                       }
                       result = await switchAccount("professional");
                     }
-                    if (
+                    if (result === "needs_signup") {
+                      setSwitchErr(
+                        "You don't have a Repair Pro account yet. Finish signup to go Live and receive jobs."
+                      );
+                    } else if (
                       typeof result === "string" &&
-                      result !== "needs_login" &&
-                      result !== "needs_signup"
+                      result !== "needs_login"
                     ) {
                       setSwitchErr(result);
                     }
