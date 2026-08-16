@@ -206,7 +206,7 @@ export const EN = {
   "trade.body": "Body",
   "trade.electrical": "Electric",
   "trade.diagnostics": "Scan",
-  "trade.wash": "Wash",
+  "trade.fashion": "Fashion",
   "trade.plumber": "Plumber",
   "trade.carpenter": "Carpenter",
   "trade.painter": "Painter",

@@ -86,12 +86,12 @@ export const PROFESSION_FOCUS: Record<ProService, string[]> = {
     "Live data & sensors",
     "Pre-purchase inspection",
   ],
-  wash: [
-    "Exterior wash",
-    "Interior clean",
-    "Full detail",
-    "Polish & wax",
-    "Mobile home / office wash",
+  fashion: [
+    "Bespoke & custom tailoring",
+    "Alterations & fittings",
+    "Bridal & event wear",
+    "Native / traditional wear",
+    "Corporate & uniforms",
   ],
   plumber: [
     "Burst pipes & leaks",
@@ -304,13 +304,20 @@ export const PROFESSION_QUESTIONS: Record<ProService, ProfessionQuestion[]> = {
       maxSelect: 5,
     },
   ]),
-  wash: bank("wash", [
+  fashion: bank("fashion", [
     {
-      id: "wash_mode",
-      label: "Where do you wash vehicles?",
-      type: "select",
+      id: "fashion_scope",
+      label: "What fashion work do you do most?",
+      type: "multiselect",
       required: true,
-      options: ["At the customer’s place", "Fixed wash bay", "Both"],
+      options: [
+        "Bespoke tailoring",
+        "Alterations",
+        "Bridal wear",
+        "Native wear",
+        "Embroidery",
+      ],
+      maxSelect: 3,
     },
   ]),
   plumber: bank("plumber", [

@@ -201,7 +201,7 @@ export const ES: MessageDict = {
   "trade.body": "Carrocería",
   "trade.electrical": "Eléctrico",
   "trade.diagnostics": "Diag",
-  "trade.wash": "Lavado",
+  "trade.fashion": "Fashion",
   "trade.plumber": "Plomero",
   "trade.carpenter": "Carpintero",
   "trade.painter": "Pintor",

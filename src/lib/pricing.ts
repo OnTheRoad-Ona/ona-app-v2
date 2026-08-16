@@ -100,7 +100,7 @@ export function labourFeeDisclaimerForTrade(
     s === "battery" ||
     s === "body" ||
     s === "diagnostics" ||
-    s === "wash"
+    s === "fashion"
   ) {
     return "Labour / service fee only. Does not include spare parts, tyres, or motor parts.";
   }
@@ -150,8 +150,8 @@ export function problemPlaceholderForTrade(
       return "e.g. No power to outlets, wiring fault, or vehicle electrics dead";
     case "diagnostics":
       return "e.g. Check-engine light on, need full OBD scan";
-    case "wash":
-      return "e.g. Full exterior wash and interior vacuum";
+    case "fashion":
+      return "e.g. Custom dress fitting, alteration, or bespoke tailoring";
     case "plumber":
       return "e.g. Burst pipe under the kitchen sink, no water upstairs";
     case "carpenter":

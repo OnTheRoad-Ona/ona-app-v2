@@ -19,7 +19,7 @@ const TRADE_ALIASES: Record<string, string[]> = {
   electrical: ["wire", "alternator", "sensor", "electrical"],
   diagnostics: ["scan", "obd", "fault code", "diagnostic"],
   body: ["dent", "panel", "body", "bumper"],
-  wash: ["wash", "detail", "polish"],
+  fashion: ["fashion", "tailor", "sew", "dress", "fabric", "ankara"],
   towing: ["tow", "recovery", "winch"],
 };
 

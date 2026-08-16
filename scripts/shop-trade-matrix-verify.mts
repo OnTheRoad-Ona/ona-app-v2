@@ -23,7 +23,7 @@ const TRADES = [
   ["body", "paint"],
   ["electrical", "transformer"],
   ["diagnostics", "scanner"],
-  ["wash", "wash"],
+  ["fashion", "fabric"],
   ["plumber", "pump"],
   ["carpenter", "saw"],
   ["painter", "roller"],

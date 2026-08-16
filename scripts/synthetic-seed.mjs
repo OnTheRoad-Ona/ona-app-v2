@@ -52,7 +52,7 @@ const SERVICES = [
   "body",
   "electrical",
   "diagnostics",
-  "wash",
+  "fashion",
   "plumber",
   "carpenter",
   "painter",

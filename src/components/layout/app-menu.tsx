@@ -171,7 +171,7 @@ const TRADE_LABEL_KEY: Record<ProService, MessageKey> = {
   body: "trade.body",
   electrical: "trade.electrical",
   diagnostics: "trade.diagnostics",
-  wash: "trade.wash",
+  fashion: "trade.fashion",
   plumber: "trade.plumber",
   carpenter: "trade.carpenter",
   painter: "trade.painter",

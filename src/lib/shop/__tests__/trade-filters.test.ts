@@ -42,8 +42,8 @@ describe("trade filter engine", () => {
     expect(keys).not.toContain("fuelType");
   });
 
-  it("wash filters never include vehicle data", () => {
-    const c = getTradeFilterConfig("wash")!;
+  it("fashion filters never include vehicle data", () => {
+    const c = getTradeFilterConfig("fashion")!;
     expect(c.hasVehicleFitment).toBe(false);
     expect(c.filters.map((f) => f.key)).not.toContain("vehicleYear");
   });

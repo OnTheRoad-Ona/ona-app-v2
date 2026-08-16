@@ -201,7 +201,7 @@ export const SW: MessageDict = {
   "trade.body": "Mwili",
   "trade.electrical": "Umeme",
   "trade.diagnostics": "Uchunguzi",
-  "trade.wash": "Osha",
+  "trade.fashion": "Fashion",
   "trade.plumber": "Bomba",
   "trade.carpenter": "Seremala",
   "trade.painter": "Rangi",

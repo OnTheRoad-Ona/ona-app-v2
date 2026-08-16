@@ -8,7 +8,7 @@ export type ProServiceDb =
   | "body"
   | "electrical"
   | "diagnostics"
-  | "wash"
+  | "fashion"
   | "plumber"
   | "carpenter"
   | "painter"

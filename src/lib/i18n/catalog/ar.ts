@@ -201,7 +201,7 @@ export const AR: MessageDict = {
   "trade.body": "هيكل",
   "trade.electrical": "كهرباء",
   "trade.diagnostics": "فحص",
-  "trade.wash": "غسيل",
+  "trade.fashion": "Fashion",
   "trade.plumber": "سباك",
   "trade.carpenter": "نجار",
   "trade.painter": "دهان",

@@ -201,7 +201,7 @@ export const YO: MessageDict = {
   "trade.body": "Ara",
   "trade.electrical": "Iná",
   "trade.diagnostics": "Àyẹ̀wò",
-  "trade.wash": "Fọ",
+  "trade.fashion": "Fashion",
   "trade.plumber": "Onípaipu",
   "trade.carpenter": "Gbẹ́nà",
   "trade.painter": "Aláwọ̀",

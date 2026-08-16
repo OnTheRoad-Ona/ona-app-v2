@@ -137,14 +137,14 @@ export const SPECIALTIES_BY_SKILL: Record<ProService, readonly string[]> = {
     "Live data",
     "ECU check",
   ],
-  wash: [
-    "Exterior wash",
-    "Interior clean",
-    "Full detail",
-    "Polish",
-    "Engine bay",
-    "Underbody",
-    "Wax",
+  fashion: [
+    "Bespoke tailoring",
+    "Alterations",
+    "Bridal wear",
+    "Corporate wear",
+    "Dress making",
+    "Embroidery",
+    "Native/traditional wear",
   ],
   plumber: [
     "Residential (Homes)",
@@ -212,7 +212,7 @@ export const SKILL_AGREEMENTS: Record<ProService, string> = {
     "By completing this process, you agree you can fix all electrical and wiring works of the selected motor brand(s).",
   diagnostics:
     "By completing this process, you agree you can run full diagnostics and scan works of the selected motor brand(s).",
-  wash: "By completing this process, you agree you can provide full wash and detailing for the selected motor brand(s).",
+  fashion: "By completing this process, you agree you can provide fashion design and tailoring services for the jobs you accept.",
   plumber:
     "By completing this process, you agree you can handle plumbing and water works for the jobs you accept.",
   carpenter:
@@ -463,14 +463,14 @@ export const SKILL_FLOWS: Record<ProService, SkillFlow> = {
       },
     ],
   }),
-  wash: withCertAndSpecialties({
-    skill: "wash",
-    title: "Car wash details",
-    intro: SKILL_AGREEMENTS.wash,
+  fashion: withCertAndSpecialties({
+    skill: "fashion",
+    title: "Fashion design details",
+    intro: SKILL_AGREEMENTS.fashion,
     questions: [
       {
         id: "mobile",
-        label: "Do you wash at the customer location?",
+        label: "Do you visit customers for fittings?",
         type: "select",
         required: true,
         public: true,
@@ -478,7 +478,7 @@ export const SKILL_FLOWS: Record<ProService, SkillFlow> = {
       },
       {
         id: "callout",
-        label: "Can you work at night or on weekends?",
+        label: "Can you work evenings or at weekends?",
         type: "select",
         required: true,
         public: true,

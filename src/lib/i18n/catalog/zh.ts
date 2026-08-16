@@ -201,7 +201,7 @@ export const ZH: MessageDict = {
   "trade.body": "钣金",
   "trade.electrical": "电路",
   "trade.diagnostics": "诊断",
-  "trade.wash": "洗车",
+  "trade.fashion": "Fashion",
   "trade.plumber": "水管",
   "trade.carpenter": "木工",
   "trade.painter": "油漆",

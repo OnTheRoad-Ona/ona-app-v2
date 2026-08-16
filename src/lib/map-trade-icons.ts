@@ -35,8 +35,8 @@ function tradeGlyph(type: ProService, color: string): string {
       return `<path ${stroked} d="M9 3v5M15 3v5M8 8h8v3.5a4 4 0 0 1-8 0V8zM12 15.5V21"/>`;
     case "diagnostics":
       return `<rect ${dual} x="5" y="5" width="14" height="14" rx="1.5"/><rect ${dual} x="9" y="9" width="6" height="6" rx="0.5"/><path ${stroked} d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/>`;
-    case "wash":
-      return `<path ${filled} d="M8 14.5c1.7 0 3-1.4 3-3.1 0-2.2-3-5.4-3-5.4s-3 3.2-3 5.4c0 1.7 1.3 3.1 3 3.1z"/><path ${filled} d="M15.5 18c1.4 0 2.5-1.1 2.5-2.5 0-1.8-2.5-4.5-2.5-4.5s-2.5 2.7-2.5 4.5c0 1.4 1.1 2.5 2.5 2.5z"/>`;
+    case "fashion":
+      return `<path ${stroked} d="M4 20 14.5 9.5M8 16l5-5"/><path ${stroked} d="M20 4 8 16a3 3 0 0 1-4.2 0"/>`;
     case "plumber":
       return `<path ${stroked} d="M12 3v4M8 7h8"/><path ${stroked} d="M9 11v7a3 3 0 0 0 6 0v-7"/><path ${stroked} d="M9 14h6"/>`;
     case "carpenter":

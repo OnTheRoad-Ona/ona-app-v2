@@ -107,7 +107,7 @@ export function ShopVehicleBar({
 
   // Vehicle fitment belongs ONLY to vehicle-based trades (mechanic, body,
   // diagnostics, etc.). Non-vehicle trades (solar, plumber, carpenter,
-  // generator, painter, wash) never render the garage / ALL PARTS bar.
+  // generator, painter, fashion) never render the garage / ALL PARTS bar.
   if (tradeKey && !isVehicleTrade(tradeKey)) return null;
 
   return (

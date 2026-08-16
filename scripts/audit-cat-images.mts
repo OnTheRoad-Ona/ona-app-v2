@@ -7,7 +7,7 @@ const sb = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
-const trades = ["mechanic","vulcanizer","towing","battery","ac","body","electrical","diagnostics","wash","plumber","carpenter","painter","solar","generator"];
+const trades = ["mechanic","vulcanizer","towing","battery","ac","body","electrical","diagnostics","fashion","plumber","carpenter","painter","solar","generator"];
 
 for (const t of trades) {
   const { data: prods } = await sb

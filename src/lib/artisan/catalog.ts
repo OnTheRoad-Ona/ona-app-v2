@@ -113,15 +113,16 @@ export const ARTISAN_TRADE_CATALOG: ArtisanTradeDef[] = [
     ],
   },
   {
-    service: "wash",
-    label: "Wash",
-    homeLabel: "Wash",
-    description: "Vehicle wash and detailing",
+    service: "fashion",
+    label: "Fashion",
+    homeLabel: "Fashion",
+    description: "Fashion design and tailoring",
     specialties: [
-      "Vehicle Wash",
-      "Full Detail",
-      "Mobile Wash",
-      "Fleet Wash",
+      "Bespoke Tailoring",
+      "Bridal & Event Wear",
+      "Native / Traditional Wear",
+      "Corporate & Uniforms",
+      "Alterations",
     ],
   },
   {
@@ -239,7 +240,6 @@ export const AUTOMOTIVE_TRADES: readonly ProService[] = [
   "battery",
   "body",
   "diagnostics",
-  "wash",
 ] as const;
 
 export function isAutomotiveTrade(

@@ -61,7 +61,7 @@ const TRADE_SEARCH_EXAMPLES: Record<string, string> = {
   body: "bumper, panel",
   electrical: "alternator, wiring",
   diagnostics: "scanner, fault code",
-  wash: "foam, polish",
+  fashion: "fabric, thread, sewing machine",
   plumber: "pipe, faucet",
   carpenter: "timber, hinge",
   painter: "paint, roller",

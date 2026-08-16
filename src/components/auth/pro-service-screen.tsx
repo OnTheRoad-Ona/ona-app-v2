@@ -6,7 +6,7 @@ import {
   Car,
   ChevronLeft,
   CircleDot,
-  Droplets,
+  Scissors,
   Wrench,
 } from "lucide-react";
 import { BrandHeroMotion } from "@/components/auth/brand-hero-motion";
@@ -39,10 +39,10 @@ const PRO_SERVICES: {
     icon: Car,
   },
   {
-    id: "wash",
-    label: "Car Wash",
-    hint: "Wash, clean and polish",
-    icon: Droplets,
+    id: "fashion",
+    label: "Fashion Designer",
+    hint: "Fashion design and tailoring",
+    icon: Scissors,
   },
 ];
 

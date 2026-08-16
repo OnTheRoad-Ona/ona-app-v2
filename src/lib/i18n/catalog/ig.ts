@@ -201,7 +201,7 @@ export const IG: MessageDict = {
   "trade.body": "Ahụ",
   "trade.electrical": "Ọkụ",
   "trade.diagnostics": "Nyocha",
-  "trade.wash": "Saa",
+  "trade.fashion": "Fashion",
   "trade.plumber": "Onye ọkpụkpọ",
   "trade.carpenter": "Onye ọkpụ osisi",
   "trade.painter": "Onye ese ihe",

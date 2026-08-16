@@ -161,7 +161,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       "body",
       "electrical",
       "diagnostics",
-      "wash",
+      "fashion",
       "plumber",
       "carpenter",
       "painter",

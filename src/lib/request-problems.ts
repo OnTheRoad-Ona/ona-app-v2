@@ -75,12 +75,12 @@ const BY_SKILL: Record<ProService, string[]> = {
     "Error code diagnosis",
     OTHER,
   ],
-  wash: [
-    "Exterior wash",
-    "Interior clean",
-    "Full detail",
-    "Polish / wax",
-    "Engine bay clean",
+  fashion: [
+    "Custom dress making",
+    "Alterations / fitting",
+    "Native wear",
+    "Repair / restitching",
+    "Corporate / uniform",
     OTHER,
   ],
   plumber: [

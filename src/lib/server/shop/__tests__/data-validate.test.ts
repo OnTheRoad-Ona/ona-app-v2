@@ -113,8 +113,8 @@ describe("validateTradeAttributes", () => {
     expect(r.valid).toBe(true);
   });
 
-  it("vehicle fitment is forbidden for wash", () => {
-    const r = validateTradeAttributes("wash", { vehicleMake: "Toyota" });
+  it("vehicle fitment is forbidden for fashion", () => {
+    const r = validateTradeAttributes("fashion", { vehicleMake: "Toyota" });
     expect(r.valid).toBe(false);
   });
 

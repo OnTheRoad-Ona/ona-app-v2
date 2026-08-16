@@ -70,7 +70,10 @@ export function ProPublicView({
             electrical: "electrical",
             scan: "diagnostics",
             diagnostics: "diagnostics",
-            wash: "wash",
+            wash: "fashion",
+            fashion: "fashion",
+            tailor: "fashion",
+            sewing: "fashion",
           };
           const hit = Object.entries(map).find(([k]) => s.includes(k));
           return hit?.[1] ? [hit[1]] : [];

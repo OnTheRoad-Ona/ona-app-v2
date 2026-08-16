@@ -157,9 +157,11 @@ const CURATED: Record<string, string> = {
   // electrical
   alternators: "Alternator", starters: "Starter (engine)", wiring: "Electrical wiring",
   "ignition-coils": "Ignition coil",
-  // wash
-  "pressure-washers": "Pressure washer", "foam-cannons": "Foam cannon", vacuum: "Vacuum cleaner",
-  hoses: "Garden hose", nozzles: "Nozzle", brushes: "Broom",
+  // fashion
+  "fabrics-textiles": "Fabric (textile)", "sewing-machines": "Sewing machine", "sewing-tools-accessories": "Sewing tools",
+  threads: "Thread (yarn)", "buttons-fasteners": "Buttons", zippers: "Zipper", patterns: "Sewing pattern",
+  "trims-laces": "Lace", "embroidery-supplies": "Embroidery", "mannequins-display": "Mannequin",
+  "tailoring-equipment": "Tailoring", "garments-uniforms": "Clothing",
   // plumber
   taps: "Tap (valve)", sinks: "Sink", toilets: "Toilet", "water-heaters": "Water heating",
   pipes: "Pipe (fluid conveyance)", valves: "Valve", pumps: "Pump",
@@ -187,7 +189,7 @@ const CURATED: Record<string, string> = {
 const TRADE_FALLBACK: Record<string, string> = {
   mechanic: "Auto mechanic", vulcanizer: "Tire", towing: "Tow truck", battery: "Car battery",
   ac: "Air conditioning", body: "Car", electrical: "Electrical wiring", diagnostics: "OBD-II diagnostics",
-  wash: "Car wash", plumber: "Plumbing", carpenter: "Woodworking", painter: "Painting",
+  fashion: "Fashion", plumber: "Plumbing", carpenter: "Woodworking", painter: "Painting",
   solar: "Solar energy", generator: "Generator",
 };
 

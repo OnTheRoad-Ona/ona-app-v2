@@ -201,7 +201,7 @@ export const HA: MessageDict = {
   "trade.body": "Jiki",
   "trade.electrical": "Wuta",
   "trade.diagnostics": "Bincike",
-  "trade.wash": "Wanke",
+  "trade.fashion": "Fashion",
   "trade.plumber": "Mai famfo",
   "trade.carpenter": "Masassaki",
   "trade.painter": "Mai fenti",

@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     }
     const trades = [
       "mechanic", "vulcanizer", "towing", "ac", "battery", "body",
-      "electrical", "diagnostics", "wash", "plumber", "carpenter",
+      "electrical", "diagnostics", "fashion", "plumber", "carpenter",
       "painter", "solar", "generator",
     ];
     const configs = trades

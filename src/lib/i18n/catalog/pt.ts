@@ -201,7 +201,7 @@ export const PT: MessageDict = {
   "trade.body": "Chapa",
   "trade.electrical": "Elétrica",
   "trade.diagnostics": "Diag",
-  "trade.wash": "Lavagem",
+  "trade.fashion": "Fashion",
   "trade.plumber": "Canalizador",
   "trade.carpenter": "Carpinteiro",
   "trade.painter": "Pintor",

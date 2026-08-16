@@ -5,7 +5,7 @@
  * dictionary for validation, filters, and fixtures.
  *
  * Vehicle fitment attributes are ONLY valid for vehicle-based trades;
- * solar/plumber/carpenter/painter/generator/wash never require them.
+ * solar/plumber/carpenter/painter/generator/fashion never require them.
  */
 
 import type { ShopTradeKey } from "@/lib/shop/taxonomy";
@@ -161,15 +161,16 @@ export const TRADE_ATTRIBUTE_SCHEMAS: TradeAttributeSchema[] = [
     ],
   },
   {
-    tradeKey: "wash",
+    tradeKey: "fashion",
     vehicleForbidden: true,
     vehicleFitmentKeys: [],
     attributes: [
-      { key: "pressure", label: "Pressure", type: "number", unit: "PSI", filterable: true },
-      { key: "flowRate", label: "Flow rate", type: "number", unit: "L/min", filterable: true },
-      { key: "powerSource", label: "Power source", type: "enum", filterable: true, options: ["Electric", "Petrol", "Manual", "Battery"] },
-      { key: "application", label: "Application", type: "enum", filterable: true, options: ["Vehicle wash", "Detailing", "Interior", "Exterior", "Commercial"] },
-      { key: "capacity", label: "Capacity", type: "number", unit: "L", filterable: true },
+      { key: "fabricType", label: "Fabric type", type: "enum", filterable: true, options: ["Cotton", "Linen", "Silk", "Polyester", "Ankara", "Lace", "Wool", "Denim"] },
+      { key: "fabricWidth", label: "Fabric width", type: "number", unit: "m", filterable: true },
+      { key: "size", label: "Size", type: "enum", filterable: true, options: ["XS", "S", "M", "L", "XL", "XXL", "Custom"] },
+      { key: "color", label: "Color", type: "enum", filterable: true, options: ["Black", "White", "Red", "Blue", "Green", "Gold", "Multi"] },
+      { key: "machineType", label: "Machine type", type: "enum", filterable: true, options: ["Manual", "Electric", "Industrial", "Overlock", "Computerized"] },
+      { key: "application", label: "Application", type: "enum", filterable: true, options: ["Bespoke", "Alterations", "Bridal", "Native", "Corporate", "Embroidery"] },
     ],
   },
   {
