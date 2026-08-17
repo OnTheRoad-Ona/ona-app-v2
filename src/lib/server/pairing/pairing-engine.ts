@@ -12,7 +12,7 @@
 
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
-import { NEGOTIATE_WINDOW_MS } from "@/lib/jobs/constants";
+import { NEGOTIATE_WINDOW_MS, SECOND_PRO_DELAY_MS } from "@/lib/jobs/constants";
 import { windowLeftMs } from "@/lib/jobs/deadline";
 import { hasRecentLiveHeartbeat, MAX_RADIUS_KM } from "@/lib/matching";
 import { orderCandidatesByMerit } from "@/lib/server/merit/merit-engine";
@@ -825,6 +825,15 @@ export async function confirmRequest(
   const { recalculateMerit } = await import("@/lib/server/merit/merit-engine");
   void recalculateMerit(proId);
 
+  // "Add another repair pro": a linked scheduled second request (Tow) becomes
+  // dispatchable 60 min after this acceptance. Armed once — the sweep only
+  // touches requests whose scheduled_dispatch_at is still NULL.
+  try {
+    await armLinkedScheduledDispatch(sb, row.id, ts);
+  } catch (e) {
+    console.error("[second-pro] arm linked dispatch failed", e);
+  }
+
   try {
     const { lockCalloutOnAcceptance } = await import(
       "@/lib/server/callout/acceptance"
@@ -1060,6 +1069,158 @@ export async function timeoutRequest(jobId: string): Promise<PairingResult> {
 
   const next = await advancePairing(jobId);
   return { ok: true, jobId: row.id, currentProId: null, nextProId: next.ok ? next.currentProId ?? null : null };
+}
+
+/**
+ * "Add another repair pro": arm a linked scheduled second request so it becomes
+ * dispatchable now + SECOND_PRO_DELAY_MS (60 min after the primary's pro accepts).
+ * CAS on `flow_status = 'scheduled' AND scheduled_dispatch_at IS NULL` — never
+ * re-arms and never touches an already-dispatched/cancelled linked request.
+ */
+async function armLinkedScheduledDispatch(
+  sb: ReturnType<typeof createServiceSupabase>,
+  primaryRequestId: string,
+  ts: string
+): Promise<void> {
+  await sb
+    .from("service_requests")
+    .update({
+      scheduled_dispatch_at: new Date(Date.now() + SECOND_PRO_DELAY_MS).toISOString(),
+      updated_at: ts,
+    })
+    .eq("linked_request_id", primaryRequestId)
+    .eq("flow_status", "scheduled")
+    .is("scheduled_dispatch_at", null);
+}
+
+const SCHEDULED_CANCELLED_STATUSES = ["cancelled", "expired", "refunded"] as const;
+
+/**
+ * Scheduled-dispatch sweep for "add another repair pro" (runs ~1/min alongside
+ * sweepPairing). For each linked request still `scheduled`:
+ *  - primary cancelled/expired first → cancel the second silently (no ping);
+ *  - dispatch time reached and motorist not yet pinged → notify ONCE (in-app +
+ *    web push) to enter their current address; the /dispatch-scheduled endpoint
+ *    then books the second pro.
+ */
+export async function sweepScheduledDispatches(limit = 50): Promise<{
+  checked: number;
+  cancelled: number;
+  notified: number;
+}> {
+  let checked = 0;
+  let cancelled = 0;
+  let notified = 0;
+  if (!isSupabaseAdminConfigured()) return { checked, cancelled, notified };
+  try {
+    const sb = createServiceSupabase();
+    const { data: rows } = await sb
+      .from("service_requests")
+      .select(
+        "id, linked_request_id, scheduled_dispatch_at, dispatch_notified_at, motorist_id, service_type, problem, pickup_address, status_history"
+      )
+      .eq("flow_status", "scheduled")
+      .not("linked_request_id", "is", null)
+      .order("scheduled_dispatch_at", { ascending: true, nullsFirst: false })
+      .limit(limit);
+    if (!rows?.length) return { checked, cancelled, notified };
+
+    for (const row of rows) {
+      checked += 1;
+      const secondId = String(row.id);
+      const primaryId = String(row.linked_request_id);
+      try {
+        // Primary's current terminal-ish state decides the second request's fate.
+        const { data: primary } = await sb
+          .from("service_requests")
+          .select("flow_status, status")
+          .eq("id", primaryId)
+          .maybeSingle();
+        const primaryFlow = String(primary?.flow_status || primary?.status || "");
+        if (SCHEDULED_CANCELLED_STATUSES.includes(
+          primaryFlow as (typeof SCHEDULED_CANCELLED_STATUSES)[number]
+        )) {
+          const ts = nowIso();
+          const prior = Array.isArray(row.status_history)
+            ? (row.status_history as object[])
+            : [];
+          const updated = await sb
+            .from("service_requests")
+            .update({
+              flow_status: "cancelled",
+              status: "cancelled",
+              cancelled_at: ts,
+              updated_at: ts,
+              status_history: [
+                ...prior,
+                { status: "cancelled", at: ts, by: "second_pro_cancelled" },
+              ],
+            })
+            .eq("id", secondId)
+            .eq("flow_status", "scheduled");
+          if (!updated.error) cancelled += 1;
+          continue;
+        }
+
+        const at = row.scheduled_dispatch_at ? Date.parse(String(row.scheduled_dispatch_at)) : NaN;
+        const alreadyNotified = Boolean(row.dispatch_notified_at);
+        if (!Number.isFinite(at) || alreadyNotified || Date.now() < at) continue;
+
+        // Dispatch time reached → ping the motorist ONCE to enter their address.
+        const ts = nowIso();
+        const flip = await sb
+          .from("service_requests")
+          .update({
+            dispatch_notified_at: ts,
+            updated_at: ts,
+          })
+          .eq("id", secondId)
+          .eq("flow_status", "scheduled")
+          .is("dispatch_notified_at", null)
+          .select("id");
+        if (flip.error || !flip.data?.length) continue;
+
+        const trade = String(row.service_type || "mechanic");
+        const title = `Your ${trade} pro is ready`;
+        const body = "Enter your current address to book them now.";
+        try {
+          const { insertNotification } = await import("@/lib/server/notifications");
+          await insertNotification({
+            userId: String(row.motorist_id),
+            category: "requests",
+            priority: "high",
+            title,
+            body,
+            href: `/jobs/${secondId}`,
+            actionType: "open_job",
+            actionPayload: { jobId: secondId },
+            jobId: secondId,
+            jobStatus: "scheduled",
+            groupKey: `scheduled-dispatch-${secondId}`,
+          });
+        } catch {
+          /* optional */
+        }
+        try {
+          const { sendPushToUser } = await import("@/lib/server/push/webpush");
+          await sendPushToUser(String(row.motorist_id), {
+            title,
+            body,
+            url: `/jobs/${secondId}`,
+            tag: `scheduled-dispatch-${secondId}`,
+          });
+        } catch {
+          /* optional */
+        }
+        notified += 1;
+      } catch (e) {
+        console.error("[second-pro] sweep row failed", secondId, e);
+      }
+    }
+  } catch (e) {
+    console.error("[second-pro] sweep failed", e);
+  }
+  return { checked, cancelled, notified };
 }
 
 /** Enforce all expired pairing deadlines (Vercel cron / pg_cron / expire-stale). */

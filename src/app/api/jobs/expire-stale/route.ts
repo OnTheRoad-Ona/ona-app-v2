@@ -106,6 +106,24 @@ async function run(req: Request) {
       }
     }
 
+    // "Add another repair pro": notify the motorist when a linked scheduled
+    // request's 60-min dispatch mark is reached; silently cancel it if the
+    // primary tow request was cancelled/expired first. Runs on the same
+    // ~1/min cadence as the pairing sweep above.
+    let scheduledDispatchResult: {
+      checked: number;
+      cancelled: number;
+      notified: number;
+    } | null = null;
+    try {
+      const { sweepScheduledDispatches } = await import(
+        "@/lib/server/pairing/pairing-engine"
+      );
+      scheduledDispatchResult = await sweepScheduledDispatches(50);
+    } catch (e) {
+      console.error("sweepScheduledDispatches in expire-stale", e);
+    }
+
     let payoutRetry: {
       checked: number;
       succeeded: number;
@@ -125,6 +143,7 @@ async function run(req: Request) {
       ...result,
       unaccepted: unacceptedResult,
       pairing: pairingResult,
+      scheduledDispatch: scheduledDispatchResult,
       payoutRetry,
       rule:
         "Agreed unpaid: payment details expire after 11 min; Booked not completed within 6h: cancel + refund; Completed 6h: auto-release pro 87.5%; PENDING_SETTLEMENT: auto-retry when FLW Available is enough",

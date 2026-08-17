@@ -12,6 +12,8 @@ import { useRouter } from "next/navigation";
 import { CategoryTabs } from "@/components/home/category-tabs";
 import { FilterChips } from "@/components/home/filter-chips";
 import { MechanicHelpFlow } from "@/components/home/mechanic-help-flow";
+import { VulcanizerHelpFlow } from "@/components/home/vulcanizer-help-flow";
+import { TowHelpFlow } from "@/components/home/tow-help-flow";
 import { NeedHelpDialogue } from "@/components/home/need-help-dialogue";
 import { RadiusSlider } from "@/components/home/radius-slider";
 import { SpecialtyFilterBar } from "@/components/home/specialty-filter-bar";
@@ -170,7 +172,14 @@ export function HomePanel({
   /** Talk box only after they tap a trade. Never for Repair Pro. */
   const tradeChosen = talkBoxAfterTradePick(category);
   const isMechanicFlow = !isProMode && category === "mechanic";
-  const showTalkBox = !isProMode && tradeChosen && !isMechanicFlow;
+  const isVulcanizerFlow = !isProMode && category === "vulcanizer";
+  const isTowFlow = !isProMode && category === "towing";
+  const showTalkBox =
+    !isProMode &&
+    tradeChosen &&
+    !isMechanicFlow &&
+    !isVulcanizerFlow &&
+    !isTowFlow;
 
   /**
    * Lower panel only: every home open when phone is still unverified
@@ -607,7 +616,6 @@ export function HomePanel({
                 onExpand={onExpand}
                 onCollapse={onCollapse}
                 menuOpen={menuOpen}
-                compact={isMechanicFlow}
               />
             )}
           </>
@@ -619,12 +627,14 @@ export function HomePanel({
             onSwipeLeft={isMotorist ? openHelpSomeone : undefined}
             onOpenHelp={isMotorist ? openHelpSomeone : undefined}
             menuOpen={menuOpen}
-            compact={isMechanicFlow}
           />
         ) : null}
 
-        {/* Mechanic: no radius — Repair Pro is found by urgency. */}
-        {isProMode || (tradeChosen && !isMechanicFlow) ? <RadiusSlider /> : null}
+        {/* Mechanic / Vulcanizer / Tow: no radius — Repair Pro is found by urgency. */}
+        {isProMode ||
+        (tradeChosen && !isMechanicFlow && !isVulcanizerFlow && !isTowFlow) ? (
+          <RadiusSlider />
+        ) : null}
         {isProMode && specialtyPickerOpen ? <SpecialtyFilterBar /> : null}
         {isProMode ? <FilterChips /> : null}
       </div>
@@ -694,7 +704,7 @@ export function HomePanel({
       <div
         className={cn(
           "min-h-0 flex-1 px-3 pb-0",
-          showTalkBox || isMechanicFlow
+          showTalkBox || isMechanicFlow || isVulcanizerFlow || isTowFlow
             ? "flex flex-col overflow-hidden"
             : "overflow-y-auto overscroll-contain scrollbar-hide"
         )}
@@ -706,7 +716,24 @@ export function HomePanel({
         ) : null}
         {isMechanicFlow ? (
           <div className="flex min-h-0 flex-1 flex-col">
-            <MechanicHelpFlow isLight={isLight} />
+            <MechanicHelpFlow
+              isLight={isLight}
+              onExit={() => setCategory("none")}
+            />
+          </div>
+        ) : isVulcanizerFlow ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <VulcanizerHelpFlow
+              isLight={isLight}
+              onExit={() => setCategory("none")}
+            />
+          </div>
+        ) : isTowFlow ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <TowHelpFlow
+              isLight={isLight}
+              onExit={() => setCategory("none")}
+            />
           </div>
         ) : showTalkBox ? (
           <div className="flex min-h-0 flex-1 flex-col">

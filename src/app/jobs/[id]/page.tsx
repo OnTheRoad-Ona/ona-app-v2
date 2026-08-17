@@ -49,6 +49,9 @@ function JobPageInner() {
   useEffect(() => {
     let cancelled = false;
     if (!id || !actorId || !authReady || !isAuthenticated) return;
+    // `/jobs/new` has no job yet — JobFlowScreen creates it in the background.
+    // Fetching "new" 404s and would bounce us to the dashboard mid-search.
+    if (id === "new") return;
     void (async () => {
       const res = await apiGetJob(id);
       if (cancelled) return;

@@ -24,6 +24,14 @@ export const PAIRING_WINDOW_MS = 66 * 1000;
 export const MAX_PAIRING_OFFERS_PER_WAVE = 6;
 
 /**
+ * Tow "add another repair pro": the linked second request is armed this long
+ * after the FIRST request's pro accepts (60 minutes). The scheduled-dispatch
+ * sweep notifies the motorist once ASAP after this mark; if the first request
+ * is cancelled or expires first, the second request is cancelled silently.
+ */
+export const SECOND_PRO_DELAY_MS = 60 * 60 * 1000;
+
+/**
  * Customer pairing status line under the timer.
  * e.g. "1 Mechanic is near you" / "3 Mechanics are near you"
  */

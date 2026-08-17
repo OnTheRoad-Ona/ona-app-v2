@@ -228,6 +228,31 @@ export async function apiGetJob(id: string) {
   return last;
 }
 
+/**
+ * Tow "add another repair pro": dispatch a linked scheduled request by sending
+ * the motorist's current address. Books the first pro of that trade.
+ */
+export async function apiDispatchScheduled(input: {
+  jobId: string;
+  locationLabel: string;
+  lat: number;
+  lng: number;
+}) {
+  const res = await jobFetch(
+    `/api/jobs/${encodeURIComponent(input.jobId)}/dispatch-scheduled`,
+    {
+      method: "POST",
+      cache: "no-store",
+      body: JSON.stringify({
+        locationLabel: input.locationLabel,
+        lat: input.lat,
+        lng: input.lng,
+      }),
+    }
+  );
+  return parse<{ job: JobRecord }>(res);
+}
+
 export async function apiGetCallout(jobId: string) {
   const res = await jobFetch(`/api/jobs/${encodeURIComponent(jobId)}/callout`);
   return parse<{

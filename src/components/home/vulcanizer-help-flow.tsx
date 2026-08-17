@@ -9,18 +9,18 @@ import type { JobMedia } from "@/lib/jobs/types";
 import { compressImageFile } from "@/lib/image-compress";
 import type { CalloutUrgencyKind } from "@/lib/callout/urgency";
 import {
-  applyConfirmChoice,
+  applyVulcanizerConfirmChoice,
   canAdvanceText,
-  composeMechanicProblem,
+  composeVulcanizerProblem,
   confirmQuestion,
-  MECHANIC_FINAL_COPY,
-  MECHANIC_MAX_PHOTOS,
-  MECHANIC_START_OPTIONS,
-  mechanicScreen,
-  nextMechanicScreen,
-  resolveMechanicRoute,
-  type MechanicRoute,
-} from "@/lib/mechanic/question-tree";
+  VULCANIZER_FINAL_COPY,
+  VULCANIZER_MAX_PHOTOS,
+  VULCANIZER_START_OPTIONS,
+  vulcanizerScreen,
+  nextVulcanizerScreen,
+  resolveVulcanizerRoute,
+  type VulcanizerRoute,
+} from "@/lib/vulcanizer/question-tree";
 import {
   formatVehicleLabel,
   JobVehicleStep,
@@ -38,25 +38,25 @@ const URGENCY_CHIPS: {
   label: string;
   fee: string;
 }[] = [
-  { id: "normal", label: MECHANIC_FINAL_COPY.normal, fee: "1x · base + call-out" },
-  { id: "emergency", label: MECHANIC_FINAL_COPY.emergency, fee: "1.25x" },
-  { id: "remote", label: MECHANIC_FINAL_COPY.remote, fee: "1.35x" },
-  { id: "night", label: MECHANIC_FINAL_COPY.night, fee: "1.5x" },
+  { id: "normal", label: VULCANIZER_FINAL_COPY.normal, fee: "1x · base + call-out" },
+  { id: "emergency", label: VULCANIZER_FINAL_COPY.emergency, fee: "1.25x" },
+  { id: "remote", label: VULCANIZER_FINAL_COPY.remote, fee: "1.35x" },
+  { id: "night", label: VULCANIZER_FINAL_COPY.night, fee: "1.5x" },
 ];
 
-type FinalStep = "urgency" | "photos" | "voice" | "location";
+type FinalStep = "urgency" | "photos" | "voice" | "location" | "tow";
 
-const FLOW_SESSION_KEY = "ona-mech-flow-session";
+const FLOW_SESSION_KEY = "ona-vulc-flow-session";
 /** Guard against exceeding the ~5 MB sessionStorage quota with media data URLs. */
 const FLOW_SESSION_MAX_BYTES = 3_000_000;
 
-interface MechFlowSnapshot {
+interface VulcFlowSnapshot {
   stack: string[];
   answers: Record<string, string>;
   vehicleLabel: string;
   manualVehicles: MotoristVehicle[];
   draft: string;
-  route: MechanicRoute | null;
+  route: VulcanizerRoute | null;
   chosenTrade: ProService;
   urgency: CalloutUrgencyKind;
   photos: JobMedia[];
@@ -65,9 +65,11 @@ interface MechFlowSnapshot {
   extra: string;
   finalStep: FinalStep;
   pickedLoc: PickedLocation | null;
+  towNeeded: boolean;
+  towPending: boolean;
 }
 
-export function MechanicHelpFlow({
+export function VulcanizerHelpFlow({
   isLight,
   onExit,
 }: {
@@ -92,8 +94,8 @@ export function MechanicHelpFlow({
   const [manualVehicles, setManualVehicles] = useState<MotoristVehicle[]>([]);
   const [draft, setDraft] = useState("");
   const [dir, setDir] = useState<"fwd" | "back">("fwd");
-  const [route, setRoute] = useState<MechanicRoute | null>(null);
-  const [chosenTrade, setChosenTrade] = useState<ProService>("mechanic");
+  const [route, setRoute] = useState<VulcanizerRoute | null>(null);
+  const [chosenTrade, setChosenTrade] = useState<ProService>("vulcanizer");
   const [urgency, setUrgency] = useState<CalloutUrgencyKind>("normal");
   const [photos, setPhotos] = useState<JobMedia[]>([]);
   const [voiceNote, setVoiceNote] = useState<JobMedia | null>(null);
@@ -104,6 +106,8 @@ export function MechanicHelpFlow({
   const [error, setError] = useState<string | null>(null);
   const photoRef = useRef<HTMLInputElement>(null);
   const [pickedLoc, setPickedLoc] = useState<PickedLocation | null>(null);
+  const [towNeeded, setTowNeeded] = useState(false);
+  const [towPending, setTowPending] = useState(false);
   /** Refresh-restore: true once the saved session has been (or tried to be) applied. */
   const [hydrated, setHydrated] = useState(false);
   const restoredRef = useRef(false);
@@ -121,7 +125,7 @@ export function MechanicHelpFlow({
   }, []);
 
   const step = stack[stack.length - 1] || "start";
-  const screen = mechanicScreen(step);
+  const screen = vulcanizerScreen(step);
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-500" : "text-white/50";
   const field = isLight
@@ -170,7 +174,7 @@ export function MechanicHelpFlow({
   useEffect(() => {
     if (restoredRef.current) return;
     restoredRef.current = true;
-    const snap = readSession<MechFlowSnapshot>(FLOW_SESSION_KEY);
+    const snap = readSession<VulcFlowSnapshot>(FLOW_SESSION_KEY);
     if (snap) {
       setStack(Array.isArray(snap.stack) && snap.stack.length ? snap.stack : ["vehicle"]);
       setAnswers(snap.answers ?? {});
@@ -186,6 +190,8 @@ export function MechanicHelpFlow({
       setExtra(snap.extra ?? "");
       if (snap.finalStep) setFinalStep(snap.finalStep);
       setPickedLoc(snap.pickedLoc ?? null);
+      setTowNeeded(snap.towNeeded ?? false);
+      setTowPending(snap.towPending ?? false);
       setDir("fwd");
     }
     setHydrated(true);
@@ -195,7 +201,7 @@ export function MechanicHelpFlow({
   /** Keep the session snapshot fresh so a refresh restores this exact step. */
   useEffect(() => {
     if (!hydrated) return;
-    const snap: MechFlowSnapshot = {
+    const snap: VulcFlowSnapshot = {
       stack,
       answers,
       vehicleLabel,
@@ -210,6 +216,8 @@ export function MechanicHelpFlow({
       extra,
       finalStep,
       pickedLoc,
+      towNeeded,
+      towPending,
     };
     const json = JSON.stringify(snap);
     if (json.length > FLOW_SESSION_MAX_BYTES) {
@@ -233,6 +241,8 @@ export function MechanicHelpFlow({
     extra,
     finalStep,
     pickedLoc,
+    towNeeded,
+    towPending,
   ]);
 
   /** Closing the flow intentionally forgets the saved position. */
@@ -245,7 +255,7 @@ export function MechanicHelpFlow({
     setDir("fwd");
     setError(null);
     if (next === "confirm" || next === "final") {
-      const resolved = resolveMechanicRoute(nextAnswers);
+      const resolved = resolveVulcanizerRoute(nextAnswers);
       setRoute(resolved);
       setChosenTrade(resolved.trade);
     }
@@ -259,7 +269,7 @@ export function MechanicHelpFlow({
       [`${step}_label`]: label,
     };
     setAnswers(nextAnswers);
-    push(nextMechanicScreen(step, optionId, nextAnswers), nextAnswers);
+    push(nextVulcanizerScreen(step, optionId, nextAnswers), nextAnswers);
   };
 
   const submitText = () => {
@@ -274,7 +284,7 @@ export function MechanicHelpFlow({
     };
     setAnswers(nextAnswers);
     setDraft("");
-    push(nextMechanicScreen(step, draft.trim(), nextAnswers), nextAnswers);
+    push(nextVulcanizerScreen(step, draft.trim(), nextAnswers), nextAnswers);
   };
 
   const goBack = () => {
@@ -284,10 +294,10 @@ export function MechanicHelpFlow({
     const prev = stack[stack.length - 2];
     const leaving = stack[stack.length - 1];
     setStack((s) => s.slice(0, -1));
-    if (mechanicScreen(leaving)?.kind === "text") {
+    if (vulcanizerScreen(leaving)?.kind === "text") {
       setDraft(answers[leaving] || "");
     } else {
-      setDraft(answers[prev] && mechanicScreen(prev)?.kind === "text"
+      setDraft(answers[prev] && vulcanizerScreen(prev)?.kind === "text"
         ? answers[prev]
         : "");
     }
@@ -295,7 +305,7 @@ export function MechanicHelpFlow({
 
   const onPhotos = async (files: FileList | null) => {
     if (!files?.length) return;
-    const room = MECHANIC_MAX_PHOTOS - photos.length;
+    const room = VULCANIZER_MAX_PHOTOS - photos.length;
     if (room <= 0) {
       setError("You can add up to 4 photos.");
       return;
@@ -315,7 +325,7 @@ export function MechanicHelpFlow({
           uploadedBy: backendUserId || userProfile?.identityId || "guest",
         });
       }
-      setPhotos((prev) => [...prev, ...next].slice(0, MECHANIC_MAX_PHOTOS));
+      setPhotos((prev) => [...prev, ...next].slice(0, VULCANIZER_MAX_PHOTOS));
       clearAdvanceTimer();
       advanceTimerRef.current = window.setTimeout(() => {
         advanceTimerRef.current = null;
@@ -339,7 +349,7 @@ export function MechanicHelpFlow({
     const trade: ProService = chosenTrade;
     const problem = [
       vehicleLabel ? `Vehicle: ${vehicleLabel}` : "",
-      composeMechanicProblem(answers, extra, landmark),
+      composeVulcanizerProblem(answers, extra, landmark),
     ]
       .filter(Boolean)
       .join("\n");
@@ -400,7 +410,7 @@ export function MechanicHelpFlow({
 
   const acceptRoute = (yes: boolean) => {
     if (!route) return;
-    setChosenTrade(applyConfirmChoice(route, yes));
+    setChosenTrade(applyVulcanizerConfirmChoice(route, yes));
     setDir("fwd");
     setFinalStep("urgency");
     setStack((s) => [...s, "final"]);
@@ -414,7 +424,9 @@ export function MechanicHelpFlow({
         ? "photos"
         : finalStep === "photos"
           ? "voice"
-          : "location"
+          : finalStep === "voice"
+            ? "location"
+            : "tow"
     );
   };
 
@@ -430,7 +442,9 @@ export function MechanicHelpFlow({
         ? "urgency"
         : finalStep === "voice"
           ? "photos"
-          : "voice"
+          : finalStep === "location"
+            ? "voice"
+            : "location"
     );
   };
 
@@ -472,15 +486,29 @@ export function MechanicHelpFlow({
           {step === "final" ? (
             <div className="flex min-h-0 flex-1 flex-col">
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-hide">
-                <p className={cn("mt-2 px-0.5 pb-2 text-[14px] font-bold capitalize leading-snug", ink)}>
-                  {finalStep === "urgency"
-                    ? MECHANIC_FINAL_COPY.urgency
-                    : finalStep === "photos"
-                      ? MECHANIC_FINAL_COPY.photos
-                      : finalStep === "voice"
-                        ? MECHANIC_FINAL_COPY.voice
-                        : MECHANIC_FINAL_COPY.location}
-                </p>
+                <div className="mt-2 flex items-center gap-1 px-0.5 pb-2">
+                  {finalStep === "location" ? (
+                    <button
+                      type="button"
+                      onClick={nextFinal}
+                      aria-label="Next"
+                      className="border-0 bg-transparent p-1 text-[#FF6B35]"
+                    >
+                      <ChevronRight className="h-6 w-6" strokeWidth={2.5} />
+                    </button>
+                  ) : null}
+                  <p className={cn("text-[14px] font-bold capitalize leading-snug", ink)}>
+                    {finalStep === "urgency"
+                      ? VULCANIZER_FINAL_COPY.urgency
+                      : finalStep === "photos"
+                        ? VULCANIZER_FINAL_COPY.photos
+                        : finalStep === "voice"
+                          ? VULCANIZER_FINAL_COPY.voice
+                          : finalStep === "location"
+                            ? VULCANIZER_FINAL_COPY.location
+                            : VULCANIZER_FINAL_COPY.tow}
+                  </p>
+                </div>
                 <div className={cn("rounded-[4px] px-3 py-2.5", rowCard)}>
                   {finalStep === "urgency" ? (
                     <div className="flex flex-col gap-1.5">
@@ -530,7 +558,7 @@ export function MechanicHelpFlow({
                           <ChevronRight className="h-6 w-6" strokeWidth={2.5} />
                         </button>
                         <p className={cn("text-[12px] font-medium", muted)}>
-                          {MECHANIC_FINAL_COPY.photos}
+                          {VULCANIZER_FINAL_COPY.photos}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
@@ -553,7 +581,7 @@ export function MechanicHelpFlow({
                             />
                           </button>
                         ))}
-                        {photos.length < MECHANIC_MAX_PHOTOS ? (
+                        {photos.length < VULCANIZER_MAX_PHOTOS ? (
                           <button
                             type="button"
                             onClick={() => photoRef.current?.click()}
@@ -610,7 +638,7 @@ export function MechanicHelpFlow({
                       />
                       <label className="block">
                         <span className={cn("text-[12px] font-bold", ink)}>
-                          {MECHANIC_FINAL_COPY.extra}
+                          {VULCANIZER_FINAL_COPY.extra}
                         </span>
                         <textarea
                           value={extra}
@@ -622,6 +650,75 @@ export function MechanicHelpFlow({
                           )}
                         />
                       </label>
+                    </div>
+                  ) : null}
+                  {finalStep === "tow" ? (
+                    <div className="space-y-2">
+                      {!towPending ? (
+                        <div className="flex flex-col gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setError(null);
+                              setTowPending(true);
+                            }}
+                            className="flex w-full items-center gap-2 rounded-[4px] border-0 px-1 py-3 text-left transition-transform duration-150 active:scale-[0.985]"
+                          >
+                            <span className={cn("text-[13px] font-semibold", ink)}>
+                              {VULCANIZER_FINAL_COPY.towYes}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setError(null);
+                              setChosenTrade("vulcanizer");
+                              setTowNeeded(false);
+                              setTowPending(false);
+                            }}
+                            className="flex w-full items-center gap-2 rounded-[4px] border-0 px-1 py-3 text-left transition-transform duration-150 active:scale-[0.985]"
+                          >
+                            <span className={cn("text-[13px] font-semibold", ink)}>
+                              {VULCANIZER_FINAL_COPY.towNo}
+                            </span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className={cn("text-[14px] font-bold", ink)}>
+                            {confirmQuestion("towing")}
+                          </p>
+                          <div className="mt-2 flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setChosenTrade("towing");
+                                setTowNeeded(true);
+                                setTowPending(false);
+                                setError(null);
+                              }}
+                              className="h-11 flex-1 rounded-md border-0 bg-brand text-[14px] font-bold text-white active:scale-[0.985]"
+                            >
+                              Yes
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setChosenTrade("vulcanizer");
+                                setTowNeeded(false);
+                                setTowPending(false);
+                                setError(null);
+                              }}
+                              className={cn(
+                                "h-11 flex-1 rounded-md border-0 text-[14px] font-bold active:scale-[0.985]",
+                                chipIdle
+                              )}
+                            >
+                              No
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : null}
                 </div>
@@ -673,7 +770,7 @@ export function MechanicHelpFlow({
                 {(screen.options || []).map((opt, i) => {
                   const letter =
                     step === "start"
-                      ? MECHANIC_START_OPTIONS[i]?.id
+                      ? VULCANIZER_START_OPTIONS[i]?.id
                       : undefined;
                   const last = i === (screen.options || []).length - 1;
                   return (

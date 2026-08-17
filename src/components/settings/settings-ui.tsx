@@ -101,9 +101,11 @@ export function SettingsRow({
     </>
   );
 
-  // Compact rows on main toggle background (no card chrome)
+  // Compact rows on main toggle background (no card chrome) — solid fill so
+  // the row is always exactly the page's light/dark background, never a shade off.
   const className = cn(
-    "flex w-full items-center gap-2 border-0 px-2 py-2.5 text-left bg-transparent",
+    "flex w-full items-center gap-2 border-0 px-2 py-2.5 text-left",
+    isLight ? "bg-[#c8c9cd]" : "bg-black",
     isLight ? "hover:bg-black/[0.04]" : "hover:bg-white/[0.04]"
   );
 

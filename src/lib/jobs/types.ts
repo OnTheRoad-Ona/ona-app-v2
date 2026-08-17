@@ -7,6 +7,7 @@ import type { Coordinates, ProService } from "@/lib/types";
 
 /** Full escrow job lifecycle */
 export type JobFlowStatus =
+  | "scheduled"
   | "waiting_for_selected"
   | "selected_review"
   | "sequential_pairing"
@@ -201,6 +202,18 @@ export type JobRecord = {
   chosenProId?: string | null;
   pairingRadiusKm?: number | null;
   radiusKm?: number | null;
+  /**
+   * Tow "add another repair pro": id of the primary (tow) request that arms
+   * this scheduled second request. Non-null only on the linked request.
+   */
+  linkedRequestId?: string | null;
+  /**
+   * ISO when the second request becomes dispatchable (armed 60 min after the
+   * primary request's pro accepts). Null until armed.
+   */
+  scheduledDispatchAt?: string | null;
+  /** ISO when the motorist was first pinged to enter their address (notify once) */
+  dispatchNotifiedAt?: string | null;
 };
 
 export type CreateJobInput = {
@@ -233,4 +246,14 @@ export type CreateJobInput = {
   calloutEligible?: boolean;
   /** Call-out fee only: normal 1x, emergency 1.25x, remote 1.35x, night 1.5x */
   calloutUrgency?: "normal" | "emergency" | "remote" | "night";
+  /**
+   * Tow "add another repair pro": also create a scheduled linked request for
+   * this trade (dispatched 60 min after the primary request's pro accepts).
+   */
+  meetProTrade?: ProService | null;
+  /**
+   * Internal — set only when creating the scheduled linked request itself
+   * (points back at the primary request id).
+   */
+  linkedRequestId?: string | null;
 };

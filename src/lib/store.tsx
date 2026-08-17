@@ -94,6 +94,7 @@ import {
 import { getVehiclesServedLock } from "@/lib/profile-edit";
 import { playPersonTone } from "@/lib/sound-tone";
 import { haversineKm } from "@/lib/supabase/mappers";
+import { clearSession, readSession, writeSession } from "@/lib/session-restore";
 
 /** Result of book (motorist) or accept (pro) with progressive verification. */
 export type ServiceActionResult =
@@ -121,6 +122,8 @@ const AUTH_ACCOUNT_KEY = "ona-account-type";
 /** Original signup role — never overwritten by Motorist ↔ Pro switch */
 const PRIMARY_ACCOUNT_KEY = "ona-primary-account";
 const PROFILE_KEY = LEGACY_PROFILE_KEY;
+/** Session-scoped home-screen position (tab, flow, filters) restored on refresh. */
+const HOME_UI_SESSION_KEY = "ona-session-home-ui";
 
 function readStoredPrimaryAccount(): AccountType | null {
   try {
@@ -870,6 +873,90 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** True once the home-screen session has been (or tried to be) re-applied. */
+  const [homeUiHydrated, setHomeUiHydrated] = useState(false);
+
+  const CATEGORY_VALUES: ServiceCategory[] = [
+    "mechanic", "vulcanizer", "towing", "battery", "ac", "body", "electrical",
+    "diagnostics", "fashion", "plumber", "carpenter", "painter", "solar",
+    "generator", "all", "none",
+  ];
+  const isCategory = (v: unknown): v is ServiceCategory =>
+    typeof v === "string" && (CATEGORY_VALUES as string[]).includes(v);
+
+  interface HomeUiSnapshot {
+    category: ServiceCategory;
+    radiusKm: number;
+    filters: AppFilters;
+    query: string;
+    specialtyFilter: string | null;
+    specialtyPickerOpen: boolean;
+    selectedTechId: string | null;
+    helpingSomeoneElse: boolean;
+    helpingSomeoneLabel: string | null;
+  }
+
+  // Keep the home screen exactly where the user was — restore after auth boots
+  // so role-aware rendering (Motorist vs Repair Pro) decides what is shown.
+  useEffect(() => {
+    if (!authReady || homeUiHydrated) return;
+    const snap = readSession<HomeUiSnapshot>(HOME_UI_SESSION_KEY);
+    if (snap) {
+      if (isCategory(snap.category)) setCategoryState(snap.category);
+      if (typeof snap.radiusKm === "number" && snap.radiusKm > 0) {
+        setRadiusKmState(Math.min(MAX_RADIUS_KM, Math.max(1, snap.radiusKm)));
+      }
+      if (snap.filters && typeof snap.filters === "object") {
+        setFilters({ ...defaultFilters, ...snap.filters });
+      }
+      if (typeof snap.query === "string") setQuery(snap.query);
+      if (typeof snap.specialtyFilter === "string") {
+        setSpecialtyFilterState(snap.specialtyFilter);
+      }
+      if (typeof snap.specialtyPickerOpen === "boolean") {
+        setSpecialtyPickerOpen(snap.specialtyPickerOpen);
+      }
+      if (typeof snap.selectedTechId === "string") {
+        setSelectedTechId(snap.selectedTechId);
+      }
+      if (typeof snap.helpingSomeoneElse === "boolean") {
+        setHelpingSomeoneElseState(snap.helpingSomeoneElse);
+      }
+      if (typeof snap.helpingSomeoneLabel === "string") {
+        setHelpingSomeoneLabel(snap.helpingSomeoneLabel);
+      }
+    }
+    setHomeUiHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authReady]);
+
+  // Keep the snapshot fresh — only after the saved position has been applied.
+  useEffect(() => {
+    if (!homeUiHydrated) return;
+    writeSession(HOME_UI_SESSION_KEY, {
+      category,
+      radiusKm,
+      filters,
+      query,
+      specialtyFilter,
+      specialtyPickerOpen,
+      selectedTechId,
+      helpingSomeoneElse,
+      helpingSomeoneLabel,
+    });
+  }, [
+    homeUiHydrated,
+    category,
+    radiusKm,
+    filters,
+    query,
+    specialtyFilter,
+    specialtyPickerOpen,
+    selectedTechId,
+    helpingSomeoneElse,
+    helpingSomeoneLabel,
+  ]);
 
   // Keep html[data-theme] + page stage in sync so full app flips light↔dark
   useEffect(() => {
@@ -2330,6 +2417,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem(AUTH_ACCOUNT_KEY);
       localStorage.removeItem(PRIMARY_ACCOUNT_KEY);
       localStorage.removeItem(PROFILE_KEY);
+      clearSession(HOME_UI_SESSION_KEY);
+      clearSession("ona-mech-flow-session");
+      clearSession("ona-vulc-flow-session");
+      clearSession("ona-tow-flow-session");
       const vault = readProfilesVault();
       setHasMotoristAccount(Boolean(vault.motorist));
       setHasProAccount(Boolean(vault.professional));

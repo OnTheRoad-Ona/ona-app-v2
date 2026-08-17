@@ -48,6 +48,9 @@ export type TransitionEvent =
   | { type: "DISPATCH" };
 
 const ALLOWED: Record<JobFlowStatus, Partial<Record<TransitionEvent["type"], JobFlowStatus>>> = {
+  scheduled: {
+    CANCEL: "cancelled",
+  },
   waiting_for_selected: {
     OPEN: "selected_review",
     LATER: "sequential_pairing",

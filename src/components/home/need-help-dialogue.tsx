@@ -11,7 +11,7 @@ import {
 import { PRO_SERVICE_LABELS } from "@/lib/pro-service-id";
 import { problemPlaceholderForTrade } from "@/lib/pricing";
 import { useApp } from "@/lib/store";
-import type { ProService } from "@/lib/types";
+import type { MotoristVehicle, ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
   canFindPro,
@@ -20,7 +20,7 @@ import {
   type HelpStep,
 } from "@/components/home/need-help-steps";
 import {
-  canUseVehicleLabel,
+  formatVehicleLabel,
   JobVehicleStep,
   profileVehiclesOf,
 } from "@/components/home/job-vehicle-step";
@@ -40,6 +40,7 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
     isAuthenticated,
     helpingSomeoneElse,
     helpingSomeoneLabel,
+    updateUserProfile,
   } = useApp();
 
   const statedTrade = talkBoxAfterTradePick(category) ? category : null;
@@ -50,9 +51,35 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
   const [chosenTrade, setChosenTrade] = useState<ProService | null>(null);
   const [urgency, setUrgency] = useState<CalloutUrgencyKind>("normal");
   const [vehicleLabel, setVehicleLabel] = useState("");
+  const [manualVehicles, setManualVehicles] = useState<MotoristVehicle[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const savedVehicles = profileVehiclesOf(userProfile);
+
+  const profileVehicles = useMemo(
+    () => profileVehiclesOf(userProfile),
+    [userProfile]
+  );
+  /** Profile vehicles + vehicles saved in this session (deduped by label). */
+  const savedVehicles = useMemo(
+    () => [
+      ...profileVehicles,
+      ...manualVehicles.filter(
+        (mv) =>
+          !profileVehicles.some(
+            (pv) => formatVehicleLabel(pv) === formatVehicleLabel(mv)
+          )
+      ),
+    ],
+    [profileVehicles, manualVehicles]
+  );
+
+  const saveVehicle = (v: MotoristVehicle): string | null => {
+    setManualVehicles((prev) => [...prev, v]);
+    if (userProfile) {
+      updateUserProfile({ vehicles: [...(userProfile.vehicles ?? []), v] });
+    }
+    return null;
+  };
 
   const ink = isLight ? "text-slate-900" : "text-white";
   const field = isLight
@@ -133,9 +160,7 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
       router.push("/login/role");
       return;
     }
-    setBusy(true);
-    setError(null);
-    const res = await apiCreateJob({
+    const payload = {
       motoristId,
       motoristName: userProfile?.fullName || "Customer",
       motoristPhoto: userProfile?.avatarUrl || null,
@@ -151,11 +176,36 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
       lat: location.coordinates.lat,
       lng: location.coordinates.lng,
       radiusKm,
-    });
+    };
+    setError(null);
+    // Instant paint: hand the payload to /jobs/new (optimistic) and create the
+    // job there in the background. Fall back to POST-first if the payload can't
+    // be stashed (e.g. sessionStorage quota).
+    let preloaded = false;
+    try {
+      window.sessionStorage.setItem("ona-new-request", JSON.stringify(payload));
+      preloaded = true;
+    } catch {
+      /* fall through to POST-first */
+    }
+    if (preloaded) {
+      router.replace("/jobs/new");
+      return;
+    }
+    setBusy(true);
+    const res = await apiCreateJob(payload);
     setBusy(false);
     if (!res.ok) {
       setError(res.message || "Could not send. Try again.");
       return;
+    }
+    try {
+      window.sessionStorage.setItem(
+        `ona-seed-job:${res.data.job.id}`,
+        JSON.stringify(res.data.job)
+      );
+    } catch {
+      /* ignore */
     }
     router.replace(`/jobs/${res.data.job.id}`);
   };
@@ -172,22 +222,6 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
           )}
         >
           Back
-        </button>
-      ) : null}
-      {step === "vehicle" ? (
-        <button
-          type="button"
-          disabled={!canUseVehicleLabel(vehicleLabel)}
-          onClick={() => {
-            setError(null);
-            setStep("help");
-          }}
-          className={cn(
-            "h-11 w-full rounded-md border-0 text-[14px] font-bold disabled:opacity-50",
-            nextGray
-          )}
-        >
-          Next
         </button>
       ) : null}
       {step === "help" ? (
@@ -248,6 +282,12 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
               setVehicleLabel(next);
               setError(null);
             }}
+            onPick={(next) => {
+              setVehicleLabel(next);
+              setError(null);
+              setStep("help");
+            }}
+            onSaveVehicle={saveVehicle}
           />
         </div>
       ) : null}

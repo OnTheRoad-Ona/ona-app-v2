@@ -1331,7 +1331,7 @@ button.om-cta-dark-gray:disabled,
   box-shadow: none;
 }
 
-/* Mechanic cascade — slide in from the left, then each step slides. */
+/* Mechanic cascade — panel enters from the left, then each step slides. */
 @keyframes om-mech-enter {
   from {
     transform: translateX(-22px);
@@ -1347,7 +1347,7 @@ button.om-cta-dark-gray:disabled,
 }
 @keyframes om-mech-fwd {
   from {
-    transform: translateX(18px);
+    transform: translateX(-48px);
     opacity: 0;
   }
   to {
@@ -1357,7 +1357,7 @@ button.om-cta-dark-gray:disabled,
 }
 @keyframes om-mech-back {
   from {
-    transform: translateX(-18px);
+    transform: translateX(24px);
     opacity: 0;
   }
   to {
@@ -1366,7 +1366,7 @@ button.om-cta-dark-gray:disabled,
   }
 }
 .om-mech-slide-fwd {
-  animation: om-mech-fwd 380ms cubic-bezier(0.32, 0.72, 0, 1);
+  animation: om-mech-fwd 500ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 .om-mech-slide-back {
   animation: om-mech-back 380ms cubic-bezier(0.32, 0.72, 0, 1);

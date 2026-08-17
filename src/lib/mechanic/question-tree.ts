@@ -8,17 +8,14 @@ export const MECHANIC_FINAL_COPY = {
   emergency: "Emergency",
   remote: "Remote location",
   night: "Night service needed",
-  photos: "Add clear photos (minimum 2–3)",
+  photos: "Add clear photos (at most 4)",
   voice: "Record a short voice note describing the problem",
-  location: "Exact location / landmark",
+  location: "Enter exact location",
   extra: "Any other detail you want the repair pro to know?",
-  tow: "Do you need the vehicle towed to a safer place or workshop?",
-  towYes: "Yes",
-  towNo: "No",
 } as const;
 
-export const MECHANIC_MIN_PHOTOS = 2;
-export const MECHANIC_MAX_PHOTOS = 3;
+export const MECHANIC_MIN_PHOTOS = 0;
+export const MECHANIC_MAX_PHOTOS = 4;
 
 export type MechanicScreenKind = "choice" | "text";
 

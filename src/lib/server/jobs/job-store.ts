@@ -266,12 +266,22 @@ function rowToJob(row: Record<string, unknown>): JobRecord {
     pairingRadiusKm:
       row.pairing_radius_km != null ? Number(row.pairing_radius_km) : null,
     radiusKm: row.radius_km != null ? Number(row.radius_km) : null,
+    linkedRequestId: row.linked_request_id
+      ? String(row.linked_request_id)
+      : null,
+    scheduledDispatchAt: row.scheduled_dispatch_at
+      ? String(row.scheduled_dispatch_at)
+      : null,
+    dispatchNotifiedAt: row.dispatch_notified_at
+      ? String(row.dispatch_notified_at)
+      : null,
   };
 }
 
 /** Keep classic status column in sync for older UI / queries */
 function flowToLegacyStatus(flow: JobFlowStatus): string {
   switch (flow) {
+    case "scheduled":
     case "waiting_for_selected":
     case "selected_review":
     case "sequential_pairing":
@@ -370,9 +380,11 @@ function jobToDbPatch(job: JobRecord): Record<string, unknown> {
     remaining_candidates: job.remainingCandidates ?? null,
     reservation_status: job.reservationStatus ?? null,
     assignment_status: job.assignmentStatus ?? null,
-    pairing_radius_km: job.pairingRadiusKm ?? null,
+pairing_radius_km: job.pairingRadiusKm ?? null,
     radius_km: job.radiusKm ?? null,
-    chosen_pro_id: job.chosenProId ?? null,
+    linked_request_id: job.linkedRequestId ?? null,
+    scheduled_dispatch_at: job.scheduledDispatchAt ?? null,
+    dispatch_notified_at: job.dispatchNotifiedAt ?? null,
     updated_at: job.updatedAt,
   };
 }
@@ -492,7 +504,113 @@ async function attachCalloutQuietly(
     console.error("[callout] attach failed", e);
   }
   const withCallout = job;
+  await createScheduledLinkedRequestIfNeeded(job, input);
   return startOpenSearchIfNeeded(withCallout, input);
+}
+
+/**
+ * Tow "add another repair pro": after the primary (tow) request is persisted,
+ * also create a SCHEDULED second request for `input.meetProTrade` — same
+ * details, new trade, linked to the primary via `linked_request_id`.
+ * It is NOT dispatched yet: the pairing engine arms `scheduled_dispatch_at`
+ * (now + SECOND_PRO_DELAY_MS) the moment the primary's pro accepts; the
+ * scheduled-dispatch sweep then pings the motorist to enter their current
+ * address, which dispatches it.
+ */
+async function createScheduledLinkedRequestIfNeeded(
+  job: JobRecord,
+  input: CreateJobInput
+): Promise<void> {
+  const trade = input.meetProTrade;
+  if (!trade) return;
+  if (!isSupabaseAdminConfigured()) return;
+  const sb = createServiceSupabase();
+  try {
+    // Idempotent replay: a replayed createJob must never double the linked request.
+    const { data: existing } = await sb
+      .from("service_requests")
+      .select("id")
+      .eq("linked_request_id", job.id)
+      .eq("flow_status", "scheduled")
+      .maybeSingle();
+    if (existing?.id) return;
+
+    const ts = nowIso();
+    const id = uid("job");
+    const ends = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    const second: JobRecord = {
+      id,
+      clientRequestId: null,
+      motoristId: job.motoristId,
+      motoristName: job.motoristName,
+      motoristPhoto: job.motoristPhoto,
+      motoristVehicle: job.motoristVehicle,
+      repairProId: "",
+      repairProName: "",
+      repairProPhoto: undefined,
+      serviceType: trade,
+      problem: job.problem,
+      voiceNote: job.voiceNote || null,
+      photos: job.photos,
+      status: "scheduled",
+      currency: job.currency,
+      proBaseMajor: null,
+      agreedMajor: null,
+      offers: [],
+      negotiateEndsAt: ends,
+      maxOffers: MAX_NEGOTIATION_OFFERS,
+      locationLabel: job.locationLabel,
+      motoristLocation: job.motoristLocation,
+      proLocation: null,
+      statusHistory: [{ status: "scheduled", at: ts, by: "motorist" }],
+      pairingStage: "scheduled",
+      pairingDeadline: null,
+      queuePosition: null,
+      remainingCandidates: null,
+      reservationStatus: null,
+      assignmentStatus: null,
+      pairingRadiusKm: 1,
+      radiusKm: job.radiusKm,
+      linkedRequestId: job.id,
+      scheduledDispatchAt: null,
+      dispatchNotifiedAt: null,
+      createdAt: ts,
+      updatedAt: ts,
+    };
+
+    const { data, error } = await sb
+      .from("service_requests")
+      .insert({
+        id,
+        client_request_id: null,
+        motorist_id: job.motoristId,
+        repair_pro_id: null,
+        service_type: trade,
+        status: "requested",
+        description: second.problem,
+        pickup_lat: second.motoristLocation.lat,
+        pickup_lng: second.motoristLocation.lng,
+        pickup_address: second.locationLabel,
+        radius_km: second.radiusKm,
+        ...jobToDbPatch(second),
+        flow_status: "scheduled",
+        pairing_stage: "scheduled",
+        created_at: ts,
+      })
+      .select("*")
+      .maybeSingle();
+    if (data) {
+      const mapped = rowToJob(data as Record<string, unknown>);
+      mapped.photos = second.photos;
+      mapped.voiceNote = second.voiceNote;
+      memory.set(mapped.id, mapped);
+    }
+    if (error) {
+      console.error("[second-pro] create linked request failed", error.message);
+    }
+  } catch (e) {
+    console.error("[second-pro] create linked request error", e);
+  }
 }
 
 export async function createJob(input: CreateJobInput): Promise<JobRecord> {

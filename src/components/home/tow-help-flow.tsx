@@ -2,30 +2,33 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronRight } from "lucide-react";
+import { Check, ChevronRight } from "lucide-react";
 import { VoiceNoteRecorder } from "@/components/jobs/voice-note-recorder";
 import { apiCreateJob } from "@/lib/jobs/client";
 import type { JobMedia } from "@/lib/jobs/types";
 import { compressImageFile } from "@/lib/image-compress";
 import type { CalloutUrgencyKind } from "@/lib/callout/urgency";
 import {
-  applyConfirmChoice,
+  applyTowConfirmChoice,
   canAdvanceText,
-  composeMechanicProblem,
+  canFindTowPro,
+  composeTowProblem,
   confirmQuestion,
-  MECHANIC_FINAL_COPY,
-  MECHANIC_MAX_PHOTOS,
-  MECHANIC_START_OPTIONS,
-  mechanicScreen,
-  nextMechanicScreen,
-  resolveMechanicRoute,
-  type MechanicRoute,
-} from "@/lib/mechanic/question-tree";
+  TOW_FINAL_COPY,
+  TOW_MAX_PHOTOS,
+  TOW_MIN_PHOTOS,
+  TOW_START_OPTIONS,
+  towScreen,
+  nextTowScreen,
+  resolveTowRoute,
+  type TowRoute,
+} from "@/lib/tow/question-tree";
 import {
   formatVehicleLabel,
   JobVehicleStep,
   profileVehiclesOf,
 } from "@/components/home/job-vehicle-step";
+import { PRO_SERVICE_LABELS } from "@/lib/pro-service-id";
 import { useApp } from "@/lib/store";
 import type { MotoristVehicle, ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -38,36 +41,59 @@ const URGENCY_CHIPS: {
   label: string;
   fee: string;
 }[] = [
-  { id: "normal", label: MECHANIC_FINAL_COPY.normal, fee: "1x · base + call-out" },
-  { id: "emergency", label: MECHANIC_FINAL_COPY.emergency, fee: "1.25x" },
-  { id: "remote", label: MECHANIC_FINAL_COPY.remote, fee: "1.35x" },
-  { id: "night", label: MECHANIC_FINAL_COPY.night, fee: "1.5x" },
+  { id: "normal", label: TOW_FINAL_COPY.normal, fee: "1x · base + call-out" },
+  { id: "emergency", label: TOW_FINAL_COPY.emergency, fee: "1.25x" },
+  { id: "remote", label: TOW_FINAL_COPY.remote, fee: "1.35x" },
+  { id: "night", label: TOW_FINAL_COPY.night, fee: "1.5x" },
 ];
 
-type FinalStep = "urgency" | "photos" | "voice" | "location";
+const MEET_PRO_OPTIONS: ProService[] = [
+  "mechanic",
+  "vulcanizer",
+  "body",
+  "battery",
+  "electrical",
+  "ac",
+];
 
-const FLOW_SESSION_KEY = "ona-mech-flow-session";
+type FinalStep =
+  | "urgency"
+  | "photos"
+  | "voice"
+  | "location"
+  | "destination"
+  | "colour"
+  | "extra"
+  | "meetPro";
+
+type MeetProChoice = "yes" | "no" | null;
+
+const FLOW_SESSION_KEY = "ona-tow-flow-session";
 /** Guard against exceeding the ~5 MB sessionStorage quota with media data URLs. */
 const FLOW_SESSION_MAX_BYTES = 3_000_000;
 
-interface MechFlowSnapshot {
+interface TowFlowSnapshot {
   stack: string[];
   answers: Record<string, string>;
   vehicleLabel: string;
   manualVehicles: MotoristVehicle[];
   draft: string;
-  route: MechanicRoute | null;
+  route: TowRoute | null;
   chosenTrade: ProService;
   urgency: CalloutUrgencyKind;
   photos: JobMedia[];
   voiceNote: JobMedia | null;
   landmark: string;
+  destination: string;
+  colour: string;
   extra: string;
   finalStep: FinalStep;
   pickedLoc: PickedLocation | null;
+  meetPro: MeetProChoice;
+  meetProTrade: ProService | null;
 }
 
-export function MechanicHelpFlow({
+export function TowHelpFlow({
   isLight,
   onExit,
 }: {
@@ -92,18 +118,22 @@ export function MechanicHelpFlow({
   const [manualVehicles, setManualVehicles] = useState<MotoristVehicle[]>([]);
   const [draft, setDraft] = useState("");
   const [dir, setDir] = useState<"fwd" | "back">("fwd");
-  const [route, setRoute] = useState<MechanicRoute | null>(null);
-  const [chosenTrade, setChosenTrade] = useState<ProService>("mechanic");
+  const [route, setRoute] = useState<TowRoute | null>(null);
+  const [chosenTrade, setChosenTrade] = useState<ProService>("towing");
   const [urgency, setUrgency] = useState<CalloutUrgencyKind>("normal");
   const [photos, setPhotos] = useState<JobMedia[]>([]);
   const [voiceNote, setVoiceNote] = useState<JobMedia | null>(null);
   const [landmark, setLandmark] = useState(location.label || "");
+  const [destination, setDestination] = useState("");
+  const [colour, setColour] = useState("");
   const [extra, setExtra] = useState("");
   const [finalStep, setFinalStep] = useState<FinalStep>("urgency");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const photoRef = useRef<HTMLInputElement>(null);
   const [pickedLoc, setPickedLoc] = useState<PickedLocation | null>(null);
+  const [meetPro, setMeetPro] = useState<MeetProChoice>(null);
+  const [meetProTrade, setMeetProTrade] = useState<ProService | null>(null);
   /** Refresh-restore: true once the saved session has been (or tried to be) applied. */
   const [hydrated, setHydrated] = useState(false);
   const restoredRef = useRef(false);
@@ -121,7 +151,7 @@ export function MechanicHelpFlow({
   }, []);
 
   const step = stack[stack.length - 1] || "start";
-  const screen = mechanicScreen(step);
+  const screen = towScreen(step);
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-500" : "text-white/50";
   const field = isLight
@@ -166,11 +196,14 @@ export function MechanicHelpFlow({
     setLandmark((prev) => prev || location.label || "");
   }, [location.label]);
 
+  /** Branch E shows an extra destination step in the final block. */
+  const showDestination = answers.start === "E";
+
   /** Refresh-restore: return the user to the exact step they were on. */
   useEffect(() => {
     if (restoredRef.current) return;
     restoredRef.current = true;
-    const snap = readSession<MechFlowSnapshot>(FLOW_SESSION_KEY);
+    const snap = readSession<TowFlowSnapshot>(FLOW_SESSION_KEY);
     if (snap) {
       setStack(Array.isArray(snap.stack) && snap.stack.length ? snap.stack : ["vehicle"]);
       setAnswers(snap.answers ?? {});
@@ -183,9 +216,13 @@ export function MechanicHelpFlow({
       setPhotos(snap.photos ?? []);
       setVoiceNote(snap.voiceNote ?? null);
       setLandmark(snap.landmark || location.label || "");
+      setDestination(snap.destination ?? "");
+      setColour(snap.colour ?? "");
       setExtra(snap.extra ?? "");
       if (snap.finalStep) setFinalStep(snap.finalStep);
       setPickedLoc(snap.pickedLoc ?? null);
+      setMeetPro(snap.meetPro ?? null);
+      setMeetProTrade(snap.meetProTrade ?? null);
       setDir("fwd");
     }
     setHydrated(true);
@@ -195,7 +232,7 @@ export function MechanicHelpFlow({
   /** Keep the session snapshot fresh so a refresh restores this exact step. */
   useEffect(() => {
     if (!hydrated) return;
-    const snap: MechFlowSnapshot = {
+    const snap: TowFlowSnapshot = {
       stack,
       answers,
       vehicleLabel,
@@ -207,9 +244,13 @@ export function MechanicHelpFlow({
       photos,
       voiceNote,
       landmark,
+      destination,
+      colour,
       extra,
       finalStep,
       pickedLoc,
+      meetPro,
+      meetProTrade,
     };
     const json = JSON.stringify(snap);
     if (json.length > FLOW_SESSION_MAX_BYTES) {
@@ -230,9 +271,13 @@ export function MechanicHelpFlow({
     photos,
     voiceNote,
     landmark,
+    destination,
+    colour,
     extra,
     finalStep,
     pickedLoc,
+    meetPro,
+    meetProTrade,
   ]);
 
   /** Closing the flow intentionally forgets the saved position. */
@@ -245,9 +290,10 @@ export function MechanicHelpFlow({
     setDir("fwd");
     setError(null);
     if (next === "confirm" || next === "final") {
-      const resolved = resolveMechanicRoute(nextAnswers);
+      const resolved = resolveTowRoute(nextAnswers);
       setRoute(resolved);
       setChosenTrade(resolved.trade);
+      if (resolved.emergency) setUrgency("emergency");
     }
     setStack((prev) => [...prev, next]);
   };
@@ -259,7 +305,7 @@ export function MechanicHelpFlow({
       [`${step}_label`]: label,
     };
     setAnswers(nextAnswers);
-    push(nextMechanicScreen(step, optionId, nextAnswers), nextAnswers);
+    push(nextTowScreen(step, optionId, nextAnswers), nextAnswers);
   };
 
   const submitText = () => {
@@ -274,7 +320,7 @@ export function MechanicHelpFlow({
     };
     setAnswers(nextAnswers);
     setDraft("");
-    push(nextMechanicScreen(step, draft.trim(), nextAnswers), nextAnswers);
+    push(nextTowScreen(step, draft.trim(), nextAnswers), nextAnswers);
   };
 
   const goBack = () => {
@@ -284,10 +330,10 @@ export function MechanicHelpFlow({
     const prev = stack[stack.length - 2];
     const leaving = stack[stack.length - 1];
     setStack((s) => s.slice(0, -1));
-    if (mechanicScreen(leaving)?.kind === "text") {
+    if (towScreen(leaving)?.kind === "text") {
       setDraft(answers[leaving] || "");
     } else {
-      setDraft(answers[prev] && mechanicScreen(prev)?.kind === "text"
+      setDraft(answers[prev] && towScreen(prev)?.kind === "text"
         ? answers[prev]
         : "");
     }
@@ -295,7 +341,7 @@ export function MechanicHelpFlow({
 
   const onPhotos = async (files: FileList | null) => {
     if (!files?.length) return;
-    const room = MECHANIC_MAX_PHOTOS - photos.length;
+    const room = TOW_MAX_PHOTOS - photos.length;
     if (room <= 0) {
       setError("You can add up to 4 photos.");
       return;
@@ -315,12 +361,15 @@ export function MechanicHelpFlow({
           uploadedBy: backendUserId || userProfile?.identityId || "guest",
         });
       }
-      setPhotos((prev) => [...prev, ...next].slice(0, MECHANIC_MAX_PHOTOS));
-      clearAdvanceTimer();
-      advanceTimerRef.current = window.setTimeout(() => {
-        advanceTimerRef.current = null;
-        setFinalStep((prev) => (prev === "photos" ? "voice" : prev));
-      }, 1000);
+      const combined = [...photos, ...next].slice(0, TOW_MAX_PHOTOS);
+      setPhotos(combined);
+      if (combined.length >= TOW_MIN_PHOTOS) {
+        clearAdvanceTimer();
+        advanceTimerRef.current = window.setTimeout(() => {
+          advanceTimerRef.current = null;
+          setFinalStep((prev) => (prev === "photos" ? "voice" : prev));
+        }, 1000);
+      }
     } catch {
       setError("Could not process photo.");
     }
@@ -339,7 +388,10 @@ export function MechanicHelpFlow({
     const trade: ProService = chosenTrade;
     const problem = [
       vehicleLabel ? `Vehicle: ${vehicleLabel}` : "",
-      composeMechanicProblem(answers, extra, landmark),
+      composeTowProblem(answers, extra, landmark, { destination, colour }),
+      meetPro === "yes" && meetProTrade
+        ? `Also send a ${PRO_SERVICE_LABELS[meetProTrade]} to meet me at the destination.`
+        : "",
     ]
       .filter(Boolean)
       .join("\n");
@@ -362,6 +414,8 @@ export function MechanicHelpFlow({
       lng: pickedLoc?.lng ?? location.coordinates.lng,
       photos,
       voiceNote,
+      meetPro: meetPro === "yes",
+      meetProTrade: meetPro === "yes" ? meetProTrade : null,
     };
     setError(null);
     // Instant paint: hand the payload to /jobs/new (optimistic) and create the
@@ -400,7 +454,7 @@ export function MechanicHelpFlow({
 
   const acceptRoute = (yes: boolean) => {
     if (!route) return;
-    setChosenTrade(applyConfirmChoice(route, yes));
+    setChosenTrade(applyTowConfirmChoice(route, yes));
     setDir("fwd");
     setFinalStep("urgency");
     setStack((s) => [...s, "final"]);
@@ -409,13 +463,26 @@ export function MechanicHelpFlow({
   const nextFinal = () => {
     clearAdvanceTimer();
     setError(null);
-    setFinalStep(
-      finalStep === "urgency"
-        ? "photos"
-        : finalStep === "photos"
-          ? "voice"
-          : "location"
-    );
+    setFinalStep((prev) => {
+      switch (prev) {
+        case "urgency":
+          return "photos";
+        case "photos":
+          return "voice";
+        case "voice":
+          return "location";
+        case "location":
+          return showDestination ? "destination" : "colour";
+        case "destination":
+          return "colour";
+        case "colour":
+          return "extra";
+        case "extra":
+          return "meetPro";
+        default:
+          return prev;
+      }
+    });
   };
 
   const finalBack = () => {
@@ -425,14 +492,50 @@ export function MechanicHelpFlow({
       goBack();
       return;
     }
-    setFinalStep(
-      finalStep === "photos"
-        ? "urgency"
-        : finalStep === "voice"
-          ? "photos"
-          : "voice"
-    );
+    setFinalStep((prev) => {
+      switch (prev) {
+        case "photos":
+          return "urgency";
+        case "voice":
+          return "photos";
+        case "location":
+          return "voice";
+        case "destination":
+          return "location";
+        case "colour":
+          return showDestination ? "destination" : "location";
+        case "extra":
+          return "colour";
+        case "meetPro":
+          return "extra";
+        default:
+          return prev;
+      }
+    });
   };
+
+  const finalTitle =
+    finalStep === "urgency"
+      ? TOW_FINAL_COPY.urgency
+      : finalStep === "photos"
+        ? TOW_FINAL_COPY.photos
+        : finalStep === "voice"
+          ? TOW_FINAL_COPY.voice
+          : finalStep === "location"
+            ? TOW_FINAL_COPY.location
+            : finalStep === "destination"
+              ? TOW_FINAL_COPY.destination
+              : finalStep === "colour"
+                ? TOW_FINAL_COPY.colour
+                : finalStep === "extra"
+                  ? TOW_FINAL_COPY.extra
+                  : TOW_FINAL_COPY.meetPro;
+
+  const canSend =
+    canFindTowPro(photos.length) &&
+    (finalStep !== "meetPro" ||
+      meetPro === "no" ||
+      (meetPro === "yes" && meetProTrade !== null));
 
   return (
     <div
@@ -472,15 +575,25 @@ export function MechanicHelpFlow({
           {step === "final" ? (
             <div className="flex min-h-0 flex-1 flex-col">
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-hide">
-                <p className={cn("mt-2 px-0.5 pb-2 text-[14px] font-bold capitalize leading-snug", ink)}>
-                  {finalStep === "urgency"
-                    ? MECHANIC_FINAL_COPY.urgency
-                    : finalStep === "photos"
-                      ? MECHANIC_FINAL_COPY.photos
-                      : finalStep === "voice"
-                        ? MECHANIC_FINAL_COPY.voice
-                        : MECHANIC_FINAL_COPY.location}
-                </p>
+                <div className="mb-1 mt-2 flex items-center gap-1 px-0.5">
+                  {finalStep !== "urgency" && finalStep !== "meetPro" ? (
+                    <button
+                      type="button"
+                      onClick={nextFinal}
+                      disabled={
+                        finalStep === "photos" &&
+                        photos.length < TOW_MIN_PHOTOS
+                      }
+                      aria-label="Next"
+                      className="border-0 bg-transparent p-1 text-[#FF6B35] disabled:opacity-30"
+                    >
+                      <ChevronRight className="h-6 w-6" strokeWidth={2.5} />
+                    </button>
+                  ) : null}
+                  <p className={cn("text-[14px] font-bold capitalize leading-snug", ink)}>
+                    {finalTitle}
+                  </p>
+                </div>
                 <div className={cn("rounded-[4px] px-3 py-2.5", rowCard)}>
                   {finalStep === "urgency" ? (
                     <div className="flex flex-col gap-1.5">
@@ -520,19 +633,6 @@ export function MechanicHelpFlow({
                   ) : null}
                   {finalStep === "photos" ? (
                     <div>
-                      <div className="mb-1 flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={nextFinal}
-                          aria-label="Next"
-                          className="border-0 bg-transparent p-1 text-[#FF6B35]"
-                        >
-                          <ChevronRight className="h-6 w-6" strokeWidth={2.5} />
-                        </button>
-                        <p className={cn("text-[12px] font-medium", muted)}>
-                          {MECHANIC_FINAL_COPY.photos}
-                        </p>
-                      </div>
                       <div className="flex flex-wrap gap-1.5">
                         {photos.map((p) => (
                           <button
@@ -553,7 +653,7 @@ export function MechanicHelpFlow({
                             />
                           </button>
                         ))}
-                        {photos.length < MECHANIC_MAX_PHOTOS ? (
+                        {photos.length < TOW_MAX_PHOTOS ? (
                           <button
                             type="button"
                             onClick={() => photoRef.current?.click()}
@@ -585,43 +685,131 @@ export function MechanicHelpFlow({
                       onChange={setVoiceNote}
                       userId={backendUserId || userProfile?.identityId || "guest"}
                       isLight={isLight}
-                      leading={
-                        <button
-                          type="button"
-                          onClick={nextFinal}
-                          aria-label="Next"
-                          className="border-0 bg-transparent p-1 text-[#FF6B35]"
-                        >
-                          <ChevronRight className="h-6 w-6" strokeWidth={2.5} />
-                        </button>
-                      }
                     />
                   ) : null}
                   {finalStep === "location" ? (
+                    <AddressAutocomplete
+                      className="-mx-3"
+                      value={pickedLoc}
+                      autoLocate={location.coordinates}
+                      onChange={(loc) => {
+                        setPickedLoc(loc);
+                        setLandmark(loc.label || landmark);
+                      }}
+                    />
+                  ) : null}
+                  {finalStep === "destination" ? (
+                    <input
+                      value={destination}
+                      onChange={(e) => {
+                        setDestination(e.target.value);
+                        setError(null);
+                      }}
+                      placeholder="Workshop name or area"
+                      className={cn(
+                        "w-full rounded-xl border-0 px-3 py-2 text-[13px] font-medium outline-none",
+                        field
+                      )}
+                    />
+                  ) : null}
+                  {finalStep === "colour" ? (
+                    <input
+                      value={colour}
+                      onChange={(e) => {
+                        setColour(e.target.value);
+                        setError(null);
+                      }}
+                      placeholder="e.g. Black, Silver, Red"
+                      className={cn(
+                        "w-full rounded-xl border-0 px-3 py-2 text-[13px] font-medium outline-none",
+                        field
+                      )}
+                    />
+                  ) : null}
+                  {finalStep === "extra" ? (
+                    <textarea
+                      value={extra}
+                      onChange={(e) => {
+                        setExtra(e.target.value);
+                        setError(null);
+                      }}
+                      rows={2}
+                      placeholder="Anything the tow operator should know"
+                      className={cn(
+                        "w-full resize-none rounded-xl border-0 px-3 py-2 text-[13px] font-medium outline-none",
+                        field
+                      )}
+                    />
+                  ) : null}
+                  {finalStep === "meetPro" ? (
                     <div className="space-y-2">
-                      <AddressAutocomplete
-                        className="-mx-3"
-                        value={pickedLoc}
-                        autoLocate={location.coordinates}
-                        onChange={(loc) => {
-                          setPickedLoc(loc);
-                          setLandmark(loc.label || landmark);
-                        }}
-                      />
-                      <label className="block">
-                        <span className={cn("text-[12px] font-bold", ink)}>
-                          {MECHANIC_FINAL_COPY.extra}
-                        </span>
-                        <textarea
-                          value={extra}
-                          onChange={(e) => setExtra(e.target.value)}
-                          rows={2}
-                          className={cn(
-                            "mt-1 w-full resize-none rounded-xl border-0 px-3 py-2 text-[13px] font-medium outline-none",
-                            field
-                          )}
-                        />
-                      </label>
+                      <div className="flex flex-col gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setError(null);
+                            setMeetPro("yes");
+                          }}
+                          className="flex w-full items-center gap-2 rounded-[4px] border-0 px-1 py-3 text-left transition-transform duration-150 active:scale-[0.985]"
+                        >
+                          <span className={cn("text-[13px] font-semibold", ink)}>
+                            {TOW_FINAL_COPY.meetProYes}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setError(null);
+                            setMeetPro("no");
+                            setMeetProTrade(null);
+                          }}
+                          className="flex w-full items-center gap-2 rounded-[4px] border-0 px-1 py-3 text-left transition-transform duration-150 active:scale-[0.985]"
+                        >
+                          <span className={cn("text-[13px] font-semibold", ink)}>
+                            {TOW_FINAL_COPY.meetProNo}
+                          </span>
+                        </button>
+                      </div>
+                      {meetPro === "yes" ? (
+                        <div className="pt-1">
+                          <p className={cn("pb-1 text-[12px] font-bold", ink)}>
+                            Select the repair pro to meet you
+                          </p>
+                          <div className="flex flex-col gap-1">
+                            {MEET_PRO_OPTIONS.map((t) => {
+                              return (
+                                <button
+                                  key={t}
+                                  type="button"
+                                  onClick={() => {
+                                    setMeetProTrade(t);
+                                    setError(null);
+                                  }}
+                                  className={cn(
+                                    "flex w-full items-center gap-2 rounded-[4px] border-0 px-1 py-3 text-left transition-transform duration-150 active:scale-[0.985]",
+                                    rowCard
+                                  )}
+                                >
+                                  <span
+                                    className={cn(
+                                      "min-w-0 flex-1 text-[13px] font-semibold capitalize leading-snug",
+                                      meetProTrade === t ? "text-[#FF6B35]" : ink
+                                    )}
+                                  >
+                                    {PRO_SERVICE_LABELS[t]}
+                                  </span>
+                                  {meetProTrade === t ? (
+                                    <Check
+                                      className="h-4 w-4 shrink-0 text-[#FF6B35]"
+                                      strokeWidth={2.5}
+                                    />
+                                  ) : null}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
@@ -645,11 +833,11 @@ export function MechanicHelpFlow({
                   </button>
                   <button
                     type="button"
-                    disabled={busy}
+                    disabled={busy || !canSend}
                     onClick={() => void send()}
                     className="h-11 flex-1 rounded-md border-0 bg-brand text-[14px] font-bold text-white disabled:opacity-50"
                   >
-                    {busy ? "Finding help…" : "Find a Repair Pro"}
+                    {busy ? "Finding help…" : "Find a Tow Pro"}
                   </button>
                 </div>
               </div>
@@ -673,7 +861,7 @@ export function MechanicHelpFlow({
                 {(screen.options || []).map((opt, i) => {
                   const letter =
                     step === "start"
-                      ? MECHANIC_START_OPTIONS[i]?.id
+                      ? TOW_START_OPTIONS[i]?.id
                       : undefined;
                   const last = i === (screen.options || []).length - 1;
                   return (

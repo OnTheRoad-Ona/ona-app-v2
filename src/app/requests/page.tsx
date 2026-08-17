@@ -25,6 +25,7 @@ import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 const OPEN: JobFlowStatus[] = [
+  "scheduled",
   "waiting_for_selected",
   "selected_review",
   "sequential_pairing",
@@ -51,6 +52,8 @@ const PAST: JobFlowStatus[] = [
 
 function statusLabel(s: JobFlowStatus, isPro: boolean): string {
   switch (s) {
+    case "scheduled":
+      return "Scheduled";
     case "waiting_for_selected":
     case "selected_review":
       return isPro ? "Service Request" : "Finding a pro";

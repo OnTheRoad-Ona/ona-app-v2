@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Loader2, Mic, RotateCcw, Square } from "lucide-react";
 import { VoiceNotePlayer } from "@/components/jobs/voice-note-player";
 import {
@@ -30,12 +30,15 @@ export function VoiceNoteRecorder({
   userId,
   isLight,
   onPhaseChange,
+  leading,
 }: {
   value: JobMedia | null;
   onChange: (v: JobMedia | null) => void;
   userId: string;
   isLight: boolean;
   onPhaseChange?: (phase: Phase) => void;
+  /** Optional control rendered in front of the Record button. */
+  leading?: ReactNode;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
 
@@ -273,6 +276,7 @@ export function VoiceNoteRecorder({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        {leading}
         {!value && phase === "idle" && (
           <button
             type="button"

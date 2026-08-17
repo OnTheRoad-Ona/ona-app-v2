@@ -51,6 +51,9 @@ const createSchema = z.object({
   calloutUrgency: z
     .enum(["normal", "emergency", "remote", "night"])
     .optional(),
+  meetPro: z.boolean().optional(),
+  /** Tow "add another repair pro": create a linked scheduled second request. */
+  meetProTrade: z.string().optional().nullable(),
 });
 
 export async function POST(req: Request) {
@@ -95,6 +98,10 @@ export async function POST(req: Request) {
       physicalAttendanceRequired: b.physicalAttendanceRequired,
       calloutEligible: b.calloutEligible,
       calloutUrgency: b.calloutUrgency,
+      meetProTrade:
+        b.meetProTrade && isProService(b.meetProTrade)
+          ? b.meetProTrade
+          : null,
     });
     return apiOk({ job, serverNow: new Date().toISOString() });
   } catch (e) {

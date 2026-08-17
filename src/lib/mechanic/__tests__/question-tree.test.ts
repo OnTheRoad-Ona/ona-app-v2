@@ -168,10 +168,10 @@ describe("mechanic question tree", () => {
     expect(text).toContain("lekki phase 1");
   });
 
-  it("needs two photos before Find a Repair Pro", () => {
-    expect(canFindMechanicPro(0)).toBe(false);
-    expect(canFindMechanicPro(1)).toBe(false);
-    expect(canFindMechanicPro(2)).toBe(true);
+  it("allows Find a Repair Pro with zero to four photos", () => {
+    expect(canFindMechanicPro(0)).toBe(true);
+    expect(canFindMechanicPro(4)).toBe(true);
+    expect(canFindMechanicPro(5)).toBe(true);
     expect(canAdvanceText("ok")).toBe(true);
     expect(canAdvanceText(" ")).toBe(false);
   });

@@ -203,6 +203,11 @@ export function CategoryTabs({
                   openSpecialtyPicker();
                   return;
                 }
+                // Re-tap the active trade → unclick (reset) it
+                if (id === category) {
+                  setCategory("none");
+                  return;
+                }
                 setCategory(id);
                 onExpand?.();
               }}

@@ -54,7 +54,9 @@ import {
 } from "@/lib/chat-expired";
 import {
   apiAcceptOffer,
+  apiCreateJob,
   apiDeferJob,
+  apiDispatchScheduled,
   apiGetJob,
   apiOpenAppeal,
   apiOpenDispute,
@@ -65,6 +67,8 @@ import {
   apiTransition,
   getCurrentPosition,
 } from "@/lib/jobs/client";
+import { AddressAutocomplete } from "@/components/map/address-autocomplete";
+import type { PickedLocation } from "@/components/map/location-picker-map";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { SwipeToRelease } from "@/components/jobs/motorist-release-pay-gate";
 
@@ -443,9 +447,19 @@ export function JobFlowScreen({
     backendUserId,
     authReady,
     isAuthenticated,
+    setCategory,
   } = useApp();
   const [job, setJob] = useState<JobRecord | null>(null);
   const jobRef = useRef<JobRecord | null>(null);
+  /**
+   * Job id actually in flight. Starts as the URL param; for `/jobs/new` it is
+   * swapped to the real id the moment the background create resolves, so all
+   * loaders/pollers pick up the real job without re-mounting.
+   */
+  const activeJobIdRef = useRef(jobId);
+  useEffect(() => {
+    activeJobIdRef.current = jobId;
+  }, [jobId]);
   const [err, setErr] = useState<string | null>(null);
   const [redirecting, setRedirecting] = useState(false);
   /** Release/payout errors must survive job polls (load() used to wipe setErr). */
@@ -629,7 +643,129 @@ export function JobFlowScreen({
     });
   }, []);
 
+  // Instant paint: the help flow hands us the just-created job via
+  // sessionStorage so the searching screen shows before the first GET.
+  useEffect(() => {
+    try {
+      const raw = window.sessionStorage.getItem(`ona-seed-job:${jobId}`);
+      if (!raw) return;
+      window.sessionStorage.removeItem(`ona-seed-job:${jobId}`);
+      const seed = JSON.parse(raw) as JobRecord;
+      if (seed?.id !== jobId) return;
+      setJob((prev) => {
+        if (prev && isJobNewer(prev, seed)) return prev;
+        jobRef.current = seed;
+        return seed;
+      });
+    } catch {
+      /* ignore */
+    }
+  }, [jobId]);
+
+  // `/jobs/new` two-phase: the help flow navigated here with the full request
+  // payload instead of waiting on POST. Paint the searching screen from an
+  // optimistic job instantly, then create the real job in the background.
+  const isNewRequest = jobId === "new";
+  const createdNewRef = useRef(false);
+  useEffect(() => {
+    if (!isNewRequest) return;
+    try {
+      const raw = window.sessionStorage.getItem("ona-new-request");
+      if (!raw) {
+        // Already created earlier this session (user refreshed mid-search):
+        // point loaders at the real job id.
+        const created = window.sessionStorage.getItem("ona-new-job:new");
+        if (created) activeJobIdRef.current = created;
+        return;
+      }
+      // A fresh pending request supersedes any previously-created mapping.
+      window.sessionStorage.removeItem("ona-new-job:new");
+      const payload = JSON.parse(raw) as Record<string, unknown>;
+      const ts = new Date().toISOString();
+      const optimistic: JobRecord = {
+        id: `pending-${Math.random().toString(36).slice(2, 10)}`,
+        motoristId: String(payload.motoristId ?? ""),
+        motoristName: String(payload.motoristName ?? "Customer"),
+        motoristPhoto: (payload.motoristPhoto as string | null) ?? null,
+        motoristVehicle: (payload.motoristVehicle as string | null) ?? null,
+        repairProId: "",
+        repairProName: "",
+        serviceType: String(payload.serviceType) as JobRecord["serviceType"],
+        problem: String(payload.problem ?? ""),
+        voiceNote: (payload.voiceNote as JobRecord["voiceNote"]) ?? null,
+        photos: Array.isArray(payload.photos)
+          ? (payload.photos as JobRecord["photos"])
+          : [],
+        status: "sequential_pairing",
+        currency: String(payload.currency ?? "NGN") as JobRecord["currency"],
+        proBaseMajor: null,
+        agreedMajor: null,
+        offers: [],
+        negotiateEndsAt: ts,
+        maxOffers: 6,
+        locationLabel: String(payload.locationLabel ?? ""),
+        motoristLocation: {
+          lat: Number(payload.lat ?? 0),
+          lng: Number(payload.lng ?? 0),
+        },
+        statusHistory: [
+          { status: "sequential_pairing", at: ts, by: "motorist" },
+        ],
+        createdAt: ts,
+        updatedAt: ts,
+      };
+      setJob((prev) => {
+        if (prev) return prev;
+        jobRef.current = optimistic;
+        return optimistic;
+      });
+    } catch {
+      /* ignore — fall back to the normal loading + poll path */
+    }
+  }, [isNewRequest]);
+
+  // Background create once auth is ready; swap activeJobIdRef to the real id
+  // so the existing poll/loader machinery takes over seamlessly. We stay on
+  // /jobs/new — swapping the URL mid-search suspends the page (Suspense
+  // "Loading…" flash).
+  useEffect(() => {
+    if (!isNewRequest) return;
+    if (!authReady || !isAuthenticated) return;
+    if (createdNewRef.current) return;
+    createdNewRef.current = true;
+    const create = async () => {
+      try {
+        const raw = window.sessionStorage.getItem("ona-new-request");
+        if (!raw) return;
+        const payload = JSON.parse(raw) as Record<string, unknown>;
+        const res = await apiCreateJob(payload);
+        if (!res.ok) {
+          // Search screen stays visible with the error; Cancel returns home.
+          setErr(res.message || "Could not send your request. Try again.");
+          return;
+        }
+        // Record the real id so a refresh on /jobs/new still resolves to the
+        // live job, then hand over to the poll machinery with no URL change.
+        try {
+          window.sessionStorage.setItem("ona-new-job:new", res.data.job.id);
+        } catch {
+          /* ignore */
+        }
+        window.sessionStorage.removeItem("ona-new-request");
+        activeJobIdRef.current = res.data.job.id;
+        commitJob(res.data.job, true);
+      } catch {
+        setErr("Could not send your request. Try again.");
+      }
+    };
+    void create();
+  }, [isNewRequest, authReady, isAuthenticated, commitJob]);
+
   const load = useCallback(async () => {
+    // `/jobs/new`: the real job is created in the background; never GET while
+    // it doesn't exist yet (a 404 would bounce us home before paint).
+    const id = activeJobIdRef.current;
+    if (!id || id === "new" || id.startsWith("pending-")) return;
     // Ensure JWT is present before first hit (local isAuthenticated can lag session)
     try {
       const { ensureAppSession } = await import("@/lib/supabase/session");
@@ -637,13 +773,13 @@ export function JobFlowScreen({
     } catch {
       /* continue — apiGetJob retries */
     }
-    const res = await apiGetJob(jobId);
+    const res = await apiGetJob(id);
     if (!res.ok) {
       if (res.message === "Job not found") {
         const current = notifRef.current;
         if (current) {
           const ids = current.notifications
-            .filter((n) => !n.readAt && n.jobId === jobId)
+            .filter((n) => !n.readAt && n.jobId === id)
             .map((n) => n.id);
           if (ids.length) void current.markRead(ids);
         }
@@ -1067,6 +1203,7 @@ export function JobFlowScreen({
       if (actor === "repair_pro") {
         router.replace("/dashboard");
       } else {
+        setCategory("none");
         router.replace("/");
       }
       void apiTransition({
@@ -1251,10 +1388,6 @@ export function JobFlowScreen({
       setRetryingSearch(false);
     };
 
-    const onChooseOther = () => {
-      goHome();
-    };
-
     return (
       <JobShell
         isLight={isLight}
@@ -1275,9 +1408,6 @@ export function JobFlowScreen({
               >
                 {retryingSearch ? "Searching…" : "Retry search"}
               </CopperButton>
-              <GhostButton isLight={isLight} onClick={onChooseOther}>
-                Choose another {tradeLabel}
-              </GhostButton>
             </div>
           )
         }
@@ -1286,12 +1416,46 @@ export function JobFlowScreen({
           {isRerouteExhausted
             ? isPro
               ? "This request was rerouted but no pro accepted in time."
-              : "No Pro Available, retry search or adjust your search radius and try again"
+              : "No Pro Available, retry search"
             : isPro
               ? `This request ended between you and ${job.motoristName}. No agreement was reached.`
               : `No agreement was reached with ${job.repairProName}.`}
         </p>
       </JobShell>
+    );
+  }
+
+  /* ─── SCHEDULED — add-another-repair-pro (Tow) ───
+   * A linked second request created at booking time, armed 60 min after the
+   * first pro accepts. The sweep pinged the motorist to enter their current
+   * address; this panel books the trade pro there.
+   */
+  if (job.status === "scheduled") {
+    if (viewer === "repair_pro") {
+      return (
+        <JobShell isLight={isLight} title="Scheduled" compactHeader>
+          <p
+            className={cn(
+              "px-0.5 pt-8 text-center text-[13px] font-medium",
+              muted
+            )}
+          >
+            Waiting to be dispatched
+          </p>
+        </JobShell>
+      );
+    }
+    return (
+      <ScheduledDispatchScreen
+        job={job}
+        isLight={isLight}
+        onBack={goJobsList}
+        onDispatched={(updated) => {
+          setJob(updated);
+          setErr(null);
+        }}
+        onError={(msg) => setErr(msg)}
+      />
     );
   }
 
@@ -3953,6 +4117,125 @@ function searchingEndsAtIso(job: JobRecord): string {
   return new Date(start + SEARCH_REROUTE_WINDOW_MS).toISOString();
 }
 
+/**
+ * "Add another repair pro" (Tow): a linked second request was created at
+ * booking time and armed 60 min after the first pro accepts. The motorist was
+ * pinged to enter their current address; this panel collects it and dispatches
+ * the trade pro there (books the first pro immediately).
+ */
+function ScheduledDispatchScreen({
+  job,
+  isLight,
+  onBack,
+  onDispatched,
+  onError,
+}: {
+  job: JobRecord;
+  isLight: boolean;
+  onBack: () => void;
+  onDispatched: (job: JobRecord) => void;
+  onError: (message: string) => void;
+}) {
+  const ink = isLight ? "text-slate-900" : "text-white";
+  const muted = isLight ? "text-slate-700" : "text-white/75";
+  const proLabel = PRO_SERVICE_LABELS[job.serviceType] || job.serviceType;
+  const [picked, setPicked] = useState<PickedLocation | null>(null);
+  const [auto, setAuto] = useState<{ lat: number; lng: number } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    getCurrentPosition()
+      .then((pos) => {
+        if (!alive) return;
+        setAuto({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      })
+      .catch(() => {
+        /* user can type the address instead */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const send = async () => {
+    if (!picked) return;
+    setBusy(true);
+    setErr(null);
+    const res = await apiDispatchScheduled({
+      jobId: job.id,
+      locationLabel: picked.label,
+      lat: picked.lat,
+      lng: picked.lng,
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setErr(res.message || "Could not dispatch. Try again.");
+      onError(res.message || "Could not dispatch. Try again.");
+      return;
+    }
+    onDispatched(res.data.job);
+  };
+
+  return (
+    <JobShell
+      isLight={isLight}
+      title={`Your ${proLabel} is ready`}
+      compactHeader
+      onBack={onBack}
+      footer={
+        <div className="space-y-2">
+          {err && (
+            <p className="text-center text-[12px] font-semibold text-red-500">
+              {err}
+            </p>
+          )}
+          <CopperButton disabled={busy || !picked} onClick={() => void send()}>
+            {busy ? "Booking…" : "Send"}
+          </CopperButton>
+        </div>
+      }
+    >
+      <div className="flex min-h-0 flex-col bg-transparent px-0.5 pt-1">
+        <p
+          className={cn(
+            "text-[11px] font-semibold uppercase tracking-wide",
+            muted
+          )}
+        >
+          Your current address
+        </p>
+        <p className={cn("mt-1 text-[15px] font-medium leading-relaxed", ink)}>
+          Enter where you are now — a {proLabel.toLowerCase()} will be
+          dispatched to meet you there.
+        </p>
+        <div className="mt-3">
+          <AddressAutocomplete
+            className="-mx-3"
+            value={picked}
+            autoLocate={auto}
+            onChange={setPicked}
+          />
+        </div>
+        <div className="mt-4 shrink-0">
+          <p
+            className={cn(
+              "text-[11px] font-semibold uppercase tracking-wide",
+              muted
+            )}
+          >
+            Job details
+          </p>
+          <p className={cn("mt-1 text-[13px] font-medium leading-snug", muted)}>
+            {job.problem}
+          </p>
+        </div>
+      </div>
+    </JobShell>
+  );
+}
+
 function SearchingScreen({
   job,
   viewer,
@@ -3981,12 +4264,11 @@ function SearchingScreen({
   const messages = useMemo(
     () => [
       `Searching for the nearest ${skillLabel} near you…`,
-      `Contacting nearby ${skillLabel}s who can fix "${job.problem}"…`,
       `Checking ${skillLabel}s available right now…`,
       `Still looking for an available ${skillLabel}…`,
       `Widening the search to more ${skillLabel}s…`,
     ],
-    [skillLabel, job.problem]
+    [skillLabel]
   );
   useEffect(() => {
     const id = window.setInterval(
@@ -3998,6 +4280,11 @@ function SearchingScreen({
 
   const cancelSearch = useCallback(
     (auto: boolean) => {
+      // Pending (/jobs/new) has no server job yet — just go home, no CANCEL.
+      if (job.id.startsWith("pending-")) {
+        router.replace("/");
+        return;
+      }
       // Navigate first — no hang waiting on CANCEL network
       router.replace(auto ? `/requests/${job.id}` : "/");
       void apiTransition({
@@ -4043,7 +4330,7 @@ function SearchingScreen({
   return (
     <JobShell
       isLight={isLight}
-      title="Finding Another Pro"
+      title={`Finding ${skillLabel} near you`}
       compactHeader
       fullBleed
       fillBody
