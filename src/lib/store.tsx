@@ -32,7 +32,7 @@ import {
   saveProfileToVault,
 } from "@/lib/profiles-vault";
 import { isExperienceUnset } from "@/lib/profile-system";
-import { isProService, PRO_SERVICE_LABELS } from "@/lib/services";
+import { isProService, PRO_SERVICE_LABELS } from "@/lib/pro-service-id";
 import type {
   AccountType,
   AppFilters,

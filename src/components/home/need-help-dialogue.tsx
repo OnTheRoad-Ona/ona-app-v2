@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiCreateJob } from "@/lib/jobs/client";
 import { resolveDispatchTrades } from "@/lib/callout/dispatch-trades";
-import { PRO_SERVICE_LABELS } from "@/lib/services";
+import { PRO_SERVICE_LABELS } from "@/lib/pro-service-id";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import {

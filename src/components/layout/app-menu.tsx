@@ -13,7 +13,8 @@ import type { MessageKey } from "@/lib/i18n";
 import { MESSAGE_ORANGE } from "@/lib/map-trade-icons";
 import { defaultBackHref, resetNavStack } from "@/lib/navigation";
 import { useApp } from "@/lib/store";
-import { isProService, PRO_TRADE_OPTIONS } from "@/lib/services";
+import { isProService } from "@/lib/pro-service-id";
+import { PRO_TRADE_OPTIONS } from "@/lib/services";
 import type { AccountType, ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
 

@@ -7,7 +7,7 @@ import {
   SettingsSaveBar,
   settingsInputClass,
 } from "@/components/settings/settings-ui";
-import { PRO_SERVICE_LABELS, isProService } from "@/lib/services";
+import { PRO_SERVICE_LABELS, isProService } from "@/lib/pro-service-id";
 import { MIN_OFFER_AMOUNT_MAJOR } from "@/lib/jobs/constants";
 import { formatMoney } from "@/lib/pricing";
 import type { ProService } from "@/lib/types";

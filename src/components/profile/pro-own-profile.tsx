@@ -34,7 +34,7 @@ import {
   SERVICE_RADIUS_OPTIONS_KM,
 } from "@/lib/profile-system";
 import { useApp } from "@/lib/store";
-import { isProService } from "@/lib/services";
+import { isProService } from "@/lib/pro-service-id";
 import { DOCS_PENDING_MAX_RADIUS_KM } from "@/lib/skill-questions";
 import { PhoneChangeFlow } from "@/components/profile/security/phone-change-flow";
 import { EmailChangeFlow } from "@/components/profile/security/email-change-flow";

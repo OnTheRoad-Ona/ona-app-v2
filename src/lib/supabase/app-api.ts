@@ -28,7 +28,7 @@ import type {
   MessageThread,
   RequestStatus,
 } from "@/lib/types";
-import { isProService } from "@/lib/services";
+import { isProService } from "@/lib/pro-service-id";
 import { isSyntheticAccount } from "@/lib/server/synthetic-accounts";
 import {
   apiVerifyIdemOp,

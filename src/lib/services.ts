@@ -168,15 +168,11 @@ export const PRO_TRADE_OPTIONS: {
   },
 ];
 
-export const ALL_PRO_SERVICES: ProService[] = PRO_TRADE_OPTIONS.map((t) => t.id);
-
-export const PRO_SERVICE_LABELS: Record<ProService, string> = Object.fromEntries(
-  PRO_TRADE_OPTIONS.map((t) => [t.id, t.label])
-) as Record<ProService, string>;
+export {
+  ALL_PRO_SERVICES,
+  PRO_SERVICE_LABELS,
+  isProService,
+} from "@/lib/pro-service-id";
 
 /** Repair Pros pick exactly one skill at signup */
 export const MAX_PRO_SERVICES_ON_SIGNUP = 1;
-
-export function isProService(v: string): v is ProService {
-  return ALL_PRO_SERVICES.includes(v as ProService);
-}

@@ -29,7 +29,7 @@ import {
 } from "@/lib/jobs/incoming-popup-timing";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
 import { useT } from "@/lib/i18n";
-import { isProService, PRO_SERVICE_LABELS } from "@/lib/services";
+import { isProService, PRO_SERVICE_LABELS } from "@/lib/pro-service-id";
 import {
   isCustomerToProDualPath,
   proT2CareApproved,

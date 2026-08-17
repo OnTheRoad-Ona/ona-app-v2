@@ -5,7 +5,7 @@
  */
 
 import { PROBLEM_MATCHES } from "@/lib/data/technicians";
-import { isProService } from "@/lib/services";
+import { isProService } from "@/lib/pro-service-id";
 import type { ProService } from "@/lib/types";
 
 export type DispatchTrades = {

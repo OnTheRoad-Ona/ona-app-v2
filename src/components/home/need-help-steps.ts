@@ -1,21 +1,5 @@
+import { isProService } from "@/lib/pro-service-id";
 import type { ProService } from "@/lib/types";
-
-const HOME_TRADES: readonly string[] = [
-  "mechanic",
-  "vulcanizer",
-  "towing",
-  "battery",
-  "ac",
-  "body",
-  "electrical",
-  "diagnostics",
-  "fashion",
-  "plumber",
-  "carpenter",
-  "painter",
-  "solar",
-  "generator",
-];
 
 export function canOpenEmergencyCard(problem: string): boolean {
   return problem.trim().length >= 3;
@@ -25,7 +9,7 @@ export function canOpenEmergencyCard(problem: string): boolean {
 export function talkBoxAfterTradePick(
   category: string
 ): category is ProService {
-  return HOME_TRADES.includes(category);
+  return isProService(category);
 }
 
 export function canFindPro(
