@@ -14,6 +14,7 @@ describe("need-help talk box cards", () => {
   });
 
   it("only sends from the last card", () => {
+    expect(canFindPro("vehicle")).toBe(false);
     expect(canFindPro("help")).toBe(false);
     expect(canFindPro("confirm")).toBe(false);
     expect(canFindPro("urgency")).toBe(false);

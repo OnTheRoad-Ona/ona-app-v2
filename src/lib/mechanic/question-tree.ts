@@ -1,8 +1,6 @@
 import type { ProService } from "@/lib/types";
 
-/** Exact START question — do not change. */
-export const MECHANIC_START_QUESTION =
-  "What is the main problem you are experiencing?";
+export const MECHANIC_START_QUESTION = "What's wrong with your vehicle?";
 
 export const MECHANIC_FINAL_COPY = {
   urgency: "Urgency",
@@ -54,11 +52,9 @@ export const MECHANIC_START_OPTIONS: MechanicOption[] = [
   { id: "E", label: "Smoke, burning smell, or unusual smell" },
   { id: "F", label: "Fluid leak (oil, water, fuel, etc.)" },
   { id: "G", label: "Transmission / gear / clutch problem" },
-  { id: "H", label: "Electrical or dashboard warning lights" },
-  { id: "I", label: "Body damage, dent, or accident-related" },
-  { id: "J", label: "Tyre or wheel problem" },
-  { id: "K", label: "Air conditioning problem" },
-  { id: "L", label: "Something else / I am not sure" },
+  { id: "H", label: "Body damage, dent, or accident-related" },
+  { id: "I", label: "Tyre or wheel problem" },
+  { id: "J", label: "Something else / I am not sure" },
 ];
 
 const YES_NO: MechanicOption[] = [
@@ -447,11 +443,9 @@ const START_NEXT: Record<string, string> = {
   E: "e_color",
   F: "f_color",
   G: "g_type",
-  H: "h_light",
-  I: "i_accident",
-  J: "j_kind",
-  K: "k_vehicle",
-  L: "l_describe",
+  H: "i_accident",
+  I: "j_kind",
+  J: "l_describe",
 };
 
 function resolveScreen(answers: Record<string, string>): "confirm" | "final" {
@@ -620,26 +614,14 @@ export function resolveMechanicRoute(
   }
 
   if (main === "H") {
-    if (answers.h_light === "battery") return leave("battery", "electrical");
-    if (answers.h_light === "multiple" || answers.h_parts === "yes") {
-      return leave("electrical");
-    }
-    return stay();
-  }
-
-  if (main === "I") {
     return leave("body");
   }
 
-  if (main === "J") {
+  if (main === "I") {
     return leave("vulcanizer");
   }
 
-  if (main === "K") {
-    return leave("ac");
-  }
-
-  if (main === "L") {
+  if (main === "J") {
     if (answers.l_related === "clothing") return leave("fashion");
     if (answers.l_related === "power") {
       if (answers.l_power === "solar") return leave("solar");

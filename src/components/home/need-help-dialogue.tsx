@@ -19,6 +19,12 @@ import {
   talkBoxAfterTradePick,
   type HelpStep,
 } from "@/components/home/need-help-steps";
+import {
+  canUseVehicleLabel,
+  JobVehicleStep,
+  profileVehiclesOf,
+} from "@/components/home/job-vehicle-step";
+import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 
 /**
  * One card at a time. SSPE finds the Repair Pro after they finish.
@@ -37,13 +43,16 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
   } = useApp();
 
   const statedTrade = talkBoxAfterTradePick(category) ? category : null;
+  const needsVehicle = isAutomotiveTrade(statedTrade);
 
   const [problem, setProblem] = useState("");
   const [step, setStep] = useState<HelpStep>("help");
   const [chosenTrade, setChosenTrade] = useState<ProService | null>(null);
   const [urgency, setUrgency] = useState<CalloutUrgencyKind>("normal");
+  const [vehicleLabel, setVehicleLabel] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const savedVehicles = profileVehiclesOf(userProfile);
 
   const ink = isLight ? "text-slate-900" : "text-white";
   const field = isLight
@@ -64,9 +73,10 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
 
   useEffect(() => {
     setProblem("");
-    setStep("help");
+    setStep(isAutomotiveTrade(statedTrade) ? "vehicle" : "help");
     setChosenTrade(null);
     setUrgency("normal");
+    setVehicleLabel("");
     setError(null);
   }, [statedTrade]);
 
@@ -104,7 +114,11 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
       setStep(decision.needsConfirm ? "confirm" : "help");
       return;
     }
-    if (step === "confirm") setStep("help");
+    if (step === "confirm") {
+      setStep("help");
+      return;
+    }
+    if (step === "help" && needsVehicle) setStep("vehicle");
   };
 
   const send = async () => {
@@ -126,6 +140,7 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
       motoristName: userProfile?.fullName || "Customer",
       motoristPhoto: userProfile?.avatarUrl || null,
       serviceType: chosenTrade || statedTrade || decision.suggested,
+      motoristVehicle: needsVehicle ? vehicleLabel || null : null,
       problem: text,
       emergency: urgency === "emergency",
       calloutUrgency: urgency,
@@ -147,7 +162,7 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
 
   const action = (
     <div className="flex gap-2">
-      {step !== "help" ? (
+      {step !== "vehicle" && (step !== "help" || needsVehicle) ? (
         <button
           type="button"
           onClick={goBack}
@@ -157,6 +172,22 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
           )}
         >
           Back
+        </button>
+      ) : null}
+      {step === "vehicle" ? (
+        <button
+          type="button"
+          disabled={!canUseVehicleLabel(vehicleLabel)}
+          onClick={() => {
+            setError(null);
+            setStep("help");
+          }}
+          className={cn(
+            "h-11 w-full rounded-md border-0 text-[14px] font-bold disabled:opacity-50",
+            nextGray
+          )}
+        >
+          Next
         </button>
       ) : null}
       {step === "help" ? (
@@ -207,6 +238,20 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
         isLight ? "bg-[#d8dce4]/90 backdrop-blur-sm" : "bg-black"
       )}
     >
+      {step === "vehicle" ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <JobVehicleStep
+            isLight={isLight}
+            vehicles={savedVehicles}
+            label={vehicleLabel}
+            onChange={(next) => {
+              setVehicleLabel(next);
+              setError(null);
+            }}
+          />
+        </div>
+      ) : null}
+
       {step === "help" ? (
         <div className={cn("shrink-0 rounded-xl px-3 py-2", card)}>
           <label className={cn("block text-[13px] font-bold", ink)}>

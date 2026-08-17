@@ -12,7 +12,7 @@ export function talkBoxAfterTradePick(
   return isProService(category);
 }
 
-export type HelpStep = "help" | "confirm" | "urgency" | "send";
+export type HelpStep = "vehicle" | "help" | "confirm" | "urgency" | "send";
 
 export function canFindPro(step: HelpStep): boolean {
   return step === "send";

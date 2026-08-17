@@ -204,6 +204,7 @@ export function CategoryTabs({
                   return;
                 }
                 setCategory(id);
+                onExpand?.();
               }}
               style={{
                 fontSize: compact ? 8 : expanded ? 10.08 : 9,

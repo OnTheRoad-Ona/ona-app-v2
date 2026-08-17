@@ -17,12 +17,16 @@ import {
   MECHANIC_FINAL_COPY,
   MECHANIC_MAX_PHOTOS,
   MECHANIC_START_OPTIONS,
-  mechanicBreadcrumb,
   mechanicScreen,
   nextMechanicScreen,
   resolveMechanicRoute,
   type MechanicRoute,
 } from "@/lib/mechanic/question-tree";
+import {
+  canUseVehicleLabel,
+  JobVehicleStep,
+  profileVehiclesOf,
+} from "@/components/home/job-vehicle-step";
 import { useApp } from "@/lib/store";
 import type { ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -46,8 +50,9 @@ export function MechanicHelpFlow({ isLight }: { isLight: boolean }) {
     setCategory,
   } = useApp();
 
-  const [stack, setStack] = useState<string[]>(["start"]);
+  const [stack, setStack] = useState<string[]>(["vehicle"]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [vehicleLabel, setVehicleLabel] = useState("");
   const [draft, setDraft] = useState("");
   const [dir, setDir] = useState<"fwd" | "back">("fwd");
   const [route, setRoute] = useState<MechanicRoute | null>(null);
@@ -67,11 +72,8 @@ export function MechanicHelpFlow({ isLight }: { isLight: boolean }) {
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-500" : "text-white/50";
   const field = isLight
-    ? "bg-white text-slate-900 placeholder:text-slate-400"
-    : "bg-[#2c2c2e] text-white placeholder:text-white/40";
-  const row = isLight
-    ? "bg-white/80 active:bg-white"
-    : "bg-[#2c2c2e]/90 active:bg-[#3a3a3c]";
+    ? "bg-transparent text-slate-900 placeholder:text-slate-400"
+    : "bg-transparent text-white placeholder:text-white/40";
   const nextGray = isLight
     ? "bg-[#4a4d53] text-white"
     : "bg-[#5c5c60] text-white";
@@ -182,7 +184,12 @@ export function MechanicHelpFlow({ isLight }: { isLight: boolean }) {
       return;
     }
     const trade: ProService = wantTow ? "towing" : chosenTrade;
-    const problem = composeMechanicProblem(answers, extra, landmark);
+    const problem = [
+      vehicleLabel ? `Vehicle: ${vehicleLabel}` : "",
+      composeMechanicProblem(answers, extra, landmark),
+    ]
+      .filter(Boolean)
+      .join("\n");
     setBusy(true);
     setError(null);
     const res = await apiCreateJob({
@@ -190,6 +197,7 @@ export function MechanicHelpFlow({ isLight }: { isLight: boolean }) {
       motoristName: userProfile?.fullName || "Customer",
       motoristPhoto: userProfile?.avatarUrl || null,
       serviceType: trade,
+      motoristVehicle: vehicleLabel || null,
       problem,
       emergency: urgency === "emergency",
       calloutUrgency: urgency,
@@ -224,15 +232,7 @@ export function MechanicHelpFlow({ isLight }: { isLight: boolean }) {
         isLight ? "bg-[#d8dce4]/90 backdrop-blur-sm" : "bg-black"
       )}
     >
-      <div className="flex shrink-0 items-center justify-between pb-1">
-        <div className="min-w-0">
-          <p className={cn("text-[13px] font-bold tracking-tight", ink)}>
-            Mechanic
-          </p>
-          <p className={cn("truncate text-[10px] font-medium", muted)}>
-            {mechanicBreadcrumb(stack)}
-          </p>
-        </div>
+      <div className="flex shrink-0 items-center justify-end pb-1">
         <button
           type="button"
           onClick={close}
@@ -266,13 +266,25 @@ export function MechanicHelpFlow({ isLight }: { isLight: boolean }) {
           dir === "back" ? "om-mech-slide-back" : "om-mech-slide-fwd"
         )}
       >
+        {step === "vehicle" ? (
+          <JobVehicleStep
+            isLight={isLight}
+            vehicles={profileVehiclesOf(userProfile)}
+            label={vehicleLabel}
+            onChange={(next) => {
+              setVehicleLabel(next);
+              setError(null);
+            }}
+          />
+        ) : null}
+
         {screen ? (
           <>
             <p className={cn("px-0.5 pb-2 text-[14px] font-bold leading-snug", ink)}>
               {screen.question}
             </p>
             {screen.kind === "choice" ? (
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col">
                 {(screen.options || []).map((opt, i) => {
                   const letter =
                     step === "start"
@@ -284,20 +296,18 @@ export function MechanicHelpFlow({ isLight }: { isLight: boolean }) {
                       type="button"
                       onClick={() => pick(opt.id, opt.label)}
                       className={cn(
-                        "flex w-full items-center gap-2 rounded-xl border-0 px-3 py-2.5 text-left transition-transform duration-150 active:scale-[0.985]",
-                        row
+                        "flex w-full items-center gap-2 border-0 border-b bg-transparent px-1 py-2.5 text-left transition-transform duration-150 active:scale-[0.985]",
+                        isLight ? "border-black/10" : "border-white/10"
                       )}
                     >
                       {letter ? (
                         <span
                           className={cn(
-                            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold",
-                            isLight
-                              ? "bg-black/8 text-slate-700"
-                              : "bg-white/10 text-white/80"
+                            "w-5 shrink-0 text-[12px] font-bold",
+                            muted
                           )}
                         >
-                          {letter}
+                          {letter}.
                         </span>
                       ) : null}
                       <span
@@ -515,6 +525,22 @@ export function MechanicHelpFlow({ isLight }: { isLight: boolean }) {
             )}
           >
             Back
+          </button>
+        ) : null}
+        {step === "vehicle" ? (
+          <button
+            type="button"
+            disabled={!canUseVehicleLabel(vehicleLabel)}
+            onClick={() => {
+              setError(null);
+              push("start", answers);
+            }}
+            className={cn(
+              "h-11 flex-1 rounded-md border-0 text-[14px] font-bold disabled:opacity-50",
+              nextGray
+            )}
+          >
+            Next
           </button>
         ) : null}
         {screen?.kind === "text" ? (

@@ -11,6 +11,7 @@ import {
   getModelsForMake,
   getYearsForMakeModel,
 } from "@/lib/vehicle-catalog";
+import { VEHICLE_TYPES } from "@/lib/vehicle-focus";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -24,6 +25,9 @@ type Props = {
   variant?: "auth" | "profile";
   isLight?: boolean;
   className?: string;
+  makeLabel?: string;
+  vehicleType?: string;
+  onVehicleTypeChange?: (v: string) => void;
 };
 
 function SearchSelect({
@@ -209,6 +213,9 @@ export function VehicleCascadeFields({
   variant = "auth",
   isLight = true,
   className,
+  makeLabel = "Make",
+  vehicleType,
+  onVehicleTypeChange,
 }: Props) {
   const makes = useMemo(() => getAllMakes(), []);
   const models = useMemo(
@@ -222,11 +229,26 @@ export function VehicleCascadeFields({
         : [],
     [make, model]
   );
+  const vehicleTypes = useMemo(
+    () => VEHICLE_TYPES.filter((t) => t.toLowerCase() !== "any"),
+    []
+  );
 
   return (
     <div className={cn("flex flex-col gap-3", className)}>
+      {onVehicleTypeChange ? (
+        <SearchSelect
+          label="Vehicle"
+          value={vehicleType || ""}
+          placeholder="Search vehicle type"
+          options={vehicleTypes}
+          variant={variant}
+          isLight={isLight}
+          onChange={onVehicleTypeChange}
+        />
+      ) : null}
       <SearchSelect
-        label="Make"
+        label={makeLabel}
         required
         value={make}
         placeholder="Search make (e.g. Toyota)"

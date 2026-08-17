@@ -5,16 +5,33 @@ import {
   canFindMechanicPro,
   composeMechanicProblem,
   confirmQuestion,
+  MECHANIC_START_OPTIONS,
   MECHANIC_START_QUESTION,
   nextMechanicScreen,
   resolveMechanicRoute,
 } from "@/lib/mechanic/question-tree";
 
 describe("mechanic question tree", () => {
-  it("keeps the exact start question", () => {
-    expect(MECHANIC_START_QUESTION).toBe(
-      "What is the main problem you are experiencing?"
-    );
+  it("uses the short start question and drops A/C and electrical", () => {
+    expect(MECHANIC_START_QUESTION).toBe("What's wrong with your vehicle?");
+    expect(MECHANIC_START_OPTIONS.map((o) => o.id)).toEqual([
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F",
+      "G",
+      "H",
+      "I",
+      "J",
+    ]);
+    expect(
+      MECHANIC_START_OPTIONS.some((o) => /air conditioning/i.test(o.label))
+    ).toBe(false);
+    expect(
+      MECHANIC_START_OPTIONS.some((o) => /electrical/i.test(o.label))
+    ).toBe(false);
   });
 
   it("opens branch A from start", () => {
@@ -78,17 +95,10 @@ describe("mechanic question tree", () => {
     ).toBe("vulcanizer");
   });
 
-  it("routes A/C and tyres away from Mechanic", () => {
+  it("routes tyres away from Mechanic", () => {
     expect(
       resolveMechanicRoute({
-        start: "K",
-        k_vehicle: "yes",
-        k_issue: "no_cold",
-      }).trade
-    ).toBe("ac");
-    expect(
-      resolveMechanicRoute({
-        start: "J",
+        start: "I",
         j_kind: "flat",
         j_multi: "no",
       }).trade
@@ -98,14 +108,14 @@ describe("mechanic question tree", () => {
   it("routes body damage to Body, and not-driveable to Tow", () => {
     expect(
       resolveMechanicRoute({
-        start: "I",
+        start: "H",
         i_accident: "yes",
         i_driveable: "yes",
       }).trade
     ).toBe("body");
     expect(
       resolveMechanicRoute({
-        start: "I",
+        start: "H",
         i_accident: "yes",
         i_driveable: "no",
       }).trade
@@ -115,20 +125,20 @@ describe("mechanic question tree", () => {
   it("routes home/shop power and clothing away from Mechanic", () => {
     expect(
       resolveMechanicRoute({
-        start: "L",
+        start: "J",
         l_related: "power",
         l_power: "solar",
       }).trade
     ).toBe("solar");
     expect(
       resolveMechanicRoute({
-        start: "L",
+        start: "J",
         l_related: "clothing",
       }).trade
     ).toBe("fashion");
     expect(
       resolveMechanicRoute({
-        start: "L",
+        start: "J",
         l_related: "vehicle",
       }).trade
     ).toBe("mechanic");
