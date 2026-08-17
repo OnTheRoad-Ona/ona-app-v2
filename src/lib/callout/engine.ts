@@ -99,6 +99,8 @@ export function calculateCalloutFee(input: {
   approvedRouteDistanceKm: number;
   baseFee?: number;
   policy?: CalloutPolicy;
+  /** Call-out only. Labour is never multiplied. */
+  urgencyMultiplier?: number;
 }): CalloutFeeBreakdown {
   const policy = input.policy ?? DEFAULT_CALLOUT_POLICY;
   const rate =
@@ -112,7 +114,14 @@ export function calculateCalloutFee(input: {
   const within = isWithinCalloutRadius(approved, policy.maximumRadiusKm);
   const billable = billableDistanceKm(approved, policy);
   const distanceCharge = moneyRound(billable * rate);
-  const calloutFee = moneyRound(base + distanceCharge);
+  const raw = moneyRound(base + distanceCharge);
+  const mult =
+    typeof input.urgencyMultiplier === "number" &&
+    Number.isFinite(input.urgencyMultiplier) &&
+    input.urgencyMultiplier > 0
+      ? input.urgencyMultiplier
+      : 1;
+  const calloutFee = moneyRound(raw * mult);
   return {
     tradeId: input.tradeId,
     tradeBaseFee: moneyRound(base),

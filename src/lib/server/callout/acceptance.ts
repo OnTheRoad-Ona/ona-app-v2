@@ -289,6 +289,10 @@ export async function lockCalloutOnAcceptance(input: {
     approvedRouteDistanceKm: road.route.distanceKm,
     baseFee: tradeFee.baseFee,
     policy,
+    urgencyMultiplier:
+      existing?.urgencyMultiplier != null && existing.urgencyMultiplier > 0
+        ? existing.urgencyMultiplier
+        : 1,
   });
 
   const quote: CalloutQuote = {
@@ -317,6 +321,8 @@ export async function lockCalloutOnAcceptance(input: {
     lockIdempotencyKey: lockKey,
     billedFromDrivenKm: false,
     travelPhase: "before_travel",
+    urgencyKind: existing?.urgencyKind ?? "normal",
+    urgencyMultiplier: existing?.urgencyMultiplier ?? 1,
   };
 
   const saved = await upsertCalloutQuote(quote);

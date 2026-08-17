@@ -24,6 +24,10 @@ import {
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { isProService } from "@/lib/services";
+import {
+  calloutUrgencyMultiplier,
+  isCalloutUrgencyKind,
+} from "@/lib/callout/urgency";
 
 export type CalloutAttachInput = {
   requestId: string;
@@ -37,6 +41,7 @@ export type CalloutAttachInput = {
   physicalAttendanceRequired?: boolean;
   calloutEligible?: boolean;
   tradeLocked?: boolean;
+  urgencyKind?: string | null;
 };
 
 function emptyQuote(
@@ -110,6 +115,10 @@ export async function attachCalloutToRequest(
   await persistClassification(input.requestId, classification);
 
   const dest = input.destination;
+  const urgencyKind = isCalloutUrgencyKind(String(input.urgencyKind || "normal"))
+    ? input.urgencyKind
+    : "normal";
+  const urgencyMultiplier = calloutUrgencyMultiplier(urgencyKind);
   const destOk =
     Number.isFinite(dest.lat) &&
     Number.isFinite(dest.lng) &&
@@ -123,6 +132,8 @@ export async function attachCalloutToRequest(
         destinationLatitude: destOk ? dest.lat : null,
         destinationLongitude: destOk ? dest.lng : null,
         currency: policy.currency,
+        urgencyKind,
+        urgencyMultiplier,
       })
     );
   }
@@ -135,6 +146,8 @@ export async function attachCalloutToRequest(
       destinationLatitude: destOk ? dest.lat : null,
       destinationLongitude: destOk ? dest.lng : null,
       currency: policy.currency,
+      urgencyKind,
+      urgencyMultiplier,
     })
   );
 }

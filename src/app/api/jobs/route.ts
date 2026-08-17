@@ -48,6 +48,9 @@ const createSchema = z.object({
   remoteConsultation: z.boolean().optional(),
   physicalAttendanceRequired: z.boolean().optional(),
   calloutEligible: z.boolean().optional(),
+  calloutUrgency: z
+    .enum(["normal", "emergency", "remote", "night"])
+    .optional(),
 });
 
 export async function POST(req: Request) {
@@ -78,7 +81,7 @@ export async function POST(req: Request) {
       repairProPhoto: b.repairProPhoto,
       serviceType: b.serviceType,
       problem: b.problem.trim(),
-      emergency: b.emergency,
+      emergency: b.emergency || b.calloutUrgency === "emergency",
       voiceNote: (b.voiceNote as JobMedia) || null,
       photos: (b.photos as JobMedia[]) || [],
       currency: b.currency,
@@ -91,6 +94,7 @@ export async function POST(req: Request) {
       remoteConsultation: b.remoteConsultation,
       physicalAttendanceRequired: b.physicalAttendanceRequired,
       calloutEligible: b.calloutEligible,
+      calloutUrgency: b.calloutUrgency,
     });
     return apiOk({ job, serverNow: new Date().toISOString() });
   } catch (e) {

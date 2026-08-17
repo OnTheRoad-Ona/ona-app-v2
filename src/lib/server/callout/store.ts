@@ -108,6 +108,9 @@ export function rowToQuote(row: Record<string, unknown>): CalloutQuote {
     voidReason: row.void_reason ? String(row.void_reason) : null,
     travelPhase: row.travel_phase ? String(row.travel_phase) : null,
     billedFromDrivenKm: row.billed_from_driven_km === true,
+    urgencyKind: row.urgency_kind ? String(row.urgency_kind) : null,
+    urgencyMultiplier:
+      row.urgency_multiplier != null ? Number(row.urgency_multiplier) : null,
   };
 }
 
@@ -219,6 +222,8 @@ export async function upsertCalloutQuote(
           void_reason: quote.voidReason ?? null,
           travel_phase: quote.travelPhase ?? "before_travel",
           billed_from_driven_km: quote.billedFromDrivenKm === true,
+          urgency_kind: quote.urgencyKind ?? "normal",
+          urgency_multiplier: quote.urgencyMultiplier ?? 1,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "request_id" }

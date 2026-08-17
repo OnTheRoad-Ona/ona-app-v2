@@ -486,6 +486,7 @@ async function attachCalloutQuietly(
       physicalAttendanceRequired: input.physicalAttendanceRequired,
       calloutEligible: input.calloutEligible,
       tradeLocked: true,
+      urgencyKind: input.calloutUrgency || "normal",
     });
   } catch (e) {
     console.error("[callout] attach failed", e);

@@ -231,4 +231,6 @@ export type CreateJobInput = {
   remoteConsultation?: boolean;
   physicalAttendanceRequired?: boolean;
   calloutEligible?: boolean;
+  /** Call-out fee only: normal 1x, emergency 1.25x, remote 1.35x, night 1.5x */
+  calloutUrgency?: "normal" | "emergency" | "remote" | "night";
 };

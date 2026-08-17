@@ -4,6 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiCreateJob } from "@/lib/jobs/client";
 import { decideHelpTrade } from "@/lib/callout/dispatch-trades";
+import {
+  CALLOUT_URGENCY_OPTIONS,
+  type CalloutUrgencyKind,
+} from "@/lib/callout/urgency";
 import { PRO_SERVICE_LABELS } from "@/lib/pro-service-id";
 import { problemPlaceholderForTrade } from "@/lib/pricing";
 import { useApp } from "@/lib/store";
@@ -13,11 +17,11 @@ import {
   canFindPro,
   canOpenEmergencyCard,
   talkBoxAfterTradePick,
+  type HelpStep,
 } from "@/components/home/need-help-steps";
 
 /**
- * Replaces the nearby-pro list. Customer already picked a trade
- * on the strip. Cards open one at a time; SSPE finds the Repair Pro.
+ * One card at a time. SSPE finds the Repair Pro after they finish.
  */
 export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
   const router = useRouter();
@@ -35,9 +39,9 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
   const statedTrade = talkBoxAfterTradePick(category) ? category : null;
 
   const [problem, setProblem] = useState("");
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<HelpStep>("help");
   const [chosenTrade, setChosenTrade] = useState<ProService | null>(null);
-  const [emergency, setEmergency] = useState<boolean | null>(null);
+  const [urgency, setUrgency] = useState<CalloutUrgencyKind>("normal");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,6 +50,12 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
     ? "bg-white text-slate-900 placeholder:text-slate-400"
     : "bg-[#2c2c2e] text-white placeholder:text-white/40";
   const card = isLight ? "bg-white/80" : "bg-[#1c1c1e]";
+  const nextGray = isLight
+    ? "bg-[#4a4d53] text-white"
+    : "bg-[#5c5c60] text-white";
+  const chipIdle = isLight
+    ? "bg-black/8 text-slate-700"
+    : "bg-[#2c2c2e] text-white/75";
 
   const decision = useMemo(
     () => decideHelpTrade(problem, statedTrade),
@@ -54,43 +64,51 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
 
   useEffect(() => {
     setProblem("");
-    setStep(1);
+    setStep("help");
     setChosenTrade(null);
-    setEmergency(null);
+    setUrgency("normal");
     setError(null);
   }, [statedTrade]);
 
-  const goAfterProblem = () => {
+  const goAfterHelp = () => {
     if (!canOpenEmergencyCard(problem)) {
       setError("A few words is enough.");
       return;
     }
     setError(null);
     if (decision.needsConfirm) {
-      setStep(2);
+      setStep("confirm");
       return;
     }
     setChosenTrade(statedTrade);
-    setStep(3);
+    setStep("urgency");
   };
 
   const acceptSuggested = () => {
     setChosenTrade(decision.suggested);
-    setEmergency(null);
-    setStep(3);
+    setStep("urgency");
   };
 
   const keepTappedTrade = () => {
     setChosenTrade(statedTrade);
-    setEmergency(null);
-    setStep(3);
+    setStep("urgency");
+  };
+
+  const goBack = () => {
+    setError(null);
+    if (step === "send") {
+      setStep("urgency");
+      return;
+    }
+    if (step === "urgency") {
+      setStep(decision.needsConfirm ? "confirm" : "help");
+      return;
+    }
+    if (step === "confirm") setStep("help");
   };
 
   const send = async () => {
-    if (!canFindPro(step, emergency)) {
-      setError("Pick Yes or No for emergency first.");
-      return;
-    }
+    if (!canFindPro(step)) return;
     const text = problem.trim();
     if (!isAuthenticated) {
       router.push("/login/role");
@@ -109,7 +127,8 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
       motoristPhoto: userProfile?.avatarUrl || null,
       serviceType: chosenTrade || statedTrade || decision.suggested,
       problem: text,
-      emergency: Boolean(emergency),
+      emergency: urgency === "emergency",
+      calloutUrgency: urgency,
       currency: "NGN",
       locationLabel: helpingSomeoneElse
         ? helpingSomeoneLabel || location.label
@@ -126,55 +145,60 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
     router.replace(`/jobs/${res.data.job.id}`);
   };
 
-  const continueGray = isLight
-    ? "bg-[#4a4d53] text-white"
-    : "bg-[#5c5c60] text-white";
-
-  const action =
-    step === 1 ? (
-      <button
-        type="button"
-        disabled={!canOpenEmergencyCard(problem)}
-        onClick={goAfterProblem}
-        className={cn(
-          "h-11 w-full rounded-md border-0 text-[14px] font-bold disabled:opacity-50",
-          continueGray
-        )}
-      >
-        Continue
-      </button>
-    ) : step === 2 ? (
-      <button
-        type="button"
-        disabled
-        className={cn(
-          "h-11 w-full rounded-md border-0 text-[14px] font-bold opacity-50",
-          continueGray
-        )}
-      >
-        Continue
-      </button>
-    ) : canFindPro(step, emergency) ? (
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => void send()}
-        className={cn(
-          "h-11 w-full rounded-md border-0 text-[14px] font-bold text-white disabled:opacity-50",
-          emergency ? "bg-red-600" : "bg-brand"
-        )}
-      >
-        {busy ? "Finding help…" : "Find a Repair Pro"}
-      </button>
-    ) : (
-      <button
-        type="button"
-        disabled
-        className="h-11 w-full rounded-md border-0 bg-brand text-[14px] font-bold text-white opacity-50"
-      >
-        Find a Repair Pro
-      </button>
-    );
+  const action = (
+    <div className="flex gap-2">
+      {step !== "help" ? (
+        <button
+          type="button"
+          onClick={goBack}
+          className={cn(
+            "h-11 flex-1 rounded-md border-0 text-[14px] font-bold",
+            nextGray
+          )}
+        >
+          Back
+        </button>
+      ) : null}
+      {step === "help" ? (
+        <button
+          type="button"
+          disabled={!canOpenEmergencyCard(problem)}
+          onClick={goAfterHelp}
+          className={cn(
+            "h-11 w-full rounded-md border-0 text-[14px] font-bold disabled:opacity-50",
+            nextGray
+          )}
+        >
+          Next
+        </button>
+      ) : null}
+      {step === "urgency" ? (
+        <button
+          type="button"
+          onClick={() => {
+            setError(null);
+            setStep("send");
+          }}
+          className={cn(
+            "h-11 flex-1 rounded-md border-0 text-[14px] font-bold",
+            nextGray
+          )}
+        >
+          Next
+        </button>
+      ) : null}
+      {step === "send" ? (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void send()}
+          className="h-11 flex-1 rounded-md border-0 bg-brand text-[14px] font-bold text-white disabled:opacity-50"
+        >
+          {busy ? "Finding help…" : "Find a Repair Pro"}
+        </button>
+      ) : null}
+    </div>
+  );
 
   return (
     <div
@@ -183,32 +207,29 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
         isLight ? "bg-[#d8dce4]/90 backdrop-blur-sm" : "bg-black"
       )}
     >
-      <div className={cn("shrink-0 rounded-xl px-3 py-2", card)}>
-        <label className={cn("block text-[13px] font-bold", ink)}>
-          What do you need help with?
-        </label>
-        <textarea
-          value={problem}
-          onChange={(e) => {
-            const next = e.target.value;
-            setProblem(next);
-            if (!canOpenEmergencyCard(next) && step !== 1) {
-              setStep(1);
-              setChosenTrade(null);
-              setEmergency(null);
-            }
-          }}
-          rows={2}
-          placeholder={problemPlaceholderForTrade(statedTrade)}
-          className={cn(
-            "mt-1 w-full resize-none rounded-xl border-0 px-2.5 py-2 text-[13px] font-medium leading-snug outline-none",
-            field
-          )}
-        />
-      </div>
+      {step === "help" ? (
+        <div className={cn("shrink-0 rounded-xl px-3 py-2", card)}>
+          <label className={cn("block text-[13px] font-bold", ink)}>
+            What do you need help with?
+          </label>
+          <textarea
+            value={problem}
+            onChange={(e) => {
+              setProblem(e.target.value);
+              setError(null);
+            }}
+            rows={2}
+            placeholder={problemPlaceholderForTrade(statedTrade)}
+            className={cn(
+              "mt-1 w-full resize-none rounded-xl border-0 px-2.5 py-2 text-[13px] font-medium leading-snug outline-none",
+              field
+            )}
+          />
+        </div>
+      ) : null}
 
-      {step === 2 ? (
-        <div className={cn("mt-1.5 rounded-xl px-3 py-2", card)}>
+      {step === "confirm" ? (
+        <div className={cn("shrink-0 rounded-xl px-3 py-2", card)}>
           <p className={cn("text-[13px] font-bold", ink)}>
             This sounds like {PRO_SERVICE_LABELS[decision.suggested]}. Continue?
           </p>
@@ -225,9 +246,7 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
               onClick={keepTappedTrade}
               className={cn(
                 "rounded-full border-0 px-3 py-1.5 text-[12px] font-bold",
-                isLight
-                  ? "bg-black/8 text-slate-700"
-                  : "bg-[#2c2c2e] text-white/75"
+                chipIdle
               )}
             >
               No
@@ -236,39 +255,36 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
         </div>
       ) : null}
 
-      {step === 3 ? (
-        <div className={cn("mt-1.5 rounded-xl px-3 py-2", card)}>
-          <p className={cn("text-[13px] font-bold", ink)}>Emergency?</p>
-          <div className="mt-1 flex gap-2">
-            <button
-              type="button"
-              onClick={() => setEmergency(true)}
-              className={cn(
-                "rounded-full border-0 px-3 py-1.5 text-[12px] font-bold",
-                emergency === true
-                  ? "bg-red-600 text-white"
-                  : isLight
-                    ? "bg-black/8 text-slate-700"
-                    : "bg-[#2c2c2e] text-white/75"
-              )}
-            >
-              Yes
-            </button>
-            <button
-              type="button"
-              onClick={() => setEmergency(false)}
-              className={cn(
-                "rounded-full border-0 px-3 py-1.5 text-[12px] font-bold",
-                emergency === false
-                  ? "bg-brand text-white"
-                  : isLight
-                    ? "bg-black/8 text-slate-700"
-                    : "bg-[#2c2c2e] text-white/75"
-              )}
-            >
-              No
-            </button>
+      {step === "urgency" ? (
+        <div className={cn("shrink-0 rounded-xl px-3 py-2", card)}>
+          <p className={cn("text-[13px] font-bold", ink)}>How urgent is this?</p>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {CALLOUT_URGENCY_OPTIONS.map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setUrgency(opt.id)}
+                className={cn(
+                  "rounded-full border-0 px-3 py-1.5 text-[12px] font-bold",
+                  urgency === opt.id
+                    ? "bg-brand text-white"
+                    : chipIdle
+                )}
+              >
+                {opt.label} {opt.multiplier === 1 ? "1x" : `${opt.multiplier}x`}
+              </button>
+            ))}
           </div>
+        </div>
+      ) : null}
+
+      {step === "send" ? (
+        <div className={cn("shrink-0 rounded-xl px-3 py-2", card)}>
+          <p className={cn("text-[13px] font-bold", ink)}>Ready to send</p>
+          <p className={cn("mt-1 text-[12px] font-medium", isLight ? "text-slate-600" : "text-white/55")}>
+            {PRO_SERVICE_LABELS[chosenTrade || statedTrade || decision.suggested]}{" "}
+            · {CALLOUT_URGENCY_OPTIONS.find((o) => o.id === urgency)?.label}
+          </p>
         </div>
       ) : null}
 

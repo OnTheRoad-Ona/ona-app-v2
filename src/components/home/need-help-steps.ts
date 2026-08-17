@@ -12,9 +12,8 @@ export function talkBoxAfterTradePick(
   return isProService(category);
 }
 
-export function canFindPro(
-  step: 1 | 2 | 3,
-  emergency: boolean | null
-): boolean {
-  return step === 3 && emergency !== null;
+export type HelpStep = "help" | "confirm" | "urgency" | "send";
+
+export function canFindPro(step: HelpStep): boolean {
+  return step === "send";
 }

@@ -119,6 +119,8 @@ export type CalloutQuote = {
   voidReason?: string | null;
   travelPhase?: string | null;
   billedFromDrivenKm?: boolean;
+  urgencyKind?: string | null;
+  urgencyMultiplier?: number | null;
 };
 
 export const DEFAULT_CALLOUT_POLICY: CalloutPolicy = {
