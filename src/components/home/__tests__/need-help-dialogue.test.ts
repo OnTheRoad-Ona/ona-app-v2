@@ -13,12 +13,12 @@ describe("need-help talk box cards", () => {
     expect(canOpenEmergencyCard("car won't start")).toBe(true);
   });
 
-  it("does not show Find a Repair Pro until emergency is picked on card 2", () => {
+  it("does not show Find a Repair Pro until emergency is picked after confirm", () => {
     expect(canFindPro(1, null)).toBe(false);
-    expect(canFindPro(1, false)).toBe(false);
-    expect(canFindPro(2, null)).toBe(false);
-    expect(canFindPro(2, true)).toBe(true);
-    expect(canFindPro(2, false)).toBe(true);
+    expect(canFindPro(2, true)).toBe(false);
+    expect(canFindPro(3, null)).toBe(false);
+    expect(canFindPro(3, true)).toBe(true);
+    expect(canFindPro(3, false)).toBe(true);
   });
 
   it("shows the talk box only after they pick a trade", () => {

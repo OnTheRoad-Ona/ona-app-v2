@@ -16,6 +16,45 @@ export type DispatchTrades = {
   mismatch: boolean;
 };
 
+export function scoreTradesFromProblem(
+  problem: string
+): { trade: ProService; score: number }[] {
+  const q = String(problem || "").toLowerCase();
+  const scores = new Map<ProService, number>();
+  for (const [keyword, trades] of Object.entries(PROBLEM_MATCHES)) {
+    if (!q.includes(keyword)) continue;
+    const weight = Math.max(2, keyword.length);
+    trades.forEach((t, i) => {
+      const bonus = trades.length - i;
+      scores.set(t, (scores.get(t) || 0) + weight + bonus);
+    });
+  }
+  return [...scores.entries()]
+    .map(([trade, score]) => ({ trade, score }))
+    .sort((a, b) => b.score - a.score);
+}
+
+/** After they type: ask only if Ona's best trade is not the one they tapped. */
+export function decideHelpTrade(
+  problem: string,
+  tappedTrade?: ProService | string | null
+): {
+  tapped: ProService | null;
+  suggested: ProService;
+  needsConfirm: boolean;
+  fromProblem: ProService[];
+} {
+  const tapped =
+    tappedTrade && isProService(tappedTrade) ? tappedTrade : null;
+  const ranked = scoreTradesFromProblem(problem);
+  const fromProblem = ranked.map((r) => r.trade);
+  const suggested = ranked[0]?.trade ?? tapped ?? "mechanic";
+  const needsConfirm = Boolean(
+    tapped && fromProblem.length > 0 && suggested !== tapped
+  );
+  return { tapped, suggested, needsConfirm, fromProblem };
+}
+
 export function tradesFromProblemText(problem: string): ProService[] {
   const q = String(problem || "").toLowerCase();
   const found: ProService[] = [];

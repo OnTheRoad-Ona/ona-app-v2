@@ -13,8 +13,8 @@ export function talkBoxAfterTradePick(
 }
 
 export function canFindPro(
-  step: 1 | 2,
+  step: 1 | 2 | 3,
   emergency: boolean | null
 ): boolean {
-  return step === 2 && emergency !== null;
+  return step === 3 && emergency !== null;
 }

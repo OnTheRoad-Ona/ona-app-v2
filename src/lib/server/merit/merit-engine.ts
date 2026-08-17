@@ -372,24 +372,49 @@ export async function getMeritScoresForPros(
   return map;
 }
 
+type DispatchRank = {
+  score: number;
+  rating: number;
+  speed: number;
+};
+
+async function getDispatchRankForPros(
+  proIds: string[]
+): Promise<Map<string, DispatchRank>> {
+  const map = new Map<string, DispatchRank>();
+  if (!proIds.length) return map;
+  const supabase = createServiceSupabase();
+  const { data: rows } = await supabase
+    .from("merit_scores")
+    .select("pro_id, score, rating_score, response_speed_score")
+    .in("pro_id", proIds);
+  for (const r of rows ?? []) {
+    map.set(String(r.pro_id), {
+      score: Number(r.score) || 0,
+      rating: Number(r.rating_score) || 0,
+      speed: Number(r.response_speed_score) || 0,
+    });
+  }
+  return map;
+}
+
 /**
- * Order pros by merit (score desc), with distance as a tiebreak within merit
- * bands. Used by SSPE dispatch (advancePairing) and by /api/pros?sort=merit.
- * Candidates: pro profile rows already filtered to eligible pros.
+ * Best job first: highest rating, then fastest reply, then closer.
+ * Used by SSPE dispatch and /api/pros?sort=merit.
  */
 export async function orderCandidatesByMerit<T extends { user_id: string }>(
   candidates: T[],
   distanceKm: (pro: T) => number
 ): Promise<T[]> {
   if (candidates.length <= 1) return candidates;
-  const scores = await getMeritScoresForPros(candidates.map((p) => p.user_id));
-  const bandOf = (score: number | undefined) =>
-    score == null ? 0 : Math.floor(score / 10);
+  const ranks = await getDispatchRankForPros(candidates.map((p) => p.user_id));
   return [...candidates].sort((a, b) => {
-    const sa = scores.get(a.user_id);
-    const sb = scores.get(b.user_id);
-    const bandDiff = bandOf(sb) - bandOf(sa);
-    if (bandDiff !== 0) return bandDiff;
+    const ra = ranks.get(a.user_id);
+    const rb = ranks.get(b.user_id);
+    const ratingDiff = (rb?.rating ?? 0) - (ra?.rating ?? 0);
+    if (ratingDiff !== 0) return ratingDiff;
+    const speedDiff = (rb?.speed ?? 0) - (ra?.speed ?? 0);
+    if (speedDiff !== 0) return speedDiff;
     return distanceKm(a) - distanceKm(b);
   });
 }

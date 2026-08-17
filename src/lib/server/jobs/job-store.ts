@@ -485,6 +485,7 @@ async function attachCalloutQuietly(
       remoteConsultation: input.remoteConsultation,
       physicalAttendanceRequired: input.physicalAttendanceRequired,
       calloutEligible: input.calloutEligible,
+      tradeLocked: true,
     });
   } catch (e) {
     console.error("[callout] attach failed", e);

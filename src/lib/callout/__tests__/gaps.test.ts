@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { resolveDispatchTrades } from "@/lib/callout/dispatch-trades";
+import {
+  decideHelpTrade,
+  resolveDispatchTrades,
+} from "@/lib/callout/dispatch-trades";
 import { customerMoveSurchargeNaira } from "@/lib/callout/customer-move";
 import { isWithinArrivalProximity } from "@/lib/callout/arrival";
 import { calculateCalloutFee } from "@/lib/callout/engine";
@@ -24,6 +27,27 @@ describe("dispatch consistency — words beat the wrong tap", () => {
     const d = resolveDispatchTrades("My car won't start", "mechanic");
     expect(d.dispatchTrades.length).toBeGreaterThan(0);
     expect(d.mismatch).toBe(false);
+  });
+});
+
+describe("decideHelpTrade — ask before sending a different trade", () => {
+  it("asks when words point to vulcanizer but they tapped mechanic", () => {
+    const d = decideHelpTrade("I have a puncture", "mechanic");
+    expect(d.needsConfirm).toBe(true);
+    expect(d.suggested).toBe("vulcanizer");
+    expect(d.tapped).toBe("mechanic");
+  });
+
+  it("does not ask when words match the tap", () => {
+    const d = decideHelpTrade("Engine overheating", "mechanic");
+    expect(d.needsConfirm).toBe(false);
+    expect(d.suggested).toBe("mechanic");
+  });
+
+  it("picks the stronger trade when two could fit", () => {
+    const d = decideHelpTrade("Need a jump start, car won't start", "mechanic");
+    expect(d.suggested).toBe("battery");
+    expect(d.needsConfirm).toBe(true);
   });
 });
 

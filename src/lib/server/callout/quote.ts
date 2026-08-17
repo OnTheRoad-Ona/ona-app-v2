@@ -36,6 +36,7 @@ export type CalloutAttachInput = {
   remoteConsultation?: boolean;
   physicalAttendanceRequired?: boolean;
   calloutEligible?: boolean;
+  tradeLocked?: boolean;
 };
 
 function emptyQuote(
@@ -104,6 +105,7 @@ export async function attachCalloutToRequest(
     physicalAttendanceRequired: input.physicalAttendanceRequired,
     calloutEligible: input.calloutEligible,
     policyEnabled: policy.enabled,
+    tradeLocked: input.tradeLocked,
   });
   await persistClassification(input.requestId, classification);
 

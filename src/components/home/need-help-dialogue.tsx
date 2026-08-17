@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiCreateJob } from "@/lib/jobs/client";
-import { resolveDispatchTrades } from "@/lib/callout/dispatch-trades";
+import { decideHelpTrade } from "@/lib/callout/dispatch-trades";
 import { PRO_SERVICE_LABELS } from "@/lib/pro-service-id";
 import { problemPlaceholderForTrade } from "@/lib/pricing";
 import { useApp } from "@/lib/store";
+import type { ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
   canFindPro,
@@ -34,37 +35,55 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
   const statedTrade = talkBoxAfterTradePick(category) ? category : null;
 
   const [problem, setProblem] = useState("");
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [chosenTrade, setChosenTrade] = useState<ProService | null>(null);
   const [emergency, setEmergency] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const ink = isLight ? "text-slate-900" : "text-white";
-  const muted = isLight ? "text-slate-600" : "text-white/55";
   const field = isLight
     ? "bg-white text-slate-900 placeholder:text-slate-400"
     : "bg-[#2c2c2e] text-white placeholder:text-white/40";
   const card = isLight ? "bg-white/80" : "bg-[#1c1c1e]";
 
-  const guessed = useMemo(
-    () => resolveDispatchTrades(problem, statedTrade),
+  const decision = useMemo(
+    () => decideHelpTrade(problem, statedTrade),
     [problem, statedTrade]
   );
 
   useEffect(() => {
     setProblem("");
     setStep(1);
+    setChosenTrade(null);
     setEmergency(null);
     setError(null);
   }, [statedTrade]);
 
-  const openEmergency = () => {
+  const goAfterProblem = () => {
     if (!canOpenEmergencyCard(problem)) {
       setError("A few words is enough.");
       return;
     }
     setError(null);
-    setStep(2);
+    if (decision.needsConfirm) {
+      setStep(2);
+      return;
+    }
+    setChosenTrade(statedTrade);
+    setStep(3);
+  };
+
+  const acceptSuggested = () => {
+    setChosenTrade(decision.suggested);
+    setEmergency(null);
+    setStep(3);
+  };
+
+  const keepTappedTrade = () => {
+    setChosenTrade(statedTrade);
+    setEmergency(null);
+    setStep(3);
   };
 
   const send = async () => {
@@ -88,7 +107,7 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
       motoristId,
       motoristName: userProfile?.fullName || "Customer",
       motoristPhoto: userProfile?.avatarUrl || null,
-      serviceType: guessed.primary,
+      serviceType: chosenTrade || statedTrade || decision.suggested,
       problem: text,
       emergency: Boolean(emergency),
       currency: "NGN",
@@ -107,13 +126,31 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
     router.replace(`/jobs/${res.data.job.id}`);
   };
 
+  const continueGray = isLight
+    ? "bg-[#9b9ea4] text-white"
+    : "bg-[#5c5c60] text-white";
+
   const action =
     step === 1 ? (
       <button
         type="button"
         disabled={!canOpenEmergencyCard(problem)}
-        onClick={openEmergency}
-        className="h-11 w-full rounded-md border-0 bg-brand text-[14px] font-bold text-white disabled:opacity-50"
+        onClick={goAfterProblem}
+        className={cn(
+          "h-11 w-full rounded-md border-0 text-[14px] font-bold disabled:opacity-50",
+          continueGray
+        )}
+      >
+        Continue
+      </button>
+    ) : step === 2 ? (
+      <button
+        type="button"
+        disabled
+        className={cn(
+          "h-11 w-full rounded-md border-0 text-[14px] font-bold opacity-50",
+          continueGray
+        )}
       >
         Continue
       </button>
@@ -155,8 +192,9 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
           onChange={(e) => {
             const next = e.target.value;
             setProblem(next);
-            if (!canOpenEmergencyCard(next) && step === 2) {
+            if (!canOpenEmergencyCard(next) && step !== 1) {
               setStep(1);
+              setChosenTrade(null);
               setEmergency(null);
             }
           }}
@@ -170,6 +208,35 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
       </div>
 
       {step === 2 ? (
+        <div className={cn("mt-1.5 rounded-xl px-3 py-2", card)}>
+          <p className={cn("text-[13px] font-bold", ink)}>
+            This sounds like {PRO_SERVICE_LABELS[decision.suggested]}. Continue?
+          </p>
+          <div className="mt-1.5 flex gap-2">
+            <button
+              type="button"
+              onClick={acceptSuggested}
+              className="rounded-full border-0 bg-brand px-3 py-1.5 text-[12px] font-bold text-white"
+            >
+              Yes
+            </button>
+            <button
+              type="button"
+              onClick={keepTappedTrade}
+              className={cn(
+                "rounded-full border-0 px-3 py-1.5 text-[12px] font-bold",
+                isLight
+                  ? "bg-black/8 text-slate-700"
+                  : "bg-[#2c2c2e] text-white/75"
+              )}
+            >
+              No
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {step === 3 ? (
         <div className={cn("mt-1.5 rounded-xl px-3 py-2", card)}>
           <p className={cn("text-[13px] font-bold", ink)}>Emergency?</p>
           <div className="mt-1 flex gap-2">
@@ -203,14 +270,6 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
             </button>
           </div>
         </div>
-      ) : null}
-
-      {step === 2 && guessed.mismatch && statedTrade ? (
-        <p className={cn("mt-1 px-0.5 text-[11px] font-medium", muted)}>
-          What you wrote sounds like{" "}
-          {guessed.dispatchTrades.map((t) => PRO_SERVICE_LABELS[t]).join(", ")}.
-          We’ll send that.
-        </p>
       ) : null}
 
       {error ? (

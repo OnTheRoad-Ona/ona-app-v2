@@ -4,6 +4,7 @@
  */
 
 import { resolveDispatchTrades } from "@/lib/callout/dispatch-trades";
+import { isProService } from "@/lib/pro-service-id";
 import type { ProService } from "@/lib/types";
 import {
   DEFAULT_BILLING_INCREMENT_KM,
@@ -197,6 +198,8 @@ export function classifyRequest(input: {
   physicalAttendanceRequired?: boolean;
   calloutEligible?: boolean;
   policyEnabled?: boolean;
+  /** Customer already confirmed the trade — do not re-widen from keywords. */
+  tradeLocked?: boolean;
 }): ServiceClassification {
   const intent = classifyServiceIntent(input);
   const workshop = intent === "WORKSHOP";
@@ -218,8 +221,13 @@ export function classifyRequest(input: {
       intent === "VEHICLE_BREAKDOWN" || intent === "DIAGNOSTIC",
     physicalAttendanceRequired: attendance,
     calloutEligible: eligible,
-    likelyTradeIds: resolveDispatchTrades(input.problem, input.selectedTrade)
-      .dispatchTrades,
+    likelyTradeIds:
+      input.tradeLocked &&
+      input.selectedTrade &&
+      isProService(String(input.selectedTrade))
+        ? [input.selectedTrade as ProService]
+        : resolveDispatchTrades(input.problem, input.selectedTrade)
+            .dispatchTrades,
     confirmedTradeId: null,
   };
 }
