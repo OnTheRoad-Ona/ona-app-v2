@@ -619,10 +619,9 @@ export function HomePanel({
           />
         ) : null}
 
-        {/* Radius / filters stay on Repair Pro market only — customer talk box is one screen. */}
-        {isProMode ? (
-          specialtyPickerOpen ? <SpecialtyFilterBar /> : <RadiusSlider />
-        ) : null}
+        {/* After a trade tap: radius sits above the help card. */}
+        {isProMode || tradeChosen ? <RadiusSlider /> : null}
+        {isProMode && specialtyPickerOpen ? <SpecialtyFilterBar /> : null}
         {isProMode ? <FilterChips /> : null}
       </div>
 
