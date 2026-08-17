@@ -17,7 +17,9 @@ export type ServiceCategory =
   | "painter"
   | "solar"
   | "generator"
-  | "all";
+  | "all"
+  /** Home start: no trade tapped yet */
+  | "none";
 
 /**
  * Services a professional can register / offer.

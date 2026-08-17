@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   canFindPro,
   canOpenEmergencyCard,
+  talkBoxAfterTradePick,
 } from "@/components/home/need-help-steps";
 
 describe("need-help talk box cards", () => {
@@ -17,5 +18,12 @@ describe("need-help talk box cards", () => {
     expect(canFindPro(2, null)).toBe(false);
     expect(canFindPro(2, true)).toBe(true);
     expect(canFindPro(2, false)).toBe(true);
+  });
+
+  it("shows the talk box only after they pick a trade", () => {
+    expect(talkBoxAfterTradePick("none")).toBe(false);
+    expect(talkBoxAfterTradePick("all")).toBe(false);
+    expect(talkBoxAfterTradePick("mechanic")).toBe(true);
+    expect(talkBoxAfterTradePick("towing")).toBe(true);
   });
 });

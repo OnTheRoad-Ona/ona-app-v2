@@ -1,13 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiCreateJob } from "@/lib/jobs/client";
 import { resolveDispatchTrades } from "@/lib/callout/dispatch-trades";
-import { isProService, PRO_SERVICE_LABELS } from "@/lib/services";
+import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { canFindPro, canOpenEmergencyCard } from "@/components/home/need-help-steps";
+import {
+  canFindPro,
+  canOpenEmergencyCard,
+  talkBoxAfterTradePick,
+} from "@/components/home/need-help-steps";
 
 /**
  * Replaces the nearby-pro list. Customer already picked a trade
@@ -26,8 +30,7 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
     helpingSomeoneLabel,
   } = useApp();
 
-  const statedTrade =
-    category !== "all" && isProService(category) ? category : null;
+  const statedTrade = talkBoxAfterTradePick(category) ? category : null;
 
   const [problem, setProblem] = useState("");
   const [step, setStep] = useState<1 | 2>(1);
@@ -46,6 +49,13 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
     () => resolveDispatchTrades(problem, statedTrade),
     [problem, statedTrade]
   );
+
+  useEffect(() => {
+    setProblem("");
+    setStep(1);
+    setEmergency(null);
+    setError(null);
+  }, [statedTrade]);
 
   const openEmergency = () => {
     if (!canOpenEmergencyCard(problem)) {
@@ -126,10 +136,10 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
               setEmergency(null);
             }
           }}
-          rows={4}
+          rows={2}
           placeholder="e.g. My car won’t start. I don’t know why."
           className={cn(
-            "mt-1.5 w-full resize-y rounded-xl border-0 p-3 text-[14px] font-medium leading-relaxed outline-none",
+            "mt-1.5 w-full resize-none rounded-xl border-0 p-3 text-[14px] font-medium leading-relaxed outline-none",
             field
           )}
         />

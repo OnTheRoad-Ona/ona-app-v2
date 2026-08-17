@@ -97,7 +97,7 @@ export function scoreTechnician(tech: Technician, query: string): number {
  * Mechanic tab = mechanic only, etc.
  */
 function matchesCategory(tech: Technician, category: ServiceCategory): boolean {
-  if (category === "all") return true;
+  if (category === "all" || category === "none") return true;
   // Primary registration skill only
   return tech.serviceType === category;
 }

@@ -592,7 +592,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return DEFAULT_USER_LOCATION;
   });
   const [radiusKm, setRadiusKmState] = useState(DEFAULT_RADIUS_KM);
-  const [category, setCategoryState] = useState<ServiceCategory>("mechanic");
+  const [category, setCategoryState] = useState<ServiceCategory>("none");
   const [specialtyFilter, setSpecialtyFilterState] = useState<string | null>(
     null
   );

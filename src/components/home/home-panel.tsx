@@ -29,6 +29,7 @@ import { useT } from "@/lib/i18n";
 import { useApp } from "@/lib/store";
 import type { Technician } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { talkBoxAfterTradePick } from "@/components/home/need-help-steps";
 import { MAX_TECHNICIANS } from "@/lib/matching";
 import { shouldShowHomeVerifyPanel } from "@/lib/verification-gate";
 
@@ -165,8 +166,9 @@ export function HomePanel({
   /** Repair Pro in professional mode — market shows ONLY their primary trade. */
   const isProMode = accountType === "professional";
 
-  /** Talk box for customers + guests. Never for Repair Pro. */
-  const showTalkBox = !isProMode;
+  /** Talk box only after they tap a trade. Never for Repair Pro. */
+  const tradeChosen = talkBoxAfterTradePick(category);
+  const showTalkBox = !isProMode && tradeChosen;
 
   /**
    * Lower panel only: every home open when phone is still unverified
@@ -617,11 +619,11 @@ export function HomePanel({
           />
         ) : null}
 
-        {/* Radius first (or specialty strip for Plumber/Carpenter/etc. until pick) */}
-        {specialtyPickerOpen ? <SpecialtyFilterBar /> : <RadiusSlider />}
-
-        {/* Talk box home: no nearby list. Pro: keep filters. */}
-        {showTalkBox ? null : <FilterChips />}
+        {/* Radius / filters only after a trade (or on Repair Pro market). */}
+        {isProMode || tradeChosen ? (
+          specialtyPickerOpen ? <SpecialtyFilterBar /> : <RadiusSlider />
+        ) : null}
+        {isProMode ? <FilterChips /> : null}
       </div>
 
       {locationError && (
@@ -640,8 +642,8 @@ export function HomePanel({
         </div>
       )}
 
-      {/* Empty state — only when the nearby list still shows (not talk box) */}
-      {!showTalkBox && list.length === 0 && !showVerifyPanel && (
+      {/* Empty state — Repair Pro market only */}
+      {isProMode && list.length === 0 && !showVerifyPanel && (
         <div
           className={cn(
             "shrink-0 overflow-hidden rounded-t-lg",
@@ -694,7 +696,7 @@ export function HomePanel({
         ) : null}
         {showTalkBox ? (
           <NeedHelpDialogue isLight={isLight} />
-        ) : list.length > 0 && (
+        ) : isProMode && list.length > 0 && (
           <div
             className={cn(
               "min-h-full overflow-hidden rounded-t-lg",
@@ -766,7 +768,7 @@ export function HomePanel({
           </div>
         )}
 
-        {!showTalkBox && !expanded && list.length > 0 && (
+        {isProMode && !expanded && list.length > 0 && (
           <p
             className={cn(
               "py-2 text-center text-[10px]",
