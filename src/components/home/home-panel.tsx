@@ -14,6 +14,7 @@ import { FilterChips } from "@/components/home/filter-chips";
 import { MechanicHelpFlow } from "@/components/home/mechanic-help-flow";
 import { VulcanizerHelpFlow } from "@/components/home/vulcanizer-help-flow";
 import { TowHelpFlow } from "@/components/home/tow-help-flow";
+import { BatteryHelpFlow } from "@/components/home/battery-help-flow";
 import { NeedHelpDialogue } from "@/components/home/need-help-dialogue";
 import { RadiusSlider } from "@/components/home/radius-slider";
 import { SpecialtyFilterBar } from "@/components/home/specialty-filter-bar";
@@ -174,12 +175,14 @@ export function HomePanel({
   const isMechanicFlow = !isProMode && category === "mechanic";
   const isVulcanizerFlow = !isProMode && category === "vulcanizer";
   const isTowFlow = !isProMode && category === "towing";
+  const isBatteryFlow = !isProMode && category === "battery";
   const showTalkBox =
     !isProMode &&
     tradeChosen &&
     !isMechanicFlow &&
     !isVulcanizerFlow &&
-    !isTowFlow;
+    !isTowFlow &&
+    !isBatteryFlow;
 
   /**
    * Lower panel only: every home open when phone is still unverified
@@ -630,9 +633,13 @@ export function HomePanel({
           />
         ) : null}
 
-        {/* Mechanic / Vulcanizer / Tow: no radius — Repair Pro is found by urgency. */}
+        {/* Mechanic / Vulcanizer / Tow / Battery: no radius — Repair Pro is found by urgency. */}
         {isProMode ||
-        (tradeChosen && !isMechanicFlow && !isVulcanizerFlow && !isTowFlow) ? (
+        (tradeChosen &&
+          !isMechanicFlow &&
+          !isVulcanizerFlow &&
+          !isTowFlow &&
+          !isBatteryFlow) ? (
           <RadiusSlider />
         ) : null}
         {isProMode && specialtyPickerOpen ? <SpecialtyFilterBar /> : null}
@@ -704,7 +711,7 @@ export function HomePanel({
       <div
         className={cn(
           "min-h-0 flex-1 px-3 pb-0",
-          showTalkBox || isMechanicFlow || isVulcanizerFlow || isTowFlow
+          showTalkBox || isMechanicFlow || isVulcanizerFlow || isTowFlow || isBatteryFlow
             ? "flex flex-col overflow-hidden"
             : "overflow-y-auto overscroll-contain scrollbar-hide"
         )}
@@ -731,6 +738,13 @@ export function HomePanel({
         ) : isTowFlow ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <TowHelpFlow
+              isLight={isLight}
+              onExit={() => setCategory("none")}
+            />
+          </div>
+        ) : isBatteryFlow ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <BatteryHelpFlow
               isLight={isLight}
               onExit={() => setCategory("none")}
             />
