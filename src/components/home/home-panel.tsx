@@ -619,8 +619,8 @@ export function HomePanel({
           />
         ) : null}
 
-        {/* Radius / filters only after a trade (or on Repair Pro market). */}
-        {isProMode || tradeChosen ? (
+        {/* Radius / filters stay on Repair Pro market only — customer talk box is one screen. */}
+        {isProMode ? (
           specialtyPickerOpen ? <SpecialtyFilterBar /> : <RadiusSlider />
         ) : null}
         {isProMode ? <FilterChips /> : null}
@@ -687,15 +687,24 @@ export function HomePanel({
         </div>
       )}
 
-      {/* Repair Pro list — scrollable when items present */}
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-0 scrollbar-hide">
+      {/* Talk box: no scroll. Repair Pro list may scroll. */}
+      <div
+        className={cn(
+          "min-h-0 flex-1 px-3 pb-0",
+          showTalkBox
+            ? "flex flex-col overflow-hidden"
+            : "overflow-y-auto overscroll-contain scrollbar-hide"
+        )}
+      >
         {showVerifyPanel && verifyPanelReady ? (
           <div className="mb-2 shrink-0">
             <HomeVerifyPanel message={verifyMessage} isLight={isLight} />
           </div>
         ) : null}
         {showTalkBox ? (
-          <NeedHelpDialogue isLight={isLight} />
+          <div className="flex min-h-0 flex-1 flex-col">
+            <NeedHelpDialogue isLight={isLight} />
+          </div>
         ) : isProMode && list.length > 0 && (
           <div
             className={cn(
