@@ -11,6 +11,7 @@ import { ChevronLeft, Clock, Hammer, MapPin, Paintbrush, Wrench, X } from "lucid
 import { useRouter } from "next/navigation";
 import { CategoryTabs } from "@/components/home/category-tabs";
 import { FilterChips } from "@/components/home/filter-chips";
+import { MechanicHelpFlow } from "@/components/home/mechanic-help-flow";
 import { NeedHelpDialogue } from "@/components/home/need-help-dialogue";
 import { RadiusSlider } from "@/components/home/radius-slider";
 import { SpecialtyFilterBar } from "@/components/home/specialty-filter-bar";
@@ -168,7 +169,8 @@ export function HomePanel({
 
   /** Talk box only after they tap a trade. Never for Repair Pro. */
   const tradeChosen = talkBoxAfterTradePick(category);
-  const showTalkBox = !isProMode && tradeChosen;
+  const isMechanicFlow = !isProMode && category === "mechanic";
+  const showTalkBox = !isProMode && tradeChosen && !isMechanicFlow;
 
   /**
    * Lower panel only: every home open when phone is still unverified
@@ -605,6 +607,7 @@ export function HomePanel({
                 onExpand={onExpand}
                 onCollapse={onCollapse}
                 menuOpen={menuOpen}
+                compact={isMechanicFlow}
               />
             )}
           </>
@@ -616,11 +619,12 @@ export function HomePanel({
             onSwipeLeft={isMotorist ? openHelpSomeone : undefined}
             onOpenHelp={isMotorist ? openHelpSomeone : undefined}
             menuOpen={menuOpen}
+            compact={isMechanicFlow}
           />
         ) : null}
 
-        {/* After a trade tap: radius sits above the help card. */}
-        {isProMode || tradeChosen ? <RadiusSlider /> : null}
+        {/* Mechanic: no radius — Repair Pro is found by urgency. */}
+        {isProMode || (tradeChosen && !isMechanicFlow) ? <RadiusSlider /> : null}
         {isProMode && specialtyPickerOpen ? <SpecialtyFilterBar /> : null}
         {isProMode ? <FilterChips /> : null}
       </div>
@@ -690,7 +694,7 @@ export function HomePanel({
       <div
         className={cn(
           "min-h-0 flex-1 px-3 pb-0",
-          showTalkBox
+          showTalkBox || isMechanicFlow
             ? "flex flex-col overflow-hidden"
             : "overflow-y-auto overscroll-contain scrollbar-hide"
         )}
@@ -700,7 +704,11 @@ export function HomePanel({
             <HomeVerifyPanel message={verifyMessage} isLight={isLight} />
           </div>
         ) : null}
-        {showTalkBox ? (
+        {isMechanicFlow ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <MechanicHelpFlow isLight={isLight} />
+          </div>
+        ) : showTalkBox ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <NeedHelpDialogue isLight={isLight} />
           </div>

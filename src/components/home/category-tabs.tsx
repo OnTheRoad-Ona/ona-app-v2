@@ -60,6 +60,7 @@ export function CategoryTabs({
   onSwipeRight,
   onOpenHelp,
   menuOpen,
+  compact,
 }: {
   expanded?: boolean;
   onExpand?: () => void;
@@ -68,6 +69,8 @@ export function CategoryTabs({
   onSwipeRight?: () => void;
   onOpenHelp?: () => void;
   menuOpen?: boolean;
+  /** Mechanic flow: shrink the trade grid so the card can fill the panel. */
+  compact?: boolean;
 }) {
   const { category, setCategory, openSpecialtyPicker, theme } = useApp();
   const t = useT();
@@ -153,7 +156,10 @@ export function CategoryTabs({
 
   return (
     <div
-      className="relative px-3 pt-1 pb-1"
+      className={cn(
+        "relative px-3 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]",
+        compact ? "pt-0.5 pb-0.5" : "pt-1 pb-1"
+      )}
       onWheel={onAxisWheel}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -200,10 +206,11 @@ export function CategoryTabs({
                 setCategory(id);
               }}
               style={{
-                fontSize: expanded ? 10.08 : 9,
+                fontSize: compact ? 8 : expanded ? 10.08 : 9,
               }}
               className={cn(
-                "flex min-w-0 flex-col items-center justify-center gap-0.5 border-0 px-1 py-2.5 font-semibold rounded-md",
+                "flex min-w-0 flex-col items-center justify-center gap-0.5 border-0 px-1 font-semibold rounded-md transition-all duration-500",
+                compact ? "py-1" : "py-2.5",
                 active && !menuOpen
                   ? "metallic-orange text-white"
                   : isLight
@@ -213,8 +220,8 @@ export function CategoryTabs({
             >
               <Icon
                 style={{
-                  width: expanded ? 18.24 : 16,
-                  height: expanded ? 18.24 : 16,
+                  width: compact ? 12 : expanded ? 18.24 : 16,
+                  height: compact ? 12 : expanded ? 18.24 : 16,
                 }}
                 className={cn(
                   "shrink-0",

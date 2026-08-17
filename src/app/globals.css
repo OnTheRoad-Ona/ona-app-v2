@@ -1331,6 +1331,47 @@ button.om-cta-dark-gray:disabled,
   box-shadow: none;
 }
 
+/* Mechanic cascade — slide in from the left, then each step slides. */
+@keyframes om-mech-enter {
+  from {
+    transform: translateX(-22px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+.om-mech-enter {
+  animation: om-mech-enter 480ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+@keyframes om-mech-fwd {
+  from {
+    transform: translateX(18px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+@keyframes om-mech-back {
+  from {
+    transform: translateX(-18px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+.om-mech-slide-fwd {
+  animation: om-mech-fwd 380ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.om-mech-slide-back {
+  animation: om-mech-back 380ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 /*
  * Google Places dropdown — matches active toggle sheet colors
  * (uses the same CSS variables as light/dark theme on <html data-theme>).
