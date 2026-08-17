@@ -127,7 +127,7 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
   };
 
   const continueGray = isLight
-    ? "bg-[#9b9ea4] text-white"
+    ? "bg-[#4a4d53] text-white"
     : "bg-[#5c5c60] text-white";
 
   const action =
