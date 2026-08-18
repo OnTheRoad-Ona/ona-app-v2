@@ -943,6 +943,53 @@ describe("advancePairing — 5-round cap & recycling", () => {
     expect(dispatchPatch).toBeTruthy();
   });
 
+  it("retrySearch holds an old request searching for the full 144s window when no pro is found (no instant 2s exhaust)", async () => {
+    const fresh = new Date().toISOString();
+    const row: Row = {
+      ...FULL_ROW,
+      pairing_stage: null,
+      pairing_deadline: null,
+      flow_status: "expired",
+      status: "expired",
+      queue_position: 3,
+      pairing_radius_km: 10,
+      // Old request — the old "hold only ≤15s after creation" rule would
+      // instantly exhaust a Retry of this request.
+      created_at: new Date(Date.now() - 120_000).toISOString(),
+      status_history: [
+        { status: "expired", at: fresh, by: "pairing_exhausted" },
+      ],
+    };
+    installClient(row);
+    responders["request_pairing_queue"] = () => ({ data: [], error: null });
+    responders["repair_pro_profiles"] = () => ({ data: [], error: null });
+
+    const res = await retrySearch("job-1");
+    expect(res.ok).toBe(true);
+
+    // Retry re-opened the request into sequential pairing with a fresh window.
+    const retryUpdate = callsFor("service_requests", "update").find((c) => {
+      const p = c.args[0] as Record<string, unknown>;
+      return (
+        p.status === "requested" && p.pairing_stage === "sequential_pairing"
+      );
+    });
+    expect(retryUpdate).toBeTruthy();
+
+    // No pro found → the round holds searching (sequential_pairing); it must
+    // NOT instantly mark the request expired just because the request is old.
+    const expirePatch = callsFor("service_requests", "update").find((c) => {
+      const p = c.args[0] as Record<string, unknown>;
+      return p.pairing_stage === null && p.status === "expired";
+    });
+    expect(expirePatch).toBeFalsy();
+
+    // The hold keeps a future pairing_deadline armed so the sweep re-advances
+    // the search and only exhausts after the full 144s window lapses.
+    expect(row.pairing_deadline).toBeTruthy();
+    expect(Date.parse(String(row.pairing_deadline)) > Date.now()).toBe(true);
+  });
+
   it("retrySearch no-ops once MAX_PAIRING_RETRIES markers are recorded", async () => {
     const row: Row = {
       ...FULL_ROW,

@@ -13,7 +13,7 @@
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { NEGOTIATE_WINDOW_MS, SECOND_PRO_DELAY_MS } from "@/lib/jobs/constants";
-import { windowLeftMs } from "@/lib/jobs/deadline";
+import { windowLeftMs, windowStillOpen } from "@/lib/jobs/deadline";
 import { hasRecentLiveHeartbeat, MAX_RADIUS_KM } from "@/lib/matching";
 import { orderCandidatesByMerit } from "@/lib/server/merit/merit-engine";
 import { isSyntheticAccount } from "@/lib/server/synthetic-accounts";
@@ -47,12 +47,9 @@ export const PAIRING_ROUND_MAX_KM = [2, 3, 4, MAX_PAIRING_RADIUS_KM];
  */
 export const MAX_PAIRING_ATTEMPTS = 6;
 /**
- * Only hold "searching" briefly when nobody has been tried yet (cold start).
- * After at least one real offer, empty pool → expire immediately so Retry
- * appears instead of re-linking a timed-out pro.
+ * Stages actively pairing (dispatchable / advanceable) — the sweep re-runs the
+ * search for these instead of a plain timeout.
  */
-const MIN_EXHAUSTED_HOLD_MS = 15_000;
-
 export const PAIRING_STAGES = [
   "waiting_for_selected",
   "selected_review",
@@ -529,23 +526,29 @@ export async function advancePairing(jobId: string): Promise<PairingResult> {
   }
 
   // Unique pool empty — never recycle the same pro in this wave.
-  // Brief hold only on cold start (nobody offered yet); otherwise expire so
-  // the customer gets Retry immediately after the last real pro.
+  // Nobody tried yet (fresh search or a Retry round): hold the 144s pairing
+  // window searching instead of instantly exhausting an older request that a
+  // Retry just re-opened (the old request-age hold made Retry last ~2s). The
+  // sweep re-runs this after the deadline lapses and it exhausts then. Once at
+  // least one pro was really tried, empty pool → expire immediately so Retry
+  // appears after the last real pro.
   const triedAnyone = attempts >= 1;
   if (!triedAnyone) {
-    const created = row.created_at ? Date.parse(row.created_at) : Date.now();
-    if (Number.isFinite(created) && Date.now() - created < MIN_EXHAUSTED_HOLD_MS) {
+    const armedFuture = windowStillOpen(row.pairing_deadline);
+    const needsArm = !row.pairing_deadline;
+    if (armedFuture || needsArm) {
+      const holdPatch: Record<string, unknown> = {
+        pairing_stage: "sequential_pairing",
+        flow_status: "sequential_pairing",
+        // Unlink so no ghost "assigned to pro X" while empty-searching
+        repair_pro_id: null,
+        repair_pro_name: null,
+        updated_at: nowIso(),
+      };
+      if (needsArm) holdPatch.pairing_deadline = deadlineIso();
       await sb
         .from("service_requests")
-        .update({
-          pairing_stage: "sequential_pairing",
-          flow_status: "sequential_pairing",
-          pairing_deadline: deadlineIso(),
-          // Unlink so no ghost "assigned to pro X" while empty-searching
-          repair_pro_id: null,
-          repair_pro_name: null,
-          updated_at: nowIso(),
-        })
+        .update(holdPatch)
         .eq("id", row.id)
         .eq("pairing_stage", row.pairing_stage);
       return { ok: true, jobId: row.id, currentProId: null, noop: true };
