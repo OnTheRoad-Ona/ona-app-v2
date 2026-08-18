@@ -20,8 +20,9 @@ const MAX_VISIBLE_INCOMING = 2;
 export const INCOMING_POPUP_STATUS_POLL_MS = 500;
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Briefcase, ChevronLeft, ChevronRight, Clock, Loader2, Wrench, X } from "lucide-react";
+import { Briefcase, ChevronLeft, ChevronRight, ChevronUp, Clock, Loader2, Wrench, X } from "lucide-react";
 import {
   canNotify,
   ensureNotifyPermission,
@@ -947,6 +948,59 @@ export function IncomingJobPopup() {
 
   const panelOpen = visibleJobs.length > 0 && !snoozedJob;
 
+  // Swipe down collapses the panel to a 5%-height peek (handle + incoming
+  // count); tap or swipe up expands it back. Jobs still clear instantly on
+  // decline / cancel / timer expiry while collapsed (existing poll + 250ms
+  // expiry interval).
+  const [collapsed, setCollapsed] = useState(false);
+  const [dragY, setDragY] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragStartRef = useRef<{ y: number; collapsed: boolean } | null>(null);
+  const panelHeightRef = useRef(0);
+  const PEEK_RATIO = 0.05;
+  const COLLAPSE_SNAP_PX = 64;
+
+  const peekHeight = Math.max(
+    28,
+    Math.round((panelHeightRef.current || 0) * PEEK_RATIO)
+  );
+
+  const isPanelControl = (el: EventTarget | null) =>
+    Boolean(
+      el instanceof Element &&
+        el.closest(
+          "button, a, input, textarea, select, label, [role='slider']"
+        )
+    );
+
+  const onPanelPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (isPanelControl(e.target)) return;
+    dragStartRef.current = { y: e.clientY, collapsed };
+    setDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const onPanelPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const start = dragStartRef.current;
+    if (!start) return;
+    const dy = e.clientY - start.y;
+    setDragY(start.collapsed ? Math.min(0, dy) : Math.max(0, dy));
+  };
+
+  const onPanelPointerEnd = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const start = dragStartRef.current;
+    if (!start) return;
+    dragStartRef.current = null;
+    setDragging(false);
+    const dy = e.clientY - start.y;
+    if (start.collapsed) {
+      if (dy < -COLLAPSE_SNAP_PX) setCollapsed(false);
+    } else if (dy > COLLAPSE_SNAP_PX) {
+      setCollapsed(true);
+    }
+    setDragY(0);
+  };
+
   // Must respond via buttons or wait for timer — no outside tap / Escape dismiss
   // Hook is called unconditionally (before the accountType early return) so the
   // hook count never changes on a role switch (React error #310).
@@ -999,20 +1053,65 @@ export function IncomingJobPopup() {
       {/* Lower panel — medium compact, up to 2 cards; buttons stay full-size */}
       {panelOpen && (
         <div
-          className="pointer-events-auto absolute inset-x-0 bottom-0 z-[180] flex max-h-[min(84dvh,760px)] flex-col rounded-t-2xl px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_28px_rgba(0,0,0,0.28)]"
+          ref={(el) => {
+            if (el && !collapsed && el.clientHeight > panelHeightRef.current) {
+              panelHeightRef.current = el.clientHeight;
+            }
+          }}
+          className={cn(
+            "pointer-events-auto absolute inset-x-0 bottom-0 z-[180] flex flex-col rounded-t-2xl shadow-[0_-8px_28px_rgba(0,0,0,0.28)]",
+            collapsed
+              ? "cursor-pointer"
+              : "max-h-[min(84dvh,760px)] px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+          )}
           style={{
             backgroundColor: solid,
             borderTop: `0.5px solid ${hairline}`,
+            height: collapsed ? peekHeight : undefined,
+            transform: dragging ? `translateY(${dragY}px)` : undefined,
+            transition: dragging
+              ? "none"
+              : "height 0.28s cubic-bezier(0.22,1,0.36,1), transform 0.28s cubic-bezier(0.22,1,0.36,1)",
           }}
           role="dialog"
           aria-modal="true"
           aria-label={
-            visibleJobs.length > 1
-              ? `${visibleJobs.length} incoming requests`
-              : titleFor(visibleJobs[0])
+            collapsed
+              ? `${visibleJobs.length} incoming ${
+                  visibleJobs.length === 1 ? "request" : "requests"
+                }`
+              : visibleJobs.length > 1
+                ? `${visibleJobs.length} incoming requests`
+                : titleFor(visibleJobs[0])
           }
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (collapsed) setCollapsed(false);
+          }}
+          onPointerDown={onPanelPointerDown}
+          onPointerMove={onPanelPointerMove}
+          onPointerUp={onPanelPointerEnd}
+          onPointerCancel={onPanelPointerEnd}
         >
+          {collapsed ? (
+            <div className="flex h-full min-h-0 items-center justify-center gap-2 px-3">
+              <div
+                className={cn(
+                  "h-1 w-9 shrink-0 rounded-full",
+                  isLight ? "bg-black/15" : "bg-white/20"
+                )}
+              />
+              <span className="text-[11px] font-bold" style={{ color: muted }}>
+                {visibleJobs.length} incoming{" "}
+                {visibleJobs.length === 1 ? "request" : "requests"}
+              </span>
+              <ChevronUp
+                className="h-3.5 w-3.5 shrink-0"
+                style={{ color: muted }}
+              />
+            </div>
+          ) : (
+            <>
           <div
             className={cn(
               "mx-auto mb-1.5 h-1 w-9 shrink-0 rounded-full",
@@ -1073,7 +1172,12 @@ export function IncomingJobPopup() {
                           {formatMoney(job.agreedMajor, job.currency)}
                         </p>
                       ) : null}
-                      <JobProblemQA problem={job.problem} isLight={isLight} />
+                      <JobProblemQA
+                        problem={job.problem}
+                        isLight={isLight}
+                        transparent
+                        pageSize={2}
+                      />
                     </div>
                   </div>
                   {job.voiceNote?.url ? (
@@ -1113,7 +1217,7 @@ export function IncomingJobPopup() {
                     </div>
                   ) : null}
 
-                  <div className="mt-2 grid grid-cols-2 gap-1.5">
+                  <div className="mt-2">
                     <button
                       type="button"
                       disabled={!!acceptingId}
@@ -1148,52 +1252,13 @@ export function IncomingJobPopup() {
                         })();
                       }}
                       className={cn(
-                        "h-10 rounded-xl border-0 text-[13px] font-bold",
+                        "h-10 w-full rounded-xl border-0 text-[13px] font-bold",
                         isLight
                           ? "bg-red-500/15 text-red-700"
                           : "bg-red-500/20 text-red-400"
                       )}
                     >
                       Decline
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!!acceptingId || !backendUserId}
-                      onClick={() => {
-                        const id = job.id;
-                        if (!backendUserId) return;
-                        setSnoozedJob(job);
-                        removeJobAndMaybeNext(id, { defer: false });
-                        void (async () => {
-                          try {
-                            if (isPairingAlert(job)) {
-                              await apiTransition({
-                                jobId: id,
-                                event: "LATER",
-                                actor: "repair_pro",
-                                actorId: backendUserId,
-                                idempotencyKey: idemFor(
-                                  job,
-                                  backendUserId,
-                                  "LATER"
-                                ),
-                              });
-                            } else {
-                              await apiDeferJob(id, backendUserId);
-                            }
-                          } catch {
-                            /* */
-                          }
-                        })();
-                      }}
-                      className={cn(
-                        "h-10 rounded-xl border-0 text-[13px] font-bold",
-                        isLight
-                          ? "bg-black/8 text-slate-900"
-                          : "bg-white/10 text-white"
-                      )}
-                    >
-                      Later
                     </button>
                   </div>
                   <button
@@ -1246,6 +1311,8 @@ export function IncomingJobPopup() {
               {actionError}
             </p>
           ) : null}
+            </>
+          )}
         </div>
       )}
 

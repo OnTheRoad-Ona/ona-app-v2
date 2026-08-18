@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -89,48 +90,133 @@ export function parseJobProblem(problem: string): ParsedJobProblem {
 export function JobProblemQA({
   problem,
   isLight,
+  transparent = false,
+  pageSize,
 }: {
   problem: string;
   isLight: boolean;
+  /** Plain-text rows on the theme color — no row cards or summary highlight. */
+  transparent?: boolean;
+  /** When set, page through the Q&A `pageSize` rows at a time. */
+  pageSize?: number;
 }) {
   const parsed = useMemo(() => parseJobProblem(problem), [problem]);
+  const [offset, setOffset] = useState(0);
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-500" : "text-white/50";
   const rowCard = isLight ? "bg-black/[0.02]" : "bg-white/[0.02]";
 
   if (!parsed.rows.length && !parsed.summary && !parsed.notes.length) {
-    return <p className={cn("text-[15px] font-medium leading-relaxed", ink)}>{problem}</p>;
+    return (
+      <p className={cn("text-[15px] font-medium leading-relaxed", ink)}>
+        {problem}
+      </p>
+    );
   }
+
+  const rows = pageSize ? parsed.rows.slice(offset, offset + pageSize) : parsed.rows;
+  const hasMore = Boolean(pageSize && offset + pageSize < parsed.rows.length);
+  const advance = () =>
+    setOffset((o) => Math.min(o + (pageSize || 0), parsed.rows.length));
 
   return (
     <div className="mt-1 space-y-1.5">
       {parsed.summary ? (
-        <div className="rounded-[4px] bg-[#FF6B35]/10 px-2.5 py-2">
-          <p className="text-[12px] font-bold leading-snug text-[#FF6B35]">
+        transparent ? (
+          <p className="text-[13px] font-bold leading-snug text-[#FF6B35]">
             {parsed.summary}
           </p>
+        ) : (
+          <div className="rounded-[4px] bg-[#FF6B35]/10 px-2.5 py-2">
+            <p className="text-[12px] font-bold leading-snug text-[#FF6B35]">
+              {parsed.summary}
+            </p>
+          </div>
+        )
+      ) : null}
+      {rows.map((row, i) =>
+        transparent ? (
+          <div key={i}>
+            <p
+              className={cn(
+                "text-[10px] font-semibold uppercase tracking-wide leading-snug",
+                muted
+              )}
+            >
+              {row.label}
+            </p>
+            <p className={cn("mt-0.5 text-[13px] font-bold leading-snug", ink)}>
+              {row.answer}
+            </p>
+          </div>
+        ) : (
+          <div key={i} className={cn("rounded-[4px] px-2.5 py-2", rowCard)}>
+            <p
+              className={cn(
+                "text-[10px] font-semibold uppercase tracking-wide leading-snug",
+                muted
+              )}
+            >
+              {row.label}
+            </p>
+            <p className={cn("mt-0.5 text-[13px] font-bold leading-snug", ink)}>
+              {row.answer}
+            </p>
+          </div>
+        )
+      )}
+      {parsed.notes.map((note, i) =>
+        transparent ? (
+          <div key={`n${i}`}>
+            <p
+              className={cn(
+                "text-[10px] font-semibold uppercase tracking-wide",
+                muted
+              )}
+            >
+              Note
+            </p>
+            <p className={cn("mt-0.5 text-[13px] font-bold leading-snug", ink)}>
+              {note}
+            </p>
+          </div>
+        ) : (
+          <div key={`n${i}`} className={cn("rounded-[4px] px-2.5 py-2", rowCard)}>
+            <p
+              className={cn(
+                "text-[10px] font-semibold uppercase tracking-wide",
+                muted
+              )}
+            >
+              Note
+            </p>
+            <p className={cn("mt-0.5 text-[13px] font-bold leading-snug", ink)}>
+              {note}
+            </p>
+          </div>
+        )
+      )}
+      {hasMore ? (
+        <div className="flex justify-end pt-0.5">
+          <button
+            type="button"
+            onClick={advance}
+            aria-label="Show more questions"
+            className="border-0 bg-transparent p-0"
+          >
+            <span
+              className={cn(
+                "om-bounce-arrow flex h-5 w-5 items-center justify-center rounded-full",
+                isLight
+                  ? "bg-white/90 text-black shadow-sm ring-1 ring-black/8"
+                  : "bg-white/15 text-white ring-1 ring-white/15"
+              )}
+            >
+              <ChevronRight className="h-3 w-3" strokeWidth={2.75} />
+            </span>
+          </button>
         </div>
       ) : null}
-      {parsed.rows.map((row, i) => (
-        <div key={i} className={cn("rounded-[4px] px-2.5 py-2", rowCard)}>
-          <p className={cn("text-[10px] font-semibold uppercase tracking-wide leading-snug", muted)}>
-            {row.label}
-          </p>
-          <p className={cn("mt-0.5 text-[13px] font-bold leading-snug", ink)}>
-            {row.answer}
-          </p>
-        </div>
-      ))}
-      {parsed.notes.map((note, i) => (
-        <div key={`n${i}`} className={cn("rounded-[4px] px-2.5 py-2", rowCard)}>
-          <p className={cn("text-[10px] font-semibold uppercase tracking-wide", muted)}>
-            Note
-          </p>
-          <p className={cn("mt-0.5 text-[13px] font-bold leading-snug", ink)}>
-            {note}
-          </p>
-        </div>
-      ))}
     </div>
   );
 }
