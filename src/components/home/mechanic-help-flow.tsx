@@ -662,9 +662,22 @@ export function MechanicHelpFlow({
           >
         {screen ? (
           <>
-            <p className={cn("mt-2 px-0.5 pb-2 text-[14px] font-bold capitalize leading-snug", ink)}>
-              {screen.question}
-            </p>
+            <div className="mt-2 flex items-center gap-1 px-0.5 pb-2">
+              {screen?.kind === "text" ? (
+                <button
+                  type="button"
+                  disabled={!canAdvanceText(draft)}
+                  onClick={submitText}
+                  aria-label="Next"
+                  className="border-0 bg-transparent p-0.5 text-[#FF6B35] disabled:opacity-40"
+                >
+                  <ChevronRight className="h-6 w-6" strokeWidth={2.5} />
+                </button>
+              ) : null}
+              <p className={cn("text-[14px] font-bold capitalize leading-snug", ink)}>
+                {screen.question}
+              </p>
+            </div>
             {screen.kind === "choice" ? (
               <div className="flex flex-col gap-1">
                 {(screen.options || []).map((opt, i) => {
@@ -754,22 +767,6 @@ export function MechanicHelpFlow({
               {error}
             </p>
           ) : null}
-
-          <div className="flex shrink-0 gap-2 pt-2">
-          {screen?.kind === "text" ? (
-            <button
-              type="button"
-              disabled={!canAdvanceText(draft)}
-              onClick={submitText}
-              className={cn(
-                "h-11 flex-1 rounded-md border-0 text-[14px] font-bold disabled:opacity-50",
-                actionFlat
-              )}
-            >
-              Next
-            </button>
-          ) : null}
-          </div>
           </div>
           {stack.length > 1 ? (
             <div className="mt-auto flex shrink-0 gap-2 pt-2">

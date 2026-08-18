@@ -637,7 +637,7 @@ export function AcHelpFlow({
 {screen ? (
             <>
               <div className="mt-2 flex items-center gap-1 px-0.5 pb-2">
-                {step === "u_type" ? (
+                {screen?.kind === "text" ? (
                   <button
                     type="button"
                     disabled={!canAdvanceText(draft)}
@@ -712,22 +712,6 @@ export function AcHelpFlow({
               {error}
             </p>
           ) : null}
-
-          <div className="flex shrink-0 gap-2 pt-2">
-          {screen?.kind === "text" && step !== "u_type" ? (
-            <button
-              type="button"
-              disabled={!canAdvanceText(draft)}
-              onClick={submitText}
-              className={cn(
-                "h-11 flex-1 rounded-md border-0 text-[14px] font-bold disabled:opacity-50",
-                actionFlat
-              )}
-            >
-              Next
-            </button>
-          ) : null}
-          </div>
           </div>
           {stack.length > 1 ? (
             <div className="mt-auto flex shrink-0 gap-2 pt-2">
