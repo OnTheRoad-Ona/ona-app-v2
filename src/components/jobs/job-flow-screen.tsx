@@ -1554,9 +1554,7 @@ export function JobFlowScreen({
             <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
               Problem description
             </p>
-            <p className={cn("mt-1 text-[15px] font-medium leading-relaxed", ink)}>
-              {job.problem}
-            </p>
+            <JobProblemQA problem={job.problem} isLight={isLight} />
             {job.voiceNote?.url && (
               <div className="mt-2.5">
                 <VoiceNotePlayer

@@ -55,6 +55,7 @@ import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { playAppSound, unlockAudio } from "@/lib/sound-tone";
 import { backendSubscribeJobs } from "@/lib/supabase/app-api";
 import { VoiceNotePlayer } from "@/components/jobs/voice-note-player";
+import { JobProblemQA } from "@/components/jobs/job-problem-qa";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -1064,15 +1065,15 @@ export function IncomingJobPopup() {
                       >
                         {titleFor(job)}
                       </p>
-                      <p
-                        className="mt-0.5 line-clamp-2 text-[12px] font-medium leading-snug"
-                        style={{ color: muted }}
-                      >
-                        {job.problem}
-                        {job.agreedMajor != null
-                          ? ` · ${formatMoney(job.agreedMajor, job.currency)}`
-                          : ""}
-                      </p>
+                      {job.agreedMajor != null ? (
+                        <p
+                          className="mt-0.5 text-[12px] font-bold"
+                          style={{ color: ink }}
+                        >
+                          {formatMoney(job.agreedMajor, job.currency)}
+                        </p>
+                      ) : null}
+                      <JobProblemQA problem={job.problem} isLight={isLight} />
                     </div>
                   </div>
                   {job.voiceNote?.url ? (
