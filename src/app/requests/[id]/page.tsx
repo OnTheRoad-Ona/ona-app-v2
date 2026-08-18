@@ -425,7 +425,7 @@ export default function RequestProcessPage({
               <div className="flex flex-wrap gap-2">
                 {job.photos.map((p) => (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <img loading="lazy" decoding="async"
                     key={p.id}
                     src={p.url}
                     alt={p.name || "Job photo"}

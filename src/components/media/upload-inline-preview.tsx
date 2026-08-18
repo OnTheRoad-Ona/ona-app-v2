@@ -140,7 +140,7 @@ export function UploadInlinePreview({
             />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <img loading="lazy" decoding="async"
               src={url}
               alt={label || fileName || "Upload preview"}
               className="max-h-56 w-full object-contain"

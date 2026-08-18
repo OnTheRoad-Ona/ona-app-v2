@@ -9,22 +9,9 @@ import {
 } from "react";
 import { ChevronLeft, Clock, Hammer, MapPin, Paintbrush, Wrench, X } from "lucide-react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { CategoryTabs } from "@/components/home/category-tabs";
 import { FilterChips } from "@/components/home/filter-chips";
-import { MechanicHelpFlow } from "@/components/home/mechanic-help-flow";
-import { VulcanizerHelpFlow } from "@/components/home/vulcanizer-help-flow";
-import { TowHelpFlow } from "@/components/home/tow-help-flow";
-import { BatteryHelpFlow } from "@/components/home/battery-help-flow";
-import { AcHelpFlow } from "@/components/home/ac-help-flow";
-import { BodyHelpFlow } from "@/components/home/body-help-flow";
-import { ElectricalHelpFlow } from "@/components/home/electrical-help-flow";
-import { DiagnosticsHelpFlow } from "@/components/home/diagnostics-help-flow";
-import { FashionHelpFlow } from "@/components/home/fashion-help-flow";
-import { PlumberHelpFlow } from "@/components/home/plumber-help-flow";
-import { CarpenterHelpFlow } from "@/components/home/carpenter-help-flow";
-import { PainterHelpFlow } from "@/components/home/painter-help-flow";
-import { SolarHelpFlow } from "@/components/home/solar-help-flow";
-import { GeneratorHelpFlow } from "@/components/home/generator-help-flow";
 import { NeedHelpDialogue } from "@/components/home/need-help-dialogue";
 import { RadiusSlider } from "@/components/home/radius-slider";
 import { SpecialtyFilterBar } from "@/components/home/specialty-filter-bar";
@@ -86,6 +73,97 @@ async function geocodeAddress(
 }
 
 const PAGE_SIZE = 10;
+
+/**
+ * Question flows load on demand (only when the matching trade is tapped), so
+ * the home shell first paint does not download all 14 flow bundles.
+ */
+const MechanicHelpFlow = dynamic(
+  () =>
+    import("@/components/home/mechanic-help-flow").then(
+      (m) => m.MechanicHelpFlow
+    ),
+  { ssr: false }
+);
+const VulcanizerHelpFlow = dynamic(
+  () =>
+    import("@/components/home/vulcanizer-help-flow").then(
+      (m) => m.VulcanizerHelpFlow
+    ),
+  { ssr: false }
+);
+const TowHelpFlow = dynamic(
+  () => import("@/components/home/tow-help-flow").then((m) => m.TowHelpFlow),
+  { ssr: false }
+);
+const BatteryHelpFlow = dynamic(
+  () =>
+    import("@/components/home/battery-help-flow").then(
+      (m) => m.BatteryHelpFlow
+    ),
+  { ssr: false }
+);
+const AcHelpFlow = dynamic(
+  () => import("@/components/home/ac-help-flow").then((m) => m.AcHelpFlow),
+  { ssr: false }
+);
+const BodyHelpFlow = dynamic(
+  () => import("@/components/home/body-help-flow").then((m) => m.BodyHelpFlow),
+  { ssr: false }
+);
+const ElectricalHelpFlow = dynamic(
+  () =>
+    import("@/components/home/electrical-help-flow").then(
+      (m) => m.ElectricalHelpFlow
+    ),
+  { ssr: false }
+);
+const DiagnosticsHelpFlow = dynamic(
+  () =>
+    import("@/components/home/diagnostics-help-flow").then(
+      (m) => m.DiagnosticsHelpFlow
+    ),
+  { ssr: false }
+);
+const FashionHelpFlow = dynamic(
+  () =>
+    import("@/components/home/fashion-help-flow").then(
+      (m) => m.FashionHelpFlow
+    ),
+  { ssr: false }
+);
+const PlumberHelpFlow = dynamic(
+  () =>
+    import("@/components/home/plumber-help-flow").then(
+      (m) => m.PlumberHelpFlow
+    ),
+  { ssr: false }
+);
+const CarpenterHelpFlow = dynamic(
+  () =>
+    import("@/components/home/carpenter-help-flow").then(
+      (m) => m.CarpenterHelpFlow
+    ),
+  { ssr: false }
+);
+const PainterHelpFlow = dynamic(
+  () =>
+    import("@/components/home/painter-help-flow").then(
+      (m) => m.PainterHelpFlow
+    ),
+  { ssr: false }
+);
+const SolarHelpFlow = dynamic(
+  () => import("@/components/home/solar-help-flow").then((m) => m.SolarHelpFlow),
+  { ssr: false }
+);
+const GeneratorHelpFlow = dynamic(
+  () =>
+    import("@/components/home/generator-help-flow").then(
+      (m) => m.GeneratorHelpFlow
+    ),
+  { ssr: false }
+);
 
 /**
  * Motorist lower sheet: trade strip + list always visible.

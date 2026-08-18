@@ -42,7 +42,7 @@ export type TransitionEvent =
   | { type: "LATER"; by: "repair_pro" }
   /** Pro declined → per-request permanent exclusion, next pro */
   | { type: "DECLINE"; by: "repair_pro"; reason?: string }
-  /** Server sweep: current pro did not respond in 66s */
+  /** Server sweep: current pro did not respond in 144s */
   | { type: "PAIRING_TIMEOUT" }
   /** Server dispatch: sequential_pairing → next waiting_for_pro */
   | { type: "DISPATCH" };

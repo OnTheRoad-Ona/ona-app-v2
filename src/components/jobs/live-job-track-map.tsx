@@ -168,7 +168,7 @@ function ProMapPin({
           }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <img loading="lazy" decoding="async"
             src={icon}
             alt=""
             width={size}

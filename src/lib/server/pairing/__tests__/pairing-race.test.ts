@@ -619,8 +619,8 @@ describe("sweepPairing — recovery loop", () => {
       pairing_stage: "sequential_pairing",
       pairing_deadline: new Date(Date.now() - 1000).toISOString(),
       repair_pro_id: null,
-      pairing_radius_km: 3,
-      radius_km: 10,
+      pairing_radius_km: 1,
+      radius_km: 5,
     };
     installClient(row);
     // Sweep select + loadPairingRow share the same stateful responder.
@@ -629,14 +629,20 @@ describe("sweepPairing — recovery loop", () => {
 
     const res = await sweepPairing();
     expect(res.checked).toBe(1);
-    // No candidates → radius expanded 3 → 5, not a hard timeout.
+    // No candidates → radius expands within the fresh-search cap (1 → 2, not a
+    // hard timeout and never beyond the 2 km round-0 cap).
     const radiusUpdate = callsFor("service_requests", "update").find(
       (c) => {
         const p = c.args[0] as Record<string, unknown>;
-        return p.pairing_radius_km === 5;
+        return p.pairing_radius_km === 2;
       }
     );
     expect(radiusUpdate).toBeTruthy();
+    expect(
+      callsFor("service_requests", "update").some(
+        (c) => (c.args[0] as Record<string, unknown>).pairing_radius_km === 5
+      )
+    ).toBe(false);
     expect(
       callsFor("request_pairing_queue", "update").filter(
         (c) => (c.args[0] as Record<string, unknown>).status === "timed_out"

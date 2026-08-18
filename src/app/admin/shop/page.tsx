@@ -715,7 +715,7 @@ export default function AdminShopPage() {
                       <td>
                         {p.primary_image_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img
+                          <img loading="lazy" decoding="async"
                             src={p.primary_image_url}
                             alt=""
                             width={40}
@@ -893,7 +893,7 @@ export default function AdminShopPage() {
               <h3 style={{ marginTop: 16 }}>Primary image</h3>
               {editDetail.product.primary_image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <img loading="lazy" decoding="async"
                   src={String(editDetail.product.primary_image_url)}
                   alt=""
                   width={96}
@@ -930,7 +930,7 @@ export default function AdminShopPage() {
                 >
                   {editDetail.images.map((img) => (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <img loading="lazy" decoding="async"
                       key={String(img.id)}
                       src={String(img.url)}
                       alt=""

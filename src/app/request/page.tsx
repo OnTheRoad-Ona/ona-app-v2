@@ -628,7 +628,7 @@ function RequestInner() {
             {photos.map((p) => (
               <div key={p.id} className="relative h-20 w-20 shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <img loading="lazy" decoding="async"
                   src={p.url}
                   alt=""
                   className="h-20 w-20 rounded-xl object-cover"

@@ -1044,14 +1044,14 @@ export function IncomingJobPopup() {
                   <div className="flex items-start gap-2">
                     {job.motoristPhoto ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={job.motoristPhoto}
                         alt=""
                         className="mt-0.5 h-7 w-7 shrink-0 rounded-full object-cover"
                       />
                     ) : (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={DEFAULT_VENDOR_PHOTO}
                         alt=""
                         className="mt-0.5 h-7 w-7 shrink-0 rounded-full object-cover"
@@ -1408,7 +1408,7 @@ export function IncomingJobPopup() {
             </>
           )}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <img loading="lazy" decoding="async"
             src={lightbox.photos[lightbox.index]?.url}
             alt={lightbox.photos[lightbox.index]?.name || "Job photo"}
             className="max-h-[80%] max-w-[90%] rounded-xl object-contain"
@@ -1476,7 +1476,7 @@ export function IncomingJobPopup() {
                   </span>
                   {closeBanner.avatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <img loading="lazy" decoding="async"
                       src={closeBanner.avatarUrl}
                       alt=""
                       className="ml-auto h-5 w-5 shrink-0 rounded-full object-cover"

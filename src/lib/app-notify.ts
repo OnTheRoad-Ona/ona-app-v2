@@ -77,7 +77,7 @@ export function showAppNotification(opts: AppNotifyOpts): void {
         } catch {
           /* */
         }
-      }, 66_000);
+      }, 144_000);
     }
   } catch {
     /* Safari private / unsupported */

@@ -395,7 +395,7 @@ export function FileThumb({
             </video>
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <img loading="lazy" decoding="async"
               src={view}
               alt={label}
               style={{
@@ -473,7 +473,7 @@ export function FileThumb({
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <img loading="lazy" decoding="async"
           src={view}
           alt={label}
           onError={retrySrc}

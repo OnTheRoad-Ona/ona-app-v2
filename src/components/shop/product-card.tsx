@@ -112,7 +112,7 @@ export function ShopProductCard({ product, qty = 1, onAdded, tint = false }: Pro
         >
           {product.primaryImageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <img loading="lazy" decoding="async"
               src={product.primaryImageUrl}
               alt=""
               className="h-full w-full object-cover"

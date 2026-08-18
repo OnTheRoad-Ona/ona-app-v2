@@ -1610,7 +1610,7 @@ export function ArtisanOnboarding({
               {profile.portfolio.map((m) => (
                 <div key={m.id} className="relative aspect-square overflow-hidden rounded-md bg-black/10">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <img loading="lazy" decoding="async"
                     src={m.url}
                     alt=""
                     className="h-full w-full object-cover"

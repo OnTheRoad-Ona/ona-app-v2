@@ -1,8 +1,8 @@
 /**
  * Repair Pro service-request popup timing.
- * - Stay visible 66s (progress line only — no second display)
+ * - Stay visible 144s (progress line only — no second display)
  * - Always surface each new open request (C1 — no 10-minute throttle)
- * - New requests during the 66s window pile (stack count)
+ * - New requests during the 144s window pile (stack count)
  */
 
 import type { JobRecord } from "@/lib/jobs/types";
@@ -10,9 +10,9 @@ import { serverNow } from "@/lib/jobs/server-clock";
 import { windowStillOpen } from "@/lib/jobs/deadline";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 
-export const INCOMING_POPUP_VISIBLE_MS = 66_000;
+export const INCOMING_POPUP_VISIBLE_MS = 144_000;
 /** Seconds counterpart for UI progress line */
-export const INCOMING_POPUP_VISIBLE_SEC = 66;
+export const INCOMING_POPUP_VISIBLE_SEC = 144;
 
 /**
  * SSPE pairing stages a pro can act on from the incoming popup.
@@ -189,7 +189,7 @@ export function readShownJobIds(proId?: string): Set<string> {
 
 /**
  * Shown key is jobId + pairing deadline so a re-offer of the same job
- * (Retry wave / new 66s window) surfaces again. Same deadline = already shown.
+ * (Retry wave / new 144s window) surfaces again. Same deadline = already shown.
  */
 export function shownOfferKey(
   jobId: string,
@@ -218,7 +218,7 @@ export function markJobShown(
   }
 }
 
-/** Clear shown flag so a reassigned/rerouted job can surface again after 66s wave */
+/** Clear shown flag so a reassigned/rerouted job can surface again after 144s wave */
 export function clearJobShown(id: string, proId?: string): void {
   try {
     const s = readShownJobIds(proId);

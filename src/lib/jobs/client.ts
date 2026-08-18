@@ -372,11 +372,11 @@ export type SurfaceResult = {
 };
 
 /** Tell the server the request just appeared on this pro's screen ("surface").
- *  Server-owned: it arms `pairing_deadline = now + 66s` EXACTLY ONCE per offer
- *  (only when it's still NULL), so the 66s pairing timer starts at the moment
+ *  Server-owned: it arms `pairing_deadline = now + 144s` EXACTLY ONCE per offer
+ *  (only when it's still NULL), so the 144s pairing timer starts at the moment
  *  the card renders — on BOTH the pro's popup and the customer's ring (they
  *  read the same shared deadline). Never re-arms once set, so the timer can't
- *  roll back to 66. If the pro's device never surfaces, the server sweep arms
+ *  roll back to 144. If the pro's device never surfaces, the server sweep arms
  *  a fallback deadline after ~8s so the offer still times out/advances. */
 export async function apiSurfaceJob(jobId: string) {
   const res = await jobFetch(`/api/jobs/${encodeURIComponent(jobId)}/surface`, {

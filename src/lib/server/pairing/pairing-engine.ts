@@ -2,7 +2,7 @@
  * Ona Smart Sequential Pairing Engine (SSPE).
  *
  * Server-owned dispatch that runs the customer-chosen pro first, then
- * advances one pro at a time with a 66s deadline. DB-persisted
+ * advances one pro at a time with a 144s deadline. DB-persisted
  * `pairing_deadline` is the single source of truth (D3); clients only
  * render it. Every transition is idempotent and race-safe via
  * compare-and-set `UPDATE ... WHERE pairing_stage = <expected>`.
@@ -18,9 +18,9 @@ import { hasRecentLiveHeartbeat, MAX_RADIUS_KM } from "@/lib/matching";
 import { orderCandidatesByMerit } from "@/lib/server/merit/merit-engine";
 import { isSyntheticAccount } from "@/lib/server/synthetic-accounts";
 
-export const PAIRING_WINDOW_MS = 66_000; // 66s per pro (display + enforce)
+export const PAIRING_WINDOW_MS = 144_000; // 144s per pro (display + enforce)
 export const DEFER_DURATION_MS = 5 * 60_000; // Later = 5 min exclusion from re-offer
-/** At open we KEEP the running 66s pairing window as the review window unless
+/** At open we KEEP the running 144s pairing window as the review window unless
  *  less than this much remains (then a fresh full window is issued), so the
  *  customer's ring never visibly jumps back to 66 mid-count. */
 export const OPEN_REARM_FLOOR_MS = 10_000;
@@ -33,7 +33,13 @@ export const SURFACE_FALLBACK_GRACE_MS = 8000;
 export const RADIUS_STEPS_KM = [1, 2, 3, MAX_RADIUS_KM];
 export const MAX_PAIRING_RADIUS_KM = RADIUS_STEPS_KM[RADIUS_STEPS_KM.length - 1];
 /**
- * Pros contacted per search round (one-by-one, 66s each).
+ * Search-radius cap per customer round (round 0 = fresh search, round N = N-th
+ * retry). Fresh searches stay tight (2 km); each Retry widens toward the 5 km
+ * marketplace cap so a nearby pro is hit before expanding further out.
+ */
+export const PAIRING_ROUND_MAX_KM = [2, 3, 4, MAX_PAIRING_RADIUS_KM];
+/**
+ * Pros contacted per search round (one-by-one, 144s each).
  * Cap is a safety ceiling when many Live pros exist. Once every unique Live
  * pro in the customer radius has been tried (timeout / later / decline),
  * the round ends immediately → expired → customer Retry. We never re-offer
@@ -149,6 +155,23 @@ async function loadPairingRow(
 function history(row: PairingRow): object[] {
   const raw = row.status_history;
   return Array.isArray(raw) ? (raw as object[]) : [];
+}
+
+/** Customer round: 0 = fresh search, 1 = first Retry, 2 = second, 3 = third. */
+function pairingRound(row: PairingRow): number {
+  return history(row).filter((h) => (h as { by?: string }).by === "retry_search")
+    .length;
+}
+
+/** Search-radius cap for the current round, never beyond the customer's choice. */
+function roundMaxRadiusKm(row: PairingRow): number {
+  const round = pairingRound(row);
+  const roundCap =
+    PAIRING_ROUND_MAX_KM[Math.min(round, PAIRING_ROUND_MAX_KM.length - 1)] ??
+    MAX_PAIRING_RADIUS_KM;
+  const customerCap =
+    row.radius_km && row.radius_km > 0 ? row.radius_km : MAX_PAIRING_RADIUS_KM;
+  return Math.min(customerCap, roundCap);
 }
 
 function problemText(row: PairingRow): string {
@@ -426,7 +449,7 @@ async function dispatchCandidate(
       status: "requested",
       // Deadline stays NULL until the request actually appears on the pro's
       // screen (surface endpoint arms it exactly once) — otherwise dispatch
-      // and surface both arm it and the shared timer rolls back to 66s.
+      // and surface both arm it and the shared timer rolls back to 144s.
       pairing_deadline: null,
       queue_position: position + 1,
       remaining_candidates: remaining,
@@ -459,7 +482,7 @@ async function dispatchCandidate(
 /**
  * Advance to the next unique Live pro in the current search wave.
  * - attempts >= MAX → expire (customer Retry)
- * - new Live pro in radius → waiting_for_pro + shared 66s pairing_deadline
+ * - new Live pro in radius → waiting_for_pro + shared 144s pairing_deadline
  * - none at radius → expand within customer cap, then continue
  * - unique pool empty → expire immediately (Retry). No same-pro recycle.
  */
@@ -475,7 +498,10 @@ export async function advancePairing(jobId: string): Promise<PairingResult> {
     return { ok: true, noop: true, jobId: row.id };
   }
 
-  const radius = Number(row.pairing_radius_km) || RADIUS_STEPS_KM[0];
+  const radius = Math.min(
+    Number(row.pairing_radius_km) || RADIUS_STEPS_KM[0],
+    roundMaxRadiusKm(row)
+  );
   const attempts = Number(row.queue_position) || 0;
 
   // Cap: 6 unique pros per round, then customer must Retry for the next wave.
@@ -488,8 +514,9 @@ export async function advancePairing(jobId: string): Promise<PairingResult> {
     return dispatchCandidate(sb, row, found.candidate, found.remaining, "pairing");
   }
 
-  // Expand radius within the customer's search radius (not random outside).
-  const nextRadius = nextRadiusKm(radius, row.radius_km);
+  // Expand radius within the customer's search radius (not random outside),
+  // capped by the current round's max (fresh 2 km → retries 3/4/5 km).
+  const nextRadius = nextRadiusKm(radius, roundMaxRadiusKm(row));
   if (nextRadius != null) {
     const { error } = await sb
       .from("service_requests")
@@ -596,11 +623,18 @@ export async function retrySearch(jobId: string): Promise<PairingResult> {
   }
 
   const ts = nowIso();
+  const nextRoundCap =
+    PAIRING_ROUND_MAX_KM[Math.min(retried + 1, PAIRING_ROUND_MAX_KM.length - 1)] ??
+    MAX_PAIRING_RADIUS_KM;
+  const customerCap =
+    row.radius_km && row.radius_km > 0 ? row.radius_km : MAX_PAIRING_RADIUS_KM;
   const patch = {
     pairing_stage: "sequential_pairing",
-    // Fresh shared 66s clock — customer ring + pro popup both use this field
+    // Fresh shared 144s clock — customer ring + pro popup both use this field
     pairing_deadline: deadlineIso(),
-    pairing_radius_km: RADIUS_STEPS_KM[0],
+    // Widening radius: fresh searched ≤2 km, this Retry jumps to the next cap
+    // (3 → 4 → 5 km) so a nearby pro is found before going further out.
+    pairing_radius_km: Math.min(nextRoundCap, customerCap),
     repair_pro_id: null as string | null,
     repair_pro_name: null as string | null,
     queue_position: 0,
@@ -674,7 +708,7 @@ export async function openRequest(
 
   // Keep the SAME pairing_deadline as the review window whenever it's still
   // healthy (no visible jump when the pro opens) — the ring/card count straight
-  // through. Only re-arm to a fresh 66s when the current window is unset or
+  // through. Only re-arm to a fresh 144s when the current window is unset or
   // nearly spent, so the pro still gets a real review period.
   const currentLeftMs = windowLeftMs(row.pairing_deadline);
   const reviewDeadline =
@@ -1019,7 +1053,7 @@ export async function deferRequest(
   };
 }
 
-/** Server sweep: current pro did not respond within the 66s deadline. */
+/** Server sweep: current pro did not respond within the 144s deadline. */
 export async function timeoutRequest(jobId: string): Promise<PairingResult> {
   if (!isSupabaseAdminConfigured()) {
     return { ok: false, error: "Supabase is not configured", status: 503 };
@@ -1264,7 +1298,7 @@ export async function sweepPairing(limit = 50): Promise<{
 
     // Fallback arming for un-surfaced offers: requests whose card never
     // rendered on the pro's device (app closed) keep a NULL pairing_deadline
-    // and would never be seen by the timeout query above. Arm them now + 66s
+    // and would never be seen by the timeout query above. Arm them now + 144s
     // (after the grace window) so a later sweep tick times them out / advances
     // the pairing exactly as if the offer had been surfaced. Only arms still-
     // open offers with an assigned union pro or a pending chosen pro.

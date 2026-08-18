@@ -161,7 +161,7 @@ export function ProductSheet({ slug, onClose }: Props) {
           >
             {images[0]?.url || product.primary_image_url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <img loading="lazy" decoding="async"
                 src={String(images[0]?.url || product.primary_image_url)}
                 alt={String(product.name)}
                 className="h-full w-full object-cover"
@@ -174,7 +174,7 @@ export function ProductSheet({ slug, onClose }: Props) {
             <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
               {images.map((img, i) => (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <img loading="lazy" decoding="async"
                   key={`${img.url}-${i}`}
                   src={img.url}
                   alt=""

@@ -41,6 +41,7 @@ import {
   StageButton,
 } from "@/components/jobs/job-shell";
 import { VoiceNotePlayer } from "@/components/jobs/voice-note-player";
+import { JobProblemQA } from "@/components/jobs/job-problem-qa";
 import { CalloutFeeLines } from "@/components/jobs/callout-fee-lines";
 import { useJobCallout } from "@/lib/callout/use-job-callout";
 import { composeCustomerPayableMajor } from "@/lib/callout/payable";
@@ -219,7 +220,7 @@ function PhotoStrip({
             className="min-w-0 flex-1 basis-0 overflow-hidden rounded-lg border-0 p-0"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <img loading="lazy" decoding="async"
               src={p.url}
               alt={p.name || "Job photo"}
               className="h-20 w-full object-cover"
@@ -304,7 +305,7 @@ function PhotoStrip({
             </>
           )}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <img loading="lazy" decoding="async"
             src={lightbox.photos[lightbox.index]?.url}
             alt={lightbox.photos[lightbox.index]?.name || "Job photo"}
             className="max-h-[80%] max-w-[90%] rounded-xl object-contain"
@@ -1361,6 +1362,7 @@ export function JobFlowScreen({
       (h) => h.by === "retry_search"
     ).length;
     const retriesLeft = Math.max(0, 3 - retriesUsed);
+    const gaveUp = isRerouteExhausted && retriesLeft <= 0;
 
     const onRetry = async () => {
       if (retryingSearch || retriesLeft <= 0) return;
@@ -1397,17 +1399,29 @@ export function JobFlowScreen({
             : "Negotiation expired"
         }
         compactHeader
-        onBack={isPro ? () => router.push("/dashboard") : goJobsList}
+        onBack={
+          isPro
+            ? () => router.push("/dashboard")
+            : gaveUp
+              ? () => router.replace("/")
+              : goJobsList
+        }
         rightSlot={<HeaderMenu isLight={isLight} />}
         footer={
           isPro || !isRerouteExhausted ? undefined : (
             <div className="space-y-2">
-              <CopperButton
-                onClick={onRetry}
-                disabled={retryingSearch || retriesLeft <= 0}
-              >
-                {retryingSearch ? "Searching…" : "Retry search"}
-              </CopperButton>
+              {gaveUp ? (
+                <CopperButton onClick={() => router.replace("/")}>
+                  Back to Dashboard
+                </CopperButton>
+              ) : (
+                <CopperButton
+                  onClick={onRetry}
+                  disabled={retryingSearch || retriesLeft <= 0}
+                >
+                  {retryingSearch ? "Searching…" : "Retry search"}
+                </CopperButton>
+              )}
             </div>
           )
         }
@@ -1416,7 +1430,9 @@ export function JobFlowScreen({
           {isRerouteExhausted
             ? isPro
               ? "This request was rerouted but no pro accepted in time."
-              : "No Pro Available, retry search"
+              : gaveUp
+                ? `No ${tradeLabel} found at this time. Request other help or try again later.`
+                : "No Pro Available, retry search"
             : isPro
               ? `This request ended between you and ${job.motoristName}. No agreement was reached.`
               : `No agreement was reached with ${job.repairProName}.`}
@@ -1517,7 +1533,7 @@ export function JobFlowScreen({
         ? `Waiting for ${proLabel}`
         : reviewing
           ? "Repair Pro reviewing your request"
-          : "Finding another pro…";
+          : `Finding a ${proLabel} near you`;
 
     const subtitle =
       job.status === "waiting_for_selected"
@@ -1816,14 +1832,7 @@ export function JobFlowScreen({
                   >
                     Common issues
                   </p>
-                  <p
-                    className={cn(
-                      "mt-1 text-[15px] font-medium leading-relaxed",
-                      ink
-                    )}
-                  >
-                    {job.problem}
-                  </p>
+                  <JobProblemQA problem={job.problem} isLight={isLight} />
                 </div>
                 <div>
                   <p

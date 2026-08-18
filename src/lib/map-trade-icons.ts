@@ -85,7 +85,7 @@ export function tradeIconHtml(
   const pulseClass = live ? "om-live-glyph om-live-glyph--pulse" : "om-live-glyph";
   return `<div class="om-live-pin" style="width:${box}px;height:${box}px;position:relative;background:transparent;border:none">
     <span style="position:absolute;left:50%;top:50%;width:${size}px;height:${size}px;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center">
-      <img src="${url}" width="${size}" height="${size}" alt="" class="${pulseClass}" style="width:${size}px;height:${size}px;background:transparent;border:none;display:block;filter:none" draggable="false"/>
+      <img loading="lazy" decoding="async" src="${url}" width="${size}" height="${size}" alt="" class="${pulseClass}" style="width:${size}px;height:${size}px;background:transparent;border:none;display:block;filter:none" draggable="false"/>
     </span>
   </div>`;
 }

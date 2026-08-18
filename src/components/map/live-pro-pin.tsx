@@ -93,7 +93,7 @@ export function LiveProPin({
           style={{ width: BOX, height: BOX }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <img loading="lazy" decoding="async"
             src={url}
             width={ICON_SIZE}
             height={ICON_SIZE}

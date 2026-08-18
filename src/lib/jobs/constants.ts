@@ -11,11 +11,11 @@ export const JOB_NAVY = "#0f172a";
 /** Negotiation window — 20 minutes for price back-and-forth */
 export const NEGOTIATE_WINDOW_MS = 20 * 60 * 1000;
 /**
- * SSPE dispatch window — each pro has 66 seconds to Open a request before the
+ * SSPE dispatch window — each pro has 144 seconds to Open a request before the
  * server sweep advances to the next ranked pro (see docs/SSPE_REFACTOR_PLAN.md).
  * Clients only render `pairing_deadline`; the server owns enforcement.
  */
-export const PAIRING_WINDOW_MS = 66 * 1000;
+export const PAIRING_WINDOW_MS = 144 * 1000;
 /**
  * Max unique Live pro offers in one customer search wave. After this many
  * (or sooner if the Live pool is smaller), show Retry search. Not “6 retries”

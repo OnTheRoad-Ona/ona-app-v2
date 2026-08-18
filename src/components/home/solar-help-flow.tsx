@@ -519,7 +519,7 @@ export function SolarHelpFlow({
                           className="h-12 w-12 overflow-hidden rounded-lg border-0 p-0"
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
+                          <img loading="lazy" decoding="async"
                             src={p.url}
                             alt=""
                             className="h-full w-full object-cover"

@@ -2,13 +2,14 @@ import { describe, it, expect } from "vitest";
 import {
   MAX_PAIRING_RADIUS_KM,
   nextRadiusKm,
+  PAIRING_ROUND_MAX_KM,
   PAIRING_STAGES,
   PAIRING_WINDOW_MS,
 } from "@/lib/server/pairing/pairing-engine";
 
 describe("pairing-engine constants", () => {
-  it("uses a 66s pairing window", () => {
-    expect(PAIRING_WINDOW_MS).toBe(66_000);
+  it("uses a 144s pairing window", () => {
+    expect(PAIRING_WINDOW_MS).toBe(144_000);
   });
 
   it("defines all five dispatch stages", () => {
@@ -23,6 +24,10 @@ describe("pairing-engine constants", () => {
 
   it("max radius is the last step (5 km)", () => {
     expect(MAX_PAIRING_RADIUS_KM).toBe(5);
+  });
+
+  it("escalates the search cap across rounds: 2 → 3 → 4 → 5 km", () => {
+    expect(PAIRING_ROUND_MAX_KM).toEqual([2, 3, 4, 5]);
   });
 });
 

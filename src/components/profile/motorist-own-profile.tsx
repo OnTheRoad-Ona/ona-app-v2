@@ -445,7 +445,7 @@ export function MotoristOwnProfile({ isLight }: { isLight: boolean }) {
             >
               {v.photo ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <img loading="lazy" decoding="async"
                   src={v.photo}
                   alt=""
                   className="h-14 w-14 shrink-0 rounded-xl object-cover"
