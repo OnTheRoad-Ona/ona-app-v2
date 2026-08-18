@@ -128,9 +128,6 @@ export function MechanicHelpFlow({
     ? "bg-transparent text-slate-900 placeholder:text-slate-400"
     : "bg-transparent text-white placeholder:text-white/40";
   const rowCard = isLight ? "bg-black/[0.02]" : "bg-white/[0.02]";
-  const insetLineText = isLight
-    ? "relative after:absolute after:bottom-0 after:left-1 after:right-0 after:h-px after:bg-black/[0.08]"
-    : "relative after:absolute after:bottom-0 after:left-1 after:right-0 after:h-px after:bg-white/[0.08]";
   const actionFlat = isLight ? "text-slate-700" : "text-white/85";
   const chipIdle = isLight
     ? "bg-black/8 text-slate-700"
@@ -675,7 +672,6 @@ export function MechanicHelpFlow({
                     step === "start"
                       ? MECHANIC_START_OPTIONS[i]?.id
                       : undefined;
-                  const last = i === (screen.options || []).length - 1;
                   return (
                     <button
                       key={opt.id}
@@ -683,8 +679,7 @@ export function MechanicHelpFlow({
                       onClick={() => pick(opt.id, opt.label)}
                       className={cn(
                         "flex w-full items-center gap-2 rounded-[4px] border-0 px-1 py-3 text-left transition-transform duration-150 active:scale-[0.985]",
-                        rowCard,
-                        !last && insetLineText
+                        rowCard
                       )}
                     >
                       {letter ? (
