@@ -115,13 +115,18 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-      // Immutable hashed Next assets — max CDN hit, less mobile re-download
+      // Immutable hashed Next assets — max CDN hit, less mobile re-download.
+      // In development, never cache: chunk names are stable across rebuilds, so
+      // an immutable header makes browsers keep serving stale code after edits.
       {
         source: "/_next/static/:path*",
         headers: [
           {
             key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
+            value:
+              process.env.NODE_ENV === "development"
+                ? "no-store, no-cache, must-revalidate, max-age=0"
+                : "public, max-age=31536000, immutable",
           },
         ],
       },
