@@ -545,7 +545,7 @@ export function TowHelpFlow({
         <div
           className="h-full rounded-full bg-brand transition-all duration-500"
           style={{
-            width: `${Math.min(100, (stack.length / 8) * 100)}%`,
+            width: `${step === "final" || step === "confirm" ? 100 : Math.min(100, (stack.length / 8) * 100)}%`,
           }}
         />
       </div>
@@ -573,7 +573,9 @@ export function TowHelpFlow({
             <div className="flex min-h-0 flex-1 flex-col">
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-hide">
                 <div className="mb-1 mt-2 flex items-center gap-1 px-0.5">
-                  {finalStep !== "urgency" && finalStep !== "meetPro" ? (
+                  {finalStep !== "urgency" &&
+                  finalStep !== "meetPro" &&
+                  finalStep !== "location" ? (
                     <button
                       type="button"
                       onClick={nextFinal}
