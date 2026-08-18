@@ -95,6 +95,7 @@ import { getVehiclesServedLock } from "@/lib/profile-edit";
 import { playPersonTone } from "@/lib/sound-tone";
 import { haversineKm } from "@/lib/supabase/mappers";
 import { clearSession, readSession, writeSession } from "@/lib/session-restore";
+import { FLOW_SESSION_KEYS } from "@/lib/flow-sessions";
 
 /** Result of book (motorist) or accept (pro) with progressive verification. */
 export type ServiceActionResult =
@@ -2418,9 +2419,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem(PRIMARY_ACCOUNT_KEY);
       localStorage.removeItem(PROFILE_KEY);
       clearSession(HOME_UI_SESSION_KEY);
-      clearSession("ona-mech-flow-session");
-      clearSession("ona-vulc-flow-session");
-      clearSession("ona-tow-flow-session");
+      for (const key of Object.values(FLOW_SESSION_KEYS)) {
+        clearSession(key);
+      }
       const vault = readProfilesVault();
       setHasMotoristAccount(Boolean(vault.motorist));
       setHasProAccount(Boolean(vault.professional));

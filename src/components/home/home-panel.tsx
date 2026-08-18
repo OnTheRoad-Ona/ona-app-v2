@@ -15,6 +15,12 @@ import { MechanicHelpFlow } from "@/components/home/mechanic-help-flow";
 import { VulcanizerHelpFlow } from "@/components/home/vulcanizer-help-flow";
 import { TowHelpFlow } from "@/components/home/tow-help-flow";
 import { BatteryHelpFlow } from "@/components/home/battery-help-flow";
+import { AcHelpFlow } from "@/components/home/ac-help-flow";
+import { BodyHelpFlow } from "@/components/home/body-help-flow";
+import { ElectricalHelpFlow } from "@/components/home/electrical-help-flow";
+import { DiagnosticsHelpFlow } from "@/components/home/diagnostics-help-flow";
+import { FashionHelpFlow } from "@/components/home/fashion-help-flow";
+import { PlumberHelpFlow } from "@/components/home/plumber-help-flow";
 import { NeedHelpDialogue } from "@/components/home/need-help-dialogue";
 import { RadiusSlider } from "@/components/home/radius-slider";
 import { SpecialtyFilterBar } from "@/components/home/specialty-filter-bar";
@@ -176,13 +182,25 @@ export function HomePanel({
   const isVulcanizerFlow = !isProMode && category === "vulcanizer";
   const isTowFlow = !isProMode && category === "towing";
   const isBatteryFlow = !isProMode && category === "battery";
+  const isAcFlow = !isProMode && category === "ac";
+  const isBodyFlow = !isProMode && category === "body";
+  const isElectricalFlow = !isProMode && category === "electrical";
+  const isDiagnosticsFlow = !isProMode && category === "diagnostics";
+  const isFashionFlow = !isProMode && category === "fashion";
+  const isPlumberFlow = !isProMode && category === "plumber";
   const showTalkBox =
     !isProMode &&
     tradeChosen &&
     !isMechanicFlow &&
     !isVulcanizerFlow &&
     !isTowFlow &&
-    !isBatteryFlow;
+    !isBatteryFlow &&
+    !isAcFlow &&
+    !isBodyFlow &&
+    !isElectricalFlow &&
+    !isDiagnosticsFlow &&
+    !isFashionFlow &&
+    !isPlumberFlow;
 
   /**
    * Lower panel only: every home open when phone is still unverified
@@ -633,13 +651,19 @@ export function HomePanel({
           />
         ) : null}
 
-        {/* Mechanic / Vulcanizer / Tow / Battery: no radius — Repair Pro is found by urgency. */}
+        {/* Mechanic / Vulcanizer / Tow / Battery / A/C / Body / Electric / Scan / Fashion / Plumber: no radius — Repair Pro is found by urgency. */}
         {isProMode ||
         (tradeChosen &&
           !isMechanicFlow &&
           !isVulcanizerFlow &&
           !isTowFlow &&
-          !isBatteryFlow) ? (
+          !isBatteryFlow &&
+          !isAcFlow &&
+          !isBodyFlow &&
+          !isElectricalFlow &&
+          !isDiagnosticsFlow &&
+          !isFashionFlow &&
+          !isPlumberFlow) ? (
           <RadiusSlider />
         ) : null}
         {isProMode && specialtyPickerOpen ? <SpecialtyFilterBar /> : null}
@@ -711,7 +735,7 @@ export function HomePanel({
       <div
         className={cn(
           "min-h-0 flex-1 px-3 pb-0",
-          showTalkBox || isMechanicFlow || isVulcanizerFlow || isTowFlow || isBatteryFlow
+          showTalkBox || isMechanicFlow || isVulcanizerFlow || isTowFlow || isBatteryFlow || isAcFlow || isBodyFlow || isElectricalFlow || isDiagnosticsFlow || isFashionFlow || isPlumberFlow
             ? "flex flex-col overflow-hidden"
             : "overflow-y-auto overscroll-contain scrollbar-hide"
         )}
@@ -745,6 +769,48 @@ export function HomePanel({
         ) : isBatteryFlow ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <BatteryHelpFlow
+              isLight={isLight}
+              onExit={() => setCategory("none")}
+            />
+          </div>
+        ) : isAcFlow ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <AcHelpFlow
+              isLight={isLight}
+              onExit={() => setCategory("none")}
+            />
+          </div>
+        ) : isBodyFlow ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <BodyHelpFlow
+              isLight={isLight}
+              onExit={() => setCategory("none")}
+            />
+          </div>
+        ) : isElectricalFlow ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <ElectricalHelpFlow
+              isLight={isLight}
+              onExit={() => setCategory("none")}
+            />
+          </div>
+        ) : isDiagnosticsFlow ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <DiagnosticsHelpFlow
+              isLight={isLight}
+              onExit={() => setCategory("none")}
+            />
+          </div>
+        ) : isFashionFlow ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <FashionHelpFlow
+              isLight={isLight}
+              onExit={() => setCategory("none")}
+            />
+          </div>
+        ) : isPlumberFlow ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <PlumberHelpFlow
               isLight={isLight}
               onExit={() => setCategory("none")}
             />

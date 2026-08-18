@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { BankForcePanel } from "@/components/auth/bank-force-panel";
 import { AppHeader } from "@/components/home/app-header";
 import { HomePanel } from "@/components/home/home-panel";
-import { SearchBar } from "@/components/home/search-bar";
 import { useAppConfig } from "@/components/app-config-provider";
 import { useOnaGoogleMaps } from "@/lib/google-maps-loader";
 import { useApp } from "@/lib/store";
@@ -106,7 +105,6 @@ export function HomeScreen() {
     >
       <div className={cn("z-20 shrink-0", sheetBg)}>
         <AppHeader />
-        <SearchBar />
       </div>
 
       <div className="relative flex min-h-0 flex-1 flex-col">

@@ -19,7 +19,7 @@ import {
   Wrench,
   Zap,
 } from "lucide-react";
-import { isSpecialtyPickerTrade } from "@/lib/artisan/catalog";
+import { clearTradeFlowSession } from "@/lib/flow-sessions";
 import { useT, type MessageKey } from "@/lib/i18n";
 import { useApp } from "@/lib/store";
 import { CarBattery } from "@/lib/services";
@@ -72,7 +72,7 @@ export function CategoryTabs({
   /** Mechanic flow: shrink the trade grid so the card can fill the panel. */
   compact?: boolean;
 }) {
-  const { category, setCategory, openSpecialtyPicker, theme } = useApp();
+  const { category, setCategory, theme } = useApp();
   const t = useT();
   const router = useRouter();
   const isLight = theme === "light";
@@ -198,13 +198,9 @@ export function CategoryTabs({
                   router.push("/shop");
                   return;
                 }
-                // Re-tap same specialty trade → show Home/Office/… strip again
-                if (id === category && isSpecialtyPickerTrade(id)) {
-                  openSpecialtyPicker();
-                  return;
-                }
                 // Re-tap the active trade → unclick (reset) it
                 if (id === category) {
+                  clearTradeFlowSession(id);
                   setCategory("none");
                   return;
                 }
