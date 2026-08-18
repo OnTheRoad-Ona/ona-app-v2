@@ -115,7 +115,7 @@ export function ShopVehicleBar({
       <div
         className={cn(
           "flex items-center gap-2 rounded-xl px-3 py-2.5",
-          isLight ? "bg-white/95" : "bg-[#1c1c1e]"
+          isLight ? "bg-black/[0.02]" : "bg-white/[0.02]"
         )}
       >
         <Car className="h-4 w-4 shrink-0 text-[#FF6B35]" />
@@ -170,15 +170,7 @@ export function ShopVehicleBar({
               All
             </button>
           </>
-        ) : (
-          <button
-            type="button"
-            onClick={() => router.push("/shop/vehicles")}
-            className="inline-flex shrink-0 items-center rounded-lg border-0 bg-[#FF6B35] px-2.5 py-1.5 text-[11px] font-bold text-white"
-          >
-            Garage
-          </button>
-        )}
+        ) : null}
       </div>
     </div>
   );

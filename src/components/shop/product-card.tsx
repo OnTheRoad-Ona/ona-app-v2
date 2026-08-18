@@ -26,6 +26,8 @@ type Props = {
   product: ShopCardProduct;
   qty?: number;
   onAdded?: () => void;
+  /** Question-flow 2% tint (bg-black/[0.02] / bg-white/[0.02]) instead of the white/gray card. */
+  tint?: boolean;
 };
 
 function formatPrice(minor: number | null): string {
@@ -43,7 +45,7 @@ function fitmentBadge(status?: string | null, badge?: string | null): string | n
 }
 
 /** Compact market-style row: image left, name/price, "+" add button at far right. */
-export function ShopProductCard({ product, qty = 1, onAdded }: Props) {
+export function ShopProductCard({ product, qty = 1, onAdded, tint = false }: Props) {
   const { theme, isAuthenticated, accountType } = useApp();
   const isLight = theme === "light";
   const [adding, setAdding] = useState(false);
@@ -53,7 +55,13 @@ export function ShopProductCard({ product, qty = 1, onAdded }: Props) {
   const canAdd = inStock && Boolean(product.defaultVariantId);
   const badge = fitmentBadge(product.fitmentStatus, product.fitmentBadge);
 
-  const card = isLight ? "bg-white/90 text-slate-900" : "bg-[#1c1c1e] text-white";
+  const card = tint
+    ? isLight
+      ? "bg-black/[0.02] text-slate-900"
+      : "bg-white/[0.02] text-white"
+    : isLight
+      ? "bg-white/90 text-slate-900"
+      : "bg-[#1c1c1e] text-white";
   const muted = isLight ? "text-slate-600" : "text-white/55";
 
   const addToCart = async () => {

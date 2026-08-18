@@ -149,7 +149,7 @@ export default function ShopHomePage() {
   const muted = isLight ? "text-slate-600" : "text-white/55";
 
   /** Full-width listing rows — easy vertical scroll (not a grid of boxes). */
-  const productList = (items: ProductCard[]) => (
+  const productList = (items: ProductCard[], tint = false) => (
     <div className="flex flex-col gap-2 px-3">
       {items.length === 0 ? (
         <p className={cn("px-1 py-2 text-[12px] italic", muted)}>
@@ -169,6 +169,7 @@ export default function ShopHomePage() {
             primaryImageUrl: p.primaryImageUrl,
             defaultVariantId: p.defaultVariantId,
           }}
+          tint={tint}
         />
       ))}
     </div>
@@ -218,7 +219,7 @@ export default function ShopHomePage() {
           <div
             className={cn(
               "flex items-center gap-2 rounded-xl px-3 py-2.5",
-              isLight ? "bg-white/95" : "bg-[#1c1c1e]"
+              isLight ? "bg-black/[0.02]" : "bg-white/[0.02]"
             )}
           >
             <Search className="h-4 w-4 shrink-0 text-[#FF6B35]" />
@@ -242,10 +243,16 @@ export default function ShopHomePage() {
               type="button"
               onClick={() => void runSearch()}
               disabled={searching}
-              className="rounded-lg border-0 bg-[#FF6B35] px-3 py-1.5 text-[12px] font-bold text-white"
+              className={cn(
+                "rounded-lg border-0 px-3 py-1.5 text-[12px] font-bold",
+                isLight ? "bg-black/8 text-slate-800" : "bg-white/10 text-white"
+              )}
             >
               {searching ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2
+                  className="h-4 w-4 animate-spin"
+                  style={{ color: isLight ? "#334155" : "#ffffff" }}
+                />
               ) : (
                 "Go"
               )}
@@ -441,8 +448,10 @@ export default function ShopHomePage() {
 
             {popular.length > 0 ? (
               <>
-                <p className="px-3 pt-5 pb-2 text-[13px] font-black">Popular</p>
-                {productList(popular)}
+                <p className="px-3 pt-5 pb-2 text-[13px] font-black">
+                  Popular
+                </p>
+                {productList(popular, true)}
               </>
             ) : null}
 
@@ -451,7 +460,7 @@ export default function ShopHomePage() {
                 <p className="px-3 pt-5 pb-2 text-[13px] font-black">
                   New arrivals
                 </p>
-                {productList(newArrivals)}
+                {productList(newArrivals, true)}
               </>
             ) : null}
           </>
