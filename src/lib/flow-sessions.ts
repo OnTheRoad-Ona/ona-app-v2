@@ -18,6 +18,10 @@ export const FLOW_SESSION_KEYS: Record<string, string> = {
   diagnostics: "ona-diagnostics-flow-session",
   fashion: "ona-fashion-flow-session",
   plumber: "ona-plumber-flow-session",
+  carpenter: "ona-carpenter-flow-session",
+  painter: "ona-painter-flow-session",
+  solar: "ona-solar-flow-session",
+  generator: "ona-generator-flow-session",
 };
 
 export function flowSessionKeyFor(trade: string): string | null {

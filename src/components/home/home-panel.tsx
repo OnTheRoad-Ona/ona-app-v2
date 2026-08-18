@@ -21,6 +21,10 @@ import { ElectricalHelpFlow } from "@/components/home/electrical-help-flow";
 import { DiagnosticsHelpFlow } from "@/components/home/diagnostics-help-flow";
 import { FashionHelpFlow } from "@/components/home/fashion-help-flow";
 import { PlumberHelpFlow } from "@/components/home/plumber-help-flow";
+import { CarpenterHelpFlow } from "@/components/home/carpenter-help-flow";
+import { PainterHelpFlow } from "@/components/home/painter-help-flow";
+import { SolarHelpFlow } from "@/components/home/solar-help-flow";
+import { GeneratorHelpFlow } from "@/components/home/generator-help-flow";
 import { NeedHelpDialogue } from "@/components/home/need-help-dialogue";
 import { RadiusSlider } from "@/components/home/radius-slider";
 import { SpecialtyFilterBar } from "@/components/home/specialty-filter-bar";
@@ -188,6 +192,10 @@ export function HomePanel({
   const isDiagnosticsFlow = !isProMode && category === "diagnostics";
   const isFashionFlow = !isProMode && category === "fashion";
   const isPlumberFlow = !isProMode && category === "plumber";
+  const isCarpenterFlow = !isProMode && category === "carpenter";
+  const isPainterFlow = !isProMode && category === "painter";
+  const isSolarFlow = !isProMode && category === "solar";
+  const isGeneratorFlow = !isProMode && category === "generator";
   const showTalkBox =
     !isProMode &&
     tradeChosen &&
@@ -200,7 +208,11 @@ export function HomePanel({
     !isElectricalFlow &&
     !isDiagnosticsFlow &&
     !isFashionFlow &&
-    !isPlumberFlow;
+    !isPlumberFlow &&
+    !isCarpenterFlow &&
+    !isPainterFlow &&
+    !isSolarFlow &&
+    !isGeneratorFlow;
 
   /**
    * Lower panel only: every home open when phone is still unverified
@@ -651,7 +663,7 @@ export function HomePanel({
           />
         ) : null}
 
-        {/* Mechanic / Vulcanizer / Tow / Battery / A/C / Body / Electric / Scan / Fashion / Plumber: no radius — Repair Pro is found by urgency. */}
+        {/* Mechanic / Vulcanizer / Tow / Battery / A/C / Body / Electric / Scan / Fashion / Plumber / Carpenter / Painter / Solar / Generator: no radius — Repair Pro is found by urgency. */}
         {isProMode ||
         (tradeChosen &&
           !isMechanicFlow &&
@@ -663,7 +675,11 @@ export function HomePanel({
           !isElectricalFlow &&
           !isDiagnosticsFlow &&
           !isFashionFlow &&
-          !isPlumberFlow) ? (
+          !isPlumberFlow &&
+          !isCarpenterFlow &&
+          !isPainterFlow &&
+          !isSolarFlow &&
+          !isGeneratorFlow) ? (
           <RadiusSlider />
         ) : null}
         {isProMode && specialtyPickerOpen ? <SpecialtyFilterBar /> : null}
@@ -735,7 +751,7 @@ export function HomePanel({
       <div
         className={cn(
           "min-h-0 flex-1 px-3 pb-0",
-          showTalkBox || isMechanicFlow || isVulcanizerFlow || isTowFlow || isBatteryFlow || isAcFlow || isBodyFlow || isElectricalFlow || isDiagnosticsFlow || isFashionFlow || isPlumberFlow
+          showTalkBox || isMechanicFlow || isVulcanizerFlow || isTowFlow || isBatteryFlow || isAcFlow || isBodyFlow || isElectricalFlow || isDiagnosticsFlow || isFashionFlow || isPlumberFlow || isCarpenterFlow || isPainterFlow || isSolarFlow || isGeneratorFlow
             ? "flex flex-col overflow-hidden"
             : "overflow-y-auto overscroll-contain scrollbar-hide"
         )}
@@ -811,6 +827,34 @@ export function HomePanel({
         ) : isPlumberFlow ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <PlumberHelpFlow
+              isLight={isLight}
+              onExit={() => setCategory("none")}
+            />
+          </div>
+        ) : isCarpenterFlow ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <CarpenterHelpFlow
+              isLight={isLight}
+              onExit={() => setCategory("none")}
+            />
+          </div>
+        ) : isPainterFlow ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <PainterHelpFlow
+              isLight={isLight}
+              onExit={() => setCategory("none")}
+            />
+          </div>
+        ) : isSolarFlow ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <SolarHelpFlow
+              isLight={isLight}
+              onExit={() => setCategory("none")}
+            />
+          </div>
+        ) : isGeneratorFlow ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <GeneratorHelpFlow
               isLight={isLight}
               onExit={() => setCategory("none")}
             />
