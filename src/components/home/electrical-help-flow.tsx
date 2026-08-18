@@ -442,9 +442,24 @@ export function ElectricalHelpFlow({
     >
       <div className="mb-1.5 h-0.5 shrink-0 overflow-hidden rounded-full">
         <div
-          className="h-full rounded-full bg-brand transition-all duration-500"
+          className="h-full rounded-full bg-brand"
           style={{
-            width: `${step === "final" || step === "confirm" ? 100 : Math.min(100, (stack.length / 8) * 100)}%`,
+            width: `${(() => {
+              const INDEX: Record<string, number> = {
+                urgency: 0,
+                photos: 1,
+                voice: 2,
+                location: 3,
+                tow: 4,
+              };
+              const N = 5;
+              const DEFAULT_TOTAL = 11;
+              const base = Math.max(0, stack.length - 1);
+              const atFinal = step === "final";
+              const pos = atFinal ? base + (INDEX[finalStep] ?? 0) : base;
+              const total = atFinal ? base + N - 1 : DEFAULT_TOTAL;
+              return Math.min(100, (pos / total) * 100);
+            })()}%`,
           }}
         />
       </div>
