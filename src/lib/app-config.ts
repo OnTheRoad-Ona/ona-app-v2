@@ -136,7 +136,6 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     appTitle: "Ona",
     mainMenu: [
       { id: "home", label: "Home", href: "/", icon: "home", order: 0, enabled: true },
-      { id: "jobs", label: "Jobs", href: "/jobs", icon: "briefcase", order: 1, enabled: true },
       { id: "messages", label: "Messages", href: "/messages", icon: "message", order: 2, enabled: true },
       { id: "history", label: "History", href: "/history", icon: "clock", order: 3, enabled: true },
       { id: "settings", label: "Settings", href: "/settings", icon: "settings", order: 4, enabled: true },

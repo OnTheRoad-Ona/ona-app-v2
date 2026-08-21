@@ -20,7 +20,10 @@ const MAX_VISIBLE_INCOMING = 2;
 export const INCOMING_POPUP_STATUS_POLL_MS = 500;
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type {
+  PointerEvent as ReactPointerEvent,
+  WheelEvent as ReactWheelEvent,
+} from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Briefcase, ChevronLeft, ChevronRight, ChevronUp, Clock, Loader2, Wrench, X } from "lucide-react";
 import {
@@ -30,6 +33,7 @@ import {
   vibrateCallPattern,
 } from "@/lib/app-notify";
 import { apiDeferJob, apiGetJob, apiListJobs, apiProIncomingStatus, apiTransition, getCurrentPosition } from "@/lib/jobs/client";
+import { ConfirmCancelSheet } from "@/components/ui/confirm-cancel-sheet";
 import {
   canSurfaceIncomingJob,
   clearJobShown,
@@ -40,6 +44,7 @@ import {
   markJobShown,
   PAIRING_ACTION_STAGES,
   requestCloseText,
+  setIncomingPanelOpen,
   takeForceIncomingPanelJobId,
 } from "@/lib/jobs/incoming-popup-timing";
 import type { JobRecord } from "@/lib/jobs/types";
@@ -49,6 +54,10 @@ import {
   secondsLeftFloor,
 } from "@/lib/jobs/countdown-math";
 import { formatMoney } from "@/lib/pricing";
+import { calculateCalloutFee, resolveAppliedMultiplier } from "@/lib/callout/engine";
+import { DEFAULT_TRADE_BASE_FEES } from "@/lib/callout/constants";
+import type { CalloutQuote } from "@/lib/callout/constants";
+import type { ProService } from "@/lib/types";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
 import { enablePushNotifications } from "@/lib/push/client";
@@ -57,8 +66,78 @@ import { playAppSound, unlockAudio } from "@/lib/sound-tone";
 import { backendSubscribeJobs } from "@/lib/supabase/app-api";
 import { VoiceNotePlayer } from "@/components/jobs/voice-note-player";
 import { JobProblemQA } from "@/components/jobs/job-problem-qa";
+import { useJobCallout } from "@/lib/callout/use-job-callout";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
+
+/** Per-card concise Base + Call-Out fee. Fetches the locked quote for this
+ *  request (or the server estimate while still pairing) and shows the fee
+ *  once the quote is available. Refetches when the job status changes so a
+ *  restarted search (customer Retry) still surfaces the fee. */
+/** Fallback fee for the OPEN trade (base fee + distance×rate) when the server
+ *  quote is not yet payable — same formula the server runs. Never ₦0 for a
+ *  real trade. Always carries the applicable urgency multiplier: the chip from
+ *  the server quote stays in effect, but the current-time auto band (Night
+ *  9PM–5AM Lagos) overrides it when higher. The urgency feature is forced —
+ *  no fallback may show an un-multiplied fee. */
+function tradeFallbackFee(
+  trade: string | null | undefined,
+  quote?: Partial<
+    Pick<CalloutQuote, "urgencyKind" | "urgencyMultiplier">
+  > | null
+): number {
+  if (!trade || !(trade in DEFAULT_TRADE_BASE_FEES)) return 0;
+  const applied = resolveAppliedMultiplier({
+    chipKind: quote?.urgencyKind ?? null,
+    chipMultiplier: quote?.urgencyMultiplier ?? null,
+    approvedDistanceKm: 0,
+    acceptedAt: new Date(),
+  }).multiplier;
+  const fee = calculateCalloutFee({
+    tradeId: trade as ProService,
+    approvedRouteDistanceKm: 0,
+    urgencyMultiplier: applied,
+  });
+  return Number.isFinite(fee.calloutFee) ? fee.calloutFee : 0;
+}
+
+function CalloutFeeOnCard({
+  job,
+  isLight,
+}: {
+  job: JobRecord;
+  isLight: boolean;
+}) {
+  const { quote } = useJobCallout(job.id, job.status, job.calloutQuote);
+  const ink = isLight ? "text-slate-900" : "text-white";
+  const muted = isLight ? "text-slate-500" : "text-white/50";
+  const qFee = Number(quote?.calloutFee);
+  const payable = quote && Number.isFinite(qFee) && qFee > 0 ? qFee : 0;
+  const fee =
+    payable > 0 ? payable : tradeFallbackFee(job.serviceType, quote);
+  const currency = quote?.currency || job.currency || "NGN";
+  return (
+    <div
+      className={cn(
+        "mt-2.5 border-t pt-2",
+        isLight ? "border-black/10" : "border-white/10"
+      )}
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <span className={cn("text-[11px] font-bold", ink)}>Call Out Fee</span>
+        {quote ? (
+          <span className={cn("text-[11px] font-black tabular-nums", ink)}>
+            {formatMoney(fee, currency)}
+          </span>
+        ) : (
+          <span className={cn("text-[11px] font-semibold", muted)}>
+            Calculating…
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function isPairingAlert(j: JobRecord): boolean {
   return (
@@ -113,6 +192,7 @@ export function IncomingJobPopup() {
   const [queue, setQueue] = useState<JobRecord[]>([]);
   const [otherCount, setOtherCount] = useState(0);
   const [confirmFix, setConfirmFix] = useState<JobRecord | null>(null);
+  const [confirmCancelFix, setConfirmCancelFix] = useState(false);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [snoozedJob, setSnoozedJob] = useState<JobRecord | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -214,10 +294,28 @@ export function IncomingJobPopup() {
       setAcceptingId(j.id);
       setActionError(null);
       try {
-        if (isPairingAlert(j)) {
+        // Branch on the LIVE flow status, not pairingStage: a card that
+        // already moved to negotiating (e.g. stale pairing stage left on the
+        // record) must take the classic path, not fail the CONFIRM gate.
+        if (PAIRING_ACTION_STAGES.has(j.status ?? "")) {
           const stage = j.pairingStage ?? "";
           const needsOpen =
             stage === "waiting_for_selected" || stage === "waiting_for_pro";
+          // GPS is best-effort — never block the confirm on it. Start it
+          // alongside OPEN and only attach the fix if it resolves within
+          // ~250ms; otherwise the server uses the pro's existing Live pin.
+          const gpsPromise = getCurrentPosition({
+            enableHighAccuracy: true,
+            timeout: 8000,
+            maximumAge: 5000,
+          })
+            .then((pos) => ({
+              proLat: pos.coords.latitude,
+              proLng: pos.coords.longitude,
+              accuracyM: pos.coords.accuracy,
+              capturedAt: new Date().toISOString(),
+            }))
+            .catch(() => ({}));
           if (needsOpen) {
             const openRes = await apiTransition({
               jobId: j.id,
@@ -245,27 +343,12 @@ export function IncomingJobPopup() {
               return;
             }
           }
-          let gps: {
-            proLat?: number;
-            proLng?: number;
-            accuracyM?: number;
-            capturedAt?: string;
-          } = {};
-          try {
-            const pos = await getCurrentPosition({
-              enableHighAccuracy: true,
-              timeout: 8000,
-              maximumAge: 5000,
-            });
-            gps = {
-              proLat: pos.coords.latitude,
-              proLng: pos.coords.longitude,
-              accuracyM: pos.coords.accuracy,
-              capturedAt: new Date().toISOString(),
-            };
-          } catch {
-            /* server may use a fresh Live pin; never invent coords here */
-          }
+          const gps = await Promise.race([
+            gpsPromise,
+            new Promise<Record<string, never>>((resolve) =>
+              setTimeout(() => resolve({}), 250)
+            ),
+          ]);
           const confirmRes = await apiTransition({
             jobId: j.id,
             event: "CONFIRM",
@@ -482,6 +565,10 @@ export function IncomingJobPopup() {
 
       const rest = visibleJobsRef.current.filter((j) => j.id !== jobId);
       let q = queueRef.current.filter((j) => j.id !== jobId);
+      // Any surface for this request must close too — including the "Confirm
+      // you can fix this" dialog that may be open over the expired card.
+      setConfirmFix((c) => (c?.id === jobId ? null : c));
+      setConfirmCancelFix(false);
       // Promote queued jobs into free slots after state settles
       const toPresent: JobRecord[] = [];
       while (rest.length + toPresent.length < MAX_VISIBLE_INCOMING && q.length > 0) {
@@ -539,6 +626,9 @@ export function IncomingJobPopup() {
       if (jobs.length === 0) return;
       const nextMap: Record<string, number> = {};
       const expired: string[] = [];
+      // Any request whose timer has elapsed (classic + pairing) must also close
+      // the "Confirm you can fix this" dialog open over it.
+      const deadlineUp: string[] = [];
       for (const j of jobs) {
         const deadlineMs = j.pairingDeadline
           ? Date.parse(j.pairingDeadline)
@@ -552,8 +642,10 @@ export function IncomingJobPopup() {
           // re-issues pairing_deadline); classic cards defer when their server
           // window lapses.
           nextMap[j.id] = secondsLeftFloor(deadlineMs, serverNow());
-          if (isDeadlinePast(deadlineMs, serverNow()) && !isPairingAlert(j))
-            expired.push(j.id);
+          if (isDeadlinePast(deadlineMs, serverNow())) {
+            deadlineUp.push(j.id);
+            if (!isPairingAlert(j)) expired.push(j.id);
+          }
           continue;
         }
         if (isPairingAlert(j)) {
@@ -573,15 +665,27 @@ export function IncomingJobPopup() {
           endsMs - serverNow() <= 24 * 60 * 60 * 1000
         ) {
           nextMap[j.id] = secondsLeftFloor(endsMs, serverNow());
-          if (isDeadlinePast(endsMs, serverNow())) expired.push(j.id);
+          if (isDeadlinePast(endsMs, serverNow())) {
+            deadlineUp.push(j.id);
+            expired.push(j.id);
+          }
           continue;
         }
         const started = surfacedAtRef.current[j.id] ?? Date.now();
         const remainingMs = INCOMING_POPUP_VISIBLE_SEC * 1000 - (Date.now() - started);
         nextMap[j.id] = Math.max(0, Math.floor(remainingMs / 1000));
-        if (remainingMs <= 0) expired.push(j.id);
+        if (remainingMs <= 0) {
+          deadlineUp.push(j.id);
+          expired.push(j.id);
+        }
       }
       setTimeLeftById((prev) => ({ ...prev, ...nextMap }));
+      // The request's timer elapsed while its "Confirm you can fix this" (or
+      // "Decline this job?") dialog was open → close that surface too.
+      if (deadlineUp.length > 0) {
+        setConfirmFix((c) => (c && deadlineUp.includes(c.id) ? null : c));
+        setConfirmCancelFix(false);
+      }
       // Expire each classic card independently (defer that request)
       for (const id of expired) {
         removeRef.current(id, { defer: true });
@@ -664,13 +768,16 @@ export function IncomingJobPopup() {
         }
       }
 
-      // Forced open (bounced off full /jobs page → dashboard + panel only)
+      // Forced open (bounced off full /jobs page → dashboard + panel only,
+      // or tapped from the dashboard Incoming requests list). Expand a
+      // collapsed/hidden panel so the tapped request is fully visible.
       const forceId = takeForceIncomingPanelJobId();
       if (forceId) {
         const forced = open.find((j) => j.id === forceId);
         if (forced) {
           clearJobShown(forced.id, backendUserId);
           presentJob(forced);
+          setLevel("middle");
           knownIds.current.add(forced.id);
           primed.current = true;
           return;
@@ -881,7 +988,7 @@ export function IncomingJobPopup() {
       // Local deadline timer + Realtime still wake instantly on new offers.
       // The cadence is decided at FIRE time from what is visible NOW, and the
       // wake points (mount, realtime push) arm the fast 1s interval so a card
-      // that just surfaced is not stuck behind a 12s idle timer before its
+      // that just surfaced is not stuck behind the 3s idle timer before its
       // first status check.
       let timer = 0;
       const schedule = (delay?: number) => {
@@ -892,7 +999,7 @@ export function IncomingJobPopup() {
           }
           void poll();
           schedule();
-        }, delay ?? (visibleJobsRef.current.length || queueRef.current.length ? INCOMING_POPUP_STATUS_POLL_MS : 12_000));
+        }, delay ?? (visibleJobsRef.current.length || queueRef.current.length ? INCOMING_POPUP_STATUS_POLL_MS : 3_000));
       };
       schedule(INCOMING_POPUP_STATUS_POLL_MS);
 
@@ -948,20 +1055,103 @@ export function IncomingJobPopup() {
 
   const panelOpen = visibleJobs.length > 0 && !snoozedJob;
 
-  // Swipe down collapses the panel to a 5%-height peek (handle + incoming
-  // count); tap or swipe up expands it back. Jobs still clear instantly on
-  // decline / cancel / timer expiry while collapsed (existing poll + 250ms
+  type PanelLevel = "middle" | "full" | "collapsed";
+
+  // The panel opens at the MIDDLE level on an incoming request and never
+  // auto-minimizes. Swipe up / flip → full (all Q&A, 77% of the shell); swipe
+  // down steps back one level: full → middle → collapsed (5%-height peek).
+  // Tap on the collapsed strip reopens the middle. Jobs still clear instantly
+  // on decline / cancel / timer expiry at any level (existing poll + 250ms
   // expiry interval).
-  const [collapsed, setCollapsed] = useState(false);
+  const [level, setLevel] = useState<PanelLevel>("middle");
   const [dragY, setDragY] = useState(0);
   const [dragging, setDragging] = useState(false);
-  const dragStartRef = useRef<{ y: number; collapsed: boolean } | null>(null);
+  const dragStartRef = useRef<{ y: number; level: PanelLevel } | null>(null);
   const panelHeightRef = useRef(0);
+  const panelScrollRef = useRef<HTMLDivElement | null>(null);
   const PEEK_RATIO = 0.05;
   const COLLAPSE_SNAP_PX = 64;
+  const FULL_HEIGHT = "min(77%, 760px)";
+  const MIDDLE_MAX_H = "max-h-[min(84dvh,760px)]";
+  /** Same spring as the customer Home lower panel (bottom-sheet.tsx). */
+  const SPRING = "0.48s cubic-bezier(0.32, 0.72, 0, 1)";
+  const stepDown = () =>
+    setLevel((l) =>
+      l === "full" ? "middle" : l === "middle" ? "collapsed" : l
+    );
+
+  // Trackpad swipe support, mirroring the customer Home lower panel
+  // (bottom-sheet.tsx): a NATIVE non-passive wheel listener (React onWheel is
+  // passive, so it cannot preventDefault the browser's own scroll). deltaY < 0
+  // is the "swipe down" gesture → step down; deltaY > 0 is "swipe up" → step
+  // up. At FULL the card list scrolls; a short cooldown swallows the leftover
+  // momentum of the expand gesture so the freshly-expanded content stays at
+  // the top (profile picture placeholder first) until the user scrolls.
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const levelRef = useRef<PanelLevel>("middle");
+  useEffect(() => {
+    levelRef.current = level;
+  }, [level]);
+
+  useEffect(() => {
+    if (!panelOpen) return;
+    const el = dialogRef.current;
+    if (!el) return;
+    let accum = 0;
+    let dir = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let swallowUntil = 0;
+
+    const onWheel = (e: WheelEvent) => {
+      const inScrollArea =
+        e.target instanceof Element &&
+        e.target.closest("[data-panel-scroll]");
+      // Leftover expand-momentum over the content must not scroll it — the
+      // profile picture stays first until the user deliberately scrolls.
+      if (performance.now() < swallowUntil && inScrollArea) {
+        e.preventDefault();
+        return;
+      }
+      // Only at FULL does the card list scroll; elsewhere a swipe moves panel.
+      if (levelRef.current === "full" && inScrollArea) return;
+      const d = e.deltaY < 0 ? -1 : e.deltaY > 0 ? 1 : 0;
+      if (d === 0) return;
+      if (timer) clearTimeout(timer);
+      if (d !== dir) {
+        accum = 0;
+        dir = d;
+      }
+      accum += Math.abs(e.deltaY);
+      timer = setTimeout(() => {
+        accum = 0;
+      }, 180);
+      if (accum > 24 || Math.abs(e.deltaY) > 18) {
+        accum = 0;
+        const l = levelRef.current;
+        if (d === -1 && l !== "collapsed") {
+          e.preventDefault();
+          setLevel(l === "full" ? "middle" : "collapsed");
+        } else if (d === 1 && l !== "full") {
+          e.preventDefault();
+          if (l === "collapsed") setLevel("middle");
+          else {
+            setLevel("full");
+            swallowUntil = performance.now() + 400;
+          }
+        }
+      }
+    };
+
+    const opts: AddEventListenerOptions = { passive: false };
+    el.addEventListener("wheel", onWheel, opts);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      if (timer) clearTimeout(timer);
+    };
+  }, [panelOpen]);
 
   const peekHeight = Math.max(
-    28,
+    36,
     Math.round((panelHeightRef.current || 0) * PEEK_RATIO)
   );
 
@@ -975,7 +1165,16 @@ export function IncomingJobPopup() {
 
   const onPanelPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (isPanelControl(e.target)) return;
-    dragStartRef.current = { y: e.clientY, collapsed };
+    // At FULL the card list scrolls instead of dragging the panel; anywhere
+    // else (and at middle/collapsed) any touch starts a panel drag.
+    if (
+      level === "full" &&
+      e.target instanceof Element &&
+      e.target.closest("[data-panel-scroll]")
+    ) {
+      return;
+    }
+    dragStartRef.current = { y: e.clientY, level };
     setDragging(true);
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -984,7 +1183,9 @@ export function IncomingJobPopup() {
     const start = dragStartRef.current;
     if (!start) return;
     const dy = e.clientY - start.y;
-    setDragY(start.collapsed ? Math.min(0, dy) : Math.max(0, dy));
+    if (start.level === "collapsed") setDragY(Math.min(0, dy));
+    else if (start.level === "full") setDragY(Math.max(0, dy));
+    else setDragY(dy);
   };
 
   const onPanelPointerEnd = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -993,10 +1194,13 @@ export function IncomingJobPopup() {
     dragStartRef.current = null;
     setDragging(false);
     const dy = e.clientY - start.y;
-    if (start.collapsed) {
-      if (dy < -COLLAPSE_SNAP_PX) setCollapsed(false);
+    if (start.level === "collapsed") {
+      if (dy < -COLLAPSE_SNAP_PX) setLevel("middle");
+    } else if (start.level === "middle") {
+      if (dy < -COLLAPSE_SNAP_PX) setLevel("full");
+      else if (dy > COLLAPSE_SNAP_PX) setLevel("collapsed");
     } else if (dy > COLLAPSE_SNAP_PX) {
-      setCollapsed(true);
+      setLevel("middle");
     }
     setDragY(0);
   };
@@ -1014,6 +1218,20 @@ export function IncomingJobPopup() {
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
+  }, [panelOpen]);
+
+  // Every level change resets the card list to the top, so the profile
+  // picture placeholder is the first thing visible at full expansion and
+  // stays put until the user scrolls.
+  useEffect(() => {
+    if (panelScrollRef.current) panelScrollRef.current.scrollTop = 0;
+  }, [level]);
+
+  // Publish panel visibility so the dashboard can hide its "Incoming
+  // requests" list while the lower panel is up.
+  useEffect(() => {
+    setIncomingPanelOpen(panelOpen);
+    return () => setIncomingPanelOpen(false);
   }, [panelOpen]);
 
   if (accountType !== "professional") return null;
@@ -1054,29 +1272,42 @@ export function IncomingJobPopup() {
       {panelOpen && (
         <div
           ref={(el) => {
-            if (el && !collapsed && el.clientHeight > panelHeightRef.current) {
+            dialogRef.current = el;
+            if (
+              el &&
+              level !== "collapsed" &&
+              el.clientHeight > panelHeightRef.current
+            ) {
               panelHeightRef.current = el.clientHeight;
             }
           }}
           className={cn(
-            "pointer-events-auto absolute inset-x-0 bottom-0 z-[180] flex flex-col rounded-t-2xl shadow-[0_-8px_28px_rgba(0,0,0,0.28)]",
-            collapsed
+            "pointer-events-auto absolute inset-x-0 bottom-0 z-[180] flex flex-col rounded-t-[1.75rem] shadow-[0_-8px_28px_rgba(0,0,0,0.28)]",
+            level === "collapsed"
               ? "cursor-pointer"
-              : "max-h-[min(84dvh,760px)] px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+              : cn(
+                  "px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]",
+                  level === "middle" && MIDDLE_MAX_H
+                )
           )}
           style={{
             backgroundColor: solid,
             borderTop: `0.5px solid ${hairline}`,
-            height: collapsed ? peekHeight : undefined,
+            height:
+              level === "collapsed"
+                ? peekHeight
+                : level === "full"
+                  ? FULL_HEIGHT
+                  : undefined,
             transform: dragging ? `translateY(${dragY}px)` : undefined,
             transition: dragging
               ? "none"
-              : "height 0.28s cubic-bezier(0.22,1,0.36,1), transform 0.28s cubic-bezier(0.22,1,0.36,1)",
+              : `height ${SPRING}, transform ${SPRING}`,
           }}
           role="dialog"
           aria-modal="true"
           aria-label={
-            collapsed
+            level === "collapsed"
               ? `${visibleJobs.length} incoming ${
                   visibleJobs.length === 1 ? "request" : "requests"
                 }`
@@ -1086,14 +1317,14 @@ export function IncomingJobPopup() {
           }
           onClick={(e) => {
             e.stopPropagation();
-            if (collapsed) setCollapsed(false);
+            if (level === "collapsed") setLevel("middle");
           }}
           onPointerDown={onPanelPointerDown}
           onPointerMove={onPanelPointerMove}
           onPointerUp={onPanelPointerEnd}
           onPointerCancel={onPanelPointerEnd}
         >
-          {collapsed ? (
+          {level === "collapsed" ? (
             <div className="flex h-full min-h-0 items-center justify-center gap-2 px-3">
               <div
                 className={cn(
@@ -1112,12 +1343,26 @@ export function IncomingJobPopup() {
             </div>
           ) : (
             <>
-          <div
-            className={cn(
-              "mx-auto mb-1.5 h-1 w-9 shrink-0 rounded-full",
-              isLight ? "bg-black/15" : "bg-white/20"
-            )}
-          />
+          <div className="flex shrink-0 justify-center pb-1.5 pt-1">
+            <button
+              type="button"
+              aria-label={
+                level === "full"
+                  ? "Show fewer questions"
+                  : "Minimize panel"
+              }
+              className="flex cursor-grab items-center justify-center border-0 bg-transparent px-8 py-0.5 active:cursor-grabbing"
+              onClick={stepDown}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <span
+                className={cn(
+                  "block h-[5px] w-10 rounded-full",
+                  isLight ? "bg-black/25" : "bg-white/35"
+                )}
+              />
+            </button>
+          </div>
           {visibleJobs.length > 1 ? (
             <p
               className="mb-1.5 shrink-0 text-center text-[11px] font-bold"
@@ -1127,7 +1372,11 @@ export function IncomingJobPopup() {
             </p>
           ) : null}
 
-          <div className="flex min-h-0 flex-col gap-3">
+          <div
+            ref={panelScrollRef}
+            className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain scrollbar-hide"
+            data-panel-scroll
+          >
             {visibleJobs.map((job) => {
               const timeLeft =
                 timeLeftById[job.id] ?? INCOMING_POPUP_VISIBLE_SEC;
@@ -1141,25 +1390,25 @@ export function IncomingJobPopup() {
                   className="shrink-0 rounded-xl p-2.5"
                   style={{ border: "none" }}
                 >
-                  <div className="flex items-start gap-2">
+                  <div className="flex items-center gap-2">
                     {job.motoristPhoto ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img loading="lazy" decoding="async"
                         src={job.motoristPhoto}
                         alt=""
-                        className="mt-0.5 h-7 w-7 shrink-0 rounded-full object-cover"
+                        className="h-7 w-7 shrink-0 rounded-full object-cover"
                       />
                     ) : (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img loading="lazy" decoding="async"
                         src={DEFAULT_VENDOR_PHOTO}
                         alt=""
-                        className="mt-0.5 h-7 w-7 shrink-0 rounded-full object-cover"
+                        className="h-7 w-7 shrink-0 rounded-full object-cover"
                       />
                     )}
                     <div className="min-w-0 flex-1">
                       <p
-                        className="text-[14px] font-black leading-tight"
+                        className="truncate text-[14px] font-black leading-tight"
                         style={{ color: ink }}
                       >
                         {titleFor(job)}
@@ -1172,16 +1421,19 @@ export function IncomingJobPopup() {
                           {formatMoney(job.agreedMajor, job.currency)}
                         </p>
                       ) : null}
-                      <JobProblemQA
-                        problem={job.problem}
-                        isLight={isLight}
-                        transparent
-                        pageSize={2}
-                      />
                     </div>
                   </div>
+                  <div className="mt-2">
+                    <JobProblemQA
+                      problem={job.problem}
+                      isLight={isLight}
+                      transparent
+                      hideVehicleRow
+                      pageSize={level === "full" ? undefined : 2}
+                    />
+                  </div>
                   {job.voiceNote?.url ? (
-                    <div className="mt-1.5">
+                    <div className="mt-2">
                       <VoiceNotePlayer
                         url={job.voiceNote.url}
                         durationSec={job.voiceNote.durationSec}
@@ -1190,7 +1442,7 @@ export function IncomingJobPopup() {
                     </div>
                   ) : null}
                   {strip.length > 0 ? (
-                    <div className="mt-1.5 flex flex-wrap gap-1">
+                    <div className="mt-2 flex flex-wrap gap-1">
                       {strip.slice(0, 4).map((p, i) => (
                         <button
                           key={p.id || `photo-${job.id}-${i}`}
@@ -1217,7 +1469,9 @@ export function IncomingJobPopup() {
                     </div>
                   ) : null}
 
-                  <div className="mt-2">
+                  <CalloutFeeOnCard job={job} isLight={isLight} />
+
+                  <div className="mt-2 flex gap-1.5">
                     <button
                       type="button"
                       disabled={!!acceptingId}
@@ -1252,7 +1506,7 @@ export function IncomingJobPopup() {
                         })();
                       }}
                       className={cn(
-                        "h-10 w-full rounded-xl border-0 text-[13px] font-bold",
+                        "h-11 flex-1 rounded-xl border-0 text-[13px] font-bold",
                         isLight
                           ? "bg-red-500/15 text-red-700"
                           : "bg-red-500/20 text-red-400"
@@ -1260,21 +1514,19 @@ export function IncomingJobPopup() {
                     >
                       Decline
                     </button>
+                    <button
+                      type="button"
+                      disabled={!!acceptingId || !backendUserId}
+                      onClick={() => setConfirmFix(job)}
+                      className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border-0 bg-[#FF6B35] text-[14px] font-bold text-white"
+                    >
+                      {accepting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : null}
+                      I can fix this
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    disabled={!!acceptingId || !backendUserId}
-                    onClick={() => setConfirmFix(job)}
-                    className="mt-1.5 inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl border-0 bg-[#FF6B35] text-[14px] font-bold text-white"
-                  >
-                    {accepting ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : null}
-                    I can fix this
-                  </button>
 
-                  {/* Pairing cards hide the progress line until the server
-                      arms the 66s deadline — no "full → 0 → count" bounce. */}
                   {pairingCard && !job.pairingDeadline ? null : (
                     <div
                       className="mt-2 h-1 w-full overflow-hidden rounded-full bg-black/10 dark:bg-white/10"
@@ -1373,13 +1625,16 @@ export function IncomingJobPopup() {
                 isLight ? "text-slate-600" : "text-white/60"
               )}
             >
-              You&apos;re confirming you can fix this job as a professional Repair
-              Pro.
+              You&apos;re confirming you can fix this job as a professional{" "}
+              {PRO_SERVICE_LABELS[
+                confirmFix.serviceType as keyof typeof PRO_SERVICE_LABELS
+              ] || "Repair Pro"}
+              , and you won&apos;t get call out fee if you don&apos;t.
             </p>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setConfirmFix(null)}
+                onClick={() => setConfirmCancelFix(true)}
                 className="h-11 rounded-xl border-0 bg-white/10 text-[13px] font-bold text-white"
               >
                 Cancel
@@ -1403,6 +1658,20 @@ export function IncomingJobPopup() {
           </div>
         </div>
       )}
+
+      <ConfirmCancelSheet
+        open={confirmCancelFix}
+        isLight={isLight}
+        title="Decline this job?"
+        message="You won't accept this job as a Repair Pro."
+        confirmLabel="Yes, decline"
+        keepLabel="Keep"
+        onClose={() => setConfirmCancelFix(false)}
+        onConfirm={() => {
+          setConfirmCancelFix(false);
+          setConfirmFix(null);
+        }}
+      />
 
       {lightbox && (
         <div

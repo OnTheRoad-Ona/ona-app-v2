@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Building2, Check, Loader2, MapPin, Navigation } from "lucide-react";
+import { Building2, Check, Loader2, Locate, MapPin } from "lucide-react";
 import { reverseGeocodeLatLng, shouldUseLiveMaps } from "@/lib/google-maps";
 import { useOnaGoogleMaps } from "@/lib/google-maps-loader";
 import {
@@ -75,13 +75,10 @@ export function AddressAutocomplete({
   value,
   onChange,
   className,
-  autoLocate,
 }: {
   value?: PickedLocation | null;
   onChange: (loc: PickedLocation) => void;
   className?: string;
-  /** Reverse-geocode this GPS fix once on mount (unless a value is already set). */
-  autoLocate?: { lat: number; lng: number } | null;
 }) {
   const { theme } = useApp();
   const isLight = theme === "light";
@@ -172,25 +169,6 @@ export function AddressAutocomplete({
     },
     [applyPick, onChange]
   );
-
-  /** Auto-fill the current location once on mount unless a pick already exists. */
-  const autoRanRef = useRef(false);
-  useEffect(() => {
-    if (autoRanRef.current) return;
-    if (value) return;
-    if (!autoLocate) return;
-    const { lat, lng } = autoLocate;
-    if (
-      !Number.isFinite(lat) ||
-      !Number.isFinite(lng) ||
-      (lat === 0 && lng === 0)
-    ) {
-      return;
-    }
-    autoRanRef.current = true;
-    void reverseGeocode(lat, lng);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const useMyLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -434,16 +412,30 @@ export function AddressAutocomplete({
             }
             if (e.key === "Escape") setOpenSuggest(false);
           }}
-          placeholder="Enter exact location…"
+          placeholder="Current Location…"
           autoComplete="off"
           aria-autocomplete="list"
           className={cn(
-            "h-11 w-full rounded-md border-0 pl-10 pr-3 text-[13px] font-medium outline-none",
+            "h-11 w-full rounded-md border-0 pl-10 pr-11 text-[13px] font-medium outline-none",
             isLight
               ? "bg-[#D8DCE4] text-slate-900 placeholder:text-slate-400"
               : "bg-white/[0.06] text-white placeholder:text-white/40"
           )}
         />
+
+        <button
+          type="button"
+          onClick={useMyLocation}
+          disabled={busy}
+          aria-label="Use my current location"
+          className="absolute right-1.5 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-[#FF6B35]/40 text-[#FF6B35] disabled:opacity-60"
+        >
+          {busy ? (
+            <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.4} />
+          ) : (
+            <Locate className="h-4 w-4" strokeWidth={2.4} />
+          )}
+        </button>
 
         {showPanel ? (
           <ul
@@ -522,16 +514,6 @@ export function AddressAutocomplete({
           </ul>
         ) : null}
       </div>
-
-      <button
-        type="button"
-        onClick={useMyLocation}
-        disabled={busy}
-        className="inline-flex items-center gap-2 border-0 bg-transparent px-1 text-[13px] font-bold text-[#FF6B35] disabled:opacity-60"
-      >
-        <Navigation className="h-4 w-4" strokeWidth={2.4} />
-        Use my current location
-      </button>
 
       {value ? (
         <div

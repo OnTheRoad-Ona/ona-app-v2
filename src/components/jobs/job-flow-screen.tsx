@@ -10,6 +10,7 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import { createPortal } from "react-dom";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
@@ -32,7 +33,6 @@ import { useNotificationsOptional } from "@/components/notifications/notificatio
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CountdownTimer } from "@/components/jobs/countdown-timer";
 import { LiveJobTrackMap } from "@/components/jobs/live-job-track-map";
-import { SearchingMap } from "@/components/jobs/searching-map";
 import {
   CopperButton,
   GhostButton,
@@ -44,7 +44,11 @@ import { VoiceNotePlayer } from "@/components/jobs/voice-note-player";
 import { JobProblemQA } from "@/components/jobs/job-problem-qa";
 import { CalloutFeeLines } from "@/components/jobs/callout-fee-lines";
 import { useJobCallout } from "@/lib/callout/use-job-callout";
-import { composeCustomerPayableMajor } from "@/lib/callout/payable";
+import {
+  composeCustomerPayableMajor,
+  jobTotalMajor,
+  payableCalloutMajor,
+} from "@/lib/callout/payable";
 import { isWithinArrivalProximity } from "@/lib/callout/arrival";
 import { ExpiredDialog } from "@/components/ui/expired-dialog";
 import {
@@ -112,6 +116,16 @@ import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import type { ServiceRequest } from "@/lib/types";
 import { cn, firstNameOnly } from "@/lib/utils";
+
+// Lazy-load the searching map so the timer page paints instantly; the Google
+// map mounts after the ring timer and bottom sheet are visible.
+const SearchingMap = dynamic(
+  () =>
+    import("@/components/jobs/searching-map").then(
+      (m) => m.SearchingMap
+    ),
+  { ssr: false, loading: () => null }
+);
 
 /** Decline reasons shown to a pro who cannot take a request (SSPE + legacy). */
 const CANCEL_REASONS = [
@@ -959,7 +973,7 @@ export function JobFlowScreen({
     const ms = !job
       ? 2_000
       : pairingLive
-        ? 2_500
+        ? 1_000
         : job.status === "negotiating" ||
             job.status === "searching" ||
             job.status === "agreed"
@@ -1062,10 +1076,13 @@ export function JobFlowScreen({
     viewer,
   ]);
 
-  /** My jobs list — stay on open negotiation without cancelling */
+  /**
+   * Back from the job flow: the pro still has the /jobs inbox; the motorist's
+   * "My jobs" page is removed, so their back arrows go straight home.
+   */
   const goJobsList = useCallback(() => {
-    router.push("/jobs");
-  }, [router]);
+    router.push(viewer === "repair_pro" ? "/jobs" : "/");
+  }, [router, viewer]);
 
   /** After success: motorist home, pro dashboard */
   const goHome = useCallback(() => {
@@ -1156,7 +1173,11 @@ export function JobFlowScreen({
   const ink = isLight ? "text-slate-900" : "text-white";
   /** Readable secondary text — avoid pale gray on stage */
   const muted = isLight ? "text-slate-700" : "text-white/75";
-  const calloutQuote = useJobCallout(job?.id);
+  const { quote: calloutQuote, ready: calloutReady } = useJobCallout(
+    job?.id,
+    job?.status,
+    job?.calloutQuote
+  );
 
   const negStatus = useMemo(() => {
     if (!job) return "waiting";
@@ -1168,6 +1189,16 @@ export function JobFlowScreen({
       negotiateEndsAt: job.negotiateEndsAt,
     });
   }, [job]);
+
+  // PRO: when this request's timer elapses / the job expires (pairing deadline
+  // or negotiation timer), close this screen and go to the Dashboard — the
+  // request is closed on every surface (panel card + this tab).
+  useEffect(() => {
+    if (viewer !== "repair_pro" || !job) return;
+    if (job.status === "expired" || negStatus === "expired") {
+      router.replace("/dashboard");
+    }
+  }, [viewer, job, negStatus, router]);
 
   const applyJob = (j: JobRecord) => {
     commitJob(j, true);
@@ -1351,7 +1382,20 @@ export function JobFlowScreen({
 
   /* ─── EXPIRED — pure history, no action buttons ─── */
   if (job.status === "expired" || negStatus === "expired") {
-    const isPro = viewer === "repair_pro";
+    // PRO: the request's timer elapsed — the screen auto-closes to the
+    // Dashboard (effect above); never leave the pro stranded on an expired
+    // dead-end tab.
+    if (viewer === "repair_pro") {
+      return (
+        <JobShell isLight={isLight} title="Job closed" compactHeader>
+          <p className={cn("px-0.5 pt-4 text-[14px] font-medium", ink)}>
+            {JOB_CLOSED_MESSAGE}
+          </p>
+          <p className={cn("mt-2 text-[12px]", muted)}>Opening dashboard…</p>
+        </JobShell>
+      );
+    }
+
     const tradeLabel =
       PRO_SERVICE_LABELS[job.serviceType as keyof typeof PRO_SERVICE_LABELS] ||
       "Repair Pro";
@@ -1399,16 +1443,9 @@ export function JobFlowScreen({
             : "Negotiation expired"
         }
         compactHeader
-        onBack={
-          isPro
-            ? () => router.push("/dashboard")
-            : gaveUp
-              ? () => router.replace("/")
-              : goJobsList
-        }
         rightSlot={<HeaderMenu isLight={isLight} />}
         footer={
-          isPro || !isRerouteExhausted ? undefined : (
+          !isRerouteExhausted ? undefined : (
             <div className="space-y-2">
               {gaveUp ? (
                 <CopperButton onClick={() => router.replace("/")}>
@@ -1428,14 +1465,10 @@ export function JobFlowScreen({
       >
         <p className={cn("px-0.5 pt-4 text-[14px] font-medium leading-relaxed", ink)}>
           {isRerouteExhausted
-            ? isPro
-              ? "This request was rerouted but no pro accepted in time."
-              : gaveUp
-                ? `No ${tradeLabel} found at this time. Request other help or try again later.`
-                : "No Pro Available, retry search"
-            : isPro
-              ? `This request ended between you and ${job.motoristName}. No agreement was reached.`
-              : `No agreement was reached with ${job.repairProName}.`}
+            ? gaveUp
+              ? `No ${tradeLabel} found at this time. Request other help or try again later.`
+              : "No Pro Available, retry search"
+            : `No agreement was reached with ${job.repairProName}.`}
         </p>
       </JobShell>
     );
@@ -1550,11 +1583,54 @@ export function JobFlowScreen({
     const body = (
       <div className="flex min-h-0 flex-col bg-transparent px-0.5 pt-1">
         <div className="shrink-0 space-y-3 bg-transparent">
+          <div className="flex flex-col items-center justify-center bg-transparent py-3">
+            {deadline && !finding ? (
+              <CountdownTimer
+                variant="ring"
+                endsAt={deadline}
+                totalMs={PAIRING_WINDOW_MS}
+                onExpire={() => {
+                  void (async () => {
+                    try {
+                      const { apiPairingSweep } = await import(
+                        "@/lib/jobs/client"
+                      );
+                      await apiPairingSweep();
+                    } catch {
+                      /* */
+                    }
+                    await load();
+                  })();
+                }}
+                className={ink}
+              />
+            ) : (
+              <div className="mb-4 h-10 w-10 animate-spin rounded-full border-2 border-[#FF6B35] border-t-transparent" />
+            )}
+            {viewer === "motorist" && nearbyLine ? (
+              <p
+                className={cn(
+                  "mt-3 max-w-[280px] text-center text-[13px] font-bold leading-snug",
+                  ink
+                )}
+              >
+                {nearbyLine}
+              </p>
+            ) : null}
+            <p
+              className={cn(
+                "mt-2 max-w-[280px] text-center text-[13px] font-semibold leading-snug",
+                muted
+              )}
+            >
+              {subtitle}
+            </p>
+          </div>
           <div>
             <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
               Problem description
             </p>
-            <JobProblemQA problem={job.problem} isLight={isLight} />
+            <JobProblemQA problem={job.problem} isLight={isLight} transparent />
             {job.voiceNote?.url && (
               <div className="mt-2.5">
                 <VoiceNotePlayer
@@ -1568,55 +1644,7 @@ export function JobFlowScreen({
           </div>
         </div>
 
-        <div className="flex min-h-[40vh] flex-1 flex-col items-center justify-center bg-transparent py-5">
-          {deadline && !finding ? (
-            <CountdownTimer
-              variant="ring"
-              endsAt={deadline}
-              totalMs={PAIRING_WINDOW_MS}
-              onExpire={() => {
-                // Keep the expired ring at 0s — do NOT null pairingDeadline
-                // (that made the customer timer "skip" while pro already had
-                // the next shared deadline). Run the LIGHT pairing sweep (no
-                // 30s throttle like expire-stale), then load picks up the
-                // next pro's pairing_deadline or expired/Retry without
-                // blanking first.
-                void (async () => {
-                  try {
-                    const { apiPairingSweep } = await import(
-                      "@/lib/jobs/client"
-                    );
-                    await apiPairingSweep();
-                  } catch {
-                    /* */
-                  }
-                  await load();
-                })();
-              }}
-              className={ink}
-            />
-          ) : (
-            <div className="mb-4 h-10 w-10 animate-spin rounded-full border-2 border-[#FF6B35] border-t-transparent" />
-          )}
-          {viewer === "motorist" && nearbyLine ? (
-            <p
-              className={cn(
-                "mt-3 max-w-[280px] text-center text-[13px] font-bold leading-snug",
-                ink
-              )}
-            >
-              {nearbyLine}
-            </p>
-          ) : null}
-          <p
-            className={cn(
-              "mt-2 max-w-[280px] text-center text-[13px] font-semibold leading-snug",
-              muted
-            )}
-          >
-            {subtitle}
-          </p>
-        </div>
+        <div className="flex-1" />
       </div>
     );
 
@@ -1686,7 +1714,7 @@ export function JobFlowScreen({
     <>
       <JobShell
         isLight={isLight}
-        title={viewer === "repair_pro" ? "Service Request" : "Negotiate labour"}
+        title="Negotiate labour"
         compactHeader
         onBack={goJobsList}
         backIcon={viewer === "motorist" ? <Minimize2 className="h-4 w-4" /> : undefined}
@@ -1782,20 +1810,18 @@ export function JobFlowScreen({
                 </div>
               </div>
             )}
-            <button
-              type="button"
-              className={cn(
-                "inline-flex h-11 w-full items-center justify-center rounded-md border-0 bg-transparent text-[13px] font-medium",
-                ink
-              )}
-              onClick={() =>
-                setConfirmCancel({
-                  actor: viewer === "repair_pro" ? "repair_pro" : "motorist",
-                })
-              }
-            >
-              Cancel request
-            </button>
+            {viewer === "motorist" ? (
+              <button
+                type="button"
+                className={cn(
+                  "inline-flex h-11 w-full items-center justify-center rounded-md border-0 bg-transparent text-[13px] font-medium",
+                  ink
+                )}
+                onClick={() => setConfirmCancel({ actor: "motorist" })}
+              >
+                Cancel request
+              </button>
+            ) : null}
           </div>
         }
       >
@@ -1805,7 +1831,9 @@ export function JobFlowScreen({
           <div className="shrink-0 space-y-4 bg-transparent">
             {viewer === "repair_pro" ? (
               <div className="space-y-3 bg-transparent">
-                {/* Pro request: vehicle details + matching skills only — no customer PII */}
+                {/* Pro request: vehicle details only — the Q&A, matching skill
+                    and customer info were shown in the lower-panel card before
+                    accepting, so negotiation stays on the price. */}
                 {isAutomotiveTrade(job.serviceType) ? (
                   <div>
                     <p
@@ -1821,75 +1849,20 @@ export function JobFlowScreen({
                     </p>
                   </div>
                 ) : null}
-                <div>
-                  <p
-                    className={cn(
-                      "text-[11px] font-semibold uppercase tracking-wide",
-                      muted
-                    )}
-                  >
-                    Common issues
-                  </p>
-                  <JobProblemQA problem={job.problem} isLight={isLight} />
-                </div>
-                <div>
-                  <p
-                    className={cn(
-                      "text-[11px] font-semibold uppercase tracking-wide",
-                      muted
-                    )}
-                  >
-                    Your matching skill
-                  </p>
-                  <p className={cn("mt-1 text-[15px] font-semibold", ink)}>
-                    {PRO_SERVICE_LABELS[job.serviceType] || job.serviceType}
-                  </p>
-                </div>
-                {job.voiceNote?.url && (
-                  <div className="mt-1">
-                    <VoiceNotePlayer
-                      url={job.voiceNote.url}
-                      durationSec={job.voiceNote.durationSec}
-                      isLight={isLight}
-                      label="Customer voice note"
+                {calloutQuote ? (
+                  <div>
+                    <CalloutFeeLines
+                      quote={calloutQuote}
+                      currency={job.currency}
+                      ink={ink}
+                      muted={muted}
+                      compact
                     />
                   </div>
-                )}
-                <div>
-                  <p
-                    className={cn(
-                      "text-[11px] font-semibold uppercase tracking-wide",
-                      muted
-                    )}
-                  >
-                    {job.photos.length > 0 ? "Customer photos" : "Customer"}
-                  </p>
-                  <PhotoStrip
-                    photos={job.photos}
-                    isLight={isLight}
-                    profilePhotoUrl={job.motoristPhoto}
-                    profileName={job.motoristName}
-                  />
-                </div>
+                ) : null}
               </div>
             ) : (
               <div className="bg-transparent">
-                <p
-                  className={cn(
-                    "text-[11px] font-semibold uppercase tracking-wide",
-                    muted
-                  )}
-                >
-                  Problem description
-                </p>
-                <p
-                  className={cn(
-                    "mt-1 text-[15px] font-medium leading-relaxed",
-                    ink
-                  )}
-                >
-                  {job.problem}
-                </p>
                 {job.voiceNote?.url && (
                   <div className="mt-2.5">
                     <VoiceNotePlayer
@@ -1913,6 +1886,17 @@ export function JobFlowScreen({
                     <PhotoStrip photos={job.photos} isLight={isLight} />
                   </div>
                 )}
+                {calloutQuote ? (
+                  <div className="mt-2.5">
+                    <CalloutFeeLines
+                      quote={calloutQuote}
+                      currency={job.currency}
+                      ink={ink}
+                      muted={muted}
+                      compact
+                    />
+                  </div>
+                ) : null}
               </div>
             )}
 
@@ -1962,14 +1946,12 @@ export function JobFlowScreen({
             ) : null}
           </div>
 
-          {/* Ring mid-page — only after pro armed the negotiate clock */}
           <div className="flex min-h-[42vh] flex-1 flex-col items-center justify-center bg-transparent py-5">
             {isNegotiationTimerArmed(job) ? (
               <CountdownTimer
                 variant="ring"
                 endsAt={job.negotiateEndsAt}
                 onExpire={() => {
-                  // Instant UI → expired; server expire in background
                   const j = jobRef.current;
                   if (j) {
                     const ts = new Date().toISOString();
@@ -2007,7 +1989,6 @@ export function JobFlowScreen({
                   : "Waiting for Repair Pro to accept this request…"}
               </p>
             )}
-
           </div>
         </div>
         {err && (
@@ -2080,18 +2061,6 @@ export function JobFlowScreen({
 
   /* ─── AGREED ─── */
   if (job.status === "agreed") {
-    const counterpartName =
-      viewer === "motorist"
-        ? job.repairProName
-        : firstNameOnly(job.motoristName);
-    const counterpartPhoto =
-      viewer === "motorist"
-        ? job.repairProPhoto || DEFAULT_VENDOR_PHOTO
-        : job.motoristPhoto || DEFAULT_VENDOR_PHOTO;
-    const counterpartLabel =
-      viewer === "motorist"
-        ? PRO_SERVICE_LABELS[job.serviceType]
-        : "Customer";
     const payEndsAt = paymentEndsAtIso(job);
 
     return (
@@ -2161,42 +2130,72 @@ export function JobFlowScreen({
               >
                 Waiting for customer to pay into escrow…
               </p>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => setConfirmCancel({ actor: "repair_pro" })}
-                className={cn(
-                  "inline-flex h-11 w-full items-center justify-center rounded-md border-0 text-[13px] font-semibold",
-                  isLight
-                    ? "bg-black/10 text-slate-900"
-                    : "bg-[#2c2c2e] text-white"
-                )}
-              >
-                Cancel request
-              </button>
             </div>
           )
         }
       >
+        {viewer === "repair_pro" ? (
+          <div className="mb-3 flex items-center gap-3 px-1">
+            <Avatar className="h-12 w-12 rounded-full">
+              <AvatarImage
+                src={job.motoristPhoto || DEFAULT_VENDOR_PHOTO}
+                className="object-cover"
+              />
+              <AvatarFallback>
+                {avatarInitials(job.motoristName)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className={cn("truncate text-[15px] font-black", ink)}>
+                {job.motoristName}
+              </p>
+              <p className={cn("text-[12px] font-semibold", muted)}>
+                Customer
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="mb-3 flex items-center gap-3 px-1">
+            <Avatar className="h-12 w-12 rounded-full">
+              <AvatarImage
+                src={job.repairProPhoto || DEFAULT_VENDOR_PHOTO}
+                className="object-cover"
+              />
+              <AvatarFallback>
+                {avatarInitials(job.repairProName)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className={cn("truncate text-[15px] font-black", ink)}>
+                {job.repairProName}
+              </p>
+              <p className={cn("text-[12px] font-semibold", muted)}>
+                {PRO_SERVICE_LABELS[job.serviceType] || job.serviceType}
+              </p>
+            </div>
+          </div>
+        )}
         <div className="mb-3 flex flex-col items-center py-3 text-center">
           <p className={cn("text-[26px] font-black tracking-tight", ink)}>
-            {job.agreedMajor != null
-              ? formatMoney(
-                  viewer === "motorist"
-                    ? composeCustomerPayableMajor(
-                        buildCustomerChargeMajor(job.agreedMajor).totalMajor,
-                        calloutQuote
-                      ).totalMajor
-                    : job.agreedMajor,
-                  job.currency
-                )
-              : "Not set"}
+            {job.agreedMajor == null
+              ? "Not set"
+              : !calloutReady
+                ? "\u00a0"
+                : formatMoney(
+                    viewer === "motorist"
+                      ? composeCustomerPayableMajor(
+                          buildCustomerChargeMajor(job.agreedMajor).totalMajor,
+                          calloutQuote
+                        ).totalMajor
+                      : job.agreedMajor + payableCalloutMajor(calloutQuote),
+                    job.currency
+                  )}
           </p>
           {viewer === "repair_pro" ? (
             <p className={cn("mt-1 text-[12px] font-medium", muted)}>
               {LABOUR_SPLIT_LINE_PRO}
             </p>
-          ) : job.agreedMajor != null ? (
+          ) : job.agreedMajor != null && calloutReady ? (
             <p className={cn("mt-1 text-[12px] font-medium", muted)}>
               Service charge · pay exact amount
             </p>
@@ -2224,73 +2223,6 @@ export function JobFlowScreen({
             </p>
           ) : null}
         </div>
-        {viewer === "motorist" ? (
-          <JobCard isLight={isLight}>
-            <div className="flex items-center gap-3">
-              <Avatar className="h-12 w-12 rounded-full">
-                <AvatarImage
-                  src={counterpartPhoto}
-                  className="object-cover"
-                />
-                <AvatarFallback>
-                  {avatarInitials(counterpartName)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <p className={cn("truncate text-[15px] font-black", ink)}>
-                  {counterpartName}
-                </p>
-                <p className={cn("text-[12px] font-semibold", muted)}>
-                  {counterpartLabel}
-                </p>
-              </div>
-            </div>
-          </JobCard>
-        ) : (
-          <JobCard isLight={isLight}>
-            <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <Avatar className="h-12 w-12 rounded-full">
-                  <AvatarImage
-                    src={counterpartPhoto}
-                    className="object-cover"
-                  />
-                  <AvatarFallback>
-                    {avatarInitials(counterpartName)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <p className={cn("truncate text-[15px] font-black", ink)}>
-                    {counterpartName}
-                  </p>
-                  <p className={cn("text-[12px] font-semibold", muted)}>
-                    {counterpartLabel}
-                  </p>
-                </div>
-              </div>
-              {isAutomotiveTrade(job.serviceType) && job.motoristVehicle ? (
-                <p className={cn("text-[14px] font-semibold", ink)}>
-                  <span className={cn("text-[11px] uppercase", muted)}>
-                    Vehicle ·{" "}
-                  </span>
-                  {job.motoristVehicle}
-                </p>
-              ) : null}
-              <p className={cn("text-[14px] font-semibold", ink)}>
-                <span className={cn("text-[11px] uppercase", muted)}>
-                  Matching skill ·{" "}
-                </span>
-                {PRO_SERVICE_LABELS[job.serviceType] || job.serviceType}
-              </p>
-              <p className={cn("text-[14px] font-medium", ink)}>
-                <span className={cn("text-[11px] uppercase", muted)}>
-                  Common issues ·{" "}
-                </span>
-                {job.problem}
-              </p>
-            </div>
-          </JobCard>
-        )}
         {err && (
           <p className="mt-3 text-center text-[12px] font-semibold text-red-500">
             {err}
@@ -2329,7 +2261,8 @@ export function JobFlowScreen({
                 type="button"
                 onClick={() => {
                   setPayCancelOpen(false);
-                  goJobsList();
+                  setCategory("none");
+                  router.replace("/");
                 }}
                 className={cn(
                   "flex h-12 w-full items-center justify-center border-0 text-[14px] font-bold",
@@ -2566,16 +2499,24 @@ export function JobFlowScreen({
               {job.repairProName}
             </p>
           ) : null}
-          {job.agreedMajor != null && (
-            <p
-              className={cn(
-                "ml-auto shrink-0 text-[15px] font-black tabular-nums",
-                isLight ? "text-black" : "text-white"
-              )}
-            >
-              {formatMoney(job.agreedMajor, job.currency)}
-            </p>
-          )}
+          {(() => {
+            const labour =
+              viewer === "motorist" && job.agreedMajor != null
+                ? buildCustomerChargeMajor(job.agreedMajor).totalMajor
+                : job.agreedMajor;
+            const total = jobTotalMajor(labour, calloutQuote ?? job.calloutQuote);
+            if (job.agreedMajor == null) return null;
+            return (
+              <p
+                className={cn(
+                  "ml-auto shrink-0 text-[15px] font-black tabular-nums",
+                  isLight ? "text-black" : "text-white"
+                )}
+              >
+                {total == null ? "\u00a0" : formatMoney(total, job.currency)}
+              </p>
+            );
+          })()}
         </div>
         <div className="mt-1">
           <CalloutFeeLines
@@ -2934,7 +2875,7 @@ export function JobFlowScreen({
                 tripSheetExpanded ? "flex-1" : "flex-[0_0_58%]",
                 isLight ? "bg-[#c8c9cd]" : "bg-black",
                 !tripSheetExpanded &&
-                  "rounded-t-sm shadow-[0_-6px_24px_rgba(0,0,0,0.18)]"
+                  "rounded-t-[1.5rem] shadow-[0_-6px_24px_rgba(0,0,0,0.18)]"
               )}
               style={{ touchAction: "pan-y" }}
               onWheel={onSheetWheel}
@@ -3231,20 +3172,30 @@ export function JobFlowScreen({
 
     const autoReleaseEndsAt = satisfiedReleaseEndsAtIso(job);
 
-    // Pro 87.5% · Ona 5% · VAT 7.5% (VAT stays on FLW)
-    const releaseTotalMajor =
+    // Call-out is added to collection and to the pro payout in full (not
+    // split). Labour splits 87.5/5/7.5.
+    const releaseCalloutMajor = payableCalloutMajor(calloutQuote);
+    const releaseLabourMajor =
       job.agreedMajor != null && job.agreedMajor > 0
         ? job.agreedMajor
         : job.amountMinor != null && job.amountMinor > 0
-          ? fromMinorUnits(job.amountMinor, job.currency)
+          ? Math.max(
+              0,
+              fromMinorUnits(job.amountMinor, job.currency) -
+                releaseCalloutMajor
+            )
           : null;
+    const releaseTotalMajor =
+      releaseLabourMajor != null
+        ? releaseLabourMajor + releaseCalloutMajor
+        : null;
     const releaseSplit =
-      releaseTotalMajor != null
-        ? buildCustomerChargeMajor(releaseTotalMajor)
+      releaseLabourMajor != null
+        ? buildCustomerChargeMajor(releaseLabourMajor)
         : null;
     const releaseProMajor =
       releaseSplit != null
-        ? releaseSplit.proPayoutMajor
+        ? releaseSplit.proPayoutMajor + releaseCalloutMajor
         : job.proPayoutMinor != null
           ? fromMinorUnits(job.proPayoutMinor, job.currency)
           : null;
@@ -3398,7 +3349,7 @@ export function JobFlowScreen({
                 Split on release
               </p>
               <div className="flex items-center justify-between gap-2">
-                <span className={muted}>You receive (87.5%)</span>
+                <span className={muted}>You receive (87.5% + call-out)</span>
                 <span className={cn("tabular-nums font-black", ink)}>
                   {formatMoney(releaseProMajor, job.currency)}
                 </span>
@@ -3496,7 +3447,16 @@ export function JobFlowScreen({
           </p>
           {job.agreedMajor != null ? (
             <p className={cn("mt-4 text-[22px] font-black tabular-nums", ink)}>
-              {formatMoney(job.agreedMajor, job.currency)}
+              {jobTotalMajor(job.agreedMajor, calloutQuote ?? job.calloutQuote) ==
+              null
+                ? "\u00a0"
+                : formatMoney(
+                    jobTotalMajor(
+                      job.agreedMajor,
+                      calloutQuote ?? job.calloutQuote
+                    ) as number,
+                    job.currency
+                  )}
             </p>
           ) : null}
           <div className="mt-1">
@@ -3773,12 +3733,24 @@ export function JobFlowScreen({
                   ink
                 )}
               >
-                {formatMoney(job.agreedMajor, job.currency)}
+                {jobTotalMajor(
+                  viewer === "motorist"
+                    ? buildCustomerChargeMajor(job.agreedMajor).totalMajor
+                    : job.agreedMajor,
+                  calloutQuote ?? job.calloutQuote
+                ) == null
+                  ? "\u00a0"
+                  : formatMoney(
+                      jobTotalMajor(
+                        viewer === "motorist"
+                          ? buildCustomerChargeMajor(job.agreedMajor).totalMajor
+                          : job.agreedMajor,
+                        calloutQuote ?? job.calloutQuote
+                      ) as number,
+                      job.currency
+                    )}
               </p>
             )}
-            <p className={cn("mt-1 text-[12px] font-semibold", muted)}>
-              Labour only
-            </p>
             <div className="mt-1">
               <CalloutFeeLines
                 quote={calloutQuote}
@@ -3976,7 +3948,7 @@ export function JobFlowScreen({
         ) : (
           <div className="space-y-2">
             <CopperButton
-              onClick={() => router.push(`/request?tech=${job.repairProId}`)}
+              onClick={() => router.push("/")}
             >
               Request again
             </CopperButton>
@@ -4147,24 +4119,8 @@ function ScheduledDispatchScreen({
   const muted = isLight ? "text-slate-700" : "text-white/75";
   const proLabel = PRO_SERVICE_LABELS[job.serviceType] || job.serviceType;
   const [picked, setPicked] = useState<PickedLocation | null>(null);
-  const [auto, setAuto] = useState<{ lat: number; lng: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    getCurrentPosition()
-      .then((pos) => {
-        if (!alive) return;
-        setAuto({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-      })
-      .catch(() => {
-        /* user can type the address instead */
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   const send = async () => {
     if (!picked) return;
@@ -4221,7 +4177,6 @@ function ScheduledDispatchScreen({
           <AddressAutocomplete
             className="-mx-3"
             value={picked}
-            autoLocate={auto}
             onChange={setPicked}
           />
         </div>
@@ -4353,7 +4308,7 @@ function SearchingScreen({
         {/* 40% — bottom sheet with live searching feedback */}
         <div
           className={cn(
-            "relative z-20 flex min-h-0 flex-[2] flex-col rounded-t-[1.5rem] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2.5",
+            "relative z-20 flex min-h-0 flex-[2] flex-col rounded-t-[2rem] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2.5",
             "shadow-[0_-10px_30px_rgba(0,0,0,0.35)]",
             isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white"
           )}

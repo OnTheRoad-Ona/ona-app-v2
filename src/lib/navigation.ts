@@ -82,7 +82,11 @@ export function smartBackFallback(
   if (path === "/shop") return home;
 
   // ── Jobs / requests / history ─────────────────────────────
-  if (/^\/jobs\/[^/]+$/.test(path)) return "/jobs";
+  // The motorist "My jobs" inbox is removed: /jobs/[id] back goes straight to
+  // the motorist homepage; the pro inbox still lives at /jobs.
+  if (/^\/jobs\/[^/]+$/.test(path)) {
+    return accountType === "professional" ? "/jobs" : home;
+  }
   if (path === "/jobs") {
     return accountType === "professional" ? "/dashboard" : home;
   }

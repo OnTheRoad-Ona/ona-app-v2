@@ -206,9 +206,14 @@ export function markJobShown(
 ): void {
   try {
     const s = readShownJobIds(proId);
-    s.add(shownOfferKey(id, pairingDeadline));
-    // Drop bare jobId entries so only deadline-scoped keys matter
-    s.delete(id);
+    // Always remember the bare jobId so a card WITHOUT a pairing deadline
+    // (negotiating / agreed) stays "shown" and never re-surfaces on the next
+    // poll or remount. Deadline-scoped keys are kept too so a genuinely new
+    // offer window (new pairing_deadline) can still surface the job again.
+    s.add(id);
+    if (pairingDeadline?.trim()) {
+      s.add(shownOfferKey(id, pairingDeadline));
+    }
     sessionStorage.setItem(
       shownKeyFor(proId),
       JSON.stringify([...s].slice(-80))
@@ -263,4 +268,25 @@ export function canSurfaceIncomingJob(
     return { allow: true, reason: "pile" };
   }
   return { allow: true, reason: "new_wave" };
+}
+
+/**
+ * Module-level "incoming lower panel is open" signal.
+ * The popup publishes its panel visibility; the dashboard hides its
+ * "Incoming requests" list while the panel is up.
+ */
+let incomingPanelOpen = false;
+const panelOpenListeners = new Set<(open: boolean) => void>();
+
+export function setIncomingPanelOpen(open: boolean): void {
+  if (incomingPanelOpen === open) return;
+  incomingPanelOpen = open;
+  for (const listener of [...panelOpenListeners]) listener(open);
+}
+
+export function subscribeIncomingPanelOpen(
+  listener: (open: boolean) => void
+): () => void {
+  panelOpenListeners.add(listener);
+  return () => panelOpenListeners.delete(listener);
 }

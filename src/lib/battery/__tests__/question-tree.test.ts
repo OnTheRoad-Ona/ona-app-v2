@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyConfirmChoice,
   batteryBreadcrumb,
+  batteryDiagnosis,
   canAdvanceText,
   canFindBatteryPro,
   composeBatteryProblem,
@@ -13,7 +14,7 @@ import {
 } from "@/lib/battery/question-tree";
 
 describe("battery question tree", () => {
-  it("uses the battery start question and offers branches A–G", () => {
+  it("uses the battery start question and offers branches A–H", () => {
     expect(BATTERY_START_QUESTION).toBe(
       "What is the main battery or starting problem you are experiencing?"
     );
@@ -25,6 +26,7 @@ describe("battery question tree", () => {
       "E",
       "F",
       "G",
+      "H",
     ]);
   });
 
@@ -36,6 +38,46 @@ describe("battery question tree", () => {
     expect(nextBatteryScreen("start", "E", { start: "E" })).toBe("e_suspect");
     expect(nextBatteryScreen("start", "F", { start: "F" })).toBe("f_sudden");
     expect(nextBatteryScreen("start", "G", { start: "G" })).toBe("g_describe");
+    expect(nextBatteryScreen("start", "H", { start: "H" })).toBe("ev_type");
+  });
+
+  it("routes the EV battery branch to the safe-location screen, then resolves", () => {
+    expect(
+      nextBatteryScreen("ev_type", "hv", {
+        start: "H",
+        ev_type: "hv",
+      })
+    ).toBe("ev_safe");
+    expect(
+      nextBatteryScreen("ev_safe", "yes", {
+        start: "H",
+        ev_type: "hv",
+        ev_safe: "yes",
+      })
+    ).toBe("final");
+  });
+
+  it("diagnoses EV battery issues and keeps Battery trade for HV/12V, routes charging to Electrical", () => {
+    expect(
+      batteryDiagnosis({ start: "H", ev_type: "12v" })
+    ).toContain("12V auxiliary battery");
+    expect(
+      batteryDiagnosis({ start: "H", ev_type: "hv" })
+    ).toContain("high-voltage");
+    expect(
+      batteryDiagnosis({ start: "H", ev_type: "charging" })
+    ).toContain("charging fault");
+
+    const hv = resolveBatteryRoute({ start: "H", ev_type: "hv", ev_safe: "yes" });
+    expect(hv.trade).toBe("battery");
+    expect(hv.needsConfirm).toBe(false);
+    const charging = resolveBatteryRoute({
+      start: "H",
+      ev_type: "charging",
+      ev_safe: "yes",
+    });
+    expect(charging.trade).toBe("electrical");
+    expect(charging.alternate).toBe("battery");
   });
 
   it("keeps a classic dead battery on Battery (no confirm card)", () => {

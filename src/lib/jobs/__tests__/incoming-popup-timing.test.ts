@@ -44,6 +44,14 @@ describe("canSurfaceIncomingJob", () => {
     ).toBe(false);
   });
 
+  it("keeps a no-deadline card shown (negotiating/agreed never re-surfaces)", () => {
+    markJobShown("j1");
+    expect(canSurfaceIncomingJob("j1").allow).toBe(false);
+    // A job first shown WITH a deadline stays blocked once the deadline lapses.
+    markJobShown("j2", undefined, "2026-08-08T12:00:00.000Z");
+    expect(canSurfaceIncomingJob("j2").allow).toBe(false);
+  });
+
   it("allows re-surface when pairing deadline changes (new offer / Retry)", () => {
     markJobShown("j1", undefined, "2026-08-08T12:00:00.000Z");
     expect(

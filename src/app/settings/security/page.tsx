@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { PasswordInput } from "@/components/ui/password-input";
+import { ConfirmCancelSheet } from "@/components/ui/confirm-cancel-sheet";
 import { PageHeader } from "@/components/layout/page-header";
 import {
   SettingsField,
@@ -76,6 +77,7 @@ export default function SettingsSecurityPage() {
   const [authCode, setAuthCode] = useState("");
   const [setupErr, setSetupErr] = useState<string | null>(null);
   const [smsSent, setSmsSent] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   useEffect(() => {
     try {
@@ -399,7 +401,7 @@ export default function SettingsSecurityPage() {
               </button>
               <button
                 type="button"
-                onClick={cancelSetup}
+                onClick={() => setConfirmCancel(true)}
                 className={cn(
                   "w-full border-0 bg-transparent py-2 text-[12px] font-semibold",
                   muted
@@ -567,6 +569,17 @@ export default function SettingsSecurityPage() {
         </div>
 
       </div>
+      <ConfirmCancelSheet
+        open={confirmCancel}
+        isLight={isLight}
+        title="Cancel setup?"
+        message="Your security setup will not be saved."
+        onClose={() => setConfirmCancel(false)}
+        onConfirm={() => {
+          setConfirmCancel(false);
+          cancelSetup();
+        }}
+      />
     </div>
   );
 }

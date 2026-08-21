@@ -28,7 +28,16 @@ type Props = {
   makeLabel?: string;
   vehicleType?: string;
   onVehicleTypeChange?: (v: string) => void;
+  powertrain?: string;
+  onPowertrainChange?: (v: string) => void;
 };
+
+export const VEHICLE_POWERTRAINS = [
+  "Petrol",
+  "Diesel",
+  "Hybrid",
+  "Electric",
+];
 
 function SearchSelect({
   label,
@@ -216,6 +225,8 @@ export function VehicleCascadeFields({
   makeLabel = "Make",
   vehicleType,
   onVehicleTypeChange,
+  powertrain,
+  onPowertrainChange,
 }: Props) {
   const makes = useMemo(() => getAllMakes(), []);
   const models = useMemo(
@@ -287,6 +298,17 @@ export function VehicleCascadeFields({
         isLight={isLight}
         onChange={onYearChange}
       />
+      {onPowertrainChange ? (
+        <SearchSelect
+          label="Power / Fuel"
+          value={powertrain || ""}
+          placeholder="Petrol, Diesel, Hybrid or Electric"
+          options={VEHICLE_POWERTRAINS}
+          variant={variant}
+          isLight={isLight}
+          onChange={onPowertrainChange}
+        />
+      ) : null}
     </div>
   );
 }

@@ -18,6 +18,7 @@ import { ExpiredDialog } from "@/components/ui/expired-dialog";
 import { JOB_CLOSED_MESSAGE } from "@/lib/chat-expired";
 import { apiListJobs } from "@/lib/jobs/client";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
+import { jobTotalMajor } from "@/lib/callout/payable";
 import { formatMoney } from "@/lib/pricing";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
@@ -204,10 +205,13 @@ export default function RequestsPage() {
       : j.repairProName;
     const skill = PRO_SERVICE_LABELS[j.serviceType] ?? j.serviceType;
     const when = formatWhen(j.updatedAt || j.createdAt);
+    const total = jobTotalMajor(j.agreedMajor, j.calloutQuote);
     const price =
-      j.agreedMajor != null
-        ? formatMoney(j.agreedMajor, j.currency)
-        : null;
+      total != null
+        ? formatMoney(total, j.currency)
+        : j.agreedMajor != null
+          ? formatMoney(j.agreedMajor, j.currency)
+          : null;
     const isOpen = OPEN.includes(j.status);
 
     return (
@@ -265,15 +269,6 @@ export default function RequestsPage() {
   return (
     <div className={cn("relative flex h-full min-h-0 flex-col", stage)}>
       <PageHeader title="Requests" subtitle="Live help & dispatch" />
-      <div className="px-4 pb-1">
-        <Link
-          href="/jobs"
-          className="text-[12px] font-semibold text-[#FF6B35]"
-        >
-          Open jobs inbox →
-        </Link>
-      </div>
-
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 scrollbar-hide">
         {warning && (
           <VerificationWarningBanner

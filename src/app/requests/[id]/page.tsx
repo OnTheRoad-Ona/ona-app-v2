@@ -28,6 +28,7 @@ import { CalloutFeeLines } from "@/components/jobs/callout-fee-lines";
 import { useJobCallout } from "@/lib/callout/use-job-callout";
 import type { JobFlowStatus, JobOffer, JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
+import { jobTotalMajor } from "@/lib/callout/payable";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
@@ -225,7 +226,11 @@ export default function RequestProcessPage({
   const stage = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const hairline = isLight ? "border-black/10" : "border-white/10";
   const backHref = isPro ? "/jobs" : "/history";
-  const calloutQuote = useJobCallout(job?.id);
+  const { quote: calloutQuote, ready: calloutReady } = useJobCallout(
+    job?.id,
+    job?.status,
+    job?.calloutQuote
+  );
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -362,10 +367,17 @@ export default function RequestProcessPage({
           )}
           {job.agreedMajor != null && (
             <p className={cn("mt-3 text-[20px] font-semibold tabular-nums", ink)}>
-              {formatMoney(job.agreedMajor, job.currency)}
-              <span className={cn("ml-1.5 text-[11px] font-medium", muted)}>
-                labour only
-              </span>
+              {!calloutReady ||
+              jobTotalMajor(job.agreedMajor, calloutQuote ?? job.calloutQuote) ==
+                null
+                ? "\u00a0"
+                : formatMoney(
+                    jobTotalMajor(
+                      job.agreedMajor,
+                      calloutQuote ?? job.calloutQuote
+                    ) as number,
+                    job.currency
+                  )}
             </p>
           )}
           <div className="mt-2">

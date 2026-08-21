@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { profileTheme } from "@/lib/profile-system";
 import { SecurityField } from "./security-field";
 import { backendSendOtp, backendProfileVerifyOtp } from "@/lib/supabase/app-api";
+import { ConfirmCancelSheet } from "@/components/ui/confirm-cancel-sheet";
 
 interface BankChangeFlowProps {
   isLight: boolean;
@@ -45,6 +46,7 @@ export function BankChangeFlow({
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const t = profileTheme(isLight);
 
   const displayValue = currentBank?.bankName
@@ -160,7 +162,7 @@ export function BankChangeFlow({
         {step === "done" ? (
           <button type="button" onClick={reset} className="shrink-0 rounded-lg border-0 px-3 py-1.5 text-[11px] font-bold text-brand">Done</button>
         ) : (
-          <button type="button" onClick={reset} className="shrink-0 rounded-lg border-0 px-3 py-1.5 text-[11px] font-bold text-red-400">Cancel</button>
+          <button type="button" onClick={() => setConfirmCancel(true)} className="shrink-0 rounded-lg border-0 px-3 py-1.5 text-[11px] font-bold text-red-400">Cancel</button>
         )}
       </div>
 
@@ -226,6 +228,17 @@ export function BankChangeFlow({
           Bank account updated. A security notification has been sent.
         </p>
       )}
+      <ConfirmCancelSheet
+        open={confirmCancel}
+        isLight={isLight}
+        title="Discard changes?"
+        message="Any changes you've made will be lost."
+        onClose={() => setConfirmCancel(false)}
+        onConfirm={() => {
+          setConfirmCancel(false);
+          reset();
+        }}
+      />
     </div>
   );
 }

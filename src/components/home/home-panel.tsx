@@ -30,6 +30,7 @@ import { useT } from "@/lib/i18n";
 import { useApp } from "@/lib/store";
 import type { Technician } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { CustomerOpenJobs } from "@/components/home/customer-open-jobs";
 import { talkBoxAfterTradePick } from "@/components/home/need-help-steps";
 import { MAX_TECHNICIANS } from "@/lib/matching";
 import { shouldShowHomeVerifyPanel } from "@/lib/verification-gate";
@@ -309,11 +310,12 @@ export function HomePanel({
   // Places Autocomplete only when help mode is open (script may already be ready).
   const needPlaces = helpMode && liveMaps;
 
-  const { byPro: jobsByPro } = useMotoristJobsByPro();
+  const { byPro: jobsByPro, openJobs } = useMotoristJobsByPro();
 
   const handleRequest = (tech: Technician) => {
     setSelectedTechId(tech.id);
-    router.push(`/request?tech=${tech.id}`);
+    // Direct-request page is gone — open the trade's new question-flow steps.
+    setCategory(tech.serviceType);
   };
 
   const handleOpenJob = (jobId: string) => {
@@ -837,6 +839,15 @@ export function HomePanel({
         {showVerifyPanel && verifyPanelReady ? (
           <div className="mb-2 shrink-0">
             <HomeVerifyPanel message={verifyMessage} isLight={isLight} />
+          </div>
+        ) : null}
+        {!isProMode && openJobs.length > 0 ? (
+          <div className="shrink-0 pt-2.5">
+            <CustomerOpenJobs
+              jobs={openJobs}
+              isLight={isLight}
+              onOpen={handleOpenJob}
+            />
           </div>
         ) : null}
         {isMechanicFlow ? (

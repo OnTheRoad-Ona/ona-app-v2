@@ -2713,7 +2713,7 @@ export async function listJobsForUser(
     "agreed",
   ]);
 
-  return out
+  const listed = out
     .filter((j) => {
       // Keep finished jobs (released / completed / etc.) for Recent Bookings + History.
       // Only drop empty demo shells.
@@ -2733,6 +2733,34 @@ export async function listJobsForUser(
         new Date(b.updatedAt || b.createdAt).getTime() -
         new Date(a.updatedAt || a.createdAt).getTime()
     );
+  return attachSettledCalloutQuotes(listed);
+}
+
+async function attachSettledCalloutQuotes(
+  jobs: JobRecord[]
+): Promise<JobRecord[]> {
+  const need = jobs.filter((j) => j.agreedMajor != null).slice(0, 12);
+  if (!need.length) return jobs;
+  try {
+    const { resolveJobCalloutQuote } = await import(
+      "@/lib/server/callout/resolve"
+    );
+    const pairs = await Promise.all(
+      need.map(async (j) => {
+        try {
+          return [j.id, await resolveJobCalloutQuote(j)] as const;
+        } catch {
+          return [j.id, null] as const;
+        }
+      })
+    );
+    const map = new Map(pairs);
+    return jobs.map((j) =>
+      map.has(j.id) ? { ...j, calloutQuote: map.get(j.id) ?? null } : j
+    );
+  } catch {
+    return jobs;
+  }
 }
 
 /**
@@ -3692,6 +3720,13 @@ export async function mockPayJob(input: {
   if (mockQuote?.calloutStatus === "CALCULATED") {
     mockQuote = (await lockCalloutQuote(job.id)) ?? mockQuote;
   }
+  if (!mockQuote || mockQuote.calloutStatus === "PENDING") {
+    const { estimateCalloutQuote } = await import(
+      "@/lib/server/callout/estimate"
+    );
+    mockQuote =
+      (await estimateCalloutQuote(job, mockQuote)) ?? mockQuote;
+  }
   const mockLabourMinor = toMinorUnits(job.agreedMajor, job.currency);
   const mockSplit = splitMinor(mockLabourMinor);
   const mockPayable = composeCustomerPayableMajor(job.agreedMajor, mockQuote);
@@ -3891,6 +3926,12 @@ export async function startJobEscrowPayment(input: {
   }
   if (calloutQuote?.calloutStatus === "CALCULATED") {
     calloutQuote = (await lockCalloutQuote(job.id)) ?? calloutQuote;
+  }
+  if (!calloutQuote || calloutQuote.calloutStatus === "PENDING") {
+    const { estimateCalloutQuote } = await import(
+      "@/lib/server/callout/estimate"
+    );
+    calloutQuote = (await estimateCalloutQuote(job, calloutQuote)) ?? calloutQuote;
   }
   const pricing = buildCustomerChargeMajor(agreedMajor);
   const payable = composeCustomerPayableMajor(pricing.totalMajor, calloutQuote);

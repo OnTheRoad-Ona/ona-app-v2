@@ -10,7 +10,7 @@
  *
  * If someone deletes `statusCheck` / the status endpoint wiring, these fail.
  */
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IncomingJobPopup } from "@/components/home/incoming-job-popup";
 import { INCOMING_POPUP_STATUS_POLL_MS } from "@/components/home/incoming-job-popup";
@@ -18,13 +18,14 @@ import type { JobRecord } from "@/lib/jobs/types";
 
 const routerPush = vi.fn();
 const client = vi.hoisted(() => ({
-  apiListJobs: vi.fn(),
-  apiProIncomingStatus: vi.fn(),
-  apiGetJob: vi.fn(),
-  apiTransition: vi.fn(),
-  apiDeferJob: vi.fn(),
-  apiSurfaceJob: vi.fn(() => Promise.resolve({ ok: true })),
-}));
+   apiListJobs: vi.fn(),
+   apiProIncomingStatus: vi.fn(),
+   apiGetJob: vi.fn(),
+   apiTransition: vi.fn(),
+   apiDeferJob: vi.fn(),
+   apiSurfaceJob: vi.fn(() => Promise.resolve({ ok: true })),
+   apiGetCallout: vi.fn(() => Promise.resolve({ ok: true, data: { quote: null } })),
+ }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -153,6 +154,10 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
   vi.clearAllMocks();
+  // jsdom has no pointer-capture implementation — no-op stubs are enough for
+  // the panel drag gestures in these tests.
+  Element.prototype.setPointerCapture = () => {};
+  Element.prototype.releasePointerCapture = () => {};
   client.apiGetJob.mockResolvedValue(okList([openJob]));
   client.apiProIncomingStatus.mockResolvedValue(
     okStatus([statusSnapshot()])
@@ -177,7 +182,276 @@ const flushPolls = async () => {
   });
 };
 
+/** The panel opens expanded by default (only a swipe-down collapses it). The
+ *  tap simply re-expands a collapsed panel — harmless when already open. */
+const expandPanel = async () => {
+  await act(async () => {
+    fireEvent.click(screen.getByRole("dialog"));
+    await Promise.resolve();
+  });
+};
+
+describe("IncomingJobPopup panel three levels", () => {
+  const multiQJob = {
+    ...openJob,
+    problem:
+      "Which problem?\nEngine light\nWhat next?\nScan\nWhere?\nLagos\nWhen?\nNow",
+  } as unknown as JobRecord;
+
+  const swipe = async (dy: number) => {
+    const dialog = screen.getByRole("dialog");
+    await act(async () => {
+      fireEvent.pointerDown(dialog, { clientY: 200, pointerId: 1 });
+      await Promise.resolve();
+    });
+    await act(async () => {
+      fireEvent.pointerMove(dialog, { clientY: 200 + dy, pointerId: 1 });
+      await Promise.resolve();
+    });
+    await act(async () => {
+      fireEvent.pointerUp(dialog, { clientY: 200 + dy, pointerId: 1 });
+      await Promise.resolve();
+    });
+  };
+
+  it("middle default pages 2 Q&A per frame; swipe up shows all on the full page", async () => {
+    client.apiListJobs
+      .mockResolvedValueOnce(okList([multiQJob]))
+      .mockResolvedValue(okList([]));
+    render(<IncomingJobPopup />);
+    await flushPolls();
+
+    // Middle: only the first 2 rows, with a chevron to page further.
+    expect(screen.getByText("Which problem?")).toBeTruthy();
+    expect(screen.getByText("Engine light")).toBeTruthy();
+    expect(screen.queryByText("When?")).toBeNull();
+    expect(screen.getByLabelText("Show more questions")).toBeTruthy();
+
+    await swipe(-80); // swipe up → full page
+    await flushPolls();
+
+    expect(screen.getByText("When?")).toBeTruthy();
+    expect(screen.queryByLabelText("Show more questions")).toBeNull();
+  });
+
+  it("swipe down steps full → middle → collapsed; tap reopens middle", async () => {
+    client.apiListJobs
+      .mockResolvedValueOnce(okList([multiQJob]))
+      .mockResolvedValue(okList([]));
+    render(<IncomingJobPopup />);
+    await flushPolls();
+    expect(screen.getByText("Which problem?")).toBeTruthy();
+
+    await swipe(-80); // → full
+    await flushPolls();
+    expect(screen.getByText("When?")).toBeTruthy();
+
+    await swipe(80); // full → middle (one step)
+    await flushPolls();
+    expect(screen.getByText("Which problem?")).toBeTruthy();
+    expect(screen.queryByText("When?")).toBeNull();
+
+    await swipe(80); // middle → collapsed (peek strip)
+    await flushPolls();
+    expect(screen.queryByText("Which problem?")).toBeNull();
+    expect(screen.getByText("1 incoming request")).toBeTruthy();
+
+    // Tap the peek strip reopens the middle.
+    await act(async () => {
+      fireEvent.click(screen.getByRole("dialog"));
+      await Promise.resolve();
+    });
+    await flushPolls();
+    expect(screen.getByText("Which problem?")).toBeTruthy();
+  });
+
+  it("grabber pill steps down one level from full → middle → collapsed", async () => {
+    client.apiListJobs
+      .mockResolvedValueOnce(okList([multiQJob]))
+      .mockResolvedValue(okList([]));
+    render(<IncomingJobPopup />);
+    await flushPolls();
+
+    await swipe(-80); // → full
+    await flushPolls();
+    expect(screen.getByText("When?")).toBeTruthy();
+
+    // Grabber at full reads "Show fewer questions" → back to middle.
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Show fewer questions"));
+      await Promise.resolve();
+    });
+    await flushPolls();
+    expect(screen.getByText("Which problem?")).toBeTruthy();
+    expect(screen.queryByText("When?")).toBeNull();
+
+    // Grabber at middle minimizes → collapsed peek.
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Minimize panel"));
+      await Promise.resolve();
+    });
+    await flushPolls();
+    expect(screen.queryByText("Which problem?")).toBeNull();
+    expect(screen.getByText("1 incoming request")).toBeTruthy();
+  });
+
+  it("trackpad swipe (wheel) steps the panel up and down like the customer sheet", async () => {
+    client.apiListJobs
+      .mockResolvedValueOnce(okList([multiQJob]))
+      .mockResolvedValue(okList([]));
+    render(<IncomingJobPopup />);
+    await flushPolls();
+    expect(screen.getByText("Which problem?")).toBeTruthy();
+
+    // deltaY > 0 = trackpad swipe up → middle → full (all rows shown).
+    await act(async () => {
+      fireEvent.wheel(screen.getByRole("dialog"), { deltaY: 40 });
+      await Promise.resolve();
+    });
+    await flushPolls();
+    expect(screen.getByText("When?")).toBeTruthy();
+
+    // deltaY < 0 = trackpad swipe down → full → middle.
+    await act(async () => {
+      fireEvent.wheel(screen.getByRole("dialog"), { deltaY: -40 });
+      await Promise.resolve();
+    });
+    await flushPolls();
+    expect(screen.getByText("Which problem?")).toBeTruthy();
+    expect(screen.queryByText("When?")).toBeNull();
+  });
+
+  it("wheel swipe over the card body (not the pill) still moves the panel at middle", async () => {
+    client.apiListJobs
+      .mockResolvedValueOnce(okList([multiQJob]))
+      .mockResolvedValue(okList([]));
+    render(<IncomingJobPopup />);
+    await flushPolls();
+    expect(screen.getByText("Which problem?")).toBeTruthy();
+
+    const scroll = screen
+      .getByText("Which problem?")
+      .closest("[data-panel-scroll]")!;
+    // Wheel over the body at middle → swipe up → full.
+    await act(async () => {
+      fireEvent.wheel(scroll, { deltaY: 40 });
+      await Promise.resolve();
+    });
+    await flushPolls();
+    expect(screen.getByText("When?")).toBeTruthy();
+  });
+
+  it("resets the card list to the top on expand so the profile picture shows first", async () => {
+    client.apiListJobs
+      .mockResolvedValueOnce(okList([multiQJob]))
+      .mockResolvedValue(okList([]));
+    render(<IncomingJobPopup />);
+    await flushPolls();
+    expect(screen.getByText("Which problem?")).toBeTruthy();
+
+    const scroll = screen
+      .getByText("Which problem?")
+      .closest("[data-panel-scroll]") as HTMLDivElement;
+    scroll.scrollTop = 60;
+
+    await swipe(-80); // swipe up → full
+    await flushPolls();
+
+    // Level change scrolls back to the top — the profile picture placeholder
+    // is the first thing visible, not a mid-scroll position.
+    expect(scroll.scrollTop).toBe(0);
+  });
+
+  it("swallows leftover wheel momentum over the content right after expanding to full", async () => {
+    client.apiListJobs
+      .mockResolvedValueOnce(okList([multiQJob]))
+      .mockResolvedValue(okList([]));
+    render(<IncomingJobPopup />);
+    await flushPolls();
+    expect(screen.getByText("Which problem?")).toBeTruthy();
+
+    const scroll = screen
+      .getByText("Which problem?")
+      .closest("[data-panel-scroll]") as HTMLDivElement;
+
+    // Swipe up over the content → full.
+    await act(async () => {
+      fireEvent.wheel(scroll, { deltaY: 40 });
+      await Promise.resolve();
+    });
+    await flushPolls();
+    expect(screen.getByText("When?")).toBeTruthy();
+
+    // Leftover expand-momentum (a swipe-down gesture) over the content must be
+    // swallowed, not collapse the freshly-expanded panel.
+    await act(async () => {
+      fireEvent.wheel(scroll, { deltaY: -40 });
+      await Promise.resolve();
+    });
+    await flushPolls();
+    expect(screen.getByText("When?")).toBeTruthy();
+    expect(scroll.scrollTop).toBe(0);
+  });
+});
+
 describe("IncomingJobPopup fast status-check poll", () => {
+  it("opens the panel expanded by default — no tap needed to see the card", async () => {
+    client.apiListJobs
+      .mockResolvedValueOnce(okList([openJob]))
+      .mockResolvedValue(okList([]));
+
+    render(<IncomingJobPopup />);
+    await flushPolls();
+
+    expect(screen.getByText("Engine won't start")).toBeTruthy();
+  });
+
+  it("confirm dialog warns the fee is lost if the job is not fixed", async () => {
+    client.apiListJobs
+      .mockResolvedValueOnce(okList([openJob]))
+      .mockResolvedValue(okList([]));
+    render(<IncomingJobPopup />);
+    await flushPolls();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("I can fix this"));
+      await Promise.resolve();
+    });
+    await flushPolls();
+
+    expect(screen.getByText("Confirm you can fix this")).toBeTruthy();
+    expect(
+      screen.getByText(
+        /won't get call out fee if you don't/i
+      )
+    ).toBeTruthy();
+  });
+
+  it("closes the confirm dialog when the request's timer elapses", async () => {
+    client.apiListJobs
+      .mockResolvedValueOnce(okList([openJob]))
+      .mockResolvedValue(okList([]));
+    render(<IncomingJobPopup />);
+    await flushPolls();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("I can fix this"));
+      await Promise.resolve();
+    });
+    await flushPolls();
+    expect(screen.getByText("Confirm you can fix this")).toBeTruthy();
+
+    // Pairing deadline (NOW + 60s) elapses while the dialog is open — the
+    // dialog must close too, not stay pinned over the expired card.
+    await act(async () => {
+      vi.advanceTimersByTime(61_000);
+      await Promise.resolve();
+    });
+    await flushPolls();
+
+    expect(screen.queryByText("Confirm you can fix this")).toBeNull();
+  });
+
   it("surfaces the card from the first full list, then uses the light status check", async () => {
     client.apiListJobs
       .mockResolvedValueOnce(okList([openJob]))
@@ -185,6 +459,7 @@ describe("IncomingJobPopup fast status-check poll", () => {
 
     render(<IncomingJobPopup />);
     await flushPolls();
+    await expandPanel();
 
     expect(screen.getByText("Engine won't start")).toBeTruthy();
     expect(client.apiListJobs).toHaveBeenCalledTimes(1);
@@ -206,6 +481,7 @@ describe("IncomingJobPopup fast status-check poll", () => {
 
     render(<IncomingJobPopup />);
     await flushPolls();
+    await expandPanel();
     expect(screen.getByText("Engine won't start")).toBeTruthy();
 
     // Customer cancels → Supabase realtime UPDATE event reaches the pro.
@@ -236,6 +512,7 @@ describe("IncomingJobPopup fast status-check poll", () => {
 
     render(<IncomingJobPopup />);
     await flushPolls();
+    await expandPanel();
     expect(screen.getByText("Engine won't start")).toBeTruthy();
 
     // Customer cancels; realtime push never arrives. The next ~1s status check
@@ -284,6 +561,7 @@ describe("IncomingJobPopup fast status-check poll", () => {
 
     render(<IncomingJobPopup />);
     await flushPolls();
+    await expandPanel();
     expect(screen.getByText("Engine won't start")).toBeTruthy();
     expect(showAppNotification).toHaveBeenCalledTimes(1);
     showAppNotification.mockClear();
@@ -305,6 +583,7 @@ describe("IncomingJobPopup fast status-check poll", () => {
 
     render(<IncomingJobPopup />);
     await flushPolls();
+    await expandPanel();
     expect(screen.getByText("Engine won't start")).toBeTruthy();
 
     client.apiProIncomingStatus.mockResolvedValue(
@@ -315,6 +594,7 @@ describe("IncomingJobPopup fast status-check poll", () => {
 
     await advanceOnePoll();
     await flushPolls();
+    await expandPanel();
 
     expect(screen.getByText("Engine won't start")).toBeTruthy();
     expect(
@@ -328,6 +608,7 @@ describe("IncomingJobPopup fast status-check poll", () => {
 
     render(<IncomingJobPopup />);
     await flushPolls();
+    await expandPanel();
     expect(screen.getByText("Engine won't start")).toBeTruthy();
     expect(client.apiListJobs).toHaveBeenCalledTimes(1);
 

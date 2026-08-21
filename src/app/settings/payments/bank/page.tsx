@@ -19,6 +19,7 @@ import {
 } from "@/lib/bank-details";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { ConfirmCancelSheet } from "@/components/ui/confirm-cancel-sheet";
 
 export default function PaymentsBankPage() {
   const { theme, userProfile, updateUserProfile, accountType } = useApp();
@@ -35,6 +36,7 @@ export default function PaymentsBankPage() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   useEffect(() => {
     if (!userProfile) return;
@@ -195,20 +197,7 @@ export default function PaymentsBankPage() {
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() => {
-                      setEditing(false);
-                      setErr(null);
-                      setMsg(null);
-                      if (userProfile) {
-                        setDetails({
-                          bankCode: userProfile.bankCode || "",
-                          bankName: userProfile.bankName || "",
-                          bankAccountName: userProfile.bankAccountName || "",
-                          bankAccountNumber:
-                            userProfile.bankAccountNumber || "",
-                        });
-                      }
-                    }}
+                    onClick={() => setConfirmCancel(true)}
                     className={cn(
                       "inline-flex h-12 flex-1 items-center justify-center rounded-lg border-0 text-[14px] font-black",
                       isLight
@@ -232,6 +221,27 @@ export default function PaymentsBankPage() {
           )}
         </section>
       </div>
+      <ConfirmCancelSheet
+        open={confirmCancel}
+        isLight={isLight}
+        title="Discard changes?"
+        message="Your bank details will not be saved."
+        onClose={() => setConfirmCancel(false)}
+        onConfirm={() => {
+          setConfirmCancel(false);
+          setEditing(false);
+          setErr(null);
+          setMsg(null);
+          if (userProfile) {
+            setDetails({
+              bankCode: userProfile.bankCode || "",
+              bankName: userProfile.bankName || "",
+              bankAccountName: userProfile.bankAccountName || "",
+              bankAccountNumber: userProfile.bankAccountNumber || "",
+            });
+          }
+        }}
+      />
     </div>
   );
 }

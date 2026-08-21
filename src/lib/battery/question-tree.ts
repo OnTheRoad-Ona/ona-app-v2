@@ -11,8 +11,9 @@ export const BATTERY_FINAL_COPY = {
   night: "Night service needed",
   photos: "Add clear photos (at most 4) of the battery, terminals, and dashboard",
   voice: "Record a short voice note describing the problem",
-  location: "Enter exact location",
+  location: "Current Location",
   extra: "Any other detail you want the technician to know?",
+  diagnosis: "Likely problem",
   tow: "Do you need the vehicle towed to a safer place or workshop?",
 } as const;
 
@@ -38,6 +39,7 @@ export type BatteryRoute = {
   trade: ProService;
   alternate?: ProService;
   needsConfirm: boolean;
+  diagnosis?: string;
 };
 
 export const BATTERY_START_OPTIONS: BatteryOption[] = [
@@ -63,6 +65,10 @@ export const BATTERY_START_OPTIONS: BatteryOption[] = [
     label: "Battery warning light is on while driving",
   },
   { id: "G", label: "Something else / I'm not sure" },
+  {
+    id: "H",
+    label: "Electric vehicle (EV) battery problem",
+  },
 ];
 
 const YES_NO: BatteryOption[] = [
@@ -327,6 +333,23 @@ export const BATTERY_SCREENS: Record<string, BatteryScreen> = {
       { id: "painter", label: "Painter" },
     ],
   },
+  ev_type: {
+    id: "ev_type",
+    question: "Which EV battery issue?",
+    kind: "choice",
+    options: [
+      { id: "12v", label: "12V auxiliary battery (won't start / go into ready)" },
+      { id: "hv", label: "High-voltage (HV) battery / range problem" },
+      { id: "charging", label: "Charging problem / won't charge" },
+      { id: "unsure", label: "Not sure" },
+    ],
+  },
+  ev_safe: {
+    id: "ev_safe",
+    question: "Is the vehicle in a safe location?",
+    kind: "choice",
+    options: YES_NO,
+  },
 };
 
 const START_NEXT: Record<string, string> = {
@@ -337,6 +360,7 @@ const START_NEXT: Record<string, string> = {
   E: "e_suspect",
   F: "f_sudden",
   G: "g_describe",
+  H: "ev_type",
 };
 
 function resolveScreen(answers: Record<string, string>): "confirm" | "final" {
@@ -394,7 +418,62 @@ export function nextBatteryScreen(
     return resolveScreen(answers);
   }
 
+  if (current === "ev_type") return "ev_safe";
+  if (current === "ev_safe") return resolveScreen(answers);
+
   return "final";
+}
+
+/**
+ * Narrow the battery answers down to the most likely problem so the pro
+ * arrives with the real issue already identified.
+ */
+export function batteryDiagnosis(
+  answers: Record<string, string>
+): string | undefined {
+  const main = answers.start;
+
+  if (main === "A") {
+    if (answers.a_terminals === "no") {
+      return "Likely corroded or loose battery terminals";
+    }
+    return "Likely a dead or weak battery";
+  }
+
+  if (main === "B") {
+    if (answers.b_recent === "yes") {
+      return "Likely an electrical fault rather than the battery";
+    }
+    return "Likely a weak battery";
+  }
+
+  if (main === "C") return "Likely a weak or failing battery";
+
+  if (main === "D") {
+    if (answers.d_warning === "yes") {
+      return "Likely a charging-system (alternator) fault";
+    }
+    return "Likely a battery that no longer holds a charge";
+  }
+
+  if (main === "E") return "Battery needs testing or replacement";
+
+  if (main === "F") return "Likely a charging-system fault";
+
+  if (main === "H") {
+    if (answers.ev_type === "12v") {
+      return "Likely a dead EV 12V auxiliary battery (won't go into ready)";
+    }
+    if (answers.ev_type === "hv") {
+      return "Likely an EV high-voltage (HV) battery or range fault";
+    }
+    if (answers.ev_type === "charging") {
+      return "Likely an EV charging fault (charger, cable, or charge port)";
+    }
+    return "EV battery problem (customer described)";
+  }
+
+  return undefined;
 }
 
 /**
@@ -405,9 +484,11 @@ export function nextBatteryScreen(
 export function resolveBatteryRoute(
   answers: Record<string, string>
 ): BatteryRoute {
+  const diagnosis = batteryDiagnosis(answers);
   const stay = (): BatteryRoute => ({
     trade: "battery",
     needsConfirm: false,
+    diagnosis,
   });
   const leave = (
     trade: ProService,
@@ -416,6 +497,7 @@ export function resolveBatteryRoute(
     trade,
     alternate,
     needsConfirm: trade !== "battery" || Boolean(alternate),
+    diagnosis,
   });
 
   if (answers.a_safe === "no" || answers.b_safe === "no") {
@@ -465,6 +547,13 @@ export function resolveBatteryRoute(
       return leave("carpenter");
     }
     if (answers.g_related === "clothing") return leave("fashion");
+    return stay();
+  }
+
+  if (main === "H") {
+    if (answers.ev_type === "charging") return leave("electrical", "battery");
+    if (answers.ev_type === "hv") return stay();
+    if (answers.ev_type === "12v") return stay();
     return stay();
   }
 
@@ -536,6 +625,11 @@ export function composeBatteryProblem(
   if (extra.trim()) {
     lines.push(BATTERY_FINAL_COPY.extra);
     lines.push(extra.trim());
+  }
+  const diagnosis = batteryDiagnosis(answers);
+  if (diagnosis) {
+    lines.push(BATTERY_FINAL_COPY.diagnosis);
+    lines.push(diagnosis);
   }
   return lines.filter(Boolean).join("\n");
 }

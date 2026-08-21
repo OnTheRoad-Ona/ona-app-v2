@@ -17,6 +17,12 @@ export type ProCtaKind = "request" | "open";
  * Includes payment + satisfaction so they can always reopen.
  */
 const OPEN_JOB: JobFlowStatus[] = [
+  "scheduled",
+  "waiting_for_selected",
+  "selected_review",
+  "sequential_pairing",
+  "waiting_for_pro",
+  "reserved",
   "negotiating",
   "agreed",
   "paid_booked",
@@ -48,13 +54,23 @@ const RANK: Partial<Record<JobFlowStatus, number>> = {
   paid_booked: 4,
   agreed: 3,
   negotiating: 2,
+  reserved: 1,
+  waiting_for_pro: 1,
+  sequential_pairing: 1,
+  selected_review: 1,
+  waiting_for_selected: 1,
+  scheduled: 0,
 };
 
-export function isOpenJobWithPro(job: JobRecord): boolean {
-  if (!job.repairProId) return false;
+export function isOpenCustomerJob(job: JobRecord): boolean {
   const s = job.status as JobFlowStatus;
   if (TERMINAL.includes(s)) return false;
   return OPEN_JOB.includes(s);
+}
+
+export function isOpenJobWithPro(job: JobRecord): boolean {
+  if (!job.repairProId) return false;
+  return isOpenCustomerJob(job);
 }
 
 /** @deprecated use isOpenJobWithPro */
@@ -76,6 +92,17 @@ export function proCtaLabel(kind: ProCtaKind, profile = false): string {
  * Index open (non-terminal) jobs by repairProId.
  * Prefer the most advanced job when multiple exist with the same pro.
  */
+export function listOpenCustomerJobs(jobs: JobRecord[]): JobRecord[] {
+  return jobs
+    .filter(isOpenCustomerJob)
+    .sort((a, b) => {
+      const ra = RANK[a.status as JobFlowStatus] ?? 0;
+      const rb = RANK[b.status as JobFlowStatus] ?? 0;
+      if (rb !== ra) return rb - ra;
+      return Date.parse(b.updatedAt || b.createdAt) - Date.parse(a.updatedAt || a.createdAt);
+    });
+}
+
 export function indexJobsByProId(jobs: JobRecord[]): Record<string, JobRecord> {
   const map: Record<string, JobRecord> = {};
   for (const j of jobs) {

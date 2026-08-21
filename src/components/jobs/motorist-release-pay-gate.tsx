@@ -28,6 +28,8 @@ import {
 } from "@/lib/jobs/constants";
 import type { JobRecord } from "@/lib/jobs/types";
 import { formatMoney, forceNairaCurrency } from "@/lib/pricing";
+import { useJobCallout } from "@/lib/callout/use-job-callout";
+import { payableCalloutMajor } from "@/lib/callout/payable";
 import { playAppSound, unlockAudio } from "@/lib/sound-tone";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -285,6 +287,23 @@ export function MotoristReleasePayGate() {
     note?: string;
   } | null>(null);
 
+  const { quote: calloutQuote, ready: calloutReady } = useJobCallout(
+    pending?.id,
+    pending?.status,
+    pending?.calloutQuote
+  );
+
+  // Total the customer paid = labour + call-out. Labour splits 87.5/5/7.5;
+  // the call-out goes to the pro in full.
+  const pendingTotal =
+    pending == null || !calloutReady
+      ? null
+      : pending.agreedMajor != null && pending.agreedMajor > 0
+        ? Math.round((pending.agreedMajor + payableCalloutMajor(calloutQuote)) * 100) / 100
+        : pending.amountMinor != null && pending.amountMinor > 0
+          ? pending.amountMinor / 100
+          : null;
+
   const refresh = useCallback(async () => {
     if (!isAuthenticated || !backendUserId) {
       setPending(null);
@@ -409,15 +428,21 @@ export function MotoristReleasePayGate() {
     // 6h auto-release countdown it carries). The transfer runs in the
     // background; the job shell we land on reconciles with the real payout.
     const currency = forceNairaCurrency(pending.currency);
-    const total =
-      pending.agreedMajor != null
+    const labourMajor =
+      pending.agreedMajor != null && pending.agreedMajor > 0
         ? pending.agreedMajor
-        : pending.amountMinor != null
-          ? pending.amountMinor / 100
+        : pending.amountMinor != null && pending.amountMinor > 0
+          ? Math.max(
+              0,
+              pending.amountMinor / 100 - payableCalloutMajor(calloutQuote)
+            )
           : 0;
-    // Service S: pro 87.5% · Ona 5% · VAT 7.5% on FLW
-    const proShare = Math.round(total * 0.875 * 100) / 100;
-    const platformShare = Math.round(total * 0.05 * 100) / 100;
+    const calloutMajor = payableCalloutMajor(calloutQuote);
+    const total = Math.round((labourMajor + calloutMajor) * 100) / 100;
+    // Service S splits 87.5/5/7.5; the call-out goes to the pro in full.
+    const proShare =
+      Math.round(labourMajor * 0.875 * 100) / 100 + calloutMajor;
+    const platformShare = Math.round(labourMajor * 0.05 * 100) / 100;
 
     markDone(jobId);
     setMinimized(jobId, false);
@@ -586,12 +611,12 @@ export function MotoristReleasePayGate() {
         >
           Confirm the job is done to release payment to your Repair Pro
         </p>
-        {pending.agreedMajor != null ? (
+        {pendingTotal != null ? (
           <p
             className="mt-3 text-center text-[22px] font-black tabular-nums"
             style={{ color: ink }}
           >
-            {formatMoney(pending.agreedMajor, currency)}
+            {formatMoney(pendingTotal, currency)}
           </p>
         ) : null}
 

@@ -11,8 +11,9 @@ export const VULCANIZER_FINAL_COPY = {
   night: "Night service needed",
   photos: "Add clear photos of the affected tyre(s) and rim(s)",
   voice: "Record a short voice note describing the problem",
-  location: "Enter exact location",
+  location: "Current Location",
   extra: "Any other detail you want the repair pro to know?",
+  diagnosis: "Likely problem",
   tow: "Do you need the vehicle towed to a safer place or workshop?",
   towYes: "Yes — I need a tow",
   towNo: "No — proceed with Vulcanizer",
@@ -40,6 +41,7 @@ export type VulcanizerRoute = {
   trade: ProService;
   alternate?: ProService;
   needsConfirm: boolean;
+  diagnosis?: string;
 };
 
 export const VULCANIZER_START_OPTIONS: VulcanizerOption[] = [
@@ -436,6 +438,45 @@ export function nextVulcanizerScreen(
 }
 
 /**
+ * Narrow the tyre answers down to the most likely problem so the pro
+ * arrives with the real issue already identified.
+ */
+export function vulcanizerDiagnosis(
+  answers: Record<string, string>
+): string | undefined {
+  const main = answers.start;
+
+  if (main === "A") {
+    if (answers.a_which === "more") {
+      return "Multiple tyres affected — likely a puncture or worn tyres";
+    }
+    if (answers.a_spare === "no") {
+      return "No spare available — tyre beyond a roadside fix";
+    }
+    return "Likely a puncture or flat tyre";
+  }
+
+  if (main === "B") return "Likely a burst or blown tyre";
+
+  if (main === "C") return "Slow puncture or air loss";
+
+  if (main === "D") {
+    if (answers.d_how === "accident") return "Likely rim or wheel damage from an accident";
+    return "Likely a damaged, bent, or cracked rim";
+  }
+
+  if (main === "E") return "Likely a wheel-balancing or alignment issue";
+
+  if (main === "F") return "Tyre replacement needed";
+
+  if (main === "G") {
+    return "Multiple tyres affected — likely worn or damaged tyres";
+  }
+
+  return undefined;
+}
+
+/**
  * Pick the trade from the filled answers. Tyre problems stay with Vulcanizer
  * unless the vehicle is unsafe, the tyres are beyond a fix, or the answers
  * clearly point to another trade.
@@ -443,9 +484,11 @@ export function nextVulcanizerScreen(
 export function resolveVulcanizerRoute(
   answers: Record<string, string>
 ): VulcanizerRoute {
+  const diagnosis = vulcanizerDiagnosis(answers);
   const stay = (): VulcanizerRoute => ({
     trade: "vulcanizer",
     needsConfirm: false,
+    diagnosis,
   });
   const leave = (
     trade: ProService,
@@ -454,6 +497,7 @@ export function resolveVulcanizerRoute(
     trade,
     alternate,
     needsConfirm: true,
+    diagnosis,
   });
 
   const main = answers.start;
@@ -573,6 +617,11 @@ export function composeVulcanizerProblem(
   if (extra.trim()) {
     lines.push(VULCANIZER_FINAL_COPY.extra);
     lines.push(extra.trim());
+  }
+  const diagnosis = vulcanizerDiagnosis(answers);
+  if (diagnosis) {
+    lines.push(VULCANIZER_FINAL_COPY.diagnosis);
+    lines.push(diagnosis);
   }
   return lines.filter(Boolean).join("\n");
 }

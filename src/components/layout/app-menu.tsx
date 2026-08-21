@@ -220,6 +220,8 @@ export function AppMenu({
     displayName,
     userProfile,
     backendUserId,
+    setCategory,
+    setSelectedTechId,
   } = useApp();
   const isLight = theme === "light";
   /**
@@ -539,6 +541,10 @@ export function AppMenu({
                 onClick={() => {
                   onClose();
                   if (isHomeItem) {
+                    // Dashboard must always open on a blank selector — never
+                    // re-open a previously selected trade/flow.
+                    setCategory("none");
+                    setSelectedTechId(null);
                     resetNavStack(href);
                     router.replace(href);
                     return;

@@ -9,6 +9,10 @@ import type { JobMedia } from "@/lib/jobs/types";
 import { compressImageFile } from "@/lib/image-compress";
 import type { CalloutUrgencyKind } from "@/lib/callout/urgency";
 import {
+  nearestProDistanceKm,
+  useAutoCalloutUrgency,
+} from "@/lib/callout/use-auto-urgency";
+import {
   canAdvanceText,
   composeElectricalProblem,
   ELECTRICAL_FINAL_COPY,
@@ -35,9 +39,9 @@ const URGENCY_CHIPS: {
   fee: string;
 }[] = [
   { id: "normal", label: ELECTRICAL_FINAL_COPY.normal, fee: "1x · base + call-out" },
-  { id: "emergency", label: ELECTRICAL_FINAL_COPY.emergency, fee: "1.25x" },
-  { id: "remote", label: ELECTRICAL_FINAL_COPY.remote, fee: "1.35x" },
-  { id: "night", label: ELECTRICAL_FINAL_COPY.night, fee: "1.5x" },
+  { id: "emergency", label: ELECTRICAL_FINAL_COPY.emergency, fee: "1.25x · base + call-out" },
+  { id: "remote", label: ELECTRICAL_FINAL_COPY.remote, fee: "1.35x · base + call-out" },
+  { id: "night", label: ELECTRICAL_FINAL_COPY.night, fee: "1.5x · base + call-out" },
 ];
 
 type FinalStep = "urgency" | "photos" | "voice" | "location" | "tow";
@@ -80,6 +84,7 @@ export function ElectricalHelpFlow({
     helpingSomeoneElse,
     helpingSomeoneLabel,
     updateUserProfile,
+    visibleTechnicians,
   } = useApp();
 
   const [stack, setStack] = useState<string[]>(["start"]);
@@ -88,7 +93,13 @@ export function ElectricalHelpFlow({
   const [manualVehicles, setManualVehicles] = useState<MotoristVehicle[]>([]);
   const [draft, setDraft] = useState("");
   const [dir, setDir] = useState<"fwd" | "back">("fwd");
-  const [urgency, setUrgency] = useState<CalloutUrgencyKind>("normal");
+  const { urgency, setUrgency, restoreUrgency } = useAutoCalloutUrgency({
+    unsafe: false,
+    distanceKm: nearestProDistanceKm(visibleTechnicians, [
+      "electrical",
+      "towing",
+    ]),
+  });
   const [photos, setPhotos] = useState<JobMedia[]>([]);
   const [voiceNote, setVoiceNote] = useState<JobMedia | null>(null);
   const [landmark, setLandmark] = useState(location.label || "");
@@ -175,7 +186,7 @@ export function ElectricalHelpFlow({
       setVehicleLabel(snap.vehicleLabel ?? "");
       setManualVehicles(snap.manualVehicles ?? []);
       setDraft(snap.draft ?? "");
-      if (snap.urgency) setUrgency(snap.urgency);
+      if (snap.urgency) restoreUrgency(snap.urgency);
       setPhotos(snap.photos ?? []);
       setVoiceNote(snap.voiceNote ?? null);
       setLandmark(snap.landmark || location.label || "");
@@ -334,7 +345,6 @@ export function ElectricalHelpFlow({
     const trade: ProService =
       towChoice === "tow" ? "towing" : "electrical";
     const problem = [
-      vehicleLabel ? `Vehicle: ${vehicleLabel}` : "",
       towChoice === "tow"
         ? "Needs the vehicle towed: Yes"
         : "",
@@ -432,6 +442,17 @@ export function ElectricalHelpFlow({
   };
 
   const towSendDisabled = finalStep === "tow" && towChoice === null;
+
+  useEffect(() => {
+    if (step === "final" && finalStep === "location" && pickedLoc) {
+      clearAdvanceTimer();
+      advanceTimerRef.current = window.setTimeout(() => {
+        advanceTimerRef.current = null;
+        void send();
+      }, 2000);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, finalStep, pickedLoc]);
 
   return (
     <div
@@ -634,26 +655,11 @@ export function ElectricalHelpFlow({
                         <AddressAutocomplete
                           className="-mx-3"
                           value={pickedLoc}
-                          autoLocate={location.coordinates}
                           onChange={(loc) => {
                             setPickedLoc(loc);
                             setLandmark(loc.label || landmark);
                           }}
                         />
-                        <label className="block">
-                          <span className={cn("text-[12px] font-bold", ink)}>
-                            {ELECTRICAL_FINAL_COPY.extra}
-                          </span>
-                          <textarea
-                            value={extra}
-                            onChange={(e) => setExtra(e.target.value)}
-                            rows={2}
-                            className={cn(
-                              "mt-1 w-full resize-none rounded-xl border-0 px-3 py-2 text-[13px] font-medium outline-none",
-                              field
-                            )}
-                          />
-                        </label>
                       </div>
                     </div>
                   ) : null}

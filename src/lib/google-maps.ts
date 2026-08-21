@@ -63,6 +63,20 @@ export type ReverseGeocodeResult = {
   countryCode?: string;
 };
 
+/** Google Plus Code ("FG2R+RJM") Google sometimes appends to a formatted
+ *  address — remove it so the label is the real address only. */
+export const PLUS_CODE_RE = /\b[A-Z0-9]{4,8}\+[A-Z0-9]{2,3}\b/g;
+
+export function cleanAddressLabel(value: string): string {
+  return value
+    .replace(PLUS_CODE_RE, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+,/g, ",")
+    .replace(/,\s*,/g, ",")
+    .replace(/^[,;\s]+|[,;\s]+$/g, "")
+    .trim();
+}
+
 /** Drop country / postal noise; never emit raw coordinates as a label. */
 export function formatImmediateAddress(parts: {
   street?: string;

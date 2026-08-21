@@ -2,6 +2,7 @@
  * Ona premium job / escrow domain types.
  */
 
+import type { CalloutQuote } from "@/lib/callout/constants";
 import type { AppCurrency } from "@/lib/pricing";
 import type { Coordinates, ProService } from "@/lib/types";
 
@@ -202,6 +203,8 @@ export type JobRecord = {
   chosenProId?: string | null;
   pairingRadiusKm?: number | null;
   radiusKm?: number | null;
+  /** Server call-out quote — present on job GET so the ₦ total paints once. */
+  calloutQuote?: CalloutQuote | null;
   /**
    * Tow "add another repair pro": id of the primary (tow) request that arms
    * this scheduled second request. Non-null only on the linked request.

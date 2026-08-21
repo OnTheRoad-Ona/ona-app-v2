@@ -14,6 +14,7 @@ import { JOB_CLOSED_MESSAGE } from "@/lib/chat-expired";
 import { apiListJobs } from "@/lib/jobs/client";
 import { canOpenDisputeNow } from "@/lib/jobs/constants";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
+import { jobTotalMajor } from "@/lib/callout/payable";
 import { formatMoney } from "@/lib/pricing";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
@@ -21,13 +22,11 @@ import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 type HistoryFilter =
-  | "all"
   | "completed"
   | "cancelled"
   | "expired"
   | "refunded"
-  | "disputed"
-  | "other";
+  | "disputed";
 
 const PAST: JobFlowStatus[] = [
   "completed",
@@ -41,13 +40,11 @@ const PAST: JobFlowStatus[] = [
 ];
 
 const FILTERS: { id: HistoryFilter; label: string }[] = [
-  { id: "all", label: "All" },
   { id: "completed", label: "Completed" },
   { id: "cancelled", label: "Cancelled" },
   { id: "expired", label: "Expired" },
   { id: "refunded", label: "Refunded" },
   { id: "disputed", label: "Disputed" },
-  { id: "other", label: "Other" },
 ];
 
 function statusLabel(s: JobFlowStatus, isPro: boolean): string {
@@ -72,8 +69,11 @@ function statusLabel(s: JobFlowStatus, isPro: boolean): string {
   }
 }
 
-function matchesFilter(status: JobFlowStatus, f: HistoryFilter): boolean {
-  if (f === "all") return true;
+function matchesFilter(
+  status: JobFlowStatus,
+  f: HistoryFilter | null
+): boolean {
+  if (!f) return true;
   if (f === "completed")
     return (
       status === "completed" ||
@@ -85,10 +85,7 @@ function matchesFilter(status: JobFlowStatus, f: HistoryFilter): boolean {
   if (f === "refunded") return status === "refunded";
   if (f === "disputed")
     return status === "disputed" || status === "under_appeal";
-  // other
-  return !["completed", "satisfied", "released", "cancelled", "expired", "refunded", "disputed", "under_appeal"].includes(
-    status
-  );
+  return false;
 }
 
 function formatWhen(iso: string): string {
@@ -117,7 +114,7 @@ export default function HistoryPage() {
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [filter, setFilter] = useState<HistoryFilter>("all");
+  const [filter, setFilter] = useState<HistoryFilter | null>(null);
   const [closedOpen, setClosedOpen] = useState(false);
   const [viewHref, setViewHref] = useState<string | null>(null);
 
@@ -176,18 +173,24 @@ export default function HistoryPage() {
 
       {/* All filters + content on one continuous scrollable page */}
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 scrollbar-hide">
-        <div className="mb-3 flex flex-wrap gap-1.5">
-          {FILTERS.map((f) => {
+        <div
+          className="mb-3 flex w-full items-stretch overflow-hidden rounded-xl"
+        >
+          {FILTERS.map((f, i) => {
             const on = filter === f.id;
             return (
               <button
                 key={f.id}
                 type="button"
-                onClick={() => setFilter(f.id)}
+                onClick={() => setFilter(filter === f.id ? null : f.id)}
                 className={cn(
-                  "rounded-full border-0 px-2.5 py-1 text-[11px] font-semibold transition",
+                  "flex-1 border-0 px-1 py-2 text-[11px] font-semibold transition",
+                  i > 0 &&
+                    (isLight
+                      ? "border-l border-black/20"
+                      : "border-l border-white/20"),
                   on
-                    ? "bg-[#2c2c2e] text-white"
+                    ? "bg-[#FF6B35] text-white"
                     : isLight
                       ? "bg-black/[0.06] text-slate-700"
                       : "bg-white/10 text-white/80"
@@ -200,8 +203,7 @@ export default function HistoryPage() {
         </div>
 
         <p className={cn("mb-3 text-[11px] font-medium leading-snug", muted)}>
-          Closed jobs on one page. Within 48 hours after you confirm satisfaction,
-          you can open a dispute from the job page.
+          You can still dispute a closed job within 48 hours after job Finished.
         </p>
 
         {loading && (
@@ -220,9 +222,9 @@ export default function HistoryPage() {
               No history yet
             </p>
             <p className={cn("mt-1 text-[12px] font-medium", muted)}>
-              {filter === "all"
+              {filter == null
                 ? "Finished and cancelled jobs will appear here."
-                : `No ${FILTERS.find((x) => x.id === filter)?.label.toLowerCase()} jobs.`}
+                : `No ${FILTERS.find((x) => x.id === filter)?.label.toLowerCase()} jobs yet.`}
             </p>
           </div>
         )}
@@ -237,10 +239,13 @@ export default function HistoryPage() {
             const skill =
               PRO_SERVICE_LABELS[j.serviceType] ?? j.serviceType;
             const when = formatWhen(j.updatedAt || j.createdAt);
+            const total = jobTotalMajor(j.agreedMajor, j.calloutQuote);
             const price =
-              j.agreedMajor != null
-                ? formatMoney(j.agreedMajor, j.currency)
-                : null;
+              total != null
+                ? formatMoney(total, j.currency)
+                : j.agreedMajor != null
+                  ? formatMoney(j.agreedMajor, j.currency)
+                  : null;
             return (
               <button
                 key={j.id}

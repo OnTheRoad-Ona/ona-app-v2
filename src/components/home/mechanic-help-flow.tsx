@@ -9,7 +9,10 @@ import type { JobMedia } from "@/lib/jobs/types";
 import { compressImageFile } from "@/lib/image-compress";
 import type { CalloutUrgencyKind } from "@/lib/callout/urgency";
 import {
-  applyConfirmChoice,
+  nearestProDistanceKm,
+  useAutoCalloutUrgency,
+} from "@/lib/callout/use-auto-urgency";
+import {
   canAdvanceText,
   composeMechanicProblem,
   confirmQuestion,
@@ -39,9 +42,9 @@ const URGENCY_CHIPS: {
   fee: string;
 }[] = [
   { id: "normal", label: MECHANIC_FINAL_COPY.normal, fee: "1x · base + call-out" },
-  { id: "emergency", label: MECHANIC_FINAL_COPY.emergency, fee: "1.25x" },
-  { id: "remote", label: MECHANIC_FINAL_COPY.remote, fee: "1.35x" },
-  { id: "night", label: MECHANIC_FINAL_COPY.night, fee: "1.5x" },
+  { id: "emergency", label: MECHANIC_FINAL_COPY.emergency, fee: "1.25x · base + call-out" },
+  { id: "remote", label: MECHANIC_FINAL_COPY.remote, fee: "1.35x · base + call-out" },
+  { id: "night", label: MECHANIC_FINAL_COPY.night, fee: "1.5x · base + call-out" },
 ];
 
 type FinalStep = "urgency" | "photos" | "voice" | "location";
@@ -57,6 +60,7 @@ interface MechFlowSnapshot {
   manualVehicles: MotoristVehicle[];
   draft: string;
   route: MechanicRoute | null;
+  confirmStage: "primary" | "alternate";
   chosenTrade: ProService;
   urgency: CalloutUrgencyKind;
   photos: JobMedia[];
@@ -84,6 +88,7 @@ export function MechanicHelpFlow({
     helpingSomeoneElse,
     helpingSomeoneLabel,
     updateUserProfile,
+    visibleTechnicians,
   } = useApp();
 
   const [stack, setStack] = useState<string[]>(["vehicle"]);
@@ -93,8 +98,16 @@ export function MechanicHelpFlow({
   const [draft, setDraft] = useState("");
   const [dir, setDir] = useState<"fwd" | "back">("fwd");
   const [route, setRoute] = useState<MechanicRoute | null>(null);
+  const [confirmStage, setConfirmStage] = useState<"primary" | "alternate">(
+    "primary"
+  );
   const [chosenTrade, setChosenTrade] = useState<ProService>("mechanic");
-  const [urgency, setUrgency] = useState<CalloutUrgencyKind>("normal");
+  const { urgency, setUrgency, restoreUrgency } = useAutoCalloutUrgency({
+    unsafe: ["c_safe", "d_safe", "f_safe"].some(
+      (k) => answers[k] === "no"
+    ),
+    distanceKm: nearestProDistanceKm(visibleTechnicians, [chosenTrade]),
+  });
   const [photos, setPhotos] = useState<JobMedia[]>([]);
   const [voiceNote, setVoiceNote] = useState<JobMedia | null>(null);
   const [landmark, setLandmark] = useState(location.label || "");
@@ -175,8 +188,9 @@ export function MechanicHelpFlow({
       setManualVehicles(snap.manualVehicles ?? []);
       setDraft(snap.draft ?? "");
       setRoute(snap.route ?? null);
+      setConfirmStage(snap.confirmStage ?? "primary");
       if (snap.chosenTrade) setChosenTrade(snap.chosenTrade);
-      if (snap.urgency) setUrgency(snap.urgency);
+      if (snap.urgency) restoreUrgency(snap.urgency);
       setPhotos(snap.photos ?? []);
       setVoiceNote(snap.voiceNote ?? null);
       setLandmark(snap.landmark || location.label || "");
@@ -199,6 +213,7 @@ export function MechanicHelpFlow({
       manualVehicles,
       draft,
       route,
+      confirmStage,
       chosenTrade,
       urgency,
       photos,
@@ -222,6 +237,7 @@ export function MechanicHelpFlow({
     manualVehicles,
     draft,
     route,
+    confirmStage,
     chosenTrade,
     urgency,
     photos,
@@ -245,6 +261,7 @@ export function MechanicHelpFlow({
       const resolved = resolveMechanicRoute(nextAnswers);
       setRoute(resolved);
       setChosenTrade(resolved.trade);
+      if (next === "confirm") setConfirmStage("primary");
     }
     setStack((prev) => [...prev, next]);
   };
@@ -335,7 +352,6 @@ export function MechanicHelpFlow({
     }
     const trade: ProService = chosenTrade;
     const problem = [
-      vehicleLabel ? `Vehicle: ${vehicleLabel}` : "",
       composeMechanicProblem(answers, extra, landmark),
     ]
       .filter(Boolean)
@@ -397,7 +413,22 @@ export function MechanicHelpFlow({
 
   const acceptRoute = (yes: boolean) => {
     if (!route) return;
-    setChosenTrade(applyConfirmChoice(route, yes));
+    if (yes) {
+      setChosenTrade(
+        confirmStage === "primary"
+          ? route.trade
+          : route.alternate ?? "mechanic"
+      );
+      setDir("fwd");
+      setFinalStep("urgency");
+      setStack((s) => [...s, "final"]);
+      return;
+    }
+    if (confirmStage === "primary" && route.alternate) {
+      setConfirmStage("alternate");
+      return;
+    }
+    setChosenTrade("mechanic");
     setDir("fwd");
     setFinalStep("urgency");
     setStack((s) => [...s, "final"]);
@@ -430,6 +461,17 @@ export function MechanicHelpFlow({
           : "voice"
     );
   };
+
+  useEffect(() => {
+    if (step === "final" && finalStep === "location" && pickedLoc) {
+      clearAdvanceTimer();
+      advanceTimerRef.current = window.setTimeout(() => {
+        advanceTimerRef.current = null;
+        void send();
+      }, 2000);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, finalStep, pickedLoc]);
 
   return (
     <div
@@ -470,10 +512,13 @@ export function MechanicHelpFlow({
             setVehicleLabel(next);
             setError(null);
           }}
-          onPick={(next) => {
+          onPick={(next, vehicle) => {
             setVehicleLabel(next);
             setError(null);
-            push("start", answers);
+            push("start", {
+              ...answers,
+              ...(vehicle?.powertrain ? { powertrain: vehicle.powertrain } : {}),
+            });
           }}
           onSaveVehicle={saveVehicle}
           onBack={() => (stack.length > 1 ? goBack() : handleExit())}
@@ -613,26 +658,11 @@ export function MechanicHelpFlow({
                       <AddressAutocomplete
                         className="-mx-3"
                         value={pickedLoc}
-                        autoLocate={location.coordinates}
                         onChange={(loc) => {
                           setPickedLoc(loc);
                           setLandmark(loc.label || landmark);
                         }}
                       />
-                      <label className="block">
-                        <span className={cn("text-[12px] font-bold", ink)}>
-                          {MECHANIC_FINAL_COPY.extra}
-                        </span>
-                        <textarea
-                          value={extra}
-                          onChange={(e) => setExtra(e.target.value)}
-                          rows={2}
-                          className={cn(
-                            "mt-1 w-full resize-none rounded-xl border-0 px-3 py-2 text-[13px] font-medium outline-none",
-                            field
-                          )}
-                        />
-                      </label>
                     </div>
                   ) : null}
                 </div>
@@ -752,7 +782,11 @@ export function MechanicHelpFlow({
         {step === "confirm" && route ? (
           <div>
             <p className={cn("text-[14px] font-bold", ink)}>
-              {confirmQuestion(route.trade)}
+              {confirmQuestion(
+                confirmStage === "primary"
+                  ? route.trade
+                  : route.alternate ?? "mechanic"
+              )}
             </p>
             <div className="mt-2 flex gap-2">
               <button

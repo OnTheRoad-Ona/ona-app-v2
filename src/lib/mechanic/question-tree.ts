@@ -10,8 +10,9 @@ export const MECHANIC_FINAL_COPY = {
   night: "Night service needed",
   photos: "Add clear photos (at most 4)",
   voice: "Record a short voice note describing the problem",
-  location: "Enter exact location",
+  location: "Current Location",
   extra: "Any other detail you want the repair pro to know?",
+  diagnosis: "Likely problem",
 } as const;
 
 export const MECHANIC_MIN_PHOTOS = 0;
@@ -36,6 +37,7 @@ export type MechanicRoute = {
   trade: ProService;
   alternate?: ProService;
   needsConfirm: boolean;
+  diagnosis?: string;
 };
 
 export const MECHANIC_START_OPTIONS: MechanicOption[] = [
@@ -52,6 +54,7 @@ export const MECHANIC_START_OPTIONS: MechanicOption[] = [
   { id: "H", label: "Body damage, dent, or accident-related" },
   { id: "I", label: "Tyre or wheel problem" },
   { id: "J", label: "Something else / I am not sure" },
+  { id: "K", label: "Electric vehicle (EV) problem" },
 ];
 
 const YES_NO: MechanicOption[] = [
@@ -279,9 +282,9 @@ export const MECHANIC_SCREENS: Record<string, MechanicScreen> = {
     kind: "text",
     placeholder: "Where is the leak coming from?",
   },
-  f_unsafe: {
-    id: "f_unsafe",
-    question: "Is the vehicle unsafe to drive?",
+  f_safe: {
+    id: "f_safe",
+    question: "Is the vehicle safe to drive?",
     kind: "choice",
     options: YES_NO,
   },
@@ -292,6 +295,19 @@ export const MECHANIC_SCREENS: Record<string, MechanicScreen> = {
     options: [
       { id: "manual", label: "Manual" },
       { id: "automatic", label: "Automatic" },
+      { id: "hybrid", label: "Hybrid" },
+      { id: "electric", label: "Electric" },
+    ],
+  },
+  g_ev: {
+    id: "g_ev",
+    question: "Which EV drivetrain symptom?",
+    kind: "choice",
+    options: [
+      { id: "no_drive", label: "No drive / won't move" },
+      { id: "loss_power", label: "Loss of power while driving" },
+      { id: "noise", label: "Whining or unusual noise" },
+      { id: "warning", label: "Motor or powertrain warning light" },
     ],
   },
   g_what: {
@@ -430,6 +446,24 @@ export const MECHANIC_SCREENS: Record<string, MechanicScreen> = {
       { id: "painter", label: "Painter" },
     ],
   },
+  ev_issue: {
+    id: "ev_issue",
+    question: "Which EV issue?",
+    kind: "choice",
+    options: [
+      { id: "charging", label: "Charging problem / won't charge" },
+      { id: "battery", label: "Battery / range problem" },
+      { id: "motor_no_drive", label: "No drive / motor problem" },
+      { id: "won_t_start", label: "Won't start (silent or weak)" },
+      { id: "other", label: "Other EV issue" },
+    ],
+  },
+  ev_other: {
+    id: "ev_other",
+    question: "Please describe the EV problem in your own words.",
+    kind: "text",
+    placeholder: "Please describe the EV problem in your own words.",
+  },
 };
 
 const START_NEXT: Record<string, string> = {
@@ -443,6 +477,7 @@ const START_NEXT: Record<string, string> = {
   H: "i_accident",
   I: "j_kind",
   J: "l_describe",
+  K: "ev_issue",
 };
 
 function resolveScreen(answers: Record<string, string>): "confirm" | "final" {
@@ -458,7 +493,12 @@ export function nextMechanicScreen(
   answerId: string,
   answers: Record<string, string>
 ): string {
-  if (current === "start") return START_NEXT[answerId] || "l_describe";
+  if (current === "start") {
+    if (answers.powertrain === "Electric" && answerId === "G") {
+      return "g_ev";
+    }
+    return START_NEXT[answerId] || "l_describe";
+  }
 
   if (current === "a_what") return "a_lights";
   if (current === "a_lights") return "a_when";
@@ -488,11 +528,15 @@ export function nextMechanicScreen(
   if (current === "e_where") return resolveScreen(answers);
 
   if (current === "f_color") return "f_where";
-  if (current === "f_where") return "f_unsafe";
-  if (current === "f_unsafe") return resolveScreen(answers);
+  if (current === "f_where") return "f_safe";
+  if (current === "f_safe") return resolveScreen(answers);
 
-  if (current === "g_type") return "g_what";
+  if (current === "g_type") {
+    if (answerId === "electric") return "g_ev";
+    return "g_what";
+  }
   if (current === "g_what") return resolveScreen(answers);
+  if (current === "g_ev") return resolveScreen(answers);
 
   if (current === "h_light") return "h_parts";
   if (current === "h_parts") return resolveScreen(answers);
@@ -520,7 +564,124 @@ export function nextMechanicScreen(
     return resolveScreen(answers);
   }
 
+  if (current === "ev_issue") {
+    if (answerId === "other") return "ev_other";
+    return resolveScreen(answers);
+  }
+  if (current === "ev_other") return resolveScreen(answers);
+
   return "final";
+}
+
+/**
+ * Narrow the answers down to the most likely problem. This is a plain-language
+ * "Likely problem" line that rides along in the job summary so the pro arrives
+ * with the real issue already identified — not a trade guess.
+ */
+export function mechanicDiagnosis(
+  answers: Record<string, string>
+): string | undefined {
+  const main = answers.start;
+
+  if (main === "A") {
+    const what = answers.a_what;
+    const lights = answers.a_lights;
+    if (what === "silent" && lights === "none") {
+      return "Likely a dead battery or a blown fuse";
+    }
+    if (what === "lights_no_crank") {
+      return "Likely a battery or starting-circuit fault";
+    }
+    if (what === "weak_crank") {
+      return "Likely a weak or failing battery";
+    }
+    if (what === "silent") {
+      return "Likely a starter or electrical fault";
+    }
+    return "Likely a fuel, spark, or sensor fault preventing start";
+  }
+
+  if (main === "B") {
+    if (answers.b_how === "suddenly" && answers.b_warning === "battery") {
+      return "Likely a charging or electrical fault";
+    }
+    if (answers.b_how === "suddenly") {
+      return "Likely a fuel or ignition fault that cut power";
+    }
+    if (answers.b_how === "shook") {
+      return "Likely a fuel or ignition fault under load";
+    }
+    return "Likely a fuel or engine-management fault";
+  }
+
+  if (main === "C") {
+    if (
+      answers.c_where === "wheels" ||
+      answers.c_when === "turning" ||
+      answers.c_when === "braking"
+    ) {
+      return "Likely a wheel, brake, or suspension issue";
+    }
+    if (answers.c_where === "under") {
+      return "Likely an exhaust, mount, or underbody issue";
+    }
+    return "Likely an engine or drivetrain noise";
+  }
+
+  if (main === "D") {
+    if (answers.d_ac === "yes") return "Likely related to recent A/C work";
+    if (answers.d_red === "yes") {
+      return "Likely a cooling-system fault (thermostat, fan, or coolant)";
+    }
+    return "Likely a cooling-system fault";
+  }
+
+  if (main === "E") {
+    if (answers.e_color === "white") return "Likely coolant burning";
+    if (answers.e_color === "blue") return "Likely oil burning (engine or turbo)";
+    if (answers.e_color === "black") return "Likely a fuel or air mixture issue";
+    return "Likely an electrical short or burnt component";
+  }
+
+  if (main === "F") {
+    if (answers.f_color === "coolant") return "Likely a coolant leak";
+    if (answers.f_color === "oil") return "Likely an oil leak";
+    return "Likely a fuel or brake-fluid leak";
+  }
+
+  if (main === "G") {
+    if (answers.g_type === "electric" || answers.g_ev) {
+      if (answers.g_ev === "no_drive") return "Vehicle has no drive (EV motor or inverter fault)";
+      if (answers.g_ev === "loss_power") return "Likely an EV motor or inverter fault";
+      if (answers.g_ev === "warning") return "EV powertrain warning light on";
+      return "Likely an EV motor or drivetrain noise";
+    }
+    if (answers.g_what === "no_drive") return "Vehicle has no drive";
+    if (answers.g_what === "slipping") return "Likely a slipping clutch or transmission";
+    if (answers.g_what === "hard") return "Likely a gearbox or clutch engagement fault";
+    return "Likely a transmission fault";
+  }
+
+  if (main === "K") {
+    if (answers.ev_issue === "charging") {
+      return "Likely an EV charging fault (charger, cable, or charge port)";
+    }
+    if (answers.ev_issue === "battery") {
+      return "Likely an EV high-voltage (HV) battery or range fault";
+    }
+    if (answers.ev_issue === "motor_no_drive") {
+      return "Likely an EV motor or inverter fault";
+    }
+    if (answers.ev_issue === "won_t_start") {
+      return "Likely an EV 12V auxiliary battery or start-controller fault";
+    }
+    return "EV problem (customer described)";
+  }
+
+  if (main === "H") return "Body and panel damage";
+  if (main === "I") return "Tyre or wheel issue";
+
+  return undefined;
 }
 
 /**
@@ -530,9 +691,11 @@ export function nextMechanicScreen(
 export function resolveMechanicRoute(
   answers: Record<string, string>
 ): MechanicRoute {
+  const diagnosis = mechanicDiagnosis(answers);
   const stay = (): MechanicRoute => ({
     trade: "mechanic",
     needsConfirm: false,
+    diagnosis,
   });
   const leave = (
     trade: ProService,
@@ -541,17 +704,22 @@ export function resolveMechanicRoute(
     trade,
     alternate,
     needsConfirm: trade !== "mechanic",
+    diagnosis,
   });
 
-  if (
-    answers.a_danger === "yes" ||
+  // Tow rule: the customer said the vehicle can still move (safe-to-drive
+  // answer "yes") → never route to Tow from a driveability answer. A
+  // dangerous-location / multi-tyre flag may still warrant Tow on its own.
+  const unsafeToDrive =
     answers.b_move === "no" ||
     answers.c_safe === "no" ||
     answers.d_safe === "no" ||
-    answers.f_unsafe === "yes" ||
-    answers.i_driveable === "no" ||
-    answers.j_multi === "yes"
-  ) {
+    answers.f_safe === "no" ||
+    answers.i_driveable === "no";
+  const unsafeLocation =
+    answers.a_danger === "yes" || answers.j_multi === "yes";
+
+  if (unsafeToDrive || unsafeLocation) {
     return leave("towing");
   }
 
@@ -606,7 +774,22 @@ export function resolveMechanicRoute(
   if (main === "F") return stay();
 
   if (main === "G") {
-    if (answers.g_what === "no_drive") return leave("towing");
+    if (answers.g_what === "no_drive" || answers.g_ev === "no_drive") {
+      return leave("towing");
+    }
+    if (answers.g_type === "electric" || answers.g_ev) {
+      return leave("electrical", "mechanic");
+    }
+    return stay();
+  }
+
+  if (main === "K") {
+    if (answers.ev_issue === "charging") return leave("electrical", "mechanic");
+    if (answers.ev_issue === "battery") return leave("battery", "electrical");
+    if (answers.ev_issue === "motor_no_drive") {
+      return leave("towing");
+    }
+    if (answers.ev_issue === "won_t_start") return leave("battery", "electrical");
     return stay();
   }
 
@@ -700,6 +883,11 @@ export function composeMechanicProblem(
   if (extra.trim()) {
     lines.push(MECHANIC_FINAL_COPY.extra);
     lines.push(extra.trim());
+  }
+  const diagnosis = mechanicDiagnosis(answers);
+  if (diagnosis) {
+    lines.push(MECHANIC_FINAL_COPY.diagnosis);
+    lines.push(diagnosis);
   }
   return lines.filter(Boolean).join("\n");
 }

@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { Fragment, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { cleanAddressLabel } from "@/lib/google-maps";
 
 /**
  * Parses the composed `job.problem` blob into readable Q&A rows.
@@ -24,6 +25,45 @@ export interface JobProblemRow {
   answer: string;
 }
 
+/** When the card title already shows the vehicle (lower panel), drop both the
+ *  `Vehicle:` label row and the "Which vehicle?" question so the vehicle is
+ *  never repeated. */
+export function filterHiddenVehicleRows(
+  rows: JobProblemRow[],
+  hideVehicleRow: boolean
+): JobProblemRow[] {
+  if (!hideVehicleRow) return rows;
+  return rows.filter(
+    (r) =>
+      r.label !== "Vehicle" && !/which vehicle\??$/i.test(r.label.trim())
+  );
+}
+
+/** A bare coordinate string like "6.42810, 3.42190" — reverse geocoding failed
+ *  and the app fell back to raw lat/lng. Never show that to a pro. */
+export const COORDINATES_ONLY_RE = /^-?\d{1,2}(\.\d+)?,\s*-?\d{1,2}(\.\d+)?$/;
+
+/** Location answers should be an address only — drop the row when its only
+ *  content is raw latitude/longitude, and strip plus-codes from the rest. */
+export function stripCoordinateLocations(
+  rows: JobProblemRow[]
+): JobProblemRow[] {
+  return rows
+    .map((r) => {
+      if (!isLocationRow(r)) return r;
+      return { ...r, answer: cleanAddressLabel(r.answer) };
+    })
+    .filter((r) => {
+      if (!isLocationRow(r)) return true;
+      return Boolean(r.answer) && !COORDINATES_ONLY_RE.test(r.answer);
+    });
+}
+
+function isLocationRow(r: JobProblemRow): boolean {
+  const label = r.label.toLowerCase();
+  return label.includes("location") || label.includes("landmark");
+}
+
 export interface ParsedJobProblem {
   summary: string | null;
   rows: JobProblemRow[];
@@ -32,7 +72,51 @@ export interface ParsedJobProblem {
 
 const F2_SUMMARY = /^(?:[A-Za-z /]+ work|Work needed):\s*(.+?)\s*\((.*)\)$/i;
 const LABELED_LINE =
-  /^(Location \/ landmark|Location|Extra detail|Extra|Service):\s*(.+)$/i;
+  /^(Location \/ landmark|Location|Extra detail|Extra|Service|Vehicle):\s*(.+)$/i;
+
+function isQuestionLine(line: string): boolean {
+  return line.endsWith("?");
+}
+
+function pairAlternatingLines(lines: string[]): {
+  rows: JobProblemRow[];
+  notes: string[];
+} {
+  const rows: JobProblemRow[] = [];
+  const notes: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    const labeled = line.match(LABELED_LINE);
+    if (labeled) {
+      rows.push({ label: labeled[1], answer: labeled[2].trim() });
+      i += 1;
+      continue;
+    }
+    const qi = line.lastIndexOf("?");
+    if (qi >= 0 && qi < line.length - 1) {
+      rows.push({
+        label: line.slice(0, qi + 1).trim(),
+        answer: line.slice(qi + 1).trim(),
+      });
+      i += 1;
+      continue;
+    }
+    const next = lines[i + 1];
+    const nextIsAnswer =
+      Boolean(next) &&
+      !isQuestionLine(next) &&
+      !LABELED_LINE.test(next);
+    if (nextIsAnswer) {
+      rows.push({ label: line, answer: next });
+      i += 2;
+      continue;
+    }
+    notes.push(line);
+    i += 1;
+  }
+  return { rows, notes };
+}
 
 export function parseJobProblem(problem: string): ParsedJobProblem {
   const lines = (problem || "")
@@ -79,34 +163,43 @@ export function parseJobProblem(problem: string): ParsedJobProblem {
     return { summary, rows, notes };
   }
 
-  // Alternating format: question line then answer line, strictly paired.
-  const rows: JobProblemRow[] = [];
-  for (let i = 0; i < lines.length; i += 2) {
-    rows.push({ label: lines[i], answer: lines[i + 1] ?? "" });
-  }
-  return { summary, rows, notes: [] };
+  // Alternating format: labeled lines stand alone; each question pairs
+  // with the following answer. A leading "Vehicle: …" must not shift
+  // every pair one line off.
+  const paired = pairAlternatingLines(lines);
+  return { summary, rows: paired.rows, notes: paired.notes };
 }
 
 export function JobProblemQA({
   problem,
   isLight,
   transparent = false,
+  compact = false,
   pageSize,
+  hideVehicleRow = false,
 }: {
   problem: string;
   isLight: boolean;
   /** Plain-text rows on the theme color — no row cards or summary highlight. */
   transparent?: boolean;
+  /** Customer list: full Q&A, tight gaps, no Next. */
+  compact?: boolean;
   /** When set, page through the Q&A `pageSize` rows at a time. */
   pageSize?: number;
+  /** Pro lower-panel only: the vehicle is already the card title. */
+  hideVehicleRow?: boolean;
 }) {
-  const parsed = useMemo(() => parseJobProblem(problem), [problem]);
+  const parsed = useMemo(() => {
+    const p = parseJobProblem(problem);
+    return { ...p, rows: stripCoordinateLocations(p.rows) };
+  }, [problem]);
   const [offset, setOffset] = useState(0);
   const ink = isLight ? "text-slate-900" : "text-white";
-  const muted = isLight ? "text-slate-500" : "text-white/50";
   const rowCard = isLight ? "bg-black/[0.02]" : "bg-white/[0.02]";
 
-  if (!parsed.rows.length && !parsed.summary && !parsed.notes.length) {
+  const baseRows = filterHiddenVehicleRows(parsed.rows, hideVehicleRow);
+
+  if (!baseRows.length && !parsed.summary && !parsed.notes.length) {
     return (
       <p className={cn("text-[15px] font-medium leading-relaxed", ink)}>
         {problem}
@@ -114,15 +207,93 @@ export function JobProblemQA({
     );
   }
 
-  const rows = pageSize ? parsed.rows.slice(offset, offset + pageSize) : parsed.rows;
-  const hasMore = Boolean(pageSize && offset + pageSize < parsed.rows.length);
+  const allItems = [
+    ...baseRows,
+    ...parsed.notes.map((note) => ({ label: "Location", answer: note })),
+  ];
+  const items =
+    pageSize && !compact
+      ? allItems.slice(offset, offset + pageSize)
+      : allItems;
+  const hasMore = Boolean(
+    !compact && pageSize && offset + pageSize < allItems.length
+  );
   const advance = () =>
-    setOffset((o) => Math.min(o + (pageSize || 0), parsed.rows.length));
+    setOffset((o) => Math.min(o + (pageSize || 0), allItems.length));
+  const retreat = () =>
+    setOffset((o) => Math.max(o - (pageSize || 0), 0));
+
+  const questionCls = cn(
+    compact ? "text-[11.5px] font-semibold leading-tight" : "text-[13px] font-semibold leading-snug",
+    isLight ? "text-slate-700" : "text-white/75"
+  );
+  const answerCls = cn(
+    compact ? "mt-px text-[12.5px] font-bold leading-tight" : transparent ? "mt-0.5" : "mt-1",
+    compact ? "" : "text-[15px] font-bold leading-snug",
+    ink
+  );
+  const sepCls = cn("h-px w-full", isLight ? "bg-black/10" : "bg-white/10");
+
+  const chevronDivider = (
+    <div className="flex items-center">
+      <div className="shrink-0">
+        {offset > 0 ? (
+          <button
+            type="button"
+            onClick={retreat}
+            aria-label="Show previous questions"
+            className="border-0 bg-transparent p-0"
+          >
+            <span
+              className={cn(
+                "om-bounce-arrow-back flex h-5 w-5 items-center justify-center rounded-full",
+                isLight
+                  ? "bg-[#c8c9cd] text-slate-900 shadow-sm"
+                  : "bg-black text-white shadow-sm"
+              )}
+            >
+              <ChevronLeft className="h-3 w-3" strokeWidth={2.75} />
+            </span>
+          </button>
+        ) : (
+          <span className="block h-5 w-5" aria-hidden="true" />
+        )}
+      </div>
+      <div className={cn(sepCls, "flex-1")} />
+      <div className="shrink-0">
+        {hasMore ? (
+          <button
+            type="button"
+            onClick={advance}
+            aria-label="Show more questions"
+            className="border-0 bg-transparent p-0"
+          >
+            <span
+              className={cn(
+                "om-bounce-arrow flex h-6 w-6 items-center justify-center rounded-full",
+                isLight
+                  ? "bg-[#c8c9cd] text-slate-900 shadow-sm"
+                  : "bg-black text-white shadow-sm"
+              )}
+            >
+              <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.75} />
+            </span>
+          </button>
+        ) : (
+          <span className="block h-6 w-6" aria-hidden="true" />
+        )}
+      </div>
+    </div>
+  );
 
   return (
-    <div className="mt-1 space-y-1.5">
+    <div
+      className={cn(
+        compact ? "mt-0.5 space-y-0.5" : transparent ? "mt-2.5 space-y-1.5" : "mt-1 space-y-1.5"
+      )}
+    >
       {parsed.summary ? (
-        transparent ? (
+        transparent || compact ? (
           <p className="text-[13px] font-bold leading-snug text-[#FF6B35]">
             {parsed.summary}
           </p>
@@ -134,89 +305,30 @@ export function JobProblemQA({
           </div>
         )
       ) : null}
-      {rows.map((row, i) =>
-        transparent ? (
-          <div key={i}>
-            <p
-              className={cn(
-                "text-[10px] font-semibold uppercase tracking-wide leading-snug",
-                muted
-              )}
-            >
-              {row.label}
-            </p>
-            <p className={cn("mt-0.5 text-[13px] font-bold leading-snug", ink)}>
-              {row.answer}
-            </p>
-          </div>
-        ) : (
-          <div key={i} className={cn("rounded-[4px] px-2.5 py-2", rowCard)}>
-            <p
-              className={cn(
-                "text-[10px] font-semibold uppercase tracking-wide leading-snug",
-                muted
-              )}
-            >
-              {row.label}
-            </p>
-            <p className={cn("mt-0.5 text-[13px] font-bold leading-snug", ink)}>
-              {row.answer}
-            </p>
-          </div>
-        )
-      )}
-      {parsed.notes.map((note, i) =>
-        transparent ? (
-          <div key={`n${i}`}>
-            <p
-              className={cn(
-                "text-[10px] font-semibold uppercase tracking-wide",
-                muted
-              )}
-            >
-              Note
-            </p>
-            <p className={cn("mt-0.5 text-[13px] font-bold leading-snug", ink)}>
-              {note}
-            </p>
-          </div>
-        ) : (
-          <div key={`n${i}`} className={cn("rounded-[4px] px-2.5 py-2", rowCard)}>
-            <p
-              className={cn(
-                "text-[10px] font-semibold uppercase tracking-wide",
-                muted
-              )}
-            >
-              Note
-            </p>
-            <p className={cn("mt-0.5 text-[13px] font-bold leading-snug", ink)}>
-              {note}
-            </p>
-          </div>
-        )
-      )}
-      {hasMore ? (
-        <div className="flex justify-end pt-0.5">
-          <button
-            type="button"
-            onClick={advance}
-            aria-label="Show more questions"
-            className="border-0 bg-transparent p-0"
+      {items.map((row, i) => (
+        <Fragment key={i}>
+          <div
+            className={
+              transparent || compact
+                ? "px-0 py-0"
+                : cn("rounded-[4px] px-2.5 py-2", rowCard)
+            }
           >
-            <span
-              className={cn(
-                "om-bounce-arrow flex h-5 w-5 items-center justify-center rounded-full",
-                isLight
-                  ? "bg-white/90 text-black shadow-sm ring-1 ring-black/8"
-                  : "bg-white/15 text-white ring-1 ring-white/15"
-              )}
-            >
-              <ChevronRight className="h-3 w-3" strokeWidth={2.75} />
-            </span>
-          </button>
-        </div>
-      ) : null}
+            <p className={questionCls}>{row.label}</p>
+            <p className={answerCls}>{row.answer}</p>
+          </div>
+          {!compact && i < items.length - 1 ? (
+            i === items.length - 2 && (hasMore || offset > 0) ? (
+              chevronDivider
+            ) : (
+              <div className={sepCls} />
+            )
+          ) : null}
+        </Fragment>
+      ))}
+      {!compact && items.length === 1 && (hasMore || offset > 0)
+        ? chevronDivider
+        : null}
     </div>
   );
 }

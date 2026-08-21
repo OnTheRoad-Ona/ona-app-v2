@@ -59,7 +59,7 @@ export function JobVehicleStep({
   label: string;
   onChange: (label: string) => void;
   /** Tapping a saved vehicle advances to the next question. */
-  onPick?: (label: string) => void;
+  onPick?: (label: string, vehicle?: MotoristVehicle) => void;
   /** Persist a manually entered vehicle. Returns an error string or null. */
   onSaveVehicle?: (vehicle: MotoristVehicle) => string | null;
   /** When set, renders a pinned Back bar (with Save vehicle in manual mode). */
@@ -70,6 +70,7 @@ export function JobVehicleStep({
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [year, setYear] = useState("");
+  const [powertrain, setPowertrain] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const ink = isLight ? "text-slate-900" : "text-white";
@@ -107,6 +108,7 @@ export function JobVehicleStep({
       model: model.trim(),
       year: year.trim() || undefined,
       vehicleType: vehicleType.trim() || undefined,
+      powertrain: powertrain.trim() || undefined,
     };
     if (onSaveVehicle) {
       const err = onSaveVehicle(saved);
@@ -121,7 +123,8 @@ export function JobVehicleStep({
 
   const pickVehicle = (text: string) => {
     onChange(text);
-    onPick?.(text);
+    const picked = vehicles.find((v) => formatVehicleLabel(v) === text);
+    onPick?.(text, picked);
   };
 
   const nextGray = isLight
@@ -194,6 +197,11 @@ export function JobVehicleStep({
         onVehicleTypeChange={(v) => {
           setVehicleType(v);
           pushManual(v, make, model, year);
+        }}
+        powertrain={powertrain}
+        onPowertrainChange={(v) => {
+          setPowertrain(v);
+          pushManual(vehicleType, make, model, year);
         }}
         make={make}
         model={model}

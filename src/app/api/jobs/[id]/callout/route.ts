@@ -1,7 +1,7 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { isJobParty, requireUser } from "@/lib/server/auth-utils";
 import { getJob } from "@/lib/server/jobs/job-store";
-import { getCalloutQuote } from "@/lib/server/callout/store";
+import { resolveJobCalloutQuote } from "@/lib/server/callout/resolve";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export async function GET(
     if (!isJobParty(auth.userId, job)) {
       return apiFail("Forbidden", 403, "forbidden");
     }
-    const quote = await getCalloutQuote(id);
+    const quote = await resolveJobCalloutQuote(job);
     return apiOk({
       quote,
       labour: {

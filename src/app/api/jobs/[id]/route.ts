@@ -1,5 +1,6 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { isJobParty, requireUser } from "@/lib/server/auth-utils";
+import { resolveJobCalloutQuote } from "@/lib/server/callout/resolve";
 import { getJob } from "@/lib/server/jobs/job-store";
 
 export const runtime = "nodejs";
@@ -14,7 +15,16 @@ async function loadJobForUser(req: Request, id: string, bodyToken?: string | nul
   if (!isJobParty(auth.userId, job)) {
     return apiFail("Forbidden", 403, "forbidden");
   }
-  return apiOk({ job, serverNow: new Date().toISOString() });
+  let calloutQuote = job.calloutQuote ?? null;
+  try {
+    calloutQuote = (await resolveJobCalloutQuote(job)) ?? calloutQuote;
+  } catch {
+    /* job payload still returns; client can poll /callout */
+  }
+  return apiOk({
+    job: { ...job, calloutQuote },
+    serverNow: new Date().toISOString(),
+  });
 }
 
 export async function GET(

@@ -133,7 +133,7 @@ function SearchResultsBody() {
                   onOpenJob={(jobId) => router.push(`/jobs/${jobId}`)}
                   onRequest={(t) => {
                     setSelectedTechId(t.id);
-                    router.push(`/request?tech=${t.id}`);
+                    router.push(`/?trade=${t.serviceType}`);
                   }}
                 />
               </div>

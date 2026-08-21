@@ -5,17 +5,26 @@
 
 import { resolveDispatchTrades } from "@/lib/callout/dispatch-trades";
 import { isProService } from "@/lib/pro-service-id";
+import { calloutUrgencyMultiplier, isCalloutUrgencyKind } from "@/lib/callout/urgency";
 import type { ProService } from "@/lib/types";
 import {
+  AUTO_NIGHT_END_HOUR,
+  AUTO_NIGHT_START_HOUR,
+  AUTO_REMOTE_BAND_MAX_KM,
+  AUTO_REMOTE_BAND_MIN_KM,
+  CALLOUT_EXCLUDED_TRADES,
   DEFAULT_BILLING_INCREMENT_KM,
   DEFAULT_CALLOUT_POLICY,
   DEFAULT_MAXIMUM_RADIUS_KM,
   DEFAULT_MINIMUM_BILLABLE_KM,
   DEFAULT_RATE_PER_KM,
   DEFAULT_TRADE_BASE_FEES,
+  SHORT_DISTANCE_REDUCTION_MULTIPLIER,
+  SHORT_DISTANCE_THRESHOLD_KM,
   type CalloutPolicy,
   type ServiceIntent,
 } from "@/lib/callout/constants";
+import type { CalloutUrgencyKind } from "@/lib/callout/urgency";
 
 export type AttendanceFlags = {
   physicalAttendanceRequired: boolean;
@@ -82,6 +91,16 @@ export function isWithinCalloutRadius(
   return d <= maximumRadiusKm + 1e-9;
 }
 
+/**
+ * Hard per-trade exclusion: Vulcanizer and Battery NEVER charge a Call-Out
+ * Fee, regardless of distance, attendance or policy.
+ */
+export function isCalloutExcludedTrade(
+  trade: ProService | string | null | undefined
+): boolean {
+  return trade != null && CALLOUT_EXCLUDED_TRADES.has(trade as ProService);
+}
+
 export type CalloutFeeBreakdown = {
   tradeId: ProService;
   tradeBaseFee: number;
@@ -92,6 +111,8 @@ export type CalloutFeeBreakdown = {
   calloutFee: number;
   currency: string;
   withinRadius: boolean;
+  /** True when the approved route was < 500 m and both fees were × 0.40. */
+  shortDistanceReduction: boolean;
 };
 
 export function calculateCalloutFee(input: {
@@ -113,18 +134,24 @@ export function calculateCalloutFee(input: {
   const approved = kmRound(Math.max(0, Number(input.approvedRouteDistanceKm) || 0));
   const within = isWithinCalloutRadius(approved, policy.maximumRadiusKm);
   const billable = billableDistanceKm(approved, policy);
-  const distanceCharge = moneyRound(billable * rate);
-  const raw = moneyRound(base + distanceCharge);
   const mult =
     typeof input.urgencyMultiplier === "number" &&
     Number.isFinite(input.urgencyMultiplier) &&
     input.urgencyMultiplier > 0
       ? input.urgencyMultiplier
       : 1;
+  // Short-distance rule: approved route < 500 m → both Base and Call-Out are
+  // reduced by 60% (× 0.40) AFTER the multiplier. The 0.5 km billing floor
+  // still applies, then the whole call-out is discounted.
+  const short = approved < SHORT_DISTANCE_THRESHOLD_KM;
+  const discount = short ? SHORT_DISTANCE_REDUCTION_MULTIPLIER : 1;
+  const tradeBaseFee = moneyRound(base * discount);
+  const distanceCharge = moneyRound(billable * rate * discount);
+  const raw = moneyRound(tradeBaseFee + distanceCharge);
   const calloutFee = moneyRound(raw * mult);
   return {
     tradeId: input.tradeId,
-    tradeBaseFee: moneyRound(base),
+    tradeBaseFee,
     distanceRate: rate,
     approvedRouteDistanceKm: approved,
     billableDistanceKm: billable,
@@ -132,7 +159,79 @@ export function calculateCalloutFee(input: {
     calloutFee,
     currency: policy.currency || "NGN",
     withinRadius: within,
+    shortDistanceReduction: short,
   };
+}
+
+/**
+ * Resolve the multiplier that actually applies to a call-out.
+ * The customer's chip stays in effect, but AUTO-detected Remote (approved
+ * route 4.95–5.00 km) and Night (acceptance 9PM–5AM local) override it when
+ * higher. Priority: Night > Remote > Emergency > Normal — the highest
+ * multiplier wins, never stacked.
+ */
+export function resolveAppliedMultiplier(input: {
+  chipKind?: CalloutUrgencyKind | string | null;
+  chipMultiplier?: number | null;
+  approvedDistanceKm?: number | null;
+  acceptedAt?: string | number | Date | null;
+  /** IANA time zone for the Night band. Defaults to Africa/Lagos. */
+  timeZone?: string;
+}): {
+  multiplier: number;
+  kind: CalloutUrgencyKind;
+  /** True when an AUTO band (night time / remote distance) raised the fee. */
+  auto: boolean;
+} {
+  const chipKind = isCalloutUrgencyKind(input.chipKind ?? "")
+    ? (input.chipKind as CalloutUrgencyKind)
+    : "normal";
+  const chipMult =
+    typeof input.chipMultiplier === "number" &&
+    Number.isFinite(input.chipMultiplier) &&
+    input.chipMultiplier > 0
+      ? input.chipMultiplier
+      : calloutUrgencyMultiplier(chipKind);
+
+  const distance = Number(input.approvedDistanceKm);
+  const remote =
+    Number.isFinite(distance) &&
+    distance >= AUTO_REMOTE_BAND_MIN_KM &&
+    distance <= AUTO_REMOTE_BAND_MAX_KM + 1e-9;
+
+  let night = false;
+  if (input.acceptedAt != null) {
+    try {
+      const d = new Date(input.acceptedAt);
+      if (!Number.isNaN(d.getTime())) {
+        const hour = Number(
+          new Intl.DateTimeFormat("en-US", {
+            timeZone: input.timeZone || "Africa/Lagos",
+            hour: "numeric",
+            hour12: false,
+          }).format(d)
+        ) % 24;
+        night = hour >= AUTO_NIGHT_START_HOUR || hour < AUTO_NIGHT_END_HOUR;
+      }
+    } catch {
+      night = false;
+    }
+  }
+
+  const nightMult = night ? calloutUrgencyMultiplier("night") : 1;
+  const remoteMult = remote ? calloutUrgencyMultiplier("remote") : 1;
+  const multiplier = Math.max(chipMult, nightMult, remoteMult);
+
+  let kind: CalloutUrgencyKind = chipKind;
+  let auto = false;
+  if (nightMult >= remoteMult && nightMult > chipMult) {
+    kind = "night";
+    auto = true;
+  } else if (remoteMult > chipMult) {
+    kind = "remote";
+    auto = true;
+  }
+  return { multiplier, kind, auto };
 }
 
 /**

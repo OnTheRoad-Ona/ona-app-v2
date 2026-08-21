@@ -18,7 +18,7 @@ import {
 } from "@/lib/diagnostics/question-tree";
 
 describe("scan (diagnostics) question tree", () => {
-  it("offers the six start categories A–F", () => {
+  it("offers the seven start categories A–G", () => {
     expect(SCAN_START_OPTIONS.map((o) => o.id)).toEqual([
       "A",
       "B",
@@ -26,6 +26,7 @@ describe("scan (diagnostics) question tree", () => {
       "D",
       "E",
       "F",
+      "G",
     ]);
   });
 
@@ -36,6 +37,17 @@ describe("scan (diagnostics) question tree", () => {
     expect(nextScanScreen("start", "D", {})).toBe("d_routine");
     expect(nextScanScreen("start", "E", {})).toBe("e_repair");
     expect(nextScanScreen("start", "F", {})).toBe("f_describe");
+    expect(nextScanScreen("start", "G", {})).toBe("ev_scan");
+  });
+
+  it("routes the EV scan branch back to resolve, keeping Diagnostics (Electrical alternate for charging)", () => {
+    expect(nextScanScreen("ev_scan", "battery", { start: "G" })).toBe("final");
+    const route = resolveScanRoute({ start: "G", ev_scan: "charging" });
+    expect(route.trade).toBe("diagnostics");
+    expect(route.alternate).toBe("electrical");
+    const hv = resolveScanRoute({ start: "G", ev_scan: "motor" });
+    expect(hv.trade).toBe("diagnostics");
+    expect(hv.needsConfirm).toBe(false);
   });
 
   it("walks the full branch A chain to a seamless final", () => {

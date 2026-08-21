@@ -9,6 +9,10 @@ import type { JobMedia } from "@/lib/jobs/types";
 import { compressImageFile } from "@/lib/image-compress";
 import type { CalloutUrgencyKind } from "@/lib/callout/urgency";
 import {
+  nearestProDistanceKm,
+  useAutoCalloutUrgency,
+} from "@/lib/callout/use-auto-urgency";
+import {
   acScreen,
   AC_FINAL_COPY,
   AC_MAX_PHOTOS,
@@ -35,9 +39,9 @@ const URGENCY_CHIPS: {
   fee: string;
 }[] = [
   { id: "normal", label: AC_FINAL_COPY.normal, fee: "1x · base + call-out" },
-  { id: "emergency", label: AC_FINAL_COPY.emergency, fee: "1.25x" },
-  { id: "remote", label: AC_FINAL_COPY.remote, fee: "1.35x" },
-  { id: "night", label: AC_FINAL_COPY.night, fee: "1.5x" },
+  { id: "emergency", label: AC_FINAL_COPY.emergency, fee: "1.25x · base + call-out" },
+  { id: "remote", label: AC_FINAL_COPY.remote, fee: "1.35x · base + call-out" },
+  { id: "night", label: AC_FINAL_COPY.night, fee: "1.5x · base + call-out" },
 ];
 
 type FinalStep = "urgency" | "photos" | "voice" | "location";
@@ -78,6 +82,7 @@ export function AcHelpFlow({
     helpingSomeoneElse,
     helpingSomeoneLabel,
     updateUserProfile,
+    visibleTechnicians,
   } = useApp();
 
   const [stack, setStack] = useState<string[]>(["unit"]);
@@ -86,7 +91,10 @@ export function AcHelpFlow({
   const [manualVehicles, setManualVehicles] = useState<MotoristVehicle[]>([]);
   const [draft, setDraft] = useState("");
   const [dir, setDir] = useState<"fwd" | "back">("fwd");
-  const [urgency, setUrgency] = useState<CalloutUrgencyKind>("normal");
+  const { urgency, setUrgency, restoreUrgency } = useAutoCalloutUrgency({
+    unsafe: false,
+    distanceKm: nearestProDistanceKm(visibleTechnicians, ["ac"]),
+  });
   const [photos, setPhotos] = useState<JobMedia[]>([]);
   const [voiceNote, setVoiceNote] = useState<JobMedia | null>(null);
   const [landmark, setLandmark] = useState(location.label || "");
@@ -168,7 +176,7 @@ export function AcHelpFlow({
       setVehicleLabel(snap.vehicleLabel ?? "");
       setManualVehicles(snap.manualVehicles ?? []);
       setDraft(snap.draft ?? "");
-      if (snap.urgency) setUrgency(snap.urgency);
+      if (snap.urgency) restoreUrgency(snap.urgency);
       setPhotos(snap.photos ?? []);
       setVoiceNote(snap.voiceNote ?? null);
       setLandmark(snap.landmark || location.label || "");
@@ -317,7 +325,6 @@ export function AcHelpFlow({
       return;
     }
     const problem = [
-      vehicleLabel ? `Vehicle: ${vehicleLabel}` : "",
       composeAcProblem(answers, extra, landmark),
     ]
       .filter(Boolean)
@@ -404,6 +411,17 @@ export function AcHelpFlow({
           : "voice"
     );
   };
+
+  useEffect(() => {
+    if (step === "final" && finalStep === "location" && pickedLoc) {
+      clearAdvanceTimer();
+      advanceTimerRef.current = window.setTimeout(() => {
+        advanceTimerRef.current = null;
+        void send();
+      }, 2000);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, finalStep, pickedLoc]);
 
   return (
     <div
@@ -587,26 +605,11 @@ export function AcHelpFlow({
                       <AddressAutocomplete
                         className="-mx-3"
                         value={pickedLoc}
-                        autoLocate={location.coordinates}
                         onChange={(loc) => {
                           setPickedLoc(loc);
                           setLandmark(loc.label || landmark);
                         }}
                       />
-                      <label className="block">
-                        <span className={cn("text-[12px] font-bold", ink)}>
-                          {AC_FINAL_COPY.extra}
-                        </span>
-                        <textarea
-                          value={extra}
-                          onChange={(e) => setExtra(e.target.value)}
-                          rows={2}
-                          className={cn(
-                            "mt-1 w-full resize-none rounded-xl border-0 px-3 py-2 text-[13px] font-medium outline-none",
-                            field
-                          )}
-                        />
-                      </label>
                     </div>
                   ) : null}
                 </div>

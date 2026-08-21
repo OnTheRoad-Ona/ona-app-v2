@@ -9,6 +9,10 @@ import type { JobMedia } from "@/lib/jobs/types";
 import { compressImageFile } from "@/lib/image-compress";
 import type { CalloutUrgencyKind } from "@/lib/callout/urgency";
 import {
+  nearestProDistanceKm,
+  useAutoCalloutUrgency,
+} from "@/lib/callout/use-auto-urgency";
+import {
   applyTowConfirmChoice,
   canAdvanceText,
   canFindTowPro,
@@ -42,9 +46,9 @@ const URGENCY_CHIPS: {
   fee: string;
 }[] = [
   { id: "normal", label: TOW_FINAL_COPY.normal, fee: "1x · base + call-out" },
-  { id: "emergency", label: TOW_FINAL_COPY.emergency, fee: "1.25x" },
-  { id: "remote", label: TOW_FINAL_COPY.remote, fee: "1.35x" },
-  { id: "night", label: TOW_FINAL_COPY.night, fee: "1.5x" },
+  { id: "emergency", label: TOW_FINAL_COPY.emergency, fee: "1.25x · base + call-out" },
+  { id: "remote", label: TOW_FINAL_COPY.remote, fee: "1.35x · base + call-out" },
+  { id: "night", label: TOW_FINAL_COPY.night, fee: "1.5x · base + call-out" },
 ];
 
 const MEET_PRO_OPTIONS: ProService[] = [
@@ -63,7 +67,6 @@ type FinalStep =
   | "location"
   | "destination"
   | "colour"
-  | "extra"
   | "meetPro";
 
 type MeetProChoice = "yes" | "no" | null;
@@ -110,6 +113,7 @@ export function TowHelpFlow({
     helpingSomeoneElse,
     helpingSomeoneLabel,
     updateUserProfile,
+    visibleTechnicians,
   } = useApp();
 
   const [stack, setStack] = useState<string[]>(["vehicle"]);
@@ -120,7 +124,10 @@ export function TowHelpFlow({
   const [dir, setDir] = useState<"fwd" | "back">("fwd");
   const [route, setRoute] = useState<TowRoute | null>(null);
   const [chosenTrade, setChosenTrade] = useState<ProService>("towing");
-  const [urgency, setUrgency] = useState<CalloutUrgencyKind>("normal");
+  const { urgency, setUrgency, restoreUrgency } = useAutoCalloutUrgency({
+    unsafe: false,
+    distanceKm: nearestProDistanceKm(visibleTechnicians, [chosenTrade]),
+  });
   const [photos, setPhotos] = useState<JobMedia[]>([]);
   const [voiceNote, setVoiceNote] = useState<JobMedia | null>(null);
   const [landmark, setLandmark] = useState(location.label || "");
@@ -209,7 +216,7 @@ export function TowHelpFlow({
       setDraft(snap.draft ?? "");
       setRoute(snap.route ?? null);
       if (snap.chosenTrade) setChosenTrade(snap.chosenTrade);
-      if (snap.urgency) setUrgency(snap.urgency);
+      if (snap.urgency) restoreUrgency(snap.urgency);
       setPhotos(snap.photos ?? []);
       setVoiceNote(snap.voiceNote ?? null);
       setLandmark(snap.landmark || location.label || "");
@@ -384,7 +391,6 @@ export function TowHelpFlow({
     }
     const trade: ProService = chosenTrade;
     const problem = [
-      vehicleLabel ? `Vehicle: ${vehicleLabel}` : "",
       composeTowProblem(answers, extra, landmark, { destination, colour }),
       meetPro === "yes" && meetProTrade
         ? `Also send a ${PRO_SERVICE_LABELS[meetProTrade]} to meet me at the destination.`
@@ -473,8 +479,6 @@ export function TowHelpFlow({
         case "destination":
           return "colour";
         case "colour":
-          return "extra";
-        case "extra":
           return "meetPro";
         default:
           return prev;
@@ -501,10 +505,8 @@ export function TowHelpFlow({
           return "location";
         case "colour":
           return showDestination ? "destination" : "location";
-        case "extra":
-          return "colour";
         case "meetPro":
-          return "extra";
+          return "colour";
         default:
           return prev;
       }
@@ -524,15 +526,24 @@ export function TowHelpFlow({
               ? TOW_FINAL_COPY.destination
               : finalStep === "colour"
                 ? TOW_FINAL_COPY.colour
-                : finalStep === "extra"
-                  ? TOW_FINAL_COPY.extra
-                  : TOW_FINAL_COPY.meetPro;
+                : TOW_FINAL_COPY.meetPro;
 
   const canSend =
     canFindTowPro(photos.length) &&
     (finalStep !== "meetPro" ||
       meetPro === "no" ||
       (meetPro === "yes" && meetProTrade !== null));
+
+  useEffect(() => {
+    if (step === "final" && finalStep === "location" && pickedLoc) {
+      clearAdvanceTimer();
+      advanceTimerRef.current = window.setTimeout(() => {
+        advanceTimerRef.current = null;
+        nextFinal();
+      }, 2000);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, finalStep, pickedLoc]);
 
   return (
     <div
@@ -553,11 +564,10 @@ export function TowHelpFlow({
                 location: 3,
                 destination: 4,
                 colour: 5,
-                extra: 6,
-                meetPro: 7,
+                meetPro: 6,
               };
-              const N = 8;
-              const DEFAULT_TOTAL = 14;
+              const N = 7;
+              const DEFAULT_TOTAL = 13;
               const base = Math.max(0, stack.length - 1);
               const atFinal = step === "final";
               const pos = atFinal ? base + (INDEX[finalStep] ?? 0) : base;
@@ -708,7 +718,6 @@ export function TowHelpFlow({
                     <AddressAutocomplete
                       className="-mx-3"
                       value={pickedLoc}
-                      autoLocate={location.coordinates}
                       onChange={(loc) => {
                         setPickedLoc(loc);
                         setLandmark(loc.label || landmark);
@@ -739,21 +748,6 @@ export function TowHelpFlow({
                       placeholder="e.g. Black, Silver, Red"
                       className={cn(
                         "w-full rounded-xl border-0 px-3 py-2 text-[13px] font-medium outline-none",
-                        field
-                      )}
-                    />
-                  ) : null}
-                  {finalStep === "extra" ? (
-                    <textarea
-                      value={extra}
-                      onChange={(e) => {
-                        setExtra(e.target.value);
-                        setError(null);
-                      }}
-                      rows={2}
-                      placeholder="Anything the tow operator should know"
-                      className={cn(
-                        "w-full resize-none rounded-xl border-0 px-3 py-2 text-[13px] font-medium outline-none",
                         field
                       )}
                     />

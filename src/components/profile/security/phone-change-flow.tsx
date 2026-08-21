@@ -6,6 +6,7 @@ import { profileTheme } from "@/lib/profile-system";
 import { SecurityField } from "./security-field";
 import { backendSendOtp, backendProfileVerifyOtp } from "@/lib/supabase/app-api";
 import { PasswordInput } from "@/components/ui/password-input";
+import { ConfirmCancelSheet } from "@/components/ui/confirm-cancel-sheet";
 
 interface PhoneChangeFlowProps {
   isLight: boolean;
@@ -43,6 +44,7 @@ export function PhoneChangeFlow({
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const t = profileTheme(isLight);
 
   // Identity verification fields
@@ -197,7 +199,7 @@ export function PhoneChangeFlow({
         {step === "done" ? (
           <button type="button" onClick={reset} className="shrink-0 rounded-lg border-0 px-3 py-1.5 text-[11px] font-bold text-brand">Done</button>
         ) : (
-          <button type="button" onClick={reset} className="shrink-0 rounded-lg border-0 px-3 py-1.5 text-[11px] font-bold text-red-400">Cancel</button>
+          <button type="button" onClick={() => setConfirmCancel(true)} className="shrink-0 rounded-lg border-0 px-3 py-1.5 text-[11px] font-bold text-red-400">Cancel</button>
         )}
       </div>
 
@@ -277,6 +279,17 @@ export function PhoneChangeFlow({
       {step === "done" && (
         <p className={cn("text-[12px] font-medium", t.soft)}>Your phone number has been updated.</p>
       )}
+      <ConfirmCancelSheet
+        open={confirmCancel}
+        isLight={isLight}
+        title="Discard changes?"
+        message="Any changes you've made will be lost."
+        onClose={() => setConfirmCancel(false)}
+        onConfirm={() => {
+          setConfirmCancel(false);
+          reset();
+        }}
+      />
     </div>
   );
 }

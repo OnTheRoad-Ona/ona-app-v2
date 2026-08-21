@@ -62,6 +62,8 @@ export type MotoristVehicle = {
   year?: string;
   /** e.g. Automobile / Passenger Car */
   vehicleType?: string;
+  /** Petrol | Diesel | Hybrid | Electric */
+  powertrain?: string;
   plate?: string;
   photo?: string;
   commonIssues?: string[];

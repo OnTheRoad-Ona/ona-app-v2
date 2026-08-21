@@ -4,13 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiCreateJob } from "@/lib/jobs/client";
 import { decideHelpTrade } from "@/lib/callout/dispatch-trades";
-import {
-  CALLOUT_URGENCY_OPTIONS,
-  type CalloutUrgencyKind,
-} from "@/lib/callout/urgency";
+import { CALLOUT_URGENCY_OPTIONS } from "@/lib/callout/urgency";
 import { PRO_SERVICE_LABELS } from "@/lib/pro-service-id";
 import { problemPlaceholderForTrade } from "@/lib/pricing";
 import { useApp } from "@/lib/store";
+import {
+  nearestProDistanceKm,
+  useAutoCalloutUrgency,
+} from "@/lib/callout/use-auto-urgency";
 import type { MotoristVehicle, ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
@@ -41,6 +42,7 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
     helpingSomeoneElse,
     helpingSomeoneLabel,
     updateUserProfile,
+    visibleTechnicians,
   } = useApp();
 
   const statedTrade = talkBoxAfterTradePick(category) ? category : null;
@@ -49,7 +51,14 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
   const [problem, setProblem] = useState("");
   const [step, setStep] = useState<HelpStep>("help");
   const [chosenTrade, setChosenTrade] = useState<ProService | null>(null);
-  const [urgency, setUrgency] = useState<CalloutUrgencyKind>("normal");
+  const autoTrade = chosenTrade ?? statedTrade;
+  const { urgency, setUrgency, resetUrgency } = useAutoCalloutUrgency({
+    unsafe: false,
+    distanceKm: nearestProDistanceKm(
+      visibleTechnicians,
+      autoTrade ? [autoTrade] : []
+    ),
+  });
   const [vehicleLabel, setVehicleLabel] = useState("");
   const [manualVehicles, setManualVehicles] = useState<MotoristVehicle[]>([]);
   const [busy, setBusy] = useState(false);
@@ -102,10 +111,10 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
     setProblem("");
     setStep(isAutomotiveTrade(statedTrade) ? "vehicle" : "help");
     setChosenTrade(null);
-    setUrgency("normal");
+    resetUrgency();
     setVehicleLabel("");
     setError(null);
-  }, [statedTrade]);
+  }, [statedTrade, resetUrgency]);
 
   const goAfterHelp = () => {
     if (!canOpenEmergencyCard(problem)) {

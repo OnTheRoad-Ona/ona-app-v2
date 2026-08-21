@@ -20,6 +20,38 @@ export const DEFAULT_MAXIMUM_RADIUS_KM = 5;
 
 export const DEFAULT_BILLING_INCREMENT_KM = 0.1;
 
+/**
+ * Short-distance rule: an approved route under 500 m bills the full floor
+ * (0.5 km) but BOTH the Base Fee and the Call-Out Fee are then reduced by 60%
+ * (multiplied by 0.40) after the multiplier is applied.
+ */
+export const SHORT_DISTANCE_THRESHOLD_KM = 0.5;
+export const SHORT_DISTANCE_REDUCTION_MULTIPLIER = 0.4;
+
+/**
+ * Auto Remote band: an approved route of 4.95–5.00 km adds the Remote
+ * multiplier (1.35×) on top of the customer's chip — the highest multiplier
+ * wins (Night > Remote > Emergency > Normal).
+ */
+export const AUTO_REMOTE_BAND_MIN_KM = 4.95;
+export const AUTO_REMOTE_BAND_MAX_KM = 5;
+
+/**
+ * Auto Night band: an acceptance between 9PM and 5AM (local) adds the Night
+ * multiplier (1.50×) on top of the customer's chip — highest wins.
+ */
+export const AUTO_NIGHT_START_HOUR = 21;
+export const AUTO_NIGHT_END_HOUR = 5;
+
+/**
+ * Trades that NEVER charge a Call-Out Fee (hard rule, not distance-dependent).
+ * Vulcanizer + Battery are excluded; every other Ona trade may charge.
+ */
+export const CALLOUT_EXCLUDED_TRADES: ReadonlySet<ProService> = new Set([
+  "vulcanizer",
+  "battery",
+]);
+
 export const SERVICE_INTENTS = [
   "VEHICLE_BREAKDOWN",
   "DIAGNOSTIC",
@@ -50,7 +82,7 @@ export type CalloutStatus = (typeof CALLOUT_STATUSES)[number];
 /**
  * Seed Base Fees (₦, major units).
  * fashion = existing 12th-style wash trade (renamed; spec Car Wash ₦1,500).
- * diagnostics = the 14th existing Ona trade — admin-configurable seed.
+ * diagnostics = the 14th existing Ona trade (spec Scan ₦3,000) — admin-configurable seed.
  */
 export const DEFAULT_TRADE_BASE_FEES: Record<ProService, number> = {
   mechanic: 3000,
@@ -66,7 +98,7 @@ export const DEFAULT_TRADE_BASE_FEES: Record<ProService, number> = {
   plumber: 2000,
   fashion: 1500,
   painter: 2500,
-  diagnostics: 2500,
+  diagnostics: 3000,
 };
 
 export const CALLOUT_FOURTEENTH_TRADE: ProService = "diagnostics";

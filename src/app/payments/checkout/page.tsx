@@ -28,6 +28,7 @@ import {
 import type { JobRecord } from "@/lib/jobs/types";
 import { logPayGate } from "@/lib/pay-telemetry";
 import { useExactCountdown } from "@/lib/jobs/use-exact-countdown";
+import { ConfirmCancelSheet } from "@/components/ui/confirm-cancel-sheet";
 
 /** Very simple pay-window countdown: "Time left · MM:SS" (fires exactly at 0). */
 function PayTimer({
@@ -108,6 +109,7 @@ function CheckoutInner() {
   const [reference, setReference] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [busyCancel, setBusyCancel] = useState(false);
+  const [confirmCancelRequest, setConfirmCancelRequest] = useState(false);
   const [sessionEndsAt, setSessionEndsAt] = useState<string | null>(null);
   const [bankPay, setBankPay] = useState<BankTransferInfo | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -213,7 +215,11 @@ function CheckoutInner() {
     return () => window.clearInterval(poll);
   }, [phase, jobId, router, reference]);
 
-  const calloutQuote = useJobCallout(job?.id);
+  const { quote: calloutQuote, ready: calloutReady } = useJobCallout(
+    job?.id,
+    job?.status,
+    job?.calloutQuote
+  );
 
   const agreedMajor = job?.agreedMajor ?? null;
   const chargeBreakdown = useMemo(() => {
@@ -225,11 +231,12 @@ function CheckoutInner() {
 
   const amountLabel = useMemo(() => {
     if (!chargeBreakdown) return "Not set";
+    if (!calloutReady) return "\u00a0";
     return formatMoney(
       chargeBreakdown.totalMajor,
       forceNairaCurrency(job?.currency)
     );
-  }, [chargeBreakdown, job?.currency]);
+  }, [chargeBreakdown, calloutReady, job?.currency]);
 
   const payEndsAt = useMemo(() => {
     if (sessionEndsAt) return sessionEndsAt;
@@ -513,7 +520,7 @@ function CheckoutInner() {
   const cancelPaymentOnly = () => {
     setCancelOpen(false);
     void resetPayTimerOnCancel().then(() => {
-      router.replace(jobId ? `/jobs/${jobId}` : "/jobs");
+      router.replace("/");
     });
   };
 
@@ -535,7 +542,7 @@ function CheckoutInner() {
     }
     setBusyCancel(false);
     setCancelOpen(false);
-    router.replace("/jobs");
+    router.replace("/");
   };
 
   const sheet = isLight ? "bg-[#e8e9ed]" : "bg-[#0a0a0a]";
@@ -850,7 +857,7 @@ function CheckoutInner() {
                 </div>
                 {chargeBreakdown.calloutMajor > 0 ? (
                   <div className="flex justify-between gap-2">
-                    <span>Call-out</span>
+                    <span>Call Out Fee</span>
                     <span className={ink}>
                       {formatMoney(
                         chargeBreakdown.calloutMajor,
@@ -906,17 +913,6 @@ function CheckoutInner() {
                     </dd>
                   </div>
                 ) : null}
-                <div className="flex justify-between gap-3">
-                  <dt className={muted}>Problem</dt>
-                  <dd
-                    className={cn(
-                      "max-w-[58%] text-right font-semibold leading-snug",
-                      ink
-                    )}
-                  >
-                    {job.problem}
-                  </dd>
-                </div>
               </dl>
             )}
           </div>
@@ -932,9 +928,6 @@ function CheckoutInner() {
                 Only
               </span>
             </div>
-            <p className={cn("mt-2 text-[11px] font-medium leading-snug", muted)}>
-              Pay by bank transfer to the account shown. USSD and card are not available.
-            </p>
           </div>
 
           {err ? (
@@ -1001,7 +994,7 @@ function CheckoutInner() {
             <button
               type="button"
               disabled={busyCancel}
-              onClick={() => void cancelEntireRequest()}
+              onClick={() => setConfirmCancelRequest(true)}
               className={cn(
                 "flex h-12 w-full items-center justify-center border-0 text-[14px] font-bold text-red-500"
               )}
@@ -1022,6 +1015,18 @@ function CheckoutInner() {
           </div>
         </div>
       ) : null}
+
+      <ConfirmCancelSheet
+        open={confirmCancelRequest}
+        isLight={isLight}
+        title="Cancel this request?"
+        message="The request will be closed and the other party will be notified. Are you sure you want to cancel?"
+        onClose={() => setConfirmCancelRequest(false)}
+        onConfirm={() => {
+          setConfirmCancelRequest(false);
+          void cancelEntireRequest();
+        }}
+      />
     </div>
   );
 }

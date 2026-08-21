@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { apiListJobs } from "@/lib/jobs/client";
-import { indexJobsByProId } from "@/lib/jobs/motorist-pro-cta";
+import { indexJobsByProId, listOpenCustomerJobs } from "@/lib/jobs/motorist-pro-cta";
 import type { JobRecord } from "@/lib/jobs/types";
 import { useApp } from "@/lib/store";
 
@@ -12,16 +12,19 @@ import { useApp } from "@/lib/store";
  */
 export function useMotoristJobsByPro(): {
   byPro: Record<string, JobRecord>;
+  openJobs: JobRecord[];
   ready: boolean;
   refresh: () => void;
 } {
   const { backendUserId, accountType } = useApp();
   const [byPro, setByPro] = useState<Record<string, JobRecord>>({});
+  const [openJobs, setOpenJobs] = useState<JobRecord[]>([]);
   const [ready, setReady] = useState(false);
 
   const load = useCallback(async () => {
     if (!backendUserId || accountType === "professional") {
       setByPro({});
+      setOpenJobs([]);
       setReady(true);
       return;
     }
@@ -31,7 +34,9 @@ export function useMotoristJobsByPro(): {
         setReady(true);
         return;
       }
-      setByPro(indexJobsByProId(res.data.jobs || []));
+      const jobs = res.data.jobs || [];
+      setByPro(indexJobsByProId(jobs));
+      setOpenJobs(listOpenCustomerJobs(jobs));
     } catch {
       /* keep last */
     } finally {
@@ -58,5 +63,5 @@ export function useMotoristJobsByPro(): {
     };
   }, [load]);
 
-  return { byPro, ready, refresh: load };
+  return { byPro, openJobs, ready, refresh: load };
 }

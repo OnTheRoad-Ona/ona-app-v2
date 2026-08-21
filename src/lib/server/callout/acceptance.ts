@@ -5,7 +5,11 @@
 
 import type { ProService } from "@/lib/types";
 import type { CalloutQuote } from "@/lib/callout/constants";
-import { calculateCalloutFee } from "@/lib/callout/engine";
+import {
+  calculateCalloutFee,
+  isCalloutExcludedTrade,
+  resolveAppliedMultiplier,
+} from "@/lib/callout/engine";
 import {
   assessTravelIntegrity,
   haversineMeters,
@@ -284,22 +288,30 @@ export async function lockCalloutOnAcceptance(input: {
   }
 
   const tradeFee = await loadTradeBaseFee(input.trade);
+  // Hard per-trade exclusion (Vulcanizer / Battery) — never charge call-out.
+  const tradeExcluded = isCalloutExcludedTrade(input.trade);
+  // Customer chip stays in effect; AUTO Night (9PM–5AM local) and AUTO Remote
+  // (4.95–5.00 km route) override it when higher. Highest wins, never stacked.
+  const applied = resolveAppliedMultiplier({
+    chipKind: existing?.urgencyKind ?? "normal",
+    chipMultiplier: existing?.urgencyMultiplier ?? 1,
+    approvedDistanceKm: road.route.distanceKm,
+    acceptedAt: nowIso(),
+  });
   const breakdown = calculateCalloutFee({
     tradeId: input.trade,
     approvedRouteDistanceKm: road.route.distanceKm,
     baseFee: tradeFee.baseFee,
     policy,
-    urgencyMultiplier:
-      existing?.urgencyMultiplier != null && existing.urgencyMultiplier > 0
-        ? existing.urgencyMultiplier
-        : 1,
+    urgencyMultiplier: applied.multiplier,
   });
 
+  const eligible =
+    !tradeExcluded && breakdown.withinRadius && tradeFee.enabled;
   const quote: CalloutQuote = {
     requestId: input.requestId,
-    calloutEligible: breakdown.withinRadius && tradeFee.enabled,
-    calloutStatus:
-      breakdown.withinRadius && tradeFee.enabled ? "LOCKED" : "NOT_ELIGIBLE",
+    calloutEligible: eligible,
+    calloutStatus: eligible ? "LOCKED" : "NOT_ELIGIBLE",
     tradeId: input.trade,
     tradeBaseFee: breakdown.tradeBaseFee,
     distanceRate: breakdown.distanceRate,
@@ -314,15 +326,15 @@ export async function lockCalloutOnAcceptance(input: {
     destinationLongitude: input.destination.lng,
     routeSource: road.route.source,
     calculatedAt: nowIso(),
-    lockedAt: breakdown.withinRadius ? nowIso() : null,
+    lockedAt: eligible ? nowIso() : null,
     originAccuracyM: originRes.origin.accuracyM ?? null,
     originCapturedAt: originRes.origin.capturedAt,
     originProId: input.proId,
     lockIdempotencyKey: lockKey,
     billedFromDrivenKm: false,
     travelPhase: "before_travel",
-    urgencyKind: existing?.urgencyKind ?? "normal",
-    urgencyMultiplier: existing?.urgencyMultiplier ?? 1,
+    urgencyKind: applied.kind,
+    urgencyMultiplier: applied.multiplier,
   };
 
   const saved = await upsertCalloutQuote(quote);
@@ -335,6 +347,10 @@ export async function lockCalloutOnAcceptance(input: {
       originSource: originRes.source,
       routeSource: road.route.source,
       lockKey,
+      appliedMultiplier: applied.multiplier,
+      autoMultiplier: applied.auto,
+      tradeExcluded,
+      shortDistanceReduction: breakdown.shortDistanceReduction,
     },
   });
   await upsertIntegrity({

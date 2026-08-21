@@ -14,7 +14,7 @@ export const AC_FINAL_COPY = {
   night: "Night service needed",
   photos: "Add clear photos (if accessible) of the A/C controls, vents, or outdoor unit",
   voice: "Record a short voice note describing the problem or the noise",
-  location: "Enter exact location",
+  location: "Current Location",
   extra: "Any other detail you want the technician to know?",
 } as const;
 

@@ -1295,8 +1295,28 @@ button.om-cta-dark-gray:disabled,
   will-change: transform;
 }
 
+/* Mirrored bounce for the back chevron */
+@keyframes om-bounce-arrow-back {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(-4px);
+  }
+}
+
+.om-bounce-arrow-back {
+  animation: om-bounce-arrow-back 1.35s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  will-change: transform;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .om-bounce-arrow {
+    animation: none !important;
+  }
+
+  .om-bounce-arrow-back {
     animation: none !important;
   }
 }
@@ -1331,14 +1351,14 @@ button.om-cta-dark-gray:disabled,
   box-shadow: none;
 }
 
-/* Mechanic cascade — panel enters from the left, then each step slides. */
+/* Mechanic cascade — panel enters sliding up, then each step slides up. */
 @keyframes om-mech-enter {
   from {
-    transform: translateX(-22px);
+    transform: translateY(24px);
     opacity: 0;
   }
   to {
-    transform: translateX(0);
+    transform: translateY(0);
     opacity: 1;
   }
 }
@@ -1347,21 +1367,21 @@ button.om-cta-dark-gray:disabled,
 }
 @keyframes om-mech-fwd {
   from {
-    transform: translateX(-48px);
+    transform: translateY(48px);
     opacity: 0;
   }
   to {
-    transform: translateX(0);
+    transform: translateY(0);
     opacity: 1;
   }
 }
 @keyframes om-mech-back {
   from {
-    transform: translateX(24px);
+    transform: translateY(-24px);
     opacity: 0;
   }
   to {
-    transform: translateX(0);
+    transform: translateY(0);
     opacity: 1;
   }
 }

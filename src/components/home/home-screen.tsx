@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BankForcePanel } from "@/components/auth/bank-force-panel";
 import { AppHeader } from "@/components/home/app-header";
 import { HomePanel } from "@/components/home/home-panel";
@@ -36,6 +36,8 @@ export function HomeScreen() {
     setSelectedTechId,
     selectedTechId,
     theme,
+    setCategory,
+    authReady,
   } = useApp();
   const { config } = useAppConfig();
   const isLight = theme === "light";
@@ -43,6 +45,34 @@ export function HomeScreen() {
   const [sheetExpanded, setSheetExpanded] = useState(false);
   /** Data-saver: no map tiles until the user taps the blank map area */
   const [mapEnabled, setMapEnabled] = useState(false);
+
+  // Rerouted from /request: `/?trade=mechanic` opens the trade's new
+  // question-flow steps on the FIRST arrival (search / pro-profile "Request").
+  // The param is consumed once and stripped from the URL so it can never
+  // re-trigger on later visits. Without that deep-link intent (reload, Back,
+  // menu tap, cold start) the customer home always opens on a blank trade
+  // selector. Re-applies after auth boot so the deep-link survives the
+  // session restore.
+  const consumedTrade = useRef<string | null>(null);
+  useEffect(() => {
+    const trade = new URLSearchParams(window.location.search).get("trade");
+    if (trade) consumedTrade.current = trade;
+    if (consumedTrade.current) {
+      const effective = consumedTrade.current;
+      void import("@/lib/pro-service-id").then(({ isProService }) => {
+        if (isProService(effective)) {
+          setSelectedTechId(null);
+          setCategory(effective);
+        }
+      });
+      if (trade) {
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    } else {
+      setSelectedTechId(null);
+      setCategory("none");
+    }
+  }, [setCategory, setSelectedTechId, authReady]);
 
   // Pre-warm the map work stream as soon as the customer home opens so that a
   // tap on “Show map” paints the real street map immediately — no green

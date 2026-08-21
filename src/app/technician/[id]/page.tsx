@@ -238,7 +238,7 @@ export default function TechnicianPage({
           return;
         }
         setSelectedTechId(tech.id);
-        router.push(`/request?tech=${tech.id}`);
+        router.push(`/?trade=${tech.serviceType}`);
       }}
     />
   );

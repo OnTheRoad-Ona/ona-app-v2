@@ -2,7 +2,7 @@ import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { requireUser } from "@/lib/server/auth-utils";
 import { isProService } from "@/lib/services";
-import { classifyRequest, calculateCalloutFee } from "@/lib/callout/engine";
+import { classifyRequest, calculateCalloutFee, isCalloutExcludedTrade } from "@/lib/callout/engine";
 import { loadCalloutPolicy, loadTradeBaseFee } from "@/lib/server/callout/store";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
@@ -104,10 +104,17 @@ export async function POST(req: Request) {
       policy,
     });
 
-    if (!breakdown.withinRadius || !tradeFee.enabled) {
+    if (
+      !breakdown.withinRadius ||
+      !tradeFee.enabled ||
+      isCalloutExcludedTrade(b.trade)
+    ) {
+      const reason = isCalloutExcludedTrade(b.trade)
+        ? "This trade does not charge a call-out fee"
+        : "Outside the standard call-out radius";
       return apiOk({
         eligible: false,
-        reason: "Outside the standard call-out radius",
+        reason,
         classification,
         quote: null,
         approvedRouteDistanceKm: breakdown.approvedRouteDistanceKm,

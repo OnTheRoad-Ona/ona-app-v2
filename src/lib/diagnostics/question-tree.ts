@@ -48,6 +48,10 @@ export const SCAN_START_OPTIONS: ScanOption[] = [
   { id: "D", label: "Need full system health check / preventive scan" },
   { id: "E", label: "After repairs – want to clear codes or confirm fix" },
   { id: "F", label: "Something else / I'm not sure" },
+  {
+    id: "G",
+    label: "Electric vehicle (EV) – battery / motor / charging scan",
+  },
 ];
 
 const YES_NO: ScanOption[] = [
@@ -279,6 +283,18 @@ export const SCAN_SCREENS: Record<string, ScanScreen> = {
       { id: "painter", label: "Painter" },
     ],
   },
+  ev_scan: {
+    id: "ev_scan",
+    question: "Which EV system should be scanned?",
+    kind: "choice",
+    options: [
+      { id: "battery", label: "High-voltage (HV) battery health scan" },
+      { id: "motor", label: "Motor / inverter fault codes" },
+      { id: "charging", label: "Charging system check" },
+      { id: "all", label: "Full EV system health check" },
+      { id: "unsure", label: "Not sure" },
+    ],
+  },
 };
 
 const START_NEXT: Record<string, string> = {
@@ -288,6 +304,7 @@ const START_NEXT: Record<string, string> = {
   D: "d_routine",
   E: "e_repair",
   F: "f_describe",
+  G: "ev_scan",
 };
 
 function resolveScreen(answers: Record<string, string>): "confirm" | "final" {
@@ -338,6 +355,8 @@ export function nextScanScreen(
   if (current === "f_power" || current === "f_house") {
     return resolveScreen(answers);
   }
+
+  if (current === "ev_scan") return resolveScreen(answers);
 
   return "final";
 }
@@ -413,6 +432,11 @@ export function resolveScanRoute(answers: Record<string, string>): ScanRoute {
       return leave("carpenter");
     }
     if (answers.f_related === "clothing") return leave("fashion");
+    return stay();
+  }
+
+  if (main === "G") {
+    if (answers.ev_scan === "charging") return leave("diagnostics", "electrical");
     return stay();
   }
 

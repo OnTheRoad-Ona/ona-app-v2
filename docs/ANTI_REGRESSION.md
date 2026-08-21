@@ -128,7 +128,13 @@ If any step fails, **do not ship**.
 
 **Never:**
 - Put a border/outline on the request **cards** inside the panel (`incoming-job-popup.tsx`) — cards are `border: none`, visually separated by `gap` only
-- Shrink the panel back below **84dvh** (`max-h-[min(84dvh,760px)]`) or tighten the `gap-3` between cards — the panel must stay roomy, never squeezed
+- Flatten the panel to fewer than three levels (`level: "middle" | "full" | "collapsed"`) or start it collapsed/minimized — it opens at **middle** on an incoming request; only a **swipe-down** steps it down (full → middle → collapsed), a swipe-up/flip goes to **full**
+- Lose the middle level's **2-at-a-time** Q&A frames (chevron paging, `pageSize={2}`), or cap the **full** level below **77% of the phone shell** (`height: min(77%,760px)`, all Q&A on one scrollable page)
+- Let the panel collapse while the user scrolls at **full** — the card list scrolls **inside** the panel (`[data-panel-scroll]` is `flex-1 min-h-0 overflow-y-auto`); only a deliberate swipe-down on the grabber/header steps it down, and at full the wheel/pointer skip that scroll area
+- Lose the reset-to-top on level change — every expansion must scroll the card list to the top so the **profile picture placeholder appears first**, staying put until the user scrolls (`panelScrollRef` + `scrollTop = 0` on `level`)
+- Let the expand gesture's leftover trackpad momentum scroll the fresh content — the wheel listener is **native + non-passive** (`{ passive: false }`, like `bottom-sheet.tsx`); expanding to full arms a ~400 ms cooldown that swallows wheel over `[data-panel-scroll]`, so the profile picture stays first until a deliberate scroll
+- Show **₦0 / blank** for the Call Out Fee, or drop the section to "Calculating…" once a quote exists — the line is forced; when the server quote isn't payable, fall back to the **open trade** fee via `calculateCalloutFee` (`incoming-job-popup.tsx` → `tradeFallbackFee`, never ₦0 for a real trade)
+- Tighten the `gap-3` between cards — the panel must stay roomy, never squeezed
 - Restore a second (translucent) background layer: the panel is **one** opaque background, cards are transparent
 - Make card frequency or timer logic depend on a **local-only** countdown when a server deadline exists — the ring must count the same source (`pairing_deadline` / real `negotiate_ends_at`) the customer sees
 - Delay removal of a closed request (customer cancel/complete, pro decline) behind multiple polls — close must be near-instant

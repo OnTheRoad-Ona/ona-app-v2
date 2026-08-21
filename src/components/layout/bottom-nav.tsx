@@ -31,6 +31,10 @@ export function BottomNav() {
   const t = useT();
   const isLight = theme === "light";
   const homeHref = accountType === "professional" ? "/dashboard" : "/";
+  const tabs =
+    accountType === "professional"
+      ? items
+      : items.filter((item) => item.href !== "/jobs");
 
   return (
     <nav
@@ -41,7 +45,7 @@ export function BottomNav() {
       aria-label="Main navigation"
     >
       <ul className="flex items-stretch justify-between">
-        {items.map(({ href, labelKey, icon: Icon }) => {
+        {tabs.map(({ href, labelKey, icon: Icon }) => {
           const to = href === "/" ? homeHref : href;
           const active =
             href === "/"

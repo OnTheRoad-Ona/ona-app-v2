@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { CalloutQuote } from "@/lib/callout/constants";
 import {
   composeCustomerPayableMajor,
+  isCalloutAmountReady,
+  jobTotalMajor,
   payableCalloutMajor,
 } from "@/lib/callout/payable";
 
@@ -29,6 +31,27 @@ function quote(partial: Partial<CalloutQuote>): CalloutQuote {
   };
 }
 
+describe("isCalloutAmountReady", () => {
+  it("waits on pending / calculating so labour-only never paints first", () => {
+    expect(isCalloutAmountReady(null)).toBe(false);
+    expect(isCalloutAmountReady(quote({ calloutStatus: "PENDING" }))).toBe(
+      false
+    );
+    expect(isCalloutAmountReady(quote({ calloutStatus: "CALCULATING" }))).toBe(
+      false
+    );
+    expect(isCalloutAmountReady(quote({ calloutStatus: "CALCULATED" }))).toBe(
+      true
+    );
+    expect(isCalloutAmountReady(quote({ calloutStatus: "LOCKED" }))).toBe(
+      true
+    );
+    expect(isCalloutAmountReady(quote({ calloutStatus: "NOT_ELIGIBLE" }))).toBe(
+      true
+    );
+  });
+});
+
 describe("payableCalloutMajor", () => {
   it("uses calculated / locked fees", () => {
     expect(payableCalloutMajor(quote({}))).toBe(3490);
@@ -42,6 +65,14 @@ describe("payableCalloutMajor", () => {
     expect(payableCalloutMajor(quote({ calloutStatus: "WAIVED" }))).toBe(0);
     expect(payableCalloutMajor(quote({ calloutStatus: "PENDING" }))).toBe(0);
     expect(payableCalloutMajor(null)).toBe(0);
+  });
+});
+
+describe("jobTotalMajor", () => {
+  it("is null until the call-out is settled", () => {
+    expect(jobTotalMajor(12000, null)).toBeNull();
+    expect(jobTotalMajor(12000, quote({ calloutStatus: "PENDING" }))).toBeNull();
+    expect(jobTotalMajor(12000, quote({}))).toBe(15490);
   });
 });
 

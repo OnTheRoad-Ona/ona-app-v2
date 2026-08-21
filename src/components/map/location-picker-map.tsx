@@ -4,7 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { GoogleMap, Marker } from "@react-google-maps/api";
 import { Crosshair, MapPin, Navigation, Building2 } from "lucide-react";
-import { reverseGeocodeLatLng, shouldUseLiveMaps } from "@/lib/google-maps";
+import {
+  cleanAddressLabel,
+  reverseGeocodeLatLng,
+  shouldUseLiveMaps,
+} from "@/lib/google-maps";
 import { useOnaGoogleMaps } from "@/lib/google-maps-loader";
 import { DEFAULT_USER_LOCATION } from "@/lib/data/technicians";
 import {
@@ -83,8 +87,10 @@ function parseGeocodeResult(
     get("country") ||
     "Nigeria";
   const label =
-    result.formatted_address ||
-    [area, city].filter(Boolean).join(", ") ||
+    cleanAddressLabel(
+      result.formatted_address ||
+        [area, city].filter(Boolean).join(", ")
+    ) ||
     `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 
   // Real street address only — curated POIs are search suggestions, not snaps

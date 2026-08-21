@@ -26,7 +26,9 @@ import { windowStillOpen } from "@/lib/jobs/deadline";
 import {
   clearJobShown,
   requestForceIncomingPanel,
+  subscribeIncomingPanelOpen,
 } from "@/lib/jobs/incoming-popup-timing";
+import { backendSubscribeJobs } from "@/lib/supabase/app-api";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
 import { useT } from "@/lib/i18n";
 import { isProService, PRO_SERVICE_LABELS } from "@/lib/pro-service-id";
@@ -209,6 +211,8 @@ export default function TechnicianDashboardPage() {
   const [ongoing, setOngoing] = useState<JobRecord[]>([]);
   const [recent, setRecent] = useState<JobRecord[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
+  /** Incoming lower panel is up — hide the dashboard's own Incoming list. */
+  const [incomingPanelOpen, setIncomingPanelOpen] = useState(false);
   const [awayLabel, setAwayLabel] = useState(() => liveAwayButtonLabel());
   const [artisan, setArtisan] = useState<ArtisanVerificationProfile | null>(
     null
@@ -239,6 +243,11 @@ export default function TechnicianDashboardPage() {
     // Jobs-completed count is derived from the shared loadJobs response below —
     // never a second /api/jobs round trip on mount.
   }, [backendUserId]);
+
+  useEffect(
+    () => subscribeIncomingPanelOpen(setIncomingPanelOpen),
+    []
+  );
 
   useEffect(() => {
     if (!backendUserId) {
@@ -356,6 +365,28 @@ export default function TechnicianDashboardPage() {
     return () => window.clearInterval(t);
   }, [loadJobs]);
 
+  // A realtime push (customer cancel/complete, pro decline, reassign) must drop
+  // the request from the Incoming list immediately — never wait for the 4-min
+  // soft refresh. The push already carries the row; a cheap refetch reconciles.
+  useEffect(() => {
+    if (!backendUserId) return;
+    let cancelled = false;
+    let schedule: number | undefined;
+    const unsub = backendSubscribeJobs(backendUserId, () => {
+      if (cancelled || typeof document === "undefined" || document.hidden) return;
+      if (schedule) return;
+      schedule = window.setTimeout(() => {
+        schedule = undefined;
+        void loadJobs();
+      }, 150);
+    });
+    return () => {
+      cancelled = true;
+      if (schedule) window.clearTimeout(schedule);
+      unsub?.();
+    };
+  }, [backendUserId, loadJobs]);
+
   // Refresh Away button copy when the 3-hour slot rolls over (local only)
   useEffect(() => {
     if (!proLive) return;
@@ -378,7 +409,7 @@ export default function TechnicianDashboardPage() {
     }
   };
 
-  const showIncoming = incoming.length > 0;
+  const showIncoming = incoming.length > 0 && !incomingPanelOpen;
   const showOngoing = ongoing.length > 0;
   /** Same for every trade: Recent always when finished jobs exist (not hidden by Incoming). */
   const showRecent = recent.length > 0;
@@ -674,7 +705,6 @@ export default function TechnicianDashboardPage() {
             </p>
             <ul className="space-y-0">
               {incoming.map((j) => {
-                const addr = meetAddress(j);
                 return (
                   <li key={j.id}>
                     <button
@@ -698,26 +728,6 @@ export default function TechnicianDashboardPage() {
                             ? j.motoristVehicle.trim()
                             : PRO_SERVICE_LABELS[j.serviceType] || "Service Request"}
                         </p>
-                        {addr ? (
-                          <p
-                            className={cn(
-                              "mt-0.5 truncate text-[12px] font-medium",
-                              muted
-                            )}
-                          >
-                            {addr}
-                          </p>
-                        ) : null}
-                        {j.problem?.trim() ? (
-                          <p
-                            className={cn(
-                              "mt-0.5 line-clamp-1 text-[12px] font-medium",
-                              muted
-                            )}
-                          >
-                            {j.problem}
-                          </p>
-                        ) : null}
                       </div>
                       <ChevronRight className={cn("h-4 w-4 shrink-0", muted)} />
                     </button>

@@ -9,6 +9,10 @@ import type { JobMedia } from "@/lib/jobs/types";
 import { compressImageFile } from "@/lib/image-compress";
 import type { CalloutUrgencyKind } from "@/lib/callout/urgency";
 import {
+  nearestProDistanceKm,
+  useAutoCalloutUrgency,
+} from "@/lib/callout/use-auto-urgency";
+import {
   applyConfirmChoice,
   canAdvanceText,
   composeScanProblem,
@@ -40,9 +44,9 @@ const URGENCY_CHIPS: {
   fee: string;
 }[] = [
   { id: "normal", label: SCAN_FINAL_COPY.normal, fee: "1x · base + call-out" },
-  { id: "emergency", label: SCAN_FINAL_COPY.emergency, fee: "1.25x" },
-  { id: "remote", label: SCAN_FINAL_COPY.remote, fee: "1.35x" },
-  { id: "night", label: SCAN_FINAL_COPY.night, fee: "1.5x" },
+  { id: "emergency", label: SCAN_FINAL_COPY.emergency, fee: "1.25x · base + call-out" },
+  { id: "remote", label: SCAN_FINAL_COPY.remote, fee: "1.35x · base + call-out" },
+  { id: "night", label: SCAN_FINAL_COPY.night, fee: "1.5x · base + call-out" },
 ];
 
 type FinalStep = "urgency" | "photos" | "voice" | "location" | "tow";
@@ -87,6 +91,7 @@ export function DiagnosticsHelpFlow({
     helpingSomeoneElse,
     helpingSomeoneLabel,
     updateUserProfile,
+    visibleTechnicians,
   } = useApp();
 
   const [stack, setStack] = useState<string[]>(["vehicle"]);
@@ -97,7 +102,10 @@ export function DiagnosticsHelpFlow({
   const [dir, setDir] = useState<"fwd" | "back">("fwd");
   const [route, setRoute] = useState<ScanRoute | null>(null);
   const [chosenTrade, setChosenTrade] = useState<ProService>("diagnostics");
-  const [urgency, setUrgency] = useState<CalloutUrgencyKind>("normal");
+  const { urgency, setUrgency, restoreUrgency } = useAutoCalloutUrgency({
+    unsafe: false,
+    distanceKm: nearestProDistanceKm(visibleTechnicians, [chosenTrade]),
+  });
   const [photos, setPhotos] = useState<JobMedia[]>([]);
   const [voiceNote, setVoiceNote] = useState<JobMedia | null>(null);
   const [landmark, setLandmark] = useState(location.label || "");
@@ -185,7 +193,7 @@ export function DiagnosticsHelpFlow({
       setDraft(snap.draft ?? "");
       if (snap.route) setRoute(snap.route);
       if (snap.chosenTrade) setChosenTrade(snap.chosenTrade);
-      if (snap.urgency) setUrgency(snap.urgency);
+      if (snap.urgency) restoreUrgency(snap.urgency);
       setPhotos(snap.photos ?? []);
       setVoiceNote(snap.voiceNote ?? null);
       setLandmark(snap.landmark || location.label || "");
@@ -356,7 +364,6 @@ export function DiagnosticsHelpFlow({
     const trade: ProService =
       towChoice === "tow" ? "towing" : chosenTrade;
     const problem = [
-      vehicleLabel ? `Vehicle: ${vehicleLabel}` : "",
       towChoice === "tow"
         ? "Needs tow to a safer place or workshop: Yes"
         : "",
@@ -461,6 +468,17 @@ export function DiagnosticsHelpFlow({
 
   const photosIncomplete = photos.length < SCAN_MIN_PHOTOS;
   const towSendDisabled = finalStep === "tow" && towChoice === null;
+
+  useEffect(() => {
+    if (step === "final" && finalStep === "location" && pickedLoc) {
+      clearAdvanceTimer();
+      advanceTimerRef.current = window.setTimeout(() => {
+        advanceTimerRef.current = null;
+        void send();
+      }, 2000);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, finalStep, pickedLoc]);
 
   return (
     <div
@@ -611,15 +629,6 @@ export function DiagnosticsHelpFlow({
                           </button>
                         ) : null}
                       </div>
-                      <p
-                        className={cn(
-                          "mt-1 text-[11px] font-semibold",
-                          photosIncomplete ? "text-[#FF6B35]" : muted
-                        )}
-                      >
-                        {photos.length}/{SCAN_MIN_PHOTOS} photo added — 1 is
-                        required
-                      </p>
                       <input
                         ref={photoRef}
                         type="file"
@@ -670,26 +679,11 @@ export function DiagnosticsHelpFlow({
                         <AddressAutocomplete
                           className="-mx-3"
                           value={pickedLoc}
-                          autoLocate={location.coordinates}
                           onChange={(loc) => {
                             setPickedLoc(loc);
                             setLandmark(loc.label || landmark);
                           }}
                         />
-                        <label className="block">
-                          <span className={cn("text-[12px] font-bold", ink)}>
-                            {SCAN_FINAL_COPY.extra}
-                          </span>
-                          <textarea
-                            value={extra}
-                            onChange={(e) => setExtra(e.target.value)}
-                            rows={2}
-                            className={cn(
-                              "mt-1 w-full resize-none rounded-xl border-0 px-3 py-2 text-[13px] font-medium outline-none",
-                              field
-                            )}
-                          />
-                        </label>
                       </div>
                     </div>
                   ) : null}

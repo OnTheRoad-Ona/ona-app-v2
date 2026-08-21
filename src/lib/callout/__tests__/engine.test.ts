@@ -13,6 +13,7 @@ import {
   calculateCalloutFee,
   classifyRequest,
   classifyServiceIntent,
+  isCalloutExcludedTrade,
   isWithinCalloutRadius,
   resolveCalloutEligibility,
 } from "@/lib/callout/engine";
@@ -62,9 +63,6 @@ describe("calculateCalloutFee — mechanic examples", () => {
   const base = 3000;
 
   it.each([
-    [0, 3175],
-    [0.1, 3175],
-    [0.3, 3175],
     [0.5, 3175],
     [1, 3350],
     [1.02, 3385],
@@ -84,6 +82,7 @@ describe("calculateCalloutFee — mechanic examples", () => {
     expect(q.distanceRate).toBe(DEFAULT_RATE_PER_KM);
     expect(q.calloutFee).toBe(fee);
     expect(q.withinRadius).toBe(true);
+    expect(q.shortDistanceReduction).toBe(false);
   });
 
   it("5.1 km is outside the standard radius", () => {
@@ -93,6 +92,63 @@ describe("calculateCalloutFee — mechanic examples", () => {
       baseFee: base,
     });
     expect(q.withinRadius).toBe(false);
+  });
+});
+
+describe("short-distance rule — approved route < 500 m", () => {
+  const trade = "mechanic" as const;
+  const base = 3000;
+
+  it.each([
+    [0, 1270],
+    [0.1, 1270],
+    [0.3, 1270],
+  ])("%s km → ₦%s (both fees × 0.40 after multiplier)", (km, fee) => {
+    const q = calculateCalloutFee({
+      tradeId: trade,
+      approvedRouteDistanceKm: km,
+      baseFee: base,
+    });
+    // 0.5 km billing floor still applies, then the whole call-out is reduced 60%.
+    expect(q.billableDistanceKm).toBe(0.5);
+    expect(q.tradeBaseFee).toBe(1200); // 3000 × 0.40
+    expect(q.distanceCharge).toBe(70); // 0.5 km × 350 × 0.40
+    expect(q.calloutFee).toBe(fee);
+    expect(q.shortDistanceReduction).toBe(true);
+  });
+
+  it("reduction applies AFTER the urgency multiplier", () => {
+    const q = calculateCalloutFee({
+      tradeId: trade,
+      approvedRouteDistanceKm: 0.3,
+      baseFee: base,
+      urgencyMultiplier: 1.5,
+    });
+    // (1200 + 70) × 1.5
+    expect(q.calloutFee).toBe(1905);
+    expect(q.shortDistanceReduction).toBe(true);
+  });
+
+  it("0.5 km exactly is NOT short — full fee", () => {
+    const q = calculateCalloutFee({
+      tradeId: trade,
+      approvedRouteDistanceKm: 0.5,
+      baseFee: base,
+    });
+    expect(q.calloutFee).toBe(3175);
+    expect(q.shortDistanceReduction).toBe(false);
+  });
+});
+
+describe("call-out excluded trades", () => {
+  it("Vulcanizer and Battery are hard-excluded, everyone else may charge", () => {
+    expect(isCalloutExcludedTrade("vulcanizer")).toBe(true);
+    expect(isCalloutExcludedTrade("battery")).toBe(true);
+    expect(isCalloutExcludedTrade("mechanic")).toBe(false);
+    expect(isCalloutExcludedTrade("fashion")).toBe(false);
+    expect(isCalloutExcludedTrade("diagnostics")).toBe(false);
+    expect(isCalloutExcludedTrade(null)).toBe(false);
+    expect(isCalloutExcludedTrade(undefined)).toBe(false);
   });
 });
 
