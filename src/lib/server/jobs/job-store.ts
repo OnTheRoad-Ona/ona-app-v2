@@ -5,6 +5,7 @@
 
 import {
   isAgreedPastPaymentDeadline,
+  isAgreedPastPayToBookDeadline,
   isBookedPastCompletionDeadline,
   isCompletedPastAutoReleaseDeadline,
   MAX_NEGOTIATION_OFFERS,
@@ -1425,6 +1426,82 @@ async function expireOpenPaymentWindow(job: JobRecord): Promise<JobRecord> {
   });
 }
 
+async function notifyUnpaidBookExpired(job: JobRecord) {
+  const title = "Request expired";
+  const body =
+    "Payment to book was not made within 30 minutes. This request is expired.";
+  try {
+    const { insertNotification } = await import("@/lib/server/notifications");
+    const { sendPushToUser } = await import("@/lib/server/push/webpush");
+    const targets = [job.motoristId, job.repairProId].filter(Boolean);
+    for (const userId of targets) {
+      const isPro = userId === job.repairProId;
+      await insertNotification({
+        userId,
+        category: "payments",
+        priority: "high",
+        title,
+        body,
+        href: isPro ? `/jobs/${job.id}` : `/jobs/${job.id}`,
+        actionType: "open_job",
+        actionPayload: { jobId: job.id },
+        jobId: job.id,
+        jobStatus: "expired",
+        groupKey: `unpaid-book-expire-${isPro ? "pro" : "cust"}-${job.id}`,
+      });
+      try {
+        await sendPushToUser(userId, {
+          title,
+          body,
+          url: isPro ? "/dashboard" : "/",
+          tag: `unpaid-book-expire-${job.id}`,
+        });
+      } catch {
+        /* push best-effort */
+      }
+    }
+  } catch {
+    /* notifications optional */
+  }
+}
+
+async function expireUnpaidBook(job: JobRecord): Promise<JobRecord> {
+  if (job.statusHistory?.some((h) => h.by === PAY_HISTORY.UNPAID_BOOK_EXPIRE)) {
+    return job;
+  }
+  await expirePendingPaymentForJob(job);
+  const ts = nowIso();
+  let next: JobRecord;
+  try {
+    next = await applyEvent(job, { type: "EXPIRE_UNPAID_BOOK" }, "system");
+  } catch (e) {
+    console.error("expire unpaid book failed", job.id, e);
+    next = await persist({
+      ...job,
+      status: "expired",
+      paymentSessionEndsAt: null,
+      updatedAt: ts,
+      statusHistory: [
+        ...job.statusHistory,
+        { status: "expired", at: ts, by: PAY_HISTORY.UNPAID_BOOK_EXPIRE },
+      ],
+    });
+  }
+  if (
+    !next.statusHistory.some((h) => h.by === PAY_HISTORY.UNPAID_BOOK_EXPIRE)
+  ) {
+    next = await persist({
+      ...next,
+      statusHistory: [
+        ...next.statusHistory,
+        { status: "expired", at: ts, by: PAY_HISTORY.UNPAID_BOOK_EXPIRE },
+      ],
+    });
+  }
+  await notifyUnpaidBookExpired(next);
+  return next;
+}
+
 async function maybeExpire(job: JobRecord): Promise<JobRecord> {
   // 1) Negotiation timer — only after pro “I can fix this” armed the clock
   if (job.status === "negotiating") {
@@ -1434,7 +1511,12 @@ async function maybeExpire(job: JobRecord): Promise<JobRecord> {
     return applyEvent(job, { type: "EXPIRE_NEGOTIATION" }, "system");
   }
 
-  // 2) Open pay session past 20 min unpaid → count 1 attempt; after 3 → cancel
+  // 1b) Agreed, never tapped Pay, 30 minutes elapsed → expired
+  if (isAgreedPastPayToBookDeadline(job)) {
+    return expireUnpaidBook(job);
+  }
+
+  // 2) Open pay session past 11 min unpaid → count 1 attempt; after 3 → cancel
   if (isAgreedPastPaymentDeadline(job)) {
     return expireOpenPaymentWindow(job);
   }
@@ -1519,6 +1601,7 @@ export async function expireOverdueBookedJobs(limit = 40): Promise<{
   // Memory first
   for (const j of memory.values()) {
     if (
+      !isAgreedPastPayToBookDeadline(j) &&
       !isAgreedPastPaymentDeadline(j) &&
       !isBookedPastCompletionDeadline(j) &&
       !isCompletedPastAutoReleaseDeadline(j)
@@ -1528,7 +1611,11 @@ export async function expireOverdueBookedJobs(limit = 40): Promise<{
     checked += 1;
     const prev = j.status;
     const next = await maybeExpire(j);
-    if (next.status === "cancelled" || next.escrowStatus === "refunded") {
+    if (
+      next.status === "cancelled" ||
+      next.status === "expired" ||
+      next.escrowStatus === "refunded"
+    ) {
       cancelled += 1;
       ids.push(next.id);
     } else if (
@@ -1555,6 +1642,7 @@ export async function expireOverdueBookedJobs(limit = 40): Promise<{
       for (const row of data || []) {
         const job = rowToJob(row as Record<string, unknown>);
         if (
+          !isAgreedPastPayToBookDeadline(job) &&
           !isAgreedPastPaymentDeadline(job) &&
           !isBookedPastCompletionDeadline(job) &&
           !isCompletedPastAutoReleaseDeadline(job)
@@ -1564,7 +1652,11 @@ export async function expireOverdueBookedJobs(limit = 40): Promise<{
         checked += 1;
         const prev = job.status;
         const next = await maybeExpire(job);
-        if (next.status === "cancelled" || next.status === "refunded") {
+        if (
+          next.status === "cancelled" ||
+          next.status === "expired" ||
+          next.status === "refunded"
+        ) {
           cancelled += 1;
           if (!ids.includes(next.id)) ids.push(next.id);
         } else if (

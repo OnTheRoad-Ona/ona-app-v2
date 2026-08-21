@@ -29,6 +29,16 @@ describe("state-machine", () => {
       expect(canTransition("agreed", { type: "PAYMENT_SUCCESS" })).toBe(true);
     });
 
+    it("allows EXPIRE_UNPAID_BOOK from agreed", () => {
+      expect(canTransition("agreed", { type: "EXPIRE_UNPAID_BOOK" })).toBe(true);
+    });
+
+    it("rejects EXPIRE_UNPAID_BOOK from paid_booked", () => {
+      expect(canTransition("paid_booked", { type: "EXPIRE_UNPAID_BOOK" })).toBe(
+        false
+      );
+    });
+
     it("rejects PAYMENT_SUCCESS from negotiating", () => {
       expect(canTransition("negotiating", { type: "PAYMENT_SUCCESS" })).toBe(false);
     });
@@ -164,6 +174,10 @@ describe("state-machine", () => {
 
     it("returns expired after EXPIRE_NEGOTIATION", () => {
       expect(nextStatus("negotiating", { type: "EXPIRE_NEGOTIATION" })).toBe("expired");
+    });
+
+    it("returns expired after EXPIRE_UNPAID_BOOK from agreed", () => {
+      expect(nextStatus("agreed", { type: "EXPIRE_UNPAID_BOOK" })).toBe("expired");
     });
 
     it("returns cancelled after CANCEL from agreed", () => {
@@ -395,6 +409,12 @@ describe("state-machine", () => {
 
     it("allows system to EXPIRE_NEGOTIATION", () => {
       expect(actorMay("EXPIRE_NEGOTIATION", "system")).toBe(true);
+    });
+
+    it("allows only system to EXPIRE_UNPAID_BOOK", () => {
+      expect(actorMay("EXPIRE_UNPAID_BOOK", "system")).toBe(true);
+      expect(actorMay("EXPIRE_UNPAID_BOOK", "motorist")).toBe(false);
+      expect(actorMay("EXPIRE_UNPAID_BOOK", "repair_pro")).toBe(false);
     });
 
     it("allows repair_pro to OPEN/CONFIRM/LATER/DECLINE", () => {

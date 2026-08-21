@@ -5,6 +5,7 @@ import {
   MAX_NEGOTIATION_OFFERS,
   NEGOTIATE_WINDOW_MS,
   PAYMENT_WINDOW_MS,
+  PAY_TO_BOOK_WINDOW_MS,
   MAX_PAYMENT_ATTEMPTS,
   BOOKED_COMPLETION_WINDOW_MS,
   COMPLETED_AUTO_RELEASE_WINDOW_MS,
@@ -19,6 +20,9 @@ import {
   getOpenPaymentSessionStartMs,
   paymentEndsAtIso,
   isAgreedPastPaymentDeadline,
+  isAgreedPastPayToBookDeadline,
+  hasStartedPaySession,
+  agreedAtMs,
   paymentAttemptsRemaining,
   completedAtMs,
   satisfiedReleaseEndsAtIso,
@@ -50,6 +54,10 @@ describe("constants", () => {
 
   it("payment window is 11 minutes", () => {
     expect(PAYMENT_WINDOW_MS).toBe(11 * 60 * 1000);
+  });
+
+  it("pay-to-book window is 30 minutes", () => {
+    expect(PAY_TO_BOOK_WINDOW_MS).toBe(30 * 60 * 1000);
   });
 
   it("max payment attempts is 3", () => {
@@ -246,6 +254,60 @@ describe("isAgreedPastPaymentDeadline", () => {
 
   it("returns false when not agreed", () => {
     expect(isAgreedPastPaymentDeadline({ status: "negotiating" })).toBe(false);
+  });
+});
+
+describe("pay-to-book 30 minute deadline", () => {
+  it("expires agreed jobs that never tapped Pay after 30 minutes", () => {
+    const at = new Date(Date.now() - 31 * 60 * 1000).toISOString();
+    expect(
+      isAgreedPastPayToBookDeadline({
+        status: "agreed",
+        statusHistory: [{ status: "agreed", at, by: "motorist" }],
+      })
+    ).toBe(true);
+  });
+
+  it("does not expire within 30 minutes if Pay was never tapped", () => {
+    const at = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    expect(
+      isAgreedPastPayToBookDeadline({
+        status: "agreed",
+        statusHistory: [{ status: "agreed", at, by: "motorist" }],
+      })
+    ).toBe(false);
+  });
+
+  it("does not expire after 30 minutes if Pay was tapped", () => {
+    const agreed = new Date(Date.now() - 40 * 60 * 1000).toISOString();
+    const pay = new Date(Date.now() - 29 * 60 * 1000).toISOString();
+    expect(
+      hasStartedPaySession({
+        statusHistory: [
+          { status: "agreed", at: agreed, by: "motorist" },
+          { status: "agreed", at: pay, by: PAY_HISTORY.SESSION_START },
+        ],
+      })
+    ).toBe(true);
+    expect(
+      isAgreedPastPayToBookDeadline({
+        status: "agreed",
+        statusHistory: [
+          { status: "agreed", at: agreed, by: "motorist" },
+          { status: "agreed", at: pay, by: PAY_HISTORY.SESSION_START },
+        ],
+      })
+    ).toBe(false);
+  });
+
+  it("reads agreedAt from first agreed history entry", () => {
+    const at = "2026-08-21T10:00:00.000Z";
+    expect(
+      agreedAtMs({
+        status: "agreed",
+        statusHistory: [{ status: "agreed", at, by: "motorist" }],
+      })
+    ).toBe(new Date(at).getTime());
   });
 });
 

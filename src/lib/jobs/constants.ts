@@ -56,6 +56,12 @@ export function nearbyProsStatusLine(
 export const PAYMENT_WINDOW_MS = 11 * 60 * 1000;
 /** Max unpaid payment windows before system cancels the booking */
 export const MAX_PAYMENT_ATTEMPTS = 3;
+/**
+ * After price is agreed, customer has this long to tap Pay.
+ * If they never start a pay session, the request expires.
+ * Once Pay is tapped, PAYMENT_WINDOW_MS (× MAX_PAYMENT_ATTEMPTS) applies.
+ */
+export const PAY_TO_BOOK_WINDOW_MS = 30 * 60 * 1000;
 
 /** statusHistory.by markers for pay-to-book lifecycle */
 export const PAY_HISTORY = {
@@ -64,6 +70,8 @@ export const PAY_HISTORY = {
   SESSION_CANCELLED: "payment_session_cancelled",
   WINDOW_EXPIRED: "payment_window_expired",
   MAX_ATTEMPTS_CANCEL: "payment_max_attempts_cancel",
+  /** Never tapped Pay within 30 min of agreed */
+  UNPAID_BOOK_EXPIRE: "unpaid_book_expire",
 } as const;
 /** Max total price offers (pro + motorist combined), up to 6 rounds */
 export const MAX_NEGOTIATION_OFFERS = 6;
@@ -243,6 +251,53 @@ export function paymentEndsAtIso(job: {
     if (Number.isFinite(t) && t > start) return job.paymentSessionEndsAt;
   }
   return new Date(start + PAYMENT_WINDOW_MS).toISOString();
+}
+
+/** First time the job entered agreed (price accepted). */
+export function agreedAtMs(job: {
+  status?: string;
+  updatedAt?: string;
+  createdAt?: string;
+  statusHistory?: Hist[];
+}): number | null {
+  const hits = (job.statusHistory || [])
+    .filter((h) => h.status === "agreed")
+    .map((h) => new Date(h.at).getTime())
+    .filter((t) => Number.isFinite(t))
+    .sort((a, b) => a - b);
+  if (hits.length) return hits[0];
+  if (job.status === "agreed") {
+    const t = new Date(job.updatedAt || job.createdAt || "").getTime();
+    return Number.isFinite(t) ? t : null;
+  }
+  return null;
+}
+
+/** True once the customer has tapped Pay at least once. */
+export function hasStartedPaySession(job: { statusHistory?: Hist[] }): boolean {
+  return (job.statusHistory || []).some(
+    (h) => h.by === PAY_HISTORY.SESSION_START
+  );
+}
+
+/**
+ * Agreed, never tapped Pay, 30 minutes elapsed → expire the request.
+ * Does not fire if a pay session has started (11-min × 3 tries apply instead).
+ */
+export function isAgreedPastPayToBookDeadline(
+  job: {
+    status: string;
+    updatedAt?: string;
+    createdAt?: string;
+    statusHistory?: Hist[];
+  },
+  nowMs: number = Date.now()
+): boolean {
+  if (job.status !== "agreed") return false;
+  if (hasStartedPaySession(job)) return false;
+  const start = agreedAtMs(job);
+  if (start == null) return false;
+  return nowMs >= start + PAY_TO_BOOK_WINDOW_MS;
 }
 
 /** True when an open pay session has passed PAYMENT_WINDOW_MS unpaid */

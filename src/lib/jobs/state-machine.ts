@@ -17,6 +17,8 @@ export type TransitionActor = "motorist" | "repair_pro" | "system" | "admin";
 
 export type TransitionEvent =
   | { type: "EXPIRE_NEGOTIATION" }
+  /** Customer did not tap Pay within 30 min of agreed */
+  | { type: "EXPIRE_UNPAID_BOOK" }
   | { type: "CANCEL"; by: TransitionActor; reason?: "pro_declined" | string }
   | { type: "ACCEPT_OFFER"; by: TransitionActor }
   | { type: "PAYMENT_SUCCESS" }
@@ -96,6 +98,7 @@ const ALLOWED: Record<JobFlowStatus, Partial<Record<TransitionEvent["type"], Job
   agreed: {
     PAYMENT_SUCCESS: "paid_booked",
     CANCEL: "cancelled",
+    EXPIRE_UNPAID_BOOK: "expired",
   },
   paid_booked: {
     START_TRIP: "en_route",
@@ -366,6 +369,8 @@ export function actorMay(
     case "RELEASE":
     case "EXPIRE_NEGOTIATION":
       return actor === "system" || actor === "motorist" || actor === "admin";
+    case "EXPIRE_UNPAID_BOOK":
+      return actor === "system";
     case "CANCEL":
       // system = 6h booked auto-cancel + refund
       return (

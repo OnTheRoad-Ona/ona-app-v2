@@ -4,6 +4,14 @@
   "regions": ["iad1"],
   "crons": [
     {
+      "path": "/api/jobs/expire-stale",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/jobs/pairing-sweep",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/payments/payout-retry",
       "schedule": "0 8 * * *"
     },
