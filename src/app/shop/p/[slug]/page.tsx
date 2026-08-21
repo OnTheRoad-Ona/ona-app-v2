@@ -99,6 +99,11 @@ export default function ShopProductPage() {
   );
   const selectedPrice = priceFor(selectedVariantId);
   const available = Number(selectedVariant?.stock_available ?? 0);
+  const attrs = (product?.attributes as Record<string, unknown> | undefined) ?? {};
+  const priceOnRequest = Boolean(attrs.priceOnRequest);
+  const vehicleTags = Array.isArray(attrs.vehicleTags)
+    ? (attrs.vehicleTags as unknown[]).map(String)
+    : [];
   const outOfStock = !selectedVariant || available <= 0;
 
   const clampQty = useCallback((n: number) => {
@@ -114,9 +119,11 @@ export default function ShopProductPage() {
   const bg = isLight ? "bg-[#c8c9cd]" : "bg-black";
   const muted = isLight ? "text-slate-600" : "text-white/55";
   const border = isLight ? "border-black/10" : "border-white/10";
-  const price = selectedPrice
-    ? formatPrice(selectedPrice.amount_minor)
-    : "—";
+  const price = priceOnRequest
+    ? "Contact for price"
+    : selectedPrice
+      ? formatPrice(selectedPrice.amount_minor)
+      : "—";
   const compareAt = selectedPrice?.compare_at_minor
     ? formatPrice(selectedPrice.compare_at_minor)
     : null;
@@ -179,14 +186,43 @@ export default function ShopProductPage() {
                 {String(product.subtitle)}
               </p>
             ) : null}
-            <div className="mt-3 flex items-baseline gap-2">
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <p className="text-[22px] font-black text-[#FF6B35]">{price}</p>
-              {compareAt ? (
+              {compareAt && !priceOnRequest ? (
                 <p className={cn("text-[13px] font-semibold line-through", muted)}>
                   {compareAt}
                 </p>
               ) : null}
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-[11px] font-bold",
+                  outOfStock
+                    ? isLight
+                      ? "bg-black/10 text-slate-500"
+                      : "bg-white/10 text-white/55"
+                    : "bg-emerald-500/15 text-emerald-700"
+                )}
+              >
+                {outOfStock ? "Out of Stock" : "In Stock"}
+              </span>
             </div>
+            {vehicleTags.length ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {vehicleTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                      isLight
+                        ? "bg-black/8 text-slate-700"
+                        : "bg-white/10 text-white/80"
+                    )}
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            ) : null}
             {product.description ? (
               <p className={cn("mt-3 text-[13px] leading-relaxed", muted)}>
                 {String(product.description)}
@@ -223,7 +259,7 @@ export default function ShopProductPage() {
                         </span>
                         <span className={cn("block text-[11px]", muted)}>
                           {vPrice ? formatPrice(vPrice.amount_minor) : "—"}
-                          {soldOut ? " · Sold out" : ""}
+                          {soldOut ? " · Out of Stock" : " · In Stock"}
                         </span>
                       </button>
                     );
@@ -245,7 +281,7 @@ export default function ShopProductPage() {
             ) : null}
 
             {/* Quantity selector */}
-            {!outOfStock ? (
+            {!outOfStock && !priceOnRequest ? (
               <div
                 className={cn(
                   "mt-3 flex items-center justify-between rounded-xl p-2.5",
@@ -293,7 +329,7 @@ export default function ShopProductPage() {
             ) : null}
             <button
               type="button"
-              disabled={adding || outOfStock}
+              disabled={adding || outOfStock || priceOnRequest}
               onClick={async () => {
                 if (!isAuthenticated) {
                   router.push("/login");
@@ -321,7 +357,11 @@ export default function ShopProductPage() {
               className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border-0 bg-[#FF6B35] text-[14px] font-bold text-white disabled:opacity-60"
             >
               {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {outOfStock ? "Out of stock" : `Add ${qty} to cart`}
+              {priceOnRequest
+                ? "Contact for price"
+                : outOfStock
+                  ? "Out of Stock"
+                  : `Add ${qty} to cart`}
             </button>
             <button
               type="button"

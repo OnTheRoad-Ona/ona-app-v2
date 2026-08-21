@@ -15,13 +15,6 @@ import { PRO_TRADE_OPTIONS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
-type TradeCat = {
-  id: string;
-  tradeKey: string;
-  slug: string;
-  name: string;
-};
-
 type ProductCard = {
   id: string;
   slug: string;
@@ -33,6 +26,9 @@ type ProductCard = {
   currency: string;
   inStock: boolean;
   defaultVariantId?: string | null;
+  vehicleTags?: string[];
+  priceOnRequest?: boolean;
+  stockLabel?: string;
 };
 
 export default function ShopHomePage() {
@@ -45,7 +41,6 @@ export default function ShopHomePage() {
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [setupRequired, setSetupRequired] = useState(false);
-  const [trades, setTrades] = useState<TradeCat[]>([]);
   const [popular, setPopular] = useState<ProductCard[]>([]);
   const [newArrivals, setNewArrivals] = useState<ProductCard[]>([]);
   const [results, setResults] = useState<ProductCard[] | null>(null);
@@ -54,6 +49,9 @@ export default function ShopHomePage() {
   const [shopTitle, setShopTitle] = useState("Shop");
   const [allowBrowseAllParts, setAllowBrowseAllParts] = useState(true);
   const [defaultTradeKey, setDefaultTradeKey] = useState<string | null>(null);
+  const [allowedTradeKeys, setAllowedTradeKeys] = useState<string[] | null>(
+    null
+  );
 
   const loadHome = useCallback(async () => {
     setLoading(true);
@@ -62,7 +60,6 @@ export default function ShopHomePage() {
       const json = (await res.json()) as {
         ok?: boolean;
         data?: {
-          trades?: TradeCat[];
           popular?: ProductCard[];
           newArrivals?: ProductCard[];
           recommended?: ProductCard[];
@@ -70,10 +67,10 @@ export default function ShopHomePage() {
           shopTitle?: string;
           allowBrowseAllParts?: boolean;
           defaultTradeKey?: string | null;
+          allowedTradeKeys?: string[] | null;
         };
       };
       if (json.ok && json.data) {
-        setTrades(json.data.trades ?? []);
         setPopular(json.data.popular ?? []);
         setNewArrivals(json.data.newArrivals ?? []);
         if (json.data.recommended?.length) {
@@ -85,6 +82,7 @@ export default function ShopHomePage() {
         if (json.data.shopTitle) setShopTitle(json.data.shopTitle);
         setAllowBrowseAllParts(json.data.allowBrowseAllParts !== false);
         setDefaultTradeKey(json.data.defaultTradeKey ?? null);
+        setAllowedTradeKeys(json.data.allowedTradeKeys ?? null);
       }
     } catch {
       setSetupRequired(true);
@@ -168,6 +166,9 @@ export default function ShopHomePage() {
             inStock: p.inStock,
             primaryImageUrl: p.primaryImageUrl,
             defaultVariantId: p.defaultVariantId,
+            vehicleTags: p.vehicleTags,
+            priceOnRequest: p.priceOnRequest,
+            stockLabel: p.stockLabel,
           }}
           tint={tint}
         />
@@ -229,11 +230,7 @@ export default function ShopHomePage() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") void runSearch();
               }}
-              placeholder={
-                shopTitle === "Mechanic Shop"
-                  ? "What part, tool, fluid or equipment are you looking for?"
-                  : "What are you looking for?"
-              }
+              placeholder="Search by product name or vehicle model"
               className={cn(
                 "min-w-0 flex-1 border-0 bg-transparent text-[14px] outline-none",
                 isLight ? "text-slate-900 placeholder:text-slate-400" : "text-white placeholder:text-white/40"
@@ -317,10 +314,7 @@ export default function ShopHomePage() {
                   )}
                 >
                   Jump to{" "}
-                  <span className="text-[#FF6B35]">
-                    {PRO_TRADE_OPTIONS.find((t) => t.id === suggestedTrade)
-                      ?.homeLabel || suggestedTrade}
-                  </span>{" "}
+                  <span className="text-[#FF6B35]">{suggestedTrade}</span>{" "}
                   shop search →
                 </button>
               </div>
@@ -386,60 +380,31 @@ export default function ShopHomePage() {
           </>
         ) : (
           <>
-            {/* Enter shop — original box grid (not product listings) */}
             <p className="px-3 pt-4 pb-2 text-[13px] font-black tracking-tight">
               Enter shop
             </p>
             <div className="grid grid-cols-4 gap-2 px-3">
-              {(trades.length
-                ? trades
-                : PRO_TRADE_OPTIONS.map((t) => ({
-                    id: t.id,
-                    tradeKey: t.id,
-                    slug: t.id,
-                    name: t.homeLabel,
-                  }))
-              )
-                // One tile per trade. Keep ONLY the trade's canonical root
-                // (slug === tradeKey, e.g. mechanic/mechanic) when it exists —
-                // otherwise the newer taxonomy branches (mechanic/engine-engine-parts
-                // etc.) share the same tradeKey and would eat the "Mechanic" tile.
-                .filter((tr, i, arr) => {
-                  const key = (x: { tradeKey?: string; slug?: string }) =>
-                    x.tradeKey || x.slug;
-                  const canonical = arr.findIndex(
-                    (x) => key(x) === key(tr) && x.slug === x.tradeKey
-                  );
-                  if (canonical !== -1) return i === canonical;
-                  return arr.findIndex((x) => key(x) === key(tr)) === i;
-                })
-                .map((tr) => {
-                const opt = PRO_TRADE_OPTIONS.find(
-                  (x) => x.id === tr.tradeKey || x.id === tr.slug
-                );
-                const Icon = opt?.icon;
+              {PRO_TRADE_OPTIONS.filter(
+                (t) =>
+                  !allowedTradeKeys || allowedTradeKeys.includes(t.id)
+              ).map((opt) => {
+                const Icon = opt.icon;
                 return (
                   <button
-                    key={tr.id || tr.slug}
+                    key={opt.id}
                     type="button"
-                    onClick={() =>
-                      router.push(`/shop/c/${tr.tradeKey || tr.slug}`)
-                    }
+                    onClick={() => router.push(`/shop/c/${opt.id}`)}
                     className={cn(
                       "flex flex-col items-center gap-1 rounded-xl border-0 px-1 py-2.5",
                       card
                     )}
                   >
-                    {Icon ? (
-                      <Icon
-                        className="h-5 w-5 text-[#FF6B35]"
-                        strokeWidth={2.2}
-                      />
-                    ) : (
-                      <ShoppingBag className="h-5 w-5 text-[#FF6B35]" />
-                    )}
+                    <Icon
+                      className="h-5 w-5 text-[#FF6B35]"
+                      strokeWidth={2.2}
+                    />
                     <span className="truncate text-[10px] font-bold">
-                      {tr.name}
+                      {opt.homeLabel}
                     </span>
                   </button>
                 );

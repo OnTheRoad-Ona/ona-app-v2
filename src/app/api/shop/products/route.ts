@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
       categoryId,
       categorySlug: filters?.categorySlug,
       q: sp.get("q") || undefined,
-      limit: Number(sp.get("limit") || 24),
+      limit: Number(sp.get("limit") || 80),
       accountContext: await resolveAccountContext(req),
       filters,
     });

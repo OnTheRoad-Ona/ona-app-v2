@@ -68,6 +68,9 @@ export type ShopProductCard = {
   attributes?: Record<string, unknown>;
   /** First active, in-stock variant — enables quick add-to-cart from a card. */
   defaultVariantId?: string | null;
+  vehicleTags?: string[];
+  priceOnRequest?: boolean;
+  stockLabel?: string;
 };
 
 export type ShopSearchIntent = {

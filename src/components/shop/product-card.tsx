@@ -20,6 +20,9 @@ export type ShopCardProduct = {
   fitmentBadge?: string | null;
   fitmentStatus?: string | null;
   tradeKey?: string | null;
+  vehicleTags?: string[];
+  priceOnRequest?: boolean;
+  stockLabel?: string;
 };
 
 type Props = {
@@ -30,7 +33,8 @@ type Props = {
   tint?: boolean;
 };
 
-function formatPrice(minor: number | null): string {
+function formatPrice(minor: number | null, priceOnRequest?: boolean): string {
+  if (priceOnRequest) return "Contact for price";
   if (minor == null) return "—";
   return formatMoney(fromMinorUnits(minor, "NGN"), detectCurrency());
 }
@@ -52,7 +56,11 @@ export function ShopProductCard({ product, qty = 1, onAdded, tint = false }: Pro
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const inStock = Boolean(product.inStock);
-  const canAdd = inStock && Boolean(product.defaultVariantId);
+  const canAdd =
+    inStock &&
+    Boolean(product.defaultVariantId) &&
+    !product.priceOnRequest;
+  const stockLabel = product.stockLabel || (inStock ? "In Stock" : "Out of Stock");
   const badge = fitmentBadge(product.fitmentStatus, product.fitmentBadge);
 
   const card = tint
@@ -132,6 +140,21 @@ export function ShopProductCard({ product, qty = 1, onAdded, tint = false }: Pro
               {product.subtitle}
             </p>
           ) : null}
+          {product.vehicleTags && product.vehicleTags.length > 0 ? (
+            <div className="mt-0.5 flex flex-wrap gap-1">
+              {product.vehicleTags.slice(0, 3).map((tag) => (
+                <span
+                  key={tag}
+                  className={cn(
+                    "rounded-full px-1.5 py-px text-[9px] font-semibold",
+                    isLight ? "bg-black/8 text-slate-700" : "bg-white/10 text-white/80"
+                  )}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
           {badge ? (
             <p className="mt-0.5 text-[10px] font-semibold text-emerald-600">
               {badge}
@@ -139,11 +162,20 @@ export function ShopProductCard({ product, qty = 1, onAdded, tint = false }: Pro
           ) : null}
           <div className="mt-1 flex items-center gap-2">
             <p className="text-[14px] font-black text-[#FF6B35]">
-              {formatPrice(product.fromPriceMinor)}
+              {formatPrice(product.fromPriceMinor, product.priceOnRequest)}
             </p>
-            <p className={cn("text-[10px] font-semibold", muted)}>
-              {inStock ? "In stock" : "Check availability"}
-            </p>
+            <span
+              className={cn(
+                "rounded-full px-1.5 py-px text-[9px] font-bold",
+                inStock
+                  ? "bg-emerald-500/15 text-emerald-700"
+                  : isLight
+                    ? "bg-black/10 text-slate-500"
+                    : "bg-white/10 text-white/55"
+              )}
+            >
+              {stockLabel}
+            </span>
           </div>
         </div>
 

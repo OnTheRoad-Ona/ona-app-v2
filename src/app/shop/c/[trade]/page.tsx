@@ -8,6 +8,7 @@ import { ShopVehicleBar } from "@/components/shop/shop-vehicle-bar";
 import { ShopProductCard } from "@/components/shop/product-card";
 import { ShopAvailabilityChips } from "@/components/shop/shop-availability-chips";
 import type { FacetFilters } from "@/components/shop/shop-facet-bar";
+import { AUTOMEDICS_CATEGORIES } from "@/lib/shop/automedics-catalog";
 import { PRO_TRADE_OPTIONS } from "@/lib/services";
 import {
   type ListingFilterKey,
@@ -30,6 +31,9 @@ type ProductCard = {
   fitmentScore?: number;
   matchReasons?: string[];
   defaultVariantId?: string | null;
+  vehicleTags?: string[];
+  priceOnRequest?: boolean;
+  stockLabel?: string;
 };
 
 type AllPartsCat = {
@@ -49,30 +53,12 @@ type BrowseCat = {
   depth: number;
 };
 
-/** Trade-skill example inside the search box — derived from each trade's
- * PRO_TRADE_OPTIONS hint so it references the skill, not a generic car part
- * like "Camry brake pad". */
-const TRADE_SEARCH_EXAMPLES: Record<string, string> = {
-  mechanic: "engine, brakes",
-  vulcanizer: "tyres, tubes",
-  towing: "tow rope, winch",
-  battery: "battery, jumper",
-  ac: "gas, condenser",
-  body: "bumper, panel",
-  electrical: "alternator, wiring",
-  diagnostics: "scanner, fault code",
-  fashion: "fabric, thread, sewing machine",
-  plumber: "pipe, faucet",
-  carpenter: "timber, hinge",
-  painter: "paint, roller",
-  solar: "panel, inverter",
-  generator: "spark plug, filter",
-};
-
 function ShopTradePageInner() {
   const params = useParams();
   const searchParams = useSearchParams();
-  const trade = String(params.trade || "");
+  const rawTrade = String(params.trade || "");
+  const catFromPath = AUTOMEDICS_CATEGORIES.find((c) => c.slug === rawTrade);
+  const trade = catFromPath ? "mechanic" : rawTrade;
   const { theme, accountType } = useApp();
   const isLight = theme === "light";
   const ctx =
@@ -108,9 +94,13 @@ function ShopTradePageInner() {
   const [browseLoading, setBrowseLoading] = useState(false);
   const [browseError, setBrowseError] = useState(false);
 
+  const catQuery = searchParams.get("cat") || catFromPath?.slug || "";
+  const catMeta = AUTOMEDICS_CATEGORIES.find((c) => c.slug === catQuery);
   const label =
-    PRO_TRADE_OPTIONS.find((t) => t.id === trade)?.homeLabel || trade;
-  const searchExample = TRADE_SEARCH_EXAMPLES[trade] || "part name";
+    catMeta?.name ||
+    PRO_TRADE_OPTIONS.find((t) => t.id === trade)?.homeLabel ||
+    trade;
+  const searchExample = "product name or vehicle model";
 
   const loadAllParts = useCallback(async () => {
     if (!allParts) return;
@@ -255,9 +245,17 @@ function ShopTradePageInner() {
           data?: { categories?: BrowseCat[] };
         };
         if (json.ok) {
-          const list = Array.isArray(json.data?.categories)
+          let list = Array.isArray(json.data?.categories)
             ? json.data.categories
             : [];
+          if (trade === "mechanic" && !parent) {
+            const order = AUTOMEDICS_CATEGORIES.map((c) => c.slug as string);
+            list = [...list].sort((a, b) => {
+              const ia = order.indexOf(a.slug);
+              const ib = order.indexOf(b.slug);
+              return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+            });
+          }
           setBrowseLevel(list);
         } else {
           setBrowseError(true);
@@ -280,7 +278,7 @@ function ShopTradePageInner() {
         const qs = new URLSearchParams({
           trade,
           category: cat.slug,
-          limit: "100",
+          limit: "250",
           ctx,
         });
         if (availability !== "all") qs.set("listingStatus", availability);
@@ -353,13 +351,27 @@ function ShopTradePageInner() {
     [browseStack, loadBrowse]
   );
 
+  // Deep-link a category (?cat=batteries or /shop/c/batteries).
+  useEffect(() => {
+    if (allParts) return;
+    if (!catQuery) return;
+    void openBrowseCategory({
+      id: catQuery,
+      slug: catQuery,
+      name: catMeta?.name || catQuery,
+      depth: 0,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allParts, catQuery, trade]);
+
   // Seed the neutral browse with root categories on first load (non-ALL PARTS).
   const browseSeeded = browseStack.length > 0 || browseLevel.length > 0;
   useEffect(() => {
     if (allParts) return;
+    if (catQuery) return;
     if (browseSeeded) return;
     void loadBrowse();
-  }, [allParts, browseSeeded, loadBrowse]);
+  }, [allParts, browseSeeded, loadBrowse, catQuery]);
 
   // Reset the neutral browse when switching trades or entering ALL PARTS.
   useEffect(() => {
@@ -409,6 +421,9 @@ function ShopTradePageInner() {
             fitmentStatus: p.fitmentStatus,
             fitmentBadge: p.fitmentBadge,
             defaultVariantId: p.defaultVariantId,
+            vehicleTags: p.vehicleTags,
+            priceOnRequest: p.priceOnRequest,
+            stockLabel: p.stockLabel,
           }}
         />
       ))}
@@ -607,7 +622,9 @@ function ShopTradePageInner() {
                     <p className="pb-2 text-[13px] font-black">
                       {browseStack.length
                         ? browseStack[browseStack.length - 1].name
-                        : "My Shop"}
+                        : trade === "mechanic"
+                          ? "Categories"
+                          : "My Shop"}
                     </p>
                     {browseLevel.length === 0 ? (
                       <p className={cn("px-1 py-10 text-center text-[13px]", muted)}>

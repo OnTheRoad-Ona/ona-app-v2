@@ -71,13 +71,16 @@ describe("listing status", () => {
 });
 
 describe("mechanic taxonomy", () => {
-  it("has 30 root category branches", () => {
+  it("has 17 Automedics root categories", () => {
     const roots = walkMechanicCategories().filter((c) => c.depth === 0);
-    expect(roots.length).toBe(30);
+    expect(roots.length).toBe(17);
+    expect(roots.map((c) => c.name)).toContain("Batteries");
+    expect(roots.map((c) => c.name)).toContain("Other / Accessories");
   });
 
-  it("has many subcategories", () => {
+  it("has no leftover demo subcategory tree", () => {
     const kids = walkMechanicCategories().filter((c) => c.depth === 1);
-    expect(kids.length).toBeGreaterThan(100);
+    expect(kids.length).toBe(0);
   });
 });
+

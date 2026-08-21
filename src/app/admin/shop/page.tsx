@@ -755,16 +755,41 @@ export default function AdminShopPage() {
                 }}
               >
                 <h2 style={{ margin: 0 }}>Edit product</h2>
-                <button
-                  type="button"
-                  className="om-admin-btn"
-                  onClick={() => {
-                    setEditId(null);
-                    setEditDetail(null);
-                  }}
-                >
-                  Close
-                </button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    className="om-admin-btn"
+                    onClick={async () => {
+                      if (!editId) return;
+                      if (!window.confirm("Archive this product? Customers will no longer see it.")) {
+                        return;
+                      }
+                      const res = await api(`/api/admin/shop/products/${editId}`, {
+                        method: "DELETE",
+                      });
+                      if (!res.ok) {
+                        setError(res.message);
+                        return;
+                      }
+                      setMessage("Product archived");
+                      setEditId(null);
+                      setEditDetail(null);
+                      await loadCatalog();
+                    }}
+                  >
+                    Archive
+                  </button>
+                  <button
+                    type="button"
+                    className="om-admin-btn"
+                    onClick={() => {
+                      setEditId(null);
+                      setEditDetail(null);
+                    }}
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
               <div
                 style={{

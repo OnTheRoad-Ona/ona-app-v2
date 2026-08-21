@@ -120,7 +120,9 @@ export function ShopFacetBar({ tradeKey, filters, onChange }: Props) {
 
   const safeDefs = Array.isArray(defs) ? defs : [];
   const attrDefs = safeDefs.filter(
-    (d): d is Extract<FilterDef, { kind: "attribute" }> => d.kind === "attribute"
+    (d): d is Extract<FilterDef, { kind: "attribute" }> =>
+      d.kind === "attribute" &&
+      (d.key === "vehicleMake" || d.key === "vehicleModel")
   );
   const hasPrice = safeDefs.some((d) => d.kind === "price");
   const hasCategory = cats.length > 0;

@@ -11,7 +11,7 @@ import type {
   ShopCategory,
   ShopProductCard,
 } from "@/lib/server/shop/types";
-
+import { AUTOMEDICS_CATEGORIES } from "@/lib/shop/automedics-catalog";
 /** Parse ?ctx= from a request into a shop account context (default motorist). */
 export function shopCtxFromQuery(value: string | null): ShopAccountContext {
   return value === "professional" ? "professional" : "motorist";
@@ -156,6 +156,13 @@ export async function getTradeBrowseStart(
     });
     if (children.length > 0) return children;
   }
+  if (tradeKey === "mechanic") {
+    const allow = new Set(AUTOMEDICS_CATEGORIES.map((c) => c.slug as string));
+    const ordered = AUTOMEDICS_CATEGORIES.map((c) =>
+      roots.find((r) => r.slug === c.slug)
+    ).filter((c): c is ShopCategory => c != null && allow.has(c.slug));
+    if (ordered.length) return ordered;
+  }
   return roots;
 }
 
@@ -201,13 +208,8 @@ export async function getShopHomeSections(opts?: {
     const allow = new Set(opts.allowedTradeKeys);
     trades = trades.filter((t) => allow.has(t.tradeKey));
   }
-  // Mechanic shop home: show mechanic root categories, not all 14 trades
-  if (opts?.defaultTradeKey === "mechanic") {
-    trades = await getTradeCategories({
-      tradeKey: "mechanic",
-      rootsOnly: true,
-    });
-  }
+  // Mechanic-pro shop home stays Mechanic Shop, but Enter shop tiles are
+  // still the trade list (see /shop). Categories open on /shop/c/mechanic.
   const tradeFilter =
     opts?.allowedTradeKeys?.length === 1
       ? opts.allowedTradeKeys[0]
@@ -273,7 +275,7 @@ export async function listProducts(opts: {
   filters?: ProductFilterOptions;
 }): Promise<ShopProductCard[]> {
   const sb = createServiceSupabase();
-  const limit = Math.min(Math.max(opts.limit ?? 24, 1), 100);
+  const limit = Math.min(Math.max(opts.limit ?? 24, 1), 250);
 
   const tokens = (
     opts.tokens?.length
@@ -328,6 +330,7 @@ export async function listProducts(opts: {
 
   if (opts.tradeKey) q = q.eq("trade_key", opts.tradeKey);
   if (effectiveCategoryId) q = q.eq("category_id", effectiveCategoryId);
+  q = q.is("deleted_at", null);
   // Role-gate professional-only products (guest + motorist = excluded)
   if (opts.accountContext !== "professional") {
     q = q.eq("is_professional_only", false);
@@ -417,6 +420,7 @@ export async function listProducts(opts: {
           "id, slug, name, subtitle, trade_key, brand_id, shop_brands(name), primary_image_url, condition_type, status, attributes, created_at"
         )
         .in("id", [...matchedProductIds].slice(0, limit));
+      extraQ = extraQ.is("deleted_at", null);
       if (listingStatii) extraQ = extraQ.in("status", [...listingStatii]);
       else extraQ = extraQ.eq("status", opts.status ?? "active");
       const { data: extra } = await extraQ;
@@ -453,11 +457,19 @@ export async function listProducts(opts: {
     const id = String(p.id);
     const price = prices.get(id) ?? null;
     const hasStock = stock.get(id) ?? false;
+    const attrs = (p.attributes as Record<string, unknown> | undefined) ?? {};
+    const priceOnRequest = Boolean(attrs.priceOnRequest);
+    const priced = priceOnRequest ? true : price != null && price > 0;
     const av = availabilityState({
       status: p.status ? String(p.status) : "active",
-      priced: price != null,
+      priced,
       inStock: hasStock,
     });
+    const tags = Array.isArray(attrs.vehicleTags)
+      ? (attrs.vehicleTags as unknown[]).map(String).filter(Boolean)
+      : typeof attrs.vehicleLabel === "string"
+        ? [String(attrs.vehicleLabel)]
+        : [];
     return {
       id,
       slug: String(p.slug),
@@ -469,15 +481,16 @@ export async function listProducts(opts: {
         ? String(p.primary_image_url)
         : null,
       conditionType: p.condition_type ? String(p.condition_type) : null,
-      fromPriceMinor: price,
+      fromPriceMinor: priceOnRequest ? null : price,
       currency: "NGN",
-      inStock: av.available,
+      inStock: av.available || (priceOnRequest && hasStock),
       status: p.status ? String(p.status) : "active",
-      availabilityLabel: av.label,
-      attributes: p.attributes
-        ? (p.attributes as Record<string, unknown>)
-        : undefined,
+      availabilityLabel: hasStock ? "In Stock" : "Out of Stock",
+      attributes: attrs,
       defaultVariantId: defaultVariantIds.get(id) ?? null,
+      vehicleTags: tags,
+      priceOnRequest,
+      stockLabel: hasStock ? "In Stock" : "Out of Stock",
     };
   });
 }
@@ -634,6 +647,7 @@ export async function getProductBySlug(
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!rawProduct) return null;
+  if (rawProduct.deleted_at) return null;
   const product = {
     ...rawProduct,
     brandName: brandNameOf(rawProduct as Record<string, unknown>),

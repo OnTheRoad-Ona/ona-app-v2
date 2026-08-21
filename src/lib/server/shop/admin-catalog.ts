@@ -46,7 +46,7 @@ export async function adminListProducts(opts?: {
   limit?: number;
 }) {
   const sb = createServiceSupabase();
-  const limit = Math.min(opts?.limit ?? 100, 200);
+  const limit = Math.min(opts?.limit ?? 250, 300);
   let q = sb
     .from("shop_products")
     .select(
@@ -56,6 +56,7 @@ export async function adminListProducts(opts?: {
     .limit(limit);
   if (opts?.tradeKey) q = q.eq("trade_key", opts.tradeKey);
   if (opts?.status) q = q.eq("status", opts.status);
+  else q = q.neq("status", "archived");
   if (opts?.q?.trim()) {
     const term = opts.q.trim().replace(/%/g, "");
     q = q.or(
@@ -494,6 +495,106 @@ export async function adminUploadProductImage(opts: {
   });
 
   return { url, imageId: String(img.id) };
+}
+
+export async function adminSoftDeleteProduct(
+  id: string,
+  actorId: string | null
+) {
+  const sb = createServiceSupabase();
+  const now = new Date().toISOString();
+  const { data, error } = await sb
+    .from("shop_products")
+    .update({
+      status: "archived",
+      deleted_at: now,
+      updated_at: now,
+    })
+    .eq("id", id)
+    .select("id")
+    .single();
+  if (error) {
+    const { data: d2, error: e2 } = await sb
+      .from("shop_products")
+      .update({ status: "archived", updated_at: now })
+      .eq("id", id)
+      .select("id")
+      .single();
+    if (e2) throw new Error(e2.message);
+    await sb.from("shop_audit_logs").insert({
+      actor_id: actorId,
+      action: "product_soft_delete",
+      entity_type: "shop_product",
+      entity_id: id,
+      payload: { fallback: true },
+    });
+    return d2;
+  }
+  await sb.from("shop_audit_logs").insert({
+    actor_id: actorId,
+    action: "product_soft_delete",
+    entity_type: "shop_product",
+    entity_id: id,
+    payload: { deleted_at: now },
+  });
+  return data;
+}
+
+export async function adminCreateCategory(input: {
+  name: string;
+  slug?: string;
+  tradeKey?: string;
+  parentId?: string | null;
+  actorId: string | null;
+}) {
+  const sb = createServiceSupabase();
+  const tradeKey = input.tradeKey || "mechanic";
+  const slug = slugify(input.slug || input.name);
+  const { data, error } = await sb
+    .from("shop_trade_categories")
+    .insert({
+      trade_key: tradeKey,
+      slug,
+      name: input.name.trim(),
+      parent_id: input.parentId || null,
+      depth: input.parentId ? 1 : 0,
+      path: `/${slug}`,
+      sort_order: 99,
+      is_active: true,
+    })
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  await sb.from("shop_audit_logs").insert({
+    actor_id: input.actorId,
+    action: "category_create",
+    entity_type: "shop_trade_category",
+    entity_id: data.id,
+    payload: { slug, name: input.name },
+  });
+  return data;
+}
+
+export async function adminSoftDeleteCategory(
+  id: string,
+  actorId: string | null
+) {
+  const sb = createServiceSupabase();
+  const { data, error } = await sb
+    .from("shop_trade_categories")
+    .update({ is_active: false })
+    .eq("id", id)
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  await sb.from("shop_audit_logs").insert({
+    actor_id: actorId,
+    action: "category_soft_delete",
+    entity_type: "shop_trade_category",
+    entity_id: id,
+    payload: {},
+  });
+  return data;
 }
 
 export async function adminListCategories() {

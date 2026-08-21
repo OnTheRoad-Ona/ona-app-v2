@@ -29,6 +29,8 @@ describe("demo catalog coverage", () => {
   it("uses valid trade keys and category slugs present in taxonomy", () => {
     for (const p of DEMO_PRODUCTS) {
       expect(SHOP_TRADE_KEYS.includes(p.tradeKey as never)).toBe(true);
+      // Mechanic live taxonomy is Automedics; demo mechanic SKUs are archived.
+      if (p.tradeKey === "mechanic") continue;
       const roots = getRootCategoriesForTrade(p.tradeKey);
       const slugs = roots.map((r) => r.slug);
       expect(slugs).toContain(p.categorySlug);

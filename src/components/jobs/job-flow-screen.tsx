@@ -42,6 +42,7 @@ import {
 } from "@/components/jobs/job-shell";
 import { VoiceNotePlayer } from "@/components/jobs/voice-note-player";
 import { JobProblemQA } from "@/components/jobs/job-problem-qa";
+import { JobShopRecommend } from "@/components/jobs/job-shop-recommend";
 import { CalloutFeeLines } from "@/components/jobs/callout-fee-lines";
 import { useJobCallout } from "@/lib/callout/use-job-callout";
 import {
@@ -2602,6 +2603,14 @@ export function JobFlowScreen({
           <p className={cn("text-[12px] font-medium leading-snug", muted)}>
             {copy.subtitle}
           </p>
+        ) : null}
+
+        {job.id && (viewer === "repair_pro" || viewer === "motorist") ? (
+          <JobShopRecommend
+            jobId={job.id}
+            isLight={isLight}
+            canEdit={viewer === "repair_pro"}
+          />
         ) : null}
       </>
     );

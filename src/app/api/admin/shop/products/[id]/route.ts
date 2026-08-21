@@ -4,6 +4,7 @@ import { apiFail, apiOk } from "@/lib/server/api-json";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import {
   adminGetProduct,
+  adminSoftDeleteProduct,
   adminUpdateProduct,
 } from "@/lib/server/shop/admin-catalog";
 
@@ -61,6 +62,24 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       return apiFail(e.message, e.status, "admin_auth");
     }
     const msg = e instanceof Error ? e.message : "Update failed";
+    return apiFail(msg, 500);
+  }
+}
+
+export async function DELETE(_req: NextRequest, ctx: Ctx) {
+  if (!isSupabaseAdminConfigured()) {
+    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+  }
+  try {
+    const auth = await requirePermission("shop_catalog");
+    const { id } = await ctx.params;
+    const deleted = await adminSoftDeleteProduct(id, auth.session.userId);
+    return apiOk({ product: deleted, softDeleted: true });
+  } catch (e) {
+    if (e instanceof AdminAuthError) {
+      return apiFail(e.message, e.status, "admin_auth");
+    }
+    const msg = e instanceof Error ? e.message : "Delete failed";
     return apiFail(msg, 500);
   }
 }
