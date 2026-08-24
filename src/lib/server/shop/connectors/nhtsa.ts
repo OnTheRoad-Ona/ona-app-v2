@@ -1,5 +1,5 @@
 /**
- * NHTSA vPIC connector (Phase 2) — vehicle foundation for the catalog.
+ * NHTSA vPIC connector (Phase 2) vehicle foundation for the catalog.
  *
  * Uses the public NHTSA vPIC API for vehicle makes/models. This is a legal,
  * free, public-data source (no key required). The connector enriches the
@@ -10,35 +10,61 @@
  * Ona shop_product_fitments table driven by real application data.
  */
 
-import type { CatalogConnector, StagedRecord } from "@/lib/server/shop/connectors/types";
+import type {
+  CatalogConnector,
+  StagedRecord,
+} from "@/lib/server/shop/connectors/types";
 import { checksum } from "@/lib/server/shop/normalize";
 
 const BASE = "https://vpic.nhtsa.dot.gov/api/vehicles";
 
 /** Nigeria-common makes for launch (public NHTSA names). */
 const MAKES = [
-  "Toyota", "Honda", "Lexus", "Mercedes-Benz", "BMW", "Nissan",
-  "Hyundai", "Kia", "Ford", "Volkswagen", "Peugeot", "Mazda",
-  "Mitsubishi", "Suzuki", "Isuzu", "Land Rover", "Chevrolet",
-  "Acura", "Infiniti", "Jeep",
+  "Toyota",
+  "Honda",
+  "Lexus",
+  "Mercedes-Benz",
+  "BMW",
+  "Nissan",
+  "Hyundai",
+  "Kia",
+  "Ford",
+  "Volkswagen",
+  "Peugeot",
+  "Mazda",
+  "Mitsubishi",
+  "Suzuki",
+  "Isuzu",
+  "Land Rover",
+  "Chevrolet",
+  "Acura",
+  "Infiniti",
+  "Jeep",
 ];
 
 const PAGE_SIZE = 10;
 
-async function fetchJson(path: string, signal?: AbortSignal): Promise<{ Results?: unknown[] }> {
+async function fetchJson(
+  path: string,
+  signal?: AbortSignal,
+): Promise<{ Results?: unknown[] }> {
   const res = await fetch(`${BASE}${path}`, { signal });
   if (!res.ok) throw new Error(`NHTSA vPIC ${res.status} for ${path}`);
   return res.json() as Promise<{ Results?: unknown[] }>;
 }
 
 async function getModelsForMake(make: string, signal?: AbortSignal) {
-  return fetchJson(`/GetModelsForMake/${encodeURIComponent(make)}?format=json`, signal);
+  return fetchJson(
+    `/GetModelsForMake/${encodeURIComponent(make)}?format=json`,
+    signal,
+  );
 }
 
 export class NhtsaVpicConnector implements CatalogConnector {
   readonly code = "nhtsa_vpic";
   readonly name = "NHTSA vPIC";
-  readonly license = "NHTSA Open Data — public domain, free of charge, no API key required";
+  readonly license =
+    "NHTSA Open Data public domain, free of charge, no API key required";
   readonly licenseUrl = "https://vpic.nhtsa.dot.gov/";
   readonly homepageUrl = "https://vpic.nhtsa.dot.gov/api/vehicles";
   readonly sourceCode = "nhtsa_vpic";
@@ -58,7 +84,9 @@ export class NhtsaVpicConnector implements CatalogConnector {
       for (const make of MAKES) {
         try {
           const json = await getModelsForMake(make, opts?.signal);
-          const results = (json.Results ?? []) as Array<Record<string, unknown>>;
+          const results = (json.Results ?? []) as Array<
+            Record<string, unknown>
+          >;
           if (!results.length) continue;
           const seen = new Set<string>();
           for (const row of results) {

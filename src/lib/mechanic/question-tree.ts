@@ -71,8 +71,7 @@ export const MECHANIC_SCREENS: Record<string, MechanicScreen> = {
   },
   a_what: {
     id: "a_what",
-    question:
-      "When you turn the key or press the start button, what happens?",
+    question: "When you turn the key or press the start button, what happens?",
     kind: "choice",
     options: [
       { id: "silent", label: "Completely silent / nothing happens" },
@@ -257,7 +256,8 @@ export const MECHANIC_SCREENS: Record<string, MechanicScreen> = {
   },
   e_where: {
     id: "e_where",
-    question: "Where is the smoke coming from? (Bonnet / exhaust / under the car)",
+    question:
+      "Where is the smoke coming from? (Bonnet / exhaust / under the car)",
     kind: "choice",
     options: [
       { id: "bonnet", label: "Bonnet" },
@@ -491,7 +491,7 @@ export function mechanicScreen(id: string): MechanicScreen | undefined {
 export function nextMechanicScreen(
   current: string,
   answerId: string,
-  answers: Record<string, string>
+  answers: Record<string, string>,
 ): string {
   if (current === "start") {
     if (answers.powertrain === "Electric" && answerId === "G") {
@@ -576,10 +576,10 @@ export function nextMechanicScreen(
 /**
  * Narrow the answers down to the most likely problem. This is a plain-language
  * "Likely problem" line that rides along in the job summary so the pro arrives
- * with the real issue already identified — not a trade guess.
+ * with the real issue already identified not a trade guess.
  */
 export function mechanicDiagnosis(
-  answers: Record<string, string>
+  answers: Record<string, string>,
 ): string | undefined {
   const main = answers.start;
 
@@ -638,8 +638,10 @@ export function mechanicDiagnosis(
 
   if (main === "E") {
     if (answers.e_color === "white") return "Likely coolant burning";
-    if (answers.e_color === "blue") return "Likely oil burning (engine or turbo)";
-    if (answers.e_color === "black") return "Likely a fuel or air mixture issue";
+    if (answers.e_color === "blue")
+      return "Likely oil burning (engine or turbo)";
+    if (answers.e_color === "black")
+      return "Likely a fuel or air mixture issue";
     return "Likely an electrical short or burnt component";
   }
 
@@ -651,14 +653,18 @@ export function mechanicDiagnosis(
 
   if (main === "G") {
     if (answers.g_type === "electric" || answers.g_ev) {
-      if (answers.g_ev === "no_drive") return "Vehicle has no drive (EV motor or inverter fault)";
-      if (answers.g_ev === "loss_power") return "Likely an EV motor or inverter fault";
+      if (answers.g_ev === "no_drive")
+        return "Vehicle has no drive (EV motor or inverter fault)";
+      if (answers.g_ev === "loss_power")
+        return "Likely an EV motor or inverter fault";
       if (answers.g_ev === "warning") return "EV powertrain warning light on";
       return "Likely an EV motor or drivetrain noise";
     }
     if (answers.g_what === "no_drive") return "Vehicle has no drive";
-    if (answers.g_what === "slipping") return "Likely a slipping clutch or transmission";
-    if (answers.g_what === "hard") return "Likely a gearbox or clutch engagement fault";
+    if (answers.g_what === "slipping")
+      return "Likely a slipping clutch or transmission";
+    if (answers.g_what === "hard")
+      return "Likely a gearbox or clutch engagement fault";
     return "Likely a transmission fault";
   }
 
@@ -689,7 +695,7 @@ export function mechanicDiagnosis(
  * needs a confirm card. Two-trade forks pick the stronger one first.
  */
 export function resolveMechanicRoute(
-  answers: Record<string, string>
+  answers: Record<string, string>,
 ): MechanicRoute {
   const diagnosis = mechanicDiagnosis(answers);
   const stay = (): MechanicRoute => ({
@@ -697,10 +703,7 @@ export function resolveMechanicRoute(
     needsConfirm: false,
     diagnosis,
   });
-  const leave = (
-    trade: ProService,
-    alternate?: ProService
-  ): MechanicRoute => ({
+  const leave = (trade: ProService, alternate?: ProService): MechanicRoute => ({
     trade,
     alternate,
     needsConfirm: trade !== "mechanic",
@@ -789,7 +792,8 @@ export function resolveMechanicRoute(
     if (answers.ev_issue === "motor_no_drive") {
       return leave("towing");
     }
-    if (answers.ev_issue === "won_t_start") return leave("battery", "electrical");
+    if (answers.ev_issue === "won_t_start")
+      return leave("battery", "electrical");
     return stay();
   }
 
@@ -820,7 +824,7 @@ export function resolveMechanicRoute(
 
 export function applyConfirmChoice(
   route: MechanicRoute,
-  yes: boolean
+  yes: boolean,
 ): ProService {
   if (yes) return route.trade;
   if (route.alternate) return route.alternate;
@@ -850,7 +854,7 @@ export function confirmQuestion(trade: ProService): string {
 export function composeMechanicProblem(
   answers: Record<string, string>,
   extra: string,
-  landmark: string
+  landmark: string,
 ): string {
   const lines: string[] = [];
   const start = mechanicScreen("start");
@@ -861,7 +865,7 @@ export function composeMechanicProblem(
   }
 
   const order = Object.keys(answers).filter(
-    (k) => k !== "start" && !k.endsWith("_label")
+    (k) => k !== "start" && !k.endsWith("_label"),
   );
   for (const id of order) {
     const screen = mechanicScreen(id);
@@ -905,7 +909,7 @@ export function mechanicBreadcrumb(stack: string[]): string {
   if (stack.length > 1) {
     const firstBranch = stack[1];
     const letter = Object.entries(START_NEXT).find(
-      ([, id]) => id === firstBranch
+      ([, id]) => id === firstBranch,
     )?.[0];
     if (letter) bits.push(letter);
   }

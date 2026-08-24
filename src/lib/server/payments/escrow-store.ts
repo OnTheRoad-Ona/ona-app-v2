@@ -88,13 +88,13 @@ function rowToEscrow(row: Record<string, unknown>): EscrowPayment {
  * Supersede every live-but-unpaid payment intent for a request so only the
  * newest pending session stays actionable. A new charge always supersedes old
  * drafts (double-submit / pay-again bursts). Never touches money rows
- * (held / releasing / released / refunded / paid). Idempotent — safe to call
+ * (held / releasing / released / refunded / paid). Idempotent safe to call
  * before every insert. Returns how many rows were superseded.
  */
 export async function supersedePendingPaymentsForRequest(
   requestId: string,
   supersededBy?: string | null,
-  reason = "superseded_by_new_payment"
+  reason = "superseded_by_new_payment",
 ): Promise<number> {
   if (!isSupabaseAdminConfigured()) return 0;
   try {
@@ -113,12 +113,22 @@ export async function supersedePendingPaymentsForRequest(
         row.paid_at ||
         row.released_at ||
         row.refunded_at ||
-        ["held", "release_pending", "pending_settlement", "released", "refunded"].includes(esc)
+        [
+          "held",
+          "release_pending",
+          "pending_settlement",
+          "released",
+          "refunded",
+        ].includes(esc)
       ) {
         continue;
       }
       const prevMeta = (row.meta as Record<string, unknown>) || {};
-      if (esc === "failed" && String(row.status) === "failed" && prevMeta.superseded === true) {
+      if (
+        esc === "failed" &&
+        String(row.status) === "failed" &&
+        prevMeta.superseded === true
+      ) {
         continue;
       }
       await sb
@@ -154,7 +164,7 @@ export async function supersedePendingPaymentsForRequest(
  * funded charge held before we expire it.
  */
 export async function expireStalePendingPayments(
-  now: Date = new Date()
+  now: Date = new Date(),
 ): Promise<number> {
   if (!isSupabaseAdminConfigured()) return 0;
   try {
@@ -193,7 +203,7 @@ export async function expireStalePendingPayments(
       n += await supersedePendingPaymentsForRequest(
         requestId,
         null,
-        "payment_window_expired_admin"
+        "payment_window_expired_admin",
       );
     }
     return n;
@@ -243,10 +253,10 @@ export async function createEscrowPayment(input: {
   if (isSupabaseAdminConfigured()) {
     try {
       // A fresh intent supersedes any older unpaid drafts (race-safe: even
-      // concurrent double-submits converge — last writer wins).
+      // concurrent double-submits converge last writer wins).
       await supersedePendingPaymentsForRequest(
         input.requestId,
-        input.providerRef
+        input.providerRef,
       );
       const sb = createServiceSupabase();
       const { data, error } = await sb
@@ -294,17 +304,13 @@ export async function createEscrowPayment(input: {
 }
 
 export async function getEscrowByRef(
-  reference: string
+  reference: string,
 ): Promise<EscrowPayment | null> {
   const raw = (reference || "").trim();
   if (!raw) return null;
   // Flutterwave may return tx_ref variants (suffixes, case)
   const candidates = Array.from(
-    new Set([
-      raw,
-      raw.replace(/_m$/i, ""),
-      decodeURIComponent(raw),
-    ])
+    new Set([raw, raw.replace(/_m$/i, ""), decodeURIComponent(raw)]),
   );
 
   if (isSupabaseAdminConfigured()) {
@@ -340,7 +346,7 @@ export async function getEscrowByRef(
 }
 
 export async function getEscrowByRequest(
-  requestId: string
+  requestId: string,
 ): Promise<EscrowPayment | null> {
   if (isSupabaseAdminConfigured()) {
     try {
@@ -392,7 +398,7 @@ export async function getEscrowByRequest(
 /** List escrow rows by status (admin + retry queue). */
 export async function listEscrowsByStatuses(
   statuses: EscrowStatus[],
-  limit = 100
+  limit = 100,
 ): Promise<EscrowPayment[]> {
   if (isSupabaseAdminConfigured()) {
     try {
@@ -403,7 +409,7 @@ export async function listEscrowsByStatuses(
         .in("escrow_status", statuses)
         .order("updated_at", { ascending: false })
         .limit(limit);
-      // Empty array is a successful answer — do not fall through to memory
+      // Empty array is a successful answer do not fall through to memory
       if (!error && data != null) {
         return data.map((r) => rowToEscrow(r as Record<string, unknown>));
       }
@@ -434,7 +440,7 @@ export async function updateEscrow(
     platformFeeMinor: number;
     proPayoutMinor: number;
     meta: Record<string, unknown>;
-  }>
+  }>,
 ): Promise<EscrowPayment | null> {
   const dbPatch: Record<string, unknown> = { updated_at: nowIso() };
   if (patch.status != null) dbPatch.status = patch.status;
@@ -521,7 +527,7 @@ export async function updateEscrow(
         await import("@/lib/server/local-backup-trigger");
       if (isMoneyEscrowStatus(result.status, result.escrowStatus)) {
         triggerBackupAfterPaymentChange(
-          `payment_${result.escrowStatus || result.status}`
+          `payment_${result.escrowStatus || result.status}`,
         );
       }
     } catch {
@@ -532,9 +538,9 @@ export async function updateEscrow(
   return result;
 }
 
-/** One history row per request — prefer the payment row that matters most.
- *  Multiple attempt rows (failed drafts, re-inits) for the same request must
- *  NOT show as separate entries (a single job is one open payment, never two). */
+/** One history row per request prefer the payment row that matters most.
+ * Multiple attempt rows (failed drafts, re-inits) for the same request must
+ * NOT show as separate entries (a single job is one open payment, never two). */
 export function preferPaymentRow(rows: EscrowPayment[]): EscrowPayment[] {
   const rank: Record<string, number> = {
     released: 6,
@@ -554,12 +560,12 @@ export function preferPaymentRow(rows: EscrowPayment[]): EscrowPayment[] {
     }
   }
   return [...best.values()].sort((a, b) =>
-    (b.createdAt || "").localeCompare(a.createdAt || "")
+    (b.createdAt || "").localeCompare(a.createdAt || ""),
   );
 }
 
 export async function listEscrowForUser(
-  userId: string
+  userId: string,
 ): Promise<EscrowPayment[]> {
   if (isSupabaseAdminConfigured()) {
     try {
@@ -572,7 +578,7 @@ export async function listEscrowForUser(
         .limit(100);
       if (data) {
         return preferPaymentRow(
-          (data as Record<string, unknown>[]).map(rowToEscrow)
+          (data as Record<string, unknown>[]).map(rowToEscrow),
         );
       }
     } catch {
@@ -583,7 +589,7 @@ export async function listEscrowForUser(
     [...memory.values()].filter(
       (p) =>
         !String(p.id).startsWith("ref:") &&
-        (p.motoristId === userId || p.repairProId === userId)
-    )
+        (p.motoristId === userId || p.repairProId === userId),
+    ),
   );
 }

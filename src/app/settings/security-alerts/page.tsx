@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Security alerts — notify on new logins, password changes, and device events.
+ * Security alerts notify on new logins, password changes, and device events.
  * Customer + repair pro. Prefs local; alert feed local + optional sample.
  */
 
@@ -60,12 +60,14 @@ function loadFeed(uid: string): AlertItem[] {
 
 function saveFeed(uid: string, items: AlertItem[]) {
   try {
-    localStorage.setItem(`${FEED_KEY}:${uid}`, JSON.stringify(items.slice(0, 40)));
+    localStorage.setItem(
+      `${FEED_KEY}:${uid}`,
+      JSON.stringify(items.slice(0, 40)),
+    );
   } catch {
     /* */
   }
 }
-
 
 function SecurityAlertToggle({
   ink,
@@ -99,13 +101,13 @@ function SecurityAlertToggle({
         onClick={() => onChange(!on)}
         className={cn(
           "h-7 w-12 shrink-0 rounded-full border-0",
-          on ? "bg-[#FF6B35]" : isLight ? "bg-black/20" : "bg-white/20"
+          on ? "bg-[#FF6B35]" : isLight ? "bg-black/20" : "bg-white/20",
         )}
       >
         <span
           className={cn(
             "block h-5 w-5 rounded-full bg-white transition-transform",
-            on ? "translate-x-6" : "translate-x-1"
+            on ? "translate-x-6" : "translate-x-1",
           )}
         />
       </button>
@@ -174,7 +176,7 @@ export default function SettingsSecurityAlertsPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader
@@ -193,7 +195,7 @@ export default function SettingsSecurityAlertsPage() {
           <p
             className={cn(
               "px-2 pb-1 pt-1 text-[10px] font-bold uppercase tracking-[0.14em]",
-              muted
+              muted,
             )}
           >
             Notify me about
@@ -241,7 +243,7 @@ export default function SettingsSecurityAlertsPage() {
             <p
               className={cn(
                 "text-[10px] font-bold uppercase tracking-[0.14em]",
-                muted
+                muted,
               )}
             >
               Recent alerts
@@ -252,7 +254,7 @@ export default function SettingsSecurityAlertsPage() {
                 onClick={markAllRead}
                 className={cn(
                   "border-0 bg-transparent text-[11px] font-bold",
-                  "text-brand"
+                  "text-brand",
                 )}
               >
                 Mark all read
@@ -273,7 +275,7 @@ export default function SettingsSecurityAlertsPage() {
                     className={cn(
                       "flex gap-2 px-2 py-3",
                       !a.read &&
-                        (isLight ? "bg-black/[0.03]" : "bg-white/[0.04]")
+                        (isLight ? "bg-black/[0.03]" : "bg-white/[0.04]"),
                     )}
                   >
                     <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center">
@@ -286,7 +288,7 @@ export default function SettingsSecurityAlertsPage() {
                       <p
                         className={cn(
                           "mt-0.5 text-[11px] font-medium leading-snug",
-                          muted
+                          muted,
                         )}
                       >
                         {a.body}

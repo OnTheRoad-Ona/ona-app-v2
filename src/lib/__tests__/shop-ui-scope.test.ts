@@ -36,12 +36,18 @@ describe("shopUiScopeFromViewer", () => {
     expect(s.defaultTradeKey).toBe("vulcanizer");
     expect(s.allowBrowseAllParts).toBe(false);
     expect(
-      s.allowedTradeKeys!.some((t) => t === "mechanic" || t === "plumber")
+      s.allowedTradeKeys!.some((t) => t === "mechanic" || t === "plumber"),
     ).toBe(false);
   });
 
   it("every pro is capped to exactly one trade (single-seller Ona shop)", () => {
-    for (const trade of ["mechanic", "vulcanizer", "battery", "solar", "plumber"] as const) {
+    for (const trade of [
+      "mechanic",
+      "vulcanizer",
+      "battery",
+      "solar",
+      "plumber",
+    ] as const) {
       const s = shopUiScopeFromViewer({ trade, isPro: true });
       expect(s.allowedTradeKeys).toEqual([trade]);
       expect(s.accountContext).toBe("professional");
@@ -57,7 +63,7 @@ describe("listing status", () => {
 
   it("derives low_stock and out_of_stock", () => {
     expect(deriveListingStatus({ qty: 0, reorderLevel: 5 })).toBe(
-      "out_of_stock"
+      "out_of_stock",
     );
     expect(deriveListingStatus({ qty: 3, reorderLevel: 5 })).toBe("low_stock");
     expect(deriveListingStatus({ qty: 20, reorderLevel: 5 })).toBe("available");
@@ -83,4 +89,3 @@ describe("mechanic taxonomy", () => {
     expect(kids.length).toBe(0);
   });
 });
-

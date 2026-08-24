@@ -39,16 +39,23 @@ export async function POST(req: NextRequest) {
       .select("id")
       .single();
     if (error) {
-      if (/relation .* does not exist|Could not find the table/i.test(error.message)) {
+      if (
+        /relation .* does not exist|Could not find the table/i.test(
+          error.message,
+        )
+      ) {
         return apiFail(
           "Product requests table not migrated (run 061)",
           503,
-          "SETUP_REQUIRED"
+          "SETUP_REQUIRED",
         );
       }
       throw new Error(error.message);
     }
-    return apiOk({ id: data?.id, message: "Request recorded for Admin review" });
+    return apiOk({
+      id: data?.id,
+      message: "Request recorded for Admin review",
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Request failed";
     return apiFail(msg, 500, "PRODUCT_REQUEST_ERROR");

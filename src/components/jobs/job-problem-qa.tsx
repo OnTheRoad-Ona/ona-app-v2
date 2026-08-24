@@ -9,12 +9,12 @@ import { cleanAddressLabel } from "@/lib/google-maps";
  * Parses the composed `job.problem` blob into readable Q&A rows.
  *
  * Two formats are produced by the question-flow composers:
- *  1. "Inline" (solar / generator / painter / carpenter):
- *     `Solar work: {start label} ({start question})` then `{question} {answer}`
- *     on one line, plus `Location: X` / `Extra: X` labeled lines.
- *  2. "Alternating" (mechanic / vulcanizer / tow / battery / ac / body /
- *     electrical / diagnostics / fashion / plumber): every question line is
- *     immediately followed by its answer on the next line.
+ * 1. "Inline" (solar / generator / painter / carpenter):
+ * `Solar work: {start label} ({start question})` then `{question} {answer}`
+ * on one line, plus `Location: X` / `Extra: X` labeled lines.
+ * 2. "Alternating" (mechanic / vulcanizer / tow / battery / ac / body /
+ * electrical / diagnostics / fashion / plumber): every question line is
+ * immediately followed by its answer on the next line.
  *
  * Both render as a highlighted Q&A list that both the Repair Pro and customer
  * can scan quickly.
@@ -26,27 +26,26 @@ export interface JobProblemRow {
 }
 
 /** When the card title already shows the vehicle (lower panel), drop both the
- *  `Vehicle:` label row and the "Which vehicle?" question so the vehicle is
- *  never repeated. */
+ * `Vehicle:` label row and the "Which vehicle?" question so the vehicle is
+ * never repeated. */
 export function filterHiddenVehicleRows(
   rows: JobProblemRow[],
-  hideVehicleRow: boolean
+  hideVehicleRow: boolean,
 ): JobProblemRow[] {
   if (!hideVehicleRow) return rows;
   return rows.filter(
-    (r) =>
-      r.label !== "Vehicle" && !/which vehicle\??$/i.test(r.label.trim())
+    (r) => r.label !== "Vehicle" && !/which vehicle\??$/i.test(r.label.trim()),
   );
 }
 
-/** A bare coordinate string like "6.42810, 3.42190" — reverse geocoding failed
- *  and the app fell back to raw lat/lng. Never show that to a pro. */
+/** A bare coordinate string like "6.42810, 3.42190" reverse geocoding failed
+ * and the app fell back to raw lat/lng. Never show that to a pro. */
 export const COORDINATES_ONLY_RE = /^-?\d{1,2}(\.\d+)?,\s*-?\d{1,2}(\.\d+)?$/;
 
-/** Location answers should be an address only — drop the row when its only
- *  content is raw latitude/longitude, and strip plus-codes from the rest. */
+/** Location answers should be an address only drop the row when its only
+ * content is raw latitude/longitude, and strip plus-codes from the rest. */
 export function stripCoordinateLocations(
-  rows: JobProblemRow[]
+  rows: JobProblemRow[],
 ): JobProblemRow[] {
   return rows
     .map((r) => {
@@ -104,9 +103,7 @@ function pairAlternatingLines(lines: string[]): {
     }
     const next = lines[i + 1];
     const nextIsAnswer =
-      Boolean(next) &&
-      !isQuestionLine(next) &&
-      !LABELED_LINE.test(next);
+      Boolean(next) && !isQuestionLine(next) && !LABELED_LINE.test(next);
     if (nextIsAnswer) {
       rows.push({ label: line, answer: next });
       i += 2;
@@ -180,7 +177,7 @@ export function JobProblemQA({
 }: {
   problem: string;
   isLight: boolean;
-  /** Plain-text rows on the theme color — no row cards or summary highlight. */
+  /** Plain-text rows on the theme color no row cards or summary highlight. */
   transparent?: boolean;
   /** Customer list: full Q&A, tight gaps, no Next. */
   compact?: boolean;
@@ -212,27 +209,29 @@ export function JobProblemQA({
     ...parsed.notes.map((note) => ({ label: "Location", answer: note })),
   ];
   const items =
-    pageSize && !compact
-      ? allItems.slice(offset, offset + pageSize)
-      : allItems;
+    pageSize && !compact ? allItems.slice(offset, offset + pageSize) : allItems;
   const hasMore = Boolean(
-    !compact && pageSize && offset + pageSize < allItems.length
+    !compact && pageSize && offset + pageSize < allItems.length,
   );
   const advance = () =>
     setOffset((o) => Math.min(o + (pageSize || 0), allItems.length));
-  const retreat = () =>
-    setOffset((o) => Math.max(o - (pageSize || 0), 0));
+  const retreat = () => setOffset((o) => Math.max(o - (pageSize || 0), 0));
 
   const questionCls = cn(
-    compact ? "text-[11.5px] font-semibold leading-tight" : "text-[13px] font-semibold leading-snug",
-    isLight ? "text-slate-700" : "text-white/75"
+    compact
+      ? "text-[11.5px] font-semibold leading-tight"
+      : "text-[13px] font-semibold leading-snug",
+    isLight ? "text-slate-700" : "text-white/75",
   );
   const answerCls = cn(
-    compact ? "mt-px text-[12.5px] font-bold leading-tight" : transparent ? "mt-0.5" : "mt-1",
+    compact
+      ? "mt-px text-[12.5px] font-bold leading-tight"
+      : transparent
+        ? "mt-0.5"
+        : "mt-1",
     compact ? "" : "text-[15px] font-bold leading-snug",
-    ink
+    ink,
   );
-  const sepCls = cn("h-px w-full", isLight ? "bg-black/10" : "bg-white/10");
 
   const chevronDivider = (
     <div className="flex items-center">
@@ -249,7 +248,7 @@ export function JobProblemQA({
                 "om-bounce-arrow-back flex h-5 w-5 items-center justify-center rounded-full",
                 isLight
                   ? "bg-[#c8c9cd] text-slate-900 shadow-sm"
-                  : "bg-black text-white shadow-sm"
+                  : "bg-black text-white shadow-sm",
               )}
             >
               <ChevronLeft className="h-3 w-3" strokeWidth={2.75} />
@@ -259,8 +258,7 @@ export function JobProblemQA({
           <span className="block h-5 w-5" aria-hidden="true" />
         )}
       </div>
-      <div className={cn(sepCls, "flex-1")} />
-      <div className="shrink-0">
+            <div className="shrink-0">
         {hasMore ? (
           <button
             type="button"
@@ -273,7 +271,7 @@ export function JobProblemQA({
                 "om-bounce-arrow flex h-6 w-6 items-center justify-center rounded-full",
                 isLight
                   ? "bg-[#c8c9cd] text-slate-900 shadow-sm"
-                  : "bg-black text-white shadow-sm"
+                  : "bg-black text-white shadow-sm",
               )}
             >
               <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.75} />
@@ -289,7 +287,11 @@ export function JobProblemQA({
   return (
     <div
       className={cn(
-        compact ? "mt-0.5 space-y-0.5" : transparent ? "mt-2.5 space-y-1.5" : "mt-1 space-y-1.5"
+        compact
+          ? "mt-0.5 space-y-0.5"
+          : transparent
+            ? "mt-2.5 space-y-1.5"
+            : "mt-1 space-y-1.5",
       )}
     >
       {parsed.summary ? (
@@ -320,9 +322,7 @@ export function JobProblemQA({
           {!compact && i < items.length - 1 ? (
             i === items.length - 2 && (hasMore || offset > 0) ? (
               chevronDivider
-            ) : (
-              <div className={sepCls} />
-            )
+            ) : null
           ) : null}
         </Fragment>
       ))}

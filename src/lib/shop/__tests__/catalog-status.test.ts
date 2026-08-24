@@ -8,14 +8,22 @@ import {
 
 describe("availability separation", () => {
   it("an active + priced + stocked product is available", () => {
-    const a = availabilityState({ status: "active", priced: true, inStock: true });
+    const a = availabilityState({
+      status: "active",
+      priced: true,
+      inStock: true,
+    });
     expect(a.exists).toBe(true);
     expect(a.available).toBe(true);
     expect(a.label).toBe("In stock");
   });
 
   it("an active catalog product with no stock is unavailable, NOT non-existent", () => {
-    const a = availabilityState({ status: "active", priced: true, inStock: false });
+    const a = availabilityState({
+      status: "active",
+      priced: true,
+      inStock: false,
+    });
     expect(a.exists).toBe(true);
     expect(a.available).toBe(false);
     expect(a.label).toBe("Currently unavailable");
@@ -23,13 +31,23 @@ describe("availability separation", () => {
   });
 
   it("an active product with no price is unavailable", () => {
-    const a = availabilityState({ status: "active", priced: false, inStock: true });
+    const a = availabilityState({
+      status: "active",
+      priced: false,
+      inStock: true,
+    });
     expect(a.available).toBe(false);
-    expect(unavailableReason({ status: "active", priced: false, inStock: true })).toBe("No price has been set yet");
+    expect(
+      unavailableReason({ status: "active", priced: false, inStock: true }),
+    ).toBe("No price has been set yet");
   });
 
   it("future_product exists in catalog but is not purchasable", () => {
-    const a = availabilityState({ status: "future_product", priced: true, inStock: true });
+    const a = availabilityState({
+      status: "future_product",
+      priced: true,
+      inStock: true,
+    });
     expect(a.exists).toBe(true);
     expect(a.purchasable).toBe(false);
     expect(a.available).toBe(false);
@@ -37,13 +55,21 @@ describe("availability separation", () => {
   });
 
   it("source_pending exists but is not purchasable", () => {
-    const a = availabilityState({ status: "source_pending", priced: false, inStock: false });
+    const a = availabilityState({
+      status: "source_pending",
+      priced: false,
+      inStock: false,
+    });
     expect(a.exists).toBe(true);
     expect(a.label).toBe("Awaiting source");
   });
 
   it("unavailable status label is clear", () => {
-    const a = availabilityState({ status: "unavailable", priced: false, inStock: false });
+    const a = availabilityState({
+      status: "unavailable",
+      priced: false,
+      inStock: false,
+    });
     expect(a.label).toBe("Currently unavailable");
   });
 

@@ -2,10 +2,11 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { ChevronRight, Loader2, Search, ShoppingBag } from "lucide-react";
+import { ArrowLeft, Loader2, Search, ShoppingBag } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { ShopVehicleBar } from "@/components/shop/shop-vehicle-bar";
 import { ShopProductCard } from "@/components/shop/product-card";
+import { shopGetCart } from "@/lib/shop/client";
 import { ShopAvailabilityChips } from "@/components/shop/shop-availability-chips";
 import type { FacetFilters } from "@/components/shop/shop-facet-bar";
 import { AUTOMEDICS_CATEGORIES } from "@/lib/shop/automedics-catalog";
@@ -34,6 +35,7 @@ type ProductCard = {
   vehicleTags?: string[];
   priceOnRequest?: boolean;
   stockLabel?: string;
+  stockQty?: number;
 };
 
 type AllPartsCat = {
@@ -44,7 +46,7 @@ type AllPartsCat = {
   depth: number;
 };
 
-/** Neutral browse level — a category or subcategory shown as a listing row. */
+/** Neutral browse level a category or subcategory shown as a listing row. */
 type BrowseCat = {
   id: string;
   slug: string;
@@ -61,8 +63,37 @@ function ShopTradePageInner() {
   const trade = catFromPath ? "mechanic" : rawTrade;
   const { theme, accountType } = useApp();
   const isLight = theme === "light";
-  const ctx =
-    accountType === "professional" ? "professional" : "motorist";
+  const accentText = isLight ? "text-[#E85A28]" : "text-[#FF6B35]";
+  const accentBg = isLight ? "bg-[#E85A28]" : "bg-[#FF6B35]";
+  const [cartQtyById, setCartQtyById] = useState<Record<string, number>>({});
+  const [cartCount, setCartCount] = useState(0);
+
+  const refreshCart = useCallback(async () => {
+    try {
+      const res = await shopGetCart("motorist");
+      setCartCount(res.cart?.itemCount ?? 0);
+      const map: Record<string, number> = {};
+      for (const line of res.cart?.items ?? []) {
+        map[String(line.productId)] = (map[String(line.productId)] || 0) + line.qty;
+      }
+      setCartQtyById(map);
+    } catch {
+      /* cart optional */
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshCart();
+  }, [refreshCart]);
+
+  const optimisticAdd = useCallback((productId: string) => {
+    setCartCount((c) => c + 1);
+    setCartQtyById((m) => ({ ...m, [productId]: (m[productId] || 0) + 1 }));
+  }, []);
+  const optimisticRevert = useCallback(() => {
+    void refreshCart();
+  }, []);
+  const ctx = accountType === "professional" ? "professional" : "motorist";
   const [q, setQ] = useState("");
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -83,14 +114,16 @@ function ShopTradePageInner() {
   const [partsProducts, setPartsProducts] = useState<ProductCard[]>([]);
   const [partsLoading, setPartsLoading] = useState(false);
   const [categoryId, setCategoryId] = useState<string | null>(
-    searchParams.get("categoryId")
+    searchParams.get("categoryId"),
   );
   const [vehicleLabel, setVehicleLabel] = useState<string | null>(null);
 
-  // Neutral browse (no vehicle) — category > subcategory > product listing rows.
+  // Neutral browse (no vehicle) category > subcategory > product listing rows.
   const [browseStack, setBrowseStack] = useState<BrowseCat[]>([]);
   const [browseLevel, setBrowseLevel] = useState<BrowseCat[]>([]);
-  const [browseProducts, setBrowseProducts] = useState<ProductCard[] | null>(null);
+  const [browseProducts, setBrowseProducts] = useState<ProductCard[] | null>(
+    null,
+  );
   const [browseLoading, setBrowseLoading] = useState(false);
   const [browseError, setBrowseError] = useState(false);
 
@@ -116,7 +149,8 @@ function ShopTradePageInner() {
         ctx,
       });
       if (searchParams.get("year")) qs.set("year", searchParams.get("year")!);
-      if (searchParams.get("makeId")) qs.set("makeId", searchParams.get("makeId")!);
+      if (searchParams.get("makeId"))
+        qs.set("makeId", searchParams.get("makeId")!);
       if (searchParams.get("modelId"))
         qs.set("modelId", searchParams.get("modelId")!);
       if (categoryId) qs.set("categoryId", categoryId);
@@ -124,7 +158,11 @@ function ShopTradePageInner() {
       const json = (await res.json()) as {
         ok?: boolean;
         data?: {
-          vehicle?: { makeName: string; modelName: string; year: number | null };
+          vehicle?: {
+            makeName: string;
+            modelName: string;
+            year: number | null;
+          };
           categories?: AllPartsCat[];
           products?: ProductCard[];
         };
@@ -134,7 +172,7 @@ function ShopTradePageInner() {
         setVehicleLabel(
           v
             ? [v.year, v.makeName, v.modelName].filter(Boolean).join(" ")
-            : null
+            : null,
         );
         setCats(json.data.categories ?? []);
         setPartsProducts(json.data.products ?? []);
@@ -170,8 +208,10 @@ function ShopTradePageInner() {
         if (availability !== "all") qs.set("listingStatus", availability);
         if (f.availability === "in_stock") qs.set("availability", "in_stock");
         if (f.categorySlug) qs.set("category", f.categorySlug);
-        if (f.minPriceMinor != null) qs.set("minPrice", String(f.minPriceMinor));
-        if (f.maxPriceMinor != null) qs.set("maxPrice", String(f.maxPriceMinor));
+        if (f.minPriceMinor != null)
+          qs.set("minPrice", String(f.minPriceMinor));
+        if (f.maxPriceMinor != null)
+          qs.set("maxPrice", String(f.maxPriceMinor));
         for (const [k, v] of Object.entries(f.attributes)) {
           if (v !== "" && v != null) qs.set(`attr.${k}`, String(v));
         }
@@ -198,7 +238,7 @@ function ShopTradePageInner() {
             ...(i?.productHints ?? []),
           ].filter(Boolean);
           setIntentLabel(
-            bits.length ? bits.join(" · ") : `Results in ${label}`
+            bits.length ? bits.join(" · ") : `Results in ${label}`,
           );
         } else {
           setResults([]);
@@ -208,7 +248,7 @@ function ShopTradePageInner() {
         setSearching(false);
       }
     },
-    [q, trade, label, ctx, facets, availability]
+    [q, trade, label, ctx, facets, availability],
   );
 
   useEffect(() => {
@@ -229,7 +269,7 @@ function ShopTradePageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facets, availability]);
 
-  /** Load a neutral browse level — children of `parent`, else roots. */
+  /** Load a neutral browse level children of `parent`, else roots. */
   const loadBrowse = useCallback(
     async (parent?: BrowseCat) => {
       setBrowseLoading(true);
@@ -266,7 +306,7 @@ function ShopTradePageInner() {
         setBrowseLoading(false);
       }
     },
-    [trade]
+    [trade],
   );
 
   /** Show products for a selected category row (leaf of the browse tree). */
@@ -299,7 +339,7 @@ function ShopTradePageInner() {
         setBrowseLoading(false);
       }
     },
-    [trade, ctx, availability]
+    [trade, ctx, availability],
   );
 
   /** Drill into a category row: children level if present, else its products. */
@@ -331,7 +371,7 @@ function ShopTradePageInner() {
         setBrowseLoading(false);
       }
     },
-    [trade, openBrowseCategory]
+    [trade, openBrowseCategory],
   );
 
   /** Pop back one level (or to roots) when a breadcrumb is tapped. */
@@ -348,7 +388,7 @@ function ShopTradePageInner() {
       const parent = next[next.length - 1];
       void loadBrowse(parent);
     },
-    [browseStack, loadBrowse]
+    [browseStack, loadBrowse],
   );
 
   // Deep-link a category (?cat=batteries or /shop/c/batteries).
@@ -392,7 +432,7 @@ function ShopTradePageInner() {
   }, [availability]);
 
   const bg = isLight ? "bg-[#c8c9cd]" : "bg-black";
-  const card = isLight ? "bg-white/90" : "bg-[#1c1c1e]";
+  const card = isLight ? "bg-black/[0.02]" : "bg-white/[0.02]";
   const muted = isLight ? "text-slate-600" : "text-white/55";
 
   // The stock chips (All/Available/Low/Out/Pre-order/Coming soon) only appear
@@ -411,6 +451,10 @@ function ShopTradePageInner() {
       {items.map((p) => (
         <ShopProductCard
           key={p.id}
+          tint
+          cartQty={cartQtyById[p.id]}
+          onOptimisticAdd={() => optimisticAdd(p.id)}
+          onOptimisticRevert={optimisticRevert}
           product={{
             id: p.id,
             slug: p.slug,
@@ -442,7 +486,7 @@ function ShopTradePageInner() {
         {allParts ? (
           <>
             {vehicleLabel ? (
-              <p className="px-3 pt-2 text-[12px] font-bold text-[#FF6B35]">
+              <p className={`px-3 pt-2 text-[12px] font-bold ${accentText}`}>
                 {vehicleLabel}
               </p>
             ) : (
@@ -452,11 +496,11 @@ function ShopTradePageInner() {
             )}
             {partsLoading ? (
               <div className="flex justify-center py-16">
-                <Loader2 className="h-8 w-8 animate-spin text-[#FF6B35]" />
+                <Loader2 className={`h-8 w-8 animate-spin ${accentText}`} />
               </div>
             ) : (
               <>
-                {/* Category tree — only non-empty */}
+                {/* Category tree only non-empty */}
                 {!categoryId && cats.length > 0 ? (
                   <>
                     <p className="px-3 pt-3 pb-2 text-[13px] font-black">
@@ -471,11 +515,15 @@ function ShopTradePageInner() {
                           className={cn(
                             "flex w-full items-center justify-between rounded-xl border-0 px-3 py-2.5 text-left",
                             card,
-                            isLight ? "text-slate-900" : "text-white"
+                            isLight ? "text-slate-900" : "text-white",
                           )}
                         >
-                          <span className="text-[13px] font-bold">{c.name}</span>
-                          <span className={cn("text-[11px] font-semibold", muted)}>
+                          <span className="text-[13px] font-bold">
+                            {c.name}
+                          </span>
+                          <span
+                            className={cn("text-[11px] font-semibold", muted)}
+                          >
                             {c.productCount}
                           </span>
                         </button>
@@ -490,7 +538,7 @@ function ShopTradePageInner() {
                     </p>
                     <button
                       type="button"
-                      className="border-0 bg-transparent text-[12px] font-semibold text-[#FF6B35]"
+                      className={`border-0 bg-transparent text-[12px] font-semibold ${accentText}`}
                       onClick={() => setCategoryId(null)}
                     >
                       All systems
@@ -516,10 +564,10 @@ function ShopTradePageInner() {
               <div
                 className={cn(
                   "flex items-center gap-2 rounded-xl px-3 py-2.5",
-                  isLight ? "bg-white/95" : "bg-[#1c1c1e]"
+                  isLight ? "bg-black/[0.02]" : "bg-white/[0.02]",
                 )}
               >
-                <Search className="h-4 w-4 shrink-0 text-[#FF6B35]" />
+                <Search className={`h-4 w-4 shrink-0 ${accentText}`} />
                 <input
                   value={q}
                   onChange={(e) => {
@@ -538,14 +586,17 @@ function ShopTradePageInner() {
                     "min-w-0 flex-1 border-0 bg-transparent text-[14px] outline-none",
                     isLight
                       ? "text-slate-900 placeholder:text-slate-400"
-                      : "text-white placeholder:text-white/40"
+                      : "text-white placeholder:text-white/40",
                   )}
                 />
                 <button
                   type="button"
                   onClick={() => void runSearch()}
                   disabled={searching || !q.trim()}
-                  className="rounded-lg border-0 bg-[#FF6B35] px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-50"
+                  className={cn(
+                  "rounded-lg border-0 px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-50",
+                  accentBg,
+                )}
                 >
                   {searching ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -563,7 +614,7 @@ function ShopTradePageInner() {
                   <div className="mb-2 flex items-center gap-1.5 overflow-x-auto">
                     <button
                       type="button"
-                      className="shrink-0 border-0 bg-transparent text-[12px] font-bold text-[#FF6B35]"
+                      className={`shrink-0 border-0 bg-transparent text-[12px] font-bold ${accentText}`}
                       onClick={() => void popBrowse()}
                     >
                       All categories
@@ -583,10 +634,12 @@ function ShopTradePageInner() {
 
                 {browseLoading ? (
                   <div className="flex justify-center py-12">
-                    <Loader2 className="h-7 w-7 animate-spin text-[#FF6B35]" />
+                    <Loader2 className={`h-7 w-7 animate-spin ${accentText}`} />
                   </div>
                 ) : browseError ? (
-                  <p className={cn("px-1 py-10 text-center text-[13px]", muted)}>
+                  <p
+                    className={cn("px-1 py-10 text-center text-[13px]", muted)}
+                  >
                     Could not load categories.
                   </p>
                 ) : browseProducts ? (
@@ -599,10 +652,11 @@ function ShopTradePageInner() {
                       </p>
                       <button
                         type="button"
-                        className="border-0 bg-transparent text-[12px] font-semibold text-[#FF6B35]"
+                        aria-label="Back to categories"
+                        className="flex h-8 w-8 items-center justify-center rounded-full border-0 bg-transparent active:bg-black/[0.06]"
                         onClick={() => void popBrowse()}
                       >
-                        Back to categories
+                        <ArrowLeft className={`h-[18px] w-[18px] ${accentText}`} />
                       </button>
                     </div>
                     <ShopAvailabilityChips
@@ -610,7 +664,12 @@ function ShopTradePageInner() {
                       onChange={setAvailability}
                     />
                     {!visibleBrowse || visibleBrowse.length === 0 ? (
-                      <p className={cn("px-1 py-8 text-center text-[13px]", muted)}>
+                      <p
+                        className={cn(
+                          "px-1 py-8 text-center text-[13px]",
+                          muted,
+                        )}
+                      >
                         No products in this category yet.
                       </p>
                     ) : (
@@ -627,7 +686,12 @@ function ShopTradePageInner() {
                           : "My Shop"}
                     </p>
                     {browseLevel.length === 0 ? (
-                      <p className={cn("px-1 py-10 text-center text-[13px]", muted)}>
+                      <p
+                        className={cn(
+                          "px-1 py-10 text-center text-[13px]",
+                          muted,
+                        )}
+                      >
                         No categories available yet.
                       </p>
                     ) : (
@@ -640,7 +704,7 @@ function ShopTradePageInner() {
                             className={cn(
                               "flex w-full items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left",
                               card,
-                              isLight ? "text-slate-900" : "text-white"
+                              isLight ? "text-slate-900" : "text-white",
                             )}
                           >
                             <span className="min-w-0 flex-1 truncate text-[13px] font-bold">
@@ -651,13 +715,12 @@ function ShopTradePageInner() {
                               <span
                                 className={cn(
                                   "shrink-0 text-[11px] font-semibold",
-                                  muted
+                                  muted,
                                 )}
                               >
                                 {c.productCount}
                               </span>
                             ) : null}
-                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#FF6B35]" />
                           </button>
                         ))}
                       </div>
@@ -667,7 +730,7 @@ function ShopTradePageInner() {
               </div>
             ) : searching ? (
               <div className="flex justify-center py-16">
-                <Loader2 className="h-8 w-8 animate-spin text-[#FF6B35]" />
+                <Loader2 className={`h-8 w-8 animate-spin ${accentText}`} />
               </div>
             ) : (visibleResults ?? []).length === 0 ? (
               <div className="px-4 py-12 text-center">
@@ -675,7 +738,7 @@ function ShopTradePageInner() {
                   value={availability}
                   onChange={setAvailability}
                 />
-                <ShoppingBag className="mx-auto h-9 w-9 text-[#FF6B35]" />
+                <ShoppingBag className={`mx-auto h-9 w-9 ${accentText}`} />
                 <p className={cn("mt-2 text-[13px]", muted)}>
                   No matches in {label}.
                 </p>
@@ -688,7 +751,7 @@ function ShopTradePageInner() {
                   </p>
                   <button
                     type="button"
-                    className="border-0 bg-transparent text-[12px] font-semibold text-[#FF6B35]"
+                    className={`border-0 bg-transparent text-[12px] font-semibold ${accentText}`}
                     onClick={() => {
                       setQ("");
                       setSearched(false);

@@ -1,5 +1,5 @@
 /**
- * Durable call signaling — POST/GET /api/call/signal
+ * Durable call signaling POST/GET /api/call/signal
  * Also supports client-side Supabase Realtime when available.
  */
 
@@ -11,7 +11,7 @@ export type CallSignalKind =
   | "ice"
   | "hangup"
   | "reject"
-  /** Callee tapped Accept — caller UI moves to Connecting before answer SDP arrives */
+  /** Callee tapped Accept caller UI moves to Connecting before answer SDP arrives */
   | "accepting";
 
 export type CallSignalRow = {
@@ -49,7 +49,7 @@ export async function postCallSignal(input: {
 }
 
 export async function pollCallSignals(
-  userId: string
+  userId: string,
 ): Promise<CallSignalRow[]> {
   try {
     const qs = new URLSearchParams({ userId });

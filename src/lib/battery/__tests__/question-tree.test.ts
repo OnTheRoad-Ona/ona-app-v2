@@ -14,9 +14,9 @@ import {
 } from "@/lib/battery/question-tree";
 
 describe("battery question tree", () => {
-  it("uses the battery start question and offers branches A–H", () => {
+  it("uses the battery start question and offers branches A-H", () => {
     expect(BATTERY_START_QUESTION).toBe(
-      "What is the main battery or starting problem you are experiencing?"
+      "What is the main battery or starting problem you are experiencing?",
     );
     expect(BATTERY_START_OPTIONS.map((o) => o.id)).toEqual([
       "A",
@@ -46,29 +46,33 @@ describe("battery question tree", () => {
       nextBatteryScreen("ev_type", "hv", {
         start: "H",
         ev_type: "hv",
-      })
+      }),
     ).toBe("ev_safe");
     expect(
       nextBatteryScreen("ev_safe", "yes", {
         start: "H",
         ev_type: "hv",
         ev_safe: "yes",
-      })
+      }),
     ).toBe("final");
   });
 
   it("diagnoses EV battery issues and keeps Battery trade for HV/12V, routes charging to Electrical", () => {
-    expect(
-      batteryDiagnosis({ start: "H", ev_type: "12v" })
-    ).toContain("12V auxiliary battery");
-    expect(
-      batteryDiagnosis({ start: "H", ev_type: "hv" })
-    ).toContain("high-voltage");
-    expect(
-      batteryDiagnosis({ start: "H", ev_type: "charging" })
-    ).toContain("charging fault");
+    expect(batteryDiagnosis({ start: "H", ev_type: "12v" })).toContain(
+      "12V auxiliary battery",
+    );
+    expect(batteryDiagnosis({ start: "H", ev_type: "hv" })).toContain(
+      "high-voltage",
+    );
+    expect(batteryDiagnosis({ start: "H", ev_type: "charging" })).toContain(
+      "charging fault",
+    );
 
-    const hv = resolveBatteryRoute({ start: "H", ev_type: "hv", ev_safe: "yes" });
+    const hv = resolveBatteryRoute({
+      start: "H",
+      ev_type: "hv",
+      ev_safe: "yes",
+    });
     expect(hv.trade).toBe("battery");
     expect(hv.needsConfirm).toBe(false);
     const charging = resolveBatteryRoute({
@@ -190,28 +194,61 @@ describe("battery question tree", () => {
   });
 
   it("routes branch G sub-problems to the matching trades", () => {
-    expect(resolveBatteryRoute({ start: "G", g_related: "engine" }).trade).toBe("mechanic");
-    expect(resolveBatteryRoute({ start: "G", g_related: "tyre" }).trade).toBe("vulcanizer");
-    expect(resolveBatteryRoute({ start: "G", g_related: "towing" }).trade).toBe("towing");
-    expect(resolveBatteryRoute({ start: "G", g_related: "body" }).trade).toBe("body");
-    expect(resolveBatteryRoute({ start: "G", g_related: "ac" }).trade).toBe("ac");
-    expect(resolveBatteryRoute({ start: "G", g_related: "electrical" }).trade).toBe("electrical");
-    expect(resolveBatteryRoute({ start: "G", g_related: "clothing" }).trade).toBe("fashion");
-    expect(resolveBatteryRoute({ start: "G", g_related: "battery" }).trade).toBe("battery");
+    expect(resolveBatteryRoute({ start: "G", g_related: "engine" }).trade).toBe(
+      "mechanic",
+    );
+    expect(resolveBatteryRoute({ start: "G", g_related: "tyre" }).trade).toBe(
+      "vulcanizer",
+    );
+    expect(resolveBatteryRoute({ start: "G", g_related: "towing" }).trade).toBe(
+      "towing",
+    );
+    expect(resolveBatteryRoute({ start: "G", g_related: "body" }).trade).toBe(
+      "body",
+    );
+    expect(resolveBatteryRoute({ start: "G", g_related: "ac" }).trade).toBe(
+      "ac",
+    );
     expect(
-      resolveBatteryRoute({ start: "G", g_related: "power", g_power: "solar" }).trade
+      resolveBatteryRoute({ start: "G", g_related: "electrical" }).trade,
+    ).toBe("electrical");
+    expect(
+      resolveBatteryRoute({ start: "G", g_related: "clothing" }).trade,
+    ).toBe("fashion");
+    expect(
+      resolveBatteryRoute({ start: "G", g_related: "battery" }).trade,
+    ).toBe("battery");
+    expect(
+      resolveBatteryRoute({ start: "G", g_related: "power", g_power: "solar" })
+        .trade,
     ).toBe("solar");
     expect(
-      resolveBatteryRoute({ start: "G", g_related: "power", g_power: "generator" }).trade
+      resolveBatteryRoute({
+        start: "G",
+        g_related: "power",
+        g_power: "generator",
+      }).trade,
     ).toBe("generator");
     expect(
-      resolveBatteryRoute({ start: "G", g_related: "house", g_house: "plumber" }).trade
+      resolveBatteryRoute({
+        start: "G",
+        g_related: "house",
+        g_house: "plumber",
+      }).trade,
     ).toBe("plumber");
     expect(
-      resolveBatteryRoute({ start: "G", g_related: "house", g_house: "painter" }).trade
+      resolveBatteryRoute({
+        start: "G",
+        g_related: "house",
+        g_house: "painter",
+      }).trade,
     ).toBe("painter");
     expect(
-      resolveBatteryRoute({ start: "G", g_related: "house", g_house: "carpenter" }).trade
+      resolveBatteryRoute({
+        start: "G",
+        g_related: "house",
+        g_house: "carpenter",
+      }).trade,
     ).toBe("carpenter");
   });
 
@@ -219,11 +256,18 @@ describe("battery question tree", () => {
     expect(nextBatteryScreen("g_describe", "tyre", {})).toBe("g_related");
     expect(nextBatteryScreen("g_related", "power", {})).toBe("g_power");
     expect(nextBatteryScreen("g_related", "house", {})).toBe("g_house");
-    expect(nextBatteryScreen("g_related", "engine", { start: "G", g_related: "engine" })).toBe("confirm");
+    expect(
+      nextBatteryScreen("g_related", "engine", {
+        start: "G",
+        g_related: "engine",
+      }),
+    ).toBe("confirm");
   });
 
   it("builds the confirm question with a friendly label", () => {
-    expect(confirmQuestion("electrical")).toBe("This sounds like Electrical. Continue?");
+    expect(confirmQuestion("electrical")).toBe(
+      "This sounds like Electrical. Continue?",
+    );
     expect(confirmQuestion("towing")).toBe("This sounds like Tow. Continue?");
   });
 
@@ -231,7 +275,7 @@ describe("battery question tree", () => {
     const text = composeBatteryProblem(
       { start: "A", a_terminals: "no", a_safe: "yes" },
       "Battery died near the gate",
-      "Ojota, Lagos"
+      "Ojota, Lagos",
     );
     expect(text).toContain(BATTERY_START_QUESTION);
     expect(text).toContain("Vehicle is completely dead (no lights, no sound)");
@@ -250,13 +294,13 @@ describe("battery question tree", () => {
   it("builds a breadcrumb of the branch letter and phase", () => {
     expect(batteryBreadcrumb(["vehicle", "start"])).toBe("Battery");
     expect(batteryBreadcrumb(["vehicle", "a_sudden", "a_terminals"])).toBe(
-      "Battery · A"
+      "Battery · A",
     );
     expect(batteryBreadcrumb(["vehicle", "start", "confirm"])).toBe(
-      "Battery · Confirm"
+      "Battery · Confirm",
     );
     expect(batteryBreadcrumb(["vehicle", "start", "final"])).toBe(
-      "Battery · Send"
+      "Battery · Send",
     );
   });
 });

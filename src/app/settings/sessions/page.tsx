@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Login sessions & connected devices — customer + repair pro.
+ * Login sessions & connected devices customer + repair pro.
  * Lists active sessions from /api/sessions; can revoke other devices.
  */
 
@@ -20,7 +20,10 @@ type SessionRow = {
   created_at: string | null;
 };
 
-function deviceHint(ua: string | null | undefined, label: string | null | undefined) {
+function deviceHint(
+  ua: string | null | undefined,
+  label: string | null | undefined,
+) {
   const s = `${label || ""} ${ua || ""}`.toLowerCase();
   if (/iphone|android|mobile|ipad/.test(s)) return "Mobile";
   if (/mac|windows|linux|chrome|safari|firefox|edge/.test(s)) return "Browser";
@@ -50,7 +53,9 @@ export default function SettingsSessionsPage() {
     if (!backendUserId) {
       setSessions([]);
       setLoading(false);
-      setErr(isAuthenticated ? "Account id missing" : "Sign in to manage sessions");
+      setErr(
+        isAuthenticated ? "Account id missing" : "Sign in to manage sessions",
+      );
       return;
     }
     setLoading(true);
@@ -59,7 +64,7 @@ export default function SettingsSessionsPage() {
       const { authFetch } = await import("@/lib/api-auth-headers");
       const res = await authFetch(
         `/api/sessions?userId=${encodeURIComponent(backendUserId)}`,
-        { credentials: "include" }
+        { credentials: "include" },
       );
       const json = (await res.json().catch(() => null)) as {
         ok?: boolean;
@@ -93,18 +98,21 @@ export default function SettingsSessionsPage() {
     } catch {
       /* */
     }
-    void import("@/lib/api-auth-headers").then(({ authFetch }) =>
-      authFetch("/api/sessions", {
-        method: "POST",
-        credentials: "include",
-        body: JSON.stringify({
-          userId: backendUserId,
-          deviceLabel: "This browser",
-          userAgent:
-            typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+    void import("@/lib/api-auth-headers")
+      .then(({ authFetch }) =>
+        authFetch("/api/sessions", {
+          method: "POST",
+          credentials: "include",
+          body: JSON.stringify({
+            userId: backendUserId,
+            deviceLabel: "This browser",
+            userAgent:
+              typeof navigator !== "undefined"
+                ? navigator.userAgent
+                : undefined,
+          }),
         }),
-      })
-    )
+      )
       .then(() => {
         try {
           sessionStorage.setItem(key, "1");
@@ -125,7 +133,7 @@ export default function SettingsSessionsPage() {
       const { authFetch } = await import("@/lib/api-auth-headers");
       const res = await authFetch(
         `/api/sessions?sessionId=${encodeURIComponent(id)}&userId=${encodeURIComponent(backendUserId)}`,
-        { method: "DELETE", credentials: "include" }
+        { method: "DELETE", credentials: "include" },
       );
       const json = (await res.json().catch(() => null)) as {
         ok?: boolean;
@@ -148,7 +156,7 @@ export default function SettingsSessionsPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader
@@ -191,7 +199,7 @@ export default function SettingsSessionsPage() {
                   key={s.id}
                   className={cn(
                     "flex items-start gap-2 px-2 py-3",
-                    i === 0 ? "" : isLight ? "" : ""
+                    i === 0 ? "" : isLight ? "" : "",
                   )}
                 >
                   <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center">
@@ -220,7 +228,7 @@ export default function SettingsSessionsPage() {
                       "flex shrink-0 items-center gap-1 rounded-md border-0 px-2 py-1.5 text-[11px] font-bold",
                       isLight
                         ? "bg-black/10 text-slate-800"
-                        : "bg-white/10 text-white"
+                        : "bg-white/10 text-white",
                     )}
                     aria-label="Sign out this device"
                   >

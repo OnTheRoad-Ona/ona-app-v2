@@ -96,7 +96,7 @@ describe("tow question tree", () => {
         start: "E",
         e_reason: "workshop",
         e_drive: "no",
-      }).trade
+      }).trade,
     ).toBe("towing");
   });
 
@@ -116,44 +116,45 @@ describe("tow question tree", () => {
         f_recovery_label: "Heavy-duty / winch recovery",
       },
       "",
-      ""
+      "",
     );
     expect(text).toContain("Heavy-duty / winch recovery needed");
   });
 
   it("routes the something-else branch to the related trade offer", () => {
     expect(
-      resolveTowRoute({ start: "G", g_related: "engine_mech" }).alternate
+      resolveTowRoute({ start: "G", g_related: "engine_mech" }).alternate,
     ).toBe("mechanic");
     expect(
-      resolveTowRoute({ start: "G", g_related: "tyre_wheel" }).alternate
+      resolveTowRoute({ start: "G", g_related: "tyre_wheel" }).alternate,
     ).toBe("vulcanizer");
     expect(
-      resolveTowRoute({ start: "G", g_related: "battery_electrical" }).alternate
+      resolveTowRoute({ start: "G", g_related: "battery_electrical" })
+        .alternate,
     ).toBe("battery");
-    expect(
-      resolveTowRoute({ start: "G", g_related: "body" }).alternate
-    ).toBe("body");
+    expect(resolveTowRoute({ start: "G", g_related: "body" }).alternate).toBe(
+      "body",
+    );
     expect(resolveTowRoute({ start: "G", g_related: "ac" }).alternate).toBe(
-      "ac"
+      "ac",
     );
     expect(
       resolveTowRoute({ start: "G", g_related: "power", g_power: "solar" })
-        .alternate
+        .alternate,
     ).toBe("solar");
     expect(
       resolveTowRoute({ start: "G", g_related: "power", g_power: "generator" })
-        .alternate
+        .alternate,
     ).toBe("generator");
     expect(
       resolveTowRoute({ start: "G", g_related: "house", g_house: "plumber" })
-        .alternate
+        .alternate,
     ).toBe("plumber");
     expect(
-      resolveTowRoute({ start: "G", g_related: "clothing" }).alternate
+      resolveTowRoute({ start: "G", g_related: "clothing" }).alternate,
     ).toBe("fashion");
     expect(
-      resolveTowRoute({ start: "G", g_related: "moving" }).needsConfirm
+      resolveTowRoute({ start: "G", g_related: "moving" }).needsConfirm,
     ).toBe(false);
   });
 
@@ -168,7 +169,7 @@ describe("tow question tree", () => {
   it("asks Continue with the stronger trade name", () => {
     expect(confirmQuestion("towing")).toBe("This sounds like Tow. Continue?");
     expect(confirmQuestion("vulcanizer")).toBe(
-      "This sounds like Vulcanizer. Continue?"
+      "This sounds like Vulcanizer. Continue?",
     );
   });
 
@@ -181,7 +182,7 @@ describe("tow question tree", () => {
       },
       "please hurry",
       "Lekki Phase 1",
-      { destination: "Toyota Service Centre", colour: "Black" }
+      { destination: "Toyota Service Centre", colour: "Black" },
     );
     expect(text).toContain(TOW_START_QUESTION);
     expect(text).toContain("Going to a workshop for repairs");

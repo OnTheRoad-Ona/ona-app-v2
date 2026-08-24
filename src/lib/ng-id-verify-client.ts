@@ -16,7 +16,7 @@ export type NgIdVerifyResponse = {
 
 async function postJson(
   url: string,
-  body: Record<string, string>
+  body: Record<string, string>,
 ): Promise<NgIdVerifyResponse> {
   try {
     const res = await fetch(url, {
@@ -59,10 +59,16 @@ export async function verifySignupIds(input: {
 
   if (input.requireBoth) {
     if (nin.length !== 11) {
-      return { ok: false, message: "NIN must be exactly 11 digits and verified." };
+      return {
+        ok: false,
+        message: "NIN must be exactly 11 digits and verified.",
+      };
     }
     if (bvn.length !== 11) {
-      return { ok: false, message: "BVN must be exactly 11 digits and verified." };
+      return {
+        ok: false,
+        message: "BVN must be exactly 11 digits and verified.",
+      };
     }
   }
 
@@ -74,7 +80,9 @@ export async function verifySignupIds(input: {
     if (!r.ok) {
       return {
         ok: false,
-        message: r.message || "NIN verification failed. Check the number and try again.",
+        message:
+          r.message ||
+          "NIN verification failed. Check the number and try again.",
       };
     }
   }
@@ -87,7 +95,9 @@ export async function verifySignupIds(input: {
     if (!r.ok) {
       return {
         ok: false,
-        message: r.message || "BVN verification failed. Check the number and try again.",
+        message:
+          r.message ||
+          "BVN verification failed. Check the number and try again.",
       };
     }
   }

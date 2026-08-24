@@ -5,7 +5,7 @@
 import { createServiceSupabase } from "@/lib/supabase/server";
 
 export async function getAppSetting<T = Record<string, unknown>>(
-  key: string
+  key: string,
 ): Promise<T | null> {
   try {
     const supabase = createServiceSupabase();
@@ -37,7 +37,9 @@ export async function isFeatureEnabled(key: string): Promise<boolean> {
 
 /** Flutterwave is platform default when settings missing */
 export async function getDefaultPaymentProvider(): Promise<string> {
-  const payments = await getAppSetting<{ defaultProvider?: string }>("payments");
+  const payments = await getAppSetting<{ defaultProvider?: string }>(
+    "payments",
+  );
   return (
     payments?.defaultProvider ||
     process.env.PAYMENT_PROVIDER ||

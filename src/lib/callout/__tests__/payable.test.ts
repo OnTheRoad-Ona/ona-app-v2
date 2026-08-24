@@ -35,19 +35,17 @@ describe("isCalloutAmountReady", () => {
   it("waits on pending / calculating so labour-only never paints first", () => {
     expect(isCalloutAmountReady(null)).toBe(false);
     expect(isCalloutAmountReady(quote({ calloutStatus: "PENDING" }))).toBe(
-      false
+      false,
     );
     expect(isCalloutAmountReady(quote({ calloutStatus: "CALCULATING" }))).toBe(
-      false
+      false,
     );
     expect(isCalloutAmountReady(quote({ calloutStatus: "CALCULATED" }))).toBe(
-      true
+      true,
     );
-    expect(isCalloutAmountReady(quote({ calloutStatus: "LOCKED" }))).toBe(
-      true
-    );
+    expect(isCalloutAmountReady(quote({ calloutStatus: "LOCKED" }))).toBe(true);
     expect(isCalloutAmountReady(quote({ calloutStatus: "NOT_ELIGIBLE" }))).toBe(
-      true
+      true,
     );
   });
 });
@@ -60,7 +58,9 @@ describe("payableCalloutMajor", () => {
 
   it("is zero when not eligible or waived", () => {
     expect(
-      payableCalloutMajor(quote({ calloutEligible: false, calloutStatus: "NOT_ELIGIBLE" }))
+      payableCalloutMajor(
+        quote({ calloutEligible: false, calloutStatus: "NOT_ELIGIBLE" }),
+      ),
     ).toBe(0);
     expect(payableCalloutMajor(quote({ calloutStatus: "WAIVED" }))).toBe(0);
     expect(payableCalloutMajor(quote({ calloutStatus: "PENDING" }))).toBe(0);
@@ -71,7 +71,9 @@ describe("payableCalloutMajor", () => {
 describe("jobTotalMajor", () => {
   it("is null until the call-out is settled", () => {
     expect(jobTotalMajor(12000, null)).toBeNull();
-    expect(jobTotalMajor(12000, quote({ calloutStatus: "PENDING" }))).toBeNull();
+    expect(
+      jobTotalMajor(12000, quote({ calloutStatus: "PENDING" })),
+    ).toBeNull();
     expect(jobTotalMajor(12000, quote({}))).toBe(15490);
   });
 });
@@ -85,7 +87,10 @@ describe("composeCustomerPayableMajor", () => {
   });
 
   it("labour-only when there is no payable call-out", () => {
-    const p = composeCustomerPayableMajor(12000, quote({ calloutStatus: "NOT_ELIGIBLE" }));
+    const p = composeCustomerPayableMajor(
+      12000,
+      quote({ calloutStatus: "NOT_ELIGIBLE" }),
+    );
     expect(p.totalMajor).toBe(12000);
     expect(p.calloutMajor).toBe(0);
   });

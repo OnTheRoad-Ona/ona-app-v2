@@ -9,7 +9,10 @@ import {
   Timer,
   type LucideIcon,
 } from "lucide-react";
-import { LISTING_FILTER_CHIPS, type ListingFilterKey } from "@/lib/shop/listing-status";
+import {
+  LISTING_FILTER_CHIPS,
+  type ListingFilterKey,
+} from "@/lib/shop/listing-status";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -36,8 +39,10 @@ export function ShopAvailabilityChips({ value, onChange, className }: Props) {
   const { theme } = useApp();
   const isLight = theme === "light";
 
-  const track = isLight ? "bg-[#b4b6bd]" : "bg-[#2a2a2a]";
-  const activeBox = isLight ? "bg-white text-slate-900 shadow-sm" : "bg-[#3d3d3d] text-white";
+  const track = isLight ? "bg-black/[0.02]" : "bg-white/[0.02]";
+  const activeBox = isLight
+    ? "bg-white text-slate-900 shadow-sm"
+    : "bg-[#3d3d3d] text-white";
   const inactiveBox = isLight
     ? "bg-transparent text-slate-800"
     : "bg-transparent text-[#d0d0d0]";
@@ -48,7 +53,7 @@ export function ShopAvailabilityChips({ value, onChange, className }: Props) {
       <div
         className={cn(
           "flex w-full items-stretch gap-px overflow-x-auto rounded-xl",
-          track
+          track,
         )}
         role="group"
         aria-label="Availability"
@@ -64,7 +69,7 @@ export function ShopAvailabilityChips({ value, onChange, className }: Props) {
               aria-pressed={active}
               className={cn(
                 "flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-none border-0 px-1 py-1.5 transition-colors",
-                active ? activeBox : inactiveBox
+                active ? activeBox : inactiveBox,
               )}
             >
               <Icon
@@ -74,7 +79,7 @@ export function ShopAvailabilityChips({ value, onChange, className }: Props) {
                     ? "text-[#FF6B35]"
                     : isLight
                       ? "text-slate-700"
-                      : "text-[#d0d0d0]"
+                      : "text-[#d0d0d0]",
                 )}
                 strokeWidth={2.2}
               />
@@ -82,7 +87,7 @@ export function ShopAvailabilityChips({ value, onChange, className }: Props) {
                 <span
                   className={cn(
                     "text-center text-[9px] font-bold leading-tight",
-                    active ? undefined : subMuted
+                    active ? undefined : subMuted,
                   )}
                 >
                   {chip.label}

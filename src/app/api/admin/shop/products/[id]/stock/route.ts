@@ -11,7 +11,11 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, ctx: Ctx) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     const auth = await requirePermission("shop_catalog");

@@ -2,8 +2,15 @@ import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { requireUser } from "@/lib/server/auth-utils";
 import { isProService } from "@/lib/services";
-import { classifyRequest, calculateCalloutFee, isCalloutExcludedTrade } from "@/lib/callout/engine";
-import { loadCalloutPolicy, loadTradeBaseFee } from "@/lib/server/callout/store";
+import {
+  classifyRequest,
+  calculateCalloutFee,
+  isCalloutExcludedTrade,
+} from "@/lib/callout/engine";
+import {
+  loadCalloutPolicy,
+  loadTradeBaseFee,
+} from "@/lib/server/callout/store";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { hasRecentLiveHeartbeat } from "@/lib/matching";
@@ -49,9 +56,11 @@ export async function POST(req: Request) {
     const auth = await requireUser(req);
     if (!auth.ok) return auth.response;
     const parsed = bodySchema.safeParse(await req.json());
-    if (!parsed.success) return apiFail("Invalid preview payload", 400, "validation");
+    if (!parsed.success)
+      return apiFail("Invalid preview payload", 400, "validation");
     const b = parsed.data;
-    if (!isProService(b.trade)) return apiFail("Unknown trade", 400, "validation");
+    if (!isProService(b.trade))
+      return apiFail("Unknown trade", 400, "validation");
 
     const policy = await loadCalloutPolicy();
     const classification = classifyRequest({
@@ -84,9 +93,8 @@ export async function POST(req: Request) {
     }
 
     const dest = { lat: b.lat, lng: b.lng };
-    const { computeApprovedRoadRoute } = await import(
-      "@/lib/server/routing/approved-route"
-    );
+    const { computeApprovedRoadRoute } =
+      await import("@/lib/server/routing/approved-route");
     const road = await computeApprovedRoadRoute(origin, dest);
     if (!road.ok) {
       return apiOk({
@@ -142,7 +150,7 @@ export async function POST(req: Request) {
   } catch (e) {
     return apiFail(
       e instanceof Error ? e.message : "Could not preview call-out",
-      500
+      500,
     );
   }
 }

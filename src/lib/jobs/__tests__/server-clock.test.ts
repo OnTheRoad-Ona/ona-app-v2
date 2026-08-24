@@ -47,10 +47,14 @@ describe("server-clock (offset + freshness)", () => {
       new Response(
         JSON.stringify({
           ok: true,
-          data: { ok: true, service: "ona", ts: new Date(SERVER + 60_000).toISOString() },
+          data: {
+            ok: true,
+            service: "ona",
+            ts: new Date(SERVER + 60_000).toISOString(),
+          },
         }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      )
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
     );
     await refreshServerClock(30_000);
     expect(fetch).toHaveBeenCalledWith("/api/health?public=1", {

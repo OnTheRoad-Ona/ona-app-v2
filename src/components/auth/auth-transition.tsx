@@ -25,7 +25,7 @@ export function useAuthNavigate() {
       else router.push(path);
       window.setTimeout(() => setExiting(false), AUTH_TRANSITION_MS + 50);
     },
-    [exiting, router]
+    [exiting, router],
   );
 
   return {
@@ -52,7 +52,7 @@ export function AuthMotion({
         "flex min-h-0 flex-1 flex-col",
         "om-auth-enter",
         exiting && "om-auth-exit",
-        className
+        className,
       )}
     >
       {children}

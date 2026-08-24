@@ -2,6 +2,10 @@ import type { ProService } from "@/lib/types";
 
 /** Deep cascading question flow for the Solar trade. */
 
+export const SOLAR_MACHINE_QUESTION = "What type of solar system do you use?";
+export const SOLAR_MACHINE_NONE_ID = "none";
+export const SOLAR_MACHINE_OTHER_ID = "other";
+
 export const SOLAR_START_QUESTION = "What kind of solar work do you need?";
 
 export const SOLAR_MIN_PHOTOS = 2;
@@ -42,7 +46,7 @@ export const SOLAR_FINAL_COPY = {
   remote: "Remote location",
   night: "Night service needed",
   photos:
-    "Add clear photos (2–4): existing solar panels / inverter / batteries (if any), the roof or installation area, and distribution board (if relevant)",
+    "Add clear photos (2-4): existing solar panels / inverter / batteries (if any), the roof or installation area, and distribution board (if relevant)",
   voice: "Record a short voice note explaining exactly what you need",
   location: "Exact location / landmark",
   load: "Estimated load or what you want to power",
@@ -62,7 +66,7 @@ export const SOLAR_SCREENS: Record<string, SolarScreen> = {
     options: SOLAR_START_OPTIONS,
   },
 
-  // Branch A — new solar installation
+  // Branch A new solar installation
   a_property: {
     question: "What type of property is it?",
     kind: "choice",
@@ -94,11 +98,12 @@ export const SOLAR_SCREENS: Record<string, SolarScreen> = {
     options: [
       { id: "off-grid", label: "Off-grid (complete independence from NEPA)" },
       { id: "hybrid", label: "Hybrid (solar + NEPA)" },
-      { id: "advise", label: "I don’t know – advise me" },
+      { id: "advise", label: "I don’t know, advise me" },
     ],
   },
   a_equipment: {
-    question: "Do you already have any solar equipment (panels, inverter, batteries)?",
+    question:
+      "Do you already have any solar equipment (panels, inverter, batteries)?",
     kind: "choice",
     options: [
       { id: "yes", label: "Yes" },
@@ -111,7 +116,10 @@ export const SOLAR_SCREENS: Record<string, SolarScreen> = {
     kind: "choice",
     options: [
       { id: "i-buy", label: "I will buy them myself" },
-      { id: "technician-supplies", label: "Solar technician should supply everything" },
+      {
+        id: "technician-supplies",
+        label: "Solar technician should supply everything",
+      },
     ],
   },
   a_roof: {
@@ -125,7 +133,7 @@ export const SOLAR_SCREENS: Record<string, SolarScreen> = {
     ],
   },
 
-  // Branch B — existing solar system not working properly
+  // Branch B existing solar system not working properly
   b_problem: {
     question: "What exactly is the problem?",
     kind: "choice",
@@ -158,7 +166,7 @@ export const SOLAR_SCREENS: Record<string, SolarScreen> = {
     ],
   },
 
-  // Branch C — battery or inverter problem
+  // Branch C battery or inverter problem
   c_which: {
     question: "Which one is having issue?",
     kind: "choice",
@@ -195,7 +203,7 @@ export const SOLAR_SCREENS: Record<string, SolarScreen> = {
     placeholder: "e.g. 4 batteries, 5kVA inverter",
   },
 
-  // Branch D — solar panel cleaning or maintenance
+  // Branch D solar panel cleaning or maintenance
   d_count: {
     question: "How many panels do you have?",
     kind: "text",
@@ -219,7 +227,8 @@ export const SOLAR_SCREENS: Record<string, SolarScreen> = {
     ],
   },
   d_check: {
-    question: "Do you also want the whole system checked (connections, inverter, batteries)?",
+    question:
+      "Do you also want the whole system checked (connections, inverter, batteries)?",
     kind: "choice",
     options: [
       { id: "yes", label: "Yes" },
@@ -227,7 +236,7 @@ export const SOLAR_SCREENS: Record<string, SolarScreen> = {
     ],
   },
 
-  // Branch E — system upgrade or expansion
+  // Branch E system upgrade or expansion
   e_upgrade: {
     question: "What do you want to upgrade?",
     kind: "choice",
@@ -250,9 +259,10 @@ export const SOLAR_SCREENS: Record<string, SolarScreen> = {
     placeholder: "e.g. Add a fridge and freezer",
   },
 
-  // Branch F — something else / not sure
+  // Branch F something else / not sure
   f_describe: {
-    question: "Please describe the solar issue or what you want in your own words.",
+    question:
+      "Please describe the solar issue or what you want in your own words.",
     kind: "text",
     placeholder: "Describe the solar issue…",
   },
@@ -286,7 +296,7 @@ export function solarScreen(id: string): SolarScreen | undefined {
 export function nextSolarScreen(
   current: string,
   _answerId: string,
-  _answers: Record<string, string>
+  _answers: Record<string, string>,
 ): string {
   const map: Record<string, string> = {
     a_property: "a_power",
@@ -318,6 +328,9 @@ export function nextSolarScreen(
     f_describe: "f_location",
     f_location: "confirm",
   };
+  if (current === "machine") {
+    return "start";
+  }
   if (current === "start") {
     return START_NEXT[_answerId] ?? "final";
   }
@@ -326,20 +339,15 @@ export function nextSolarScreen(
 
 /**
  * Solar is capture-only except where the problem is clearly pure electrical
- * (wiring / distribution board / inverter electronics) — branches B, C and F
+ * (wiring / distribution board / inverter electronics) branches B, C and F
  * end with a confirm card offering Electric. No other trade links.
  */
-export function resolveSolarRoute(
-  answers: Record<string, string>
-): SolarRoute {
+export function resolveSolarRoute(answers: Record<string, string>): SolarRoute {
   const stay = (): SolarRoute => ({
     trade: "solar",
     needsConfirm: false,
   });
-  const leave = (
-    trade: ProService,
-    alternate?: ProService
-  ): SolarRoute => ({
+  const leave = (trade: ProService, alternate?: ProService): SolarRoute => ({
     trade,
     alternate,
     needsConfirm: trade !== "solar" || Boolean(alternate),
@@ -352,7 +360,10 @@ export function resolveSolarRoute(
   return stay();
 }
 
-export function applyConfirmChoice(route: SolarRoute, yes: boolean): ProService {
+export function applyConfirmChoice(
+  route: SolarRoute,
+  yes: boolean,
+): ProService {
   if (yes) return route.trade;
   if (route.alternate) return route.alternate;
   return "solar";
@@ -389,9 +400,13 @@ export function canFindSolarPro(photoCount: number): boolean {
 export function composeSolarProblem(
   answers: Record<string, string>,
   extra: string,
-  landmark: string
+  landmark: string,
 ): string {
   const lines: string[] = [];
+  const machineLabel = answers.machine_label || answers.machine || "";
+  if (machineLabel) {
+    lines.push(`${SOLAR_MACHINE_QUESTION} ${machineLabel}`);
+  }
   const startLabel = answers.start_label || answers.start || "";
   lines.push(`Solar work: ${startLabel} (${SOLAR_START_QUESTION})`);
   const orderedIds = [
@@ -433,7 +448,7 @@ export function composeSolarProblem(
 
 export function solarBreadcrumb(stack: string[]): string {
   const step = stack[stack.length - 1];
-  if (!step || step === "start") return "Solar";
+  if (!step || step === "start" || step === "machine") return "Solar";
   if (step === "final") return "Solar · Send";
   return `Solar · ${step.charAt(0).toUpperCase()}`;
 }

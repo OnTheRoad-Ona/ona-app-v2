@@ -45,7 +45,8 @@ export async function GET(req: NextRequest) {
 
     // Facet filters: category, price range, availability.
     const sp = req.nextUrl.searchParams;
-    const filters: import("@/lib/server/shop/catalog").ProductFilterOptions = {};
+    const filters: import("@/lib/server/shop/catalog").ProductFilterOptions =
+      {};
     const categorySlug = sp.get("category");
     if (categorySlug) filters.categorySlug = categorySlug;
     const minPrice = sp.get("minPrice");

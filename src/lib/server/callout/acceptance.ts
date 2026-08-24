@@ -256,7 +256,7 @@ export async function lockCalloutOnAcceptance(input: {
 
   const road = await computeApprovedRoadRoute(
     originRes.origin,
-    input.destination
+    input.destination,
   );
   if (!road.ok) {
     await logFeeEvent({
@@ -288,10 +288,10 @@ export async function lockCalloutOnAcceptance(input: {
   }
 
   const tradeFee = await loadTradeBaseFee(input.trade);
-  // Hard per-trade exclusion (Vulcanizer / Battery) — never charge call-out.
+  // Hard per-trade exclusion (Vulcanizer / Battery) never charge call-out.
   const tradeExcluded = isCalloutExcludedTrade(input.trade);
-  // Customer chip stays in effect; AUTO Night (9PM–5AM local) and AUTO Remote
-  // (4.95–5.00 km route) override it when higher. Highest wins, never stacked.
+  // Customer chip stays in effect; AUTO Night (9PM-5AM local) and AUTO Remote
+  // (4.95-5.00 km route) override it when higher. Highest wins, never stacked.
   const applied = resolveAppliedMultiplier({
     chipKind: existing?.urgencyKind ?? "normal",
     chipMultiplier: existing?.urgencyMultiplier ?? 1,
@@ -306,8 +306,7 @@ export async function lockCalloutOnAcceptance(input: {
     urgencyMultiplier: applied.multiplier,
   });
 
-  const eligible =
-    !tradeExcluded && breakdown.withinRadius && tradeFee.enabled;
+  const eligible = !tradeExcluded && breakdown.withinRadius && tradeFee.enabled;
   const quote: CalloutQuote = {
     requestId: input.requestId,
     calloutEligible: eligible,
@@ -378,7 +377,7 @@ export async function lockCalloutOnAcceptance(input: {
 export async function voidCalloutForReroute(
   requestId: string,
   reason: string,
-  proId?: string | null
+  proId?: string | null,
 ): Promise<void> {
   const existing = await getCalloutQuote(requestId);
   if (!existing) return;
@@ -413,7 +412,10 @@ export async function recordArrivalIntegrity(input: {
   customer: { lat: number; lng: number };
 }): Promise<void> {
   const quote = await getCalloutQuote(input.requestId);
-  if (quote?.calloutStatus === "LOCKED" || quote?.calloutStatus === "IN_PROGRESS") {
+  if (
+    quote?.calloutStatus === "LOCKED" ||
+    quote?.calloutStatus === "IN_PROGRESS"
+  ) {
     await upsertCalloutQuote({
       ...quote,
       calloutStatus: "ARRIVED",
@@ -469,11 +471,14 @@ export async function recordArrivalIntegrity(input: {
 
 export async function setCalloutTravelPhase(
   requestId: string,
-  phase: "before_travel" | "travelling" | "arrived"
+  phase: "before_travel" | "travelling" | "arrived",
 ): Promise<void> {
   const quote = await getCalloutQuote(requestId);
   if (!quote) return;
-  if (quote.calloutStatus === "NOT_ELIGIBLE" || quote.calloutStatus === "WAIVED") {
+  if (
+    quote.calloutStatus === "NOT_ELIGIBLE" ||
+    quote.calloutStatus === "WAIVED"
+  ) {
     return;
   }
   await upsertCalloutQuote({
@@ -526,7 +531,8 @@ export async function recordTravelSample(input: {
       lat: quote?.originLatitude ?? sample.lat,
       lng: quote?.originLongitude ?? sample.lng,
       accuracyM: quote?.originAccuracyM,
-      capturedAt: quote?.originCapturedAt || quote?.lockedAt || sample.capturedAt,
+      capturedAt:
+        quote?.originCapturedAt || quote?.lockedAt || sample.capturedAt,
     };
     const assessed = assessTravelIntegrity({
       acceptance,
@@ -590,7 +596,10 @@ export async function detectCustomerLocationChange(input: {
 }): Promise<void> {
   const quote = await getCalloutQuote(input.requestId);
   if (!quote || quote.calloutStatus === "NOT_ELIGIBLE") return;
-  if (quote.calloutStatus !== "LOCKED" && quote.calloutStatus !== "IN_PROGRESS") {
+  if (
+    quote.calloutStatus !== "LOCKED" &&
+    quote.calloutStatus !== "IN_PROGRESS"
+  ) {
     return;
   }
   if (quote.destinationLatitude == null || quote.destinationLongitude == null) {
@@ -598,11 +607,10 @@ export async function detectCustomerLocationChange(input: {
   }
   const moved = haversineMeters(
     { lat: quote.destinationLatitude, lng: quote.destinationLongitude },
-    { lat: input.newLat, lng: input.newLng }
+    { lat: input.newLat, lng: input.newLng },
   );
-  const { customerMoveSurchargeNaira } = await import(
-    "@/lib/callout/customer-move"
-  );
+  const { customerMoveSurchargeNaira } =
+    await import("@/lib/callout/customer-move");
   const { extraNaira, steps } = customerMoveSurchargeNaira(moved);
   if (steps < 1) return;
   const oldFee = Number(quote.calloutFee) || 0;

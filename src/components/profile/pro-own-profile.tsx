@@ -45,10 +45,10 @@ import type { ProService, UserProfile } from "@/lib/types";
 import { StarRatingDisplay } from "@/components/ui/star-rating";
 import { cn } from "@/lib/utils";
 
-/** First / primary signup skill only — never multi-trade on My Profile */
+/** First / primary signup skill only never multi-trade on My Profile */
 function primarySkill(
   profile: UserProfile | null | undefined,
-  proServices: ProService[]
+  proServices: ProService[],
 ): ProService[] {
   const fromProfile = (profile?.services || []).filter(isProService);
   if (fromProfile[0]) return [fromProfile[0]];
@@ -77,14 +77,14 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
 
   const lockedSkills = useMemo(
     () => primarySkill(userProfile, proServices),
-    [userProfile, proServices]
+    [userProfile, proServices],
   );
   const artisan = useMemo(
     () =>
       userProfile?.identityId
         ? getArtisanProfile(userProfile.identityId)
         : null,
-    [userProfile]
+    [userProfile],
   );
   const canSetExperience = isExperienceUnset(userProfile?.yearsExperience);
 
@@ -98,7 +98,9 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
         const sb = getAppSupabase();
         const s = sb ? (await sb.auth.getSession()).data.session : null;
         if (s?.access_token) setAccessToken(s.access_token);
-      } catch { /* */ }
+      } catch {
+        /* */
+      }
     })();
   }, []);
 
@@ -109,19 +111,25 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
   const [liveBusy, setLiveBusy] = useState(false);
 
   const [businessName, setBusinessName] = useState(
-    userProfile?.businessName || ""
+    userProfile?.businessName || "",
   );
   const [bio, setBio] = useState(userProfile?.bio || "");
   const [years, setYears] = useState(userProfile?.yearsExperience || "");
   const [radiusKm, setRadiusKm] = useState(
-    clampProServiceRadiusKm(userProfile?.serviceRadiusKm)
+    clampProServiceRadiusKm(userProfile?.serviceRadiusKm),
   );
   const [avatarUrl, setAvatarUrl] = useState(userProfile?.avatarUrl || "");
   const [gName, setGName] = useState(userProfile?.guarantor?.fullName || "");
   const [gPhone, setGPhone] = useState(userProfile?.guarantor?.phone || "");
-  const [gOccupation, setGOccupation] = useState(userProfile?.guarantor?.occupation || "");
-  const [gAddress, setGAddress] = useState(userProfile?.guarantor?.address || "");
-  const [gRelationship, setGRelationship] = useState(userProfile?.guarantor?.relationship || "");
+  const [gOccupation, setGOccupation] = useState(
+    userProfile?.guarantor?.occupation || "",
+  );
+  const [gAddress, setGAddress] = useState(
+    userProfile?.guarantor?.address || "",
+  );
+  const [gRelationship, setGRelationship] = useState(
+    userProfile?.guarantor?.relationship || "",
+  );
 
   if (!userProfile || userProfile.accountType !== "professional") {
     return (
@@ -198,7 +206,7 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
   };
 
   const displayRadius = clampProServiceRadiusKm(
-    editing ? radiusKm : userProfile.serviceRadiusKm
+    editing ? radiusKm : userProfile.serviceRadiusKm,
   );
 
   return (
@@ -224,7 +232,9 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
               }}
               className={cn(
                 "h-11 flex-1 border-0 text-[13px] font-bold",
-                isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white"
+                isLight
+                  ? "bg-black/10 text-slate-900"
+                  : "bg-white/10 text-white",
               )}
             >
               Cancel
@@ -254,7 +264,7 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
         <p
           className={cn(
             "mb-3 text-[12px] font-semibold",
-            err ? "text-red-500" : "text-emerald-600"
+            err ? "text-red-500" : "text-emerald-600",
           )}
         >
           {err || msg}
@@ -270,7 +280,7 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
             isLight ? "border-black/12" : "border-white/12",
             userProfile.docsStatus === "rejected"
               ? "text-red-500"
-              : "text-[#FF6B35]"
+              : "text-[#FF6B35]",
           )}
         >
           <p className="font-black uppercase tracking-wide">
@@ -379,11 +389,16 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
           </p>
         ) : null}
         <div className="mt-3 flex items-center justify-between gap-2">
-          <span className={cn("inline-flex items-center gap-1.5 text-[12px] font-bold", t.ink)}>
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 text-[12px] font-bold",
+              t.ink,
+            )}
+          >
             <span
               className={cn(
                 "h-2 w-2 rounded-full",
-                proLive ? "bg-emerald-500" : "bg-slate-400"
+                proLive ? "bg-emerald-500" : "bg-slate-400",
               )}
             />
             {proLive ? "Online" : "Offline"}
@@ -412,7 +427,12 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
             accessToken={accessToken}
             onPhoneChanged={(p) => updateUserProfile({ phone: p })}
           />
-          <hr className={cn("border-0", isLight ? "border-black/8" : "border-white/8")} />
+          <hr
+            className={cn(
+              "border-0",
+              isLight ? "border-black/8" : "border-white/8",
+            )}
+          />
           <EmailChangeFlow
             isLight={isLight}
             currentEmail={userProfile.email}
@@ -421,11 +441,13 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
             accessToken={accessToken}
             onEmailChanged={(e) => updateUserProfile({ email: e })}
           />
-          <hr className={cn("border-0", isLight ? "border-black/8" : "border-white/8")} />
-          <PasswordChangeFlow
-            isLight={isLight}
-            accessToken={accessToken}
+          <hr
+            className={cn(
+              "border-0",
+              isLight ? "border-black/8" : "border-white/8",
+            )}
           />
+          <PasswordChangeFlow isLight={isLight} accessToken={accessToken} />
         </div>
       </ProfileSection>
 
@@ -433,14 +455,22 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
         <div className="space-y-1">
           <p className={cn("text-[13px] font-semibold", t.ink)}>
             {userProfile.fullName}
-
           </p>
-          <p className={cn("text-[11px]", isLight ? "text-slate-900" : "text-white")}>
+          <p
+            className={cn(
+              "text-[11px]",
+              isLight ? "text-slate-900" : "text-white",
+            )}
+          >
             Name cannot be changed here.
             <button
               type="button"
               onClick={() => setNameChangeOpen(!nameChangeOpen)}
-              className={cn("ml-1 font-bold", isLight ? "text-slate-900" : "text-white", nameChangeOpen ? "text-red-400" : "")}
+              className={cn(
+                "ml-1 font-bold",
+                isLight ? "text-slate-900" : "text-white",
+                nameChangeOpen ? "text-red-400" : "",
+              )}
             >
               {nameChangeOpen ? "Cancel" : "Request name change"}
             </button>
@@ -514,7 +544,7 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
                     ? "bg-brand text-white"
                     : isLight
                       ? "bg-black/8 text-slate-700"
-                      : "bg-[#2c2c2e] text-white/75"
+                      : "bg-[#2c2c2e] text-white/75",
                 )}
               >
                 {km} km
@@ -543,7 +573,7 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
         <div className="grid grid-cols-2 gap-1.5 text-center sm:grid-cols-4">
           {[
             ["Jobs", jobs],
-            ["Rating", userProfile.averageRating?.toFixed(1) ?? "—"],
+            ["Rating", userProfile.averageRating?.toFixed(1) ?? ""],
             [
               "Response",
               userProfile.avgResponseMinutes != null
@@ -561,7 +591,7 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
               key={String(label)}
               className={cn(
                 "rounded-xl py-2",
-                isLight ? "bg-black/[0.04]" : "bg-[#2c2c2e]"
+                isLight ? "bg-black/[0.04]" : "bg-[#2c2c2e]",
               )}
             >
               <p className={cn("text-[14px] font-black tabular-nums", t.ink)}>
@@ -613,7 +643,7 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
           <p
             className={cn(
               "mt-2 flex items-center gap-1 text-[12px] font-semibold",
-              t.ink
+              t.ink,
             )}
           >
             <VerificationMark profile={userProfile} /> Verification Mark active
@@ -651,13 +681,18 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
                 Attached · {userProfile.cacDocumentName}
               </p>
             ) : (
-              <p className={cn("text-[12px]", t.muted)}>No document uploaded.</p>
+              <p className={cn("text-[12px]", t.muted)}>
+                No document uploaded.
+              </p>
             )}
             <label className="mt-2 block">
               <input
                 type="file"
                 accept="image/*,.pdf"
-                className={cn("w-full text-[12px]", isLight ? "text-slate-700" : "text-white/80")}
+                className={cn(
+                  "w-full text-[12px]",
+                  isLight ? "text-slate-700" : "text-white/80",
+                )}
                 onChange={async (e) => {
                   const f = e.target.files?.[0];
                   if (!f) return;
@@ -666,10 +701,14 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
                       ? await compressImageFile(f, { maxEdge: 1200 })
                       : await new Promise<string>((resolve) => {
                           const reader = new FileReader();
-                          reader.onload = () => resolve(String(reader.result || ""));
+                          reader.onload = () =>
+                            resolve(String(reader.result || ""));
                           reader.readAsDataURL(f);
                         });
-                    updateUserProfile({ cacDocumentName: f.name, cacDocumentDataUrl: data });
+                    updateUserProfile({
+                      cacDocumentName: f.name,
+                      cacDocumentDataUrl: data,
+                    });
                     setMsg("CAC document uploaded.");
                   } catch {
                     setErr("Could not upload document.");
@@ -684,21 +723,45 @@ export function ProOwnProfile({ isLight }: { isLight: boolean }) {
       <ProfileSection title="Guarantor" isLight={isLight}>
         {editing ? (
           <div className="space-y-2">
-            <input className={field} placeholder="Full name" value={gName}
-              onChange={(e) => setGName(e.target.value)} />
-            <input className={field} placeholder="Phone" value={gPhone}
-              onChange={(e) => setGPhone(e.target.value.replace(/\D/g, "").slice(0, 15))} />
-            <input className={field} placeholder="Occupation" value={gOccupation}
-              onChange={(e) => setGOccupation(e.target.value)} />
-            <input className={field} placeholder="Residential address" value={gAddress}
-              onChange={(e) => setGAddress(e.target.value)} />
-            <input className={field} placeholder="Relationship to you" value={gRelationship}
-              onChange={(e) => setGRelationship(e.target.value)} />
+            <input
+              className={field}
+              placeholder="Full name"
+              value={gName}
+              onChange={(e) => setGName(e.target.value)}
+            />
+            <input
+              className={field}
+              placeholder="Phone"
+              value={gPhone}
+              onChange={(e) =>
+                setGPhone(e.target.value.replace(/\D/g, "").slice(0, 15))
+              }
+            />
+            <input
+              className={field}
+              placeholder="Occupation"
+              value={gOccupation}
+              onChange={(e) => setGOccupation(e.target.value)}
+            />
+            <input
+              className={field}
+              placeholder="Residential address"
+              value={gAddress}
+              onChange={(e) => setGAddress(e.target.value)}
+            />
+            <input
+              className={field}
+              placeholder="Relationship to you"
+              value={gRelationship}
+              onChange={(e) => setGRelationship(e.target.value)}
+            />
           </div>
         ) : (
           <div className={cn("space-y-1 text-[12px]", t.ink)}>
             <p>{userProfile.guarantor?.fullName || "Not set"}</p>
-            <p className={t.muted}>{userProfile.guarantor?.phone || "Not set"}</p>
+            <p className={t.muted}>
+              {userProfile.guarantor?.phone || "Not set"}
+            </p>
             {userProfile.guarantor?.occupation && (
               <p className={t.muted}>{userProfile.guarantor.occupation}</p>
             )}

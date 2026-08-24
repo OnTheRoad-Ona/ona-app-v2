@@ -38,7 +38,7 @@ function check(
   id: string,
   title: string,
   ok: boolean,
-  detail: string
+  detail: string,
 ): ShipCheck {
   return { id, title, ok, detail };
 }
@@ -53,16 +53,16 @@ export function runShipChecks(): ShipStatus {
       "build-id",
       "Build stamp present",
       Boolean(ONA_BUILD_ID && ONA_BUILD_ID.length > 4),
-      ONA_BUILD_ID
-    )
+      ONA_BUILD_ID,
+    ),
   );
   checks.push(
     check(
       "build-label",
       "Build label present",
       Boolean(ONA_BUILD_LABEL && ONA_BUILD_LABEL.length > 4),
-      ONA_BUILD_LABEL
-    )
+      ONA_BUILD_LABEL,
+    ),
   );
   checks.push(
     check(
@@ -85,8 +85,8 @@ export function runShipChecks(): ShipStatus {
         ONA_BUILD_LABEL.toLowerCase().includes("sheet") ||
         ONA_BUILD_LABEL.toLowerCase().includes("mechanic shop") ||
         ONA_BUILD_LABEL.toLowerCase().includes("fixed"),
-      `buildId=${ONA_BUILD_ID}`
-    )
+      `buildId=${ONA_BUILD_ID}`,
+    ),
   );
 
   // ── Shop filters shape (the defs.some crash) ─────────────────────
@@ -100,8 +100,8 @@ export function runShipChecks(): ShipStatus {
       Boolean(mechanicCfg),
       mechanicCfg
         ? `tradeKey=${mechanicCfg.tradeKey} count=${mechanicCfg.filters.length}`
-        : "null config"
-    )
+        : "null config",
+    ),
   );
 
   checks.push(
@@ -111,8 +111,8 @@ export function runShipChecks(): ShipStatus {
       Array.isArray(mechanicFilters),
       Array.isArray(mechanicFilters)
         ? `Array length=${mechanicFilters.length}`
-        : `typeof=${typeof mechanicFilters}`
-    )
+        : `typeof=${typeof mechanicFilters}`,
+    ),
   );
 
   const hasAvailability =
@@ -132,24 +132,24 @@ export function runShipChecks(): ShipStatus {
       hasAvailability,
       hasAvailability
         ? "kind=availability present"
-        : "availability missing or .some would throw"
-    )
+        : "availability missing or .some would throw",
+    ),
   );
   checks.push(
     check(
       "filters-has-price",
       "defs.some(price) works on filter array",
       hasPrice,
-      hasPrice ? "kind=price present" : "price missing"
-    )
+      hasPrice ? "kind=price present" : "price missing",
+    ),
   );
   checks.push(
     check(
       "filters-has-category",
       "defs.some(category) works on filter array",
       hasCategory,
-      hasCategory ? "kind=category present" : "category missing"
-    )
+      hasCategory ? "kind=category present" : "category missing",
+    ),
   );
 
   // API response contract: filters field must be the array, not nested config
@@ -178,11 +178,11 @@ export function runShipChecks(): ShipStatus {
       apiFiltersIsArray && apiFiltersNotConfigObject,
       apiFiltersIsArray
         ? `filters[0].kind=${(simulatedApiPayload!.filters[0] as { kind: string }).kind}`
-        : "filters is not an array (would crash client)"
-    )
+        : "filters is not an array (would crash client)",
+    ),
   );
 
-  // ── Vehicles UI (custom FlatSelect — no native metallic <select>) ──
+  // ── Vehicles UI (custom FlatSelect no native metallic <select>) ──
   checks.push(
     check(
       "vehicles-flat-ui",
@@ -195,8 +195,8 @@ export function runShipChecks(): ShipStatus {
         ONA_BUILD_LABEL.toLowerCase().includes("mechanic shop") ||
         ONA_BUILD_ID.includes("ship-status") ||
         ONA_BUILD_ID.includes("vehicles"),
-      ONA_BUILD_LABEL
-    )
+      ONA_BUILD_LABEL,
+    ),
   );
   checks.push(
     check(
@@ -204,16 +204,16 @@ export function runShipChecks(): ShipStatus {
       "Mechanic Shop architecture ship line present",
       ONA_BUILD_ID.includes("mechanic-shop") ||
         ONA_BUILD_LABEL.toLowerCase().includes("mechanic shop"),
-      ONA_BUILD_ID
-    )
+      ONA_BUILD_ID,
+    ),
   );
   checks.push(
     check(
       "vehicles-copy",
       "Intro copy has no fitment/catalog blurb",
       !ONA_BUILD_LABEL.toLowerCase().includes("fitment catalog"),
-      "Expected short intro only on /shop/vehicles"
-    )
+      "Expected short intro only on /shop/vehicles",
+    ),
   );
 
   const failed = checks.filter((c) => !c.ok);

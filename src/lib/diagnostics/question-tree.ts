@@ -1,7 +1,6 @@
 import type { ProService } from "@/lib/types";
 
-export const SCAN_START_QUESTION =
-  "Why do you need a diagnostic scan?";
+export const SCAN_START_QUESTION = "Why do you need a diagnostic scan?";
 
 export const SCAN_FINAL_COPY = {
   urgency: "How urgent is this request?",
@@ -43,14 +42,18 @@ export type ScanRoute = {
 
 export const SCAN_START_OPTIONS: ScanOption[] = [
   { id: "A", label: "Check engine light or warning light is on" },
-  { id: "B", label: "Vehicle has performance problems (loss of power, rough running, etc.)" },
+  {
+    id: "B",
+    label:
+      "Vehicle has performance problems (loss of power, rough running, etc.)",
+  },
   { id: "C", label: "Vehicle will not start or starts with difficulty" },
   { id: "D", label: "Need full system health check / preventive scan" },
-  { id: "E", label: "After repairs – want to clear codes or confirm fix" },
+  { id: "E", label: "After repairs, want to clear codes or confirm fix" },
   { id: "F", label: "Something else / I'm not sure" },
   {
     id: "G",
-    label: "Electric vehicle (EV) – battery / motor / charging scan",
+    label: "Electric vehicle (EV), battery / motor / charging scan",
   },
 ];
 
@@ -66,7 +69,7 @@ export const SCAN_SCREENS: Record<string, ScanScreen> = {
     kind: "choice",
     options: SCAN_START_OPTIONS,
   },
-  // Branch A — Check engine light or warning light is on
+  // Branch A Check engine light or warning light is on
   a_light: {
     id: "a_light",
     question: "Which light(s) are currently on?",
@@ -116,7 +119,7 @@ export const SCAN_SCREENS: Record<string, ScanScreen> = {
     kind: "choice",
     options: YES_NO,
   },
-  // Branch B — Vehicle has performance problems
+  // Branch B Vehicle has performance problems
   b_what: {
     id: "b_what",
     question: "What exactly is the vehicle doing?",
@@ -156,7 +159,7 @@ export const SCAN_SCREENS: Record<string, ScanScreen> = {
     kind: "choice",
     options: YES_NO,
   },
-  // Branch C — Vehicle will not start or starts with difficulty
+  // Branch C Vehicle will not start or starts with difficulty
   c_what: {
     id: "c_what",
     question: "What happens when you try to start?",
@@ -191,7 +194,7 @@ export const SCAN_SCREENS: Record<string, ScanScreen> = {
     kind: "choice",
     options: YES_NO,
   },
-  // Branch D — Need full system health check / preventive scan
+  // Branch D Need full system health check / preventive scan
   d_routine: {
     id: "d_routine",
     question: "Is this a routine check or before a long trip?",
@@ -218,7 +221,7 @@ export const SCAN_SCREENS: Record<string, ScanScreen> = {
       { id: "full", label: "Full system scan" },
     ],
   },
-  // Branch E — After repairs – want to clear codes or confirm fix
+  // Branch E After repairs, want to clear codes or confirm fix
   e_repair: {
     id: "e_repair",
     question: "What repair was recently done?",
@@ -240,7 +243,7 @@ export const SCAN_SCREENS: Record<string, ScanScreen> = {
     kind: "choice",
     options: YES_NO,
   },
-  // Branch F — Something else / I'm not sure
+  // Branch F Something else / I'm not sure
   f_describe: {
     id: "f_describe",
     question:
@@ -318,7 +321,7 @@ export function scanScreen(id: string): ScanScreen | undefined {
 export function nextScanScreen(
   current: string,
   answerId: string,
-  answers: Record<string, string>
+  answers: Record<string, string>,
 ): string {
   if (current === "start") return START_NEXT[answerId] || "f_describe";
 
@@ -374,10 +377,7 @@ export function resolveScanRoute(answers: Record<string, string>): ScanRoute {
     trade: "diagnostics",
     needsConfirm: false,
   });
-  const leave = (
-    trade: ProService,
-    alternate?: ProService
-  ): ScanRoute => ({
+  const leave = (trade: ProService, alternate?: ProService): ScanRoute => ({
     trade,
     alternate,
     needsConfirm: trade !== "diagnostics" || Boolean(alternate),
@@ -404,7 +404,8 @@ export function resolveScanRoute(answers: Record<string, string>): ScanRoute {
   if (main === "C") {
     const what = answers.c_what;
     // Completely dead or slow crank → Offer Battery first, then Scan / Electric.
-    if (what === "dead" || what === "slow") return leave("battery", "electrical");
+    if (what === "dead" || what === "slow")
+      return leave("battery", "electrical");
     // Cranks but does not start → Scan + Mechanic or Electric.
     if (what === "crank") return leave("diagnostics", "mechanic");
     // Starts then dies immediately → stay with Scan.
@@ -436,7 +437,8 @@ export function resolveScanRoute(answers: Record<string, string>): ScanRoute {
   }
 
   if (main === "G") {
-    if (answers.ev_scan === "charging") return leave("diagnostics", "electrical");
+    if (answers.ev_scan === "charging")
+      return leave("diagnostics", "electrical");
     return stay();
   }
 
@@ -472,7 +474,7 @@ export function confirmQuestion(trade: ProService): string {
 export function composeScanProblem(
   answers: Record<string, string>,
   extra: string,
-  landmark: string
+  landmark: string,
 ): string {
   const lines: string[] = [];
   const start = scanScreen("start");
@@ -483,7 +485,7 @@ export function composeScanProblem(
   }
 
   const order = Object.keys(answers).filter(
-    (k) => k !== "start" && !k.endsWith("_label")
+    (k) => k !== "start" && !k.endsWith("_label"),
   );
   for (const id of order) {
     const screen = scanScreen(id);
@@ -520,11 +522,12 @@ export function canFindScanPro(photoCount: number): boolean {
 export function scanBreadcrumb(stack: string[]): string {
   const bits: string[] = ["Scan"];
   const firstBranch = stack.find(
-    (id) => id !== "vehicle" && id !== "start" && id !== "confirm" && id !== "final"
+    (id) =>
+      id !== "vehicle" && id !== "start" && id !== "confirm" && id !== "final",
   );
   if (firstBranch) {
     const letter = Object.entries(START_NEXT).find(
-      ([, id]) => id === firstBranch
+      ([, id]) => id === firstBranch,
     )?.[0];
     if (letter) bits.push(letter);
   }

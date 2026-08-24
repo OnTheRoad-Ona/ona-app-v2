@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
-import { SettingsRow, SettingsSection } from "@/components/settings/settings-ui";
+import {
+  SettingsRow,
+  SettingsSection,
+} from "@/components/settings/settings-ui";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { FileText, Shield } from "lucide-react";
@@ -15,10 +18,14 @@ export default function SettingsLegalPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
-      <PageHeader title="Legal" subtitle="Policies & documents" backHref="/settings" />
+      <PageHeader
+        title="Legal"
+        subtitle="Policies & documents"
+        backHref="/settings"
+      />
       <div className="flex-1 overflow-y-auto px-3 pb-6 scrollbar-hide">
         <SettingsSection title="Documents" isLight={isLight}>
           <SettingsRow
@@ -40,7 +47,7 @@ export default function SettingsLegalPage() {
         <p
           className={cn(
             "mt-3 px-1 text-[11px] font-medium leading-snug",
-            isLight ? "text-slate-600" : "text-white/55"
+            isLight ? "text-slate-600" : "text-white/55",
           )}
         >
           Questions:{" "}

@@ -43,7 +43,7 @@ export default function ResetPasswordPage() {
         }
       } else {
         setError(
-          "This reset link is invalid or incomplete. Request a new one from Log In → Forgot password."
+          "This reset link is invalid or incomplete. Request a new one from Log In → Forgot password.",
         );
       }
     } catch {
@@ -108,10 +108,7 @@ export default function ResetPasswordPage() {
           Choose a new password for your Ona account.
         </p>
 
-        <form
-          onSubmit={onSubmit}
-          className="mt-6 flex flex-1 flex-col gap-3.5"
-        >
+        <form onSubmit={onSubmit} className="mt-6 flex flex-1 flex-col gap-3.5">
           <label className="block">
             <span className={authLabelClass}>New password</span>
             <PasswordField
@@ -141,7 +138,10 @@ export default function ResetPasswordPage() {
             </p>
           ) : null}
           {info ? (
-            <p className="text-[12px] font-medium text-emerald-700" role="status">
+            <p
+              className="text-[12px] font-medium text-emerald-700"
+              role="status"
+            >
               {info}
             </p>
           ) : null}

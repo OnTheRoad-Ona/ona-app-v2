@@ -78,7 +78,7 @@ export function OsmLocationPicker({
       setOpenSuggest(false);
       setStatus(null);
     },
-    [onChange]
+    [onChange],
   );
 
   const applyKnown = useCallback(
@@ -86,14 +86,14 @@ export function OsmLocationPicker({
       applyPick(knownPlaceToPick(place));
       setStatus(`${place.name} · pinned`);
     },
-    [applyPick]
+    [applyPick],
   );
 
   const reverseGeocode = useCallback(
     async (lat: number, lng: number) => {
       setBusy(true);
       try {
-        // Real reverse-geocode only — curated POIs are search suggestions
+        // Real reverse-geocode only curated POIs are search suggestions
         const rest = await reverseGeocodeLatLng(lat, lng);
         if (rest) {
           const picked: PickedLocation = {
@@ -128,7 +128,7 @@ export function OsmLocationPicker({
         setBusy(false);
       }
     },
-    [applyPick, onChange]
+    [applyPick, onChange],
   );
 
   const placePin = useCallback(
@@ -137,7 +137,7 @@ export function OsmLocationPicker({
       setCenter({ lat, lng });
       if (geocode) void reverseGeocode(lat, lng);
     },
-    [reverseGeocode]
+    [reverseGeocode],
   );
 
   useEffect(() => {
@@ -162,7 +162,7 @@ export function OsmLocationPicker({
         setBusy(false);
         setStatus("Could not read GPS. Tap the map to drop a pin.");
       },
-      { enableHighAccuracy: true, timeout: 12000 }
+      { enableHighAccuracy: true, timeout: 12000 },
     );
   };
 
@@ -192,7 +192,7 @@ export function OsmLocationPicker({
       className={cn(
         "flex h-full flex-col gap-2",
         compact ? "min-h-0" : "min-h-[240px]",
-        className
+        className,
       )}
     >
       <div className="relative">

@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 export const BRAND_COPPER = "#c97d47";
 
 /**
- * Intro / auth full-bleed art — clean copper + tire-ring portrait.
+ * Intro / auth full-bleed art clean copper + tire-ring portrait.
  * Always clipped to parent (phone shell); never full browser window.
  */
 const BRAND_SRC = "/brand/auth-bg-v31.jpg";
@@ -26,7 +26,7 @@ type BrandHeroProps = {
 };
 
 /**
- * Brand background — full-bleed metallic photograph.
+ * Brand background full-bleed metallic photograph.
  * Confined by overflow:hidden parent (#ona-phone).
  * Image loads once (lazy when not intro); copper plate shows first to cut data.
  */
@@ -43,7 +43,7 @@ export function BrandHeroMotion({
         className={cn(
           "relative mx-auto h-36 w-36 overflow-hidden rounded-full shadow-2xl",
           motion && "om-apple-motion-sharp",
-          className
+          className,
         )}
         style={{ backgroundColor: BRAND_COPPER }}
       >
@@ -55,7 +55,7 @@ export function BrandHeroMotion({
           height={BRAND_H}
           className={cn(
             "om-brand-img absolute inset-0 h-full w-full",
-            BRAND_FOCUS
+            BRAND_FOCUS,
           )}
           style={{ filter: "none" }}
           draggable={false}
@@ -69,10 +69,10 @@ export function BrandHeroMotion({
   return (
     <div
       className={cn(
-        /* Absolute fill of phone shell only — never fixed/viewport */
+        /* Absolute fill of phone shell only never fixed/viewport */
         "pointer-events-none absolute inset-0 overflow-hidden",
         motion && !introMotion && "om-apple-motion-sharp",
-        className
+        className,
       )}
       aria-hidden
       style={{ backgroundColor: BRAND_COPPER }}
@@ -93,7 +93,7 @@ export function BrandHeroMotion({
         className={cn(
           "om-brand-img absolute inset-0 h-full w-full max-h-full max-w-full",
           BRAND_FOCUS,
-          introMotion && "om-intro-hero-img"
+          introMotion && "om-intro-hero-img",
         )}
         style={{
           filter: "none",

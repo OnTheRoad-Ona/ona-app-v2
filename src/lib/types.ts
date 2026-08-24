@@ -96,15 +96,15 @@ export interface UserProfile {
   fullName: string;
   phone: string;
   email: string;
-  /** Stored for demo session only — not a production password store */
+  /** Stored for demo session only not a production password store */
   password: string;
-  /** male | female | prefer_not_to_say — collected at signup */
+  /** male | female | prefer_not_to_say collected at signup */
   gender?: "male" | "female" | "prefer_not_to_say";
-  /** ISO date YYYY-MM-DD — collected at signup */
+  /** ISO date YYYY-MM-DD collected at signup */
   dateOfBirth?: string;
   city: string;
   area: string;
-  /** Motorist optional vehicle (legacy single — kept as first of `vehicles`) */
+  /** Motorist optional vehicle (legacy single kept as first of `vehicles`) */
   vehicleMake?: string;
   vehicleModel?: string;
   vehicleYear?: string;
@@ -144,7 +144,7 @@ export interface UserProfile {
   serviceRadiusKm?: number;
   yearsExperience?: string;
   bio?: string;
-  /** Payout (pro) / refund (customer) bank — required after Tier 1 phone */
+  /** Payout (pro) / refund (customer) bank required after Tier 1 phone */
   bankAccountName?: string;
   bankAccountNumber?: string;
   bankName?: string;
@@ -237,18 +237,14 @@ export interface UserProfile {
   >;
   /** Stable identity id for the local account registry */
   identityId?: string;
-  /** Name is locked after signup — cannot be changed */
+  /** Name is locked after signup cannot be changed */
   name_locked?: boolean;
   /** Referral code from ?ref= URL parameter */
   refCode?: string;
   registeredAt: string;
 }
 
-export type AvailabilityStatus =
-  | "available"
-  | "busy"
-  | "nearby"
-  | "offline";
+export type AvailabilityStatus = "available" | "busy" | "nearby" | "offline";
 
 export type RequestStatus =
   | "pending"
@@ -288,7 +284,7 @@ export interface Technician {
   markerLabel?: string;
   responseSpeedScore: number;
   currentLoad: number;
-  /** Service focus — vehicles this pro serves (motorist-visible) */
+  /** Service focus vehicles this pro serves (motorist-visible) */
   servedVehicleType?: string;
   servedBrand?: string;
   servedMake?: string;
@@ -306,11 +302,11 @@ export interface Technician {
   docsRatingBoostApplied?: boolean;
   /** Jobs completed (for achievement badges) */
   jobsCompleted?: number;
-  /** New Artisan badge — lower ranking (Tier 1–2) */
+  /** New Artisan badge lower ranking (Tier 1-2) */
   isNewArtisan?: boolean;
-  /** Admin visibility ladder 1–4 */
+  /** Admin visibility ladder 1-4 */
   visibilityTier?: 1 | 2 | 3 | 4;
-  /** 0–100 marketplace weight */
+  /** 0-100 marketplace weight */
   visibilityPercent?: number;
   servicePrices?: Partial<Record<ProService, number | string>>;
   pricingCurrency?: import("@/lib/pricing").AppCurrency;
@@ -343,12 +339,7 @@ export interface ServiceRequest {
   labourBaseMajor?: number;
   labourAgreedMajor?: number;
   discountPercent?: number;
-  negotiationStatus?:
-    | "none"
-    | "pending_pro"
-    | "accepted"
-    | "declined"
-    | "paid";
+  negotiationStatus?: "none" | "pending_pro" | "accepted" | "declined" | "paid";
   paymentId?: string;
   paymentReference?: string;
   escrowStatus?: string;

@@ -1,9 +1,6 @@
 import { NextRequest } from "next/server";
 import { apiFail, apiOk } from "@/lib/server/api-json";
-import {
-  AdminAuthError,
-  requireAdmin,
-} from "@/lib/server/admin-auth";
+import { AdminAuthError, requireAdmin } from "@/lib/server/admin-auth";
 import { createServiceSupabase } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";

@@ -31,7 +31,9 @@ export function AppFrame({ children }: { children: ReactNode }) {
   // Accessibility prefs (Settings → Accessibility) survive reloads
   useEffect(() => {
     try {
-      const scale = Number(localStorage.getItem("ona-a11y-font-scale") || "100");
+      const scale = Number(
+        localStorage.getItem("ona-a11y-font-scale") || "100",
+      );
       if (scale >= 90 && scale <= 130 && scale !== 100) {
         document.documentElement.style.fontSize = `${scale}%`;
       }
@@ -79,7 +81,9 @@ export function AppFrame({ children }: { children: ReactNode }) {
                   <Loader2 className="h-8 w-8 animate-spin text-[#FF6B35]" />
                   <span
                     className="text-[13px] font-bold"
-                    style={{ color: isLight ? "#334155" : "rgba(255,255,255,0.7)" }}
+                    style={{
+                      color: isLight ? "#334155" : "rgba(255,255,255,0.7)",
+                    }}
                   >
                     Switching account…
                   </span>

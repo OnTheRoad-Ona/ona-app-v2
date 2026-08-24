@@ -6,7 +6,12 @@
  * Production: set ADMIN_FIELD_ENCRYPTION_KEY in Vercel env.
  */
 
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+} from "crypto";
 
 const ALGO = "aes-256-gcm";
 
@@ -23,10 +28,11 @@ function getKey(): Buffer {
     return createHash("sha256").update(env).digest();
   }
   const salt = process.env.ADMIN_SENSITIVE_PASSWORD;
-  if (!salt) throw new Error("ADMIN_SENSITIVE_PASSWORD environment variable is required");
-  return createHash("sha256")
-    .update(`ogamecho-field-v1:${salt}`)
-    .digest();
+  if (!salt)
+    throw new Error(
+      "ADMIN_SENSITIVE_PASSWORD environment variable is required",
+    );
+  return createHash("sha256").update(`ogamecho-field-v1:${salt}`).digest();
 }
 
 /** Encrypt plaintext → `v1:<iv_b64>:<tag_b64>:<cipher_b64>` */
@@ -34,16 +40,15 @@ export function encryptField(plain: string): string {
   const key = getKey();
   const iv = randomBytes(12);
   const cipher = createCipheriv(ALGO, key, iv);
-  const enc = Buffer.concat([
-    cipher.update(plain, "utf8"),
-    cipher.final(),
-  ]);
+  const enc = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
   return `v1:${iv.toString("base64url")}:${tag.toString("base64url")}:${enc.toString("base64url")}`;
 }
 
 /** Decrypt `v1:...` payload; returns null if invalid */
-export function decryptField(payload: string | null | undefined): string | null {
+export function decryptField(
+  payload: string | null | undefined,
+): string | null {
   if (!payload || !payload.startsWith("v1:")) return null;
   try {
     const parts = payload.split(":");

@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     if (level === "makes") {
       const makes = await listVehicleMakes(
         sp.get("type") || undefined,
-        sp.get("q") || undefined
+        sp.get("q") || undefined,
       );
       return apiOk({ makes });
     }

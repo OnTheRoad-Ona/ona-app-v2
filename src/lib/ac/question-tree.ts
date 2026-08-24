@@ -3,8 +3,7 @@ import type { ProService } from "@/lib/types";
 export const AC_START_QUESTION =
   "What is the main air-conditioning problem you are experiencing?";
 
-export const AC_UNIT_QUESTION =
-  "Is this a vehicle A/C or a home/office A/C?";
+export const AC_UNIT_QUESTION = "Is this a vehicle A/C or a home/office A/C?";
 
 export const AC_FINAL_COPY = {
   urgency: "Urgency",
@@ -12,7 +11,8 @@ export const AC_FINAL_COPY = {
   emergency: "Emergency",
   remote: "Remote location",
   night: "Night service needed",
-  photos: "Add clear photos (if accessible) of the A/C controls, vents, or outdoor unit",
+  photos:
+    "Add clear photos (if accessible) of the A/C controls, vents, or outdoor unit",
   voice: "Record a short voice note describing the problem or the noise",
   location: "Current Location",
   extra: "Any other detail you want the technician to know?",
@@ -181,7 +181,8 @@ export const AC_SCREENS: Record<string, AcScreen> = {
   },
   c_where: {
     id: "c_where",
-    question: "Is the noise coming from the engine bay or from inside the dashboard?",
+    question:
+      "Is the noise coming from the engine bay or from inside the dashboard?",
     kind: "choice",
     options: [
       { id: "engine_bay", label: "Engine bay" },
@@ -234,7 +235,8 @@ export const AC_SCREENS: Record<string, AcScreen> = {
   },
   e_noise_smell: {
     id: "e_noise_smell",
-    question: "Did you hear a loud noise or smell something just before it stopped?",
+    question:
+      "Did you hear a loud noise or smell something just before it stopped?",
     kind: "choice",
     options: YES_NO,
   },
@@ -317,7 +319,7 @@ export function acScreen(id: string): AcScreen | undefined {
 export function nextAcScreen(
   current: string,
   answerId: string,
-  _answers: Record<string, string>
+  _answers: Record<string, string>,
 ): string {
   if (current === "unit") return answerId === "vehicle" ? "vehicle" : "u_type";
   if (current === "u_type") return "start";
@@ -367,7 +369,7 @@ export function resolveAcRoute(_answers: Record<string, string>): AcRoute {
 export function composeAcProblem(
   answers: Record<string, string>,
   extra: string,
-  landmark: string
+  landmark: string,
 ): string {
   const lines: string[] = [];
   const start = acScreen("start");
@@ -378,7 +380,7 @@ export function composeAcProblem(
   }
 
   const order = Object.keys(answers).filter(
-    (k) => k !== "start" && !k.endsWith("_label")
+    (k) => k !== "start" && !k.endsWith("_label"),
   );
   for (const id of order) {
     const screen = acScreen(id);
@@ -417,7 +419,7 @@ export function acBreadcrumb(stack: string[]): string {
   if (stack.length > 1) {
     const firstBranch = stack[1];
     const letter = Object.entries(START_NEXT).find(
-      ([, id]) => id === firstBranch
+      ([, id]) => id === firstBranch,
     )?.[0];
     if (letter) bits.push(letter);
   }

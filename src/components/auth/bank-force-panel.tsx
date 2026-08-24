@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Lower panel — forced bank setup (Customer + Repair Pro).
+ * Lower panel forced bank setup (Customer + Repair Pro).
  * Same fields as Settings → Payments (bank list, code, resolve name, unique).
  */
 
@@ -35,8 +35,7 @@ export function BankForcePanel({
   } = useApp();
   const gatesReady = useOverlayGatesReady();
   const isLight = theme === "light";
-  const isPro =
-    surface === "dashboard" || accountType === "professional";
+  const isPro = surface === "dashboard" || accountType === "professional";
 
   // Both Customer and Repair Pro need bank (refunds vs payouts)
   // Wait for full page settle so reload never flashes bank over half-loaded UI
@@ -117,7 +116,7 @@ export function BankForcePanel({
     const validation = validateBankDetailsInput(
       { ...details, bankAccountNumber: num, bankCode: code },
       undefined,
-      userProfile?.fullName
+      userProfile?.fullName,
     );
     if (validation) {
       setErr(validation);
@@ -158,7 +157,7 @@ export function BankForcePanel({
           onClick={() => setOpen(true)}
           className={cn(
             "pointer-events-auto mx-3 mb-3 flex w-[calc(100%-1.5rem)] items-center justify-between rounded-xl border-0 px-4 py-3 shadow-lg",
-            sheet
+            sheet,
           )}
         >
           <span
@@ -173,7 +172,7 @@ export function BankForcePanel({
         <div
           className={cn(
             "pointer-events-auto mx-0 max-h-[75vh] overflow-y-auto rounded-t-2xl border-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_32px_rgba(0,0,0,0.28)]",
-            sheet
+            sheet,
           )}
           role="dialog"
           aria-label="Bank account required"
@@ -183,19 +182,17 @@ export function BankForcePanel({
             <span
               className={cn(
                 "h-1.5 w-10 rounded-full",
-                isLight ? "bg-black/20" : "bg-white/25"
+                isLight ? "bg-black/20" : "bg-white/25",
               )}
             />
           </div>
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <p className={cn("text-[15px] font-black", ink)}>
-                Add your bank
-              </p>
+              <p className={cn("text-[15px] font-black", ink)}>Add your bank</p>
               <p
                 className={cn(
                   "mt-0.5 text-[12px] font-medium leading-snug",
-                  muted
+                  muted,
                 )}
               >
                 {isPro
@@ -209,7 +206,9 @@ export function BankForcePanel({
               onClick={() => setOpen(false)}
               className={cn(
                 "shrink-0 rounded-md border-0 px-2 py-1.5 text-[11px] font-bold",
-                isLight ? "bg-black/8 text-slate-800" : "bg-white/10 text-white"
+                isLight
+                  ? "bg-black/8 text-slate-800"
+                  : "bg-white/10 text-white",
               )}
             >
               Later

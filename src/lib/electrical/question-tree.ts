@@ -60,7 +60,7 @@ export const ELECTRICAL_SCREENS: Record<string, ElectricalScreen> = {
     kind: "choice",
     options: ELECTRICAL_START_OPTIONS,
   },
-  // Branch A — Vehicle electrical issue
+  // Branch A Vehicle electrical issue
   a_symptom: {
     id: "a_symptom",
     question: "What is the main symptom?",
@@ -113,7 +113,7 @@ export const ELECTRICAL_SCREENS: Record<string, ElectricalScreen> = {
     kind: "choice",
     options: YES_NO,
   },
-  // Branch B — Residential (Home) electrical issue
+  // Branch B Residential (Home) electrical issue
   b_main: {
     id: "b_main",
     question: "What is the main problem?",
@@ -140,8 +140,7 @@ export const ELECTRICAL_SCREENS: Record<string, ElectricalScreen> = {
   },
   b_after: {
     id: "b_after",
-    question:
-      "Did this start after a storm, heavy rain, or recent renovation?",
+    question: "Did this start after a storm, heavy rain, or recent renovation?",
     kind: "choice",
     options: YES_NO,
   },
@@ -157,7 +156,7 @@ export const ELECTRICAL_SCREENS: Record<string, ElectricalScreen> = {
     kind: "choice",
     options: YES_NO,
   },
-  // Branch C — Commercial (Shop / Office) electrical issue
+  // Branch C Commercial (Shop / Office) electrical issue
   c_main: {
     id: "c_main",
     question: "What is the main problem?",
@@ -178,7 +177,8 @@ export const ELECTRICAL_SCREENS: Record<string, ElectricalScreen> = {
   },
   c_scope: {
     id: "c_scope",
-    question: "Is this a single shop, multi-tenant building, or office complex?",
+    question:
+      "Is this a single shop, multi-tenant building, or office complex?",
     kind: "choice",
     options: [
       { id: "single", label: "Single shop" },
@@ -205,7 +205,7 @@ export const ELECTRICAL_SCREENS: Record<string, ElectricalScreen> = {
     kind: "choice",
     options: YES_NO,
   },
-  // Branch D — Industrial electrical issue
+  // Branch D Industrial electrical issue
   d_main: {
     id: "d_main",
     question: "What is the main problem?",
@@ -222,7 +222,8 @@ export const ELECTRICAL_SCREENS: Record<string, ElectricalScreen> = {
   },
   d_facility: {
     id: "d_facility",
-    question: "What type of facility is it (factory, warehouse, workshop, plant)?",
+    question:
+      "What type of facility is it (factory, warehouse, workshop, plant)?",
     kind: "choice",
     options: [
       { id: "factory", label: "Factory" },
@@ -252,7 +253,7 @@ export const ELECTRICAL_SCREENS: Record<string, ElectricalScreen> = {
     kind: "choice",
     options: YES_NO,
   },
-  // Branch E — Something else / I'm not sure
+  // Branch E Something else / I'm not sure
   e_describe: {
     id: "e_describe",
     question: "Please describe in your own words what is happening.",
@@ -285,16 +286,14 @@ const START_NEXT: Record<string, string> = {
   E: "e_describe",
 };
 
-export function electricalScreen(
-  id: string
-): ElectricalScreen | undefined {
+export function electricalScreen(id: string): ElectricalScreen | undefined {
   return ELECTRICAL_SCREENS[id];
 }
 
 export function nextElectricalScreen(
   current: string,
   answerId: string,
-  _answers: Record<string, string>
+  _answers: Record<string, string>,
 ): string {
   if (current === "start") return START_NEXT[answerId] || "e_describe";
 
@@ -334,7 +333,7 @@ export function nextElectricalScreen(
  * only) routes to Tow.
  */
 export function resolveElectricalRoute(
-  _answers: Record<string, string>
+  _answers: Record<string, string>,
 ): ElectricalRoute {
   return { trade: "electrical", needsConfirm: false };
 }
@@ -342,20 +341,18 @@ export function resolveElectricalRoute(
 export function composeElectricalProblem(
   answers: Record<string, string>,
   extra: string,
-  landmark: string
+  landmark: string,
 ): string {
   const lines: string[] = [];
   const start = electricalScreen("start");
   if (start) {
     lines.push(start.question);
-    const picked = ELECTRICAL_START_OPTIONS.find(
-      (o) => o.id === answers.start
-    );
+    const picked = ELECTRICAL_START_OPTIONS.find((o) => o.id === answers.start);
     if (picked) lines.push(picked.label);
   }
 
   const order = Object.keys(answers).filter(
-    (k) => k !== "start" && !k.endsWith("_label")
+    (k) => k !== "start" && !k.endsWith("_label"),
   );
   for (const id of order) {
     const screen = electricalScreen(id);
@@ -394,7 +391,7 @@ export function electricalBreadcrumb(stack: string[]): string {
   if (stack.length > 1) {
     const firstBranch = stack[1];
     const letter = Object.entries(START_NEXT).find(
-      ([, id]) => id === firstBranch
+      ([, id]) => id === firstBranch,
     )?.[0];
     if (letter) bits.push(letter);
   }

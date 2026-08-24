@@ -2,18 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Briefcase,
-  Clock3,
-  Home,
-  UserRound,
-} from "lucide-react";
+import { Briefcase, Clock3, Home, UserRound } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { MessageKey } from "@/lib/i18n/messages";
 
-/** No Messages tab — chat only from an active request/job. */
+/** No Messages tab chat only from an active request/job. */
 const items: {
   href: string;
   labelKey: MessageKey;
@@ -40,7 +35,7 @@ export function BottomNav() {
     <nav
       className={cn(
         "shrink-0 border-0 px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1.5",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
       aria-label="Main navigation"
     >
@@ -61,7 +56,7 @@ export function BottomNav() {
                     ? "text-brand"
                     : isLight
                       ? "text-slate-400 hover:text-slate-600"
-                      : "text-white/65 hover:text-white"
+                      : "text-white/65 hover:text-white",
                 )}
                 aria-current={active ? "page" : undefined}
               >

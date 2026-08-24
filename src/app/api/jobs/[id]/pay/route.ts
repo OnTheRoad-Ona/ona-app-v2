@@ -24,7 +24,7 @@ const bodySchema = z.object({
   provider: z.enum(["mock", "paystack", "flutterwave"]).optional(),
   /** Prefer client origin for localhost callback */
   returnOrigin: z.string().url().optional(),
-  /** Default true — open Flutterwave modal on Ona page (not a separate page) */
+  /** Default true open Flutterwave modal on Ona page (not a separate page) */
   preferInline: z.boolean().optional(),
   /**
    * cancel: close open pay session without counting a 20‑min attempt;
@@ -63,7 +63,7 @@ function callbackBase(req: Request, returnOrigin?: string): string {
 
 async function resolvePayerEmail(
   motoristId: string,
-  fromBody?: string
+  fromBody?: string,
 ): Promise<string | null> {
   const raw = (fromBody || "").trim();
   if (raw.includes("@")) return raw;
@@ -89,7 +89,7 @@ async function resolvePayerEmail(
  */
 export async function POST(
   req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   try {
     const auth = await requireUser(req);
@@ -117,7 +117,7 @@ export async function POST(
         timerReset: true,
         job: res.job,
         message:
-          "Payment closed. Timer reset — Pay again for a fresh 20 minutes.",
+          "Payment closed. Timer reset Pay again for a fresh 20 minutes.",
       });
     }
 
@@ -132,7 +132,7 @@ export async function POST(
     if (resolved === "mock" && !allowMock) {
       return apiFail(
         "Payment gateway is not configured. Set FLUTTERWAVE_SECRET_KEY on the server, then restart.",
-        503
+        503,
       );
     }
 
@@ -140,7 +140,7 @@ export async function POST(
     if (!email) {
       return apiFail(
         "A valid email is required for checkout. Update your profile email and try again.",
-        400
+        400,
       );
     }
 
@@ -178,7 +178,7 @@ export async function POST(
         res.bankTransfer
           ? "Bank details incomplete. Try Pay again."
           : "Could not start payment. Try again or contact support.",
-        502
+        502,
       );
     }
 
@@ -186,7 +186,7 @@ export async function POST(
       jobId: res.jobId,
       reference: res.reference,
       provider: res.provider,
-      // Never send Flutterwave hosted URL — pay stays on Ona with bank details
+      // Never send Flutterwave hosted URL pay stays on Ona with bank details
       authorizationUrl:
         res.provider === "flutterwave" || hasBank
           ? null
@@ -204,8 +204,7 @@ export async function POST(
       message: hasBank
         ? "Transfer the exact amount to the account shown."
         : "Complete payment on this page.",
-      platformSubaccount:
-        process.env.FLUTTERWAVE_PLATFORM_SUBACCOUNT || null,
+      platformSubaccount: process.env.FLUTTERWAVE_PLATFORM_SUBACCOUNT || null,
     });
   } catch (e) {
     return apiFail(e instanceof Error ? e.message : "Payment failed", 500);

@@ -23,7 +23,7 @@ export async function GET() {
         process.env.QUOTAGUARDSTATIC_URL ||
         process.env.HTTPS_PROXY ||
         ""
-      ).trim()
+      ).trim(),
     );
 
     // If dedicated proxy is configured, report the proxy’s static IP
@@ -55,8 +55,7 @@ export async function GET() {
             ip,
             proxyUrl,
             permanent: true,
-            note:
-              "Payouts use a fixed-IP proxy. Whitelist this IP once in Flutterwave (IP Whitelisting ON). You do not need to update Vercel IPs.",
+            note: "Payouts use a fixed-IP proxy. Whitelist this IP once in Flutterwave (IP Whitelisting ON). You do not need to update Vercel IPs.",
             flutterwavePath: "Dashboard → Settings → API → IP Whitelisting",
           });
         }
@@ -72,8 +71,7 @@ export async function GET() {
             ip: hj.staticEgressIp,
             proxyUrl,
             permanent: true,
-            note:
-              "Payouts use a fixed-IP proxy. Whitelist this IP once in Flutterwave.",
+            note: "Payouts use a fixed-IP proxy. Whitelist this IP once in Flutterwave.",
             flutterwavePath: "Dashboard → Settings → API → IP Whitelisting",
           });
         }
@@ -125,7 +123,7 @@ export async function GET() {
       region: process.env.VERCEL_REGION || null,
       permanent: false,
       warning:
-        "This is Vercel’s current egress IP — it CAN change. Do not rely on re-whitelisting forever. Deploy tools/flw-payout-proxy (static IP) and set FLUTTERWAVE_TRANSFER_PROXY_URL.",
+        "This is Vercel’s current egress IP it CAN change. Do not rely on re-whitelisting forever. Deploy tools/flw-payout-proxy (static IP) and set FLUTTERWAVE_TRANSFER_PROXY_URL.",
       note: hasHttpProxy
         ? "HTTP proxy env detected (Fixie/QuotaGuard). Whitelist the proxy provider’s static IP, not this Vercel IP."
         : "Temporary: you may add this IP now, but set up static proxy for life.",
@@ -141,7 +139,7 @@ export async function GET() {
   } catch (e) {
     return apiFail(
       e instanceof Error ? e.message : "Egress IP lookup failed",
-      500
+      500,
     );
   }
 }

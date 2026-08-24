@@ -10,7 +10,7 @@ import {
 import { playAppSound, unlockAudio } from "@/lib/sound-tone";
 import { cn } from "@/lib/utils";
 
-/** Success dialog — Continue or auto-dismiss after 3s → dashboard */
+/** Success dialog Continue or auto-dismiss after 3s → dashboard */
 export function RegistrationComplete({
   open,
   accountLabel,
@@ -67,7 +67,9 @@ export function RegistrationComplete({
     <div
       className={cn(
         "absolute inset-0 z-[400] flex items-center justify-center px-6 transition-opacity duration-200 ease-out",
-        visible && !exiting ? "bg-black/30 opacity-100" : "bg-black/0 opacity-0"
+        visible && !exiting
+          ? "bg-black/30 opacity-100"
+          : "bg-black/0 opacity-0",
       )}
       role="dialog"
       aria-modal
@@ -78,7 +80,7 @@ export function RegistrationComplete({
           "w-full max-w-[280px] rounded-md p-5 text-center shadow-[0_8px_30px_rgba(15,23,42,0.12)] ring-1 ring-black/10 transition-all duration-200 ease-out",
           visible && !exiting
             ? "translate-y-0 scale-100 opacity-100"
-            : "translate-y-3 scale-95 opacity-0"
+            : "translate-y-3 scale-95 opacity-0",
         )}
         style={{ backgroundColor: AUTH_BG }}
       >
@@ -92,8 +94,7 @@ export function RegistrationComplete({
           You&apos;re all set
         </h2>
         <p className="mt-1 text-[12px] leading-snug text-[#64748b]">
-          Your {accountLabel} account is ready. You can start using Ona
-          now.
+          Your {accountLabel} account is ready. You can start using Ona now.
         </p>
         <button
           type="button"

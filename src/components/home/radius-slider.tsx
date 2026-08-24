@@ -5,7 +5,7 @@ import { useApp } from "@/lib/store";
 import { MAX_RADIUS_KM } from "@/lib/matching";
 import { cn } from "@/lib/utils";
 
-/** Compact radius control in kilometers (0–5 km) */
+/** Compact radius control in kilometers (0-5 km) */
 export function RadiusSlider() {
   const { radiusKm, setRadiusKm, theme } = useApp();
   const t = useT();
@@ -17,7 +17,7 @@ export function RadiusSlider() {
       <span
         className={cn(
           "shrink-0 text-[10px] font-bold leading-none tracking-wide uppercase",
-          isLight ? "text-[#4a5568]" : "text-white/80"
+          isLight ? "text-[#4a5568]" : "text-white/80",
         )}
       >
         {t("home.radius")}

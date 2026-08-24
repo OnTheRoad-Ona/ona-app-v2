@@ -2,9 +2,9 @@
 /**
  * Guards the Call Out Fee line on the Repair Pro incoming panel card:
  * - once a CALCULATED quote loads, "Call Out Fee" + amount render above the
- *   action buttons;
- * - a network blip (thrown fetch) must not kill the quote poll — the fee must
- *   still appear on the next successful tick.
+ * action buttons;
+ * - a network blip (thrown fetch) must not kill the quote poll the fee must
+ * still appear on the next successful tick.
  */
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -166,12 +166,13 @@ beforeEach(() => {
   client.apiListJobs
     .mockResolvedValueOnce(okList([openJob]))
     .mockResolvedValue(okList([]));
-  client.apiProIncomingStatus.mockResolvedValue(
-    okStatus([statusSnapshot()])
-  );
+  client.apiProIncomingStatus.mockResolvedValue(okStatus([statusSnapshot()]));
   client.apiGetCallout.mockResolvedValue({
     ok: true,
-    data: { quote: calculatedQuote, labour: { proBaseMajor: null, agreedMajor: null, currency: "NGN" } },
+    data: {
+      quote: calculatedQuote,
+      labour: { proBaseMajor: null, agreedMajor: null, currency: "NGN" },
+    },
   });
 });
 
@@ -199,7 +200,7 @@ describe("Call Out Fee on the incoming panel card", () => {
     await expandPanel();
     expect(screen.getByText("Engine won't start")).toBeTruthy();
 
-    // The section is always present — shows a loading state until the quote
+    // The section is always present shows a loading state until the quote
     // lands, so it is never "removed" from the card.
     expect(screen.getByText("Call Out Fee")).toBeTruthy();
 
@@ -219,7 +220,10 @@ describe("Call Out Fee on the incoming panel card", () => {
       .mockRejectedValueOnce(new Error("Network request failed"))
       .mockResolvedValue({
         ok: true,
-        data: { quote: calculatedQuote, labour: { proBaseMajor: null, agreedMajor: null, currency: "NGN" } },
+        data: {
+          quote: calculatedQuote,
+          labour: { proBaseMajor: null, agreedMajor: null, currency: "NGN" },
+        },
       });
 
     render(<IncomingJobPopup />);
@@ -278,7 +282,7 @@ describe("Call Out Fee on the incoming panel card", () => {
 
   it("forces the Night ×1.5 multiplier on the fallback fee at night", async () => {
     // 22:00 UTC = 23:00 Lagos (night band). Even though the quote is not
-    // payable, the fallback must carry ×1.5 — the urgency feature never fails.
+    // payable, the fallback must carry ×1.5 the urgency feature never fails.
     const NIGHT = Date.parse("2026-08-20T22:00:00.000Z");
     vi.setSystemTime(NIGHT);
     const nightDeadline = new Date(NIGHT + 60_000).toISOString();
@@ -299,7 +303,7 @@ describe("Call Out Fee on the incoming panel card", () => {
           pairingDeadline: nightDeadline,
           negotiateEndsAt: nightEndsAt,
         }),
-      ])
+      ]),
     );
     client.apiGetCallout.mockResolvedValue({
       ok: true,

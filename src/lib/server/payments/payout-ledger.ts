@@ -1,6 +1,6 @@
 /**
  * Hard ledger for Flutterwave transfer references.
- * UNIQUE(transfer_ref) in DB — second insert fails → never double-pay.
+ * UNIQUE(transfer_ref) in DB second insert fails → never double-pay.
  */
 
 import { createServiceSupabase } from "@/lib/supabase/server";
@@ -37,9 +37,7 @@ function rowToLedger(row: Record<string, unknown>): LedgerRow {
     accountNumberLast4: row.account_number_last4
       ? String(row.account_number_last4)
       : null,
-    beneficiaryName: row.beneficiary_name
-      ? String(row.beneficiary_name)
-      : null,
+    beneficiaryName: row.beneficiary_name ? String(row.beneficiary_name) : null,
     meta: (row.meta as Record<string, unknown>) || {},
     createdAt: String(row.created_at || ""),
     updatedAt: String(row.updated_at || ""),
@@ -65,11 +63,16 @@ export async function claimTransferRef(input: {
   | { ok: false; reason: "db_unavailable" | "error"; message: string }
 > {
   if (!isSupabaseAdminConfigured()) {
-    return { ok: false, reason: "db_unavailable", message: "Supabase not configured" };
+    return {
+      ok: false,
+      reason: "db_unavailable",
+      message: "Supabase not configured",
+    };
   }
   const sb = createServiceSupabase();
   const ref = input.transferRef.slice(0, 80);
-  const last4 = (input.accountNumber || "").replace(/\D/g, "").slice(-4) || null;
+  const last4 =
+    (input.accountNumber || "").replace(/\D/g, "").slice(-4) || null;
 
   // Fast path: already in ledger
   const { data: existing } = await sb
@@ -132,11 +135,11 @@ export async function claimTransferRef(input: {
 
 export async function markLedgerSuccess(
   transferRef: string,
-  flwTransferId?: string | null
+  flwTransferId?: string | null,
 ): Promise<void> {
   if (!isSupabaseAdminConfigured()) return;
   const sb = createServiceSupabase();
-  // Terminal success for this transfer_ref — retries must not create a new ref.
+  // Terminal success for this transfer_ref retries must not create a new ref.
   await sb
     .from("payout_transfer_ledger")
     .update({
@@ -153,7 +156,7 @@ export async function markLedgerSuccess(
  */
 export async function markLedgerFailed(
   transferRef: string,
-  message: string
+  message: string,
 ): Promise<void> {
   if (!isSupabaseAdminConfigured()) return;
   const sb = createServiceSupabase();
@@ -173,7 +176,7 @@ export async function markLedgerFailed(
  * Atomic: only if still failed (not success / not another worker initiated).
  */
 export async function reacquireFailedClaim(
-  transferRef: string
+  transferRef: string,
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (!isSupabaseAdminConfigured()) {
     return { ok: false, reason: "db_unavailable" };
@@ -238,7 +241,7 @@ export async function hasSuccessfulPayout(input: {
 /**
  * Beneficiary duplicate guard: another SUCCESSFUL payout to the SAME account
  * for the SAME amount within `windowMs` (default 24h) means someone already got
- * this money — block a second push even when the transfer reference differs.
+ * this money block a second push even when the transfer reference differs.
  * This is the last line of defence against operator/retry double-pay that the
  * per-reference UNIQUE index cannot catch (different ref = same person+amount).
  */
@@ -295,7 +298,7 @@ export async function recentDuplicatePayout(input: {
 }
 
 export async function listLedgerByPayment(
-  paymentId: string
+  paymentId: string,
 ): Promise<LedgerRow[]> {
   if (!isSupabaseAdminConfigured()) return [];
   const sb = createServiceSupabase();
@@ -308,7 +311,7 @@ export async function listLedgerByPayment(
 }
 
 export async function listLedgerByRequest(
-  requestId: string
+  requestId: string,
 ): Promise<LedgerRow[]> {
   if (!isSupabaseAdminConfigured()) return [];
   const sb = createServiceSupabase();

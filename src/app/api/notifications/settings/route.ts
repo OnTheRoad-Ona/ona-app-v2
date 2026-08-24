@@ -37,7 +37,8 @@ export async function PATCH(req: Request) {
     .single();
 
   const merged = {
-    ...((existing.data?.notification_preferences as Record<string, unknown>) || {}),
+    ...((existing.data?.notification_preferences as Record<string, unknown>) ||
+      {}),
     ...parsed.data,
   };
 

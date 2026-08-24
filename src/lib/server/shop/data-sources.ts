@@ -39,7 +39,7 @@ export type DataSourceReport = {
 };
 
 export async function listDataSources(
-  sb: SupabaseClient
+  sb: SupabaseClient,
 ): Promise<DataSourceReport[]> {
   const { data: sources, error } = await sb
     .from("shop_data_sources")
@@ -96,12 +96,12 @@ export async function listDataSources(
 
 export async function listImportJobs(
   sb: SupabaseClient,
-  opts?: { limit?: number }
+  opts?: { limit?: number },
 ) {
   const { data, error } = await sb
     .from("shop_import_jobs")
     .select(
-      "id, job_type, status, records_discovered, records_imported, records_updated, records_rejected, error_summary, started_at, finished_at, created_at, data_sources(id, code, name)"
+      "id, job_type, status, records_discovered, records_imported, records_updated, records_rejected, error_summary, started_at, finished_at, created_at, data_sources(id, code, name)",
     )
     .order("created_at", { ascending: false })
     .limit(Math.min(opts?.limit ?? 50, 200));
@@ -111,7 +111,7 @@ export async function listImportJobs(
 
 export async function listStagingSummary(
   sb: SupabaseClient,
-  jobId: string
+  jobId: string,
 ): Promise<{ counts: Record<string, number>; records: unknown[] }> {
   const { data: records, error } = await sb
     .from("shop_staging_records")

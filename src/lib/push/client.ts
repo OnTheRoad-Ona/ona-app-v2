@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Client-side Web Push enrollment. One call per session — grants the OS
+ * Client-side Web Push enrollment. One call per session grants the OS
  * permission prompt the first time it is needed (an incoming request card),
  * registers the service worker, subscribes, and saves the subscription to the
  * server. Everything is best-effort: a failed/paused push setup never blocks
@@ -27,7 +27,7 @@ export function isPushDeliveryAllowed(userId?: string | null): boolean {
 }
 
 export async function enablePushNotifications(
-  userId?: string | null
+  userId?: string | null,
 ): Promise<boolean> {
   if (!isPushDeliveryAllowed(userId)) return false;
   if (typeof window === "undefined" || typeof navigator === "undefined") {

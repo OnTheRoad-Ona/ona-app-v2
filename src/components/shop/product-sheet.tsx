@@ -31,7 +31,7 @@ type Props = {
 };
 
 function formatPrice(minor: number | null): string {
-  if (minor == null) return "—";
+  if (minor == null) return "";
   return formatMoney(fromMinorUnits(minor, "NGN"), detectCurrency());
 }
 
@@ -43,10 +43,12 @@ export function ProductSheet({ slug, onClose }: Props) {
   const [product, setProduct] = useState<Record<string, unknown> | null>(null);
   const [variants, setVariants] = useState<Variant[]>([]);
   const [prices, setPrices] = useState<Price[]>([]);
-  const [images, setImages] = useState<Array<{ url: string; alt_text?: string }>>(
-    []
+  const [images, setImages] = useState<
+    Array<{ url: string; alt_text?: string }>
+  >([]);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
+    null,
   );
-  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
   const [adding, setAdding] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -68,8 +70,8 @@ export function ProductSheet({ slug, onClose }: Props) {
       try {
         const res = await fetch(
           `/api/shop/products/${encodeURIComponent(slug)}?ctx=${encodeURIComponent(
-            accountType === "professional" ? "professional" : "motorist"
-          )}`
+            accountType === "professional" ? "professional" : "motorist",
+          )}`,
         );
         const json = (await res.json()) as {
           ok?: boolean;
@@ -86,11 +88,9 @@ export function ProductSheet({ slug, onClose }: Props) {
           setPrices(json.data.prices ?? []);
           setImages(json.data.images ?? []);
           const first = json.data.variants?.find(
-            (v) => Number(v.stock_available ?? 0) > 0
+            (v) => Number(v.stock_available ?? 0) > 0,
           )?.id;
-          setSelectedVariantId(
-            (first ?? json.data.variants?.[0]?.id) || null
-          );
+          setSelectedVariantId((first ?? json.data.variants?.[0]?.id) || null);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -104,12 +104,12 @@ export function ProductSheet({ slug, onClose }: Props) {
   const priceFor = useCallback(
     (variantId: string | null): Price | undefined =>
       prices.find((p) => p.variant_id === variantId),
-    [prices]
+    [prices],
   );
 
   const selectedVariant = useMemo(
     () => variants.find((v) => v.id === selectedVariantId) ?? null,
-    [variants, selectedVariantId]
+    [variants, selectedVariantId],
   );
   const selectedPrice = priceFor(selectedVariantId);
   const available = Number(selectedVariant?.stock_available ?? 0);
@@ -120,7 +120,7 @@ export function ProductSheet({ slug, onClose }: Props) {
       const max = Math.max(1, Math.min(99, available));
       return Math.max(1, Math.min(max, n));
     },
-    [available]
+    [available],
   );
 
   useEffect(() => {
@@ -130,7 +130,7 @@ export function ProductSheet({ slug, onClose }: Props) {
 
   const muted = isLight ? "text-slate-600" : "text-white/55";
   const border = isLight ? "border-black/10" : "border-white/10";
-  const price = selectedPrice ? formatPrice(selectedPrice.amount_minor) : "—";
+  const price = selectedPrice ? formatPrice(selectedPrice.amount_minor) : "";
   const compareAt = selectedPrice?.compare_at_minor
     ? formatPrice(selectedPrice.compare_at_minor)
     : null;
@@ -156,12 +156,14 @@ export function ProductSheet({ slug, onClose }: Props) {
           <div
             className={cn(
               "flex h-40 items-center justify-center overflow-hidden rounded-2xl",
-              isLight ? "bg-white" : "bg-black/40"
+              isLight ? "bg-white" : "bg-black/40",
             )}
           >
             {images[0]?.url || product.primary_image_url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img loading="lazy" decoding="async"
+              <img
+                loading="lazy"
+                decoding="async"
                 src={String(images[0]?.url || product.primary_image_url)}
                 alt={String(product.name)}
                 className="h-full w-full object-cover"
@@ -174,13 +176,15 @@ export function ProductSheet({ slug, onClose }: Props) {
             <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
               {images.map((img, i) => (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img loading="lazy" decoding="async"
+                <img
+                  loading="lazy"
+                  decoding="async"
                   key={`${img.url}-${i}`}
                   src={img.url}
                   alt=""
                   className={cn(
                     "h-14 w-14 shrink-0 rounded-lg object-cover",
-                    isLight ? "bg-white" : "bg-black/40"
+                    isLight ? "bg-white" : "bg-black/40",
                   )}
                 />
               ))}
@@ -192,7 +196,7 @@ export function ProductSheet({ slug, onClose }: Props) {
           >
             {String(product.name)}
           </h1>
-          {product.subtitle ? (
+          {product.subtitle && product.subtitle !== "Fits most vehicles" ? (
             <p className={cn("mt-1 text-[13px]", muted)}>
               {String(product.subtitle)}
             </p>
@@ -200,7 +204,9 @@ export function ProductSheet({ slug, onClose }: Props) {
           <div className="mt-2 flex items-baseline gap-2">
             <p className="text-[20px] font-black text-[#FF6B35]">{price}</p>
             {compareAt ? (
-              <p className={cn("text-[13px] font-semibold line-through", muted)}>
+              <p
+                className={cn("text-[13px] font-semibold line-through", muted)}
+              >
                 {compareAt}
               </p>
             ) : null}
@@ -232,14 +238,14 @@ export function ProductSheet({ slug, onClose }: Props) {
                         "rounded-lg border px-2.5 py-1.5 text-left disabled:opacity-40",
                         selectedVariantId === v.id
                           ? "border-[#FF6B35] bg-[#FF6B35]/10"
-                          : border
+                          : border,
                       )}
                     >
                       <span className="block text-[12px] font-bold">
                         {v.option_label || v.title || v.sku}
                       </span>
                       <span className={cn("block text-[11px]", muted)}>
-                        {vPrice ? formatPrice(vPrice.amount_minor) : "—"}
+                        {vPrice ? formatPrice(vPrice.amount_minor) : ""}
                         {soldOut ? " · Sold out" : ""}
                       </span>
                     </button>
@@ -253,7 +259,7 @@ export function ProductSheet({ slug, onClose }: Props) {
             <div
               className={cn(
                 "mt-3 flex items-center justify-between rounded-xl p-2.5",
-                isLight ? "bg-white" : "bg-black/40"
+                isLight ? "bg-black/[0.02]" : "bg-white/[0.02]",
               )}
             >
               <span className="text-[12px] font-bold">Quantity</span>
@@ -263,7 +269,9 @@ export function ProductSheet({ slug, onClose }: Props) {
                   onClick={() => setQty((q) => clampQty(q - 1))}
                   className={cn(
                     "flex h-8 w-8 items-center justify-center rounded-lg border-0 text-[14px] font-bold",
-                    isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white"
+                    isLight
+                      ? "bg-black/10 text-slate-900"
+                      : "bg-white/10 text-white",
                   )}
                 >
                   <Minus className="h-4 w-4" />
@@ -276,7 +284,9 @@ export function ProductSheet({ slug, onClose }: Props) {
                   onClick={() => setQty((q) => clampQty(q + 1))}
                   className={cn(
                     "flex h-8 w-8 items-center justify-center rounded-lg border-0 text-[14px] font-bold",
-                    isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white"
+                    isLight
+                      ? "bg-black/10 text-slate-900"
+                      : "bg-white/10 text-white",
                   )}
                 >
                   <Plus className="h-4 w-4" />
@@ -289,7 +299,7 @@ export function ProductSheet({ slug, onClose }: Props) {
             <p
               className={cn(
                 "mt-3 text-center text-[12px] font-semibold",
-                msg.includes("Added") ? "text-emerald-600" : "text-red-500"
+                msg.includes("Added") ? "text-emerald-600" : "text-red-500",
               )}
             >
               {msg}
@@ -313,7 +323,9 @@ export function ProductSheet({ slug, onClose }: Props) {
                   variantId: selectedVariant.id,
                   qty,
                   accountContext:
-                    accountType === "professional" ? "professional" : "motorist",
+                    accountType === "professional"
+                      ? "professional"
+                      : "motorist",
                 });
                 setMsg("Added to cart");
               } catch (e) {
@@ -335,7 +347,7 @@ export function ProductSheet({ slug, onClose }: Props) {
             }}
             className={cn(
               "mt-2 h-10 w-full rounded-xl border-0 text-[12px] font-bold",
-              isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white"
+              isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white",
             )}
           >
             View cart

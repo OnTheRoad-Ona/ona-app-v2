@@ -32,13 +32,11 @@ function writeAll(map: Record<string, ArtisanVerificationProfile>) {
 
 /** Migrate older drafts that used tier2_bvn / live Prembly flags */
 function normalizeProfile(
-  p: ArtisanVerificationProfile
+  p: ArtisanVerificationProfile,
 ): ArtisanVerificationProfile {
   const raw = p.tiers as TierCompletion & { tier2_bvn?: boolean };
   const tier2_nin =
-    typeof raw.tier2_nin === "boolean"
-      ? raw.tier2_nin
-      : Boolean(raw.tier2_bvn);
+    typeof raw.tier2_nin === "boolean" ? raw.tier2_nin : Boolean(raw.tier2_bvn);
   return {
     ...p,
     tiers: {
@@ -54,7 +52,7 @@ function normalizeProfile(
 }
 
 export function getArtisanProfile(
-  userId: string
+  userId: string,
 ): ArtisanVerificationProfile | null {
   const p = readAll()[userId];
   return p ? normalizeProfile(p) : null;
@@ -66,12 +64,12 @@ export function listArtisanProfiles(): ArtisanVerificationProfile[] {
     .sort(
       (a, b) =>
         Date.parse(b.updatedAt || b.createdAt) -
-        Date.parse(a.updatedAt || a.createdAt)
+        Date.parse(a.updatedAt || a.createdAt),
     );
 }
 
 export function saveArtisanProfile(
-  profile: ArtisanVerificationProfile
+  profile: ArtisanVerificationProfile,
 ): ArtisanVerificationProfile {
   const map = readAll();
   const next = normalizeProfile({
@@ -147,4 +145,7 @@ export function ensureArtisanDraft(input: {
 }
 
 /** @deprecated Use sendArtisanOtp / verifyArtisanOtp from verification.ts */
-export { sendArtisanOtp as mockSendOtp, verifyArtisanOtp as mockVerifyOtp } from "@/lib/artisan/verification";
+export {
+  sendArtisanOtp as mockSendOtp,
+  verifyArtisanOtp as mockVerifyOtp,
+} from "@/lib/artisan/verification";

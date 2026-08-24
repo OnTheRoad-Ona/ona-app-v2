@@ -45,11 +45,7 @@ export async function POST(req: Request) {
     const motoristId = String(conv.motorist_id || "");
     const proId = String(conv.repair_pro_id || "");
     const recipientId =
-      senderId === motoristId
-        ? proId
-        : senderId === proId
-          ? motoristId
-          : "";
+      senderId === motoristId ? proId : senderId === proId ? motoristId : "";
     if (!recipientId || recipientId === senderId) {
       return apiOk({ skipped: true });
     }

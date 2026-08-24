@@ -22,7 +22,7 @@ export const JOB_LIVE_CHAT_STATUSES = new Set<string>([
 
 /**
  * Statuses that still use the live job shell (actions remaining).
- * Includes post-work satisfaction — customer must release pay on /jobs/[id].
+ * Includes post-work satisfaction customer must release pay on /jobs/[id].
  * Chat may still be closed for these (see isJobEndedStatus).
  */
 export const JOB_LIVE_SHELL_STATUSES = new Set<string>([
@@ -33,11 +33,11 @@ export const JOB_LIVE_SHELL_STATUSES = new Set<string>([
   "under_appeal",
 ]);
 
-/** Short, fixed copy — chat */
+/** Short, fixed copy chat */
 export const CONVERSATION_ENDED_MESSAGE =
   "Conversation ended. You can still read.";
 
-/** Short, fixed copy — View job / job deep links */
+/** Short, fixed copy View job / job deep links */
 export const JOB_CLOSED_MESSAGE = "This job is closed. You can still read.";
 
 /**
@@ -52,9 +52,7 @@ export function closedOpenMessage(input: {
   const cat = input.category || "";
   const href = input.href || "";
   const chatLike =
-    action === "open_chat" ||
-    cat === "messages" ||
-    href.includes("/messages/");
+    action === "open_chat" || cat === "messages" || href.includes("/messages/");
   if (chatLike) return CONVERSATION_ENDED_MESSAGE;
   return JOB_CLOSED_MESSAGE;
 }
@@ -63,9 +61,7 @@ export function closedOpenMessage(input: {
 export const CHAT_VIEW_ONLY_PARAM = "view";
 export const CHAT_VIEW_ONLY_VALUE = "1";
 
-export function isJobEndedStatus(
-  status: string | null | undefined
-): boolean {
+export function isJobEndedStatus(status: string | null | undefined): boolean {
   if (status == null || status === "") return false;
   const s = String(status).toLowerCase().trim();
   if (!s) return false;
@@ -73,7 +69,7 @@ export function isJobEndedStatus(
 }
 
 export function isJobLiveChatStatus(
-  status: string | null | undefined
+  status: string | null | undefined,
 ): boolean {
   if (status == null || status === "") return false;
   return JOB_LIVE_CHAT_STATUSES.has(String(status).toLowerCase().trim());
@@ -81,15 +77,15 @@ export function isJobLiveChatStatus(
 
 /** True while the job still needs the live /jobs/[id] flow (incl. I’m Satisfied). */
 export function isJobLiveShellStatus(
-  status: string | null | undefined
+  status: string | null | undefined,
 ): boolean {
   if (status == null || status === "") return false;
   return JOB_LIVE_SHELL_STATUSES.has(String(status).toLowerCase().trim());
 }
 
-/** History-only: released / cancelled / expired / refunded — no live actions. */
+/** History-only: released / cancelled / expired / refunded no live actions. */
 export function isJobHistoryOnlyStatus(
-  status: string | null | undefined
+  status: string | null | undefined,
 ): boolean {
   if (status == null || status === "") return false;
   return isJobEndedStatus(status) && !isJobLiveShellStatus(status);
@@ -97,7 +93,7 @@ export function isJobHistoryOnlyStatus(
 
 export function isDemoJobOrHref(
   href?: string | null,
-  jobId?: string | null
+  jobId?: string | null,
 ): boolean {
   const h = href || "";
   const j = jobId || "";
@@ -136,7 +132,7 @@ export function readOnlyChatHref(threadId: string): string {
 
 /** Extract thread id from /messages/:id or /messages/:id?… */
 export function messageThreadIdFromHref(
-  href: string | null | undefined
+  href: string | null | undefined,
 ): string | null {
   if (!href) return null;
   try {
@@ -151,11 +147,11 @@ export function messageThreadIdFromHref(
 }
 
 export function isReadOnlyChatUrl(
-  search: string | { get: (k: string) => string | null }
+  search: string | { get: (k: string) => string | null },
 ): boolean {
   if (typeof search === "string") {
     const q = new URLSearchParams(
-      search.startsWith("?") ? search.slice(1) : search
+      search.startsWith("?") ? search.slice(1) : search,
     );
     return q.get(CHAT_VIEW_ONLY_PARAM) === CHAT_VIEW_ONLY_VALUE;
   }
@@ -190,9 +186,7 @@ export function shouldBlockLiveOpen(input: {
   if (payload.chatClosed === true || payload.closed === true) return true;
 
   const chatLike =
-    action === "open_chat" ||
-    cat === "messages" ||
-    href.includes("/messages/");
+    action === "open_chat" || cat === "messages" || href.includes("/messages/");
   const jobLike =
     action === "open_job" ||
     action === "view_tracking" ||

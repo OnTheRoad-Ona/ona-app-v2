@@ -1,12 +1,14 @@
 /**
  * Browser notifications + vibration for calls and chat.
  * Best-effort: works when the site is open (foreground or background tab).
- * True closed-app push would need FCM/APNs — not required here.
+ * True closed-app push would need FCM/APNs not required here.
  */
 
 let permissionAsked = false;
 
-export async function ensureNotifyPermission(): Promise<NotificationPermission | "unsupported"> {
+export async function ensureNotifyPermission(): Promise<
+  NotificationPermission | "unsupported"
+> {
   if (typeof window === "undefined" || typeof Notification === "undefined") {
     return "unsupported";
   }
@@ -57,9 +59,7 @@ export function showAppNotification(opts: AppNotifyOpts): void {
         window.focus();
         if (opts.href) {
           // Soft navigate if same origin SPA
-          const path = opts.href.startsWith("/")
-            ? opts.href
-            : `/${opts.href}`;
+          const path = opts.href.startsWith("/") ? opts.href : `/${opts.href}`;
           if (window.location.pathname !== path) {
             window.location.href = path;
           }
@@ -107,7 +107,7 @@ export function vibrateMessagePattern(): void {
 /** Wait for ICE gathering or timeout (hybrid trickle + batch). */
 export function waitIceGathering(
   pc: RTCPeerConnection,
-  timeoutMs = 1800
+  timeoutMs = 1800,
 ): Promise<void> {
   if (pc.iceGatheringState === "complete") return Promise.resolve();
   return new Promise((resolve) => {

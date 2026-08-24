@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * "The request just appeared on this pro's screen." Server-owned arming:
- * stamps `pairing_deadline = now + 66s` EXACTLY ONCE per offer — only when a
+ * stamps `pairing_deadline = now + 66s` EXACTLY ONCE per offer only when a
  * deadline isn't armed yet (dispatch/create leave it NULL by design). Because
  * neither dispatch nor the surface call ever re-arms an already-set deadline,
  * the 66s timer starts at 66 on the pro's card AND the customer's ring at the
@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(
   req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   const { id } = await ctx.params;
   try {
@@ -82,9 +82,6 @@ export async function POST(
       serverNow: new Date().toISOString(),
     });
   } catch (e) {
-    return apiFail(
-      e instanceof Error ? e.message : "Surface failed",
-      500
-    );
+    return apiFail(e instanceof Error ? e.message : "Surface failed", 500);
   }
 }

@@ -2,11 +2,18 @@
 
 /**
  * Inline expand preview for verification uploads (user-facing).
- * Images, PDF (iframe), and video — no modal; expands under the upload row.
+ * Images, PDF (iframe), and video no modal; expands under the upload row.
  */
 
 import { useMemo, useState } from "react";
-import { ChevronDown, Eye, EyeOff, FileText, Film, ImageIcon } from "lucide-react";
+import {
+  ChevronDown,
+  Eye,
+  EyeOff,
+  FileText,
+  Film,
+  ImageIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type UploadMediaKind = "image" | "pdf" | "video" | "unknown";
@@ -14,7 +21,7 @@ export type UploadMediaKind = "image" | "pdf" | "video" | "unknown";
 export function detectUploadMediaKind(
   url: string | null | undefined,
   mime?: string | null,
-  name?: string | null
+  name?: string | null,
 ): UploadMediaKind {
   const m = (mime || "").toLowerCase();
   const u = (url || "").toLowerCase();
@@ -44,7 +51,7 @@ export function detectUploadMediaKind(
   ) {
     return "image";
   }
-  // data URLs without mime hints — prefer image for photo ID flows
+  // data URLs without mime hints prefer image for photo ID flows
   if (u.startsWith("data:")) return "image";
   if (u) return "image";
   return "unknown";
@@ -70,7 +77,7 @@ export function UploadInlinePreview({
   const [open, setOpen] = useState(defaultOpen);
   const kind = useMemo(
     () => detectUploadMediaKind(url, mime, fileName),
-    [url, mime, fileName]
+    [url, mime, fileName],
   );
 
   if (!url) return null;
@@ -89,11 +96,16 @@ export function UploadInlinePreview({
         onClick={() => setOpen((v) => !v)}
         className={cn(
           "flex w-full items-center justify-between gap-2 rounded-md border-0 px-3 py-2 text-left",
-          surface
+          surface,
         )}
         aria-expanded={open}
       >
-        <span className={cn("flex min-w-0 items-center gap-2 text-[12px] font-bold", ink)}>
+        <span
+          className={cn(
+            "flex min-w-0 items-center gap-2 text-[12px] font-bold",
+            ink,
+          )}
+        >
           {open ? (
             <EyeOff className="h-3.5 w-3.5 shrink-0 text-[#FF6B35]" />
           ) : (
@@ -110,17 +122,14 @@ export function UploadInlinePreview({
           className={cn(
             "h-4 w-4 shrink-0 transition-transform",
             open && "rotate-180",
-            muted
+            muted,
           )}
         />
       </button>
 
       {open ? (
         <div
-          className={cn(
-            "mt-1.5 overflow-hidden rounded-md border-0",
-            surface
-          )}
+          className={cn("mt-1.5 overflow-hidden rounded-md border-0", surface)}
         >
           {kind === "video" ? (
             <video
@@ -140,7 +149,9 @@ export function UploadInlinePreview({
             />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
-            <img loading="lazy" decoding="async"
+            <img
+              loading="lazy"
+              decoding="async"
               src={url}
               alt={label || fileName || "Upload preview"}
               className="max-h-56 w-full object-contain"

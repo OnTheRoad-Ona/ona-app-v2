@@ -10,13 +10,20 @@ const PREFIX = "[ona-liveness]";
 export function livenessLog(
   level: Level,
   event: string,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
 ): void {
   if (typeof window === "undefined") return;
-  const payload = data ? { event, ...data, t: Date.now() } : { event, t: Date.now() };
+  const payload = data
+    ? { event, ...data, t: Date.now() }
+    : { event, t: Date.now() };
   try {
     // eslint-disable-next-line no-console
-    const fn = level === "error" ? console.error : level === "warn" ? console.warn : console.info;
+    const fn =
+      level === "error"
+        ? console.error
+        : level === "warn"
+          ? console.warn
+          : console.info;
     fn(PREFIX, payload);
   } catch {
     /* ignore */

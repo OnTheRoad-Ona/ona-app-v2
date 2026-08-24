@@ -9,8 +9,7 @@ export const BODY_FINAL_COPY = {
   emergency: "Emergency",
   remote: "Remote location",
   night: "Night service needed",
-  photos:
-    "Add 4 clear photos of the damaged area from different angles",
+  photos: "Add 4 clear photos of the damaged area from different angles",
   voice: "Record a short voice note describing the damage",
   location: "Where is the vehicle?",
   extra: "Any other detail you want the technician to know?",
@@ -62,7 +61,7 @@ export const BODY_SCREENS: Record<string, BodyScreen> = {
     kind: "choice",
     options: BODY_START_OPTIONS,
   },
-  // Branch A — Accident or collision damage
+  // Branch A Accident or collision damage
   a_serious: {
     id: "a_serious",
     question: "How serious is the damage?",
@@ -96,7 +95,7 @@ export const BODY_SCREENS: Record<string, BodyScreen> = {
     kind: "choice",
     options: YES_NO,
   },
-  // Branch B — Dent(s) on the body
+  // Branch B Dent(s) on the body
   b_count: {
     id: "b_count",
     question: "How many dents are there?",
@@ -137,7 +136,7 @@ export const BODY_SCREENS: Record<string, BodyScreen> = {
       { id: "full", label: "Full panel beating" },
     ],
   },
-  // Branch C — Scratch or paint damage
+  // Branch C Scratch or paint damage
   c_depth: {
     id: "c_depth",
     question: "How deep is the scratch?",
@@ -168,7 +167,7 @@ export const BODY_SCREENS: Record<string, BodyScreen> = {
     kind: "choice",
     options: YES_NO,
   },
-  // Branch D — Bumper damaged or hanging
+  // Branch D Bumper damaged or hanging
   d_state: {
     id: "d_state",
     question: "Is the bumper cracked, broken, or completely hanging off?",
@@ -200,7 +199,7 @@ export const BODY_SCREENS: Record<string, BodyScreen> = {
     kind: "choice",
     options: YES_NO,
   },
-  // Branch E — Door, fender, or bonnet damage
+  // Branch E Door, fender, or bonnet damage
   e_part: {
     id: "e_part",
     question: "Which specific part is damaged?",
@@ -231,7 +230,7 @@ export const BODY_SCREENS: Record<string, BodyScreen> = {
       "Any related mechanical issue (e.g. door not locking, hinge problem)?",
     kind: "text",
   },
-  // Branch F — Need full panel beating and spraying
+  // Branch F Need full panel beating and spraying
   f_areas: {
     id: "f_areas",
     question: "Which areas of the vehicle need work?",
@@ -262,7 +261,7 @@ export const BODY_SCREENS: Record<string, BodyScreen> = {
     kind: "choice",
     options: YES_NO,
   },
-  // Branch G — Something else / I'm not sure
+  // Branch G Something else / I'm not sure
   g_describe: {
     id: "g_describe",
     question: "Please describe in your own words what is happening.",
@@ -304,7 +303,7 @@ export function bodyScreen(id: string): BodyScreen | undefined {
 export function nextBodyScreen(
   current: string,
   answerId: string,
-  _answers: Record<string, string>
+  _answers: Record<string, string>,
 ): string {
   if (current === "start") return START_NEXT[answerId] || "g_describe";
 
@@ -350,16 +349,14 @@ export function nextBodyScreen(
  * Body is a capture-only cascade: no trade switching anywhere. The job
  * always dispatches as Body; the final tow question routes to Tow.
  */
-export function resolveBodyRoute(
-  _answers: Record<string, string>
-): BodyRoute {
+export function resolveBodyRoute(_answers: Record<string, string>): BodyRoute {
   return { trade: "body", needsConfirm: false };
 }
 
 export function composeBodyProblem(
   answers: Record<string, string>,
   extra: string,
-  landmark: string
+  landmark: string,
 ): string {
   const lines: string[] = [];
   const start = bodyScreen("start");
@@ -370,7 +367,7 @@ export function composeBodyProblem(
   }
 
   const order = Object.keys(answers).filter(
-    (k) => k !== "start" && !k.endsWith("_label")
+    (k) => k !== "start" && !k.endsWith("_label"),
   );
   for (const id of order) {
     const screen = bodyScreen(id);
@@ -409,7 +406,7 @@ export function bodyBreadcrumb(stack: string[]): string {
   if (stack.length > 1) {
     const firstBranch = stack[1];
     const letter = Object.entries(START_NEXT).find(
-      ([, id]) => id === firstBranch
+      ([, id]) => id === firstBranch,
     )?.[0];
     if (letter) bits.push(letter);
   }

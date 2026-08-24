@@ -18,10 +18,14 @@ const bodySchema = z.object({
 
 export async function PATCH(
   req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
 
   try {
@@ -57,7 +61,7 @@ export async function PATCH(
 
     if (error) return apiFail(error.message, 500);
 
-    // One role at a time — keep side tables in sync
+    // One role at a time keep side tables in sync
     if (role === "motorist") {
       await supabase.from("repair_pro_profiles").delete().eq("user_id", id);
       await supabase
@@ -67,10 +71,7 @@ export async function PATCH(
       await supabase.from("motorist_profiles").delete().eq("user_id", id);
       await supabase
         .from("repair_pro_profiles")
-        .upsert(
-          { user_id: id, status: "pending" },
-          { onConflict: "user_id" }
-        );
+        .upsert({ user_id: id, status: "pending" }, { onConflict: "user_id" });
     } else if (role === "admin") {
       await supabase.from("motorist_profiles").delete().eq("user_id", id);
       await supabase.from("repair_pro_profiles").delete().eq("user_id", id);

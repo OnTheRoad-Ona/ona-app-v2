@@ -27,7 +27,7 @@ type OrderEvent = {
 };
 
 function formatPrice(minor: number | null | undefined): string {
-  if (minor == null) return "—";
+  if (minor == null) return "";
   return formatMoney(fromMinorUnits(minor, "NGN"), detectCurrency());
 }
 
@@ -65,8 +65,8 @@ export default function ShopOrderDetailPage() {
         setPayments(data.payments ?? []);
         setEvents(
           ((data.events ?? []) as OrderEvent[]).sort((a, b) =>
-            String(a.created_at).localeCompare(String(b.created_at))
-          )
+            String(a.created_at).localeCompare(String(b.created_at)),
+          ),
         );
       } catch (e) {
         if (!cancelled) {
@@ -109,7 +109,7 @@ export default function ShopOrderDetailPage() {
               className={cn(
                 "rounded-xl p-3",
                 card,
-                isLight ? "text-slate-900" : "text-white"
+                isLight ? "text-slate-900" : "text-white",
               )}
             >
               <p className="text-[15px] font-black">
@@ -118,7 +118,7 @@ export default function ShopOrderDetailPage() {
               <p
                 className={cn(
                   "mt-1 text-[12px] font-bold capitalize",
-                  statusColor(orderStatus)
+                  statusColor(orderStatus),
                 )}
               >
                 {orderStatus.replace(/_/g, " ")}
@@ -141,7 +141,7 @@ export default function ShopOrderDetailPage() {
                   className={cn(
                     "rounded-xl p-2.5 text-[12px]",
                     card,
-                    isLight ? "text-slate-900" : "text-white"
+                    isLight ? "text-slate-900" : "text-white",
                   )}
                 >
                   <div className="flex justify-between">
@@ -166,22 +166,22 @@ export default function ShopOrderDetailPage() {
               className={cn(
                 "mt-1 rounded-xl p-3 text-[12px]",
                 card,
-                isLight ? "text-slate-900" : "text-white"
+                isLight ? "text-slate-900" : "text-white",
               )}
             >
               <div className="flex items-center justify-between">
                 <p
                   className={cn(
                     "font-bold capitalize",
-                    statusColor(String(delivery?.status || "pending"))
+                    statusColor(String(delivery?.status || "pending")),
                   )}
                 >
                   {String(delivery?.status || "pending").replace(/_/g, " ")}
                 </p>
                 {delivery?.eta_minutes != null ? (
                   <p className={cn("font-semibold", muted)}>
-                    <Truck className="mr-1 inline h-3.5 w-3.5" />
-                    ~{delivery.eta_minutes} min ETA
+                    <Truck className="mr-1 inline h-3.5 w-3.5" />~
+                    {delivery.eta_minutes} min ETA
                   </p>
                 ) : null}
               </div>
@@ -220,7 +220,7 @@ export default function ShopOrderDetailPage() {
                   className={cn(
                     "mt-1 rounded-xl p-3 text-[12px]",
                     card,
-                    isLight ? "text-slate-900" : "text-white"
+                    isLight ? "text-slate-900" : "text-white",
                   )}
                 >
                   {payments.map((p, i) => (

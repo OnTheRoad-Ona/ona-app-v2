@@ -3,18 +3,25 @@ import { AdminAuthError, requirePermission } from "@/lib/server/admin-auth";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { createServiceSupabase } from "@/lib/supabase/server";
-import { listImportJobs, listStagingSummary } from "@/lib/server/shop/data-sources";
+import {
+  listImportJobs,
+  listStagingSummary,
+} from "@/lib/server/shop/data-sources";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET /api/admin/shop/data-sources/[id] — source detail + recent jobs. */
+/** GET /api/admin/shop/data-sources/[id] source detail + recent jobs. */
 export async function GET(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     await requirePermission("shop_catalog");
@@ -40,19 +47,24 @@ export async function GET(
       jobs: jobs.filter((j) => j.data_sources?.[0]?.id === id),
     });
   } catch (e) {
-    if (e instanceof AdminAuthError) return apiFail(e.message, e.status, "admin_auth");
+    if (e instanceof AdminAuthError)
+      return apiFail(e.message, e.status, "admin_auth");
     const msg = e instanceof Error ? e.message : "Failed";
     return apiFail(msg, 500);
   }
 }
 
-/** GET /api/admin/shop/data-sources/[id]/jobs/[jobId] — job + staging summary. */
+/** GET /api/admin/shop/data-sources/[id]/jobs/[jobId] job + staging summary. */
 export async function jobDetail(
   _req: NextRequest,
-  { params }: { params: Promise<{ jobId: string }> }
+  { params }: { params: Promise<{ jobId: string }> },
 ) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     await requirePermission("shop_catalog");
@@ -75,7 +87,8 @@ export async function jobDetail(
 
     return apiOk({ job, batches: batches ?? [], staging });
   } catch (e) {
-    if (e instanceof AdminAuthError) return apiFail(e.message, e.status, "admin_auth");
+    if (e instanceof AdminAuthError)
+      return apiFail(e.message, e.status, "admin_auth");
     const msg = e instanceof Error ? e.message : "Failed";
     return apiFail(msg, 500);
   }

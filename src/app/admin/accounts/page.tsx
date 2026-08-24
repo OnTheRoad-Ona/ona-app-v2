@@ -154,8 +154,8 @@ export default function AdminAccountsPage() {
     }
     setMsg(
       action === "merge"
-        ? "Accounts merged into one identity — history, roles and payout preserved."
-        : "Merge candidate rejected."
+        ? "Accounts merged into one identity history, roles and payout preserved."
+        : "Merge candidate rejected.",
     );
     await load();
   }
@@ -165,31 +165,31 @@ export default function AdminAccountsPage() {
     return [
       {
         label: "Customer only",
-        value: s?.motoristOnly ?? "—",
+        value: s?.motoristOnly ?? "",
         sub: "motorist side only",
         tone: "available",
       },
       {
         label: "Repair Pro only",
-        value: s?.proOnly ?? "—",
+        value: s?.proOnly ?? "",
         sub: "pro side only",
         tone: "pending",
       },
       {
         label: "Both roles",
-        value: s?.dual ?? "—",
+        value: s?.dual ?? "",
         sub: "one identity, two roles",
         tone: "ledger",
       },
       {
         label: "Needs sync",
-        value: s?.needsSync ?? "—",
+        value: s?.needsSync ?? "",
         sub: "role registry mismatch",
         tone: "held",
       },
       {
         label: "Pending merges",
-        value: s?.pendingMerges ?? "—",
+        value: s?.pendingMerges ?? "",
         sub: "duplicate identities",
         tone: "failed",
       },
@@ -233,7 +233,11 @@ export default function AdminAccountsPage() {
             Duplicate identities{" "}
             <span className="om-admin-muted">· review before merge</span>
           </strong>
-          <button type="button" className="om-admin-btn" onClick={() => void scan()}>
+          <button
+            type="button"
+            className="om-admin-btn"
+            onClick={() => void scan()}
+          >
             Scan for duplicates
           </button>
         </div>
@@ -261,14 +265,18 @@ export default function AdminAccountsPage() {
                   <tr key={m.id}>
                     <td>
                       <div style={{ fontWeight: 700 }}>{m.primary_name}</div>
-                      <div className="om-admin-muted">{m.primary_email || ""}</div>
+                      <div className="om-admin-muted">
+                        {m.primary_email || ""}
+                      </div>
                       <div className="om-admin-muted" style={{ fontSize: 10 }}>
                         {m.primary_user_id.slice(0, 8)}…
                       </div>
                     </td>
                     <td>
                       <div>{m.duplicate_name}</div>
-                      <div className="om-admin-muted">{m.duplicate_email || ""}</div>
+                      <div className="om-admin-muted">
+                        {m.duplicate_email || ""}
+                      </div>
                       <div className="om-admin-muted" style={{ fontSize: 10 }}>
                         {m.duplicate_user_id.slice(0, 8)}…
                       </div>
@@ -285,7 +293,14 @@ export default function AdminAccountsPage() {
                       </div>
                     </td>
                     <td>
-                      <div className="om-admin-row-actions" style={{ flexDirection: "column", alignItems: "stretch", gap: 4 }}>
+                      <div
+                        className="om-admin-row-actions"
+                        style={{
+                          flexDirection: "column",
+                          alignItems: "stretch",
+                          gap: 4,
+                        }}
+                      >
                         <select
                           value={primaryOverride[m.id] || "primary"}
                           onChange={(e) =>
@@ -295,7 +310,9 @@ export default function AdminAccountsPage() {
                             }))
                           }
                         >
-                          <option value="primary">Primary keeps identity</option>
+                          <option value="primary">
+                            Primary keeps identity
+                          </option>
                           <option value="duplicate">
                             Make the duplicate the primary
                           </option>
@@ -362,7 +379,7 @@ export default function AdminAccountsPage() {
                           {e.user_id.slice(0, 8)}…
                         </a>
                       ) : (
-                        "—"
+                        ""
                       )}
                     </td>
                     <td>{e.action}</td>
@@ -375,7 +392,10 @@ export default function AdminAccountsPage() {
                         {e.result}
                       </span>
                       {e.error ? (
-                        <div className="om-admin-muted" style={{ fontSize: 10 }}>
+                        <div
+                          className="om-admin-muted"
+                          style={{ fontSize: 10 }}
+                        >
                           {e.error}
                         </div>
                       ) : null}

@@ -35,7 +35,7 @@ function Harness({ endsAt }: { endsAt: string }) {
   return <div role="timer">{displayMs}</div>;
 }
 
-describe("useExactCountdown — starts counting only when the visuals load", () => {
+describe("useExactCountdown starts counting only when the visuals load", () => {
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -51,7 +51,7 @@ describe("useExactCountdown — starts counting only when the visuals load", () 
     expect(screen.getByRole("timer").textContent).toBe("10000");
 
     // 2s of wall time pass while the ring is still loading (clock not aligned).
-    // The live tick must NOT run yet — the countdown doesn't start early.
+    // The live tick must NOT run yet the countdown doesn't start early.
     act(() => {
       vi.advanceTimersByTime(2_000);
     });

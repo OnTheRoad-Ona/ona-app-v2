@@ -18,7 +18,7 @@ import {
 } from "@/lib/painter/question-tree";
 
 describe("painter question tree", () => {
-  it("offers the nine start categories A–I", () => {
+  it("offers the nine start categories A-I", () => {
     expect(PAINTER_START_OPTIONS.map((o) => o.id)).toEqual([
       "A",
       "B",
@@ -50,7 +50,7 @@ describe("painter question tree", () => {
     expect(nextPainterScreen("a_size", "4 rooms", {})).toBe("a_paint");
     expect(nextPainterScreen("a_paint", "emulsion", {})).toBe("a_supply");
     expect(nextPainterScreen("a_supply", "painter-supplies", {})).toBe(
-      "a_scaffold"
+      "a_scaffold",
     );
     expect(nextPainterScreen("a_scaffold", "scaffolding", {})).toBe("final");
   });
@@ -82,7 +82,7 @@ describe("painter question tree", () => {
 
     expect(nextPainterScreen("f_roof", "aluminium", {})).toBe("f_purpose");
     expect(nextPainterScreen("f_purpose", "heat-reduction", {})).toBe(
-      "f_paint"
+      "f_paint",
     );
     expect(nextPainterScreen("f_paint", "i-have", {})).toBe("f_height");
     expect(nextPainterScreen("f_height", "Single storey", {})).toBe("final");
@@ -91,7 +91,7 @@ describe("painter question tree", () => {
     expect(nextPainterScreen("g_scope", "both", {})).toBe("g_size");
     expect(nextPainterScreen("g_size", "2 halls", {})).toBe("g_colour");
     expect(nextPainterScreen("g_colour", "Blue and white", {})).toBe(
-      "g_supply"
+      "g_supply",
     );
     expect(nextPainterScreen("g_supply", "painter-supplies", {})).toBe("final");
   });
@@ -102,12 +102,12 @@ describe("painter question tree", () => {
     expect(nextPainterScreen("h_wall", "outdoor", {})).toBe("final");
 
     expect(nextPainterScreen("i_describe", "Paint my fence", {})).toBe(
-      "i_location"
+      "i_location",
     );
     expect(nextPainterScreen("i_location", "house", {})).toBe("final");
   });
 
-  it("is strictly painting — always Painter, never a confirm card", () => {
+  it("is strictly painting always Painter, never a confirm card", () => {
     const cases: Record<string, string>[] = [
       { start: "A" },
       { start: "B" },
@@ -128,7 +128,7 @@ describe("painter question tree", () => {
     expect(canFindPainterPro(2)).toBe(true);
     expect(canFindPainterPro(4)).toBe(true);
     expect(canAdvanceText("ok")).toBe(true);
-    expect(canAdvanceText("  ")).toBe(false);
+    expect(canAdvanceText(" ")).toBe(false);
   });
 
   it("exposes supply and scaffold options for the final step", () => {
@@ -149,7 +149,7 @@ describe("painter question tree", () => {
         a_scope_label: "Both",
       },
       "Light blue throughout",
-      "Surulere"
+      "Surulere",
     );
     expect(out).toContain(PAINTER_START_QUESTION);
     expect(out).toContain("Both");
@@ -212,6 +212,6 @@ describe("painter question tree", () => {
   });
 
   it("exposes the final block copy incl. photos", () => {
-    expect(PAINTER_FINAL_COPY.photos).toContain("2–4");
+    expect(PAINTER_FINAL_COPY.photos).toContain("2-4");
   });
 });

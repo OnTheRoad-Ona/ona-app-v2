@@ -25,8 +25,19 @@ export function SecurityField({
     <div className="flex items-center justify-between gap-2">
       <div className="min-w-0 flex-1">
         <p className={cn("text-[11px] font-semibold", t.muted)}>{label}</p>
-        <p className={cn("truncate text-[13px] font-semibold", t.ink)}>{value}</p>
-        {badge && <p className={cn("text-[10px]", isLight ? "text-slate-900" : "text-white")}>{badge}</p>}
+        <p className={cn("truncate text-[13px] font-semibold", t.ink)}>
+          {value}
+        </p>
+        {badge && (
+          <p
+            className={cn(
+              "text-[10px]",
+              isLight ? "text-slate-900" : "text-white",
+            )}
+          >
+            {badge}
+          </p>
+        )}
       </div>
       <button
         type="button"
@@ -35,9 +46,7 @@ export function SecurityField({
         className={cn(
           "shrink-0 rounded-lg border-0 px-3 py-1.5 text-[11px] font-bold transition-opacity",
           disabled && "opacity-40",
-          isLight
-            ? "bg-black/8 text-slate-900"
-            : "bg-[#2c2c2e] text-white",
+          isLight ? "bg-black/8 text-slate-900" : "bg-[#2c2c2e] text-white",
         )}
       >
         Change

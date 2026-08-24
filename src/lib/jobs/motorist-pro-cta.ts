@@ -1,11 +1,11 @@
 /**
  * Customer CTA for a Repair Pro row / profile:
  *
- * - **Open**  → customer already has a live pipeline job with this pro
- *   (negotiate, pay, booked, en route, working, confirm release, dispute…)
- *   so they can reopen it after leaving dashboard / minimizing.
+ * - **Open** → customer already has a live pipeline job with this pro
+ * (negotiate, pay, booked, en route, working, confirm release, dispute…)
+ * so they can reopen it after leaving dashboard / minimizing.
  * - **Request** → only when there is no open job with this pro
- *   (no job, or last job is terminal: released / cancelled / expired / refunded).
+ * (no job, or last job is terminal: released / cancelled / expired / refunded).
  */
 
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
@@ -13,7 +13,7 @@ import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
 export type ProCtaKind = "request" | "open";
 
 /**
- * Still “in flight” for the customer — not finished.
+ * Still “in flight” for the customer not finished.
  * Includes payment + satisfaction so they can always reopen.
  */
 const OPEN_JOB: JobFlowStatus[] = [
@@ -35,7 +35,7 @@ const OPEN_JOB: JobFlowStatus[] = [
   "under_appeal",
 ];
 
-/** Terminal — customer may request this pro again */
+/** Terminal customer may request this pro again */
 const TERMINAL: JobFlowStatus[] = [
   "released",
   "cancelled",
@@ -93,14 +93,15 @@ export function proCtaLabel(kind: ProCtaKind, profile = false): string {
  * Prefer the most advanced job when multiple exist with the same pro.
  */
 export function listOpenCustomerJobs(jobs: JobRecord[]): JobRecord[] {
-  return jobs
-    .filter(isOpenCustomerJob)
-    .sort((a, b) => {
-      const ra = RANK[a.status as JobFlowStatus] ?? 0;
-      const rb = RANK[b.status as JobFlowStatus] ?? 0;
-      if (rb !== ra) return rb - ra;
-      return Date.parse(b.updatedAt || b.createdAt) - Date.parse(a.updatedAt || a.createdAt);
-    });
+  return jobs.filter(isOpenCustomerJob).sort((a, b) => {
+    const ra = RANK[a.status as JobFlowStatus] ?? 0;
+    const rb = RANK[b.status as JobFlowStatus] ?? 0;
+    if (rb !== ra) return rb - ra;
+    return (
+      Date.parse(b.updatedAt || b.createdAt) -
+      Date.parse(a.updatedAt || a.createdAt)
+    );
+  });
 }
 
 export function indexJobsByProId(jobs: JobRecord[]): Record<string, JobRecord> {
@@ -109,7 +110,7 @@ export function indexJobsByProId(jobs: JobRecord[]): Record<string, JobRecord> {
     if (!isOpenJobWithPro(j) || !j.repairProId) continue;
     const prev = map[j.repairProId];
     const r = RANK[j.status as JobFlowStatus] ?? 0;
-    const pr = prev ? RANK[prev.status as JobFlowStatus] ?? 0 : -1;
+    const pr = prev ? (RANK[prev.status as JobFlowStatus] ?? 0) : -1;
     if (!prev || r >= pr) map[j.repairProId] = j;
   }
   return map;

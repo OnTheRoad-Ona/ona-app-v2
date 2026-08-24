@@ -23,15 +23,14 @@ const bodySchema = z.object({
 
 const PRO_SELECT_FULL =
   "user_id, lat, lng, docs_status, status, visibility_tier, go_live_window_ends_at, is_online, location_updated_at, gov_id_review_status, verified, nin_verified, bvn_verified, face_liveness_verified, tier2_approved_at, pipeline_status";
-const PRO_SELECT_BASE =
-  "user_id, lat, lng, docs_status, status, is_online";
+const PRO_SELECT_BASE = "user_id, lat, lng, docs_status, status, is_online";
 
 /**
  * Repair Pro Live / Away.
  * When online: forces profiles.role = repair_pro + is_online + GPS pin
  * so customers can discover them within 5 km (2 km if docs pending).
  *
- * Away (online=false) only needs is_online flip — never blocked by tier columns.
+ * Away (online=false) only needs is_online flip never blocked by tier columns.
  */
 export async function POST(req: Request) {
   if (!isSupabaseAdminConfigured()) {
@@ -65,7 +64,7 @@ export async function POST(req: Request) {
         return apiFail(
           "Your login session needs a refresh. Try Go Live again, or sign in once more.",
           401,
-          "session_expired"
+          "session_expired",
         );
       }
     }
@@ -73,7 +72,7 @@ export async function POST(req: Request) {
       return apiFail(
         "Sign in required to go Live. Please log in and try again.",
         401,
-        "auth_required"
+        "auth_required",
       );
     }
     if (b.userId && b.userId !== userId) {
@@ -93,7 +92,7 @@ export async function POST(req: Request) {
       if (
         full.error &&
         /visibility_tier|go_live_window|location_updated_at|is_new_artisan|column/i.test(
-          full.error.message
+          full.error.message,
         )
       ) {
         const base = await sb
@@ -114,7 +113,7 @@ export async function POST(req: Request) {
       return apiFail(
         "No Repair Pro profile. Complete pro signup first.",
         400,
-        "no_pro_profile"
+        "no_pro_profile",
       );
     }
 
@@ -131,7 +130,7 @@ export async function POST(req: Request) {
         .eq("user_id", userId);
       if (awayErr) return apiFail(awayErr.message, 500);
 
-      // Public presence row (Realtime for customers — table from migration 049)
+      // Public presence row (Realtime for customers table from migration 049)
       {
         const { error: presErr } = await sb.from("pro_presence").upsert(
           {
@@ -145,10 +144,13 @@ export async function POST(req: Request) {
               : null,
             updated_at: nowIso,
           },
-          { onConflict: "user_id" }
+          { onConflict: "user_id" },
         );
         if (presErr) {
-          console.warn("[pros/live] pro_presence upsert (away)", presErr.message);
+          console.warn(
+            "[pros/live] pro_presence upsert (away)",
+            presErr.message,
+          );
         }
       }
 
@@ -163,9 +165,8 @@ export async function POST(req: Request) {
         .eq("repair_pro_id", userId)
         .in("flow_status", ["negotiating", "agreed"]);
       if (unbooked && unbooked.length > 0) {
-        const { rerouteDeclinedJob } = await import(
-          "@/lib/server/jobs/job-store"
-        );
+        const { rerouteDeclinedJob } =
+          await import("@/lib/server/jobs/job-store");
         for (const row of unbooked) {
           if (row.flow_status === "negotiating") {
             try {
@@ -174,7 +175,7 @@ export async function POST(req: Request) {
               console.error("[pros/live] reroute on offline failed", row.id, e);
             }
           } else {
-            // agreed but unpaid — cancel so customer is not stuck with offline pro
+            // agreed but unpaid cancel so customer is not stuck with offline pro
             const ts = nowIso;
             const hist = Array.isArray(row.status_history)
               ? row.status_history
@@ -220,7 +221,7 @@ export async function POST(req: Request) {
       return apiFail(
         "Your Repair Pro account is suspended or rejected.",
         403,
-        "not_approved"
+        "not_approved",
       );
     }
 
@@ -232,7 +233,7 @@ export async function POST(req: Request) {
       return apiFail(
         "Tier 1: set up your profile. Admin must approve Tier 2 before Go Live.",
         403,
-        "tier1_no_live"
+        "tier1_no_live",
       );
     }
     const lat = b.lat;
@@ -255,7 +256,7 @@ export async function POST(req: Request) {
       return apiFail(
         "Location required to go Live. Enable GPS and try again so customers can find you.",
         400,
-        "gps_required"
+        "gps_required",
       );
     }
 
@@ -263,7 +264,7 @@ export async function POST(req: Request) {
     const patch: Record<string, unknown> = {
       is_online: true,
       updated_at: nowIso,
-      // Heartbeat every Live call — marketplace requires location_updated_at within 5 min
+      // Heartbeat every Live call marketplace requires location_updated_at within 5 min
       location_updated_at: nowIso,
     };
     // Always refresh pin when client sends GPS (critical for discovery)
@@ -278,7 +279,7 @@ export async function POST(req: Request) {
         : NaN;
       if (!Number.isFinite(ends) || ends < Date.now()) {
         patch.go_live_window_ends_at = new Date(
-          Date.now() + 30 * 24 * 60 * 60 * 1000
+          Date.now() + 30 * 24 * 60 * 60 * 1000,
         ).toISOString();
       }
     }
@@ -320,8 +321,8 @@ export async function POST(req: Request) {
 
     // Public presence for customer Realtime (safe columns only)
     {
-      const presenceLat = hasGps ? lat : proRow.lat ?? null;
-      const presenceLng = hasGps ? lng : proRow.lng ?? null;
+      const presenceLat = hasGps ? lat : (proRow.lat ?? null);
+      const presenceLng = hasGps ? lng : (proRow.lng ?? null);
       const { error: presErr } = await sb.from("pro_presence").upsert(
         {
           user_id: userId,
@@ -334,7 +335,7 @@ export async function POST(req: Request) {
             : null,
           updated_at: nowIso,
         },
-        { onConflict: "user_id" }
+        { onConflict: "user_id" },
       );
       if (presErr) {
         console.warn("[pros/live] pro_presence upsert (live)", presErr.message);
@@ -371,12 +372,11 @@ export async function POST(req: Request) {
     return apiOk({
       pro: updated,
       online: true,
-      coordinates:
-        hasGps
-          ? { lat, lng }
-          : updated?.lat != null && updated?.lng != null
-            ? { lat: Number(updated.lat), lng: Number(updated.lng) }
-            : null,
+      coordinates: hasGps
+        ? { lat, lng }
+        : updated?.lat != null && updated?.lng != null
+          ? { lat: Number(updated.lat), lng: Number(updated.lng) }
+          : null,
       message: "You are Live. Customers within range can find you.",
     });
   } catch (e) {

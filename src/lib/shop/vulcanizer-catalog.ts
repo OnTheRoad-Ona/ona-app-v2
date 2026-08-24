@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * ONA Vulcanizer Shop catalog — real product classes grounded in ETRTO
+ * ONA Vulcanizer Shop catalog real product classes grounded in ETRTO
  * standard sizes, load indexes and speed symbols (ETRTO Standards Manual 2024,
  * GOV.UK MOT load-index tables) and the tyre/rim compatibility tables.
  *
@@ -17,7 +17,7 @@
  */
 
 export type VulcanizerProduct = {
-  /** Deterministic id — seed key for idempotency. */
+  /** Deterministic id seed key for idempotency. */
   id: string;
   tradeKey: "vulcanizer";
   categorySlug: string;
@@ -486,7 +486,7 @@ export const VULCANIZER_PRODUCTS: VulcanizerProduct[] = [
     subcategorySlug: "steel-rims",
     brand: { slug: "enkei", name: "Enkei" },
     name: "Enkei 14-inch Steel Rim 4x100",
-    subtitle: "Steel rim · 14\" · 4x100 PCD",
+    subtitle: 'Steel rim · 14" · 4x100 PCD',
     description:
       "14-inch steel rim, 4x100 bolt pattern, ET38 offset. Suitable for compact passenger cars.",
     sku: "ONA-VULC-RIM-ST-14-4X100-001",
@@ -505,7 +505,7 @@ export const VULCANIZER_PRODUCTS: VulcanizerProduct[] = [
     subcategorySlug: "alloy-rims",
     brand: { slug: "enkei", name: "Enkei" },
     name: "Enkei 16-inch Alloy Rim 5x114.3",
-    subtitle: "Alloy rim · 16\" · 5x114.3 PCD",
+    subtitle: 'Alloy rim · 16" · 5x114.3 PCD',
     description:
       "16-inch alloy rim, 5x114.3 bolt pattern. Fits many Japanese SUVs and sedans.",
     sku: "ONA-VULC-RIM-AL-16-5X114-001",
@@ -547,7 +547,7 @@ export const VULCANIZER_PRODUCTS: VulcanizerProduct[] = [
     name: "Ona Pro Valve Core Tool + 25 valve cores",
     subtitle: "Valve core remover tool · 25 cores",
     description:
-      "Valve core removal tool with a pack of 25 brass valve cores — a staple on every vulcanizer bench.",
+      "Valve core removal tool with a pack of 25 brass valve cores a staple on every vulcanizer bench.",
     sku: "ONA-VULC-VLV-CORE-025",
     mpn: "VLV-CORE-KIT",
     priceMinor: 250000,
@@ -688,7 +688,7 @@ export const VULCANIZER_PRODUCTS: VulcanizerProduct[] = [
     name: "Ona Pro Electric Spot Vulcanizer (1200W)",
     subtitle: "1200W spot vulcanizer · for tubes and carcass repairs",
     description:
-      "Bench-top electric spot vulcanizer for tube and tyre carcass repair. 1200W, 220–240V.",
+      "Bench-top electric spot vulcanizer for tube and tyre carcass repair. 1200W, 220-240V.",
     sku: "ONA-VULC-EQP-SPOT-1200",
     mpn: "SPOT-VULC-1200",
     priceMinor: 1850000,
@@ -726,7 +726,7 @@ export const VULCANIZER_PRODUCTS: VulcanizerProduct[] = [
     subcategorySlug: "manual-tire-changers",
     brand: { slug: "ona-pro", name: "Ona Pro" },
     name: "Ona Pro Manual Tyre Changer (single arm)",
-    subtitle: "Manual tyre changer · passenger rims 12–16\"",
+    subtitle: 'Manual tyre changer · passenger rims 12-16"',
     description:
       "Manual single-arm tyre changer for passenger and light commercial rims.",
     sku: "ONA-VULC-CHG-MAN-001",
@@ -809,8 +809,7 @@ export const VULCANIZER_PRODUCTS: VulcanizerProduct[] = [
     brand: { slug: "ona-pro", name: "Ona Pro" },
     name: "Ona Pro Digital Tyre Inflator Gauge",
     subtitle: "Digital gauge + inflator · up to 150 PSI",
-    description:
-      "Digital tyre inflator gauge with chuck, reads 0–150 PSI.",
+    description: "Digital tyre inflator gauge with chuck, reads 0-150 PSI.",
     sku: "ONA-VULC-GAUGE-DIG-150",
     mpn: "GAUGE-DIG-150",
     priceMinor: 280000,
@@ -827,9 +826,8 @@ export const VULCANIZER_PRODUCTS: VulcanizerProduct[] = [
     subcategorySlug: "tyre-pressure-gauges",
     brand: { slug: "ona-pro", name: "Ona Pro" },
     name: "Ona Pro Pencil Tyre Pressure Gauge",
-    subtitle: "Mechanical pencil gauge · 0–80 PSI",
-    description:
-      "Mechanical pencil-type tyre pressure gauge, 0–80 PSI.",
+    subtitle: "Mechanical pencil gauge · 0-80 PSI",
+    description: "Mechanical pencil-type tyre pressure gauge, 0-80 PSI.",
     sku: "ONA-VULC-GAUGE-PENCIL-080",
     mpn: "GAUGE-PEN-80",
     priceMinor: 120000,
@@ -970,9 +968,8 @@ export const VULCANIZER_PRODUCTS: VulcanizerProduct[] = [
     subcategorySlug: "impact-wrenches",
     brand: { slug: "ona-pro", name: "Ona Pro" },
     name: "Ona Pro 1-inch Impact Wrench",
-    subtitle: "Air impact wrench · 1\" drive · 1200 Nm",
-    description:
-      "1-inch air impact wrench, 1200 Nm, for truck wheel nuts.",
+    subtitle: 'Air impact wrench · 1" drive · 1200 Nm',
+    description: "1-inch air impact wrench, 1200 Nm, for truck wheel nuts.",
     sku: "ONA-VULC-PWR-IMP-1IN",
     mpn: "IMPACT-1IN",
     priceMinor: 1250000,

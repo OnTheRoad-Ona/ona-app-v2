@@ -40,7 +40,7 @@ export function getServerClockAgeMs(): number {
  * syncs via `syncServerClock`, so this is just a catch-up for screens that
  * render a countdown long after their last fetch (a slow-to-load phone must
  * show the SAME remaining seconds as the phone that loaded earlier). Offline /
- * failures keep the last known offset — never blocks or throws.
+ * failures keep the last known offset never blocks or throws.
  */
 export async function refreshServerClock(maxAgeMs = 30_000): Promise<void> {
   if (getServerClockAgeMs() < maxAgeMs) return;
@@ -53,9 +53,9 @@ export async function refreshServerClock(maxAgeMs = 30_000): Promise<void> {
       serverNow?: string;
     } | null;
     syncServerClock(
-      json?.data?.ts || json?.data?.serverNow || json?.ts || json?.serverNow
+      json?.data?.ts || json?.data?.serverNow || json?.ts || json?.serverNow,
     );
   } catch {
-    /* offline — keep the last known offset */
+    /* offline keep the last known offset */
   }
 }

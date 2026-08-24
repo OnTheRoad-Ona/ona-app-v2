@@ -11,7 +11,7 @@ export type ProReview = {
   ago: string;
 };
 
-/** First name only — public reviews never show full names. */
+/** First name only public reviews never show full names. */
 const POOL: Omit<ProReview, "id">[] = [
   {
     author: "Chidi",

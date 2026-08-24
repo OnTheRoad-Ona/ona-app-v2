@@ -9,7 +9,7 @@ import { groupNotifications, isGroup } from "@/lib/notifications/group";
 import type { AppNotification } from "@/lib/notifications/types";
 
 function n(
-  partial: Partial<AppNotification> & Pick<AppNotification, "id" | "title">
+  partial: Partial<AppNotification> & Pick<AppNotification, "id" | "title">,
 ): AppNotification {
   return {
     userId: "u1",
@@ -31,8 +31,8 @@ describe("service request day open/close", () => {
           category: "requests",
           actionType: "accept_request",
           groupKey: "service-request-x",
-        })
-      )
+        }),
+      ),
     ).toBe(true);
     expect(
       isServiceRequestNotification(
@@ -41,8 +41,8 @@ describe("service request day open/close", () => {
           title: "Mechanic accepted",
           body: "Tunde accepted your request",
           category: "requests",
-        })
-      )
+        }),
+      ),
     ).toBe(true);
   });
 
@@ -99,7 +99,7 @@ describe("service request day open/close", () => {
     expect(singles.map((s) => s.id)).toContain("today1");
     expect(groups).toHaveLength(1);
     expect(groups[0].key).toBe(
-      `service_req:${localDayKey(new Date(2026, 7, 7))}`
+      `service_req:${localDayKey(new Date(2026, 7, 7))}`,
     );
     expect(groups[0].items.map((i) => i.id).sort()).toEqual(["y1", "y2"]);
   });
@@ -142,9 +142,9 @@ describe("service request day open/close", () => {
       .map((x) => (x as AppNotification).id);
 
     expect(groups.length).toBeGreaterThanOrEqual(1);
-    // First item(s) are stack section — system group or single stackables before full rows
+    // First item(s) are stack section system group or single stackables before full rows
     const firstFullIdx = grouped.findIndex(
-      (x) => !isGroup(x) && isNonStackNotification(x as AppNotification, now)
+      (x) => !isGroup(x) && isNonStackNotification(x as AppNotification, now),
     );
     const lastStackIdx = grouped.reduce((acc, x, i) => {
       if (isGroup(x)) return i;

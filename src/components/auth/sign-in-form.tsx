@@ -106,7 +106,7 @@ export function SignInForm() {
       "h-10 rounded-md border-0 text-[12px] font-bold transition-colors",
       active
         ? "bg-[#323231] text-white"
-        : "bg-black/[0.06] text-[#1e293b] hover:bg-black/[0.1]"
+        : "bg-black/[0.06] text-[#1e293b] hover:bg-black/[0.1]",
     );
 
   async function onSendCode() {
@@ -115,11 +115,9 @@ export function SignInForm() {
       setError(t("auth.pickRole"));
       return;
     }
-    // Cooldown message only after 4 failed attempts — live countdown
+    // Cooldown message only after 4 failed attempts live countdown
     if (failedAttempts >= FAIL_THRESHOLD && inCooldown) {
-      setError(
-        `Please wait ${cooldownLeft}s before requesting another code.`
-      );
+      setError(`Please wait ${cooldownLeft}s before requesting another code.`);
       return;
     }
     const target = phone.trim();
@@ -140,19 +138,17 @@ export function SignInForm() {
         if (waitMatch) {
           const sec = Number(waitMatch[1]) || COOLDOWN_SEC;
           startCooldown(sec);
-          setError(
-            `Please wait ${sec}s before requesting another code.`
-          );
+          setError(`Please wait ${sec}s before requesting another code.`);
           return;
         }
         setError(publicMessage(res.error, "Could not send code."));
         return;
       }
       if (res.maybeSent) {
-        // Outcome unproven (response lost) — stay neutral, never block.
+        // Outcome unproven (response lost) stay neutral, never block.
         ambiguousSendRef.current = true;
         setInfo(
-          "Code request may not have gone through. If nothing arrives, tap send again."
+          "Code request may not have gone through. If nothing arrives, tap send again.",
         );
         return;
       }
@@ -186,7 +182,7 @@ export function SignInForm() {
         "phone",
         phone.trim(),
         otp.trim(),
-        preferType
+        preferType,
       );
       if (err) {
         const nextFails = failedAttempts + 1;
@@ -195,7 +191,7 @@ export function SignInForm() {
         if (nextFails >= FAIL_THRESHOLD) {
           startCooldown(COOLDOWN_SEC);
           setError(
-            `Please wait ${COOLDOWN_SEC}s before requesting another code.`
+            `Please wait ${COOLDOWN_SEC}s before requesting another code.`,
           );
         } else {
           setError(publicMessage(err, "Incorrect code. Try again."));
@@ -209,9 +205,7 @@ export function SignInForm() {
       unlockAudio();
       playAppSound("login_success");
       window.setTimeout(() => {
-        router.replace(
-          preferType === "professional" ? "/dashboard" : "/"
-        );
+        router.replace(preferType === "professional" ? "/dashboard" : "/");
       }, 280);
     } finally {
       setBusy(false);
@@ -250,10 +244,7 @@ export function SignInForm() {
           Use the exact phone number you registered at signup
         </p>
 
-        <form
-          onSubmit={onSubmit}
-          className="mt-4 flex flex-1 flex-col gap-4"
-        >
+        <form onSubmit={onSubmit} className="mt-4 flex flex-1 flex-col gap-4">
           <div>
             <span className={authLabelClass}>{t("auth.loginAs")}</span>
             <div className="mt-1.5 grid grid-cols-2 gap-1.5">
@@ -317,8 +308,7 @@ export function SignInForm() {
                 <button
                   type="button"
                   disabled={
-                    busy ||
-                    (failedAttempts >= FAIL_THRESHOLD && inCooldown)
+                    busy || (failedAttempts >= FAIL_THRESHOLD && inCooldown)
                   }
                   onClick={() => void onSendCode()}
                   className="text-left text-[12px] font-semibold text-[#FF6B35] disabled:opacity-50"
@@ -382,7 +372,7 @@ export function SignInForm() {
             type="button"
             className={cn(
               "border-0 bg-transparent p-0 text-[13px] font-semibold",
-              showPhone ? "" : "mt-auto"
+              showPhone ? "" : "mt-auto",
             )}
             style={{ color: AUTH_LINK_NEAR_BLACK }}
             onClick={() => go("/login/role")}

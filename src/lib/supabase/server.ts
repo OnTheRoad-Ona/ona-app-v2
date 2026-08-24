@@ -30,14 +30,14 @@ export async function createServerSupabase() {
             });
           }
         } catch {
-          /* called from a Server Component — ignore */
+          /* called from a Server Component ignore */
         }
       },
     },
   });
 }
 
-/** Service-role client — server only, bypasses RLS. Never expose to browser. */
+/** Service-role client server only, bypasses RLS. Never expose to browser. */
 export function createServiceSupabase() {
   const url = getSupabaseUrl();
   const key = getSupabaseServiceRoleKey();

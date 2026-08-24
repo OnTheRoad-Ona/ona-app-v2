@@ -32,7 +32,9 @@ const VALID_TYPES: HealthIssueType[] = [
 function rowToLog(row: Record<string, unknown>): HealthLog {
   return {
     id: String(row.id),
-    timestamp: String(row.created_at || row.timestamp || new Date().toISOString()),
+    timestamp: String(
+      row.created_at || row.timestamp || new Date().toISOString(),
+    ),
     type: row.type as HealthIssueType,
     severity: (row.severity as HealthSeverity) || "warning",
     message: String(row.message || ""),
@@ -46,14 +48,14 @@ function rowToLog(row: Record<string, unknown>): HealthLog {
  * Estimate DB storage % used.
  *
  * REAL SUPABASE / POSTGRES (service role / superuser):
- *   SELECT
- *     pg_database_size(current_database()) AS used_bytes,
- *     -- Plan limit is not in Postgres; store in app_settings or env DB_STORAGE_LIMIT_BYTES
- *     ...
+ * SELECT
+ * pg_database_size(current_database()) AS used_bytes,
+ * -- Plan limit is not in Postgres; store in app_settings or env DB_STORAGE_LIMIT_BYTES
+ * ...
  *
  * For managed Supabase free tier, approximate with table sizes:
- *   SELECT sum(pg_total_relation_size(quote_ident(schemaname)||'.'||quote_ident(tablename)))
- *   FROM pg_tables WHERE schemaname = 'public';
+ * SELECT sum(pg_total_relation_size(quote_ident(schemaname)||'.'||quote_ident(tablename)))
+ * FROM pg_tables WHERE schemaname = 'public';
  *
  * Here we use a lightweight heuristic from row counts + optional env limit.
  */
@@ -65,7 +67,12 @@ export async function estimateStoragePct(): Promise<{
   registry?: { motoristProfiles: number; repairProProfiles: number };
 }> {
   if (!isSupabaseAdminConfigured()) {
-    return { pct: 0, live: false, connected: false, detail: "Supabase not configured" };
+    return {
+      pct: 0,
+      live: false,
+      connected: false,
+      detail: "Supabase not configured",
+    };
   }
   try {
     const sb = createServiceSupabase();
@@ -85,7 +92,7 @@ export async function estimateStoragePct(): Promise<{
 
     // Heuristic: sum approximate row counts across core tables
     // INTEGRATION: replace with pg_database_size + plan limit from Supabase dashboard API
-    // Use * for count — some tables use user_id PK (not id)
+    // Use * for count some tables use user_id PK (not id)
     const tables = [
       "profiles",
       "motorist_profiles",
@@ -109,8 +116,12 @@ export async function estimateStoragePct(): Promise<{
 
     // Registry health (admin list sources)
     const [motC, proC] = await Promise.all([
-      sb.from("motorist_profiles").select("user_id", { count: "exact", head: true }),
-      sb.from("repair_pro_profiles").select("user_id", { count: "exact", head: true }),
+      sb
+        .from("motorist_profiles")
+        .select("user_id", { count: "exact", head: true }),
+      sb
+        .from("repair_pro_profiles")
+        .select("user_id", { count: "exact", head: true }),
     ]);
 
     return {
@@ -133,7 +144,7 @@ export async function estimateStoragePct(): Promise<{
   }
 }
 
-/** Real rows only from app_health_logs — never invents demo issues. */
+/** Real rows only from app_health_logs never invents demo issues. */
 export async function fetchHealthLogs(limit = 100): Promise<HealthLog[]> {
   if (!isSupabaseAdminConfigured()) return [];
   try {
@@ -151,7 +162,7 @@ export async function fetchHealthLogs(limit = 100): Promise<HealthLog[]> {
 }
 
 export async function insertHealthLog(
-  payload: LogErrorPayload
+  payload: LogErrorPayload,
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   if (!VALID_TYPES.includes(payload.type)) {
     return { ok: false, error: "Invalid issue type" };
@@ -188,7 +199,7 @@ export async function insertHealthLog(
 
 export async function setHealthLogResolved(
   id: string,
-  resolved: boolean
+  resolved: boolean,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!isSupabaseAdminConfigured()) {
     return { ok: false, error: "Database not configured" };
@@ -226,7 +237,7 @@ export async function runFullHealthCheck(): Promise<HealthSnapshot> {
       (l) =>
         l.type === "Database Storage Low" &&
         l.metadata?.auto === true &&
-        Date.now() - new Date(l.timestamp).getTime() < 30 * 60_000
+        Date.now() - new Date(l.timestamp).getTime() < 30 * 60_000,
     );
     if (!recent) await maybeLogStorageThreshold(storage.pct);
   }

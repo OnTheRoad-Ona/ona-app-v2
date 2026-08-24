@@ -1,6 +1,6 @@
 /**
  * Anti self-payment guard.
- * A Repair Pro can never be paid for their own job — if the payer (motorist)
+ * A Repair Pro can never be paid for their own job if the payer (motorist)
  * and the payout recipient (repair pro) share the identity name *and*
  * matching BVN/NIN, the payment must be rejected before any session is created.
  */
@@ -23,26 +23,25 @@ function normalizeName(name: string): string {
 
 /**
  * True when two accounts are run by the same person: same name AND both the
- * BVN and NIN match. A name alone is not enough — it must be corroborated by
+ * BVN and NIN match. A name alone is not enough it must be corroborated by
  * identity numbers to reduce false positives.
  */
 export function isSamePerson(
   motorist: IdentityCheck | null | undefined,
-  pro: IdentityCheck | null | undefined
+  pro: IdentityCheck | null | undefined,
 ): boolean {
   if (!motorist || !pro) return false;
 
   const sameName =
     normalizeName(motorist.fullName || "") ===
-      normalizeName(pro.fullName || "") && normalizeName(motorist.fullName) !== "";
+      normalizeName(pro.fullName || "") &&
+    normalizeName(motorist.fullName) !== "";
 
   // Both identity numbers must be present and equal.
   const sameNin =
-    Boolean(motorist.ninLast4) &&
-    motorist.ninLast4 === pro.ninLast4;
+    Boolean(motorist.ninLast4) && motorist.ninLast4 === pro.ninLast4;
   const sameBvn =
-    Boolean(motorist.bvnLast4) &&
-    motorist.bvnLast4 === pro.bvnLast4;
+    Boolean(motorist.bvnLast4) && motorist.bvnLast4 === pro.bvnLast4;
 
   return sameName && sameNin && sameBvn;
 }

@@ -82,7 +82,7 @@ export function SensitivePageGate({
   if (!allowed) {
     return (
       <p className="om-admin-muted" style={{ padding: "1rem" }}>
-        Access denied — returning to dashboard.
+        Access denied returning to dashboard.
       </p>
     );
   }

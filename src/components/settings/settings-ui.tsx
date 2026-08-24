@@ -19,12 +19,12 @@ export function SettingsSection({
       <p
         className={cn(
           "px-2 pb-1 pt-2.5 text-[10px] font-bold uppercase tracking-[0.14em]",
-          isLight ? "text-slate-600" : "text-white/55"
+          isLight ? "text-slate-600" : "text-white/55",
         )}
       >
         {title}
       </p>
-      {/* Flat on main page stage — no intermediate card fill */}
+      {/* Flat on main page stage no intermediate card fill */}
       <div className="overflow-hidden bg-transparent">{children}</div>
     </section>
   );
@@ -49,7 +49,7 @@ export function SettingsRow({
   trailing?: ReactNode;
   isLight: boolean;
   danger?: boolean;
-  /** Kept for call-site compatibility — dividers removed by design */
+  /** Kept for call-site compatibility dividers removed by design */
   first?: boolean;
 }) {
   void _first;
@@ -58,10 +58,7 @@ export function SettingsRow({
       {Icon ? (
         <span className="flex h-9 w-9 shrink-0 items-center justify-center">
           <Icon
-            className={cn(
-              "h-4 w-4",
-              danger ? "text-red-500" : "text-brand"
-            )}
+            className={cn("h-4 w-4", danger ? "text-red-500" : "text-brand")}
             strokeWidth={2.2}
           />
         </span>
@@ -70,11 +67,7 @@ export function SettingsRow({
         <span
           className={cn(
             "block text-[14px] font-semibold",
-            danger
-              ? "text-red-600"
-              : isLight
-                ? "text-slate-900"
-                : "text-white"
+            danger ? "text-red-600" : isLight ? "text-slate-900" : "text-white",
           )}
         >
           {label}
@@ -83,7 +76,7 @@ export function SettingsRow({
           <span
             className={cn(
               "mt-0.5 block text-[11px] font-medium leading-snug",
-              isLight ? "text-slate-600" : "text-white/65"
+              isLight ? "text-slate-600" : "text-white/65",
             )}
           >
             {detail}
@@ -94,28 +87,24 @@ export function SettingsRow({
         <ChevronRight
           className={cn(
             "h-4 w-4 shrink-0",
-            isLight ? "text-slate-500" : "text-white/40"
+            isLight ? "text-slate-500" : "text-white/40",
           )}
         />
       )}
     </>
   );
 
-  // Compact rows on main toggle background (no card chrome) — solid fill so
+  // Compact rows on main toggle background (no card chrome) solid fill so
   // the row is always exactly the page's light/dark background, never a shade off.
   const className = cn(
     "flex w-full items-center gap-2 border-0 px-2 py-2.5 text-left",
     isLight ? "bg-[#c8c9cd]" : "bg-black",
-    isLight ? "hover:bg-black/[0.04]" : "hover:bg-white/[0.04]"
+    isLight ? "hover:bg-black/[0.04]" : "hover:bg-white/[0.04]",
   );
 
   if (href) {
     return (
-      <Link
-        href={href}
-        className={className}
-        onClick={() => onClick?.()}
-      >
+      <Link href={href} className={className} onClick={() => onClick?.()}>
         {body}
       </Link>
     );
@@ -143,7 +132,7 @@ export function SettingsField({
       <span
         className={cn(
           "mb-1 block text-[11px] font-semibold",
-          isLight ? "text-slate-600" : "text-white/65"
+          isLight ? "text-slate-600" : "text-white/65",
         )}
       >
         {label}
@@ -153,7 +142,7 @@ export function SettingsField({
         <span
           className={cn(
             "mt-1 block text-[10px] font-medium",
-            isLight ? "text-slate-500" : "text-white/45"
+            isLight ? "text-slate-500" : "text-white/45",
           )}
         >
           {hint}
@@ -168,7 +157,7 @@ export function settingsInputClass(isLight: boolean) {
     "h-10 w-full rounded-md border-0 px-3 text-[13px] font-medium outline-none",
     isLight
       ? "bg-black/[0.06] text-slate-900 placeholder:text-slate-500"
-      : "bg-white/[0.08] text-white placeholder:text-white/40"
+      : "bg-white/[0.08] text-white placeholder:text-white/40",
   );
 }
 
@@ -183,10 +172,10 @@ export function SettingsComingSoon({
     <div
       className={cn(
         "px-3 py-4 text-center text-[12px] font-medium bg-transparent",
-        isLight ? "text-slate-600" : "text-white/60"
+        isLight ? "text-slate-600" : "text-white/60",
       )}
     >
-      {title} — coming soon
+      {title} coming soon
     </div>
   );
 }

@@ -57,13 +57,13 @@ export async function POST(req: Request) {
   });
 
   const { data: userData, error: userErr } = await userClient.auth.getUser(
-    parsed.data.access_token
+    parsed.data.access_token,
   );
   if (userErr || !userData.user) {
     return apiFail(
       "Your login session needs a refresh. Try again, or sign in once more.",
       401,
-      "session_expired"
+      "session_expired",
     );
   }
 
@@ -83,7 +83,7 @@ export async function POST(req: Request) {
     return apiFail("Profile not found", 404);
   }
 
-  // Admin freeze / deactivation is hard — never auto-revive on role switch
+  // Admin freeze / deactivation is hard never auto-revive on role switch
   if (!existing.is_active) {
     return apiFail("This account is deactivated. Contact support.", 403);
   }
@@ -99,7 +99,7 @@ export async function POST(req: Request) {
       return apiFail(
         "You don't have a Customer account yet.",
         409,
-        "needs_signup"
+        "needs_signup",
       );
     }
   } else {
@@ -112,7 +112,7 @@ export async function POST(req: Request) {
       return apiFail(
         "You don't have a Repair Pro account yet. Finish signup to go Live and receive jobs.",
         409,
-        "needs_signup"
+        "needs_signup",
       );
     }
   }
@@ -123,7 +123,7 @@ export async function POST(req: Request) {
   const existingPrimary =
     (existing as { primary_role?: string | null }).primary_role || null;
   const prevCount = Number(
-    (existing as { role_switch_count?: number | null }).role_switch_count || 0
+    (existing as { role_switch_count?: number | null }).role_switch_count || 0,
   );
   const profilePatch: Record<string, unknown> = { role };
   if (!existingPrimary) {
@@ -146,7 +146,7 @@ export async function POST(req: Request) {
     if (!updErr && updated) {
       profileAfter = updated as ProfileRow;
     } else {
-      // Columns may be missing before migration — fall back to role-only
+      // Columns may be missing before migration fall back to role-only
       const { data: fallback, error: fbErr } = await admin
         .from("profiles")
         .update({ role })
@@ -156,7 +156,7 @@ export async function POST(req: Request) {
       if (fbErr || !fallback) {
         return apiFail(
           updErr?.message || fbErr?.message || "Could not switch role",
-          500
+          500,
         );
       }
       profileAfter = fallback as ProfileRow;
@@ -216,8 +216,16 @@ export async function POST(req: Request) {
 
   // Load both side tables so bank can be merged either way on switch
   const [{ data: pro }, { data: mot }] = await Promise.all([
-    admin.from("repair_pro_profiles").select("*").eq("user_id", userId).maybeSingle(),
-    admin.from("motorist_profiles").select("*").eq("user_id", userId).maybeSingle(),
+    admin
+      .from("repair_pro_profiles")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    admin
+      .from("motorist_profiles")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle(),
   ]);
   const pr = pro as RepairProRow | null;
   const motRow = mot as {
@@ -250,15 +258,13 @@ export async function POST(req: Request) {
   // Shared identity phone flag (must survive Tap to Switch)
   const phoneVerified = Boolean(
     (profileRow as { phone_verified?: boolean }).phone_verified ||
-      motRow?.phone_verified ||
-      proBank?.phone_verified
+    motRow?.phone_verified ||
+    proBank?.phone_verified,
   );
 
   // Customer identity (T2) must survive C→Pro switch so Pro does not re-ask ID
   const motIdentityStatus = motRow?.identity_review_status;
-  const identityStatus:
-    | UserProfile["identityReviewStatus"]
-    | undefined =
+  const identityStatus: UserProfile["identityReviewStatus"] | undefined =
     motIdentityStatus === "none" ||
     motIdentityStatus === "submitted" ||
     motIdentityStatus === "approved" ||
@@ -353,7 +359,7 @@ export async function POST(req: Request) {
   const hasMotorist = Boolean(motExists);
   const hasPro = Boolean(proExists);
   const storedPrimary = dbRoleToAccountType(
-    (profileRow as ProfileRow).primary_role
+    (profileRow as ProfileRow).primary_role,
   );
   const primaryAccountType =
     storedPrimary ||
@@ -369,7 +375,7 @@ export async function POST(req: Request) {
   const lastRoleSwitchAt =
     (profileRow as ProfileRow).last_role_switch_at || undefined;
   const roleSwitchCount = Number(
-    (profileRow as ProfileRow).role_switch_count || 0
+    (profileRow as ProfileRow).role_switch_count || 0,
   );
 
   const userProfile = profileToUserProfile(profileRow, {

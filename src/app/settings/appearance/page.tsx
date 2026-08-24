@@ -17,7 +17,7 @@ export default function SettingsAppearancePage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader
@@ -41,7 +41,7 @@ export default function SettingsAppearancePage() {
             <span
               className={cn(
                 "text-[11px] font-bold",
-                isLight ? "text-slate-500" : "text-white/45"
+                isLight ? "text-slate-500" : "text-white/45",
               )}
             >
               {t("settings.theme.tap")}

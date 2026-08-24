@@ -25,7 +25,9 @@ function signingSecret(): string {
     process.env.ADMIN_SENSITIVE_PASSWORD;
   if (secret) return secret;
   if (isDemoOtpAllowed()) return "336699-ogamecho-unlock";
-  throw new Error("ADMIN_UNLOCK_SIGNING_SECRET environment variable is required");
+  throw new Error(
+    "ADMIN_UNLOCK_SIGNING_SECRET environment variable is required",
+  );
 }
 
 function sign(adminId: string, exp: number): string {
@@ -49,15 +51,17 @@ export function createUnlockToken(adminId: string): string {
   const exp = Date.now() + SENSITIVE_UNLOCK_TTL_MS;
   const sig = sign(adminId, exp);
   return Buffer.from(JSON.stringify({ adminId, exp, sig }), "utf8").toString(
-    "base64url"
+    "base64url",
   );
 }
 
-export function parseUnlockToken(raw: string | undefined | null): UnlockPayload | null {
+export function parseUnlockToken(
+  raw: string | undefined | null,
+): UnlockPayload | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(
-      Buffer.from(raw, "base64url").toString("utf8")
+      Buffer.from(raw, "base64url").toString("utf8"),
     ) as UnlockPayload;
     if (!parsed?.adminId || !parsed?.exp || !parsed?.sig) return null;
     if (Date.now() > parsed.exp) return null;
@@ -70,7 +74,7 @@ export function parseUnlockToken(raw: string | undefined | null): UnlockPayload 
 }
 
 export async function readUnlockFromCookies(
-  adminId: string
+  adminId: string,
 ): Promise<{ unlocked: boolean; expiresAt: number | null }> {
   const jar = await cookies();
   const raw = jar.get(SENSITIVE_UNLOCK_COOKIE)?.value;
@@ -108,7 +112,7 @@ export async function clearUnlockCookie(): Promise<void> {
 
 export function verifyPasswordAndCreateToken(
   password: string,
-  adminId: string
+  adminId: string,
 ): { ok: true; token: string; exp: number } | { ok: false } {
   if (!isSensitivePasswordValid(password)) return { ok: false };
   const token = createUnlockToken(adminId);

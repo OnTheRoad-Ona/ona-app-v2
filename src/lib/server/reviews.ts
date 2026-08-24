@@ -18,7 +18,10 @@ export type LiveReviewRow = {
 };
 
 /** Public reviews show first name only (never full name or “Motorist”). */
-function shortName(full: string | null | undefined, fallback = "Customer"): string {
+function shortName(
+  full: string | null | undefined,
+  fallback = "Customer",
+): string {
   const n = (full || "").trim();
   if (!n) return fallback;
   const first = n.split(/\s+/).filter(Boolean)[0] || fallback;
@@ -64,7 +67,11 @@ export async function publishProReview(input: {
   const comment = (input.comment || "").trim().slice(0, 144) || null;
   const uuidRe =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  if (!uuidRe.test(input.requestId) || !uuidRe.test(input.motoristId) || !uuidRe.test(input.repairProId)) {
+  if (
+    !uuidRe.test(input.requestId) ||
+    !uuidRe.test(input.motoristId) ||
+    !uuidRe.test(input.repairProId)
+  ) {
     return { ok: false, error: "Invalid review ids" };
   }
 
@@ -78,7 +85,7 @@ export async function publishProReview(input: {
         rating,
         comment,
       },
-      { onConflict: "request_id" }
+      { onConflict: "request_id" },
     );
     if (insErr) {
       console.error("publishProReview insert", insErr);
@@ -123,7 +130,7 @@ export async function publishProReview(input: {
 /** Public list of reviews for a Repair Pro (motorists browse before offer). */
 export async function listProReviews(
   repairProId: string,
-  limit = 30
+  limit = 30,
 ): Promise<LiveReviewRow[]> {
   if (!isSupabaseAdminConfigured()) return [];
   const uuidRe =
@@ -134,7 +141,9 @@ export async function listProReviews(
     const sb = createServiceSupabase();
     const { data, error } = await sb
       .from("reviews")
-      .select("id, request_id, motorist_id, repair_pro_id, rating, comment, created_at")
+      .select(
+        "id, request_id, motorist_id, repair_pro_id, rating, comment, created_at",
+      )
       .eq("repair_pro_id", repairProId)
       .order("created_at", { ascending: false })
       .limit(Math.min(50, Math.max(1, limit)));

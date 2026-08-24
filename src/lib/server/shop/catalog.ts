@@ -4,7 +4,10 @@
 
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { availabilityState } from "@/lib/shop/catalog-status";
-import { productStatusesForListing } from "@/lib/shop/listing-status";
+import {
+  LISTING_STATUS_LABELS,
+  productStatusesForListing,
+} from "@/lib/shop/listing-status";
 import { getUserFromRequest } from "@/lib/server/auth-utils";
 import type {
   ShopAccountContext,
@@ -18,12 +21,12 @@ export function shopCtxFromQuery(value: string | null): ShopAccountContext {
 }
 
 /**
- * Resolve the buyer's account context from the REAL session — never from a
+ * Resolve the buyer's account context from the REAL session never from a
  * query param. Guests are always motorist. A guest sending ?ctx=professional
  * cannot bypass the professional-only product gate.
  */
 export async function resolveAccountContext(
-  req: Request
+  req: Request,
 ): Promise<ShopAccountContext> {
   try {
     const user = await getUserFromRequest(req);
@@ -74,7 +77,9 @@ export async function getTradeCategories(opts?: {
 
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-  const mapped = (data ?? []).map((r: Record<string, unknown>) => mapCategory(r));
+  const mapped = (data ?? []).map((r: Record<string, unknown>) =>
+    mapCategory(r),
+  );
   // Dedupe by tradeKey+slug (guards against double-seeded categories)
   const seen = new Set<string>();
   const out: ShopCategory[] = [];
@@ -90,11 +95,11 @@ export async function getTradeCategories(opts?: {
 /** Attach productCount (products directly + under descendant subcategories).
  * Subtrees are walked by the real parent_id links against the FULL active
  * category tree, so a category's number EXACTLY equals its own products plus
- * every subcategory's products — regardless of queried subset or path-string
+ * every subcategory's products regardless of queried subset or path-string
  * inconsistencies. */
 async function withProductCounts(
   sb: ReturnType<typeof createServiceSupabase>,
-  cats: ShopCategory[]
+  cats: ShopCategory[],
 ): Promise<ShopCategory[]> {
   if (!cats.length) return cats;
   const tradeKeys = [...new Set(cats.map((c) => c.tradeKey))];
@@ -145,7 +150,7 @@ async function withProductCounts(
  * depth-0 roots when the container is missing or has no children.
  */
 export async function getTradeBrowseStart(
-  tradeKey: string
+  tradeKey: string,
 ): Promise<ShopCategory[]> {
   const roots = await getTradeCategories({ tradeKey, rootsOnly: true });
   const container = roots.find((r) => r.slug === tradeKey);
@@ -159,7 +164,7 @@ export async function getTradeBrowseStart(
   if (tradeKey === "mechanic") {
     const allow = new Set(AUTOMEDICS_CATEGORIES.map((c) => c.slug as string));
     const ordered = AUTOMEDICS_CATEGORIES.map((c) =>
-      roots.find((r) => r.slug === c.slug)
+      roots.find((r) => r.slug === c.slug),
     ).filter((c): c is ShopCategory => c != null && allow.has(c.slug));
     if (ordered.length) return ordered;
   }
@@ -251,7 +256,13 @@ export type ProductFilterOptions = {
   /** Availability: "in_stock" filters to available-only; "all" shows everything. */
   availability?: "in_stock" | "all";
   /** Listing-status filter: maps to the product status set the chip represents. */
-  listingStatus?: "all" | "available" | "low_stock" | "out_of_stock" | "pre_order" | "coming_soon";
+  listingStatus?:
+    | "all"
+    | "available"
+    | "low_stock"
+    | "out_of_stock"
+    | "pre_order"
+    | "coming_soon";
   /** Price range in minor units (filters on the active price for a variant). */
   minPriceMinor?: number;
   maxPriceMinor?: number;
@@ -264,25 +275,21 @@ export async function listProducts(opts: {
   categoryId?: string;
   categorySlug?: string;
   q?: string;
-  /** Optional pre-split tokens — OR across fields; products matching any token. */
+  /** Optional pre-split tokens OR across fields; products matching any token. */
   tokens?: string[];
   limit?: number;
   status?: string;
   order?: "created_at" | "name";
   /** Motorist/guest never sees professional-only stock. */
   accountContext?: ShopAccountContext;
-  /** Phase 2 filter engine — irrelevant filters are dropped. */
+  /** Phase 2 filter engine irrelevant filters are dropped. */
   filters?: ProductFilterOptions;
 }): Promise<ShopProductCard[]> {
   const sb = createServiceSupabase();
   const limit = Math.min(Math.max(opts.limit ?? 24, 1), 250);
 
   const tokens = (
-    opts.tokens?.length
-      ? opts.tokens
-      : opts.q?.trim()
-        ? [opts.q.trim()]
-        : []
+    opts.tokens?.length ? opts.tokens : opts.q?.trim() ? [opts.q.trim()] : []
   )
     .map((t) => t.replace(/[%*,()]/g, "").trim())
     .filter((t) => t.length >= 2)
@@ -301,7 +308,11 @@ export async function listProducts(opts: {
   }
 
   const partTerms = tokens
-    .flatMap((t) => [`sku.ilike.%${t}%`, `mpn.ilike.%${t}%`, `oem_number.ilike.%${t}%`])
+    .flatMap((t) => [
+      `sku.ilike.%${t}%`,
+      `mpn.ilike.%${t}%`,
+      `oem_number.ilike.%${t}%`,
+    ])
     .join(",");
   const { data: variantIds } = partTerms
     ? await sb
@@ -314,7 +325,7 @@ export async function listProducts(opts: {
   let q = sb
     .from("shop_products")
     .select(
-      "id, slug, name, subtitle, trade_key, brand_id, shop_brands(name), primary_image_url, condition_type, status, attributes, created_at"
+      "id, slug, name, subtitle, trade_key, brand_id, shop_brands(name), primary_image_url, condition_type, status, attributes, created_at",
     )
     .limit(limit);
 
@@ -325,8 +336,13 @@ export async function listProducts(opts: {
     ? productStatusesForListing(opts.filters.listingStatus)
     : null;
   const queryStatus = opts.status ?? "active";
-  if (listingStatii) q = q.in("status", [...listingStatii]);
-  else q = q.eq("status", queryStatus);
+  if (listingStatii) {
+    // Status set + any product force-overridden to this listing state
+    const key = String(opts.filters?.listingStatus);
+    q = q.or(
+      `status.in.(${listingStatii.join(",")}),listing_override.eq.${key}`,
+    );
+  } else q = q.eq("status", queryStatus);
 
   if (opts.tradeKey) q = q.eq("trade_key", opts.tradeKey);
   if (effectiveCategoryId) q = q.eq("category_id", effectiveCategoryId);
@@ -338,28 +354,22 @@ export async function listProducts(opts: {
 
   // Availability filter (Phase 2): in_stock must be explicitly requested.
   if (opts.filters?.availability === "in_stock") {
-    q = q.in(
-      "id",
-      await availableProductIds(sb)
-    );
+    q = q.in("id", await availableProductIds(sb));
   }
 
   // Price range filter: product must have an active price within [min, max].
   const minP = opts.filters?.minPriceMinor;
   const maxP = opts.filters?.maxPriceMinor;
   if (minP != null || maxP != null) {
-    let pq = sb
-      .from("shop_prices")
-      .select("variant_id")
-      .eq("is_active", true);
+    let pq = sb.from("shop_prices").select("variant_id").eq("is_active", true);
     if (minP != null) pq = pq.gte("amount_minor", minP);
     if (maxP != null) pq = pq.lte("amount_minor", maxP);
     pq = pq.limit(2000);
     const { data: pricedVariants } = await pq;
     const pricedVariantIds = new Set(
       ((pricedVariants ?? []) as Array<{ variant_id: string }>).map((r) =>
-        String(r.variant_id)
-      )
+        String(r.variant_id),
+      ),
     );
     if (pricedVariantIds.size === 0) return [];
     const { data: pricedProductIds } = await sb
@@ -370,8 +380,8 @@ export async function listProducts(opts: {
     const pids = [
       ...new Set(
         ((pricedProductIds ?? []) as Array<{ product_id: string }>).map((r) =>
-          String(r.product_id)
-        )
+          String(r.product_id),
+        ),
       ),
     ];
     if (!pids.length) return [];
@@ -382,7 +392,7 @@ export async function listProducts(opts: {
   if (tokens.length === 1) {
     const term = tokens[0];
     q = q.or(
-      `name.ilike.%${term}%,subtitle.ilike.%${term}%,slug.ilike.%${term}%,keywords.cs.{${term}}`
+      `name.ilike.%${term}%,subtitle.ilike.%${term}%,slug.ilike.%${term}%,keywords.cs.{${term}}`,
     );
   } else if (tokens.length > 1) {
     const parts: string[] = [];
@@ -412,12 +422,14 @@ export async function listProducts(opts: {
   // Merge part-identity matches (sku/mpn/oem) into results.
   if (variantIds?.length) {
     const ids = new Set(products.map((p) => String(p.id)));
-    const matchedProductIds = new Set(variantIds.map((v) => String(v.product_id)));
+    const matchedProductIds = new Set(
+      variantIds.map((v) => String(v.product_id)),
+    );
     if (matchedProductIds.size && !ids.size) {
       let extraQ = sb
         .from("shop_products")
         .select(
-          "id, slug, name, subtitle, trade_key, brand_id, shop_brands(name), primary_image_url, condition_type, status, attributes, created_at"
+          "id, slug, name, subtitle, trade_key, brand_id, shop_brands(name), primary_image_url, condition_type, status, attributes, created_at",
         )
         .in("id", [...matchedProductIds].slice(0, limit));
       extraQ = extraQ.is("deleted_at", null);
@@ -437,8 +449,7 @@ export async function listProducts(opts: {
   if (tokens.length > 1 && products.length > 0) {
     products = products
       .map((p) => {
-        const hay =
-          `${p.name} ${p.subtitle || ""} ${p.slug}`.toLowerCase();
+        const hay = `${p.name} ${p.subtitle || ""} ${p.slug}`.toLowerCase();
         const hits = tokens.filter((t) => hay.includes(t.toLowerCase())).length;
         return { p, hits };
       })
@@ -451,6 +462,7 @@ export async function listProducts(opts: {
   const ids = products.map((p) => String(p.id));
   const prices = await loadFromPrices(ids);
   const stock = await loadInStock(ids);
+  const stockQty = await loadStockQty(ids);
   const defaultVariantIds = await loadDefaultVariantIds(ids);
 
   return products.map((p) => {
@@ -465,6 +477,9 @@ export async function listProducts(opts: {
       priced,
       inStock: hasStock,
     });
+    // Admin availability override: forced state wins over stock math
+    const listingOverride =
+      p.listing_override ? String(p.listing_override) : null;
     const tags = Array.isArray(attrs.vehicleTags)
       ? (attrs.vehicleTags as unknown[]).map(String).filter(Boolean)
       : typeof attrs.vehicleLabel === "string"
@@ -477,26 +492,39 @@ export async function listProducts(opts: {
       subtitle: p.subtitle ? String(p.subtitle) : null,
       tradeKey: String(p.trade_key),
       brandName: brandNameOf(p),
-      primaryImageUrl: p.primary_image_url
-        ? String(p.primary_image_url)
-        : null,
+      primaryImageUrl: p.primary_image_url ? String(p.primary_image_url) : null,
       conditionType: p.condition_type ? String(p.condition_type) : null,
       fromPriceMinor: priceOnRequest ? null : price,
       currency: "NGN",
-      inStock: av.available || (priceOnRequest && hasStock),
+      inStock: listingOverride
+        ? listingOverride === "available"
+        : av.available || (priceOnRequest && hasStock),
       status: p.status ? String(p.status) : "active",
-      availabilityLabel: hasStock ? "In Stock" : "Out of Stock",
+      availabilityLabel: listingOverride
+        ? LISTING_STATUS_LABELS[
+            listingOverride as keyof typeof LISTING_STATUS_LABELS
+          ] ?? av.label
+        : hasStock
+          ? "In Stock"
+          : "Out of Stock",
       attributes: attrs,
       defaultVariantId: defaultVariantIds.get(id) ?? null,
       vehicleTags: tags,
       priceOnRequest,
-      stockLabel: hasStock ? "In Stock" : "Out of Stock",
+      stockQty: stockQty.get(id) ?? 0,
+      stockLabel: listingOverride
+        ? LISTING_STATUS_LABELS[
+            listingOverride as keyof typeof LISTING_STATUS_LABELS
+          ] ?? av.label
+        : hasStock
+          ? "In Stock"
+          : "Out of Stock",
     };
   });
 }
 
 async function availableProductIds(
-  sb: ReturnType<typeof createServiceSupabase>
+  sb: ReturnType<typeof createServiceSupabase>,
 ): Promise<string[]> {
   const { data } = await sb
     .from("shop_availability_view")
@@ -507,7 +535,7 @@ async function availableProductIds(
 }
 
 async function loadFromPrices(
-  productIds: string[]
+  productIds: string[],
 ): Promise<Map<string, number>> {
   const sb = createServiceSupabase();
   const { data: variants } = await sb
@@ -526,7 +554,7 @@ async function loadFromPrices(
     .eq("is_active", true);
 
   const variantToProduct = new Map(
-    vlist.map((v) => [String(v.id), String(v.product_id)])
+    vlist.map((v) => [String(v.id), String(v.product_id)]),
   );
   const out = new Map<string, number>();
   for (const pr of (prices ?? []) as Array<Record<string, unknown>>) {
@@ -539,7 +567,40 @@ async function loadFromPrices(
   return out;
 }
 
-async function loadInStock(productIds: string[]): Promise<Map<string, boolean>> {
+async function loadStockQty(
+  productIds: string[],
+): Promise<Map<string, number>> {
+  const sb = createServiceSupabase();
+  const { data: variants } = await sb
+    .from("shop_product_variants")
+    .select("id, product_id")
+    .in("product_id", productIds)
+    .eq("status", "active");
+  const vlist = (variants ?? []) as Array<Record<string, unknown>>;
+  const out = new Map<string, number>();
+  if (vlist.length === 0) return out;
+
+  const variantIds = vlist.map((v) => String(v.id));
+  const { data: inv } = await sb
+    .from("shop_inventory")
+    .select("variant_id, qty_on_hand, qty_reserved")
+    .in("variant_id", variantIds);
+
+  const variantToProduct = new Map(
+    vlist.map((v) => [String(v.id), String(v.product_id)]),
+  );
+  for (const row of (inv ?? []) as Array<Record<string, unknown>>) {
+    const pid = variantToProduct.get(String(row.variant_id));
+    if (!pid) continue;
+    const qty = Number(row.qty_on_hand ?? 0) - Number(row.qty_reserved ?? 0);
+    out.set(pid, (out.get(pid) || 0) + Math.max(0, qty));
+  }
+  return out;
+}
+
+async function loadInStock(
+  productIds: string[],
+): Promise<Map<string, boolean>> {
   const sb = createServiceSupabase();
   const { data: variants } = await sb
     .from("shop_product_variants")
@@ -556,7 +617,7 @@ async function loadInStock(productIds: string[]): Promise<Map<string, boolean>> 
     .in("variant_id", variantIds);
 
   const variantToProduct = new Map(
-    vlist.map((v) => [String(v.id), String(v.product_id)])
+    vlist.map((v) => [String(v.id), String(v.product_id)]),
   );
   const out = new Map<string, boolean>();
   for (const row of (inv ?? []) as Array<Record<string, unknown>>) {
@@ -575,16 +636,22 @@ async function loadInStock(productIds: string[]): Promise<Map<string, boolean>> 
  * a product card. Falls back to the first active variant when none are stocked.
  */
 async function loadDefaultVariantIds(
-  productIds: string[]
+  productIds: string[],
 ): Promise<Map<string, string>> {
   const sb = createServiceSupabase();
-  const { data: variants } = await sb
+  // NOTE: no sort_order ordering, that column is missing in some deployed
+  // databases and the failed query silently killed every default variant id
+  // (all + buttons disabled). First active variant wins; ordering is not
+  // worth the fragility.
+  const { data: variants, error: variantsError } = await sb
     .from("shop_product_variants")
     .select("id, product_id")
     .in("product_id", productIds)
     .eq("status", "active")
-    .order("sort_order", { ascending: true, nullsFirst: false })
     .limit(500);
+  if (variantsError) {
+    console.error("[catalog] default variant lookup failed:", variantsError.message);
+  }
   const vlist = (variants ?? []) as Array<Record<string, unknown>>;
   if (vlist.length === 0) return new Map();
 
@@ -618,10 +685,7 @@ async function loadDefaultVariantIds(
 }
 
 function brandNameOf(p: Record<string, unknown>): string | null {
-  const emb = p.shop_brands as
-    | { name?: unknown }
-    | null
-    | undefined;
+  const emb = p.shop_brands as { name?: unknown } | null | undefined;
   const name = emb?.name;
   return typeof name === "string" && name.trim()
     ? name.trim()
@@ -632,7 +696,7 @@ function brandNameOf(p: Record<string, unknown>): string | null {
 
 export async function getProductBySlug(
   slug: string,
-  accountContext?: ShopAccountContext
+  accountContext?: ShopAccountContext,
 ): Promise<{
   product: Record<string, unknown>;
   variants: Record<string, unknown>[];
@@ -667,7 +731,7 @@ export async function getProductBySlug(
     .eq("status", "active");
 
   const vids = ((variants ?? []) as Array<Record<string, unknown>>).map((v) =>
-    String(v.id)
+    String(v.id),
   );
 
   // Per-variant available stock (sum across active locations).
@@ -686,7 +750,7 @@ export async function getProductBySlug(
         const cur = stockByVariant.get(String(row.variant_id)) ?? 0;
         stockByVariant.set(
           String(row.variant_id),
-          cur + Math.max(0, Number(row.qty_on_hand) - Number(row.qty_reserved))
+          cur + Math.max(0, Number(row.qty_on_hand) - Number(row.qty_reserved)),
         );
       }
     } catch {

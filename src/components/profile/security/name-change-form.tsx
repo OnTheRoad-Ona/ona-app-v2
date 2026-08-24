@@ -12,7 +12,12 @@ interface NameChangeFormProps {
   userId?: string;
 }
 
-export function NameChangeForm({ isLight, currentName, accessToken, userId }: NameChangeFormProps) {
+export function NameChangeForm({
+  isLight,
+  currentName,
+  accessToken,
+  userId,
+}: NameChangeFormProps) {
   const [requestedName, setRequestedName] = useState("");
   const [reason, setReason] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
@@ -25,14 +30,25 @@ export function NameChangeForm({ isLight, currentName, accessToken, userId }: Na
 
   const submit = async () => {
     const name = requestedName.trim();
-    if (name.length < 2) { setErr("Enter your requested name (at least 2 characters)."); return; }
-    if (!reason.trim()) { setErr("Explain why you need to change your name."); return; }
-    if (!livenessPassed) { setErr("Complete the selfie verification first."); return; }
+    if (name.length < 2) {
+      setErr("Enter your requested name (at least 2 characters).");
+      return;
+    }
+    if (!reason.trim()) {
+      setErr("Explain why you need to change your name.");
+      return;
+    }
+    if (!livenessPassed) {
+      setErr("Complete the selfie verification first.");
+      return;
+    }
 
     setBusy(true);
     setErr(null);
     try {
-      const res = await (await import("@/lib/api-auth-headers")).authFetch("/api/security/action", {
+      const res = await (
+        await import("@/lib/api-auth-headers")
+      ).authFetch("/api/security/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -42,7 +58,10 @@ export function NameChangeForm({ isLight, currentName, accessToken, userId }: Na
           reason: reason.trim(),
         }),
       });
-      const json = await res.json().catch(() => null) as { ok?: boolean; error?: { message?: string } } | null;
+      const json = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: { message?: string };
+      } | null;
       if (!json?.ok) {
         setErr(json?.error?.message || "Could not submit request.");
         return;
@@ -60,7 +79,8 @@ export function NameChangeForm({ isLight, currentName, accessToken, userId }: Na
     return (
       <div className="space-y-2">
         <p className={cn("text-[12px] font-medium", t.soft)}>
-          Your name change request has been submitted. Our team will review it and notify you.
+          Your name change request has been submitted. Our team will review it
+          and notify you.
         </p>
       </div>
     );
@@ -76,7 +96,14 @@ export function NameChangeForm({ isLight, currentName, accessToken, userId }: Na
       <p className={cn("text-[13px] font-semibold", t.ink)}>{currentName}</p>
 
       {(msg || err) && (
-        <p className={cn("rounded-xl px-3 py-2 text-[12px] font-semibold", err ? "bg-red-500/15 text-red-400" : "bg-emerald-500/15 text-emerald-500")}>
+        <p
+          className={cn(
+            "rounded-xl px-3 py-2 text-[12px] font-semibold",
+            err
+              ? "bg-red-500/15 text-red-400"
+              : "bg-emerald-500/15 text-emerald-500",
+          )}
+        >
           {err || msg}
         </p>
       )}
@@ -100,7 +127,9 @@ export function NameChangeForm({ isLight, currentName, accessToken, userId }: Na
           Selfie verification
         </p>
         {livenessPassed ? (
-          <p className={cn("text-[12px] font-medium text-emerald-500")}>Selfie verified</p>
+          <p className={cn("text-[12px] font-medium text-emerald-500")}>
+            Selfie verified
+          </p>
         ) : showLiveness ? (
           <FaceLiveness
             isLight={isLight}
@@ -115,7 +144,12 @@ export function NameChangeForm({ isLight, currentName, accessToken, userId }: Na
           <button
             type="button"
             onClick={() => setShowLiveness(true)}
-            className={cn("h-10 w-full rounded-xl border-0 text-[12px] font-bold", isLight ? "bg-black/10 text-slate-800" : "bg-[#2c2c2e] text-white")}
+            className={cn(
+              "h-10 w-full rounded-xl border-0 text-[12px] font-bold",
+              isLight
+                ? "bg-black/10 text-slate-800"
+                : "bg-[#2c2c2e] text-white",
+            )}
           >
             Take selfie to verify identity
           </button>

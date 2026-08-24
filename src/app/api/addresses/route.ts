@@ -1,5 +1,5 @@
 /**
- * Customer saved addresses — Postgres user_addresses.
+ * Customer saved addresses Postgres user_addresses.
  */
 
 import { z } from "zod";
@@ -35,7 +35,9 @@ export async function GET(req: Request) {
   const supabase = createServiceSupabase();
   const { data, error } = await supabase
     .from("user_addresses")
-    .select("id, label, address_text, lat, lng, is_default, created_at, updated_at")
+    .select(
+      "id, label, address_text, lat, lng, is_default, created_at, updated_at",
+    )
     .eq("user_id", auth.userId)
     .order("created_at", { ascending: false })
     .limit(50);

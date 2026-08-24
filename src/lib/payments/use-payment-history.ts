@@ -64,7 +64,7 @@ export function usePaymentHistory() {
       const { authFetch } = await import("@/lib/api-auth-headers");
       const res = await authFetch(
         `/api/payments/history?userId=${encodeURIComponent(userId)}&role=${role}`,
-        { cache: "no-store" }
+        { cache: "no-store" },
       );
       const json = (await res.json()) as {
         ok?: boolean;
@@ -92,7 +92,7 @@ export function usePaymentHistory() {
     }
   }, [userId, isPro]);
 
-  // Load once when the page opens. Manual Refresh reloads — no background poll
+  // Load once when the page opens. Manual Refresh reloads no background poll
   // (payments pages were re-downloading history every 90s for no reason).
   useEffect(() => {
     void load();
@@ -112,7 +112,7 @@ export function usePaymentHistory() {
 
 export function toneClass(
   tone: PayRow["statusTone"],
-  isLight: boolean
+  isLight: boolean,
 ): string {
   switch (tone) {
     case "ok":
@@ -127,14 +127,17 @@ export function toneClass(
 }
 
 export function isOpenStatus(escrowStatus: string): boolean {
-  return ["held", "pending_settlement", "release_pending", "pending_payment"].includes(
-    escrowStatus
-  );
+  return [
+    "held",
+    "pending_settlement",
+    "release_pending",
+    "pending_payment",
+  ].includes(escrowStatus);
 }
 
 export function isReleasedStatus(
   escrowStatus: string,
-  statusLabel: string
+  statusLabel: string,
 ): boolean {
   return escrowStatus === "released" || statusLabel === "Paid out";
 }

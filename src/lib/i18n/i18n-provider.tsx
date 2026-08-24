@@ -53,7 +53,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
           if (issues.length) {
             console.warn(
               `[i18n] ${issues.length} catalog parity issue(s)`,
-              issues.slice(0, 8)
+              issues.slice(0, 8),
             );
           }
         });
@@ -84,9 +84,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     void (async () => {
       try {
         const { getAppSupabase } = await import("@/lib/supabase/app-client");
-        const { backendUpdateProfile } = await import(
-          "@/lib/supabase/app-api"
-        );
+        const { backendUpdateProfile } = await import("@/lib/supabase/app-api");
         const sb = getAppSupabase();
         if (!sb) return;
         const session = (await sb.auth.getSession()).data.session;
@@ -95,7 +93,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
           preferredLocale: code,
         });
       } catch {
-        /* offline / not configured — localStorage still holds choice */
+        /* offline / not configured localStorage still holds choice */
       }
     })();
   }, []);
@@ -154,7 +152,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     (key: MessageKey, vars?: Record<string, string | number>) =>
       translate(locale, key, vars),
     // catalogTick re-arms t once a lazily-loaded locale chunk lands
-    [locale, catalogTick]
+    [locale, catalogTick],
   );
 
   const value = useMemo(
@@ -164,7 +162,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       t,
       dir: meta.dir,
     }),
-    [locale, setLocale, t, meta.dir]
+    [locale, setLocale, t, meta.dir],
   );
 
   // Avoid flash of wrong language after hydrate
@@ -174,9 +172,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  return (
-    <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
-  );
+  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 
 export function useI18n(): I18nContextValue {

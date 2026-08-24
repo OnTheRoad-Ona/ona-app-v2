@@ -13,7 +13,7 @@ import type { ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /**
- * Repair Pro labour price book — only for selected skills.
+ * Repair Pro labour price book only for selected skills.
  * Spare parts never included.
  */
 export function ServicePriceEditor({
@@ -48,7 +48,7 @@ export function ServicePriceEditor({
       <p
         className={cn(
           "text-[12px]",
-          isLight ? "text-slate-600" : "text-[#a1a1a6]"
+          isLight ? "text-slate-600" : "text-[#a1a1a6]",
         )}
       >
         Select skills first, then set labour prices.
@@ -61,7 +61,7 @@ export function ServicePriceEditor({
       <p
         className={cn(
           "text-[11px] leading-snug",
-          isLight ? "text-slate-600" : "text-[#a1a1a6]"
+          isLight ? "text-slate-600" : "text-[#a1a1a6]",
         )}
       >
         {labourFeeDisclaimerForTrade(skills[0])}
@@ -80,7 +80,7 @@ export function ServicePriceEditor({
                   ? "bg-brand text-white"
                   : isLight
                     ? "bg-black/8 text-slate-700"
-                    : "bg-[#2c2c2e] text-white/75"
+                    : "bg-[#2c2c2e] text-white/75",
               )}
             >
               {c === "NGN" ? "₦ NGN" : "$ USD"}
@@ -101,7 +101,7 @@ export function ServicePriceEditor({
               <span
                 className={cn(
                   "min-w-0 flex-1 font-semibold",
-                  isLight ? "text-slate-900" : "text-white"
+                  isLight ? "text-slate-900" : "text-white",
                 )}
               >
                 {PRO_SERVICE_LABELS[s] ?? s}
@@ -111,7 +111,7 @@ export function ServicePriceEditor({
                   <span
                     className={cn(
                       "text-[12px] font-bold",
-                      isLight ? "text-slate-600" : "text-white/60"
+                      isLight ? "text-slate-600" : "text-white/60",
                     )}
                   >
                     {sym}
@@ -142,7 +142,7 @@ export function ServicePriceEditor({
                         : "text-white"
                       : isLight
                         ? "text-slate-500"
-                        : "text-white/50"
+                        : "text-white/50",
                   )}
                 >
                   {formatMoney(major, cur)}

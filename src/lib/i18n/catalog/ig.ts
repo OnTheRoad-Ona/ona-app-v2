@@ -92,7 +92,8 @@ export const IG: MessageDict = {
   "settings.themeDevice": "Nhọrọ ngwaọrụ · banye iji chekwaa n'akaụntụ",
   "settings.alerts": "Ịdọ aka ná ntị",
   "settings.notificationsSound": "Nziọkwa & ụda",
-  "settings.notificationsDetail": "Push, SMS, email, oge ịgbachi nkịtị, ụda ngwa",
+  "settings.notificationsDetail":
+    "Push, SMS, email, oge ịgbachi nkịtị, ụda ngwa",
   "settings.discovery": "Nchọta (maapụ & ndepụta)",
   "settings.searchRadius": "Ogologo nchọta",
   "settings.radiusHelp": "Kachasị {max} km · maka maapụ na ndepụta",
@@ -149,7 +150,8 @@ export const IG: MessageDict = {
   "notif.emailDetail": "Summaries and receipts",
   "location.title": "Ebe m nọ",
   "location.subtitle": "Tọọ ebe ị nọ",
-  "location.hint": "Chọọ ebe ma ọ bụ bugharịa pin. A na-eji ya maka maapụ ụlọ na ndị ọrụ nso.",
+  "location.hint":
+    "Chọọ ebe ma ọ bụ bugharịa pin. A na-eji ya maka maapụ ụlọ na ndị ọrụ nso.",
   "location.saved": "Echekwara ebe",
   "location.myLocationBtn": "Ebe m nọ",
   "location.tapMap": "Pịa maapụ ma ọ bụ dọrọ pin",
@@ -208,7 +210,8 @@ export const IG: MessageDict = {
   "trade.solar": "Anyanwụ",
   "trade.generator": "Jenereeta",
   "trade.all": "Niile",
-  "gate.finishBeforeLive": "Mechaa nkwenye ma ziga maka nyocha tupu ị nwee ike Go Live.",
+  "gate.finishBeforeLive":
+    "Mechaa nkwenye ma ziga maka nyocha tupu ị nwee ike Go Live.",
   "gate.continueVerification": "Gaa n'ihu nkwenye",
   "gate.viewStatus": "Lee ọkwa",
   "status.draft": "Draft",
@@ -258,7 +261,8 @@ export const IG: MessageDict = {
   "profile.reviews": "Reviews",
   "profile.rating": "Rating",
   "verify.title": "Gosi njirimara gị",
-  "verify.subtitle": "Free try until job {warn}. Finish this before job {block} so you can keep booking.",
+  "verify.subtitle":
+    "Free try until job {warn}. Finish this before job {block} so you can keep booking.",
   "verify.howTitle": "How verification works",
   "verify.countryFromPhone": "Country: {country} (from your phone number)",
   "verify.requiredFor": "Required for {country}",
@@ -282,7 +286,8 @@ export const IG: MessageDict = {
   "signup.failed": "Sign-up failed",
   "signup.tryAgain": "Nwaa ọzọ",
   "signup.allSet": "You're all set",
-  "signup.accountReady": "Your {role} account is ready. You can start using Ona now.",
+  "signup.accountReady":
+    "Your {role} account is ready. You can start using Ona now.",
   "dashboard.title": "Dashbọọdụ",
   "dashboard.incoming": "Incoming jobs",
   "dashboard.recent": "Recent",
@@ -291,7 +296,8 @@ export const IG: MessageDict = {
   "gate.verifySoon": "Verify soon to keep full access",
   "gate.verifyNow": "Verify your ID now",
   "gate.required": "Verification required",
-  "gate.exploreFree": "You explored the app freely. Verify your ID once to book without limits.",
+  "gate.exploreFree":
+    "You explored the app freely. Verify your ID once to book without limits.",
   "menu.settings": "Ntọala",
   "menu.help": "Enyemaka",
   "menu.switchRole": "Switch role",
@@ -312,7 +318,8 @@ export const IG: MessageDict = {
   "menu.logIn": "Banye",
   "menu.needLogin": "Banye iji gbanwee n'etiti Customer na Repair Pro.",
   "menu.noMotorist": "Ị nwebeghị akaụntụ Customer.",
-  "menu.noPro": "Ị nwebeghị akaụntụ Repair Pro. Mechie ndebanye aha ka ị gaa Live ma nata ọrụ.",
+  "menu.noPro":
+    "Ị nwebeghị akaụntụ Repair Pro. Mechie ndebanye aha ka ị gaa Live ma nata ọrụ.",
   "menu.couldNotSwitch": "Enweghị ike ịgbanwe.",
   "menu.tapToClose": "Pịa ka o mechie",
   "menu.signedInAs": "Ị banyere dị ka {name}",
@@ -346,11 +353,11 @@ export const IG: MessageDict = {
   "settings.hub.addressesDetail": "Home, Work, service area & pin",
   "settings.dangerZone": "Mpaghara ihe egwu",
   "settings.deleteAccount": "Hichapụ akaụntụ",
-  "settings.deleteAccountDetail": "Gbanyụọ kpamkpam — enweghị ike ịmegharị",
+  "settings.deleteAccountDetail": "Gbanyụọ kpamkpam enweghị ike ịmegharị",
   "settings.theme.tap": "Pịa",
   "search.noResultsFor": "Enweghị nsonaazụ maka “{q}”",
   "search.tryAnother": "Pro, ọrụ ma ọ bụ ebe ahụ adịghị nso. Nwaa ọchụchọ ọzọ.",
-  "search.tryBrowse": "Nwaa aha, ọrụ ma ọ bụ ebe — ma ọ bụ mepee Home.",
+  "search.tryBrowse": "Nwaa aha, ọrụ ma ọ bụ ebe ma ọ bụ mepee Home.",
   "search.noMatchesNearby": "Enweghị ndakọ nso",
   "search.backHome": "Laghachi ụlọ",
   "search.withinKm": "N'ime {km} km · nsonaazụ {count}",
@@ -359,12 +366,14 @@ export const IG: MessageDict = {
   "search.placeholder": "Chọọ nsogbu, ọkachamara, ọrụ…",
   "search.title": "Chọọ",
   "search.subtitle": "Ndị ọrụ nwere nka dị nso",
-  "home.searchNoResults": "Enweghị nsonaazụ maka “{q}”. Nwaa aha, ọrụ ma ọ bụ ebe ọzọ.",
+  "home.searchNoResults":
+    "Enweghị nsonaazụ maka “{q}”. Nwaa aha, ọrụ ma ọ bụ ebe ọzọ.",
   "common.customer": "Customer",
   "common.repairPro": "Repair Pro",
   "common.codeSent": "E zigara koodu. Tinye ya n'okpuru.",
   "nav.shop": "Shop",
   "nav.myShop": "My Shop",
+  "nav.onaExpress": "Ona Express",
   "trade.shop": "Shop",
   "shop.title": "Shop",
   "shop.searchPlaceholder": "What are you looking for?",
@@ -372,6 +381,6 @@ export const IG: MessageDict = {
   "shop.popular": "Popular",
   "shop.newArrivals": "New arrivals",
   "shop.empty": "No products yet. Catalog is loading.",
-  "shop.setupRequired": "Shop is almost ready — catalog database will appear after setup.",
+  "shop.setupRequired":
+    "Shop is almost ready catalog database will appear after setup.",
 };
-

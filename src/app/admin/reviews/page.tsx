@@ -36,7 +36,8 @@ export default function AdminReviewsPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Reviews</h1>
       <p className="om-admin-sub">
-        Ratings and reviews after completed jobs. Spot spam or abuse and support quality on the marketplace.
+        Ratings and reviews after completed jobs. Spot spam or abuse and support
+        quality on the marketplace.
       </p>
 
       <AdminGuideBanner pageId="reviews" />
@@ -70,7 +71,7 @@ export default function AdminReviewsPage() {
                   <td>
                     <span className="om-admin-badge approved">{r.rating}★</span>
                   </td>
-                  <td>{r.comment || "—"}</td>
+                  <td>{r.comment || ""}</td>
                   <td className="om-admin-muted">
                     {r.repair_pro_id.slice(0, 8)}…
                   </td>

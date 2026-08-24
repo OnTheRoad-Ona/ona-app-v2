@@ -9,7 +9,7 @@ import { ARRIVAL_DISTANCE_METERS } from "@/lib/jobs/constants";
 
 function haversineMeters(
   a: { lat: number; lng: number },
-  b: { lat: number; lng: number }
+  b: { lat: number; lng: number },
 ): number {
   const R = 6371000;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -68,7 +68,7 @@ const VOICE_KEYWORDS = [
 /** Mock voice: duration + keyword scan on filename/description proxy */
 export function scoreVoice(
   voice: JobMedia | null | undefined,
-  transcriptHint?: string
+  transcriptHint?: string,
 ): { score: number; flags: string[]; transcript: string } {
   const flags: string[] = [];
   if (!voice) {
@@ -116,7 +116,10 @@ export function scoreLocation(job: JobRecord): {
   return { score: 25, flags, distanceM };
 }
 
-export function scoreTimestamps(job: JobRecord, media: JobMedia[]): {
+export function scoreTimestamps(
+  job: JobRecord,
+  media: JobMedia[],
+): {
   score: number;
   flags: string[];
 } {
@@ -143,14 +146,18 @@ export function scoreTimestamps(job: JobRecord, media: JobMedia[]): {
  */
 export function computeEvidenceScores(
   job: JobRecord,
-  extra?: { transcriptHint?: string }
+  extra?: { transcriptHint?: string },
 ): EvidenceScores {
   const media = [
     ...job.photos,
     ...(job.voiceNote ? [job.voiceNote] : []),
     ...(job.dispute?.media || []),
   ];
-  const photo = scorePhotos(job.photos.concat(job.dispute?.media.filter((m) => m.kind === "photo") || []));
+  const photo = scorePhotos(
+    job.photos.concat(
+      job.dispute?.media.filter((m) => m.kind === "photo") || [],
+    ),
+  );
   const voice = scoreVoice(job.voiceNote, extra?.transcriptHint);
   const loc = scoreLocation(job);
   const ts = scoreTimestamps(job, media);
@@ -159,15 +166,10 @@ export function computeEvidenceScores(
     photo.score * 0.35 +
       voice.score * 0.25 +
       loc.score * 0.25 +
-      ts.score * 0.15
+      ts.score * 0.15,
   );
 
-  const flags = [
-    ...photo.flags,
-    ...voice.flags,
-    ...loc.flags,
-    ...ts.flags,
-  ];
+  const flags = [...photo.flags, ...voice.flags, ...loc.flags, ...ts.flags];
 
   let priority: EvidenceScores["priority"] = "normal";
   if (composite >= 75) priority = "auto_priority";

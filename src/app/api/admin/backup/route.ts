@@ -9,12 +9,16 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * POST /api/admin/backup — Care desk "Backup now"
+ * POST /api/admin/backup Care desk "Backup now"
  * Writes Local BackUp/snapshots on the machine running Next (local admin).
  */
 export async function POST() {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     const { session, adminRole } = await requireAdmin();
@@ -38,7 +42,7 @@ export async function POST() {
         result.error ||
           "Backup failed. Run admin on this Mac (npm run dev:admin) with SUPABASE_DB_PASSWORD set, or use npm run backup:local.",
         500,
-        "backup_failed"
+        "backup_failed",
       );
     }
 
@@ -53,29 +57,23 @@ export async function POST() {
     if (e instanceof AdminAuthError) {
       return apiFail(e.message, e.status, e.code || "auth");
     }
-    return apiFail(
-      e instanceof Error ? e.message : "Backup failed",
-      500
-    );
+    return apiFail(e instanceof Error ? e.message : "Backup failed", 500);
   }
 }
 
 /**
- * GET — latest snapshot + searchable directory listing (Admin / Care only).
- * Query: ?q=payment  filters snapshot folders and files by name.
+ * GET latest snapshot + searchable directory listing (Admin / Care only).
+ * Query: ?q=payment filters snapshot folders and files by name.
  */
 export async function GET(req: Request) {
   try {
     const { adminRole } = await requireAdmin();
     // L3+ only for backup browser (ops/finance and above)
-    if (
-      adminRole === "customer_care" ||
-      adminRole === "senior_support"
-    ) {
+    if (adminRole === "customer_care" || adminRole === "senior_support") {
       return apiFail(
         "Only Operations (L3)+ can view backend backup files.",
         403,
-        "backup_forbidden"
+        "backup_forbidden",
       );
     }
   } catch (e) {
@@ -142,7 +140,11 @@ export async function GET(req: Request) {
         }
         const files: FileEntry[] = [];
         for (const name of names) {
-          if (q && !id.toLowerCase().includes(q) && !name.toLowerCase().includes(q)) {
+          if (
+            q &&
+            !id.toLowerCase().includes(q) &&
+            !name.toLowerCase().includes(q)
+          ) {
             continue;
           }
           try {

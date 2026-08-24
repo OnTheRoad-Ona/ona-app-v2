@@ -1,4 +1,8 @@
-import { AdminAuthError, logAdminAction, requireAdmin } from "@/lib/server/admin-auth";
+import {
+  AdminAuthError,
+  logAdminAction,
+  requireAdmin,
+} from "@/lib/server/admin-auth";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
@@ -13,10 +17,14 @@ export const dynamic = "force-dynamic";
 /** Re-run identity sync for a user (fix sync issues from the admin board). */
 export async function POST(
   _req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     const { session } = await requireAdmin();

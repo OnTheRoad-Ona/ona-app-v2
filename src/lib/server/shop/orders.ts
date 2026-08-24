@@ -1,5 +1,5 @@
 /**
- * Shop order engine (Phase 3) — inventory reserve on pay, delivery on paid.
+ * Shop order engine (Phase 3) inventory reserve on pay, delivery on paid.
  * Separate from job desk /orders.
  *
  * Idempotency: a server-generated checkout_token makes one checkout create at
@@ -12,7 +12,10 @@
 
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { loadCart, validateCartForCheckout } from "@/lib/server/shop/cart";
-import type { ShopAccountContext, ShopOrderStatus } from "@/lib/server/shop/types";
+import type {
+  ShopAccountContext,
+  ShopOrderStatus,
+} from "@/lib/server/shop/types";
 
 function orderNumber(): string {
   const t = Date.now().toString(36).toUpperCase();
@@ -33,7 +36,7 @@ export type CreateOrderInput = {
   userId: string;
   accountContext: ShopAccountContext;
   cartId: string;
-  /** Idempotency key — duplicate token returns the existing order. */
+  /** Idempotency key duplicate token returns the existing order. */
   checkoutToken: string;
   shipToAddressId?: string | null;
   shipToSnapshot?: Record<string, unknown>;
@@ -49,7 +52,7 @@ export type CreateOrderResult = {
 };
 
 export async function createOrderFromCart(
-  input: CreateOrderInput
+  input: CreateOrderInput,
 ): Promise<CreateOrderResult> {
   const sb = createServiceSupabase();
 
@@ -97,7 +100,7 @@ export async function createOrderFromCart(
       delivery_service_code: input.delivery.serviceCode,
       delivery_eta_minutes:
         Math.round(
-          (input.delivery.etaMinutesMin + input.delivery.etaMinutesMax) / 2
+          (input.delivery.etaMinutesMin + input.delivery.etaMinutesMax) / 2,
         ) || null,
     })
     .select("id, order_number, total_minor")
@@ -137,9 +140,7 @@ export async function createOrderFromCart(
  * Atomic inventory reserve for an order. Throws when any variant cannot be
  * satisfied, so the caller can treat the whole order as unreserved.
  */
-export async function reserveInventoryForOrder(
-  orderId: string
-): Promise<void> {
+export async function reserveInventoryForOrder(orderId: string): Promise<void> {
   const sb = createServiceSupabase();
   const { data: items } = await sb
     .from("shop_order_items")
@@ -158,7 +159,9 @@ export async function reserveInventoryForOrder(
 }
 
 /** Release any reserves held for an order (payment fail / cancel / refund). */
-export async function releaseInventoryForOrder(orderId: string): Promise<number> {
+export async function releaseInventoryForOrder(
+  orderId: string,
+): Promise<number> {
   const sb = createServiceSupabase();
   const { data, error } = await sb.rpc("ona_shop_release", {
     p_order_id: orderId,
@@ -168,7 +171,9 @@ export async function releaseInventoryForOrder(orderId: string): Promise<number>
 }
 
 /** Deduct sold stock when the delivery completes. */
-export async function deductInventoryForOrder(orderId: string): Promise<number> {
+export async function deductInventoryForOrder(
+  orderId: string,
+): Promise<number> {
   const sb = createServiceSupabase();
   const { data, error } = await sb.rpc("ona_shop_fulfill_deduct", {
     p_order_id: orderId,
@@ -192,8 +197,16 @@ export async function markShopOrderPaid(opts: {
   if (!order) throw new Error("Order not found");
   if (order.status === "paid" || order.status === "fulfilling") return;
 
-  // Reserve first (atomic, all-or-nothing) — never mark paid without stock.
+  // Reserve first (atomic, all-or-nothing) never mark paid without stock.
   await reserveInventoryForOrder(opts.orderId);
+  // Paid = stock is sold: permanently deduct what was just reserved so the
+  // backend stock count reflects the purchase immediately (runs once, the
+  // paid/fulfilling guard above blocks double-run).
+  try {
+    await deductInventoryForOrder(opts.orderId);
+  } catch (e) {
+    console.error("[shop] inventory deduct failed after payment", opts.orderId, e);
+  }
 
   await sb
     .from("shop_orders")
@@ -214,10 +227,10 @@ export async function markShopOrderPaid(opts: {
     },
   });
 
-  // Delivery row (zone/service/ETA snapshot from checkout) — admin assigns courier.
+  // Delivery row (zone/service/ETA snapshot from checkout) admin assigns courier.
   const snapshot = (order.ship_to_snapshot ?? {}) as Record<string, unknown>;
   const zoneName = String(
-    snapshot.deliveryZoneName ?? order.delivery_zone_code ?? "Default"
+    snapshot.deliveryZoneName ?? order.delivery_zone_code ?? "Default",
   );
   await sb.from("shop_deliveries").upsert(
     {
@@ -231,11 +244,11 @@ export async function markShopOrderPaid(opts: {
         {
           at: new Date().toISOString(),
           status: "pending",
-          note: "Order paid — awaiting delivery assignment",
+          note: "Order paid awaiting delivery assignment",
         },
       ],
     },
-    { onConflict: "order_id" }
+    { onConflict: "order_id" },
   );
 
   // Close any open cart for this user (best effort)
@@ -258,9 +271,7 @@ export async function markShopOrderPaid(opts: {
 
   // Notify buyer
   try {
-    const { insertNotification } = await import(
-      "@/lib/server/notifications"
-    );
+    const { insertNotification } = await import("@/lib/server/notifications");
     await insertNotification({
       userId,
       category: "payments",
@@ -380,12 +391,14 @@ export async function refundShopOrder(opts: {
 export async function getUserOrders(
   userId: string,
   accountContext: ShopAccountContext = "motorist",
-  limit = 30
+  limit = 30,
 ) {
   const sb = createServiceSupabase();
   const { data, error } = await sb
     .from("shop_orders")
-    .select("id, order_number, status, total_minor, currency, created_at, paid_at")
+    .select(
+      "id, order_number, status, total_minor, currency, created_at, paid_at",
+    )
     .eq("user_id", userId)
     .eq("account_context", accountContext)
     .order("created_at", { ascending: false })
@@ -397,7 +410,7 @@ export async function getUserOrders(
 export async function getOrderForUser(
   orderId: string,
   userId: string,
-  accountContext: ShopAccountContext = "motorist"
+  accountContext: ShopAccountContext = "motorist",
 ) {
   const sb = createServiceSupabase();
   const { data: order, error } = await sb

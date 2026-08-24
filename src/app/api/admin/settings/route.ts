@@ -55,7 +55,7 @@ export async function PATCH(req: Request) {
     const result = await saveAppConfigSection(
       body.data.key,
       body.data.value,
-      session.userId
+      session.userId,
     );
     if (!result.ok) return apiFail(result.message, 500);
     await logAdminAction(session.userId, "settings.update", null, {

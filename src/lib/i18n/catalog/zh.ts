@@ -258,7 +258,8 @@ export const ZH: MessageDict = {
   "profile.reviews": "评价",
   "profile.rating": "评分",
   "verify.title": "验证你的身份",
-  "verify.subtitle": "免费试用至第 {warn} 次。请在第 {block} 次前完成，以便继续预约。",
+  "verify.subtitle":
+    "免费试用至第 {warn} 次。请在第 {block} 次前完成，以便继续预约。",
   "verify.howTitle": "验证如何运作",
   "verify.countryFromPhone": "国家/地区：{country}（来自手机号）",
   "verify.requiredFor": "{country} 必填",
@@ -346,11 +347,11 @@ export const ZH: MessageDict = {
   "settings.hub.addressesDetail": "Home, Work, service area & pin",
   "settings.dangerZone": "危险操作",
   "settings.deleteAccount": "删除账户",
-  "settings.deleteAccountDetail": "永久停用 — 无法撤销",
+  "settings.deleteAccountDetail": "永久停用 无法撤销",
   "settings.theme.tap": "点按",
   "search.noResultsFor": "没有“{q}”的结果",
   "search.tryAnother": "附近没有该技工、工种或地点。请换个搜索。",
-  "search.tryBrowse": "试试姓名、工种或地点 — 或打开首页浏览。",
+  "search.tryBrowse": "试试姓名、工种或地点 或打开首页浏览。",
   "search.noMatchesNearby": "附近无匹配",
   "search.backHome": "返回首页",
   "search.withinKm": "{km} 公里内 · {count} 条结果",
@@ -365,6 +366,7 @@ export const ZH: MessageDict = {
   "common.codeSent": "验证码已发送。请在下方输入。",
   "nav.shop": "Shop",
   "nav.myShop": "My Shop",
+  "nav.onaExpress": "Ona Express",
   "trade.shop": "Shop",
   "shop.title": "Shop",
   "shop.searchPlaceholder": "What are you looking for?",
@@ -372,6 +374,6 @@ export const ZH: MessageDict = {
   "shop.popular": "Popular",
   "shop.newArrivals": "New arrivals",
   "shop.empty": "No products yet. Catalog is loading.",
-  "shop.setupRequired": "Shop is almost ready — catalog database will appear after setup.",
+  "shop.setupRequired":
+    "Shop is almost ready catalog database will appear after setup.",
 };
-

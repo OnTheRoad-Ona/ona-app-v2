@@ -31,7 +31,7 @@ export async function writePlatformAudit(input: {
       meta: input.meta ?? {},
     });
   } catch (e) {
-    // Table may not exist until migration applied — never break request path
+    // Table may not exist until migration applied never break request path
     console.error("[platform-audit] write failed", e);
   }
 }

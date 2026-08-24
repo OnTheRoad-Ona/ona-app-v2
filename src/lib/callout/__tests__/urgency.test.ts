@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { calculateCalloutFee, resolveAppliedMultiplier } from "@/lib/callout/engine";
+import {
+  calculateCalloutFee,
+  resolveAppliedMultiplier,
+} from "@/lib/callout/engine";
 import {
   autoCalloutUrgency,
   calloutUrgencyMultiplier,
@@ -31,7 +34,7 @@ describe("call-out urgency multiplier", () => {
   });
 });
 
-describe("resolveAppliedMultiplier — chips kept, auto overrides when higher", () => {
+describe("resolveAppliedMultiplier chips kept, auto overrides when higher", () => {
   // 22:30 Lagos = 21:30 UTC (Lagos is UTC+1, no DST).
   const NIGHT_LAGOS = "2026-08-18T21:30:00Z";
   const DAY_LAGOS = "2026-08-18T12:00:00Z";
@@ -42,31 +45,31 @@ describe("resolveAppliedMultiplier — chips kept, auto overrides when higher", 
         chipKind: "normal",
         approvedDistanceKm: 3,
         acceptedAt: DAY_LAGOS,
-      })
+      }),
     ).toEqual({ multiplier: 1, kind: "normal", auto: false });
   });
 
-  it("Night auto (9PM–5AM local) overrides a Normal chip", () => {
+  it("Night auto (9PM-5AM local) overrides a Normal chip", () => {
     expect(
       resolveAppliedMultiplier({
         chipKind: "normal",
         approvedDistanceKm: 3,
         acceptedAt: NIGHT_LAGOS,
-      })
+      }),
     ).toEqual({ multiplier: 1.5, kind: "night", auto: true });
   });
 
-  it("Remote auto (4.95–5.00 km) overrides a Normal chip", () => {
+  it("Remote auto (4.95-5.00 km) overrides a Normal chip", () => {
     expect(
       resolveAppliedMultiplier({
         chipKind: "normal",
         approvedDistanceKm: 4.98,
         acceptedAt: DAY_LAGOS,
-      })
+      }),
     ).toEqual({ multiplier: 1.35, kind: "remote", auto: true });
   });
 
-  it("Night beats Remote when both apply — never stacked", () => {
+  it("Night beats Remote when both apply never stacked", () => {
     const r = resolveAppliedMultiplier({
       chipKind: "normal",
       approvedDistanceKm: 4.99,
@@ -81,7 +84,7 @@ describe("resolveAppliedMultiplier — chips kept, auto overrides when higher", 
         chipKind: "emergency",
         approvedDistanceKm: 3,
         acceptedAt: DAY_LAGOS,
-      })
+      }),
     ).toEqual({ multiplier: 1.25, kind: "emergency", auto: false });
   });
 
@@ -91,7 +94,7 @@ describe("resolveAppliedMultiplier — chips kept, auto overrides when higher", 
         chipKind: "night",
         approvedDistanceKm: 3,
         acceptedAt: DAY_LAGOS,
-      })
+      }),
     ).toEqual({ multiplier: 1.5, kind: "night", auto: false });
   });
 
@@ -102,7 +105,7 @@ describe("resolveAppliedMultiplier — chips kept, auto overrides when higher", 
         chipMultiplier: 1.25,
         approvedDistanceKm: 3,
         acceptedAt: DAY_LAGOS,
-      })
+      }),
     ).toEqual({ multiplier: 1.25, kind: "night", auto: false });
   });
 
@@ -111,13 +114,13 @@ describe("resolveAppliedMultiplier — chips kept, auto overrides when higher", 
       resolveAppliedMultiplier({
         approvedDistanceKm: 5,
         acceptedAt: DAY_LAGOS,
-      }).multiplier
+      }).multiplier,
     ).toBe(1.35);
     expect(
       resolveAppliedMultiplier({
         approvedDistanceKm: 4.94,
         acceptedAt: DAY_LAGOS,
-      }).multiplier
+      }).multiplier,
     ).toBe(1);
   });
 
@@ -127,18 +130,18 @@ describe("resolveAppliedMultiplier — chips kept, auto overrides when higher", 
       resolveAppliedMultiplier({
         acceptedAt: "2026-08-18T03:59:00Z",
         approvedDistanceKm: 3,
-      }).multiplier
+      }).multiplier,
     ).toBe(1.5);
     expect(
       resolveAppliedMultiplier({
         acceptedAt: "2026-08-18T04:00:00Z",
         approvedDistanceKm: 3,
-      }).multiplier
+      }).multiplier,
     ).toBe(1);
   });
 });
 
-describe("autoCalloutUrgency — chip auto-select, still changeable", () => {
+describe("autoCalloutUrgency chip auto-select, still changeable", () => {
   // Lagos is UTC+1 (no DST). 12:00 UTC = 13:00 Lagos (day); 21:30 UTC = 22:30 Lagos (night).
   const DAY = "2026-08-18T12:00:00Z";
   const NIGHT = "2026-08-18T21:30:00Z";
@@ -148,33 +151,33 @@ describe("autoCalloutUrgency — chip auto-select, still changeable", () => {
   });
 
   it("day + not safe to drive → emergency", () => {
-    expect(
-      autoCalloutUrgency({ unsafe: true, now: new Date(DAY) })
-    ).toBe("emergency");
+    expect(autoCalloutUrgency({ unsafe: true, now: new Date(DAY) })).toBe(
+      "emergency",
+    );
   });
 
-  it("day + 4.98 km → remote (4.95–5 km band)", () => {
-    expect(
-      autoCalloutUrgency({ distanceKm: 4.98, now: new Date(DAY) })
-    ).toBe("remote");
+  it("day + 4.98 km → remote (4.95-5 km band)", () => {
+    expect(autoCalloutUrgency({ distanceKm: 4.98, now: new Date(DAY) })).toBe(
+      "remote",
+    );
   });
 
   it("5.0 km exactly is remote; 4.94 km and 5.01 km are not", () => {
-    expect(
-      autoCalloutUrgency({ distanceKm: 5, now: new Date(DAY) })
-    ).toBe("remote");
-    expect(
-      autoCalloutUrgency({ distanceKm: 4.94, now: new Date(DAY) })
-    ).toBe("normal");
-    expect(
-      autoCalloutUrgency({ distanceKm: 5.01, now: new Date(DAY) })
-    ).toBe("normal");
+    expect(autoCalloutUrgency({ distanceKm: 5, now: new Date(DAY) })).toBe(
+      "remote",
+    );
+    expect(autoCalloutUrgency({ distanceKm: 4.94, now: new Date(DAY) })).toBe(
+      "normal",
+    );
+    expect(autoCalloutUrgency({ distanceKm: 5.01, now: new Date(DAY) })).toBe(
+      "normal",
+    );
   });
 
   it("unknown distance → normal, never remote", () => {
-    expect(
-      autoCalloutUrgency({ distanceKm: null, now: new Date(DAY) })
-    ).toBe("normal");
+    expect(autoCalloutUrgency({ distanceKm: null, now: new Date(DAY) })).toBe(
+      "normal",
+    );
   });
 
   it("night beats an unsafe diagnosis and the remote band", () => {
@@ -183,16 +186,16 @@ describe("autoCalloutUrgency — chip auto-select, still changeable", () => {
         unsafe: true,
         distanceKm: 4.98,
         now: new Date(NIGHT),
-      })
+      }),
     ).toBe("night");
   });
 
   it("05:00 Lagos exactly is day; 04:59 Lagos is night", () => {
     expect(autoCalloutUrgency({ now: new Date("2026-08-18T04:00:00Z") })).toBe(
-      "normal"
+      "normal",
     );
     expect(autoCalloutUrgency({ now: new Date("2026-08-18T03:59:00Z") })).toBe(
-      "night"
+      "night",
     );
   });
 });

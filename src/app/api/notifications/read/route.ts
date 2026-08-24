@@ -12,7 +12,7 @@ const bodySchema = z.object({
   ids: z.array(z.string().min(1)).min(1).max(50),
 });
 
-/** POST /api/notifications/read — mark specific notifications read */
+/** POST /api/notifications/read mark specific notifications read */
 export async function POST(req: Request) {
   if (!isSupabaseAdminConfigured()) {
     return apiFail("Supabase is not configured", 503);

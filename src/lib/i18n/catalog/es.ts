@@ -89,7 +89,8 @@ export const ES: MessageDict = {
   "settings.darkMode": "Modo oscuro",
   "settings.lightMode": "Modo claro",
   "settings.themeSaved": "Guardado para {name}",
-  "settings.themeDevice": "Preferencia del dispositivo · inicia sesión para guardar por cuenta",
+  "settings.themeDevice":
+    "Preferencia del dispositivo · inicia sesión para guardar por cuenta",
   "settings.alerts": "Alertas",
   "settings.notificationsSound": "Notificaciones y sonido",
   "settings.notificationsDetail": "Push, SMS, correo, horas tranquilas, tonos",
@@ -104,7 +105,8 @@ export const ES: MessageDict = {
   "settings.profilePro": "Perfil Repair Pro, documentos, precios",
   "settings.profileMotorist": "Perfil de cliente, vehículos, identidad",
   "settings.artisanTiers": "Verificación",
-  "settings.artisanTiersDetail": "Teléfono, ID, BVN, rostro, prueba de habilidad",
+  "settings.artisanTiersDetail":
+    "Teléfono, ID, BVN, rostro, prueba de habilidad",
   "settings.help": "Ayuda",
   "settings.helpDetail": "Cómo funciona Ona",
   "settings.language": "Idioma",
@@ -112,7 +114,8 @@ export const ES: MessageDict = {
   "settings.aboutDetail": "Versión 0.1 · ayuda cerca",
   "language.title": "Idioma",
   "language.subtitle": "Idioma de la app",
-  "language.hint": "Elige el idioma de menús y botones. El inglés es el predeterminado.",
+  "language.hint":
+    "Elige el idioma de menús y botones. El inglés es el predeterminado.",
   "language.saved": "Idioma actualizado",
   "language.current": "Actual",
   "notif.title": "Notificaciones y sonido",
@@ -132,7 +135,8 @@ export const ES: MessageDict = {
   "notif.savePrefs": "Guardar preferencias",
   "notif.saved": "Guardado",
   "notif.saving": "Guardando…",
-  "notif.savedDevice": "Guardado en este dispositivo. Sincronización del servidor pronto.",
+  "notif.savedDevice":
+    "Guardado en este dispositivo. Sincronización del servidor pronto.",
   "notif.jobsRequests": "Trabajos y solicitudes",
   "notif.jobsRequestsDetail": "Nuevos trabajos, en camino, llegado, completado",
   "notif.messages": "Mensajes",
@@ -149,7 +153,8 @@ export const ES: MessageDict = {
   "notif.emailDetail": "Resúmenes y recibos",
   "location.title": "Mi ubicación",
   "location.subtitle": "Indica dónde estás",
-  "location.hint": "Busca un lugar o mueve el pin. Se usa en el mapa de inicio y pros cercanos.",
+  "location.hint":
+    "Busca un lugar o mueve el pin. Se usa en el mapa de inicio y pros cercanos.",
   "location.saved": "Ubicación guardada",
   "location.myLocationBtn": "Mi ubicación",
   "location.tapMap": "Toca el mapa o arrastra el pin",
@@ -180,7 +185,8 @@ export const ES: MessageDict = {
   "home.findingPlace": "Buscando lugar…",
   "home.pickSuggestion": "Elige una sugerencia de la lista.",
   "home.typeAddress": "Escribe una dirección o elige.",
-  "home.couldNotFind": "No se encontró el lugar. Prueba una dirección completa.",
+  "home.couldNotFind":
+    "No se encontró el lugar. Prueba una dirección completa.",
   "home.expandPanel": "Desliza arriba para expandir",
   "home.collapsePanel": "Desliza abajo para replegar",
   "home.noProsAvailable": "No hay pros disponibles",
@@ -208,7 +214,8 @@ export const ES: MessageDict = {
   "trade.solar": "Solar",
   "trade.generator": "Generador",
   "trade.all": "Todos",
-  "gate.finishBeforeLive": "Termina la verificación y envía a revisión antes de estar Live.",
+  "gate.finishBeforeLive":
+    "Termina la verificación y envía a revisión antes de estar Live.",
   "gate.continueVerification": "Continuar verificación",
   "gate.viewStatus": "Ver estado",
   "status.draft": "Borrador",
@@ -258,7 +265,8 @@ export const ES: MessageDict = {
   "profile.reviews": "Reseñas",
   "profile.rating": "Valoración",
   "verify.title": "Verifica tu identidad",
-  "verify.subtitle": "Prueba gratis hasta el trabajo {warn}. Termina antes del {block} para seguir reservando.",
+  "verify.subtitle":
+    "Prueba gratis hasta el trabajo {warn}. Termina antes del {block} para seguir reservando.",
   "verify.howTitle": "Cómo funciona la verificación",
   "verify.countryFromPhone": "País: {country} (según tu teléfono)",
   "verify.requiredFor": "Obligatorio para {country}",
@@ -291,7 +299,8 @@ export const ES: MessageDict = {
   "gate.verifySoon": "Verifica pronto para mantener el acceso completo",
   "gate.verifyNow": "Verifica tu ID ahora",
   "gate.required": "Verificación requerida",
-  "gate.exploreFree": "Exploraste la app libremente. Verifica tu ID una vez para reservar sin límites.",
+  "gate.exploreFree":
+    "Exploraste la app libremente. Verifica tu ID una vez para reservar sin límites.",
   "menu.settings": "Ajustes",
   "menu.help": "Ayuda",
   "menu.switchRole": "Cambiar rol",
@@ -312,7 +321,8 @@ export const ES: MessageDict = {
   "menu.logIn": "Iniciar sesión",
   "menu.needLogin": "Inicia sesión para cambiar entre Cliente y Repair Pro.",
   "menu.noMotorist": "Aún no tienes una cuenta de Cliente.",
-  "menu.noPro": "Aún no tienes una cuenta Repair Pro. Termina el registro para estar Live y recibir trabajos.",
+  "menu.noPro":
+    "Aún no tienes una cuenta Repair Pro. Termina el registro para estar Live y recibir trabajos.",
   "menu.couldNotSwitch": "No se pudo cambiar.",
   "menu.tapToClose": "Toca para cerrar",
   "menu.signedInAs": "Sesión iniciada como {name}",
@@ -346,11 +356,13 @@ export const ES: MessageDict = {
   "settings.hub.addressesDetail": "Home, Work, service area & pin",
   "settings.dangerZone": "Zona de peligro",
   "settings.deleteAccount": "Eliminar cuenta",
-  "settings.deleteAccountDetail": "Desactivar permanentemente — no se puede deshacer",
+  "settings.deleteAccountDetail":
+    "Desactivar permanentemente no se puede deshacer",
   "settings.theme.tap": "Toca",
   "search.noResultsFor": "Sin resultados para “{q}”",
-  "search.tryAnother": "Ese pro, oficio o lugar no está disponible cerca. Prueba otra búsqueda.",
-  "search.tryBrowse": "Prueba un nombre, oficio o lugar — o abre Inicio.",
+  "search.tryAnother":
+    "Ese pro, oficio o lugar no está disponible cerca. Prueba otra búsqueda.",
+  "search.tryBrowse": "Prueba un nombre, oficio o lugar o abre Inicio.",
   "search.noMatchesNearby": "Sin coincidencias cerca",
   "search.backHome": "Volver al inicio",
   "search.withinKm": "En {km} km · {count} resultado",
@@ -359,12 +371,14 @@ export const ES: MessageDict = {
   "search.placeholder": "Buscar problema, técnico, servicio…",
   "search.title": "Buscar",
   "search.subtitle": "Trabajadores cualificados cerca",
-  "home.searchNoResults": "Sin resultados para “{q}”. Prueba otro nombre, oficio o lugar.",
+  "home.searchNoResults":
+    "Sin resultados para “{q}”. Prueba otro nombre, oficio o lugar.",
   "common.customer": "Cliente",
   "common.repairPro": "Repair Pro",
   "common.codeSent": "Código enviado. Introdúcelo abajo.",
   "nav.shop": "Shop",
   "nav.myShop": "My Shop",
+  "nav.onaExpress": "Ona Express",
   "trade.shop": "Shop",
   "shop.title": "Shop",
   "shop.searchPlaceholder": "What are you looking for?",
@@ -372,6 +386,6 @@ export const ES: MessageDict = {
   "shop.popular": "Popular",
   "shop.newArrivals": "New arrivals",
   "shop.empty": "No products yet. Catalog is loading.",
-  "shop.setupRequired": "Shop is almost ready — catalog database will appear after setup.",
+  "shop.setupRequired":
+    "Shop is almost ready catalog database will appear after setup.",
 };
-

@@ -11,11 +11,14 @@ export async function GET(req: NextRequest) {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return NextResponse.json(
       { error: "lat and lng are required numbers" },
-      { status: 400 }
+      { status: 400 },
     );
   }
   if (Math.abs(lat) > 90 || Math.abs(lng) > 180) {
-    return NextResponse.json({ error: "lat/lng out of range" }, { status: 400 });
+    return NextResponse.json(
+      { error: "lat/lng out of range" },
+      { status: 400 },
+    );
   }
 
   const result = await reverseGeocodeLatLngServer(lat, lng);

@@ -15,7 +15,7 @@ type StaffRow = {
   isActive: boolean;
 };
 
-/** Full L1–L5 ladder — always visible so operators can see every level */
+/** Full L1-L5 ladder always visible so operators can see every level */
 const LEVEL_GUIDE: {
   value: string;
   level: number;
@@ -52,7 +52,7 @@ const LEVEL_GUIDE: {
     value: "manager",
     level: 4,
     label: "Manager",
-    blurb: "Content + assign L1–L3 staff",
+    blurb: "Content + assign L1-L3 staff",
     color: "#6d28d9",
     soft: "#ede9fe",
   },
@@ -60,7 +60,7 @@ const LEVEL_GUIDE: {
     value: "super_admin",
     level: 5,
     label: "Super Admin",
-    blurb: "Owner · all settings · assign L1–L5",
+    blurb: "Owner · all settings · assign L1-L5",
     color: "#1a1b1e",
     soft: "#e5e7eb",
   },
@@ -123,7 +123,7 @@ export default function AdminStaffPage() {
         }
         setMsg(`Access level updated → ${res.data.roleLabel}`);
         await load();
-      }
+      },
     );
     setBusyId(null);
   }
@@ -138,7 +138,9 @@ export default function AdminStaffPage() {
     actorRole === "super_admin" || assignable.length >= 5
       ? LEVEL_OPTIONS
       : LEVEL_OPTIONS.filter(
-          (o) => assignable.includes(o.value) || staff.some((s) => s.adminRole === o.value)
+          (o) =>
+            assignable.includes(o.value) ||
+            staff.some((s) => s.adminRole === o.value),
         );
 
   return (
@@ -147,7 +149,7 @@ export default function AdminStaffPage() {
       <p className="om-admin-sub">
         Ona staff uses five fixed levels. Everyone who can open the admin panel
         must have <code>profiles.role = admin</code> and an{" "}
-        <code>admin_role</code> of L1–L5 below.
+        <code>admin_role</code> of L1-L5 below.
       </p>
 
       <AdminGuideBanner pageId="staff" />
@@ -162,7 +164,7 @@ export default function AdminStaffPage() {
         aria-label="Access levels Level 1 to Level 5"
       >
         <h2 className="om-admin-h2" style={{ marginTop: 0 }}>
-          Levels 1 – 5
+          Levels 1, 5
         </h2>
         <p className="om-admin-muted" style={{ marginBottom: 12 }}>
           These are the only access levels. Your account must be L4 or L5 to
@@ -250,14 +252,14 @@ export default function AdminStaffPage() {
                   <strong>profiles.admin_role</strong> set to one of:{" "}
                   customer_care (L1), senior_support (L2), operations (L3),
                   manager (L4), super_admin (L5). Right now only true admin
-                  panel logins are listed — regular motorist/pro accounts are
+                  panel logins are listed regular motorist/pro accounts are
                   hidden even if admin_role was set by mistake.
                 </td>
               </tr>
             ) : (
               staff.map((s) => (
                 <tr key={s.id}>
-                  <td>{s.fullName || "—"}</td>
+                  <td>{s.fullName || ""}</td>
                   <td className="om-admin-muted">{s.email}</td>
                   <td>
                     <span className="om-admin-badge">{s.roleLabel}</span>
@@ -279,7 +281,7 @@ export default function AdminStaffPage() {
                         : dropdownOptions.filter(
                             (o) =>
                               assignable.includes(o.value) ||
-                              o.value === s.adminRole
+                              o.value === s.adminRole,
                           )
                       ).map((o) => (
                         <option key={o.value} value={o.value}>

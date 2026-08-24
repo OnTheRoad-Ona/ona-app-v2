@@ -1,6 +1,6 @@
 /**
  * Apply automatic Repair Pro search-visibility ladder after verification events.
- * Care never sets visibility_tier manually — only approve T2 / T4 (and pro completes liveness + BVN).
+ * Care never sets visibility_tier manually only approve T2 / T4 (and pro completes liveness + BVN).
  */
 
 import {
@@ -15,13 +15,13 @@ type ServiceClient = ReturnType<typeof createServiceSupabase>;
 export async function recomputeProVisibility(
   supabase: ServiceClient,
   userId: string,
-  opts?: { now?: string; preserveTier2ApprovedAt?: boolean }
+  opts?: { now?: string; preserveTier2ApprovedAt?: boolean },
 ): Promise<{ tier: VisibilityTier; changed: boolean }> {
   const now = opts?.now || new Date().toISOString();
   const { data: pro, error } = await supabase
     .from("repair_pro_profiles")
     .select(
-      "visibility_tier, gov_id_review_status, verified, nin_verified, bvn_verified, face_liveness_verified, liveness_passed_at, docs_status, tier2_approved_at, tier3_approved_at, tier4_approved_at, go_live_window_ends_at"
+      "visibility_tier, gov_id_review_status, verified, nin_verified, bvn_verified, face_liveness_verified, liveness_passed_at, docs_status, tier2_approved_at, tier3_approved_at, tier4_approved_at, go_live_window_ends_at",
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -53,6 +53,9 @@ export async function recomputeProVisibility(
     patch.go_live_window_ends_at = null;
   }
 
-  await supabase.from("repair_pro_profiles").update(patch).eq("user_id", userId);
+  await supabase
+    .from("repair_pro_profiles")
+    .update(patch)
+    .eq("user_id", userId);
   return { tier: next, changed: true };
 }

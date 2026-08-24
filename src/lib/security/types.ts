@@ -27,12 +27,7 @@ export type CreditTxType =
   | "adjust"
   | "service_spend";
 export type CreditTxStatus =
-  | "pending"
-  | "approved"
-  | "completed"
-  | "failed"
-  | "reversed"
-  | "blocked";
+  "pending" | "approved" | "completed" | "failed" | "reversed" | "blocked";
 
 export type CashoutStatus =
   | "pending"
@@ -44,10 +39,7 @@ export type CashoutStatus =
   | "reversed";
 
 export type ReferralEventStatus =
-  | "pending"
-  | "approved"
-  | "rejected"
-  | "reversed";
+  "pending" | "approved" | "rejected" | "reversed";
 
 export type SessionStatus = "active" | "revoked" | "expired";
 

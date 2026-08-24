@@ -1,23 +1,30 @@
 /**
  * ONA Shop catalog normalization (Phase 2).
  * Deterministic ids, normalized brand/manufacturer/model/SKU/part-number keys,
- * and dedup keys. All pure functions — unit-testable without a database.
+ * and dedup keys. All pure functions unit-testable without a database.
  */
 
 import { createHash } from "node:crypto";
 
 /** Deterministic UUID (name-based, SHA-256) from a canonical key. */
-export function deterministicId(...parts: (string | number | null | undefined)[]): string {
-  const joined = parts.filter((p) => p !== null && p !== undefined).join("::").toLowerCase();
+export function deterministicId(
+  ...parts: (string | number | null | undefined)[]
+): string {
+  const joined = parts
+    .filter((p) => p !== null && p !== undefined)
+    .join("::")
+    .toLowerCase();
   const hex = createHash("sha256").update(joined).digest("hex").slice(0, 32);
   return (
     hex.slice(0, 8) +
     "-" +
     hex.slice(8, 12) +
     "-" +
-    "5" + hex.slice(13, 16) +
+    "5" +
+    hex.slice(13, 16) +
     "-" +
-    ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16) + hex.slice(17, 20) +
+    ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16) +
+    hex.slice(17, 20) +
     "-" +
     hex.slice(20, 32)
   );
@@ -52,7 +59,7 @@ export function normalizePartNumber(input: string | null | undefined): string {
     .replace(/["'“”‘’`~!@#$%^&*()_=+\[\]{}\\|;:,.<>?]/g, "");
 }
 
-/** Canonical part identity — alphanumerics only, for dedup/fuzzy matching. */
+/** Canonical part identity alphanumerics only, for dedup/fuzzy matching. */
 export function canonicalPart(input: string | null | undefined): string {
   return String(input || "")
     .toUpperCase()
@@ -113,7 +120,12 @@ export function dedupKeyForVariant(input: {
     ]
       .filter((v) => v != null && v !== "")
       .join("|");
-    return deterministicId("oem", canonicalPart(oem), input.tradeKey, fit || "");
+    return deterministicId(
+      "oem",
+      canonicalPart(oem),
+      input.tradeKey,
+      fit || "",
+    );
   }
   const mpn = normalizePartNumber(input.mpn);
   if (mpn) {
@@ -166,5 +178,7 @@ export function mapExternalCategory(input: {
 }
 
 export function checksum(input: unknown): string {
-  return createHash("sha256").update(JSON.stringify(input ?? {})).digest("hex");
+  return createHash("sha256")
+    .update(JSON.stringify(input ?? {}))
+    .digest("hex");
 }

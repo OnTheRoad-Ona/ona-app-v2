@@ -3,10 +3,17 @@
 /**
  * Shared bank form: searchable bank combobox (country-geo list) → code auto;
  * enter 10-digit account number → account name resolves (Flutterwave).
- * Dropdown opens downward — never a full-page takeover.
+ * Dropdown opens downward never a full-page takeover.
  */
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   bankAccountMatchesSignupName,
   bankNameForCode,
@@ -66,10 +73,7 @@ function BankSearchSelect({
   const selected = useMemo(() => {
     const { code, name } = parseSelectValue(value);
     if (!code) return null;
-    return (
-      banks.find((b) => b.code === code) ||
-      (name ? { code, name } : null)
-    );
+    return banks.find((b) => b.code === code) || (name ? { code, name } : null);
   }, [banks, value]);
 
   useEffect(() => {
@@ -91,8 +95,7 @@ function BankSearchSelect({
     return banks
       .filter(
         (b) =>
-          b.name.toLowerCase().includes(q) ||
-          b.code.toLowerCase().includes(q)
+          b.name.toLowerCase().includes(q) || b.code.toLowerCase().includes(q),
       )
       .slice(0, 80);
   }, [banks, query]);
@@ -125,7 +128,7 @@ function BankSearchSelect({
         className={cn(
           "h-11 w-full rounded-lg border-0 px-3 text-[13px] font-semibold outline-none",
           fieldClass,
-          disabled && "opacity-55"
+          disabled && "opacity-55",
         )}
         value={open ? query : selected?.name || query}
         onFocus={() => {
@@ -177,7 +180,7 @@ function BankSearchSelect({
                         : "bg-white/10"
                       : isLight
                         ? "hover:bg-black/5"
-                        : "hover:bg-white/10"
+                        : "hover:bg-white/10",
                   )}
                   onMouseEnter={() => setHighlight(i)}
                   onMouseDown={(e) => {
@@ -201,7 +204,7 @@ export function BankDetailsFields({
   initial,
   onChange,
   className,
-  /** Signup full name — account name must match ≥2 name parts */
+  /** Signup full name account name must match ≥2 name parts */
   signupFullName,
   /** ISO country for bank list geo-fence (default NG) */
   countryIso,
@@ -217,10 +220,10 @@ export function BankDetailsFields({
   const [bankCode, setBankCode] = useState(initial?.bankCode || "");
   const [bankName, setBankName] = useState(initial?.bankName || "");
   const [bankAccountName, setBankAccountName] = useState(
-    initial?.bankAccountName || ""
+    initial?.bankAccountName || "",
   );
   const [bankAccountNumber, setBankAccountNumber] = useState(
-    initial?.bankAccountNumber || ""
+    initial?.bankAccountNumber || "",
   );
   const [loadingBanks, setLoadingBanks] = useState(true);
   const [resolving, setResolving] = useState(false);
@@ -232,7 +235,7 @@ export function BankDetailsFields({
     (next: BankDetailsValue) => {
       onChange?.(next);
     },
-    [onChange]
+    [onChange],
   );
 
   const iso = (countryIso || "NG").toUpperCase().slice(0, 2);
@@ -299,11 +302,11 @@ export function BankDetailsFields({
         lastResolved.current = key;
         const match = bankAccountMatchesSignupName(
           res.accountName,
-          signupFullName
+          signupFullName,
         );
         setBankAccountName(res.accountName);
         setResolveMsg(
-          match.ok || !signupFullName?.trim() ? "Name verified" : null
+          match.ok || !signupFullName?.trim() ? "Name verified" : null,
         );
         emit({
           bankCode: code,
@@ -315,7 +318,7 @@ export function BankDetailsFields({
         setResolveMsg(res.error);
       }
     },
-    [bankName, banks, emit, signupFullName]
+    [bankName, banks, emit, signupFullName],
   );
 
   // Auto-resolve name + uniqueness when bank + 10 digits ready
@@ -344,7 +347,7 @@ export function BankDetailsFields({
 
   const selectVal = useMemo(
     () => selectValue(bankCode, bankName),
-    [bankCode, bankName]
+    [bankCode, bankName],
   );
 
   const field = isLight
@@ -414,7 +417,7 @@ export function BankDetailsFields({
         <input
           className={cn(
             "mt-1 h-11 w-full rounded-lg border-0 px-3 text-[13px] font-semibold outline-none",
-            field
+            field,
           )}
           value={bankAccountNumber}
           onChange={(e) => onAccountNumberChange(e.target.value)}
@@ -437,7 +440,7 @@ export function BankDetailsFields({
           className={cn(
             "mt-1 h-11 w-full rounded-lg border-0 px-3 text-[13px] font-semibold outline-none",
             field,
-            resolving && "opacity-80"
+            resolving && "opacity-80",
           )}
           value={bankAccountName}
           onChange={(e) => {
@@ -463,7 +466,7 @@ export function BankDetailsFields({
               resolveMsg === "Name verified" ||
                 resolveMsg.toLowerCase().includes("verified")
                 ? "text-emerald-600"
-                : "text-red-500"
+                : "text-red-500",
             )}
           >
             {resolveMsg}
@@ -475,7 +478,7 @@ export function BankDetailsFields({
 }
 
 export function useBankDetailsValue(
-  initial?: Partial<BankDetailsValue>
+  initial?: Partial<BankDetailsValue>,
 ): [
   BankDetailsValue,
   (v: BankDetailsValue) => void,

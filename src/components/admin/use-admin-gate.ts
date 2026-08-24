@@ -26,13 +26,13 @@ export function useAdminGate() {
         });
         const meJson = await me.json();
         if (!meJson.ok) {
-          router.replace("/admin/login");
+          router.replace("/admin/login?expired=1");
           return;
         }
         if (!cancelled) {
           setAdminName(meJson.data.fullName || meJson.data.email || "Admin");
           const role = normalizeAdminRoleUi(
-            meJson.data.adminRole || meJson.data.role
+            meJson.data.adminRole || meJson.data.role,
           );
           setAdminRole(role);
           setRoleLabel(meJson.data.roleLabel || adminRoleLabel(role));
@@ -48,9 +48,9 @@ export function useAdminGate() {
   }, [router]);
 
   const api = useCallback(
-    async <T,>(
+    async <T>(
       path: string,
-      init?: RequestInit
+      init?: RequestInit,
     ): Promise<
       | { ok: true; data: T }
       | { ok: false; message: string; status: number; code?: string }
@@ -63,7 +63,7 @@ export function useAdminGate() {
         const json = await res.json();
         if (!json.ok) {
           if (res.status === 401) {
-            router.replace("/admin/login");
+            router.replace("/admin/login?expired=1");
           }
           return {
             ok: false,
@@ -77,7 +77,7 @@ export function useAdminGate() {
         return { ok: false, message: "Network error", status: 0 };
       }
     },
-    [router]
+    [router],
   );
 
   return {

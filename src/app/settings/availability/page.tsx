@@ -27,7 +27,7 @@ export default function SettingsAvailabilityPage() {
   const [radius, setRadius] = useState(8);
   const [vacation, setVacation] = useState(false);
   const [days, setDays] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(DAYS.map((d) => [d, true]))
+    Object.fromEntries(DAYS.map((d) => [d, true])),
   );
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -35,12 +35,12 @@ export default function SettingsAvailabilityPage() {
   useEffect(() => {
     if (userProfile?.serviceRadiusKm != null) {
       setRadius(
-        Math.min(MAX_RADIUS_KM, Math.max(1, userProfile.serviceRadiusKm))
+        Math.min(MAX_RADIUS_KM, Math.max(1, userProfile.serviceRadiusKm)),
       );
     }
     try {
       const raw = localStorage.getItem(
-        `ona-pro-schedule:${userProfile?.email || "x"}`
+        `ona-pro-schedule:${userProfile?.email || "x"}`,
       );
       if (raw) {
         const p = JSON.parse(raw) as {
@@ -57,7 +57,12 @@ export default function SettingsAvailabilityPage() {
 
   if (accountType !== "professional") {
     return (
-      <div className={cn("flex h-full flex-col", isLight ? "bg-[#c8c9cd]" : "bg-black")}>
+      <div
+        className={cn(
+          "flex h-full flex-col",
+          isLight ? "bg-[#c8c9cd]" : "bg-black",
+        )}
+      >
         <PageHeader title="Availability" backHref="/settings" />
         <p className="px-4 text-[13px]">Repair Pros only.</p>
       </div>
@@ -77,7 +82,7 @@ export default function SettingsAvailabilityPage() {
     try {
       localStorage.setItem(
         `ona-pro-schedule:${userProfile?.email || "x"}`,
-        JSON.stringify({ days, vacation })
+        JSON.stringify({ days, vacation }),
       );
     } catch {
       /* */
@@ -88,7 +93,7 @@ export default function SettingsAvailabilityPage() {
     setMsg(
       vacation
         ? "Saved. Vacation mode is on. Live is off for new jobs."
-        : "Availability & radius saved."
+        : "Availability & radius saved.",
     );
   };
 
@@ -96,7 +101,7 @@ export default function SettingsAvailabilityPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader
@@ -108,14 +113,14 @@ export default function SettingsAvailabilityPage() {
         <div
           className={cn(
             "flex items-center justify-between rounded-md px-3 py-3",
-            "bg-transparent"
+            "bg-transparent",
           )}
         >
           <div>
             <p
               className={cn(
                 "text-[13px] font-bold",
-                isLight ? "text-slate-900" : "text-white"
+                isLight ? "text-slate-900" : "text-white",
               )}
             >
               Vacation mode
@@ -123,7 +128,7 @@ export default function SettingsAvailabilityPage() {
             <p
               className={cn(
                 "text-[11px] font-medium",
-                isLight ? "text-slate-600" : "text-white/60"
+                isLight ? "text-slate-600" : "text-white/60",
               )}
             >
               Pauses new job requests (turns Live off).
@@ -136,28 +141,27 @@ export default function SettingsAvailabilityPage() {
             onClick={() => setVacation((v) => !v)}
             className={cn(
               "h-7 w-12 shrink-0 rounded-full border-0",
-              vacation ? "bg-[#FF6B35]" : isLight ? "bg-black/20" : "bg-white/20"
+              vacation
+                ? "bg-[#FF6B35]"
+                : isLight
+                  ? "bg-black/20"
+                  : "bg-white/20",
             )}
           >
             <span
               className={cn(
                 "block h-5 w-5 rounded-full bg-white transition-transform",
-                vacation ? "translate-x-6" : "translate-x-1"
+                vacation ? "translate-x-6" : "translate-x-1",
               )}
             />
           </button>
         </div>
 
-        <div
-          className={cn(
-            "rounded-md px-3 py-3",
-            "bg-transparent"
-          )}
-        >
+        <div className={cn("rounded-md px-3 py-3", "bg-transparent")}>
           <p
             className={cn(
               "mb-2 text-[13px] font-bold",
-              isLight ? "text-slate-900" : "text-white"
+              isLight ? "text-slate-900" : "text-white",
             )}
           >
             Available days
@@ -174,7 +178,7 @@ export default function SettingsAvailabilityPage() {
                     ? "bg-[#FF6B35] text-white"
                     : isLight
                       ? "bg-black/10 text-slate-700"
-                      : "bg-white/10 text-white/70"
+                      : "bg-white/10 text-white/70",
                 )}
               >
                 {d}
@@ -183,16 +187,11 @@ export default function SettingsAvailabilityPage() {
           </div>
           <SettingsComingSoon
             isLight={isLight}
-            title="Hourly time blocks (e.g. 9:00–17:00)"
+            title="Hourly time blocks (e.g. 9:00-17:00)"
           />
         </div>
 
-        <div
-          className={cn(
-            "rounded-md px-3 py-3",
-            "bg-transparent"
-          )}
-        >
+        <div className={cn("rounded-md px-3 py-3", "bg-transparent")}>
           <SettingsField
             label={`Coverage radius · ${radius} km (max ${MAX_RADIUS_KM})`}
             isLight={isLight}

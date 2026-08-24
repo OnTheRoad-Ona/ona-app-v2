@@ -9,7 +9,7 @@ import {
 import type { ArtisanVerificationProfile } from "@/lib/artisan/types";
 
 function draft(
-  overrides: Partial<ArtisanVerificationProfile> = {}
+  overrides: Partial<ArtisanVerificationProfile> = {},
 ): ArtisanVerificationProfile {
   return {
     userId: "user-1",
@@ -41,14 +41,14 @@ function draft(
 
 describe("isServerT2Approved", () => {
   it("approves from pro.gov_id_review_status", () => {
-    expect(
-      isServerT2Approved({ gov_id_review_status: "approved" }, null)
-    ).toBe(true);
+    expect(isServerT2Approved({ gov_id_review_status: "approved" }, null)).toBe(
+      true,
+    );
   });
 
   it("approves from dual motorist identity", () => {
     expect(
-      isServerT2Approved(null, { identity_review_status: "approved" })
+      isServerT2Approved(null, { identity_review_status: "approved" }),
     ).toBe(true);
   });
 
@@ -59,7 +59,7 @@ describe("isServerT2Approved", () => {
 
   it("rejects plain submitted", () => {
     expect(
-      isServerT2Approved({ gov_id_review_status: "submitted" }, null)
+      isServerT2Approved({ gov_id_review_status: "submitted" }, null),
     ).toBe(false);
   });
 });
@@ -70,8 +70,8 @@ describe("resolveGovIdReviewFromServer", () => {
       resolveGovIdReviewFromServer(
         { gov_id_review_status: "approved" },
         null,
-        "submitted"
-      )
+        "submitted",
+      ),
     ).toBe("approved");
   });
 
@@ -80,8 +80,8 @@ describe("resolveGovIdReviewFromServer", () => {
       resolveGovIdReviewFromServer(
         { gov_id_review_status: "submitted" },
         { identity_review_status: "approved" },
-        "submitted"
-      )
+        "submitted",
+      ),
     ).toBe("approved");
   });
 
@@ -90,8 +90,8 @@ describe("resolveGovIdReviewFromServer", () => {
       resolveGovIdReviewFromServer(
         { gov_id_review_status: "submitted" },
         null,
-        "submitted"
-      )
+        "submitted",
+      ),
     ).toBe("submitted");
   });
 });

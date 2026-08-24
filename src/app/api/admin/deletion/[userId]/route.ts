@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ userId: string }> }
+  { params }: { params: Promise<{ userId: string }> },
 ) {
   if (!isSupabaseAdminConfigured()) {
     return apiFail("Database not configured", 503, "no_db");

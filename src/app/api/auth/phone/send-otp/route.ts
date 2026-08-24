@@ -1,5 +1,5 @@
 /**
- * Legacy phone OTP send — forwards to unified /api/auth/otp/send
+ * Legacy phone OTP send forwards to unified /api/auth/otp/send
  */
 import { apiFail, apiOk } from "@/lib/server/api-json";
 
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     return apiFail(
       json?.error?.message || "Could not send code",
       res.status || 400,
-      json?.error?.code || "error"
+      json?.error?.code || "error",
     );
   }
   return apiOk(json.data);

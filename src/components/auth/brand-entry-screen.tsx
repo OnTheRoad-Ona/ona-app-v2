@@ -35,7 +35,7 @@ export function BrandEntryScreen({
       role="dialog"
       aria-label={t("brand.name")}
     >
-      {/* Confined to phone shell — cover crop, no full-window bleed */}
+      {/* Confined to phone shell cover crop, no full-window bleed */}
       <BrandHeroMotion
         size="splash"
         bottomFade={false}
@@ -47,7 +47,7 @@ export function BrandEntryScreen({
       <div
         className={cn(
           "absolute inset-x-0 top-0 z-10 px-6 pt-[max(2.75rem,env(safe-area-inset-top))]",
-          animateIn && "om-apple-motion-delay"
+          animateIn && "om-apple-motion-delay",
         )}
       >
         <div className="text-center">
@@ -77,7 +77,7 @@ export function BrandEntryScreen({
       <div
         className={cn(
           "absolute inset-x-0 bottom-0 z-10 px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]",
-          animateIn && "om-apple-motion-panel"
+          animateIn && "om-apple-motion-panel",
         )}
       >
         <div className="mx-auto flex w-full max-w-[340px] flex-col gap-2.5">

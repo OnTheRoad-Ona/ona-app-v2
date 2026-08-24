@@ -18,7 +18,7 @@ export const PASSWORD_GATED_PATHS = [
 export function isPasswordGatedPath(href: string): boolean {
   const path = href.split("?")[0].split("#")[0];
   return PASSWORD_GATED_PATHS.some(
-    (p) => path === p || path.startsWith(`${p}/`)
+    (p) => path === p || path.startsWith(`${p}/`),
   );
 }
 
@@ -30,16 +30,17 @@ async function isSuperAdminSession(): Promise<boolean> {
       cache: "no-store",
     });
     const json = await res.json().catch(() => null);
-    // Only L5 — profiles.role is often "admin" for all staff levels
+    // Only L5 profiles.role is often "admin" for all staff levels
     return Boolean(json?.ok && json.data?.adminRole === "super_admin");
   } catch {
     return false;
   }
 }
 
-async function postUnlock(password: string): Promise<
-  | { ok: true; expiresAt: number | null }
-  | { ok: false; message: string }
+async function postUnlock(
+  password: string,
+): Promise<
+  { ok: true; expiresAt: number | null } | { ok: false; message: string }
 > {
   try {
     const res = await fetch("/api/admin/care/unlock", {
@@ -79,8 +80,8 @@ type ModalState = {
  * Use: const ok = await promptSensitivePassword({ title, detail })
  */
 let openPrompt:
-  | ((opts: { title: string; detail?: string }) => Promise<boolean>)
-  | null = null;
+  ((opts: { title: string; detail?: string }) => Promise<boolean>) | null =
+  null;
 
 export async function promptSensitivePassword(opts: {
   title: string;
@@ -101,10 +102,10 @@ export async function promptSensitivePassword(opts: {
  */
 export async function withSensitivePassword(
   opts: { title: string; detail?: string },
-  fn: () => Promise<void>
+  fn: () => Promise<void>,
 ): Promise<boolean> {
   // Always prompt for temporary access code on sensitive money/staff actions
-  // (including Super Admin) — unlock cookie is what the API checks.
+  // (including Super Admin) unlock cookie is what the API checks.
   const ok = await promptSensitivePassword(opts);
   if (!ok) return false;
   try {
@@ -115,7 +116,7 @@ export async function withSensitivePassword(
   }
 }
 
-/** Mount once inside AdminShell — provides the popup host */
+/** Mount once inside AdminShell provides the popup host */
 export function SensitivePasswordHost() {
   const [modal, setModal] = useState<ModalState>(null);
   const [password, setPassword] = useState("");
@@ -191,7 +192,10 @@ export function SensitivePasswordHost() {
         <p className="om-admin-muted" style={{ margin: "0 0 1rem" }}>
           {modal.detail}
         </p>
-        <label className="om-admin-muted" style={{ display: "block", marginBottom: 6 }}>
+        <label
+          className="om-admin-muted"
+          style={{ display: "block", marginBottom: 6 }}
+        >
           Temporary password
         </label>
         <input
@@ -214,7 +218,9 @@ export function SensitivePasswordHost() {
             {err}
           </div>
         ) : null}
-        <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+        <div
+          style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}
+        >
           <button
             type="button"
             className="om-admin-btn ghost"

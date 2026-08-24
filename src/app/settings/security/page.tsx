@@ -50,7 +50,7 @@ function authenticatorOtpauth(secret: string, account: string): string {
   return `otpauth://totp/${label}?secret=${secret}&issuer=${issuer}&algorithm=SHA1&digits=6&period=30`;
 }
 
-/** QR image URL for scanning (setup only — one small load) */
+/** QR image URL for scanning (setup only one small load) */
 function authenticatorQrUrl(secret: string, account: string): string {
   const data = encodeURIComponent(authenticatorOtpauth(secret, account));
   return `https://api.qrserver.com/v1/create-qr-code/?size=168x168&ecc=M&margin=8&data=${data}`;
@@ -95,7 +95,7 @@ export default function SettingsSecurityPage() {
     () => (secret ? demoTotpCode(secret) : ""),
     // recompute roughly every second while authenticator step open
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [secret, setupStep, authCode]
+    [secret, setupStep, authCode],
   );
 
   const persistEnabled = (on: boolean, m: TwoFaMethod) => {
@@ -178,7 +178,9 @@ export default function SettingsSecurityPage() {
   const verifySms = () => {
     setSetupErr(null);
     if (smsCode.trim() !== CUSTOMER_PHONE_OTP) {
-      setSetupErr(`Enter the 6-digit code sent to your phone (demo ${CUSTOMER_PHONE_OTP})`);
+      setSetupErr(
+        `Enter the 6-digit code sent to your phone (demo ${CUSTOMER_PHONE_OTP})`,
+      );
       return;
     }
     completeEnrollment("sms");
@@ -245,7 +247,7 @@ export default function SettingsSecurityPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader
@@ -288,7 +290,11 @@ export default function SettingsSecurityPage() {
               <li
                 key={label}
                 className={
-                  ok ? "text-emerald-600" : isLight ? "text-slate-500" : "text-white/40"
+                  ok
+                    ? "text-emerald-600"
+                    : isLight
+                      ? "text-slate-500"
+                      : "text-white/40"
                 }
               >
                 {ok ? "✓" : "·"} {label}
@@ -344,7 +350,7 @@ export default function SettingsSecurityPage() {
                   ? "bg-[#FF6B35]"
                   : isLight
                     ? "bg-black/20"
-                    : "bg-white/20"
+                    : "bg-white/20",
               )}
             >
               <span
@@ -352,7 +358,7 @@ export default function SettingsSecurityPage() {
                   "block h-5 w-5 rounded-full bg-white transition-transform",
                   twoFaOn || setupStep !== "idle"
                     ? "translate-x-6"
-                    : "translate-x-1"
+                    : "translate-x-1",
                 )}
               />
             </button>
@@ -373,10 +379,12 @@ export default function SettingsSecurityPage() {
                 }}
                 className={cn(
                   "flex w-full flex-col items-start rounded-md border-0 px-3 py-2.5 text-left",
-                  isLight ? "bg-black/[0.06]" : "bg-white/[0.08]"
+                  isLight ? "bg-black/[0.06]" : "bg-white/[0.08]",
                 )}
               >
-                <span className={cn("text-[13px] font-bold", ink)}>SMS code</span>
+                <span className={cn("text-[13px] font-bold", ink)}>
+                  SMS code
+                </span>
                 <span className={cn("text-[11px] font-medium", muted)}>
                   Codes sent to {userProfile?.phone || "your phone"}
                 </span>
@@ -389,7 +397,7 @@ export default function SettingsSecurityPage() {
                 }}
                 className={cn(
                   "flex w-full flex-col items-start rounded-md border-0 px-3 py-2.5 text-left",
-                  isLight ? "bg-black/[0.06]" : "bg-white/[0.08]"
+                  isLight ? "bg-black/[0.06]" : "bg-white/[0.08]",
                 )}
               >
                 <span className={cn("text-[13px] font-bold", ink)}>
@@ -404,7 +412,7 @@ export default function SettingsSecurityPage() {
                 onClick={() => setConfirmCancel(true)}
                 className={cn(
                   "w-full border-0 bg-transparent py-2 text-[12px] font-semibold",
-                  muted
+                  muted,
                 )}
               >
                 Cancel
@@ -414,9 +422,7 @@ export default function SettingsSecurityPage() {
 
           {setupStep === "sms" ? (
             <div className="mt-3 space-y-2">
-              <p className={cn("text-[12px] font-semibold", ink)}>
-                Verify SMS
-              </p>
+              <p className={cn("text-[12px] font-semibold", ink)}>Verify SMS</p>
               <p className={cn("text-[11px] font-medium", muted)}>
                 We will text a 6-digit code to{" "}
                 {userProfile?.phone || "your number"}
@@ -466,7 +472,7 @@ export default function SettingsSecurityPage() {
                 }}
                 className={cn(
                   "w-full border-0 bg-transparent py-1.5 text-[12px] font-semibold",
-                  muted
+                  muted,
                 )}
               >
                 Back to methods
@@ -479,9 +485,11 @@ export default function SettingsSecurityPage() {
               <p className={cn("text-[12px] font-semibold", ink)}>
                 Authenticator setup
               </p>
-              <p className={cn("text-[11px] font-medium leading-relaxed", muted)}>
-                Open Google Authenticator, Authy, or similar and scan the QR —
-                or enter the secret manually if you prefer.
+              <p
+                className={cn("text-[11px] font-medium leading-relaxed", muted)}
+              >
+                Open Google Authenticator, Authy, or similar and scan the QR or
+                enter the secret manually if you prefer.
               </p>
               {secret ? (
                 <div className="flex flex-col items-center gap-2">
@@ -504,7 +512,7 @@ export default function SettingsSecurityPage() {
                   "rounded-md px-3 py-2 font-mono text-[12px] font-bold tracking-wider break-all",
                   isLight
                     ? "bg-black/[0.08] text-slate-900"
-                    : "bg-white/[0.1] text-white"
+                    : "bg-white/[0.1] text-white",
                 )}
               >
                 {secret || "Not set"}
@@ -542,7 +550,7 @@ export default function SettingsSecurityPage() {
                 }}
                 className={cn(
                   "w-full border-0 bg-transparent py-1.5 text-[12px] font-semibold",
-                  muted
+                  muted,
                 )}
               >
                 Back to methods
@@ -560,14 +568,13 @@ export default function SettingsSecurityPage() {
               }}
               className={cn(
                 "mt-2 w-full border-0 bg-transparent py-1 text-left text-[11px] font-semibold",
-                muted
+                muted,
               )}
             >
               Change 2FA method
             </button>
           ) : null}
         </div>
-
       </div>
       <ConfirmCancelSheet
         open={confirmCancel}

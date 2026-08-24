@@ -8,8 +8,7 @@
 
 export function isLocalDevHost(hostname?: string): boolean {
   const h =
-    hostname ||
-    (typeof window !== "undefined" ? window.location.hostname : "");
+    hostname || (typeof window !== "undefined" ? window.location.hostname : "");
   return (
     h === "localhost" ||
     h === "127.0.0.1" ||
@@ -26,11 +25,11 @@ export function isExternalHostedPayUrl(authorizationUrl: string): boolean {
   try {
     const u = new URL(
       url,
-      typeof window !== "undefined" ? window.location.origin : "https://local"
+      typeof window !== "undefined" ? window.location.origin : "https://local",
     );
     const host = u.hostname.toLowerCase();
     if (typeof window !== "undefined" && u.origin === window.location.origin) {
-      return false; // mock / same-origin — iframe OK
+      return false; // mock / same-origin iframe OK
     }
     return (
       host.includes("flutterwave") ||
@@ -45,7 +44,7 @@ export function isExternalHostedPayUrl(authorizationUrl: string): boolean {
 }
 
 /**
- * Same-origin mock checkout only — safe to embed.
+ * Same-origin mock checkout only safe to embed.
  * Never returns true for Flutterwave (would blank).
  */
 export function canEmbedCheckoutInApp(authorizationUrl: string): boolean {
@@ -55,7 +54,9 @@ export function canEmbedCheckoutInApp(authorizationUrl: string): boolean {
   try {
     const u = new URL(
       url,
-      typeof window !== "undefined" ? window.location.origin : "http://localhost"
+      typeof window !== "undefined"
+        ? window.location.origin
+        : "http://localhost",
     );
     if (typeof window === "undefined") return url.startsWith("/");
     return u.origin === window.location.origin;
@@ -78,7 +79,7 @@ export function openHostedCheckout(authorizationUrl: string): void {
       return;
     }
   } catch {
-    /* cross-origin top — fall through */
+    /* cross-origin top fall through */
   }
 
   try {

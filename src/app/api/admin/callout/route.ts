@@ -85,7 +85,7 @@ export async function PATCH(req: Request) {
       await saveCalloutPolicy(
         body.data.policy,
         session.userId,
-        body.data.reason
+        body.data.reason,
       );
     }
     for (const t of body.data.trades ?? []) {
@@ -100,7 +100,7 @@ export async function PATCH(req: Request) {
           currency: t.currency,
         },
         session.userId,
-        body.data.reason
+        body.data.reason,
       );
     }
 

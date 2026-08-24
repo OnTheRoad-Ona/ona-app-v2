@@ -17,7 +17,9 @@ export async function POST(req: Request) {
   const targetRole = body.targetRole || "both";
 
   const supabase = createServiceSupabase();
-  const thirtyDays = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const thirtyDays = new Date(
+    Date.now() + 30 * 24 * 60 * 60 * 1000,
+  ).toISOString();
 
   if (targetRole === "both") {
     const { error } = await supabase

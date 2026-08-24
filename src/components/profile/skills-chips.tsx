@@ -34,7 +34,7 @@ export function SkillsChips({
                 : isLight
                   ? "bg-black/8 text-slate-700"
                   : "bg-[#2c2c2e] text-white/75",
-              !editable && "cursor-default"
+              !editable && "cursor-default",
             )}
           >
             {label}
@@ -45,7 +45,7 @@ export function SkillsChips({
         <span
           className={cn(
             "text-[12px]",
-            isLight ? "text-slate-500" : "text-[#a1a1a6]"
+            isLight ? "text-slate-500" : "text-[#a1a1a6]",
           )}
         >
           No skills listed

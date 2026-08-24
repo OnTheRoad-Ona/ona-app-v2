@@ -11,7 +11,7 @@ import { useOverlayGatesReady } from "@/lib/use-overlay-gates-ready";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/store";
 
-/** Real controls / cards — never toggle theme when these are the target. */
+/** Real controls / cards never toggle theme when these are the target. */
 const CONTROL_SELECTOR = [
   "button",
   "a",
@@ -83,7 +83,7 @@ export function PhoneShell({
   /** Page paints first; overlays wait for auth + settle */
   const gatesReady = useOverlayGatesReady();
   const isLight = theme === "light";
-  /** Phone frame interior — explicit colors avoid browser class lag */
+  /** Phone frame interior explicit colors avoid browser class lag */
   const phoneInterior = isLight ? "#c8c9cd" : "#000000";
   const lastTapRef = useRef(0);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
@@ -94,7 +94,7 @@ export function PhoneShell({
   const togglingRef = useRef(false);
 
   useEffect(() => {
-    // Listen on phone interior only — theme chrome inside the frame
+    // Listen on phone interior only theme chrome inside the frame
     const phone = document.getElementById("ona-phone");
     if (!phone) return;
 
@@ -198,7 +198,7 @@ export function PhoneShell({
         "h-[100dvh] max-h-[100dvh]",
         "h-[100svh] max-h-[100svh]",
         "px-3 py-3",
-        isLight ? "bg-[#060d0a]" : "bg-[#0a0605]"
+        isLight ? "bg-[#060d0a]" : "bg-[#0a0605]",
       )}
     >
       <div
@@ -210,7 +210,7 @@ export function PhoneShell({
           "h-[min(844px,calc(100dvh-1.5rem))] max-h-[min(844px,calc(100dvh-1.5rem))]",
           "h-[min(844px,calc(100svh-1.5rem))] max-h-[min(844px,calc(100svh-1.5rem))]",
           "shadow-[0_24px_48px_rgba(0,0,0,0.55)]",
-          className
+          className,
         )}
         style={{
           width: "min(390px, calc(100vw - 1.5rem))",

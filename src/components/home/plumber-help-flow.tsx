@@ -34,10 +34,26 @@ const URGENCY_CHIPS: {
   label: string;
   fee: string;
 }[] = [
-  { id: "normal", label: PLUMBER_FINAL_COPY.normal, fee: "1x · base + call-out" },
-  { id: "emergency", label: PLUMBER_FINAL_COPY.emergency, fee: "1.25x · base + call-out" },
-  { id: "remote", label: PLUMBER_FINAL_COPY.remote, fee: "1.35x · base + call-out" },
-  { id: "night", label: PLUMBER_FINAL_COPY.night, fee: "1.5x · base + call-out" },
+  {
+    id: "normal",
+    label: PLUMBER_FINAL_COPY.normal,
+    fee: "1x · base + call-out",
+  },
+  {
+    id: "emergency",
+    label: PLUMBER_FINAL_COPY.emergency,
+    fee: "1.25x · base + call-out",
+  },
+  {
+    id: "remote",
+    label: PLUMBER_FINAL_COPY.remote,
+    fee: "1.35x · base + call-out",
+  },
+  {
+    id: "night",
+    label: PLUMBER_FINAL_COPY.night,
+    fee: "1.5x · base + call-out",
+  },
 ];
 
 type FinalStep = "urgency" | "photos" | "voice" | "location" | "property";
@@ -137,9 +153,7 @@ export function PlumberHelpFlow({
     const snap = readSession<PlumberFlowSnapshot>(FLOW_SESSION_KEY);
     if (snap) {
       setStack(
-        Array.isArray(snap.stack) && snap.stack.length
-          ? snap.stack
-          : ["start"]
+        Array.isArray(snap.stack) && snap.stack.length ? snap.stack : ["start"],
       );
       setAnswers(snap.answers ?? {});
       setDraft(snap.draft ?? "");
@@ -244,7 +258,7 @@ export function PlumberHelpFlow({
       setDraft(
         answers[prev] && plumberScreen(prev)?.kind === "text"
           ? answers[prev]
-          : ""
+          : "",
       );
     }
   };
@@ -351,7 +365,7 @@ export function PlumberHelpFlow({
     try {
       window.sessionStorage.setItem(
         `ona-seed-job:${res.data.job.id}`,
-        JSON.stringify(res.data.job)
+        JSON.stringify(res.data.job),
       );
     } catch {
       /* ignore */
@@ -370,7 +384,7 @@ export function PlumberHelpFlow({
           ? "voice"
           : finalStep === "voice"
             ? "location"
-            : "property"
+            : "property",
     );
   };
 
@@ -388,7 +402,7 @@ export function PlumberHelpFlow({
           ? "photos"
           : finalStep === "location"
             ? "voice"
-            : "location"
+            : "location",
     );
   };
 
@@ -411,7 +425,7 @@ export function PlumberHelpFlow({
     <div
       className={cn(
         "om-mech-enter flex h-full min-h-0 flex-col overflow-hidden rounded-t-lg px-3 pb-2 pt-1.5",
-        isLight ? "bg-[#d8dce4]/90 backdrop-blur-sm" : "bg-black"
+        isLight ? "bg-[#d8dce4]/90 backdrop-blur-sm" : "bg-black",
       )}
     >
       <div className="mb-1.5 h-0.5 shrink-0 overflow-hidden rounded-full">
@@ -442,7 +456,12 @@ export function PlumberHelpFlow({
         {step === "final" ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-hide">
-              <p className={cn("mt-2 px-0.5 pb-2 text-[14px] font-bold capitalize leading-snug", ink)}>
+              <p
+                className={cn(
+                  "mt-2 px-0.5 pb-2 text-[14px] font-bold capitalize leading-snug",
+                  ink,
+                )}
+              >
                 {finalStep === "urgency"
                   ? PLUMBER_FINAL_COPY.urgency
                   : finalStep === "photos"
@@ -467,13 +486,15 @@ export function PlumberHelpFlow({
                         }}
                         className={cn(
                           "flex w-full items-center justify-between gap-2 rounded-md border-0 px-3 py-2.5 text-left transition-transform duration-150 active:scale-[0.985]",
-                          urgency === opt.id ? "bg-[#FF6B35]/10" : "bg-transparent"
+                          urgency === opt.id
+                            ? "bg-[#FF6B35]/10"
+                            : "bg-transparent",
                         )}
                       >
                         <span
                           className={cn(
                             "text-[13px] font-bold",
-                            urgency === opt.id ? "text-[#FF6B35]" : ink
+                            urgency === opt.id ? "text-[#FF6B35]" : ink,
                           )}
                         >
                           {opt.label}
@@ -481,7 +502,7 @@ export function PlumberHelpFlow({
                         <span
                           className={cn(
                             "text-[11px] font-semibold",
-                            urgency === opt.id ? "text-[#FF6B35]" : muted
+                            urgency === opt.id ? "text-[#FF6B35]" : muted,
                           )}
                         >
                           {opt.fee}
@@ -512,13 +533,15 @@ export function PlumberHelpFlow({
                           type="button"
                           onClick={() =>
                             setPhotos((prev) =>
-                              prev.filter((x) => x.id !== p.id)
+                              prev.filter((x) => x.id !== p.id),
                             )
                           }
                           className="h-12 w-12 overflow-hidden rounded-lg border-0 p-0"
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img loading="lazy" decoding="async"
+                          <img
+                            loading="lazy"
+                            decoding="async"
                             src={p.url}
                             alt=""
                             className="h-full w-full object-cover"
@@ -531,7 +554,7 @@ export function PlumberHelpFlow({
                           onClick={() => photoRef.current?.click()}
                           className={cn(
                             "h-12 w-12 rounded-lg border-0 text-[18px] font-bold",
-                            chipIdle
+                            chipIdle,
                           )}
                         >
                           +
@@ -598,7 +621,12 @@ export function PlumberHelpFlow({
                 ) : null}
                 {finalStep === "property" ? (
                   <div>
-                    <p className={cn("text-[13px] font-semibold leading-snug", ink)}>
+                    <p
+                      className={cn(
+                        "text-[13px] font-semibold leading-snug",
+                        ink,
+                      )}
+                    >
                       {PLUMBER_FINAL_COPY.property}
                     </p>
                     {propertyChoice === null ? (
@@ -613,7 +641,7 @@ export function PlumberHelpFlow({
                             }}
                             className={cn(
                               "h-11 rounded-md border-0 text-[14px] font-bold active:scale-[0.985]",
-                              chipIdle
+                              chipIdle,
                             )}
                           >
                             {opt.label}
@@ -626,7 +654,7 @@ export function PlumberHelpFlow({
                           {propertyChoice === "other"
                             ? "Other property type"
                             : (PLUMBER_PROPERTY_OPTIONS.find(
-                                (o) => o.id === propertyChoice
+                                (o) => o.id === propertyChoice,
                               )?.label ?? propertyChoice)}
                         </span>
                         <button
@@ -634,7 +662,7 @@ export function PlumberHelpFlow({
                           onClick={() => setPropertyChoice(null)}
                           className={cn(
                             "border-0 text-[13px] font-bold",
-                            actionFlat
+                            actionFlat,
                           )}
                         >
                           Change
@@ -657,7 +685,7 @@ export function PlumberHelpFlow({
                   onClick={finalBack}
                   className={cn(
                     "h-11 flex-1 rounded-md border-0 text-[14px] font-bold",
-                    actionFlat
+                    actionFlat,
                   )}
                 >
                   Back
@@ -675,106 +703,111 @@ export function PlumberHelpFlow({
           </div>
         ) : (
           <>
-          <div
-            key={`${step}-${dir}`}
-            className={cn(
-              "min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-hide",
-              dir === "back" ? "om-mech-slide-back" : "om-mech-slide-fwd"
-            )}
-          >
-        {screen ? (
-          <>
-            <div className="mt-2 flex items-center gap-1 px-0.5 pb-2">
-              {screen?.kind === "text" ? (
-                <button
-                  type="button"
-                  disabled={!canAdvanceText(draft)}
-                  onClick={submitText}
-                  aria-label="Next"
-                  className="border-0 bg-transparent p-0.5 text-[#FF6B35] disabled:opacity-40"
-                >
-                  <ChevronRight className="h-6 w-6" strokeWidth={2.5} />
-                </button>
-              ) : null}
-              <p className={cn("text-[14px] font-bold capitalize leading-snug", ink)}>
-                {screen.question}
-              </p>
-            </div>
-            {screen.kind === "choice" ? (
-              <div className="flex flex-col gap-1">
-                {(screen.options || []).map((opt, i) => {
-                  const letter =
-                    step === "start"
-                      ? PLUMBER_START_OPTIONS[i]?.id
-                      : undefined;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => pick(opt.id, opt.label)}
-                      className={cn(
-                        "flex w-full items-center gap-2 rounded-[4px] border-0 px-1 py-3 text-left transition-transform duration-150 active:scale-[0.985]",
-                        rowCard
-                      )}
-                    >
-                      {letter ? (
-                        <span
-                          className={cn(
-                            "w-5 shrink-0 text-[12px] font-bold",
-                            muted
-                          )}
-                        >
-                          {letter}.
-                        </span>
-                      ) : null}
-                      <span
-                        className={cn(
-                          "min-w-0 flex-1 text-[13px] font-semibold capitalize leading-snug",
-                          ink
-                        )}
-                      >
-                        {opt.label}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <textarea
-                value={draft}
-                onChange={(e) => {
-                  setDraft(e.target.value);
-                  setError(null);
-                }}
-                rows={3}
-                placeholder={screen.placeholder}
-                className={cn(
-                  "w-full resize-none rounded-xl border-0 px-3 py-2 text-[13px] font-medium leading-snug outline-none",
-                  field
-                )}
-              />
-            )}
-          </>
-        ) : null}
-
-        {error ? (
-            <p className="mt-1 text-[12px] font-semibold text-red-500">
-              {error}
-            </p>
-          ) : null}
-          </div>
-          <div className="mt-auto flex shrink-0 gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => (stack.length > 1 ? goBack() : handleExit())}
+            <div
+              key={`${step}-${dir}`}
               className={cn(
-                "h-11 w-full rounded-md border-0 text-[14px] font-bold",
-                actionFlat
+                "min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-hide",
+                dir === "back" ? "om-mech-slide-back" : "om-mech-slide-fwd",
               )}
             >
-              Back
-            </button>
-          </div>
+              {screen ? (
+                <>
+                  <div className="mt-2 flex items-center gap-1 px-0.5 pb-2">
+                    {screen?.kind === "text" ? (
+                      <button
+                        type="button"
+                        disabled={!canAdvanceText(draft)}
+                        onClick={submitText}
+                        aria-label="Next"
+                        className="border-0 bg-transparent p-0.5 text-[#FF6B35] disabled:opacity-40"
+                      >
+                        <ChevronRight className="h-6 w-6" strokeWidth={2.5} />
+                      </button>
+                    ) : null}
+                    <p
+                      className={cn(
+                        "text-[14px] font-bold capitalize leading-snug",
+                        ink,
+                      )}
+                    >
+                      {screen.question}
+                    </p>
+                  </div>
+                  {screen.kind === "choice" ? (
+                    <div className="flex flex-col gap-1">
+                      {(screen.options || []).map((opt, i) => {
+                        const letter =
+                          step === "start"
+                            ? PLUMBER_START_OPTIONS[i]?.id
+                            : undefined;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => pick(opt.id, opt.label)}
+                            className={cn(
+                              "flex w-full items-center gap-2 rounded-[4px] border-0 px-1 py-3 text-left transition-transform duration-150 active:scale-[0.985]",
+                              rowCard,
+                            )}
+                          >
+                            {letter ? (
+                              <span
+                                className={cn(
+                                  "w-5 shrink-0 text-[12px] font-bold",
+                                  muted,
+                                )}
+                              >
+                                {letter}.
+                              </span>
+                            ) : null}
+                            <span
+                              className={cn(
+                                "min-w-0 flex-1 text-[13px] font-semibold capitalize leading-snug",
+                                ink,
+                              )}
+                            >
+                              {opt.label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <textarea
+                      value={draft}
+                      onChange={(e) => {
+                        setDraft(e.target.value);
+                        setError(null);
+                      }}
+                      rows={3}
+                      placeholder={screen.placeholder}
+                      className={cn(
+                        "w-full resize-none rounded-xl border-0 px-3 py-2 text-[13px] font-medium leading-snug outline-none",
+                        field,
+                      )}
+                    />
+                  )}
+                </>
+              ) : null}
+
+              {error ? (
+                <p className="mt-1 text-[12px] font-semibold text-red-500">
+                  {error}
+                </p>
+              ) : null}
+            </div>
+            <div className="mt-auto flex shrink-0 gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => (stack.length > 1 ? goBack() : handleExit())}
+                className={cn(
+                  "h-11 w-full rounded-md border-0 text-[14px] font-bold",
+                  actionFlat,
+                )}
+              >
+                Back
+              </button>
+            </div>
           </>
         )}
       </div>

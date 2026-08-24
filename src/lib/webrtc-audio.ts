@@ -3,12 +3,7 @@
  * Silent adaptive Opus bitrate from WebRTC stats (+ optional Network Information API).
  */
 
-export type NetQuality =
-  | "excellent"
-  | "good"
-  | "fair"
-  | "poor"
-  | "very_poor";
+export type NetQuality = "excellent" | "good" | "fair" | "poor" | "very_poor";
 
 /** Target average Opus bitrate (bps) by quality */
 export const BITRATE_BY_QUALITY: Record<NetQuality, number> = {
@@ -19,7 +14,7 @@ export const BITRATE_BY_QUALITY: Record<NetQuality, number> = {
   very_poor: 9_000,
 };
 
-/** Default when quality unknown — Fair */
+/** Default when quality unknown Fair */
 export const DEFAULT_BITRATE_BPS = BITRATE_BY_QUALITY.fair;
 
 /**
@@ -27,7 +22,10 @@ export const DEFAULT_BITRATE_BPS = BITRATE_BY_QUALITY.fair;
  * Never creates a video track.
  */
 export async function getLowBandwidthAudioStream(): Promise<MediaStream | null> {
-  if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+  if (
+    typeof navigator === "undefined" ||
+    !navigator.mediaDevices?.getUserMedia
+  ) {
     return null;
   }
   try {
@@ -66,7 +64,7 @@ export async function getLowBandwidthAudioStream(): Promise<MediaStream | null> 
  */
 export function mungeOpusSdp(
   sdp: string,
-  bitrateBps: number = DEFAULT_BITRATE_BPS
+  bitrateBps: number = DEFAULT_BITRATE_BPS,
 ): string {
   if (!sdp) return sdp;
   const br = Math.max(8_000, Math.min(32_000, Math.round(bitrateBps)));
@@ -91,7 +89,7 @@ export function mungeOpusSdp(
       if (params.endsWith(";")) params = params.slice(0, -1);
       const extra = `maxaveragebitrate=${br};maxplaybackrate=16000;stereo=0;sprop-stereo=0;useinbandfec=1;usedtx=1;cbr=0`;
       return `a=fmtp:${pt} ${params}${params ? ";" : ""}${extra}`;
-    }
+    },
   );
 
   // If opus rtpmap exists but no fmtp for that payload type, inject fmtp
@@ -105,7 +103,7 @@ export function mungeOpusSdp(
     if (!new RegExp(`a=fmtp:${pt}\\b`, "i").test(out)) {
       out = out.replace(
         new RegExp(`(a=rtpmap:${pt} opus\\/[^\\r\\n]+)`, "i"),
-        `$1\r\na=fmtp:${pt} minptime=10;useinbandfec=1;usedtx=1;stereo=0;sprop-stereo=0;maxaveragebitrate=${br};maxplaybackrate=16000`
+        `$1\r\na=fmtp:${pt} minptime=10;useinbandfec=1;usedtx=1;stereo=0;sprop-stereo=0;maxaveragebitrate=${br};maxplaybackrate=16000`,
       );
     }
   }
@@ -120,7 +118,7 @@ export function mungeOpusSdp(
 /** Apply max bitrate on the audio RTCRtpSender (runtime adaptation). */
 export async function applyAudioSenderBitrate(
   pc: RTCPeerConnection,
-  bitrateBps: number
+  bitrateBps: number,
 ): Promise<void> {
   const br = Math.max(8_000, Math.min(32_000, Math.round(bitrateBps)));
   const senders = pc.getSenders().filter((s) => s.track?.kind === "audio");
@@ -149,7 +147,7 @@ export async function applyAudioSenderBitrate(
 
 type StatsSnapshot = {
   rttMs: number | null;
-  loss: number | null; // 0–1
+  loss: number | null; // 0-1
   jitter: number | null;
 };
 
@@ -162,13 +160,20 @@ async function readRtcStats(pc: RTCPeerConnection): Promise<StatsSnapshot> {
     let packetsLost = 0;
     let packetsReceived = 0;
     report.forEach((stat) => {
-      if (stat.type === "candidate-pair" && (stat as { state?: string }).state === "succeeded") {
-        const rtt = (stat as { currentRoundTripTime?: number }).currentRoundTripTime;
+      if (
+        stat.type === "candidate-pair" &&
+        (stat as { state?: string }).state === "succeeded"
+      ) {
+        const rtt = (stat as { currentRoundTripTime?: number })
+          .currentRoundTripTime;
         if (typeof rtt === "number" && Number.isFinite(rtt)) {
           rttMs = rtt * 1000;
         }
       }
-      if (stat.type === "remote-inbound-rtp" && (stat as { kind?: string }).kind === "audio") {
+      if (
+        stat.type === "remote-inbound-rtp" &&
+        (stat as { kind?: string }).kind === "audio"
+      ) {
         const rtt = (stat as { roundTripTime?: number }).roundTripTime;
         if (typeof rtt === "number" && Number.isFinite(rtt)) {
           rttMs = rtt * 1000;
@@ -176,9 +181,16 @@ async function readRtcStats(pc: RTCPeerConnection): Promise<StatsSnapshot> {
         const frac = (stat as { fractionLost?: number }).fractionLost;
         if (typeof frac === "number") loss = Math.min(1, Math.max(0, frac));
       }
-      if (stat.type === "inbound-rtp" && (stat as { kind?: string }).kind === "audio") {
-        const lost = Number((stat as { packetsLost?: number }).packetsLost || 0);
-        const recv = Number((stat as { packetsReceived?: number }).packetsReceived || 0);
+      if (
+        stat.type === "inbound-rtp" &&
+        (stat as { kind?: string }).kind === "audio"
+      ) {
+        const lost = Number(
+          (stat as { packetsLost?: number }).packetsLost || 0,
+        );
+        const recv = Number(
+          (stat as { packetsReceived?: number }).packetsReceived || 0,
+        );
         packetsLost += lost;
         packetsReceived += recv;
         const j = (stat as { jitter?: number }).jitter;
@@ -197,7 +209,12 @@ async function readRtcStats(pc: RTCPeerConnection): Promise<StatsSnapshot> {
 function connectionHint(): NetQuality | null {
   try {
     const nav = navigator as Navigator & {
-      connection?: { effectiveType?: string; downlink?: number; rtt?: number; saveData?: boolean };
+      connection?: {
+        effectiveType?: string;
+        downlink?: number;
+        rtt?: number;
+        saveData?: boolean;
+      };
     };
     const c = nav.connection;
     if (!c) return null;
@@ -224,7 +241,7 @@ function connectionHint(): NetQuality | null {
  */
 export function qualityFromStats(
   stats: StatsSnapshot,
-  hint: NetQuality | null
+  hint: NetQuality | null,
 ): NetQuality {
   const { rttMs, loss, jitter } = stats;
   let score = 3; // fair baseline (1=vpoor … 5=excellent)
@@ -261,7 +278,7 @@ export function qualityFromStats(
 }
 
 export async function estimateCallBitrateBps(
-  pc: RTCPeerConnection
+  pc: RTCPeerConnection,
 ): Promise<number> {
   const stats = await readRtcStats(pc);
   const hint = connectionHint();
@@ -277,11 +294,11 @@ export async function estimateCallBitrateBps(
 
 /**
  * Every `intervalMs` seconds, re-estimate quality and set sender maxBitrate.
- * Silent — no UI. Returns a stop function.
+ * Silent no UI. Returns a stop function.
  */
 export function startAdaptiveBitrateLoop(
   pc: RTCPeerConnection,
-  intervalMs = 3000
+  intervalMs = 3000,
 ): () => void {
   let stopped = false;
   let lastBr = DEFAULT_BITRATE_BPS;
@@ -319,7 +336,7 @@ export function startAdaptiveBitrateLoop(
 /** Munge local description SDP after createOffer/createAnswer */
 export function descriptionWithMungedSdp(
   desc: RTCSessionDescriptionInit,
-  bitrateBps: number = DEFAULT_BITRATE_BPS
+  bitrateBps: number = DEFAULT_BITRATE_BPS,
 ): RTCSessionDescriptionInit {
   if (!desc.sdp) return desc;
   return {

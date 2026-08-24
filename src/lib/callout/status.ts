@@ -7,7 +7,7 @@ import type { CalloutStatus } from "@/lib/callout/constants";
  */
 export function calloutStatusFromJobFlow(
   flow: JobFlowStatus,
-  current: CalloutStatus | null
+  current: CalloutStatus | null,
 ): CalloutStatus | null {
   if (current === "NOT_ELIGIBLE" || current === "WAIVED") return current;
   if (current === "LOCKED" && flow === "negotiating") return "LOCKED";

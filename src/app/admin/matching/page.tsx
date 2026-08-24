@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
 import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
-import type { AppConfig, MatchingSection, VerificationSection } from "@/lib/app-config";
+import type {
+  AppConfig,
+  MatchingSection,
+  VerificationSection,
+} from "@/lib/app-config";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import type { ProService } from "@/lib/types";
 import { CALLOUT_FOURTEENTH_TRADE } from "@/lib/callout/constants";
@@ -27,10 +31,10 @@ export default function AdminMatchingPage() {
   const { adminName, ready, api } = useAdminGate();
   const [matching, setMatching] = useState<MatchingSection | null>(null);
   const [verification, setVerification] = useState<VerificationSection | null>(
-    null
+    null,
   );
   const [calloutPolicy, setCalloutPolicy] = useState<CalloutPolicyAdmin | null>(
-    null
+    null,
   );
   const [calloutTrades, setCalloutTrades] = useState<CalloutTradeAdmin[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
@@ -108,7 +112,8 @@ export default function AdminMatchingPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Map & matching</h1>
       <p className="om-admin-sub">
-        Map radius and matching rules that decide which pros customers see on the live map.
+        Map radius and matching rules that decide which pros customers see on
+        the live map.
       </p>
 
       <AdminGuideBanner pageId="matching" />
@@ -376,8 +381,9 @@ export default function AdminMatchingPage() {
                 />
               </label>
               <p className="om-admin-muted" style={{ marginTop: "0.75rem" }}>
-                Trade base fees (₦). {PRO_SERVICE_LABELS[CALLOUT_FOURTEENTH_TRADE]}{" "}
-                is the existing 14th trade.
+                Trade base fees (₦).{" "}
+                {PRO_SERVICE_LABELS[CALLOUT_FOURTEENTH_TRADE]} is the existing
+                14th trade.
               </p>
               {calloutTrades.map((t) => (
                 <label key={t.tradeId}>
@@ -393,8 +399,8 @@ export default function AdminMatchingPage() {
                         prev.map((x) =>
                           x.tradeId === t.tradeId
                             ? { ...x, baseFee: Number(e.target.value) }
-                            : x
-                        )
+                            : x,
+                        ),
                       )
                     }
                   />

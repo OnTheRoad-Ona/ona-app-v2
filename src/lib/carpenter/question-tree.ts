@@ -38,7 +38,7 @@ export const CARPENTER_FINAL_COPY = {
   remote: "Remote location",
   night: "Night service / weekend work needed",
   photos:
-    "Add clear photos (2–4): the space or existing furniture, design or style inspiration, and wood or materials if you already have them",
+    "Add clear photos (2-4): the space or existing furniture, design or style inspiration, and wood or materials if you already have them",
   voice: "Record a short voice note explaining exactly what you want",
   location: "Exact location / landmark",
   measurements: "Do you need the carpenter to come and take measurements?",
@@ -57,7 +57,7 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
     options: CARPENTER_START_OPTIONS,
   },
 
-  // Branch A — new furniture making
+  // Branch A new furniture making
   a_type: {
     question: "What type of furniture do you want?",
     kind: "choice",
@@ -77,7 +77,10 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
     kind: "choice",
     options: [
       { id: "i-have", label: "I already have the wood" },
-      { id: "carpenter-supplies", label: "Furniture maker should supply the wood" },
+      {
+        id: "carpenter-supplies",
+        label: "Furniture maker should supply the wood",
+      },
     ],
   },
   a_woodtype: {
@@ -89,7 +92,7 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
       { id: "opepe", label: "Opepe / hardwood" },
       { id: "plywood", label: "Plywood / MDF / Particle board" },
       { id: "soft-wood", label: "Soft wood" },
-      { id: "advise", label: "I don’t know – advise me" },
+      { id: "advise", label: "I don’t know, advise me" },
     ],
   },
   a_design: {
@@ -110,7 +113,7 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
     ],
   },
 
-  // Branch B — furniture repair or restoration
+  // Branch B furniture repair or restoration
   b_problem: {
     question: "What is wrong with the furniture?",
     kind: "choice",
@@ -120,7 +123,10 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
       { id: "torn-upholstery", label: "Damaged or torn upholstery" },
       { id: "scratched-surface", label: "Scratch, crack or worn-out surface" },
       { id: "squeaking", label: "Squeaking or unstable" },
-      { id: "full-restoration", label: "Complete restoration (make it look new)" },
+      {
+        id: "full-restoration",
+        label: "Complete restoration (make it look new)",
+      },
     ],
   },
   b_type: {
@@ -148,12 +154,15 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
     ],
   },
 
-  // Branch C — doors, windows and door frames
+  // Branch C doors, windows and door frames
   c_need: {
     question: "What exactly do you need?",
     kind: "choice",
     options: [
-      { id: "new-door", label: "New door (panel door, flush door, security door, etc.)" },
+      {
+        id: "new-door",
+        label: "New door (panel door, flush door, security door, etc.)",
+      },
       { id: "door-frame", label: "Door frame only" },
       { id: "window-frames", label: "Window frames and shutters" },
       { id: "repair-door", label: "Repair of existing door or frame" },
@@ -162,7 +171,8 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
     ],
   },
   c_building: {
-    question: "Is it for residential house, shop, office or industrial building?",
+    question:
+      "Is it for residential house, shop, office or industrial building?",
     kind: "choice",
     options: [
       { id: "residential", label: "Residential house" },
@@ -185,22 +195,34 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
       "Do you need the carpenter to remove the old one and install the new one?",
     kind: "choice",
     options: [
-      { id: "remove-and-install", label: "Yes, remove the old one and install" },
+      {
+        id: "remove-and-install",
+        label: "Yes, remove the old one and install",
+      },
       { id: "just-install", label: "Just install the new one" },
       { id: "no", label: "No" },
     ],
   },
 
-  // Branch D — roofing, ceiling or woodwork in the house
+  // Branch D roofing, ceiling or woodwork in the house
   d_work: {
     question: "What work is needed?",
     kind: "choice",
     options: [
-      { id: "roofing-woodwork", label: "Roofing woodwork (rafters, purlins, etc.)" },
-      { id: "ceiling", label: "Ceiling (POP related woodwork, nailing, framing)" },
+      {
+        id: "roofing-woodwork",
+        label: "Roofing woodwork (rafters, purlins, etc.)",
+      },
+      {
+        id: "ceiling",
+        label: "Ceiling (POP related woodwork, nailing, framing)",
+      },
       { id: "fascia", label: "Fascia board / barge board" },
       { id: "carport", label: "Carport or shade structure" },
-      { id: "roof-repair", label: "Repair of leaking or damaged roof woodwork" },
+      {
+        id: "roof-repair",
+        label: "Repair of leaking or damaged roof woodwork",
+      },
     ],
   },
   d_building: {
@@ -208,7 +230,7 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
     kind: "choice",
     options: [
       { id: "new-building", label: "New building" },
-      { id: "existing-repair", label: "Existing house – repair" },
+      { id: "existing-repair", label: "Existing house, repair" },
       { id: "not-sure", label: "Not sure" },
     ],
   },
@@ -227,7 +249,7 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
     ],
   },
 
-  // Branch E — kitchen cabinets, wardrobe or storage
+  // Branch E kitchen cabinets, wardrobe or storage
   e_need: {
     question: "What do you need?",
     kind: "choice",
@@ -264,12 +286,15 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
     kind: "choice",
     options: [
       { id: "i-have", label: "I already have the material" },
-      { id: "carpenter-supplies", label: "Carpenter should supply the material" },
+      {
+        id: "carpenter-supplies",
+        label: "Carpenter should supply the material",
+      },
       { id: "not-sure", label: "Not sure" },
     ],
   },
 
-  // Branch F — office, shop, church or commercial furniture
+  // Branch F office, shop, church or commercial furniture
   f_place: {
     question: "What type of place is it?",
     kind: "choice",
@@ -304,7 +329,7 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
     ],
   },
 
-  // Branch G — roadside, market stall or temporary structure
+  // Branch G roadside, market stall or temporary structure
   g_need: {
     question: "What do you need?",
     kind: "choice",
@@ -336,7 +361,7 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
     ],
   },
 
-  // Branch H — general carpentry and other woodworks
+  // Branch H general carpentry and other woodworks
   h_describe: {
     question: "Please describe the work you need in your own words.",
     kind: "text",
@@ -361,15 +386,15 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
     ],
   },
 
-  // Branch I — something else / not sure
+  // Branch I something else / not sure
   i_explain: {
-    question: "Just explain what you want the furniture maker / carpenter to do.",
+    question:
+      "Just explain what you want the furniture maker / carpenter to do.",
     kind: "text",
     placeholder: "Describe what you want…",
   },
   i_location: {
-    question:
-      "Is it for house, shop, office, roadside, or another location?",
+    question: "Is it for house, shop, office, roadside, or another location?",
     kind: "choice",
     options: [
       { id: "house", label: "House" },
@@ -401,7 +426,7 @@ export function carpenterScreen(id: string): CarpenterScreen | undefined {
 export function nextCarpenterScreen(
   current: string,
   _answerId: string,
-  _answers: Record<string, string>
+  _answers: Record<string, string>,
 ): string {
   const map: Record<string, string> = {
     a_type: "a_wood",
@@ -453,11 +478,12 @@ export function nextCarpenterScreen(
 
 /**
  * Strictly furniture making & carpentry: the flow is capture-only and always
- * dispatches as "carpenter" — no confirm cards, no reroute to any other service.
+ * dispatches as "carpenter" no confirm cards, no reroute to any other service.
  */
-export function resolveCarpenterRoute(
-  _answers: Record<string, string>
-): { trade: "carpenter"; needsConfirm: false } {
+export function resolveCarpenterRoute(_answers: Record<string, string>): {
+  trade: "carpenter";
+  needsConfirm: false;
+} {
   return { trade: "carpenter", needsConfirm: false };
 }
 
@@ -472,7 +498,7 @@ export function canFindCarpenterPro(photoCount: number): boolean {
 export function composeCarpenterJob(
   answers: Record<string, string>,
   extra: string,
-  landmark: string
+  landmark: string,
 ): string {
   const lines: string[] = [];
   const startLabel = answers.start_label || answers.start || "";

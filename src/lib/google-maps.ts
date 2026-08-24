@@ -13,7 +13,7 @@
 export const GOOGLE_MAPS_LOADER_ID = "ona-google-maps-v4-raster-styles";
 
 /**
- * Pinned version so all loaders match. Prefer quarterly over weekly —
+ * Pinned version so all loaders match. Prefer quarterly over weekly
  * weekly vector maps often ignore JSON `styles` unless RASTER is forced.
  */
 export const GOOGLE_MAPS_LOADER_VERSION = "quarterly" as const;
@@ -21,13 +21,10 @@ export const GOOGLE_MAPS_LOADER_VERSION = "quarterly" as const;
 /**
  * Places is required for Uber-style address suggestions
  * (“Help someone else” + location pickers).
- * Module-level array — same reference for every loader call.
+ * Module-level array same reference for every loader call.
  */
 export const GOOGLE_MAPS_LIBRARIES: (
-  | "places"
-  | "geometry"
-  | "drawing"
-  | "visualization"
+  "places" | "geometry" | "drawing" | "visualization"
 )[] = ["places"];
 
 export function getGoogleMapsApiKey(): string {
@@ -48,7 +45,7 @@ export function shouldUseLiveMaps(): boolean {
 
 export type ReverseGeocodeResult = {
   /**
-   * Immediate human address for all users — e.g.
+   * Immediate human address for all users e.g.
    * "Dr. Frank Okafor Cl, Lekki, Lagos"
    * Never lat/lng coordinates.
    */
@@ -64,7 +61,7 @@ export type ReverseGeocodeResult = {
 };
 
 /** Google Plus Code ("FG2R+RJM") Google sometimes appends to a formatted
- *  address — remove it so the label is the real address only. */
+ * address remove it so the label is the real address only. */
 export const PLUS_CODE_RE = /\b[A-Z0-9]{4,8}\+[A-Z0-9]{2,3}\b/g;
 
 export function cleanAddressLabel(value: string): string {
@@ -129,7 +126,7 @@ export function formatImmediateAddress(parts: {
  */
 async function reverseGeocodeGoogle(
   lat: number,
-  lng: number
+  lng: number,
 ): Promise<ReverseGeocodeResult | null> {
   const key = getGoogleMapsApiKey();
   if (!key) return null;
@@ -169,10 +166,7 @@ async function reverseGeocodeGoogle(
       get("sublocality_level_1") ||
       get("sublocality_level_2") ||
       "";
-    const city =
-      get("locality") ||
-      get("administrative_area_level_2") ||
-      "";
+    const city = get("locality") || get("administrative_area_level_2") || "";
     const state = get("administrative_area_level_1") || "";
     const country = get("country") || "";
     const countryCode = getShort("country") || "";
@@ -210,7 +204,7 @@ async function reverseGeocodeGoogle(
  */
 async function reverseGeocodeNominatim(
   lat: number,
-  lng: number
+  lng: number,
 ): Promise<ReverseGeocodeResult | null> {
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`;
@@ -240,10 +234,8 @@ async function reverseGeocodeNominatim(
     };
     const addr = data.address ?? {};
     const street = (addr.road || addr.pedestrian || "").trim();
-    const area =
-      addr.neighbourhood || addr.suburb || addr.city_district || "";
-    const city =
-      addr.city || addr.town || addr.village || addr.county || "";
+    const area = addr.neighbourhood || addr.suburb || addr.city_district || "";
+    const city = addr.city || addr.town || addr.village || addr.county || "";
     const state = addr.state || "";
     const label = formatImmediateAddress({
       street,
@@ -274,7 +266,7 @@ async function reverseGeocodeNominatim(
  */
 export async function reverseGeocodeLatLngServer(
   lat: number,
-  lng: number
+  lng: number,
 ): Promise<ReverseGeocodeResult | null> {
   const fromGoogle = await reverseGeocodeGoogle(lat, lng);
   if (fromGoogle) return fromGoogle;
@@ -288,12 +280,12 @@ export async function reverseGeocodeLatLngServer(
  */
 export async function reverseGeocodeLatLng(
   lat: number,
-  lng: number
+  lng: number,
 ): Promise<ReverseGeocodeResult | null> {
   if (typeof window !== "undefined") {
     try {
       const res = await fetch(
-        `/api/reverse-geocode?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`
+        `/api/reverse-geocode?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`,
       );
       if (!res.ok) return null;
       return (await res.json()) as ReverseGeocodeResult;

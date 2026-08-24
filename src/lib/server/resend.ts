@@ -8,10 +8,7 @@ export function isResendConfigured(): boolean {
 }
 
 export function getResendFrom(): string {
-  return (
-    process.env.RESEND_FROM_EMAIL?.trim() ||
-    "Ona <onboarding@resend.dev>"
-  );
+  return process.env.RESEND_FROM_EMAIL?.trim() || "Ona <onboarding@resend.dev>";
 }
 
 export async function sendResendEmail(input: {
@@ -72,7 +69,7 @@ export async function sendSignupConfirmationEmail(input: {
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://336699.vercel.app";
 
-  const subject = `Welcome to Ona — your ${roleLabel} account is ready`;
+  const subject = `Welcome to Ona your ${roleLabel} account is ready`;
   const text = [
     `Hi ${first},`,
     ``,
@@ -82,30 +79,30 @@ export async function sendSignupConfirmationEmail(input: {
     ``,
     `If you did not create this account, contact support@ona.com.`,
     ``,
-    `— Ona`,
+    `Ona`,
   ].join("\n");
 
   const html = `
-  <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#0f172a">
-    <p style="font-size:22px;font-weight:800;margin:0 0 4px">
-      <span style="color:#FF6B35">Oga</span>Mecho
-    </p>
-    <p style="color:#64748b;margin:0 0 20px;font-size:13px">Roadside help when you need it</p>
-    <h1 style="font-size:18px;margin:0 0 12px">Account confirmed</h1>
-    <p style="font-size:14px;line-height:1.5;margin:0 0 12px">Hi ${escapeHtml(first)},</p>
-    <p style="font-size:14px;line-height:1.5;margin:0 0 12px">
-      Your <strong>${roleLabel}</strong> account is registered on Ona and will appear in our admin systems.
-    </p>
-    <p style="margin:20px 0">
-      <a href="${appUrl}/login/signin"
-         style="display:inline-block;background:#323231;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700;font-size:14px">
-        Log in to Ona
-      </a>
-    </p>
-    <p style="font-size:12px;color:#64748b;line-height:1.4">
-      If you did not create this account, ignore this email or contact support@ona.com.
-    </p>
-  </div>`;
+ <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#0f172a">
+ <p style="font-size:22px;font-weight:800;margin:0 0 4px">
+ <span style="color:#FF6B35">Oga</span>Mecho
+ </p>
+ <p style="color:#64748b;margin:0 0 20px;font-size:13px">Roadside help when you need it</p>
+ <h1 style="font-size:18px;margin:0 0 12px">Account confirmed</h1>
+ <p style="font-size:14px;line-height:1.5;margin:0 0 12px">Hi ${escapeHtml(first)},</p>
+ <p style="font-size:14px;line-height:1.5;margin:0 0 12px">
+ Your <strong>${roleLabel}</strong> account is registered on Ona and will appear in our admin systems.
+ </p>
+ <p style="margin:20px 0">
+ <a href="${appUrl}/login/signin"
+ style="display:inline-block;background:#323231;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700;font-size:14px">
+ Log in to Ona
+ </a>
+ </p>
+ <p style="font-size:12px;color:#64748b;line-height:1.4">
+ If you did not create this account, ignore this email or contact support@ona.com.
+ </p>
+ </div>`;
 
   return sendResendEmail({ to: input.to, subject, html, text });
 }

@@ -1,5 +1,5 @@
 /**
- * POST — one-shot dual-role T2 mirror backfill (Admin / Care).
+ * POST one-shot dual-role T2 mirror backfill (Admin / Care).
  * For users already approved on only Customer or only Pro side.
  */
 import { AdminAuthError, requireAdmin } from "@/lib/server/admin-auth";
@@ -27,9 +27,6 @@ export async function POST() {
     if (e instanceof AdminAuthError) {
       return apiFail(e.message, e.status, e.code || "auth");
     }
-    return apiFail(
-      e instanceof Error ? e.message : "Backfill failed",
-      500
-    );
+    return apiFail(e instanceof Error ? e.message : "Backfill failed", 500);
   }
 }

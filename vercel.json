@@ -1,7 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "regions": ["iad1"],
+  "regions": [
+    "iad1"
+  ],
   "crons": [
     {
       "path": "/api/jobs/expire-stale",
@@ -18,6 +20,14 @@
     {
       "path": "/api/cron/egress-ip",
       "schedule": "30 8 * * *"
+    },
+    {
+      "path": "/api/cron/notification-retry",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/analytics-rollup",
+      "schedule": "45 8 * * *"
     }
   ]
 }

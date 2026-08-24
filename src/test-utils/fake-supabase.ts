@@ -21,7 +21,7 @@ export type FakeAuthHandlers = {
   signInWithPassword?: (input: Record<string, unknown>) => Promise<AuthResult>;
   updateUserById?: (
     id: string,
-    patch: Record<string, unknown>
+    patch: Record<string, unknown>,
   ) => Promise<AuthResult>;
 };
 
@@ -99,7 +99,7 @@ export class FakeSupabase {
 
   constructor(
     tables: Record<string, Row[]> = {},
-    authHandlers?: FakeAuthHandlers
+    authHandlers?: FakeAuthHandlers,
   ) {
     this.rows = tables;
     this.auth = new FakeAuth(this, authHandlers);
@@ -214,7 +214,7 @@ export class FakeQuery {
 
   async maybeSingle() {
     const rows = this.sorted(this.db.rows[this.table] ?? []).filter((r) =>
-      this.matches(r)
+      this.matches(r),
     );
     return { data: rows[0] ?? null, error: null };
   }
@@ -306,7 +306,7 @@ export class FakeQuery {
 
 export function createFakeSupabase(
   tables: Record<string, Row[]> = {},
-  authHandlers?: FakeAuthHandlers
+  authHandlers?: FakeAuthHandlers,
 ): FakeSupabase {
   return new FakeSupabase(tables, authHandlers);
 }

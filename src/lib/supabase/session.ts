@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Shared session helpers — prevent false “Session expired” on Go Live,
+ * Shared session helpers prevent false “Session expired” on Go Live,
  * role switch, profile update, etc. Always try refresh before failing.
  *
  * Also guards concurrent refreshSession() (job page fires multiple API
@@ -20,12 +20,17 @@ export type AppSession = {
 /** Single-flight: only one refreshSession at a time across the app. */
 let refreshInFlight: Promise<AppSession | null> | null = null;
 
-function toAppSession(s: {
-  access_token: string;
-  refresh_token?: string;
-  user?: { id?: string } | null;
-  expires_at?: number;
-} | null | undefined): AppSession | null {
+function toAppSession(
+  s:
+    | {
+        access_token: string;
+        refresh_token?: string;
+        user?: { id?: string } | null;
+        expires_at?: number;
+      }
+    | null
+    | undefined,
+): AppSession | null {
   if (!s?.access_token || !s.user?.id) return null;
   return {
     accessToken: s.access_token,
@@ -95,7 +100,7 @@ export async function ensureAppSession(opts?: {
   forceRefresh?: boolean;
   /**
    * If getSession is empty, poll up to this many ms for storage rehydrate
-   * (default 0 = no wait). Job create/load should pass ~1500–4000.
+   * (default 0 = no wait). Job create/load should pass ~1500-4000.
    */
   waitForSessionMs?: number;
 }): Promise<AppSession | null> {
@@ -124,6 +129,6 @@ export async function ensureAppSession(opts?: {
   return session;
 }
 
-/** User-facing copy — never imply the whole app is geo-blocked */
+/** User-facing copy never imply the whole app is geo-blocked */
 export const SESSION_RELOGIN_MESSAGE =
   "Your login session needs a refresh. Stay on this page and try again, or sign in once more.";

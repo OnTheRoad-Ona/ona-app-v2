@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { apiListJobs } from "@/lib/jobs/client";
-import { indexJobsByProId, listOpenCustomerJobs } from "@/lib/jobs/motorist-pro-cta";
+import {
+  indexJobsByProId,
+  listOpenCustomerJobs,
+} from "@/lib/jobs/motorist-pro-cta";
 import type { JobRecord } from "@/lib/jobs/types";
 import { useApp } from "@/lib/store";
 

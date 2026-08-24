@@ -10,7 +10,10 @@ describe("apiOk", () => {
   });
 
   it("accepts custom init options", async () => {
-    const res = apiOk({ ok: true }, { status: 201, headers: { "X-Custom": "val" } });
+    const res = apiOk(
+      { ok: true },
+      { status: 201, headers: { "X-Custom": "val" } },
+    );
     expect(res.status).toBe(201);
     expect(res.headers.get("X-Custom")).toBe("val");
   });

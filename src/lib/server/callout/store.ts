@@ -34,15 +34,15 @@ function rowToPolicy(row: Record<string, unknown> | null): CalloutPolicy {
     ratePerKm: num(row.rate_per_km, DEFAULT_CALLOUT_POLICY.ratePerKm),
     minimumBillableDistanceKm: num(
       row.minimum_billable_distance_km,
-      DEFAULT_CALLOUT_POLICY.minimumBillableDistanceKm
+      DEFAULT_CALLOUT_POLICY.minimumBillableDistanceKm,
     ),
     maximumRadiusKm: num(
       row.maximum_radius_km,
-      DEFAULT_CALLOUT_POLICY.maximumRadiusKm
+      DEFAULT_CALLOUT_POLICY.maximumRadiusKm,
     ),
     billingIncrementKm: num(
       row.billing_increment_km,
-      DEFAULT_CALLOUT_POLICY.billingIncrementKm
+      DEFAULT_CALLOUT_POLICY.billingIncrementKm,
     ),
     updatedBy: row.updated_by ? String(row.updated_by) : null,
     updatedAt: row.updated_at ? String(row.updated_at) : null,
@@ -70,14 +70,17 @@ export function rowToQuote(row: Record<string, unknown>): CalloutQuote {
     calloutEligible: row.callout_eligible === true,
     calloutStatus: isCalloutStatus(statusRaw) ? statusRaw : "PENDING",
     tradeId: tradeRaw && isProService(tradeRaw) ? tradeRaw : null,
-    tradeBaseFee: row.trade_base_fee != null ? Number(row.trade_base_fee) : null,
+    tradeBaseFee:
+      row.trade_base_fee != null ? Number(row.trade_base_fee) : null,
     distanceRate: row.distance_rate != null ? Number(row.distance_rate) : null,
     approvedRouteDistanceKm:
       row.approved_route_distance_km != null
         ? Number(row.approved_route_distance_km)
         : null,
     billableDistanceKm:
-      row.billable_distance_km != null ? Number(row.billable_distance_km) : null,
+      row.billable_distance_km != null
+        ? Number(row.billable_distance_km)
+        : null,
     distanceCharge:
       row.distance_charge != null ? Number(row.distance_charge) : null,
     calloutFee: row.callout_fee != null ? Number(row.callout_fee) : null,
@@ -87,7 +90,9 @@ export function rowToQuote(row: Record<string, unknown>): CalloutQuote {
     originLongitude:
       row.origin_longitude != null ? Number(row.origin_longitude) : null,
     destinationLatitude:
-      row.destination_latitude != null ? Number(row.destination_latitude) : null,
+      row.destination_latitude != null
+        ? Number(row.destination_latitude)
+        : null,
     destinationLongitude:
       row.destination_longitude != null
         ? Number(row.destination_longitude)
@@ -130,7 +135,9 @@ export async function loadCalloutPolicy(): Promise<CalloutPolicy> {
   }
 }
 
-export async function loadTradeCalloutPricing(): Promise<TradeCalloutPricing[]> {
+export async function loadTradeCalloutPricing(): Promise<
+  TradeCalloutPricing[]
+> {
   const seeded: TradeCalloutPricing[] = ALL_PRO_SERVICES.map((tradeId) => ({
     tradeId,
     baseFee: DEFAULT_TRADE_BASE_FEES[tradeId],
@@ -142,9 +149,7 @@ export async function loadTradeCalloutPricing(): Promise<TradeCalloutPricing[]> 
   if (!isSupabaseAdminConfigured()) return seeded;
   try {
     const sb = createServiceSupabase();
-    const { data, error } = await sb
-      .from("trade_call_out_pricing")
-      .select("*");
+    const { data, error } = await sb.from("trade_call_out_pricing").select("*");
     if (error || !data) return seeded;
     const byId = new Map<ProService, TradeCalloutPricing>();
     for (const row of data as Record<string, unknown>[]) {
@@ -158,7 +163,7 @@ export async function loadTradeCalloutPricing(): Promise<TradeCalloutPricing[]> 
 }
 
 export async function loadTradeBaseFee(
-  tradeId: ProService
+  tradeId: ProService,
 ): Promise<{ baseFee: number; enabled: boolean }> {
   const all = await loadTradeCalloutPricing();
   const hit = all.find((t) => t.tradeId === tradeId);
@@ -169,7 +174,7 @@ export async function loadTradeBaseFee(
 }
 
 export async function getCalloutQuote(
-  requestId: string
+  requestId: string,
 ): Promise<CalloutQuote | null> {
   if (!isSupabaseAdminConfigured()) return null;
   try {
@@ -187,7 +192,7 @@ export async function getCalloutQuote(
 }
 
 export async function upsertCalloutQuote(
-  quote: CalloutQuote
+  quote: CalloutQuote,
 ): Promise<CalloutQuote | null> {
   if (!isSupabaseAdminConfigured()) return quote;
   try {
@@ -226,7 +231,7 @@ export async function upsertCalloutQuote(
           urgency_multiplier: quote.urgencyMultiplier ?? 1,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: "request_id" }
+        { onConflict: "request_id" },
       )
       .select("*")
       .single();
@@ -239,7 +244,7 @@ export async function upsertCalloutQuote(
 
 export async function updateCalloutStatus(
   requestId: string,
-  status: CalloutStatus
+  status: CalloutStatus,
 ): Promise<void> {
   if (!isSupabaseAdminConfigured()) return;
   try {
@@ -321,7 +326,7 @@ async function writeFieldAudit(input: {
 export async function saveCalloutPolicy(
   patch: PolicyPatch,
   adminId: string,
-  reason?: string
+  reason?: string,
 ): Promise<CalloutPolicy> {
   const current = await loadCalloutPolicy();
   const next: CalloutPolicy = {
@@ -394,7 +399,7 @@ export async function saveTradeCalloutPricing(
   tradeId: ProService,
   patch: { baseFee?: number; enabled?: boolean; currency?: string },
   adminId: string,
-  reason?: string
+  reason?: string,
 ): Promise<TradeCalloutPricing> {
   const all = await loadTradeCalloutPricing();
   const current = all.find((t) => t.tradeId === tradeId) ?? {

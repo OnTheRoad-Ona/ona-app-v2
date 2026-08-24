@@ -43,7 +43,7 @@ function normalizeBankCode(code: string): string {
 
 export function bankNameForCode(
   code: string | null | undefined,
-  list: BankOption[] = NG_BANKS
+  list: BankOption[] = NG_BANKS,
 ): string {
   const c = normalizeBankCode(code || "");
   if (!c) return "";
@@ -60,37 +60,35 @@ export function bankNameForCode(
 
 export function bankCodeForName(
   name: string | null | undefined,
-  list: BankOption[] = NG_BANKS
+  list: BankOption[] = NG_BANKS,
 ): string {
   const n = (name || "").trim().toLowerCase();
   if (!n) return "";
   const exact = list.find((b) => b.name.toLowerCase() === n);
   if (exact) return exact.code;
   const partial = list.find(
-    (b) =>
-      b.name.toLowerCase().includes(n) || n.includes(b.name.toLowerCase())
+    (b) => b.name.toLowerCase().includes(n) || n.includes(b.name.toLowerCase()),
   );
   return partial?.code || "";
 }
 
 export function hasCompleteBankDetails(
-  profile: UserProfile | null | undefined
+  profile: UserProfile | null | undefined,
 ): boolean {
   if (!profile) return false;
   const name = (profile.bankAccountName || "").trim();
   const num = (profile.bankAccountNumber || "").replace(/\D/g, "");
   const code = (profile.bankCode || "").trim();
-  const bank =
-    (profile.bankName || "").trim() || bankNameForCode(code);
+  const bank = (profile.bankName || "").trim() || bankNameForCode(code);
   return Boolean(bank && name && num.length === 10 && code);
 }
 
 /**
- * Any signed-in user with incomplete bank — lower panel (not full-app block).
+ * Any signed-in user with incomplete bank lower panel (not full-app block).
  * Code is auto-filled when they select a bank from Flutterwave list.
  */
 export function requiresBankSetup(
-  profile: UserProfile | null | undefined
+  profile: UserProfile | null | undefined,
 ): boolean {
   if (!profile) return false;
   return !hasCompleteBankDetails(profile);
@@ -133,8 +131,10 @@ export function nameTokens(full: string | null | undefined): string[] {
  */
 export function bankAccountMatchesSignupName(
   bankAccountName: string | null | undefined,
-  signupFullName: string | null | undefined
-): { ok: true; matches: number } | { ok: false; matches: number; error: string } {
+  signupFullName: string | null | undefined,
+):
+  | { ok: true; matches: number }
+  | { ok: false; matches: number; error: string } {
   const signup = nameTokens(signupFullName);
   const bank = nameTokens(bankAccountName);
   if (!signup.length) {
@@ -158,7 +158,9 @@ export function bankAccountMatchesSignupName(
     const idx = bank.findIndex(
       (b, i) =>
         !usedBank.has(i) &&
-        (b === s || (s.length >= 3 && b.startsWith(s)) || (b.length >= 3 && s.startsWith(b)))
+        (b === s ||
+          (s.length >= 3 && b.startsWith(s)) ||
+          (b.length >= 3 && s.startsWith(b))),
     );
     if (idx >= 0) {
       matches += 1;
@@ -188,12 +190,11 @@ export function validateBankDetailsInput(
     bankCode?: string;
   },
   list: BankOption[] = NG_BANKS,
-  /** Signup full name — bank account name must match ≥2 parts */
-  signupFullName?: string | null
+  /** Signup full name bank account name must match ≥2 parts */
+  signupFullName?: string | null,
 ): string | null {
   const code = (input.bankCode || "").trim();
-  const bank =
-    (input.bankName || "").trim() || bankNameForCode(code, list);
+  const bank = (input.bankName || "").trim() || bankNameForCode(code, list);
   const name = (input.bankAccountName || "").trim();
   const num = (input.bankAccountNumber || "").replace(/\D/g, "");
   if (!code) return "Pick your bank. The bank code fills itself.";
@@ -208,9 +209,7 @@ export function validateBankDetailsInput(
 }
 
 /** Client: load banks for a country (geo-fenced Flutterwave list). */
-export async function fetchCountryBanks(
-  countryIso: string = "NG"
-): Promise<{
+export async function fetchCountryBanks(countryIso: string = "NG"): Promise<{
   banks: BankOption[];
   source: string;
   country: string;
@@ -219,7 +218,7 @@ export async function fetchCountryBanks(
   try {
     const res = await fetch(
       `/api/payments/banks?country=${encodeURIComponent(iso)}`,
-      { cache: "default" }
+      { cache: "default" },
     );
     const json = (await res.json()) as {
       ok?: boolean;
@@ -242,7 +241,7 @@ export async function fetchCountryBanks(
   };
 }
 
-/** @deprecated Prefer fetchCountryBanks — kept for older imports */
+/** @deprecated Prefer fetchCountryBanks kept for older imports */
 export async function fetchNigeriaBanks(): Promise<{
   banks: BankOption[];
   source: string;

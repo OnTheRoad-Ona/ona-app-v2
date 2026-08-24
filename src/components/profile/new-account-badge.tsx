@@ -10,12 +10,12 @@ import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 /**
- * “New” badge for accounts on visibility Tier 1–2 only.
+ * “New” badge for accounts on visibility Tier 1-2 only.
  * Off at Tier 3+ (admin ladder).
  */
 export function shouldShowNewAccountBadge(
   visibilityTier: number | null | undefined,
-  opts?: { status?: string | null }
+  opts?: { status?: string | null },
 ): boolean {
   const tier = resolveVisibilityTier({
     visibilityTier: visibilityTier as VisibilityTier | undefined,
@@ -30,7 +30,7 @@ export function NewAccountBadge({
   size = "sm",
   className,
 }: {
-  /** 1–4 artisan visibility tier */
+  /** 1-4 artisan visibility tier */
   visibilityTier?: number | null;
   status?: string | null;
   size?: "sm" | "md";
@@ -45,7 +45,7 @@ export function NewAccountBadge({
       className={cn(
         "inline-flex shrink-0 items-center font-bold uppercase tracking-wide text-[#FF6B35]",
         size === "md" ? "text-[10px]" : "text-[9px]",
-        className
+        className,
       )}
       aria-label={t("badge.newAccount")}
     >

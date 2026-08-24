@@ -5,7 +5,7 @@ import {
   getTradeAttributeSchema,
 } from "@/lib/shop/trade-attributes";
 
-describe("validateCatalogRecord — schema", () => {
+describe("validateCatalogRecord schema", () => {
   it("rejects a record with no name", () => {
     const r = validateCatalogRecord({ raw: {}, sku: "X-1" });
     expect(r.valid).toBe(false);
@@ -19,20 +19,35 @@ describe("validateCatalogRecord — schema", () => {
   });
 
   it("rejects negative price", () => {
-    const r = validateCatalogRecord({ raw: {}, name: "P", sku: "S", priceMinor: -5 });
+    const r = validateCatalogRecord({
+      raw: {},
+      name: "P",
+      sku: "S",
+      priceMinor: -5,
+    });
     expect(r.valid).toBe(false);
     expect(r.issues.some((i) => i.ruleKey === "schema.price")).toBe(true);
   });
 
   it("accepts a minimal valid record", () => {
-    const r = validateCatalogRecord({ raw: {}, name: "Brake Pad", sku: "BP-1", priceMinor: 1000 });
+    const r = validateCatalogRecord({
+      raw: {},
+      name: "Brake Pad",
+      sku: "BP-1",
+      priceMinor: 1000,
+    });
     expect(r.valid).toBe(true);
   });
 });
 
-describe("validateCatalogRecord — trade", () => {
+describe("validateCatalogRecord trade", () => {
   it("rejects an unknown trade key", () => {
-    const r = validateCatalogRecord({ raw: {}, name: "P", sku: "S", tradeKey: "plumberx" });
+    const r = validateCatalogRecord({
+      raw: {},
+      name: "P",
+      sku: "S",
+      tradeKey: "plumberx",
+    });
     expect(r.valid).toBe(false);
     expect(r.issues.some((i) => i.ruleKey === "trade.known")).toBe(true);
   });
@@ -51,8 +66,8 @@ describe("validateCatalogRecord — trade", () => {
         (i) =>
           i.ruleKey === "attribute.invalid" &&
           i.message.includes("vehicleMake") &&
-          i.message.includes("solar")
-      )
+          i.message.includes("solar"),
+      ),
     ).toBe(true);
   });
 
@@ -68,7 +83,7 @@ describe("validateCatalogRecord — trade", () => {
   });
 });
 
-describe("validateCatalogRecord — attributes per trade", () => {
+describe("validateCatalogRecord attributes per trade", () => {
   it("rejects unknown attributes for a trade", () => {
     const r = validateCatalogRecord({
       raw: {},
@@ -83,7 +98,9 @@ describe("validateCatalogRecord — attributes per trade", () => {
 
   it("requires trade-required attributes (solar wattage)", () => {
     const solar = getTradeAttributeSchema("solar");
-    expect(solar?.attributes.find((a) => a.key === "wattage")?.required).toBe(true);
+    expect(solar?.attributes.find((a) => a.key === "wattage")?.required).toBe(
+      true,
+    );
     const r = validateCatalogRecord({
       raw: {},
       name: "Panel",
@@ -103,13 +120,20 @@ describe("validateCatalogRecord — attributes per trade", () => {
       attributes: { position: "Front", vehicleYear: 2020 },
     });
     expect(r.valid).toBe(true); // warning, not error
-    expect(r.issues.some((i) => i.ruleKey === "fitment.incomplete" && i.level === "warning")).toBe(true);
+    expect(
+      r.issues.some(
+        (i) => i.ruleKey === "fitment.incomplete" && i.level === "warning",
+      ),
+    ).toBe(true);
   });
 });
 
 describe("validateTradeAttributes", () => {
   it("vehicle fitment is allowed for vehicle trades", () => {
-    const r = validateTradeAttributes("mechanic", { vehicleMake: "Toyota", position: "Front" });
+    const r = validateTradeAttributes("mechanic", {
+      vehicleMake: "Toyota",
+      position: "Front",
+    });
     expect(r.valid).toBe(true);
   });
 

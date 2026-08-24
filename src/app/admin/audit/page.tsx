@@ -32,7 +32,10 @@ export default function AdminAuditPage() {
   useEffect(() => {
     if (!ready) return;
     (async () => {
-      const res = await api<{ actions: Action[]; yearSummary?: { ytdCount: number } }>(`/api/admin/audit?period=${period}`);
+      const res = await api<{
+        actions: Action[];
+        yearSummary?: { ytdCount: number };
+      }>(`/api/admin/audit?period=${period}`);
       if (!res.ok) {
         setError(res.message);
         return;
@@ -46,22 +49,39 @@ export default function AdminAuditPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Audit log</h1>
       <p className="om-admin-sub">
-        Staff action log: who approved, froze, released escrow, or changed roles. Use for compliance and disputes.
+        Staff action log: who approved, froze, released escrow, or changed
+        roles. Use for compliance and disputes.
       </p>
 
       <AdminGuideBanner pageId="audit" />
 
       <div className="om-admin-panel">
-        <div className="om-admin-toolbar" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div
+          className="om-admin-toolbar"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
           <strong>{actions.length} event(s)</strong>
           <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
-            {(["all", "year", "ytd"] as Period[]).map(p => (
-              <button key={p} onClick={() => setPeriod(p)} style={{
-                background: period === p ? "var(--accent)" : "transparent",
-                color: period === p ? "#fff" : "inherit",
-                border: "1px solid var(--border)",
-                borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: period === p ? 700 : 400, cursor: "pointer",
-              }}>
+            {(["all", "year", "ytd"] as Period[]).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                style={{
+                  background: period === p ? "var(--accent)" : "transparent",
+                  color: period === p ? "#fff" : "inherit",
+                  border: "1px solid var(--border)",
+                  borderRadius: 6,
+                  padding: "4px 10px",
+                  fontSize: 11,
+                  fontWeight: period === p ? 700 : 400,
+                  cursor: "pointer",
+                }}
+              >
                 {PERIOD_LABELS[p]}
                 {p === "ytd" && ytdCount > 0 ? ` (${ytdCount})` : ""}
               </button>
@@ -94,12 +114,12 @@ export default function AdminAuditPage() {
                   </td>
                   <td className="om-admin-muted">{a.admin_id.slice(0, 8)}…</td>
                   <td className="om-admin-muted">
-                    {a.target_user_id?.slice(0, 8) || "—"}
+                    {a.target_user_id?.slice(0, 8) || ""}
                   </td>
                   <td className="om-admin-muted">
                     {Object.keys(a.meta || {}).length
                       ? JSON.stringify(a.meta).slice(0, 80)
-                      : "—"}
+                      : ""}
                   </td>
                 </tr>
               ))

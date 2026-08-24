@@ -54,7 +54,7 @@ function MapSync({
       (t) =>
         t.hasLiveLocation !== false &&
         Number.isFinite(t.location.lat) &&
-        Number.isFinite(t.location.lng)
+        Number.isFinite(t.location.lng),
     );
     const bounds = L.latLngBounds([[center.lat, center.lng]]);
     live.forEach((t) => bounds.extend([t.location.lat, t.location.lng]));
@@ -69,7 +69,7 @@ function MapSync({
     const onFit = () => {
       const bounds = L.latLngBounds([[center.lat, center.lng]]);
       technicians.forEach((t) =>
-        bounds.extend([t.location.lat, t.location.lng])
+        bounds.extend([t.location.lat, t.location.lng]),
       );
       map.fitBounds(bounds.pad(0.2));
     };
@@ -112,7 +112,7 @@ export function OsmServiceMap({
       lat: location.coordinates.lat,
       lng: location.coordinates.lng,
     }),
-    [location.coordinates.lat, location.coordinates.lng]
+    [location.coordinates.lat, location.coordinates.lng],
   );
 
   return (
@@ -124,7 +124,7 @@ export function OsmServiceMap({
       className="relative h-full w-full overflow-hidden"
       style={{ backgroundColor: mapTheme.backgroundColor }}
     >
-      {/* Thought-style nearby label — no pill background */}
+      {/* Thought-style nearby label no pill background */}
       <div
         className="pointer-events-none absolute inset-x-0 top-2.5 z-[500] flex justify-center px-10"
         aria-label={`${technicians.length} nearby technicians`}
@@ -150,7 +150,11 @@ export function OsmServiceMap({
         }}
       >
         <TileLayer url={mapTheme.osmTileUrl} />
-        <MapSync center={center} technicians={technicians} radiusKm={radiusKm} />
+        <MapSync
+          center={center}
+          technicians={technicians}
+          radiusKm={radiusKm}
+        />
         <Marker
           position={[center.lat, center.lng]}
           icon={userIcon()}
@@ -162,7 +166,7 @@ export function OsmServiceMap({
             (t) =>
               t.hasLiveLocation !== false &&
               Number.isFinite(t.location.lat) &&
-              Number.isFinite(t.location.lng)
+              Number.isFinite(t.location.lng),
           )
           .map((t) => {
             const selected = t.id === selectedTechId;

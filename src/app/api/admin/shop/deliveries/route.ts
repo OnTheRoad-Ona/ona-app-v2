@@ -29,7 +29,11 @@ const bodySchema = z.object({
 /** Assign courier / update shop delivery status. */
 export async function PATCH(req: Request) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     const { session } = await requireAdmin();

@@ -3,20 +3,20 @@
 /**
  * Repair Pro: lower-panel Incoming Request only (no top toast).
  * - Instant surface: poll + Supabase realtime
- * - Up to 2 requests visible at once (full cards, panel expands — no shrink/scroll)
+ * - Up to 2 requests visible at once (full cards, panel expands no shrink/scroll)
  * - Further jobs queue; when a slot frees, next promotes instantly
  * - 66s progress per card (server pairing_deadline)
  * - OS push kept alongside in-app panel
- * - No dim scrim — panel only; cannot dismiss by outside tap or Escape
- *   (timer elapse or Decline / Later / I can fix this only)
+ * - No dim scrim panel only; cannot dismiss by outside tap or Escape
+ * (timer elapse or Decline / Later / I can fix this only)
  */
 
 /** Max concurrent request cards in the lower panel (no scroll for this many). */
 const MAX_VISIBLE_INCOMING = 2;
 
-/** Fast status-check cadence while a request card is on screen — the close
- *  falls back from realtime to this poll, so a customer cancel lands in ≤ ~½s
- *  even when the realtime push is missed on a flaky connection. */
+/** Fast status-check cadence while a request card is on screen the close
+ * falls back from realtime to this poll, so a customer cancel lands in ≤ ~½s
+ * even when the realtime push is missed on a flaky connection. */
 export const INCOMING_POPUP_STATUS_POLL_MS = 500;
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -25,14 +25,30 @@ import type {
   WheelEvent as ReactWheelEvent,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Briefcase, ChevronLeft, ChevronRight, ChevronUp, Clock, Loader2, Wrench, X } from "lucide-react";
+import {
+  Briefcase,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Clock,
+  Loader2,
+  Wrench,
+  X,
+} from "lucide-react";
 import {
   canNotify,
   ensureNotifyPermission,
   showAppNotification,
   vibrateCallPattern,
 } from "@/lib/app-notify";
-import { apiDeferJob, apiGetJob, apiListJobs, apiProIncomingStatus, apiTransition, getCurrentPosition } from "@/lib/jobs/client";
+import {
+  apiDeferJob,
+  apiGetJob,
+  apiListJobs,
+  apiProIncomingStatus,
+  apiTransition,
+  getCurrentPosition,
+} from "@/lib/jobs/client";
 import { ConfirmCancelSheet } from "@/components/ui/confirm-cancel-sheet";
 import {
   canSurfaceIncomingJob,
@@ -49,12 +65,12 @@ import {
 } from "@/lib/jobs/incoming-popup-timing";
 import type { JobRecord } from "@/lib/jobs/types";
 import { refreshServerClock, serverNow } from "@/lib/jobs/server-clock";
-import {
-  isDeadlinePast,
-  secondsLeftFloor,
-} from "@/lib/jobs/countdown-math";
+import { isDeadlinePast, secondsLeftFloor } from "@/lib/jobs/countdown-math";
 import { formatMoney } from "@/lib/pricing";
-import { calculateCalloutFee, resolveAppliedMultiplier } from "@/lib/callout/engine";
+import {
+  calculateCalloutFee,
+  resolveAppliedMultiplier,
+} from "@/lib/callout/engine";
 import { DEFAULT_TRADE_BASE_FEES } from "@/lib/callout/constants";
 import type { CalloutQuote } from "@/lib/callout/constants";
 import type { ProService } from "@/lib/types";
@@ -71,20 +87,20 @@ import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 /** Per-card concise Base + Call-Out fee. Fetches the locked quote for this
- *  request (or the server estimate while still pairing) and shows the fee
- *  once the quote is available. Refetches when the job status changes so a
- *  restarted search (customer Retry) still surfaces the fee. */
+ * request (or the server estimate while still pairing) and shows the fee
+ * once the quote is available. Refetches when the job status changes so a
+ * restarted search (customer Retry) still surfaces the fee. */
 /** Fallback fee for the OPEN trade (base fee + distance×rate) when the server
- *  quote is not yet payable — same formula the server runs. Never ₦0 for a
- *  real trade. Always carries the applicable urgency multiplier: the chip from
- *  the server quote stays in effect, but the current-time auto band (Night
- *  9PM–5AM Lagos) overrides it when higher. The urgency feature is forced —
- *  no fallback may show an un-multiplied fee. */
+ * quote is not yet payable same formula the server runs. Never ₦0 for a
+ * real trade. Always carries the applicable urgency multiplier: the chip from
+ * the server quote stays in effect, but the current-time auto band (Night
+ * 9PM-5AM Lagos) overrides it when higher. The urgency feature is forced
+ * no fallback may show an un-multiplied fee. */
 function tradeFallbackFee(
   trade: string | null | undefined,
   quote?: Partial<
     Pick<CalloutQuote, "urgencyKind" | "urgencyMultiplier">
-  > | null
+  > | null,
 ): number {
   if (!trade || !(trade in DEFAULT_TRADE_BASE_FEES)) return 0;
   const applied = resolveAppliedMultiplier({
@@ -113,14 +129,13 @@ function CalloutFeeOnCard({
   const muted = isLight ? "text-slate-500" : "text-white/50";
   const qFee = Number(quote?.calloutFee);
   const payable = quote && Number.isFinite(qFee) && qFee > 0 ? qFee : 0;
-  const fee =
-    payable > 0 ? payable : tradeFallbackFee(job.serviceType, quote);
+  const fee = payable > 0 ? payable : tradeFallbackFee(job.serviceType, quote);
   const currency = quote?.currency || job.currency || "NGN";
   return (
     <div
       className={cn(
         "mt-2.5 border-t pt-2",
-        isLight ? "border-black/10" : "border-white/10"
+        isLight ? "border-black/10" : "border-white/10",
       )}
     >
       <div className="flex items-baseline justify-between gap-3">
@@ -151,15 +166,15 @@ function idemFor(j: JobRecord, proId: string, event: string): string {
 }
 
 /** Server messages that mean "this request is no longer this pro's live
- *  request" (the customer closed/cancelled it, or it moved to another pro).
- *  The server already refuses the tap — surface a friendly message and drop
- *  the card instead of echoing the raw API error. */
+ * request" (the customer closed/cancelled it, or it moved to another pro).
+ * The server already refuses the tap surface a friendly message and drop
+ * the card instead of echoing the raw API error. */
 function isStaleRequestError(message?: string | null): boolean {
   return Boolean(
     message &&
-      /not open for this action|not awaiting confirmation|moved on while opening|moved on before confirmation|not assigned to this request/i.test(
-        message
-      )
+    /not open for this action|not awaiting confirmation|moved on while opening|moved on before confirmation|not assigned to this request/i.test(
+      message,
+    ),
   );
 }
 
@@ -176,13 +191,13 @@ export function IncomingJobPopup() {
   const queueRef = useRef<JobRecord[]>([]);
   const osPushed = useRef<Set<string>>(new Set());
   /** When each card was surfaced (local respond-window fallback when the job
-   *  has no server-owned deadline). */
+   * has no server-owned deadline). */
   const surfacedAtRef = useRef<Record<string, number>>({});
   /** Consecutive polls a card's id was missing from the pro list (grace window
-   *  for Supabase/realtime blips before the card is truly dropped). */
+   * for Supabase/realtime blips before the card is truly dropped). */
   const missingCountRef = useRef<Record<string, number>>({});
-  /** Job ids we already told the pro was closed — so a request that closes
-   *  once doesn't toast/push repeatedly on every realtime ping. */
+  /** Job ids we already told the pro was closed so a request that closes
+   * once doesn't toast/push repeatedly on every realtime ping. */
   const notifiedCloseRef = useRef<Set<string>>(new Set());
   /** Horizontal swipe origin for the photo lightbox (next/prev without closing). */
   const lightboxTouchX = useRef<number | null>(null);
@@ -196,10 +211,10 @@ export function IncomingJobPopup() {
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [snoozedJob, setSnoozedJob] = useState<JobRecord | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  /** Transient X-style banner — "this request was closed". Shown when a live
-   *  card is closed because the customer cancelled, expired, or moved to another
-   *  pro. Renders as an in-app top card (mirrors the app's notification toasts);
-   *  never an OS/browser push. Survives the panel closing. */
+  /** Transient X-style banner "this request was closed". Shown when a live
+   * card is closed because the customer cancelled, expired, or moved to another
+   * pro. Renders as an in-app top card (mirrors the app's notification toasts);
+   * never an OS/browser push. Survives the panel closing. */
   const [closeBanner, setCloseBanner] = useState<{
     title: string;
     body: string;
@@ -239,9 +254,9 @@ export function IncomingJobPopup() {
   }, []);
 
   /** If a request the pro was seeing closed (customer cancelled, request
-   *  expired, or it went to another pro), tell them once with an in-app
-   *  X-style banner. Fires whether the card closes via realtime, the status
-   *  poll, or the list poll. */
+   * expired, or it went to another pro), tell them once with an in-app
+   * X-style banner. Fires whether the card closes via realtime, the status
+   * poll, or the list poll. */
   const notifyRequestClosed = useCallback(
     (
       jobId: string,
@@ -249,42 +264,41 @@ export function IncomingJobPopup() {
         job?: JobRecord | null;
         status?: string | null;
         movedOn?: boolean;
-      }
+      },
     ) => {
       if (notifiedCloseRef.current.has(jobId)) return;
       // Only announce a close the pro actually witnessed live this session.
       // A pre-existing terminal/history job (already expired/cancelled before
-      // this page mounted) must never re-announce on every reload — surface
+      // this page mounted) must never re-announce on every reload surface
       // only the real transition, exactly once.
       if (!(surfacedAtRef.current[jobId] > 0)) return;
       notifiedCloseRef.current.add(jobId);
       const { job, status = "", movedOn = false } = opts;
       // Cancellations toast through the notification center's top toast (live
-      // INSERT on notifications) — never also pile a transient banner here, or
+      // INSERT on notifications) never also pile a transient banner here, or
       // the pro would see two "Request cancelled" notices for the same event.
       if (!movedOn && String(status).toLowerCase() === "cancelled") return;
-      const title =
-        movedOn
-          ? "Request moved on"
-          : status === "cancelled"
-            ? "Request cancelled"
-            : status === "expired"
-              ? "Request expired"
-              : "Request closed";
+      const title = movedOn
+        ? "Request moved on"
+        : status === "cancelled"
+          ? "Request cancelled"
+          : status === "expired"
+            ? "Request expired"
+            : "Request closed";
       setCloseBanner({
         title,
         body: requestCloseText(opts),
         avatarUrl: job?.motoristPhoto || null,
       });
     },
-    []
+    [],
   );
 
   /**
    * One-tap "I can fix this": accepts the request right here (lower panel) and
-   * lands straight on the negotiation page — no full-page review in between.
+   * lands straight on the negotiation page no full-page review in between.
    * - pairing-stage: OPEN (reserve) then CONFIRM (accept) so the negotiation
-   *   gate is skipped server-side (reservation confirmed / assignment assigned)
+   * gate is skipped server-side (reservation confirmed / assignment assigned)
    * - classic: START_NEGOTIATION + session flag so the page skips the gate.
    * Errors are surfaced inline so a failed tap is never silent.
    */
@@ -301,7 +315,7 @@ export function IncomingJobPopup() {
           const stage = j.pairingStage ?? "";
           const needsOpen =
             stage === "waiting_for_selected" || stage === "waiting_for_pro";
-          // GPS is best-effort — never block the confirm on it. Start it
+          // GPS is best-effort never block the confirm on it. Start it
           // alongside OPEN and only attach the fix if it resolves within
           // ~250ms; otherwise the server uses the pro's existing Live pin.
           const gpsPromise = getCurrentPosition({
@@ -330,14 +344,12 @@ export function IncomingJobPopup() {
                 notifyRequestClosed(j.id, {
                   job: j,
                   status: j.status,
-                  movedOn: /not assigned|moved on/i.test(
-                    openRes.message || ""
-                  ),
+                  movedOn: /not assigned|moved on/i.test(openRes.message || ""),
                 });
               } else {
                 setActionError(
                   openRes.message ||
-                    "Could not open this request. Please try again."
+                    "Could not open this request. Please try again.",
                 );
               }
               return;
@@ -346,7 +358,7 @@ export function IncomingJobPopup() {
           const gps = await Promise.race([
             gpsPromise,
             new Promise<Record<string, never>>((resolve) =>
-              setTimeout(() => resolve({}), 250)
+              setTimeout(() => resolve({}), 250),
             ),
           ]);
           const confirmRes = await apiTransition({
@@ -364,13 +376,13 @@ export function IncomingJobPopup() {
                 job: j,
                 status: j.status,
                 movedOn: /not assigned|moved on/i.test(
-                  confirmRes.message || ""
+                  confirmRes.message || "",
                 ),
               });
             } else {
               setActionError(
                 confirmRes.message ||
-                  "Could not confirm this request. Please try again."
+                  "Could not confirm this request. Please try again.",
               );
             }
             return;
@@ -386,11 +398,11 @@ export function IncomingJobPopup() {
           });
           if (!res.ok) {
             setActionError(
-              res.message || "Could not connect. Please try again."
+              res.message || "Could not connect. Please try again.",
             );
             return;
           }
-          // Skip the full-page "Can you fix this?" gate — go straight to
+          // Skip the full-page "Can you fix this?" gate go straight to
           // negotiation (lower-panel flow).
           try {
             sessionStorage.setItem(`om-can-fix-${j.id}`, "1");
@@ -404,7 +416,7 @@ export function IncomingJobPopup() {
         setAcceptingId(null);
       }
     },
-    [backendUserId, fullyHide, notifyRequestClosed, router]
+    [backendUserId, fullyHide, notifyRequestClosed, router],
   );
 
   const pushOsOnce = useCallback((j: JobRecord) => {
@@ -434,13 +446,9 @@ export function IncomingJobPopup() {
    */
   const presentJob = useCallback(
     async (j: JobRecord) => {
-      markJobShown(
-        j.id,
-        backendUserId || undefined,
-        j.pairingDeadline || null
-      );
+      markJobShown(j.id, backendUserId || undefined, j.pairingDeadline || null);
 
-      // OS push only when the incoming panel isn't already on screen — a pro
+      // OS push only when the incoming panel isn't already on screen a pro
       // looking at the request cards sees new work without a browser
       // notification (same brand rule as the toast pile: no double voice).
       const panelAlreadyOpen = visibleJobsRef.current.length > 0;
@@ -494,8 +502,8 @@ export function IncomingJobPopup() {
       vibrateCallPattern();
       // The request is now ON this pro's screen. Ask the server to arm the
       // shared pairing_deadline exactly once (the server noops if a deadline is
-      // already set) so the 66s timer starts at this instant — on this card AND
-      // the customer's ring — and never rolls back. Fire-and-forget.
+      // already set) so the 66s timer starts at this instant on this card AND
+      // the customer's ring and never rolls back. Fire-and-forget.
       import("@/lib/jobs/client")
         .then(({ apiSurfaceJob }) => apiSurfaceJob(job.id))
         .catch(() => {
@@ -507,7 +515,7 @@ export function IncomingJobPopup() {
       void enablePushNotifications(backendUserId);
       if (!panelAlreadyOpen) pushOsOnce(job);
     },
-    [pushOsOnce, backendUserId]
+    [pushOsOnce, backendUserId],
   );
 
   /** Present up to 2 jobs; extras wait in queue until a slot frees. */
@@ -541,15 +549,12 @@ export function IncomingJobPopup() {
         return next;
       });
     },
-    [presentJob, backendUserId]
+    [presentJob, backendUserId],
   );
 
   /** Remove one card; promote next from queue into free slot. */
   const removeJobAndMaybeNext = useCallback(
-    (
-      jobId: string,
-      opts?: { defer?: boolean; goDashboard?: boolean }
-    ) => {
+    (jobId: string, opts?: { defer?: boolean; goDashboard?: boolean }) => {
       const proId = backendUserId;
       const target =
         visibleJobsRef.current.find((j) => j.id === jobId) ||
@@ -565,13 +570,16 @@ export function IncomingJobPopup() {
 
       const rest = visibleJobsRef.current.filter((j) => j.id !== jobId);
       let q = queueRef.current.filter((j) => j.id !== jobId);
-      // Any surface for this request must close too — including the "Confirm
+      // Any surface for this request must close too including the "Confirm
       // you can fix this" dialog that may be open over the expired card.
       setConfirmFix((c) => (c?.id === jobId ? null : c));
       setConfirmCancelFix(false);
       // Promote queued jobs into free slots after state settles
       const toPresent: JobRecord[] = [];
-      while (rest.length + toPresent.length < MAX_VISIBLE_INCOMING && q.length > 0) {
+      while (
+        rest.length + toPresent.length < MAX_VISIBLE_INCOMING &&
+        q.length > 0
+      ) {
         const [next, ...tail] = q;
         q = tail;
         toPresent.push(next);
@@ -592,7 +600,7 @@ export function IncomingJobPopup() {
       }
       for (const n of toPresent) void presentJob(n);
     },
-    [backendUserId, fullyHide, presentJob, router]
+    [backendUserId, fullyHide, presentJob, router],
   );
 
   const endCurrentAndMaybeNext = useCallback(
@@ -607,15 +615,17 @@ export function IncomingJobPopup() {
       }
       removeJobAndMaybeNext(current.id, opts);
     },
-    [fullyHide, removeJobAndMaybeNext, router]
+    [fullyHide, removeJobAndMaybeNext, router],
   );
 
-  // Progress lines — ALWAYS each job.pairingDeadline (same as customer ring).
+  // Progress lines ALWAYS each job.pairingDeadline (same as customer ring).
   const removeRef = useRef(removeJobAndMaybeNext);
   useEffect(() => {
     removeRef.current = removeJobAndMaybeNext;
   });
-  const visibleKey = visibleJobs.map((j) => `${j.id}:${j.pairingDeadline || ""}`).join("|");
+  const visibleKey = visibleJobs
+    .map((j) => `${j.id}:${j.pairingDeadline || ""}`)
+    .join("|");
   useEffect(() => {
     if (visibleJobsRef.current.length === 0 || snoozedJob || lightbox) return;
     // Align the server clock so the card shows the SAME remaining seconds as
@@ -634,7 +644,7 @@ export function IncomingJobPopup() {
           ? Date.parse(j.pairingDeadline)
           : Number.NaN;
         // Any server-owned deadline (the pairing window) drives the card first
-        // — same value the customer's ring counts, so they stay in sync.
+        // same value the customer's ring counts, so they stay in sync.
         if (Number.isFinite(deadlineMs)) {
           // Shared countdown math: floor like the customer ring so both phones
           // show the same number, and expire at the real moment (never a tick
@@ -672,7 +682,8 @@ export function IncomingJobPopup() {
           continue;
         }
         const started = surfacedAtRef.current[j.id] ?? Date.now();
-        const remainingMs = INCOMING_POPUP_VISIBLE_SEC * 1000 - (Date.now() - started);
+        const remainingMs =
+          INCOMING_POPUP_VISIBLE_SEC * 1000 - (Date.now() - started);
         nextMap[j.id] = Math.max(0, Math.floor(remainingMs / 1000));
         if (remainingMs <= 0) {
           deadlineUp.push(j.id);
@@ -709,9 +720,7 @@ export function IncomingJobPopup() {
 
     const ingest = (jobs: JobRecord[]) => {
       const now = serverNow();
-      const open = jobs.filter((j) =>
-        isIncomingJobOpen(j, backendUserId, now)
-      );
+      const open = jobs.filter((j) => isIncomingJobOpen(j, backendUserId, now));
       setOtherCount(open.length);
 
       // Cards survive as long as the request is still THIS pro's live request
@@ -722,9 +731,9 @@ export function IncomingJobPopup() {
           .filter(
             (j) =>
               j.repairProId === backendUserId &&
-              isProRequestCardKeepable(j.status, j.pairingStage)
+              isProRequestCardKeepable(j.status, j.pairingStage),
           )
-          .map((j) => j.id)
+          .map((j) => j.id),
       );
       // Grace window: only drop a card after it has been missing for 2
       // consecutive polls (covers realtime/Supabase blips without waiting on
@@ -743,7 +752,7 @@ export function IncomingJobPopup() {
             dropIds.add(id);
             delete missingCountRef.current[id];
             // Missing for 2 full polls = no longer this pro's live request
-            // (most commonly reassigned to another pro) — tell the pro.
+            // (most commonly reassigned to another pro) tell the pro.
             notifyRequestClosed(id, {
               job: findKnownJob(id),
               status: findKnownJob(id)?.status,
@@ -754,7 +763,7 @@ export function IncomingJobPopup() {
       }
       // Explicit close: the job is still listed but the server moved it out of
       // an actionable status (customer cancelled/completed, declined, reassigned
-      // to searching, …). Close its card NOW — no grace. Grace only covers
+      // to searching, …). Close its card NOW no grace. Grace only covers
       // cards that VANISH from the list (transient realtime blips). Tell the
       // pro why it closed.
       for (const j of jobs) {
@@ -819,7 +828,7 @@ export function IncomingJobPopup() {
           if (!fresh) return cur;
           // Only ADOPT a non-null deadline change. Never let a stale poll
           // result (fetched before the surface arm, or a server that just
-          // re-dispatched) overwrite an already-armed deadline with null —
+          // re-dispatched) overwrite an already-armed deadline with null
           // that flip would hide+reshow the 66s line (the "bounce").
           const freshDeadlineHasValue = Boolean(fresh.pairingDeadline);
           const deadlineChanged =
@@ -844,7 +853,7 @@ export function IncomingJobPopup() {
         });
         // Drop cards no longer this pro's live request (after grace)
         const kept = next.filter(
-          (j) => keepIds.has(j.id) && !dropIds.has(j.id)
+          (j) => keepIds.has(j.id) && !dropIds.has(j.id),
         );
         if (kept.length !== prev.length) changed = true;
         if (changed) {
@@ -875,8 +884,8 @@ export function IncomingJobPopup() {
     let pending = false;
     let tick = 0;
     /** Ultra-light close check: one tiny query for the visible card ids. Detects
-     *  a customer cancellation/close within ~1s even when the realtime push is
-     *  missed — no list payload, no media, no expiry work. */
+     * a customer cancellation/close within ~1s even when the realtime push is
+     * missed no list payload, no media, no expiry work. */
     const statusCheck = async () => {
       const visible = visibleJobsRef.current;
       if (visible.length === 0) return;
@@ -887,8 +896,7 @@ export function IncomingJobPopup() {
         const s = byId.get(cur.id);
         if (!s) continue;
         const movedOn =
-          (Boolean(s.repairProId) && s.repairProId !== backendUserId) ||
-          false;
+          (Boolean(s.repairProId) && s.repairProId !== backendUserId) || false;
         if (!isProRequestCardKeepable(s.status, s.pairingStage) || movedOn) {
           notifyRequestClosed(cur.id, {
             job: cur,
@@ -899,14 +907,11 @@ export function IncomingJobPopup() {
           continue;
         }
         // Keep the card's countdown in lockstep with the server deadline.
-        if (
-          s.pairingDeadline &&
-          s.pairingDeadline !== cur.pairingDeadline
-        ) {
+        if (s.pairingDeadline && s.pairingDeadline !== cur.pairingDeadline) {
           setVisibleJobs((prev) =>
             prev.map((j) =>
-              j.id === s.id ? { ...j, pairingDeadline: s.pairingDeadline } : j
-            )
+              j.id === s.id ? { ...j, pairingDeadline: s.pairingDeadline } : j,
+            ),
           );
         }
       }
@@ -945,17 +950,15 @@ export function IncomingJobPopup() {
       }
     };
 
-    // A realtime push already contains the row — close a card the instant the
+    // A realtime push already contains the row close a card the instant the
     // server moves it out of an actionable status (customer cancel/complete,
     // pro decline, …). No need to wait for the next poll. Pairing rows keep
     // their stage in pairing_stage/flow_status while the legacy `status`
     // column stays "requested", so keepability checks all three.
-    const applyRealtimeClose = (
-      payload?: {
-        new?: Record<string, unknown>;
-        old?: Record<string, unknown>;
-      }
-    ) => {
+    const applyRealtimeClose = (payload?: {
+      new?: Record<string, unknown>;
+      old?: Record<string, unknown>;
+    }) => {
       const row = payload?.new ?? payload?.old;
       if (!row || typeof row.id !== "string") return;
       const status = String(row.flow_status ?? row.status ?? "");
@@ -964,7 +967,7 @@ export function IncomingJobPopup() {
         row.repair_pro_id !== backendUserId;
       const keep = isProRequestCardKeepable(
         status,
-        String(row.pairing_stage ?? "")
+        String(row.pairing_stage ?? ""),
       );
       if (!keep || movedOn) {
         const known =
@@ -981,34 +984,40 @@ export function IncomingJobPopup() {
     };
 
     void poll();
-// A card on screen is time-critical: the customer can close the request at any
-// moment, and a missed realtime event (flaky mobile network) must still drop
-// the card within ~1s — the server already refuses stale taps, but the card
-// shouldn't outlive the request. Idle pros poll less.
-      // Local deadline timer + Realtime still wake instantly on new offers.
-      // The cadence is decided at FIRE time from what is visible NOW, and the
-      // wake points (mount, realtime push) arm the fast 1s interval so a card
-      // that just surfaced is not stuck behind the 3s idle timer before its
-      // first status check.
-      let timer = 0;
-      const schedule = (delay?: number) => {
-        timer = window.setTimeout(() => {
+    // A card on screen is time-critical: the customer can close the request at any
+    // moment, and a missed realtime event (flaky mobile network) must still drop
+    // the card within ~1s the server already refuses stale taps, but the card
+    // shouldn't outlive the request. Idle pros poll less.
+    // Local deadline timer + Realtime still wake instantly on new offers.
+    // The cadence is decided at FIRE time from what is visible NOW, and the
+    // wake points (mount, realtime push) arm the fast 1s interval so a card
+    // that just surfaced is not stuck behind the 3s idle timer before its
+    // first status check.
+    let timer = 0;
+    const schedule = (delay?: number) => {
+      timer = window.setTimeout(
+        () => {
           if (typeof document !== "undefined" && document.hidden) {
             schedule();
             return;
           }
           void poll();
           schedule();
-        }, delay ?? (visibleJobsRef.current.length || queueRef.current.length ? INCOMING_POPUP_STATUS_POLL_MS : 3_000));
-      };
-      schedule(INCOMING_POPUP_STATUS_POLL_MS);
+        },
+        delay ??
+          (visibleJobsRef.current.length || queueRef.current.length
+            ? INCOMING_POPUP_STATUS_POLL_MS
+            : 3_000),
+      );
+    };
+    schedule(INCOMING_POPUP_STATUS_POLL_MS);
 
     const unsub = backendSubscribeJobs(backendUserId, (payload) => {
       applyRealtimeClose(payload);
       if (!cancelled) {
         void poll();
         // A push may have surfaced a card while the timer sat armed at the
-        // idle 12s — jump onto the fast 1s cadence so its first status check
+        // idle 12s jump onto the fast 1s cadence so its first status check
         // isn't delayed.
         clearTimeout(timer);
         schedule(INCOMING_POPUP_STATUS_POLL_MS);
@@ -1077,7 +1086,7 @@ export function IncomingJobPopup() {
   const SPRING = "0.48s cubic-bezier(0.32, 0.72, 0, 1)";
   const stepDown = () =>
     setLevel((l) =>
-      l === "full" ? "middle" : l === "middle" ? "collapsed" : l
+      l === "full" ? "middle" : l === "middle" ? "collapsed" : l,
     );
 
   // Trackpad swipe support, mirroring the customer Home lower panel
@@ -1104,9 +1113,8 @@ export function IncomingJobPopup() {
 
     const onWheel = (e: WheelEvent) => {
       const inScrollArea =
-        e.target instanceof Element &&
-        e.target.closest("[data-panel-scroll]");
-      // Leftover expand-momentum over the content must not scroll it — the
+        e.target instanceof Element && e.target.closest("[data-panel-scroll]");
+      // Leftover expand-momentum over the content must not scroll it the
       // profile picture stays first until the user deliberately scrolls.
       if (performance.now() < swallowUntil && inScrollArea) {
         e.preventDefault();
@@ -1152,15 +1160,13 @@ export function IncomingJobPopup() {
 
   const peekHeight = Math.max(
     36,
-    Math.round((panelHeightRef.current || 0) * PEEK_RATIO)
+    Math.round((panelHeightRef.current || 0) * PEEK_RATIO),
   );
 
   const isPanelControl = (el: EventTarget | null) =>
     Boolean(
       el instanceof Element &&
-        el.closest(
-          "button, a, input, textarea, select, label, [role='slider']"
-        )
+      el.closest("button, a, input, textarea, select, label, [role='slider']"),
     );
 
   const onPanelPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -1205,7 +1211,7 @@ export function IncomingJobPopup() {
     setDragY(0);
   };
 
-  // Must respond via buttons or wait for timer — no outside tap / Escape dismiss
+  // Must respond via buttons or wait for timer no outside tap / Escape dismiss
   // Hook is called unconditionally (before the accountType early return) so the
   // hook count never changes on a role switch (React error #310).
   useEffect(() => {
@@ -1239,9 +1245,7 @@ export function IncomingJobPopup() {
   const solid = isLight ? "#ffffff" : "#1c1c1e";
   const ink = isLight ? "#0f1419" : "#e7e9ea";
   const muted = isLight ? "#536471" : "#71767b";
-  const hairline = isLight
-    ? "rgba(0,0,0,0.08)"
-    : "rgba(255,255,255,0.08)";
+  const hairline = isLight ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)";
 
   const titleFor = (j: JobRecord) =>
     isAutomotiveTrade(j.serviceType) && j.motoristVehicle?.trim()
@@ -1258,7 +1262,7 @@ export function IncomingJobPopup() {
           onClick={() => router.push("/jobs")}
           className={cn(
             "absolute right-3 top-[max(0.6rem,env(safe-area-inset-top))] z-[160] flex items-center gap-1.5 rounded-full border-0 px-2.5 py-1.5 text-[11px] font-bold shadow-md",
-            isLight ? "bg-slate-900 text-white" : "bg-[#FF6B35] text-white"
+            isLight ? "bg-slate-900 text-white" : "bg-[#FF6B35] text-white",
           )}
         >
           <Briefcase className="h-3.5 w-3.5" />
@@ -1266,9 +1270,9 @@ export function IncomingJobPopup() {
         </button>
       )}
 
-      {/* No dim scrim — panel only. Outside taps do nothing (no dismiss layer). */}
+      {/* No dim scrim panel only. Outside taps do nothing (no dismiss layer). */}
 
-      {/* Lower panel — medium compact, up to 2 cards; buttons stay full-size */}
+      {/* Lower panel medium compact, up to 2 cards; buttons stay full-size */}
       {panelOpen && (
         <div
           ref={(el) => {
@@ -1287,8 +1291,8 @@ export function IncomingJobPopup() {
               ? "cursor-pointer"
               : cn(
                   "px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]",
-                  level === "middle" && MIDDLE_MAX_H
-                )
+                  level === "middle" && MIDDLE_MAX_H,
+                ),
           )}
           style={{
             backgroundColor: solid,
@@ -1329,7 +1333,7 @@ export function IncomingJobPopup() {
               <div
                 className={cn(
                   "h-1 w-9 shrink-0 rounded-full",
-                  isLight ? "bg-black/15" : "bg-white/20"
+                  isLight ? "bg-black/15" : "bg-white/20",
                 )}
               />
               <span className="text-[11px] font-bold" style={{ color: muted }}>
@@ -1343,226 +1347,227 @@ export function IncomingJobPopup() {
             </div>
           ) : (
             <>
-          <div className="flex shrink-0 justify-center pb-1.5 pt-1">
-            <button
-              type="button"
-              aria-label={
-                level === "full"
-                  ? "Show fewer questions"
-                  : "Minimize panel"
-              }
-              className="flex cursor-grab items-center justify-center border-0 bg-transparent px-8 py-0.5 active:cursor-grabbing"
-              onClick={stepDown}
-              onPointerDown={(e) => e.stopPropagation()}
-            >
-              <span
-                className={cn(
-                  "block h-[5px] w-10 rounded-full",
-                  isLight ? "bg-black/25" : "bg-white/35"
-                )}
-              />
-            </button>
-          </div>
-          {visibleJobs.length > 1 ? (
-            <p
-              className="mb-1.5 shrink-0 text-center text-[11px] font-bold"
-              style={{ color: muted }}
-            >
-              {visibleJobs.length} requests · respond to each
-            </p>
-          ) : null}
-
-          <div
-            ref={panelScrollRef}
-            className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain scrollbar-hide"
-            data-panel-scroll
-          >
-            {visibleJobs.map((job) => {
-              const timeLeft =
-                timeLeftById[job.id] ?? INCOMING_POPUP_VISIBLE_SEC;
-              const pairingCard = isPairingAlert(job);
-              const accepting = acceptingId === job.id;
-              const strip =
-                job.photos?.length > 0 ? job.photos : [];
-              return (
-                <div
-                  key={job.id}
-                  className="shrink-0 rounded-xl p-2.5"
-                  style={{ border: "none" }}
+              <div className="flex shrink-0 justify-center pb-1.5 pt-1">
+                <button
+                  type="button"
+                  aria-label={
+                    level === "full" ? "Show fewer questions" : "Minimize panel"
+                  }
+                  className="flex cursor-grab items-center justify-center border-0 bg-transparent px-8 py-0.5 active:cursor-grabbing"
+                  onClick={stepDown}
+                  onPointerDown={(e) => e.stopPropagation()}
                 >
-                  <div className="flex items-center gap-2">
-                    {job.motoristPhoto ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img loading="lazy" decoding="async"
-                        src={job.motoristPhoto}
-                        alt=""
-                        className="h-7 w-7 shrink-0 rounded-full object-cover"
-                      />
-                    ) : (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img loading="lazy" decoding="async"
-                        src={DEFAULT_VENDOR_PHOTO}
-                        alt=""
-                        className="h-7 w-7 shrink-0 rounded-full object-cover"
-                      />
+                  <span
+                    className={cn(
+                      "block h-[5px] w-10 rounded-full",
+                      isLight ? "bg-black/25" : "bg-white/35",
                     )}
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className="truncate text-[14px] font-black leading-tight"
-                        style={{ color: ink }}
-                      >
-                        {titleFor(job)}
-                      </p>
-                      {job.agreedMajor != null ? (
-                        <p
-                          className="mt-0.5 text-[12px] font-bold"
-                          style={{ color: ink }}
-                        >
-                          {formatMoney(job.agreedMajor, job.currency)}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="mt-2">
-                    <JobProblemQA
-                      problem={job.problem}
-                      isLight={isLight}
-                      transparent
-                      hideVehicleRow
-                      pageSize={level === "full" ? undefined : 2}
-                    />
-                  </div>
-                  {job.voiceNote?.url ? (
-                    <div className="mt-2">
-                      <VoiceNotePlayer
-                        url={job.voiceNote.url}
-                        durationSec={job.voiceNote.durationSec}
-                        isLight={isLight}
-                      />
-                    </div>
-                  ) : null}
-                  {strip.length > 0 ? (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {strip.slice(0, 4).map((p, i) => (
-                        <button
-                          key={p.id || `photo-${job.id}-${i}`}
-                          type="button"
-                          aria-label={p.name || "View job photo"}
-                          onClick={() =>
-                            setLightbox({
-                              photos: strip,
-                              index: i,
-                            })
-                          }
-                          className="h-12 w-12 shrink-0 cursor-pointer overflow-hidden rounded-md border-0 p-0"
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={p.url}
-                            alt={p.name || "Job photo"}
-                            className="h-full w-full object-cover"
-                            loading="eager"
-                            decoding="async"
-                          />
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
+                  />
+                </button>
+              </div>
+              {visibleJobs.length > 1 ? (
+                <p
+                  className="mb-1.5 shrink-0 text-center text-[11px] font-bold"
+                  style={{ color: muted }}
+                >
+                  {visibleJobs.length} requests · respond to each
+                </p>
+              ) : null}
 
-                  <CalloutFeeOnCard job={job} isLight={isLight} />
-
-                  <div className="mt-2 flex gap-1.5">
-                    <button
-                      type="button"
-                      disabled={!!acceptingId}
-                      onClick={() => {
-                        const id = job.id;
-                        removeJobAndMaybeNext(id, { defer: false });
-                        void (async () => {
-                          try {
-                            if (isPairingAlert(job)) {
-                              await apiTransition({
-                                jobId: id,
-                                event: "DECLINE",
-                                actor: "repair_pro",
-                                actorId: backendUserId || undefined,
-                                reason: "Currently unavailable",
-                                idempotencyKey: backendUserId
-                                  ? idemFor(job, backendUserId, "DECLINE")
-                                  : undefined,
-                              });
-                            } else {
-                              await apiTransition({
-                                jobId: id,
-                                event: "CANCEL",
-                                actor: "repair_pro",
-                                actorId: backendUserId || undefined,
-                                reason: "pro_declined",
-                              });
-                            }
-                          } catch {
-                            /* panel already updated */
-                          }
-                        })();
-                      }}
-                      className={cn(
-                        "h-11 flex-1 rounded-xl border-0 text-[13px] font-bold",
-                        isLight
-                          ? "bg-red-500/15 text-red-700"
-                          : "bg-red-500/20 text-red-400"
-                      )}
-                    >
-                      Decline
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!!acceptingId || !backendUserId}
-                      onClick={() => setConfirmFix(job)}
-                      className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border-0 bg-[#FF6B35] text-[14px] font-bold text-white"
-                    >
-                      {accepting ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : null}
-                      I can fix this
-                    </button>
-                  </div>
-
-                  {pairingCard && !job.pairingDeadline ? null : (
+              <div
+                ref={panelScrollRef}
+                className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain scrollbar-hide"
+                data-panel-scroll
+              >
+                {visibleJobs.map((job) => {
+                  const timeLeft =
+                    timeLeftById[job.id] ?? INCOMING_POPUP_VISIBLE_SEC;
+                  const pairingCard = isPairingAlert(job);
+                  const accepting = acceptingId === job.id;
+                  const strip = job.photos?.length > 0 ? job.photos : [];
+                  return (
                     <div
-                      className="mt-2 h-1 w-full overflow-hidden rounded-full bg-black/10 dark:bg-white/10"
-                      role="progressbar"
-                      aria-valuemin={0}
-                      aria-valuemax={INCOMING_POPUP_VISIBLE_SEC}
-                      aria-valuenow={timeLeft}
-                      aria-label="Time remaining for this request"
+                      key={job.id}
+                      className="shrink-0 rounded-xl p-2.5"
+                      style={{ border: "none" }}
                     >
-                      <div
-                        className="h-full bg-[#FF6B35] transition-[width] duration-1000 ease-linear"
-                        style={{
-                          width: `${Math.max(
-                            0,
-                            Math.min(
-                              100,
-                              (timeLeft / INCOMING_POPUP_VISIBLE_SEC) * 100
-                            )
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                      <div className="flex items-center gap-2">
+                        {job.motoristPhoto ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            loading="lazy"
+                            decoding="async"
+                            src={job.motoristPhoto}
+                            alt=""
+                            className="h-7 w-7 shrink-0 rounded-full object-cover"
+                          />
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            loading="lazy"
+                            decoding="async"
+                            src={DEFAULT_VENDOR_PHOTO}
+                            alt=""
+                            className="h-7 w-7 shrink-0 rounded-full object-cover"
+                          />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p
+                            className="truncate text-[14px] font-black leading-tight"
+                            style={{ color: ink }}
+                          >
+                            {titleFor(job)}
+                          </p>
+                          {job.agreedMajor != null ? (
+                            <p
+                              className="mt-0.5 text-[12px] font-bold"
+                              style={{ color: ink }}
+                            >
+                              {formatMoney(job.agreedMajor, job.currency)}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="mt-2">
+                        <JobProblemQA
+                          problem={job.problem}
+                          isLight={isLight}
+                          transparent
+                          hideVehicleRow
+                          pageSize={level === "full" ? undefined : 2}
+                        />
+                      </div>
+                      {job.voiceNote?.url ? (
+                        <div className="mt-2">
+                          <VoiceNotePlayer
+                            url={job.voiceNote.url}
+                            durationSec={job.voiceNote.durationSec}
+                            isLight={isLight}
+                          />
+                        </div>
+                      ) : null}
+                      {strip.length > 0 ? (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {strip.slice(0, 4).map((p, i) => (
+                            <button
+                              key={p.id || `photo-${job.id}-${i}`}
+                              type="button"
+                              aria-label={p.name || "View job photo"}
+                              onClick={() =>
+                                setLightbox({
+                                  photos: strip,
+                                  index: i,
+                                })
+                              }
+                              className="h-12 w-12 shrink-0 cursor-pointer overflow-hidden rounded-md border-0 p-0"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={p.url}
+                                alt={p.name || "Job photo"}
+                                className="h-full w-full object-cover"
+                                loading="eager"
+                                decoding="async"
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
 
-          {actionError ? (
-            <p
-              className="mt-2 shrink-0 text-center text-[12px] font-semibold"
-              style={{ color: isLight ? "#b91c1c" : "#fca5a5" }}
-            >
-              {actionError}
-            </p>
-          ) : null}
+                      <CalloutFeeOnCard job={job} isLight={isLight} />
+
+                      <div className="mt-2 flex gap-1.5">
+                        <button
+                          type="button"
+                          disabled={!!acceptingId}
+                          onClick={() => {
+                            const id = job.id;
+                            removeJobAndMaybeNext(id, { defer: false });
+                            void (async () => {
+                              try {
+                                if (isPairingAlert(job)) {
+                                  await apiTransition({
+                                    jobId: id,
+                                    event: "DECLINE",
+                                    actor: "repair_pro",
+                                    actorId: backendUserId || undefined,
+                                    reason: "Currently unavailable",
+                                    idempotencyKey: backendUserId
+                                      ? idemFor(job, backendUserId, "DECLINE")
+                                      : undefined,
+                                  });
+                                } else {
+                                  await apiTransition({
+                                    jobId: id,
+                                    event: "CANCEL",
+                                    actor: "repair_pro",
+                                    actorId: backendUserId || undefined,
+                                    reason: "pro_declined",
+                                  });
+                                }
+                              } catch {
+                                /* panel already updated */
+                              }
+                            })();
+                          }}
+                          className={cn(
+                            "h-11 flex-1 rounded-xl border-0 text-[13px] font-bold",
+                            isLight
+                              ? "bg-red-500/15 text-red-700"
+                              : "bg-red-500/20 text-red-400",
+                          )}
+                        >
+                          Decline
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!!acceptingId || !backendUserId}
+                          onClick={() => setConfirmFix(job)}
+                          className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border-0 bg-[#FF6B35] text-[14px] font-bold text-white"
+                        >
+                          {accepting ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : null}
+                          I can fix this
+                        </button>
+                      </div>
+
+                      {pairingCard && !job.pairingDeadline ? null : (
+                        <div
+                          className="mt-2 h-1 w-full overflow-hidden rounded-full bg-black/10 dark:bg-white/10"
+                          role="progressbar"
+                          aria-valuemin={0}
+                          aria-valuemax={INCOMING_POPUP_VISIBLE_SEC}
+                          aria-valuenow={timeLeft}
+                          aria-label="Time remaining for this request"
+                        >
+                          <div
+                            className="h-full bg-[#FF6B35] transition-[width] duration-1000 ease-linear"
+                            style={{
+                              width: `${Math.max(
+                                0,
+                                Math.min(
+                                  100,
+                                  (timeLeft / INCOMING_POPUP_VISIBLE_SEC) * 100,
+                                ),
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {actionError ? (
+                <p
+                  className="mt-2 shrink-0 text-center text-[12px] font-semibold"
+                  style={{ color: isLight ? "#b91c1c" : "#fca5a5" }}
+                >
+                  {actionError}
+                </p>
+              ) : null}
             </>
           )}
         </div>
@@ -1578,7 +1583,7 @@ export function IncomingJobPopup() {
           <div
             className={cn(
               "w-full max-w-[360px] rounded-2xl border-0 p-5 text-center",
-              isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white"
+              isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white",
             )}
           >
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#FF6B35]/20">
@@ -1588,7 +1593,7 @@ export function IncomingJobPopup() {
             <p
               className={cn(
                 "mt-1.5 text-[12px] font-medium leading-relaxed",
-                isLight ? "text-slate-600" : "text-white/60"
+                isLight ? "text-slate-600" : "text-white/60",
               )}
             >
               Kept in your incoming list and still acceptable until the timer
@@ -1615,14 +1620,14 @@ export function IncomingJobPopup() {
           <div
             className={cn(
               "w-full max-w-[360px] rounded-2xl border-0 p-5",
-              isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white"
+              isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white",
             )}
           >
             <p className="text-[15px] font-black">Confirm you can fix this</p>
             <p
               className={cn(
                 "mt-1.5 text-[13px] font-medium leading-relaxed",
-                isLight ? "text-slate-600" : "text-white/60"
+                isLight ? "text-slate-600" : "text-white/60",
               )}
             >
               You&apos;re confirming you can fix this job as a professional{" "}
@@ -1694,8 +1699,7 @@ export function IncomingJobPopup() {
               const dir = dx < 0 ? 1 : -1;
               return {
                 ...lb,
-                index:
-                  (lb.index + dir + lb.photos.length) % lb.photos.length,
+                index: (lb.index + dir + lb.photos.length) % lb.photos.length,
               };
             });
           }}
@@ -1720,9 +1724,10 @@ export function IncomingJobPopup() {
                       ? {
                           ...lb,
                           index:
-                            (lb.index - 1 + lb.photos.length) % lb.photos.length,
+                            (lb.index - 1 + lb.photos.length) %
+                            lb.photos.length,
                         }
-                      : lb
+                      : lb,
                   );
                 }}
                 className="absolute left-2 z-[201] rounded-full border-0 bg-white/10 p-2 text-white"
@@ -1735,7 +1740,9 @@ export function IncomingJobPopup() {
                 onClick={(e) => {
                   e.stopPropagation();
                   setLightbox((lb) =>
-                    lb ? { ...lb, index: (lb.index + 1) % lb.photos.length } : lb
+                    lb
+                      ? { ...lb, index: (lb.index + 1) % lb.photos.length }
+                      : lb,
                   );
                 }}
                 className="absolute right-2 z-[201] rounded-full border-0 bg-white/10 p-2 text-white"
@@ -1745,7 +1752,9 @@ export function IncomingJobPopup() {
             </>
           )}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img loading="lazy" decoding="async"
+          <img
+            loading="lazy"
+            decoding="async"
             src={lightbox.photos[lightbox.index]?.url}
             alt={lightbox.photos[lightbox.index]?.name || "Job photo"}
             className="max-h-[80%] max-w-[90%] rounded-xl object-contain"
@@ -1813,7 +1822,9 @@ export function IncomingJobPopup() {
                   </span>
                   {closeBanner.avatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img loading="lazy" decoding="async"
+                    <img
+                      loading="lazy"
+                      decoding="async"
                       src={closeBanner.avatarUrl}
                       alt=""
                       className="ml-auto h-5 w-5 shrink-0 rounded-full object-cover"

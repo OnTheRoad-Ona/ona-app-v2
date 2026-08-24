@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * History — past bookings (completed, cancelled, expired, etc.) with filters.
+ * History past bookings (completed, cancelled, expired, etc.) with filters.
  * View-only process; no chat.
  */
 
@@ -22,11 +22,7 @@ import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 type HistoryFilter =
-  | "completed"
-  | "cancelled"
-  | "expired"
-  | "refunded"
-  | "disputed";
+  "completed" | "cancelled" | "expired" | "refunded" | "disputed";
 
 const PAST: JobFlowStatus[] = [
   "completed",
@@ -71,14 +67,12 @@ function statusLabel(s: JobFlowStatus, isPro: boolean): string {
 
 function matchesFilter(
   status: JobFlowStatus,
-  f: HistoryFilter | null
+  f: HistoryFilter | null,
 ): boolean {
   if (!f) return true;
   if (f === "completed")
     return (
-      status === "completed" ||
-      status === "satisfied" ||
-      status === "released"
+      status === "completed" || status === "satisfied" || status === "released"
     );
   if (f === "cancelled") return status === "cancelled";
   if (f === "expired") return status === "expired";
@@ -147,7 +141,7 @@ export default function HistoryPage() {
       .sort(
         (a, b) =>
           new Date(b.updatedAt || b.createdAt).getTime() -
-          new Date(a.updatedAt || a.createdAt).getTime()
+          new Date(a.updatedAt || a.createdAt).getTime(),
       );
     setJobs(list);
     setErr(null);
@@ -160,7 +154,7 @@ export default function HistoryPage() {
 
   const filtered = useMemo(
     () => jobs.filter((j) => matchesFilter(j.status, filter)),
-    [jobs, filter]
+    [jobs, filter],
   );
 
   return (
@@ -173,9 +167,7 @@ export default function HistoryPage() {
 
       {/* All filters + content on one continuous scrollable page */}
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 scrollbar-hide">
-        <div
-          className="mb-3 flex w-full items-stretch overflow-hidden rounded-xl"
-        >
+        <div className="mb-3 flex w-full items-stretch overflow-hidden rounded-xl">
           {FILTERS.map((f, i) => {
             const on = filter === f.id;
             return (
@@ -193,7 +185,7 @@ export default function HistoryPage() {
                     ? "bg-[#FF6B35] text-white"
                     : isLight
                       ? "bg-black/[0.06] text-slate-700"
-                      : "bg-white/10 text-white/80"
+                      : "bg-white/10 text-white/80",
                 )}
               >
                 {f.label}
@@ -234,10 +226,11 @@ export default function HistoryPage() {
             const name = isPro
               ? isAutomotiveTrade(j.serviceType) && j.motoristVehicle?.trim()
                 ? j.motoristVehicle.trim()
-                : j.motoristName?.split(/\s+/)[0] || PRO_SERVICE_LABELS[j.serviceType] || "Service Request"
+                : j.motoristName?.split(/\s+/)[0] ||
+                  PRO_SERVICE_LABELS[j.serviceType] ||
+                  "Service Request"
               : j.repairProName;
-            const skill =
-              PRO_SERVICE_LABELS[j.serviceType] ?? j.serviceType;
+            const skill = PRO_SERVICE_LABELS[j.serviceType] ?? j.serviceType;
             const when = formatWhen(j.updatedAt || j.createdAt);
             const total = jobTotalMajor(j.agreedMajor, j.calloutQuote);
             const price =
@@ -268,7 +261,7 @@ export default function HistoryPage() {
                         "rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
                         isLight
                           ? "text-slate-800 ring-1 ring-black/15"
-                          : "text-white/90 ring-1 ring-white/25"
+                          : "text-white/90 ring-1 ring-white/25",
                       )}
                     >
                       {statusLabel(j.status, isPro)}
@@ -280,7 +273,7 @@ export default function HistoryPage() {
                   <p
                     className={cn(
                       "mt-1.5 truncate text-[15px] font-semibold",
-                      ink
+                      ink,
                     )}
                   >
                     {name}
@@ -288,7 +281,7 @@ export default function HistoryPage() {
                   <p
                     className={cn(
                       "mt-0.5 line-clamp-2 text-[13px] font-medium leading-snug",
-                      muted
+                      muted,
                     )}
                   >
                     {j.problem}

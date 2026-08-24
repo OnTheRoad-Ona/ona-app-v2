@@ -3,11 +3,7 @@
 export type ShopAccountContext = "motorist" | "professional";
 
 export type FitmentStatus =
-  | "direct_fit"
-  | "compatible"
-  | "conditional"
-  | "unknown"
-  | "not_compatible";
+  "direct_fit" | "compatible" | "conditional" | "unknown" | "not_compatible";
 
 export type ShopOrderStatus =
   | "pending_payment"
@@ -20,12 +16,7 @@ export type ShopOrderStatus =
   | "partially_refunded";
 
 export type ShopPaymentStatus =
-  | "pending"
-  | "processing"
-  | "succeeded"
-  | "failed"
-  | "refunded"
-  | "cancelled";
+  "pending" | "processing" | "succeeded" | "failed" | "refunded" | "cancelled";
 
 export type ShopDeliveryStatus =
   | "pending"
@@ -66,8 +57,10 @@ export type ShopProductCard = {
   status?: string | null;
   availabilityLabel?: string | null;
   attributes?: Record<string, unknown>;
-  /** First active, in-stock variant — enables quick add-to-cart from a card. */
+  /** First active, in-stock variant enables quick add-to-cart from a card. */
   defaultVariantId?: string | null;
+  /** Exact sellable quantity (on-hand minus reserved), summed across variants */
+  stockQty?: number;
   vehicleTags?: string[];
   priceOnRequest?: boolean;
   stockLabel?: string;

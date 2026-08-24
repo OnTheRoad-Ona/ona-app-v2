@@ -53,9 +53,9 @@ describe("applyTradeFilters", () => {
   it("drops irrelevant filters silently", () => {
     const out = applyTradeFilters("solar", {
       category: "inverters",
-      vehicleYear: "2020", // irrelevant for solar — dropped
+      vehicleYear: "2020", // irrelevant for solar dropped
       wattage: "550",
-      kva: "5", // irrelevant — dropped
+      kva: "5", // irrelevant dropped
       availability: "in_stock",
     });
     expect(out.categorySlug).toBe("inverters");
@@ -71,7 +71,7 @@ describe("applyTradeFilters", () => {
       vehicleMake: "Toyota",
       position: "Front",
       viscosity: "5W-30",
-      fuelType: "Diesel", // not a mechanic filter — dropped
+      fuelType: "Diesel", // not a mechanic filter dropped
     });
     expect(out.attributes.vehicleMake).toBe("Toyota");
     expect(out.attributes.position).toBe("Front");
@@ -80,7 +80,10 @@ describe("applyTradeFilters", () => {
   });
 
   it("ignores empty selections", () => {
-    const out = applyTradeFilters("mechanic", { category: "", availability: "" });
+    const out = applyTradeFilters("mechanic", {
+      category: "",
+      availability: "",
+    });
     expect(out.categorySlug).toBeUndefined();
     expect(out.availability).toBe("all");
   });

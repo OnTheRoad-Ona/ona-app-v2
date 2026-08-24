@@ -1,9 +1,7 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { requireUser } from "@/lib/server/auth-utils";
-import {
-  createCashoutRequest,
-  listCashoutRequests,
-} from "@/lib/server/security/security-store";
+import { listCashoutRequests } from "@/lib/server/security/security-store";
+import { requestCashout } from "@/lib/server/security/cashout-engine";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,19 +12,23 @@ export async function POST(req: Request) {
     if (!auth.ok) return auth.response;
 
     const body = await req.json();
-    const { userId, requestedAmount, destinationAccount } = body;
+    const { userId, requestedAmount, destinationAccount, idempotencyKey } = body;
     if (!userId || !requestedAmount) {
       return apiFail("Missing required fields", 400);
     }
     if (userId !== auth.userId) {
       return apiFail("Forbidden", 403, "forbidden");
     }
-    const result = await createCashoutRequest({
+    // Engine: flag gate, limits/velocity, idempotency, bank on file,
+    // auto-approve under threshold. Response shape unchanged.
+    const result = await requestCashout({
       userId: auth.userId,
       requestedAmount,
       destinationAccount,
+      idempotencyKey:
+        typeof idempotencyKey === "string" ? idempotencyKey : undefined,
     });
-    if ("error" in result) return apiFail(result.error, 400);
+    if (!result.ok) return apiFail(result.error, 400);
     return apiOk({ cashout: result.cashout });
   } catch (e) {
     return apiFail(e instanceof Error ? e.message : "Failed", 500);
@@ -40,7 +42,7 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get("userId");
-    // Never list all cashouts — always scoped to the authenticated user
+    // Never list all cashouts always scoped to the authenticated user
     if (userId && userId !== auth.userId) {
       return apiFail("Forbidden", 403, "forbidden");
     }

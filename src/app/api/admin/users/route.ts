@@ -8,12 +8,16 @@ export const dynamic = "force-dynamic";
 
 /**
  * List users with side profiles.
- * Does NOT use nested embeds — multiple FKs between profiles and motorist_profiles
+ * Does NOT use nested embeds multiple FKs between profiles and motorist_profiles
  * (user_id + identity_reviewed_by) break PostgREST auto-embed.
  */
 export async function GET(req: Request) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     await requireAdmin();
@@ -27,7 +31,7 @@ export async function GET(req: Request) {
       const { data: pros, error } = await supabase
         .from("repair_pro_profiles")
         .select(
-          "user_id, status, primary_service, verified, is_online, nin_verified, bvn_verified, business_name, created_at"
+          "user_id, status, primary_service, verified, is_online, nin_verified, bvn_verified, business_name, created_at",
         )
         .order("created_at", { ascending: false })
         .limit(400);
@@ -37,7 +41,7 @@ export async function GET(req: Request) {
         ? await supabase
             .from("profiles")
             .select(
-              "id, role, full_name, phone, email, city, area, is_active, created_at, updated_at"
+              "id, role, full_name, phone, email, city, area, is_active, created_at, updated_at",
             )
             .in("id", ids)
         : { data: [] as Array<Record<string, unknown>> };
@@ -60,7 +64,7 @@ export async function GET(req: Request) {
         return {
           id: pr.user_id,
           role: p?.role || "repair_pro",
-          full_name: p?.full_name || pr.business_name || "—",
+          full_name: p?.full_name || pr.business_name || "",
           phone: p?.phone ?? null,
           email: p?.email ?? null,
           city: p?.city ?? null,
@@ -86,7 +90,7 @@ export async function GET(req: Request) {
             .filter(Boolean)
             .join(" ")
             .toLowerCase()
-            .includes(ql)
+            .includes(ql),
         );
       }
       return apiOk({ users });
@@ -95,7 +99,7 @@ export async function GET(req: Request) {
     let query = supabase
       .from("profiles")
       .select(
-        "id, role, full_name, phone, email, city, area, is_active, created_at, updated_at"
+        "id, role, full_name, phone, email, city, area, is_active, created_at, updated_at",
       )
       .order("created_at", { ascending: false })
       .limit(300);
@@ -105,7 +109,7 @@ export async function GET(req: Request) {
     }
     if (q) {
       query = query.or(
-        `full_name.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%`
+        `full_name.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%`,
       );
     }
 
@@ -121,13 +125,13 @@ export async function GET(req: Request) {
         supabase
           .from("motorist_profiles")
           .select(
-            "user_id, vehicle_make, vehicle_model, vehicle_year, plate_number, nin_verified, bvn_verified, nin_last4, bvn_last4, identity_review_status"
+            "user_id, vehicle_make, vehicle_model, vehicle_year, plate_number, nin_verified, bvn_verified, nin_last4, bvn_last4, identity_review_status",
           )
           .in("user_id", ids),
         supabase
           .from("repair_pro_profiles")
           .select(
-            "user_id, status, primary_service, verified, is_online, nin_verified, bvn_verified, business_name"
+            "user_id, status, primary_service, verified, is_online, nin_verified, bvn_verified, business_name",
           )
           .in("user_id", ids),
       ]);

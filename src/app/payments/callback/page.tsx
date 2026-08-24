@@ -94,7 +94,7 @@ function CallbackInner() {
     if (flwStatus === "cancelled" || flwStatus === "failed") {
       setStatus("fail");
       setMessage(
-        "Payment cancelled. Timer reset. Pay again for a fresh 20 minutes."
+        "Payment cancelled. Timer reset. Pay again for a fresh 20 minutes.",
       );
       if (jobId) {
         void (async () => {
@@ -108,7 +108,7 @@ function CallbackInner() {
               }),
             });
           } catch {
-            /* ignore — checkout still works */
+            /* ignore checkout still works */
           }
           window.setTimeout(() => goCheckout(jobId), 700);
         })();
@@ -148,9 +148,7 @@ function CallbackInner() {
             json.data?.payment?.requestId ||
             null;
           setBookedJobId(jid);
-          setMessage(
-            "Payment held in escrow. Job is Booked."
-          );
+          setMessage("Payment held in escrow. Job is Booked.");
           if (jid) {
             window.setTimeout(() => goJob(jid), 600);
           }
@@ -176,7 +174,7 @@ function CallbackInner() {
           setStatus("fail");
           setMessage(
             json?.error?.message ||
-              "Payment not confirmed yet. You can Pay again from checkout."
+              "Payment not confirmed yet. You can Pay again from checkout.",
           );
           window.setTimeout(() => goCheckout(jobId), 900);
         } else {
@@ -205,7 +203,7 @@ function CallbackInner() {
     <div
       className={cn(
         "flex h-full flex-col items-center justify-center gap-3 px-6 text-center",
-        sheet
+        sheet,
       )}
     >
       {status === "loading" && (
@@ -216,9 +214,7 @@ function CallbackInner() {
       )}
       {status === "fail" && <XCircle className="h-12 w-12 text-red-500" />}
       <p className={cn("text-[15px] font-bold", ink)}>{message}</p>
-      {ref ? (
-        <p className="text-[11px] text-brand">Ref · {ref}</p>
-      ) : null}
+      {ref ? <p className="text-[11px] text-brand">Ref · {ref}</p> : null}
       {status === "ok" && bookedJobId ? (
         <button
           type="button"

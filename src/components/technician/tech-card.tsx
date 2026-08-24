@@ -59,7 +59,7 @@ export function TechCard({
           ? isLight
             ? "border-brand bg-[#c5ccd8] shadow-[inset_0_0_0_1px_rgba(30,41,59,0.08)]"
             : "border-brand bg-white/[0.1]"
-          : "border-transparent bg-transparent"
+          : "border-transparent bg-transparent",
       )}
       aria-selected={selected}
     >
@@ -93,7 +93,7 @@ export function TechCard({
               onClick={(e) => e.stopPropagation()}
               className={cn(
                 "flex items-center gap-1 text-[13px] font-bold hover:underline",
-                isLight ? "text-slate-900" : "text-[#f0f0f0]"
+                isLight ? "text-slate-900" : "text-[#f0f0f0]",
               )}
             >
               <span className="truncate">{tech.shortName}</span>
@@ -117,7 +117,7 @@ export function TechCard({
             <p
               className={cn(
                 "flex items-center gap-1.5 truncate text-[10px]",
-                isLight ? "text-slate-600" : "text-[#a8a8a8]"
+                isLight ? "text-slate-600" : "text-[#a8a8a8]",
               )}
             >
               {tech.roleLabel}
@@ -133,7 +133,7 @@ export function TechCard({
                     tech.status === "nearby" &&
                       (isLight ? "text-sky-700" : "text-sky-400"),
                     tech.status === "offline" &&
-                      (isLight ? "text-slate-500" : "text-[#999]")
+                      (isLight ? "text-slate-500" : "text-[#999]"),
                   )}
                 >
                   {tech.status === "busy"
@@ -165,7 +165,7 @@ export function TechCard({
                     : "text-emerald-400"
                   : isLight
                     ? "text-brand hover:text-brand-deep"
-                    : "text-[#ffb07a] hover:text-white"
+                    : "text-[#ffb07a] hover:text-white",
               )}
             >
               {label}
@@ -176,7 +176,7 @@ export function TechCard({
         <div
           className={cn(
             "mt-0.5 flex flex-col gap-0.5 text-[10px]",
-            isLight ? "text-slate-600" : "text-[#b5b5b5]"
+            isLight ? "text-slate-600" : "text-[#b5b5b5]",
           )}
         >
           <StarRatingDisplay
@@ -191,7 +191,7 @@ export function TechCard({
             {(() => {
               const labour = getBaseLabourPrice(
                 tech.servicePrices,
-                tech.serviceType
+                tech.serviceType,
               );
               if (labour == null) return null;
               const cur = (tech.pricingCurrency || "NGN") as AppCurrency;

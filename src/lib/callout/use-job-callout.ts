@@ -5,8 +5,13 @@ import type { CalloutQuote } from "@/lib/callout/constants";
 import { isCalloutAmountReady } from "@/lib/callout/payable";
 import { apiGetCallout } from "@/lib/jobs/client";
 
-/** Final states — stop polling once the quote settles. */
-const FINAL_QUOTE_STATUSES = new Set(["LOCKED", "NOT_ELIGIBLE", "CANCELLED", "DISPUTED"]);
+/** Final states stop polling once the quote settles. */
+const FINAL_QUOTE_STATUSES = new Set([
+  "LOCKED",
+  "NOT_ELIGIBLE",
+  "CANCELLED",
+  "DISPUTED",
+]);
 
 const quoteCache = new Map<string, CalloutQuote>();
 
@@ -16,7 +21,7 @@ export function resetCalloutQuoteCache() {
 
 function seedQuote(
   jobId: string | null | undefined,
-  seed?: CalloutQuote | null
+  seed?: CalloutQuote | null,
 ): CalloutQuote | null {
   if (seed && jobId && isCalloutAmountReady(seed)) quoteCache.set(jobId, seed);
   if (seed && isCalloutAmountReady(seed)) return seed;
@@ -30,7 +35,7 @@ function seedQuote(
 export function useJobCallout(
   jobId: string | null | undefined,
   status?: string | null,
-  seed?: CalloutQuote | null
+  seed?: CalloutQuote | null,
 ): { quote: CalloutQuote | null; ready: boolean } {
   const seeded = seedQuote(jobId, seed);
   const [fetched, setFetched] = useState<CalloutQuote | null>(null);

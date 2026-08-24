@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   req: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   try {
     const auth = await requireUser(req);
@@ -18,7 +18,7 @@ export async function GET(
     const data = await getOrderForUser(
       id,
       auth.userId,
-      shopCtxFromQuery(req.nextUrl.searchParams.get("ctx"))
+      shopCtxFromQuery(req.nextUrl.searchParams.get("ctx")),
     );
     if (!data) return apiFail("Order not found", 404, "not_found");
     return apiOk(data);

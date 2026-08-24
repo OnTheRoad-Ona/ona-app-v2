@@ -18,13 +18,11 @@ const TRIAL_DAYS = 30;
 type Meta = Record<string, unknown>;
 
 function asMeta(v: unknown): Meta {
-  return v && typeof v === "object" && !Array.isArray(v)
-    ? (v as Meta)
-    : {};
+  return v && typeof v === "object" && !Array.isArray(v) ? (v as Meta) : {};
 }
 
 /**
- * Customer multi-level review queue — full package for care approval.
+ * Customer multi-level review queue full package for care approval.
  * Levels: Account · T1 Phone · T2 Government ID (number + images) · Trial window
  */
 export async function GET(req: Request) {
@@ -57,7 +55,11 @@ export async function GET(req: Request) {
         .limit(1);
     } else if (filter === "submitted" || filter === "pending") {
       q = q.eq("identity_review_status", "submitted");
-    } else if (filter === "approved" || filter === "rejected" || filter === "none") {
+    } else if (
+      filter === "approved" ||
+      filter === "rejected" ||
+      filter === "none"
+    ) {
       q = q.eq("identity_review_status", filter);
     }
     // filter === "all" → no status eq (every motorist signup)
@@ -99,7 +101,7 @@ export async function GET(req: Request) {
         supabase
           .from("profiles")
           .select(
-            "id, full_name, email, phone, city, area, is_active, created_at, avatar_url, role, primary_role, last_role_switch_at, role_switch_count"
+            "id, full_name, email, phone, city, area, is_active, created_at, avatar_url, role, primary_role, last_role_switch_at, role_switch_count",
           )
           .in("id", userIds),
         supabase
@@ -127,7 +129,7 @@ export async function GET(req: Request) {
       for (const pr of pros ?? []) proIds.add(String(pr.user_id));
     }
 
-    // Job counts + job media (photos/evidence) — not star reviews
+    // Job counts + job media (photos/evidence) not star reviews
     const jobCount: Record<string, number> = {};
     const jobMedia: Record<
       string,
@@ -147,7 +149,7 @@ export async function GET(req: Request) {
       const { data: jobs } = await supabase
         .from("service_requests")
         .select(
-          "id, motorist_id, status, service_type, motorist_photo, repair_pro_photo, photos, evidence, pickup_address, created_at"
+          "id, motorist_id, status, service_type, motorist_photo, repair_pro_photo, photos, evidence, pickup_address, created_at",
         )
         .in("motorist_id", userIds)
         .order("created_at", { ascending: false })
@@ -217,7 +219,7 @@ export async function GET(req: Request) {
       return {
         user_id: m.user_id,
         // Account
-        full_name: p?.full_name || (snap.fullName as string) || "—",
+        full_name: p?.full_name || (snap.fullName as string) || "",
         email: p?.email || (snap.email as string) || null,
         phone: p?.phone || (snap.phone as string) || null,
         city: p?.city || (snap.city as string) || null,
@@ -326,8 +328,9 @@ export async function GET(req: Request) {
 
     // When filtered, still compute global totals for the cards
     let globalCounts = {
-      submitted: customers.filter((c) => c.identity_review_status === "submitted")
-        .length,
+      submitted: customers.filter(
+        (c) => c.identity_review_status === "submitted",
+      ).length,
       unattended: customers.filter((c) => c.unattended).length,
       approved: customers.filter((c) => c.identity_review_status === "approved")
         .length,
@@ -409,12 +412,12 @@ function last4(raw: string | null | undefined): string | null {
 async function legacyCustomerList(
   supabase: ReturnType<typeof createServiceSupabase>,
   filter: string,
-  detailId: string | null
+  detailId: string | null,
 ) {
   let q = supabase
     .from("motorist_profiles")
     .select(
-      "user_id, vehicle_make, vehicle_model, plate_number, nin_last4, bvn_last4, nin_verified, bvn_verified, nin_encrypted, bvn_encrypted, identity_verified_at, created_at, updated_at"
+      "user_id, vehicle_make, vehicle_model, plate_number, nin_last4, bvn_last4, nin_verified, bvn_verified, nin_encrypted, bvn_encrypted, identity_verified_at, created_at, updated_at",
     )
     .order("updated_at", { ascending: false })
     .limit(400);
@@ -447,16 +450,12 @@ async function legacyCustomerList(
     .map((m) => {
       const approved = Boolean(m.identity_verified_at || m.nin_verified);
       const hasId = Boolean(m.nin_last4 || m.bvn_last4 || m.nin_encrypted);
-      const status = approved
-        ? "approved"
-        : hasId
-          ? "submitted"
-          : "none";
+      const status = approved ? "approved" : hasId ? "submitted" : "none";
       const p = profiles[m.user_id];
       const fullId = m.nin_encrypted || null;
       return {
         user_id: m.user_id,
-        full_name: p?.full_name ?? "—",
+        full_name: p?.full_name ?? "",
         email: p?.email ?? null,
         phone: p?.phone ?? null,
         city: null,
@@ -480,11 +479,7 @@ async function legacyCustomerList(
             label: "Tier 1 · Phone OTP",
           },
           t2_id: {
-            status: approved
-              ? "approved"
-              : hasId
-                ? "pending"
-                : "none",
+            status: approved ? "approved" : hasId ? "pending" : "none",
             label: "Tier 2 · Government ID",
             review_status: status,
             country_iso: "NG",
@@ -535,14 +530,15 @@ async function legacyCustomerList(
       };
     })
     .filter((c) =>
-      filter === "all" || detailId ? true : c.identity_review_status === filter
+      filter === "all" || detailId ? true : c.identity_review_status === filter,
     );
 
   return apiOk({
     customers,
     totals: {
-      submitted: customers.filter((c) => c.identity_review_status === "submitted")
-        .length,
+      submitted: customers.filter(
+        (c) => c.identity_review_status === "submitted",
+      ).length,
       approved: customers.filter((c) => c.identity_review_status === "approved")
         .length,
       rejected: customers.filter((c) => c.identity_review_status === "rejected")
@@ -564,7 +560,7 @@ const patchSchema = z.object({
     "reject_t2",
     "mark_phone_verified",
     "save_checklist",
-    /** Care opened the row — mark read until a new re-submit */
+    /** Care opened the row mark read until a new re-submit */
     "mark_attended",
     /** Clear unapproved T2 so customer can re-submit ID from the app */
     "reset_t2",
@@ -640,12 +636,17 @@ export async function PATCH(req: Request) {
       if (error) {
         if (error.message.includes("phone_verified")) {
           return apiOk({
-            message: "Phone flag column missing — apply latest migration.",
+            message: "Phone flag column missing apply latest migration.",
           });
         }
         return apiFail(error.message, 500);
       }
-      await logAdminAction(session.userId, "customer_t1_phone_verify", userId, {});
+      await logAdminAction(
+        session.userId,
+        "customer_t1_phone_verify",
+        userId,
+        {},
+      );
       return apiOk({ message: "Tier 1 phone marked verified." });
     }
 
@@ -663,7 +664,7 @@ export async function PATCH(req: Request) {
       if (approved) {
         return apiOk({
           message:
-            "Tier 2 is already approved — care cannot reset an approved ID. Reject first if a re-check is required.",
+            "Tier 2 is already approved care cannot reset an approved ID. Reject first if a re-check is required.",
         });
       }
       const note =
@@ -717,10 +718,8 @@ export async function PATCH(req: Request) {
       });
     }
 
-    const approve =
-      action === "approve" || action === "approve_t2";
-    const reject =
-      action === "reject" || action === "reject_t2";
+    const approve = action === "approve" || action === "approve_t2";
+    const reject = action === "reject" || action === "reject_t2";
     if (!approve && !reject) return apiFail("Unknown action", 400);
 
     // T2 package = Government ID + BVN (both required to approve)
@@ -728,7 +727,7 @@ export async function PATCH(req: Request) {
       const { data: row } = await supabase
         .from("motorist_profiles")
         .select(
-          "gov_id_number, gov_id_front_url, bank_id_number, bvn_encrypted, bvn_last4, nin_encrypted, nin_last4, gov_id_meta, identity_submitted_at"
+          "gov_id_number, gov_id_front_url, bank_id_number, bvn_encrypted, bvn_last4, nin_encrypted, nin_last4, gov_id_meta, identity_submitted_at",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -736,27 +735,24 @@ export async function PATCH(req: Request) {
       const meta = asMeta(row.gov_id_meta);
       const hasId = Boolean(
         row.gov_id_number ||
-          row.nin_encrypted ||
-          row.nin_last4 ||
-          meta.primaryId ||
-          row.gov_id_front_url
+        row.nin_encrypted ||
+        row.nin_last4 ||
+        meta.primaryId ||
+        row.gov_id_front_url,
       );
       const hasBvn = Boolean(
-        row.bank_id_number ||
-          row.bvn_encrypted ||
-          row.bvn_last4 ||
-          meta.bankId
+        row.bank_id_number || row.bvn_encrypted || row.bvn_last4 || meta.bankId,
       );
       if (!hasId) {
         return apiFail(
-          "Cannot approve T2 — government ID number/photo is missing.",
-          400
+          "Cannot approve T2 government ID number/photo is missing.",
+          400,
         );
       }
       if (!hasBvn) {
         return apiFail(
-          "Cannot approve T2 — BVN / bank ID must be filled with government ID. Ask customer to re-submit with BVN.",
-          400
+          "Cannot approve T2 BVN / bank ID must be filled with government ID. Ask customer to re-submit with BVN.",
+          400,
         );
       }
     }
@@ -770,9 +766,7 @@ export async function PATCH(req: Request) {
     const attendedMeta = {
       ...prevMeta,
       care_attended_at: now,
-      care_attended_submit_at: String(
-        before?.identity_submitted_at || now
-      ),
+      care_attended_submit_at: String(before?.identity_submitted_at || now),
       care_attended_by: session.userId,
     };
 
@@ -809,9 +803,8 @@ export async function PATCH(req: Request) {
 
     if (approve) {
       // Dual-role: auto-approve Repair Pro T2 + share ID media if empty
-      const { mirrorDualRoleT2Approved } = await import(
-        "@/lib/server/identity/dual-t2-mirror"
-      );
+      const { mirrorDualRoleT2Approved } =
+        await import("@/lib/server/identity/dual-t2-mirror");
       await mirrorDualRoleT2Approved(supabase, userId, {
         reviewedBy: session.userId,
         now,
@@ -834,15 +827,15 @@ export async function PATCH(req: Request) {
       session.userId,
       approve ? "customer_t2_approve" : "customer_t2_reject",
       userId,
-      { reason: reason || null, level: "t2_id" }
+      { reason: reason || null, level: "t2_id" },
     );
 
     return apiOk({
       userId,
       action: approve ? "approve" : "reject",
       message: approve
-        ? "Tier 2 approved on Customer — dual Repair Pro T2 auto-approved when both accounts exist."
-        : "Tier 2 rejected — customer must re-submit ID and BVN.",
+        ? "Tier 2 approved on Customer dual Repair Pro T2 auto-approved when both accounts exist."
+        : "Tier 2 rejected customer must re-submit ID and BVN.",
     });
   } catch (e) {
     if (e instanceof AdminAuthError)

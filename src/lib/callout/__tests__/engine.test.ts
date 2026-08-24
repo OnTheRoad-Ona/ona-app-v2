@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  ALL_PRO_SERVICES,
-  isProService,
-} from "@/lib/services";
+import { ALL_PRO_SERVICES, isProService } from "@/lib/services";
 import {
   DEFAULT_RATE_PER_KM,
   DEFAULT_TRADE_BASE_FEES,
@@ -19,7 +16,7 @@ import {
 } from "@/lib/callout/engine";
 import type { ProService } from "@/lib/types";
 
-describe("billableDistanceKm — 500 m minimum", () => {
+describe("billableDistanceKm 500 m minimum", () => {
   it.each([
     [0, 0.5],
     [0.1, 0.5],
@@ -41,7 +38,7 @@ describe("billableDistanceKm — 500 m minimum", () => {
   });
 });
 
-describe("isWithinCalloutRadius — 5 km max", () => {
+describe("isWithinCalloutRadius 5 km max", () => {
   it("includes 0 through 5 km", () => {
     expect(isWithinCalloutRadius(0)).toBe(true);
     expect(isWithinCalloutRadius(2)).toBe(true);
@@ -58,7 +55,7 @@ describe("isWithinCalloutRadius — 5 km max", () => {
   });
 });
 
-describe("calculateCalloutFee — mechanic examples", () => {
+describe("calculateCalloutFee mechanic examples", () => {
   const trade = "mechanic" as const;
   const base = 3000;
 
@@ -95,7 +92,7 @@ describe("calculateCalloutFee — mechanic examples", () => {
   });
 });
 
-describe("short-distance rule — approved route < 500 m", () => {
+describe("short-distance rule approved route < 500 m", () => {
   const trade = "mechanic" as const;
   const base = 3000;
 
@@ -129,7 +126,7 @@ describe("short-distance rule — approved route < 500 m", () => {
     expect(q.shortDistanceReduction).toBe(true);
   });
 
-  it("0.5 km exactly is NOT short — full fee", () => {
+  it("0.5 km exactly is NOT short full fee", () => {
     const q = calculateCalloutFee({
       tradeId: trade,
       approvedRouteDistanceKm: 0.5,
@@ -152,46 +149,46 @@ describe("call-out excluded trades", () => {
   });
 });
 
-describe("calculateCalloutFee — vulcanizer / tow examples", () => {
+describe("calculateCalloutFee vulcanizer / tow examples", () => {
   it("vulcanizer 500m / 1km / 2km / 5km", () => {
     expect(
       calculateCalloutFee({
         tradeId: "vulcanizer",
         approvedRouteDistanceKm: 0.5,
-      }).calloutFee
+      }).calloutFee,
     ).toBe(1675);
     expect(
       calculateCalloutFee({
         tradeId: "vulcanizer",
         approvedRouteDistanceKm: 1,
-      }).calloutFee
+      }).calloutFee,
     ).toBe(1850);
     expect(
       calculateCalloutFee({
         tradeId: "vulcanizer",
         approvedRouteDistanceKm: 2,
-      }).calloutFee
+      }).calloutFee,
     ).toBe(2200);
     expect(
       calculateCalloutFee({
         tradeId: "vulcanizer",
         approvedRouteDistanceKm: 5,
-      }).calloutFee
+      }).calloutFee,
     ).toBe(3250);
   });
 
   it("tow 500m / 1km / 5km", () => {
     expect(
       calculateCalloutFee({ tradeId: "towing", approvedRouteDistanceKm: 0.5 })
-        .calloutFee
+        .calloutFee,
     ).toBe(4175);
     expect(
       calculateCalloutFee({ tradeId: "towing", approvedRouteDistanceKm: 1 })
-        .calloutFee
+        .calloutFee,
     ).toBe(4350);
     expect(
       calculateCalloutFee({ tradeId: "towing", approvedRouteDistanceKm: 5 })
-        .calloutFee
+        .calloutFee,
     ).toBe(5750);
   });
 });
@@ -216,7 +213,7 @@ describe("every trade Base Fee", () => {
       expect(q.tradeBaseFee).toBe(base);
       expect(q.distanceCharge).toBe(350);
       expect(q.calloutFee).toBe(base + 350);
-    }
+    },
   );
 });
 
@@ -226,26 +223,26 @@ describe("eligibility is service-agnostic", () => {
       resolveCalloutEligibility({
         physicalAttendanceRequired: true,
         calloutEligible: true,
-      })
+      }),
     ).toBe(true);
     expect(
       resolveCalloutEligibility({
         physicalAttendanceRequired: false,
         calloutEligible: true,
-      })
+      }),
     ).toBe(false);
     expect(
       resolveCalloutEligibility({
         physicalAttendanceRequired: true,
         calloutEligible: false,
-      })
+      }),
     ).toBe(false);
     expect(
       resolveCalloutEligibility({
         physicalAttendanceRequired: true,
         calloutEligible: true,
         policyEnabled: false,
-      })
+      }),
     ).toBe(false);
   });
 });
@@ -296,24 +293,26 @@ describe("customer problem is a symptom, not a diagnosis", () => {
 
   it("maps existing job flow onto call-out status (no second FSM)", () => {
     expect(calloutStatusFromJobFlow("en_route", "CALCULATED")).toBe(
-      "IN_PROGRESS"
+      "IN_PROGRESS",
     );
     expect(calloutStatusFromJobFlow("arrived", "IN_PROGRESS")).toBe("ARRIVED");
     expect(calloutStatusFromJobFlow("completed", "ARRIVED")).toBe("COMPLETED");
     expect(calloutStatusFromJobFlow("cancelled", "CALCULATED")).toBe(
-      "CANCELLED"
+      "CANCELLED",
     );
     expect(calloutStatusFromJobFlow("disputed", "CALCULATED")).toBe("DISPUTED");
     expect(calloutStatusFromJobFlow("en_route", "NOT_ELIGIBLE")).toBe(
-      "NOT_ELIGIBLE"
+      "NOT_ELIGIBLE",
     );
-    expect(calloutStatusFromJobFlow("waiting_for_pro", "CALCULATED")).toBeNull();
+    expect(
+      calloutStatusFromJobFlow("waiting_for_pro", "CALCULATED"),
+    ).toBeNull();
   });
 
   it("remote consultation → not call-out eligible", () => {
-    expect(classifyServiceIntent({ problem: "Need a remote consultation" })).toBe(
-      "REMOTE_CONSULTATION"
-    );
+    expect(
+      classifyServiceIntent({ problem: "Need a remote consultation" }),
+    ).toBe("REMOTE_CONSULTATION");
     const c = classifyRequest({
       problem: "Need a remote consultation",
     });

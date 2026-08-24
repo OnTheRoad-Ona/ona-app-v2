@@ -1,13 +1,22 @@
 /**
  * Lightweight structured intent from natural-language shop queries.
- * AI optional later — this is deterministic extraction (authoritative catalog still wins).
+ * AI optional later this is deterministic extraction (authoritative catalog still wins).
  */
 
 import type { ShopSearchIntent } from "@/lib/server/shop/types";
 import { expandSynonyms, parseTyreSize } from "@/lib/shop/tyre-size";
 
 const TRADE_ALIASES: Record<string, string[]> = {
-  mechanic: ["mechanic", "brake", "engine", "oil", "spark", "filter", "car", "auto"],
+  mechanic: [
+    "mechanic",
+    "brake",
+    "engine",
+    "oil",
+    "spark",
+    "filter",
+    "car",
+    "auto",
+  ],
   vulcanizer: ["tyre", "tire", "vulcaniz", "tube", "wheel"],
   battery: ["battery", "jump", "12v", "car battery"],
   ac: ["a/c", "ac ", "air condition", "gas refill", "cooling"],

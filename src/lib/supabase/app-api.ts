@@ -18,7 +18,11 @@ import {
   type ConversationRow,
   type MessageRow,
 } from "@/lib/supabase/mappers";
-import type { ProfileRow, RepairProRow, ServiceRequestRow } from "@/lib/supabase/types";
+import type {
+  ProfileRow,
+  RepairProRow,
+  ServiceRequestRow,
+} from "@/lib/supabase/types";
 import type {
   AccountType,
   ProService,
@@ -228,7 +232,11 @@ export async function backendSignUp(input: {
 
   // Establish browser session so the app is logged in immediately
   const sb = getAppSupabase();
-  if (sb && json.data.session?.access_token && json.data.session?.refresh_token) {
+  if (
+    sb &&
+    json.data.session?.access_token &&
+    json.data.session?.refresh_token
+  ) {
     const { error: sessionErr } = await sb.auth.setSession({
       access_token: json.data.session.access_token,
       refresh_token: json.data.session.refresh_token,
@@ -240,11 +248,15 @@ export async function backendSignUp(input: {
         password: input.password,
       });
       if (loginErr) {
-        console.warn("session after signup:", sessionErr.message, loginErr.message);
+        console.warn(
+          "session after signup:",
+          sessionErr.message,
+          loginErr.message,
+        );
       }
     }
   } else if (sb && json.data.userId) {
-    // Account saved but no session tokens — try password login once
+    // Account saved but no session tokens try password login once
     const { error: loginErr } = await sb.auth.signInWithPassword({
       email: input.email.trim().toLowerCase(),
       password: input.password,
@@ -283,7 +295,11 @@ export async function backendSignUp(input: {
     {
       accountType: input.accountType,
       password: input.password,
-      services: primary ? [primary] : input.primaryService ? [input.primaryService] : undefined,
+      services: primary
+        ? [primary]
+        : input.primaryService
+          ? [input.primaryService]
+          : undefined,
       businessName: ex.businessName || input.businessName,
       bio: ex.bio || input.bio,
       yearsExperience: ex.yearsExperience || input.yearsExperience,
@@ -305,7 +321,7 @@ export async function backendSignUp(input: {
       certificationFileName: input.certificationFileName,
       certificationFileDataUrl: input.certificationFileDataUrl,
       skillAnswers: input.skillAnswers as UserProfile["skillAnswers"],
-    }
+    },
   );
 
   return { error: null, userId: json.data.userId, profile };
@@ -315,11 +331,10 @@ export async function backendSignUp(input: {
 /** Persist profile fields (labour prices, vehicle, bank, etc.) to Supabase. */
 export async function backendUpdateProfile(
   accessToken: string,
-  patch: Record<string, unknown>
+  patch: Record<string, unknown>,
 ): Promise<string | null> {
-  const { ensureAppSession, SESSION_RELOGIN_MESSAGE } = await import(
-    "@/lib/supabase/session"
-  );
+  const { ensureAppSession, SESSION_RELOGIN_MESSAGE } =
+    await import("@/lib/supabase/session");
   try {
     // Prefer a freshly refreshed token over a possibly stale caller token
     const session = await ensureAppSession();
@@ -383,7 +398,7 @@ export async function backendSaveIdentityVerification(input: {
   accountType: AccountType;
   nin?: string;
   bvn?: string;
-  /** Non-NG primary ID (any charset) — last4 stored if no digits */
+  /** Non-NG primary ID (any charset) last4 stored if no digits */
   primaryId?: string;
   bankId?: string;
   identityVerified?: boolean;
@@ -443,8 +458,13 @@ export async function backendSaveIdentityVerification(input: {
   const payload = {
     nin_last4: last4(nin) || last4Any(primaryRaw),
     bvn_last4: last4(bvn) || (input.bankId ? last4Any(input.bankId) : null),
-    nin_verified: Boolean(verified && (nin.length >= 4 || primaryRaw.length >= 4)),
-    bvn_verified: bvn.length === 11 ? true : Boolean(verified && !input.bvn && !input.bankId),
+    nin_verified: Boolean(
+      verified && (nin.length >= 4 || primaryRaw.length >= 4),
+    ),
+    bvn_verified:
+      bvn.length === 11
+        ? true
+        : Boolean(verified && !input.bvn && !input.bankId),
   };
   if (input.accountType === "professional") {
     const { error } = await sb
@@ -505,7 +525,7 @@ export async function backendSaveIdentityVerification(input: {
   return null;
 }
 
-/** Phone/email OTP login — session after code verified (demo 336699 always ok). */
+/** Phone/email OTP login session after code verified (demo 336699 always ok). */
 export async function backendSignInWithOtp(input: {
   channel: "phone" | "email";
   target: string;
@@ -536,8 +556,7 @@ export async function backendSignInWithOtp(input: {
     if (!json?.ok || !json.data?.userId || !json.data.userProfile) {
       return {
         error:
-          json?.error?.message ||
-          "Login failed. Check the code and try again.",
+          json?.error?.message || "Login failed. Check the code and try again.",
       };
     }
 
@@ -584,7 +603,7 @@ export type BackendSendOtpResult = {
   /**
    * True when the outcome was genuinely unproven (response lost, nothing
    * conclusive from the ledger). UI must show a neutral outcome and offer
-   * a resend — never a hard failure.
+   * a resend never a hard failure.
    */
   maybeSent?: boolean;
 };
@@ -597,7 +616,7 @@ type OtpSendResponse = {
 
 export async function backendSendOtp(
   input: { channel: "phone" | "email"; target: string },
-  opts?: { forceResend?: boolean }
+  opts?: { forceResend?: boolean },
 ): Promise<BackendSendOtpResult> {
   // One sticker per (channel, target). A lost-response retry reuses it so
   // the server replays "already sent" (no second SMS, no code rotation).
@@ -622,17 +641,17 @@ export async function backendSendOtp(
     });
     parsed = (await res.json().catch(() => null)) as OtpSendResponse | null;
   } catch {
-    /* response lost — verify below */
+    /* response lost verify below */
   }
 
-  // Clean server answer (non-ambiguous) — trust it.
+  // Clean server answer (non-ambiguous) trust it.
   const settled = res && parsed ? parsed : null;
   if (settled) {
     if (!settled.ok) {
       return { error: settled.error?.message || "Could not send code." };
     }
     if (settled.data?.pending) {
-      // A twin is still settling — verify before reporting anything.
+      // A twin is still settling verify before reporting anything.
       return settleSend(opKey, input.channel, actorId, intentKey);
     }
     clearIdemKey(intentKey);
@@ -643,7 +662,7 @@ export async function backendSendOtp(
     };
   }
 
-  // Lost response — find out what actually happened.
+  // Lost response find out what actually happened.
   return settleSend(opKey, input.channel, actorId, intentKey);
 }
 
@@ -651,15 +670,15 @@ async function settleSend(
   opKey: string | null,
   channel: "phone" | "email",
   actorId: string,
-  intentKey: string
+  intentKey: string,
 ): Promise<BackendSendOtpResult> {
   if (!opKey) {
-    // Storage unavailable — no sticker means no dedupe; stay neutral.
+    // Storage unavailable no sticker means no dedupe; stay neutral.
     return { error: null, maybeSent: true };
   }
   const v = await apiVerifyIdemOp({ opKey, actorKind: channel, actorId });
   if (v.status === "done") {
-    // It really went through — report success, never "send code again".
+    // It really went through report success, never "send code again".
     clearIdemKey(intentKey);
     const result = (v.result as { message?: string } | null) || null;
     return { error: null, message: result?.message || "Code sent." };
@@ -667,12 +686,12 @@ async function settleSend(
   if (v.status === "error") {
     return { error: v.error || "Could not send code." };
   }
-  // Unproven — neutral outcome, offer a resend.
+  // Unproven neutral outcome, offer a resend.
   return { error: null, maybeSent: true };
 }
 
 export async function backendSendPhoneOtp(
-  phone: string
+  phone: string,
 ): Promise<{ error: string | null; message?: string }> {
   return backendSendOtp({ channel: "phone", target: phone });
 }
@@ -709,7 +728,7 @@ export async function backendProfileVerifyOtp(input: {
 
 export async function backendSignIn(
   email: string,
-  password: string
+  password: string,
 ): Promise<{
   error: string | null;
   profile?: UserProfile;
@@ -720,7 +739,7 @@ export async function backendSignIn(
 }> {
   const cleanEmail = email.trim().toLowerCase();
 
-  // Prefer server login (service-role profile + repair) — fixes Vercel/RLS login failures
+  // Prefer server login (service-role profile + repair) fixes Vercel/RLS login failures
   try {
     const res = await fetch("/api/auth/login", {
       method: "POST",
@@ -790,17 +809,14 @@ export async function backendSignIn(
   const loaded = await backendLoadUserProfile(userId);
   if (!loaded) {
     return {
-      error:
-        "Profile not found after login. Try again or contact support.",
+      error: "Profile not found after login. Try again or contact support.",
     };
   }
   return { error: null, profile: loaded, userId };
 }
 
 /** Smooth Motorist ↔ Repair Pro switch (same user, updates role on server). */
-export async function backendSwitchRole(
-  target: AccountType
-): Promise<{
+export async function backendSwitchRole(target: AccountType): Promise<{
   error: string | null;
   /** Present when error is needs_signup */
   message?: string;
@@ -813,9 +829,8 @@ export async function backendSwitchRole(
   const sb = getAppSupabase();
   if (!sb) return { error: "Supabase is not configured." };
 
-  const { ensureAppSession, SESSION_RELOGIN_MESSAGE } = await import(
-    "@/lib/supabase/session"
-  );
+  const { ensureAppSession, SESSION_RELOGIN_MESSAGE } =
+    await import("@/lib/supabase/session");
   // Wait for storage rehydrate: after navigation / cold start getSession can
   // be empty for a moment, which made the FIRST "Use as" tap fail and only a
   // manual re-tap succeed. The retry worked because the session had rehydrated.
@@ -913,7 +928,8 @@ export async function backendDualRoleFlags(userId: string): Promise<{
     primaryAccountType: resolvePrimaryAccountType({
       hasMotorist,
       hasPro,
-      motoristCreatedAt: (mot.data as { created_at?: string } | null)?.created_at,
+      motoristCreatedAt: (mot.data as { created_at?: string } | null)
+        ?.created_at,
       proCreatedAt: (pro.data as { created_at?: string } | null)?.created_at,
     }),
   };
@@ -955,7 +971,7 @@ export async function backendGetSessionUserId(): Promise<string | null> {
 }
 
 export async function backendLoadUserProfile(
-  userId: string
+  userId: string,
 ): Promise<UserProfile | null> {
   const sb = getAppSupabase();
   if (!sb) return null;
@@ -971,13 +987,21 @@ export async function backendLoadUserProfile(
 
   // Load both side tables so primary = original signup (earlier created_at)
   const [motRes, proRes, guarantorRes] = await Promise.all([
-    sb.from("motorist_profiles").select("*").eq("user_id", userId).maybeSingle(),
+    sb
+      .from("motorist_profiles")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle(),
     sb
       .from("repair_pro_profiles")
       .select("*")
       .eq("user_id", userId)
       .maybeSingle(),
-    sb.from("repair_pro_guarantors").select("*").eq("user_id", userId).maybeSingle(),
+    sb
+      .from("repair_pro_guarantors")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle(),
   ]);
   const mot = motRes.data as {
     vehicle_make?: string | null;
@@ -1004,12 +1028,14 @@ export async function backendLoadUserProfile(
     bank_account_number?: string | null;
     bank_code?: string | null;
   } | null;
-  const pr = proRes.data as (RepairProRow & {
-    bank_name?: string | null;
-    bank_account_name?: string | null;
-    bank_account_number?: string | null;
-    bank_code?: string | null;
-  }) | null;
+  const pr = proRes.data as
+    | (RepairProRow & {
+        bank_name?: string | null;
+        bank_account_name?: string | null;
+        bank_account_number?: string | null;
+        bank_code?: string | null;
+      })
+    | null;
   const storedPrimary = (() => {
     const prRole = (p as { primary_role?: string | null }).primary_role;
     if (prRole === "repair_pro") return "professional" as const;
@@ -1030,16 +1056,18 @@ export async function backendLoadUserProfile(
     (p as { last_role_switch_at?: string | null }).last_role_switch_at ||
     undefined;
   const roleSwitchCount = Number(
-    (p as { role_switch_count?: number | null }).role_switch_count || 0
+    (p as { role_switch_count?: number | null }).role_switch_count || 0,
   );
 
   if (accountType === "professional") {
-    const proExtra = pr as RepairProRow & {
-      labour_prices?: UserProfile["servicePrices"];
-      pricing_currency?: import("@/lib/pricing").AppCurrency;
-      jobs_completed?: number;
-      vehicle_focus?: Record<string, string | undefined>;
-    } | null;
+    const proExtra = pr as
+      | (RepairProRow & {
+          labour_prices?: UserProfile["servicePrices"];
+          pricing_currency?: import("@/lib/pricing").AppCurrency;
+          jobs_completed?: number;
+          vehicle_focus?: Record<string, string | undefined>;
+        })
+      | null;
     const vf = (proExtra?.vehicle_focus || {}) as Record<
       string,
       string | undefined
@@ -1050,7 +1078,8 @@ export async function backendLoadUserProfile(
       dualRole,
       lastRoleSwitchAt,
       roleSwitchCount,
-      services: (pr?.services as ProService[]) ||
+      services:
+        (pr?.services as ProService[]) ||
         (pr?.primary_service ? [pr.primary_service as ProService] : []),
       businessName: pr?.business_name || undefined,
       bio: pr?.bio || undefined,
@@ -1100,9 +1129,8 @@ export async function backendLoadUserProfile(
           })()
         : undefined,
       phoneVerified:
-        Boolean(
-          (p as { phone_verified?: boolean }).phone_verified
-        ) || Boolean(mot?.phone_verified),
+        Boolean((p as { phone_verified?: boolean }).phone_verified) ||
+        Boolean(mot?.phone_verified),
     });
   }
 
@@ -1154,7 +1182,7 @@ export async function backendFetchPros(
     lat: number;
     lng: number;
   },
-  opts?: { trade?: ProService | null }
+  opts?: { trade?: ProService | null },
 ): Promise<Technician[]> {
   const trade = opts?.trade && isProService(opts.trade) ? opts.trade : null;
   // Prefer server route (service role) so every approved pro + name reaches the app
@@ -1164,7 +1192,7 @@ export async function backendFetchPros(
       lng: String(userCoords.lng),
     });
     // authFetch so server can exclude the signed-in dual-role user from results
-    // NOTE: no trade param — /api/pros derives the pro's trade from the session.
+    // NOTE: no trade param /api/pros derives the pro's trade from the session.
     const { authFetch } = await import("@/lib/api-auth-headers");
     const res = await authFetch(`/api/pros?${qs.toString()}`, {
       method: "GET",
@@ -1185,11 +1213,13 @@ export async function backendFetchPros(
   if (!sb) return [];
 
   // Client fallback: slim columns only (never pull cert base64 / skills blobs)
-  let prosQuery = sb.from("repair_pro_profiles").select(
-      "user_id, business_name, primary_service, services, status, is_online, rating_avg, rating_count, lat, lng, location_updated_at, service_radius_km, years_experience, bio, verified, labour_prices, pricing_currency, vehicle_focus, skills, jobs_completed, docs_status, face_liveness_verified, in_person_verified, visibility_tier, is_new_artisan, go_live_window_ends_at"
+  let prosQuery = sb
+    .from("repair_pro_profiles")
+    .select(
+      "user_id, business_name, primary_service, services, status, is_online, rating_avg, rating_count, lat, lng, location_updated_at, service_radius_km, years_experience, bio, verified, labour_prices, pricing_currency, vehicle_focus, skills, jobs_completed, docs_status, face_liveness_verified, in_person_verified, visibility_tier, is_new_artisan, go_live_window_ends_at",
     );
   // Client fallback for pros must respect the same trade scope as the server
-  // route — otherwise a Repair Pro could widen their market via this fallback.
+  // route otherwise a Repair Pro could widen their market via this fallback.
   if (trade) prosQuery = prosQuery.eq("primary_service", trade);
   prosQuery = prosQuery.eq("is_online", true).limit(60);
   const { data: pros, error } = await prosQuery;
@@ -1212,7 +1242,7 @@ export async function backendFetchPros(
     .eq("is_active", true);
 
   const byId = new Map(
-    (profiles as unknown as ProfileRow[] | null)?.map((p) => [p.id, p]) ?? []
+    (profiles as unknown as ProfileRow[] | null)?.map((p) => [p.id, p]) ?? [],
   );
 
   const nowMs = Date.now();
@@ -1241,7 +1271,7 @@ export async function backendFetchPros(
       return true;
     })
     .map((pro) =>
-      mapProToTechnician(pro, byId.get(pro.user_id) ?? null, userCoords)
+      mapProToTechnician(pro, byId.get(pro.user_id) ?? null, userCoords),
     )
     .filter((t) => {
       if (
@@ -1267,11 +1297,10 @@ export async function backendFetchPros(
 export async function backendSetProOnline(
   userId: string,
   online: boolean,
-  coords?: { lat: number; lng: number }
+  coords?: { lat: number; lng: number },
 ): Promise<string | null> {
-  const { ensureAppSession, SESSION_RELOGIN_MESSAGE } = await import(
-    "@/lib/supabase/session"
-  );
+  const { ensureAppSession, SESSION_RELOGIN_MESSAGE } =
+    await import("@/lib/supabase/session");
 
   type LiveJson = {
     ok?: boolean;
@@ -1281,7 +1310,7 @@ export async function backendSetProOnline(
 
   const callLive = async (
     uid: string,
-    access_token?: string
+    access_token?: string,
   ): Promise<LiveJson> => {
     const res = await fetch("/api/pros/live", {
       method: "POST",
@@ -1320,12 +1349,9 @@ export async function backendSetProOnline(
         /session|sign in|log in again/i.test(json?.error?.message || ""))
     ) {
       session = await ensureAppSession({ refreshIfExpiresWithinMs: 3_600_000 });
-      json = await callLive(
-        session?.userId || uid,
-        session?.accessToken
-      );
+      json = await callLive(session?.userId || uid, session?.accessToken);
       if (!json?.ok) {
-        // Service-role path with userId only — Go Live must not die on stale JWT
+        // Service-role path with userId only Go Live must not die on stale JWT
         json = await callLive(uid, undefined);
       }
     }
@@ -1372,7 +1398,7 @@ export async function backendSetProOnline(
 
 /** Read Live flag from server (sync dashboard UI). */
 export async function backendGetProOnline(
-  userId: string
+  userId: string,
 ): Promise<boolean | null> {
   const sb = getAppSupabase();
   if (!sb) return null;
@@ -1455,7 +1481,7 @@ export async function backendCreateJob(input: {
 export async function backendUpdateJobStatus(
   requestId: string,
   status: RequestStatus,
-  actorId: string
+  actorId: string,
 ): Promise<string | null> {
   const sb = getAppSupabase();
   if (!sb) return "Backend offline";
@@ -1484,17 +1510,22 @@ export async function backendUpdateJobStatus(
 
 export async function backendFetchJobsForUser(
   userId: string,
-  role: AccountType
+  role: AccountType,
 ): Promise<ServiceRequest[]> {
   const sb = getAppSupabase();
   if (!sb) return [];
 
-  let q = sb.from("service_requests").select("id, motorist_id, repair_pro_id, service_type, status, description, pickup_lat, pickup_lng, pickup_address, radius_km, created_at, updated_at").order("created_at", {
-    ascending: false,
-  });
+  let q = sb
+    .from("service_requests")
+    .select(
+      "id, motorist_id, repair_pro_id, service_type, status, description, pickup_lat, pickup_lng, pickup_address, radius_km, created_at, updated_at",
+    )
+    .order("created_at", {
+      ascending: false,
+    });
   if (role === "motorist") q = q.eq("motorist_id", userId);
   // Pros only ever see jobs assigned to them. The old `status.in.(requested,matched)`
-  // broad clause made EVERY open job visible to every pro — leaking another
+  // broad clause made EVERY open job visible to every pro leaking another
   // pro's accepted jobs into the store / Orders desk (account isolation bug).
   else q = q.eq("repair_pro_id", userId);
 
@@ -1505,7 +1536,7 @@ export async function backendFetchJobsForUser(
     ...new Set(
       (data as ServiceRequestRow[])
         .map((r) => r.repair_pro_id)
-        .filter(Boolean) as string[]
+        .filter(Boolean) as string[],
     ),
   ];
   const names = new Map<string, string>();
@@ -1517,13 +1548,13 @@ export async function backendFetchJobsForUser(
     for (const p of profiles || []) {
       names.set(
         (p as { id: string; full_name: string }).id,
-        (p as { id: string; full_name: string }).full_name
+        (p as { id: string; full_name: string }).full_name,
       );
     }
   }
 
   return (data as ServiceRequestRow[]).map((r) =>
-    mapRequestRow(r, r.repair_pro_id ? names.get(r.repair_pro_id) : undefined)
+    mapRequestRow(r, r.repair_pro_id ? names.get(r.repair_pro_id) : undefined),
   );
 }
 
@@ -1540,7 +1571,8 @@ export async function backendEnsureConversation(input: {
     .select("id")
     .eq("request_id", input.requestId)
     .maybeSingle();
-  if (existing?.id) return { error: null, conversationId: existing.id as string };
+  if (existing?.id)
+    return { error: null, conversationId: existing.id as string };
 
   const { data, error } = await sb
     .from("conversations")
@@ -1554,7 +1586,7 @@ export async function backendEnsureConversation(input: {
     .single();
   if (error || !data) return { error: error?.message || "Chat create failed" };
 
-  // Empty thread only — never insert system "Chat opened…" spam.
+  // Empty thread only never insert system "Chat opened…" spam.
   // First real message appears when a user actually sends one.
 
   return { error: null, conversationId: data.id as string };
@@ -1562,7 +1594,7 @@ export async function backendEnsureConversation(input: {
 
 export async function backendFetchConversations(
   userId: string,
-  role: AccountType
+  role: AccountType,
 ): Promise<MessageThread[]> {
   const sb = getAppSupabase();
   if (!sb) return [];
@@ -1586,7 +1618,7 @@ export async function backendFetchConversations(
     .filter(Boolean) as string[];
 
   // Batch-fetch related rows (avoids N+1 lag).
-  // Slim columns + low message cap — list only needs recent preview, not full history.
+  // Slim columns + low message cap list only needs recent preview, not full history.
   const [{ data: allMsgs }, { data: names }, { data: jobs }] =
     await Promise.all([
       sb
@@ -1604,20 +1636,22 @@ export async function backendFetchConversations(
             .from("service_requests")
             .select("id, service_type")
             .in("id", requestIds)
-        : Promise.resolve({ data: [] as { id: string; service_type: string }[] }),
+        : Promise.resolve({
+            data: [] as { id: string; service_type: string }[],
+          }),
     ]);
 
   const byId = new Map(
     (
       names as
-        | { id: string; full_name: string; avatar_url: string | null }[]
-        | null
-    )?.map((n) => [n.id, n]) ?? []
+        { id: string; full_name: string; avatar_url: string | null }[] | null
+    )?.map((n) => [n.id, n]) ?? [],
   );
   const jobById = new Map(
-    (
-      jobs as { id: string; service_type: string }[] | null
-    )?.map((j) => [j.id, j.service_type]) ?? []
+    (jobs as { id: string; service_type: string }[] | null)?.map((j) => [
+      j.id,
+      j.service_type,
+    ]) ?? [],
   );
   const msgsByConv = new Map<string, MessageRow[]>();
   for (const m of (allMsgs as MessageRow[]) || []) {
@@ -1633,13 +1667,14 @@ export async function backendFetchConversations(
       {
         motoristName: byId.get(c.motorist_id)?.full_name || "Customer",
         technicianName: byId.get(c.repair_pro_id)?.full_name || "Repair Pro",
-        serviceType: (c.request_id
-          ? (jobById.get(c.request_id) as ProService | undefined)
-          : undefined) || "mechanic",
+        serviceType:
+          (c.request_id
+            ? (jobById.get(c.request_id) as ProService | undefined)
+            : undefined) || "mechanic",
         photo: byId.get(c.repair_pro_id)?.avatar_url || "",
       },
-      userId
-    )
+      userId,
+    ),
   );
 }
 
@@ -1688,7 +1723,7 @@ export async function backendSendMessage(input: {
             preview: String(preview || "New message").slice(0, 200),
             senderName: input.senderName || undefined,
           }),
-        })
+        }),
       )
       .catch(() => null);
   } catch {
@@ -1703,12 +1738,14 @@ export async function backendSendMessage(input: {
  */
 export function backendSubscribeUserMessageInserts(
   userId: string,
-  onInsert: (row: MessageRow & { conversation_id?: string }) => void
+  onInsert: (row: MessageRow & { conversation_id?: string }) => void,
 ): (() => void) | null {
   const sb = getAppSupabase();
   if (!sb || !userId) return null;
   const channel = sb
-    .channel(`user-messages:${userId}:${Math.random().toString(36).slice(2, 8)}`)
+    .channel(
+      `user-messages:${userId}:${Math.random().toString(36).slice(2, 8)}`,
+    )
     .on(
       "postgres_changes",
       {
@@ -1724,7 +1761,7 @@ export function backendSubscribeUserMessageInserts(
         // Ignore own sends (sender already has optimistic UI)
         if (row.sender_id === userId) return;
         onInsert(row);
-      }
+      },
     )
     .subscribe();
   return () => {
@@ -1735,7 +1772,7 @@ export function backendSubscribeUserMessageInserts(
 /** Mark other party's messages as read in this conversation. */
 export async function backendMarkMessagesRead(
   conversationId: string,
-  userId: string
+  userId: string,
 ): Promise<void> {
   if (!conversationId || conversationId.startsWith("chat-") || !userId) return;
   try {
@@ -1752,12 +1789,14 @@ export async function backendMarkMessagesRead(
 /** Subscribe to new messages in a conversation (Realtime). */
 export function backendSubscribeMessages(
   conversationId: string,
-  onInsert: (row: MessageRow) => void
+  onInsert: (row: MessageRow) => void,
 ): (() => void) | null {
   const sb = getAppSupabase();
   if (!sb) return null;
   const channel = sb
-    .channel(`messages:${conversationId}:${Math.random().toString(36).slice(2, 8)}`)
+    .channel(
+      `messages:${conversationId}:${Math.random().toString(36).slice(2, 8)}`,
+    )
     .on(
       "postgres_changes",
       {
@@ -1768,7 +1807,7 @@ export function backendSubscribeMessages(
       },
       (payload) => {
         onInsert(payload.new as MessageRow);
-      }
+      },
     )
     .subscribe();
   return () => {
@@ -1777,7 +1816,7 @@ export function backendSubscribeMessages(
 }
 
 /**
- * Job Realtime — filtered to this user’s rows only.
+ * Job Realtime filtered to this user’s rows only.
  * OLD BUG: subscribed to *all* service_requests → every pro GPS/status in the
  * whole app triggered a full jobs refetch for every client (huge data waste).
  */
@@ -1786,7 +1825,7 @@ export function backendSubscribeJobs(
   onChange: (payload?: {
     new?: Record<string, unknown>;
     old?: Record<string, unknown>;
-  }) => void
+  }) => void,
 ): (() => void) | null {
   const sb = getAppSupabase();
   if (!sb) return null;
@@ -1804,8 +1843,8 @@ export function backendSubscribeJobs(
         payload: {
           new?: Record<string, unknown>;
           old?: Record<string, unknown>;
-        } | null
-      ) => onChange(payload || undefined)
+        } | null,
+      ) => onChange(payload || undefined),
     )
     .on(
       "postgres_changes",
@@ -1819,8 +1858,8 @@ export function backendSubscribeJobs(
         payload: {
           new?: Record<string, unknown>;
           old?: Record<string, unknown>;
-        } | null
-      ) => onChange(payload || undefined)
+        } | null,
+      ) => onChange(payload || undefined),
     )
     .subscribe();
   return () => {
@@ -1835,13 +1874,13 @@ export type ProPresenceChangeReason = "presence" | "heartbeat";
  *
  * Subscribes to `pro_presence` (public, non-sensitive). The old
  * `repair_pro_profiles` channel never delivered other pros' rows to motorists
- * because RLS is own-row-only — so Live never appeared without a full refresh.
+ * because RLS is own-row-only so Live never appeared without a full refresh.
  *
  * - Live/Away flips → immediate `presence` callback (no 60s throttle)
  * - GPS heartbeats → `heartbeat` at most ~every 25s
  */
 export function backendSubscribePros(
-  onChange: (reason?: ProPresenceChangeReason) => void
+  onChange: (reason?: ProPresenceChangeReason) => void,
 ): (() => void) | null {
   if (typeof window === "undefined") return null;
   const sb = getAppSupabase();
@@ -1885,7 +1924,7 @@ export function backendSubscribePros(
       return;
     }
 
-    // Location/heartbeat only — keep map pins fresh without hammering /api/pros
+    // Location/heartbeat only keep map pins fresh without hammering /api/pros
     if (now - lastHeartbeatFire < 25_000) return;
     lastHeartbeatFire = now;
     onChange("heartbeat");
@@ -1907,7 +1946,7 @@ export function backendSubscribePros(
           new: (payload.new || undefined) as PresenceRow | undefined,
           old: (payload.old || undefined) as PresenceRow | undefined,
         });
-      }
+      },
     )
     .subscribe((status) => {
       if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {

@@ -9,7 +9,8 @@ export const BATTERY_FINAL_COPY = {
   emergency: "Emergency",
   remote: "Remote location",
   night: "Night service needed",
-  photos: "Add clear photos (at most 4) of the battery, terminals, and dashboard",
+  photos:
+    "Add clear photos (at most 4) of the battery, terminals, and dashboard",
   voice: "Record a short voice note describing the problem",
   location: "Current Location",
   extra: "Any other detail you want the technician to know?",
@@ -116,7 +117,8 @@ export const BATTERY_SCREENS: Record<string, BatteryScreen> = {
   },
   a_terminals: {
     id: "a_terminals",
-    question: "Are the battery terminals clean and tight (if you can check safely)?",
+    question:
+      "Are the battery terminals clean and tight (if you can check safely)?",
     kind: "choice",
     options: [
       { id: "yes", label: "Yes, clean and tight" },
@@ -132,7 +134,8 @@ export const BATTERY_SCREENS: Record<string, BatteryScreen> = {
   },
   b_click: {
     id: "b_click",
-    question: "Do you hear any clicking sound when you turn the key / press start?",
+    question:
+      "Do you hear any clicking sound when you turn the key / press start?",
     kind: "choice",
     options: [
       { id: "rapid", label: "Yes, rapid clicking" },
@@ -195,8 +198,8 @@ export const BATTERY_SCREENS: Record<string, BatteryScreen> = {
     kind: "choice",
     options: [
       { id: "under_1", label: "Under 1 year" },
-      { id: "1_2", label: "1–2 years" },
-      { id: "3_4", label: "3–4 years" },
+      { id: "1_2", label: "1-2 years" },
+      { id: "3_4", label: "3-4 years" },
       { id: "over_4", label: "Over 4 years" },
       { id: "unsure", label: "Don't know" },
     ],
@@ -250,7 +253,8 @@ export const BATTERY_SCREENS: Record<string, BatteryScreen> = {
   },
   e_test_first: {
     id: "e_test_first",
-    question: "Do you want the technician to test it first or supply a new battery?",
+    question:
+      "Do you want the technician to test it first or supply a new battery?",
     kind: "choice",
     options: [
       { id: "test", label: "Test it first" },
@@ -338,7 +342,10 @@ export const BATTERY_SCREENS: Record<string, BatteryScreen> = {
     question: "Which EV battery issue?",
     kind: "choice",
     options: [
-      { id: "12v", label: "12V auxiliary battery (won't start / go into ready)" },
+      {
+        id: "12v",
+        label: "12V auxiliary battery (won't start / go into ready)",
+      },
       { id: "hv", label: "High-voltage (HV) battery / range problem" },
       { id: "charging", label: "Charging problem / won't charge" },
       { id: "unsure", label: "Not sure" },
@@ -374,7 +381,7 @@ export function batteryScreen(id: string): BatteryScreen | undefined {
 export function nextBatteryScreen(
   current: string,
   answerId: string,
-  answers: Record<string, string>
+  answers: Record<string, string>,
 ): string {
   if (current === "start") return START_NEXT[answerId] || "g_describe";
 
@@ -429,7 +436,7 @@ export function nextBatteryScreen(
  * arrives with the real issue already identified.
  */
 export function batteryDiagnosis(
-  answers: Record<string, string>
+  answers: Record<string, string>,
 ): string | undefined {
   const main = answers.start;
 
@@ -482,7 +489,7 @@ export function batteryDiagnosis(
  * staying on Battery is seamless.
  */
 export function resolveBatteryRoute(
-  answers: Record<string, string>
+  answers: Record<string, string>,
 ): BatteryRoute {
   const diagnosis = batteryDiagnosis(answers);
   const stay = (): BatteryRoute => ({
@@ -490,10 +497,7 @@ export function resolveBatteryRoute(
     needsConfirm: false,
     diagnosis,
   });
-  const leave = (
-    trade: ProService,
-    alternate?: ProService
-  ): BatteryRoute => ({
+  const leave = (trade: ProService, alternate?: ProService): BatteryRoute => ({
     trade,
     alternate,
     needsConfirm: trade !== "battery" || Boolean(alternate),
@@ -562,7 +566,7 @@ export function resolveBatteryRoute(
 
 export function applyConfirmChoice(
   route: BatteryRoute,
-  yes: boolean
+  yes: boolean,
 ): ProService {
   if (yes) return route.trade;
   if (route.alternate) return route.alternate;
@@ -592,7 +596,7 @@ export function confirmQuestion(trade: ProService): string {
 export function composeBatteryProblem(
   answers: Record<string, string>,
   extra: string,
-  landmark: string
+  landmark: string,
 ): string {
   const lines: string[] = [];
   const start = batteryScreen("start");
@@ -603,7 +607,7 @@ export function composeBatteryProblem(
   }
 
   const order = Object.keys(answers).filter(
-    (k) => k !== "start" && !k.endsWith("_label")
+    (k) => k !== "start" && !k.endsWith("_label"),
   );
   for (const id of order) {
     const screen = batteryScreen(id);
@@ -647,7 +651,7 @@ export function batteryBreadcrumb(stack: string[]): string {
   if (stack.length > 1) {
     const firstBranch = stack[1];
     const letter = Object.entries(START_NEXT).find(
-      ([, id]) => id === firstBranch
+      ([, id]) => id === firstBranch,
     )?.[0];
     if (letter) bits.push(letter);
   }

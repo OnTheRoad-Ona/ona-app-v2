@@ -3,7 +3,11 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { createServiceSupabase } from "@/lib/supabase/server";
-import { getSupabaseAnonKey, getSupabaseUrl, isSupabaseAdminConfigured } from "@/lib/supabase/env";
+import {
+  getSupabaseAnonKey,
+  getSupabaseUrl,
+  isSupabaseAdminConfigured,
+} from "@/lib/supabase/env";
 import { emailOtpKey, isDemoOtp, isDemoOtpAllowed } from "@/lib/auth/demo-otp";
 
 export const runtime = "nodejs";
@@ -28,10 +32,15 @@ export async function POST(req: Request) {
   }
 
   let json: unknown;
-  try { json = await req.json(); } catch { return apiFail("Invalid JSON", 400); }
+  try {
+    json = await req.json();
+  } catch {
+    return apiFail("Invalid JSON", 400);
+  }
 
   const parsed = bodySchema.safeParse(json);
-  if (!parsed.success) return apiFail("Provide at least password plus one additional factor", 400);
+  if (!parsed.success)
+    return apiFail("Provide at least password plus one additional factor", 400);
 
   const { accessToken, password, emailCode, guarantorName } = parsed.data;
 
@@ -41,8 +50,10 @@ export async function POST(req: Request) {
   const userClient = createClient(url, anon, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const { data: userData, error: userErr } = await userClient.auth.getUser(accessToken);
-  if (userErr || !userData?.user) return apiFail("Session expired. Sign in again.", 401);
+  const { data: userData, error: userErr } =
+    await userClient.auth.getUser(accessToken);
+  if (userErr || !userData?.user)
+    return apiFail("Session expired. Sign in again.", 401);
 
   const userId = userData.user.id;
   const userEmail = userData.user.email;
@@ -53,7 +64,10 @@ export async function POST(req: Request) {
 
   // 1. Password verification
   if (password) {
-    const { error: pwdErr } = await userClient.auth.signInWithPassword({ email: userEmail, password });
+    const { error: pwdErr } = await userClient.auth.signInWithPassword({
+      email: userEmail,
+      password,
+    });
     const passed = !pwdErr;
     results.push({ factor: "password", passed });
     if (!passed) return apiFail("Current password is incorrect.", 403);
@@ -61,7 +75,7 @@ export async function POST(req: Request) {
     return apiFail("Password is required for identity verification.", 400);
   }
 
-  // 2. Email OTP verification — use same key format as send route
+  // 2. Email OTP verification use same key format as send route
   if (emailCode) {
     const dest = emailOtpKey(userEmail);
 
@@ -76,22 +90,34 @@ export async function POST(req: Request) {
     const otp = otpRows?.[0];
     if (!otp) return apiFail("No code found. Request a new one first.", 400);
     if (new Date(otp.expires_at).getTime() < Date.now()) {
-      await admin.from("phone_otps").update({ consumed_at: new Date().toISOString() }).eq("id", otp.id);
+      await admin
+        .from("phone_otps")
+        .update({ consumed_at: new Date().toISOString() })
+        .eq("id", otp.id);
       return apiFail("Code expired. Request a new one.", 400);
     }
 
     const demoOk = isDemoOtp(emailCode) && isDemoOtpAllowed();
     if (demoOk) {
       results.push({ factor: "email_otp", passed: true });
-      await admin.from("phone_otps").update({ consumed_at: new Date().toISOString() }).eq("id", otp.id);
+      await admin
+        .from("phone_otps")
+        .update({ consumed_at: new Date().toISOString() })
+        .eq("id", otp.id);
     } else {
       const expected = hashCode(dest, emailCode);
       if (expected !== otp.code_hash) {
-        await admin.from("phone_otps").update({ attempts: (otp.attempts || 0) + 1 }).eq("id", otp.id);
+        await admin
+          .from("phone_otps")
+          .update({ attempts: (otp.attempts || 0) + 1 })
+          .eq("id", otp.id);
         return apiFail("Email code is incorrect.", 401);
       }
       results.push({ factor: "email_otp", passed: true });
-      await admin.from("phone_otps").update({ consumed_at: new Date().toISOString() }).eq("id", otp.id);
+      await admin
+        .from("phone_otps")
+        .update({ consumed_at: new Date().toISOString() })
+        .eq("id", otp.id);
     }
   } else {
     return apiFail("Email verification code is required.", 400);
@@ -105,10 +131,13 @@ export async function POST(req: Request) {
       .eq("user_id", userId)
       .maybeSingle();
 
-    const storedName = (guarantor as { full_name?: string } | null)?.full_name || "";
-    const nameMatch = storedName.toLowerCase().trim() === guarantorName.toLowerCase().trim();
+    const storedName =
+      (guarantor as { full_name?: string } | null)?.full_name || "";
+    const nameMatch =
+      storedName.toLowerCase().trim() === guarantorName.toLowerCase().trim();
     results.push({ factor: "guarantor_name", passed: nameMatch });
-    if (!nameMatch) return apiFail("Guarantor name does not match our records.", 403);
+    if (!nameMatch)
+      return apiFail("Guarantor name does not match our records.", 403);
   } else {
     return apiFail("Guarantor name is required for verification.", 400);
   }

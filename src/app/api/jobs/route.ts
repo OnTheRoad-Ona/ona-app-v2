@@ -40,17 +40,15 @@ const createSchema = z.object({
   lat: z.number(),
   lng: z.number(),
   motoristVehicle: z.string().max(200).optional().nullable(),
-  /** Customer home radius slider (km) — caps SSPE pairing expansion */
+  /** Customer home radius slider (km) caps SSPE pairing expansion */
   radiusKm: z.number().min(0).max(100).optional().nullable(),
-  /** Client idempotency sticker — retries of the same request reuse it */
+  /** Client idempotency sticker retries of the same request reuse it */
   clientRequestId: z.string().min(1).max(100).optional().nullable(),
   atWorkshop: z.boolean().optional(),
   remoteConsultation: z.boolean().optional(),
   physicalAttendanceRequired: z.boolean().optional(),
   calloutEligible: z.boolean().optional(),
-  calloutUrgency: z
-    .enum(["normal", "emergency", "remote", "night"])
-    .optional(),
+  calloutUrgency: z.enum(["normal", "emergency", "remote", "night"]).optional(),
   meetPro: z.boolean().optional(),
   /** Tow "add another repair pro": create a linked scheduled second request. */
   meetProTrade: z.string().optional().nullable(),
@@ -69,7 +67,11 @@ export async function POST(req: Request) {
 
     // Only the authenticated motorist can open a job for themselves
     if (b.motoristId !== auth.userId) {
-      return apiFail("You can only create jobs for your own account", 403, "forbidden");
+      return apiFail(
+        "You can only create jobs for your own account",
+        403,
+        "forbidden",
+      );
     }
     if (!isProService(b.serviceType)) {
       return apiFail("Invalid service type", 400);
@@ -99,15 +101,13 @@ export async function POST(req: Request) {
       calloutEligible: b.calloutEligible,
       calloutUrgency: b.calloutUrgency,
       meetProTrade:
-        b.meetProTrade && isProService(b.meetProTrade)
-          ? b.meetProTrade
-          : null,
+        b.meetProTrade && isProService(b.meetProTrade) ? b.meetProTrade : null,
     });
     return apiOk({ job, serverNow: new Date().toISOString() });
   } catch (e) {
     return apiFail(
       e instanceof Error ? e.message : "Could not create job",
-      500
+      500,
     );
   }
 }

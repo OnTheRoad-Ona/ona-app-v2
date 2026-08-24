@@ -6,8 +6,8 @@
  * abstraction keeps the door open for a licensed courier integration later.
  *
  * Providers:
- *   - "ona_internal": Ona's own delivery operation (default, active now).
- *   - Future: plug a courier provider into the registry without touching fees.
+ * - "ona_internal": Ona's own delivery operation (default, active now).
+ * - Future: plug a courier provider into the registry without touching fees.
  */
 
 import { createServiceSupabase } from "@/lib/supabase/server";
@@ -43,10 +43,7 @@ export type DeliveryEstimate = {
  * subtotal qualifies for free delivery.
  */
 export function computeDeliveryFee(input: {
-  service: Pick<
-    DeliveryService,
-    "baseFeeMinor" | "freeAboveSubtotalMinor"
-  >;
+  service: Pick<DeliveryService, "baseFeeMinor" | "freeAboveSubtotalMinor">;
   zone: Pick<DeliveryZone, "surchargeMinor">;
   subtotalMinor: number;
 }): { deliveryFeeMinor: number; freeDelivery: boolean } {
@@ -57,8 +54,7 @@ export function computeDeliveryFee(input: {
     return { deliveryFeeMinor: 0, freeDelivery: true };
   }
   return {
-    deliveryFeeMinor:
-      input.service.baseFeeMinor + input.zone.surchargeMinor,
+    deliveryFeeMinor: input.service.baseFeeMinor + input.zone.surchargeMinor,
     freeDelivery: false,
   };
 }
@@ -120,7 +116,7 @@ export async function getActiveDeliveryService(): Promise<DeliveryService> {
   const { data } = await sb
     .from("shop_delivery_services")
     .select(
-      "code, name, base_fee_minor, eta_minutes_min, eta_minutes_max, free_above_subtotal_minor"
+      "code, name, base_fee_minor, eta_minutes_min, eta_minutes_max, free_above_subtotal_minor",
     )
     .eq("is_active", true)
     .order("sort_order", { ascending: true })
@@ -132,9 +128,10 @@ export async function getActiveDeliveryService(): Promise<DeliveryService> {
     baseFeeMinor: Number(data?.base_fee_minor ?? 150000),
     etaMinutesMin: Number(data?.eta_minutes_min ?? 60),
     etaMinutesMax: Number(data?.eta_minutes_max ?? 180),
-    freeAboveSubtotalMinor: data?.free_above_subtotal_minor != null
-      ? Number(data.free_above_subtotal_minor)
-      : null,
+    freeAboveSubtotalMinor:
+      data?.free_above_subtotal_minor != null
+        ? Number(data.free_above_subtotal_minor)
+        : null,
   };
 }
 
@@ -192,7 +189,7 @@ export async function listDeliveryServices(): Promise<DeliveryService[]> {
   const { data } = await sb
     .from("shop_delivery_services")
     .select(
-      "code, name, base_fee_minor, eta_minutes_min, eta_minutes_max, free_above_subtotal_minor"
+      "code, name, base_fee_minor, eta_minutes_min, eta_minutes_max, free_above_subtotal_minor",
     )
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
@@ -202,14 +199,15 @@ export async function listDeliveryServices(): Promise<DeliveryService[]> {
     baseFeeMinor: Number(s.base_fee_minor),
     etaMinutesMin: Number(s.eta_minutes_min),
     etaMinutesMax: Number(s.eta_minutes_max),
-    freeAboveSubtotalMinor: s.free_above_subtotal_minor != null
-      ? Number(s.free_above_subtotal_minor)
-      : null,
+    freeAboveSubtotalMinor:
+      s.free_above_subtotal_minor != null
+        ? Number(s.free_above_subtotal_minor)
+        : null,
   }));
 }
 
 // ---------------------------------------------------------------------------
-// Provider abstraction — Ona internal today, licensed courier later.
+// Provider abstraction Ona internal today, licensed courier later.
 // ---------------------------------------------------------------------------
 
 export type DeliveryCreateResult = {
@@ -231,7 +229,7 @@ export interface DeliveryProvider {
   track(opts: { providerRef: string }): Promise<{ status: string } | null>;
 }
 
-/** Ona's own delivery operation — the active provider. */
+/** Ona's own delivery operation the active provider. */
 export class OnaInternalDeliveryProvider implements DeliveryProvider {
   readonly code = "ona_internal";
 
@@ -245,7 +243,7 @@ export class OnaInternalDeliveryProvider implements DeliveryProvider {
     const sb = createServiceSupabase();
     const trackingCode = `ONA-${opts.orderId.slice(0, 8).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
     const etaAt = new Date(
-      Date.now() + opts.etaMinutes * 60 * 1000
+      Date.now() + opts.etaMinutes * 60 * 1000,
     ).toISOString();
     await sb
       .from("shop_deliveries")

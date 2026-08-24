@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Briefcase, Check, ChevronLeft, ChevronRight, User } from "lucide-react";
+import {
+  Briefcase,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  User,
+} from "lucide-react";
 import {
   AuthPlate,
   authBackBtnClass,
@@ -64,10 +70,7 @@ import {
   type SignupGender,
 } from "@/lib/signup-validation";
 import { compressImageFile } from "@/lib/image-compress";
-import {
-  PRO_SERVICE_LABELS,
-  PRO_TRADE_OPTIONS,
-} from "@/lib/services";
+import { PRO_SERVICE_LABELS, PRO_TRADE_OPTIONS } from "@/lib/services";
 import {
   ARTISAN_TRADE_CATALOG,
   needsVehiclesSignupStep,
@@ -109,7 +112,7 @@ const FLOW_STEPS: Step[] = [1, 2, 3, 4, 5, 6, 7];
 
 /** Selected value accent (matches reference gold check style) */
 
-/** Actual years of service — 1–9, then 10+ */
+/** Actual years of service 1-9, then 10+ */
 const EXP_YEARS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10+"] as const;
 const BIO_MAX = 144;
 const MAX_BRANDS = 2;
@@ -121,7 +124,7 @@ function experienceLabel(value: string) {
 }
 
 /**
- * Full Repair Pro registration — one skill only, skill-specific questions,
+ * Full Repair Pro registration one skill only, skill-specific questions,
  * unique phone/email/NIN/BVN across all accounts.
  */
 export function ProSignup() {
@@ -165,10 +168,9 @@ export function ProSignup() {
   const [ninLocked, setNinLocked] = useState(false);
   const [bvnLocked, setBvnLocked] = useState(false);
   /** After signup → artisan verification onboarding (Go Live gated until approved) */
-  const nextPath =
-    searchParams.get("next")?.startsWith("/")
-      ? searchParams.get("next")!
-      : "/artisan/onboarding";
+  const nextPath = searchParams.get("next")?.startsWith("/")
+    ? searchParams.get("next")!
+    : "/artisan/onboarding";
   const fromMenu = searchParams.get("from") === "menu";
   const fromProfile = searchParams.get("from") === "profile";
 
@@ -206,7 +208,7 @@ export function ProSignup() {
   const fullPhone = formatInternationalPhone(phoneDial, phoneNational);
 
   /**
-   * Prefill from existing Customer — lock only fields that already have values.
+   * Prefill from existing Customer lock only fields that already have values.
    * Empty NIN/BVN are never dimmed.
    */
   useEffect(() => {
@@ -252,7 +254,7 @@ export function ProSignup() {
     const g = (motorist.gender || vaultMot?.gender || "") as SignupGender | "";
     const dob = (motorist.dateOfBirth || vaultMot?.dateOfBirth || "").slice(
       0,
-      10
+      10,
     );
 
     if (name) {
@@ -346,14 +348,12 @@ export function ProSignup() {
   const [draftModel, setDraftModel] = useState("Any");
   const [draftYear, setDraftYear] = useState("Any");
   const [vehiclePicker, setVehiclePicker] = useState<VehiclePickerKey | null>(
-    null
+    null,
   );
   const [vehiclePickerQuery, setVehiclePickerQuery] = useState("");
 
   const brandLabel =
-    vehicleBrands.length === 0
-      ? "Pick up to 2"
-      : vehicleBrands.join(", ");
+    vehicleBrands.length === 0 ? "Pick up to 2" : vehicleBrands.join(", ");
 
   const modelsFor = (brand: string) =>
     vehicleModelsByBrand[brand]?.length
@@ -367,7 +367,9 @@ export function ProSignup() {
           .map((b) => {
             const list = modelsFor(b);
             const modelsText = list.join(", ");
-            return vehicleBrands.length > 1 ? `${b}: ${modelsText}` : modelsText;
+            return vehicleBrands.length > 1
+              ? `${b}: ${modelsText}`
+              : modelsText;
           })
           .join(" · ");
 
@@ -439,7 +441,7 @@ export function ProSignup() {
           const existing = prev[b] ?? ["Any"];
           // Keep models that still exist for this brand/type
           const allowed = new Set(
-            optionsForPref("model", value, b, prefCountry)
+            optionsForPref("model", value, b, prefCountry),
           );
           const kept = existing.filter((m) => allowed.has(m));
           next[b] = kept.length ? kept : ["Any"];
@@ -547,11 +549,10 @@ export function ProSignup() {
   const step1Ok = skill != null; // specialty selected on step 2
   const step2Ok = Boolean(specialty?.trim());
   const isAny = (v: string) => !v || v === "Any";
-  const draftVehicleReady =
-    !isAny(draftMake) && !isAny(draftModel);
-  /** Auto trades + AC/Electric (Vehicle focus) only — solar/generator skip */
+  const draftVehicleReady = !isAny(draftMake) && !isAny(draftModel);
+  /** Auto trades + AC/Electric (Vehicle focus) only solar/generator skip */
   const needsVehicleStep = needsVehiclesSignupStep(skill, specialty);
-  /** Vehicles step is optional when shown — pro can skip and add later */
+  /** Vehicles step is optional when shown pro can skip and add later */
   const step3Ok = true;
   const step4Ok =
     !fullNameError(fullName) &&
@@ -582,9 +583,7 @@ export function ProSignup() {
       !ninError(idNumber) &&
       !bvnError(bvn);
   const step6Ok =
-    city.trim().length >= 2 &&
-    area.trim().length >= 2 &&
-    serviceRadiusKm >= 1;
+    city.trim().length >= 2 && area.trim().length >= 2 && serviceRadiusKm >= 1;
 
   const validateStep4 = (): string | null => {
     if (fullNameError(fullName)) return fullNameError(fullName);
@@ -593,13 +592,19 @@ export function ProSignup() {
     if (phoneNationalError(phoneNational)) {
       return phoneNationalError(phoneNational);
     }
-    if (businessName.trim().length < 2) return "Please enter your business or workshop name.";
-    if (guarantorName.trim().length < 2) return "Enter your guarantor's full name.";
-    if (guarantorPhone.replace(/\D/g, "").length < 7) return "Enter a valid guarantor phone number.";
-    if (guarantorRelationship.trim().length < 2) return "Enter your relationship with the guarantor.";
-    if (!yearsExperience.trim()) return "Please pick how many years you have worked.";
+    if (businessName.trim().length < 2)
+      return "Please enter your business or workshop name.";
+    if (guarantorName.trim().length < 2)
+      return "Enter your guarantor's full name.";
+    if (guarantorPhone.replace(/\D/g, "").length < 7)
+      return "Enter a valid guarantor phone number.";
+    if (guarantorRelationship.trim().length < 2)
+      return "Enter your relationship with the guarantor.";
+    if (!yearsExperience.trim())
+      return "Please pick how many years you have worked.";
     if (bio.trim().length < 2) return "Please write a short bio.";
-    if (bio.trim().length > BIO_MAX) return `Bio must be ${BIO_MAX} characters or less.`;
+    if (bio.trim().length > BIO_MAX)
+      return `Bio must be ${BIO_MAX} characters or less.`;
     return null;
   };
 
@@ -627,7 +632,8 @@ export function ProSignup() {
   };
 
   const finish = async () => {
-    if (busy || !skill || !specialty || !step4Ok || !step5Ok || !step6Ok) return;
+    if (busy || !skill || !specialty || !step4Ok || !step5Ok || !step6Ok)
+      return;
     const v5 = validateStep5();
     if (v5) {
       setFormError(v5);
@@ -637,7 +643,7 @@ export function ProSignup() {
     setBusy(true);
     setFormError("");
 
-    // Dual role: same phone/email as Customer is intentional — do not block
+    // Dual role: same phone/email as Customer is intentional do not block
     if (!dualSignup) {
       const identity = checkIdentityAvailable({
         phone: fullPhone,
@@ -667,8 +673,7 @@ export function ProSignup() {
     }
 
     const certUpload = skillAnswers.certificationUpload as
-      | { name?: string; dataUrl?: string; mime?: string }
-      | undefined;
+      { name?: string; dataUrl?: string; mime?: string } | undefined;
     const hasCert =
       certUpload &&
       typeof certUpload === "object" &&
@@ -736,7 +741,7 @@ export function ProSignup() {
                   make: v.make,
                   model: v.model,
                   year: v.year,
-                }))
+                })),
               ),
             }
           : {}),
@@ -781,7 +786,7 @@ export function ProSignup() {
     if (err) {
       setBusy(false);
       router.replace(
-        `/signup/error?role=professional&message=${encodeURIComponent(err)}`
+        `/signup/error?role=professional&message=${encodeURIComponent(err)}`,
       );
       return;
     }
@@ -801,7 +806,7 @@ export function ProSignup() {
     }
     if (step === 1) {
       if (fromMenu) {
-        // Dual-signup from ☰ — return to Customer home
+        // Dual-signup from ☰ return to Customer home
         router.replace("/");
         return;
       }
@@ -843,7 +848,7 @@ export function ProSignup() {
     if (key === "vehicleType")
       return filterOptions(
         ["Any", ...VEHICLE_TYPES.filter((t) => t !== "Any")],
-        vehiclePickerQuery
+        vehiclePickerQuery,
       );
     if (key === "make") {
       return filterOptions(["Any", ...getAllMakes()], vehiclePickerQuery);
@@ -852,7 +857,7 @@ export function ProSignup() {
       if (isAny(draftMake)) return ["Any"];
       return filterOptions(
         ["Any", ...getModelsForMake(draftMake)],
-        vehiclePickerQuery
+        vehiclePickerQuery,
       );
     }
     if (isAny(draftMake) || isAny(draftModel)) return ["Any"];
@@ -882,7 +887,9 @@ export function ProSignup() {
     if (!draftVehicleReady && isAny(draftMake)) return;
     const next: MotoristVehicle = {
       id: `pro-veh-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      vehicleType: isAny(draftVehicleType) ? undefined : draftVehicleType.trim(),
+      vehicleType: isAny(draftVehicleType)
+        ? undefined
+        : draftVehicleType.trim(),
       make: isAny(draftMake) ? "" : draftMake.trim(),
       model: isAny(draftModel) ? "" : draftModel.trim(),
       year: isAny(draftYear) ? undefined : draftYear.trim(),
@@ -913,7 +920,7 @@ export function ProSignup() {
   };
 
   const pickerLabel = pickerKey
-    ? PREF_ROWS.find((r) => r.key === pickerKey)?.label ?? ""
+    ? (PREF_ROWS.find((r) => r.key === pickerKey)?.label ?? "")
     : "";
 
   /* Full-page vehicle cascade picker (Vehicles you fix) */
@@ -1003,8 +1010,8 @@ export function ProSignup() {
               pickerKey,
               vehicleType,
               isModel ? singleBrandForModel : vehicleBrands[0] || "Any",
-              prefCountry
-            )
+              prefCountry,
+            ),
           )
         : [];
 
@@ -1012,7 +1019,7 @@ export function ProSignup() {
       opt: string,
       selected: boolean,
       onPick: () => void,
-      disabled?: boolean
+      disabled?: boolean,
     ) => (
       <button
         type="button"
@@ -1025,14 +1032,14 @@ export function ProSignup() {
           selected
             ? "bg-[#FF6B35]/18 text-[#9a3412] ring-1 ring-[#FF6B35]/45"
             : "bg-transparent text-[#1e293b] active:bg-black/[0.04]",
-          disabled && "opacity-40"
+          disabled && "opacity-40",
         )}
       >
         <span
           className={cn(
             "min-w-0 flex-1 font-semibold uppercase leading-snug tracking-[0.01em]",
             isVehicleType || isModel ? "text-[11px]" : "text-[13px]",
-            selected ? "text-[#9a3412]" : "text-[#1e293b]"
+            selected ? "text-[#9a3412]" : "text-[#1e293b]",
           )}
         >
           {opt}
@@ -1048,7 +1055,7 @@ export function ProSignup() {
 
     const modelColumn = (brand: string) => {
       const opts = filterOpts(
-        optionsForPref("model", vehicleType, brand, prefCountry)
+        optionsForPref("model", vehicleType, brand, prefCountry),
       );
       const chosen = modelsFor(brand);
       return (
@@ -1068,8 +1075,8 @@ export function ProSignup() {
           <ul className="min-h-0 flex-1 list-none space-y-0.5 overflow-y-auto overscroll-contain p-1 scrollbar-hide">
             {opts.map((opt) =>
               optionBtn(opt, chosen.includes(opt), () =>
-                toggleModelForBrand(brand, opt)
-              )
+                toggleModelForBrand(brand, opt),
+              ),
             )}
             {opts.length === 0 && (
               <li className="py-4 text-center text-[11px] text-[#64748b]">
@@ -1104,7 +1111,8 @@ export function ProSignup() {
 
           {isBrand && (
             <p className="mt-1 text-center text-[11px] text-[#475569]">
-              Selected {vehicleBrands.length}/{MAX_BRANDS}. Tap to add or remove.
+              Selected {vehicleBrands.length}/{MAX_BRANDS}. Tap to add or
+              remove.
             </p>
           )}
           {isModel && vehicleBrands.length > 0 && (
@@ -1135,9 +1143,7 @@ export function ProSignup() {
             <div
               className={cn(
                 "mt-1.5 min-h-0 flex-1 gap-2",
-                vehicleBrands.length > 1
-                  ? "grid grid-cols-2"
-                  : "flex flex-col"
+                vehicleBrands.length > 1 ? "grid grid-cols-2" : "flex flex-col",
               )}
             >
               {modelBrands.map((brand) => modelColumn(brand))}
@@ -1163,7 +1169,7 @@ export function ProSignup() {
                         setPrefValue(pickerKey, opt);
                         closePicker();
                       },
-                      brandFull
+                      brandFull,
                     )}
                   </li>
                 );
@@ -1216,9 +1222,7 @@ export function ProSignup() {
         />
 
         <AppleProBody
-          className={cn(
-            step === 1 ? "flex flex-col overflow-hidden" : "gap-1"
-          )}
+          className={cn(step === 1 ? "flex flex-col overflow-hidden" : "gap-1")}
         >
           {step === 1 && (
             <>
@@ -1240,7 +1244,7 @@ export function ProSignup() {
                                 ? "text-[#FF6B35]"
                                 : isLight
                                   ? "text-slate-600"
-                                  : "text-white/70"
+                                  : "text-white/70",
                             )}
                             strokeWidth={1.85}
                           />
@@ -1248,7 +1252,7 @@ export function ProSignup() {
                             <span
                               className={cn(
                                 "block text-[16px] font-semibold",
-                                isLight ? "text-[#1c1c1e]" : "text-white"
+                                isLight ? "text-[#1c1c1e]" : "text-white",
                               )}
                             >
                               {label}
@@ -1257,7 +1261,7 @@ export function ProSignup() {
                               <span
                                 className={cn(
                                   "mt-0.5 block text-[12px] font-medium",
-                                  isLight ? "text-slate-500" : "text-white/45"
+                                  isLight ? "text-slate-500" : "text-white/45",
                                 )}
                               >
                                 {hint}
@@ -1271,7 +1275,7 @@ export function ProSignup() {
                                 ? "border-[#FF6B35] bg-[#FF6B35] text-[8px] font-bold text-white"
                                 : isLight
                                   ? "border-black/20 bg-transparent"
-                                  : "border-white/30 bg-transparent"
+                                  : "border-white/30 bg-transparent",
                             )}
                             aria-hidden
                           >
@@ -1286,7 +1290,7 @@ export function ProSignup() {
               <p
                 className={cn(
                   "mt-2 shrink-0 text-center text-[12px] font-medium",
-                  isLight ? "text-slate-500" : "text-white/45"
+                  isLight ? "text-slate-500" : "text-white/45",
                 )}
               >
                 Choose only{" "}
@@ -1296,20 +1300,20 @@ export function ProSignup() {
             </>
           )}
 
-          {/* Step 2 — specialty (hairline list) */}
+          {/* Step 2 specialty (hairline list) */}
           {step === 2 && skill && (
             <div className="flex min-h-0 flex-1 flex-col pt-1">
               <p
                 className={cn(
                   "mb-2 text-[14px] font-medium leading-snug",
-                  isLight ? "text-slate-600" : "text-white/55"
+                  isLight ? "text-slate-600" : "text-white/55",
                 )}
               >
                 Where do you mainly work as a{" "}
                 <span
                   className={cn(
                     "font-semibold",
-                    isLight ? "text-[#1c1c1e]" : "text-white"
+                    isLight ? "text-[#1c1c1e]" : "text-white",
                   )}
                 >
                   {PRO_SERVICE_LABELS[skill]}
@@ -1329,7 +1333,7 @@ export function ProSignup() {
                         <span
                           className={cn(
                             "text-[16px] font-semibold",
-                            isLight ? "text-[#1c1c1e]" : "text-white"
+                            isLight ? "text-[#1c1c1e]" : "text-white",
                           )}
                         >
                           {s}
@@ -1355,7 +1359,7 @@ export function ProSignup() {
                             "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[15px] font-black",
                             on
                               ? "bg-[#FF6B35] text-white"
-                              : "bg-white/80 text-[#FF6B35]"
+                              : "bg-white/80 text-[#FF6B35]",
                           )}
                         >
                           {s.charAt(0)}
@@ -1364,7 +1368,7 @@ export function ProSignup() {
                           <span
                             className={cn(
                               "block text-[15px] font-bold tracking-tight",
-                              on ? "text-white" : "text-[#1c1c1e]"
+                              on ? "text-white" : "text-[#1c1c1e]",
                             )}
                           >
                             {s}
@@ -1372,7 +1376,7 @@ export function ProSignup() {
                           <span
                             className={cn(
                               "mt-0.5 block text-[11px] font-medium",
-                              on ? "text-white/65" : "text-[#64748b]"
+                              on ? "text-white/65" : "text-[#64748b]",
                             )}
                           >
                             Tap to select this focus area
@@ -1383,7 +1387,7 @@ export function ProSignup() {
                             "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[12px] font-bold",
                             on
                               ? "bg-[#FF6B35] text-white"
-                              : "border border-[#9A9EA6]/60 bg-transparent text-transparent"
+                              : "border border-[#9A9EA6]/60 bg-transparent text-transparent",
                           )}
                         >
                           ✓
@@ -1395,7 +1399,7 @@ export function ProSignup() {
               </ul>
               {!specialty ? (
                 <p className="mt-2 shrink-0 text-center text-[11px] font-medium text-[#64748b]">
-                  Required — pick the best match for your work
+                  Required pick the best match for your work
                 </p>
               ) : null}
             </div>
@@ -1416,7 +1420,10 @@ export function ProSignup() {
                 <label className="block">
                   <span className="mb-1.5 block text-[12px] font-semibold text-[#475569]">
                     Full name
-                    <span className="ml-0.5 font-bold text-red-600" aria-label="required">
+                    <span
+                      className="ml-0.5 font-bold text-red-600"
+                      aria-label="required"
+                    >
                       *
                     </span>
                   </span>
@@ -1425,11 +1432,9 @@ export function ProSignup() {
                     <input
                       className={cn(
                         authFieldIconClass,
-                        nameLocked && authLockedFieldClass
+                        nameLocked && authLockedFieldClass,
                       )}
-                      style={
-                        nameLocked ? authLockedFieldStyle : authFieldStyle
-                      }
+                      style={nameLocked ? authLockedFieldStyle : authFieldStyle}
                       value={fullName}
                       readOnly={nameLocked}
                       tabIndex={nameLocked ? -1 : undefined}
@@ -1457,7 +1462,7 @@ export function ProSignup() {
                     <select
                       className={cn(
                         authSelectClass,
-                        genderLocked && authLockedFieldClass
+                        genderLocked && authLockedFieldClass,
                       )}
                       style={
                         genderLocked ? authLockedFieldStyle : authFieldStyle
@@ -1482,7 +1487,7 @@ export function ProSignup() {
                       type="date"
                       className={cn(
                         authFieldClass,
-                        dobLocked && authLockedFieldClass
+                        dobLocked && authLockedFieldClass,
                       )}
                       style={dobLocked ? authLockedFieldStyle : authFieldStyle}
                       value={dateOfBirth}
@@ -1493,14 +1498,14 @@ export function ProSignup() {
                       onChange={(e) => {
                         if (dobLocked) return;
                         setDateOfBirth(
-                          normalizeDobIso(e.target.value) || e.target.value
+                          normalizeDobIso(e.target.value) || e.target.value,
                         );
                         setFieldError("dob", null);
                       }}
                       onBlur={(e) =>
                         setFieldError(
                           "dob",
-                          dobError(e.target.value || dateOfBirth)
+                          dobError(e.target.value || dateOfBirth),
                         )
                       }
                       required
@@ -1515,7 +1520,7 @@ export function ProSignup() {
                       className={cn(
                         authSelectClass,
                         "max-w-[42%]",
-                        phoneLocked && authLockedFieldClass
+                        phoneLocked && authLockedFieldClass,
                       )}
                       style={
                         phoneLocked ? authLockedFieldStyle : authFieldStyle
@@ -1541,7 +1546,7 @@ export function ProSignup() {
                       className={cn(
                         authFieldClass,
                         "min-w-0 flex-1",
-                        phoneLocked && authLockedFieldClass
+                        phoneLocked && authLockedFieldClass,
                       )}
                       style={
                         phoneLocked ? authLockedFieldStyle : authFieldStyle
@@ -1552,14 +1557,14 @@ export function ProSignup() {
                       onChange={(e) => {
                         if (phoneLocked) return;
                         setPhoneNational(
-                          e.target.value.replace(/\D/g, "").slice(0, 15)
+                          e.target.value.replace(/\D/g, "").slice(0, 15),
                         );
                         setFieldError("phone", null);
                       }}
                       onBlur={() =>
                         setFieldError(
                           "phone",
-                          phoneNationalError(phoneNational)
+                          phoneNationalError(phoneNational),
                         )
                       }
                       placeholder="8012345678"
@@ -1575,7 +1580,10 @@ export function ProSignup() {
                 <label className="block">
                   <span className="mb-1.5 block text-[12px] font-semibold text-[#475569]">
                     Business / workshop
-                    <span className="ml-0.5 font-bold text-red-600" aria-label="required">
+                    <span
+                      className="ml-0.5 font-bold text-red-600"
+                      aria-label="required"
+                    >
                       *
                     </span>
                   </span>
@@ -1597,7 +1605,10 @@ export function ProSignup() {
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#64748b]">
                     Years of service
-                    <span className="ml-0.5 font-bold text-red-600" aria-label="required">
+                    <span
+                      className="ml-0.5 font-bold text-red-600"
+                      aria-label="required"
+                    >
                       *
                     </span>
                   </p>
@@ -1618,10 +1629,12 @@ export function ProSignup() {
                         aria-label={experienceLabel(year)}
                         className={cn(
                           "flex h-11 items-center justify-center rounded-md px-0.5 text-center font-semibold transition-all",
-                          isTenPlus ? "text-[11px] leading-tight" : "text-[14px]",
+                          isTenPlus
+                            ? "text-[11px] leading-tight"
+                            : "text-[14px]",
                           on
                             ? "border-0 bg-[#323231] text-white shadow-[0_2px_8px_rgba(0,0,0,0.16)]"
-                            : "border border-[#9A9EA6] bg-[#E2E3E7] text-[#0f172a] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] active:bg-[#E8E9ED]"
+                            : "border border-[#9A9EA6] bg-[#E2E3E7] text-[#0f172a] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] active:bg-[#E8E9ED]",
                         )}
                       >
                         {isTenPlus ? (
@@ -1630,7 +1643,7 @@ export function ProSignup() {
                             <span
                               className={cn(
                                 "mt-0.5 text-[9px] font-medium",
-                                on ? "text-white/75" : "text-[#64748b]"
+                                on ? "text-white/75" : "text-[#64748b]",
                               )}
                             >
                               yrs
@@ -1642,7 +1655,7 @@ export function ProSignup() {
                             <span
                               className={cn(
                                 "text-[10px] font-medium",
-                                on ? "text-white/75" : "text-[#64748b]"
+                                on ? "text-white/75" : "text-[#64748b]",
                               )}
                             >
                               {year === "1" ? "yr" : "yrs"}
@@ -1660,7 +1673,10 @@ export function ProSignup() {
                   <div>
                     <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#64748b]">
                       Short bio
-                      <span className="ml-0.5 font-bold text-red-600" aria-label="required">
+                      <span
+                        className="ml-0.5 font-bold text-red-600"
+                        aria-label="required"
+                      >
                         *
                       </span>
                     </p>
@@ -1673,7 +1689,7 @@ export function ProSignup() {
                       "text-[11px] font-semibold tabular-nums",
                       bio.length > BIO_MAX * 0.9
                         ? "text-[#FF6B35]"
-                        : "text-[#94a3b8]"
+                        : "text-[#94a3b8]",
                     )}
                   >
                     {bio.length}/{BIO_MAX}
@@ -1691,37 +1707,73 @@ export function ProSignup() {
                 />
               </section>
 
-              {/* Guarantor — compulsory for Repair Pro */}
+              {/* Guarantor compulsory for Repair Pro */}
               <section className="flex flex-col gap-3">
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#64748b]">
                     Guarantor
-                    <span className="ml-0.5 font-bold text-red-600" aria-label="required">*</span>
+                    <span
+                      className="ml-0.5 font-bold text-red-600"
+                      aria-label="required"
+                    >
+                      *
+                    </span>
                   </p>
                   <p className="mt-0.5 text-[12px] text-[#475569]">
-                    Provide a guarantor reference (required). Must be at least name, phone, and your relationship.
+                    Provide a guarantor reference (required). Must be at least
+                    name, phone, and your relationship.
                   </p>
                 </div>
                 <Field label="Full name" required>
-                  <input className={authFieldClass} style={authFieldStyle} value={guarantorName}
-                    onChange={(e) => setGuarantorName(e.target.value)} placeholder="e.g. Chidi Okafor" />
+                  <input
+                    className={authFieldClass}
+                    style={authFieldStyle}
+                    value={guarantorName}
+                    onChange={(e) => setGuarantorName(e.target.value)}
+                    placeholder="e.g. Chidi Okafor"
+                  />
                 </Field>
                 <Field label="Phone" required>
-                  <input className={authFieldClass} style={authFieldStyle} value={guarantorPhone}
-                    onChange={(e) => setGuarantorPhone(e.target.value.replace(/\D/g, "").slice(0, 15))}
-                    placeholder="e.g. 8012345678" type="tel" inputMode="numeric" />
+                  <input
+                    className={authFieldClass}
+                    style={authFieldStyle}
+                    value={guarantorPhone}
+                    onChange={(e) =>
+                      setGuarantorPhone(
+                        e.target.value.replace(/\D/g, "").slice(0, 15),
+                      )
+                    }
+                    placeholder="e.g. 8012345678"
+                    type="tel"
+                    inputMode="numeric"
+                  />
                 </Field>
                 <Field label="Occupation">
-                  <input className={authFieldClass} style={authFieldStyle} value={guarantorOccupation}
-                    onChange={(e) => setGuarantorOccupation(e.target.value)} placeholder="e.g. Business owner" />
+                  <input
+                    className={authFieldClass}
+                    style={authFieldStyle}
+                    value={guarantorOccupation}
+                    onChange={(e) => setGuarantorOccupation(e.target.value)}
+                    placeholder="e.g. Business owner"
+                  />
                 </Field>
                 <Field label="Residential address">
-                  <input className={authFieldClass} style={authFieldStyle} value={guarantorAddress}
-                    onChange={(e) => setGuarantorAddress(e.target.value)} placeholder="e.g. 25 Awolowo Road, Ikeja" />
+                  <input
+                    className={authFieldClass}
+                    style={authFieldStyle}
+                    value={guarantorAddress}
+                    onChange={(e) => setGuarantorAddress(e.target.value)}
+                    placeholder="e.g. 25 Awolowo Road, Ikeja"
+                  />
                 </Field>
                 <Field label="Relationship to you" required>
-                  <input className={authFieldClass} style={authFieldStyle} value={guarantorRelationship}
-                    onChange={(e) => setGuarantorRelationship(e.target.value)} placeholder="e.g. Uncle, Former employer, Pastor" />
+                  <input
+                    className={authFieldClass}
+                    style={authFieldStyle}
+                    value={guarantorRelationship}
+                    onChange={(e) => setGuarantorRelationship(e.target.value)}
+                    placeholder="e.g. Uncle, Former employer, Pastor"
+                  />
                 </Field>
               </section>
             </div>
@@ -1752,11 +1804,9 @@ export function ProSignup() {
                     className={cn(
                       authSelectClass,
                       "max-w-[42%]",
-                      phoneLocked && authLockedFieldClass
+                      phoneLocked && authLockedFieldClass,
                     )}
-                    style={
-                      phoneLocked ? authLockedFieldStyle : authFieldStyle
-                    }
+                    style={phoneLocked ? authLockedFieldStyle : authFieldStyle}
                     value={phoneIso}
                     aria-label="Country code"
                     disabled={phoneLocked}
@@ -1778,18 +1828,16 @@ export function ProSignup() {
                     className={cn(
                       authFieldClass,
                       "min-w-0 flex-1",
-                      phoneLocked && authLockedFieldClass
+                      phoneLocked && authLockedFieldClass,
                     )}
-                    style={
-                      phoneLocked ? authLockedFieldStyle : authFieldStyle
-                    }
+                    style={phoneLocked ? authLockedFieldStyle : authFieldStyle}
                     value={phoneNational}
                     readOnly={phoneLocked}
                     tabIndex={phoneLocked ? -1 : undefined}
                     onChange={(e) => {
                       if (phoneLocked) return;
                       setPhoneNational(
-                        e.target.value.replace(/\D/g, "").slice(0, 15)
+                        e.target.value.replace(/\D/g, "").slice(0, 15),
                       );
                       setFieldError("phone", null);
                     }}
@@ -1807,11 +1855,9 @@ export function ProSignup() {
                 <input
                   className={cn(
                     authFieldClass,
-                    emailLocked && authLockedFieldClass
+                    emailLocked && authLockedFieldClass,
                   )}
-                  style={
-                    emailLocked ? authLockedFieldStyle : authFieldStyle
-                  }
+                  style={emailLocked ? authLockedFieldStyle : authFieldStyle}
                   value={email}
                   readOnly={emailLocked}
                   tabIndex={emailLocked ? -1 : undefined}
@@ -1832,11 +1878,9 @@ export function ProSignup() {
                 <input
                   className={cn(
                     authFieldClass,
-                    ninLocked && authLockedFieldClass
+                    ninLocked && authLockedFieldClass,
                   )}
-                  style={
-                    ninLocked ? authLockedFieldStyle : authFieldStyle
-                  }
+                  style={ninLocked ? authLockedFieldStyle : authFieldStyle}
                   value={idNumber}
                   readOnly={ninLocked}
                   tabIndex={ninLocked ? -1 : undefined}
@@ -1856,11 +1900,9 @@ export function ProSignup() {
                 <input
                   className={cn(
                     authFieldClass,
-                    bvnLocked && authLockedFieldClass
+                    bvnLocked && authLockedFieldClass,
                   )}
-                  style={
-                    bvnLocked ? authLockedFieldStyle : authFieldStyle
-                  }
+                  style={bvnLocked ? authLockedFieldStyle : authFieldStyle}
                   value={bvn}
                   readOnly={bvnLocked}
                   tabIndex={bvnLocked ? -1 : undefined}
@@ -1877,10 +1919,7 @@ export function ProSignup() {
                 <FieldHint message={fieldErrors.bvn} />
               </Field>
               {dualSignup ? (
-                <Field
-                  label="Same password as your Customer account"
-                  required
-                >
+                <Field label="Same password as your Customer account" required>
                   <PasswordField
                     value={password}
                     onChange={(e) => {
@@ -1893,7 +1932,7 @@ export function ProSignup() {
                       if (!dualPasswordOk) {
                         setFieldError(
                           "password",
-                          "Enter the same password as your Customer account."
+                          "Enter the same password as your Customer account.",
                         );
                       }
                     }}
@@ -1901,7 +1940,7 @@ export function ProSignup() {
                     autoComplete="current-password"
                   />
                   <p className="mt-1 text-[10px] leading-snug text-[#64748b]">
-                    No new password — use the one you already signed up with.
+                    No new password use the one you already signed up with.
                   </p>
                   <FieldHint message={fieldErrors.password} />
                 </Field>
@@ -1918,8 +1957,8 @@ export function ProSignup() {
                             "confirm",
                             confirmPasswordError(
                               e.target.value,
-                              confirmPassword
-                            )
+                              confirmPassword,
+                            ),
                           );
                         }
                       }}
@@ -1941,13 +1980,13 @@ export function ProSignup() {
                           "confirm",
                           e.target.value
                             ? confirmPasswordError(password, e.target.value)
-                            : null
+                            : null,
                         );
                       }}
                       onBlur={() =>
                         setFieldError(
                           "confirm",
-                          confirmPasswordError(password, confirmPassword)
+                          confirmPasswordError(password, confirmPassword),
                         )
                       }
                       placeholder="Re-enter password"
@@ -1964,7 +2003,7 @@ export function ProSignup() {
             <div className="flex flex-col gap-3">
               <p className="text-[12px] font-medium leading-snug text-[#475569]">
                 Add vehicle types you fix best (type, make, model, year).
-                Optional — you can skip.
+                Optional you can skip.
               </p>
               {vehiclesCanFix.length > 0 && (
                 <ul className="flex flex-col gap-1.5">
@@ -1983,7 +2022,7 @@ export function ProSignup() {
                         className="shrink-0 border-0 bg-transparent text-[11px] font-semibold text-red-600"
                         onClick={() =>
                           setVehiclesCanFix((prev) =>
-                            prev.filter((x) => x.id !== v.id)
+                            prev.filter((x) => x.id !== v.id),
                           )
                         }
                       >
@@ -1996,9 +2035,17 @@ export function ProSignup() {
               <div className="overflow-hidden rounded-xl bg-[#f2f3f5] shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]">
                 {(
                   [
-                    { key: "vehicleType" as const, label: "Vehicle", value: draftVehicleType },
+                    {
+                      key: "vehicleType" as const,
+                      label: "Vehicle",
+                      value: draftVehicleType,
+                    },
                     { key: "make" as const, label: "Make", value: draftMake },
-                    { key: "model" as const, label: "Model", value: draftModel },
+                    {
+                      key: "model" as const,
+                      label: "Model",
+                      value: draftModel,
+                    },
                     { key: "year" as const, label: "Year", value: draftYear },
                   ] as const
                 ).map((row, i) => (
@@ -2008,7 +2055,7 @@ export function ProSignup() {
                     onClick={() => openVehiclePicker(row.key)}
                     className={cn(
                       "flex w-full items-center justify-between gap-3 border-0 bg-transparent px-4 py-3.5 text-left",
-                      i > 0 && "border-t border-black/[0.06]"
+                      i > 0 && "border-t border-black/[0.06]",
                     )}
                   >
                     <span className="text-[14px] font-semibold text-[#1e293b]">
@@ -2042,7 +2089,7 @@ export function ProSignup() {
               <Field label="City">
                 <input
                   className={authFieldClass}
-                      style={authFieldStyle}
+                  style={authFieldStyle}
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
                   placeholder="Lagos"
@@ -2051,7 +2098,7 @@ export function ProSignup() {
               <Field label="Area">
                 <input
                   className={authFieldClass}
-                      style={authFieldStyle}
+                  style={authFieldStyle}
                   value={area}
                   onChange={(e) => setArea(e.target.value)}
                   placeholder="e.g. Yaba"
@@ -2077,7 +2124,10 @@ export function ProSignup() {
               <Row k="Gender" v={formatGenderLabel(gender)} />
               <Row k="Date of birth" v={dateOfBirth || "Not set"} />
               <Row k="Business" v={businessName} />
-              <Row k="Trade" v={skill ? PRO_SERVICE_LABELS[skill] : "Not set"} />
+              <Row
+                k="Trade"
+                v={skill ? PRO_SERVICE_LABELS[skill] : "Not set"}
+              />
               <Row k="Focus" v={specialty || "Not set"} />
               <Row k="Phone" v={fullPhone} />
               <Row k="Email" v={email} />
@@ -2092,7 +2142,7 @@ export function ProSignup() {
                     .map((v) =>
                       [v.vehicleType, v.make, v.model, v.year]
                         .filter(Boolean)
-                        .join(" ")
+                        .join(" "),
                     )
                     .join(" · ")}
                 />
@@ -2102,7 +2152,10 @@ export function ProSignup() {
               )}
               {bio && <Row k="Bio" v={bio} />}
               {guarantorName && (
-                <Row k="Guarantor" v={`${guarantorName} · ${guarantorPhone} · ${guarantorRelationship}`} />
+                <Row
+                  k="Guarantor"
+                  v={`${guarantorName} · ${guarantorPhone} · ${guarantorRelationship}`}
+                />
               )}
             </div>
           )}
@@ -2155,9 +2208,7 @@ export function ProSignup() {
               }
               setFormError("");
               // Mechanic etc. → vehicles; solar/generator/home → about you
-              setStep(
-                needsVehiclesSignupStep(skill, specialty) ? 3 : 4
-              );
+              setStep(needsVehiclesSignupStep(skill, specialty) ? 3 : 4);
               return;
             }
             if (step === 3) {
@@ -2264,7 +2315,7 @@ function PasswordRules({
               ? "text-[#64748b]"
               : row.ok
                 ? "text-emerald-600"
-                : "text-red-600"
+                : "text-red-600",
           )}
         >
           {row.ok && password.length > 0 ? "✓ " : "· "}

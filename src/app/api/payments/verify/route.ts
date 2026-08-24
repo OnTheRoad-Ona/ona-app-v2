@@ -37,7 +37,7 @@ export async function POST(req: Request) {
         return apiFail(
           `Too many verify attempts. Retry in ${rl.retryAfterSec}s.`,
           429,
-          "rate_limited"
+          "rate_limited",
         );
       }
     } catch {
@@ -55,16 +55,18 @@ export async function POST(req: Request) {
     let payment = refRaw ? await getEscrowByRef(refRaw) : null;
     // Fallback: latest escrow row for this job (iframe may drop ref)
     if (!payment && parsed.data.jobId) {
-      const { getEscrowByRequest } = await import(
-        "@/lib/server/payments/escrow-store"
-      );
+      const { getEscrowByRequest } =
+        await import("@/lib/server/payments/escrow-store");
       payment = await getEscrowByRequest(parsed.data.jobId);
     }
     if (!payment) return apiFail("Payment not found", 404, "not_found");
 
     const verifyRef = payment.providerRef || refRaw;
 
-    if (payment.escrowStatus === "held" || payment.escrowStatus === "released") {
+    if (
+      payment.escrowStatus === "held" ||
+      payment.escrowStatus === "released"
+    ) {
       const booked = await markJobPaidFromReference(verifyRef);
       return apiOk({
         payment,
@@ -75,7 +77,7 @@ export async function POST(req: Request) {
 
     const verified = await verifyCharge(
       verifyRef,
-      parsed.data.provider || payment.provider
+      parsed.data.provider || payment.provider,
     );
 
     // Allow small gateway rounding; mock may return amount 0
@@ -87,12 +89,12 @@ export async function POST(req: Request) {
     const ok = verified.success && amountOk;
 
     if (!ok) {
-      // Do NOT mark escrow failed permanently — bank transfer can land later.
+      // Do NOT mark escrow failed permanently bank transfer can land later.
       // Keep pending so release/reconcile can re-check Flutterwave.
       return apiFail(
         "Payment not confirmed yet on Flutterwave. If you already transferred, wait and try again.",
         402,
-        "verify_failed"
+        "verify_failed",
       );
     }
 

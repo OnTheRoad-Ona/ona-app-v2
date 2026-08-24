@@ -2,8 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
+import { Menu as MenuIcon, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import {
   isPasswordGatedPath,
   promptSensitivePassword,
@@ -39,7 +45,10 @@ const NAV_GROUPS: {
       { href: "/admin/dispatch", label: "Dispatch board" },
       { href: "/admin/jobs", label: "Live jobs" },
       { href: "/admin/disputes", label: "Disputes & appeals" },
-      { href: "/admin/payments/control-center", label: "Payment Control Center" },
+      {
+        href: "/admin/payments/control-center",
+        label: "Payment Control Center",
+      },
       { href: "/admin/shop", label: "Shop orders & delivery" },
       { href: "/admin/security", label: "Security" },
       { href: "/admin/deletion-requests", label: "Deletion Requests" },
@@ -108,25 +117,47 @@ export function AdminShell({
     customers: number;
     pros: number;
   }>({ customers: 0, pros: 0 });
-  const [resolvedRole, setResolvedRole] =
-    useState<AdminRoleUi>("super_admin");
+  const [resolvedRole, setResolvedRole] = useState<AdminRoleUi>("super_admin");
   /** Fast search across every admin directory / nav item */
   const [navSearch, setNavSearch] = useState("");
-  /** Manual collapse — nav becomes a compact horizontal scroll strip */
-  const [navCollapsed, setNavCollapsed] = useState<boolean>(false);
+  /** Phone mode: sidebar slides in as an overlay drawer (≤900px) */
+  const [mobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
 
+  /**
+   * Activity keep-alive: while an admin tab is open AND visible, gently
+   * touch the session every 5 minutes so the 4h idle timeout only counts
+   * real inactivity (no surprise logouts mid-work). The 8h hard cap and
+   * server-side idle enforcement stay fully intact.
+   */
   useEffect(() => {
-    const saved = localStorage.getItem("ona-admin-nav-collapsed");
-    if (saved === "1") setNavCollapsed(true);
+    const ping = () => {
+      if (document.visibilityState !== "visible") return;
+      void fetch("/api/admin/auth/me", {
+        credentials: "include",
+        cache: "no-store",
+      }).catch(() => undefined);
+    };
+    ping();
+    const t = window.setInterval(ping, 5 * 60 * 1000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") ping();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(t);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
-  function toggleNavCollapsed() {
-    setNavCollapsed((v) => {
-      const next = !v;
-      localStorage.setItem("ona-admin-nav-collapsed", next ? "1" : "0");
-      return next;
-    });
-  }
+  // Close the phone drawer with Escape
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileNavOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobileNavOpen]);
 
   const role = normalizeAdminRoleUi(adminRoleProp || resolvedRole);
   const roleUi = adminRoleTheme(role);
@@ -224,7 +255,7 @@ export function AdminShell({
   async function logout() {
     await fetch("/api/admin/auth/logout", { method: "POST" });
     await fetch("/api/admin/care/unlock", { method: "DELETE" }).catch(
-      () => null
+      () => null,
     );
     router.replace("/admin/login");
     router.refresh();
@@ -233,7 +264,7 @@ export function AdminShell({
   async function onNavClick(
     e: MouseEvent<HTMLAnchorElement>,
     href: string,
-    needsPassword?: boolean
+    needsPassword?: boolean,
   ) {
     // Super Admin never needs temporary password on navigation
     if (role === "super_admin") return;
@@ -259,37 +290,37 @@ export function AdminShell({
 
   return (
     <div
-      className={cn(
-        "om-admin-shell",
-        navCollapsed && "om-admin-shell--collapsed"
-      )}
+      className="om-admin-shell"
       data-admin-role={role}
     >
       <SensitivePasswordHost />
-      <aside className="om-admin-nav">
+      {/* Phone mode top bar: hamburger opens the full nav drawer (≤900px) */}
+      <div className="om-admin-mobile-bar">
+        <button
+          type="button"
+          className="om-admin-mobile-toggle"
+          onClick={() => setMobileNavOpen((v) => !v)}
+          aria-expanded={mobileNavOpen}
+          aria-label="Toggle admin menu"
+        >
+          {mobileNavOpen ? <X className="om-admin-mobile-toggle-ic" /> : <MenuIcon className="om-admin-mobile-toggle-ic" />}
+        </button>
+        <span className="om-admin-mobile-brand">{roleUi.brandTitle}</span>
+      </div>
+      <aside
+        className={cn(
+          "om-admin-nav",
+          mobileNavOpen && "om-admin-nav--open",
+        )}
+        onClick={(e) => {
+          // Navigating from the drawer closes it (phone mode)
+          if ((e.target as HTMLElement).closest("a")) setMobileNavOpen(false);
+        }}
+      >
         <div className="om-admin-brand">
           <span className="om-admin-brand-mark" aria-hidden />
           {roleUi.brandTitle}
         </div>
-        <button
-          type="button"
-          className="om-admin-nav-toggle"
-          onClick={toggleNavCollapsed}
-          title={navCollapsed ? "Expand navigation" : "Collapse to a compact strip"}
-          aria-label={
-            navCollapsed ? "Expand navigation" : "Collapse navigation"
-          }
-          aria-pressed={navCollapsed}
-        >
-          {navCollapsed ? (
-            <PanelLeftOpen className="om-admin-nav-toggle-ic" />
-          ) : (
-            <PanelLeftClose className="om-admin-nav-toggle-ic" />
-          )}
-          <span className="om-admin-nav-toggle-label">
-            {navCollapsed ? "Expand" : "Collapse"}
-          </span>
-        </button>
         <p className="om-admin-nav-tagline">{roleUi.brandSub}</p>
 
         <div className="om-admin-role-chip" title={displayRole}>
@@ -350,9 +381,7 @@ export function AdminShell({
                   key={`${group.label}-${item.href}-${item.label}`}
                   href={item.href}
                   className={active ? "active" : undefined}
-                  onClick={(e) =>
-                    void onNavClick(e, item.href, item.password)
-                  }
+                  onClick={(e) => void onNavClick(e, item.href, item.password)}
                 >
                   <span className="om-admin-nav-link-row">
                     <span>{item.label}</span>
@@ -399,6 +428,14 @@ export function AdminShell({
           </button>
         </div>
       </aside>
+      <div
+        className={cn(
+          "om-admin-nav-backdrop",
+          mobileNavOpen && "om-admin-nav-backdrop--show",
+        )}
+        onClick={() => setMobileNavOpen(false)}
+        aria-hidden
+      />
       <main className="om-admin-main">
         <div className="om-admin-main-rolebar">
           <span className="om-admin-role-chip om-admin-role-chip--inline">

@@ -3,7 +3,7 @@
  *
  * Accepts "205/55 R16", "205 55 16", "205/55R16", "205/55/16", "205-55-16",
  * "P205/55R16", "205/55 R16 91V" and normalizes them all to a canonical search
- * token set. Pure functions — shared server + client, unit-testable.
+ * token set. Pure functions shared server + client, unit-testable.
  */
 
 export type ParsedTyreSize = {
@@ -29,14 +29,16 @@ export type ParsedTyreSize = {
  * Extract a tyre size from free text. Returns null when no width/aspect/rim
  * triplet is present, so "battery" or "oil" never false-positive here.
  */
-export function parseTyreSize(input: string | null | undefined): ParsedTyreSize | null {
+export function parseTyreSize(
+  input: string | null | undefined,
+): ParsedTyreSize | null {
   if (!input) return null;
   const raw = String(input).trim();
   if (!raw) return null;
 
   // Normalize separators: 205/55 R16 | 205 55 16 | 2055R16 | 205-55-16 | 205/55R16
   const triplets = raw.match(
-    /\b(P|LT|HT|ST|T)?[\s-]?(\d{3})[\s/\/\-_.]{0,2}[Rr]?[\s-]?(\d{2})[\s/\/\-_.]{0,2}[Rr]?[\s-]?(\d{1,2})\b/
+    /\b(P|LT|HT|ST|T)?[\s-]?(\d{3})[\s/\/\-_.]{0,2}[Rr]?[\s-]?(\d{2})[\s/\/\-_.]{0,2}[Rr]?[\s-]?(\d{1,2})\b/,
   );
 
   let width: number | null = null;
@@ -48,7 +50,7 @@ export function parseTyreSize(input: string | null | undefined): ParsedTyreSize 
   // Multi-triplet alternative: "205/55 R16" where tokens are separated by the
   // slash BEFORE "R": 205 / 55 R 16
   const alt = raw.match(
-    /\b(P|LT|HT|ST|T)?[\s-]?(\d{3})\s*\/\s*(\d{2})\s*[Rr]?\s*(\d{1,2})\b/
+    /\b(P|LT|HT|ST|T)?[\s-]?(\d{3})\s*\/\s*(\d{2})\s*[Rr]?\s*(\d{1,2})\b/,
   );
   const m = alt ?? triplets;
   if (m) {
@@ -70,7 +72,11 @@ export function parseTyreSize(input: string | null | undefined): ParsedTyreSize 
     const can = `${width}/${aspect}R${rim}`;
     const desc = raw
       .replace(/\b(P|LT|HT|ST|T)[\s-]?/, "")
-      .match(new RegExp(`${can.replace(/[./]/g, "\\$&")}\\s*([0-9]{2,3})\\s*([A-Za-z])?`));
+      .match(
+        new RegExp(
+          `${can.replace(/[./]/g, "\\$&")}\\s*([0-9]{2,3})\\s*([A-Za-z])?`,
+        ),
+      );
     if (desc) {
       const li = Number(desc[1]);
       if (li >= 50 && li <= 199) loadIndex = li;
@@ -89,7 +95,7 @@ export function parseTyreSize(input: string | null | undefined): ParsedTyreSize 
 
   if (!canonical) return null;
 
-  // Canonical token set — one tyre matches all input spellings.
+  // Canonical token set one tyre matches all input spellings.
   const c = canonical;
   const tokens: string[] = [
     c.toLowerCase(), // 205/55r16

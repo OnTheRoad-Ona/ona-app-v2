@@ -67,7 +67,7 @@ const memory = new Map<string, JobRecord>();
 
 /**
  * In-process read-through cache. Every poll / click used to trigger a full
- * Supabase round-trip (≈300–1000ms); writes already keep `memory` fresh, so
+ * Supabase round-trip (≈300-1000ms); writes already keep `memory` fresh, so
  * reads inside this window short-circuit without hitting the network.
  */
 const READ_CACHE_MS = 3_000;
@@ -108,7 +108,9 @@ function splitMinor(amountMinor: number) {
 }
 
 /** Map classic service_requests.status → premium flow when flow_status is blank */
-function legacyToFlowStatus(legacy: string | null | undefined): JobFlowStatus | null {
+function legacyToFlowStatus(
+  legacy: string | null | undefined,
+): JobFlowStatus | null {
   switch ((legacy || "").toLowerCase()) {
     case "requested":
     case "draft":
@@ -178,7 +180,9 @@ function rowToJob(row: Record<string, unknown>): JobRecord {
   const status = resolveFlowStatus(row);
   return {
     id: String(row.id),
-    clientRequestId: row.client_request_id ? String(row.client_request_id) : null,
+    clientRequestId: row.client_request_id
+      ? String(row.client_request_id)
+      : null,
     motoristId: String(row.motorist_id),
     motoristName: String(row.motorist_name || "Customer"),
     motoristPhoto: row.motorist_photo ? String(row.motorist_photo) : null,
@@ -220,9 +224,7 @@ function rowToJob(row: Record<string, unknown>): JobRecord {
     etaText: row.eta_text ? String(row.eta_text) : null,
     distanceText: row.distance_text ? String(row.distance_text) : null,
     etaSource: row.eta_source ? String(row.eta_source) : null,
-    proLocationAt: row.pro_location_at
-      ? String(row.pro_location_at)
-      : null,
+    proLocationAt: row.pro_location_at ? String(row.pro_location_at) : null,
     motoristLocationAt: row.motorist_location_at
       ? String(row.motorist_location_at)
       : null,
@@ -250,13 +252,13 @@ function rowToJob(row: Record<string, unknown>): JobRecord {
     paymentAttemptCount: paymentWindowsExpiredCount({ statusHistory }),
     paymentSessionEndsAt: paymentEndsAtIso({ status, statusHistory }),
     pairingStage: row.pairing_stage ? String(row.pairing_stage) : null,
-    pairingDeadline: row.pairing_deadline
-      ? String(row.pairing_deadline)
-      : null,
+    pairingDeadline: row.pairing_deadline ? String(row.pairing_deadline) : null,
     queuePosition:
       row.queue_position != null ? Number(row.queue_position) : null,
     remainingCandidates:
-      row.remaining_candidates != null ? Number(row.remaining_candidates) : null,
+      row.remaining_candidates != null
+        ? Number(row.remaining_candidates)
+        : null,
     reservationStatus: row.reservation_status
       ? String(row.reservation_status)
       : null,
@@ -362,9 +364,10 @@ function jobToDbPatch(job: JobRecord): Record<string, unknown> {
     rating: job.rating ?? null,
     rating_note: job.ratingNote ?? null,
     labour_agreed_kobo: job.amountMinor ?? null,
-    labour_base_kobo: job.proBaseMajor != null
-      ? toMinorUnits(job.proBaseMajor, job.currency)
-      : null,
+    labour_base_kobo:
+      job.proBaseMajor != null
+        ? toMinorUnits(job.proBaseMajor, job.currency)
+        : null,
     pricing_currency: job.currency,
     negotiation_status:
       job.status === "negotiating"
@@ -381,7 +384,7 @@ function jobToDbPatch(job: JobRecord): Record<string, unknown> {
     remaining_candidates: job.remainingCandidates ?? null,
     reservation_status: job.reservationStatus ?? null,
     assignment_status: job.assignmentStatus ?? null,
-pairing_radius_km: job.pairingRadiusKm ?? null,
+    pairing_radius_km: job.pairingRadiusKm ?? null,
     radius_km: job.radiusKm ?? null,
     linked_request_id: job.linkedRequestId ?? null,
     scheduled_dispatch_at: job.scheduledDispatchAt ?? null,
@@ -420,7 +423,7 @@ async function persist(job: JobRecord): Promise<JobRecord> {
         .eq("id", job.id);
       if (e2) {
         console.error("job persist minimal failed", e2.message);
-        // Last resort: flow_status only (text column — always writable)
+        // Last resort: flow_status only (text column always writable)
         const { error: e3 } = await sb
           .from("service_requests")
           .update({
@@ -431,7 +434,7 @@ async function persist(job: JobRecord): Promise<JobRecord> {
         if (e3) {
           console.error("job persist flow_status failed", e3.message);
           throw new Error(
-            `Could not save trip status (${job.status}). ${e3.message}`
+            `Could not save trip status (${job.status}). ${e3.message}`,
           );
         }
       }
@@ -454,7 +457,7 @@ async function persist(job: JobRecord): Promise<JobRecord> {
   return job;
 }
 
-/** Customer's chosen search radius (0–5 slider), clamped to a usable minimum
+/** Customer's chosen search radius (0-5 slider), clamped to a usable minimum
  * so pairing always has a tight starting circle and a sane cap. */
 function clampCustomerRadius(radius: number | null | undefined): number {
   if (radius == null || !Number.isFinite(radius) || radius <= 0) {
@@ -465,13 +468,12 @@ function clampCustomerRadius(radius: number | null | undefined): number {
 
 async function startOpenSearchIfNeeded(
   job: JobRecord,
-  input: CreateJobInput
+  input: CreateJobInput,
 ): Promise<JobRecord> {
   if (input.repairProId) return job;
   try {
-    const { advancePairing } = await import(
-      "@/lib/server/pairing/pairing-engine"
-    );
+    const { advancePairing } =
+      await import("@/lib/server/pairing/pairing-engine");
     await advancePairing(job.id);
     const fresh = await getJobRaw(job.id);
     return fresh || job;
@@ -484,10 +486,11 @@ async function startOpenSearchIfNeeded(
 /** Best-effort Call-Out quote. Never blocks job create / SSPE. */
 async function attachCalloutQuietly(
   job: JobRecord,
-  input: CreateJobInput
+  input: CreateJobInput,
 ): Promise<JobRecord> {
   try {
-    const { attachCalloutToRequest } = await import("@/lib/server/callout/quote");
+    const { attachCalloutToRequest } =
+      await import("@/lib/server/callout/quote");
     await attachCalloutToRequest({
       requestId: job.id,
       problem: input.problem,
@@ -511,7 +514,7 @@ async function attachCalloutQuietly(
 
 /**
  * Tow "add another repair pro": after the primary (tow) request is persisted,
- * also create a SCHEDULED second request for `input.meetProTrade` — same
+ * also create a SCHEDULED second request for `input.meetProTrade` same
  * details, new trade, linked to the primary via `linked_request_id`.
  * It is NOT dispatched yet: the pairing engine arms `scheduled_dispatch_at`
  * (now + SECOND_PRO_DELAY_MS) the moment the primary's pro accepts; the
@@ -520,7 +523,7 @@ async function attachCalloutQuietly(
  */
 async function createScheduledLinkedRequestIfNeeded(
   job: JobRecord,
-  input: CreateJobInput
+  input: CreateJobInput,
 ): Promise<void> {
   const trade = input.meetProTrade;
   if (!trade) return;
@@ -648,9 +651,7 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
     repairProName: input.repairProName || "",
     repairProPhoto: input.repairProPhoto,
     serviceType: input.serviceType,
-    problem: input.emergency
-      ? `EMERGENCY: ${input.problem}`
-      : input.problem,
+    problem: input.emergency ? `EMERGENCY: ${input.problem}` : input.problem,
     voiceNote: input.voiceNote || null,
     photos: input.photos || [],
     status: "waiting_for_selected",
@@ -736,10 +737,8 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
         .single();
       if (!error && data) {
         if (input.repairProId) {
-        // The customer-chosen pro is the first queue entry (position 1).
-        await sb
-          .from("request_pairing_queue")
-          .insert({
+          // The customer-chosen pro is the first queue entry (position 1).
+          await sb.from("request_pairing_queue").insert({
             request_id: job.id,
             pro_id: input.repairProId,
             position: 1,
@@ -759,7 +758,8 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
         // Instantly notify assigned repair pro
         if (input.repairProId) {
           try {
-            const { insertNotification } = await import("@/lib/server/notifications");
+            const { insertNotification } =
+              await import("@/lib/server/notifications");
             await insertNotification({
               userId: input.repairProId,
               category: "requests",
@@ -779,7 +779,7 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
         }
         return attachCalloutQuietly(mapped, input);
       }
-      // Insert may fail if motorist_vehicle column missing — retry without it
+      // Insert may fail if motorist_vehicle column missing retry without it
       if (error) {
         // Unique-violation race: an identical request (same sticker) won.
         // Replay its job instead of creating a duplicate.
@@ -826,9 +826,8 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
           .select("*")
           .single();
         if (!retry.error && retry.data) {
-          if (input.repairProId) await sb
-            .from("request_pairing_queue")
-            .insert({
+          if (input.repairProId)
+            await sb.from("request_pairing_queue").insert({
               request_id: job.id,
               pro_id: input.repairProId,
               position: 1,
@@ -857,7 +856,8 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
           }
           if (input.repairProId) {
             try {
-              const { insertNotification } = await import("@/lib/server/notifications");
+              const { insertNotification } =
+                await import("@/lib/server/notifications");
               await insertNotification({
                 userId: input.repairProId,
                 category: "requests",
@@ -908,8 +908,7 @@ async function hydrateMotoristPhoto(job: JobRecord): Promise<JobRecord> {
 /** Load motorist + repair pro phone numbers for Call buttons */
 async function hydrateJobPhones(job: JobRecord): Promise<JobRecord> {
   if (!isSupabaseAdminConfigured()) return job;
-  const needPhones =
-    !job.motoristPhone?.trim() || !job.repairProPhone?.trim();
+  const needPhones = !job.motoristPhone?.trim() || !job.repairProPhone?.trim();
   if (!needPhones && job.motoristVehicle?.trim()) return job;
   try {
     const sb = createServiceSupabase();
@@ -981,8 +980,7 @@ async function hydrateMotoristVehicle(job: JobRecord): Promise<JobRecord> {
     const vehicles = Array.isArray(data.vehicles) ? data.vehicles : [];
     const first =
       vehicles.find(
-        (v: { make?: string; model?: string }) =>
-          v && (v.make || v.model)
+        (v: { make?: string; model?: string }) => v && (v.make || v.model),
       ) || null;
     let label = "";
     if (first && typeof first === "object") {
@@ -997,11 +995,7 @@ async function hydrateMotoristVehicle(job: JobRecord): Promise<JobRecord> {
         .join(" ");
     }
     if (!label) {
-      label = [
-        data.vehicle_make,
-        data.vehicle_model,
-        data.vehicle_year,
-      ]
+      label = [data.vehicle_make, data.vehicle_model, data.vehicle_year]
         .filter((x) => x && String(x).trim())
         .join(" ");
     }
@@ -1016,9 +1010,7 @@ async function hydrateMotoristVehicle(job: JobRecord): Promise<JobRecord> {
  * If money is already held/successful but job still says "agreed",
  * flip to paid_booked so UI never shows "Pay now to book" again.
  */
-export async function reconcileJobPayment(
-  job: JobRecord
-): Promise<JobRecord> {
+export async function reconcileJobPayment(job: JobRecord): Promise<JobRecord> {
   if (job.status !== "agreed") return job;
 
   const payment = await getEscrowByRequest(job.id);
@@ -1035,7 +1027,7 @@ export async function reconcileJobPayment(
     return job;
   }
 
-  // Pending row but Flutterwave already collected — verify live
+  // Pending row but Flutterwave already collected verify live
   if (
     payment.escrowStatus === "pending_payment" ||
     payment.escrowStatus === "none"
@@ -1043,7 +1035,7 @@ export async function reconcileJobPayment(
     try {
       const verified = await verifyCharge(
         payment.providerRef,
-        String(payment.provider)
+        String(payment.provider),
       );
       if (verified.success) {
         await updateEscrow(payment.id, {
@@ -1065,7 +1057,7 @@ export async function reconcileJobPayment(
 
 /** Load job without payment reconciliation (avoids getJob ↔ markPaid loops). */
 async function getJobRaw(id: string): Promise<JobRecord | null> {
-  // Fast path — a copy this process persisted or read within the last
+  // Fast path a copy this process persisted or read within the last
   // READ_CACHE_MS is served from memory instead of a Supabase round-trip.
   const fast = memory.get(id);
   if (fast) {
@@ -1119,7 +1111,7 @@ export async function getJob(id: string): Promise<JobRecord | null> {
 
 /**
  * A payout may only be *recovered* (marked released) once a release was actually
- * attempted or confirmed — STATUS satisfied or escrow release_pending /
+ * attempted or confirmed STATUS satisfied or escrow release_pending /
  * pending_settlement. Merely holding escrow ("held"/ paid_booked) or being
  * "completed" is never enough: the customer must release first.
  */
@@ -1139,13 +1131,12 @@ export function canRecoverReleaseFromJob(job: {
  * (cancel race or missed finalize), mark released so UI leaves “Payout processing”.
  */
 async function recoverReleasedFromFlutterwave(
-  job: JobRecord
+  job: JobRecord,
 ): Promise<JobRecord> {
   if (!canRecoverReleaseFromJob(job)) return job;
   try {
-    const { attemptProPayout } = await import(
-      "@/lib/server/payments/payout-settlement"
-    );
+    const { attemptProPayout } =
+      await import("@/lib/server/payments/payout-settlement");
     // force false is fine: FLW success is recovered before cancel gate
     const result = await attemptProPayout({
       jobId: job.id,
@@ -1176,9 +1167,8 @@ async function recoverReleasedFromFlutterwave(
       // Notify once if this was the first time we learned FLW already paid
       if (!result.alreadyReleased || !job.releasedAt) {
         try {
-          const { finalizeJobReleasedAfterPayout } = await import(
-            "@/lib/server/payments/payout-settlement"
-          );
+          const { finalizeJobReleasedAfterPayout } =
+            await import("@/lib/server/payments/payout-settlement");
           await finalizeJobReleasedAfterPayout(job.id, {
             transferRef: result.transferRef || "",
             totalMinor: result.totalMinor,
@@ -1224,12 +1214,12 @@ async function clearFalseSatisfiedStamp(job: JobRecord): Promise<JobRecord> {
 /**
  * Mark ALL pending Flutterwave / escrow charges as expired so the customer can
  * generate a fresh payment request (job stays agreed). Supersedes every unpaid
- * draft — not just the most recent — so a concurrent burst never leaves stale
+ * draft not just the most recent so a concurrent burst never leaves stale
  * "awaiting payment" rows behind.
  */
 async function expirePendingPaymentForJob(
   job: JobRecord,
-  reason = "payment_window_20m"
+  reason = "payment_window_20m",
 ): Promise<void> {
   try {
     await supersedePendingPaymentsForRequest(job.id, null, reason);
@@ -1246,24 +1236,16 @@ async function expirePendingPaymentForJob(
 export async function cancelOpenPaymentSession(input: {
   jobId: string;
   motoristId?: string | null;
-}): Promise<
-  | { job: JobRecord; timerReset: true }
-  | { error: string }
-> {
+}): Promise<{ job: JobRecord; timerReset: true } | { error: string }> {
   let job = await getJob(input.jobId);
   if (!job) return { error: "Job not found" };
   const mid = (input.motoristId || "").trim();
   // Allow unauthenticated timer reset from FLW cancel callback (no money moved)
-  if (
-    mid &&
-    mid !== "callback" &&
-    mid !== "system" &&
-    job.motoristId !== mid
-  ) {
+  if (mid && mid !== "callback" && mid !== "system" && job.motoristId !== mid) {
     return { error: "Only the customer on this job can cancel payment." };
   }
   if (job.status !== "agreed") {
-    // Already moved on — nothing to reset
+    // Already moved on nothing to reset
     return { job, timerReset: true };
   }
 
@@ -1271,7 +1253,7 @@ export async function cancelOpenPaymentSession(input: {
 
   const ts = nowIso();
   const last = [...(job.statusHistory || [])].sort(
-    (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()
+    (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime(),
   )[0];
   // Avoid stacking cancel markers if they spam close
   const history =
@@ -1300,14 +1282,15 @@ export async function cancelOpenPaymentSession(input: {
 /**
  * Unpaid 20‑min window closed.
  * - Counts as 1 payment attempt (only full window expiry counts).
- * - Attempts 1–2: stay agreed, user can Pay again.
+ * - Attempts 1-2: stay agreed, user can Pay again.
  * - Attempt 3: cancel job, notify both sides, refund if any hold.
  */
 async function expireOpenPaymentWindow(job: JobRecord): Promise<JobRecord> {
   const ts = nowIso();
   // Idempotent: already recorded this window
-  const last = [...(job.statusHistory || [])]
-    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())[0];
+  const last = [...(job.statusHistory || [])].sort(
+    (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime(),
+  )[0];
   if (last?.by === PAY_HISTORY.WINDOW_EXPIRED) {
     // Already counted; ensure pending charge is expired
     await expirePendingPaymentForJob(job);
@@ -1352,12 +1335,12 @@ async function expireOpenPaymentWindow(job: JobRecord): Promise<JobRecord> {
           paymentAttemptCount: attempts,
         },
         { type: "CANCEL", by: "system" },
-        "system"
+        "system",
       );
       // Ensure history marker survives cancel
       if (
         !cancelled.statusHistory.some(
-          (h) => h.by === PAY_HISTORY.MAX_ATTEMPTS_CANCEL
+          (h) => h.by === PAY_HISTORY.MAX_ATTEMPTS_CANCEL,
         )
       ) {
         cancelled = await persist({
@@ -1390,15 +1373,14 @@ async function expireOpenPaymentWindow(job: JobRecord): Promise<JobRecord> {
 
     try {
       if (job.repairProId) {
-        const { insertNotification } = await import(
-          "@/lib/server/notifications"
-        );
+        const { insertNotification } =
+          await import("@/lib/server/notifications");
         const body = `Payment was not completed within ${MAX_PAYMENT_ATTEMPTS} timed windows (20 min each). This booking is cancelled.`;
         await insertNotification({
           userId: job.repairProId,
           category: "payments",
           priority: "high",
-          title: "Booking cancelled — customer did not pay",
+          title: "Booking cancelled customer did not pay",
           body,
           href: `/requests/${job.id}`,
           actionType: "open_job",
@@ -1414,7 +1396,7 @@ async function expireOpenPaymentWindow(job: JobRecord): Promise<JobRecord> {
     return cancelled;
   }
 
-  // Stay agreed — no open session until customer taps Pay again
+  // Stay agreed no open session until customer taps Pay again
   return persist({
     ...job,
     status: "agreed",
@@ -1503,7 +1485,7 @@ async function expireUnpaidBook(job: JobRecord): Promise<JobRecord> {
 }
 
 async function maybeExpire(job: JobRecord): Promise<JobRecord> {
-  // 1) Negotiation timer — only after pro “I can fix this” armed the clock
+  // 1) Negotiation timer only after pro “I can fix this” armed the clock
   if (job.status === "negotiating") {
     const { isNegotiationTimerArmed } = await import("@/lib/jobs/constants");
     if (!isNegotiationTimerArmed(job)) return job;
@@ -1524,11 +1506,7 @@ async function maybeExpire(job: JobRecord): Promise<JobRecord> {
   // 3) Booked but not completed within 6h of payment → cancel + full refund
   if (isBookedPastCompletionDeadline(job)) {
     try {
-      return await applyEvent(
-        job,
-        { type: "CANCEL", by: "system" },
-        "system"
-      );
+      return await applyEvent(job, { type: "CANCEL", by: "system" }, "system");
     } catch (e) {
       console.error("auto-cancel booked job failed", job.id, e);
       return job;
@@ -1543,11 +1521,11 @@ async function maybeExpire(job: JobRecord): Promise<JobRecord> {
       const esc = await getEscrowByRequest(job.id);
       const lastAt = String(
         (esc?.meta as { lastReleaseAt?: string } | undefined)?.lastReleaseAt ||
-          ""
+          "",
       );
       if (lastAt) {
         const age = Date.now() - new Date(lastAt).getTime();
-        // Don't hammer Flutterwave every poll — wait 15 min between auto attempts
+        // Don't hammer Flutterwave every poll wait 15 min between auto attempts
         if (Number.isFinite(age) && age < 15 * 60 * 1000) {
           return job;
         }
@@ -1564,7 +1542,11 @@ async function maybeExpire(job: JobRecord): Promise<JobRecord> {
       return next;
     } catch (e) {
       // Keep status=completed + escrow held; expire-stale / customer Release retries
-      console.error("auto-release completed job failed (will retry)", job.id, e);
+      console.error(
+        "auto-release completed job failed (will retry)",
+        job.id,
+        e,
+      );
       return job;
     }
   }
@@ -1574,9 +1556,9 @@ async function maybeExpire(job: JobRecord): Promise<JobRecord> {
 
 /**
  * Batch sweep for:
- *  - Agreed unpaid past 20 min payment window → expire pending payment
- *  - Booked not completed within 6h of payment → cancel + refund
- *  - Completed past 6h without satisfaction/dispute → auto-release 95/5
+ * - Agreed unpaid past 20 min payment window → expire pending payment
+ * - Booked not completed within 6h of payment → cancel + refund
+ * - Completed past 6h without satisfaction/dispute → auto-release 95/5
  * Safe for cron / client backup.
  */
 export async function expireOverdueBookedJobs(limit = 40): Promise<{
@@ -1719,9 +1701,7 @@ function isDeferredByPro(job: JobRecord, proId: string): boolean {
 
 /** True if this pro declined this request (permanent per-request, D6). */
 function isExcludedForJob(job: JobRecord, proId: string): boolean {
-  return (job.statusHistory || []).some(
-    (h) => h.by === `excluded:${proId}`
-  );
+  return (job.statusHistory || []).some((h) => h.by === `excluded:${proId}`);
 }
 
 /**
@@ -1733,7 +1713,7 @@ function isExcludedForJob(job: JobRecord, proId: string): boolean {
  */
 export async function deferJob(
   jobId: string,
-  proId: string
+  proId: string,
 ): Promise<JobRecord | null> {
   const job = await getJob(jobId);
   if (!job) return null;
@@ -1742,9 +1722,8 @@ export async function deferJob(
   // SSPE job → hand off to the pairing engine (queue + reservation + next pro).
   if (job.pairingStage) {
     try {
-      const { deferRequest } = await import(
-        "@/lib/server/pairing/pairing-engine"
-      );
+      const { deferRequest } =
+        await import("@/lib/server/pairing/pairing-engine");
       const res = await deferRequest(jobId, proId);
       if (!res.ok) return job;
       return (await getJob(jobId)) || job;
@@ -1763,7 +1742,7 @@ export async function deferJob(
   // Keep the customer's search alive: move into the searching phase so the
   // customer sees the live search screen while dispatch finds another pro.
   const hasAccepted = (job.statusHistory || []).some(
-    (h) => h.by === "negotiation_timer_start"
+    (h) => h.by === "negotiation_timer_start",
   );
   const canReroute =
     !hasAccepted &&
@@ -1782,7 +1761,7 @@ export async function deferJob(
   if (canReroute) {
     try {
       const sb = createServiceSupabase();
-      // Do not expire the job when no other pro is available — the deferred
+      // Do not expire the job when no other pro is available the deferred
       // pro's request becomes deliverable again after the 5 minutes.
       await assignNextPro(job, sb);
     } catch (e) {
@@ -1799,7 +1778,7 @@ export async function deferJob(
  */
 async function findNextPro(
   job: JobRecord,
-  sb: ReturnType<typeof createServiceSupabase>
+  sb: ReturnType<typeof createServiceSupabase>,
 ): Promise<{ id: string; name: string; photo?: string } | null> {
   const triedProIds = new Set<string>();
   for (const h of job.statusHistory || []) {
@@ -1823,13 +1802,13 @@ async function findNextPro(
     }
   }
 
-  // Same trade only — never reassign a mechanic job to a plumber, etc.
+  // Same trade only never reassign a mechanic job to a plumber, etc.
   // Match primary_service OR services[] so multi-skill pros still get requests.
   const serviceType = String(job.serviceType || "").trim();
   const { data: pros } = await sb
     .from("repair_pro_profiles")
     .select(
-      "user_id, business_name, lat, lng, primary_service, services, location_updated_at, visibility_tier"
+      "user_id, business_name, lat, lng, primary_service, services, location_updated_at, visibility_tier",
     )
     .eq("is_online", true)
     .neq("status", "suspended")
@@ -1848,7 +1827,10 @@ async function findNextPro(
     const list = p.services;
     if (Array.isArray(list)) {
       return list.some(
-        (s) => String(s || "").trim().toLowerCase() === serviceType.toLowerCase()
+        (s) =>
+          String(s || "")
+            .trim()
+            .toLowerCase() === serviceType.toLowerCase(),
       );
     }
     if (typeof list === "string" && list.trim()) {
@@ -1857,7 +1839,9 @@ async function findNextPro(
         if (Array.isArray(parsed)) {
           return parsed.some(
             (s) =>
-              String(s || "").trim().toLowerCase() === serviceType.toLowerCase()
+              String(s || "")
+                .trim()
+                .toLowerCase() === serviceType.toLowerCase(),
           );
         }
       } catch {
@@ -1872,11 +1856,11 @@ async function findNextPro(
       return false;
     }
     // Stale is_online (pro closed the app without going Away) must not receive
-    // a reroute — require a fresh heartbeat like the marketplace feed.
+    // a reroute require a fresh heartbeat like the marketplace feed.
     if (
       !hasRecentLiveHeartbeat(
         (p as { location_updated_at?: string | null }).location_updated_at,
-        Date.now()
+        Date.now(),
       )
     ) {
       return false;
@@ -1899,9 +1883,7 @@ async function findNextPro(
     .map((p) => {
       const dLat = ((p.lat as number) - cLat) * 111;
       const dLng =
-        ((p.lng as number) - cLng) *
-        111 *
-        Math.cos((cLat * Math.PI) / 180);
+        ((p.lng as number) - cLng) * 111 * Math.cos((cLat * Math.PI) / 180);
       const km = Math.hypot(dLat, dLng);
       return { p, km };
     })
@@ -1912,10 +1894,11 @@ async function findNextPro(
   // Merit-first ordering (D4): rank within 10-point merit bands, distance as
   // the tiebreak. Fall back to distance-only when merit scores are absent.
   const kmOf = (p: { user_id: string }) =>
-    withDistance.find((x) => x.p.user_id === p.user_id)?.km ?? Number.POSITIVE_INFINITY;
+    withDistance.find((x) => x.p.user_id === p.user_id)?.km ??
+    Number.POSITIVE_INFINITY;
   const ordered = await orderCandidatesByMerit(
     withDistance.map((x) => x.p),
-    kmOf
+    kmOf,
   );
   const best = ordered[0];
 
@@ -1940,17 +1923,17 @@ async function findNextPro(
 async function assignNextPro(
   job: JobRecord,
   sb: ReturnType<typeof createServiceSupabase>,
-  skipNotifyPreviousPro = false
+  skipNotifyPreviousPro = false,
 ): Promise<boolean> {
   const nextPro = await findNextPro(job, sb);
   if (!nextPro) return false;
 
   const ts = new Date().toISOString();
 
-  // Clean slate for the new pro — do not carry prior offers / armed timer / price.
+  // Clean slate for the new pro do not carry prior offers / armed timer / price.
   // Far-future negotiate_ends_at: timer unarmed until pro accepts (same as createJob).
   const unarmedEnds = new Date(
-    Date.now() + 365 * 24 * 60 * 60 * 1000
+    Date.now() + 365 * 24 * 60 * 60 * 1000,
   ).toISOString();
   await sb
     .from("service_requests")
@@ -1997,9 +1980,7 @@ async function assignNextPro(
 
   // Notify the new pro (DB row so app center + realtime stay in sync)
   try {
-    const { insertNotification } = await import(
-      "@/lib/server/notifications"
-    );
+    const { insertNotification } = await import("@/lib/server/notifications");
     await insertNotification({
       userId: nextPro.id,
       category: "requests",
@@ -2019,16 +2000,14 @@ async function assignNextPro(
 
   // Quiet persistent entry for the previous pro: the request moved on to
   // another pro. Skipped for the pro who actively declined (they initiated the
-  // reroute — no need to tell them). groupKey dedupes per job.
+  // reroute no need to tell them). groupKey dedupes per job.
   if (
     !skipNotifyPreviousPro &&
     job.repairProId &&
     job.repairProId !== nextPro.id
   ) {
     try {
-      const { insertNotification } = await import(
-        "@/lib/server/notifications"
-      );
+      const { insertNotification } = await import("@/lib/server/notifications");
       await insertNotification({
         userId: job.repairProId,
         category: "requests",
@@ -2058,12 +2037,12 @@ async function assignNextPro(
  */
 async function rerouteUnacceptedJob(
   job: JobRecord,
-  sb: ReturnType<typeof createServiceSupabase>
+  sb: ReturnType<typeof createServiceSupabase>,
 ): Promise<boolean> {
   const ok = await assignNextPro(job, sb);
   if (ok) return true;
 
-  // No eligible pro right now — enter searching so the customer sees the
+  // No eligible pro right now enter searching so the customer sees the
   // search screen and dispatch keeps looking within the window.
   const ts = new Date().toISOString();
   const searchingHistory = [
@@ -2080,7 +2059,11 @@ async function rerouteUnacceptedJob(
     })
     .eq("id", job.id);
   if (error) {
-    console.error("rerouteUnacceptedJob: searching update failed", job.id, error.message);
+    console.error(
+      "rerouteUnacceptedJob: searching update failed",
+      job.id,
+      error.message,
+    );
   }
   // Keep memory in sync so the previous pro's dashboard drops the job from
   // Incoming (listJobsForUser merges memory first).
@@ -2098,11 +2081,11 @@ async function rerouteUnacceptedJob(
  * within 1 minute. Reroutes to the next available pro of the same trade.
  * After 15 minutes without any acceptance, the job expires with a
  * `reroute_exhausted` marker so the customer sees the retry message.
- * Also handles `searching` jobs (pro actively cancelled) — reroute immediately
+ * Also handles `searching` jobs (pro actively cancelled) reroute immediately
  * without the 1-minute delay.
  */
 export async function expireUnacceptedJobs(
-  limit = 40
+  limit = 40,
 ): Promise<{ checked: number; rerouted: number; expired: number }> {
   let checked = 0;
   let rerouted = 0;
@@ -2129,7 +2112,7 @@ export async function expireUnacceptedJobs(
       checked++;
 
       const hasAccepted = job.statusHistory.some(
-        (h) => h.by === "negotiation_timer_start"
+        (h) => h.by === "negotiation_timer_start",
       );
       if (hasAccepted) continue;
 
@@ -2160,11 +2143,11 @@ export async function expireUnacceptedJobs(
       } else {
         const ok = await rerouteUnacceptedJob(job, sb);
         if (ok) rerouted++;
-        // else: still searching / waiting — do not count as expired
+        // else: still searching / waiting do not count as expired
       }
     }
 
-    // Sweep searching jobs (pro cancelled — reroute immediately)
+    // Sweep searching jobs (pro cancelled reroute immediately)
     const { data: searchingData } = await sb
       .from("service_requests")
       .select("*")
@@ -2190,7 +2173,7 @@ export async function expireUnacceptedJobs(
         Date.now() - (searchingAt || new Date(job.createdAt).getTime());
 
       if (ageMs >= REROUTE_WINDOW_MS) {
-        // 15+ minutes — expire
+        // 15+ minutes expire
         await sb
           .from("service_requests")
           .update({
@@ -2210,7 +2193,7 @@ export async function expireUnacceptedJobs(
         expired++;
       } else {
         // Reroute immediately (no 1-minute delay for actively cancelled jobs).
-        // When no pro is available right now, keep the job searching — a pro
+        // When no pro is available right now, keep the job searching a pro
         // may free up before the 15-minute window ends.
         const ok = await assignNextPro(job, sb);
         if (ok) rerouted++;
@@ -2226,7 +2209,7 @@ export async function expireUnacceptedJobs(
 /** Reroute a single unaccepted job to the next nearest pro when the current pro declines. */
 export async function rerouteDeclinedJob(
   jobId: string,
-  cancelReason?: string
+  cancelReason?: string,
 ): Promise<{ ok: true; job: JobRecord } | { error: string }> {
   if (!isSupabaseAdminConfigured()) return { error: "Server not configured" };
   const sb = createServiceSupabase();
@@ -2244,13 +2227,12 @@ export async function rerouteDeclinedJob(
   // SSPE job → hand off to the pairing engine (per-request exclusion + next pro).
   if (job.pairingStage) {
     try {
-      const { declineRequest } = await import(
-        "@/lib/server/pairing/pairing-engine"
-      );
+      const { declineRequest } =
+        await import("@/lib/server/pairing/pairing-engine");
       const res = await declineRequest(
         jobId,
         job.repairProId,
-        cancelReason || "pro_declined"
+        cancelReason || "pro_declined",
       );
       if (!res.ok) return { error: res.error };
       const updated = await getJob(jobId);
@@ -2294,7 +2276,11 @@ export async function rerouteDeclinedJob(
     })
     .eq("id", job.id);
   if (searchErr) {
-    console.error("rerouteDeclinedJob: searching update failed", job.id, searchErr.message);
+    console.error(
+      "rerouteDeclinedJob: searching update failed",
+      job.id,
+      searchErr.message,
+    );
     return { error: "Could not enter searching phase" };
   }
 
@@ -2308,9 +2294,9 @@ export async function rerouteDeclinedJob(
   });
 
   // 2) Hand off ASAP to the next available pro. When none is available the
-  // job stays in "searching" — the expireUnacceptedJobs sweep keeps retrying
+  // job stays in "searching" the expireUnacceptedJobs sweep keeps retrying
   // and only expires after the 15-minute window. Skip notifying the previous
-  // pro — the decliner initiated this reroute, so "moved on" would be noise.
+  // pro the decliner initiated this reroute, so "moved on" would be noise.
   const jobWithHistory = { ...job, statusHistory: history };
   await assignNextPro(jobWithHistory, sb, true);
 
@@ -2354,7 +2340,7 @@ export async function rerouteDeclinedJob(
  * error when the job isn't actively awaiting a pro or no pro is eligible.
  */
 export async function forceRerouteJob(
-  jobId: string
+  jobId: string,
 ): Promise<{ ok: true; job: JobRecord } | { error: string }> {
   if (!isSupabaseAdminConfigured()) return { error: "Server not configured" };
   const sb = createServiceSupabase();
@@ -2395,7 +2381,7 @@ export async function forceRerouteJob(
  * job so dispatch may consider those pros again immediately.
  */
 export async function clearJobCooldowns(
-  jobId: string
+  jobId: string,
 ): Promise<{ ok: true; job: JobRecord } | { error: string }> {
   if (!isSupabaseAdminConfigured()) return { error: "Server not configured" };
   const sb = createServiceSupabase();
@@ -2443,7 +2429,7 @@ export async function clearJobCooldowns(
  * Admin control: force-expire an active job (ends the search/negotiation).
  */
 export async function adminExpireJob(
-  jobId: string
+  jobId: string,
 ): Promise<{ ok: true; job: JobRecord } | { error: string }> {
   if (!isSupabaseAdminConfigured()) return { error: "Server not configured" };
   const sb = createServiceSupabase();
@@ -2486,7 +2472,7 @@ export async function adminExpireJob(
 export async function adminReassignJob(
   jobId: string,
   proId: string,
-  proName?: string
+  proName?: string,
 ): Promise<{ ok: true; job: JobRecord } | { error: string }> {
   if (!isSupabaseAdminConfigured()) return { error: "Server not configured" };
   if (!proId) return { error: "Missing proId" };
@@ -2502,8 +2488,10 @@ export async function adminReassignJob(
   const ts = new Date().toISOString();
   const history = (job.statusHistory || []).filter((h) => {
     const by = h.by || "";
-    return !(by.startsWith("deferred:") && by.slice("deferred:".length) === proId) &&
-      !(by.startsWith("excluded:") && by.slice("excluded:".length) === proId);
+    return (
+      !(by.startsWith("deferred:") && by.slice("deferred:".length) === proId) &&
+      !(by.startsWith("excluded:") && by.slice("excluded:".length) === proId)
+    );
   });
   history.push({
     status: "negotiating",
@@ -2553,10 +2541,10 @@ export async function adminReassignJob(
 /**
  * Every column rowToJob reads EXCEPT the heavy base64 media columns
  * (photos, voice_note). Selecting "*" pulled ~5 MB of embedded data-URLs
- * per list poll (16s+) — media is re-fetched only for open pro requests.
+ * per list poll (16s+) media is re-fetched only for open pro requests.
  */
 /** Repair-pro statuses the incoming popup / dashboard must always show,
- *  regardless of how many history jobs a pro has accumulated. */
+ * regardless of how many history jobs a pro has accumulated. */
 const PRO_ACTIONABLE_LIST_STATUSES = [
   "waiting_for_selected",
   "selected_review",
@@ -2630,7 +2618,7 @@ const LEAN_JOB_COLUMNS = [
 export async function listJobsForUser(
   userId: string,
   role: "motorist" | "repair_pro",
-  opts?: { lean?: boolean }
+  opts?: { lean?: boolean },
 ): Promise<JobRecord[]> {
   if (opts?.lean) {
     return listJobsForUserLean(userId, role);
@@ -2647,12 +2635,14 @@ export async function listJobsForUser(
     try {
       const sb = createServiceSupabase();
       const col = role === "motorist" ? "motorist_id" : "repair_pro_id";
-      // Lean list — exclude heavy base64 media columns (photos/voice_note).
+      // Lean list exclude heavy base64 media columns (photos/voice_note).
       // Media is hydrated below only for open pro requests the popup needs.
       const { data } = await sb
         .from("service_requests")
         .select(LEAN_JOB_COLUMNS)
         .eq(col, userId)
+        // Unpaid Ona Express drafts are booking-session state, not requests
+        .neq("status", "draft")
         .order("created_at", { ascending: false })
         .limit(40);
       let rows = data || [];
@@ -2669,7 +2659,9 @@ export async function listJobsForUser(
         const openArr = openData || [];
         if (openArr.length > 0) {
           const idOf = (r: { id?: unknown }) => String(r.id);
-          const openSet = new Set(openArr.map((r) => idOf(r as { id?: unknown })));
+          const openSet = new Set(
+            openArr.map((r) => idOf(r as { id?: unknown })),
+          );
           rows = [
             ...openArr,
             ...rows.filter((r) => !openSet.has(idOf(r as { id?: unknown }))),
@@ -2698,7 +2690,7 @@ export async function listJobsForUser(
             }
           }
           return j;
-        })
+        }),
       );
 
       // Batch-fill missing customer profile photos for open pro requests
@@ -2715,7 +2707,7 @@ export async function listJobsForUser(
               "reserved",
               "negotiating",
               "agreed",
-            ].includes(j.status)
+            ].includes(j.status),
         );
         const ids = [
           ...new Set(needPhoto.map((j) => j.motoristId).filter(Boolean)),
@@ -2729,7 +2721,7 @@ export async function listJobsForUser(
             const byId = new Map(
               (profiles || [])
                 .filter((p) => p.avatar_url)
-                .map((p) => [String(p.id), String(p.avatar_url)])
+                .map((p) => [String(p.id), String(p.avatar_url)]),
             );
             if (byId.size) {
               mapped = mapped.map((j) => {
@@ -2744,7 +2736,7 @@ export async function listJobsForUser(
         }
       }
 
-      // Hydrate photos + voice note for open pro requests only — the incoming
+      // Hydrate photos + voice note for open pro requests only the incoming
       // popup needs them, but terminal/history jobs stay lean (base64 is heavy).
       if (role === "repair_pro") {
         const needMedia = mapped.filter((j) =>
@@ -2756,9 +2748,11 @@ export async function listJobsForUser(
             "sequential_pairing",
             "negotiating",
             "agreed",
-          ].includes(j.status)
+          ].includes(j.status),
         );
-        const mediaIds = [...new Set(needMedia.map((j) => j.id).filter(Boolean))];
+        const mediaIds = [
+          ...new Set(needMedia.map((j) => j.id).filter(Boolean)),
+        ];
         if (mediaIds.length) {
           try {
             const { data: mediaRows } = await sb
@@ -2766,7 +2760,7 @@ export async function listJobsForUser(
               .select("id, photos, voice_note")
               .in("id", mediaIds);
             const mediaById = new Map(
-              (mediaRows || []).map((r) => [String(r.id), r])
+              (mediaRows || []).map((r) => [String(r.id), r]),
             );
             if (mediaById.size) {
               mapped = mapped.map((j) => {
@@ -2793,7 +2787,7 @@ export async function listJobsForUser(
       /* */
     }
   }
-  /** Open pairing / negotiate jobs for pros — keep customer photos+voice so the
+  /** Open pairing / negotiate jobs for pros keep customer photos+voice so the
    * incoming popup can show them with the request (not after a second fetch). */
   const KEEP_MEDIA_STATUSES = new Set<string>([
     "waiting_for_selected",
@@ -2823,20 +2817,19 @@ export async function listJobsForUser(
     .sort(
       (a, b) =>
         new Date(b.updatedAt || b.createdAt).getTime() -
-        new Date(a.updatedAt || a.createdAt).getTime()
+        new Date(a.updatedAt || a.createdAt).getTime(),
     );
   return attachSettledCalloutQuotes(listed);
 }
 
 async function attachSettledCalloutQuotes(
-  jobs: JobRecord[]
+  jobs: JobRecord[],
 ): Promise<JobRecord[]> {
   const need = jobs.filter((j) => j.agreedMajor != null).slice(0, 12);
   if (!need.length) return jobs;
   try {
-    const { resolveJobCalloutQuote } = await import(
-      "@/lib/server/callout/resolve"
-    );
+    const { resolveJobCalloutQuote } =
+      await import("@/lib/server/callout/resolve");
     const pairs = await Promise.all(
       need.map(async (j) => {
         try {
@@ -2844,11 +2837,11 @@ async function attachSettledCalloutQuotes(
         } catch {
           return [j.id, null] as const;
         }
-      })
+      }),
     );
     const map = new Map(pairs);
     return jobs.map((j) =>
-      map.has(j.id) ? { ...j, calloutQuote: map.get(j.id) ?? null } : j
+      map.has(j.id) ? { ...j, calloutQuote: map.get(j.id) ?? null } : j,
     );
   } catch {
     return jobs;
@@ -2856,7 +2849,7 @@ async function attachSettledCalloutQuotes(
 }
 
 /**
- * Fast "status snapshot" for the pro incoming popup poll — no media hydration,
+ * Fast "status snapshot" for the pro incoming popup poll no media hydration,
  * no profile backfill, no expiry checks. Returns this pro's open actionable
  * jobs (never truncated) plus their recent jobs, in one or two lean queries.
  * The popup re-hydrates media the first time it surfaces a card, so each poll
@@ -2866,7 +2859,7 @@ async function attachSettledCalloutQuotes(
  */
 async function listJobsForUserLean(
   userId: string,
-  role: "motorist" | "repair_pro"
+  role: "motorist" | "repair_pro",
 ): Promise<JobRecord[]> {
   const out: JobRecord[] = [];
   for (const j of memory.values()) {
@@ -2884,6 +2877,8 @@ async function listJobsForUserLean(
         .from("service_requests")
         .select(LEAN_JOB_COLUMNS)
         .eq(col, userId)
+        // Unpaid Ona Express drafts are booking-session state, not requests
+        .neq("status", "draft")
         .order("created_at", { ascending: false })
         .limit(40);
       let rows = data || [];
@@ -2901,7 +2896,7 @@ async function listJobsForUserLean(
         if (openArr.length > 0) {
           const idOf = (r: { id?: unknown }) => String(r.id);
           const openSet = new Set(
-            openArr.map((r) => idOf(r as { id?: unknown }))
+            openArr.map((r) => idOf(r as { id?: unknown })),
           );
           rows = [
             ...openArr,
@@ -2910,7 +2905,7 @@ async function listJobsForUserLean(
         }
       }
       const mapped = rows.map((row) =>
-        rowToJob(row as unknown as Record<string, unknown>)
+        rowToJob(row as unknown as Record<string, unknown>),
       );
       for (const j of mapped) {
         if (role === "repair_pro" && isDeferredByPro(j, userId)) continue;
@@ -2950,15 +2945,14 @@ export async function listDisputedJobs(): Promise<JobRecord[]> {
 
 /**
  * Fire-and-forget Merit Ranking Engine refresh for a pro. Safe to call on any
- * completion / cancellation / dispute transition — recomputing is idempotent.
+ * completion / cancellation / dispute transition recomputing is idempotent.
  * Keeps ranking current after completed jobs, cancellations and disputes.
  */
 async function fireMeritRecalc(proId?: string | null): Promise<void> {
   if (!proId) return;
   try {
-    const { recalculateMerit } = await import(
-      "@/lib/server/merit/merit-engine"
-    );
+    const { recalculateMerit } =
+      await import("@/lib/server/merit/merit-engine");
     void recalculateMerit(proId);
   } catch {
     /* merit recalc is best-effort */
@@ -2969,11 +2963,11 @@ export { fireMeritRecalc };
 async function applyEvent(
   job: JobRecord,
   event: TransitionEvent,
-  actor: TransitionActor
+  actor: TransitionActor,
 ): Promise<JobRecord> {
   const nextRaw = assertTransition(job.status, event);
   // Customer (or admin/system) cancelling during negotiation/search fully
-  // cancels the job — only a Repair Pro decline enters the "searching"
+  // cancels the job only a Repair Pro decline enters the "searching"
   // (find-another-pro) phase, and that path is handled by rerouteDeclinedJob.
   const next =
     event.type === "CANCEL" && nextRaw === "searching" ? "cancelled" : nextRaw;
@@ -2984,9 +2978,7 @@ async function applyEvent(
     const ends = new Date(Date.now() + NEGOTIATE_WINDOW_MS).toISOString();
     // Notify customer that pro accepted
     try {
-      const { insertNotification } = await import(
-        "@/lib/server/notifications"
-      );
+      const { insertNotification } = await import("@/lib/server/notifications");
       await insertNotification({
         userId: job.motoristId,
         category: "requests",
@@ -3020,7 +3012,15 @@ async function applyEvent(
     updatedAt: ts,
     statusHistory: [
       ...job.statusHistory,
-      { status: next, at: ts, by: actor, note: event.type === "CANCEL" && "reason" in event ? event.reason : undefined },
+      {
+        status: next,
+        at: ts,
+        by: actor,
+        note:
+          event.type === "CANCEL" && "reason" in event
+            ? event.reason
+            : undefined,
+      },
     ],
   };
 
@@ -3033,9 +3033,8 @@ async function applyEvent(
     // groupKey dedupes, so a cancel never notifies twice.
     if (actor === "motorist" && job.repairProId) {
       try {
-        const { insertNotification } = await import(
-          "@/lib/server/notifications"
-        );
+        const { insertNotification } =
+          await import("@/lib/server/notifications");
         const cname = job.motoristName?.split(/\s+/)[0];
         const subject = job.motoristVehicle?.trim();
         const body =
@@ -3058,12 +3057,10 @@ async function applyEvent(
           groupKey: `request-cancelled-${job.id}`,
         });
         // OS push (web-push, VAPID) even when the app is closed or the tab is
-        // hidden — the in-app card + banner close from realtime/poll, but the
+        // hidden the in-app card + banner close from realtime/poll, but the
         // pro must still hear about the cancel without the app foregrounded.
         try {
-          const { sendPushToUser } = await import(
-            "@/lib/server/push/webpush"
-          );
+          const { sendPushToUser } = await import("@/lib/server/push/webpush");
           await sendPushToUser(job.repairProId, {
             title: "Request cancelled",
             body,
@@ -3094,9 +3091,8 @@ async function applyEvent(
     // dedupes so it never notifies twice.
     if (job.repairProId) {
       try {
-        const { insertNotification } = await import(
-          "@/lib/server/notifications"
-        );
+        const { insertNotification } =
+          await import("@/lib/server/notifications");
         const cname = job.motoristName?.split(/\s+/)[0];
         await insertNotification({
           userId: job.repairProId,
@@ -3131,9 +3127,7 @@ async function applyEvent(
   if (next === "completed") {
     // Prompt customer to confirm and release pay
     try {
-      const { insertNotification } = await import(
-        "@/lib/server/notifications"
-      );
+      const { insertNotification } = await import("@/lib/server/notifications");
       await insertNotification({
         userId: job.motoristId,
         category: "payments",
@@ -3179,11 +3173,13 @@ async function applyEvent(
     const raced = await Promise.race([
       payoutPromise.then((p) => ({ kind: "done" as const, p })),
       new Promise<{ kind: "timeout" }>((resolve) =>
-        setTimeout(() => resolve({ kind: "timeout" }), PAYOUT_BUDGET_MS)
+        setTimeout(() => resolve({ kind: "timeout" }), PAYOUT_BUDGET_MS),
       ),
     ]);
 
-    const finishFromPayout = async (payout: PayoutResult): Promise<JobRecord> => {
+    const finishFromPayout = async (
+      payout: PayoutResult,
+    ): Promise<JobRecord> => {
       if (payout.ok) {
         const released: JobRecord = {
           ...confirmedBase,
@@ -3216,10 +3212,10 @@ async function applyEvent(
         await notifyPayoutPendingSettlement(pending);
         return persist(pending);
       }
-      // Hard fail (bad bank, etc.) — stay completed so customer can retry or open dispute
+      // Hard fail (bad bank, etc.) stay completed so customer can retry or open dispute
       throw new Error(
         payout.message ||
-          "Could not pay the Repair Pro (87.5%). Funds stay held. Fix pro bank details or contact support."
+          "Could not pay the Repair Pro (87.5%). Funds stay held. Fix pro bank details or contact support.",
       );
     };
 
@@ -3249,7 +3245,7 @@ async function applyEvent(
               return;
             }
             // Hard fail (bad bank etc.) after the client already left completed:
-            // bounce back so customer can fix / dispute — not silent forever-pending.
+            // bounce back so customer can fix / dispute not silent forever-pending.
             const revert: JobRecord = {
               ...fresh,
               status: "completed",
@@ -3268,9 +3264,9 @@ async function applyEvent(
             };
             await persist(revert);
             console.error(
-              "SATISFIED background hard fail — reverted to completed",
+              "SATISFIED background hard fail reverted to completed",
               job.id,
-              payout.message
+              payout.message,
             );
           } catch (e) {
             console.error("SATISFIED background payout", job.id, e);
@@ -3303,7 +3299,7 @@ async function applyEvent(
     } else {
       throw new Error(
         payout.message ||
-          "Could not release payout to Repair Pro. Funds still held."
+          "Could not release payout to Repair Pro. Funds still held.",
       );
     }
   }
@@ -3328,12 +3324,10 @@ async function refundJobEscrow(job: JobRecord) {
 
 /**
  * Pay Repair Pro 87.5% of service via Flutterwave Transfer from merchant balance.
- * Ona keeps 5%. Collections (Ledger) ≠ Available for payout — settlement delays
+ * Ona keeps 5%. Collections (Ledger) ≠ Available for payout settlement delays
  * become PENDING_SETTLEMENT with auto-retry (never double-pay).
  */
-async function releaseJobEscrow(
-  job: JobRecord
-): Promise<{
+async function releaseJobEscrow(job: JobRecord): Promise<{
   ok: boolean;
   pendingSettlement?: boolean;
   message?: string;
@@ -3355,7 +3349,7 @@ async function releaseJobEscrow(
     try {
       const verified = await verifyCharge(
         esc.providerRef,
-        String(esc.provider)
+        String(esc.provider),
       );
       if (verified.success) {
         await updateEscrow(esc.id, {
@@ -3373,9 +3367,8 @@ async function releaseJobEscrow(
     }
   }
 
-  const { attemptProPayout } = await import(
-    "@/lib/server/payments/payout-settlement"
-  );
+  const { attemptProPayout } =
+    await import("@/lib/server/payments/payout-settlement");
   const result = await attemptProPayout({
     jobId: job.id,
     repairProId: job.repairProId,
@@ -3420,17 +3413,22 @@ async function releaseJobEscrow(
 
 async function notifyPayoutReleased(job: JobRecord) {
   try {
-    const { insertNotification, markNotificationsByGroupKey } = await import(
-      "@/lib/server/notifications"
-    );
+    const { insertNotification, markNotificationsByGroupKey } =
+      await import("@/lib/server/notifications");
     // Close the old "Confirm Job & Release Payment" notification
     if (job.motoristId) {
-      await markNotificationsByGroupKey(job.motoristId, `job-complete-${job.id}`);
+      await markNotificationsByGroupKey(
+        job.motoristId,
+        `job-complete-${job.id}`,
+      );
     }
     if (job.repairProId) {
-      await markNotificationsByGroupKey(job.repairProId, `job-complete-${job.id}`);
+      await markNotificationsByGroupKey(
+        job.repairProId,
+        `job-complete-${job.id}`,
+      );
     }
-    // group_key dedupe — one notification per user per job even if called twice
+    // group_key dedupe one notification per user per job even if called twice
     if (job.motoristId) {
       await insertNotification({
         userId: job.motoristId,
@@ -3468,18 +3466,23 @@ async function notifyPayoutReleased(job: JobRecord) {
 
 async function notifyPayoutPendingSettlement(job: JobRecord) {
   try {
-    const { insertNotification, markNotificationsByGroupKey } = await import(
-      "@/lib/server/notifications"
-    );
+    const { insertNotification, markNotificationsByGroupKey } =
+      await import("@/lib/server/notifications");
     // Close the old "Confirm Job & Release Payment" notification
     if (job.motoristId) {
-      await markNotificationsByGroupKey(job.motoristId, `job-complete-${job.id}`);
+      await markNotificationsByGroupKey(
+        job.motoristId,
+        `job-complete-${job.id}`,
+      );
     }
     if (job.repairProId) {
-      await markNotificationsByGroupKey(job.repairProId, `job-complete-${job.id}`);
+      await markNotificationsByGroupKey(
+        job.repairProId,
+        `job-complete-${job.id}`,
+      );
     }
     const body =
-      "Payout processing — auto-retry every 10 minutes for up to 24 hours. You’ll be notified when payment is released.";
+      "Payout processing auto-retry every 10 minutes for up to 24 hours. You’ll be notified when payment is released.";
     if (job.motoristId) {
       await insertNotification({
         userId: job.motoristId,
@@ -3570,12 +3573,12 @@ async function loadProPayoutBank(repairProId: string): Promise<{
 }
 
 /**
- * Optimistic lock via updated_at — prevents lost offers under concurrent place/accept.
+ * Optimistic lock via updated_at prevents lost offers under concurrent place/accept.
  * Returns null when another writer won the race.
  */
 async function persistIfUnchanged(
   job: JobRecord,
-  expectedUpdatedAt: string
+  expectedUpdatedAt: string,
 ): Promise<JobRecord | null> {
   cacheJob(job);
   if (!isSupabaseAdminConfigured()) {
@@ -3622,9 +3625,7 @@ async function persistIfUnchanged(
 
 async function notifyOfferPlaced(job: JobRecord, offer: JobOffer) {
   try {
-    const { insertNotification } = await import(
-      "@/lib/server/notifications"
-    );
+    const { insertNotification } = await import("@/lib/server/notifications");
     const toUserId =
       offer.side === "repair_pro" ? job.motoristId : job.repairProId;
     if (!toUserId) return;
@@ -3660,7 +3661,7 @@ export async function placeOffer(input: {
     if (!job) return { error: "Job not found" };
 
     // Idempotent replay: this sticker already placed an offer on this side.
-    // Return the job unchanged — a retry after a lost response must never
+    // Return the job unchanged a retry after a lost response must never
     // double-place. Checked before the gate so a now-closed negotiation
     // still replays the original result instead of erroring.
     if (hasIdempotentOffer(job.offers, input.clientOfferId, input.side)) {
@@ -3701,11 +3702,11 @@ export async function placeOffer(input: {
     const proBase =
       input.side === "repair_pro"
         ? input.amountMajor
-        : job.proBaseMajor ?? lastPro?.amountMajor ?? null;
+        : (job.proBaseMajor ?? lastPro?.amountMajor ?? null);
 
     const next: JobRecord = {
       ...job,
-      // Negotiation owns the row — never re-write stale pairing stages.
+      // Negotiation owns the row never re-write stale pairing stages.
       pairingStage: null,
       pairingDeadline: null,
       offers: [...job.offers, offer],
@@ -3813,11 +3814,9 @@ export async function mockPayJob(input: {
     mockQuote = (await lockCalloutQuote(job.id)) ?? mockQuote;
   }
   if (!mockQuote || mockQuote.calloutStatus === "PENDING") {
-    const { estimateCalloutQuote } = await import(
-      "@/lib/server/callout/estimate"
-    );
-    mockQuote =
-      (await estimateCalloutQuote(job, mockQuote)) ?? mockQuote;
+    const { estimateCalloutQuote } =
+      await import("@/lib/server/callout/estimate");
+    mockQuote = (await estimateCalloutQuote(job, mockQuote)) ?? mockQuote;
   }
   const mockLabourMinor = toMinorUnits(job.agreedMajor, job.currency);
   const mockSplit = splitMinor(mockLabourMinor);
@@ -3837,7 +3836,7 @@ export async function mockPayJob(input: {
     amountMinor,
     baseAmountMinor: toMinorUnits(
       job.proBaseMajor ?? job.agreedMajor,
-      job.currency
+      job.currency,
     ),
     discountPercent: 0,
     platformFeeMinor: split.platformFeeMinor,
@@ -3906,7 +3905,9 @@ export async function startJobEscrowPayment(input: {
       useInline: boolean;
       /** Show bank details inside Ona (no FLW page / tab) */
       useInAppBankTransfer: boolean;
-      bankTransfer: import("@/lib/server/payments/providers").BankTransferInstructions | null;
+      bankTransfer:
+        | import("@/lib/server/payments/providers").BankTransferInstructions
+        | null;
       amountMajor: number;
       currency: AppCurrency;
     }
@@ -3917,7 +3918,7 @@ export async function startJobEscrowPayment(input: {
   if (job.motoristId !== input.motoristId) {
     return { error: "Only the customer on this job can pay." };
   }
-  // Reconcile first — user may have already paid on Flutterwave
+  // Reconcile first user may have already paid on Flutterwave
   job = await reconcileJobPayment(job);
   if (
     job.status === "paid_booked" ||
@@ -3954,7 +3955,7 @@ export async function startJobEscrowPayment(input: {
   if (job.status !== "agreed") {
     // Only reopen soft cancels that were NOT max-attempt payment cancels
     const maxCancel = job.statusHistory?.some(
-      (h) => h.by === PAY_HISTORY.MAX_ATTEMPTS_CANCEL
+      (h) => h.by === PAY_HISTORY.MAX_ATTEMPTS_CANCEL,
     );
     const canReopen =
       !maxCancel &&
@@ -3987,7 +3988,7 @@ export async function startJobEscrowPayment(input: {
   // Nigeria-first: force NGN for Flutterwave escrow collections
   const payCurrency: AppCurrency =
     job.currency === "NGN" || !job.currency ? "NGN" : job.currency;
-  // Ona primary market — never charge Nigerian jobs in GBP/USD
+  // Ona primary market never charge Nigerian jobs in GBP/USD
   const currency: AppCurrency =
     process.env.FLUTTERWAVE_FORCE_NGN === "false" ? payCurrency : "NGN";
 
@@ -3996,9 +3997,8 @@ export async function startJobEscrowPayment(input: {
   // Call-out is a separate line: added to collection and to pro payout, not split.
   const { buildCustomerChargeMajor } = await import("@/lib/pricing");
   const { getCalloutQuote } = await import("@/lib/server/callout/store");
-  const { attachCalloutToRequest, lockCalloutQuote } = await import(
-    "@/lib/server/callout/quote"
-  );
+  const { attachCalloutToRequest, lockCalloutQuote } =
+    await import("@/lib/server/callout/quote");
   const { composeCustomerPayableMajor } = await import("@/lib/callout/payable");
   let calloutQuote = await getCalloutQuote(job.id);
   if (!calloutQuote || calloutQuote.calloutStatus === "PENDING") {
@@ -4020,10 +4020,10 @@ export async function startJobEscrowPayment(input: {
     calloutQuote = (await lockCalloutQuote(job.id)) ?? calloutQuote;
   }
   if (!calloutQuote || calloutQuote.calloutStatus === "PENDING") {
-    const { estimateCalloutQuote } = await import(
-      "@/lib/server/callout/estimate"
-    );
-    calloutQuote = (await estimateCalloutQuote(job, calloutQuote)) ?? calloutQuote;
+    const { estimateCalloutQuote } =
+      await import("@/lib/server/callout/estimate");
+    calloutQuote =
+      (await estimateCalloutQuote(job, calloutQuote)) ?? calloutQuote;
   }
   const pricing = buildCustomerChargeMajor(agreedMajor);
   const payable = composeCustomerPayableMajor(pricing.totalMajor, calloutQuote);
@@ -4084,17 +4084,16 @@ export async function startJobEscrowPayment(input: {
       authorizationUrl: string;
       reference: string;
     };
-    let bankTransfer: import("@/lib/server/payments/providers").BankTransferInstructions | null =
-      null;
+    let bankTransfer:
+      | import("@/lib/server/payments/providers").BankTransferInstructions
+      | null = null;
 
     if (preferInApp) {
-      const { createFlutterwaveBankTransfer } = await import(
-        "@/lib/server/payments/providers"
-      );
-      // Full pro name for customer note only — NOT the bank account name.
+      const { createFlutterwaveBankTransfer } =
+        await import("@/lib/server/payments/providers");
+      // Full pro name for customer note only NOT the bank account name.
       // Money is paid into Ona escrow (FLW VA), not the pro’s personal bank.
-      const proLabel =
-        (job.repairProName || "").trim() || "your Repair Pro";
+      const proLabel = (job.repairProName || "").trim() || "your Repair Pro";
       const shortNarration = `Ona escrow · ${proLabel}`.slice(0, 80);
       const customerNote = `For ${proLabel}. Pay into Ona escrow (account below). Funds are released after the job is confirmed. Transfer the exact amount only.`;
       const va = await createFlutterwaveBankTransfer({
@@ -4104,7 +4103,7 @@ export async function startJobEscrowPayment(input: {
         customerName: input.customerName || job.motoristName || null,
         customerPhone: input.customerPhone || job.motoristPhone || null,
         reference,
-        // Short bank-statement narration — never a long "Please transfer to …"
+        // Short bank-statement narration never a long "Please transfer to …"
         narration: shortNarration,
         transferNote: customerNote,
         // Display name for account holder field (escrow merchant brand)
@@ -4142,7 +4141,7 @@ export async function startJobEscrowPayment(input: {
           channels: ["bank_transfer"],
           metadata: { requestId: job.id, jobId: job.id },
         },
-        "mock"
+        "mock",
       );
     } else {
       charge = await initCharge(
@@ -4168,7 +4167,7 @@ export async function startJobEscrowPayment(input: {
             paymentSessionEndsAt: sessionEndsAt,
           },
         },
-        input.provider
+        input.provider,
       );
     }
 
@@ -4177,10 +4176,7 @@ export async function startJobEscrowPayment(input: {
       motoristId: job.motoristId,
       repairProId: job.repairProId,
       amountMinor,
-      baseAmountMinor: toMinorUnits(
-        job.proBaseMajor ?? agreedMajor,
-        currency
-      ),
+      baseAmountMinor: toMinorUnits(job.proBaseMajor ?? agreedMajor, currency),
       discountPercent: 0,
       platformFeeMinor: split.platformFeeMinor,
       proPayoutMinor: split.proPayoutMinor,
@@ -4194,10 +4190,10 @@ export async function startJobEscrowPayment(input: {
         labourMinor,
         calloutMajor: payable.calloutMajor,
         calloutMinor,
-        /** Ona 5% of S (gross before FLW fees) — settles to Zenith / platform subaccount */
+        /** Ona 5% of S (gross before FLW fees) settles to Zenith / platform subaccount */
         platformFeeMajor: pricing.platformFeeMajor,
         platformFeeMinor,
-        /** VAT 7.5% of S — stays on Flutterwave main balance */
+        /** VAT 7.5% of S stays on Flutterwave main balance */
         vatMajor: pricing.vatMajor,
         vatMinor,
         vatHeldOnFlutterwave: true,
@@ -4206,8 +4202,7 @@ export async function startJobEscrowPayment(input: {
         proPayoutMajor: pricing.proPayoutMajor + payable.calloutMajor,
         proPayoutMinor,
         settlementModel: "service_only_v2",
-        platformSubaccount:
-          process.env.FLUTTERWAVE_PLATFORM_SUBACCOUNT || null,
+        platformSubaccount: process.env.FLUTTERWAVE_PLATFORM_SUBACCOUNT || null,
         motoristBankCode,
         proBankCode,
         email: input.email,
@@ -4248,7 +4243,7 @@ export async function startJobEscrowPayment(input: {
       paymentAttemptCount: paymentWindowsExpiredCount(job),
       paymentAttemptsRemaining: Math.max(
         0,
-        MAX_PAYMENT_ATTEMPTS - paymentWindowsExpiredCount(job)
+        MAX_PAYMENT_ATTEMPTS - paymentWindowsExpiredCount(job),
       ),
       useInline: false,
       /** Native in-app bank transfer (preferred) */
@@ -4268,7 +4263,7 @@ export async function startJobEscrowPayment(input: {
  * After gateway verify: mark escrow held (if needed) and job Booked (paid_booked).
  */
 export async function markJobPaidFromReference(
-  reference: string
+  reference: string,
 ): Promise<
   | { job: JobRecord; paymentId: string; alreadyBooked?: boolean }
   | { error: string }
@@ -4284,11 +4279,19 @@ export async function markJobPaidFromReference(
     });
   }
 
-  // Use raw load — getJob() reconciles payment and would recurse
+  // Use raw load getJob() reconciles payment and would recurse
   const job = await getJobRaw(payment.requestId);
   if (!job) return { error: "Job not found for this payment." };
 
-  if (job.status === "paid_booked" || job.status === "en_route" || job.status === "arrived" || job.status === "in_progress" || job.status === "completed" || job.status === "satisfied" || job.status === "released") {
+  if (
+    job.status === "paid_booked" ||
+    job.status === "en_route" ||
+    job.status === "arrived" ||
+    job.status === "in_progress" ||
+    job.status === "completed" ||
+    job.status === "satisfied" ||
+    job.status === "released"
+  ) {
     return { job, paymentId: payment.id, alreadyBooked: true };
   }
 
@@ -4332,7 +4335,7 @@ export async function transitionJob(input: {
   let job = await getJob(input.jobId);
   if (!job) return { error: "Job not found" };
 
-  // After pro marks complete: no cancel/close — only Release, Dispute, or 6h auto-release
+  // After pro marks complete: no cancel/close only Release, Dispute, or 6h auto-release
   if (input.event.type === "CANCEL" && job.status === "completed") {
     return {
       error:
@@ -4354,7 +4357,8 @@ export async function transitionJob(input: {
       };
     }
     if (input.event.type === "MARK_ARRIVED") {
-      const { isWithinArrivalProximity } = await import("@/lib/callout/arrival");
+      const { isWithinArrivalProximity } =
+        await import("@/lib/callout/arrival");
       const pin = input.proLocation || job.proLocation;
       if (!pin) {
         return {
@@ -4372,23 +4376,20 @@ export async function transitionJob(input: {
 
     const updated = await applyEvent(job, input.event, input.actor);
     try {
-      const { syncCalloutStatusFromJob } = await import(
-        "@/lib/server/callout/quote"
-      );
+      const { syncCalloutStatusFromJob } =
+        await import("@/lib/server/callout/quote");
       await syncCalloutStatusFromJob({
         requestId: updated.id,
         flow: updated.status,
       });
       if (input.event.type === "START_TRIP") {
-        const { setCalloutTravelPhase } = await import(
-          "@/lib/server/callout/acceptance"
-        );
+        const { setCalloutTravelPhase } =
+          await import("@/lib/server/callout/acceptance");
         await setCalloutTravelPhase(updated.id, "travelling");
       }
       if (input.event.type === "CANCEL") {
-        const { setCalloutTravelPhase } = await import(
-          "@/lib/server/callout/acceptance"
-        );
+        const { setCalloutTravelPhase } =
+          await import("@/lib/server/callout/acceptance");
         const phase =
           job.status === "arrived" || job.status === "in_progress"
             ? "arrived"
@@ -4406,19 +4407,17 @@ export async function transitionJob(input: {
           job.status === "selected_review" ||
           job.status === "waiting_for_selected")
       ) {
-        const { voidCalloutForReroute } = await import(
-          "@/lib/server/callout/acceptance"
-        );
+        const { voidCalloutForReroute } =
+          await import("@/lib/server/callout/acceptance");
         await voidCalloutForReroute(
           updated.id,
           "pro_cancelled_before_travel",
-          input.actorId || job.repairProId
+          input.actorId || job.repairProId,
         );
       }
       if (input.event.type === "MARK_ARRIVED") {
-        const { recordArrivalIntegrity } = await import(
-          "@/lib/server/callout/acceptance"
-        );
+        const { recordArrivalIntegrity } =
+          await import("@/lib/server/callout/acceptance");
         await recordArrivalIntegrity({
           requestId: updated.id,
           proId: updated.repairProId,
@@ -4470,9 +4469,8 @@ export async function updateTripPartyLocation(input: {
     next.proLocation = input.location;
     next.proLocationAt = ts;
     try {
-      const { recordTravelSample } = await import(
-        "@/lib/server/callout/acceptance"
-      );
+      const { recordTravelSample } =
+        await import("@/lib/server/callout/acceptance");
       await recordTravelSample({
         requestId: job.id,
         proId: job.repairProId,
@@ -4489,9 +4487,8 @@ export async function updateTripPartyLocation(input: {
     next.motoristLocation = input.location;
     next.motoristLocationAt = ts;
     try {
-      const { detectCustomerLocationChange } = await import(
-        "@/lib/server/callout/acceptance"
-      );
+      const { detectCustomerLocationChange } =
+        await import("@/lib/server/callout/acceptance");
       await detectCustomerLocationChange({
         requestId: job.id,
         actorId: job.motoristId,
@@ -4569,7 +4566,7 @@ export async function openDispute(input: {
     const updated = await applyEvent(
       job,
       { type: "OPEN_DISPUTE", by: input.by },
-      input.by
+      input.by,
     );
     await fireMeritRecalc(updated.repairProId);
     return { job: updated };
@@ -4633,23 +4630,23 @@ export async function resolveDispute(input: {
   job = { ...job, dispute };
 
   try {
-    // After resolve we go released/refunded — but appeal window exists.
+    // After resolve we go released/refunded but appeal window exists.
     // Spec: decision executes, then loser can appeal within 48h.
     // We'll mark decision but move to terminal; appeal re-locks via under_appeal.
     // For fairness with "money remains locked until final":
     // Keep status disputed until appeal window ends OR move to under_appeal only on appeal.
     // Spec says decision auto-executes. So we release/refund now; appeal would need reverse.
     // User said: "After final decision → funds automatically released" for appeal.
-    // First decision also auto-executes. Appeal within 48h if loser — money remains locked during appeal.
+    // First decision also auto-executes. Appeal within 48h if loser money remains locked during appeal.
     // So first decision should NOT release until appeal window ends OR no appeal.
-    // Simpler product rule: first decision parks as "resolved" but status stays disputed with decision set for 48h... 
+    // Simpler product rule: first decision parks as "resolved" but status stays disputed with decision set for 48h...
     // Spec: "Decision is final and auto-executes" for first, then appeal workflow says money remains locked under appeal.
-    // I'll execute on first resolve (released/refunded). Appeal only if still within window before user navigates away — actually if already released, appeal reopens under_appeal and re-locks conceptually.
-    
+    // I'll execute on first resolve (released/refunded). Appeal only if still within window before user navigates away actually if already released, appeal reopens under_appeal and re-locks conceptually.
+
     const updated = await applyEvent(
       job,
       { type: "RESOLVE_DISPUTE", outcome: resolveOutcome },
-      "admin"
+      "admin",
     );
     await fireMeritRecalc(updated.repairProId);
     return { job: updated };
@@ -4716,7 +4713,7 @@ export async function openAppeal(input: {
     const updated = await applyEvent(
       withAppeal,
       { type: "OPEN_APPEAL", by: input.by },
-      input.by
+      input.by,
     );
     return { job: updated };
   } catch (e) {
@@ -4797,7 +4794,7 @@ export async function resolveAppeal(input: {
     const updated = await applyEvent(
       job,
       { type: "RESOLVE_APPEAL", outcome: resolveOutcome },
-      "admin"
+      "admin",
     );
     return { job: updated };
   } catch (e) {
@@ -4863,7 +4860,7 @@ export function publicJobView(job: JobRecord) {
       job.agreedMajor != null
         ? fromMinorUnits(
             toMinorUnits(job.agreedMajor, job.currency),
-            job.currency
+            job.currency,
           )
         : null,
   };

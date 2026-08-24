@@ -56,7 +56,9 @@ export function isCareResubmitOpen(row: {
 }
 
 /** Pro T2 (gov ID) is locked after Care approval. */
-export function isProT2ApprovedLocked(row: ProApprovalRow | null | undefined): boolean {
+export function isProT2ApprovedLocked(
+  row: ProApprovalRow | null | undefined,
+): boolean {
   if (!row) return false;
   if (lc(row.gov_id_review_status) === "approved") return true;
   if (Boolean(row.tier2_approved_at) && Boolean(row.verified)) return true;
@@ -73,7 +75,7 @@ export function isProT2ApprovedLocked(row: ProApprovalRow | null | undefined): b
 
 /** Pro account status is locked as approved (marketplace gate). */
 export function isProAccountApprovedLocked(
-  row: ProApprovalRow | null | undefined
+  row: ProApprovalRow | null | undefined,
 ): boolean {
   if (!row) return false;
   return lc(row.status) === "approved";
@@ -81,11 +83,12 @@ export function isProAccountApprovedLocked(
 
 /** Customer T2 is locked after Care approval. */
 export function isMotoristT2ApprovedLocked(
-  row: MotoristApprovalRow | null | undefined
+  row: MotoristApprovalRow | null | undefined,
 ): boolean {
   if (!row) return false;
   if (lc(row.identity_review_status) === "approved") return true;
-  if (Boolean(row.identity_verified_at) && Boolean(row.nin_verified)) return true;
+  if (Boolean(row.identity_verified_at) && Boolean(row.nin_verified))
+    return true;
   return false;
 }
 
@@ -111,7 +114,7 @@ const PRO_DEMOTE_KEYS = [
  */
 export function protectProClientPatch(
   existing: ProApprovalRow | null | undefined,
-  patch: Record<string, unknown>
+  patch: Record<string, unknown>,
 ): {
   patch: Record<string, unknown>;
   locked: boolean;
@@ -119,8 +122,7 @@ export function protectProClientPatch(
 } {
   const resubmitOpen = isCareResubmitOpen(existing || {});
   const t2Locked = isProT2ApprovedLocked(existing) && !resubmitOpen;
-  const accountLocked =
-    isProAccountApprovedLocked(existing) && !resubmitOpen;
+  const accountLocked = isProAccountApprovedLocked(existing) && !resubmitOpen;
   const preserved: string[] = [];
 
   if (!t2Locked && !accountLocked) {
@@ -190,7 +192,7 @@ export function protectProClientPatch(
 export function protectMotoristClientPatch(
   existing: MotoristApprovalRow | null | undefined,
   patch: Record<string, unknown>,
-  opts?: { identityRejectionReason?: string | null }
+  opts?: { identityRejectionReason?: string | null },
 ): {
   patch: Record<string, unknown>;
   locked: boolean;

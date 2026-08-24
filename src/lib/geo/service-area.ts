@@ -1,6 +1,6 @@
 /**
  * Service area helpers for artisan onboarding.
- * Countries / states: country-state-city (no City — the ~8MB dataset)
+ * Countries / states: country-state-city (no City the ~8MB dataset)
  * Nigeria LGAs: nigeria-state-lga-data
  */
 
@@ -23,7 +23,7 @@ export function countryName(iso: string): string {
 /** Prefer signup identity country, else phone dial inference default NG */
 export function resolveSignupCountryIso(
   identityCountryIso?: string | null,
-  fallback = "NG"
+  fallback = "NG",
 ): string {
   const c = (identityCountryIso || fallback || "NG").toUpperCase();
   return Country.getCountryByCode(c) ? c : "NG";
@@ -42,7 +42,7 @@ export function listStates(countryIso: string): GeoOption[] {
 
 export function findStateCode(
   countryIso: string,
-  stateName: string
+  stateName: string,
 ): string | null {
   const needle = stateName.trim().toLowerCase();
   const states = listStates(countryIso);
@@ -55,13 +55,13 @@ export function findStateCode(
       needle.includes(s.name.toLowerCase()) ||
       (needle.includes("abuja") && s.name.toLowerCase().includes("abuja")) ||
       (needle.includes("federal capital") &&
-        s.name.toLowerCase().includes("federal capital"))
+        s.name.toLowerCase().includes("federal capital")),
   );
   return fuzzy?.code ?? null;
 }
 
 /**
- * Curated major cities / areas per Nigerian state — replaces the ~8MB
+ * Curated major cities / areas per Nigerian state replaces the ~8MB
  * country-state-city city dataset (the app's operating region is Nigeria).
  * Keys are the country-state-city state names used by listStates().
  */
@@ -142,10 +142,13 @@ function canonicalNgStateKey(stateName: string): string | null {
   ) {
     return "Abuja Federal Capital Territory";
   }
-  const stripped = stateName.replace(/\s+State$/i, "").trim().toLowerCase();
+  const stripped = stateName
+    .replace(/\s+State$/i, "")
+    .trim()
+    .toLowerCase();
   return (
     Object.keys(NG_CITIES_BY_STATE).find(
-      (k) => k.toLowerCase() === lower || k.toLowerCase() === stripped
+      (k) => k.toLowerCase() === lower || k.toLowerCase() === stripped,
     ) ?? null
   );
 }
@@ -157,21 +160,18 @@ function allNgCities(): string[] {
 
 /**
  * Curated cities for a Nigerian state (the app's operating region).
- * Other countries return [] — the full country-state-city dataset is not
+ * Other countries return [] the full country-state-city dataset is not
  * bundled. Falls back to the full curated list when the state is unknown.
  */
-export function listCities(
-  countryIso: string,
-  stateName: string
-): string[] {
+export function listCities(countryIso: string, stateName: string): string[] {
   if (countryIso.toUpperCase() !== "NG" || !stateName) return [];
   const key = canonicalNgStateKey(stateName);
-  const cities = key ? NG_CITIES_BY_STATE[key] ?? [] : [];
+  const cities = key ? (NG_CITIES_BY_STATE[key] ?? []) : [];
   const source = cities.length ? cities : allNgCities();
   return Array.from(new Set(source)).sort((a, b) => a.localeCompare(b));
 }
 
-/** Every curated city in Nigeria (no state filter) — other countries: [] */
+/** Every curated city in Nigeria (no state filter) other countries: [] */
 export function listCitiesOfCountry(countryIso: string): string[] {
   if (countryIso.toUpperCase() !== "NG") return [];
   return allNgCities().sort((a, b) => a.localeCompare(b));
@@ -188,10 +188,7 @@ export function supportsLga(countryIso: string): boolean {
   return countryIso.toUpperCase() === "NG";
 }
 
-export function listLgas(
-  countryIso: string,
-  stateName: string
-): string[] {
+export function listLgas(countryIso: string, stateName: string): string[] {
   if (!supportsLga(countryIso) || !stateName) return [];
   const key = normalizeNgStateName(stateName);
   try {

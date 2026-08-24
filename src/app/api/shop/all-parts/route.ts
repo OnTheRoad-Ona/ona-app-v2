@@ -25,17 +25,14 @@ export async function GET(req: NextRequest) {
       return apiFail(
         "Browse ALL PARTS is only available for Mechanic Repair Pros",
         403,
-        "ALL_PARTS_FORBIDDEN"
+        "ALL_PARTS_FORBIDDEN",
       );
     }
-    if (
-      scope.accountContext === "professional" &&
-      tradeKey !== "mechanic"
-    ) {
+    if (scope.accountContext === "professional" && tradeKey !== "mechanic") {
       return apiFail(
         "Browse ALL PARTS is restricted to the Mechanic trade",
         403,
-        "ALL_PARTS_MECHANIC_ONLY"
+        "ALL_PARTS_MECHANIC_ONLY",
       );
     }
     const categoryId = sp.get("categoryId") || undefined;
@@ -97,7 +94,7 @@ export async function GET(req: NextRequest) {
       return apiFail(
         "Select a vehicle first (My vehicles or make/model).",
         400,
-        "VEHICLE_REQUIRED"
+        "VEHICLE_REQUIRED",
       );
     }
 

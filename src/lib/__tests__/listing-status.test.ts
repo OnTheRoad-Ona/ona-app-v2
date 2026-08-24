@@ -29,25 +29,51 @@ describe("listingMatchesCard", () => {
   });
 
   it("available = in stock", () => {
-    expect(listingMatchesCard({ inStock: true, status: "active" }, "available")).toBe(true);
-    expect(listingMatchesCard({ inStock: false, status: "active" }, "available")).toBe(false);
+    expect(
+      listingMatchesCard({ inStock: true, status: "active" }, "available"),
+    ).toBe(true);
+    expect(
+      listingMatchesCard({ inStock: false, status: "active" }, "available"),
+    ).toBe(false);
   });
 
   it("low_stock matches label", () => {
-    expect(listingMatchesCard({ inStock: true, availabilityLabel: "In stock", status: "active" }, "low_stock")).toBe(false);
+    expect(
+      listingMatchesCard(
+        { inStock: true, availabilityLabel: "In stock", status: "active" },
+        "low_stock",
+      ),
+    ).toBe(false);
   });
 
   it("out_of_stock excludes coming/preorder", () => {
-    expect(listingMatchesCard({ inStock: false, status: "active" }, "out_of_stock")).toBe(true);
-    expect(listingMatchesCard({ inStock: false, status: "future_product" }, "out_of_stock")).toBe(false);
+    expect(
+      listingMatchesCard({ inStock: false, status: "active" }, "out_of_stock"),
+    ).toBe(true);
+    expect(
+      listingMatchesCard(
+        { inStock: false, status: "future_product" },
+        "out_of_stock",
+      ),
+    ).toBe(false);
   });
 
   it("coming_soon matches future products", () => {
-    expect(listingMatchesCard({ inStock: false, status: "future_product" }, "coming_soon")).toBe(true);
+    expect(
+      listingMatchesCard(
+        { inStock: false, status: "future_product" },
+        "coming_soon",
+      ),
+    ).toBe(true);
   });
 
   it("pre_order matches preorder label", () => {
-    expect(listingMatchesCard({ inStock: false, availabilityLabel: "Pre-order", status: "active" }, "pre_order")).toBe(true);
+    expect(
+      listingMatchesCard(
+        { inStock: false, availabilityLabel: "Pre-order", status: "active" },
+        "pre_order",
+      ),
+    ).toBe(true);
   });
 });
 

@@ -26,7 +26,7 @@ export function DeletionBanner() {
           authFetch("/api/auth/deletion-status", {
             method: "POST",
             body: JSON.stringify({ access_token: token }),
-          })
+          }),
         )
         .then((r) => r.json())
         .then((json) => {
@@ -49,7 +49,9 @@ export function DeletionBanner() {
       const sb = getAppSupabase();
       const { data: sessionData } = await sb!.auth.getSession();
       const token = sessionData.session?.access_token;
-      const res = await (await import("@/lib/api-auth-headers")).authFetch("/api/auth/restore-account", {
+      const res = await (
+        await import("@/lib/api-auth-headers")
+      ).authFetch("/api/auth/restore-account", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ access_token: token }),
@@ -59,7 +61,9 @@ export function DeletionBanner() {
         setStatus(null);
         setDaysLeft(null);
       }
-    } catch { /* */ }
+    } catch {
+      /* */
+    }
     setRestoring(false);
   };
 
@@ -75,12 +79,12 @@ export function DeletionBanner() {
     <div
       className={cn(
         "sticky top-0 z-50 flex items-center justify-between gap-2 px-3 py-2 text-[12px] font-semibold",
-        isLight ? "bg-red-100 text-red-800" : "bg-red-900/60 text-red-200"
+        isLight ? "bg-red-100 text-red-800" : "bg-red-900/60 text-red-200",
       )}
     >
       <span>
-        Your account will be deleted in{" "}
-        <strong>{daysLeft ?? "?"} days</strong>. Reactivate to keep it.
+        Your account will be deleted in <strong>{daysLeft ?? "?"} days</strong>.
+        Reactivate to keep it.
       </span>
       <div className="flex shrink-0 gap-2">
         <button

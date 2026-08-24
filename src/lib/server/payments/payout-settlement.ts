@@ -40,7 +40,7 @@ export const PAYOUT_AUTO_RETRY_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /** 24h / 10 min = 144 attempts max. */
 export const PAYOUT_MAX_AUTO_RETRIES = Math.floor(
-  PAYOUT_AUTO_RETRY_WINDOW_MS / PAYOUT_RETRY_INTERVAL_MS
+  PAYOUT_AUTO_RETRY_WINDOW_MS / PAYOUT_RETRY_INTERVAL_MS,
 );
 
 function nowIso() {
@@ -51,7 +51,10 @@ function nowMs() {
   return Date.now();
 }
 
-export function nextPayoutRetryAt(_retryCount: number, fromMs = nowMs()): string {
+export function nextPayoutRetryAt(
+  _retryCount: number,
+  fromMs = nowMs(),
+): string {
   return new Date(fromMs + PAYOUT_RETRY_INTERVAL_MS).toISOString();
 }
 
@@ -71,7 +74,7 @@ function isCancelledOrSuspendedMeta(meta: Record<string, unknown>): boolean {
 async function updateEscrowUnlessCancelled(
   escId: string,
   requestId: string,
-  patch: Parameters<typeof updateEscrow>[1]
+  patch: Parameters<typeof updateEscrow>[1],
 ): Promise<boolean> {
   const fresh = await getEscrowByRequest(requestId);
   if (!fresh || fresh.id !== escId) return false;
@@ -91,9 +94,9 @@ async function updateEscrowUnlessCancelled(
   return true;
 }
 
-/** True when auto-retry window is exhausted — admin must force-release. */
+/** True when auto-retry window is exhausted admin must force-release. */
 export function isPayoutAutoRetryExhausted(
-  meta: Record<string, unknown>
+  meta: Record<string, unknown>,
 ): boolean {
   if (
     meta.payoutStatus === "suspended_admin" ||
@@ -104,23 +107,28 @@ export function isPayoutAutoRetryExhausted(
   const retries = Number(meta.payoutRetryCount) || 0;
   if (retries >= PAYOUT_MAX_AUTO_RETRIES) return true;
   const started = Date.parse(
-    String(meta.payoutRetryStartedAt || meta.firstPendingAt || "")
+    String(meta.payoutRetryStartedAt || meta.firstPendingAt || ""),
   );
-  if (Number.isFinite(started) && nowMs() - started >= PAYOUT_AUTO_RETRY_WINDOW_MS) {
+  if (
+    Number.isFinite(started) &&
+    nowMs() - started >= PAYOUT_AUTO_RETRY_WINDOW_MS
+  ) {
     return true;
   }
   return false;
 }
 
 function ensureRetryStartedAt(
-  meta: Record<string, unknown>
+  meta: Record<string, unknown>,
 ): Record<string, unknown> {
   if (meta.payoutRetryStartedAt) return meta;
   return { ...meta, payoutRetryStartedAt: nowIso() };
 }
 
-/** Transient / settlement — auto-retry. Not permanent bank/KYC hard fails. */
-export function isSettlementInsufficientError(msg: string | null | undefined): boolean {
+/** Transient / settlement auto-retry. Not permanent bank/KYC hard fails. */
+export function isSettlementInsufficientError(
+  msg: string | null | undefined,
+): boolean {
   const m = String(msg || "").toLowerCase();
   return (
     m.includes("available ngn") ||
@@ -154,8 +162,11 @@ export function isHardPayoutFailure(msg: string | null | undefined): boolean {
   );
 }
 
-/** Stable FLW transfer reference — never changes across retries for same escrow */
-export function stableProTransferReference(escrowId: string, requestId: string): string {
+/** Stable FLW transfer reference never changes across retries for same escrow */
+export function stableProTransferReference(
+  escrowId: string,
+  requestId: string,
+): string {
   const base = `ona_rel_${escrowId.replace(/-/g, "").slice(0, 12)}_${requestId.replace(/-/g, "").slice(0, 10)}`;
   return base.slice(0, 50);
 }
@@ -184,7 +195,7 @@ export type PayoutAttemptResult =
       totalMinor: number;
       proPayoutMinor: number;
       platformFeeMinor: number;
-      /** True if transfer already succeeded earlier — do not re-notify */
+      /** True if transfer already succeeded earlier do not re-notify */
       alreadyReleased?: boolean;
     }
   | {
@@ -223,7 +234,10 @@ async function loadProBank(repairProId: string | null): Promise<{
       .maybeSingle();
     if (!data) return null;
     const bankCode = String(data.bank_code || "").trim();
-    const accountNumber = String(data.bank_account_number || "").replace(/\D/g, "");
+    const accountNumber = String(data.bank_account_number || "").replace(
+      /\D/g,
+      "",
+    );
     const accountName = String(data.bank_account_name || "").trim();
     if (!bankCode || accountNumber.length < 10 || !accountName) return null;
     return { bankCode, accountNumber, accountName };
@@ -239,7 +253,7 @@ async function loadProBank(repairProId: string | null): Promise<{
  * 1. One stable Flutterwave transfer reference per escrow forever
  * 2. Ledger UNIQUE(transfer_ref) + status=success is terminal
  * 3. Always look up FLW by reference before creating a transfer
- * 4. Auto retries wait a full 10 minutes (nextRetryAt) — never skip for open app/cron
+ * 4. Auto retries wait a full 10 minutes (nextRetryAt) never skip for open app/cron
  * 5. `force` = admin only: skip 10‑min wait + allow suspended; never double-pay
  * 6. Concurrent in-flight claims (<90s) always block, even with force
  */
@@ -264,7 +278,10 @@ export async function attemptProPayout(input: {
       const total =
         Number(input.amountMinor) ||
         (input.agreedMajor != null
-          ? toMinorUnits(input.agreedMajor, (input.currency || "NGN") as AppCurrency)
+          ? toMinorUnits(
+              input.agreedMajor,
+              (input.currency || "NGN") as AppCurrency,
+            )
           : 0);
       const split = split95_5(total);
       return {
@@ -288,15 +305,16 @@ export async function attemptProPayout(input: {
     String(meta.idempotentTransferRef || "").trim() ||
     stableProTransferReference(esc.id, esc.requestId);
 
-  // Absolute gates: escrow / meta / ledger success — never create a second transfer
-  const { hasSuccessfulPayout } = await import(
-    "@/lib/server/payments/payout-ledger"
-  );
-  if (await hasSuccessfulPayout({
-    paymentId: esc.id,
-    requestId: esc.requestId,
-    transferRef: stableRefPreview,
-  })) {
+  // Absolute gates: escrow / meta / ledger success never create a second transfer
+  const { hasSuccessfulPayout } =
+    await import("@/lib/server/payments/payout-ledger");
+  if (
+    await hasSuccessfulPayout({
+      paymentId: esc.id,
+      requestId: esc.requestId,
+      transferRef: stableRefPreview,
+    })
+  ) {
     const split = split95_5(esc.amountMinor || 0);
     if (esc.escrowStatus !== "released") {
       await updateEscrow(esc.id, {
@@ -318,11 +336,12 @@ export async function attemptProPayout(input: {
       transferRef: String(meta.proTransferRef || stableRefPreview),
       totalMinor: esc.amountMinor,
       proPayoutMinor: Number(meta.proPayoutMinor) || split.proPayoutMinor,
-      platformFeeMinor: Number(meta.platformKeptMinor) || split.platformFeeMinor,
+      platformFeeMinor:
+        Number(meta.platformKeptMinor) || split.platformFeeMinor,
     };
   }
 
-  // Already successfully paid — never double-pay or re-notify
+  // Already successfully paid never double-pay or re-notify
   if (
     esc.escrowStatus === "released" ||
     meta.proTransferOk === true ||
@@ -332,22 +351,26 @@ export async function attemptProPayout(input: {
     return {
       ok: true,
       alreadyReleased: true,
-      transferRef: String(meta.proTransferRef || meta.idempotentTransferRef || ""),
+      transferRef: String(
+        meta.proTransferRef || meta.idempotentTransferRef || "",
+      ),
       totalMinor: esc.amountMinor,
       proPayoutMinor: Number(meta.proPayoutMinor) || split.proPayoutMinor,
-      platformFeeMinor: Number(meta.platformKeptMinor) || split.platformFeeMinor,
+      platformFeeMinor:
+        Number(meta.platformKeptMinor) || split.platformFeeMinor,
     };
   }
 
-  // FLW already paid this ref (success after cancel race / missed finalize) — recover UI
+  // FLW already paid this ref (success after cancel race / missed finalize) recover UI
   {
     const onFlw = await findExistingFlutterwaveTransfer(stableRefPreview);
     if (onFlw.found) {
       const split = split95_5(esc.amountMinor || 0);
-      const { markLedgerSuccess } = await import(
-        "@/lib/server/payments/payout-ledger"
+      const { markLedgerSuccess } =
+        await import("@/lib/server/payments/payout-ledger");
+      await markLedgerSuccess(stableRefPreview, onFlw.id).catch(
+        () => undefined,
       );
-      await markLedgerSuccess(stableRefPreview, onFlw.id).catch(() => undefined);
       await updateEscrow(esc.id, {
         status: "released",
         escrowStatus: "released",
@@ -382,7 +405,7 @@ export async function attemptProPayout(input: {
     }
   }
 
-  // Operator cancelled processing, or suspended for admin — no auto retries
+  // Operator cancelled processing, or suspended for admin no auto retries
   // (only after confirming FLW has not already paid this ref)
   if (!input.force && isCancelledOrSuspendedMeta(meta)) {
     const split = split95_5(esc.amountMinor || 0);
@@ -393,7 +416,8 @@ export async function attemptProPayout(input: {
         "Payout processing was cancelled or suspended. An admin must release payment manually.",
       totalMinor: esc.amountMinor,
       proPayoutMinor: Number(meta.proPayoutMinor) || split.proPayoutMinor,
-      platformFeeMinor: Number(meta.platformKeptMinor) || split.platformFeeMinor,
+      platformFeeMinor:
+        Number(meta.platformKeptMinor) || split.platformFeeMinor,
     };
   }
 
@@ -426,7 +450,8 @@ export async function attemptProPayout(input: {
         "Payout suspended after 24 hours of auto-retries. An admin must release payment manually.",
       totalMinor: esc.amountMinor,
       proPayoutMinor: Number(meta.proPayoutMinor) || split.proPayoutMinor,
-      platformFeeMinor: Number(meta.platformKeptMinor) || split.platformFeeMinor,
+      platformFeeMinor:
+        Number(meta.platformKeptMinor) || split.platformFeeMinor,
     };
   }
 
@@ -453,7 +478,7 @@ export async function attemptProPayout(input: {
         ok: false,
         pendingSettlement: true,
         message:
-          "Payout scheduled — next auto-retry in up to 10 minutes. Funds remain in escrow.",
+          "Payout scheduled next auto-retry in up to 10 minutes. Funds remain in escrow.",
         totalMinor: esc.amountMinor,
         proPayoutMinor:
           Number(meta.proPayoutMinor) || splitEarly.proPayoutMinor,
@@ -473,13 +498,13 @@ export async function attemptProPayout(input: {
     input.agreedMajor != null && input.agreedMajor > 0
       ? toMinorUnits(
           input.agreedMajor,
-          (input.currency || esc.currency || "NGN") as AppCurrency
+          (input.currency || esc.currency || "NGN") as AppCurrency,
         )
       : 0;
   const total = Math.max(
     Number(input.amountMinor) || 0,
     Number(esc.amountMinor) || 0,
-    fromMajor
+    fromMajor,
   );
   if (!total) {
     return {
@@ -492,17 +517,13 @@ export async function attemptProPayout(input: {
   // Prefer stored split (pro 87.5% · Ona 5% · VAT 7.5% of service charge)
   const labourMinor = Number(meta.labourMinor) || fromMajor || total || 0;
   let proPayoutMinor =
-    Number(esc.proPayoutMinor) ||
-    Number(meta.proPayoutMinor) ||
-    0;
+    Number(esc.proPayoutMinor) || Number(meta.proPayoutMinor) || 0;
   let platformFeeMinor =
     Number(esc.platformFeeMinor) ||
     Number(meta.platformKeptMinor) ||
     Number(meta.platformFeeMinor) ||
     0;
-  let vatMinor =
-    Number(meta.vatMinor) ||
-    0;
+  let vatMinor = Number(meta.vatMinor) || 0;
   if (!proPayoutMinor || proPayoutMinor <= 0) {
     const base = labourMinor > 0 ? labourMinor : total;
     const s = split95_5(base);
@@ -523,7 +544,7 @@ export async function attemptProPayout(input: {
   /**
    * Flutterwave NGN bank transfer minimum is ₦100.
    * On small service charges (e.g. ₦105 → pro 87.5% = ₦91.87) the transfer is
-   * rejected forever even when Available is funded — which looked like
+   * rejected forever even when Available is funded which looked like
    * “stuck in payout processing”.
    * Top up pro payout to ₦100 from Ona/VAT remainder when held total allows it.
    */
@@ -542,7 +563,11 @@ export async function attemptProPayout(input: {
       platformFeeMinor = Math.min(platformFeeMinor, rest);
       vatMinor = Math.max(0, rest - platformFeeMinor);
     }
-  } else if (proPayoutMinor > 0 && proPayoutMinor < FLW_NGN_MIN_MINOR && total < FLW_NGN_MIN_MINOR) {
+  } else if (
+    proPayoutMinor > 0 &&
+    proPayoutMinor < FLW_NGN_MIN_MINOR &&
+    total < FLW_NGN_MIN_MINOR
+  ) {
     return {
       ok: false,
       pendingSettlement: false,
@@ -584,7 +609,7 @@ export async function attemptProPayout(input: {
       ok: false,
       pendingSettlement: true,
       message:
-        "Payout already in progress (another worker). Auto-retry shortly — no double pay.",
+        "Payout already in progress (another worker). Auto-retry shortly no double pay.",
       totalMinor: total,
       proPayoutMinor,
       platformFeeMinor,
@@ -596,7 +621,7 @@ export async function attemptProPayout(input: {
   }
 
   // Persist claim + stable ref BEFORE any FLW call (so concurrent workers see lock).
-  // Refuse if operator cancelled mid-flight — do not revive pending_settlement.
+  // Refuse if operator cancelled mid-flight do not revive pending_settlement.
   const claimed = await updateEscrowUnlessCancelled(esc.id, esc.requestId, {
     status: "paid",
     escrowStatus:
@@ -626,11 +651,10 @@ export async function attemptProPayout(input: {
 
   // Beneficiary duplicate guard: a SUCCESSFUL payout to the same account for
   // the same amount inside 24h (even with a different reference) means the money
-  // already moved — never push a second transfer to the same person.
+  // already moved never push a second transfer to the same person.
   {
-    const { recentDuplicatePayout } = await import(
-      "@/lib/server/payments/payout-ledger"
-    );
+    const { recentDuplicatePayout } =
+      await import("@/lib/server/payments/payout-ledger");
     const dup = await recentDuplicatePayout({
       accountNumber: bank.accountNumber,
       accountBank: bank.bankCode,
@@ -643,9 +667,9 @@ export async function attemptProPayout(input: {
         "[attemptProPayout] BLOCKED duplicate payout to same beneficiary+amount",
         dupRef,
         "skipping",
-        idempotentRef
+        idempotentRef,
       );
-      // Record on the escrow so support can trace it, but do NOT mark success —
+      // Record on the escrow so support can trace it, but do NOT mark success
       // the money for THIS job may not have been sent yet. Block and hold.
       await updateEscrow(esc.id, {
         status: "paid",
@@ -668,15 +692,13 @@ export async function attemptProPayout(input: {
         platformFeeMinor,
         availableNgn: null,
         ledgerNgn: null,
-        nextRetryAt: nextPayoutRetryAt(
-          Number(meta.payoutRetryCount) || 0
-        ),
+        nextRetryAt: nextPayoutRetryAt(Number(meta.payoutRetryCount) || 0),
         retryCount: Number(meta.payoutRetryCount) || 0,
       };
     }
   }
 
-  // Hard ledger claim — UNIQUE(transfer_ref). Second worker cannot claim.
+  // Hard ledger claim UNIQUE(transfer_ref). Second worker cannot claim.
   const {
     claimTransferRef,
     markLedgerSuccess,
@@ -732,7 +754,7 @@ export async function attemptProPayout(input: {
         platformFeeMinor,
       };
     }
-    // Fresh in-flight claim — always wait (force cannot steal this)
+    // Fresh in-flight claim always wait (force cannot steal this)
     if (existing.status === "initiated") {
       const claimAgeMs =
         Date.now() -
@@ -790,7 +812,7 @@ export async function attemptProPayout(input: {
           ok: false,
           pendingSettlement: true,
           message:
-            "Could not re-acquire payout claim safely. Retry shortly — no double pay.",
+            "Could not re-acquire payout claim safely. Retry shortly no double pay.",
           totalMinor: total,
           proPayoutMinor,
           platformFeeMinor,
@@ -801,7 +823,7 @@ export async function attemptProPayout(input: {
         };
       }
     } else if (existing.status === "failed") {
-      // Same ref, previous attempt failed before bank credit — re-open safely
+      // Same ref, previous attempt failed before bank credit re-open safely
       const re = await reacquireFailedClaim(idempotentRef);
       if (!re.ok) {
         // Another worker may have taken it, or already success
@@ -834,13 +856,13 @@ export async function attemptProPayout(input: {
     }
   }
   if (!claim.ok && claim.reason === "error") {
-    // Fail closed when ledger is broken — do not risk a second untracked transfer
+    // Fail closed when ledger is broken do not risk a second untracked transfer
     console.error("[attemptProPayout] ledger claim error", claim.message);
     return {
       ok: false,
       pendingSettlement: false,
       message:
-        "Payout ledger unavailable — refusing transfer to prevent double pay. Retry later.",
+        "Payout ledger unavailable refusing transfer to prevent double pay. Retry later.",
       totalMinor: total,
       proPayoutMinor,
       platformFeeMinor,
@@ -851,17 +873,19 @@ export async function attemptProPayout(input: {
       ok: false,
       pendingSettlement: false,
       message:
-        "Database unavailable — refusing transfer to prevent double pay. Retry later.",
+        "Database unavailable refusing transfer to prevent double pay. Retry later.",
       totalMinor: total,
       proPayoutMinor,
       platformFeeMinor,
     };
   }
 
-  // Final FLW check immediately before create — same reference only
+  // Final FLW check immediately before create same reference only
   const alreadyOnFlw = await findExistingFlutterwaveTransfer(idempotentRef);
   if (alreadyOnFlw.found) {
-    await markLedgerSuccess(idempotentRef, alreadyOnFlw.id).catch(() => undefined);
+    await markLedgerSuccess(idempotentRef, alreadyOnFlw.id).catch(
+      () => undefined,
+    );
     await updateEscrow(esc.id, {
       status: "released",
       escrowStatus: "released",
@@ -894,7 +918,7 @@ export async function attemptProPayout(input: {
     };
   }
 
-  // Re-read escrow once more — another worker may have released while we prepared
+  // Re-read escrow once more another worker may have released while we prepared
   const escFresh = await getEscrowByRequest(input.jobId);
   if (
     escFresh?.escrowStatus === "released" ||
@@ -907,7 +931,7 @@ export async function attemptProPayout(input: {
       transferRef: String(
         escFresh.meta?.proTransferRef ||
           escFresh.meta?.idempotentTransferRef ||
-          idempotentRef
+          idempotentRef,
       ),
       totalMinor: total,
       proPayoutMinor,
@@ -930,7 +954,7 @@ export async function attemptProPayout(input: {
     // CRITICAL: free ledger claim so a later retry can re-attempt transfer.
     await markLedgerFailed(
       idempotentRef,
-      `insufficient_available avail=${balances.available} need=${amountMajor}`
+      `insufficient_available avail=${balances.available} need=${amountMajor}`,
     ).catch(() => undefined);
 
     const wouldExhaust = isPayoutAutoRetryExhausted({
@@ -1007,7 +1031,7 @@ export async function attemptProPayout(input: {
       ok: false,
       pendingSettlement: true,
       message:
-        "Payout processing — auto-retry every 10 minutes for up to 24 hours. You’ll be notified when released.",
+        "Payout processing auto-retry every 10 minutes for up to 24 hours. You’ll be notified when released.",
       totalMinor: total,
       proPayoutMinor,
       platformFeeMinor,
@@ -1032,10 +1056,9 @@ export async function attemptProPayout(input: {
   });
 
   if (transfer.ok) {
-    await markLedgerSuccess(
-      idempotentRef,
-      transfer.transferRef || null
-    ).catch(() => undefined);
+    await markLedgerSuccess(idempotentRef, transfer.transferRef || null).catch(
+      () => undefined,
+    );
     await updateEscrow(esc.id, {
       status: "released",
       escrowStatus: "released",
@@ -1079,11 +1102,14 @@ export async function attemptProPayout(input: {
 
   await markLedgerFailed(
     idempotentRef,
-    transfer.message || "transfer_failed"
+    transfer.message || "transfer_failed",
   ).catch(() => undefined);
 
   // Insufficient / settlement-related FLW errors → pending settlement, not hard fail
-  if (isSettlementInsufficientError(transfer.message) || transfer.code === "pending_settlement") {
+  if (
+    isSettlementInsufficientError(transfer.message) ||
+    transfer.code === "pending_settlement"
+  ) {
     const retryCount = (Number(meta.payoutRetryCount) || 0) + 1;
     const nextRetryAt = nextPayoutRetryAt(retryCount - 1);
     const bal = balances || (await getFlutterwaveNgnBalances());
@@ -1115,7 +1141,7 @@ export async function attemptProPayout(input: {
       ok: false,
       pendingSettlement: true,
       message:
-        "Payout processing — waiting for Flutterwave settlement. You will be notified when payment is released. No action needed.",
+        "Payout processing waiting for Flutterwave settlement. You will be notified when payment is released. No action needed.",
       totalMinor: total,
       proPayoutMinor,
       platformFeeMinor,
@@ -1126,7 +1152,7 @@ export async function attemptProPayout(input: {
     };
   }
 
-  // Hard failure (bank invalid) or soft retry — never double-pay
+  // Hard failure (bank invalid) or soft retry never double-pay
   const metaStarted = ensureRetryStartedAt(meta);
   const retryCount = (Number(metaStarted.payoutRetryCount) || 0) + 1;
   const hard = isHardPayoutFailure(transfer.message);
@@ -1228,7 +1254,7 @@ export async function processDuePayoutRetries(limit = 25): Promise<{
 
   for (const esc of due) {
     ids.push(esc.requestId);
-    // force: false — enforce full 10‑min spacing; admin uses force_release separately
+    // force: false enforce full 10‑min spacing; admin uses force_release separately
     const result = await attemptProPayout({
       jobId: esc.requestId,
       repairProId: esc.repairProId,
@@ -1239,7 +1265,7 @@ export async function processDuePayoutRetries(limit = 25): Promise<{
     });
     if (result.ok) {
       succeeded++;
-      // Only notify on the first successful release — never on re-runs
+      // Only notify on the first successful release never on re-runs
       if (!result.alreadyReleased) {
         await finalizeJobReleasedAfterPayout(esc.requestId, result);
       }
@@ -1259,17 +1285,20 @@ export async function processDuePayoutRetries(limit = 25): Promise<{
   };
 }
 
-async function listPendingSettlementDue(limit: number): Promise<EscrowPayment[]> {
+async function listPendingSettlementDue(
+  limit: number,
+): Promise<EscrowPayment[]> {
   const rows = await listEscrowsByStatuses(
     ["pending_settlement", "release_pending"],
-    100
+    100,
   );
   const now = nowMs();
   // Only jobs whose 10‑min nextRetryAt is due (or never set).
   return rows
     .filter((e) => {
       const meta = e.meta || {};
-      if (meta.proTransferOk === true || e.escrowStatus === "released") return false;
+      if (meta.proTransferOk === true || e.escrowStatus === "released")
+        return false;
       if (meta.payoutStatus === "success") return false;
       if (
         meta.payoutStatus === "suspended_admin" ||
@@ -1296,7 +1325,7 @@ export async function finalizeJobReleasedAfterPayout(
     totalMinor: number;
     proPayoutMinor: number;
     platformFeeMinor: number;
-  }
+  },
 ): Promise<void> {
   if (!isSupabaseAdminConfigured()) return;
   const ts = nowIso();
@@ -1305,7 +1334,7 @@ export async function finalizeJobReleasedAfterPayout(
     const { data: job } = await sb
       .from("service_requests")
       .select(
-        "id, motorist_id, repair_pro_id, status, status_history, flow_status, released_at, escrow_status"
+        "id, motorist_id, repair_pro_id, status, status_history, flow_status, released_at, escrow_status",
       )
       .eq("id", jobId)
       .maybeSingle();
@@ -1364,7 +1393,7 @@ export async function finalizeJobReleasedAfterPayout(
         category: "payments",
         priority: "critical",
         title: "Payout released",
-        body: "Payment released — your labour payout is on its way to your bank account.",
+        body: "Payment released your labour payout is on its way to your bank account.",
         href: `/jobs/${jobId}`,
         actionType: "view_payment",
         actionPayload: { jobId },
@@ -1403,7 +1432,7 @@ export async function getPaymentOpsSnapshot(): Promise<{
   const held = await listEscrowsByStatuses(["held", "pending_payment"], 200);
   const pending = await listEscrowsByStatuses(
     ["pending_settlement", "release_pending"],
-    200
+    200,
   );
   // Pull enough released/refunded for accurate board counts (not just last 50)
   const released = await listEscrowsByStatuses(["released"], 200);
@@ -1416,21 +1445,24 @@ export async function getPaymentOpsSnapshot(): Promise<{
     ...allOpen.filter(
       (e) =>
         e.meta?.payoutStatus === "failed" ||
-        (e.escrowStatus === "held" && e.meta?.payoutFailedAt)
+        (e.escrowStatus === "held" && e.meta?.payoutFailedAt),
     ),
-  ].filter(
-    (e, i, arr) => arr.findIndex((x) => x.id === e.id) === i
-  );
+  ].filter((e, i, arr) => arr.findIndex((x) => x.id === e.id) === i);
 
   const sum = (rows: EscrowPayment[]) =>
     rows.reduce((a, r) => a + (Number(r.amountMinor) || 0), 0);
   const sumFee = (rows: EscrowPayment[]) =>
     rows.reduce((a, r) => a + (Number(r.platformFeeMinor) || 0), 0);
   const exhausted = failed.filter(
-    (e) => e.meta?.payoutStatus === "suspended_admin" || (e.meta?.autoRetryCancelled && (Number(e.meta?.payoutRetryCount) || 0) >= 144)
+    (e) =>
+      e.meta?.payoutStatus === "suspended_admin" ||
+      (e.meta?.autoRetryCancelled &&
+        (Number(e.meta?.payoutRetryCount) || 0) >= 144),
   );
   const suspended = failed.filter(
-    (e) => e.meta?.payoutStatus === "cancelled_processing" || e.meta?.payoutSuspended === true
+    (e) =>
+      e.meta?.payoutStatus === "cancelled_processing" ||
+      e.meta?.payoutSuspended === true,
   );
 
   return {
@@ -1448,7 +1480,9 @@ export async function getPaymentOpsSnapshot(): Promise<{
       disputedCount: (await listDisputedJobs()).length,
       refundedCount: refunded.length,
       totalCommissionEarnedMinor: sumFee(released),
-      commissionEarnedCount: released.filter((e) => Number(e.platformFeeMinor) > 0).length,
+      commissionEarnedCount: released.filter(
+        (e) => Number(e.platformFeeMinor) > 0,
+      ).length,
       exhaustedCount: exhausted.length,
       suspendedCount: suspended.length,
     },

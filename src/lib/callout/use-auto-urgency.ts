@@ -7,12 +7,15 @@ import { autoCalloutUrgency } from "@/lib/callout/urgency";
 /** Nearest visible pro's distance (km) among the given trades, or null. */
 export function nearestProDistanceKm(
   techs: { serviceType: string; distanceKm: number }[],
-  trades: readonly string[]
+  trades: readonly string[],
 ): number | null {
   let best: number | null = null;
   for (const t of techs) {
     if (!trades.includes(t.serviceType)) continue;
-    if (Number.isFinite(t.distanceKm) && (best === null || t.distanceKm < best)) {
+    if (
+      Number.isFinite(t.distanceKm) &&
+      (best === null || t.distanceKm < best)
+    ) {
       best = t.distanceKm;
     }
   }
@@ -38,7 +41,7 @@ export function useAutoCalloutUrgency(opts: {
         unsafe: opts.unsafe,
         distanceKm: opts.distanceKm,
       }),
-    [opts.unsafe, opts.distanceKm]
+    [opts.unsafe, opts.distanceKm],
   );
 
   useEffect(() => {

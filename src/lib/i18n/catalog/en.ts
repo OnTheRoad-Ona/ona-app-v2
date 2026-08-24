@@ -1,5 +1,5 @@
 /**
- * Ona English master catalog — source of truth for all locales.
+ * Ona English master catalog source of truth for all locales.
  * Add every user-visible string here first, then translate.
  */
 
@@ -11,6 +11,7 @@ export const EN = {
   "nav.profile": "Profile",
   "nav.shop": "Shop",
   "nav.myShop": "My Shop",
+  "nav.onaExpress": "Ona Express",
   "nav.dashboard": "Dashboard",
   "nav.settings": "Settings",
   "nav.history": "History",
@@ -117,7 +118,8 @@ export const EN = {
   "settings.aboutDetail": "Version 0.1 · help nearby",
   "language.title": "Language",
   "language.subtitle": "App display language",
-  "language.hint": "Choose how Ona shows menus and buttons. English is the default.",
+  "language.hint":
+    "Choose how Ona shows menus and buttons. English is the default.",
   "language.saved": "Language updated",
   "language.current": "Current",
   "notif.title": "Notifications & sound",
@@ -154,7 +156,8 @@ export const EN = {
   "notif.emailDetail": "Summaries and receipts",
   "location.title": "My location",
   "location.subtitle": "Set where you are",
-  "location.hint": "Search a place or move the pin. This is used for the home map and nearby pros.",
+  "location.hint":
+    "Search a place or move the pin. This is used for the home map and nearby pros.",
   "location.saved": "Location saved",
   "location.myLocationBtn": "My location",
   "location.tapMap": "Tap map or drag pin",
@@ -265,7 +268,8 @@ export const EN = {
   "profile.reviews": "Reviews",
   "profile.rating": "Rating",
   "verify.title": "Verify your identity",
-  "verify.subtitle": "Free try until job {warn}. Finish this before job {block} so you can keep booking.",
+  "verify.subtitle":
+    "Free try until job {warn}. Finish this before job {block} so you can keep booking.",
   "verify.howTitle": "How verification works",
   "verify.countryFromPhone": "Country: {country} (from your phone number)",
   "verify.requiredFor": "Required for {country}",
@@ -289,7 +293,8 @@ export const EN = {
   "signup.failed": "Sign-up failed",
   "signup.tryAgain": "Try again",
   "signup.allSet": "You're all set",
-  "signup.accountReady": "Your {role} account is ready. You can start using Ona now.",
+  "signup.accountReady":
+    "Your {role} account is ready. You can start using Ona now.",
   "dashboard.title": "Dashboard",
   "dashboard.incoming": "Incoming jobs",
   "dashboard.recent": "Recent",
@@ -298,7 +303,8 @@ export const EN = {
   "gate.verifySoon": "Verify soon to keep full access",
   "gate.verifyNow": "Verify your ID now",
   "gate.required": "Verification required",
-  "gate.exploreFree": "You explored the app freely. Verify your ID once to book without limits.",
+  "gate.exploreFree":
+    "You explored the app freely. Verify your ID once to book without limits.",
   "menu.settings": "Settings",
   "menu.help": "Help",
   "menu.switchRole": "Switch role",
@@ -319,7 +325,8 @@ export const EN = {
   "menu.logIn": "Log in",
   "menu.needLogin": "Log in to switch between Customer and Repair Pro.",
   "menu.noMotorist": "You don't have a Customer account yet.",
-  "menu.noPro": "You don't have a Repair Pro account yet. Finish signup to go Live and receive jobs.",
+  "menu.noPro":
+    "You don't have a Repair Pro account yet. Finish signup to go Live and receive jobs.",
   "menu.couldNotSwitch": "Could not switch.",
   "menu.tapToClose": "Tap to close",
   "menu.signedInAs": "Signed in as {name}",
@@ -355,13 +362,15 @@ export const EN = {
   "settings.hub.addressesDetail": "Home, Work, service area & pin",
   "settings.dangerZone": "Danger zone",
   "settings.deleteAccount": "Delete account",
-  "settings.deleteAccountDetail": "Schedule deletion — 30-day reactivation window",
+  "settings.deleteAccountDetail":
+    "Schedule deletion 30-day reactivation window",
   "settings.theme.tap": "Tap",
 
   // Search empty states
   "search.noResultsFor": "No results for “{q}”",
-  "search.tryAnother": "That pro, trade, or place isn’t available nearby. Try another search.",
-  "search.tryBrowse": "Try a name, trade, or place — or open Home to browse.",
+  "search.tryAnother":
+    "That pro, trade, or place isn’t available nearby. Try another search.",
+  "search.tryBrowse": "Try a name, trade, or place or open Home to browse.",
   "search.noMatchesNearby": "No matches nearby",
   "search.backHome": "Back home",
   "search.withinKm": "Within {km} km · {count} result",
@@ -370,7 +379,8 @@ export const EN = {
   "search.placeholder": "Search problem, technician, service…",
   "search.title": "Search",
   "search.subtitle": "Nearby skilled workers",
-  "home.searchNoResults": "No results for “{q}”. Try another name, trade, or place.",
+  "home.searchNoResults":
+    "No results for “{q}”. Try another name, trade, or place.",
 
   // Common role labels already partially covered
   "common.customer": "Customer",
@@ -382,9 +392,9 @@ export const EN = {
   "shop.popular": "Popular",
   "shop.newArrivals": "New arrivals",
   "shop.empty": "No products yet. Catalog is loading.",
-  "shop.setupRequired": "Shop is almost ready — catalog database will appear after setup."
+  "shop.setupRequired":
+    "Shop is almost ready catalog database will appear after setup.",
 } as const;
 
 export type MessageKey = keyof typeof EN;
 export type MessageDict = Record<MessageKey, string>;
-

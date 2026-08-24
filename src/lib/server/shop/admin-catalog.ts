@@ -1,5 +1,5 @@
 /**
- * Admin catalog writes — products, variants, prices, inventory, images.
+ * Admin catalog writes products, variants, prices, inventory, images.
  * Gated by shop_catalog permission at the API layer.
  */
 
@@ -43,6 +43,8 @@ export async function adminListProducts(opts?: {
   q?: string;
   tradeKey?: string;
   status?: string;
+  /** Availability filter: All/Available/Low Stock/Out of Stock/Pre-order/Coming soon */
+  listing?: string;
   limit?: number;
 }) {
   const sb = createServiceSupabase();
@@ -50,22 +52,92 @@ export async function adminListProducts(opts?: {
   let q = sb
     .from("shop_products")
     .select(
-      "id, slug, name, subtitle, trade_key, category_id, status, condition_type, primary_image_url, is_professional_only, created_at, updated_at"
+      "id, slug, name, subtitle, trade_key, category_id, status, condition_type, primary_image_url, is_professional_only, created_at, updated_at",
     )
     .order("updated_at", { ascending: false })
     .limit(limit);
   if (opts?.tradeKey) q = q.eq("trade_key", opts.tradeKey);
-  if (opts?.status) q = q.eq("status", opts.status);
-  else q = q.neq("status", "archived");
+
+  // Availability filter (same status mapping as the buyer-side chips)
+  const listing = opts?.listing;
+  const stockStates =
+    listing === "available" ||
+    listing === "low_stock" ||
+    listing === "out_of_stock";
+  if (listing === "pre_order") {
+    q = q.eq("status", "future_product");
+  } else if (listing === "coming_soon") {
+    q = q.in("status", ["future_product", "source_pending", "pending_verification"]);
+  } else if (stockStates) {
+    q = q.eq("status", "active");
+  } else if (opts?.status) {
+    q = q.eq("status", opts.status);
+  } else {
+    q = q.neq("status", "archived");
+  }
   if (opts?.q?.trim()) {
     const term = opts.q.trim().replace(/%/g, "");
     q = q.or(
-      `name.ilike.%${term}%,slug.ilike.%${term}%,subtitle.ilike.%${term}%`
+      `name.ilike.%${term}%,slug.ilike.%${term}%,subtitle.ilike.%${term}%`,
     );
   }
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-  return data ?? [];
+  let products = (data ?? []) as Array<Record<string, unknown>>;
+
+  // Attach exact stock numbers + computed availability for every product so
+  // the hub shows what is in stock and how many (numbered inventory).
+  if (products.length) {
+    const ids = products.map((p) => String(p.id));
+    const { data: variants } = await sb
+      .from("shop_product_variants")
+      .select("id, product_id")
+      .in("product_id", ids);
+    const vIds = (variants ?? []).map((v) => String(v.id));
+    const qtyByProduct = new Map<string, number>();
+    if (vIds.length) {
+      const { data: inv } = await sb
+        .from("shop_inventory")
+        .select("variant_id, qty_on_hand, qty_reserved")
+        .in("variant_id", vIds);
+      const qtyByVariant = new Map<string, number>();
+      for (const r of inv ?? []) {
+        qtyByVariant.set(String(r.variant_id), Number(r.qty_on_hand) || 0);
+      }
+      for (const v of variants ?? []) {
+        const pid = String(v.product_id);
+        qtyByProduct.set(
+          pid,
+          (qtyByProduct.get(pid) || 0) + (qtyByVariant.get(String(v.id)) || 0),
+        );
+      }
+    }
+    products = products.map((p) => {
+      const qty = qtyByProduct.get(String(p.id)) || 0;
+      const override = p.listing_override
+        ? String(p.listing_override)
+        : null;
+      const availability =
+        override ??
+        (qty <= 0
+          ? "out_of_stock"
+          : qty <= 4
+            ? "low_stock"
+            : "available");
+      return { ...p, stock_qty: qty, availability };
+    });
+
+    // Availability filter matches override first, then derived state
+    if (listing) {
+      products = products.filter((p) => {
+        const a = String(p.availability);
+        if (listing === "all") return true;
+        return a === listing;
+      });
+    }
+  }
+
+  return products;
 }
 
 export async function adminGetProduct(id: string) {
@@ -115,7 +187,7 @@ export async function adminGetProduct(id: string) {
 
 export async function adminCreateProduct(
   input: AdminProductInput,
-  actorId: string | null
+  actorId: string | null,
 ) {
   const sb = createServiceSupabase();
   let slug = slugify(input.name);
@@ -139,7 +211,7 @@ export async function adminCreateProduct(
   if (!category) throw new Error(`Category ${input.categoryId} not found`);
   if (String(category.trade_key) !== input.tradeKey) {
     throw new Error(
-      `Category belongs to "${category.trade_key}" — cannot be used for "${input.tradeKey}".`
+      `Category belongs to "${category.trade_key}" cannot be used for "${input.tradeKey}".`,
     );
   }
 
@@ -205,7 +277,7 @@ export async function adminCreateProduct(
         qty_on_hand: Math.max(0, Math.floor(input.stockQty ?? 0)),
         qty_reserved: 0,
       },
-      { onConflict: "variant_id,location_id" }
+      { onConflict: "variant_id,location_id" },
     );
   }
 
@@ -243,8 +315,16 @@ export async function adminUpdateProduct(
     status: "draft" | "active" | "archived";
     isProfessionalOnly: boolean;
     primaryImageUrl: string | null;
+    listingOverride:
+      | "available"
+      | "low_stock"
+      | "out_of_stock"
+      | "pre_order"
+      | "coming_soon"
+      | null;
+    attributes: Record<string, unknown> | null;
   }>,
-  actorId: string | null
+  actorId: string | null,
 ) {
   const sb = createServiceSupabase();
   const row: Record<string, unknown> = {
@@ -256,12 +336,17 @@ export async function adminUpdateProduct(
   if (patch.tradeKey !== undefined) row.trade_key = patch.tradeKey;
   if (patch.categoryId !== undefined) row.category_id = patch.categoryId;
   if (patch.brandId !== undefined) row.brand_id = patch.brandId;
-  if (patch.conditionType !== undefined) row.condition_type = patch.conditionType;
+  if (patch.conditionType !== undefined)
+    row.condition_type = patch.conditionType;
   if (patch.status !== undefined) row.status = patch.status;
   if (patch.isProfessionalOnly !== undefined)
     row.is_professional_only = patch.isProfessionalOnly;
   if (patch.primaryImageUrl !== undefined)
     row.primary_image_url = patch.primaryImageUrl;
+  if (patch.listingOverride !== undefined)
+    row.listing_override = patch.listingOverride;
+  if (patch.attributes !== undefined)
+    row.attributes = patch.attributes;
 
   // Trade/category must stay consistent (same friendly errors as create).
   if (
@@ -276,9 +361,7 @@ export async function adminUpdateProduct(
       .maybeSingle();
     if (current) {
       const finalTrade = String(row.trade_key ?? current.trade_key);
-      const finalCategory = String(
-        row.category_id ?? current.category_id
-      );
+      const finalCategory = String(row.category_id ?? current.category_id);
       const { data: category } = await sb
         .from("shop_trade_categories")
         .select("trade_key")
@@ -288,7 +371,7 @@ export async function adminUpdateProduct(
       if (!category) throw new Error(`Category ${finalCategory} not found`);
       if (String(category.trade_key) !== finalTrade) {
         throw new Error(
-          `Category belongs to "${category.trade_key}" — cannot be used for "${finalTrade}".`
+          `Category belongs to "${category.trade_key}" cannot be used for "${finalTrade}".`,
         );
       }
     }
@@ -396,7 +479,7 @@ export async function adminSetStock(opts: {
         qty_reserved: reserved,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "variant_id,location_id" }
+      { onConflict: "variant_id,location_id" },
     )
     .select("*")
     .single();
@@ -429,7 +512,7 @@ export async function adminUploadProductImage(opts: {
   actorId: string | null;
 }): Promise<{ url: string; imageId: string }> {
   const match = opts.imageDataUrl.match(
-    /^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=]+)$/
+    /^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=]+)$/,
   );
   if (!match) throw new Error("Invalid image format (PNG/JPEG/WebP)");
   const ext = match[1] === "jpeg" ? "jpg" : match[1];
@@ -445,11 +528,13 @@ export async function adminUploadProductImage(opts: {
   if (!product) throw new Error("Product not found");
 
   const path = `products/${opts.productId}/${Date.now()}.${ext}`;
-  const { error: upErr } = await sb.storage.from("shop-media").upload(path, buffer, {
-    contentType: `image/${ext === "jpg" ? "jpeg" : ext}`,
-    cacheControl: "public, max-age=31536000",
-    upsert: false,
-  });
+  const { error: upErr } = await sb.storage
+    .from("shop-media")
+    .upload(path, buffer, {
+      contentType: `image/${ext === "jpg" ? "jpeg" : ext}`,
+      cacheControl: "public, max-age=31536000",
+      upsert: false,
+    });
   if (upErr) throw new Error(upErr.message || "Upload failed");
 
   const base = getSupabaseUrl().replace(/\/$/, "");
@@ -499,7 +584,7 @@ export async function adminUploadProductImage(opts: {
 
 export async function adminSoftDeleteProduct(
   id: string,
-  actorId: string | null
+  actorId: string | null,
 ) {
   const sb = createServiceSupabase();
   const now = new Date().toISOString();
@@ -577,7 +662,7 @@ export async function adminCreateCategory(input: {
 
 export async function adminSoftDeleteCategory(
   id: string,
-  actorId: string | null
+  actorId: string | null,
 ) {
   const sb = createServiceSupabase();
   const { data, error } = await sb
@@ -606,4 +691,31 @@ export async function adminListCategories() {
     .order("sort_order", { ascending: true });
   if (error) throw new Error(error.message);
   return data ?? [];
+}
+
+/**
+ * Permanently delete a product and (via FK cascade) its variants, prices,
+ * inventory and images. Audit-logged. This cannot be undone, the admin UI
+ * must double-confirm before calling.
+ */
+export async function adminHardDeleteProduct(
+  id: string,
+  actorId: string | null,
+) {
+  const sb = createServiceSupabase();
+  const { data, error } = await sb
+    .from("shop_products")
+    .delete()
+    .eq("id", id)
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  await sb.from("shop_audit_logs").insert({
+    actor_id: actorId,
+    action: "product_hard_delete",
+    entity_type: "shop_product",
+    entity_id: id,
+    payload: { permanent: true },
+  });
+  return data;
 }

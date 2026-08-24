@@ -1,6 +1,10 @@
 "use client";
 
-import type { HealthIssueType, HealthLog, HealthSeverity } from "@/types/health";
+import type {
+  HealthIssueType,
+  HealthLog,
+  HealthSeverity,
+} from "@/types/health";
 
 const TYPES: Array<HealthIssueType | ""> = [
   "",
@@ -130,9 +134,7 @@ export function IssuesTable({
                   <input
                     type="checkbox"
                     checked={i.resolved}
-                    onChange={(e) =>
-                      onToggleResolved(i.id, e.target.checked)
-                    }
+                    onChange={(e) => onToggleResolved(i.id, e.target.checked)}
                     aria-label={`Mark ${i.type} resolved`}
                     title="Toggle resolved"
                   />

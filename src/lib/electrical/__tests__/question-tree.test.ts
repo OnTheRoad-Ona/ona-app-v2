@@ -16,7 +16,7 @@ import {
 } from "@/lib/electrical/question-tree";
 
 describe("electrical question tree", () => {
-  it("offers the five start categories A–E", () => {
+  it("offers the five start categories A-E", () => {
     expect(ELECTRICAL_START_OPTIONS.map((o) => o.id)).toEqual([
       "A",
       "B",
@@ -61,11 +61,9 @@ describe("electrical question tree", () => {
   it("walks the full industrial (D) chain to final", () => {
     expect(nextElectricalScreen("d_main", "motor", {})).toBe("d_facility");
     expect(nextElectricalScreen("d_facility", "factory", {})).toBe(
-      "d_warranty"
+      "d_warranty",
     );
-    expect(nextElectricalScreen("d_warranty", "no", {})).toBe(
-      "d_production"
-    );
+    expect(nextElectricalScreen("d_warranty", "no", {})).toBe("d_production");
     expect(nextElectricalScreen("d_production", "yes", {})).toBe("d_safety");
     expect(nextElectricalScreen("d_safety", "no", {})).toBe("final");
   });
@@ -75,7 +73,7 @@ describe("electrical question tree", () => {
     expect(nextElectricalScreen("e_related", "battery", {})).toBe("final");
   });
 
-  it("never needs a confirm card — electric stays electric everywhere", () => {
+  it("never needs a confirm card electric stays electric everywhere", () => {
     const cases: Record<string, string>[] = [
       { start: "A", a_symptom: "dead" },
       { start: "B", b_main: "burning" },
@@ -106,7 +104,7 @@ describe("electrical question tree", () => {
         a_smell: "yes",
       },
       "Call before arrival",
-      "Lekki"
+      "Lekki",
     );
     expect(out).toContain(ELECTRICAL_START_QUESTION);
     expect(out).toContain("Vehicle electrical issue");
@@ -118,7 +116,7 @@ describe("electrical question tree", () => {
   it("builds a breadcrumb with the branch letter", () => {
     expect(electricalBreadcrumb(["start"])).toBe("Electric");
     expect(electricalBreadcrumb(["start", "vehicle", "a_symptom"])).toBe(
-      "Electric · A"
+      "Electric · A",
     );
   });
 

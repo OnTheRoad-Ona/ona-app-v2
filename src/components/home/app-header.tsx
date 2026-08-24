@@ -55,9 +55,9 @@ export function AppHeader() {
       <header className="shrink-0 px-3 pb-1 pt-5">
         <div className="flex items-center justify-between gap-3 pl-2">
           {/*
-            Fixed box so Ona ↔ OnTheRoad never shifts layout.
-            Crossfade both labels in place (soft / almost unnoticeable).
-          */}
+ Fixed box so Ona ↔ OnTheRoad never shifts layout.
+ Crossfade both labels in place (soft / almost unnoticeable).
+ */}
           <div
             className="relative h-8 w-[9.5rem] shrink-0"
             aria-label={showOnTheRoad ? "OnTheRoad" : "Ona"}
@@ -66,18 +66,18 @@ export function AppHeader() {
             <p
               className={cn(
                 "absolute inset-0 flex items-center text-[28px] font-black leading-none tracking-tight transition-opacity duration-500 ease-out",
-                showOnTheRoad ? "opacity-0" : "opacity-100"
+                showOnTheRoad ? "opacity-0" : "opacity-100",
               )}
               aria-hidden={showOnTheRoad}
             >
               <span className="text-[#FF6B35]">O</span>
               <span className={onaRest}>na</span>
             </p>
-            {/* OnTheRoad — same box, slightly smaller, fades in */}
+            {/* OnTheRoad same box, slightly smaller, fades in */}
             <p
               className={cn(
                 "absolute inset-0 flex items-center text-[22px] font-black leading-none tracking-tight transition-opacity duration-500 ease-out",
-                showOnTheRoad ? "opacity-100" : "opacity-0"
+                showOnTheRoad ? "opacity-100" : "opacity-0",
               )}
               aria-hidden={!showOnTheRoad}
             >
@@ -91,7 +91,7 @@ export function AppHeader() {
             onClick={() => setMenuOpen(true)}
             className={cn(
               "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border-0",
-              isLight ? "bg-[#c8c9cd]" : "bg-black"
+              isLight ? "bg-[#c8c9cd]" : "bg-black",
             )}
             style={{
               backgroundColor: isLight ? "#c8c9cd" : "#000000",
@@ -111,7 +111,7 @@ export function AppHeader() {
       {mount &&
         createPortal(
           <AppMenu open={menuOpen} onClose={() => setMenuOpen(false)} />,
-          mount
+          mount,
         )}
     </>
   );

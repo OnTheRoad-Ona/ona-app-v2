@@ -50,15 +50,15 @@ export async function GET() {
 
     // Unattended = open care work (B3)
     const customersPending = custSubmitted.count ?? 0;
-    // Pros: union is hard with head counts — use max of queues as badge signal
+    // Pros: union is hard with head counts use max of queues as badge signal
     // Better: count distinct users needing action
     const { data: proRows } = await sb
       .from("repair_pro_profiles")
       .select(
-        "user_id, status, gov_id_review_status, docs_status, rejection_reason, pipeline_status, pipeline_notes, gov_id_submitted_at, docs_submitted_at, submitted_at, created_at"
+        "user_id, status, gov_id_review_status, docs_status, rejection_reason, pipeline_status, pipeline_notes, gov_id_submitted_at, docs_submitted_at, submitted_at, created_at",
       )
       .or(
-        "status.eq.pending,gov_id_review_status.eq.submitted,docs_status.eq.under_review,pipeline_status.eq.needs_resubmit"
+        "status.eq.pending,gov_id_review_status.eq.submitted,docs_status.eq.under_review,pipeline_status.eq.needs_resubmit",
       )
       .limit(500);
 
@@ -66,7 +66,7 @@ export async function GET() {
     const { data: resubmitRows } = await sb
       .from("repair_pro_profiles")
       .select(
-        "user_id, status, gov_id_review_status, docs_status, rejection_reason, pipeline_status, pipeline_notes, gov_id_submitted_at, docs_submitted_at, submitted_at, created_at"
+        "user_id, status, gov_id_review_status, docs_status, rejection_reason, pipeline_status, pipeline_notes, gov_id_submitted_at, docs_submitted_at, submitted_at, created_at",
       )
       .ilike("rejection_reason", "%re-submit%")
       .limit(100);
@@ -104,7 +104,7 @@ export async function GET() {
     const { data: custRows } = await sb
       .from("motorist_profiles")
       .select(
-        "user_id, identity_review_status, identity_submitted_at, created_at, gov_id_meta"
+        "user_id, identity_review_status, identity_submitted_at, created_at, gov_id_meta",
       )
       .eq("identity_review_status", "submitted")
       .limit(500);
@@ -151,7 +151,7 @@ export async function GET() {
         totalOpen: proNeeds.length,
         sequence: proSequence,
       },
-      // Nav total badges — only unattended (not yet opened by care)
+      // Nav total badges only unattended (not yet opened by care)
       nav: {
         customers: unattendedCount,
         pros: proNeeds.length,

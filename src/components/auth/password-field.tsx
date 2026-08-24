@@ -39,7 +39,7 @@ export function PasswordField({
           withLeftIcon ? authFieldIconClass : authFieldClass,
           // Room for the eye toggle on the right
           withLeftIcon ? "pr-11" : "pr-11",
-          inputClassName
+          inputClassName,
         )}
         style={authFieldStyle}
         spellCheck={false}
@@ -52,7 +52,7 @@ export function PasswordField({
         disabled={disabled}
         onClick={() => setVisible((v) => !v)}
         className={cn(
-          "absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md border-0 bg-transparent text-[#64748b] transition hover:bg-black/[0.06] hover:text-[#0f172a] disabled:opacity-40"
+          "absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md border-0 bg-transparent text-[#64748b] transition hover:bg-black/[0.06] hover:text-[#0f172a] disabled:opacity-40",
         )}
         aria-label={visible ? "Hide password" : "Show password"}
         aria-pressed={visible}

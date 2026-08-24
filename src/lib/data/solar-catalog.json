@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "source": "Nigeria-first solar system seed (inverter, hybrid, off-grid)",
+  "types": [
+    {
+      "id": "inverter",
+      "label": "Inverter system (no panels)"
+    },
+    {
+      "id": "hybrid",
+      "label": "Hybrid solar system"
+    },
+    {
+      "id": "off-grid",
+      "label": "Full off-grid solar"
+    }
+  ],
+  "brandsByType": {
+    "inverter": [
+      "Meritin",
+      "Su-Kam",
+      "Luminous",
+      "Felicity",
+      "Must Power",
+      "Growatt",
+      "Genus",
+      "BlueGate"
+    ],
+    "hybrid": [
+      "Deye",
+      "Growatt",
+      "Felicity",
+      "Must Power",
+      "Luxpower",
+      "Solis",
+      "Voltronic Axpert"
+    ],
+    "off-grid": ["Victron", "Studer", "Deye", "Voltronic Axpert", "Growatt"]
+  },
+  "modelsByTypeBrand": {
+    "inverter|Meritin": [
+      "M2425 2.5kVA",
+      "M3535 3.5kVA",
+      "M5048 5kVA",
+      "MP7572 7.5kVA",
+      "M10110 10kVA"
+    ],
+    "inverter|Su-Kam": [
+      "FALCON+ 2.5kVA",
+      "COLT 2.5kVA",
+      "SYNCHRONOUS 5kVA",
+      "ECO 3.5kVA"
+    ],
+    "inverter|Luminous": [
+      "ECO VOLT 1.5kVA",
+      "ZELIO 1.1kVA",
+      "NXG 2.5kVA",
+      "CRUZE 3.5kVA",
+      "ICRUZE 5kVA"
+    ],
+    "inverter|Felicity": [
+      "IVM2430 2.4kVA",
+      "IVP2435 3.5kVA",
+      "IVM4850 5kVA",
+      "IVP48100 8kVA"
+    ],
+    "inverter|Must Power": [
+      "PV1800 1kVA",
+      "PV3000 3kVA",
+      "PV3500 3.5kVA",
+      "PH3000 4kVA",
+      "PH5000 5kVA"
+    ],
+    "inverter|Growatt": [
+      "MIC 3kW",
+      "SPE 3600 3.6kW",
+      "SPF 3500 ES 3.5kW",
+      "SPF 5000 ES 5kW"
+    ],
+    "inverter|Genus": ["SURJA 900VA", "ATHENA 2.5kVA", "APOLLO 3.5kVA"],
+    "inverter|BlueGate": [
+      "BG1500 1.5kVA",
+      "BG2500 2.5kVA",
+      "BG3500 3.5kVA",
+      "BG5000 5kVA"
+    ],
+    "hybrid|Deye": [
+      "SUN-3.6K-SG04LP1 3.6kW",
+      "SUN-5K-SG04LP1 5kW",
+      "SUN-6K-SG04LP1 6kW",
+      "SUN-8K-SG01LP1 8kW",
+      "SUN-12K-SG04LP3 12kW"
+    ],
+    "hybrid|Growatt": [
+      "SPF 5000 TL HM 5kW",
+      "MIN 5000TL-XH 5kW",
+      "MOD 8000TL3-XH 8kW",
+      "SPF 6000 ES Plus 6kW"
+    ],
+    "hybrid|Felicity": [
+      "SOLAR HYP4850 5kW",
+      "SOLAR HYP4880 8kW",
+      "SOLAR HYP10120 10kW"
+    ],
+    "hybrid|Must Power": [
+      "PV3500 PRO 3.5kW",
+      "PV5000 PRO 5kW",
+      "PH5000 HYB 5kW"
+    ],
+    "hybrid|Luxpower": ["LXP 3K 3kW", "LXP 5K 5kW", "LXP 6K 6kW"],
+    "hybrid|Solis": ["S6-EH1P5K 5kW", "S6-EH1P6K 6kW", "S5-EH1P4K 4kW"],
+    "hybrid|Voltronic Axpert": [
+      "MKS 3K 3kVA",
+      "MKS 5K 5kVA",
+      "MAX 5K 5kW",
+      "KING 5K 5kVA"
+    ],
+    "off-grid|Victron": [
+      "EASY-SOLAR 3K 3kVA",
+      "EASY-SOLAR 5K 5kVA",
+      "QUATTRO 48/8000 8kVA",
+      "MULTIPLUS-II 48/5000 5kVA"
+    ],
+    "off-grid|Studer": [
+      "XTM 2000-48 2kVA",
+      "XTH 4000-48 4kVA",
+      "XTH 6000-48 6kVA"
+    ],
+    "off-grid|Deye": [
+      "SUN-5K-SG03LP1 5kW",
+      "SUN-8K-SG03LP1 8kW",
+      "SUN-16K-SG01HP3 16kW"
+    ],
+    "off-grid|Voltronic Axpert": [
+      "MKS II 5K 5kVA",
+      "MAX TWIN 6K 6kW",
+      "TUSCANI 5K 5kVA"
+    ],
+    "off-grid|Growatt": ["SPF 8000 T DVM 8kW", "SPF 12000 T DVM 12kW"]
+  }
+}

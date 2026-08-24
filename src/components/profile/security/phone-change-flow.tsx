@@ -4,7 +4,10 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { profileTheme } from "@/lib/profile-system";
 import { SecurityField } from "./security-field";
-import { backendSendOtp, backendProfileVerifyOtp } from "@/lib/supabase/app-api";
+import {
+  backendSendOtp,
+  backendProfileVerifyOtp,
+} from "@/lib/supabase/app-api";
 import { PasswordInput } from "@/components/ui/password-input";
 import { ConfirmCancelSheet } from "@/components/ui/confirm-cancel-sheet";
 
@@ -77,9 +80,15 @@ export function PhoneChangeFlow({
   const sendEmailOtp = async () => {
     setBusy(true);
     setErr(null);
-    const res = await backendSendOtp({ channel: "email", target: currentEmail });
+    const res = await backendSendOtp({
+      channel: "email",
+      target: currentEmail,
+    });
     setBusy(false);
-    if (res.error) { setErr(res.error); return; }
+    if (res.error) {
+      setErr(res.error);
+      return;
+    }
     setEmailCodeSent(true);
     setMsg("Code sent to your email.");
   };
@@ -87,14 +96,25 @@ export function PhoneChangeFlow({
   const hasGuarantor = !!guarantorName;
 
   const verifyIdentity = async () => {
-    if (!password) { setErr("Enter your current password."); return; }
-    if (!emailCode) { setErr("Enter the code sent to your email."); return; }
-    if (hasGuarantor && !gName.trim()) { setErr("Enter your guarantor's full name."); return; }
+    if (!password) {
+      setErr("Enter your current password.");
+      return;
+    }
+    if (!emailCode) {
+      setErr("Enter the code sent to your email.");
+      return;
+    }
+    if (hasGuarantor && !gName.trim()) {
+      setErr("Enter your guarantor's full name.");
+      return;
+    }
 
     setBusy(true);
     setErr(null);
     try {
-      const res = await (await import("@/lib/api-auth-headers")).authFetch("/api/security/verify-identity", {
+      const res = await (
+        await import("@/lib/api-auth-headers")
+      ).authFetch("/api/security/verify-identity", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -104,7 +124,10 @@ export function PhoneChangeFlow({
           ...(hasGuarantor && { guarantorName: gName.trim() }),
         }),
       });
-      const json = await res.json() as { ok?: boolean; error?: { message?: string } };
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: { message?: string };
+      };
       if (!json?.ok) {
         setErr(json?.error?.message || "Identity verification failed.");
         return;
@@ -123,23 +146,39 @@ export function PhoneChangeFlow({
 
   const sendNewOtp = async () => {
     const cleaned = newPhone.replace(/\D/g, "");
-    if (cleaned.length < 10) { setErr("Enter a valid phone number"); return; }
+    if (cleaned.length < 10) {
+      setErr("Enter a valid phone number");
+      return;
+    }
     setBusy(true);
     setErr(null);
     const res = await backendSendOtp({ channel: "phone", target: newPhone });
     setBusy(false);
-    if (res.error) { setErr(res.error); return; }
+    if (res.error) {
+      setErr(res.error);
+      return;
+    }
     setStep("verify_new");
     setMsg("Code sent to your new phone.");
   };
 
   const verifyNew = async () => {
-    if (newCode.length < 4) { setErr("Enter the code"); return; }
+    if (newCode.length < 4) {
+      setErr("Enter the code");
+      return;
+    }
     setBusy(true);
     setErr(null);
-    const res = await backendProfileVerifyOtp({ channel: "phone", target: newPhone, code: newCode });
+    const res = await backendProfileVerifyOtp({
+      channel: "phone",
+      target: newPhone,
+      code: newCode,
+    });
     setBusy(false);
-    if (res.error) { setErr(res.error); return; }
+    if (res.error) {
+      setErr(res.error);
+      return;
+    }
     setStep("confirming");
     await doChange();
   };
@@ -148,12 +187,21 @@ export function PhoneChangeFlow({
     setBusy(true);
     setErr(null);
     try {
-      const res = await (await import("@/lib/api-auth-headers")).authFetch("/api/security/action", {
+      const res = await (
+        await import("@/lib/api-auth-headers")
+      ).authFetch("/api/security/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "change_phone", accessToken, newValue: newPhone }),
+        body: JSON.stringify({
+          action: "change_phone",
+          accessToken,
+          newValue: newPhone,
+        }),
       });
-      const json = await res.json() as { ok?: boolean; error?: { message?: string } };
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: { message?: string };
+      };
       if (!json?.ok) {
         setErr(json?.error?.message || "Phone update failed.");
         setStep("error");
@@ -191,60 +239,116 @@ export function PhoneChangeFlow({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className={cn("text-[11px] font-semibold", t.muted)}>Phone number</p>
+          <p className={cn("text-[11px] font-semibold", t.muted)}>
+            Phone number
+          </p>
           <p className={cn("truncate text-[13px] font-semibold", t.ink)}>
             {step === "done" ? newPhone : currentPhone}
           </p>
         </div>
         {step === "done" ? (
-          <button type="button" onClick={reset} className="shrink-0 rounded-lg border-0 px-3 py-1.5 text-[11px] font-bold text-brand">Done</button>
+          <button
+            type="button"
+            onClick={reset}
+            className="shrink-0 rounded-lg border-0 px-3 py-1.5 text-[11px] font-bold text-brand"
+          >
+            Done
+          </button>
         ) : (
-          <button type="button" onClick={() => setConfirmCancel(true)} className="shrink-0 rounded-lg border-0 px-3 py-1.5 text-[11px] font-bold text-red-400">Cancel</button>
+          <button
+            type="button"
+            onClick={() => setConfirmCancel(true)}
+            className="shrink-0 rounded-lg border-0 px-3 py-1.5 text-[11px] font-bold text-red-400"
+          >
+            Cancel
+          </button>
         )}
       </div>
 
       {(msg || err) && (
-        <p className={cn("rounded-xl px-3 py-2 text-[12px] font-semibold", err ? "bg-red-500/15 text-red-400" : "bg-emerald-500/15 text-emerald-500")}>
+        <p
+          className={cn(
+            "rounded-xl px-3 py-2 text-[12px] font-semibold",
+            err
+              ? "bg-red-500/15 text-red-400"
+              : "bg-emerald-500/15 text-emerald-500",
+          )}
+        >
           {err || msg}
         </p>
       )}
 
       {step === "verify_identity" && (
         <div className="space-y-3">
-          <p className={cn("text-[13px] font-bold", t.ink)}>Verify your identity</p>
+          <p className={cn("text-[13px] font-bold", t.ink)}>
+            Verify your identity
+          </p>
           <p className={cn("text-[12px]", t.muted)}>
-            {hasGuarantor ? "All three are required" : "Two-factor authentication required"} to change your phone number.
+            {hasGuarantor
+              ? "All three are required"
+              : "Two-factor authentication required"}{" "}
+            to change your phone number.
           </p>
 
           <div>
-            <p className={cn("mb-1 text-[11px] font-semibold", t.muted)}>1. Current password</p>
-            <PasswordInput className={fieldClass} placeholder="Enter your password" value={password}
-              onChange={setPassword} isLight={isLight} />
+            <p className={cn("mb-1 text-[11px] font-semibold", t.muted)}>
+              1. Current password
+            </p>
+            <PasswordInput
+              className={fieldClass}
+              placeholder="Enter your password"
+              value={password}
+              onChange={setPassword}
+              isLight={isLight}
+            />
           </div>
 
           <div>
-            <p className={cn("mb-1 text-[11px] font-semibold", t.muted)}>2. Email verification code</p>
+            <p className={cn("mb-1 text-[11px] font-semibold", t.muted)}>
+              2. Email verification code
+            </p>
             {!emailCodeSent ? (
-              <button type="button" disabled={busy} onClick={sendEmailOtp}
-                className="h-10 w-full rounded-xl border-0 bg-brand text-[13px] font-bold text-white disabled:opacity-50">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={sendEmailOtp}
+                className="h-10 w-full rounded-xl border-0 bg-brand text-[13px] font-bold text-white disabled:opacity-50"
+              >
                 {busy ? "Sending…" : "Send code to email"}
               </button>
             ) : (
-              <input className={fieldClass} placeholder="000000" value={emailCode}
-                onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, "").slice(0, 6))} maxLength={6} />
+              <input
+                className={fieldClass}
+                placeholder="000000"
+                value={emailCode}
+                onChange={(e) =>
+                  setEmailCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+                maxLength={6}
+              />
             )}
           </div>
 
           {hasGuarantor && (
             <div>
-              <p className={cn("mb-1 text-[11px] font-semibold", t.muted)}>3. Guarantor name</p>
-              <input className={fieldClass} placeholder="Enter your guarantor's full name" value={gName}
-                onChange={(e) => setGName(e.target.value)} />
+              <p className={cn("mb-1 text-[11px] font-semibold", t.muted)}>
+                3. Guarantor name
+              </p>
+              <input
+                className={fieldClass}
+                placeholder="Enter your guarantor's full name"
+                value={gName}
+                onChange={(e) => setGName(e.target.value)}
+              />
             </div>
           )}
 
-          <button type="button" disabled={busy} onClick={verifyIdentity}
-            className="h-10 w-full rounded-xl border-0 bg-brand text-[13px] font-bold text-white disabled:opacity-50">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={verifyIdentity}
+            className="h-10 w-full rounded-xl border-0 bg-brand text-[13px] font-bold text-white disabled:opacity-50"
+          >
             {busy ? "Verifying…" : "Verify identity"}
           </button>
         </div>
@@ -252,11 +356,21 @@ export function PhoneChangeFlow({
 
       {step === "enter_new" && (
         <div className="space-y-2">
-          <p className={cn("text-[12px]", t.muted)}>Enter your new phone number.</p>
-          <input className={fieldClass} placeholder="+234 801 234 5678" value={newPhone}
-            onChange={(e) => setNewPhone(e.target.value)} />
-          <button type="button" disabled={busy || newPhone.replace(/\D/g, "").length < 10} onClick={sendNewOtp}
-            className="h-10 w-full rounded-xl border-0 bg-brand text-[13px] font-bold text-white disabled:opacity-50">
+          <p className={cn("text-[12px]", t.muted)}>
+            Enter your new phone number.
+          </p>
+          <input
+            className={fieldClass}
+            placeholder="+234 801 234 5678"
+            value={newPhone}
+            onChange={(e) => setNewPhone(e.target.value)}
+          />
+          <button
+            type="button"
+            disabled={busy || newPhone.replace(/\D/g, "").length < 10}
+            onClick={sendNewOtp}
+            className="h-10 w-full rounded-xl border-0 bg-brand text-[13px] font-bold text-white disabled:opacity-50"
+          >
             {busy ? "Sending…" : "Send code to new number"}
           </button>
         </div>
@@ -264,20 +378,39 @@ export function PhoneChangeFlow({
 
       {step === "verify_new" && (
         <div className="space-y-2">
-          <p className={cn("text-[12px]", t.muted)}>Enter the 6-digit code sent to your new number.</p>
-          <input className={fieldClass} placeholder="000000" value={newCode}
-            onChange={(e) => setNewCode(e.target.value.replace(/\D/g, "").slice(0, 6))} maxLength={6} />
-          <button type="button" disabled={busy || newCode.length < 4} onClick={verifyNew}
-            className="h-10 w-full rounded-xl border-0 bg-brand text-[13px] font-bold text-white disabled:opacity-50">
+          <p className={cn("text-[12px]", t.muted)}>
+            Enter the 6-digit code sent to your new number.
+          </p>
+          <input
+            className={fieldClass}
+            placeholder="000000"
+            value={newCode}
+            onChange={(e) =>
+              setNewCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+            }
+            maxLength={6}
+          />
+          <button
+            type="button"
+            disabled={busy || newCode.length < 4}
+            onClick={verifyNew}
+            className="h-10 w-full rounded-xl border-0 bg-brand text-[13px] font-bold text-white disabled:opacity-50"
+          >
             {busy ? "Verifying…" : "Verify code"}
           </button>
         </div>
       )}
 
-      {step === "confirming" && <p className={cn("text-[12px]", t.muted)}>Updating your phone number…</p>}
+      {step === "confirming" && (
+        <p className={cn("text-[12px]", t.muted)}>
+          Updating your phone number…
+        </p>
+      )}
 
       {step === "done" && (
-        <p className={cn("text-[12px] font-medium", t.soft)}>Your phone number has been updated.</p>
+        <p className={cn("text-[12px] font-medium", t.soft)}>
+          Your phone number has been updated.
+        </p>
       )}
       <ConfirmCancelSheet
         open={confirmCancel}

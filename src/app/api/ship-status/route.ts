@@ -8,12 +8,12 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/ship-status
  *
- * Public deploy proof — no auth. Use this to confirm a Vercel ship really
+ * Public deploy proof no auth. Use this to confirm a Vercel ship really
  * includes expected fixes (build stamp + in-process filter contract checks).
  *
  * Query:
- *   ?trade=mechanic  — also echo live filter array sample for that trade
- *   ?verbose=1       — include full filter list sample
+ * ?trade=mechanic also echo live filter array sample for that trade
+ * ?verbose=1 include full filter list sample
  */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -78,6 +78,6 @@ export async function GET(req: Request) {
         "X-Ona-Build": status.buildId,
         "X-Ona-Ship-Ok": status.allPassed ? "1" : "0",
       },
-    }
+    },
   );
 }

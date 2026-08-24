@@ -38,7 +38,7 @@ describe("acceptance GPS usability", () => {
   });
 });
 
-describe("anti-circle / detour — fee stays locked", () => {
+describe("anti-circle / detour fee stays locked", () => {
   it("1.5 km approved route stays ₦525 distance even if pro drives 10 km", () => {
     const locked = calculateCalloutFee({
       tradeId: "mechanic",
@@ -57,7 +57,7 @@ describe("anti-circle / detour — fee stays locked", () => {
       calculateCalloutFee({
         tradeId: "mechanic",
         approvedRouteDistanceKm: 10,
-      }).calloutFee
+      }).calloutFee,
     );
   });
 
@@ -112,9 +112,9 @@ describe("travel integrity does not change fee", () => {
       customer: { lat: 6.5, lng: 3.3 },
     });
     expect(r.anomalies).toContain("arrival_far_from_customer");
-    expect(haversineMeters({ lat: 6.53, lng: 3.35 }, { lat: 6.5, lng: 3.3 })).toBeGreaterThan(
-      200
-    );
+    expect(
+      haversineMeters({ lat: 6.53, lng: 3.35 }, { lat: 6.5, lng: 3.3 }),
+    ).toBeGreaterThan(200);
   });
 
   it("mock-location flag is recorded, fee still from approved route", () => {
@@ -132,7 +132,7 @@ describe("travel integrity does not change fee", () => {
       calculateCalloutFee({
         tradeId: "mechanic",
         approvedRouteDistanceKm: 1.5,
-      }).calloutFee
+      }).calloutFee,
     ).toBe(3525);
   });
 });

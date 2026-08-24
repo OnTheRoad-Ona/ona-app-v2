@@ -11,7 +11,11 @@ export const dynamic = "force-dynamic";
 /** Care session status: role + whether sensitive unlock is active */
 export async function GET() {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     const { session, adminRole } = await requireAdmin();

@@ -59,7 +59,7 @@ function asStatus(raw: string | null | undefined): string {
 /** True if Care approved T2 on Pro or Customer side. */
 export function isServerT2Approved(
   pro: CareProSnapshot | null | undefined,
-  motorist: CareMotoristSnapshot | null | undefined
+  motorist: CareMotoristSnapshot | null | undefined,
 ): boolean {
   const gov = asStatus(pro?.gov_id_review_status);
   const motId = asStatus(motorist?.identity_review_status);
@@ -77,7 +77,7 @@ export function isServerT2Approved(
 export function resolveGovIdReviewFromServer(
   pro: CareProSnapshot | null | undefined,
   motorist: CareMotoristSnapshot | null | undefined,
-  local: IdentityReviewStatus | undefined
+  local: IdentityReviewStatus | undefined,
 ): IdentityReviewStatus {
   if (isServerT2Approved(pro, motorist)) return "approved";
   const gov = asStatus(pro?.gov_id_review_status);
@@ -94,7 +94,7 @@ export function resolveGovIdReviewFromServer(
 /** Merge server Care status onto local draft (approved overwrites submitted). */
 export function applyCareServerToLocalDraft(
   local: ArtisanVerificationProfile,
-  snapshot: CareServerSnapshot
+  snapshot: CareServerSnapshot,
 ): ApplyCareResult {
   const pro = snapshot.pro;
   const mot = snapshot.motorist;
@@ -110,7 +110,10 @@ export function applyCareServerToLocalDraft(
     };
   }
 
-  let merged: ArtisanVerificationProfile = { ...local, tiers: { ...local.tiers } };
+  let merged: ArtisanVerificationProfile = {
+    ...local,
+    tiers: { ...local.tiers },
+  };
   let changed = false;
 
   const gov = asStatus(pro?.gov_id_review_status);
@@ -143,11 +146,9 @@ export function applyCareServerToLocalDraft(
         merged.tiers.tier2_nin,
       tier3_liveness:
         Boolean(pro?.face_liveness_verified) || merged.tiers.tier3_liveness,
-      tier4_skillProof:
-        docs === "approved" || merged.tiers.tier4_skillProof,
+      tier4_skillProof: docs === "approved" || merged.tiers.tier4_skillProof,
     };
-    const fullyApproved =
-      proStatus === "approved" || (t2Approved && vis >= 2);
+    const fullyApproved = proStatus === "approved" || (t2Approved && vis >= 2);
 
     if (
       merged.govIdReviewStatus !== "approved" ||
@@ -220,8 +221,7 @@ export function applyCareServerToLocalDraft(
       merged = {
         ...merged,
         govIdReviewStatus: "submitted",
-        status:
-          merged.status === "draft" ? "pending_review" : merged.status,
+        status: merged.status === "draft" ? "pending_review" : merged.status,
       };
       changed = true;
     }
@@ -272,7 +272,7 @@ export function applyCareServerToLocalDraft(
   const govStatus = resolveGovIdReviewFromServer(
     pro,
     mot,
-    merged.govIdReviewStatus
+    merged.govIdReviewStatus,
   );
   if (t2Approved && merged.govIdReviewStatus !== "approved") {
     merged = {
@@ -297,14 +297,14 @@ export function applyCareServerToLocalDraft(
 
 /** Load Care status with Bearer auth. */
 export async function loadArtisanServerProfile(
-  userId: string
+  userId: string,
 ): Promise<
   | { ok: true; snapshot: CareServerSnapshot }
   | { ok: false; status: number; error: string }
 > {
   const res = await authFetch(
     `/api/artisan/profile?userId=${encodeURIComponent(userId)}`,
-    { cache: "no-store" }
+    { cache: "no-store" },
   );
   const json = (await res.json().catch(() => null)) as {
     ok?: boolean;
@@ -322,7 +322,7 @@ export async function loadArtisanServerProfile(
       error:
         json?.error?.message ||
         (res.status === 401
-          ? "Not authenticated — cannot refresh verification status"
+          ? "Not authenticated cannot refresh verification status"
           : `Could not load verification status (${res.status})`),
     };
   }
@@ -359,7 +359,7 @@ export type SyncCareStatusResult =
 /** Load server status, apply to local draft, save if changed. */
 export async function syncArtisanCareStatus(
   userId: string,
-  opts?: { local?: ArtisanVerificationProfile | null }
+  opts?: { local?: ArtisanVerificationProfile | null },
 ): Promise<SyncCareStatusResult> {
   const local = opts?.local || getArtisanProfile(userId) || null;
 

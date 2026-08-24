@@ -21,17 +21,18 @@ import { isSyntheticAccount } from "@/lib/server/synthetic-accounts";
 export const PAIRING_WINDOW_MS = 144_000; // 144s per pro (display + enforce)
 export const DEFER_DURATION_MS = 5 * 60_000; // Later = 5 min exclusion from re-offer
 /** At open we KEEP the running 144s pairing window as the review window unless
- *  less than this much remains (then a fresh full window is issued), so the
- *  customer's ring never visibly jumps back to 66 mid-count. */
+ * less than this much remains (then a fresh full window is issued), so the
+ * customer's ring never visibly jumps back to 66 mid-count. */
 export const OPEN_REARM_FLOOR_MS = 10_000;
 /** Max time an offer sits un-surfaced before the sweep arms the pairing
- *  deadline itself (fallback when the pro's device never renders the card). */
+ * deadline itself (fallback when the pro's device never renders the card). */
 export const SURFACE_FALLBACK_GRACE_MS = 8000;
 // Search starts tight (1 km) and expands toward the customer's chosen radius
-// (0–5 km slider), capped at 5 km. The customer's radius caps each request
+// (0-5 km slider), capped at 5 km. The customer's radius caps each request
 // via service_requests.radius_km (see nextRadiusKm's maxKm).
 export const RADIUS_STEPS_KM = [1, 2, 3, MAX_RADIUS_KM];
-export const MAX_PAIRING_RADIUS_KM = RADIUS_STEPS_KM[RADIUS_STEPS_KM.length - 1];
+export const MAX_PAIRING_RADIUS_KM =
+  RADIUS_STEPS_KM[RADIUS_STEPS_KM.length - 1];
 /**
  * Search-radius cap per customer round (round 0 = fresh search, round N = N-th
  * retry). Fresh searches stay tight (2 km); each Retry widens toward the 5 km
@@ -47,7 +48,7 @@ export const PAIRING_ROUND_MAX_KM = [2, 3, 4, MAX_PAIRING_RADIUS_KM];
  */
 export const MAX_PAIRING_ATTEMPTS = 6;
 /**
- * Stages actively pairing (dispatchable / advanceable) — the sweep re-runs the
+ * Stages actively pairing (dispatchable / advanceable) the sweep re-runs the
  * search for these instead of a plain timeout.
  */
 export const PAIRING_STAGES = [
@@ -59,7 +60,12 @@ export const PAIRING_STAGES = [
 ] as const;
 export type PairingStage = (typeof PAIRING_STAGES)[number];
 
-const QUEUE_TERMINAL = new Set(["declined", "timed_out", "accepted", "skipped"]);
+const QUEUE_TERMINAL = new Set([
+  "declined",
+  "timed_out",
+  "accepted",
+  "skipped",
+]);
 
 export type PairingResult =
   | {
@@ -107,11 +113,12 @@ type ProCandidate = {
 };
 
 const nowIso = () => new Date().toISOString();
-const deadlineIso = () => new Date(Date.now() + PAIRING_WINDOW_MS).toISOString();
+const deadlineIso = () =>
+  new Date(Date.now() + PAIRING_WINDOW_MS).toISOString();
 
 async function loadPairingRow(
   sb: ReturnType<typeof createServiceSupabase>,
-  jobId: string
+  jobId: string,
 ): Promise<PairingRow | null> {
   const { data } = await sb
     .from("service_requests")
@@ -141,7 +148,7 @@ async function loadPairingRow(
         "flow_status",
         "status",
         "created_at",
-      ].join(",")
+      ].join(","),
     )
     .eq("id", jobId)
     .maybeSingle();
@@ -156,8 +163,9 @@ function history(row: PairingRow): object[] {
 
 /** Customer round: 0 = fresh search, 1 = first Retry, 2 = second, 3 = third. */
 function pairingRound(row: PairingRow): number {
-  return history(row).filter((h) => (h as { by?: string }).by === "retry_search")
-    .length;
+  return history(row).filter(
+    (h) => (h as { by?: string }).by === "retry_search",
+  ).length;
 }
 
 /** Search-radius cap for the current round, never beyond the customer's choice. */
@@ -180,13 +188,28 @@ function currentPro(row: PairingRow): string | null {
   return row.repair_pro_id || null;
 }
 
-function offersTrade(serviceType: string, p: { primary_service?: string | null; services?: unknown }): boolean {
-  const want = String(serviceType || "").trim().toLowerCase();
+function offersTrade(
+  serviceType: string,
+  p: { primary_service?: string | null; services?: unknown },
+): boolean {
+  const want = String(serviceType || "")
+    .trim()
+    .toLowerCase();
   if (!want) return true;
-  if (String(p.primary_service || "").trim().toLowerCase() === want) return true;
+  if (
+    String(p.primary_service || "")
+      .trim()
+      .toLowerCase() === want
+  )
+    return true;
   const list = p.services;
   if (Array.isArray(list)) {
-    return list.some((s) => String(s || "").trim().toLowerCase() === want);
+    return list.some(
+      (s) =>
+        String(s || "")
+          .trim()
+          .toLowerCase() === want,
+    );
   }
   return false;
 }
@@ -201,7 +224,7 @@ function offersTrade(serviceType: string, p: { primary_service?: string | null; 
 async function findCandidate(
   sb: ReturnType<typeof createServiceSupabase>,
   row: PairingRow,
-  radiusKm: number
+  radiusKm: number,
 ): Promise<{ candidate: ProCandidate; remaining: number } | null> {
   const { data: queue } = await sb
     .from("request_pairing_queue")
@@ -212,7 +235,7 @@ async function findCandidate(
   const blocked = new Set<string>();
   for (const q of queue ?? []) {
     const status = String(q.status || "");
-    // Anyone already contacted this wave is out — including timed_out.
+    // Anyone already contacted this wave is out including timed_out.
     // Re-offering created "3rd pro doesn't exist" on the pro phone (same
     // job already_shown, no popup) while the job still pointed at them.
     if (
@@ -229,7 +252,7 @@ async function findCandidate(
   const { data: pros } = await sb
     .from("repair_pro_profiles")
     .select(
-      "user_id, business_name, primary_service, services, lat, lng, location_updated_at, visibility_tier, is_online, profiles(email, full_name)"
+      "user_id, business_name, primary_service, services, lat, lng, location_updated_at, visibility_tier, is_online, profiles(email, full_name)",
     )
     .eq("is_online", true)
     .neq("status", "suspended")
@@ -240,9 +263,8 @@ async function findCandidate(
     lng: Number(row.pickup_lng) || 0,
   };
 
-  const { resolveDispatchTrades, proOffersAnyTrade } = await import(
-    "@/lib/callout/dispatch-trades"
-  );
+  const { resolveDispatchTrades, proOffersAnyTrade } =
+    await import("@/lib/callout/dispatch-trades");
   const storedTrades = Array.isArray(row.likely_trade_ids)
     ? row.likely_trade_ids.filter(Boolean)
     : [];
@@ -250,16 +272,18 @@ async function findCandidate(
     ? storedTrades
     : resolveDispatchTrades(problemText(row), row.service_type).dispatchTrades;
 
-  let candidates = ((pros ?? []) as Array<{
-    user_id: string;
-    business_name: string | null;
-    primary_service?: string | null;
-    services?: unknown;
-    lat: number | null;
-    lng: number | null;
-    location_updated_at?: string | null;
-    profiles?: { email?: string | null; full_name?: string | null } | null;
-  }>)
+  let candidates = (
+    (pros ?? []) as Array<{
+      user_id: string;
+      business_name: string | null;
+      primary_service?: string | null;
+      services?: unknown;
+      lat: number | null;
+      lng: number | null;
+      location_updated_at?: string | null;
+      profiles?: { email?: string | null; full_name?: string | null } | null;
+    }>
+  )
     .filter((p) => {
       if (blocked.has(String(p.user_id))) return false;
       if (p.lat == null || p.lng == null) return false;
@@ -294,11 +318,10 @@ async function findCandidate(
   const roadKm = new Map<string, number>();
   try {
     const { loadCalloutPolicy } = await import("@/lib/server/callout/store");
-    const { computeDriveMetricsBatch } = await import("@/lib/server/google-eta");
+    const { computeDriveMetricsBatch } =
+      await import("@/lib/server/google-eta");
     const policy = await loadCalloutPolicy();
-    const maxKm = policy.enabled
-      ? policy.maximumRadiusKm
-      : radiusKm;
+    const maxKm = policy.enabled ? policy.maximumRadiusKm : radiusKm;
     if (policy.enabled && Number.isFinite(cLat) && Number.isFinite(cLng)) {
       const dests = candidates.slice(0, 25).map((p) => ({
         lat: Number(p.lat),
@@ -306,7 +329,7 @@ async function findCandidate(
       }));
       const metrics = await computeDriveMetricsBatch(
         { lat: cLat, lng: cLng },
-        dests
+        dests,
       );
       candidates.slice(0, dests.length).forEach((p, i) => {
         const m = metrics[i];
@@ -337,7 +360,7 @@ async function findCandidate(
       const dLng =
         (Number(pro.lng) - cLng) * 111 * Math.cos((cLat * Math.PI) / 180);
       return Math.hypot(dLat, dLng);
-    }
+    },
   );
 
   const best = ordered[0].pro;
@@ -363,7 +386,7 @@ async function notifyPro(
   jobId: string,
   title: string,
   body: string,
-  jobStatus: string
+  jobStatus: string,
 ): Promise<void> {
   try {
     const { insertNotification } = await import("@/lib/server/notifications");
@@ -386,16 +409,16 @@ async function notifyPro(
 }
 
 /** Next radius step, or null when already at the max for this customer.
- * `maxKm` caps expansion at the customer's chosen radius (0–5 slider); when
+ * `maxKm` caps expansion at the customer's chosen radius (0-5 slider); when
  * absent it falls back to the global MAX_PAIRING_RADIUS_KM (5 km). */
 export function nextRadiusKm(
   current: number | null,
-  maxKm?: number | null
+  maxKm?: number | null,
 ): number | null {
   const cur = Number(current);
   const cap = Math.min(
     maxKm && maxKm > 0 ? maxKm : MAX_PAIRING_RADIUS_KM,
-    MAX_PAIRING_RADIUS_KM
+    MAX_PAIRING_RADIUS_KM,
   );
   for (const r of RADIUS_STEPS_KM) {
     if (r > cur && r <= cap) return r;
@@ -414,26 +437,24 @@ async function dispatchCandidate(
   row: PairingRow,
   candidate: ProCandidate,
   remaining: number,
-  source: "pairing"
+  source: "pairing",
 ): Promise<PairingResult> {
   const ts = nowIso();
   const position = Number(row.queue_position) || 0;
   const name = candidate.full_name || candidate.business_name || "Repair Pro";
-  const { error: qErr } = await sb
-    .from("request_pairing_queue")
-    .upsert(
-      {
-        request_id: row.id,
-        pro_id: candidate.user_id,
-        position: position + 1,
-        source,
-        status: "offered",
-        offered_at: ts,
-        responded_at: null,
-        result_note: null,
-      },
-      { onConflict: "request_id,pro_id" }
-    );
+  const { error: qErr } = await sb.from("request_pairing_queue").upsert(
+    {
+      request_id: row.id,
+      pro_id: candidate.user_id,
+      position: position + 1,
+      source,
+      status: "offered",
+      offered_at: ts,
+      responded_at: null,
+      result_note: null,
+    },
+    { onConflict: "request_id,pro_id" },
+  );
   if (qErr && !/duplicate|already exists/i.test(qErr.message)) {
     return { ok: false, error: qErr.message, status: 500 };
   }
@@ -445,7 +466,7 @@ async function dispatchCandidate(
       flow_status: "waiting_for_pro",
       status: "requested",
       // Deadline stays NULL until the request actually appears on the pro's
-      // screen (surface endpoint arms it exactly once) — otherwise dispatch
+      // screen (surface endpoint arms it exactly once) otherwise dispatch
       // and surface both arm it and the shared timer rolls back to 144s.
       pairing_deadline: null,
       queue_position: position + 1,
@@ -453,11 +474,17 @@ async function dispatchCandidate(
       reservation_status: "none",
       repair_pro_id: candidate.user_id,
       repair_pro_name: name,
-      ...(candidate.avatar_url ? { repair_pro_photo: candidate.avatar_url } : {}),
+      ...(candidate.avatar_url
+        ? { repair_pro_photo: candidate.avatar_url }
+        : {}),
       updated_at: ts,
       status_history: [
         ...history(row),
-        { status: "waiting_for_pro", at: ts, by: `pairing:${candidate.user_id}` },
+        {
+          status: "waiting_for_pro",
+          at: ts,
+          by: `pairing:${candidate.user_id}`,
+        },
       ],
     })
     .eq("id", row.id)
@@ -470,10 +497,15 @@ async function dispatchCandidate(
     row.id,
     "Service Request",
     `New request from ${row.motorist_name || "a customer"} · ${problemText(row).slice(0, 80)}`,
-    "waiting_for_pro"
+    "waiting_for_pro",
   );
 
-  return { ok: true, jobId: row.id, currentProId: candidate.user_id, nextProId: candidate.user_id };
+  return {
+    ok: true,
+    jobId: row.id,
+    currentProId: candidate.user_id,
+    nextProId: candidate.user_id,
+  };
 }
 
 /**
@@ -497,7 +529,7 @@ export async function advancePairing(jobId: string): Promise<PairingResult> {
 
   const radius = Math.min(
     Number(row.pairing_radius_km) || RADIUS_STEPS_KM[0],
-    roundMaxRadiusKm(row)
+    roundMaxRadiusKm(row),
   );
   const attempts = Number(row.queue_position) || 0;
 
@@ -508,7 +540,13 @@ export async function advancePairing(jobId: string): Promise<PairingResult> {
 
   const found = await findCandidate(sb, row, radius);
   if (found) {
-    return dispatchCandidate(sb, row, found.candidate, found.remaining, "pairing");
+    return dispatchCandidate(
+      sb,
+      row,
+      found.candidate,
+      found.remaining,
+      "pairing",
+    );
   }
 
   // Expand radius within the customer's search radius (not random outside),
@@ -525,7 +563,7 @@ export async function advancePairing(jobId: string): Promise<PairingResult> {
     }
   }
 
-  // Unique pool empty — never recycle the same pro in this wave.
+  // Unique pool empty never recycle the same pro in this wave.
   // Nobody tried yet (fresh search or a Retry round): hold the 144s pairing
   // window searching instead of instantly exhausting an older request that a
   // Retry just re-opened (the old request-age hold made Retry last ~2s). The
@@ -560,7 +598,7 @@ export async function advancePairing(jobId: string): Promise<PairingResult> {
 
 async function markExhausted(
   sb: ReturnType<typeof createServiceSupabase>,
-  row: PairingRow
+  row: PairingRow,
 ): Promise<PairingResult> {
   const ts = nowIso();
   const { data, error } = await sb
@@ -586,7 +624,12 @@ async function markExhausted(
   // CAS matched 0 rows → the request moved (a pro confirmed, or the stage
   // changed mid-flight). Never report expired for a job we did not expire.
   if (!data || data.length === 0) {
-    return { ok: true, noop: true, jobId: row.id, currentProId: currentPro(row) };
+    return {
+      ok: true,
+      noop: true,
+      jobId: row.id,
+      currentProId: currentPro(row),
+    };
   }
   return { ok: true, jobId: row.id, currentProId: null, expired: true };
 }
@@ -599,7 +642,7 @@ export const MAX_PAIRING_RETRIES = 3;
  * - Stays on the same job (flow → sequential_pairing / waiting_for_pro)
  * - Keeps declined pros excluded permanently for this request
  * - Clears timed_out / deferred / skipped so the next 6 can include new pros
- *   in the customer radius, or reshuffle the same small pool in sequence
+ * in the customer radius, or reshuffle the same small pool in sequence
  */
 export async function retrySearch(jobId: string): Promise<PairingResult> {
   if (!isSupabaseAdminConfigured()) {
@@ -619,21 +662,21 @@ export async function retrySearch(jobId: string): Promise<PairingResult> {
       currentProId: currentPro(row),
     };
   }
-  const isExpired =
-    row.flow_status === "expired" || row.status === "expired";
+  const isExpired = row.flow_status === "expired" || row.status === "expired";
   if (!isExpired) {
     return { ok: false, error: "Request is not finished", status: 409 };
   }
 
   const ts = nowIso();
   const nextRoundCap =
-    PAIRING_ROUND_MAX_KM[Math.min(retried + 1, PAIRING_ROUND_MAX_KM.length - 1)] ??
-    MAX_PAIRING_RADIUS_KM;
+    PAIRING_ROUND_MAX_KM[
+      Math.min(retried + 1, PAIRING_ROUND_MAX_KM.length - 1)
+    ] ?? MAX_PAIRING_RADIUS_KM;
   const customerCap =
     row.radius_km && row.radius_km > 0 ? row.radius_km : MAX_PAIRING_RADIUS_KM;
   const patch = {
     pairing_stage: "sequential_pairing",
-    // Fresh shared 144s clock — customer ring + pro popup both use this field
+    // Fresh shared 144s clock customer ring + pro popup both use this field
     pairing_deadline: deadlineIso(),
     // Widening radius: fresh searched ≤2 km, this Retry jumps to the next cap
     // (3 → 4 → 5 km) so a nearby pro is found before going further out.
@@ -688,7 +731,7 @@ export async function retrySearch(jobId: string): Promise<PairingResult> {
 export async function openRequest(
   jobId: string,
   proId: string,
-  idempotencyKey?: string | null
+  idempotencyKey?: string | null,
 ): Promise<PairingResult> {
   if (!isSupabaseAdminConfigured()) {
     return { ok: false, error: "Supabase is not configured", status: 503 };
@@ -699,23 +742,36 @@ export async function openRequest(
   if (currentPro(row) !== proId) {
     return { ok: false, error: "Not assigned to this request", status: 403 };
   }
-  if (!["waiting_for_selected", "waiting_for_pro"].includes(row.pairing_stage || "")) {
-    return { ok: false, error: "Request is not open for this action", status: 409 };
+  if (
+    !["waiting_for_selected", "waiting_for_pro"].includes(
+      row.pairing_stage || "",
+    )
+  ) {
+    return {
+      ok: false,
+      error: "Request is not open for this action",
+      status: 409,
+    };
   }
   if (idempotencyKey && row.idempotency_key === idempotencyKey) {
     return { ok: true, noop: true, jobId };
   }
 
-  const stage: PairingStage = row.pairing_stage === "waiting_for_selected" ? "selected_review" : "reserved";
+  const stage: PairingStage =
+    row.pairing_stage === "waiting_for_selected"
+      ? "selected_review"
+      : "reserved";
   const ts = nowIso();
 
   // Keep the SAME pairing_deadline as the review window whenever it's still
-  // healthy (no visible jump when the pro opens) — the ring/card count straight
+  // healthy (no visible jump when the pro opens) the ring/card count straight
   // through. Only re-arm to a fresh 144s when the current window is unset or
   // nearly spent, so the pro still gets a real review period.
   const currentLeftMs = windowLeftMs(row.pairing_deadline);
   const reviewDeadline =
-    currentLeftMs < OPEN_REARM_FLOOR_MS ? deadlineIso() : String(row.pairing_deadline);
+    currentLeftMs < OPEN_REARM_FLOOR_MS
+      ? deadlineIso()
+      : String(row.pairing_deadline);
 
   const { error: resErr } = await sb.from("request_reservations").insert({
     request_id: row.id,
@@ -753,7 +809,11 @@ export async function openRequest(
   if (!data || data.length === 0) {
     await sb
       .from("request_reservations")
-      .update({ status: "cancelled", released_at: ts, released_by: "open_race" })
+      .update({
+        status: "cancelled",
+        released_at: ts,
+        released_by: "open_race",
+      })
       .eq("request_id", row.id)
       .eq("pro_id", proId)
       .eq("status", "active");
@@ -764,7 +824,7 @@ export async function openRequest(
 }
 
 /**
- * Pro taps "I can fix this" — the assignment point. Reservation → confirmed,
+ * Pro taps "I can fix this" the assignment point. Reservation → confirmed,
  * request enters the existing 20-min negotiation flow, pairing timers stop.
  */
 export async function confirmRequest(
@@ -777,7 +837,7 @@ export async function confirmRequest(
     accuracyM?: number | null;
     capturedAt?: string | null;
     mockLocation?: boolean | null;
-  } | null
+  } | null,
 ): Promise<PairingResult> {
   if (!isSupabaseAdminConfigured()) {
     return { ok: false, error: "Supabase is not configured", status: 503 };
@@ -789,7 +849,11 @@ export async function confirmRequest(
     return { ok: false, error: "Not assigned to this request", status: 403 };
   }
   if (!["selected_review", "reserved"].includes(row.pairing_stage || "")) {
-    return { ok: false, error: "Request is not awaiting confirmation", status: 409 };
+    return {
+      ok: false,
+      error: "Request is not awaiting confirmation",
+      status: 409,
+    };
   }
   if (idempotencyKey && row.idempotency_key === idempotencyKey) {
     return { ok: true, noop: true, jobId };
@@ -851,11 +915,19 @@ export async function confirmRequest(
   if (!data || data.length === 0) {
     await sb
       .from("request_reservations")
-      .update({ status: "cancelled", released_at: ts, released_by: "confirm_race" })
+      .update({
+        status: "cancelled",
+        released_at: ts,
+        released_by: "confirm_race",
+      })
       .eq("request_id", row.id)
       .eq("pro_id", proId)
       .eq("status", "confirmed");
-    return { ok: false, error: "Request moved on before confirmation", status: 409 };
+    return {
+      ok: false,
+      error: "Request moved on before confirmation",
+      status: 409,
+    };
   }
 
   // A confirmed assignment reflects well on the pro → refresh merit.
@@ -863,7 +935,7 @@ export async function confirmRequest(
   void recalculateMerit(proId);
 
   // "Add another repair pro": a linked scheduled second request (Tow) becomes
-  // dispatchable 60 min after this acceptance. Armed once — the sweep only
+  // dispatchable 60 min after this acceptance. Armed once the sweep only
   // touches requests whose scheduled_dispatch_at is still NULL.
   try {
     await armLinkedScheduledDispatch(sb, row.id, ts);
@@ -872,9 +944,8 @@ export async function confirmRequest(
   }
 
   try {
-    const { lockCalloutOnAcceptance } = await import(
-      "@/lib/server/callout/acceptance"
-    );
+    const { lockCalloutOnAcceptance } =
+      await import("@/lib/server/callout/acceptance");
     const destLat = Number(row.pickup_lat);
     const destLng = Number(row.pickup_lng);
     if (Number.isFinite(destLat) && Number.isFinite(destLng)) {
@@ -901,15 +972,14 @@ async function settleCurrentPro(
   sb: ReturnType<typeof createServiceSupabase>,
   row: PairingRow,
   status: "declined" | "timed_out" | "deferred",
-  reason?: string | null
+  reason?: string | null,
 ): Promise<{ error: string | null }> {
   const proId = currentPro(row);
   const ts = nowIso();
   if (!proId) return { error: null };
   try {
-    const { voidCalloutForReroute } = await import(
-      "@/lib/server/callout/acceptance"
-    );
+    const { voidCalloutForReroute } =
+      await import("@/lib/server/callout/acceptance");
     await voidCalloutForReroute(row.id, status, proId);
   } catch {
     /* call-out optional */
@@ -944,7 +1014,11 @@ async function settleCurrentPro(
 }
 
 /** Patch used when leaving a pro (timeout / later / decline) → searching next. */
-function sequentialUnlinkPatch(row: PairingRow, ts: string, historyExtra: object[]) {
+function sequentialUnlinkPatch(
+  row: PairingRow,
+  ts: string,
+  historyExtra: object[],
+) {
   return {
     pairing_stage: "sequential_pairing" as const,
     pairing_deadline: null as string | null,
@@ -963,7 +1037,7 @@ function sequentialUnlinkPatch(row: PairingRow, ts: string, historyExtra: object
 export async function declineRequest(
   jobId: string,
   proId: string,
-  reason?: string | null
+  reason?: string | null,
 ): Promise<PairingResult> {
   if (!isSupabaseAdminConfigured()) {
     return { ok: false, error: "Supabase is not configured", status: 503 };
@@ -993,14 +1067,19 @@ export async function declineRequest(
           by: `declined:${proId}`,
           note: reason || undefined,
         },
-      ])
+      ]),
     )
     .eq("id", row.id)
     .eq("pairing_stage", row.pairing_stage);
   if (error) return { ok: false, error: error.message, status: 500 };
 
   const next = await advancePairing(jobId);
-  return { ok: true, jobId: row.id, currentProId: null, nextProId: next.ok ? next.currentProId ?? null : null };
+  return {
+    ok: true,
+    jobId: row.id,
+    currentProId: null,
+    nextProId: next.ok ? (next.currentProId ?? null) : null,
+  };
 }
 
 /**
@@ -1009,7 +1088,7 @@ export async function declineRequest(
  */
 export async function deferRequest(
   jobId: string,
-  proId: string
+  proId: string,
 ): Promise<PairingResult> {
   if (!isSupabaseAdminConfigured()) {
     return { ok: false, error: "Supabase is not configured", status: 503 };
@@ -1041,7 +1120,7 @@ export async function deferRequest(
       sequentialUnlinkPatch(row, ts, [
         { status: "sequential_pairing", at: ts, by: `deferred:${proId}` },
         { status: "sequential_pairing", at: ts, by: `later:${proId}` },
-      ])
+      ]),
     )
     .eq("id", row.id)
     .eq("pairing_stage", row.pairing_stage);
@@ -1052,7 +1131,7 @@ export async function deferRequest(
     ok: true,
     jobId: row.id,
     currentProId: null,
-    nextProId: next.ok ? next.currentProId ?? null : null,
+    nextProId: next.ok ? (next.currentProId ?? null) : null,
   };
 }
 
@@ -1064,7 +1143,10 @@ export async function timeoutRequest(jobId: string): Promise<PairingResult> {
   const sb = createServiceSupabase();
   const row = await loadPairingRow(sb, jobId);
   if (!row) return { ok: false, error: "Job not found", status: 404 };
-  if (!PAIRING_STAGES.includes(row.pairing_stage as PairingStage) || row.pairing_stage === "sequential_pairing") {
+  if (
+    !PAIRING_STAGES.includes(row.pairing_stage as PairingStage) ||
+    row.pairing_stage === "sequential_pairing"
+  ) {
     return { ok: true, noop: true, jobId };
   }
 
@@ -1073,28 +1155,38 @@ export async function timeoutRequest(jobId: string): Promise<PairingResult> {
   // and must not settle or advance.
   const fresh = await loadPairingRow(sb, jobId);
   if (!fresh) return { ok: true, noop: true, jobId };
-  if (!PAIRING_STAGES.includes(fresh.pairing_stage as PairingStage) || fresh.pairing_stage === "sequential_pairing") {
+  if (
+    !PAIRING_STAGES.includes(fresh.pairing_stage as PairingStage) ||
+    fresh.pairing_stage === "sequential_pairing"
+  ) {
     return { ok: true, noop: true, jobId };
   }
-  const deadline = fresh.pairing_deadline ? Date.parse(fresh.pairing_deadline) : 0;
+  const deadline = fresh.pairing_deadline
+    ? Date.parse(fresh.pairing_deadline)
+    : 0;
   if (Number.isFinite(deadline) && Date.now() < deadline) {
     return { ok: true, noop: true, jobId };
   }
 
   const ts = nowIso();
-  const settled = await settleCurrentPro(sb, fresh, "timed_out", "pairing deadline exceeded");
+  const settled = await settleCurrentPro(
+    sb,
+    fresh,
+    "timed_out",
+    "pairing deadline exceeded",
+  );
   if (settled.error) return { ok: false, error: settled.error, status: 500 };
 
   // CAS the stage to sequential_pairing and only count the timeout + advance
   // when the row actually matched. If it moved (pro opened/confirmed while we
-  // were settling), leave the job exactly where it is — the opener/confirmer
+  // were settling), leave the job exactly where it is the opener/confirmer
   // owns it now and the sweep already refreshed its deadline.
   const { data, error } = await sb
     .from("service_requests")
     .update(
       sequentialUnlinkPatch(fresh, ts, [
         { status: "sequential_pairing", at: ts, by: "sweep:timeout" },
-      ])
+      ]),
     )
     .eq("id", row.id)
     .eq("pairing_stage", fresh.pairing_stage)
@@ -1105,24 +1197,31 @@ export async function timeoutRequest(jobId: string): Promise<PairingResult> {
   }
 
   const next = await advancePairing(jobId);
-  return { ok: true, jobId: row.id, currentProId: null, nextProId: next.ok ? next.currentProId ?? null : null };
+  return {
+    ok: true,
+    jobId: row.id,
+    currentProId: null,
+    nextProId: next.ok ? (next.currentProId ?? null) : null,
+  };
 }
 
 /**
  * "Add another repair pro": arm a linked scheduled second request so it becomes
  * dispatchable now + SECOND_PRO_DELAY_MS (60 min after the primary's pro accepts).
- * CAS on `flow_status = 'scheduled' AND scheduled_dispatch_at IS NULL` — never
+ * CAS on `flow_status = 'scheduled' AND scheduled_dispatch_at IS NULL` never
  * re-arms and never touches an already-dispatched/cancelled linked request.
  */
 async function armLinkedScheduledDispatch(
   sb: ReturnType<typeof createServiceSupabase>,
   primaryRequestId: string,
-  ts: string
+  ts: string,
 ): Promise<void> {
   await sb
     .from("service_requests")
     .update({
-      scheduled_dispatch_at: new Date(Date.now() + SECOND_PRO_DELAY_MS).toISOString(),
+      scheduled_dispatch_at: new Date(
+        Date.now() + SECOND_PRO_DELAY_MS,
+      ).toISOString(),
       updated_at: ts,
     })
     .eq("linked_request_id", primaryRequestId)
@@ -1130,15 +1229,19 @@ async function armLinkedScheduledDispatch(
     .is("scheduled_dispatch_at", null);
 }
 
-const SCHEDULED_CANCELLED_STATUSES = ["cancelled", "expired", "refunded"] as const;
+const SCHEDULED_CANCELLED_STATUSES = [
+  "cancelled",
+  "expired",
+  "refunded",
+] as const;
 
 /**
  * Scheduled-dispatch sweep for "add another repair pro" (runs ~1/min alongside
  * sweepPairing). For each linked request still `scheduled`:
- *  - primary cancelled/expired first → cancel the second silently (no ping);
- *  - dispatch time reached and motorist not yet pinged → notify ONCE (in-app +
- *    web push) to enter their current address; the /dispatch-scheduled endpoint
- *    then books the second pro.
+ * - primary cancelled/expired first → cancel the second silently (no ping);
+ * - dispatch time reached and motorist not yet pinged → notify ONCE (in-app +
+ * web push) to enter their current address; the /dispatch-scheduled endpoint
+ * then books the second pro.
  */
 export async function sweepScheduledDispatches(limit = 50): Promise<{
   checked: number;
@@ -1154,7 +1257,7 @@ export async function sweepScheduledDispatches(limit = 50): Promise<{
     const { data: rows } = await sb
       .from("service_requests")
       .select(
-        "id, linked_request_id, scheduled_dispatch_at, dispatch_notified_at, motorist_id, service_type, problem, pickup_address, status_history"
+        "id, linked_request_id, scheduled_dispatch_at, dispatch_notified_at, motorist_id, service_type, problem, pickup_address, status_history",
       )
       .eq("flow_status", "scheduled")
       .not("linked_request_id", "is", null)
@@ -1173,10 +1276,14 @@ export async function sweepScheduledDispatches(limit = 50): Promise<{
           .select("flow_status, status")
           .eq("id", primaryId)
           .maybeSingle();
-        const primaryFlow = String(primary?.flow_status || primary?.status || "");
-        if (SCHEDULED_CANCELLED_STATUSES.includes(
-          primaryFlow as (typeof SCHEDULED_CANCELLED_STATUSES)[number]
-        )) {
+        const primaryFlow = String(
+          primary?.flow_status || primary?.status || "",
+        );
+        if (
+          SCHEDULED_CANCELLED_STATUSES.includes(
+            primaryFlow as (typeof SCHEDULED_CANCELLED_STATUSES)[number],
+          )
+        ) {
           const ts = nowIso();
           const prior = Array.isArray(row.status_history)
             ? (row.status_history as object[])
@@ -1199,9 +1306,12 @@ export async function sweepScheduledDispatches(limit = 50): Promise<{
           continue;
         }
 
-        const at = row.scheduled_dispatch_at ? Date.parse(String(row.scheduled_dispatch_at)) : NaN;
+        const at = row.scheduled_dispatch_at
+          ? Date.parse(String(row.scheduled_dispatch_at))
+          : NaN;
         const alreadyNotified = Boolean(row.dispatch_notified_at);
-        if (!Number.isFinite(at) || alreadyNotified || Date.now() < at) continue;
+        if (!Number.isFinite(at) || alreadyNotified || Date.now() < at)
+          continue;
 
         // Dispatch time reached → ping the motorist ONCE to enter their address.
         const ts = nowIso();
@@ -1221,7 +1331,8 @@ export async function sweepScheduledDispatches(limit = 50): Promise<{
         const title = `Your ${trade} pro is ready`;
         const body = "Enter your current address to book them now.";
         try {
-          const { insertNotification } = await import("@/lib/server/notifications");
+          const { insertNotification } =
+            await import("@/lib/server/notifications");
           await insertNotification({
             userId: String(row.motorist_id),
             category: "requests",
@@ -1278,7 +1389,7 @@ export async function sweepPairing(limit = 50): Promise<{
       .from("service_requests")
       .select("id, pairing_stage")
       .in("pairing_stage", PAIRING_STAGES)
-      // reservation_status is NULL on fresh jobs (chosen pro awaiting reply) —
+      // reservation_status is NULL on fresh jobs (chosen pro awaiting reply)
       // `<>` never matches NULL, so mirror the pg_cron wrapper's
       // `coalesce(reservation_status,'') <> 'confirmed'` via an or() filter.
       .or("reservation_status.neq.confirmed,reservation_status.is.null")
@@ -1306,7 +1417,7 @@ export async function sweepPairing(limit = 50): Promise<{
     // the pairing exactly as if the offer had been surfaced. Only arms still-
     // open offers with an assigned union pro or a pending chosen pro.
     const fallbackCutoff = new Date(
-      Date.now() - SURFACE_FALLBACK_GRACE_MS
+      Date.now() - SURFACE_FALLBACK_GRACE_MS,
     ).toISOString();
     const { error: fbErr } = await sb
       .from("service_requests")
@@ -1321,4 +1432,3 @@ export async function sweepPairing(limit = 50): Promise<{
   }
   return { checked, timedOut, expired };
 }
-

@@ -5,11 +5,7 @@
 import { createServiceSupabase } from "@/lib/supabase/server";
 
 export type TicketStatus =
-  | "open"
-  | "pending"
-  | "in_progress"
-  | "resolved"
-  | "closed";
+  "open" | "pending" | "in_progress" | "resolved" | "closed";
 
 export async function createTicket(input: {
   requesterId?: string | null;
@@ -47,15 +43,12 @@ export async function createTicket(input: {
   return data;
 }
 
-export async function listTickets(opts?: {
-  status?: string;
-  limit?: number;
-}) {
+export async function listTickets(opts?: { status?: string; limit?: number }) {
   const supabase = createServiceSupabase();
   let q = supabase
     .from("support_tickets")
     .select(
-      "id, ticket_number, subject, category, priority, status, requester_id, assigned_to, created_at, updated_at"
+      "id, ticket_number, subject, category, priority, status, requester_id, assigned_to, created_at, updated_at",
     )
     .order("created_at", { ascending: false })
     .limit(opts?.limit ?? 50);

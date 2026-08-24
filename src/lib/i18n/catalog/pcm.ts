@@ -112,7 +112,8 @@ export const PCM: MessageDict = {
   "settings.aboutDetail": "Version 0.1 · help near you",
   "language.title": "Language",
   "language.subtitle": "App language",
-  "language.hint": "Choose how Ona go show menu and buttons. English na default.",
+  "language.hint":
+    "Choose how Ona go show menu and buttons. English na default.",
   "language.saved": "Language don change",
   "language.current": "Current",
   "notif.title": "Notifications & sound",
@@ -149,7 +150,8 @@ export const PCM: MessageDict = {
   "notif.emailDetail": "Summaries and receipts",
   "location.title": "My location",
   "location.subtitle": "Set where you are",
-  "location.hint": "Search a place or move the pin. This is used for the home map and nearby pros.",
+  "location.hint":
+    "Search a place or move the pin. This is used for the home map and nearby pros.",
   "location.saved": "Location saved",
   "location.myLocationBtn": "My location",
   "location.tapMap": "Tap map or drag pin",
@@ -208,7 +210,8 @@ export const PCM: MessageDict = {
   "trade.solar": "Solar",
   "trade.generator": "Generator",
   "trade.all": "All",
-  "gate.finishBeforeLive": "Finish verification submit am for review before you fit Go Live.",
+  "gate.finishBeforeLive":
+    "Finish verification submit am for review before you fit Go Live.",
   "gate.continueVerification": "Continue verification",
   "gate.viewStatus": "See status",
   "status.draft": "Draft",
@@ -258,7 +261,8 @@ export const PCM: MessageDict = {
   "profile.reviews": "Reviews",
   "profile.rating": "Rating",
   "verify.title": "Verify your ID",
-  "verify.subtitle": "Free try until job {warn}. Finish this before job {block} so you can keep booking.",
+  "verify.subtitle":
+    "Free try until job {warn}. Finish this before job {block} so you can keep booking.",
   "verify.howTitle": "How verification works",
   "verify.countryFromPhone": "Country: {country} (from your phone number)",
   "verify.requiredFor": "Required for {country}",
@@ -282,7 +286,8 @@ export const PCM: MessageDict = {
   "signup.failed": "Sign-up no work",
   "signup.tryAgain": "Try again",
   "signup.allSet": "You're all set",
-  "signup.accountReady": "Your {role} account is ready. You can start using Ona now.",
+  "signup.accountReady":
+    "Your {role} account is ready. You can start using Ona now.",
   "dashboard.title": "Dashboard",
   "dashboard.incoming": "Incoming jobs",
   "dashboard.recent": "Recent",
@@ -291,7 +296,8 @@ export const PCM: MessageDict = {
   "gate.verifySoon": "Verify soon to keep full access",
   "gate.verifyNow": "Verify your ID now",
   "gate.required": "Verification required",
-  "gate.exploreFree": "You explored the app freely. Verify your ID once to book without limits.",
+  "gate.exploreFree":
+    "You explored the app freely. Verify your ID once to book without limits.",
   "menu.settings": "Settings",
   "menu.help": "Help",
   "menu.switchRole": "Switch role",
@@ -312,7 +318,8 @@ export const PCM: MessageDict = {
   "menu.logIn": "Log in",
   "menu.needLogin": "Log in make you switch between Customer and Repair Pro.",
   "menu.noMotorist": "You no get Customer account yet.",
-  "menu.noPro": "You no get Repair Pro account yet. Finish signup make you go Live and collect jobs.",
+  "menu.noPro":
+    "You no get Repair Pro account yet. Finish signup make you go Live and collect jobs.",
   "menu.couldNotSwitch": "E no fit switch.",
   "menu.tapToClose": "Tap make e close",
   "menu.signedInAs": "You don log in as {name}",
@@ -346,11 +353,12 @@ export const PCM: MessageDict = {
   "settings.hub.addressesDetail": "Home, Work, service area & pin",
   "settings.dangerZone": "Danger zone",
   "settings.deleteAccount": "Delete account",
-  "settings.deleteAccountDetail": "Deactivate forever — e no fit reverse",
+  "settings.deleteAccountDetail": "Deactivate forever e no fit reverse",
   "settings.theme.tap": "Tap",
   "search.noResultsFor": "No result for “{q}”",
-  "search.tryAnother": "Dat pro, trade or place no dey nearby. Try another search.",
-  "search.tryBrowse": "Try name, trade or place — or open Home make you browse.",
+  "search.tryAnother":
+    "Dat pro, trade or place no dey nearby. Try another search.",
+  "search.tryBrowse": "Try name, trade or place or open Home make you browse.",
   "search.noMatchesNearby": "No match nearby",
   "search.backHome": "Back home",
   "search.withinKm": "Inside {km} km · {count} result",
@@ -359,12 +367,14 @@ export const PCM: MessageDict = {
   "search.placeholder": "Search problem, technician, service…",
   "search.title": "Search",
   "search.subtitle": "Skilled workers wey dey nearby",
-  "home.searchNoResults": "No result for “{q}”. Try another name, trade or place.",
+  "home.searchNoResults":
+    "No result for “{q}”. Try another name, trade or place.",
   "common.customer": "Customer",
   "common.repairPro": "Repair Pro",
   "common.codeSent": "Code don send. Enter am below.",
   "nav.shop": "Shop",
   "nav.myShop": "My Shop",
+  "nav.onaExpress": "Ona Express",
   "trade.shop": "Shop",
   "shop.title": "Shop",
   "shop.searchPlaceholder": "What are you looking for?",
@@ -372,6 +382,6 @@ export const PCM: MessageDict = {
   "shop.popular": "Popular",
   "shop.newArrivals": "New arrivals",
   "shop.empty": "No products yet. Catalog is loading.",
-  "shop.setupRequired": "Shop is almost ready — catalog database will appear after setup.",
+  "shop.setupRequired":
+    "Shop is almost ready catalog database will appear after setup.",
 };
-

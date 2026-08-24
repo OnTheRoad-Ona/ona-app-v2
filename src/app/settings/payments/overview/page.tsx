@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Payment / Payout overview — money showcase on the main stage only.
+ * Payment / Payout overview money showcase on the main stage only.
  * No cards, no extra fills, no glow, no gradient.
  */
 
@@ -28,9 +28,7 @@ export default function PaymentsOverviewPage() {
   const heroValue = summary
     ? formatMoneyMinor(summary.heldMinor, currency)
     : null;
-  const openCount = summary
-    ? summary.heldCount + summary.processingCount
-    : 0;
+  const openCount = summary ? summary.heldCount + summary.processingCount : 0;
 
   const ledger = summary
     ? [
@@ -73,7 +71,7 @@ export default function PaymentsOverviewPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader
@@ -87,7 +85,7 @@ export default function PaymentsOverviewPage() {
           <p
             className={cn(
               "text-[11px] font-bold uppercase tracking-[0.14em]",
-              muted
+              muted,
             )}
           >
             {isPro ? "Repair Pro balance" : "Customer balance"}
@@ -97,7 +95,7 @@ export default function PaymentsOverviewPage() {
             onClick={() => void reload()}
             className={cn(
               "inline-flex items-center gap-1.5 border-0 bg-transparent py-1 text-[12px] font-bold",
-              muted
+              muted,
             )}
             aria-label="Refresh"
           >
@@ -120,7 +118,7 @@ export default function PaymentsOverviewPage() {
 
         {summary && heroValue ? (
           <>
-            {/* Hero money — large, clear, brand accent on the figure */}
+            {/* Hero money large, clear, brand accent on the figure */}
             <section className="pt-6 pb-8 text-center">
               <p className={cn("text-[13px] font-semibold", muted)}>
                 {heroLabel}
@@ -128,7 +126,7 @@ export default function PaymentsOverviewPage() {
               <p
                 className={cn(
                   "mt-1 text-[12px] font-bold uppercase tracking-[0.18em]",
-                  muted
+                  muted,
                 )}
               >
                 {currencyCode}
@@ -150,12 +148,12 @@ export default function PaymentsOverviewPage() {
               </p>
             </section>
 
-            {/* Money ledger — full-width rows, amount on the right */}
+            {/* Money ledger full-width rows, amount on the right */}
             <section aria-label="Balance breakdown">
               <p
                 className={cn(
                   "mb-1 text-[11px] font-bold uppercase tracking-[0.14em]",
-                  muted
+                  muted,
                 )}
               >
                 Breakdown
@@ -167,17 +165,22 @@ export default function PaymentsOverviewPage() {
                     className={cn(
                       "flex items-end justify-between gap-4 py-4",
                       i > 0 && "border-t",
-                      i > 0 && hair
+                      i > 0 && hair,
                     )}
                   >
                     <div className="min-w-0 flex-1">
-                      <p className={cn("text-[15px] font-bold leading-snug", ink)}>
+                      <p
+                        className={cn(
+                          "text-[15px] font-bold leading-snug",
+                          ink,
+                        )}
+                      >
                         {row.label}
                       </p>
                       <p
                         className={cn(
                           "mt-0.5 text-[12px] font-medium leading-snug",
-                          muted
+                          muted,
                         )}
                       >
                         {row.sub}
@@ -186,7 +189,7 @@ export default function PaymentsOverviewPage() {
                     <p
                       className={cn(
                         "shrink-0 text-right text-[18px] font-black tabular-nums tracking-tight",
-                        row.money ? "text-[#FF6B35]" : ink
+                        row.money ? "text-[#FF6B35]" : ink,
                       )}
                       style={{ fontVariantNumeric: "tabular-nums" }}
                     >
@@ -199,7 +202,11 @@ export default function PaymentsOverviewPage() {
           </>
         ) : !loading ? (
           <div className="py-20 text-center">
-            <p className={cn("text-[28px] font-black tabular-nums text-[#FF6B35]")}>
+            <p
+              className={cn(
+                "text-[28px] font-black tabular-nums text-[#FF6B35]",
+              )}
+            >
               {formatMoneyMinor(0, currency)}
             </p>
             <p className={cn("mt-3 text-[14px] font-semibold", ink)}>
@@ -217,7 +224,7 @@ export default function PaymentsOverviewPage() {
           <p
             className={cn(
               "mt-8 text-[12px] font-medium leading-relaxed",
-              muted
+              muted,
             )}
           >
             {notes}

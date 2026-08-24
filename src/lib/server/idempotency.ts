@@ -5,11 +5,11 @@
  * so that a retry after a lost response never repeats the side effect.
  *
  * Flow:
- *  1. no opKey                 -> run fn directly (legacy, no dedupe).
- *  2. opKey already done/error -> replay the recorded result. Nothing re-runs.
- *  3. opKey running            -> poll briefly; concurrent duplicate in-flight.
- *  4. claim (insert running)   -> run fn, settle to done/error.
- *  Unique-violation on claim   -> a concurrent twin won; poll it instead.
+ * 1. no opKey -> run fn directly (legacy, no dedupe).
+ * 2. opKey already done/error -> replay the recorded result. Nothing re-runs.
+ * 3. opKey running -> poll briefly; concurrent duplicate in-flight.
+ * 4. claim (insert running) -> run fn, settle to done/error.
+ * Unique-violation on claim -> a concurrent twin won; poll it instead.
  *
  * Verify-then-report: GET /api/ops/status reads the same ledger.
  */
@@ -20,7 +20,7 @@ import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 export type IdemRunResult<K> =
   | { status: "ok"; replay: boolean; result: K }
   | { status: "error"; replay: boolean; error: string }
-  /** Still running elsewhere — client should verify, not assume failure. */
+  /** Still running elsewhere client should verify, not assume failure. */
   | { status: "processing" };
 
 type LedgerRow = {
@@ -47,11 +47,7 @@ async function readOp(opKey: string): Promise<LedgerRow | null> {
   const status = String(data.status);
   return {
     status:
-      status === "done"
-        ? "done"
-        : status === "error"
-          ? "error"
-          : "running",
+      status === "done" ? "done" : status === "error" ? "error" : "running",
     result: data.result ?? null,
     error: data.error ? String(data.error) : null,
   };
@@ -65,7 +61,7 @@ type WaitOutcome =
 
 async function waitForCompletion(
   opKey: string,
-  deadline: number
+  deadline: number,
 ): Promise<WaitOutcome> {
   while (Date.now() < deadline) {
     const op = await readOp(opKey);
@@ -79,13 +75,16 @@ async function waitForCompletion(
 }
 
 function outcomeResult<K>(out: WaitOutcome): IdemRunResult<K> {
-  if (out.kind === "done") return { status: "ok", replay: true, result: out.result as K };
+  if (out.kind === "done")
+    return { status: "ok", replay: true, result: out.result as K };
   if (out.kind === "error")
     return { status: "error", replay: true, error: out.error };
   return { status: "processing" };
 }
 
-async function safeRun<K>(run: () => Promise<{ ok: true; result: K } | { ok: false; error: string }>) {
+async function safeRun<K>(
+  run: () => Promise<{ ok: true; result: K } | { ok: false; error: string }>,
+) {
   try {
     return await run();
   } catch (e) {
@@ -132,9 +131,7 @@ export async function runIdempotent<K>(input: {
     };
   }
   if (existing) {
-    return outcomeResult(
-      await waitForCompletion(input.opKey, deadline)
-    );
+    return outcomeResult(await waitForCompletion(input.opKey, deadline));
   }
 
   // Claim the op. insert ALSO detects the concurrent-twin race via its
@@ -153,19 +150,17 @@ export async function runIdempotent<K>(input: {
 
   if (insErr) {
     if (String((insErr as { code?: string }).code) === "23505") {
-      // A twin claimed first — wait for its outcome.
-      return outcomeResult(
-        await waitForCompletion(input.opKey, deadline)
-      );
+      // A twin claimed first wait for its outcome.
+      return outcomeResult(await waitForCompletion(input.opKey, deadline));
     }
-    // Ledger unavailable for non-conflict reasons — best-effort run.
+    // Ledger unavailable for non-conflict reasons best-effort run.
     const out = await safeRun(input.run);
     return out.ok
       ? { status: "ok", replay: false, result: out.result }
       : { status: "error", replay: false, error: out.error };
   }
 
-  // We own the op — run and settle it.
+  // We own the op run and settle it.
   const out = await safeRun(input.run);
   await sb
     .from("idempotent_ops")

@@ -14,14 +14,14 @@ export function isValidFullName(name: string): boolean {
  */
 export function isValidEmail(email: string): boolean {
   const e = email.trim().toLowerCase();
-  // user@domain.tld — TLD at least 2 letters
+  // user@domain.tld TLD at least 2 letters
   return /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(e);
 }
 
 /**
- * @param emptyOk — when true (on blur of empty field), skip "required"
- *   until the user has typed something or left a required field intentionally.
- *   Use emptyOk=false when field was touched and left empty.
+ * @param emptyOk when true (on blur of empty field), skip "required"
+ * until the user has typed something or left a required field intentionally.
+ * Use emptyOk=false when field was touched and left empty.
  */
 export function emailError(email: string, emptyOk = false): FieldError {
   const e = email.trim();
@@ -39,7 +39,7 @@ export function isValidIdDigits(value: string, len = 11): boolean {
   return /^\d+$/.test(value) && value.length === len;
 }
 
-/** Optional NIN — if provided, digits only, exactly 11. */
+/** Optional NIN if provided, digits only, exactly 11. */
 export function ninError(nin: string): FieldError {
   if (!nin.trim()) return null;
   if (/[a-zA-Z]/.test(nin)) return "NIN should not have letters.";
@@ -60,7 +60,7 @@ export function bvnError(bvn: string): FieldError {
 export function confirmPasswordError(
   password: string,
   confirm: string,
-  emptyOk = false
+  emptyOk = false,
 ): FieldError {
   if (!confirm) return emptyOk ? null : "Type your password again.";
   if (confirm !== password) return "The two passwords are not the same.";
@@ -89,7 +89,7 @@ export function isValidPassword(password: string): boolean {
 
 export function phoneNationalError(
   national: string,
-  emptyOk = false
+  emptyOk = false,
 ): FieldError {
   const d = national.replace(/\D/g, "");
   if (!d) return emptyOk ? null : "Please enter your phone number.";
@@ -161,9 +161,10 @@ export function isValidDob(isoDate: string, minAge = SIGNUP_MIN_AGE): boolean {
 export function dobError(
   isoDate: string,
   emptyOk = false,
-  minAge = SIGNUP_MIN_AGE
+  minAge = SIGNUP_MIN_AGE,
 ): FieldError {
-  if (!isoDate.trim()) return emptyOk ? null : "Please enter your date of birth.";
+  if (!isoDate.trim())
+    return emptyOk ? null : "Please enter your date of birth.";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
     return "Use a valid date of birth.";
   }
@@ -177,7 +178,8 @@ export function dobError(
   ) {
     return "Use a valid date of birth.";
   }
-  if (dob.getTime() > Date.now()) return "Date of birth cannot be in the future.";
+  if (dob.getTime() > Date.now())
+    return "Date of birth cannot be in the future.";
   const today = new Date();
   let age = today.getFullYear() - dob.getFullYear();
   const mo = today.getMonth() - dob.getMonth();
@@ -200,9 +202,7 @@ export function formatGenderLabel(gender?: string | null): string {
 }
 
 /** Always store/display as YYYY-MM-DD (or empty). */
-export function normalizeDobIso(
-  raw: string | null | undefined
-): string | null {
+export function normalizeDobIso(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const s = String(raw).trim().slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
@@ -252,7 +252,7 @@ export function dobInputMin(_minAge = SIGNUP_MIN_AGE): string {
 export type PasswordRuleId = "length" | "upper" | "digit";
 
 export function passwordRules(
-  password: string
+  password: string,
 ): Record<PasswordRuleId, boolean> {
   return {
     length: password.length >= 8,

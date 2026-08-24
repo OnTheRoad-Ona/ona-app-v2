@@ -39,9 +39,7 @@ export function LogoutScreen() {
 
   const stay = () => {
     // Hierarchical: cancel logout → role home (never browser history)
-    router.replace(
-      accountType === "professional" ? "/dashboard" : "/"
-    );
+    router.replace(accountType === "professional" ? "/dashboard" : "/");
   };
 
   if (!authReady || (!isAuthenticated && !busy)) {

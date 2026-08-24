@@ -86,9 +86,7 @@ export async function POST(req: NextRequest) {
     };
 
     // Idempotent checkout token: same cart + same items => same order.
-    const itemSig = cart.items
-      .map((i) => `${i.variantId}:${i.qty}`)
-      .join("|");
+    const itemSig = cart.items.map((i) => `${i.variantId}:${i.qty}`).join("|");
     const checkoutToken = `cart:${cart.id}:${createHash("sha256")
       .update(itemSig)
       .digest("hex")

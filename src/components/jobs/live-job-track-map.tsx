@@ -38,14 +38,13 @@ import { tradeIconDataUrl } from "@/lib/map-trade-icons";
 import { cn, formatDistance, formatEta } from "@/lib/utils";
 
 const OsmFallback = dynamic(
-  () =>
-    import("@/components/map/osm-service-map").then((m) => m.OsmServiceMap),
-  { ssr: false }
+  () => import("@/components/map/osm-service-map").then((m) => m.OsmServiceMap),
+  { ssr: false },
 );
 
 /**
  * Map-only chrome: Time · Distance · Escrow Held.
- * Name / amount / problem stay in the lower job panel — never overlaid here.
+ * Name / amount / problem stay in the lower job panel never overlaid here.
  */
 function TripMapStatsBar({
   time,
@@ -67,7 +66,7 @@ function TripMapStatsBar({
       <div
         className={cn(
           "flex max-w-full items-stretch rounded-lg border-0 px-1 py-1",
-          isLight ? "bg-[#E8E8E8]" : "bg-[#2c2c2e]"
+          isLight ? "bg-[#E8E8E8]" : "bg-[#2c2c2e]",
         )}
         style={{ border: "none", boxShadow: "none" }}
       >
@@ -75,7 +74,7 @@ function TripMapStatsBar({
           <p
             className={cn(
               "text-[8px] font-semibold uppercase tracking-[0.1em] leading-none",
-              labelClass
+              labelClass,
             )}
           >
             Time
@@ -83,7 +82,7 @@ function TripMapStatsBar({
           <p
             className={cn(
               "mt-1 truncate text-[13px] font-bold tabular-nums leading-none",
-              amountClass
+              amountClass,
             )}
             title={time}
           >
@@ -94,7 +93,7 @@ function TripMapStatsBar({
           <p
             className={cn(
               "text-[8px] font-semibold uppercase tracking-[0.1em] leading-none",
-              labelClass
+              labelClass,
             )}
           >
             Distance
@@ -102,7 +101,7 @@ function TripMapStatsBar({
           <p
             className={cn(
               "mt-1 truncate text-[13px] font-bold tabular-nums leading-none",
-              amountClass
+              amountClass,
             )}
             title={distance}
           >
@@ -123,7 +122,7 @@ function TripMapStatsBar({
 }
 
 /**
- * Pro pin on trip map — solid Message-orange trade icon.
+ * Pro pin on trip map solid Message-orange trade icon.
  * Pulses only while the pro is actively on the trip (en route / arrived / working).
  */
 function ProMapPin({
@@ -168,7 +167,9 @@ function ProMapPin({
           }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img loading="lazy" decoding="async"
+          <img
+            loading="lazy"
+            decoding="async"
             src={icon}
             alt=""
             width={size}
@@ -220,21 +221,17 @@ function GoogleTrackMap({
   const motoristPos = job.motoristLocation;
   const proPos = job.proLocation || null;
 
-  // Same green/red dashboard map colors as customer home — both theme modes.
+  // Same green/red dashboard map colors as customer home both theme modes.
   const theme = mapThemeForApp(isLight);
   const tripTheme = useMemo(() => mapThemeForTrackTrip(isLight), [isLight]);
 
   /**
-   * Stable initial center only — live GPS must NOT update the GoogleMap `center`
+   * Stable initial center only live GPS must NOT update the GoogleMap `center`
    * prop or React will snap the viewport every pro location tick.
    */
   const initialCenterRef = useRef({
-    lat: proPos
-      ? (proPos.lat + motoristPos.lat) / 2
-      : motoristPos.lat,
-    lng: proPos
-      ? (proPos.lng + motoristPos.lng) / 2
-      : motoristPos.lng,
+    lat: proPos ? (proPos.lat + motoristPos.lat) / 2 : motoristPos.lat,
+    lng: proPos ? (proPos.lng + motoristPos.lng) / 2 : motoristPos.lng,
   });
 
   const fitTripIfAllowed = useCallback(
@@ -262,7 +259,7 @@ function GoogleTrackMap({
         programmaticCameraRef.current = false;
       }
     },
-    [proPos, motoristPos]
+    [proPos, motoristPos],
   );
 
   const { isLoaded, loadError } = useOnaGoogleMaps();
@@ -302,7 +299,7 @@ function GoogleTrackMap({
       window.setTimeout(bump, 80);
       window.setTimeout(bump, 320);
     },
-    [isLight, fitTripIfAllowed]
+    [isLight, fitTripIfAllowed],
   );
 
   // Keep palette + street names in sync on theme toggle (no camera steal).
@@ -313,7 +310,7 @@ function GoogleTrackMap({
   }, [isLoaded, isLight]);
 
   // Directions: pro → motorist when both known.
-  // Updates route line + ETA only — does not re-center after user pans.
+  // Updates route line + ETA only does not re-center after user pans.
   useEffect(() => {
     if (!proPos) {
       setDirections(null);
@@ -378,7 +375,7 @@ function GoogleTrackMap({
           // REQUEST_DENIED / ZERO_RESULTS / OVER_QUERY_LIMIT → still show ETA
           applyHaversineEta();
         }
-      }
+      },
     );
     return () => {
       cancelled = true;
@@ -476,7 +473,7 @@ function GoogleTrackMap({
         mapContainerStyle={mapContainerStyle(isLight, {
           backgroundColor: tripTheme.backgroundColor,
         })}
-        // Stable initial center only — do not pass live GPS midpoints or the map snaps back.
+        // Stable initial center only do not pass live GPS midpoints or the map snaps back.
         center={initialCenterRef.current}
         zoom={16}
         onLoad={onLoad}
@@ -519,25 +516,25 @@ function GoogleTrackMap({
           />
         )}
 
-        {/* Motorist pin — icon only (no “You” text) */}
+        {/* Motorist pin icon only (no “You” text) */}
         <Marker
           position={motoristPos}
           icon={{
             url: userMapPinUrl(USER_MAP_PIN_SIZE),
             scaledSize: new google.maps.Size(
               USER_MAP_PIN_SIZE,
-              USER_MAP_PIN_SIZE
+              USER_MAP_PIN_SIZE,
             ),
             anchor: new google.maps.Point(
               USER_MAP_PIN_ANCHOR,
-              USER_MAP_PIN_ANCHOR
+              USER_MAP_PIN_ANCHOR,
             ),
           }}
           title={motoristTitle}
           zIndex={500}
         />
 
-        {/* Repair Pro pin — flat orange icon, no glow */}
+        {/* Repair Pro pin flat orange icon, no glow */}
         {proPos && (
           <ProMapPin
             position={proPos}
@@ -560,7 +557,7 @@ function GoogleTrackMap({
             "absolute inset-x-3 top-3 rounded-sm px-3 py-2 text-center text-[12px] font-bold",
             isLight
               ? "bg-[#e8e9ed] text-slate-800 shadow-md"
-              : "bg-[#1c1c1e] text-white shadow-md"
+              : "bg-[#1c1c1e] text-white shadow-md",
           )}
         >
           Waiting for Repair Pro live location…
@@ -572,7 +569,7 @@ function GoogleTrackMap({
             "absolute inset-x-3 top-3 rounded-sm px-3 py-2 text-center text-[12px] font-bold",
             isLight
               ? "bg-[#e8e9ed] text-slate-800 shadow-md"
-              : "bg-[#1c1c1e] text-white shadow-md"
+              : "bg-[#1c1c1e] text-white shadow-md",
           )}
         >
           Enable GPS to show your live pin · motorist marked below
@@ -634,7 +631,9 @@ export function LiveJobTrackMap({
           }
           distance={
             job.distanceText ||
-            (job.distanceKm != null ? formatDistance(job.distanceKm) : "Not set")
+            (job.distanceKm != null
+              ? formatDistance(job.distanceKm)
+              : "Not set")
           }
           isLight={isLight}
         />

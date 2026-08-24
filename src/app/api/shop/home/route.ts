@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   try {
     const accountContext = await resolveAccountContext(req);
-    const scope = await resolveShopUiScope(req);
+    const scope = await resolveShopUiScope(req, accountContext);
     const data = await getShopHomeSections({
       accountContext,
       allowedTradeKeys: scope.allowedTradeKeys,

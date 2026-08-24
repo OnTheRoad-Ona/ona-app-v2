@@ -18,7 +18,7 @@ import {
 } from "@/lib/diagnostics/question-tree";
 
 describe("scan (diagnostics) question tree", () => {
-  it("offers the seven start categories A–G", () => {
+  it("offers the seven start categories A-G", () => {
     expect(SCAN_START_OPTIONS.map((o) => o.id)).toEqual([
       "A",
       "B",
@@ -93,15 +93,15 @@ describe("scan (diagnostics) question tree", () => {
   it("keeps ABS, airbag, other and steady check-engine on Scan", () => {
     for (const light of ["abs", "airbag", "other"]) {
       expect(resolveScanRoute({ start: "A", a_light: light }).trade).toBe(
-        "diagnostics"
+        "diagnostics",
       );
-      expect(resolveScanRoute({ start: "A", a_light: light }).needsConfirm).toBe(
-        false
-      );
+      expect(
+        resolveScanRoute({ start: "A", a_light: light }).needsConfirm,
+      ).toBe(false);
     }
     expect(
       resolveScanRoute({ start: "A", a_light: "ce", a_flash: "steady" })
-        .needsConfirm
+        .needsConfirm,
     ).toBe(false);
   });
 
@@ -109,9 +109,7 @@ describe("scan (diagnostics) question tree", () => {
     expect(nextScanScreen("b_what", "limp", {})).toBe("b_when");
     expect(nextScanScreen("b_when", "hot", {})).toBe("b_noise");
     expect(nextScanScreen("b_noise", "yes", {})).toBe("b_lights");
-    expect(
-      nextScanScreen("b_lights", "yes", { start: "B" })
-    ).toBe("final");
+    expect(nextScanScreen("b_lights", "yes", { start: "B" })).toBe("final");
     expect(resolveScanRoute({ start: "B" }).trade).toBe("diagnostics");
   });
 
@@ -136,7 +134,7 @@ describe("scan (diagnostics) question tree", () => {
 
   it("keeps starts-then-dies on Scan", () => {
     expect(resolveScanRoute({ start: "C", c_what: "dies" }).trade).toBe(
-      "diagnostics"
+      "diagnostics",
     );
   });
 
@@ -160,57 +158,57 @@ describe("scan (diagnostics) question tree", () => {
       ["clothing", "fashion"],
     ];
     for (const [related, trade] of cases) {
-      expect(
-        resolveScanRoute({ start: "F", f_related: related }).trade
-      ).toBe(trade);
+      expect(resolveScanRoute({ start: "F", f_related: related }).trade).toBe(
+        trade,
+      );
     }
   });
 
   it("routes power and house sub-options", () => {
     expect(
       resolveScanRoute({ start: "F", f_related: "power", f_power: "solar" })
-        .trade
+        .trade,
     ).toBe("solar");
     expect(
       resolveScanRoute({ start: "F", f_related: "power", f_power: "electric" })
-        .trade
+        .trade,
     ).toBe("electrical");
     expect(
       resolveScanRoute({
         start: "F",
         f_related: "power",
         f_power: "generator",
-      }).trade
+      }).trade,
     ).toBe("generator");
     expect(
       resolveScanRoute({ start: "F", f_related: "house", f_house: "plumber" })
-        .trade
+        .trade,
     ).toBe("plumber");
     expect(
       resolveScanRoute({ start: "F", f_related: "house", f_house: "painter" })
-        .trade
+        .trade,
     ).toBe("painter");
     expect(
       resolveScanRoute({ start: "F", f_related: "house", f_house: "carpenter" })
-        .trade
+        .trade,
     ).toBe("carpenter");
-    expect(
-      resolveScanRoute({ start: "F", f_related: "diagnosis" }).trade
-    ).toBe("diagnostics");
+    expect(resolveScanRoute({ start: "F", f_related: "diagnosis" }).trade).toBe(
+      "diagnostics",
+    );
   });
 
   it("walks power/house sub-questions then routes to confirm", () => {
     expect(nextScanScreen("f_describe", "x", {})).toBe("f_related");
     expect(nextScanScreen("f_related", "power", {})).toBe("f_power");
     expect(
-      nextScanScreen("f_power", "solar", { start: "F", f_related: "power" })
+      nextScanScreen("f_power", "solar", { start: "F", f_related: "power" }),
     ).toBe("confirm");
     expect(nextScanScreen("f_related", "house", {})).toBe("f_house");
     expect(
       nextScanScreen("f_house", "carpenter", {
         start: "F",
         f_related: "house",
-      })
+      }),
     ).toBe("confirm");
   });
 
@@ -239,10 +237,10 @@ describe("scan (diagnostics) question tree", () => {
 
   it("builds confirm question strings", () => {
     expect(confirmQuestion("battery")).toBe(
-      "This sounds like Battery. Continue?"
+      "This sounds like Battery. Continue?",
     );
     expect(confirmQuestion("diagnostics")).toBe(
-      "This sounds like Diagnostics. Continue?"
+      "This sounds like Diagnostics. Continue?",
     );
   });
 
@@ -254,7 +252,7 @@ describe("scan (diagnostics) question tree", () => {
         a_flash: "steady",
       },
       "Call before arrival",
-      "Lekki"
+      "Lekki",
     );
     expect(out).toContain(SCAN_START_QUESTION);
     expect(out).toContain("Check engine light or warning light is on");
@@ -267,7 +265,7 @@ describe("scan (diagnostics) question tree", () => {
     expect(scanBreadcrumb(["vehicle", "start"])).toBe("Scan");
     expect(scanBreadcrumb(["vehicle", "start", "a_light"])).toBe("Scan · A");
     expect(scanBreadcrumb(["vehicle", "start", "confirm"])).toBe(
-      "Scan · Confirm"
+      "Scan · Confirm",
     );
     expect(scanBreadcrumb(["vehicle", "start", "final"])).toBe("Scan · Send");
   });

@@ -9,7 +9,7 @@ import {
 } from "@/lib/pricing";
 import type { Technician } from "@/lib/types";
 
-/** Same pixel size always — solid Message-orange glyph only. */
+/** Same pixel size always solid Message-orange glyph only. */
 const ICON_SIZE = 24;
 const BOX = 32;
 
@@ -37,9 +37,7 @@ export function LiveProPin({
   const cur = (tech.pricingCurrency || "NGN") as AppCurrency;
   const labour = getBaseLabourPrice(tech.servicePrices, tech.serviceType);
   const priceLabel =
-    labour != null && Number.isFinite(labour)
-      ? formatMoney(labour, cur)
-      : null;
+    labour != null && Number.isFinite(labour) ? formatMoney(labour, cur) : null;
 
   // Taller hit box so name (above) and price (below) never share the icon pixel
   const labelW = 88;
@@ -74,7 +72,7 @@ export function LiveProPin({
           onSelect?.(tech.id);
         }}
       >
-        {/* Name — above icon */}
+        {/* Name above icon */}
         <span
           className="pointer-events-none max-w-full truncate text-center text-[9px] font-bold leading-tight"
           style={{
@@ -93,7 +91,9 @@ export function LiveProPin({
           style={{ width: BOX, height: BOX }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img loading="lazy" decoding="async"
+          <img
+            loading="lazy"
+            decoding="async"
             src={url}
             width={ICON_SIZE}
             height={ICON_SIZE}
@@ -112,7 +112,7 @@ export function LiveProPin({
           />
         </span>
 
-        {/* Labour — below icon (₦ when set) */}
+        {/* Labour below icon (₦ when set) */}
         {priceLabel ? (
           <span
             className="pointer-events-none max-w-full truncate text-center text-[9px] font-bold leading-tight tabular-nums"

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Legacy route — redirects to the unified Payments hub.
+ * Legacy route redirects to the unified Payments hub.
  * Kept so job-flow, notifications, and old deep links keep working.
  */
 

@@ -94,7 +94,9 @@ export default function AdminDispatchPage() {
   const { adminName, ready, api, router } = useAdminGate();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [queue, setQueue] = useState<DispatchJob[]>([]);
-  const [availablePros, setAvailablePros] = useState<{ id: string; name: string }[]>([]);
+  const [availablePros, setAvailablePros] = useState<
+    { id: string; name: string }[]
+  >([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -103,7 +105,11 @@ export default function AdminDispatchPage() {
   const timerRef = useRef<number | null>(null);
 
   const load = useCallback(async () => {
-    const res = await api<{ summary: Summary; queue: DispatchJob[]; availablePros: { id: string; name: string }[] }>("/api/admin/dispatch");
+    const res = await api<{
+      summary: Summary;
+      queue: DispatchJob[];
+      availablePros: { id: string; name: string }[];
+    }>("/api/admin/dispatch");
     if (!res.ok) {
       setError(res.message);
       return;
@@ -166,9 +172,9 @@ export default function AdminDispatchPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Dispatch board</h1>
       <p className="om-admin-sub">
-        Live request/dispatch monitoring — SSPE pairing (66s per pro), searching, negotiation,
-        deferrals (5 min), per-request decline exclusions, and admin controls to reroute,
-        reassign, clear cooldowns, or expire.
+        Live request/dispatch monitoring SSPE pairing (66s per pro), searching,
+        negotiation, deferrals (5 min), per-request decline exclusions, and
+        admin controls to reroute, reassign, clear cooldowns, or expire.
       </p>
 
       <AdminGuideBanner pageId="jobs" />
@@ -179,36 +185,42 @@ export default function AdminDispatchPage() {
       <div className="om-admin-stat-grid">
         <div className="om-admin-stat-card" data-tone="held">
           <div className="om-admin-stat-label">Searching</div>
-          <div className="om-admin-stat-value">{summary?.searching ?? "—"}</div>
+          <div className="om-admin-stat-value">{summary?.searching ?? ""}</div>
           <div className="om-admin-stat-sub">awaiting a pro</div>
         </div>
         <div className="om-admin-stat-card" data-tone="pending">
           <div className="om-admin-stat-label">Pairing</div>
-          <div className="om-admin-stat-value">{summary?.pairing ?? "—"}</div>
+          <div className="om-admin-stat-value">{summary?.pairing ?? ""}</div>
           <div className="om-admin-stat-sub">66s dispatch</div>
         </div>
         <div className="om-admin-stat-card" data-tone="pending">
           <div className="om-admin-stat-label">Negotiating</div>
-          <div className="om-admin-stat-value">{summary?.negotiating ?? "—"}</div>
+          <div className="om-admin-stat-value">
+            {summary?.negotiating ?? ""}
+          </div>
           <div className="om-admin-stat-sub">pro has the request</div>
         </div>
         <div className="om-admin-stat-card" data-tone="available">
           <div className="om-admin-stat-label">Agreed</div>
-          <div className="om-admin-stat-value">{summary?.agreed ?? "—"}</div>
+          <div className="om-admin-stat-value">{summary?.agreed ?? ""}</div>
           <div className="om-admin-stat-sub">price agreed</div>
         </div>
         <div className="om-admin-stat-card" data-tone="ledger">
           <div className="om-admin-stat-label">Deferred</div>
-          <div className="om-admin-stat-value">{summary?.activeDeferrals ?? "—"}</div>
+          <div className="om-admin-stat-value">
+            {summary?.activeDeferrals ?? ""}
+          </div>
           <div className="om-admin-stat-sub">pro “Later” (5 min)</div>
         </div>
         <div className="om-admin-stat-card" data-tone="failed">
           <div className="om-admin-stat-label">Excluded</div>
           <div className="om-admin-stat-value">
-            {(summary?.activeExclusions ?? 0) + (summary?.crossJobExclusions ?? 0)}
+            {(summary?.activeExclusions ?? 0) +
+              (summary?.crossJobExclusions ?? 0)}
           </div>
           <div className="om-admin-stat-sub">
-            declined (per-request) · {summary?.crossJobExclusions ?? 0} cross-job
+            declined (per-request) · {summary?.crossJobExclusions ?? 0}{" "}
+            cross-job
           </div>
         </div>
       </div>
@@ -258,7 +270,14 @@ export default function AdminDispatchPage() {
                     <td>
                       <StatusBadge status={j.flowStatus} />
                       {j.pairingStage ? (
-                        <div className="om-admin-muted" style={{ marginTop: 4, fontSize: 10, lineHeight: 1.5 }}>
+                        <div
+                          className="om-admin-muted"
+                          style={{
+                            marginTop: 4,
+                            fontSize: 10,
+                            lineHeight: 1.5,
+                          }}
+                        >
                           stage {j.pairingStage}
                           {j.queuePosition ? ` · pos ${j.queuePosition}` : ""}
                           {j.remainingCandidates != null
@@ -268,41 +287,65 @@ export default function AdminDispatchPage() {
                         </div>
                       ) : null}
                       {j.pairingDeadline ? (
-                        <div className="om-admin-muted" style={{ marginTop: 2, fontSize: 10 }}>
+                        <div
+                          className="om-admin-muted"
+                          style={{ marginTop: 2, fontSize: 10 }}
+                        >
                           pairs in {fmtLeft(j.pairingDeadline)}
                         </div>
                       ) : null}
                       {j.meritScore != null ? (
-                        <div className="om-admin-muted" style={{ marginTop: 2, fontSize: 10 }}>
+                        <div
+                          className="om-admin-muted"
+                          style={{ marginTop: 2, fontSize: 10 }}
+                        >
                           merit {j.meritScore.toFixed(1)}
                         </div>
                       ) : null}
                       {j.reservationStatus === "confirmed" ? (
-                        <div className="om-admin-muted" style={{ marginTop: 2, fontSize: 10 }}>
+                        <div
+                          className="om-admin-muted"
+                          style={{ marginTop: 2, fontSize: 10 }}
+                        >
                           confirmed assignment
                         </div>
                       ) : null}
                       {j.searchEndsAt ? (
-                        <div className="om-admin-muted" style={{ marginTop: 4, fontSize: 10 }}>
+                        <div
+                          className="om-admin-muted"
+                          style={{ marginTop: 4, fontSize: 10 }}
+                        >
                           search ends {fmtLeft(j.searchEndsAt)}
                         </div>
                       ) : null}
                       {j.negotiateEndsAt ? (
-                        <div className="om-admin-muted" style={{ marginTop: 2, fontSize: 10 }}>
+                        <div
+                          className="om-admin-muted"
+                          style={{ marginTop: 2, fontSize: 10 }}
+                        >
                           negotiate ends {fmtLeft(j.negotiateEndsAt)}
                         </div>
                       ) : null}
                     </td>
                     <td>
                       {j.activeDeferrals.map((d) => (
-                        <div key={`d-${d.proId}`} style={{ fontSize: 11, color: "#b45309" }}>
-                          Deferred · {d.proName} until {fmtClock(d.until || "")} ({fmtLeft(d.until || "")})
+                        <div
+                          key={`d-${d.proId}`}
+                          style={{ fontSize: 11, color: "#b45309" }}
+                        >
+                          Deferred · {d.proName} until {fmtClock(d.until || "")}{" "}
+                          ({fmtLeft(d.until || "")})
                         </div>
                       ))}
                       {j.activeExclusions.map((e) => (
-                        <div key={`e-${e.proId}`} style={{ fontSize: 11, color: "#b91c1c" }}>
+                        <div
+                          key={`e-${e.proId}`}
+                          style={{ fontSize: 11, color: "#b91c1c" }}
+                        >
                           Excluded · {e.proName}{" "}
-                          {e.until ? `until ${fmtClock(e.until)} (${fmtLeft(e.until)})` : "per-request"}
+                          {e.until
+                            ? `until ${fmtClock(e.until)} (${fmtLeft(e.until)})`
+                            : "per-request"}
                         </div>
                       ))}
                       {j.chosenProName ? (
@@ -313,14 +356,26 @@ export default function AdminDispatchPage() {
                       {j.activeDeferrals.length === 0 &&
                       j.activeExclusions.length === 0 &&
                       !j.chosenProName ? (
-                        <span className="om-admin-muted">—</span>
+                        <span className="om-admin-muted"></span>
                       ) : null}
-                      <div className="om-admin-muted" style={{ marginTop: 4, fontSize: 10, lineHeight: 1.5 }}>
-                        {j.historySummary.length ? j.historySummary.join(" · ") : "no events"}
+                      <div
+                        className="om-admin-muted"
+                        style={{ marginTop: 4, fontSize: 10, lineHeight: 1.5 }}
+                      >
+                        {j.historySummary.length
+                          ? j.historySummary.join(" · ")
+                          : "no events"}
                       </div>
                     </td>
                     <td>
-                      <div className="om-admin-row-actions" style={{ flexDirection: "column", alignItems: "stretch", gap: 4 }}>
+                      <div
+                        className="om-admin-row-actions"
+                        style={{
+                          flexDirection: "column",
+                          alignItems: "stretch",
+                          gap: 4,
+                        }}
+                      >
                         <div style={{ display: "flex", gap: 4 }}>
                           <button
                             type="button"
@@ -352,7 +407,10 @@ export default function AdminDispatchPage() {
                           <select
                             value={setProOptions.get(j.id) || ""}
                             onChange={(e) =>
-                              setReassignPro((s) => ({ ...s, [j.id]: e.target.value }))
+                              setReassignPro((s) => ({
+                                ...s,
+                                [j.id]: e.target.value,
+                              }))
                             }
                             style={{ flex: 1, minWidth: 0 }}
                           >

@@ -9,8 +9,10 @@ export const ORIGIN_CORROBORATE_M = 200;
 export function isWithinArrivalProximity(
   pro: { lat: number; lng: number },
   customer: { lat: number; lng: number },
-  maxMeters: number = DEFAULT_ARRIVAL_PROXIMITY_M
-): { ok: true; meters: number } | { ok: false; meters: number; maxMeters: number } {
+  maxMeters: number = DEFAULT_ARRIVAL_PROXIMITY_M,
+):
+  | { ok: true; meters: number }
+  | { ok: false; meters: number; maxMeters: number } {
   const meters = haversineMeters(pro, customer);
   if (meters <= maxMeters) return { ok: true, meters };
   return { ok: false, meters, maxMeters };

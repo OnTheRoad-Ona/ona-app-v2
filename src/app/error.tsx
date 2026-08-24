@@ -3,10 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  homePathForForbidden,
-  isForbiddenMessage,
-} from "@/lib/navigation";
+import { homePathForForbidden, isForbiddenMessage } from "@/lib/navigation";
 
 const UNRECOVERABLE_KEYWORDS = [
   "supabase",
@@ -34,7 +31,10 @@ function roleHomeFromStorage(): string {
   }
   // Prefer last path heuristic: /dashboard users → pro home
   try {
-    if (typeof window !== "undefined" && window.location.pathname.startsWith("/dashboard")) {
+    if (
+      typeof window !== "undefined" &&
+      window.location.pathname.startsWith("/dashboard")
+    ) {
       return "/dashboard";
     }
   } catch {
@@ -56,10 +56,7 @@ export default function AppError({
   // Never show full Google Maps loader JSON (includes API key)
   const msg = rawMsg.includes("Loader must not be called again")
     ? "Map failed to load. Tap Try again."
-    : rawMsg.replace(
-        /("apiKey"\s*:\s*")[^"]+/gi,
-        '$1[redacted]'
-      );
+    : rawMsg.replace(/("apiKey"\s*:\s*")[^"]+/gi, "$1[redacted]");
   const forbidden = isForbiddenMessage(rawMsg);
   const unrecoverable = !forbidden && isUnrecoverable(rawMsg);
 

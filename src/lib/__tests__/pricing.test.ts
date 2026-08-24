@@ -33,9 +33,9 @@ describe("splitServiceChargeMinor", () => {
     expect(result.platformFeeMinor).toBe(250_000);
     expect(result.vatMinor).toBe(375_000);
     expect(result.proPayoutMinor).toBe(4_375_000);
-    expect(result.proPayoutMinor + result.platformFeeMinor + result.vatMinor).toBe(
-      result.totalMinor
-    );
+    expect(
+      result.proPayoutMinor + result.platformFeeMinor + result.vatMinor,
+    ).toBe(result.totalMinor);
   });
 
   it("splits 500000 kobo (₦5,000) correctly", () => {
@@ -43,9 +43,9 @@ describe("splitServiceChargeMinor", () => {
     expect(result.platformFeeMinor).toBe(25_000);
     expect(result.vatMinor).toBe(37_500);
     expect(result.proPayoutMinor).toBe(437_500);
-    expect(result.proPayoutMinor + result.platformFeeMinor + result.vatMinor).toBe(
-      result.totalMinor
-    );
+    expect(
+      result.proPayoutMinor + result.platformFeeMinor + result.vatMinor,
+    ).toBe(result.totalMinor);
   });
 
   it("handles minimum amount (₦120 = 12000 kobo)", () => {
@@ -71,9 +71,9 @@ describe("splitServiceChargeMinor", () => {
     const testAmounts = [100, 12000, 50000, 500000, 99999999, 1234567];
     for (const amount of testAmounts) {
       const result = splitServiceChargeMinor(amount);
-      expect(result.proPayoutMinor + result.platformFeeMinor + result.vatMinor).toBe(
-        result.totalMinor
-      );
+      expect(
+        result.proPayoutMinor + result.platformFeeMinor + result.vatMinor,
+      ).toBe(result.totalMinor);
     }
   });
 });

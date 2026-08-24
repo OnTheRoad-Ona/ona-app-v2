@@ -14,11 +14,11 @@ import type { JobRecord } from "@/lib/jobs/types";
  * missing on a fresh dev DB). The locked fee at acceptance always wins once
  * it exists; this simply lets the UI show a real amount and the pay session
  * collect the call-out fee even before a live GPS/road route is available.
- * It is deliberately NOT locked — status stays CALCULATED.
+ * It is deliberately NOT locked status stays CALCULATED.
  */
 export async function estimateCalloutQuote(
   job: JobRecord,
-  stored: CalloutQuote | null
+  stored: CalloutQuote | null,
 ): Promise<CalloutQuote | null> {
   const now = new Date().toISOString();
   const trade = isProService(job.serviceType)
@@ -73,14 +73,14 @@ export async function estimateCalloutQuote(
     origin && Number.isFinite(origin.lat) && Number.isFinite(origin.lng)
       ? haversineKm(
           { lat: origin.lat, lng: origin.lng },
-          { lat: dest.lat, lng: dest.lng }
+          { lat: dest.lat, lng: dest.lng },
         )
       : 0;
   const applied = resolveAppliedMultiplier({
     chipKind: urgencyKind,
     chipMultiplier: urgencyMultiplier,
     approvedDistanceKm: approxKm,
-    // Night applies at the CURRENT time, not the request's creation time — a
+    // Night applies at the CURRENT time, not the request's creation time a
     // request created in the day but shown/charged at night still gets 1.5×.
     acceptedAt: now,
     timeZone: "Africa/Lagos",

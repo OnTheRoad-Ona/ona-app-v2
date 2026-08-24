@@ -1,20 +1,10 @@
 /**
- * App languages — English default.
+ * App languages English default.
  * Phone-country is separate; this is UI language preference.
  */
 
 export type LocaleCode =
-  | "en"
-  | "yo"
-  | "ig"
-  | "ha"
-  | "fr"
-  | "pt"
-  | "ar"
-  | "es"
-  | "sw"
-  | "pcm"
-  | "zh";
+  "en" | "yo" | "ig" | "ha" | "fr" | "pt" | "ar" | "es" | "sw" | "pcm" | "zh";
 
 export type LocaleMeta = {
   code: LocaleCode;
@@ -28,17 +18,77 @@ export type LocaleMeta = {
 };
 
 export const LOCALES: LocaleMeta[] = [
-  { code: "en", name: "English", nativeName: "English", htmlLang: "en", dir: "ltr" },
-  { code: "pcm", name: "Nigerian Pidgin", nativeName: "Naija Pidgin", htmlLang: "pcm", dir: "ltr" },
-  { code: "yo", name: "Yoruba", nativeName: "Yorùbá", htmlLang: "yo", dir: "ltr" },
+  {
+    code: "en",
+    name: "English",
+    nativeName: "English",
+    htmlLang: "en",
+    dir: "ltr",
+  },
+  {
+    code: "pcm",
+    name: "Nigerian Pidgin",
+    nativeName: "Naija Pidgin",
+    htmlLang: "pcm",
+    dir: "ltr",
+  },
+  {
+    code: "yo",
+    name: "Yoruba",
+    nativeName: "Yorùbá",
+    htmlLang: "yo",
+    dir: "ltr",
+  },
   { code: "ig", name: "Igbo", nativeName: "Igbo", htmlLang: "ig", dir: "ltr" },
-  { code: "ha", name: "Hausa", nativeName: "Hausa", htmlLang: "ha", dir: "ltr" },
-  { code: "fr", name: "French", nativeName: "Français", htmlLang: "fr", dir: "ltr" },
-  { code: "pt", name: "Portuguese", nativeName: "Português", htmlLang: "pt", dir: "ltr" },
-  { code: "ar", name: "Arabic", nativeName: "العربية", htmlLang: "ar", dir: "rtl" },
-  { code: "es", name: "Spanish", nativeName: "Español", htmlLang: "es", dir: "ltr" },
-  { code: "sw", name: "Swahili", nativeName: "Kiswahili", htmlLang: "sw", dir: "ltr" },
-  { code: "zh", name: "Chinese", nativeName: "中文", htmlLang: "zh-Hans", dir: "ltr" },
+  {
+    code: "ha",
+    name: "Hausa",
+    nativeName: "Hausa",
+    htmlLang: "ha",
+    dir: "ltr",
+  },
+  {
+    code: "fr",
+    name: "French",
+    nativeName: "Français",
+    htmlLang: "fr",
+    dir: "ltr",
+  },
+  {
+    code: "pt",
+    name: "Portuguese",
+    nativeName: "Português",
+    htmlLang: "pt",
+    dir: "ltr",
+  },
+  {
+    code: "ar",
+    name: "Arabic",
+    nativeName: "العربية",
+    htmlLang: "ar",
+    dir: "rtl",
+  },
+  {
+    code: "es",
+    name: "Spanish",
+    nativeName: "Español",
+    htmlLang: "es",
+    dir: "ltr",
+  },
+  {
+    code: "sw",
+    name: "Swahili",
+    nativeName: "Kiswahili",
+    htmlLang: "sw",
+    dir: "ltr",
+  },
+  {
+    code: "zh",
+    name: "Chinese",
+    nativeName: "中文",
+    htmlLang: "zh-Hans",
+    dir: "ltr",
+  },
 ];
 
 export const DEFAULT_LOCALE: LocaleCode = "en";

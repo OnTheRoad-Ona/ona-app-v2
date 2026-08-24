@@ -22,19 +22,38 @@ vi.mock("@/lib/server/jobs/job-store", () => ({
 
 vi.mock("@/lib/server/pairing/pairing-engine", () => ({
   sweepPairing: vi.fn(async () => ({ checked: 0, timedOut: 0, expired: 0 })),
-  sweepScheduledDispatches: vi.fn(async () => ({ checked: 0, cancelled: 0, notified: 0 })),
+  sweepScheduledDispatches: vi.fn(async () => ({
+    checked: 0,
+    cancelled: 0,
+    notified: 0,
+  })),
   advancePairing: vi.fn(async () => {}),
 }));
 
 vi.mock("@/lib/server/payments/payout-settlement", () => ({
-  processDuePayoutRetries: vi.fn(async () => ({ checked: 0, succeeded: 0, stillPending: 0, failed: 0, ids: [] })),
+  processDuePayoutRetries: vi.fn(async () => ({
+    checked: 0,
+    succeeded: 0,
+    stillPending: 0,
+    failed: 0,
+    ids: [],
+  })),
 }));
 
 import { requireUser } from "@/lib/server/auth-utils";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { createServiceSupabase } from "@/lib/supabase/server";
-import { getJob, createJob, expireOverdueBookedJobs, expireUnacceptedJobs } from "@/lib/server/jobs/job-store";
-import { sweepPairing, sweepScheduledDispatches, advancePairing } from "@/lib/server/pairing/pairing-engine";
+import {
+  getJob,
+  createJob,
+  expireOverdueBookedJobs,
+  expireUnacceptedJobs,
+} from "@/lib/server/jobs/job-store";
+import {
+  sweepPairing,
+  sweepScheduledDispatches,
+  advancePairing,
+} from "@/lib/server/pairing/pairing-engine";
 import { processDuePayoutRetries } from "@/lib/server/payments/payout-settlement";
 
 import { POST as postDispatchScheduled } from "@/app/api/jobs/[id]/dispatch-scheduled/route";
@@ -67,9 +86,7 @@ const DISPATCHED_JOB = {
   pickup_address: "Near the mall",
 } as unknown as JobRecord;
 
-function authOk(
-  userId: string
-): Awaited<ReturnType<typeof requireUser>> {
+function authOk(userId: string): Awaited<ReturnType<typeof requireUser>> {
   return {
     ok: true,
     userId,
@@ -120,20 +137,36 @@ beforeEach(() => {
   vi.resetAllMocks();
   isSupabaseAdminConfiguredMock.mockReturnValue(true);
   advancePairingMock.mockResolvedValue({} as never);
-  vi.mocked(sweepPairing).mockResolvedValue({ checked: 0, timedOut: 0, expired: 0 });
-  vi.mocked(sweepScheduledDispatches).mockResolvedValue({ checked: 0, cancelled: 0, notified: 0 });
-  vi.mocked(processDuePayoutRetries).mockResolvedValue({ checked: 0, succeeded: 0, stillPending: 0, failed: 0, ids: [] });
+  vi.mocked(sweepPairing).mockResolvedValue({
+    checked: 0,
+    timedOut: 0,
+    expired: 0,
+  });
+  vi.mocked(sweepScheduledDispatches).mockResolvedValue({
+    checked: 0,
+    cancelled: 0,
+    notified: 0,
+  });
+  vi.mocked(processDuePayoutRetries).mockResolvedValue({
+    checked: 0,
+    succeeded: 0,
+    stillPending: 0,
+    failed: 0,
+    ids: [],
+  });
 });
 
 describe("POST /api/jobs/[id]/dispatch-scheduled", () => {
   it("dispatches a scheduled linked request into sequential_pairing and books", async () => {
     requireUserMock.mockResolvedValue(authOk("motorist-1"));
-    getJobMock.mockResolvedValueOnce(SCHEDULED_JOB).mockResolvedValueOnce(DISPATCHED_JOB);
+    getJobMock
+      .mockResolvedValueOnce(SCHEDULED_JOB)
+      .mockResolvedValueOnce(DISPATCHED_JOB);
     fakeSb();
 
     const res = await postDispatchScheduled(
       dispatchReq({ locationLabel: "Near the mall", lat: 6.5244, lng: 3.3792 }),
-      params()
+      params(),
     );
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -143,9 +176,14 @@ describe("POST /api/jobs/[id]/dispatch-scheduled", () => {
     const sb = createServiceSupabaseMock.mock.results[0].value as {
       from: ReturnType<typeof vi.fn>;
     };
-    const update = sb.from.mock.calls[0][0] === "service_requests"
-      ? (sb.from.mock.results[0].value as { update: ReturnType<typeof vi.fn> }).update
-      : null;
+    const update =
+      sb.from.mock.calls[0][0] === "service_requests"
+        ? (
+            sb.from.mock.results[0].value as {
+              update: ReturnType<typeof vi.fn>;
+            }
+          ).update
+        : null;
     expect(update).not.toBeNull();
     const patch = update!.mock.calls[0][0] as Record<string, unknown>;
     expect(patch.flow_status).toBe("sequential_pairing");
@@ -156,7 +194,10 @@ describe("POST /api/jobs/[id]/dispatch-scheduled", () => {
     expect(patch.pickup_lat).toBe(6.5244);
     expect(patch.pairing_radius_km).toBe(5);
     expect(patch.motorist_location_at).toBeDefined();
-    const history = patch.status_history as Array<{ status: string; by?: string }>;
+    const history = patch.status_history as Array<{
+      status: string;
+      by?: string;
+    }>;
     expect(history[history.length - 1]).toMatchObject({
       status: "sequential_pairing",
       by: "second_pro_dispatch",
@@ -167,30 +208,45 @@ describe("POST /api/jobs/[id]/dispatch-scheduled", () => {
   it("rejects unauthenticated requests", async () => {
     requireUserMock.mockResolvedValue({
       ok: false,
-      response: new Response(JSON.stringify({ ok: false, error: { message: "Unauthorized" } }), { status: 401 }),
+      response: new Response(
+        JSON.stringify({ ok: false, error: { message: "Unauthorized" } }),
+        { status: 401 },
+      ),
     });
-    const res = await postDispatchScheduled(dispatchReq({ locationLabel: "x", lat: 1, lng: 2 }), params());
+    const res = await postDispatchScheduled(
+      dispatchReq({ locationLabel: "x", lat: 1, lng: 2 }),
+      params(),
+    );
     expect(res.status).toBe(401);
   });
 
   it("rejects dispatching another motorist's request (403)", async () => {
     requireUserMock.mockResolvedValue(authOk("someone-else"));
     getJobMock.mockResolvedValueOnce(SCHEDULED_JOB);
-    const res = await postDispatchScheduled(dispatchReq({ locationLabel: "x", lat: 1, lng: 2 }), params());
+    const res = await postDispatchScheduled(
+      dispatchReq({ locationLabel: "x", lat: 1, lng: 2 }),
+      params(),
+    );
     expect(res.status).toBe(403);
   });
 
   it("rejects a request that already left the scheduled state (409)", async () => {
     requireUserMock.mockResolvedValue(authOk("motorist-1"));
     getJobMock.mockResolvedValueOnce({ ...SCHEDULED_JOB, status: "searching" });
-    const res = await postDispatchScheduled(dispatchReq({ locationLabel: "x", lat: 1, lng: 2 }), params());
+    const res = await postDispatchScheduled(
+      dispatchReq({ locationLabel: "x", lat: 1, lng: 2 }),
+      params(),
+    );
     expect(res.status).toBe(409);
   });
 
   it("rejects an invalid body (400)", async () => {
     requireUserMock.mockResolvedValue(authOk("motorist-1"));
     getJobMock.mockResolvedValueOnce(SCHEDULED_JOB);
-    const res = await postDispatchScheduled(dispatchReq({ locationLabel: "only" }), params());
+    const res = await postDispatchScheduled(
+      dispatchReq({ locationLabel: "only" }),
+      params(),
+    );
     expect(res.status).toBe(400);
   });
 
@@ -198,14 +254,20 @@ describe("POST /api/jobs/[id]/dispatch-scheduled", () => {
     requireUserMock.mockResolvedValue(authOk("motorist-1"));
     isSupabaseAdminConfiguredMock.mockReturnValue(false);
     getJobMock.mockResolvedValueOnce(SCHEDULED_JOB);
-    const res = await postDispatchScheduled(dispatchReq({ locationLabel: "x", lat: 1, lng: 2 }), params());
+    const res = await postDispatchScheduled(
+      dispatchReq({ locationLabel: "x", lat: 1, lng: 2 }),
+      params(),
+    );
     expect(res.status).toBe(503);
   });
 
   it("returns 404 when the job is missing", async () => {
     requireUserMock.mockResolvedValue(authOk("motorist-1"));
     getJobMock.mockResolvedValueOnce(null);
-    const res = await postDispatchScheduled(dispatchReq({ locationLabel: "x", lat: 1, lng: 2 }), params());
+    const res = await postDispatchScheduled(
+      dispatchReq({ locationLabel: "x", lat: 1, lng: 2 }),
+      params(),
+    );
     expect(res.status).toBe(404);
   });
 
@@ -213,12 +275,15 @@ describe("POST /api/jobs/[id]/dispatch-scheduled", () => {
     requireUserMock.mockResolvedValue(authOk("motorist-1"));
     getJobMock.mockResolvedValueOnce(SCHEDULED_JOB);
     fakeSb({ message: "update failed" });
-    const res = await postDispatchScheduled(dispatchReq({ locationLabel: "x", lat: 1, lng: 2 }), params());
+    const res = await postDispatchScheduled(
+      dispatchReq({ locationLabel: "x", lat: 1, lng: 2 }),
+      params(),
+    );
     expect(res.status).toBe(500);
   });
 });
 
-describe("POST /api/jobs (create) — meetProTrade handling", () => {
+describe("POST /api/jobs (create) meetProTrade handling", () => {
   const baseBody = {
     motoristId: "motorist-1",
     motoristName: "Ada",
@@ -233,7 +298,7 @@ describe("POST /api/jobs (create) — meetProTrade handling", () => {
     createJobMock.mockResolvedValue({ id: "j1", serviceType: "auto" } as never);
 
     const res = await postCreate(
-      createReq({ ...baseBody, meetPro: true, meetProTrade: "mechanic" })
+      createReq({ ...baseBody, meetPro: true, meetProTrade: "mechanic" }),
     );
     expect(res.status).toBe(200);
     expect(createJobMock).toHaveBeenCalledTimes(1);
@@ -246,7 +311,7 @@ describe("POST /api/jobs (create) — meetProTrade handling", () => {
     createJobMock.mockResolvedValue({ id: "j1", serviceType: "auto" } as never);
 
     const res = await postCreate(
-      createReq({ ...baseBody, meetPro: true, meetProTrade: "garbage-trade" })
+      createReq({ ...baseBody, meetPro: true, meetProTrade: "garbage-trade" }),
     );
     expect(res.status).toBe(200);
     const arg = createJobMock.mock.calls[0][0] as { meetProTrade: unknown };
@@ -265,14 +330,18 @@ describe("POST /api/jobs (create) — meetProTrade handling", () => {
 
   it("rejects creating a job for another user (403)", async () => {
     requireUserMock.mockResolvedValue(authOk("motorist-1"));
-    const res = await postCreate(createReq({ ...baseBody, motoristId: "other" }));
+    const res = await postCreate(
+      createReq({ ...baseBody, motoristId: "other" }),
+    );
     expect(res.status).toBe(403);
     expect(createJobMock).not.toHaveBeenCalled();
   });
 
   it("rejects an invalid serviceType (400)", async () => {
     requireUserMock.mockResolvedValue(authOk("motorist-1"));
-    const res = await postCreate(createReq({ ...baseBody, serviceType: "not-a-service" }));
+    const res = await postCreate(
+      createReq({ ...baseBody, serviceType: "not-a-service" }),
+    );
     expect(res.status).toBe(400);
     expect(createJobMock).not.toHaveBeenCalled();
   });
@@ -285,24 +354,53 @@ describe("POST /api/jobs (create) — meetProTrade handling", () => {
   });
 });
 
-describe("GET /api/jobs/expire-stale — scheduledDispatch sweep wiring", () => {
+describe("GET /api/jobs/expire-stale scheduledDispatch sweep wiring", () => {
   it("returns the scheduledDispatch sweep result alongside the other sweeps", async () => {
     requireUserMock.mockResolvedValue(authOk("motorist-1"));
     expireOverdueBookedJobsMockOk();
-    vi.mocked(sweepPairing).mockResolvedValue({ checked: 7, timedOut: 2, expired: 1 });
-    vi.mocked(sweepScheduledDispatches).mockResolvedValue({ checked: 4, cancelled: 1, notified: 1 });
-    vi.mocked(processDuePayoutRetries).mockResolvedValue({ checked: 0, succeeded: 0, stillPending: 0, failed: 0, ids: [] });
+    vi.mocked(sweepPairing).mockResolvedValue({
+      checked: 7,
+      timedOut: 2,
+      expired: 1,
+    });
+    vi.mocked(sweepScheduledDispatches).mockResolvedValue({
+      checked: 4,
+      cancelled: 1,
+      notified: 1,
+    });
+    vi.mocked(processDuePayoutRetries).mockResolvedValue({
+      checked: 0,
+      succeeded: 0,
+      stillPending: 0,
+      failed: 0,
+      ids: [],
+    });
 
-    const res = await getExpireStale(new Request("http://localhost/api/jobs/expire-stale"));
+    const res = await getExpireStale(
+      new Request("http://localhost/api/jobs/expire-stale"),
+    );
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);
-    expect(body.data.scheduledDispatch).toEqual({ checked: 4, cancelled: 1, notified: 1 });
+    expect(body.data.scheduledDispatch).toEqual({
+      checked: 4,
+      cancelled: 1,
+      notified: 1,
+    });
     expect(body.data.pairing).toEqual({ checked: 7, timedOut: 2, expired: 1 });
   });
 });
 
 function expireOverdueBookedJobsMockOk() {
-  vi.mocked(expireOverdueBookedJobs).mockResolvedValue({ checked: 0, cancelled: 0, released: 0, ids: [] });
-  vi.mocked(expireUnacceptedJobs).mockResolvedValue({ checked: 0, rerouted: 0, expired: 0 });
+  vi.mocked(expireOverdueBookedJobs).mockResolvedValue({
+    checked: 0,
+    cancelled: 0,
+    released: 0,
+    ids: [],
+  });
+  vi.mocked(expireUnacceptedJobs).mockResolvedValue({
+    checked: 0,
+    rerouted: 0,
+    expired: 0,
+  });
 }

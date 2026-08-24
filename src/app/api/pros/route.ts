@@ -16,16 +16,20 @@ export const dynamic = "force-dynamic";
 /**
  * Public marketplace feed for Motorists.
  * Only Repair Pros who are:
- *  - approved / marketplace-ready tier
- *  - signed-in active profile (prefer repair_pro role)
- *  - Live: is_online = true + location_updated_at within 5 min
- *  - within MAX_RADIUS_KM (5 km) of the request lat/lng
+ * - approved / marketplace-ready tier
+ * - signed-in active profile (prefer repair_pro role)
+ * - Live: is_online = true + location_updated_at within 5 min
+ * - within MAX_RADIUS_KM (5 km) of the request lat/lng
  *
  * Away, stale heartbeat, and signed-out ghost pins are hidden.
  */
 export async function GET(req: Request) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
 
   const { searchParams } = new URL(req.url);
@@ -44,11 +48,11 @@ export async function GET(req: Request) {
     const excludeSelfId = viewer?.id ? String(viewer.id) : null;
 
     // Role-aware market: an ACTIVE Repair Pro only ever sees their own
-    // primary trade's Live pros. Derived from the session — not a client param.
+    // primary trade's Live pros. Derived from the session not a client param.
     const marketViewer = await resolveMarketViewer(req, supabase);
     const viewerTrade = marketViewer.trade ?? null;
 
-    // Live only — not suspended/rejected. Pending+approved both OK when Live.
+    // Live only not suspended/rejected. Pending+approved both OK when Live.
     // Slim columns only: never pull certification_file_url / skills base64 (multi-MB thrash).
     const proColumns = [
       "user_id",
@@ -97,7 +101,10 @@ export async function GET(req: Request) {
     let { data: pros, error } = await prosQuery;
 
     // Pre-migration fallback: no visibility_tier column yet
-    if (error && /visibility_tier|location_updated_at|column/i.test(error.message)) {
+    if (
+      error &&
+      /visibility_tier|location_updated_at|column/i.test(error.message)
+    ) {
       let fallbackBuilder = supabase
         .from("repair_pro_profiles")
         .select(
@@ -125,7 +132,7 @@ export async function GET(req: Request) {
             "docs_status",
             "face_liveness_verified",
             "in_person_verified",
-          ].join(",")
+          ].join(","),
         )
         .eq("is_online", true)
         .neq("status", "suspended")
@@ -147,11 +154,14 @@ export async function GET(req: Request) {
       if (excludeSelfId && String(p.user_id) === excludeSelfId) return false;
       if (p.status === "suspended" || p.status === "rejected") return false;
       // Live only with fresh heartbeat (signed-out / stale pin never listed)
-      if (!p.is_online || !hasRecentLiveHeartbeat(p.location_updated_at, nowMs)) {
+      if (
+        !p.is_online ||
+        !hasRecentLiveHeartbeat(p.location_updated_at, nowMs)
+      ) {
         return false;
       }
       // Approved/verified pros are marketplace-ready (T2+) even when a stale
-      // write left visibility_tier=1 — never hide them from the customer feed
+      // write left visibility_tier=1 never hide them from the customer feed
       // (same class as the "approved for Tier 2 but shown Tier 1" bug).
       const rawTier = Number(p.visibility_tier);
       const marketplaceReady =
@@ -171,13 +181,13 @@ export async function GET(req: Request) {
     const { data: profiles } = await supabase
       .from("profiles")
       .select(
-        "id,role,full_name,phone,email,avatar_url,city,area,is_active,phone_verified,email_verified"
+        "id,role,full_name,phone,email,avatar_url,city,area,is_active,phone_verified,email_verified",
       )
       .in("id", ids)
       .eq("is_active", true);
 
     const byId = new Map(
-      ((profiles ?? []) as unknown as ProfileRow[]).map((p) => [p.id, p])
+      ((profiles ?? []) as unknown as ProfileRow[]).map((p) => [p.id, p]),
     );
 
     const technicians = list
@@ -186,7 +196,7 @@ export async function GET(req: Request) {
         // Hide only if profile missing/inactive; role may lag behind Live toggle
         if (!profile) return false;
         // Prefer repair_pro role, but if they are Live (is_online) still show
-        // even when role lag/switch briefly says motorist — reduces empty lists.
+        // even when role lag/switch briefly says motorist reduces empty lists.
         if (profile.role === "motorist" && !p.is_online) return false;
         // Never surface demo/audit pros to real customers.
         if (
@@ -213,10 +223,10 @@ export async function GET(req: Request) {
         );
       })
       // Live + GPS: show within marketplace radius (5 km).
-      // Do NOT hard-hide on go_live_window expiry while is_online — that caused
+      // Do NOT hard-hide on go_live_window expiry while is_online that caused
       // "I'm Live but customers see empty" after the 30-day T2 window.
       .map((pro) =>
-        mapProToTechnician(pro, byId.get(pro.user_id) ?? null, userCoords)
+        mapProToTechnician(pro, byId.get(pro.user_id) ?? null, userCoords),
       )
       .filter((t) => {
         if (
@@ -239,7 +249,7 @@ export async function GET(req: Request) {
     const sort = searchParams.get("sort");
     if (sort === "merit" && techniciansFinal.length > 1) {
       const scores = await getMeritScoresForPros(
-        techniciansFinal.map((t) => String(t.id))
+        techniciansFinal.map((t) => String(t.id)),
       );
       techniciansFinal.sort((a, b) => {
         const sa = scores.get(String(a.id)) ?? 0;

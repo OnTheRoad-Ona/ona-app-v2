@@ -58,11 +58,14 @@ export async function rateLimitAsync(opts: {
       const count = Number(results?.[0]?.result ?? 0);
       let pttl = Number(results?.[1]?.result ?? -1);
       if (count === 1 || pttl < 0) {
-        await fetch(`${url}/pexpire/${encodeURIComponent(redisKey)}/${opts.windowMs}`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          signal: AbortSignal.timeout(2_000),
-        }).catch(() => null);
+        await fetch(
+          `${url}/pexpire/${encodeURIComponent(redisKey)}/${opts.windowMs}`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(2_000),
+          },
+        ).catch(() => null);
         pttl = opts.windowMs;
       }
       if (count > opts.limit) {

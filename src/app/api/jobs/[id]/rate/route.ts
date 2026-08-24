@@ -15,7 +15,7 @@ const bodySchema = z.object({
 
 export async function POST(
   req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   try {
     const auth = await requireUser(req);
@@ -30,11 +30,11 @@ export async function POST(
       return apiFail("Review max 144 characters", 400);
     }
 
-    // Motorist rates Repair Pro only — pros never rate
+    // Motorist rates Repair Pro only pros never rate
     if (parsed.data.actor === "repair_pro") {
       return apiFail(
         "Only the motorist can rate and review the Repair Pro",
-        403
+        403,
       );
     }
 

@@ -57,8 +57,11 @@ export async function GET(req: Request) {
 export async function PATCH(req: Request) {
   try {
     let admin;
-    try { admin = await requireAdmin(); } catch (err) {
-      if (err instanceof AdminAuthError) return apiFail(err.message, err.status);
+    try {
+      admin = await requireAdmin();
+    } catch (err) {
+      if (err instanceof AdminAuthError)
+        return apiFail(err.message, err.status);
       return apiFail("Admin auth required", 401);
     }
     const body = await req.json();
@@ -72,7 +75,12 @@ export async function PATCH(req: Request) {
       return apiOk({ request: result.request });
     }
     if (!status) return apiFail("Missing status", 400);
-    const result = await updateContactChangeStatus(id, status, admin.session.userId, reason);
+    const result = await updateContactChangeStatus(
+      id,
+      status,
+      admin.session.userId,
+      reason,
+    );
     if ("error" in result) return apiFail(result.error, 400);
     return apiOk({ request: result.request });
   } catch (e) {

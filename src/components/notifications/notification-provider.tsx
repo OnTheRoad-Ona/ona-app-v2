@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Notification context — list, unread, toasts, center open state.
+ * Notification context list, unread, toasts, center open state.
  * Loads API + samples; Supabase Realtime for live inserts.
  */
 
@@ -85,10 +85,12 @@ type Ctx = {
   refresh: () => Promise<void>;
   filtered: AppNotification[];
   /** Demo: push a local notification (dev / QA) */
-  pushLocal: (n: Omit<AppNotification, "id" | "userId" | "createdAt"> & {
-    id?: string;
-    createdAt?: string;
-  }) => void;
+  pushLocal: (
+    n: Omit<AppNotification, "id" | "userId" | "createdAt"> & {
+      id?: string;
+      createdAt?: string;
+    },
+  ) => void;
 };
 
 const NotificationContext = createContext<Ctx | null>(null);
@@ -127,13 +129,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const lastToastWaveAt = useRef(0);
   /** Avoid double-toast for same notification id. */
   const toastedIds = useRef<Set<string>>(readSeenNotifIds());
-  /** Rows created long before the first toast moment are history — never toast
-   *  them again on reload or role switch. Only live inserts toast, once.
-   *  (Lazily stamped on first use: Date.now() is not render-safe.) */
+  /** Rows created long before the first toast moment are history never toast
+   * them again on reload or role switch. Only live inserts toast, once.
+   * (Lazily stamped on first use: Date.now() is not render-safe.) */
   const mountedAtRef = useRef(0);
 
-  const role =
-    accountType === "professional" ? "professional" : "motorist";
+  const role = accountType === "professional" ? "professional" : "motorist";
 
   const pushToast = useCallback((n: AppNotification) => {
     if (!shouldToastNotification(n)) return;
@@ -156,11 +157,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     const nonStack = isNonStackNotification(n);
 
     // Chat / call / payment / accept always surface as full rows under the
-    // pile — never blocked by stack throttle.
+    // pile never blocked by stack throttle.
     if (!nonStack) {
       const gate = canAutoShowToast(lastToastWaveAt.current, now);
       if (!gate.allow) {
-        // Still land in center list — no popup spam for stackable types
+        // Still land in center list no popup spam for stackable types
         return;
       }
       if (gate.reason === "new_wave") {
@@ -205,13 +206,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       setNotifications([]);
       return;
     }
-    // Only show loading on first prime — avoids list flicker on poll/realtime
+    // Only show loading on first prime avoids list flicker on poll/realtime
     if (!primed.current) setLoading(true);
     try {
       const { authFetch } = await import("@/lib/api-auth-headers");
       const res = await authFetch(
         `/api/notifications?userId=${encodeURIComponent(backendUserId)}`,
-        { cache: "default" }
+        { cache: "default" },
       );
       const json = await res.json();
       if (json?.ok && Array.isArray(json.data?.notifications)) {
@@ -245,11 +246,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     lastToastWaveAt.current = 0;
     setToasts([]);
     void refresh();
-    // Depend on session identity only — not `refresh` fn identity (avoids fetch storms)
+    // Depend on session identity only not `refresh` fn identity (avoids fetch storms)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backendUserId, isAuthenticated, role]);
 
-  // Poll backup every 10 min when visible (Realtime is primary — data saver)
+  // Poll backup every 10 min when visible (Realtime is primary data saver)
   useEffect(() => {
     if (!backendUserId || !isAuthenticated) return;
     const t = window.setInterval(() => {
@@ -270,7 +271,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
     if (!sb) return;
     const channel = sb
-      .channel(`om-notif-${backendUserId}-${Math.random().toString(36).slice(2, 8)}`)
+      .channel(
+        `om-notif-${backendUserId}-${Math.random().toString(36).slice(2, 8)}`,
+      )
       .on(
         "postgres_changes",
         {
@@ -304,7 +307,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
               releasePay &&
               typeof window !== "undefined" &&
               !window.location.pathname.includes(
-                `/jobs/${n.jobId || href.split("/jobs/")[1]?.split("?")[0] || ""}`
+                `/jobs/${n.jobId || href.split("/jobs/")[1]?.split("?")[0] || ""}`,
               )
             ) {
               window.location.assign(href.startsWith("/") ? href : `/${href}`);
@@ -312,7 +315,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           } catch {
             /* soft navigate optional */
           }
-        }
+        },
       )
       .subscribe();
     return () => {
@@ -320,7 +323,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     };
   }, [backendUserId, isAuthenticated, pushToast]);
 
-  // Auto-dismiss after 3s — 1s tick is enough (was 250ms → needless React work)
+  // Auto-dismiss after 3s 1s tick is enough (was 250ms → needless React work)
   useEffect(() => {
     const t = window.setInterval(() => {
       const now = Date.now();
@@ -343,8 +346,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         prev.map((n) =>
           ids.includes(n.id)
             ? { ...n, readAt: n.readAt || new Date().toISOString() }
-            : n
-        )
+            : n,
+        ),
       );
       if (!backendUserId) return;
       if (ids.every((id) => id.startsWith("local-"))) return;
@@ -354,13 +357,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ userId: backendUserId, ids }),
       }).catch(() => null);
     },
-    [backendUserId]
+    [backendUserId],
   );
 
   const markAllRead = useCallback(async () => {
     const now = new Date().toISOString();
     setNotifications((prev) =>
-      prev.map((n) => ({ ...n, readAt: n.readAt || now }))
+      prev.map((n) => ({ ...n, readAt: n.readAt || now })),
     );
     if (!backendUserId) return;
     const { authFetch } = await import("@/lib/api-auth-headers");
@@ -375,7 +378,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       partial: Omit<AppNotification, "id" | "userId" | "createdAt"> & {
         id?: string;
         createdAt?: string;
-      }
+      },
     ) => {
       const n: AppNotification = {
         id: partial.id || `local-${Date.now()}`,
@@ -400,12 +403,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       knownIds.current.add(n.id);
       pushToast(n);
     },
-    [backendUserId, pushToast]
+    [backendUserId, pushToast],
   );
 
   const unreadCount = useMemo(
     () => notifications.filter((n) => !n.readAt).length,
-    [notifications]
+    [notifications],
   );
 
   const filtered = useMemo(() => {
@@ -419,7 +422,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         (n) =>
           n.title.toLowerCase().includes(q) ||
           n.body.toLowerCase().includes(q) ||
-          (n.messageText || "").toLowerCase().includes(q)
+          (n.messageText || "").toLowerCase().includes(q),
       );
     }
     return list;
@@ -459,7 +462,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       refresh,
       filtered,
       pushLocal,
-    ]
+    ],
   );
 
   return (
@@ -473,7 +476,7 @@ export function useNotifications(): Ctx {
   const ctx = useContext(NotificationContext);
   if (!ctx) {
     throw new Error(
-      "useNotifications must be used within NotificationProvider"
+      "useNotifications must be used within NotificationProvider",
     );
   }
   return ctx;

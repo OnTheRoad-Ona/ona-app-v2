@@ -1,9 +1,6 @@
 import { NextRequest } from "next/server";
 import { apiFail, apiOk } from "@/lib/server/api-json";
-import {
-  AdminAuthError,
-  requireAdmin,
-} from "@/lib/server/admin-auth";
+import { AdminAuthError, requireAdmin } from "@/lib/server/admin-auth";
 import { createServiceSupabase } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -24,7 +21,9 @@ export async function GET(_req: NextRequest) {
 
     const zeroCounts = new Map<string, number>();
     for (const e of zeroEvents ?? []) {
-      const q = String(e.query || "").toLowerCase().trim();
+      const q = String(e.query || "")
+        .toLowerCase()
+        .trim();
       if (!q) continue;
       zeroCounts.set(q, (zeroCounts.get(q) || 0) + 1);
     }

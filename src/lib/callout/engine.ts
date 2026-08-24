@@ -1,11 +1,14 @@
 /**
  * Pure Call-Out pricing + eligibility. Frontend must never be the source
- * of fee / distance / base-fee — this module is what the server runs.
+ * of fee / distance / base-fee this module is what the server runs.
  */
 
 import { resolveDispatchTrades } from "@/lib/callout/dispatch-trades";
 import { isProService } from "@/lib/pro-service-id";
-import { calloutUrgencyMultiplier, isCalloutUrgencyKind } from "@/lib/callout/urgency";
+import {
+  calloutUrgencyMultiplier,
+  isCalloutUrgencyKind,
+} from "@/lib/callout/urgency";
 import type { ProService } from "@/lib/types";
 import {
   AUTO_NIGHT_END_HOUR,
@@ -37,7 +40,7 @@ export type ServiceClassification = {
   physicalAttendanceRequired: boolean;
   calloutEligible: boolean;
   likelyTradeIds: ProService[];
-  /** Official diagnosis — always null at create. Customer guess is never this. */
+  /** Official diagnosis always null at create. Customer guess is never this. */
   confirmedTradeId: ProService | null;
 };
 
@@ -52,7 +55,7 @@ function kmRound(n: number): number {
 /** Ceil to billing increment (0.1 km default) without floating residue. */
 export function applyBillingIncrement(
   km: number,
-  incrementKm: number = DEFAULT_BILLING_INCREMENT_KM
+  incrementKm: number = DEFAULT_BILLING_INCREMENT_KM,
 ): number {
   const inc = incrementKm > 0 ? incrementKm : DEFAULT_BILLING_INCREMENT_KM;
   const steps = Math.ceil((km - 1e-9) / inc);
@@ -61,14 +64,14 @@ export function applyBillingIncrement(
 
 /**
  * Minimum billable distance is a billing floor, not an eligibility gate.
- * 0–500 m → 0.5 km. Then snap up to the billing increment.
+ * 0-500 m → 0.5 km. Then snap up to the billing increment.
  */
 export function billableDistanceKm(
   approvedRouteDistanceKm: number,
   policy: Pick<
     CalloutPolicy,
     "minimumBillableDistanceKm" | "billingIncrementKm"
-  > = DEFAULT_CALLOUT_POLICY
+  > = DEFAULT_CALLOUT_POLICY,
 ): number {
   const raw = Number(approvedRouteDistanceKm);
   const distance = Number.isFinite(raw) && raw > 0 ? raw : 0;
@@ -78,13 +81,13 @@ export function billableDistanceKm(
       : DEFAULT_MINIMUM_BILLABLE_KM;
   return applyBillingIncrement(
     Math.max(distance, min),
-    policy.billingIncrementKm
+    policy.billingIncrementKm,
   );
 }
 
 export function isWithinCalloutRadius(
   approvedRouteDistanceKm: number,
-  maximumRadiusKm: number = DEFAULT_MAXIMUM_RADIUS_KM
+  maximumRadiusKm: number = DEFAULT_MAXIMUM_RADIUS_KM,
 ): boolean {
   const d = Number(approvedRouteDistanceKm);
   if (!Number.isFinite(d) || d < 0) return false;
@@ -96,7 +99,7 @@ export function isWithinCalloutRadius(
  * Fee, regardless of distance, attendance or policy.
  */
 export function isCalloutExcludedTrade(
-  trade: ProService | string | null | undefined
+  trade: ProService | string | null | undefined,
 ): boolean {
   return trade != null && CALLOUT_EXCLUDED_TRADES.has(trade as ProService);
 }
@@ -124,14 +127,15 @@ export function calculateCalloutFee(input: {
   urgencyMultiplier?: number;
 }): CalloutFeeBreakdown {
   const policy = input.policy ?? DEFAULT_CALLOUT_POLICY;
-  const rate =
-    policy.ratePerKm > 0 ? policy.ratePerKm : DEFAULT_RATE_PER_KM;
+  const rate = policy.ratePerKm > 0 ? policy.ratePerKm : DEFAULT_RATE_PER_KM;
   const seeded = DEFAULT_TRADE_BASE_FEES[input.tradeId];
   const base =
     typeof input.baseFee === "number" && Number.isFinite(input.baseFee)
       ? Math.max(0, input.baseFee)
       : seeded;
-  const approved = kmRound(Math.max(0, Number(input.approvedRouteDistanceKm) || 0));
+  const approved = kmRound(
+    Math.max(0, Number(input.approvedRouteDistanceKm) || 0),
+  );
   const within = isWithinCalloutRadius(approved, policy.maximumRadiusKm);
   const billable = billableDistanceKm(approved, policy);
   const mult =
@@ -166,8 +170,8 @@ export function calculateCalloutFee(input: {
 /**
  * Resolve the multiplier that actually applies to a call-out.
  * The customer's chip stays in effect, but AUTO-detected Remote (approved
- * route 4.95–5.00 km) and Night (acceptance 9PM–5AM local) override it when
- * higher. Priority: Night > Remote > Emergency > Normal — the highest
+ * route 4.95-5.00 km) and Night (acceptance 9PM-5AM local) override it when
+ * higher. Priority: Night > Remote > Emergency > Normal the highest
  * multiplier wins, never stacked.
  */
 export function resolveAppliedMultiplier(input: {
@@ -204,13 +208,14 @@ export function resolveAppliedMultiplier(input: {
     try {
       const d = new Date(input.acceptedAt);
       if (!Number.isNaN(d.getTime())) {
-        const hour = Number(
-          new Intl.DateTimeFormat("en-US", {
-            timeZone: input.timeZone || "Africa/Lagos",
-            hour: "numeric",
-            hour12: false,
-          }).format(d)
-        ) % 24;
+        const hour =
+          Number(
+            new Intl.DateTimeFormat("en-US", {
+              timeZone: input.timeZone || "Africa/Lagos",
+              hour: "numeric",
+              hour12: false,
+            }).format(d),
+          ) % 24;
         night = hour >= AUTO_NIGHT_START_HOUR || hour < AUTO_NIGHT_END_HOUR;
       }
     } catch {
@@ -235,7 +240,7 @@ export function resolveAppliedMultiplier(input: {
 }
 
 /**
- * Universal eligibility — never per-trade hard flags.
+ * Universal eligibility never per-trade hard flags.
  * physical_attendance_required AND callout_eligible (and policy on).
  */
 export function resolveCalloutEligibility(input: {
@@ -293,7 +298,7 @@ export function classifyServiceIntent(input: {
 
 export function likelyTradesFromProblem(
   problem: string,
-  selectedTrade?: ProService | string | null
+  selectedTrade?: ProService | string | null,
 ): ProService[] {
   return resolveDispatchTrades(problem, selectedTrade).dispatchTrades;
 }
@@ -306,7 +311,7 @@ export function classifyRequest(input: {
   physicalAttendanceRequired?: boolean;
   calloutEligible?: boolean;
   policyEnabled?: boolean;
-  /** Customer already confirmed the trade — do not re-widen from keywords. */
+  /** Customer already confirmed the trade do not re-widen from keywords. */
   tradeLocked?: boolean;
 }): ServiceClassification {
   const intent = classifyServiceIntent(input);

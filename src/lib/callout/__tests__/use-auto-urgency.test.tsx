@@ -16,7 +16,7 @@ describe("useAutoCalloutUrgency", () => {
     vi.useFakeTimers();
     vi.setSystemTime(Date.parse("2026-08-18T12:00:00Z")); // 13:00 Lagos
     const { result } = renderHook(() =>
-      useAutoCalloutUrgency({ unsafe: true, distanceKm: 1 })
+      useAutoCalloutUrgency({ unsafe: true, distanceKm: 1 }),
     );
     expect(result.current.urgency).toBe("emergency");
   });
@@ -25,7 +25,7 @@ describe("useAutoCalloutUrgency", () => {
     vi.useFakeTimers();
     vi.setSystemTime(Date.parse("2026-08-18T21:30:00Z")); // 22:30 Lagos
     const { result } = renderHook(() =>
-      useAutoCalloutUrgency({ unsafe: false, distanceKm: 1 })
+      useAutoCalloutUrgency({ unsafe: false, distanceKm: 1 }),
     );
     expect(result.current.urgency).toBe("night");
   });
@@ -34,7 +34,7 @@ describe("useAutoCalloutUrgency", () => {
     vi.useFakeTimers();
     vi.setSystemTime(Date.parse("2026-08-18T12:00:00Z"));
     const { result } = renderHook(() =>
-      useAutoCalloutUrgency({ unsafe: false, distanceKm: 4.98 })
+      useAutoCalloutUrgency({ unsafe: false, distanceKm: 4.98 }),
     );
     expect(result.current.urgency).toBe("remote");
   });
@@ -45,7 +45,7 @@ describe("useAutoCalloutUrgency", () => {
     const { result, rerender } = renderHook(
       ({ unsafe }: { unsafe: boolean }) =>
         useAutoCalloutUrgency({ unsafe, distanceKm: 1 }),
-      { initialProps: { unsafe: false } }
+      { initialProps: { unsafe: false } },
     );
     expect(result.current.urgency).toBe("normal");
     act(() => result.current.setUrgency("remote"));
@@ -57,7 +57,7 @@ describe("useAutoCalloutUrgency", () => {
     vi.useFakeTimers();
     vi.setSystemTime(Date.parse("2026-08-18T12:00:00Z"));
     const { result } = renderHook(() =>
-      useAutoCalloutUrgency({ unsafe: true, distanceKm: 1 })
+      useAutoCalloutUrgency({ unsafe: true, distanceKm: 1 }),
     );
     act(() => result.current.restoreUrgency("normal"));
     expect(result.current.urgency).toBe("emergency");
@@ -69,7 +69,7 @@ describe("useAutoCalloutUrgency", () => {
     const { result, rerender } = renderHook(
       ({ unsafe }: { unsafe: boolean }) =>
         useAutoCalloutUrgency({ unsafe, distanceKm: 1 }),
-      { initialProps: { unsafe: false } }
+      { initialProps: { unsafe: false } },
     );
     act(() => result.current.restoreUrgency("night"));
     expect(result.current.urgency).toBe("night");
@@ -83,7 +83,7 @@ describe("useAutoCalloutUrgency", () => {
     const { result, rerender } = renderHook(
       ({ unsafe }: { unsafe: boolean }) =>
         useAutoCalloutUrgency({ unsafe, distanceKm: 1 }),
-      { initialProps: { unsafe: false } }
+      { initialProps: { unsafe: false } },
     );
     act(() => result.current.setUrgency("remote"));
     act(() => result.current.resetUrgency());

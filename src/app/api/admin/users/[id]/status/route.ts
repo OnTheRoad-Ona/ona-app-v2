@@ -19,10 +19,14 @@ const bodySchema = z.object({
 
 export async function PATCH(
   req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     // Freeze / unfreeze requires temporary password unlock
@@ -49,7 +53,7 @@ export async function PATCH(
         sensitive: true,
         ip: clientIp(req),
         user_agent: userAgent(req),
-      }
+      },
     );
 
     return apiOk({ user: data });

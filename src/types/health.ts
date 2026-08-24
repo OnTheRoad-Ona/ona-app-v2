@@ -17,12 +17,7 @@ export type HealthIssueType =
 export type HealthSeverity = "info" | "warning" | "critical";
 
 export type HealthSource =
-  | "frontend"
-  | "backend"
-  | "database"
-  | "maps"
-  | "auth"
-  | "system";
+  "frontend" | "backend" | "database" | "maps" | "auth" | "system";
 
 export interface HealthLog {
   id: string;

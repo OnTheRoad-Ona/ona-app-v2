@@ -2,8 +2,8 @@
  * Customer → Repair Pro (Tap to Switch) onboarding rules.
  *
  * - Carry Customer T1 (phone) + T2 (gov ID Care-approved) so Pro is not re-asked.
- * - Force remaining Pro setup in bottom panel until full T1–T4 ladder done
- *   (one tier at a time; after Care T2 advances to T3/T4).
+ * - Force remaining Pro setup in bottom panel until full T1-T4 ladder done
+ * (one tier at a time; after Care T2 advances to T3/T4).
  * - Settings: Continue verification until ladder done, then View Verification.
  * - Progress flag persisted per user (localStorage) so sheet returns after refresh.
  */
@@ -13,28 +13,25 @@ import {
   isProVerificationLadderComplete,
   nextProEmbedTierStep,
 } from "@/lib/artisan/verification-order";
-import {
-  isIdentityVerified,
-  isPhoneVerified,
-} from "@/lib/verification-gate";
+import { isIdentityVerified, isPhoneVerified } from "@/lib/verification-gate";
 import type { UserProfile } from "@/lib/types";
 
 const SHEET_FLAG_PREFIX = "ona-pro-onboarding-sheet:";
 const SETUP_STARTED_PREFIX = "ona-pro-setup-started:";
-/** Last auto-expand timestamp (ms) — throttle forced open to 30 min */
+/** Last auto-expand timestamp (ms) throttle forced open to 30 min */
 const LAST_EXPAND_PREFIX = "ona-pro-setup-last-expand:";
 export const PRO_SETUP_AUTO_EXPAND_MS = 30 * 60 * 1000;
 
 /** Customer Tier 1 = phone OTP verified on identity */
 export function customerHasT1(
-  profile: UserProfile | null | undefined
+  profile: UserProfile | null | undefined,
 ): boolean {
   return isPhoneVerified(profile);
 }
 
 /** Customer Tier 2 = government ID Care-approved only */
 export function customerHasT2(
-  profile: UserProfile | null | undefined
+  profile: UserProfile | null | undefined,
 ): boolean {
   return isIdentityVerified(profile);
 }
@@ -65,7 +62,7 @@ export function isCustomerToProDualPath(opts: {
  */
 export function proT2CareApproved(
   profile: UserProfile | null | undefined,
-  artisan?: Partial<ArtisanVerificationProfile> | null
+  artisan?: Partial<ArtisanVerificationProfile> | null,
 ): boolean {
   if (customerHasT2(profile)) return true;
   if (profile?.identityReviewStatus === "approved") return true;
@@ -77,12 +74,12 @@ export function proT2CareApproved(
 /** @deprecated prefer proT2CareApproved for product gates */
 export function proT2Satisfied(
   profile: UserProfile | null | undefined,
-  artisan?: Partial<ArtisanVerificationProfile> | null
+  artisan?: Partial<ArtisanVerificationProfile> | null,
 ): boolean {
   return proT2CareApproved(profile, artisan);
 }
 
-/** Pure Pro: always; dual: View Verification only when T1–T4 complete. */
+/** Pure Pro: always; dual: View Verification only when T1-T4 complete. */
 export function shouldShowProSettingsVerification(opts: {
   hasMotoristAccount: boolean;
   hasProAccount: boolean;
@@ -129,12 +126,12 @@ export function shouldShowProViewVerification(opts: {
 
 function isProLadderDone(
   profile: UserProfile | null | undefined,
-  artisan?: Partial<ArtisanVerificationProfile> | null
+  artisan?: Partial<ArtisanVerificationProfile> | null,
 ): boolean {
   const merged = artisan
     ? applyCustomerTiersToArtisan(
         artisan as ArtisanVerificationProfile,
-        profile
+        profile,
       )
     : null;
   return isProVerificationLadderComplete(merged || artisan, {
@@ -144,7 +141,7 @@ function isProLadderDone(
 
 export function proT1Satisfied(
   profile: UserProfile | null | undefined,
-  artisan?: Partial<ArtisanVerificationProfile> | null
+  artisan?: Partial<ArtisanVerificationProfile> | null,
 ): boolean {
   if (customerHasT1(profile)) return true;
   if (artisan?.tiers?.tier1_phone) return true;
@@ -152,12 +149,12 @@ export function proT1Satisfied(
 }
 
 /**
- * Dual lower panel done only when full ladder complete (T1–T4).
+ * Dual lower panel done only when full ladder complete (T1-T4).
  * After Care T2, panel advances to T3/T4 instead of dismissing.
  */
 export function isProSwitchMandatoryOnboardingDone(
   profile: UserProfile | null | undefined,
-  artisan?: Partial<ArtisanVerificationProfile> | null
+  artisan?: Partial<ArtisanVerificationProfile> | null,
 ): boolean {
   if (!proT1Satisfied(profile, artisan)) return false;
   return isProLadderDone(profile, artisan);
@@ -166,12 +163,12 @@ export function isProSwitchMandatoryOnboardingDone(
 /** Label for lower-panel header from next open tier. */
 export function proSetupSheetTitle(
   profile: UserProfile | null | undefined,
-  artisan?: Partial<ArtisanVerificationProfile> | null
+  artisan?: Partial<ArtisanVerificationProfile> | null,
 ): string {
   const merged = artisan
     ? applyCustomerTiersToArtisan(
         artisan as ArtisanVerificationProfile,
-        profile
+        profile,
       )
     : artisan;
   const step = nextProEmbedTierStep(merged, {
@@ -195,7 +192,7 @@ export function proSetupSheetTitle(
 
 export function applyCustomerTiersToArtisan(
   artisan: ArtisanVerificationProfile,
-  profile: UserProfile | null | undefined
+  profile: UserProfile | null | undefined,
 ): ArtisanVerificationProfile {
   const next = { ...artisan, tiers: { ...artisan.tiers } };
   if (customerHasT1(profile)) {
@@ -214,7 +211,9 @@ export function applyCustomerTiersToArtisan(
   return next;
 }
 
-export function readProOnboardingSheetFlag(userId: string | null | undefined): boolean {
+export function readProOnboardingSheetFlag(
+  userId: string | null | undefined,
+): boolean {
   if (!userId || typeof window === "undefined") return false;
   try {
     return localStorage.getItem(SHEET_FLAG_PREFIX + userId) === "1";
@@ -225,7 +224,7 @@ export function readProOnboardingSheetFlag(userId: string | null | undefined): b
 
 export function writeProOnboardingSheetFlag(
   userId: string | null | undefined,
-  required: boolean
+  required: boolean,
 ): void {
   if (!userId || typeof window === "undefined") return;
   try {
@@ -240,7 +239,9 @@ export function writeProOnboardingSheetFlag(
   }
 }
 
-export function readProSetupStarted(userId: string | null | undefined): boolean {
+export function readProSetupStarted(
+  userId: string | null | undefined,
+): boolean {
   if (!userId || typeof window === "undefined") return false;
   try {
     return localStorage.getItem(SETUP_STARTED_PREFIX + userId) === "1";
@@ -250,7 +251,7 @@ export function readProSetupStarted(userId: string | null | undefined): boolean 
 }
 
 export function readProSetupLastExpandAt(
-  userId: string | null | undefined
+  userId: string | null | undefined,
 ): number {
   if (!userId || typeof window === "undefined") return 0;
   try {
@@ -263,7 +264,7 @@ export function readProSetupLastExpandAt(
 
 export function writeProSetupLastExpandAt(
   userId: string | null | undefined,
-  atMs: number = Date.now()
+  atMs: number = Date.now(),
 ): void {
   if (!userId || typeof window === "undefined") return;
   try {
@@ -276,16 +277,16 @@ export function writeProSetupLastExpandAt(
 /** True if we may force-open the sheet (first time or ≥30 min since last auto-expand). */
 export function canAutoExpandProSetup(
   userId: string | null | undefined,
-  nowMs: number = Date.now()
+  nowMs: number = Date.now(),
 ): boolean {
   const last = readProSetupLastExpandAt(userId);
   if (!last) return true;
   return nowMs - last >= PRO_SETUP_AUTO_EXPAND_MS;
 }
 
-/** Logout / session end — no ghost verification panel. */
+/** Logout / session end no ghost verification panel. */
 export function clearProSetupSheetState(
-  userId: string | null | undefined
+  userId: string | null | undefined,
 ): void {
   if (!userId || typeof window === "undefined") return;
   try {

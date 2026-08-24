@@ -1,22 +1,15 @@
 "use client";
 
 /**
- * Ona Tier 3 — Video Liveness Detection
- * MediaPipe Face Landmarker (live stream only — no video file stored).
+ * Ona Tier 3 Video Liveness Detection
+ * MediaPipe Face Landmarker (live stream only no video file stored).
  * Random challenges · anti-spoof heuristics · 6-fail lockout · copper success.
  *
  * Future: POST summary to /api/liveness/verify for server re-check (hook ready).
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Camera,
-  Check,
-  Loader2,
-  RefreshCw,
-  ScanFace,
-  X,
-} from "lucide-react";
+import { Camera, Check, Loader2, RefreshCw, ScanFace, X } from "lucide-react";
 import {
   clearLivenessFails,
   formatRemaining,
@@ -60,10 +53,10 @@ const CHALLENGE_POOL: Challenge[] = [
   { id: "look_down", label: "Look slightly down", feedbackOk: "Look down OK" },
 ];
 
-/** Challenges per session — short session, low data */
+/** Challenges per session short session, low data */
 const SESSION_LEN = 3;
 const STEP_MS = 2200;
-const SESSION_TARGET_MS = SESSION_LEN * STEP_MS; // ~6.6s in 5–8s band
+const SESSION_TARGET_MS = SESSION_LEN * STEP_MS; // ~6.6s in 5-8s band
 
 const WASM_CDN =
   "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
@@ -73,10 +66,12 @@ const MODEL_URL =
 type FaceLandmarkerInstance = {
   detectForVideo: (
     video: HTMLVideoElement,
-    timestamp: number
+    timestamp: number,
   ) => {
     faceLandmarks?: { x: number; y: number; z?: number }[][];
-    faceBlendshapes?: { categories: { categoryName: string; score: number }[] }[];
+    faceBlendshapes?: {
+      categories: { categoryName: string; score: number }[];
+    }[];
     facialTransformationMatrixes?: { data: Float32Array | number[] }[];
   };
   close?: () => void;
@@ -93,7 +88,7 @@ function pickChallenges(n: number): Challenge[] {
 
 function blendScore(
   shapes: { categoryName: string; score: number }[] | undefined,
-  name: string
+  name: string,
 ): number {
   if (!shapes) return 0;
   const hit = shapes.find((c) => c.categoryName === name);
@@ -123,7 +118,7 @@ function headPose(matrix?: { data: Float32Array | number[] }): {
 } {
   if (!matrix?.data || matrix.data.length < 16) return { yaw: 0, pitch: 0 };
   const m = matrix.data;
-  // Rotation elements (column-major in some MP builds — try both heuristics)
+  // Rotation elements (column-major in some MP builds try both heuristics)
   const r00 = Number(m[0]);
   const r10 = Number(m[1]);
   const r20 = Number(m[2]);
@@ -136,7 +131,7 @@ function headPose(matrix?: { data: Float32Array | number[] }): {
 
 function dist3(
   a: { x: number; y: number; z?: number },
-  b: { x: number; y: number; z?: number }
+  b: { x: number; y: number; z?: number },
 ) {
   return Math.hypot(a.x - b.x, a.y - b.y, (a.z ?? 0) - (b.z ?? 0));
 }
@@ -151,7 +146,7 @@ export function FaceLiveness({
   isLight: boolean;
   onPassed: () => void;
   onCancel: () => void;
-  /** For lockout storage — email / backend id */
+  /** For lockout storage email / backend id */
   userKey?: string;
   /** When set, reports pass to backend `/api/liveness/verify` */
   userId?: string;
@@ -165,7 +160,7 @@ export function FaceLiveness({
   const stepStartedRef = useRef(0);
   const sessionStartedRef = useRef(0);
   const passedStepsRef = useRef<boolean[]>(
-    Array.from({ length: SESSION_LEN }, () => false)
+    Array.from({ length: SESSION_LEN }, () => false),
   );
   const earHistRef = useRef<number[]>([]);
   const yawHistRef = useRef<number[]>([]);
@@ -177,7 +172,7 @@ export function FaceLiveness({
   const runningRef = useRef(false);
 
   const [challenges, setChallenges] = useState(() =>
-    pickChallenges(SESSION_LEN)
+    pickChallenges(SESSION_LEN),
   );
   const [step, setStep] = useState(0);
   const [feedback, setFeedback] = useState("Hold your face in the circle");
@@ -230,12 +225,14 @@ export function FaceLiveness({
     if (lock.locked) {
       setPhase("locked");
       setLockMs(lock.remainingMs);
-      setErr(`Too many attempts. Try again in ${formatRemaining(lock.remainingMs)}.`);
+      setErr(
+        `Too many attempts. Try again in ${formatRemaining(lock.remainingMs)}.`,
+      );
       livenessLog("warn", "locked", { remainingMs: lock.remainingMs });
     }
   }, [userKey]);
 
-  // Boot once: camera + MediaPipe (CDN float16 — low data)
+  // Boot once: camera + MediaPipe (CDN float16 low data)
   useEffect(() => {
     const lock = getLivenessLock(userKey);
     if (lock.locked) {
@@ -243,7 +240,7 @@ export function FaceLiveness({
       setLockMs(lock.remainingMs);
       setFails(lock.fails);
       setErr(
-        `Too many attempts. Try again in ${formatRemaining(lock.remainingMs)}.`
+        `Too many attempts. Try again in ${formatRemaining(lock.remainingMs)}.`,
       );
       return;
     }
@@ -281,33 +278,27 @@ export function FaceLiveness({
         const fileset = await vision.FilesetResolver.forVisionTasks(WASM_CDN);
         let landmarker: FaceLandmarkerInstance;
         try {
-          landmarker = (await vision.FaceLandmarker.createFromOptions(
-            fileset,
-            {
-              baseOptions: {
-                modelAssetPath: MODEL_URL,
-                delegate: "GPU",
-              },
-              runningMode: "VIDEO",
-              numFaces: 1,
-              outputFaceBlendshapes: true,
-              outputFacialTransformationMatrixes: true,
-            }
-          )) as FaceLandmarkerInstance;
+          landmarker = (await vision.FaceLandmarker.createFromOptions(fileset, {
+            baseOptions: {
+              modelAssetPath: MODEL_URL,
+              delegate: "GPU",
+            },
+            runningMode: "VIDEO",
+            numFaces: 1,
+            outputFaceBlendshapes: true,
+            outputFacialTransformationMatrixes: true,
+          })) as FaceLandmarkerInstance;
         } catch {
-          landmarker = (await vision.FaceLandmarker.createFromOptions(
-            fileset,
-            {
-              baseOptions: {
-                modelAssetPath: MODEL_URL,
-                delegate: "CPU",
-              },
-              runningMode: "VIDEO",
-              numFaces: 1,
-              outputFaceBlendshapes: true,
-              outputFacialTransformationMatrixes: true,
-            }
-          )) as FaceLandmarkerInstance;
+          landmarker = (await vision.FaceLandmarker.createFromOptions(fileset, {
+            baseOptions: {
+              modelAssetPath: MODEL_URL,
+              delegate: "CPU",
+            },
+            runningMode: "VIDEO",
+            numFaces: 1,
+            outputFaceBlendshapes: true,
+            outputFacialTransformationMatrixes: true,
+          })) as FaceLandmarkerInstance;
         }
         if (cancelled) {
           landmarker.close?.();
@@ -325,7 +316,7 @@ export function FaceLiveness({
           message: e instanceof Error ? e.message : "unknown",
         });
         setErr(
-          "Could not start face check. Allow camera access and try again."
+          "Could not start face check. Allow camera access and try again.",
         );
         setPhase("fail");
       }
@@ -357,17 +348,15 @@ export function FaceLiveness({
         setPhase("locked");
         setLockMs(r.remainingMs);
         setErr(
-          `Too many attempts. Try again in ${formatRemaining(r.remainingMs)}.`
+          `Too many attempts. Try again in ${formatRemaining(r.remainingMs)}.`,
         );
         stopCamera();
         return;
       }
       setPhase("fail");
-      setErr(
-        `${reason} Attempt ${r.fails} of ${LIVENESS_MAX_FAILS}.`
-      );
+      setErr(`${reason} Attempt ${r.fails} of ${LIVENESS_MAX_FAILS}.`);
     },
-    [stopCamera, userKey]
+    [stopCamera, userKey],
   );
 
   const succeed = useCallback(() => {
@@ -396,7 +385,7 @@ export function FaceLiveness({
               durationMs: Math.round(durationMs),
               clientScore: 1,
             }),
-          })
+          }),
         )
         .catch(() => undefined);
     }
@@ -435,18 +424,21 @@ export function FaceLiveness({
       const sessionAge = now - sessionStartedRef.current;
       const timeProg = Math.min(0.55, sessionAge / SESSION_TARGET_MS);
       const stepProg =
-        (stepRef.current + (passedStepsRef.current[stepRef.current] ? 1 : 0.35)) /
+        (stepRef.current +
+          (passedStepsRef.current[stepRef.current] ? 1 : 0.35)) /
         SESSION_LEN;
-      setProgress(Math.min(99, Math.round((timeProg * 0.35 + stepProg * 0.65) * 100)));
+      setProgress(
+        Math.min(99, Math.round((timeProg * 0.35 + stepProg * 0.65) * 100)),
+      );
 
       if (!face || face.length < 100) {
         faceMissingFramesRef.current += 1;
         facePresentFramesRef.current = Math.max(
           0,
-          facePresentFramesRef.current - 1
+          facePresentFramesRef.current - 1,
         );
         if (faceMissingFramesRef.current > 45) {
-          setFeedback("No face detected — center your face");
+          setFeedback("No face detected center your face");
         }
         if (faceMissingFramesRef.current > 120) {
           failSession("We lost your face.");
@@ -525,7 +517,7 @@ export function FaceLiveness({
           passed = smile > 0.35;
           break;
         case "turn_left":
-          // Mirrored selfie: left turn appears as positive or negative yaw — accept either strong side
+          // Mirrored selfie: left turn appears as positive or negative yaw accept either strong side
           passed = yaw > 0.18 || yaw < -0.18 || yawRange > 0.28;
           break;
         case "turn_right":
@@ -572,14 +564,16 @@ export function FaceLiveness({
             yawHistRef.current = [];
             pitchHistRef.current = [];
             const next = challengesRef.current[stepRef.current];
-            setFeedback(next ? `Good! Now ${next.label.toLowerCase()}` : "Hold on…");
+            setFeedback(
+              next ? `Good! Now ${next.label.toLowerCase()}` : "Hold on…",
+            );
           }, 420);
         }
       } else {
         const age = now - stepStartedRef.current;
         if (age > STEP_MS + 1800) {
-          // Timeout on this challenge — soft nudge, don't fail whole session yet
-          setFeedback(`${ch.label} — keep your face in the circle`);
+          // Timeout on this challenge soft nudge, don't fail whole session yet
+          setFeedback(`${ch.label} keep your face in the circle`);
           stepStartedRef.current = now;
           earHistRef.current = [];
           yawHistRef.current = [];
@@ -615,7 +609,7 @@ export function FaceLiveness({
       setPhase("locked");
       setLockMs(lock.remainingMs);
       setErr(
-        `Too many attempts. Try again in ${formatRemaining(lock.remainingMs)}.`
+        `Too many attempts. Try again in ${formatRemaining(lock.remainingMs)}.`,
       );
       return;
     }
@@ -642,11 +636,9 @@ export function FaceLiveness({
         setReady(true);
         if (!landmarkerRef.current) {
           const vision = await import("@mediapipe/tasks-vision");
-          const fileset =
-            await vision.FilesetResolver.forVisionTasks(WASM_CDN);
-          landmarkerRef.current = (await vision.FaceLandmarker.createFromOptions(
-            fileset,
-            {
+          const fileset = await vision.FilesetResolver.forVisionTasks(WASM_CDN);
+          landmarkerRef.current =
+            (await vision.FaceLandmarker.createFromOptions(fileset, {
               baseOptions: {
                 modelAssetPath: MODEL_URL,
                 delegate: "CPU",
@@ -655,8 +647,7 @@ export function FaceLiveness({
               numFaces: 1,
               outputFaceBlendshapes: true,
               outputFacialTransformationMatrixes: true,
-            }
-          )) as FaceLandmarkerInstance;
+            })) as FaceLandmarkerInstance;
         }
         setModelReady(true);
         runningRef.current = true;
@@ -670,7 +661,7 @@ export function FaceLiveness({
 
   const lockMinutes = useMemo(
     () => (lockMs > 0 ? formatRemaining(lockMs) : ""),
-    [lockMs]
+    [lockMs],
   );
 
   return (
@@ -698,7 +689,7 @@ export function FaceLiveness({
             }}
             className={cn(
               "flex h-8 w-8 items-center justify-center rounded-md border-0",
-              isLight ? "bg-black/10" : "bg-white/10"
+              isLight ? "bg-black/10" : "bg-white/10",
             )}
             aria-label="Close"
           >
@@ -711,7 +702,7 @@ export function FaceLiveness({
       <div
         className={cn(
           "h-1 w-full overflow-hidden rounded-full",
-          isLight ? "bg-black/10" : "bg-white/15"
+          isLight ? "bg-black/10" : "bg-white/15",
         )}
       >
         <div
@@ -723,7 +714,7 @@ export function FaceLiveness({
       {/* Camera */}
       <div
         className={cn(
-          "relative mx-auto aspect-[3/4] w-full max-w-[260px] overflow-hidden rounded-md bg-black"
+          "relative mx-auto aspect-[3/4] w-full max-w-[260px] overflow-hidden rounded-md bg-black",
         )}
       >
         <video
@@ -739,7 +730,7 @@ export function FaceLiveness({
               "h-[68%] w-[72%] rounded-full border-2",
               phase === "success"
                 ? "border-emerald-400"
-                : "border-[#FF6B35]/80"
+                : "border-[#FF6B35]/80",
             )}
           />
         </div>
@@ -765,7 +756,7 @@ export function FaceLiveness({
       <p
         className={cn(
           "min-h-[2.5rem] text-center text-[13px] font-semibold leading-snug",
-          err ? "text-red-500" : ink
+          err ? "text-red-500" : ink,
         )}
       >
         {err || feedback}
@@ -793,7 +784,9 @@ export function FaceLiveness({
             }}
             className={cn(
               "h-11 flex-1 rounded-md border-0 text-[12px] font-bold",
-              isLight ? "bg-black/10 text-slate-800" : "bg-[#2c2c2e] text-white"
+              isLight
+                ? "bg-black/10 text-slate-800"
+                : "bg-[#2c2c2e] text-white",
             )}
           >
             Cancel

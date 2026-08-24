@@ -39,9 +39,9 @@ describe("canSurfaceIncomingJob", () => {
   it("blocks already shown jobs for the same offer window", () => {
     const dl = "2026-08-08T12:00:00.000Z";
     markJobShown("j1", undefined, dl);
-    expect(
-      canSurfaceIncomingJob("j1", { pairingDeadline: dl }).allow
-    ).toBe(false);
+    expect(canSurfaceIncomingJob("j1", { pairingDeadline: dl }).allow).toBe(
+      false,
+    );
   });
 
   it("keeps a no-deadline card shown (negotiating/agreed never re-surfaces)", () => {
@@ -57,7 +57,7 @@ describe("canSurfaceIncomingJob", () => {
     expect(
       canSurfaceIncomingJob("j1", {
         pairingDeadline: "2026-08-08T12:01:06.000Z",
-      }).allow
+      }).allow,
     ).toBe(true);
   });
 
@@ -97,8 +97,8 @@ describe("isIncomingJobOpen", () => {
           pairingDeadline: new Date(NOW + 60_000).toISOString(),
         }),
         "p1",
-        NOW
-      )
+        NOW,
+      ),
     ).toBe(true);
   });
 
@@ -111,8 +111,8 @@ describe("isIncomingJobOpen", () => {
           pairingDeadline: new Date(NOW + 60_000).toISOString(),
         }),
         "p1",
-        NOW
-      )
+        NOW,
+      ),
     ).toBe(false);
   });
 
@@ -125,8 +125,8 @@ describe("isIncomingJobOpen", () => {
           pairingDeadline: new Date(NOW + 60_000).toISOString(),
         }),
         "p1",
-        NOW
-      )
+        NOW,
+      ),
     ).toBe(false);
   });
 
@@ -138,8 +138,8 @@ describe("isIncomingJobOpen", () => {
           pairingStage: "sequential_pairing",
         }),
         "p1",
-        NOW
-      )
+        NOW,
+      ),
     ).toBe(false);
   });
 
@@ -152,8 +152,8 @@ describe("isIncomingJobOpen", () => {
           pairingDeadline: new Date(NOW - 1_000).toISOString(),
         }),
         "p1",
-        NOW
-      )
+        NOW,
+      ),
     ).toBe(false);
   });
 
@@ -165,8 +165,8 @@ describe("isIncomingJobOpen", () => {
           negotiateEndsAt: new Date(NOW + 60_000).toISOString(),
         }),
         "p1",
-        NOW
-      )
+        NOW,
+      ),
     ).toBe(true);
     expect(
       isIncomingJobOpen(
@@ -175,18 +175,14 @@ describe("isIncomingJobOpen", () => {
           negotiateEndsAt: new Date(NOW - 1_000).toISOString(),
         }),
         "p1",
-        NOW
-      )
+        NOW,
+      ),
     ).toBe(false);
   });
 
   it("keeps agreed open and never opens for another pro", () => {
-    expect(
-      isIncomingJobOpen(job({ status: "agreed" }), "p1", NOW)
-    ).toBe(true);
-    expect(
-      isIncomingJobOpen(job({ status: "agreed" }), "p2", NOW)
-    ).toBe(false);
+    expect(isIncomingJobOpen(job({ status: "agreed" }), "p1", NOW)).toBe(true);
+    expect(isIncomingJobOpen(job({ status: "agreed" }), "p2", NOW)).toBe(false);
   });
 
   it("closes a released / satisfied job", () => {
@@ -197,17 +193,13 @@ describe("isIncomingJobOpen", () => {
       "expired",
     ] as const) {
       expect(
-        isIncomingJobOpen(
-          job({ status, pairingStage: "reserved" }),
-          "p1",
-          NOW
-        )
+        isIncomingJobOpen(job({ status, pairingStage: "reserved" }), "p1", NOW),
       ).toBe(false);
     }
   });
 });
 
-describe("isProRequestCardKeepable — fast-close contract (never regress)", () => {
+describe("isProRequestCardKeepable fast-close contract (never regress)", () => {
   it("keeps a live pairing card", () => {
     for (const stage of [
       "waiting_for_selected",
@@ -216,14 +208,14 @@ describe("isProRequestCardKeepable — fast-close contract (never regress)", () 
       "reserved",
     ]) {
       expect(isProRequestCardKeepable(stage, stage)).toBe(true);
-      // Legacy `status` column is "requested" for pairing rows — must keep.
+      // Legacy `status` column is "requested" for pairing rows must keep.
       expect(isProRequestCardKeepable("requested", stage)).toBe(true);
     }
   });
 
   it("keeps sequential_pairing / negotiating / agreed", () => {
     expect(
-      isProRequestCardKeepable("sequential_pairing", "sequential_pairing")
+      isProRequestCardKeepable("sequential_pairing", "sequential_pairing"),
     ).toBe(true);
     expect(isProRequestCardKeepable("negotiating", null)).toBe(true);
     expect(isProRequestCardKeepable("agreed", null)).toBe(true);
@@ -232,7 +224,7 @@ describe("isProRequestCardKeepable — fast-close contract (never regress)", () 
   it("drops a customer-cancelled request even with a stale stage", () => {
     expect(isProRequestCardKeepable("cancelled", null)).toBe(false);
     expect(isProRequestCardKeepable("cancelled", "waiting_for_pro")).toBe(
-      false
+      false,
     );
     expect(isProRequestCardKeepable("cancelled", "reserved")).toBe(false);
     expect(isProRequestCardKeepable("requested", "cancelled")).toBe(false);
@@ -254,8 +246,11 @@ describe("isProRequestCardKeepable — fast-close contract (never regress)", () 
   });
 });
 
-describe("requestCloseText — rich notifications, never a silent vanish", () => {
-  const auto: Pick<JobRecord, "motoristName" | "motoristVehicle" | "serviceType"> = {
+describe("requestCloseText rich notifications, never a silent vanish", () => {
+  const auto: Pick<
+    JobRecord,
+    "motoristName" | "motoristVehicle" | "serviceType"
+  > = {
     motoristName: "Mina Smith",
     motoristVehicle: "Toyota Camry",
     serviceType: "mechanic",
@@ -267,37 +262,37 @@ describe("requestCloseText — rich notifications, never a silent vanish", () =>
 
   it("names the customer + vehicle for an automotive cancel", () => {
     expect(requestCloseText({ job: auto, status: "cancelled" })).toBe(
-      "Mina cancelled the Toyota Camry request."
+      "Mina cancelled the Toyota Camry request.",
     );
   });
 
   it("falls back to a plain name / generic text without vehicle or job", () => {
     expect(requestCloseText({ job: generic, status: "cancelled" })).toBe(
-      "Bola cancelled this request."
+      "Bola cancelled this request.",
     );
     expect(requestCloseText({ status: "cancelled" })).toBe(
-      "A customer cancelled this request."
+      "A customer cancelled this request.",
     );
   });
 
   it("explains expiry and reassignment distinctly", () => {
     expect(requestCloseText({ job: generic, status: "expired" })).toBe(
-      "Bola's request expired."
+      "Bola's request expired.",
     );
     expect(requestCloseText({ job: auto, movedOn: true })).toBe(
-      "This request was assigned to another pro."
+      "This request was assigned to another pro.",
     );
     expect(requestCloseText({ status: "expired" })).toBe(
-      "This request expired."
+      "This request expired.",
     );
   });
 
   it("has a generic fallback for any other close", () => {
-    expect(
-      requestCloseText({ job: generic, status: "refunded" })
-    ).toBe("Bola's request is no longer open.");
+    expect(requestCloseText({ job: generic, status: "refunded" })).toBe(
+      "Bola's request is no longer open.",
+    );
     expect(requestCloseText({ status: "under_appeal" })).toBe(
-      "This request is no longer open."
+      "This request is no longer open.",
     );
   });
 });

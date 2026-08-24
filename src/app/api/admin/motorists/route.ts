@@ -13,7 +13,11 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: Request) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     await requireAdmin();
@@ -28,7 +32,7 @@ export async function GET(req: Request) {
     const { data: mots, error: mErr } = await supabase
       .from("motorist_profiles")
       .select(
-        "user_id, vehicle_make, vehicle_model, vehicle_year, plate_number, address_text, default_lat, default_lng, nin_last4, bvn_last4, nin_verified, bvn_verified, identity_verified_at, identity_review_status, identity_submitted_at, phone_verified, gov_id_front_url, gov_id_back_url, gov_id_kind, gov_id_number, bank_id_number, gov_id_meta, created_at, updated_at"
+        "user_id, vehicle_make, vehicle_model, vehicle_year, plate_number, address_text, default_lat, default_lng, nin_last4, bvn_last4, nin_verified, bvn_verified, identity_verified_at, identity_review_status, identity_submitted_at, phone_verified, gov_id_front_url, gov_id_back_url, gov_id_kind, gov_id_number, bank_id_number, gov_id_meta, created_at, updated_at",
       )
       .order("created_at", { ascending: false })
       .limit(500);
@@ -59,7 +63,7 @@ export async function GET(req: Request) {
       const { data: profs, error: pErr } = await supabase
         .from("profiles")
         .select(
-          "id, role, full_name, phone, email, city, area, is_active, created_at, updated_at, gender, date_of_birth"
+          "id, role, full_name, phone, email, city, area, is_active, created_at, updated_at, gender, date_of_birth",
         )
         .in("id", userIds);
       if (pErr) return apiFail(pErr.message, 500);
@@ -86,7 +90,7 @@ export async function GET(req: Request) {
     const { data: roleOnly } = await supabase
       .from("profiles")
       .select(
-        "id, role, full_name, phone, email, city, area, is_active, created_at, updated_at, gender, date_of_birth"
+        "id, role, full_name, phone, email, city, area, is_active, created_at, updated_at, gender, date_of_birth",
       )
       .eq("role", "motorist")
       .limit(500);
@@ -112,10 +116,7 @@ export async function GET(req: Request) {
     }
 
     const motByUser = new Map(rows.map((r) => [r.user_id, r]));
-    const allIds = new Set([
-      ...userIds,
-      ...(roleOnly ?? []).map((p) => p.id),
-    ]);
+    const allIds = new Set([...userIds, ...(roleOnly ?? []).map((p) => p.id)]);
 
     let motorists = [...allIds].map((id) => {
       const p = profiles[id];
@@ -147,7 +148,7 @@ export async function GET(req: Request) {
       return {
         id,
         role: p?.role || "motorist",
-        full_name: p?.full_name || "—",
+        full_name: p?.full_name || "",
         phone: p?.phone ?? null,
         email: p?.email ?? null,
         city: p?.city ?? null,
@@ -180,8 +181,9 @@ export async function GET(req: Request) {
               gov_id_back_url: mot.gov_id_back_url ?? null,
               gov_id_kind: mot.gov_id_kind ?? null,
               gov_id_number: mot.gov_id_number ?? null,
-              bank_id_number: (mot as { bank_id_number?: string | null })
-                .bank_id_number ?? null,
+              bank_id_number:
+                (mot as { bank_id_number?: string | null }).bank_id_number ??
+                null,
             }
           : null,
         verifyLevel: verifyLevel as "full" | "partial" | "none",

@@ -149,7 +149,8 @@ export const AR: MessageDict = {
   "notif.emailDetail": "ملخصات وإيصالات",
   "location.title": "موقعي",
   "location.subtitle": "حدد مكانك",
-  "location.hint": "ابحث عن مكان أو حرّك الدبوس. يُستخدم لخريطة الصفحة الرئيسية والحرفيين القريبين.",
+  "location.hint":
+    "ابحث عن مكان أو حرّك الدبوس. يُستخدم لخريطة الصفحة الرئيسية والحرفيين القريبين.",
   "location.saved": "تم حفظ الموقع",
   "location.myLocationBtn": "موقعي",
   "location.tapMap": "اضغط على الخريطة أو اسحب الدبوس",
@@ -208,7 +209,8 @@ export const AR: MessageDict = {
   "trade.solar": "شمسي",
   "trade.generator": "مولد",
   "trade.all": "الكل",
-  "gate.finishBeforeLive": "أكمل التحقق وأرسل للمراجعة قبل أن تتمكن من البث المباشر.",
+  "gate.finishBeforeLive":
+    "أكمل التحقق وأرسل للمراجعة قبل أن تتمكن من البث المباشر.",
   "gate.continueVerification": "متابعة التحقق",
   "gate.viewStatus": "عرض الحالة",
   "status.draft": "مسودة",
@@ -258,7 +260,8 @@ export const AR: MessageDict = {
   "profile.reviews": "التقييمات",
   "profile.rating": "التقييم",
   "verify.title": "تحقق من هويتك",
-  "verify.subtitle": "تجربة مجانية حتى العمل {warn}. أنهِ قبل العمل {block} لتواصل الحجز.",
+  "verify.subtitle":
+    "تجربة مجانية حتى العمل {warn}. أنهِ قبل العمل {block} لتواصل الحجز.",
   "verify.howTitle": "كيف يعمل التحقق",
   "verify.countryFromPhone": "البلد: {country} (من هاتفك)",
   "verify.requiredFor": "مطلوب لـ {country}",
@@ -291,7 +294,8 @@ export const AR: MessageDict = {
   "gate.verifySoon": "تحقق قريباً للحفاظ على الوصول الكامل",
   "gate.verifyNow": "تحقق من هويتك الآن",
   "gate.required": "التحقق مطلوب",
-  "gate.exploreFree": "استكشفت التطبيق بحرية. تحقق من هويتك مرة للحجز بلا حدود.",
+  "gate.exploreFree":
+    "استكشفت التطبيق بحرية. تحقق من هويتك مرة للحجز بلا حدود.",
   "menu.settings": "الإعدادات",
   "menu.help": "المساعدة",
   "menu.switchRole": "تبديل الدور",
@@ -312,7 +316,8 @@ export const AR: MessageDict = {
   "menu.logIn": "تسجيل الدخول",
   "menu.needLogin": "سجّل الدخول للتبديل بين عميل وRepair Pro.",
   "menu.noMotorist": "ليس لديك حساب عميل بعد.",
-  "menu.noPro": "ليس لديك حساب Repair Pro بعد. أكمل التسجيل لتكون Live وتستقبل الوظائف.",
+  "menu.noPro":
+    "ليس لديك حساب Repair Pro بعد. أكمل التسجيل لتكون Live وتستقبل الوظائف.",
   "menu.couldNotSwitch": "تعذّر التبديل.",
   "menu.tapToClose": "انقر للإغلاق",
   "menu.signedInAs": "مسجّل الدخول باسم {name}",
@@ -346,11 +351,12 @@ export const AR: MessageDict = {
   "settings.hub.addressesDetail": "Home, Work, service area & pin",
   "settings.dangerZone": "منطقة الخطر",
   "settings.deleteAccount": "حذف الحساب",
-  "settings.deleteAccountDetail": "تعطيل نهائي — لا يمكن التراجع",
+  "settings.deleteAccountDetail": "تعطيل نهائي لا يمكن التراجع",
   "settings.theme.tap": "انقر",
   "search.noResultsFor": "لا نتائج لـ “{q}”",
-  "search.tryAnother": "هذا المحترف أو المهنة أو المكان غير متاح بالقرب. جرّب بحثًا آخر.",
-  "search.tryBrowse": "جرّب اسمًا أو مهنة أو مكانًا — أو افتح الرئيسية.",
+  "search.tryAnother":
+    "هذا المحترف أو المهنة أو المكان غير متاح بالقرب. جرّب بحثًا آخر.",
+  "search.tryBrowse": "جرّب اسمًا أو مهنة أو مكانًا أو افتح الرئيسية.",
   "search.noMatchesNearby": "لا تطابقات قريبة",
   "search.backHome": "العودة للرئيسية",
   "search.withinKm": "ضمن {km} كم · نتيجة {count}",
@@ -359,12 +365,14 @@ export const AR: MessageDict = {
   "search.placeholder": "ابحث عن مشكلة أو فني أو خدمة…",
   "search.title": "بحث",
   "search.subtitle": "عمال مهرة بالقرب منك",
-  "home.searchNoResults": "لا نتائج لـ “{q}”. جرّب اسمًا أو مهنة أو مكانًا آخر.",
+  "home.searchNoResults":
+    "لا نتائج لـ “{q}”. جرّب اسمًا أو مهنة أو مكانًا آخر.",
   "common.customer": "عميل",
   "common.repairPro": "Repair Pro",
   "common.codeSent": "تم إرسال الرمز. أدخله أدناه.",
   "nav.shop": "Shop",
   "nav.myShop": "My Shop",
+  "nav.onaExpress": "Ona Express",
   "trade.shop": "Shop",
   "shop.title": "Shop",
   "shop.searchPlaceholder": "What are you looking for?",
@@ -372,6 +380,6 @@ export const AR: MessageDict = {
   "shop.popular": "Popular",
   "shop.newArrivals": "New arrivals",
   "shop.empty": "No products yet. Catalog is loading.",
-  "shop.setupRequired": "Shop is almost ready — catalog database will appear after setup.",
+  "shop.setupRequired":
+    "Shop is almost ready catalog database will appear after setup.",
 };
-

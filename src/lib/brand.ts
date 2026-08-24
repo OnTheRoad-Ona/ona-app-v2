@@ -6,23 +6,20 @@
  */
 export const DEFAULT_VENDOR_PHOTO = "/brand/default-pro-avatar.png?v=7";
 
-/** No fill behind default — image already fills the circle (transparent not needed). */
+/** No fill behind default image already fills the circle (transparent not needed). */
 export const DEFAULT_VENDOR_PHOTO_BG = "transparent";
 
 /** Full-bleed intro / auth hero art (not for small circular avatars). */
 export const BRAND_HERO_PHOTO = "/brand/auth-bg-v31.jpg";
-/** Same asset — boot / intro still */
+/** Same asset boot / intro still */
 export const ONA_INTRO_IMAGE = "/brand/ona-intro-v1.jpg";
 
 /** Initials for avatar fallback rings (e.g. "Oluwatosin Olanrewaju" → "OO"). */
 export function avatarInitials(
   name: string | null | undefined,
-  fallback = "ON"
+  fallback = "ON",
 ): string {
-  const parts = (name || "")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
+  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return fallback.slice(0, 2).toUpperCase();
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
@@ -31,7 +28,7 @@ export function avatarInitials(
 /** Short list label from a full name (first word, max 12 chars). */
 export function shortDisplayName(
   name: string | null | undefined,
-  fallback = "Pro"
+  fallback = "Pro",
 ): string {
   const n = (name || "").trim();
   if (!n) return fallback;

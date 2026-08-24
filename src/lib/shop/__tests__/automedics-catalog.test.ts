@@ -38,7 +38,7 @@ describe("Automedics catalog", () => {
       expect(p.name.trim().length).toBeGreaterThan(2);
       expect(p.vehicle.trim().length).toBeGreaterThan(1);
       expect(AUTOMEDICS_CATEGORIES.some((c) => c.slug === p.categorySlug)).toBe(
-        true
+        true,
       );
       if (p.sku === "ATM-ATF-DEXRON-VI") {
         expect(p.priceMajor).toBeNull();
@@ -58,16 +58,14 @@ describe("Automedics catalog", () => {
 
   it("has grouped catch-all products", () => {
     const names = AUTOMEDICS_PRODUCTS.map((p) => p.name);
-    expect(
-      names.some((n) => n.includes("SCT SP106 to SP659"))
-    ).toBe(true);
+    expect(names.some((n) => n.includes("SCT SP106 to SP659"))).toBe(true);
     expect(names).toContain("Lower Arm Bushings A");
     expect(names).toContain("Lower Arm Bushings B");
     expect(
-      AUTOMEDICS_PRODUCTS.find((p) => p.sku === "ATM-RB-BUSH-A")?.priceMajor
+      AUTOMEDICS_PRODUCTS.find((p) => p.sku === "ATM-RB-BUSH-A")?.priceMajor,
     ).toBe(6000);
     expect(
-      AUTOMEDICS_PRODUCTS.find((p) => p.sku === "ATM-RB-BUSH-B")?.priceMajor
+      AUTOMEDICS_PRODUCTS.find((p) => p.sku === "ATM-RB-BUSH-B")?.priceMajor,
     ).toBe(15000);
   });
 

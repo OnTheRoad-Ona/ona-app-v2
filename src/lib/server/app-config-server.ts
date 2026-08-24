@@ -29,7 +29,7 @@ export async function loadAppConfig(): Promise<AppConfig> {
 export async function saveAppConfigSection(
   key: AppSettingKey,
   value: Record<string, unknown>,
-  adminId: string
+  adminId: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const supabase = createServiceSupabase();
   const current = await loadAppConfig();
@@ -39,12 +39,12 @@ export async function saveAppConfigSection(
     const maxR = Number(rec.maxRadiusKm);
     rec.maxRadiusKm = Math.min(
       MAX_RADIUS_KM,
-      Math.max(1, Number.isFinite(maxR) ? maxR : MAX_RADIUS_KM)
+      Math.max(1, Number.isFinite(maxR) ? maxR : MAX_RADIUS_KM),
     );
     const defR = Number(rec.defaultRadiusKm);
     rec.defaultRadiusKm = Math.min(
       MAX_RADIUS_KM,
-      Math.max(0.5, Number.isFinite(defR) ? defR : DEFAULT_RADIUS_KM)
+      Math.max(0.5, Number.isFinite(defR) ? defR : DEFAULT_RADIUS_KM),
     );
   }
 
@@ -55,7 +55,7 @@ export async function saveAppConfigSection(
       updated_at: new Date().toISOString(),
       updated_by: adminId,
     },
-    { onConflict: "key" }
+    { onConflict: "key" },
   );
   if (error) return { ok: false, message: error.message };
   return { ok: true };

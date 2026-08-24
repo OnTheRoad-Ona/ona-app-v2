@@ -48,7 +48,7 @@ function fitmentBadge(status: string | null | undefined): string | null {
 }
 
 async function productIdsForVehicle(
-  vehicle: Pick<GarageVehicle, "makeId" | "modelId" | "year">
+  vehicle: Pick<GarageVehicle, "makeId" | "modelId" | "year">,
 ): Promise<Map<string, string>> {
   const sb = createServiceSupabase();
   const out = new Map<string, string>(); // productId -> fitment_status
@@ -58,7 +58,7 @@ async function productIdsForVehicle(
   let q = sb
     .from("shop_product_fitments")
     .select(
-      "variant_id, fitment_status, verification_status, make_id, model_id, year_start, year_end"
+      "variant_id, fitment_status, verification_status, make_id, model_id, year_start, year_end",
     )
     .in("fitment_status", ["direct_fit", "compatible", "conditional"])
     .neq("verification_status", "rejected")
@@ -199,7 +199,11 @@ export async function getAllPartsForVehicle(opts: {
       const path = String(c.path || "");
       for (const [cid, n] of countByCat) {
         const child = categories.find((x) => String(x.id) === cid);
-        if (child && String(child.path || "").startsWith(path + "/") && cid !== id) {
+        if (
+          child &&
+          String(child.path || "").startsWith(path + "/") &&
+          cid !== id
+        ) {
           total += n;
         }
       }

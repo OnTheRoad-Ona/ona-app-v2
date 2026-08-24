@@ -3,7 +3,7 @@
  *
  * A connector fetches records from a data source (API/feed/demo), reports its
  * license/status, and yields normalized staging records. It never fabricates
- * fitment claims — vehicle fitment is only attached from real source data.
+ * fitment claims vehicle fitment is only attached from real source data.
  */
 
 export type StagedRecord = {
@@ -53,7 +53,7 @@ export type ConnectorRegistry = Record<string, () => Promise<CatalogConnector>>;
 
 export async function loadConnector(
   code: string,
-  registry: ConnectorRegistry
+  registry: ConnectorRegistry,
 ): Promise<CatalogConnector | null> {
   const loader = registry[code];
   if (!loader) return null;

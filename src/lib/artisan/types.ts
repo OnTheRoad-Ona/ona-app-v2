@@ -7,11 +7,7 @@ import type { ProService } from "@/lib/types";
 
 /** Backend/profile lifecycle for artisans (Repair Pros) */
 export type ArtisanProfileStatus =
-  | "draft"
-  | "pending_review"
-  | "approved"
-  | "rejected"
-  | "suspended";
+  "draft" | "pending_review" | "approved" | "rejected" | "suspended";
 
 /** Verification tier progress */
 export type VerificationTierId = 1 | 2 | 3 | 4;
@@ -28,23 +24,13 @@ export type TierCompletion = {
 
 /** Manual review queue for identity docs */
 export type IdentityReviewStatus =
-  | "none"
-  | "submitted"
-  | "approved"
-  | "rejected";
+  "none" | "submitted" | "approved" | "rejected";
 
 export type GovIdType =
-  | "nin"
-  | "drivers_licence"
-  | "voters_card"
-  | "international_passport";
+  "nin" | "drivers_licence" | "voters_card" | "international_passport";
 
 export type SkillProofType =
-  | "trade_test"
-  | "nabteb"
-  | "itf"
-  | "apprenticeship_letter"
-  | "other_evidence";
+  "trade_test" | "nabteb" | "itf" | "apprenticeship_letter" | "other_evidence";
 
 export type ArtisanMedia = {
   id: string;
@@ -69,7 +55,7 @@ export type ArtisanGuarantor = {
 };
 
 export type ArtisanServiceArea = {
-  /** ISO 3166-1 alpha-2 from signup — locked in onboarding */
+  /** ISO 3166-1 alpha-2 from signup locked in onboarding */
   countryCode?: string;
   countryName?: string;
   /** Single selected state (array kept for storage compatibility, max 1 in UI) */
@@ -110,7 +96,7 @@ export type ArtisanVerificationProfile = {
   portfolio: ArtisanMedia[];
   introVideo?: ArtisanMedia | null;
 
-  /** Tier 2 — government ID (manual admin/care review) */
+  /** Tier 2 government ID (manual admin/care review) */
   govIdType?: GovIdType | null;
   govIdNumber?: string | null;
   govIdFront?: ArtisanMedia | null;
@@ -118,7 +104,7 @@ export type ArtisanVerificationProfile = {
   govIdReviewStatus?: IdentityReviewStatus;
   govIdSubmittedAt?: string | null;
 
-  /** Tier 2 — NIN number + document (manual admin/care review; no live BVN verify) */
+  /** Tier 2 NIN number + document (manual admin/care review; no live BVN verify) */
   nin?: string | null;
   ninDoc?: ArtisanMedia | null;
   ninReviewStatus?: IdentityReviewStatus;
@@ -141,7 +127,8 @@ export type ArtisanVerificationProfile = {
   /** Tier 4 */
   skillProofType?: SkillProofType | null;
   skillProof?: ArtisanMedia | null;
-  skillProofStatus?: "none" | "uploaded" | "under_review" | "approved" | "rejected";
+  skillProofStatus?:
+    "none" | "uploaded" | "under_review" | "approved" | "rejected";
 
   /** Admin review */
   submittedAt?: string | null;
@@ -149,7 +136,7 @@ export type ArtisanVerificationProfile = {
   reviewedBy?: string | null;
   rejectReason?: string | null;
 
-  /** New Artisan badge — Tier 1–2 on; Tier 3–4 off */
+  /** New Artisan badge Tier 1-2 on; Tier 3-4 off */
   isNewArtisan: boolean;
   successfulJobsCount: number;
 

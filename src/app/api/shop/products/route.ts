@@ -1,9 +1,6 @@
 import { NextRequest } from "next/server";
 import { apiFail, apiOk } from "@/lib/server/api-json";
-import {
-  listProducts,
-  resolveAccountContext,
-} from "@/lib/server/shop/catalog";
+import { listProducts, resolveAccountContext } from "@/lib/server/shop/catalog";
 import { applyTradeFilters } from "@/lib/shop/trade-filters";
 import { isListingStatus } from "@/lib/shop/listing-status";
 import {
@@ -14,7 +11,8 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type ProductFilterOptions = import("@/lib/server/shop/catalog").ProductFilterOptions;
+type ProductFilterOptions =
+  import("@/lib/server/shop/catalog").ProductFilterOptions;
 
 export async function GET(req: NextRequest) {
   try {
@@ -26,7 +24,7 @@ export async function GET(req: NextRequest) {
       if (!gate.ok) return apiFail(gate.message, 403, gate.code);
     }
 
-    // Phase 2 filter engine — parse attribute filters, drop irrelevant ones.
+    // Phase 2 filter engine parse attribute filters, drop irrelevant ones.
     const selected: Record<string, string | boolean> = {};
     for (const [key, value] of sp.entries()) {
       if (
@@ -53,7 +51,13 @@ export async function GET(req: NextRequest) {
       selected.availability = sp.get("availability") || "";
     }
     const listingStatus = isListingStatus(sp.get("listingStatus"))
-      ? (sp.get("listingStatus") as "all" | "available" | "low_stock" | "out_of_stock" | "pre_order" | "coming_soon")
+      ? (sp.get("listingStatus") as
+          | "all"
+          | "available"
+          | "low_stock"
+          | "out_of_stock"
+          | "pre_order"
+          | "coming_soon")
       : undefined;
     const filters: ProductFilterOptions = tradeKey
       ? applyTradeFilters(tradeKey, selected)
@@ -74,7 +78,7 @@ export async function GET(req: NextRequest) {
     const categoryId =
       typeof rawCategory === "string" &&
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        rawCategory
+        rawCategory,
       )
         ? rawCategory
         : undefined;

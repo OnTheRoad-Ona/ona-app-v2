@@ -110,18 +110,19 @@ export function PostSwitchPhoneOtpGate() {
       <div
         className={cn(
           "w-full max-w-[360px] rounded-xl p-4 shadow-xl",
-          isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white"
+          isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white",
         )}
       >
         <p className="text-[17px] font-bold tracking-tight">Confirm it’s you</p>
         <p
           className={cn(
             "mt-1 text-[13px] font-medium leading-snug",
-            isLight ? "text-slate-600" : "text-white/60"
+            isLight ? "text-slate-600" : "text-white/60",
           )}
         >
           You switched roles. Enter the code sent to{" "}
-          <span className="font-semibold">{userProfile?.phone}</span> to continue.
+          <span className="font-semibold">{userProfile?.phone}</span> to
+          continue.
         </p>
 
         {!sent ? (
@@ -147,7 +148,7 @@ export function PostSwitchPhoneOtpGate() {
                 "h-12 w-full border-0 border-b bg-transparent px-0 text-center text-[20px] font-semibold tracking-widest outline-none",
                 isLight
                   ? "border-black/15 text-slate-900"
-                  : "border-white/20 text-white"
+                  : "border-white/20 text-white",
               )}
             />
             <button
@@ -162,7 +163,7 @@ export function PostSwitchPhoneOtpGate() {
               <p
                 className={cn(
                   "py-1 text-center text-[12px] font-medium",
-                  isLight ? "text-slate-500" : "text-white/45"
+                  isLight ? "text-slate-500" : "text-white/45",
                 )}
               >
                 Resend verification code in {resendIn}s
@@ -174,7 +175,7 @@ export function PostSwitchPhoneOtpGate() {
                 onClick={() => void onSend()}
                 className={cn(
                   "w-full border-0 bg-transparent py-2 text-[13px] font-semibold",
-                  isLight ? "text-[#FF6B35]" : "text-[#FF6B35]"
+                  isLight ? "text-[#FF6B35]" : "text-[#FF6B35]",
                 )}
               >
                 Resend verification code
@@ -187,7 +188,7 @@ export function PostSwitchPhoneOtpGate() {
           <p
             className={cn(
               "mt-2 text-[11px] font-medium",
-              isLight ? "text-emerald-800" : "text-emerald-300"
+              isLight ? "text-emerald-800" : "text-emerald-300",
             )}
           >
             {info}

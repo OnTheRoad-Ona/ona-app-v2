@@ -2,8 +2,8 @@
  * Back navigation for the phone shell.
  *
  * RULE:
- *   Prefer the true previous page (browser history) when available.
- *   If there is no history entry, fall back to the logical parent route.
+ * Prefer the true previous page (browser history) when available.
+ * If there is no history entry, fall back to the logical parent route.
  *
  * Explicit `backHref` is used only as that fallback parent.
  * Role homes (`/` / `/dashboard`) still resolve to role home when no history.
@@ -20,7 +20,7 @@ type RouterLike = {
 
 /** Role home: Repair Pro dashboard, Customer map home. */
 export function defaultBackHref(
-  accountType?: AccountType | null | undefined
+  accountType?: AccountType | null | undefined,
 ): string {
   return accountType === "professional" ? "/dashboard" : "/";
 }
@@ -29,16 +29,16 @@ export function defaultBackHref(
 export function isForbiddenMessage(msg?: string | null): boolean {
   if (!msg) return false;
   return /forbidden|not allowed|access denied|permission denied|403\b/i.test(
-    msg
+    msg,
   );
 }
 
 /**
- * Never leave the user on a Forbidden screen — send them to their home.
+ * Never leave the user on a Forbidden screen send them to their home.
  * Pro → /dashboard · Customer → /
  */
 export function homePathForForbidden(
-  accountType?: AccountType | null | undefined
+  accountType?: AccountType | null | undefined,
 ): string {
   return defaultBackHref(accountType);
 }
@@ -48,12 +48,12 @@ function pathOnly(href: string): string {
 }
 
 /**
- * Logical parent for a route — the single source of truth for Back.
+ * Logical parent for a route the single source of truth for Back.
  * Order: most specific paths first.
  */
 export function smartBackFallback(
   pathname: string,
-  accountType?: AccountType | null | undefined
+  accountType?: AccountType | null | undefined,
 ): string {
   const home = defaultBackHref(accountType);
   const path = pathOnly(pathname);
@@ -78,7 +78,8 @@ export function smartBackFallback(
   if (path.startsWith("/shop/checkout")) return "/shop/cart";
   if (path.startsWith("/shop/orders/")) return "/shop/orders";
   if (path === "/shop/orders" || path === "/shop/cart") return "/shop";
-  if (path.startsWith("/shop/p/") || path.startsWith("/shop/c/")) return "/shop";
+  if (path.startsWith("/shop/p/") || path.startsWith("/shop/c/"))
+    return "/shop";
   if (path === "/shop") return home;
 
   // ── Jobs / requests / history ─────────────────────────────
@@ -133,7 +134,7 @@ export function smartBackFallback(
 export function resolveBackHref(
   pathname: string,
   accountType?: AccountType | null,
-  explicitHref?: string | null
+  explicitHref?: string | null,
 ): string {
   const home = defaultBackHref(accountType);
   const current = pathOnly(pathname);
@@ -164,7 +165,7 @@ export function clearPageExitClass(): void {
 export function navigateBack(
   router: RouterLike,
   fallbackHref?: string,
-  accountType?: AccountType | null
+  accountType?: AccountType | null,
 ): void {
   const currentPathname =
     typeof window !== "undefined" ? window.location.pathname || "/" : "/";
@@ -194,19 +195,19 @@ export function navigateBack(
 }
 
 /**
- * Kept for call sites that reset after role switch — no-op for history
+ * Kept for call sites that reset after role switch no-op for history
  * (Back no longer uses a stack). Seeds optional future telemetry only.
  */
 export function resetNavStack(_seedPath?: string): void {
   /* hierarchical Back does not use a stack */
 }
 
-/** @deprecated No stack — kept so AppFrame route effect stays harmless. */
+/** @deprecated No stack kept so AppFrame route effect stays harmless. */
 export function recordNavigation(_path: string): void {
   /* hierarchical Back does not use a stack */
 }
 
-/** @deprecated Always false — do not branch UX on browser history. */
+/** @deprecated Always false do not branch UX on browser history. */
 export function canGoBackInHistory(): boolean {
   return false;
 }

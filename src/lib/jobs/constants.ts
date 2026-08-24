@@ -8,10 +8,10 @@ export const JOB_NAVY = "#0f172a";
  * Negotiation product rules (do not hardcode elsewhere).
  * See docs/ANTI_REGRESSION.md §5.
  */
-/** Negotiation window — 20 minutes for price back-and-forth */
+/** Negotiation window 20 minutes for price back-and-forth */
 export const NEGOTIATE_WINDOW_MS = 20 * 60 * 1000;
 /**
- * SSPE dispatch window — each pro has 144 seconds to Open a request before the
+ * SSPE dispatch window each pro has 144 seconds to Open a request before the
  * server sweep advances to the next ranked pro (see docs/SSPE_REFACTOR_PLAN.md).
  * Clients only render `pairing_deadline`; the server owns enforcement.
  */
@@ -19,7 +19,7 @@ export const PAIRING_WINDOW_MS = 144 * 1000;
 /**
  * Max unique Live pro offers in one customer search wave. After this many
  * (or sooner if the Live pool is smaller), show Retry search. Not “6 retries”
- * of the same pro — one offer per pro, up to 6 pros per wave.
+ * of the same pro one offer per pro, up to 6 pros per wave.
  */
 export const MAX_PAIRING_OFFERS_PER_WAVE = 6;
 
@@ -37,7 +37,7 @@ export const SECOND_PRO_DELAY_MS = 60 * 60 * 1000;
  */
 export function nearbyProsStatusLine(
   count: number,
-  tradeLabel: string
+  tradeLabel: string,
 ): string | null {
   if (count <= 0) return null;
   const base =
@@ -52,7 +52,7 @@ export function nearbyProsStatusLine(
  * After a payment session starts (Pay / Pay again), customer has this long
  * to complete Flutterwave. Only a full unpaid window counts as one attempt.
  */
-/** Open pay session length (11 minutes) — UI must match this, not a stale “20 min”. */
+/** Open pay session length (11 minutes) UI must match this, not a stale “20 min”. */
 export const PAYMENT_WINDOW_MS = 11 * 60 * 1000;
 /** Max unpaid payment windows before system cancels the booking */
 export const MAX_PAYMENT_ATTEMPTS = 3;
@@ -66,7 +66,7 @@ export const PAY_TO_BOOK_WINDOW_MS = 30 * 60 * 1000;
 /** statusHistory.by markers for pay-to-book lifecycle */
 export const PAY_HISTORY = {
   SESSION_START: "payment_session_start",
-  /** Customer closed/cancelled Flutterwave — does NOT count as an attempt; timer restarts on next Pay */
+  /** Customer closed/cancelled Flutterwave does NOT count as an attempt; timer restarts on next Pay */
   SESSION_CANCELLED: "payment_session_cancelled",
   WINDOW_EXPIRED: "payment_window_expired",
   MAX_ATTEMPTS_CANCEL: "payment_max_attempts_cancel",
@@ -123,10 +123,10 @@ export type BookedAutoCancelStatus =
   (typeof BOOKED_AUTO_CANCEL_STATUSES)[number];
 
 export function isBookedAutoCancelStatus(
-  status: string | null | undefined
+  status: string | null | undefined,
 ): status is BookedAutoCancelStatus {
   return (BOOKED_AUTO_CANCEL_STATUSES as readonly string[]).includes(
-    String(status || "")
+    String(status || ""),
   );
 }
 
@@ -165,7 +165,7 @@ export function isBookedPastCompletionDeadline(
     paidAt?: string | null;
     statusHistory?: { status: string; at: string }[];
   },
-  nowMs: number = Date.now()
+  nowMs: number = Date.now(),
 ): boolean {
   if (!isBookedAutoCancelStatus(job.status)) return false;
   const start = bookedPaymentStartMs(job);
@@ -180,11 +180,14 @@ export function paymentWindowsExpiredCount(job: {
   statusHistory?: Hist[];
   paymentAttemptCount?: number;
 }): number {
-  if (typeof job.paymentAttemptCount === "number" && job.paymentAttemptCount >= 0) {
+  if (
+    typeof job.paymentAttemptCount === "number" &&
+    job.paymentAttemptCount >= 0
+  ) {
     return Math.min(MAX_PAYMENT_ATTEMPTS, job.paymentAttemptCount);
   }
   return (job.statusHistory || []).filter(
-    (h) => h.by === PAY_HISTORY.WINDOW_EXPIRED
+    (h) => h.by === PAY_HISTORY.WINDOW_EXPIRED,
   ).length;
 }
 
@@ -199,7 +202,7 @@ export function getOpenPaymentSessionStartMs(job: {
 }): number | null {
   if (job.status !== "agreed") return null;
   const hist = [...(job.statusHistory || [])].sort(
-    (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()
+    (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
   );
   let openStart: number | null = null;
   for (const h of hist) {
@@ -276,7 +279,7 @@ export function agreedAtMs(job: {
 /** True once the customer has tapped Pay at least once. */
 export function hasStartedPaySession(job: { statusHistory?: Hist[] }): boolean {
   return (job.statusHistory || []).some(
-    (h) => h.by === PAY_HISTORY.SESSION_START
+    (h) => h.by === PAY_HISTORY.SESSION_START,
   );
 }
 
@@ -291,7 +294,7 @@ export function isAgreedPastPayToBookDeadline(
     createdAt?: string;
     statusHistory?: Hist[];
   },
-  nowMs: number = Date.now()
+  nowMs: number = Date.now(),
 ): boolean {
   if (job.status !== "agreed") return false;
   if (hasStartedPaySession(job)) return false;
@@ -309,7 +312,7 @@ export function isAgreedPastPaymentDeadline(
     statusHistory?: Hist[];
     paymentSessionEndsAt?: string | null;
   },
-  nowMs: number = Date.now()
+  nowMs: number = Date.now(),
 ): boolean {
   if (job.status !== "agreed") return false;
   const ends = paymentEndsAtIso(job);
@@ -322,10 +325,7 @@ export function paymentAttemptsRemaining(job: {
   statusHistory?: Hist[];
   paymentAttemptCount?: number;
 }): number {
-  return Math.max(
-    0,
-    MAX_PAYMENT_ATTEMPTS - paymentWindowsExpiredCount(job)
-  );
+  return Math.max(0, MAX_PAYMENT_ATTEMPTS - paymentWindowsExpiredCount(job));
 }
 
 /**
@@ -337,7 +337,9 @@ export function completedAtMs(job: {
   updatedAt?: string;
   statusHistory?: { status: string; at: string }[];
 }): number | null {
-  const hits = (job.statusHistory || []).filter((h) => h.status === "completed");
+  const hits = (job.statusHistory || []).filter(
+    (h) => h.status === "completed",
+  );
   if (hits.length) {
     hits.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
     const t = new Date(hits[0]!.at).getTime();
@@ -364,7 +366,7 @@ export function satisfiedReleaseEndsAtIso(job: {
 
 /**
  * True when job is completed, still awaiting customer satisfaction,
- * and past the 6h auto-release deadline (no dispute — caller must ensure).
+ * and past the 6h auto-release deadline (no dispute caller must ensure).
  */
 export function isCompletedPastAutoReleaseDeadline(
   job: {
@@ -373,7 +375,7 @@ export function isCompletedPastAutoReleaseDeadline(
     statusHistory?: { status: string; at: string }[];
     dispute?: { status?: string } | null;
   },
-  nowMs: number = Date.now()
+  nowMs: number = Date.now(),
 ): boolean {
   // Only while still `completed`. Open dispute moves status → disputed (frozen).
   if (job.status !== "completed") return false;
@@ -390,7 +392,7 @@ export function isCompletedPastAutoReleaseDeadline(
 
 /**
  * True when customer still needs the “I am Satisfied” UI.
- * Only hide when payout truly finished — not a false satisfiedAt stamp.
+ * Only hide when payout truly finished not a false satisfiedAt stamp.
  */
 export function needsCustomerReleaseConfirm(job: {
   id?: string;
@@ -402,11 +404,15 @@ export function needsCustomerReleaseConfirm(job: {
 }): boolean {
   if (!job.id) return false;
   if (job.status === "released" || job.status === "satisfied") return false;
-  if (job.status === "refunded" || job.status === "cancelled" || job.status === "expired")
+  if (
+    job.status === "refunded" ||
+    job.status === "cancelled" ||
+    job.status === "expired"
+  )
     return false;
   if (job.status !== "completed") return false;
   if (job.releasedAt) return false;
-  // Customer already confirmed — payout may be pending settlement (auto-retry)
+  // Customer already confirmed payout may be pending settlement (auto-retry)
   if (job.satisfiedAt) return false;
   const esc = String(job.escrowStatus || "").toLowerCase();
   if (
@@ -422,7 +428,7 @@ export function needsCustomerReleaseConfirm(job: {
 
 /**
  * True only while payout is actively auto-retrying.
- * Do NOT treat cancelled/held/satisfied as “processing forever” — that left the
+ * Do NOT treat cancelled/held/satisfied as “processing forever” that left the
  * UI stuck on the spinner even after FLW paid the pro (or admin cancelled).
  */
 export function isPayoutPendingSettlement(job: {
@@ -435,7 +441,7 @@ export function isPayoutPendingSettlement(job: {
   if (job.status === "released") return false;
   const esc = String(job.escrowStatus || "").toLowerCase();
   if (esc === "released" || esc === "refunded") return false;
-  // Spinner only for active settlement queue — not held/cancelled
+  // Spinner only for active settlement queue not held/cancelled
   return esc === "pending_settlement" || esc === "release_pending";
 }
 
@@ -443,7 +449,7 @@ export function isPayoutPendingSettlement(job: {
 /** Ona platform fee share of service charge S (VAT 7.5% is held on FLW separately). */
 export const PLATFORM_FEE_PERCENT = 5;
 /**
- * @deprecated Misleading name — pro net is 87.5% of S (not 95%).
+ * @deprecated Misleading name pro net is 87.5% of S (not 95%).
  * Prefer PRO_NET_PAYOUT_PERCENT from @/lib/pricing (0.875).
  * Kept numeric only for legacy readers; do not use for new math.
  */
@@ -478,12 +484,12 @@ export const TRIP_STATUS_COPY: Partial<
   },
   in_progress: {
     title: "Work in progress",
-    subtitle: "Job in progress — on site",
+    subtitle: "Job in progress on site",
   },
   completed: {
     title: "Confirm Job & Release Payment",
     subtitle:
-      "Release payment, open a dispute, or auto-release after 6 hours — job cannot be closed",
+      "Release payment, open a dispute, or auto-release after 6 hours job cannot be closed",
   },
   satisfied: {
     title: "Thank you",
@@ -503,7 +509,7 @@ export const TRIP_STATUS_COPY: Partial<
   },
 };
 
-/** Repair Pro–facing titles (same statuses, clear action feedback) */
+/** Repair Pro-facing titles (same statuses, clear action feedback) */
 export const PRO_TRIP_STATUS_COPY: Partial<
   Record<JobFlowStatus, { title: string; subtitle: string }>
 > = {
@@ -634,9 +640,7 @@ export function isNegotiationTimerArmed(job: {
   // Or explicitly started
   if (
     job.statusHistory?.some(
-      (h) =>
-        h.by === "pro_can_fix" ||
-        h.by === "negotiation_timer_start"
+      (h) => h.by === "pro_can_fix" || h.by === "negotiation_timer_start",
     )
   ) {
     return true;

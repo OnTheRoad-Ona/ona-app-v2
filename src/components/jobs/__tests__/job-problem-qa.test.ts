@@ -14,7 +14,7 @@ describe("parseJobProblem", () => {
         "What do you want the generator to power? Lights, fans, TV and fridge",
         "Location / landmark: Lagos Island",
         "Extra detail: Install for my shop",
-      ].join("\n")
+      ].join("\n"),
     );
     expect(out.summary).toBe("New generator installation or purchase advice");
     expect(out.rows).toEqual([
@@ -34,7 +34,7 @@ describe("parseJobProblem", () => {
 
   it("splits a question and answer even when they share one line", () => {
     const out = parseJobProblem(
-      "Painting work: Interior painting (What kind of painting do you need?)\nWho is supplying the paint and materials? I will supply"
+      "Painting work: Interior painting (What kind of painting do you need?)\nWho is supplying the paint and materials? I will supply",
     );
     expect(out.summary).toBe("Interior painting");
     expect(out.rows).toEqual([
@@ -56,11 +56,14 @@ describe("parseJobProblem", () => {
         "Lekki Phase 1",
         "Any other detail you want the technician to know?",
         "Please come with a new battery",
-      ].join("\n")
+      ].join("\n"),
     );
     expect(out.summary).toBeNull();
     expect(out.rows).toEqual([
-      { label: "What kind of battery problem do you have?", answer: "Battery is dead" },
+      {
+        label: "What kind of battery problem do you have?",
+        answer: "Battery is dead",
+      },
       { label: "How old is the battery?", answer: "2 years" },
       { label: "Enter exact location", answer: "Lekki Phase 1" },
       {
@@ -76,14 +79,17 @@ describe("parseJobProblem", () => {
         "Generator size (kVA) and type (petrol/diesel) if known Diesel 7.5kVA",
         "Generator work: Servicing (What kind of generator work do you need?)",
         "What kind of service do you need? Normal servicing",
-      ].join("\n")
+      ].join("\n"),
     );
     expect(out.summary).toBe("Servicing");
     expect(out.notes).toEqual([
       "Generator size (kVA) and type (petrol/diesel) if known Diesel 7.5kVA",
     ]);
     expect(out.rows).toEqual([
-      { label: "What kind of service do you need?", answer: "Normal servicing" },
+      {
+        label: "What kind of service do you need?",
+        answer: "Normal servicing",
+      },
     ]);
   });
 
@@ -97,7 +103,7 @@ describe("parseJobProblem", () => {
         "Completely silent / nothing happens",
         "Enter exact location",
         "Lekki Phase 1",
-      ].join("\n")
+      ].join("\n"),
     );
     expect(out.rows).toEqual([
       { label: "Vehicle", answer: "Honda · CR-V · 2027" },
@@ -120,7 +126,7 @@ describe("parseJobProblem", () => {
         "Honda CR-V 2027",
         "What's the issue?",
         "Engine overheating",
-      ].join("\n")
+      ].join("\n"),
     );
     expect(out.rows).toEqual([
       { label: "Which vehicle?", answer: "Honda CR-V 2027" },

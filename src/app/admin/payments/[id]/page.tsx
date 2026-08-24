@@ -2,10 +2,10 @@
 
 /**
  * Admin Payment Control Cockpit
- * — View customer → pro money path, stop processing, force payout, refund.
- * — Does not change payment engine rules; calls existing APIs only.
- * — Force payout / standalone: L4–L5. Refund / stop processing: L3+.
- * — Never double-pays (stable ona_rel_ / ledger + FLW lookup).
+ * View customer → pro money path, stop processing, force payout, refund.
+ * Does not change payment engine rules; calls existing APIs only.
+ * Force payout / standalone: L4-L5. Refund / stop processing: L3+.
+ * Never double-pays (stable ona_rel_ / ledger + FLW lookup).
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -104,26 +104,26 @@ export default function AdminPaymentDetailPage() {
       payment: Record<string, unknown>;
       job: Record<string, unknown> | null;
       parties?: {
-            customer: {
-              id: string | null;
-              name: string;
-              phone: string | null;
-              email: string | null;
-            };
-            pro: {
-              id: string | null;
-              name: string;
-              phone: string | null;
-              email: string | null;
-              bank: {
-                bankCode: string | null;
-                bankName: string | null;
-                accountName: string | null;
-                accountLast4: string | null;
-                accountNumber: string | null;
-              } | null;
-            };
-          };
+        customer: {
+          id: string | null;
+          name: string;
+          phone: string | null;
+          email: string | null;
+        };
+        pro: {
+          id: string | null;
+          name: string;
+          phone: string | null;
+          email: string | null;
+          bank: {
+            bankCode: string | null;
+            bankName: string | null;
+            accountName: string | null;
+            accountLast4: string | null;
+            accountNumber: string | null;
+          } | null;
+        };
+      };
       ledger: LedgerRow[];
       flwTransfers: FlwTransfer[];
       doublePayRisk: string | null;
@@ -155,16 +155,16 @@ export default function AdminPaymentDetailPage() {
   const successFlw = useMemo(
     () =>
       (data?.flwTransfers || []).filter((t) =>
-        /success/i.test(String(t.status || ""))
+        /success/i.test(String(t.status || "")),
       ),
-    [data?.flwTransfers]
+    [data?.flwTransfers],
   );
 
   async function runAction(
     title: string,
     detail: string,
     body: Record<string, unknown>,
-    okMsg: string
+    okMsg: string,
   ) {
     setBusy(true);
     setMsg(null);
@@ -188,9 +188,7 @@ export default function AdminPaymentDetailPage() {
       } else {
         setMsg(
           res.data.message ||
-            (r?.alreadyReleased
-              ? "Already paid (no second transfer)"
-              : okMsg)
+            (r?.alreadyReleased ? "Already paid (no second transfer)" : okMsg),
         );
       }
       await load();
@@ -222,7 +220,7 @@ export default function AdminPaymentDetailPage() {
       <p className="om-admin-sub">
         Full admin cockpit: customer collection → escrow → pro payout.{" "}
         <strong>Never double-pays</strong> (stable transfer ref + ledger + FLW
-        check). Your role: {adminRoleLabel(role)}. Force payout: L4–L5. Refund /
+        check). Your role: {adminRoleLabel(role)}. Force payout: L4-L5. Refund /
         stop processing: L3+.
       </p>
 
@@ -241,9 +239,7 @@ export default function AdminPaymentDetailPage() {
         </div>
       ) : null}
 
-      {!data && !error ? (
-        <p className="om-admin-muted">Loading…</p>
-      ) : null}
+      {!data && !error ? <p className="om-admin-muted">Loading…</p> : null}
 
       {p ? (
         <>
@@ -262,15 +258,18 @@ export default function AdminPaymentDetailPage() {
                 Customer (payer)
               </h2>
               <p style={{ margin: "4px 0", fontWeight: 700 }}>
-                {data?.parties?.customer?.name || "—"}
+                {data?.parties?.customer?.name || ""}
               </p>
               <p className="om-admin-muted" style={{ fontSize: 12, margin: 0 }}>
-                {data?.parties?.customer?.phone || "—"}
+                {data?.parties?.customer?.phone || ""}
                 {data?.parties?.customer?.email
                   ? ` · ${data.parties.customer.email}`
                   : ""}
               </p>
-              <p className="om-admin-muted" style={{ fontSize: 11, marginTop: 6 }}>
+              <p
+                className="om-admin-muted"
+                style={{ fontSize: 11, marginTop: 6 }}
+              >
                 Paid{" "}
                 <strong>{nairaFromKobo(Number(p.amount_kobo) || 0)}</strong>
                 {p.paid_at
@@ -283,22 +282,24 @@ export default function AdminPaymentDetailPage() {
                 Repair Pro (payee)
               </h2>
               <p style={{ margin: "4px 0", fontWeight: 700 }}>
-                {data?.parties?.pro?.name || "—"}
+                {data?.parties?.pro?.name || ""}
               </p>
               <p className="om-admin-muted" style={{ fontSize: 12, margin: 0 }}>
                 {data?.parties?.pro?.bank?.bankName ||
                   data?.parties?.pro?.bank?.bankCode ||
-                  "—"}{" "}
-                ·{" "}
-                {data?.parties?.pro?.bank?.accountName || "—"} · ****
+                  ""}{" "}
+                · {data?.parties?.pro?.bank?.accountName || ""} · ****
                 {data?.parties?.pro?.bank?.accountLast4 || "????"}
               </p>
-              <p className="om-admin-muted" style={{ fontSize: 11, marginTop: 6 }}>
+              <p
+                className="om-admin-muted"
+                style={{ fontSize: 11, marginTop: 6 }}
+              >
                 Pro share{" "}
                 <strong>
                   {p.pro_payout_kobo != null
                     ? nairaFromKobo(Number(p.pro_payout_kobo))
-                    : "—"}
+                    : ""}
                 </strong>
                 {p.platform_fee_kobo != null
                   ? ` · Ona ${nairaFromKobo(Number(p.platform_fee_kobo))}`
@@ -327,18 +328,20 @@ export default function AdminPaymentDetailPage() {
               </dd>
               <dt className="om-admin-muted">Job / request</dt>
               <dd style={{ margin: 0, wordBreak: "break-all" }}>
-                {String(p.request_id || "—")}
+                {String(p.request_id || "")}
                 {data?.job ? (
                   <span className="om-admin-muted">
                     {" "}
                     · job {String(data.job.flow_status || data.job.status)} ·
-                    escrow {String(data.job.escrow_status || "—")}
+                    escrow {String(data.job.escrow_status || "")}
                   </span>
                 ) : null}
               </dd>
               <dt className="om-admin-muted">Escrow status</dt>
               <dd style={{ margin: 0 }}>
-                <span className="om-admin-badge">{String(p.escrow_status)}</span>{" "}
+                <span className="om-admin-badge">
+                  {String(p.escrow_status)}
+                </span>{" "}
                 · {String(p.status)}
                 {meta.payoutStatus ? (
                   <span className="om-admin-muted">
@@ -349,11 +352,11 @@ export default function AdminPaymentDetailPage() {
               </dd>
               <dt className="om-admin-muted">Collection ref</dt>
               <dd style={{ margin: 0, wordBreak: "break-all" }}>
-                {String(p.provider_ref || "—")}
+                {String(p.provider_ref || "")}
               </dd>
               <dt className="om-admin-muted">Payout ref (idempotent)</dt>
               <dd style={{ margin: 0, wordBreak: "break-all" }}>
-                {String(p.idempotent_transfer_ref || "—")}
+                {String(p.idempotent_transfer_ref || "")}
               </dd>
               <dt className="om-admin-muted">FLW transfer</dt>
               <dd style={{ margin: 0 }}>
@@ -365,15 +368,13 @@ export default function AdminPaymentDetailPage() {
               </dd>
               <dt className="om-admin-muted">Last error</dt>
               <dd style={{ margin: 0, color: "#b91c1c", fontSize: 12 }}>
-                {meta.lastReleaseError
-                  ? String(meta.lastReleaseError)
-                  : "—"}
+                {meta.lastReleaseError ? String(meta.lastReleaseError) : ""}
               </dd>
               <dt className="om-admin-muted">Retries</dt>
               <dd style={{ margin: 0 }}>
                 {meta.payoutRetryCount != null
                   ? String(meta.payoutRetryCount)
-                  : "—"}
+                  : ""}
                 {meta.nextRetryAt
                   ? ` · next ${new Date(String(meta.nextRetryAt)).toLocaleString()}`
                   : ""}
@@ -386,14 +387,17 @@ export default function AdminPaymentDetailPage() {
             <h2 className="om-admin-h2" style={{ marginTop: 0 }}>
               Admin controls
             </h2>
-            <p className="om-admin-muted" style={{ fontSize: 12, marginTop: 0 }}>
-              Reason note (required for stop / force / refund — min 8 characters):
+            <p
+              className="om-admin-muted"
+              style={{ fontSize: 12, marginTop: 0 }}
+            >
+              Reason note (required for stop / force / refund min 8 characters):
             </p>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={2}
-              placeholder="e.g. FLW Available funded — force release · or customer dispute refund"
+              placeholder="e.g. FLW Available funded force release · or customer dispute refund"
               style={{
                 width: "100%",
                 marginBottom: 12,
@@ -431,7 +435,7 @@ export default function AdminPaymentDetailPage() {
                         reason: r,
                         jobId: p.request_id || undefined,
                       },
-                      "Processing stopped — funds held for manual control"
+                      "Processing stopped funds held for manual control",
                     );
                   }}
                 >
@@ -449,21 +453,21 @@ export default function AdminPaymentDetailPage() {
                     if (!r) return;
                     if (
                       !window.confirm(
-                        "Force payout uses the SAME transfer reference. If FLW already paid, it will not pay twice. Continue?"
+                        "Force payout uses the SAME transfer reference. If FLW already paid, it will not pay twice. Continue?",
                       )
                     ) {
                       return;
                     }
                     void runAction(
                       "Force pro payout",
-                      "Idempotent FLW transfer (L4–L5). Same ref — no double pay.",
+                      "Idempotent FLW transfer (L4-L5). Same ref no double pay.",
                       {
                         id: String(p.id),
                         action: "force_release",
                         jobId: p.request_id || p.id,
                         reason: r,
                       },
-                      "Force payout submitted"
+                      "Force payout submitted",
                     );
                   }}
                 >
@@ -482,7 +486,7 @@ export default function AdminPaymentDetailPage() {
                     if (!r) return;
                     if (
                       !window.confirm(
-                        "Refund / cancel escrow? This marks the payment refunded and stops payout."
+                        "Refund / cancel escrow? This marks the payment refunded and stops payout.",
                       )
                     ) {
                       return;
@@ -497,7 +501,7 @@ export default function AdminPaymentDetailPage() {
                         status: "refunded",
                         jobId: p.request_id || undefined,
                       },
-                      "Escrow cancelled / refunded"
+                      "Escrow cancelled / refunded",
                     );
                   }}
                 >
@@ -519,7 +523,7 @@ export default function AdminPaymentDetailPage() {
                         action: "retry_payout",
                         jobId: p.request_id || p.id,
                       },
-                      "Retry submitted"
+                      "Retry submitted",
                     );
                   }}
                 >
@@ -528,9 +532,12 @@ export default function AdminPaymentDetailPage() {
               ) : null}
             </div>
             {!canForce && !canCancel ? (
-              <p className="om-admin-muted" style={{ fontSize: 12, marginTop: 10 }}>
-                Your level can view status only. Force / refund needs L3+ (refund)
-                or L4–L5 (force).
+              <p
+                className="om-admin-muted"
+                style={{ fontSize: 12, marginTop: 10 }}
+              >
+                Your level can view status only. Force / refund needs L3+
+                (refund) or L4-L5 (force).
               </p>
             ) : null}
           </div>
@@ -567,11 +574,11 @@ export default function AdminPaymentDetailPage() {
                         <span className="om-admin-badge">{r.status}</span>
                       </td>
                       <td>{nairaFromKobo(r.amountMinor)}</td>
-                      <td>{r.flwTransferId || "—"}</td>
+                      <td>{r.flwTransferId || ""}</td>
                       <td className="om-admin-muted" style={{ fontSize: 12 }}>
                         {r.createdAt
                           ? new Date(r.createdAt).toLocaleString()
-                          : "—"}
+                          : ""}
                       </td>
                     </tr>
                   ))
@@ -606,21 +613,19 @@ export default function AdminPaymentDetailPage() {
                 ) : (
                   data.flwTransfers.map((t, i) => (
                     <tr key={String(t.id || t.reference || i)}>
-                      <td>{t.id || "—"}</td>
+                      <td>{t.id || ""}</td>
                       <td>
-                        <span className="om-admin-badge">
-                          {t.status || "—"}
-                        </span>
+                        <span className="om-admin-badge">{t.status || ""}</span>
                       </td>
                       <td>
                         {t.amount != null
                           ? `₦${Number(t.amount).toLocaleString("en-NG", {
                               minimumFractionDigits: 2,
                             })}`
-                          : "—"}
+                          : ""}
                       </td>
                       <td style={{ wordBreak: "break-all", maxWidth: 160 }}>
-                        {t.reference || "—"}
+                        {t.reference || ""}
                       </td>
                       <td style={{ fontSize: 12 }}>
                         {t.bank_name || ""} {t.account_number || ""}
@@ -631,7 +636,7 @@ export default function AdminPaymentDetailPage() {
                       <td className="om-admin-muted" style={{ fontSize: 12 }}>
                         {t.created_at
                           ? new Date(t.created_at).toLocaleString()
-                          : "—"}
+                          : ""}
                       </td>
                     </tr>
                   ))

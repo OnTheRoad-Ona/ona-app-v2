@@ -23,7 +23,7 @@ export function emptyTiers(): TierCompletion {
 
 export function canTransition(
   from: ArtisanProfileStatus,
-  to: ArtisanProfileStatus
+  to: ArtisanProfileStatus,
 ): boolean {
   const allowed: Record<ArtisanProfileStatus, ArtisanProfileStatus[]> = {
     draft: ["pending_review"],
@@ -37,7 +37,7 @@ export function canTransition(
 
 /** Compulsory fields + portfolio + Tier 1 phone before submit */
 export function canSubmitForReview(
-  p: Partial<ArtisanVerificationProfile>
+  p: Partial<ArtisanVerificationProfile>,
 ): { ok: true } | { ok: false; reason: string } {
   if (!p.tiers?.tier1_phone) {
     return { ok: false, reason: "Verify your phone number (OTP) to continue." };
@@ -82,27 +82,23 @@ export function canSubmitForReview(
       reason: `Upload at least ${PORTFOLIO_MIN} clear photos of previous jobs.`,
     };
   }
-  // Tier 2+ optional for profile Submit — ID can still be sent on its own
+  // Tier 2+ optional for profile Submit ID can still be sent on its own
   return { ok: true };
 }
 
-/** Go Live — profile status + visibility tier (Tier 2 = 30-day window) */
+/** Go Live profile status + visibility tier (Tier 2 = 30-day window) */
 export function canGoLive(
-  p: ArtisanVerificationProfile | null | undefined
+  p: ArtisanVerificationProfile | null | undefined,
 ): { allowed: true } | { allowed: false; message: string } {
   return canGoLiveForVisibilityTier(p);
 }
 
-export function recomputeNewArtisanFlag(
-  successfulJobsCount: number
-): boolean {
+export function recomputeNewArtisanFlag(successfulJobsCount: number): boolean {
   return successfulJobsCount < NEW_ARTISAN_JOBS_THRESHOLD;
 }
 
 /** Ranking penalty while New Artisan (lower = appears lower in results) */
-export function newArtisanScorePenalty(
-  isNewArtisan: boolean
-): number {
+export function newArtisanScorePenalty(isNewArtisan: boolean): number {
   return isNewArtisan ? 35 : 0;
 }
 

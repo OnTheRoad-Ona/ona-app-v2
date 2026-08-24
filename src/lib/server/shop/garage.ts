@@ -134,8 +134,7 @@ const FALLBACK_MAKES: Array<{
 
 export function vehicleTypeName(slug: string | null | undefined): string {
   return (
-    VEHICLE_TYPES.find((t) => t.slug === slug)?.name ||
-    VEHICLE_TYPES[0].name
+    VEHICLE_TYPES.find((t) => t.slug === slug)?.name || VEHICLE_TYPES[0].name
   );
 }
 
@@ -157,7 +156,9 @@ function mapVehicle(row: Record<string, unknown>): GarageVehicle {
   };
 }
 
-export async function listUserVehicles(userId: string): Promise<GarageVehicle[]> {
+export async function listUserVehicles(
+  userId: string,
+): Promise<GarageVehicle[]> {
   const sb = createServiceSupabase();
   const { data, error } = await sb
     .from("user_vehicles")
@@ -170,7 +171,7 @@ export async function listUserVehicles(userId: string): Promise<GarageVehicle[]>
 }
 
 export async function getDefaultVehicle(
-  userId: string
+  userId: string,
 ): Promise<GarageVehicle | null> {
   const list = await listUserVehicles(userId);
   return list.find((v) => v.isDefault) || list[0] || null;
@@ -178,7 +179,7 @@ export async function getDefaultVehicle(
 
 export async function setDefaultVehicle(
   userId: string,
-  vehicleId: string
+  vehicleId: string,
 ): Promise<GarageVehicle> {
   const sb = createServiceSupabase();
   await sb
@@ -208,7 +209,7 @@ export async function addUserVehicle(
     engine?: string | null;
     nickname?: string | null;
     setDefault?: boolean;
-  }
+  },
 ): Promise<GarageVehicle> {
   const sb = createServiceSupabase();
   const makeName = input.makeName.trim();
@@ -246,7 +247,7 @@ export async function addUserVehicle(
 
 export async function deleteUserVehicle(
   userId: string,
-  vehicleId: string
+  vehicleId: string,
 ): Promise<void> {
   const sb = createServiceSupabase();
   const { error } = await sb
@@ -276,10 +277,7 @@ export async function listVehicleTypes(): Promise<VehicleType[]> {
   return VEHICLE_TYPES;
 }
 
-export async function listVehicleMakes(
-  vehicleType?: string,
-  q?: string
-) {
+export async function listVehicleMakes(vehicleType?: string, q?: string) {
   const sb = createServiceSupabase();
   let query = sb
     .from("vehicle_makes")

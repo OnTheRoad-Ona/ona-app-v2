@@ -13,7 +13,11 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     await requireAdmin();
@@ -23,7 +27,7 @@ export async function GET(req: Request) {
     let query = supabase
       .from("service_requests")
       .select(
-        "*, motorist:profiles!service_requests_motorist_id_fkey(id, full_name, email, phone), pro:profiles!service_requests_repair_pro_id_fkey(id, full_name, email, phone)"
+        "*, motorist:profiles!service_requests_motorist_id_fkey(id, full_name, email, phone), pro:profiles!service_requests_repair_pro_id_fkey(id, full_name, email, phone)",
       )
       .order("created_at", { ascending: false })
       .limit(200);
@@ -60,7 +64,11 @@ const patchSchema = z.object({
 
 export async function PATCH(req: Request) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     const { session } = await requireAdmin();
@@ -71,7 +79,8 @@ export async function PATCH(req: Request) {
     const supabase = createServiceSupabase();
 
     const update: Record<string, unknown> = { ...patch };
-    if (patch.status === "accepted") update.accepted_at = new Date().toISOString();
+    if (patch.status === "accepted")
+      update.accepted_at = new Date().toISOString();
     if (patch.status === "completed")
       update.completed_at = new Date().toISOString();
     if (patch.status === "cancelled")

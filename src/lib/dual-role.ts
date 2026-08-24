@@ -7,17 +7,18 @@ import type { AccountType } from "@/lib/types";
 
 /** User-facing + admin: original / active role label */
 export function accountTypeRoleLabel(
-  type: AccountType | "motorist" | "repair_pro" | "professional" | null | undefined
+  type:
+    AccountType | "motorist" | "repair_pro" | "professional" | null | undefined,
 ): string {
   if (type === "professional" || type === "repair_pro") {
     return "Professional Role";
   }
   if (type === "motorist") return "Customer Role";
-  return "—";
+  return "";
 }
 
 export function dbRoleToAccountType(
-  role: string | null | undefined
+  role: string | null | undefined,
 ): AccountType | null {
   if (role === "repair_pro") return "professional";
   if (role === "motorist") return "motorist";
@@ -25,7 +26,7 @@ export function dbRoleToAccountType(
 }
 
 export function accountTypeToDbRole(
-  type: AccountType | null | undefined
+  type: AccountType | null | undefined,
 ): "motorist" | "repair_pro" | null {
   if (type === "professional") return "repair_pro";
   if (type === "motorist") return "motorist";
@@ -34,7 +35,7 @@ export function accountTypeToDbRole(
 
 export function isDualRoleAccount(
   hasMotorist: boolean,
-  hasPro: boolean
+  hasPro: boolean,
 ): boolean {
   return Boolean(hasMotorist && hasPro);
 }
@@ -78,13 +79,9 @@ export function buildDualRoleMeta(opts: {
 }): DualRoleMeta {
   const dual = isDualRoleAccount(opts.hasMotorist, opts.hasPro);
   const first =
-    opts.primaryAccountType ||
-    dbRoleToAccountType(opts.primaryDbRole) ||
-    null;
+    opts.primaryAccountType || dbRoleToAccountType(opts.primaryDbRole) || null;
   const current =
-    opts.activeAccountType ||
-    dbRoleToAccountType(opts.currentDbRole) ||
-    null;
+    opts.activeAccountType || dbRoleToAccountType(opts.currentDbRole) || null;
   const count = opts.roleSwitchCount ?? 0;
   const last = opts.lastRoleSwitchAt || null;
   return {

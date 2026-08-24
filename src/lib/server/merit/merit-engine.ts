@@ -108,7 +108,9 @@ function responseSpeedScore(minutes: number | null): number {
 
 function reliabilityScore(input: MeritInput): number {
   const completion = clamp(input.completionRate);
-  const cancelAvoidance = clamp(1 - Math.min(Math.max(0, input.cancellationsCount), 20) / 20);
+  const cancelAvoidance = clamp(
+    1 - Math.min(Math.max(0, input.cancellationsCount), 20) / 20,
+  );
   return (completion + cancelAvoidance) / 2;
 }
 
@@ -178,10 +180,15 @@ export function computeMeritScore(input: MeritInput): MeritBreakdown {
     profile * WEIGHTS.profile_completeness +
     recent * WEIGHTS.recent_activity;
 
-  const verified = Boolean(input.verified || input.faceLiveness || input.inPerson);
+  const verified = Boolean(
+    input.verified || input.faceLiveness || input.inPerson,
+  );
   const verifiedBonus = verified ? VERIFIED_BONUS_PTS : 0;
   const newArtisanPenalty = input.isNewArtisan ? NEW_ARTISAN_PENALTY_PTS : 0;
-  const score = Math.max(0, Math.min(100, weighted * 100 + verifiedBonus - newArtisanPenalty));
+  const score = Math.max(
+    0,
+    Math.min(100, weighted * 100 + verifiedBonus - newArtisanPenalty),
+  );
 
   return {
     score: Math.round(score * 1000) / 1000,
@@ -256,7 +263,7 @@ type ProMeritRow = {
 
 async function buildMeritInput(
   supabase: ReturnType<typeof createServiceSupabase>,
-  pro: ProMeritRow
+  pro: ProMeritRow,
 ): Promise<MeritInput> {
   const skills = Array.isArray(pro.skills) ? pro.skills : [];
   const vehicleFocus = pro.vehicle_focus
@@ -289,7 +296,8 @@ async function buildMeritInput(
     jobsCompleted: Number(pro.jobs_completed) || 0,
     completionRate: Number(pro.completion_rate) || 0,
     avgResponseMinutes:
-      pro.avg_response_minutes != null && Number.isFinite(Number(pro.avg_response_minutes))
+      pro.avg_response_minutes != null &&
+      Number.isFinite(Number(pro.avg_response_minutes))
         ? Number(pro.avg_response_minutes)
         : null,
     disputesCount: Number(pro.disputes_count) || 0,
@@ -322,7 +330,10 @@ export async function recalculateMerit(proId: string): Promise<void> {
       .eq("user_id", proId)
       .maybeSingle();
     if (!row) return;
-    const input = await buildMeritInput(supabase, row as unknown as ProMeritRow);
+    const input = await buildMeritInput(
+      supabase,
+      row as unknown as ProMeritRow,
+    );
     const breakdown = computeMeritScore(input);
     await supabase.from("merit_scores").upsert(
       {
@@ -330,7 +341,7 @@ export async function recalculateMerit(proId: string): Promise<void> {
         ...breakdown,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "pro_id" }
+      { onConflict: "pro_id" },
     );
   } catch (e) {
     console.error("recalculateMerit failed for", proId, e);
@@ -357,7 +368,7 @@ export async function backfillAllMeritScores(): Promise<{ count: number }> {
 
 /** Map pro_id → current merit score (0..100). Missing rows default to a neutral 0. */
 export async function getMeritScoresForPros(
-  proIds: string[]
+  proIds: string[],
 ): Promise<Map<string, number>> {
   const map = new Map<string, number>();
   if (!proIds.length) return map;
@@ -379,7 +390,7 @@ type DispatchRank = {
 };
 
 async function getDispatchRankForPros(
-  proIds: string[]
+  proIds: string[],
 ): Promise<Map<string, DispatchRank>> {
   const map = new Map<string, DispatchRank>();
   if (!proIds.length) return map;
@@ -404,7 +415,7 @@ async function getDispatchRankForPros(
  */
 export async function orderCandidatesByMerit<T extends { user_id: string }>(
   candidates: T[],
-  distanceKm: (pro: T) => number
+  distanceKm: (pro: T) => number,
 ): Promise<T[]> {
   if (candidates.length <= 1) return candidates;
   const ranks = await getDispatchRankForPros(candidates.map((p) => p.user_id));

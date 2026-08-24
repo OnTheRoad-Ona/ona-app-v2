@@ -10,10 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  DEFAULT_USER_LOCATION,
-  LAST_GPS_KEY,
-} from "@/lib/data/technicians";
+import { DEFAULT_USER_LOCATION, LAST_GPS_KEY } from "@/lib/data/technicians";
 import {
   GPS_BOOT_TIMEOUT_MS,
   GPS_RETRY_TIMEOUT_MS,
@@ -107,7 +104,8 @@ export type ServiceActionResult =
     }
   | {
       ok: false;
-      code: "verification_required" | "not_found" | "invalid" | "skill_mismatch";
+      code:
+        "verification_required" | "not_found" | "invalid" | "skill_mismatch";
       message: string;
       actionCount: number;
     };
@@ -120,7 +118,7 @@ const MODE_KEY = "ona-mode";
 const AUTH_KEY = "ona-auth";
 const AUTH_NAME_KEY = "ona-auth-name";
 const AUTH_ACCOUNT_KEY = "ona-account-type";
-/** Original signup role — never overwritten by Motorist ↔ Pro switch */
+/** Original signup role never overwritten by Motorist ↔ Pro switch */
 const PRIMARY_ACCOUNT_KEY = "ona-primary-account";
 const PROFILE_KEY = LEGACY_PROFILE_KEY;
 /** Session-scoped home-screen position (tab, flow, filters) restored on refresh. */
@@ -190,7 +188,9 @@ export function profileToTechnician(profile: UserProfile): Technician | null {
       out.push(specialtyAns.trim());
     }
     if (typeof specialtyOne === "string" && specialtyOne.trim()) {
-      if (!out.some((x) => x.toLowerCase() === specialtyOne.trim().toLowerCase())) {
+      if (
+        !out.some((x) => x.toLowerCase() === specialtyOne.trim().toLowerCase())
+      ) {
         out.unshift(specialtyOne.trim());
       }
     }
@@ -203,9 +203,10 @@ export function profileToTechnician(profile: UserProfile): Technician | null {
     serviceType: primary,
     roleLabel: label,
     photo: profile.avatarUrl || "/technicians/t1.jpg",
-    rating: profile.averageRating && profile.averageRating > 0
-      ? profile.averageRating
-      : 0,
+    rating:
+      profile.averageRating && profile.averageRating > 0
+        ? profile.averageRating
+        : 0,
     reviewCount: profile.jobsCompleted ?? 0,
     jobsCompleted: profile.jobsCompleted ?? 0,
     distanceKm: 0.2,
@@ -223,10 +224,9 @@ export function profileToTechnician(profile: UserProfile): Technician | null {
       `${focusLine} Based in ${[profile.area, profile.city].filter(Boolean).join(", ") || "Lagos"}.`,
     phone: profile.phone || "+234 800 000 0000",
     serviceRadiusKm:
-      profile.docsStatus === "under_review" ||
-      profile.docsStatus === "rejected"
+      profile.docsStatus === "under_review" || profile.docsStatus === "rejected"
         ? Math.min(profile.serviceRadiusKm ?? DEFAULT_RADIUS_KM, 2)
-        : profile.serviceRadiusKm ?? DEFAULT_RADIUS_KM,
+        : (profile.serviceRadiusKm ?? DEFAULT_RADIUS_KM),
     location: DEFAULT_USER_LOCATION.coordinates,
     markerLabel: "You",
     responseSpeedScore: 0.95,
@@ -268,7 +268,7 @@ interface AppState {
   primaryAccountType: AccountType | null;
   /** Full signup profile (persisted) */
   userProfile: UserProfile | null;
-  /** What user registered as — drives first open screen */
+  /** What user registered as drives first open screen */
   registeredAs: RegisteredAs;
   /** Current Client vs Professional view */
   userMode: UserMode;
@@ -281,35 +281,33 @@ interface AppState {
   /** Dual vault: true if this device has a signed-up Repair Pro profile */
   hasProAccount: boolean;
   /**
-   * Repair Pro Live switch — when true, motorists can find this pro.
+   * Repair Pro Live switch when true, motorists can find this pro.
    * Synced to repair_pro_profiles.is_online.
    */
   proLive: boolean;
   /** Turn Live/Away on and push is_online to the server. Returns error message if failed. */
   setProLive: (live: boolean) => Promise<string | null>;
   /**
-   * Motorist is helping someone else — service pin is the other person's place.
+   * Motorist is helping someone else service pin is the other person's place.
    * Nearby pros and bookings use this meet location.
    */
   helpingSomeoneElse: boolean;
   helpingSomeoneLabel: string | null;
   /** Set meet location for “help someone else” (or clear with null) */
   setHelpingSomeoneElse: (
-    next:
-      | null
-      | {
-          label: string;
-          coordinates: { lat: number; lng: number };
-        }
+    next: null | {
+      label: string;
+      coordinates: { lat: number; lng: number };
+    },
   ) => void;
   /**
    * Smooth switch Motorist ↔ Repair Pro for the signed-in user (server role flip).
    * Returns null on success, or an error / "needs_login" code.
    */
   switchAccount: (
-    type: AccountType
+    type: AccountType,
   ) => Promise<null | "needs_signup" | "needs_login" | string>;
-  /** True while a role switch is in flight — UI must not flash a wrong-role page. */
+  /** True while a role switch is in flight UI must not flash a wrong-role page. */
   switchingRole: boolean;
   /**
    * After Tap to Switch: must re-enter phone OTP before using the new role.
@@ -335,7 +333,7 @@ interface AppState {
   signInWithPassword: (
     email: string,
     password: string,
-    preferType?: AccountType
+    preferType?: AccountType,
   ) => Promise<string | null>;
   /** Request SMS OTP for registered phone (demo code 336699 always works) */
   sendPhoneOtp: (phone: string) => Promise<string | null>;
@@ -343,7 +341,7 @@ interface AppState {
   sendLoginOtp: (
     channel: "phone" | "email",
     target: string,
-    opts?: { forceResend?: boolean }
+    opts?: { forceResend?: boolean },
   ) => Promise<{
     error: string | null;
     message?: string;
@@ -353,14 +351,14 @@ interface AppState {
   signInWithPhoneOtp: (
     phone: string,
     code: string,
-    preferType?: AccountType
+    preferType?: AccountType,
   ) => Promise<string | null>;
   /** Verify phone or email OTP and open session */
   signInWithLoginOtp: (
     channel: "phone" | "email",
     target: string,
     code: string,
-    preferType?: AccountType
+    preferType?: AccountType,
   ) => Promise<string | null>;
   /** True only when Supabase session + profile are confirmed on the server */
   serverSessionReady: boolean;
@@ -369,7 +367,7 @@ interface AppState {
   /**
    * Complete Motorist or Repair Pro registration and sign in.
    * Each type is a separate account; one person may register both.
-   * Requires live Supabase — fails if the database write does not succeed.
+   * Requires live Supabase fails if the database write does not succeed.
    */
   completeSignup: (profile: UserProfile) => Promise<string | null>;
   /**
@@ -389,7 +387,7 @@ interface AppState {
     bankIdVerified?: boolean;
     mode?: "submit" | "approve";
   }) => Promise<string | null>;
-  /** Customer Tier 1 — phone OTP (demo code 336699) */
+  /** Customer Tier 1 phone OTP (demo code 336699) */
   verifyCustomerPhoneOtp: (code: string) => Promise<string | null>;
   /**
    * Edit signed-in profile (name, bio, area, vehicles you serve, etc.).
@@ -400,7 +398,7 @@ interface AppState {
     patch: Partial<UserProfile> & {
       /** When true, patch includes vehicles-served fields (enforces 28-day lock) */
       vehiclesServedChange?: boolean;
-    }
+    },
   ) => string | null;
   /** Legacy quick login (prefer completeSignup) */
   login: (opts: {
@@ -428,7 +426,7 @@ interface AppState {
   requests: ServiceRequest[];
   bookings: Booking[];
   messages: MessageThread[];
-  /** Threads for active role only (motorist vs pro skill) — no mix-up */
+  /** Threads for active role only (motorist vs pro skill) no mix-up */
   visibleMessageThreads: MessageThread[];
   locationError: string | null;
   isLocating: boolean;
@@ -443,7 +441,7 @@ interface AppState {
   toggleFilter: (key: keyof AppFilters) => void;
   setSelectedTechId: (id: string | null) => void;
   /**
-   * Motorist book help — gated after free trial requests.
+   * Motorist book help gated after free trial requests.
    * Prefer this over raw createRequest for UI flows.
    */
   bookRequest: (
@@ -455,9 +453,9 @@ interface AppState {
       discountPercent: number;
       pricingCurrency: import("@/lib/pricing").AppCurrency;
       negotiationStatus?: ServiceRequest["negotiationStatus"];
-    }
+    },
   ) => ServiceActionResult;
-  /** @deprecated use bookRequest — still creates without gate for internal/demo */
+  /** @deprecated use bookRequest still creates without gate for internal/demo */
   createRequest: (
     tech: Technician,
     problem?: string,
@@ -467,7 +465,7 @@ interface AppState {
       discountPercent: number;
       pricingCurrency: import("@/lib/pricing").AppCurrency;
       negotiationStatus?: ServiceRequest["negotiationStatus"];
-    }
+    },
   ) => ServiceRequest;
   /**
    * Pro accept (or other status). Accept is gated by verification funnel.
@@ -475,7 +473,7 @@ interface AppState {
    */
   updateRequestStatus: (
     id: string,
-    status: ServiceRequest["status"]
+    status: ServiceRequest["status"],
   ) => ServiceActionResult;
   ensureChatForRequest: (req: ServiceRequest) => string;
   /**
@@ -492,14 +490,14 @@ interface AppState {
       url: string;
       durationSec?: number;
       mime?: string;
-    } | null
+    } | null,
   ) => void;
-  /** Opened a chat — clear unread badge + persist read_at on server */
+  /** Opened a chat clear unread badge + persist read_at on server */
   markThreadRead: (threadId: string) => void;
   retryLocation: () => void;
   setManualLocation: (
     label: string,
-    coords?: { lat: number; lng: number }
+    coords?: { lat: number; lng: number },
   ) => void;
 }
 
@@ -529,7 +527,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const themeKeyForUser = (userId: string | null | undefined) =>
     userId ? `ona-theme-user-${userId}` : DEVICE_THEME_KEY;
 
-  // Role / mode — registration drives first open
+  // Role / mode registration drives first open
   const [roleReady, setRoleReady] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -537,7 +535,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [accountType, setAccountType] = useState<AccountType | null>(null);
   const [primaryAccountType, setPrimaryAccountType] =
     useState<AccountType | null>(null);
-  /** True during an explicit role switch — blocks wrong-role page flash. */
+  /** True during an explicit role switch blocks wrong-role page flash. */
   const [switchingRole, setSwitchingRole] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [registeredAs, setRegisteredAsState] = useState<RegisteredAs>("client");
@@ -555,15 +553,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     useState(false);
   const [helpingSomeoneElse, setHelpingSomeoneElseState] = useState(false);
   const [helpingSomeoneLabel, setHelpingSomeoneLabel] = useState<string | null>(
-    null
+    null,
   );
   const ownLocationBackup = useRef<UserLocation | null>(null);
-  /** User manually pinned a place — don't overwrite with GPS until Retry */
+  /** User manually pinned a place don't overwrite with GPS until Retry */
   const manualPinRef = useRef(false);
   /** Late-bound session helpers (effects run before useCallback declarations) */
   const applySessionRef = useRef<(profile: UserProfile) => void>(() => {});
-  const applyAccountThemeRef = useRef<(userId: string | null | undefined) => void>(() => {});
-  const refreshCloudProsRef = useRef<(opts?: { force?: boolean }) => void>(() => {});
+  const applyAccountThemeRef = useRef<
+    (userId: string | null | undefined) => void
+  >(() => {});
+  const refreshCloudProsRef = useRef<(opts?: { force?: boolean }) => void>(
+    () => {},
+  );
 
   const [location, setLocation] = useState(() => {
     if (typeof window === "undefined") return DEFAULT_USER_LOCATION;
@@ -598,13 +600,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [radiusKm, setRadiusKmState] = useState(DEFAULT_RADIUS_KM);
   const [category, setCategoryState] = useState<ServiceCategory>("none");
   const [specialtyFilter, setSpecialtyFilterState] = useState<string | null>(
-    null
+    null,
   );
   const [specialtyPickerOpen, setSpecialtyPickerOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<AppFilters>(defaultFilters);
   const [selectedTechId, setSelectedTechId] = useState<string | null>(null);
-  // Start empty — no demo seed payload on first paint (faster load)
+  // Start empty no demo seed payload on first paint (faster load)
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [bookings] = useState<Booking[]>([]);
   const [messages, setMessages] = useState<MessageThread[]>([]);
@@ -619,7 +621,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setProOnboardingSheetRequiredState(v);
       writeProOnboardingSheetFlag(backendUserId, v);
     },
-    [backendUserId]
+    [backendUserId],
   );
   /** True only after server session is checked (and confirmed or cleared) */
   const [serverSessionReady, setServerSessionReady] = useState(false);
@@ -701,7 +703,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setRoleReady(true);
 
-    // First paint straight from the last session we trust on this device —
+    // First paint straight from the last session we trust on this device
     // no network round trip required. The splash hands off after ~120ms for
     // everyone (signed-in AND guest); the server state is then verified in the
     // background and simply re-applied when it resolves. Only clear auth when
@@ -711,7 +713,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       new Promise((resolve, reject) => {
         const t = window.setTimeout(
           () => reject(new Error("session_timeout")),
-          ms
+          ms,
         );
         p.then(
           (v) => {
@@ -721,7 +723,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           (e) => {
             window.clearTimeout(t);
             reject(e);
-          }
+          },
         );
       });
 
@@ -776,13 +778,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
           try {
             uid = await withTimeout(backendGetSessionUserId(), 12000);
           } catch {
-            // Timeout / network — keep optimistic session; never logout
+            // Timeout / network keep optimistic session; never logout
             return;
           }
         }
         if (cancelled) return;
         if (!uid) {
-          // No session anywhere — real logout state (already cleared above)
+          // No session anywhere real logout state (already cleared above)
           return;
         }
         setBackendUserId(uid);
@@ -810,7 +812,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           profile = p;
           flags = f;
         } catch {
-          // Profile load failed — keep optimistic local session (no sign-out)
+          // Profile load failed keep optimistic local session (no sign-out)
           return;
         }
         if (cancelled) return;
@@ -839,20 +841,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const sessionProfile: UserProfile = {
           ...profile,
           primaryAccountType:
-            profile.primaryAccountType ||
-            flags.primaryAccountType ||
-            undefined,
+            profile.primaryAccountType || flags.primaryAccountType || undefined,
         };
         applySessionRef.current(sessionProfile);
         // Dual Role label follows the server side-tables, not the vault.
         setHasMotoristAccount(
-          flags.hasMotorist || profile.accountType === "motorist"
+          flags.hasMotorist || profile.accountType === "motorist",
         );
         setHasProAccount(
-          flags.hasPro || profile.accountType === "professional"
+          flags.hasPro || profile.accountType === "professional",
         );
       } catch {
-        // Never force logout after first paint — keep whatever session is live
+        // Never force logout after first paint keep whatever session is live
       } finally {
         if (!cancelled) {
           setServerSessionReady(true);
@@ -879,9 +879,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [homeUiHydrated, setHomeUiHydrated] = useState(false);
 
   const CATEGORY_VALUES: ServiceCategory[] = [
-    "mechanic", "vulcanizer", "towing", "battery", "ac", "body", "electrical",
-    "diagnostics", "fashion", "plumber", "carpenter", "painter", "solar",
-    "generator", "all", "none",
+    "mechanic",
+    "vulcanizer",
+    "towing",
+    "battery",
+    "ac",
+    "body",
+    "electrical",
+    "diagnostics",
+    "fashion",
+    "plumber",
+    "carpenter",
+    "painter",
+    "solar",
+    "generator",
+    "all",
+    "none",
   ];
   const isCategory = (v: unknown): v is ServiceCategory =>
     typeof v === "string" && (CATEGORY_VALUES as string[]).includes(v);
@@ -898,7 +911,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     helpingSomeoneLabel: string | null;
   }
 
-  // Keep the home screen exactly where the user was — restore after auth boots
+  // Keep the home screen exactly where the user was restore after auth boots
   // so role-aware rendering (Motorist vs Repair Pro) decides what is shown.
   useEffect(() => {
     if (!authReady || homeUiHydrated) return;
@@ -932,7 +945,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authReady]);
 
-  // Keep the snapshot fresh — only after the saved position has been applied.
+  // Keep the snapshot fresh only after the saved position has been applied.
   useEffect(() => {
     if (!homeUiHydrated) return;
     writeSession(HOME_UI_SESSION_KEY, {
@@ -990,7 +1003,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Dual incomplete: keep sheet available (pill); auto-expand throttled to 30m
     const incomplete = !isProSwitchMandatoryOnboardingDone(
       userProfile,
-      artisan
+      artisan,
     );
     if (!incomplete) {
       setProOnboardingSheetRequiredState(false);
@@ -1040,14 +1053,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         /* ignore */
       }
     },
-    [backendUserId]
+    [backendUserId],
   );
 
   const applyAccountTheme = useCallback((userId: string | null | undefined) => {
     try {
       if (userId) {
         const personal = localStorage.getItem(
-          themeKeyForUser(userId)
+          themeKeyForUser(userId),
         ) as AppTheme | null;
         if (personal === "light" || personal === "dark") {
           setThemeState(personal);
@@ -1070,7 +1083,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setThemeState(t);
       persistTheme(t);
     },
-    [persistTheme]
+    [persistTheme],
   );
 
   const toggleTheme = useCallback(() => {
@@ -1115,129 +1128,131 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /** Activate a stored profile as the current session (after signup / switch / login). */
-  const applySession = useCallback((profile: UserProfile) => {
-    const name = profile.fullName.trim() || "User";
-    // Main account = original signup. Prefer server primary, then stored, then
-    // existing session primary — never replace a known primary with the active role.
-    const storedPrimary = readStoredPrimaryAccount();
-    const primary: AccountType =
-      profile.primaryAccountType ||
-      storedPrimary ||
-      primaryAccountType ||
-      profile.accountType;
-    // Pros: keep only first/primary signup skill; clamp service radius to 5 km
-    const proServicesLocked =
-      profile.accountType === "professional"
-        ? (profile.services ?? []).filter(isProService).slice(0, 1)
-        : profile.services;
-    const proRadiusLocked =
-      profile.accountType === "professional"
-        ? Math.min(
+  const applySession = useCallback(
+    (profile: UserProfile) => {
+      const name = profile.fullName.trim() || "User";
+      // Main account = original signup. Prefer server primary, then stored, then
+      // existing session primary never replace a known primary with the active role.
+      const storedPrimary = readStoredPrimaryAccount();
+      const primary: AccountType =
+        profile.primaryAccountType ||
+        storedPrimary ||
+        primaryAccountType ||
+        profile.accountType;
+      // Pros: keep only first/primary signup skill; clamp service radius to 5 km
+      const proServicesLocked =
+        profile.accountType === "professional"
+          ? (profile.services ?? []).filter(isProService).slice(0, 1)
+          : profile.services;
+      const proRadiusLocked =
+        profile.accountType === "professional"
+          ? Math.min(
+              MAX_RADIUS_KM,
+              Math.max(1, profile.serviceRadiusKm ?? DEFAULT_RADIUS_KM),
+            )
+          : profile.serviceRadiusKm;
+      const withPrimary: UserProfile = {
+        ...profile,
+        primaryAccountType: primary,
+        ...(profile.accountType === "professional"
+          ? {
+              services: proServicesLocked?.length
+                ? proServicesLocked
+                : profile.services,
+              serviceRadiusKm: proRadiusLocked,
+            }
+          : {}),
+      };
+      setUserProfile(withPrimary);
+      setDisplayName(name);
+      setAccountType(profile.accountType);
+      setPrimaryAccountType(primary);
+      setIsAuthenticated(true);
+      writeStoredPrimaryAccount(primary);
+
+      // Load this account's personal theme (full app theme per user)
+      const uid = profile.identityId || null;
+      if (uid) applyAccountTheme(uid);
+
+      try {
+        localStorage.setItem(AUTH_KEY, "1");
+        localStorage.setItem(AUTH_NAME_KEY, name);
+        localStorage.setItem(AUTH_ACCOUNT_KEY, profile.accountType);
+        localStorage.setItem(PROFILE_KEY, JSON.stringify(withPrimary));
+      } catch {
+        /* ignore */
+      }
+
+      if (profile.accountType === "motorist") {
+        setRegisteredAsState("client");
+        setUserModeState("client");
+        try {
+          localStorage.setItem(MODE_KEY, "client");
+          localStorage.setItem(ROLE_KEY, "client");
+        } catch {
+          /* ignore */
+        }
+      } else {
+        const primarySvc =
+          (withPrimary.services ?? []).filter(isProService)[0] ?? "mechanic";
+        setProServicesState([primarySvc]);
+        setRegisteredAsState(primarySvc);
+        setUserModeState("professional");
+        try {
+          localStorage.setItem(MODE_KEY, "professional");
+          localStorage.setItem(ROLE_KEY, primarySvc);
+          localStorage.setItem(SERVICES_KEY, JSON.stringify([primarySvc]));
+        } catch {
+          /* ignore */
+        }
+        setRadiusKmState(
+          Math.min(
             MAX_RADIUS_KM,
-            Math.max(1, profile.serviceRadiusKm ?? DEFAULT_RADIUS_KM)
-          )
-        : profile.serviceRadiusKm;
-    const withPrimary: UserProfile = {
-      ...profile,
-      primaryAccountType: primary,
-      ...(profile.accountType === "professional"
-        ? {
-            services: proServicesLocked?.length
-              ? proServicesLocked
-              : profile.services,
-            serviceRadiusKm: proRadiusLocked,
-          }
-        : {}),
-    };
-    setUserProfile(withPrimary);
-    setDisplayName(name);
-    setAccountType(profile.accountType);
-    setPrimaryAccountType(primary);
-    setIsAuthenticated(true);
-    writeStoredPrimaryAccount(primary);
-
-    // Load this account's personal theme (full app theme per user)
-    const uid = profile.identityId || null;
-    if (uid) applyAccountTheme(uid);
-
-    try {
-      localStorage.setItem(AUTH_KEY, "1");
-      localStorage.setItem(AUTH_NAME_KEY, name);
-      localStorage.setItem(AUTH_ACCOUNT_KEY, profile.accountType);
-      localStorage.setItem(PROFILE_KEY, JSON.stringify(withPrimary));
-    } catch {
-      /* ignore */
-    }
-
-    if (profile.accountType === "motorist") {
-      setRegisteredAsState("client");
-      setUserModeState("client");
-      try {
-        localStorage.setItem(MODE_KEY, "client");
-        localStorage.setItem(ROLE_KEY, "client");
-      } catch {
-        /* ignore */
+            Math.max(1, withPrimary.serviceRadiusKm ?? DEFAULT_RADIUS_KM),
+          ),
+        );
       }
-    } else {
-      const primarySvc =
-        (withPrimary.services ?? []).filter(isProService)[0] ?? "mechanic";
-      setProServicesState([primarySvc]);
-      setRegisteredAsState(primarySvc);
-      setUserModeState("professional");
-      try {
-        localStorage.setItem(MODE_KEY, "professional");
-        localStorage.setItem(ROLE_KEY, primarySvc);
-        localStorage.setItem(SERVICES_KEY, JSON.stringify([primarySvc]));
-      } catch {
-        /* ignore */
+
+      // Profile area is a label only never overwrite live GPS with a fixed city
+      if (profile.area || profile.city) {
+        setLocation((prev) => ({
+          ...prev,
+          label:
+            prev.label &&
+            prev.label !== "Locating…" &&
+            prev.label !== "Current location" &&
+            prev.label !== "Last known location"
+              ? prev.label
+              : [profile.area, profile.city].filter(Boolean).join(", "),
+          city: profile.city || profile.area || prev.city,
+          // keep real coordinates from GPS / last-known never force Ikeja
+        }));
       }
-      setRadiusKmState(
-        Math.min(
-          MAX_RADIUS_KM,
-          Math.max(1, withPrimary.serviceRadiusKm ?? DEFAULT_RADIUS_KM)
-        )
-      );
-    }
 
-    // Profile area is a label only — never overwrite live GPS with a fixed city
-    if (profile.area || profile.city) {
-      setLocation((prev) => ({
-        ...prev,
-        label:
-          prev.label &&
-          prev.label !== "Locating…" &&
-          prev.label !== "Current location" &&
-          prev.label !== "Last known location"
-            ? prev.label
-            : [profile.area, profile.city].filter(Boolean).join(", "),
-        city: profile.city || profile.area || prev.city,
-        // keep real coordinates from GPS / last-known — never force Ikeja
-      }));
-    }
-
-    // Dual-role flags: never replace server truth with vault alone.
-    // Vault is device-local and often only holds the last active side (e.g. motorist),
-    // which incorrectly showed "no Repair Pro account" for dual-role users.
-    setHasMotoristAccount((prev) =>
-      Boolean(
-        prev ||
+      // Dual-role flags: never replace server truth with vault alone.
+      // Vault is device-local and often only holds the last active side (e.g. motorist),
+      // which incorrectly showed "no Repair Pro account" for dual-role users.
+      setHasMotoristAccount((prev) =>
+        Boolean(
+          prev ||
           profile.accountType === "motorist" ||
-          readProfilesVault().motorist
-      )
-    );
-    setHasProAccount((prev) =>
-      Boolean(
-        prev ||
+          readProfilesVault().motorist,
+        ),
+      );
+      setHasProAccount((prev) =>
+        Boolean(
+          prev ||
           profile.accountType === "professional" ||
-          readProfilesVault().professional
-      )
-    );
-  }, [applyAccountTheme, primaryAccountType]);
-
+          readProfilesVault().professional,
+        ),
+      );
+    },
+    [applyAccountTheme, primaryAccountType],
+  );
 
   const switchAccount = useCallback(
     async (
-      type: AccountType
+      type: AccountType,
     ): Promise<null | "needs_signup" | "needs_login" | string> => {
       if (!backendUserId || !isAuthenticated) {
         return "needs_login";
@@ -1246,7 +1261,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return "Server is unavailable. Cannot switch right now.";
       }
 
-      // Same type already active — caller navigates; no server call
+      // Same type already active caller navigates; no server call
       if (
         (type === "motorist" && accountType === "motorist") ||
         (type === "professional" && accountType === "professional")
@@ -1278,133 +1293,130 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       setSwitchingRole(true);
       try {
-      const res = await backendSwitchRole(type);
-      if (res.error || !res.profile || !res.userId) {
-        if (res.error === "needs_signup") {
-          return "needs_signup";
+        const res = await backendSwitchRole(type);
+        if (res.error || !res.profile || !res.userId) {
+          if (res.error === "needs_signup") {
+            return "needs_signup";
+          }
+          // Do not fake a client-only switch reload would restore the other role
+          return res.error || res.message || "Could not switch account.";
         }
-        // Do not fake a client-only switch — reload would restore the other role
-        return res.error || res.message || "Could not switch account.";
-      }
 
-      setBackendUserId(res.userId);
-      // Preserve original signup as primary when switching (never use active role)
-      const primary: AccountType =
-        res.primaryAccountType ||
-        res.profile.primaryAccountType ||
-        readStoredPrimaryAccount() ||
-        primaryAccountType ||
-        accountType ||
-        "motorist";
-      // One bank per login: if this role has no bank, reuse the other role's bank
-      // so Repair Pro never asks for a "fresh" bank when Customer already saved one.
-      let switched: UserProfile = {
-        ...res.profile,
-        primaryAccountType: primary,
-      };
-      const bankComplete = (p: UserProfile | null | undefined) =>
-        Boolean(
-          p &&
+        setBackendUserId(res.userId);
+        // Preserve original signup as primary when switching (never use active role)
+        const primary: AccountType =
+          res.primaryAccountType ||
+          res.profile.primaryAccountType ||
+          readStoredPrimaryAccount() ||
+          primaryAccountType ||
+          accountType ||
+          "motorist";
+        // One bank per login: if this role has no bank, reuse the other role's bank
+        // so Repair Pro never asks for a "fresh" bank when Customer already saved one.
+        let switched: UserProfile = {
+          ...res.profile,
+          primaryAccountType: primary,
+        };
+        const bankComplete = (p: UserProfile | null | undefined) =>
+          Boolean(
+            p &&
             (p.bankCode || "").trim() &&
             (p.bankAccountName || "").trim() &&
-            (p.bankAccountNumber || "").replace(/\D/g, "").length === 10
-        );
-      if (!bankComplete(switched)) {
-        const vaultMot = getVaultProfile("motorist");
-        const vaultPro = getVaultProfile("professional");
-        const donor =
-          (bankComplete(vaultMot) && vaultMot) ||
-          (bankComplete(vaultPro) && vaultPro) ||
-          (bankComplete(userProfile) && userProfile) ||
-          null;
-        if (donor) {
-          switched = {
-            ...switched,
-            bankCode: donor.bankCode,
-            bankName: donor.bankName,
-            bankAccountName: donor.bankAccountName,
-            bankAccountNumber: donor.bankAccountNumber,
-          };
-          // Persist to the active role side-table + identity bank sync
-          if (isAppBackendOnline() && res.userId) {
-            void (async () => {
-              try {
-                const { ensureAppSession } = await import(
-                  "@/lib/supabase/session"
-                );
-                const s = await ensureAppSession();
-                if (!s?.accessToken) return;
-                await backendUpdateProfile(s.accessToken, {
-                  bankCode: donor.bankCode,
-                  bankName: donor.bankName,
-                  bankAccountName: donor.bankAccountName,
-                  bankAccountNumber: donor.bankAccountNumber,
-                });
-              } catch {
-                /* non-fatal — UI already has bank */
-              }
-            })();
+            (p.bankAccountNumber || "").replace(/\D/g, "").length === 10,
+          );
+        if (!bankComplete(switched)) {
+          const vaultMot = getVaultProfile("motorist");
+          const vaultPro = getVaultProfile("professional");
+          const donor =
+            (bankComplete(vaultMot) && vaultMot) ||
+            (bankComplete(vaultPro) && vaultPro) ||
+            (bankComplete(userProfile) && userProfile) ||
+            null;
+          if (donor) {
+            switched = {
+              ...switched,
+              bankCode: donor.bankCode,
+              bankName: donor.bankName,
+              bankAccountName: donor.bankAccountName,
+              bankAccountNumber: donor.bankAccountNumber,
+            };
+            // Persist to the active role side-table + identity bank sync
+            if (isAppBackendOnline() && res.userId) {
+              void (async () => {
+                try {
+                  const { ensureAppSession } =
+                    await import("@/lib/supabase/session");
+                  const s = await ensureAppSession();
+                  if (!s?.accessToken) return;
+                  await backendUpdateProfile(s.accessToken, {
+                    bankCode: donor.bankCode,
+                    bankName: donor.bankName,
+                    bankAccountName: donor.bankAccountName,
+                    bankAccountNumber: donor.bankAccountNumber,
+                  });
+                } catch {
+                  /* non-fatal UI already has bank */
+                }
+              })();
+            }
           }
         }
-      }
-      // Carry verification flags from server + preserve Customer T2 if API omits
-      const prev = userProfile;
-      const withFlags: UserProfile = {
-        ...switched,
-        phoneVerified: Boolean(
-          switched.phoneVerified || prev?.phoneVerified
-        ),
-        identityReviewStatus:
-          switched.identityReviewStatus || prev?.identityReviewStatus,
-        govIdVerified: Boolean(switched.govIdVerified || prev?.govIdVerified),
-        identityVerifiedAt:
-          switched.identityVerifiedAt || prev?.identityVerifiedAt,
-        identitySubmittedAt:
-          switched.identitySubmittedAt || prev?.identitySubmittedAt,
-        govIdKind: switched.govIdKind || prev?.govIdKind,
-        govIdFrontUrl: switched.govIdFrontUrl || prev?.govIdFrontUrl,
-        ninVerified: Boolean(switched.ninVerified || prev?.ninVerified),
-        bvnVerified: Boolean(switched.bvnVerified || prev?.bvnVerified),
-      };
-      saveProfileToVault(withFlags);
+        // Carry verification flags from server + preserve Customer T2 if API omits
+        const prev = userProfile;
+        const withFlags: UserProfile = {
+          ...switched,
+          phoneVerified: Boolean(switched.phoneVerified || prev?.phoneVerified),
+          identityReviewStatus:
+            switched.identityReviewStatus || prev?.identityReviewStatus,
+          govIdVerified: Boolean(switched.govIdVerified || prev?.govIdVerified),
+          identityVerifiedAt:
+            switched.identityVerifiedAt || prev?.identityVerifiedAt,
+          identitySubmittedAt:
+            switched.identitySubmittedAt || prev?.identitySubmittedAt,
+          govIdKind: switched.govIdKind || prev?.govIdKind,
+          govIdFrontUrl: switched.govIdFrontUrl || prev?.govIdFrontUrl,
+          ninVerified: Boolean(switched.ninVerified || prev?.ninVerified),
+          bvnVerified: Boolean(switched.bvnVerified || prev?.bvnVerified),
+        };
+        saveProfileToVault(withFlags);
 
-      const dualToPro =
-        type === "professional" &&
-        Boolean(
-          res.hasMotorist ||
+        const dualToPro =
+          type === "professional" &&
+          Boolean(
+            res.hasMotorist ||
             hasMotoristAccount ||
-            userProfile?.accountType === "motorist"
-        );
-      const t1Done = Boolean(withFlags.phoneVerified);
+            userProfile?.accountType === "motorist",
+          );
+        const t1Done = Boolean(withFlags.phoneVerified);
 
-      if (dualToPro) {
-        // Customer → Pro: lower panel until Care T2; re-OTP if phone not verified
-        if (t1Done) {
-          applySession(withFlags);
-          setPostSwitchPhoneOtpRequired(false);
-          setProOnboardingSheetRequired(true);
+        if (dualToPro) {
+          // Customer → Pro: lower panel until Care T2; re-OTP if phone not verified
+          if (t1Done) {
+            applySession(withFlags);
+            setPostSwitchPhoneOtpRequired(false);
+            setProOnboardingSheetRequired(true);
+          } else {
+            applySession({ ...withFlags, phoneVerified: false });
+            setPostSwitchPhoneOtpRequired(true);
+            setProOnboardingSheetRequired(true);
+          }
         } else {
+          // Other switches: session re-OTP still required
           applySession({ ...withFlags, phoneVerified: false });
           setPostSwitchPhoneOtpRequired(true);
-          setProOnboardingSheetRequired(true);
+          setProOnboardingSheetRequired(false);
         }
-      } else {
-        // Other switches: session re-OTP still required
-        applySession({ ...withFlags, phoneVerified: false });
-        setPostSwitchPhoneOtpRequired(true);
-        setProOnboardingSheetRequired(false);
-      }
 
-      if (res.hasMotorist != null) setHasMotoristAccount(res.hasMotorist);
-      if (res.hasPro != null) setHasProAccount(res.hasPro);
-      // Always Away after a role switch — pro must tap Live again
-      setProLiveState(false);
-      if (backendUserId && isAppBackendOnline()) {
-        void backendSetProOnline(backendUserId, false);
-      }
-      // Fresh nav stack for this role only — Back must not hop to the other role
-      resetNavStack(type === "professional" ? "/dashboard" : "/");
-      return null;
+        if (res.hasMotorist != null) setHasMotoristAccount(res.hasMotorist);
+        if (res.hasPro != null) setHasProAccount(res.hasPro);
+        // Always Away after a role switch pro must tap Live again
+        setProLiveState(false);
+        if (backendUserId && isAppBackendOnline()) {
+          void backendSetProOnline(backendUserId, false);
+        }
+        // Fresh nav stack for this role only Back must not hop to the other role
+        resetNavStack(type === "professional" ? "/dashboard" : "/");
+        return null;
       } finally {
         setSwitchingRole(false);
       }
@@ -1418,7 +1430,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       hasMotoristAccount,
       hasProAccount,
       userProfile,
-    ]
+    ],
   );
 
   const setUserMode = useCallback(
@@ -1441,14 +1453,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       })();
     },
-    [switchAccount, accountType]
+    [switchAccount, accountType],
   );
 
   const signInWithPassword = useCallback(
     async (
       email: string,
       password: string,
-      preferType?: AccountType
+      preferType?: AccountType,
     ): Promise<string | null> => {
       if (!isAppBackendOnline()) {
         return "Server is unavailable. Log in requires a live Ona account.";
@@ -1465,7 +1477,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       let hasMotorist =
         res.hasMotorist ?? res.profile.accountType === "motorist";
       let hasPro = res.hasPro ?? res.profile.accountType === "professional";
-      let primaryFromFlags = res.primaryAccountType || res.profile.primaryAccountType;
+      let primaryFromFlags =
+        res.primaryAccountType || res.profile.primaryAccountType;
       if (res.hasMotorist == null || res.hasPro == null) {
         const flags = await backendDualRoleFlags(res.userId).catch(() => ({
           hasMotorist: res.profile!.accountType === "motorist",
@@ -1525,20 +1538,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       return null;
     },
-    [applySession]
+    [applySession],
   );
 
-  const sendPhoneOtp = useCallback(async (phone: string): Promise<string | null> => {
-    if (!isAppBackendOnline()) {
-      return "Server is unavailable.";
-    }
-    const res = await backendSendPhoneOtp(phone);
-    return res.error;
-  }, []);
+  const sendPhoneOtp = useCallback(
+    async (phone: string): Promise<string | null> => {
+      if (!isAppBackendOnline()) {
+        return "Server is unavailable.";
+      }
+      const res = await backendSendPhoneOtp(phone);
+      return res.error;
+    },
+    [],
+  );
 
-  const sendPostSwitchPhoneOtp = useCallback(async (): Promise<string | null> => {
+  const sendPostSwitchPhoneOtp = useCallback(async (): Promise<
+    string | null
+  > => {
     const phone = (userProfile?.phone || "").trim();
-    if (!phone) return "No phone on this account. Add a phone in Settings first.";
+    if (!phone)
+      return "No phone on this account. Add a phone in Settings first.";
     if (!isAppBackendOnline()) return "Server is unavailable.";
     const res = await backendSendPhoneOtp(phone);
     return res.error;
@@ -1552,9 +1571,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!phone) return "No phone on this account.";
       if (!isAppBackendOnline()) {
         // Offline fallback: demo OTP only when allowed
-        const { isDemoOtp, isDemoOtpAllowed } = await import(
-          "@/lib/auth/demo-otp"
-        );
+        const { isDemoOtp, isDemoOtpAllowed } =
+          await import("@/lib/auth/demo-otp");
         if (isDemoOtp(dig) && isDemoOtpAllowed()) {
           if (userProfile) {
             const next = { ...userProfile, phoneVerified: true };
@@ -1594,26 +1612,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setPostSwitchPhoneOtpRequired(false);
       return null;
     },
-    [userProfile, applySession]
+    [userProfile, applySession],
   );
 
-  /** Send OTP to phone or email. Returns error string, or null on success (message in second channel via throw pattern — we return null and caller uses info). */
+  /** Send OTP to phone or email. Returns error string, or null on success (message in second channel via throw pattern we return null and caller uses info). */
   const sendLoginOtp = useCallback(
     async (
       channel: "phone" | "email",
       target: string,
-      opts?: { forceResend?: boolean }
-    ): Promise<{ error: string | null; message?: string; maybeSent?: boolean }> => {
+      opts?: { forceResend?: boolean },
+    ): Promise<{
+      error: string | null;
+      message?: string;
+      maybeSent?: boolean;
+    }> => {
       if (!isAppBackendOnline()) {
         return { error: "Server is unavailable." };
       }
       const res = await backendSendOtp(
         { channel, target },
-        { forceResend: opts?.forceResend }
+        { forceResend: opts?.forceResend },
       );
-      return { error: res.error, message: res.message, maybeSent: res.maybeSent };
+      return {
+        error: res.error,
+        message: res.message,
+        maybeSent: res.maybeSent,
+      };
     },
-    []
+    [],
   );
 
   const signInWithLoginOtp = useCallback(
@@ -1621,7 +1647,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       channel: "phone" | "email",
       target: string,
       code: string,
-      preferType?: AccountType
+      preferType?: AccountType,
     ): Promise<string | null> => {
       if (!isAppBackendOnline()) {
         return "Server is unavailable.";
@@ -1645,8 +1671,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }));
       const hasMotorist =
         flags.hasMotorist || res.profile.accountType === "motorist";
-      const hasPro =
-        flags.hasPro || res.profile.accountType === "professional";
+      const hasPro = flags.hasPro || res.profile.accountType === "professional";
 
       if (preferType === "motorist" && !hasMotorist) {
         await backendSignOut().catch(() => undefined);
@@ -1694,18 +1719,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       return null;
     },
-    [applySession]
+    [applySession],
   );
 
   const signInWithPhoneOtp = useCallback(
     async (
       phone: string,
       code: string,
-      preferType?: AccountType
+      preferType?: AccountType,
     ): Promise<string | null> => {
       return signInWithLoginOtp("phone", phone, code, preferType);
     },
-    [signInWithLoginOtp]
+    [signInWithLoginOtp],
   );
 
   const persistProfile = useCallback((profile: UserProfile) => {
@@ -1716,16 +1741,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore */
     }
-    // OR with existing flags — saving motorist must not clear hasProAccount
+    // OR with existing flags saving motorist must not clear hasProAccount
     setHasMotoristAccount((prev) =>
-      Boolean(prev || profile.accountType === "motorist" || readProfilesVault().motorist)
+      Boolean(
+        prev ||
+        profile.accountType === "motorist" ||
+        readProfilesVault().motorist,
+      ),
     );
     setHasProAccount((prev) =>
       Boolean(
         prev ||
-          profile.accountType === "professional" ||
-          readProfilesVault().professional
-      )
+        profile.accountType === "professional" ||
+        readProfilesVault().professional,
+      ),
     );
   }, []);
 
@@ -1770,7 +1799,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setUserProfile(next);
       return null;
     },
-    [userProfile, persistProfile]
+    [userProfile, persistProfile],
   );
 
   const completeIdentityVerification = useCallback(
@@ -1792,25 +1821,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return "This check is for Customer accounts only.";
       }
 
-      const primary =
-        (input.primaryId || input.nin || "").trim();
+      const primary = (input.primaryId || input.nin || "").trim();
       const bank = (input.bankId || input.bvn || "").trim();
-      const iso = (input.countryIso || userProfile.identityCountryIso || "NG").toUpperCase();
+      const iso = (
+        input.countryIso ||
+        userProfile.identityCountryIso ||
+        "NG"
+      ).toUpperCase();
       const mode = input.mode || "submit";
 
       if (!primary) {
         return "Enter your ID number to continue.";
       }
-      if (!input.govIdFrontUrl && !userProfile.govIdFrontUrl && mode === "submit") {
+      if (
+        !input.govIdFrontUrl &&
+        !userProfile.govIdFrontUrl &&
+        mode === "submit"
+      ) {
         return "Upload a clear photo of your ID.";
       }
 
-      // Submit for review — do NOT mark verified until admin/care approves
+      // Submit for review do NOT mark verified until admin/care approves
       if (mode === "submit") {
         if (isAppBackendOnline() && backendUserId) {
           let accessToken: string | null = null;
           try {
-            const { getAppSupabase } = await import("@/lib/supabase/app-client");
+            const { getAppSupabase } =
+              await import("@/lib/supabase/app-client");
             const sb = getAppSupabase();
             if (sb) {
               const { data } = await sb.auth.getSession();
@@ -1888,12 +1925,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       return null;
     },
-    [userProfile, persistProfile, backendUserId]
+    [userProfile, persistProfile, backendUserId],
   );
 
   const updateUserProfile = useCallback(
     (
-      patch: Partial<UserProfile> & { vehiclesServedChange?: boolean }
+      patch: Partial<UserProfile> & { vehiclesServedChange?: boolean },
     ): string | null => {
       if (!userProfile) return "Sign in to edit your profile.";
 
@@ -1940,7 +1977,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (next.serviceRadiusKm != null) {
           next.serviceRadiusKm = Math.min(
             MAX_RADIUS_KM,
-            Math.max(1, next.serviceRadiusKm)
+            Math.max(1, next.serviceRadiusKm),
           );
         }
         if (next.services?.[0]) {
@@ -1970,13 +2007,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (isAppBackendOnline()) {
         void (async () => {
           try {
-            const sb = (await import("@/lib/supabase/app-client")).getAppSupabase();
+            const sb = (
+              await import("@/lib/supabase/app-client")
+            ).getAppSupabase();
             const session = sb
               ? (await sb.auth.getSession()).data.session
               : null;
             if (!session?.access_token) return;
             const isPro = next.accountType === "professional";
-            const pwdChanged = next.password && next.password !== userProfile.password;
+            const pwdChanged =
+              next.password && next.password !== userProfile.password;
             const errMsg = await backendUpdateProfile(session.access_token, {
               // Pros cannot change full name via profile edit
               ...(pwdChanged ? { password: next.password } : {}),
@@ -1998,9 +2038,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 : next.yearsExperience,
               serviceRadiusKm: next.serviceRadiusKm,
               // Pros: only primary signup skill (server also enforces)
-              services: isPro
-                ? next.services?.slice(0, 1)
-                : next.services,
+              services: isPro ? next.services?.slice(0, 1) : next.services,
               labourPrices: next.servicePrices,
               pricingCurrency: next.pricingCurrency,
               vehicleMake: next.vehicleMake,
@@ -2044,7 +2082,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       return null;
     },
-    [userProfile, persistProfile]
+    [userProfile, persistProfile],
   );
 
   const completeSignup = useCallback(
@@ -2054,7 +2092,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         profile.accountType === "professional"
           ? {
               ...profile,
-              services: (profile.services ?? []).filter(isProService).slice(0, 1),
+              services: (profile.services ?? [])
+                .filter(isProService)
+                .slice(0, 1),
             }
           : profile;
 
@@ -2062,13 +2102,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return "Email and password are required to create your account.";
       }
 
-      // Hard requirement: live Supabase write — no silent local-only signup
+      // Hard requirement: live Supabase write no silent local-only signup
       if (!isAppBackendOnline()) {
-        return "Server is unavailable. Check your connection and try again — accounts must save to Ona.";
+        return "Server is unavailable. Check your connection and try again accounts must save to Ona.";
       }
 
       const labourPrices = normalized.servicePrices;
-      // Slim cert payload — full base64 in skills jsonb breaks vulcanizer/pro signup
+      // Slim cert payload full base64 in skills jsonb breaks vulcanizer/pro signup
       const rawSkills = (normalized.skillAnswers || {}) as Record<
         string,
         unknown
@@ -2191,8 +2231,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           normalized.docsRatingBoostApplied ??
           res.profile.docsRatingBoostApplied,
         certificationFileName:
-          normalized.certificationFileName ??
-          res.profile.certificationFileName,
+          normalized.certificationFileName ?? res.profile.certificationFileName,
         certificationFileDataUrl:
           normalized.certificationFileDataUrl ??
           res.profile.certificationFileDataUrl,
@@ -2203,8 +2242,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         servedBrand: normalized.servedBrand ?? res.profile.servedBrand,
         servedModel: normalized.servedModel ?? res.profile.servedModel,
         servedCountry: normalized.servedCountry ?? res.profile.servedCountry,
-        servedLocation:
-          normalized.servedLocation ?? res.profile.servedLocation,
+        servedLocation: normalized.servedLocation ?? res.profile.servedLocation,
         vehicles: res.profile.vehicles ?? normalized.vehicles,
         vehicleMake: res.profile.vehicleMake ?? normalized.vehicleMake,
         vehicleModel: res.profile.vehicleModel ?? normalized.vehicleModel,
@@ -2234,7 +2272,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       primaryAccountType,
       userProfile?.primaryAccountType,
       hasMotoristAccount,
-    ]
+    ],
   );
 
   const login = useCallback(
@@ -2244,12 +2282,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       proService?: ProService;
       proServices?: ProService[];
     }) => {
-      // Demo shortcut disabled — must use real server signup / login
+      // Demo shortcut disabled must use real server signup / login
       console.warn(
-        "Quick demo login is disabled. Use Sign up or Log in against the server."
+        "Quick demo login is disabled. Use Sign up or Log in against the server.",
       );
     },
-    []
+    [],
   );
 
   const setProLive = useCallback(
@@ -2259,7 +2297,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return "Switch to Repair Pro mode first.";
       }
       if (!backendUserId || !isAppBackendOnline()) {
-        // Never flip local Away while server stays Live — require server for both
+        // Never flip local Away while server stays Live require server for both
         return "Server offline. Connect to go Live or Away so customers stay in sync.";
       }
       if (accountType !== "professional") {
@@ -2269,10 +2307,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       // Local draft gate only when an onboarding profile exists in this browser.
-      // Missing local artisan must NOT blank/block dashboard — server owns Live.
+      // Missing local artisan must NOT blank/block dashboard server owns Live.
       if (live) {
         try {
-          const { getArtisanProfile } = await import("@/lib/artisan/local-store");
+          const { getArtisanProfile } =
+            await import("@/lib/artisan/local-store");
           const { canGoLive } = await import("@/lib/artisan/status");
           const artisan = getArtisanProfile(backendUserId);
           if (artisan) {
@@ -2282,7 +2321,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
           }
         } catch {
-          /* fall through — server enforces */
+          /* fall through server enforces */
         }
       }
 
@@ -2299,7 +2338,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 timeout: 15000,
                 maximumAge: 0,
               });
-            }
+            },
           );
           lat = pos.coords.latitude;
           lng = pos.coords.longitude;
@@ -2356,17 +2395,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       accountType,
       location.coordinates.lat,
       location.coordinates.lng,
-    ]
+    ],
   );
 
   const setHelpingSomeoneElse = useCallback(
     (
-      next:
-        | null
-        | {
-            label: string;
-            coordinates: { lat: number; lng: number };
-          }
+      next: null | {
+        label: string;
+        coordinates: { lat: number; lng: number };
+      },
     ) => {
       if (next == null) {
         setHelpingSomeoneElseState(false);
@@ -2388,7 +2425,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         coordinates: next.coordinates,
       });
     },
-    [location]
+    [location],
   );
 
   const logout = useCallback(() => {
@@ -2430,7 +2467,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [backendUserId]);
 
-  /** One professional skill only — ignore adds beyond the first. */
+  /** One professional skill only ignore adds beyond the first. */
   const addProService = useCallback((service: ProService) => {
     setProServicesState((prev) => {
       if (prev.length >= 1) return prev;
@@ -2461,10 +2498,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return next;
       });
     },
-    [registeredAs]
+    [registeredAs],
   );
 
-  /** Live marketplace pros only (no demo seed — keeps first paint light). */
+  /** Live marketplace pros only (no demo seed keeps first paint light). */
   const technicians = useMemo(() => {
     // Marketplace: only server Live pros (is_online + repair_pro role).
     // /api/pros is role-aware: an active Repair Pro only ever receives their
@@ -2487,7 +2524,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return { ...t, distanceKm: Number.POSITIVE_INFINITY };
       }
       const d = haversineKm(origin, { lat, lng });
-      // Prefer Google ETA from API when present; never force a 5–6 min floor
+      // Prefer Google ETA from API when present; never force a 5-6 min floor
       const estimate =
         d <= 0.12 ? 1 : d <= 0.3 ? 2 : Math.max(1, Math.round((d / 28) * 60));
       const fromApi =
@@ -2506,7 +2543,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // (they look for other pros). Pro self-card stays for pro dashboard only.
     if (accountType === "motorist" || accountType == null) {
       return withDistance.filter(
-        (t) => t.id !== SELF_PRO_TECH_ID && t.id !== backendUserId
+        (t) => t.id !== SELF_PRO_TECH_ID && t.id !== backendUserId,
       );
     }
 
@@ -2515,7 +2552,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return [
       self,
       ...withDistance.filter(
-        (t) => t.id !== SELF_PRO_TECH_ID && t.id !== self.id
+        (t) => t.id !== SELF_PRO_TECH_ID && t.id !== self.id,
       ),
     ];
   }, [
@@ -2531,22 +2568,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     string[]
   >([]);
   const [discoveryDemoteProIds, setDiscoveryDemoteProIds] = useState<string[]>(
-    []
+    [],
   );
 
   useEffect(() => {
     let cancelled = false;
     const refreshDiscoveryPriority = async () => {
       try {
-        const { getRadiusDemoteProIds } = await import(
-          "@/lib/jobs/booked-pro-priority"
-        );
+        const { getRadiusDemoteProIds } =
+          await import("@/lib/jobs/booked-pro-priority");
         if (!cancelled) setDiscoveryDemoteProIds(getRadiusDemoteProIds());
       } catch {
         if (!cancelled) setDiscoveryDemoteProIds([]);
       }
 
-      // Never hide previously requested pros from the list — customer can
+      // Never hide previously requested pros from the list customer can
       // New request only when no open job; open jobs show "Open" on the card.
       if (!cancelled) setDiscoveryExcludeProIds([]);
     };
@@ -2570,7 +2606,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const visibleTechnicians = useMemo(() => {
     // Dual-role: never show own Repair Pro pin when browsing as Customer
     const exclude = new Set(
-      Array.from(discoveryExcludeProIds || []).map((id) => String(id))
+      Array.from(discoveryExcludeProIds || []).map((id) => String(id)),
     );
     if (backendUserId) exclude.add(String(backendUserId));
     // An active Repair Pro's market is pinned to their own primary trade
@@ -2578,11 +2614,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // inside that trade and the category tab cannot widen the feed.
     const effectiveCategory: ServiceCategory =
       accountType === "professional"
-        ? (
-            isProService(registeredAs)
-              ? registeredAs
-              : proServices[0]
-          ) ?? "all"
+        ? ((isProService(registeredAs) ? registeredAs : proServices[0]) ??
+          "all")
         : category;
     return filterAndRankTechnicians(technicians, {
       radiusKm,
@@ -2614,7 +2647,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const specialtyHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null
+    null,
   );
 
   const clearSpecialtyHideTimer = useCallback(() => {
@@ -2632,7 +2665,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Plumber / Carpenter / etc. → show specialty strip instead of radius
       setSpecialtyPickerOpen(isSpecialtyPickerTrade(c));
     },
-    [clearSpecialtyHideTimer]
+    [clearSpecialtyHideTimer],
   );
 
   const setSpecialtyFilter = useCallback(
@@ -2650,7 +2683,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSpecialtyPickerOpen(false);
       }
     },
-    [clearSpecialtyHideTimer]
+    [clearSpecialtyHideTimer],
   );
 
   const openSpecialtyPicker = useCallback(() => {
@@ -2667,7 +2700,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       let hitId: string | null = null;
       setMessages((prev) => {
         const existing = prev.find(
-          (m) => m.requestId === req.id && m.id && !m.id.startsWith("chat-")
+          (m) => m.requestId === req.id && m.id && !m.id.startsWith("chat-"),
         );
         if (existing) hitId = existing.id;
         return prev;
@@ -2676,13 +2709,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (isAppBackendOnline() && backendUserId && accountType) {
         const motoristId =
-          accountType === "motorist"
-            ? backendUserId
-            : req.motoristId || "";
+          accountType === "motorist" ? backendUserId : req.motoristId || "";
         const repairProId =
-          accountType === "professional"
-            ? backendUserId
-            : req.technicianId;
+          accountType === "professional" ? backendUserId : req.technicianId;
         if (motoristId && repairProId) {
           const res = await backendEnsureConversation({
             requestId: req.id,
@@ -2692,7 +2721,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (res.conversationId) {
             const threads = await backendFetchConversations(
               backendUserId,
-              accountType
+              accountType,
             );
             if (threads.length) setMessages(threads);
             return res.conversationId;
@@ -2711,9 +2740,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           technicianId: req.technicianId,
           technicianName: req.technicianName,
           motoristName:
-            accountType === "motorist"
-              ? displayName || "Customer"
-              : "Customer",
+            accountType === "motorist" ? displayName || "Customer" : "Customer",
           serviceType: req.serviceType,
           lastMessage: "New chat",
           time: "now",
@@ -2725,7 +2752,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
       return localId;
     },
-    [displayName, backendUserId, accountType]
+    [displayName, backendUserId, accountType],
   );
 
   const ensureChatForRequest = useCallback(
@@ -2733,7 +2760,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       void ensureChatForRequestAsync(req);
       return `chat-${req.id}`;
     },
-    [ensureChatForRequestAsync]
+    [ensureChatForRequestAsync],
   );
 
   const sendChatMessage = useCallback(
@@ -2744,7 +2771,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         url: string;
         durationSec?: number;
         mime?: string;
-      } | null
+      } | null,
     ) => {
       const trimmed = text.trim();
       if (!trimmed && !voice?.url) return;
@@ -2780,8 +2807,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 time: "now",
                 messages: [...t.messages, msg],
               }
-            : t
-        )
+            : t,
+        ),
       );
 
       if (!isAppBackendOnline() || !backendUserId || !accountType) return;
@@ -2802,16 +2829,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const requestId = conversationId.replace(/^chat-/, "");
           const threads = await backendFetchConversations(
             backendUserId,
-            accountType
+            accountType,
           );
           const hit = threads.find(
-            (th) => th.requestId === requestId || th.id === threadId
+            (th) => th.requestId === requestId || th.id === threadId,
           );
           if (hit) {
             conversationId = hit.id;
             setMessages(threads);
           } else {
-            console.warn("sendChatMessage: no cloud conversation for", requestId);
+            console.warn(
+              "sendChatMessage: no cloud conversation for",
+              requestId,
+            );
             return;
           }
         }
@@ -2826,12 +2856,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Pull latest so both devices stay in sync
         const threads = await backendFetchConversations(
           backendUserId,
-          accountType
+          accountType,
         );
         if (threads.length) setMessages(threads);
       })();
     },
-    [accountType, backendUserId, displayName]
+    [accountType, backendUserId, displayName],
   );
 
   // Inbound message tone + banner handled by InboundBanner (app-wide)
@@ -2845,13 +2875,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
           (t.requestId &&
             (threadId === `chat-${t.requestId}` || threadId === t.requestId))
             ? { ...t, unread: 0 }
-            : t
-        )
+            : t,
+        ),
       );
       if (!backendUserId || threadId.startsWith("chat-")) return;
       void backendMarkMessagesRead(threadId, backendUserId);
     },
-    [backendUserId]
+    [backendUserId],
   );
 
   // All chats for this account (skill filter hid pro job chats)
@@ -2867,7 +2897,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         discountPercent: number;
         pricingCurrency: import("@/lib/pricing").AppCurrency;
         negotiationStatus?: ServiceRequest["negotiationStatus"];
-      }
+      },
     ) => {
       const forSomeone = helpingSomeoneElse;
       // Always store full address for jobs + maps (street + area)
@@ -2904,9 +2934,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         distanceKm: tech.distanceKm,
         locationLabel: meetLabel,
         bookingForSomeoneElse: forSomeone || undefined,
-        meetCoordinates: forSomeone
-          ? { ...location.coordinates }
-          : undefined,
+        meetCoordinates: forSomeone ? { ...location.coordinates } : undefined,
         labourBaseMajor: pricing?.labourBaseMajor,
         labourAgreedMajor: pricing?.labourAgreedMajor,
         discountPercent: pricing?.discountPercent,
@@ -2966,7 +2994,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       accountType,
       radiusKm,
       displayName,
-    ]
+    ],
   );
 
   const bookRequest = useCallback(
@@ -2979,7 +3007,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         discountPercent: number;
         pricingCurrency: import("@/lib/pricing").AppCurrency;
         negotiationStatus?: ServiceRequest["negotiationStatus"];
-      }
+      },
     ): ServiceActionResult => {
       const cfg = getRuntimeAppConfig();
       const gate = cfg.features.identityVerifyEnabled
@@ -3013,7 +3041,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ok: false,
           code: "invalid",
           message:
-            "This Repair Pro has no labour price set. Quote on request — they must set a price on their profile first.",
+            "This Repair Pro has no labour price set. Quote on request they must set a price on their profile first.",
           actionCount: count,
         };
       }
@@ -3034,14 +3062,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         actionCount: count + 1,
       };
     },
-    [userProfile, createRequest, persistProfile]
+    [userProfile, createRequest, persistProfile],
   );
 
   const updateRequestStatus = useCallback(
-    (
-      id: string,
-      status: ServiceRequest["status"]
-    ): ServiceActionResult => {
+    (id: string, status: ServiceRequest["status"]): ServiceActionResult => {
       const existing = requests.find((r) => r.id === id);
       if (!existing) {
         return {
@@ -3060,18 +3085,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ) {
         const mySkill: ProService | null = isProService(registeredAs)
           ? registeredAs
-          : proServices[0] ?? null;
+          : (proServices[0] ?? null);
         if (mySkill && existing.serviceType !== mySkill) {
           return {
             ok: false,
             code: "skill_mismatch",
-            message: `This job is for ${existing.serviceType}. Your skill is ${mySkill} only — you cannot take another trade's job.`,
+            message: `This job is for ${existing.serviceType}. Your skill is ${mySkill} only you cannot take another trade's job.`,
             actionCount: userProfile?.serviceActionCount ?? 0,
           };
         }
       }
 
-      // Only "accept" is gated — decline / progress stays free
+      // Only "accept" is gated decline / progress stays free
       if (status === "accepted" && existing.status === "pending") {
         const cfg = getRuntimeAppConfig();
         const gate = cfg.features.identityVerifyEnabled
@@ -3084,7 +3109,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 trialDays: cfg.verification.trialDays ?? 30,
                 warnFrom: cfg.verification.warnFrom,
                 blockAt: cfg.verification.blockAt,
-              }
+              },
             )
           : {
               allowed: true as const,
@@ -3102,9 +3127,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           };
         }
         setRequests((prev) =>
-          prev.map((r) => (r.id === id ? { ...r, status } : r))
+          prev.map((r) => (r.id === id ? { ...r, status } : r)),
         );
-        // Chat only when user opens Message — no auto thread / system toast
+        // Chat only when user opens Message no auto thread / system toast
         if (backendUserId && isAppBackendOnline()) {
           void backendUpdateJobStatus(id, status, backendUserId);
         }
@@ -3124,7 +3149,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       setRequests((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, status } : r))
+        prev.map((r) => (r.id === id ? { ...r, status } : r)),
       );
       if (backendUserId && isAppBackendOnline()) {
         void backendUpdateJobStatus(id, status, backendUserId);
@@ -3143,7 +3168,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       registeredAs,
       proServices,
       backendUserId,
-    ]
+    ],
   );
 
   // ── Supabase: load pros + jobs + chats + realtime (throttled) ─────
@@ -3155,7 +3180,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const prosForcePending = useRef(false);
 
   /**
-   * @param force — Live/Away Realtime: bypass the normal 3.5s debounce so
+   * @param force Live/Away Realtime: bypass the normal 3.5s debounce so
    * customers see a pro appear/disappear without a full page refresh.
    */
   const refreshCloudPros = useCallback(
@@ -3183,7 +3208,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         accountType === "professional"
           ? isProService(registeredAs)
             ? registeredAs
-            : proServices[0] ?? null
+            : (proServices[0] ?? null)
           : null;
       // /api/pros returns only Live Repair Pros (online + pro role + range); for
       // pros that is further scoped to their own trade (server-side).
@@ -3205,7 +3230,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
         });
     },
-    [userLat, userLng, accountType, isAuthenticated, registeredAs, proServices]
+    [userLat, userLng, accountType, isAuthenticated, registeredAs, proServices],
   );
 
   // Keep late-bound refs in sync without breaking React Compiler memoization
@@ -3219,7 +3244,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     refreshCloudProsRef.current = refreshCloudPros;
   }, [refreshCloudPros]);
 
-  /** Public: motorist empty-state Refresh — pros list only */
+  /** Public: motorist empty-state Refresh pros list only */
   const refreshNearbyPros = useCallback(() => {
     refreshCloudPros({ force: true });
   }, [refreshCloudPros]);
@@ -3230,12 +3255,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .then((jobs) => {
         if (jobs.length === 0) return;
         setRequests((prev) => {
-          // Cheap signature — avoid JSON.stringify of full job trees every poll
+          // Cheap signature avoid JSON.stringify of full job trees every poll
           const sig = (list: ServiceRequest[]) =>
             list
               .map(
                 (j) =>
-                  `${j.id}:${j.status}:${j.createdAt}:${j.escrowStatus || ""}:${j.paymentReference || ""}:${j.negotiationStatus || ""}:${j.labourAgreedMajor ?? ""}`
+                  `${j.id}:${j.status}:${j.createdAt}:${j.escrowStatus || ""}:${j.paymentReference || ""}:${j.negotiationStatus || ""}:${j.labourAgreedMajor ?? ""}`,
               )
               .join("|");
           return sig(prev) === sig(jobs) ? prev : jobs;
@@ -3251,7 +3276,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     void backendFetchConversations(backendUserId, accountType).then(
       (threads) => {
         if (threads.length > 0) setMessages(threads);
-      }
+      },
     );
   }, [backendUserId, accountType]);
 
@@ -3277,8 +3302,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // re-scopes server-side, but drop old results so a pro never sees the
     // motorist feed (and vice versa) between switch and refetch.
     setCloudTechs(null);
-    const first = window.setTimeout(() => refreshCloudPros({ force: true }), 100);
-    // Backup if Realtime drops — Realtime is primary (keep map/presence snappy)
+    const first = window.setTimeout(
+      () => refreshCloudPros({ force: true }),
+      100,
+    );
+    // Backup if Realtime drops Realtime is primary (keep map/presence snappy)
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudPros();
@@ -3296,8 +3324,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [refreshCloudPros, isAuthenticated, accountType]);
 
-  // Pros Realtime via public pro_presence — Live/Away without page refresh
-  // (motorists see the full feed; pros see their own-trade subset — both
+  // Pros Realtime via public pro_presence Live/Away without page refresh
+  // (motorists see the full feed; pros see their own-trade subset both
   // derive from the same realtime stream and re-scope server-side on fetch).
   useEffect(() => {
     if (!isAppBackendOnline() || !backendUserId || !isAuthenticated) {
@@ -3329,7 +3357,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [refreshCloudJobs, refreshCloudChats, isAuthenticated]);
 
-  // Jobs Realtime — near-instant customer ↔ pro job updates
+  // Jobs Realtime near-instant customer ↔ pro job updates
   useEffect(() => {
     if (!isAppBackendOnline() || !backendUserId) return;
     let jobsTimer: ReturnType<typeof setTimeout> | null = null;
@@ -3350,7 +3378,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudJobs();
       const now = Date.now();
-      // Expire-stale is heavy (DB sweeps + pairing + payout) — keep rare
+      // Expire-stale is heavy (DB sweeps + pairing + payout) keep rare
       if (now - lastStaleSweep >= 240_000) {
         lastStaleSweep = now;
         import("@/lib/jobs/client")
@@ -3371,7 +3399,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [backendUserId, refreshCloudJobs]);
 
-  // Messages Realtime — refresh threads so inbound banner / toast can fire
+  // Messages Realtime refresh threads so inbound banner / toast can fire
   useEffect(() => {
     if (!isAppBackendOnline() || !backendUserId || !isAuthenticated) return;
     let chatTimer: ReturnType<typeof setTimeout> | null = null;
@@ -3379,7 +3407,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (chatTimer) clearTimeout(chatTimer);
       chatTimer = setTimeout(() => refreshCloudChats(), 600);
     });
-    // Rare backup — chat Realtime + open thread poll stay primary
+    // Rare backup chat Realtime + open thread poll stay primary
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       refreshCloudChats();
@@ -3391,7 +3419,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [backendUserId, isAuthenticated, refreshCloudChats]);
 
-  // Sync Live/Away from server (never trust localStorage alone — Away must match is_online)
+  // Sync Live/Away from server (never trust localStorage alone Away must match is_online)
   useEffect(() => {
     if (accountType !== "professional" || !backendUserId) return;
     if (!isAppBackendOnline()) return;
@@ -3430,9 +3458,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (inflight || now - lastPush < LIVE_HEARTBEAT_MS - 5_000) return;
       lastPush = now;
       inflight = true;
-      void backendSetProOnline(backendUserId, true, { lat, lng }).finally(() => {
-        inflight = false;
-      });
+      void backendSetProOnline(backendUserId, true, { lat, lng }).finally(
+        () => {
+          inflight = false;
+        },
+      );
     };
 
     // One initial pin, then heartbeat interval (no watchPosition stream)
@@ -3440,7 +3470,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       navigator.geolocation.getCurrentPosition(
         (pos) => pushCoords(pos.coords.latitude, pos.coords.longitude),
         () => pushCoords(userLat, userLng),
-        { enableHighAccuracy: false, timeout: 6000, maximumAge: LIVE_HEARTBEAT_MS }
+        {
+          enableHighAccuracy: false,
+          timeout: 6000,
+          maximumAge: LIVE_HEARTBEAT_MS,
+        },
       );
     } else {
       pushCoords(userLat, userLng);
@@ -3455,7 +3489,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       navigator.geolocation.getCurrentPosition(
         (pos) => pushCoords(pos.coords.latitude, pos.coords.longitude),
         () => pushCoords(userLat, userLng),
-        { enableHighAccuracy: false, timeout: 6000, maximumAge: LIVE_HEARTBEAT_MS }
+        {
+          enableHighAccuracy: false,
+          timeout: 6000,
+          maximumAge: LIVE_HEARTBEAT_MS,
+        },
       );
     }, LIVE_HEARTBEAT_MS);
 
@@ -3501,10 +3539,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       return "We couldn’t get your location. Allow location access, then tap Retry.";
     },
-    []
+    [],
   );
 
-  /** Last reverse-geocode time — avoid Google Geocoding on every GPS tick */
+  /** Last reverse-geocode time avoid Google Geocoding on every GPS tick */
   const lastGeocodeAt = useRef(0);
   /** Last full address string from geocode (for throttle) */
   const lastFullAddressRef = useRef("");
@@ -3529,9 +3567,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return {
           label: isPlaceholder ? "Locating…" : prev.label,
           city:
-            isPlaceholder || prev.city === "Near you"
-              ? ""
-              : prev.city || "",
+            isPlaceholder || prev.city === "Near you" ? "" : prev.city || "",
           coordinates: { lat, lng },
         };
       });
@@ -3543,7 +3579,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const hasFull =
         lastFullAddressRef.current.includes(",") &&
         lastFullAddressRef.current.length > 12;
-      // 10 min throttle — reverse-geocode is the heaviest mobile data cost on boot
+      // 10 min throttle reverse-geocode is the heaviest mobile data cost on boot
       if (hasFull && now - lastGeocodeAt.current < 600_000) {
         try {
           localStorage.setItem(
@@ -3553,7 +3589,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               lng,
               label: lastFullAddressRef.current,
               city: "",
-            })
+            }),
           );
         } catch {
           /* */
@@ -3564,7 +3600,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       void import("@/lib/google-maps").then(({ reverseGeocodeLatLng }) =>
         reverseGeocodeLatLng(lat, lng).then((geo) => {
           if (!geo || manualPinRef.current) return;
-          // Immediate place name only — never raw coordinates
+          // Immediate place name only never raw coordinates
           const label = (geo.label || "").trim();
           if (!label || /^-?\d+\.\d+/.test(label)) return;
           const city = (geo.localityLine || geo.city || geo.area || "").trim();
@@ -3577,15 +3613,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
           try {
             localStorage.setItem(
               LAST_GPS_KEY,
-              JSON.stringify({ lat, lng, label, city })
+              JSON.stringify({ lat, lng, label, city }),
             );
           } catch {
             /* */
           }
-        })
+        }),
       );
     },
-    []
+    [],
   );
 
   const retryLocation = useCallback(() => {
@@ -3594,7 +3630,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLocationError(null);
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       setLocationError(
-        "Location is not available on this device. You can still set a place manually."
+        "Location is not available on this device. You can still set a place manually.",
       );
       setIsLocating(false);
       return;
@@ -3602,7 +3638,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     navigator.geolocation.getCurrentPosition(
       (pos) => applyGpsFix(pos, false),
       (err) => {
-        // Keep last-known / Ajegunle fallback — never invent a random Lagos pin
+        // Keep last-known / Ajegunle fallback never invent a random Lagos pin
         setLocationError(friendlyGeolocationError(err));
         setIsLocating(false);
       },
@@ -3610,18 +3646,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         enableHighAccuracy: true,
         timeout: GPS_RETRY_TIMEOUT_MS,
         maximumAge: 0, // force fresh fix
-      }
+      },
     );
   }, [applyGpsFix, friendlyGeolocationError]);
 
-  // GPS only after auth — login/signup must not burn GPS + reverse-geocode
+  // GPS only after auth login/signup must not burn GPS + reverse-geocode
   useEffect(() => {
     if (!isAuthenticated) return;
     if (typeof navigator === "undefined" || !navigator.geolocation) return;
     let cancelled = false;
     setIsLocating(true);
 
-    // Boot/refresh pull — low-accuracy, patient, and SILENT when the user
+    // Boot/refresh pull low-accuracy, patient, and SILENT when the user
     // already has a usable (cached) location. A 5s timeout + error-on-reload
     // was the "Location timed out / Retry" that appeared even though GPS was
     // fine and a cached fix already existed.
@@ -3642,7 +3678,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           enableHighAccuracy: false,
           timeout: GPS_BOOT_TIMEOUT_MS,
           maximumAge: 180_000,
-        }
+        },
       );
     };
 
@@ -3659,16 +3695,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       shouldSurfaceLocationError({
         silentRequest: true,
         hasUsableLocation,
-      })
+      }),
     );
-    const intervalId = window.setInterval(
-      () => {
-        if (document.hidden || manualPinRef.current) return;
-        // Background refresh — never surfaces errors (we already have a fix)
-        pull(false);
-      },
-      LOCATION_REFRESH_MS
-    );
+    const intervalId = window.setInterval(() => {
+      if (document.hidden || manualPinRef.current) return;
+      // Background refresh never surfaces errors (we already have a fix)
+      pull(false);
+    }, LOCATION_REFRESH_MS);
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
@@ -3677,7 +3710,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setManualLocation = useCallback(
     (label: string, coords?: { lat: number; lng: number }) => {
-      if (!coords || !Number.isFinite(coords.lat) || !Number.isFinite(coords.lng)) {
+      if (
+        !coords ||
+        !Number.isFinite(coords.lat) ||
+        !Number.isFinite(coords.lng)
+      ) {
         setLocationError("Pick a place on the map or allow GPS.");
         return;
       }
@@ -3696,13 +3733,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
             lng: coords.lng,
             label: label || "Pinned location",
             city: label || "Pinned",
-          })
+          }),
         );
       } catch {
         /* */
       }
     },
-    []
+    [],
   );
 
   const setRadiusKm = useCallback((n: number) => {
@@ -3868,7 +3905,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       updateRequestStatus,
       retryLocation,
       setManualLocation,
-    ]
+    ],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

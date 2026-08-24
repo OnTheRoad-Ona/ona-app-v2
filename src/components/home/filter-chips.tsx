@@ -22,7 +22,7 @@ const FILTER_HINT: Record<keyof AppFilters, string> = {
 };
 
 /**
- * Segmented filters — each chip filters map pins + list (see matching.ts).
+ * Segmented filters each chip filters map pins + list (see matching.ts).
  */
 export function FilterChips() {
   const { filters, toggleFilter, theme, visibleTechnicians } = useApp();
@@ -33,7 +33,7 @@ export function FilterChips() {
       <div
         className={cn(
           "flex w-full gap-px overflow-hidden rounded-md",
-          isLight ? "bg-[#c5ccd6]" : "bg-[#2a2a2a]"
+          isLight ? "bg-[#c5ccd6]" : "bg-[#2a2a2a]",
         )}
         role="group"
         aria-label="Filters"
@@ -55,7 +55,7 @@ export function FilterChips() {
                     : "bg-[#3d3d3d] text-white"
                   : isLight
                     ? "bg-transparent text-slate-800 hover:bg-white/50"
-                    : "bg-transparent text-[#d0d0d0] hover:bg-white/[0.06] hover:text-white"
+                    : "bg-transparent text-[#d0d0d0] hover:bg-white/[0.06] hover:text-white",
               )}
               aria-pressed={active}
               aria-label={`${label}. ${FILTER_HINT[key]}. ${visibleTechnicians.length} match.`}
@@ -70,7 +70,7 @@ export function FilterChips() {
                         : "fill-[#FF6B35] text-[#FF6B35]"
                       : isLight
                         ? "fill-[#FF6B35] text-[#FF6B35]"
-                        : "fill-[#FF6B35] text-[#FF6B35]"
+                        : "fill-[#FF6B35] text-[#FF6B35]",
                   )}
                   strokeWidth={2.25}
                 />
@@ -84,7 +84,7 @@ export function FilterChips() {
                     (isLight ? "text-emerald-800" : "text-emerald-300"),
                   key === "availableNow" &&
                     active &&
-                    (isLight ? "text-emerald-800" : "text-emerald-300")
+                    (isLight ? "text-emerald-800" : "text-emerald-300"),
                 )}
               >
                 {label}

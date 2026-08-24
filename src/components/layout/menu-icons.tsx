@@ -1,5 +1,5 @@
 /**
- * Side-menu icons — solid #FF6B35 shapes, no border (Dashboard style).
+ * Side-menu icons solid #FF6B35 shapes, no border (Dashboard style).
  * Uses inline style so no global CSS can force hollow outlines.
  */
 
@@ -70,8 +70,22 @@ export function MenuIcon({ name, className, ...rest }: Props) {
         <>
           <circle style={solidStyle} cx="17" cy="17" r="3.25" />
           <circle style={solidStyle} cx="7" cy="7" r="3.25" />
-          <rect style={solidStyle} x="4" y="15.5" width="8" height="3" rx="1.5" />
-          <rect style={solidStyle} x="12" y="5.5" width="8" height="3" rx="1.5" />
+          <rect
+            style={solidStyle}
+            x="4"
+            y="15.5"
+            width="8"
+            height="3"
+            rx="1.5"
+          />
+          <rect
+            style={solidStyle}
+            x="12"
+            y="5.5"
+            width="8"
+            height="3"
+            rx="1.5"
+          />
         </>
       )}
       {name === "jobs" && (
@@ -79,7 +93,14 @@ export function MenuIcon({ name, className, ...rest }: Props) {
           <rect style={solidStyle} x="3" y="4" width="6" height="6" rx="1" />
           <rect style={solidStyle} x="3" y="14" width="6" height="6" rx="1" />
           <rect style={solidStyle} x="12" y="5" width="9" height="3" rx="1.5" />
-          <rect style={solidStyle} x="12" y="15.5" width="9" height="3" rx="1.5" />
+          <rect
+            style={solidStyle}
+            x="12"
+            y="15.5"
+            width="9"
+            height="3"
+            rx="1.5"
+          />
         </>
       )}
       {name === "payments" && (

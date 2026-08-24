@@ -14,10 +14,14 @@ export const dynamic = "force-dynamic";
 /** Full person detail: profile + role tables + identity sync + history. */
 export async function GET(
   _req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     await requireAdmin();
@@ -27,7 +31,7 @@ export async function GET(
     const { data: profile, error } = await supabase
       .from("profiles")
       .select(
-        "id, role, full_name, phone, email, city, area, is_active, avatar_url, created_at, updated_at"
+        "id, role, full_name, phone, email, city, area, is_active, avatar_url, created_at, updated_at",
       )
       .eq("id", id)
       .maybeSingle();
@@ -37,7 +41,11 @@ export async function GET(
 
     const [motRes, proRes, jobs, bookings, payments, reviews, identity] =
       await Promise.all([
-        supabase.from("motorist_profiles").select("*").eq("user_id", id).maybeSingle(),
+        supabase
+          .from("motorist_profiles")
+          .select("*")
+          .eq("user_id", id)
+          .maybeSingle(),
         supabase
           .from("repair_pro_profiles")
           .select("*")
@@ -46,7 +54,7 @@ export async function GET(
         supabase
           .from("service_requests")
           .select(
-            "id, service_type, status, description, pickup_address, created_at, completed_at, motorist_id, repair_pro_id"
+            "id, service_type, status, description, pickup_address, created_at, completed_at, motorist_id, repair_pro_id",
           )
           .or(`motorist_id.eq.${id},repair_pro_id.eq.${id}`)
           .order("created_at", { ascending: false })
@@ -60,7 +68,7 @@ export async function GET(
         supabase
           .from("payments")
           .select(
-            "id, amount_kobo, status, currency, provider, created_at, paid_at, motorist_id, repair_pro_id"
+            "id, amount_kobo, status, currency, provider, created_at, paid_at, motorist_id, repair_pro_id",
           )
           .or(`motorist_id.eq.${id},repair_pro_id.eq.${id}`)
           .order("created_at", { ascending: false })

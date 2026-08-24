@@ -4,13 +4,13 @@
  * Single shared Google Maps JS loader for the whole app.
  *
  * @react-google-maps/api throws:
- *   "Loader must not be called again with different options"
+ * "Loader must not be called again with different options"
  * if any component passes a different apiKey / id / libraries / version
  * under the same loader id. That crash showed up when a pro declined/later
  * and the customer hit the searching map after home had loaded with
  * googleMapsApiKey: "disabled".
  *
- * Rule: every map surface must call useOnaGoogleMaps() — never invent local options.
+ * Rule: every map surface must call useOnaGoogleMaps() never invent local options.
  */
 
 import { useJsApiLoader } from "@react-google-maps/api";
@@ -22,14 +22,14 @@ import {
   shouldUseLiveMaps,
 } from "@/lib/google-maps";
 
-/** Frozen options object — property values must never diverge between callers. */
+/** Frozen options object property values must never diverge between callers. */
 export function getOnaGoogleMapsLoaderOptions(): {
   id: string;
   googleMapsApiKey: string;
   libraries: typeof GOOGLE_MAPS_LIBRARIES;
   version: typeof GOOGLE_MAPS_LOADER_VERSION;
 } {
-  // Always the same key string for a given env. Do NOT use "disabled" here —
+  // Always the same key string for a given env. Do NOT use "disabled" here
   // that was the permanent crash (loader options change between mounts).
   const key = getGoogleMapsApiKey();
   return {

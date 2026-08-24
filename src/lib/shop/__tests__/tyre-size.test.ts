@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseTyreSize, expandSynonyms, isTyreSizeQuery } from "@/lib/shop/tyre-size";
+import {
+  parseTyreSize,
+  expandSynonyms,
+  isTyreSizeQuery,
+} from "@/lib/shop/tyre-size";
 
 describe("parseTyreSize", () => {
   it("parses the canonical slash form", () => {

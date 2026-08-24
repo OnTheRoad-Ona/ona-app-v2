@@ -63,7 +63,12 @@ describe("escrow-store (memory fallback)", () => {
 });
 
 describe("preferPaymentRow (one row per request)", () => {
-  function make(id: string, requestId: string, escrowStatus: string, createdAt = "2026-08-01T00:00:00.000Z"): EscrowPayment {
+  function make(
+    id: string,
+    requestId: string,
+    escrowStatus: string,
+    createdAt = "2026-08-01T00:00:00.000Z",
+  ): EscrowPayment {
     return {
       id,
       requestId,

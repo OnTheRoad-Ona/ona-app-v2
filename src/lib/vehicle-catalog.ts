@@ -1,5 +1,5 @@
 /**
- * Customer vehicle catalog — Make → Model → Year (offline JSON).
+ * Customer vehicle catalog Make → Model → Year (offline JSON).
  * Source: scripts/download-vehicle-catalog.mjs (NHTSA vPIC + global seeds).
  */
 
@@ -34,7 +34,7 @@ export function resolveMakeKey(make: string): string | null {
 export function getAllMakes(): string[] {
   // Prefer makes that have models so cascade never dead-ends
   const withModels = catalog.makes.filter(
-    (m) => (catalog.modelsByMake[m] || []).length > 0
+    (m) => (catalog.modelsByMake[m] || []).length > 0,
   );
   return withModels.length ? withModels : catalog.makes;
 }
@@ -82,7 +82,7 @@ function defaultYearList(): number[] {
 export function filterOptions(
   options: string[],
   query: string,
-  limit = 80
+  limit = 80,
 ): string[] {
   const q = norm(query);
   if (!q) return options.slice(0, limit);

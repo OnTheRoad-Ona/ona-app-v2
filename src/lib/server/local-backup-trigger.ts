@@ -24,9 +24,7 @@ function corePath() {
   return resolve(process.cwd(), "Local BackUp/scripts/backup-core.mjs");
 }
 
-export async function runLocalBackup(
-  reason = "manual"
-): Promise<BackupResult> {
+export async function runLocalBackup(reason = "manual"): Promise<BackupResult> {
   // Serialize concurrent backups
   if (inflight) {
     try {
@@ -67,7 +65,7 @@ export async function runLocalBackup(
  * Debounced so rapid updates don't thrash disk.
  */
 export function triggerBackupAfterPaymentChange(
-  reason = "payment_status_change"
+  reason = "payment_status_change",
 ): void {
   const now = Date.now();
   if (now - lastPaymentBackupAt < PAYMENT_DEBOUNCE_MS) return;
@@ -82,7 +80,7 @@ export function triggerBackupAfterPaymentChange(
 /** Statuses that justify an immediate money snapshot */
 export function isMoneyEscrowStatus(
   status?: string | null,
-  escrowStatus?: string | null
+  escrowStatus?: string | null,
 ): boolean {
   const s = `${status || ""} ${escrowStatus || ""}`.toLowerCase();
   return /held|released|refund|fail|paid|pending/.test(s);

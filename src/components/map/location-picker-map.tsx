@@ -37,7 +37,7 @@ const OsmLocationPicker = dynamic(
         Loading live map…
       </div>
     ),
-  }
+  },
 );
 
 export type PickedLocation = {
@@ -56,8 +56,6 @@ type Props = {
   compact?: boolean;
 };
 
-
-
 type GoogleSuggestion = {
   id: string;
   primary: string;
@@ -68,7 +66,7 @@ type GoogleSuggestion = {
 function parseGeocodeResult(
   result: google.maps.GeocoderResult,
   lat: number,
-  lng: number
+  lng: number,
 ): PickedLocation {
   const comps = result.address_components ?? [];
   const get = (type: string) =>
@@ -88,12 +86,10 @@ function parseGeocodeResult(
     "Nigeria";
   const label =
     cleanAddressLabel(
-      result.formatted_address ||
-        [area, city].filter(Boolean).join(", ")
-    ) ||
-    `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      result.formatted_address || [area, city].filter(Boolean).join(", "),
+    ) || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 
-  // Real street address only — curated POIs are search suggestions, not snaps
+  // Real street address only curated POIs are search suggestions, not snaps
   return { lat, lng, label, city, area: area || city };
 }
 
@@ -112,7 +108,7 @@ export function LocationPickerMap({
   const mapTheme = mapThemeForApp(isLight);
   const mapH = compact ? "h-36" : "h-52";
   const live = shouldUseLiveMaps();
-  // Shared loader — never pass a different apiKey than other maps.
+  // Shared loader never pass a different apiKey than other maps.
   const { isLoaded, loadError } = useOnaGoogleMaps();
 
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -135,9 +131,8 @@ export function LocationPickerMap({
   const [openSuggest, setOpenSuggest] = useState(false);
   const [knownHits, setKnownHits] = useState<KnownPlace[]>([]);
   const [googleHits, setGoogleHits] = useState<GoogleSuggestion[]>([]);
-  const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(
-    null
-  );
+  const sessionTokenRef =
+    useRef<google.maps.places.AutocompleteSessionToken | null>(null);
   const debounceRef = useRef<number | null>(null);
 
   const applyPick = useCallback(
@@ -151,7 +146,7 @@ export function LocationPickerMap({
       setOpenSuggest(false);
       setStatus(null);
     },
-    [onChange]
+    [onChange],
   );
 
   const applyKnown = useCallback(
@@ -159,14 +154,14 @@ export function LocationPickerMap({
       applyPick(knownPlaceToPick(place), 17);
       setStatus(`${place.name} · pinned`);
     },
-    [applyPick]
+    [applyPick],
   );
 
   const reverseGeocode = useCallback(
     async (lat: number, lng: number) => {
       setBusy(true);
       try {
-        // Always real reverse-geocode for pins / GPS — never snap to curated POI
+        // Always real reverse-geocode for pins / GPS never snap to curated POI
         const rest = await reverseGeocodeLatLng(lat, lng);
         if (rest) {
           applyPick({
@@ -210,7 +205,7 @@ export function LocationPickerMap({
         setBusy(false);
       }
     },
-    [applyPick, onChange]
+    [applyPick, onChange],
   );
 
   const placePin = useCallback(
@@ -220,7 +215,7 @@ export function LocationPickerMap({
       mapRef.current?.panTo({ lat, lng });
       if (geocode) void reverseGeocode(lat, lng);
     },
-    [reverseGeocode]
+    [reverseGeocode],
   );
 
   const goToMyLocation = useCallback(() => {
@@ -241,7 +236,7 @@ export function LocationPickerMap({
         setStatus("We could not get live location. Move the pin or search.");
         setBusy(false);
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5_000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5_000 },
     );
   }, [placePin]);
 
@@ -279,18 +274,17 @@ export function LocationPickerMap({
                   p.description.split(",")[0] ||
                   p.description,
                 secondary:
-                  p.structured_formatting?.secondary_text ||
-                  p.description,
+                  p.structured_formatting?.secondary_text || p.description,
                 placeId: p.place_id,
-              }))
+              })),
             );
-          }
+          },
         );
       } catch {
         setGoogleHits([]);
       }
     },
-    [isLoaded, live]
+    [isLoaded, live],
   );
 
   const onQueryChange = (text: string) => {
@@ -338,9 +332,7 @@ export function LocationPickerMap({
     }
 
     // If Google row is really our address, prefer curated name
-    const knownFromText = resolveKnownPlace(
-      `${s.primary} ${s.secondary}`
-    );
+    const knownFromText = resolveKnownPlace(`${s.primary} ${s.secondary}`);
     if (knownFromText) {
       applyKnown(knownFromText);
       sessionTokenRef.current = null;
@@ -379,7 +371,7 @@ export function LocationPickerMap({
         } else {
           void reverseGeocode(lat, lng);
         }
-      }
+      },
     );
   };
 
@@ -457,7 +449,7 @@ export function LocationPickerMap({
         className={cn(
           "flex items-center justify-center rounded-md text-[12px] font-medium text-[#a8c9b5]",
           mapH,
-          className
+          className,
         )}
         style={{ backgroundColor: mapTheme.backgroundColor }}
       >
@@ -564,7 +556,7 @@ export function LocationPickerMap({
       <div
         className={cn(
           "relative overflow-hidden rounded-md border border-black/30 shadow-[inset_0_1px_2px_rgba(0,0,0,0.25)]",
-          mapH
+          mapH,
         )}
         data-map-surface
         data-map-engine="google"
@@ -631,9 +623,7 @@ export function LocationPickerMap({
 
       {(status || value?.label || query) && (
         <p className="text-[11px] leading-snug text-[#475569]">
-          {busy
-            ? "Updating address…"
-            : status || value?.label || query}
+          {busy ? "Updating address…" : status || value?.label || query}
         </p>
       )}
     </div>

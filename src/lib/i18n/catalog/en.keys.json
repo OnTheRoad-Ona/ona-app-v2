@@ -302,6 +302,6 @@
   "shop.popular": "Popular",
   "shop.newArrivals": "New arrivals",
   "shop.empty": "No products yet. Catalog is loading.",
-  "shop.setupRequired": "Shop is almost ready — catalog database will appear after setup.",
+  "shop.setupRequired": "Shop is almost ready catalog database will appear after setup.",
   "nav.myShop": "My Shop"
 }

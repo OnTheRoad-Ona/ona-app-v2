@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { useAdminGate } from "@/components/admin/use-admin-gate";
+import { DetailDrawer } from "@/components/admin/admin-ui";
+import { getTradeAttributeSchema } from "@/lib/shop/trade-attributes";
 import { AdminGuideBanner } from "@/components/admin/admin-guide-banner";
 
 type ShopOrderRow = {
@@ -36,6 +38,10 @@ type CatalogProduct = {
   primary_image_url: string | null;
   created_at: string;
   updated_at: string;
+  stock_qty?: number;
+  availability?: string;
+  listing_override?: string | null;
+  attributes?: Record<string, unknown> | null;
 };
 
 type CategoryRow = {
@@ -58,6 +64,19 @@ const DELIVERY_STATUSES = [
 
 type Tab = "catalog" | "orders";
 
+/** Stock availability bucket for the admin drawer (pure). */
+function availabilityFor(qty: number): {
+  label: string;
+  color: string;
+  bg: string;
+} {
+  if (qty <= 0)
+    return { label: "Out of Stock", color: "#b91c1c", bg: "#fee2e2" };
+  if (qty <= 4)
+    return { label: "Low Stock", color: "#92400e", bg: "#fef3c7" };
+  return { label: "In Stock", color: "#166534", bg: "#dcfce7" };
+}
+
 export default function AdminShopPage() {
   const { adminName, ready, api } = useAdminGate();
   const [tab, setTab] = useState<Tab>("catalog");
@@ -69,6 +88,26 @@ export default function AdminShopPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  // Courier provider registry, managed list, no more free-text guessing
+  const [couriers, setCouriers] = useState<
+    { id: string; name: string; phone?: string; active: boolean }[]
+  >([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/shop/couriers");
+        const json = await res.json();
+        if (!cancelled && json?.ok) setCouriers(json.data.providers || []);
+      } catch {
+        /* registry optional */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [draft, setDraft] = useState<
     Record<
       string,
@@ -114,6 +153,7 @@ export default function AdminShopPage() {
   const [priceMajorEdit, setPriceMajorEdit] = useState("");
   const [stockEdit, setStockEdit] = useState("");
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
+  const [catalogListing, setCatalogListing] = useState("");
 
   const loadOrders = useCallback(async () => {
     setOrdersLoading(true);
@@ -152,6 +192,7 @@ export default function AdminShopPage() {
     const params = new URLSearchParams({ limit: "100" });
     if (catalogQ.trim()) params.set("q", catalogQ.trim());
     if (catalogTrade) params.set("trade", catalogTrade);
+    if (catalogListing) params.set("listing", catalogListing);
     const res = await api<{
       products: CatalogProduct[];
       categories: CategoryRow[];
@@ -183,7 +224,7 @@ export default function AdminShopPage() {
 
   const categoriesForTrade = useMemo(() => {
     return categories.filter(
-      (c) => !form.tradeKey || c.trade_key === form.tradeKey
+      (c) => !form.tradeKey || c.trade_key === form.tradeKey,
     );
   }, [categories, form.tradeKey]);
 
@@ -217,7 +258,7 @@ export default function AdminShopPage() {
   const runOrderAction = async (
     orderId: string,
     status: string,
-    action: "cancel" | "refund"
+    action: "cancel" | "refund",
   ) => {
     setBusyId(`action-${orderId}`);
     setMessage(null);
@@ -240,23 +281,26 @@ export default function AdminShopPage() {
     setCreateBusy(true);
     setError(null);
     setMessage(null);
-    const res = await api<{ product: CatalogProduct }>("/api/admin/shop/products", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: form.name,
-        subtitle: form.subtitle || null,
-        description: form.description || null,
-        tradeKey: form.tradeKey,
-        categoryId: form.categoryId,
-        sku: form.sku,
-        oemNumber: form.oemNumber || null,
-        priceMajor: Number(form.priceMajor),
-        stockQty: Number(form.stockQty || 0),
-        status: form.status,
-        conditionType: form.conditionType || null,
-      }),
-    });
+    const res = await api<{ product: CatalogProduct }>(
+      "/api/admin/shop/products",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          subtitle: form.subtitle || null,
+          description: form.description || null,
+          tradeKey: form.tradeKey,
+          categoryId: form.categoryId,
+          sku: form.sku,
+          oemNumber: form.oemNumber || null,
+          priceMajor: Number(form.priceMajor),
+          stockQty: Number(form.stockQty || 0),
+          status: form.status,
+          conditionType: form.conditionType || null,
+        }),
+      },
+    );
     setCreateBusy(false);
     if (!res.ok) {
       setError(res.message);
@@ -296,9 +340,7 @@ export default function AdminShopPage() {
     setEditDetail(res.data);
     const price = res.data.prices?.[0];
     const inv = res.data.inventory?.[0];
-    setPriceMajorEdit(
-      price ? String(Number(price.amount_minor) / 100) : ""
-    );
+    setPriceMajorEdit(price ? String(Number(price.amount_minor) / 100) : "");
     setStockEdit(inv ? String(inv.qty_on_hand ?? 0) : "0");
     setImageDataUrl(null);
   };
@@ -319,6 +361,8 @@ export default function AdminShopPage() {
         conditionType: p.condition_type,
         tradeKey: p.trade_key,
         categoryId: p.category_id,
+        listingOverride: p.listing_override ?? null,
+        attributes: p.attributes ?? {},
       }),
     });
     setBusyId(null);
@@ -372,6 +416,27 @@ export default function AdminShopPage() {
     await openEdit(editId);
   };
 
+  /** One Save saves every section: details, availability, attributes, price, stock */
+  const saveAll = async () => {
+    if (!editId) return;
+    setBusyId(editId);
+    setError(null);
+    const results = await Promise.allSettled([
+      saveProductMeta(),
+      savePrice(),
+      saveStock(),
+    ]);
+    const failed = results.find((r) => r.status === "rejected");
+    if (failed) {
+      setError(
+        failed.reason instanceof Error ? failed.reason.message : "Save failed",
+      );
+    } else {
+      setMessage("Product saved");
+      await openEdit(editId);
+    }
+  };
+
   const uploadImage = async () => {
     if (!editId || !imageDataUrl) return;
     setBusyId(`img-${editId}`);
@@ -414,7 +479,7 @@ export default function AdminShopPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">ONA Shop control</h1>
       <p className="om-admin-sub">
-        Manage catalog, prices, stock & images in one place — then track retail
+        Manage catalog, prices, stock & images in one place then track retail
         orders. Ona is the only seller (not job escrow).
       </p>
       <AdminGuideBanner pageId="shop" />
@@ -530,6 +595,18 @@ export default function AdminShopPage() {
                   {t}
                 </option>
               ))}
+            </select>
+            <select
+              className="om-admin-input"
+              value={catalogListing}
+              onChange={(e) => setCatalogListing(e.target.value)}
+            >
+              <option value="">All availability</option>
+              <option value="available">Available</option>
+              <option value="low_stock">Low Stock</option>
+              <option value="out_of_stock">Out of Stock</option>
+              <option value="pre_order">Pre-order</option>
+              <option value="coming_soon">Coming Soon</option>
             </select>
             <button
               type="button"
@@ -691,16 +768,24 @@ export default function AdminShopPage() {
               <table className="om-admin-table">
                 <thead>
                   <tr>
+                    <th>#</th>
                     <th>Product</th>
                     <th>Trade</th>
+                    <th>Stock</th>
+                    <th>Availability</th>
                     <th>Status</th>
                     <th>Image</th>
                     <th />
                   </tr>
                 </thead>
                 <tbody>
-                  {products.map((p) => (
-                    <tr key={p.id}>
+                  {products.map((p, idx) => (
+                    <tr
+                      key={p.id}
+                      style={{ cursor: "pointer" }}
+                      onClick={() => void openEdit(p.id)}
+                    >
+                      <td className="om-admin-muted">{idx + 1}</td>
                       <td>
                         <strong>{p.name}</strong>
                         <div className="om-admin-muted">{p.slug}</div>
@@ -710,12 +795,44 @@ export default function AdminShopPage() {
                       </td>
                       <td>{p.trade_key}</td>
                       <td>
+                        <strong>{Number(p.stock_qty ?? 0)}</strong>
+                      </td>
+                      <td>
+                        {(() => {
+                          const av = String(p.availability ?? "available");
+                          const map: Record<string, { c: string; b: string }> = {
+                            available: { c: "#166534", b: "#dcfce7" },
+                            low_stock: { c: "#92400e", b: "#fef3c7" },
+                            out_of_stock: { c: "#b91c1c", b: "#fee2e2" },
+                            pre_order: { c: "#1d4ed8", b: "#dbeafe" },
+                            coming_soon: { c: "#5b21b6", b: "#ede9fe" },
+                          };
+                          const v = map[av] || map.available;
+                          return (
+                            <span
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                color: v.c,
+                                background: v.b,
+                                borderRadius: 999,
+                                padding: "2px 10px",
+                              }}
+                            >
+                              {av.replace(/_/g, " ")}
+                            </span>
+                          );
+                        })()}
+                      </td>
+                      <td>
                         <span className="om-admin-badge">{p.status}</span>
                       </td>
                       <td>
                         {p.primary_image_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img loading="lazy" decoding="async"
+                          <img
+                            loading="lazy"
+                            decoding="async"
                             src={p.primary_image_url}
                             alt=""
                             width={40}
@@ -726,7 +843,7 @@ export default function AdminShopPage() {
                             }}
                           />
                         ) : (
-                          "—"
+                          ""
                         )}
                       </td>
                       <td>
@@ -746,27 +863,569 @@ export default function AdminShopPage() {
           )}
 
           {editId && editDetail ? (
-            <div className="om-admin-panel" style={{ marginTop: 16 }}>
+            <DetailDrawer
+              open
+              title="Edit product"
+              subtitle="Full control: details, price, stock, image"
+              width={480}
+              onClose={() => {
+                setEditId(null);
+                setEditDetail(null);
+              }}
+              headerAction={
+                <button
+                  type="button"
+                  style={{
+                    background: "#323231",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "0.45rem 0.9rem",
+                    fontWeight: 700,
+                    fontSize: "0.8rem",
+                    cursor: busyId === editId ? "wait" : "pointer",
+                    fontFamily: "inherit",
+                  }}
+                  disabled={busyId === editId}
+                  onClick={() => void saveAll()}
+                >
+                  {busyId === editId ? "Saving…" : "Save"}
+                </button>
+              }
+            >
+            <div>
+              {/* Availability + tips */}
               <div
                 style={{
                   display: "flex",
-                  justifyContent: "space-between",
                   alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  marginBottom: 12,
                 }}
               >
-                <h2 style={{ margin: 0 }}>Edit product</h2>
+                {(() => {
+                  const a = availabilityFor(Number(stockEdit) || 0);
+                  return (
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: a.color,
+                        background: a.bg,
+                        borderRadius: 999,
+                        padding: "4px 12px",
+                      }}
+                    >
+                      {a.label}
+                    </span>
+                  );
+                })()}
+                <span className="om-admin-muted" style={{ fontSize: 11 }}>
+                  Changes go live immediately after each save
+                </span>
+              </div>
+
+              {/* ── Availability (backend-controlled storefront state) ── */}
+              <div
+                style={{
+                  border: "1px solid var(--om-border, #e2e3e7)",
+                  borderRadius: 10,
+                  padding: 12,
+                  marginBottom: 12,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    color: "var(--om-text-muted, #64748b)",
+                    marginBottom: 8,
+                  }}
+                >
+                  Availability
+                </div>
+                <select
+                  className="om-admin-input"
+                  value={String(
+                    editDetail.product.listing_override ?? "auto",
+                  )}
+                  onChange={(e) =>
+                    setEditDetail((d) =>
+                      d
+                        ? {
+                            ...d,
+                            product: {
+                              ...d.product,
+                              listing_override:
+                                e.target.value === "auto"
+                                  ? null
+                                  : e.target.value,
+                            },
+                          }
+                        : d,
+                    )
+                  }
+                >
+                  <option value="auto">Auto, from stock count</option>
+                  <option value="available">Available</option>
+                  <option value="low_stock">Low Stock</option>
+                  <option value="out_of_stock">Out of Stock</option>
+                  <option value="pre_order">Pre-order</option>
+                  <option value="coming_soon">Coming Soon</option>
+                </select>
+                <p className="om-admin-muted" style={{ fontSize: 11, marginTop: 6 }}>
+                  Auto derives from the stock number. A forced state overrides
+                  stock on the storefront instantly after save.
+                </p>
+              </div>
+
+              {/* ── Details ── */}
+              <div
+                style={{
+                  border: "1px solid var(--om-border, #e2e3e7)",
+                  borderRadius: 10,
+                  padding: 12,
+                  marginBottom: 12,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    color: "var(--om-text-muted, #64748b)",
+                    marginBottom: 8,
+                  }}
+                >
+                  Details
+                </div>
+                <div style={{ display: "grid", gap: 8 }}>
+                  <input
+                    className="om-admin-input"
+                    value={String(editDetail.product.name || "")}
+                    onChange={(e) =>
+                      setEditDetail((d) =>
+                        d
+                          ? { ...d, product: { ...d.product, name: e.target.value } }
+                          : d,
+                      )
+                    }
+                    placeholder="Product name"
+                  />
+                  <input
+                    className="om-admin-input"
+                    value={String(editDetail.product.subtitle || "")}
+                    onChange={(e) =>
+                      setEditDetail((d) =>
+                        d
+                          ? {
+                              ...d,
+                              product: { ...d.product, subtitle: e.target.value },
+                            }
+                          : d,
+                      )
+                    }
+                    placeholder="Short subtitle"
+                  />
+                  <textarea
+                    className="om-admin-input"
+                    value={String(editDetail.product.description || "")}
+                    onChange={(e) =>
+                      setEditDetail((d) =>
+                        d
+                          ? {
+                              ...d,
+                              product: {
+                                ...d.product,
+                                description: e.target.value,
+                              },
+                            }
+                          : d,
+                      )
+                    }
+                    placeholder="Description"
+                    style={{ minHeight: 72 }}
+                  />
+                  <select
+                    className="om-admin-input"
+                    value={String(editDetail.product.status || "active")}
+                    onChange={(e) =>
+                      setEditDetail((d) =>
+                        d
+                          ? { ...d, product: { ...d.product, status: e.target.value } }
+                          : d,
+                      )
+                    }
+                  >
+                    <option value="active">Active, visible in shop</option>
+                    <option value="draft">Draft, hidden</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* ── Attribute profiling (per-trade schema) ── */}
+              {(() => {
+                const tradeKey = String(editDetail.product.trade_key || "");
+                const schema = getTradeAttributeSchema(tradeKey);
+                if (!schema || !schema.attributes.length) return null;
+                const current = (editDetail.product.attributes || {}) as Record<
+                  string,
+                  unknown
+                >;
+                const setAttr = (key: string, value: unknown) => {
+                  setEditDetail((d) =>
+                    d
+                      ? {
+                          ...d,
+                          product: {
+                            ...d.product,
+                            attributes: { ...(d.product.attributes || {}), [key]: value },
+                          },
+                        }
+                      : d,
+                  );
+                };
+                return (
+                  <div
+                    style={{
+                      border: "1px solid var(--om-border, #e2e3e7)",
+                      borderRadius: 10,
+                      padding: 12,
+                      marginBottom: 12,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        color: "var(--om-text-muted, #64748b)",
+                        marginBottom: 8,
+                      }}
+                    >
+                      Attributes, {tradeKey}
+                    </div>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "10px 10px",
+                      }}
+                    >
+                      {schema.attributes.map((a) => {
+                        const val = current[a.key];
+                        const wide =
+                          a.type === "enum" && (a.options?.length ?? 0) > 6;
+                        return (
+                          <label
+                            key={a.key}
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 4,
+                              gridColumn: wide ? "1 / -1" : "auto",
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: 10.5,
+                                fontWeight: 700,
+                                textTransform: "uppercase",
+                                letterSpacing: "0.04em",
+                                color: "var(--om-text-muted, #64748b)",
+                              }}
+                            >
+                              {a.label}
+                              {a.required ? " *" : ""}
+                              {a.unit ? ` · ${a.unit}` : ""}
+                            </span>
+                            {a.type === "enum" && a.options ? (
+                              <select
+                                className="om-admin-input"
+                                value={String(val ?? "")}
+                                onChange={(e) => setAttr(a.key, e.target.value)}
+                              >
+                                <option value=""> </option>
+                                {a.options.map((o) => (
+                                  <option key={o} value={o}>
+                                    {o}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : a.type === "boolean" ? (
+                              <input
+                                type="checkbox"
+                                checked={Boolean(val)}
+                                onChange={(e) => setAttr(a.key, e.target.checked)}
+                                style={{ width: 16, height: 16 }}
+                              />
+                            ) : (
+                              <input
+                                className="om-admin-input"
+                                type={a.type === "number" ? "number" : "text"}
+                                value={val === undefined || val === null ? "" : String(val)}
+                                onChange={(e) =>
+                                  setAttr(
+                                    a.key,
+                                    a.type === "number"
+                                      ? e.target.value === ""
+                                        ? ""
+                                        : Number(e.target.value)
+                                      : e.target.value,
+                                  )
+                                }
+                              />
+                            )}
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <p className="om-admin-muted" style={{ fontSize: 11, marginTop: 6 }}>
+                      Saved with &quot;Save details&quot;, these power the filters and
+                      details shown on the storefront product.
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* ── Pricing ── */}
+              <div
+                style={{
+                  border: "1px solid var(--om-border, #e2e3e7)",
+                  borderRadius: 10,
+                  padding: 12,
+                  marginBottom: 12,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    color: "var(--om-text-muted, #64748b)",
+                    marginBottom: 8,
+                  }}
+                >
+                  Price
+                </div>
                 <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    className="om-admin-input"
+                    value={priceMajorEdit}
+                    onChange={(e) => setPriceMajorEdit(e.target.value)}
+                    placeholder="e.g. 28500"
+                    style={{ flex: 1 }}
+                  />
+                </div>
+              </div>
+
+              {/* ── Stock & availability ── */}
+              <div
+                style={{
+                  border: "1px solid var(--om-border, #e2e3e7)",
+                  borderRadius: 10,
+                  padding: 12,
+                  marginBottom: 12,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 8,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                      color: "var(--om-text-muted, #64748b)",
+                    }}
+                  >
+                    Stock
+                  </div>
+                  {(() => {
+                    const a = availabilityFor(Number(stockEdit) || 0);
+                    return (
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: a.color,
+                          background: a.bg,
+                          borderRadius: 999,
+                          padding: "2px 10px",
+                        }}
+                      >
+                        {a.label}
+                      </span>
+                    );
+                  })()}
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    className="om-admin-input"
+                    value={stockEdit}
+                    onChange={(e) => setStockEdit(e.target.value)}
+                    placeholder="Quantity on hand"
+                    style={{ flex: 1 }}
+                  />
+                </div>
+              </div>
+
+              {/* ── Image ── */}
+              <div
+                style={{
+                  border: "1px solid var(--om-border, #e2e3e7)",
+                  borderRadius: 10,
+                  padding: 12,
+                  marginBottom: 12,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    color: "var(--om-text-muted, #64748b)",
+                    marginBottom: 8,
+                  }}
+                >
+                  Image
+                </div>
+                {editDetail.product.primary_image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={String(editDetail.product.primary_image_url)}
+                    alt=""
+                    style={{
+                      width: "100%",
+                      height: 140,
+                      objectFit: "cover",
+                      borderRadius: 8,
+                      marginBottom: 8,
+                    }}
+                  />
+                ) : (
+                  <p className="om-admin-muted" style={{ marginTop: 0 }}>
+                    No image yet
+                  </p>
+                )}
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={(e) => onFile(e.target.files?.[0] || null)}
+                    style={{ fontSize: 12, flex: 1 }}
+                  />
                   <button
                     type="button"
-                    className="om-admin-btn"
+                    style={{
+                      background: "#323231",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: 8,
+                      padding: "0.55rem 0.9rem",
+                      fontWeight: 700,
+                      fontSize: "0.82rem",
+                      cursor:
+                        !imageDataUrl || busyId === `img-${editId}`
+                          ? "wait"
+                          : "pointer",
+                      fontFamily: "inherit",
+                      whiteSpace: "nowrap",
+                    }}
+                    disabled={!imageDataUrl || busyId === `img-${editId}`}
+                    onClick={() => void uploadImage()}
+                  >
+                    {busyId === `img-${editId}` ? "…" : "Upload"}
+                  </button>
+                </div>
+                {editDetail.images?.length ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      marginTop: 10,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    {editDetail.images.map((img) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        loading="lazy"
+                        decoding="async"
+                        key={String(img.id)}
+                        src={String(img.url)}
+                        alt=""
+                        width={56}
+                        height={56}
+                        style={{ objectFit: "cover", borderRadius: 6 }}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+
+              {/* ── Danger zone ── */}
+              <div
+                style={{
+                  border: "1px solid #fecaca",
+                  borderRadius: 10,
+                  padding: 12,
+                  background: "#fef2f2",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    color: "#b91c1c",
+                    marginBottom: 8,
+                  }}
+                >
+                  Danger zone
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    style={{
+                      background: "#fff",
+                      color: "#92400e",
+                      border: "1px solid #fcd34d",
+                      borderRadius: 8,
+                      padding: "0.5rem 0.9rem",
+                      fontWeight: 700,
+                      fontSize: "0.8rem",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
                     onClick={async () => {
                       if (!editId) return;
-                      if (!window.confirm("Archive this product? Customers will no longer see it.")) {
+                      if (
+                        !window.confirm(
+                          "Archive this product? Customers will no longer see it.",
+                        )
+                      ) {
                         return;
                       }
-                      const res = await api(`/api/admin/shop/products/${editId}`, {
-                        method: "DELETE",
-                      });
+                      const res = await api(
+                        `/api/admin/shop/products/${editId}`,
+                        { method: "DELETE" },
+                      );
                       if (!res.ok) {
                         setError(res.message);
                         return;
@@ -781,192 +1440,45 @@ export default function AdminShopPage() {
                   </button>
                   <button
                     type="button"
-                    className="om-admin-btn"
-                    onClick={() => {
+                    style={{
+                      background: "#fff",
+                      color: "#b91c1c",
+                      border: "1px solid #fca5a5",
+                      borderRadius: 8,
+                      padding: "0.5rem 0.9rem",
+                      fontWeight: 700,
+                      fontSize: "0.8rem",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                    onClick={async () => {
+                      if (!editId) return;
+                      const first = window.confirm(
+                        "Permanently DELETE this product, its prices, stock and images? This cannot be undone.",
+                      );
+                      if (!first) return;
+                      const typed = window.prompt('Type "DELETE" to confirm');
+                      if (typed !== "DELETE") return;
+                      const res = await api(
+                        `/api/admin/shop/products/${editId}?hard=1`,
+                        { method: "DELETE" },
+                      );
+                      if (!res.ok) {
+                        setError(res.message);
+                        return;
+                      }
+                      setMessage("Product permanently deleted");
                       setEditId(null);
                       setEditDetail(null);
+                      await loadCatalog();
                     }}
                   >
-                    Close
+                    Delete permanently
                   </button>
                 </div>
               </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 8,
-                  marginTop: 10,
-                }}
-              >
-                <input
-                  className="om-admin-input"
-                  value={String(editDetail.product.name || "")}
-                  onChange={(e) =>
-                    setEditDetail((d) =>
-                      d
-                        ? {
-                            ...d,
-                            product: { ...d.product, name: e.target.value },
-                          }
-                        : d
-                    )
-                  }
-                />
-                <input
-                  className="om-admin-input"
-                  value={String(editDetail.product.subtitle || "")}
-                  onChange={(e) =>
-                    setEditDetail((d) =>
-                      d
-                        ? {
-                            ...d,
-                            product: {
-                              ...d.product,
-                              subtitle: e.target.value,
-                            },
-                          }
-                        : d
-                    )
-                  }
-                  placeholder="Subtitle"
-                />
-                <select
-                  className="om-admin-input"
-                  value={String(editDetail.product.status || "active")}
-                  onChange={(e) =>
-                    setEditDetail((d) =>
-                      d
-                        ? {
-                            ...d,
-                            product: { ...d.product, status: e.target.value },
-                          }
-                        : d
-                    )
-                  }
-                >
-                  <option value="active">active</option>
-                  <option value="draft">draft</option>
-                  <option value="archived">archived</option>
-                </select>
-                <textarea
-                  className="om-admin-input"
-                  value={String(editDetail.product.description || "")}
-                  onChange={(e) =>
-                    setEditDetail((d) =>
-                      d
-                        ? {
-                            ...d,
-                            product: {
-                              ...d.product,
-                              description: e.target.value,
-                            },
-                          }
-                        : d
-                    )
-                  }
-                  placeholder="Description"
-                  style={{ gridColumn: "1 / -1", minHeight: 64 }}
-                />
-              </div>
-              <button
-                type="button"
-                className="om-admin-btn"
-                style={{ marginTop: 8 }}
-                disabled={busyId === editId}
-                onClick={() => void saveProductMeta()}
-              >
-                Save strings / status
-              </button>
-
-              <h3 style={{ marginTop: 16 }}>Price (₦)</h3>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <input
-                  className="om-admin-input"
-                  value={priceMajorEdit}
-                  onChange={(e) => setPriceMajorEdit(e.target.value)}
-                  placeholder="e.g. 28500"
-                />
-                <button
-                  type="button"
-                  className="om-admin-btn"
-                  disabled={busyId === `price-${editId}`}
-                  onClick={() => void savePrice()}
-                >
-                  Update price
-                </button>
-              </div>
-
-              <h3 style={{ marginTop: 16 }}>Stock</h3>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <input
-                  className="om-admin-input"
-                  value={stockEdit}
-                  onChange={(e) => setStockEdit(e.target.value)}
-                  placeholder="qty on hand"
-                />
-                <button
-                  type="button"
-                  className="om-admin-btn"
-                  disabled={busyId === `stock-${editId}`}
-                  onClick={() => void saveStock()}
-                >
-                  Update stock
-                </button>
-              </div>
-
-              <h3 style={{ marginTop: 16 }}>Primary image</h3>
-              {editDetail.product.primary_image_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img loading="lazy" decoding="async"
-                  src={String(editDetail.product.primary_image_url)}
-                  alt=""
-                  width={96}
-                  height={96}
-                  style={{ objectFit: "cover", borderRadius: 8 }}
-                />
-              ) : (
-                <p className="om-admin-muted">No image yet</p>
-              )}
-              <div style={{ marginTop: 8 }}>
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  onChange={(e) => onFile(e.target.files?.[0] || null)}
-                />
-                <button
-                  type="button"
-                  className="om-admin-btn"
-                  style={{ marginLeft: 8 }}
-                  disabled={!imageDataUrl || busyId === `img-${editId}`}
-                  onClick={() => void uploadImage()}
-                >
-                  Upload image
-                </button>
-              </div>
-              {editDetail.images?.length ? (
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    marginTop: 10,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  {editDetail.images.map((img) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img loading="lazy" decoding="async"
-                      key={String(img.id)}
-                      src={String(img.url)}
-                      alt=""
-                      width={56}
-                      height={56}
-                      style={{ objectFit: "cover", borderRadius: 6 }}
-                    />
-                  ))}
-                </div>
-              ) : null}
             </div>
+            </DetailDrawer>
           ) : null}
         </>
       ) : ordersLoading ? (
@@ -975,6 +1487,26 @@ export default function AdminShopPage() {
         <p className="om-admin-muted">No shop orders yet.</p>
       ) : (
         <div className="om-admin-panel">
+          <div
+            className="om-admin-muted"
+            style={{ fontSize: 12, lineHeight: 1.5, marginBottom: 8 }}
+          >
+            💡 <b>Tips:</b> paid orders appear here with delivery <b>pending</b>.
+            Pick a courier (from your registry, manage it under the Courier
+            providers box), set a status, save. Status drives the order:{" "}
+            <b>assigned/picked_up → fulfilling</b>, <b>in_transit → out for
+            delivery</b>, <b>delivered → done</b>. The buyer sees courier +
+            tracking live on their order page.
+          </div>
+          <datalist id="courier-providers">
+            {couriers
+              .filter((c) => c.active)
+              .map((c) => (
+                <option key={c.id} value={c.name}>
+                  {c.phone || ""}
+                </option>
+              ))}
+          </datalist>
           <table className="om-admin-table">
             <thead>
               <tr>
@@ -1009,11 +1541,11 @@ export default function AdminShopPage() {
                     <td>
                       ₦
                       {Math.round(Number(o.total_minor) / 100).toLocaleString(
-                        "en-NG"
+                        "en-NG",
                       )}
                     </td>
                     <td>
-                      <div>{o.delivery?.status || "—"}</div>
+                      <div>{o.delivery?.status || ""}</div>
                       <div className="om-admin-muted">
                         {o.delivery?.courier_name || "No courier"}
                       </div>
@@ -1046,6 +1578,7 @@ export default function AdminShopPage() {
                         <input
                           className="om-admin-input"
                           placeholder="Courier name"
+                          list="courier-providers"
                           value={d.courierName}
                           onChange={(e) =>
                             setDraft((prev) => ({
@@ -1091,18 +1624,13 @@ export default function AdminShopPage() {
                             style={{ color: "#d33" }}
                             disabled={busyId === `action-${o.id}`}
                             onClick={() =>
-                              void runOrderAction(
-                                o.id,
-                                o.status,
-                                "cancel"
-                              )
+                              void runOrderAction(o.id, o.status, "cancel")
                             }
                           >
                             Cancel (unpaid)
                           </button>
                         ) : null}
-                        {o.status === "paid" ||
-                        o.status === "fulfilling" ? (
+                        {o.status === "paid" || o.status === "fulfilling" ? (
                           <button
                             type="button"
                             className="om-admin-btn"
@@ -1124,6 +1652,141 @@ export default function AdminShopPage() {
           </table>
         </div>
       )}
-    </AdminShell>
+          {/* Courier provider registry */}
+      <CourierRegistry />
+</AdminShell>
+  );
+}
+
+/**
+ * Courier provider registry: add/edit/toggle couriers. The deliveries board
+ * pulls names from here, no more free-text guessing.
+ */
+function CourierRegistry() {
+  const [providers, setProviders] = useState<
+    { id: string; name: string; phone?: string; active: boolean }[]
+  >([]);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = async () => {
+    try {
+      const res = await fetch("/api/admin/shop/couriers");
+      const json = await res.json();
+      if (json?.ok) setProviders(json.data.providers || []);
+    } catch {
+      /* */
+    }
+  };
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const add = async () => {
+    if (!name.trim()) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/admin/shop/couriers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, phone }),
+      });
+      const json = await res.json();
+      if (!json?.ok) setErr(json?.error?.message || "Failed");
+      else {
+        setName("");
+        setPhone("");
+        await load();
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggle = async (p: { id: string; active: boolean }) => {
+    await fetch("/api/admin/shop/couriers", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: p.id, active: !p.active }),
+    });
+    await load();
+  };
+
+  return (
+    <div className="om-admin-panel" style={{ marginTop: 16 }}>
+      <div className="om-admin-toolbar">
+        <strong>Courier providers</strong>
+      </div>
+      <div style={{ padding: "0.75rem" }}>
+        <p className="om-admin-muted" style={{ fontSize: 12, marginTop: 0 }}>
+          💡 Tips: add your delivery partners here once, they appear as
+          selectable suggestions on every order&apos;s Courier name field.
+          Deactivate instead of deleting to keep history.
+        </p>
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          <input
+            className="om-admin-input"
+            placeholder="Courier name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            style={{ maxWidth: 220 }}
+          />
+          <input
+            className="om-admin-input"
+            placeholder="Phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            style={{ maxWidth: 180 }}
+          />
+          <button
+            type="button"
+            className="om-admin-btn"
+            disabled={busy || !name.trim()}
+            onClick={() => void add()}
+          >
+            {busy ? "Adding…" : "Add provider"}
+          </button>
+        </div>
+        {err ? <p className="om-admin-error">{err}</p> : null}
+        <table className="w-full text-left text-[12px]">
+          <tbody>
+            {providers.map((p) => (
+              <tr key={p.id}>
+                <td style={{ padding: "4px 8px 4px 0" }}>
+                  <strong>{p.name}</strong>
+                </td>
+                <td className="om-admin-muted" style={{ padding: 4 }}>
+                  {p.phone || " "}
+                </td>
+                <td style={{ padding: 4 }}>
+                  <span className="om-admin-badge">
+                    {p.active ? "active" : "inactive"}
+                  </span>
+                </td>
+                <td style={{ padding: 4, textAlign: "right" }}>
+                  <button
+                    type="button"
+                    className="om-admin-btn"
+                    onClick={() => void toggle(p)}
+                  >
+                    {p.active ? "Deactivate" : "Activate"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {providers.length === 0 && (
+              <tr>
+                <td className="om-admin-muted" style={{ padding: 8 }}>
+                  No providers yet, add your first courier above.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

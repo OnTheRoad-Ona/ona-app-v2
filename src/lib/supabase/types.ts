@@ -90,7 +90,7 @@ export interface RepairProRow {
   lat: number | null;
   lng: number | null;
   location_updated_at?: string | null;
-  /** Admin visibility ladder 1–4 */
+  /** Admin visibility ladder 1-4 */
   visibility_tier?: number | null;
   /** Care gov-ID review state ("none" | "submitted" | "approved" | "rejected") */
   gov_id_review_status?: string | null;

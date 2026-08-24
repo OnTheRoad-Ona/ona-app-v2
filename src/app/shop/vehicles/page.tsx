@@ -93,7 +93,7 @@ export default function ShopVehiclesPage() {
     setMakeId("");
     void (async () => {
       const res = await fetch(
-        `/api/shop/vehicles/catalog?level=makes&type=${encodeURIComponent(typeSlug)}`
+        `/api/shop/vehicles/catalog?level=makes&type=${encodeURIComponent(typeSlug)}`,
       );
       const json = (await res.json()) as {
         ok?: boolean;
@@ -111,7 +111,7 @@ export default function ShopVehiclesPage() {
     }
     void (async () => {
       const res = await fetch(
-        `/api/shop/vehicles/catalog?level=models&makeId=${encodeURIComponent(makeId)}`
+        `/api/shop/vehicles/catalog?level=models&makeId=${encodeURIComponent(makeId)}`,
       );
       const json = (await res.json()) as {
         ok?: boolean;
@@ -129,7 +129,7 @@ export default function ShopVehiclesPage() {
     }
     void (async () => {
       const res = await fetch(
-        `/api/shop/vehicles/catalog?level=years&modelId=${encodeURIComponent(modelId)}`
+        `/api/shop/vehicles/catalog?level=years&modelId=${encodeURIComponent(modelId)}`,
       );
       const json = (await res.json()) as {
         ok?: boolean;
@@ -148,28 +148,28 @@ export default function ShopVehiclesPage() {
         value: t.slug,
         label: t.name,
       })),
-    [types]
+    [types],
   );
   const makeOptions = useMemo(
     () => [
       { value: "", label: "Make" },
       ...makes.map((m) => ({ value: m.id, label: m.name })),
     ],
-    [makes]
+    [makes],
   );
   const modelOptions = useMemo(
     () => [
       { value: "", label: "Model" },
       ...models.map((m) => ({ value: m.id, label: m.name })),
     ],
-    [models]
+    [models],
   );
   const yearOptions = useMemo(
     () => [
       { value: "", label: "Year (optional)" },
       ...years.map((y) => ({ value: String(y), label: String(y) })),
     ],
-    [years]
+    [years],
   );
 
   const applyVehicle = async (save: boolean) => {
@@ -214,7 +214,7 @@ export default function ShopVehiclesPage() {
       await loadGarage();
     }
     router.push(
-      `/shop/c/mechanic?allParts=1&makeName=${encodeURIComponent(makeName)}&modelName=${encodeURIComponent(modelName)}${v.year ? `&year=${v.year}` : ""}&makeId=${makeId}&modelId=${modelId}&vehicleType=${encodeURIComponent(typeSlug)}`
+      `/shop/c/mechanic?allParts=1&makeName=${encodeURIComponent(makeName)}&modelName=${encodeURIComponent(modelName)}${v.year ? `&year=${v.year}` : ""}&makeId=${makeId}&modelId=${modelId}&vehicleType=${encodeURIComponent(typeSlug)}`,
     );
   };
 
@@ -245,7 +245,7 @@ export default function ShopVehiclesPage() {
     >
       <PageHeader title="My vehicles" backHref="/shop" />
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-8 pt-2">
-        {/* Intro — short only; no catalog/fitment blurb */}
+        {/* Intro short only; no catalog/fitment blurb */}
         <p className={cn("mb-3 text-[12px] leading-relaxed", muted)}>
           Pick your vehicle to browse ALL PARTS.
         </p>
@@ -254,7 +254,7 @@ export default function ShopVehiclesPage() {
           <p
             className={cn(
               "mb-3 rounded-md border-0 px-3 py-2 text-[12px]",
-              isLight ? "text-slate-700" : "text-white/70"
+              isLight ? "text-slate-700" : "text-white/70",
             )}
           >
             Sign in to save vehicles to your garage. You can still browse with a
@@ -262,12 +262,15 @@ export default function ShopVehiclesPage() {
           </p>
         ) : null}
 
-        {/* No card border / panel edge — flush with page */}
-        <div className="border-0 p-0 shadow-none ring-0" data-om-vehicles-form="1">
+        {/* No card border / panel edge flush with page */}
+        <div
+          className="border-0 p-0 shadow-none ring-0"
+          data-om-vehicles-form="1"
+        >
           <p
             className={cn(
               "text-[13px] font-black",
-              isLight ? "text-slate-900" : "text-white"
+              isLight ? "text-slate-900" : "text-white",
             )}
           >
             Select vehicle
@@ -332,7 +335,7 @@ export default function ShopVehiclesPage() {
                 onClick={() => void applyVehicle(true)}
                 className={cn(
                   "h-11 flex-1 rounded-md border-0 text-[13px] font-bold shadow-none outline-none ring-0 disabled:opacity-50",
-                  isLight ? "text-slate-900" : "text-white"
+                  isLight ? "text-slate-900" : "text-white",
                 )}
                 style={{
                   backgroundColor: isLight ? "#d8d9dd" : "#3a3a3c",
@@ -359,7 +362,7 @@ export default function ShopVehiclesPage() {
                 <div
                   key={v.id}
                   className={cn(
-                    "flex items-center gap-2 rounded-md border-0 px-3 py-2.5 shadow-none ring-0"
+                    "flex items-center gap-2 rounded-md border-0 px-3 py-2.5 shadow-none ring-0",
                   )}
                   style={{
                     backgroundColor: isLight ? "#f0f0f2" : "#2c2c2e",
@@ -375,12 +378,14 @@ export default function ShopVehiclesPage() {
                     onClick={() => {
                       writeSessionVehicle(v);
                       router.push(
-                        `/shop/c/mechanic?allParts=1&makeName=${encodeURIComponent(v.makeName)}&modelName=${encodeURIComponent(v.modelName)}${v.year ? `&year=${v.year}` : ""}${v.vehicleTypeSlug ? `&vehicleType=${encodeURIComponent(v.vehicleTypeSlug)}` : ""}`
+                        `/shop/c/mechanic?allParts=1&makeName=${encodeURIComponent(v.makeName)}&modelName=${encodeURIComponent(v.modelName)}${v.year ? `&year=${v.year}` : ""}${v.vehicleTypeSlug ? `&vehicleType=${encodeURIComponent(v.vehicleTypeSlug)}` : ""}`,
                       );
                     }}
                   >
                     <p className="text-[13px] font-bold">
-                      {[v.year, v.makeName, v.modelName].filter(Boolean).join(" ")}
+                      {[v.year, v.makeName, v.modelName]
+                        .filter(Boolean)
+                        .join(" ")}
                     </p>
                     <p className="mt-0.5 text-[10px] font-semibold text-[#FF6B35]">
                       {v.vehicleTypeSlug
@@ -403,7 +408,7 @@ export default function ShopVehiclesPage() {
                     onClick={() => void remove(v.id)}
                     className={cn(
                       "rounded-md border-0 bg-transparent p-1.5",
-                      muted
+                      muted,
                     )}
                   >
                     <Trash2 className="h-4 w-4" />

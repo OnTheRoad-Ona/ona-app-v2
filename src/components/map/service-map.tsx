@@ -28,7 +28,7 @@ const {
 } = mapTheme;
 
 function safeMapContainerStyle(
-  isLight: boolean
+  isLight: boolean,
 ): Record<string, string | number> {
   if (typeof mapContainerStyle === "function") {
     return mapContainerStyle(isLight);
@@ -46,10 +46,10 @@ const OsmServiceMap = dynamic(
   {
     ssr: false,
     loading: () => <MapLoading />,
-  }
+  },
 );
 
-/** Themed map loading placeholder — matches dashboard light/dark map colors */
+/** Themed map loading placeholder matches dashboard light/dark map colors */
 function MapLoading() {
   const { theme } = useApp();
   const { backgroundColor } = mapThemeForApp(theme === "light");
@@ -78,7 +78,7 @@ function NearbyCountBadge({ count }: { count: number }) {
       <p
         className={cn(
           "text-[13px] font-semibold tabular-nums tracking-tight drop-shadow-[0_1px_2px_rgba(0,0,0,0.65)]",
-          isLight ? "text-white" : "text-white"
+          isLight ? "text-white" : "text-white",
         )}
       >
         <span className="font-bold">{count}</span> nearby
@@ -109,7 +109,7 @@ function GoogleServiceMap({
       lat: location.coordinates.lat,
       lng: location.coordinates.lng,
     }),
-    [location.coordinates.lat, location.coordinates.lng]
+    [location.coordinates.lat, location.coordinates.lng],
   );
 
   const onLoad = useCallback(
@@ -141,7 +141,7 @@ function GoogleServiceMap({
       bag.__omTimer = id;
       bag.__omPaint = [t1, t2];
     },
-    [onFatalError, isLight]
+    [onFatalError, isLight],
   );
 
   const onUnmount = useCallback(() => {
@@ -168,7 +168,7 @@ function GoogleServiceMap({
       t.hasLiveLocation !== false &&
       Number.isFinite(t.location.lat) &&
       Number.isFinite(t.location.lng) &&
-      !(t.location.lat === 0 && t.location.lng === 0)
+      !(t.location.lat === 0 && t.location.lng === 0),
   );
 
   // Deep view: fit you + each pro’s live coordinates
@@ -183,7 +183,7 @@ function GoogleServiceMap({
     const bounds = new google.maps.LatLngBounds();
     bounds.extend(center);
     livePros.forEach((t) =>
-      bounds.extend({ lat: t.location.lat, lng: t.location.lng })
+      bounds.extend({ lat: t.location.lat, lng: t.location.lng }),
     );
     map.fitBounds(bounds, { top: 56, right: 40, bottom: 40, left: 40 });
     // Street-level: don't zoom out so far that names disappear
@@ -204,7 +204,7 @@ function GoogleServiceMap({
       maxZoom: 19,
       minZoom: 12,
     }),
-    [isLight]
+    [isLight],
   );
 
   return (
@@ -242,7 +242,10 @@ function GoogleServiceMap({
                 : undefined,
             anchor:
               typeof google !== "undefined"
-                ? new google.maps.Point(USER_MAP_PIN_ANCHOR, USER_MAP_PIN_ANCHOR)
+                ? new google.maps.Point(
+                    USER_MAP_PIN_ANCHOR,
+                    USER_MAP_PIN_ANCHOR,
+                  )
                 : undefined,
           }}
           title={`You: ${location.label}`}
@@ -260,7 +263,7 @@ function GoogleServiceMap({
           );
         })}
       </GoogleMap>
-      {/* No tint overlay — real styled tiles only (full visibility + gestures) */}
+      {/* No tint overlay real styled tiles only (full visibility + gestures) */}
     </div>
   );
 }
@@ -355,7 +358,7 @@ function LiveGoogleMap({
     if (loadError) {
       onFatalError(
         loadError.message ||
-          "Could not load Google Maps. Check the API key and that Maps JavaScript API is ON."
+          "Could not load Google Maps. Check the API key and that Maps JavaScript API is ON.",
       );
     }
   }, [loadError, onFatalError]);
@@ -372,7 +375,9 @@ function LiveGoogleMap({
     return (
       <div
         className="flex h-full w-full items-center justify-center text-sm text-[#a8c9b5]"
-        style={{ backgroundColor: mapThemeForApp(theme === "light").backgroundColor }}
+        style={{
+          backgroundColor: mapThemeForApp(theme === "light").backgroundColor,
+        }}
       >
         <div className="flex flex-col items-center gap-2">
           <span className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
@@ -388,7 +393,7 @@ function LiveGoogleMap({
       onSelect={onSelect}
       onFatalError={() =>
         onFatalError(
-          "Map tiles blocked. Enable Maps JavaScript API + billing for this key."
+          "Map tiles blocked. Enable Maps JavaScript API + billing for this key.",
         )
       }
     />

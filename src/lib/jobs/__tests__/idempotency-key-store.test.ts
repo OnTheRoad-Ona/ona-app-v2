@@ -46,9 +46,8 @@ describe("client idempotency sticker store", () => {
   });
 
   it("mints a fresh sticker after the intent succeeds", async () => {
-    const { clearIdemKey, getOrCreateIdemKey } = await import(
-      "@/lib/jobs/idempotency"
-    );
+    const { clearIdemKey, getOrCreateIdemKey } =
+      await import("@/lib/jobs/idempotency");
     const a = getOrCreateIdemKey("offer|job1|repair_pro|5000");
     clearIdemKey("offer|job1|repair_pro|5000");
     const b = getOrCreateIdemKey("offer|job1|repair_pro|5000");

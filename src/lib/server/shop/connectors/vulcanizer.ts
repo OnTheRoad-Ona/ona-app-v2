@@ -1,7 +1,7 @@
 /**
  * Ona Vulcanizer Shop catalog connector (real catalogue).
  * Streams the ETRTO-grounded vulcanizer catalogue through the standard import
- * pipeline so it behaves exactly like a real source — full
+ * pipeline so it behaves exactly like a real source full
  * data-source/job/staging/validation/change-log provenance.
  */
 
@@ -17,7 +17,8 @@ const PAGE_SIZE = 25;
 export class VulcanizerCatalogConnector implements CatalogConnector {
   readonly code = "ona_vulcanizer";
   readonly name = "Ona Vulcanizer Shop Catalogue";
-  readonly license = "Ona-curated catalogue grounded in ETRTO standards (public dimensional/load/speed data)";
+  readonly license =
+    "Ona-curated catalogue grounded in ETRTO standards (public dimensional/load/speed data)";
   readonly licenseUrl = "https://www.etrto.org/";
   readonly homepageUrl = null;
   readonly sourceCode = "ona_vulcanizer";
@@ -31,7 +32,7 @@ export class VulcanizerCatalogConnector implements CatalogConnector {
     const start = (page - 1) * pageSize;
     const records = VULCANIZER_PRODUCTS.slice(
       start,
-      start + pageSize
+      start + pageSize,
     ).map<StagedRecord>((p) => ({
       externalId: p.id,
       externalCategory: `vulcanizer > ${p.categorySlug}`,

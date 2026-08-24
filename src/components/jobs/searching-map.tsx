@@ -28,9 +28,8 @@ import {
 import type { JobRecord } from "@/lib/jobs/types";
 
 const OsmFallback = dynamic(
-  () =>
-    import("@/components/map/osm-service-map").then((m) => m.OsmServiceMap),
-  { ssr: false }
+  () => import("@/components/map/osm-service-map").then((m) => m.OsmServiceMap),
+  { ssr: false },
 );
 
 function GoogleSearchingMap({
@@ -44,7 +43,7 @@ function GoogleSearchingMap({
   const theme = mapThemeForApp(isLight);
   const motoristPos = useMemo(
     () => job.motoristLocation,
-    [job.motoristLocation]
+    [job.motoristLocation],
   );
 
   const { isLoaded, loadError } = useOnaGoogleMaps();
@@ -54,7 +53,7 @@ function GoogleSearchingMap({
       mapRef.current = map;
       applyOnaMapTheme(map, isLight);
     },
-    [isLight]
+    [isLight],
   );
 
   if (loadError) {
@@ -108,11 +107,11 @@ function GoogleSearchingMap({
             url: userMapPinUrl(USER_MAP_PIN_SIZE),
             scaledSize: new google.maps.Size(
               USER_MAP_PIN_SIZE,
-              USER_MAP_PIN_SIZE
+              USER_MAP_PIN_SIZE,
             ),
             anchor: new google.maps.Point(
               USER_MAP_PIN_ANCHOR,
-              USER_MAP_PIN_ANCHOR
+              USER_MAP_PIN_ANCHOR,
             ),
           }}
           title="Your location"
@@ -121,7 +120,7 @@ function GoogleSearchingMap({
       </GoogleMap>
       <MapTintOverlay isLight={isLight} />
 
-      {/* Searching radar — green on light map, soft red on Aug-1 dark red-black map */}
+      {/* Searching radar green on light map, soft red on Aug-1 dark red-black map */}
       <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
         <div className="relative h-24 w-24">
           <span

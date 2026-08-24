@@ -27,7 +27,7 @@ import { MAX_RADIUS_KM } from "@/lib/matching";
 
 export function haversineKm(
   a: { lat: number; lng: number },
-  b: { lat: number; lng: number }
+  b: { lat: number; lng: number },
 ): number {
   const R = 6371;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -142,7 +142,7 @@ export function extractProSpecialties(pro: RepairProRow): string[] {
 export function mapProToTechnician(
   pro: RepairProRow,
   profile: ProfileRow | null,
-  userCoords: { lat: number; lng: number }
+  userCoords: { lat: number; lng: number },
 ): Technician {
   // Prefer the pro’s own live GPS pin (updated while they are Live)
   const hasLiveLocation =
@@ -154,15 +154,15 @@ export function mapProToTechnician(
 
   const lat = hasLiveLocation
     ? (pro.lat as number)
-    : userCoords.lat ?? DEFAULT_USER_LOCATION.coordinates.lat;
+    : (userCoords.lat ?? DEFAULT_USER_LOCATION.coordinates.lat);
   const lng = hasLiveLocation
     ? (pro.lng as number)
-    : userCoords.lng ?? DEFAULT_USER_LOCATION.coordinates.lng;
+    : (userCoords.lng ?? DEFAULT_USER_LOCATION.coordinates.lng);
   const distanceKm = hasLiveLocation
     ? haversineKm(userCoords, { lat, lng })
     : 999;
   const serviceType = (pro.primary_service || "mechanic") as ProService;
-  // Placeholder ETA — /api/pros overwrites with Google Distance Matrix when possible
+  // Placeholder ETA /api/pros overwrites with Google Distance Matrix when possible
   const etaMinutes = hasLiveLocation
     ? distanceKm <= 0.12
       ? 1
@@ -186,7 +186,7 @@ export function mapProToTechnician(
     roleLabel: PRO_SERVICE_LABELS[serviceType] ?? serviceType,
     // Empty photo → map/UI uses DEFAULT_VENDOR_PHOTO (Repair Pro brand icon)
     photo: (profile?.avatar_url || "").trim(),
-    // Real ratings only — start at 0 (no mock 4.5 seed)
+    // Real ratings only start at 0 (no mock 4.5 seed)
     rating: Number(pro.rating_avg) > 0 ? Number(pro.rating_avg) : 0,
     reviewCount: pro.rating_count || 0,
     distanceKm: Math.round(distanceKm * 10) / 10,
@@ -208,7 +208,10 @@ export function mapProToTechnician(
     description: pro.bio || "",
     phone: profile?.phone || "",
     serviceRadiusKm: (() => {
-      const base = Math.min(pro.service_radius_km || MAX_RADIUS_KM, MAX_RADIUS_KM);
+      const base = Math.min(
+        pro.service_radius_km || MAX_RADIUS_KM,
+        MAX_RADIUS_KM,
+      );
       const docs = pro.docs_status;
       // Cap advertised radius only while cert is under review / rejected
       // (null / approved / none → full radius)
@@ -236,14 +239,16 @@ export function mapProToTechnician(
     skillAnswers: (pro.skills as Technician["skillAnswers"]) || undefined,
     servicePrices: (pro as { labour_prices?: Technician["servicePrices"] })
       .labour_prices,
-    pricingCurrency: (pro as {
-      pricing_currency?: import("@/lib/pricing").AppCurrency;
-    }).pricing_currency,
+    pricingCurrency: (
+      pro as {
+        pricing_currency?: import("@/lib/pricing").AppCurrency;
+      }
+    ).pricing_currency,
     // Prefer backend visibility_tier columns; fall back to local artisan store
     ...(() => {
       let dbTier = Number(pro.visibility_tier);
       // Null/1 tier but T2-approved/verified (or approved status) → treat as T2
-      // so customers can find them — stale tier must never hide an approved pro
+      // so customers can find them stale tier must never hide an approved pro
       if (
         (!Number.isFinite(dbTier) || dbTier < 2) &&
         (Boolean(pro.verified) ||
@@ -263,7 +268,7 @@ export function mapProToTechnician(
               : dbTier <= 2,
           serviceRadiusKm: Math.min(
             pro.service_radius_km || MAX_RADIUS_KM,
-            rules.maxRadiusKm || MAX_RADIUS_KM
+            rules.maxRadiusKm || MAX_RADIUS_KM,
           ),
         };
       }
@@ -291,7 +296,7 @@ export function mapProToTechnician(
           isNewArtisan: rules.showNewBadge || art.isNewArtisan,
           serviceRadiusKm: Math.min(
             pro.service_radius_km || MAX_RADIUS_KM,
-            rules.maxRadiusKm || MAX_RADIUS_KM
+            rules.maxRadiusKm || MAX_RADIUS_KM,
           ),
         };
       } catch {
@@ -306,7 +311,7 @@ export function mapProToTechnician(
 
 export function mapRequestRow(
   row: ServiceRequestRow,
-  proName?: string
+  proName?: string,
 ): ServiceRequest {
   return {
     id: row.id,
@@ -327,7 +332,7 @@ export function profileToUserProfile(
   profile: ProfileRow,
   extra?: {
     accountType: AccountType;
-    /** Original signup role — does not change when switching */
+    /** Original signup role does not change when switching */
     primaryAccountType?: AccountType;
     dualRole?: boolean;
     lastRoleSwitchAt?: string;
@@ -376,7 +381,7 @@ export function profileToUserProfile(
     bankAccountNumber?: string;
     bankCode?: string;
     guarantor?: UserProfile["guarantor"];
-  }
+  },
 ): UserProfile {
   const accountType =
     extra?.accountType ||
@@ -384,7 +389,7 @@ export function profileToUserProfile(
   return {
     accountType,
     // Only set when known (signup role / side-table timestamps). Do not default
-    // to active role — that would overwrite primary on Motorist ↔ Pro switch.
+    // to active role that would overwrite primary on Motorist ↔ Pro switch.
     ...(extra?.primaryAccountType
       ? { primaryAccountType: extra.primaryAccountType }
       : {}),
@@ -473,8 +478,13 @@ export function resolvePrimaryAccountType(opts: {
   proCreatedAt?: string | null;
   activeAccountType?: AccountType;
 }): AccountType {
-  const { hasMotorist, hasPro, motoristCreatedAt, proCreatedAt, activeAccountType } =
-    opts;
+  const {
+    hasMotorist,
+    hasPro,
+    motoristCreatedAt,
+    proCreatedAt,
+    activeAccountType,
+  } = opts;
   if (hasMotorist && hasPro) {
     const m = motoristCreatedAt ? new Date(motoristCreatedAt).getTime() : 0;
     const p = proCreatedAt ? new Date(proCreatedAt).getTime() : 0;
@@ -566,18 +576,18 @@ export function mapConversationToThread(
     serviceType: ProService;
     photo?: string;
   },
-  myUserId: string
+  myUserId: string,
 ): MessageThread {
   // Accept newest-first or oldest-first; normalize chronological for UI
   const sorted = [...msgs].sort(
     (a, b) =>
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
   );
   const filtered = sorted.filter((m) => !isAutoChatOpenedBody(m.body));
   const last = filtered[filtered.length - 1];
   const chatMsgs: ChatMessage[] = filtered.map((m) => parseChatBody(m, conv));
   const unread = filtered.filter(
-    (m) => !m.read_at && m.sender_id !== myUserId
+    (m) => !m.read_at && m.sender_id !== myUserId,
   ).length;
   const lastPreview = chatMsgs[chatMsgs.length - 1];
   return {

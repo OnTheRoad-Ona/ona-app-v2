@@ -7,11 +7,7 @@ import {
   BrandHeroMotion,
   BRAND_COPPER,
 } from "@/components/auth/brand-hero-motion";
-import {
-  canAccessPath,
-  homePathForAccount,
-  isPublicPath,
-} from "@/lib/routes";
+import { canAccessPath, homePathForAccount, isPublicPath } from "@/lib/routes";
 import { AUTH_TRANSITION_MS } from "@/components/auth/auth-transition";
 import { useApp } from "@/lib/store";
 import { useT } from "@/lib/i18n";
@@ -21,10 +17,10 @@ import { cn } from "@/lib/utils";
 const SPLASH_MIN_MS = 120;
 /** Soft crossfade splash → Welcome */
 const HANDOFF_MS = 100;
-/** Absolute max splash — long enough for session restore to win over guest flash */
+/** Absolute max splash long enough for session restore to win over guest flash */
 const SPLASH_FAILSAFE_MS = 2800;
 
-/** Exact welcome routes only — not /login/signin or /login/role */
+/** Exact welcome routes only not /login/signin or /login/role */
 function isWelcomeRoute(pathname: string) {
   return pathname === "/login" || pathname === "/";
 }
@@ -44,7 +40,7 @@ type BootPhase = "loading" | "handoff" | "entry" | "ready";
 function isDualRoleSignupPath(
   pathname: string,
   hasMotoristAccount: boolean,
-  hasProAccount: boolean
+  hasProAccount: boolean,
 ): boolean {
   if (pathname.startsWith("/signup/error")) return true;
 
@@ -221,14 +217,17 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       leftSplashRef.current = true;
       setEntryExiting(true);
       setPhase("ready");
-      // Navigate immediately — fade is visual only, not a second required click
+      // Navigate immediately fade is visual only, not a second required click
       router.replace(path);
-      window.setTimeout(() => {
-        setEntryExiting(false);
-        navigatingAwayRef.current = false;
-      }, Math.max(AUTH_TRANSITION_MS, 200) + 100);
+      window.setTimeout(
+        () => {
+          setEntryExiting(false);
+          navigatingAwayRef.current = false;
+        },
+        Math.max(AUTH_TRANSITION_MS, 200) + 100,
+      );
     },
-    [router]
+    [router],
   );
 
   // Signed-in → leave login; allow dual-role signup when the other account is missing
@@ -253,9 +252,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
 
     if (pathname.startsWith("/signup")) {
-      if (
-        isDualRoleSignupPath(pathname, hasMotoristAccount, hasProAccount)
-      ) {
+      if (isDualRoleSignupPath(pathname, hasMotoristAccount, hasProAccount)) {
         return;
       }
       redirectingRef.current = true;
@@ -308,17 +305,14 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
   }, [authReady, phase, isAuthenticated, pathname, router]);
 
-  const frame =
-    "relative flex h-full min-h-0 w-full flex-col overflow-hidden";
+  const frame = "relative flex h-full min-h-0 w-full flex-col overflow-hidden";
 
-  const welcomeUi = (
-    animateIn: boolean
-  ) => (
+  const welcomeUi = (animateIn: boolean) => (
     <div
       className={cn(
         "absolute inset-0 overflow-hidden",
         animateIn && "om-auth-enter",
-        entryExiting && "om-auth-exit"
+        entryExiting && "om-auth-exit",
       )}
       style={{ backgroundColor: BRAND_COPPER }}
     >
@@ -330,27 +324,22 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     </div>
   );
 
-  // Brand portrait (auth-bg-v31) + Loading text — not the Welcome intro page
+  // Brand portrait (auth-bg-v31) + Loading text not the Welcome intro page
   const splashLayer = (
     <div
       className={cn(
         "absolute inset-0 z-20 overflow-hidden om-intro-splash-layer",
-        splashExiting && "is-exiting"
+        splashExiting && "is-exiting",
       )}
       style={{ backgroundColor: BRAND_COPPER }}
       aria-hidden={splashExiting}
       aria-label={t("common.loading")}
     >
-      <BrandHeroMotion
-        size="splash"
-        bottomFade={false}
-        motion
-        introMotion
-      />
+      <BrandHeroMotion size="splash" bottomFade={false} motion introMotion />
       <p
         className={cn(
           "pointer-events-none absolute inset-x-0 bottom-10 z-10 text-center text-[12px] font-medium transition-opacity duration-200",
-          splashExiting ? "opacity-0" : "opacity-90"
+          splashExiting ? "opacity-0" : "opacity-90",
         )}
         style={{ color: "#C8C9CD" }}
       >
@@ -395,7 +384,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       );
     }
 
-    // Protected while guest — welcome while redirecting
+    // Protected while guest welcome while redirecting
     return (
       <div className={cn(frame)} style={{ backgroundColor: BRAND_COPPER }}>
         {welcomeUi(false)}
@@ -412,7 +401,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Bank force is a lower panel on dashboard/home (BankForcePanel) — not a hard block
+  // Bank force is a lower panel on dashboard/home (BankForcePanel) not a hard block
   return (
     <div
       className={cn(frame)}

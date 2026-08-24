@@ -12,7 +12,7 @@ function ago(mins: number): string {
 /** 12+ samples spanning all categories */
 export function localSampleNotifications(
   userId: string,
-  role: "motorist" | "professional"
+  role: "motorist" | "professional",
 ): AppNotification[] {
   if (role === "professional") {
     return [
@@ -64,7 +64,7 @@ export function localSampleNotifications(
         category: "payments",
         priority: "high",
         title: "Escrow ready",
-        body: "Customer paid. ₦18,000 held — start trip when ready.",
+        body: "Customer paid. ₦18,000 held start trip when ready.",
         href: "/jobs",
         actionType: "open_job",
         createdAt: ago(15),
@@ -131,7 +131,7 @@ export function localSampleNotifications(
         priority: "normal",
         title: "Message from Emeka",
         body: "Great work. Thank you!",
-        // Closed chat — full text inline only, no open_chat / href
+        // Closed chat full text inline only, no open_chat / href
         actionType: "none",
         href: null,
         jobId: "demo-job-p9",
@@ -241,7 +241,7 @@ export function localSampleNotifications(
       priority: "normal",
       title: "Job completed",
       body: "Mark satisfaction to release escrow.",
-      // Finished job — View job shows closed popup (not live /jobs)
+      // Finished job View job shows closed popup (not live /jobs)
       href: "/jobs/demo-job-m2",
       actionType: "open_job",
       jobId: "demo-job-m2",
@@ -280,8 +280,7 @@ export function localSampleNotifications(
       href: null,
       jobId: "demo-job-m10",
       jobStatus: "released",
-      messageText:
-        "Thanks for confirming. Parts are sorted. Safe drive home!",
+      messageText: "Thanks for confirming. Parts are sorted. Safe drive home!",
       createdAt: ago(150),
     },
     {

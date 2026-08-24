@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  validateCartForCheckout,
-  type CartView,
-} from "@/lib/server/shop/cart";
+import { validateCartForCheckout, type CartView } from "@/lib/server/shop/cart";
 
 function sampleCart(over: Partial<CartView> = {}): CartView {
   return {
@@ -41,7 +38,7 @@ describe("validateCartForCheckout", () => {
 
   it("rejects empty cart", () => {
     const r = validateCartForCheckout(
-      sampleCart({ items: [], subtotalMinor: 0, itemCount: 0 })
+      sampleCart({ items: [], subtotalMinor: 0, itemCount: 0 }),
     );
     expect(r.ok).toBe(false);
     expect(r.errors.join(" ")).toMatch(/empty/i);

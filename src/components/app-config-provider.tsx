@@ -29,12 +29,12 @@ const AppConfigContext = createContext<Ctx>({
 
 export function AppConfigProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_APP_CONFIG);
-  // Defaults paint immediately — remote config is deferred (data saver)
+  // Defaults paint immediately remote config is deferred (data saver)
   const [ready, setReady] = useState(true);
 
   const refresh = useCallback(async () => {
     try {
-      // Allow browser cache — config rarely changes mid-session
+      // Allow browser cache config rarely changes mid-session
       const res = await fetch("/api/config", { cache: "default" });
       const json = await res.json();
       if (json.ok && json.data?.config) {
@@ -67,7 +67,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
               new Set([
                 ...DEFAULT_APP_CONFIG.services.enabled,
                 ...((json.data.config.services?.enabled as string[]) ?? []),
-              ])
+              ]),
             ),
           },
         };
@@ -95,7 +95,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
     } else {
       timeoutId = setTimeout(run, 2500);
     }
-    // Config almost never changes — refresh at most every 30 minutes
+    // Config almost never changes refresh at most every 30 minutes
     const t = setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void refresh();
@@ -112,7 +112,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(
     () => ({ config, ready, refresh }),
-    [config, ready, refresh]
+    [config, ready, refresh],
   );
 
   return (

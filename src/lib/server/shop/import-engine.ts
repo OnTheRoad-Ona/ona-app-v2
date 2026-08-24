@@ -4,13 +4,26 @@
  * Pipeline: connector → staging records → validation → dedup → canonical
  * upsert. Records that fail validation are rejected and never touch the
  * canonical catalog. Duplicates (same deterministic dedup_key) are merged, not
- * duplicated — five sources carrying the same part produce ONE Ona product.
+ * duplicated five sources carrying the same part produce ONE Ona product.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { CatalogConnector, ConnectorRunReport, StagedRecord } from "@/lib/server/shop/connectors/types";
-import { validateCatalogRecord, type ValidationIssue } from "@/lib/server/shop/data-validate";
-import { checksum, dedupKeyForVariant, deterministicId, mapExternalCategory, slugify } from "@/lib/server/shop/normalize";
+import type {
+  CatalogConnector,
+  ConnectorRunReport,
+  StagedRecord,
+} from "@/lib/server/shop/connectors/types";
+import {
+  validateCatalogRecord,
+  type ValidationIssue,
+} from "@/lib/server/shop/data-validate";
+import {
+  checksum,
+  dedupKeyForVariant,
+  deterministicId,
+  mapExternalCategory,
+  slugify,
+} from "@/lib/server/shop/normalize";
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGES = 2000;
@@ -23,7 +36,7 @@ export type ImportJobResult = {
 
 async function findOrCreateBrand(
   sb: SupabaseClient,
-  brand: StagedRecord["brand"]
+  brand: StagedRecord["brand"],
 ): Promise<string | null> {
   if (!brand) return null;
   const name = typeof brand === "string" ? brand : brand.name;
@@ -31,7 +44,13 @@ async function findOrCreateBrand(
   if (!name?.trim()) return null;
 
   const brandSlug =
-    slug || name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64);
+    slug ||
+    name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 64);
 
   const { data: existing } = await sb
     .from("shop_brands")
@@ -52,7 +71,7 @@ async function findOrCreateBrand(
 async function findOrCreateCategory(
   sb: SupabaseClient,
   tradeKey: string,
-  categorySlug: string | undefined
+  categorySlug: string | undefined,
 ): Promise<string | null> {
   const slug = categorySlug || tradeKey;
   const { data: root } = await sb
@@ -74,7 +93,7 @@ async function findOrCreateCategory(
     .maybeSingle();
   if (cat) return String(cat.id);
 
-  // Demo categories may not exist in the tree yet — create under the root.
+  // Demo categories may not exist in the tree yet create under the root.
   const { data: created, error } = await sb
     .from("shop_trade_categories")
     .insert({
@@ -94,14 +113,16 @@ async function findOrCreateCategory(
 
 async function findExistingVariantByDedup(
   sb: SupabaseClient,
-  dedupKey: string
+  dedupKey: string,
 ): Promise<{ id: string; product_id: string } | null> {
   const { data } = await sb
     .from("shop_product_variants")
     .select("id, product_id")
     .eq("dedup_key", dedupKey)
     .maybeSingle();
-  return data ? { id: String(data.id), product_id: String(data.product_id) } : null;
+  return data
+    ? { id: String(data.id), product_id: String(data.product_id) }
+    : null;
 }
 
 async function insertCanonical(
@@ -111,12 +132,18 @@ async function insertCanonical(
   categoryId: string,
   brandId: string | null,
   dedupKey: string | null,
-  sourceCode: string
+  sourceCode: string,
 ): Promise<{ productId: string; variantId: string }> {
   const name = (record.name || "Unnamed product").trim();
   const productId =
-    deterministicId("p", sourceCode, record.externalId || dedupKey || name) || crypto.randomUUID();
-  const variantId = deterministicId("v", sourceCode, record.externalId || dedupKey || name, "v");
+    deterministicId("p", sourceCode, record.externalId || dedupKey || name) ||
+    crypto.randomUUID();
+  const variantId = deterministicId(
+    "v",
+    sourceCode,
+    record.externalId || dedupKey || name,
+    "v",
+  );
 
   const keywords = record.keywords ?? [];
   const attributes = record.attributes ?? {};
@@ -154,7 +181,9 @@ async function insertCanonical(
     status: "active",
     dedup_key: dedupKey,
     normalized_mpn: record.mpn ? record.mpn.trim().toUpperCase() : null,
-    normalized_oem: record.oemNumber ? record.oemNumber.trim().toUpperCase() : null,
+    normalized_oem: record.oemNumber
+      ? record.oemNumber.trim().toUpperCase()
+      : null,
   });
   if (ve) throw new Error(`variant insert: ${ve.message}`);
 
@@ -192,7 +221,13 @@ export async function runImport({
   jobType?: "full" | "incremental" | "demo" | "verify";
   pageSize?: number;
 }): Promise<ImportJobResult> {
-  const report: ConnectorRunReport = { discovered: 0, imported: 0, updated: 0, rejected: 0, errors: [] };
+  const report: ConnectorRunReport = {
+    discovered: 0,
+    imported: 0,
+    updated: 0,
+    rejected: 0,
+    errors: [],
+  };
   const validationIssues: ValidationIssue[] = [];
 
   const { data: job, error: jobErr } = await sb
@@ -207,7 +242,8 @@ export async function runImport({
     })
     .select("id")
     .single();
-  if (jobErr || !job) throw new Error(`job create: ${jobErr?.message ?? "no job"}`);
+  if (jobErr || !job)
+    throw new Error(`job create: ${jobErr?.message ?? "no job"}`);
 
   const jobId = String(job.id);
   const batchNo = 1;
@@ -230,18 +266,23 @@ export async function runImport({
       })
       .select("id")
       .single();
-    if (batchErr || !batch) throw new Error(`batch create: ${batchErr?.message ?? "no batch"}`);
+    if (batchErr || !batch)
+      throw new Error(`batch create: ${batchErr?.message ?? "no batch"}`);
     const batchId = String(batch.id);
 
     while (hasMore && page <= MAX_PAGES) {
-      const { records, hasMore: more } = await connector.fetchRecords({ page, pageSize });
+      const { records, hasMore: more } = await connector.fetchRecords({
+        page,
+        pageSize,
+      });
       hasMore = more;
 
       for (const record of records) {
         report.discovered++;
         batchTotal++;
 
-        const isErrorRecord = String(record.externalCategory ?? "") === "__connector_error__";
+        const isErrorRecord =
+          String(record.externalCategory ?? "") === "__connector_error__";
         const raw = record.raw ?? {};
 
         const { data: staging, error: stageErr } = await sb
@@ -277,7 +318,10 @@ export async function runImport({
           ...record,
           raw,
           tradeKey,
-          brand: typeof record.brand === "string" ? record.brand : record.brand?.name ?? null,
+          brand:
+            typeof record.brand === "string"
+              ? record.brand
+              : (record.brand?.name ?? null),
         });
 
         for (const issue of validation.issues) {
@@ -298,7 +342,11 @@ export async function runImport({
           batchRejected++;
           await sb
             .from("shop_staging_records")
-            .update({ status: "rejected", errors: validation.issues, processed_at: new Date().toISOString() })
+            .update({
+              status: "rejected",
+              errors: validation.issues,
+              processed_at: new Date().toISOString(),
+            })
             .eq("id", stagingId);
           await sb.from("shop_source_change_log").insert({
             data_source_id: sourceId,
@@ -312,35 +360,56 @@ export async function runImport({
         }
 
         const brandId = await findOrCreateBrand(sb, record.brand);
-        const categoryId = await findOrCreateCategory(sb, tradeKey, record.externalCategory?.split(" > ")[1]?.toLowerCase() || tradeKey);
+        const categoryId = await findOrCreateCategory(
+          sb,
+          tradeKey,
+          record.externalCategory?.split(" > ")[1]?.toLowerCase() || tradeKey,
+        );
         if (!categoryId) {
           report.rejected++;
           batchRejected++;
           await sb
             .from("shop_staging_records")
-            .update({ status: "rejected", errors: [{ message: "no matching Ona category for this trade" }], processed_at: new Date().toISOString() })
+            .update({
+              status: "rejected",
+              errors: [{ message: "no matching Ona category for this trade" }],
+              processed_at: new Date().toISOString(),
+            })
             .eq("id", stagingId);
           continue;
         }
 
         const dedupKey = dedupKeyForVariant({
           tradeKey,
-          brand: typeof record.brand === "string" ? record.brand : record.brand?.name,
+          brand:
+            typeof record.brand === "string"
+              ? record.brand
+              : record.brand?.name,
           sku: record.sku,
           oemNumber: record.oemNumber,
           mpn: record.mpn,
           attributes: record.attributes,
         });
 
-        const existing = dedupKey ? await findExistingVariantByDedup(sb, dedupKey) : null;
-        const mapped = mapExternalCategory({ externalCategory: record.externalCategory, tradeKey });
+        const existing = dedupKey
+          ? await findExistingVariantByDedup(sb, dedupKey)
+          : null;
+        const mapped = mapExternalCategory({
+          externalCategory: record.externalCategory,
+          tradeKey,
+        });
 
         if (existing) {
           report.updated++;
           batchUpdated++;
           await sb
             .from("shop_staging_records")
-            .update({ status: "duplicate", normalized_data: mapped, dedup_key: dedupKey, processed_at: new Date().toISOString() })
+            .update({
+              status: "duplicate",
+              normalized_data: mapped,
+              dedup_key: dedupKey,
+              processed_at: new Date().toISOString(),
+            })
             .eq("id", stagingId);
           await sb.from("shop_dedup_results").insert({
             staging_record_id: stagingId,
@@ -359,7 +428,10 @@ export async function runImport({
             product_id: existing.product_id,
             variant_id: existing.id,
             field: "dedup",
-            new_value: { message: "identical part already in catalog — merged, not duplicated" },
+            new_value: {
+              message:
+                "identical part already in catalog merged, not duplicated",
+            },
           });
           continue;
         }
@@ -372,13 +444,22 @@ export async function runImport({
             categoryId,
             brandId,
             dedupKey,
-            connector.sourceCode
+            connector.sourceCode,
           );
           report.imported++;
           batchImported++;
           await sb
             .from("shop_staging_records")
-            .update({ status: "imported", normalized_data: { ...mapped, product_id: productId, variant_id: variantId }, dedup_key: dedupKey, processed_at: new Date().toISOString() })
+            .update({
+              status: "imported",
+              normalized_data: {
+                ...mapped,
+                product_id: productId,
+                variant_id: variantId,
+              },
+              dedup_key: dedupKey,
+              processed_at: new Date().toISOString(),
+            })
             .eq("id", stagingId);
           await sb.from("shop_source_change_log").insert({
             data_source_id: sourceId,
@@ -397,7 +478,11 @@ export async function runImport({
           report.errors.push(msg);
           await sb
             .from("shop_staging_records")
-            .update({ status: "error", errors: [{ message: msg }], processed_at: new Date().toISOString() })
+            .update({
+              status: "error",
+              errors: [{ message: msg }],
+              processed_at: new Date().toISOString(),
+            })
             .eq("id", stagingId);
         }
       }
@@ -418,7 +503,12 @@ export async function runImport({
       }
     }
 
-    const finalStatus = report.rejected === 0 ? "succeeded" : report.errors.length ? "failed" : "partial";
+    const finalStatus =
+      report.rejected === 0
+        ? "succeeded"
+        : report.errors.length
+          ? "failed"
+          : "partial";
     await sb
       .from("shop_import_jobs")
       .update({
@@ -441,7 +531,9 @@ export async function runImport({
           records_rejected: report.rejected,
           records_updated: report.updated,
           last_sync_at: new Date().toISOString(),
-          next_sync_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          next_sync_at: new Date(
+            Date.now() + 24 * 60 * 60 * 1000,
+          ).toISOString(),
           status: report.errors.length ? "error" : "ok",
           last_error: report.errors[0] ?? null,
           updated_at: new Date().toISOString(),
@@ -459,7 +551,9 @@ export async function runImport({
           records_rejected: report.rejected,
           records_updated: report.updated,
           last_sync_at: new Date().toISOString(),
-          next_sync_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          next_sync_at: new Date(
+            Date.now() + 24 * 60 * 60 * 1000,
+          ).toISOString(),
           last_error: report.errors[0] ?? null,
           updated_at: new Date().toISOString(),
         })
@@ -469,7 +563,11 @@ export async function runImport({
     const msg = e instanceof Error ? e.message : "import failed";
     await sb
       .from("shop_import_jobs")
-      .update({ status: "failed", error_summary: [msg], finished_at: new Date().toISOString() })
+      .update({
+        status: "failed",
+        error_summary: [msg],
+        finished_at: new Date().toISOString(),
+      })
       .eq("id", jobId);
     report.errors.push(msg);
   }

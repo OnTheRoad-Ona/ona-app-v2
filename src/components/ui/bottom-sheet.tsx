@@ -3,9 +3,9 @@
 /**
  * Trade-lock lower panel (25% height).
  * Close via:
- *  1) Swipe down (Home-style dy threshold + fling)
- *  2) Click / tap outside the panel (scrim)
- *  3) Grabber pill click
+ * 1) Swipe down (Home-style dy threshold + fling)
+ * 2) Click / tap outside the panel (scrim)
+ * 3) Grabber pill click
  */
 
 import {
@@ -39,7 +39,7 @@ export type BottomSheetProps = {
 };
 
 const SPRING = "transform 0.48s cubic-bezier(0.32, 0.72, 0, 1)";
-/** Same spirit as customer Home sheet — short swipe down closes */
+/** Same spirit as customer Home sheet short swipe down closes */
 const SWIPE_DOWN_DY = 14;
 
 export function BottomSheet({
@@ -132,7 +132,7 @@ export function BottomSheet({
     });
   }, [present, open]);
 
-    /**
+  /**
    * SWIPE DOWN only (never swipe up).
    * Finger: clientY increases as finger moves down → dy > 0 → close.
    * Trackpad (natural scroll): fingers move down → deltaY < 0 → close.
@@ -209,7 +209,7 @@ export function BottomSheet({
           finishClose();
         }
       } else {
-        // Swipe up — do nothing
+        // Swipe up do nothing
         downAccum = 0;
       }
     };
@@ -269,16 +269,13 @@ export function BottomSheet({
         className={cn(
           "relative z-[1] flex w-full flex-col overflow-hidden",
           "rounded-t-[14px] pb-[max(0.5rem,env(safe-area-inset-bottom))]",
-          className
+          className,
         )}
         style={{
-          height:
-            growToPercent != null ? "auto" : `${heightPercent}%`,
+          height: growToPercent != null ? "auto" : `${heightPercent}%`,
           minHeight: `${heightPercent}%`,
           maxHeight:
-            growToPercent != null
-              ? `${growToPercent}%`
-              : `${heightPercent}%`,
+            growToPercent != null ? `${growToPercent}%` : `${heightPercent}%`,
           backgroundColor: sheetBg,
           transform: "translate3d(0, 100%, 0)",
           willChange: "transform",
@@ -304,7 +301,7 @@ export function BottomSheet({
             <span
               className={cn(
                 "block h-[5px] w-10 rounded-full",
-                isLight ? "bg-black/25" : "bg-white/35"
+                isLight ? "bg-black/25" : "bg-white/35",
               )}
             />
           </button>
@@ -315,6 +312,6 @@ export function BottomSheet({
         </div>
       </div>
     </div>,
-    mount
+    mount,
   );
 }

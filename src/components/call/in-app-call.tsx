@@ -19,14 +19,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import {
-  Mic,
-  MicOff,
-  Phone,
-  PhoneOff,
-  Volume2,
-  VolumeX,
-} from "lucide-react";
+import { Mic, MicOff, Phone, PhoneOff, Volume2, VolumeX } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   canNotify,
@@ -64,12 +57,7 @@ export type CallTarget = {
 };
 
 type CallPhase =
-  | "idle"
-  | "dialing"
-  | "ringing"
-  | "connecting"
-  | "connected"
-  | "ended";
+  "idle" | "dialing" | "ringing" | "connecting" | "connected" | "ended";
 
 type CallMode = "webrtc" | "phone" | null;
 
@@ -145,13 +133,13 @@ function newCallId(): string {
 function isUuid(s: string | undefined | null): boolean {
   if (!s) return false;
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    s
+    s,
   );
 }
 
-/** Remote SDP must be used as-is — only munge local offers/answers. */
+/** Remote SDP must be used as-is only munge local offers/answers. */
 function asRemoteDesc(
-  sdp: RTCSessionDescriptionInit
+  sdp: RTCSessionDescriptionInit,
 ): RTCSessionDescriptionInit {
   return { type: sdp.type, sdp: sdp.sdp };
 }
@@ -160,11 +148,9 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
   const { theme, backendUserId, displayName, userProfile, accountType } =
     useApp();
   const isLight = theme === "light";
-  const myName =
-    userProfile?.fullName?.trim() || displayName || "Ona user";
+  const myName = userProfile?.fullName?.trim() || displayName || "Ona user";
   const myPhoto = userProfile?.avatarUrl || "";
-  const myRole =
-    accountType === "professional" ? "Repair Pro" : "Customer";
+  const myRole = accountType === "professional" ? "Repair Pro" : "Customer";
 
   const [target, setTarget] = useState<CallTarget | null>(null);
   const [phase, setPhase] = useState<CallPhase>("idle");
@@ -198,7 +184,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
   const phaseRef = useRef<CallPhase>("idle");
   const myIdRef = useRef<string | null>(null);
   const processedIds = useRef<Set<string>>(new Set());
-  /** True after answer SDP applied (caller) or Accept (callee) — block phone fallback */
+  /** True after answer SDP applied (caller) or Accept (callee) block phone fallback */
   const answeredRef = useRef(false);
   const connectedOnceRef = useRef(false);
 
@@ -261,7 +247,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       toUserId: string,
       kind: "offer" | "answer" | "ice" | "hangup" | "reject" | "accepting",
       callId: string,
-      payload: Record<string, unknown>
+      payload: Record<string, unknown>,
     ) => {
       const me = myIdRef.current;
       if (!me || !isUuid(toUserId) || !isUuid(me)) return "invalid ids";
@@ -273,7 +259,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
         payload,
       });
     },
-    []
+    [],
   );
 
   const fallToPhone = useCallback(
@@ -282,7 +268,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       if (answeredRef.current && phaseRef.current === "connecting") {
         setStatusHint(
           reason ||
-            "Still linking voice… stay on this screen (both apps open, mic allowed)"
+            "Still linking voice… stay on this screen (both apps open, mic allowed)",
         );
         return false;
       }
@@ -303,12 +289,12 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
         setStatusHint("Phone dialer open");
         timerRef.current = window.setInterval(
           () => setSeconds((s) => s + 1),
-          1000
+          1000,
         );
       }, 300);
       return true;
     },
-    [clearTimers, closePeer, stopMedia]
+    [clearTimers, closePeer, stopMedia],
   );
 
   const endCall = useCallback(async () => {
@@ -406,10 +392,11 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       }
       // After restart, another 12s then soft fail (phone only if not answered path with no phone)
       iceFailTimerRef.current = window.setTimeout(() => {
-        if (phaseRef.current === "connected" || connectedOnceRef.current) return;
+        if (phaseRef.current === "connected" || connectedOnceRef.current)
+          return;
         if (!fallToPhone("Could not link in-app voice")) {
           setStatusHint(
-            "Still connecting… stay here with mic on. Or use Call on phone line."
+            "Still connecting… stay here with mic on. Or use Call on phone line.",
           );
         }
       }, 12_000);
@@ -425,7 +412,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
     if (!timerRef.current) {
       timerRef.current = window.setInterval(
         () => setSeconds((s) => s + 1),
-        1000
+        1000,
       );
     }
     if (ringFailTimerRef.current) {
@@ -462,7 +449,11 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       // Ensure bidirectional audio even if remote track late
       const hasAudioSend = pc
         .getTransceivers()
-        .some((t) => t.receiver.track?.kind === "audio" || t.sender.track?.kind === "audio");
+        .some(
+          (t) =>
+            t.receiver.track?.kind === "audio" ||
+            t.sender.track?.kind === "audio",
+        );
       if (!hasAudioSend) {
         try {
           pc.addTransceiver("audio", { direction: "sendrecv" });
@@ -481,8 +472,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
           return;
         }
         const stream =
-          ev.streams[0] ||
-          (ev.track ? new MediaStream([ev.track]) : null);
+          ev.streams[0] || (ev.track ? new MediaStream([ev.track]) : null);
         if (stream) {
           attachRemote(stream);
           // Media path = connected even if ICE state lags
@@ -517,11 +507,11 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
             scheduleIceFailWatch();
           } catch {
             if (!fallToPhone("WebRTC ICE failed")) {
-              setStatusHint("Connection failed — try Call on phone");
+              setStatusHint("Connection failed try Call on phone");
             }
           }
         } else if (st === "disconnected") {
-          setStatusHint("Connection weak — reconnecting…");
+          setStatusHint("Connection weak reconnecting…");
           try {
             pc.restartIce();
           } catch {
@@ -545,7 +535,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
             scheduleIceFailWatch();
           } catch {
             if (!fallToPhone("Connection failed")) {
-              setStatusHint("Connection failed — try Call on phone");
+              setStatusHint("Connection failed try Call on phone");
             }
           }
         }
@@ -563,24 +553,19 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       void applyAudioSenderBitrate(pc, DEFAULT_BITRATE_BPS);
       return pc;
     },
-    [attachRemote, fallToPhone, markConnected, pushSignal, scheduleIceFailWatch]
+    [
+      attachRemote,
+      fallToPhone,
+      markConnected,
+      pushSignal,
+      scheduleIceFailWatch,
+    ],
   );
 
-  const notifyIncomingCall = useCallback(
-    (fromName: string, callId: string) => {
-      vibrateCallPattern();
-      void ensureNotifyPermission().then((p) => {
-        if (p === "granted" || canNotify()) {
-          showAppNotification({
-            title: "Incoming call",
-            body: `${fromName} is calling on Ona`,
-            tag: `call-${callId}`,
-            requireInteraction: true,
-          });
-        }
-      });
-      // Also try without waiting if already granted
-      if (canNotify()) {
+  const notifyIncomingCall = useCallback((fromName: string, callId: string) => {
+    vibrateCallPattern();
+    void ensureNotifyPermission().then((p) => {
+      if (p === "granted" || canNotify()) {
         showAppNotification({
           title: "Incoming call",
           body: `${fromName} is calling on Ona`,
@@ -588,9 +573,17 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
           requireInteraction: true,
         });
       }
-    },
-    []
-  );
+    });
+    // Also try without waiting if already granted
+    if (canNotify()) {
+      showAppNotification({
+        title: "Incoming call",
+        body: `${fromName} is calling on Ona`,
+        tag: `call-${callId}`,
+        requireInteraction: true,
+      });
+    }
+  }, []);
 
   const processSignal = useCallback(
     async (row: CallSignalRow) => {
@@ -626,7 +619,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Callee tapped Accept — update caller UI immediately
+      // Callee tapped Accept update caller UI immediately
       if (row.kind === "accepting") {
         if (callIdRef.current && row.callId !== callIdRef.current) return;
         answeredRef.current = true;
@@ -640,7 +633,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
         }
         if (phaseRef.current !== "connected") {
           setPhase("connecting");
-          setStatusHint("They picked up — linking voice…");
+          setStatusHint("They picked up linking voice…");
         }
         scheduleIceFailWatch();
         return;
@@ -675,7 +668,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
           return;
         }
         try {
-          // Cancel ring→phone fallback — peer answered
+          // Cancel ring→phone fallback peer answered
           answeredRef.current = true;
           if (ringFailTimerRef.current) {
             window.clearTimeout(ringFailTimerRef.current);
@@ -687,12 +680,15 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
           }
 
           const state = pc.signalingState;
-          if (state === "have-local-offer" || state === "have-remote-pranswer") {
+          if (
+            state === "have-local-offer" ||
+            state === "have-remote-pranswer"
+          ) {
             // Do NOT munge remote SDP
             await pc.setRemoteDescription(asRemoteDesc(sdp));
             await flushIce(pc);
             setPhase("connecting");
-            setStatusHint("They answered — connecting voice…");
+            setStatusHint("They answered connecting voice…");
             scheduleIceFailWatch();
           } else if (state === "stable" && pc.currentRemoteDescription) {
             // Already applied
@@ -713,7 +709,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
         } catch (e) {
           console.warn("answer", e);
           if (!fallToPhone("Answer failed")) {
-            setStatusHint("Could not connect — try phone");
+            setStatusHint("Could not connect try phone");
           }
         }
         return;
@@ -785,7 +781,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       notifyIncomingCall,
       scheduleIceFailWatch,
       stopMedia,
-    ]
+    ],
   );
 
   // Poll durable signal inbox + Realtime (works on every screen)
@@ -827,7 +823,9 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
     let channel: ReturnType<NonNullable<typeof sb>["channel"]> | null = null;
     if (sb) {
       channel = sb
-        .channel(`call-db:${backendUserId}-${Math.random().toString(36).slice(2, 8)}`)
+        .channel(
+          `call-db:${backendUserId}-${Math.random().toString(36).slice(2, 8)}`,
+        )
         .on(
           "postgres_changes",
           {
@@ -838,7 +836,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
           },
           () => {
             void tick();
-          }
+          },
         )
         .subscribe();
     }
@@ -899,7 +897,10 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       await pc.setRemoteDescription(asRemoteDesc(incoming.sdp));
       await flushIce(pc);
       const answer = await pc.createAnswer();
-      const mungedAnswer = descriptionWithMungedSdp(answer, DEFAULT_BITRATE_BPS);
+      const mungedAnswer = descriptionWithMungedSdp(
+        answer,
+        DEFAULT_BITRATE_BPS,
+      );
       await pc.setLocalDescription(mungedAnswer);
       // Gather some candidates into SDP + trickle the rest
       await waitIceGathering(pc, 2000);
@@ -977,11 +978,11 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
         setStatusHint("Phone dialer open");
         timerRef.current = window.setInterval(
           () => setSeconds((s) => s + 1),
-          1000
+          1000,
         );
       }, 300);
     },
-    [clearTimers, closePeer, stopMedia]
+    [clearTimers, closePeer, stopMedia],
   );
 
   const startWebRtcCall = useCallback(
@@ -1035,7 +1036,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
         });
         const mungedOffer = descriptionWithMungedSdp(
           offer,
-          DEFAULT_BITRATE_BPS
+          DEFAULT_BITRATE_BPS,
         );
         await pc.setLocalDescription(mungedOffer);
         await waitIceGathering(pc, 2000);
@@ -1079,9 +1080,9 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
             phaseRef.current === "dialing"
           ) {
             if (!answeredRef.current) {
-              if (!fallToPhone("No answer in-app — opening phone dialer")) {
+              if (!fallToPhone("No answer in-app opening phone dialer")) {
                 setStatusHint(
-                  "No answer. Ask them to open Ona, or use Message."
+                  "No answer. Ask them to open Ona, or use Message.",
                 );
               }
             }
@@ -1113,7 +1114,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       pushSignal,
       startPhoneCall,
       stopMedia,
-    ]
+    ],
   );
 
   const startCall = useCallback(
@@ -1139,7 +1140,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
         setTarget(null);
       }, 1800);
     },
-    [backendUserId, startPhoneCall, startWebRtcCall]
+    [backendUserId, startPhoneCall, startWebRtcCall],
   );
 
   useEffect(() => {
@@ -1176,7 +1177,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
       endCall: () => void endCall(),
       active: phase !== "idle" && phase !== "ended",
     }),
-    [startCall, endCall, phase]
+    [startCall, endCall, phase],
   );
 
   const phaseLabel =
@@ -1200,7 +1201,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
           <div
             className={cn(
               "absolute inset-0 z-[200] flex flex-col",
-              isLight ? "bg-[#0a1610]" : "bg-[#0a0000]"
+              isLight ? "bg-[#0a1610]" : "bg-[#0a0000]",
             )}
             role="dialog"
             aria-modal
@@ -1294,11 +1295,15 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
                   onClick={() => setMuted((m) => !m)}
                   className={cn(
                     "flex h-14 w-14 items-center justify-center rounded-full border-0",
-                    muted ? "bg-white/20 text-white" : "bg-white/10 text-white"
+                    muted ? "bg-white/20 text-white" : "bg-white/10 text-white",
                   )}
                   aria-label={muted ? "Unmute" : "Mute"}
                 >
-                  {muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                  {muted ? (
+                    <MicOff className="h-5 w-5" />
+                  ) : (
+                    <Mic className="h-5 w-5" />
+                  )}
                 </button>
                 <button
                   type="button"
@@ -1313,7 +1318,9 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
                   onClick={() => setSpeaker((s) => !s)}
                   className={cn(
                     "flex h-14 w-14 items-center justify-center rounded-full border-0",
-                    speaker ? "bg-white/20 text-white" : "bg-white/10 text-white"
+                    speaker
+                      ? "bg-white/20 text-white"
+                      : "bg-white/10 text-white",
                   )}
                   aria-label="Speaker"
                 >
@@ -1326,7 +1333,7 @@ export function InAppCallProvider({ children }: { children: ReactNode }) {
               </div>
             )}
           </div>,
-          mount
+          mount,
         )
       : null;
 
@@ -1369,7 +1376,7 @@ export function CallButton({
         variant === "solid"
           ? "bg-[#2c2c2e] text-white"
           : "bg-transparent text-brand",
-        className
+        className,
       )}
     >
       <Phone className="h-4 w-4" />

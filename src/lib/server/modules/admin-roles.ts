@@ -4,11 +4,11 @@
  * profiles.role stays "admin" (or legacy staff flag) for panel entry.
  * profiles.admin_role stores the level key below.
  *
- * Level 1 – Customer Care
- * Level 2 – Senior Support / Dispute Team
- * Level 3 – Operations / Finance
- * Level 4 – Manager / Admin
- * Level 5 – Super Admin (Owner)
+ * Level 1, Customer Care
+ * Level 2, Senior Support / Dispute Team
+ * Level 3, Operations / Finance
+ * Level 4, Manager / Admin
+ * Level 5, Super Admin (Owner)
  */
 
 export type AdminRole =
@@ -39,7 +39,7 @@ export type CarePermission =
   | "view_bank_full" // full pro bank account details
   | "view_earnings" // earnings / escrow reports
   | "reply_users"
-  | "verification_approve" // Tier 1–4 docs
+  | "verification_approve" // Tier 1-4 docs
   | "resolve_simple" // mark simple issues resolved
   | "dispute_resolve"
   | "escrow_release"
@@ -48,7 +48,7 @@ export type CarePermission =
   | "view_pii" // phone/email full (not bank)
   | "content_edit" // app text, icons, menus, arrangement
   | "system_settings"
-  | "manage_staff_l1_l3" // create/edit L1–L3
+  | "manage_staff_l1_l3" // create/edit L1-L3
   | "role_change" // all staff levels (L5)
   | "health"
   /** ONA Shop catalog: products, prices, stock, images */
@@ -81,7 +81,7 @@ const ALL: CarePermission[] = [
   "shop_catalog",
 ];
 
-/** L1 – Customer Care */
+/** L1, Customer Care */
 const L1: CarePermission[] = [
   "view_jobs",
   "view_users",
@@ -95,7 +95,7 @@ const L1: CarePermission[] = [
   "health",
 ];
 
-/** L2 – Senior Support / Dispute Team */
+/** L2, Senior Support / Dispute Team */
 const L2: CarePermission[] = [
   ...L1,
   "view_audit",
@@ -104,7 +104,7 @@ const L2: CarePermission[] = [
   "user_freeze",
 ];
 
-/** L3 – Operations / Finance */
+/** L3, Operations / Finance */
 const L3: CarePermission[] = [
   ...L2,
   "view_payment_full",
@@ -114,7 +114,7 @@ const L3: CarePermission[] = [
   "escrow_refund",
 ];
 
-/** L4 – Manager / Admin */
+/** L4, Manager / Admin */
 const L4: CarePermission[] = [
   ...L3,
   "content_edit",
@@ -132,7 +132,7 @@ const ROLE_PERMS: Record<AdminRole, CarePermission[]> = {
 
 /**
  * Actions that require temporary staff unlock code (except Super Admin).
- * Cancel escrow always requires unlock for L3–L4 (see requireSensitiveAction).
+ * Cancel escrow always requires unlock for L3-L4 (see requireSensitiveAction).
  */
 export const PASSWORD_GATED: CarePermission[] = [
   "escrow_release",
@@ -184,13 +184,16 @@ export function roleLevel(role: AdminRole): number {
   return ADMIN_LEVEL[role] ?? 5;
 }
 
-export function roleAtLeast(role: AdminRole, minLevel: 1 | 2 | 3 | 4 | 5): boolean {
+export function roleAtLeast(
+  role: AdminRole,
+  minLevel: 1 | 2 | 3 | 4 | 5,
+): boolean {
   return roleLevel(role) >= minLevel;
 }
 
 export function roleHasPermission(
   role: AdminRole,
-  perm: CarePermission
+  perm: CarePermission,
 ): boolean {
   return ROLE_PERMS[role]?.includes(perm) ?? false;
 }
@@ -321,11 +324,7 @@ export function canAccessAdminPath(role: AdminRole, href: string): boolean {
   if (role === "super_admin") return true;
 
   // L5-only system security / full staff
-  const superOnly = [
-    "/admin/settings",
-    "/admin/features",
-    "/admin/matching",
-  ];
+  const superOnly = ["/admin/settings", "/admin/features", "/admin/matching"];
   if (superOnly.some((p) => path === p || path.startsWith(`${p}/`))) {
     return false;
   }
@@ -376,7 +375,7 @@ export function maskBankAccount(account: string | null | undefined): string {
 
 export function maskBankPayload<T extends Record<string, unknown>>(
   row: T,
-  canViewFull: boolean
+  canViewFull: boolean,
 ): T {
   if (canViewFull) return row;
   const out = { ...row } as Record<string, unknown>;

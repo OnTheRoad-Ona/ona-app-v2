@@ -54,7 +54,7 @@ export function TierBadge({
             : isLight
               ? "bg-black/10 text-slate-700"
               : "bg-[#2c2c2e] text-white/80",
-        className
+        className,
       )}
     >
       <Shield className="h-3 w-3" />
@@ -82,8 +82,8 @@ export function TierProgress({
       label: "NIN + BVN + Face",
       done: Boolean(
         profile?.ninVerified &&
-          profile?.bvnVerified &&
-          (profile?.faceLivenessVerified || profile?.identityVerifiedAt)
+        profile?.bvnVerified &&
+        (profile?.faceLivenessVerified || profile?.identityVerifiedAt),
       ),
     },
     {
@@ -99,7 +99,7 @@ export function TierProgress({
         <span
           className={cn(
             "text-[11px] font-medium",
-            isLight ? "text-slate-600" : "text-[#a1a1a6]"
+            isLight ? "text-slate-600" : "text-[#a1a1a6]",
           )}
         >
           {tier < 3
@@ -113,7 +113,7 @@ export function TierProgress({
             key={s.n}
             className={cn(
               "h-1.5 flex-1 rounded-full",
-              s.done ? "bg-brand" : isLight ? "bg-black/10" : "bg-white/10"
+              s.done ? "bg-brand" : isLight ? "bg-black/10" : "bg-white/10",
             )}
             title={s.label}
           />

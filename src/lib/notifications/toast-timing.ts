@@ -29,7 +29,7 @@ export type ToastGateDecision =
  */
 export function canAutoShowToast(
   lastWaveAtMs: number,
-  nowMs: number = Date.now()
+  nowMs: number = Date.now(),
 ): ToastGateDecision {
   if (!lastWaveAtMs || lastWaveAtMs <= 0) {
     return { allow: true, reason: "new_wave" };

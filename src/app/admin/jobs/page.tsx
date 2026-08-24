@@ -77,7 +77,8 @@ export default function AdminJobsPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Jobs</h1>
       <p className="om-admin-sub">
-        All service jobs from the live app — negotiation, booked, en route, complete. Open a job to inspect parties, escrow, and timeline.
+        All service jobs from the live app negotiation, booked, en route,
+        complete. Open a job to inspect parties, escrow, and timeline.
       </p>
 
       <AdminGuideBanner pageId="jobs" />
@@ -117,7 +118,7 @@ export default function AdminJobsPage() {
                       {j.description?.slice(0, 48) || j.id.slice(0, 8)}
                     </div>
                   </td>
-                  <td>{j.motorist?.full_name || "—"}</td>
+                  <td>{j.motorist?.full_name || ""}</td>
                   <td>{j.pro?.full_name || "Unassigned"}</td>
                   <td>
                     <span className="om-admin-badge">{j.status}</span>

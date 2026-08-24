@@ -12,13 +12,13 @@ const bodySchema = z.object({
   actorId: z.string().min(1),
   // Price cannot be 0; max 6 digits (1 … 999999)
   amountMajor: z.number().int().min(1).max(999_999).optional(),
-  // Client idempotency sticker — retries of the same offer reuse it
+  // Client idempotency sticker retries of the same offer reuse it
   clientOfferId: z.string().min(1).max(100).optional().nullable(),
 });
 
 export async function POST(
   req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   try {
     const auth = await requireUser(req);

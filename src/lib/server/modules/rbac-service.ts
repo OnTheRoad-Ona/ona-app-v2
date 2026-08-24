@@ -1,6 +1,6 @@
 /**
  * Database-backed RBAC with code fallback.
- * Phase A: foundation — load permissions from Postgres when available.
+ * Phase A: foundation load permissions from Postgres when available.
  */
 
 import { createServiceSupabase } from "@/lib/supabase/server";
@@ -14,12 +14,10 @@ import {
 /** Extended permission ids from rbac_permissions seed */
 export type PlatformPermission = string;
 
-let cache:
-  | {
-      at: number;
-      byRole: Record<string, Set<string>>;
-    }
-  | null = null;
+let cache: {
+  at: number;
+  byRole: Record<string, Set<string>>;
+} | null = null;
 
 const CACHE_MS = 60_000;
 
@@ -105,7 +103,7 @@ const CODE_PERMS = new Set<string>([
  */
 export async function hasPermission(
   adminRole: string | null | undefined,
-  permission: CarePermission | PlatformPermission
+  permission: CarePermission | PlatformPermission,
 ): Promise<boolean> {
   const role = normalizeAdminRole(adminRole);
   const map = await loadRoleMap();
@@ -119,7 +117,10 @@ export async function hasPermission(
   }
 
   if (CODE_PERMS.has(permission)) {
-    return codeRoleHasPermission(role as AdminRole, permission as CarePermission);
+    return codeRoleHasPermission(
+      role as AdminRole,
+      permission as CarePermission,
+    );
   }
 
   return role === "super_admin";

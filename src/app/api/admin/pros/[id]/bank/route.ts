@@ -1,5 +1,5 @@
 /**
- * Full Repair Pro bank details — L3+ Operations/Finance only.
+ * Full Repair Pro bank details L3+ Operations/Finance only.
  * Lower levels receive masked account numbers only.
  */
 
@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   if (!isSupabaseAdminConfigured()) {
     return apiFail("Supabase is not configured", 503);
@@ -32,7 +32,7 @@ export async function GET(
     const { adminRole, session } = await requireAdmin();
     const canFull = roleHasPermission(adminRole, "view_bank_full");
 
-    // Full bank requires sensitive unlock for non–super-admin
+    // Full bank requires sensitive unlock for non-super-admin
     if (canFull) {
       await requireSensitiveAction("view_bank_full", req);
     }
@@ -41,7 +41,7 @@ export async function GET(
     const { data, error } = await supabase
       .from("repair_pro_profiles")
       .select(
-        "user_id, business_name, bank_name, bank_code, bank_account_number, bank_account_name"
+        "user_id, business_name, bank_name, bank_code, bank_account_number, bank_account_name",
       )
       .eq("user_id", id)
       .maybeSingle();

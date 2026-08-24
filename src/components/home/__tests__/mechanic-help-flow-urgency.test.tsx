@@ -34,9 +34,7 @@ const app = vi.hoisted(() => ({
     identityId: "motorist-1",
     fullName: "Test Customer",
     avatarUrl: null,
-    vehicles: [
-      { id: "v1", make: "Toyota", model: "Corolla", year: "2018" },
-    ],
+    vehicles: [{ id: "v1", make: "Toyota", model: "Corolla", year: "2018" }],
   },
   backendUserId: "motorist-1",
   isAuthenticated: true,
@@ -71,10 +69,10 @@ describe("MechanicHelpFlow auto-highlights the best-fit urgency bar", () => {
   it("highlights Emergency after the diagnosis says the vehicle is not safe to drive", () => {
     render(<MechanicHelpFlow isLight={false} />);
 
-    // 1. Vehicle step — pick the saved vehicle.
+    // 1. Vehicle step pick the saved vehicle.
     fireEvent.click(screen.getByText("Toyota · Corolla · 2018"));
 
-    // 2. Start screen — branch C (strange noise).
+    // 2. Start screen branch C (strange noise).
     fireEvent.click(screen.getByText("Strange noise coming from the vehicle"));
 
     // 3. Noise questions.
@@ -88,7 +86,7 @@ describe("MechanicHelpFlow auto-highlights the best-fit urgency bar", () => {
     // 5. Route confirm (towing) → Yes.
     fireEvent.click(screen.getByText("Yes"));
 
-    // 6. Urgency bars — Emergency must be the highlighted one.
+    // 6. Urgency bars Emergency must be the highlighted one.
     const emergency = screen.getByText("Emergency").closest("button")!;
     const normal = screen.getByText("Normal").closest("button")!;
     expect(emergency.className).toContain("bg-[#FF6B35]/10");

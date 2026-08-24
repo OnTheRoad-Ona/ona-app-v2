@@ -1,5 +1,5 @@
 /**
- * Controllable app config — source of truth for Super Admin backend.
+ * Controllable app config source of truth for Super Admin backend.
  * Defaults match current Ona behaviour; DB overrides via app_settings.
  */
 
@@ -46,13 +46,15 @@ export type VerificationSection = {
   requireBvn: boolean;
 };
 
-export type ContentMenuItem = {
-  id: string;
-  label: string;
-  href: string;
-  icon?: string;
-  order: number;
-  enabled: boolean;
+/**
+ * Whitelist-override for one sidebar row (see src/lib/nav-schema.ts).
+ * The compiled nav defines which rows exist; the backend may only hide,
+ * reorder, or relabel known rows. Unknown ids are ignored by the app.
+ */
+export type MenuItemOverride = {
+  hidden?: boolean;
+  order?: number;
+  label?: string;
 };
 
 export type ContentSection = {
@@ -62,10 +64,10 @@ export type ContentSection = {
   loginSubtitle: string;
   /** App display name override (soft brand) */
   appTitle?: string;
-  /** Motorist tab / shell menu labels + order */
-  mainMenu?: ContentMenuItem[];
-  /** Pro dashboard menu */
-  proMenu?: ContentMenuItem[];
+  /** Motorist sidebar overrides (hide / reorder / relabel known rows) */
+  mainMenuOverrides?: Record<string, MenuItemOverride>;
+  /** Pro sidebar overrides */
+  proMenuOverrides?: Record<string, MenuItemOverride>;
   /** Extra marketing / empty-state strings */
   strings?: Record<string, string>;
 };
@@ -91,8 +93,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     supportEmail: "witcowavers@gmail.com",
     supportPhone: "",
     maintenanceMode: false,
-    maintenanceMessage:
-      "Ona is updating. Please try again in a short while.",
+    maintenanceMessage: "Ona is updating. Please try again in a short while.",
     defaultTheme: "light",
     forceTheme: null,
   },
@@ -134,18 +135,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     homeBanner: "",
     loginSubtitle: "Car owner and Repair Pro",
     appTitle: "Ona",
-    mainMenu: [
-      { id: "home", label: "Home", href: "/", icon: "home", order: 0, enabled: true },
-      { id: "messages", label: "Messages", href: "/messages", icon: "message", order: 2, enabled: true },
-      { id: "history", label: "History", href: "/history", icon: "clock", order: 3, enabled: true },
-      { id: "settings", label: "Settings", href: "/settings", icon: "settings", order: 4, enabled: true },
-    ],
-    proMenu: [
-      { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: "gauge", order: 0, enabled: true },
-      { id: "jobs", label: "Jobs", href: "/jobs", icon: "briefcase", order: 1, enabled: true },
-      { id: "messages", label: "Messages", href: "/messages", icon: "message", order: 2, enabled: true },
-      { id: "settings", label: "Settings", href: "/settings", icon: "settings", order: 3, enabled: true },
-    ],
+    mainMenuOverrides: {},
+    proMenuOverrides: {},
     strings: {
       releaseCta: "I am Satisfied · Release",
       disputeCta: "Open a dispute",
@@ -185,7 +176,7 @@ export const APP_SETTING_KEYS = [
 export type AppSettingKey = (typeof APP_SETTING_KEYS)[number];
 
 export function mergeConfig(
-  rows: Array<{ key: string; value: unknown }>
+  rows: Array<{ key: string; value: unknown }>,
 ): AppConfig {
   const base: AppConfig = structuredClone(DEFAULT_APP_CONFIG);
   for (const row of rows) {
@@ -201,7 +192,7 @@ export function mergeConfig(
     new Set([
       ...DEFAULT_APP_CONFIG.services.enabled,
       ...(base.services.enabled ?? []),
-    ])
+    ]),
   );
   // Ensure time-based trial exists even if DB still has count-only verification
   if (
@@ -210,16 +201,16 @@ export function mergeConfig(
   ) {
     base.verification.trialDays = DEFAULT_APP_CONFIG.verification.trialDays;
   }
-  // Marketplace radius is hard-capped at 5 km — ignore stale DB values above that
+  // Marketplace radius is hard-capped at 5 km ignore stale DB values above that
   const maxR = Number(base.matching.maxRadiusKm);
   base.matching.maxRadiusKm = Math.min(
     MAX_RADIUS_KM,
-    Math.max(1, Number.isFinite(maxR) ? maxR : MAX_RADIUS_KM)
+    Math.max(1, Number.isFinite(maxR) ? maxR : MAX_RADIUS_KM),
   );
   const defR = Number(base.matching.defaultRadiusKm);
   base.matching.defaultRadiusKm = Math.min(
     MAX_RADIUS_KM,
-    Math.max(0.5, Number.isFinite(defR) ? defR : DEFAULT_RADIUS_KM)
+    Math.max(0.5, Number.isFinite(defR) ? defR : DEFAULT_RADIUS_KM),
   );
   return base;
 }

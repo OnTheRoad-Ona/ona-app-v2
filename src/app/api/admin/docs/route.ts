@@ -1,10 +1,10 @@
 /**
- * Care document proxy — Admin + Customer Care only.
+ * Care document proxy Admin + Customer Care only.
  * View in-browser (inline). Download is blocked for everyone else.
  * Support role cannot access review / ID / skill files.
  *
  * GET ?userId=&kind=front|back|pro_front|pro_back|skill|selfie|cac|cert
- * GET ?url=   (absolute http(s) or data: URL — re-fetched server-side when http)
+ * GET ?url= (absolute http(s) or data: URL re-fetched server-side when http)
  */
 import { AdminAuthError, requireAdmin } from "@/lib/server/admin-auth";
 import { apiFail } from "@/lib/server/api-json";
@@ -36,7 +36,7 @@ export async function GET(req: Request) {
       return apiFail(
         "Only Admin and Customer Care can view review documents.",
         403,
-        "docs_forbidden"
+        "docs_forbidden",
       );
     }
   } catch (e) {
@@ -50,13 +50,13 @@ export async function GET(req: Request) {
   const userId = (searchParams.get("userId") || "").trim();
   const kind = (searchParams.get("kind") || "front").trim();
   const rawUrl = (searchParams.get("url") || "").trim();
-  // Never allow attachment/download for public scrapers — inline view only
+  // Never allow attachment/download for public scrapers inline view only
   const forceDownload = searchParams.get("download") === "1";
   if (forceDownload) {
     return apiFail(
       "Downloading review or backend identity files is not allowed. View only for Admin and Customer Care.",
       403,
-      "download_forbidden"
+      "download_forbidden",
     );
   }
 
@@ -76,7 +76,7 @@ export async function GET(req: Request) {
         const { data } = await sb
           .from("repair_pro_profiles")
           .select(
-            "gov_id_front_url, gov_id_back_url, skill_doc_url, cac_document_url, certification_file_url, face_liveness_selfie_url, portfolio"
+            "gov_id_front_url, gov_id_back_url, skill_doc_url, cac_document_url, certification_file_url, face_liveness_selfie_url, portfolio",
           )
           .eq("user_id", userId)
           .maybeSingle();
@@ -89,7 +89,7 @@ export async function GET(req: Request) {
         else if (kind === "cac")
           target = (data?.cac_document_url as string) || null;
         else
-          // skill | cert — any skill proof column
+          // skill | cert any skill proof column
           target =
             (data?.certification_file_url as string) ||
             (data?.skill_doc_url as string) ||
@@ -103,13 +103,13 @@ export async function GET(req: Request) {
           .maybeSingle();
         target =
           kind === "back"
-            ? ((data?.gov_id_back_url as string) || null)
-            : ((data?.gov_id_front_url as string) || null);
+            ? (data?.gov_id_back_url as string) || null
+            : (data?.gov_id_front_url as string) || null;
       }
     } catch (e) {
       return apiFail(
         e instanceof Error ? e.message : "Could not load document",
-        500
+        500,
       );
     }
   }
@@ -120,14 +120,14 @@ export async function GET(req: Request) {
 
   const viewHeaders = (mime: string, ext: string) => ({
     "Content-Type": mime,
-    // Inline only — no attachment (blocks “Save as / download” intent)
+    // Inline only no attachment (blocks “Save as / download” intent)
     "Content-Disposition": `inline; filename="ona-view.${ext}"`,
     "Cache-Control": "private, max-age=60, no-store",
     "X-Content-Type-Options": "nosniff",
     "X-Ona-Doc-Access": "view-only-admin-care",
   });
 
-  // data: URLs — return decoded bytes
+  // data: URLs return decoded bytes
   if (target.startsWith("data:")) {
     try {
       const m = target.match(/^data:([^;]+);base64,([\s\S]+)$/);
@@ -159,7 +159,7 @@ export async function GET(req: Request) {
     }
   }
 
-  // Remote URL (Supabase storage or CDN) — fetch server-side and stream
+  // Remote URL (Supabase storage or CDN) fetch server-side and stream
   if (target.startsWith("http://") || target.startsWith("https://")) {
     try {
       const sb = createServiceSupabase();
@@ -167,13 +167,11 @@ export async function GET(req: Request) {
       try {
         // public | sign | authenticated object paths → short-lived signed URL
         const storageMatch = target.match(
-          /\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^/]+)\/(.+)$/
+          /\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^/]+)\/(.+)$/,
         );
         if (storageMatch) {
           const bucket = storageMatch[1];
-          const path = decodeURIComponent(
-            storageMatch[2].split("?")[0]
-          );
+          const path = decodeURIComponent(storageMatch[2].split("?")[0]);
           const { data, error } = await sb.storage
             .from(bucket)
             .createSignedUrl(path, 300);
@@ -211,10 +209,7 @@ export async function GET(req: Request) {
         headers: viewHeaders(ctype, ext),
       });
     } catch (e) {
-      return apiFail(
-        e instanceof Error ? e.message : "View failed",
-        502
-      );
+      return apiFail(e instanceof Error ? e.message : "View failed", 502);
     }
   }
 

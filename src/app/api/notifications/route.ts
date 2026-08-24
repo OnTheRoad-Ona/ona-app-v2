@@ -13,7 +13,11 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: Request) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
 
   const auth = await requireUser(req);
@@ -31,7 +35,9 @@ export async function GET(req: Request) {
   const sb = createServiceSupabase();
   const { data, error } = await sb
     .from("notifications")
-    .select("id,user_id,category,priority,title,body,href,action_type,group_key,job_id,job_status,message_text,read_at,created_at")
+    .select(
+      "id,user_id,category,priority,title,body,href,action_type,group_key,job_id,job_status,message_text,read_at,created_at",
+    )
     .eq("user_id", auth.userId)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -40,7 +46,7 @@ export async function GET(req: Request) {
     if (
       error.code === "PGRST205" ||
       /Could not find the table|schema cache|does not exist/i.test(
-        error.message || ""
+        error.message || "",
       )
     ) {
       return apiOk({ notifications: [], unreadCount: 0, tableMissing: true });
@@ -49,7 +55,7 @@ export async function GET(req: Request) {
   }
 
   const rows = (data || []).map((r) =>
-    mapNotificationRow(r as Record<string, unknown>)
+    mapNotificationRow(r as Record<string, unknown>),
   );
   const unreadCount = rows.filter((n) => !n.readAt).length;
   return apiOk({ notifications: rows, unreadCount });

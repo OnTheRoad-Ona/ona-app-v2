@@ -1,5 +1,5 @@
 /**
- * Repair Pro pipeline + profile — Supabase-backed (Phase B).
+ * Repair Pro pipeline + profile Supabase-backed (Phase B).
  * Client may still mirror local draft; DB is source of truth when configured.
  */
 
@@ -50,7 +50,7 @@ export async function GET(req: Request) {
   if (!isSupabaseAdminConfigured()) {
     return apiOk({
       source: "client_local_store",
-      message: "Supabase not configured — use local draft",
+      message: "Supabase not configured use local draft",
       userId,
     });
   }
@@ -72,14 +72,14 @@ export async function GET(req: Request) {
       supabase
         .from("motorist_profiles")
         .select(
-          "identity_review_status, identity_verified_at, gov_id_kind, phone_verified, nin_verified, bvn_verified"
+          "identity_review_status, identity_verified_at, gov_id_kind, phone_verified, nin_verified, bvn_verified",
         )
         .eq("user_id", auth.userId)
         .maybeSingle(),
     ]);
 
   // Never expose encrypted bank/NIN fields on this self-profile endpoint
-  // if they are present as raw secrets — strip known sensitive keys for safety.
+  // if they are present as raw secrets strip known sensitive keys for safety.
   let safePro = pro as Record<string, unknown> | null;
   if (safePro) {
     const {
@@ -123,7 +123,7 @@ export async function PATCH(req: Request) {
   if (!isSupabaseAdminConfigured()) {
     return apiOk({
       source: "client_local_store",
-      message: "Supabase not configured — client keeps local draft",
+      message: "Supabase not configured client keeps local draft",
     });
   }
 
@@ -184,7 +184,7 @@ export async function PATCH(req: Request) {
       return apiFail(
         `Invalid pipeline transition ${from} → ${to}`,
         400,
-        "invalid_transition"
+        "invalid_transition",
       );
     }
     patch.pipeline_status = to;
@@ -205,9 +205,8 @@ export async function PATCH(req: Request) {
   // Auto ladder after liveness (T3) or other verification fields
   if (b.livenessPassedAt) {
     try {
-      const { recomputeProVisibility } = await import(
-        "@/lib/server/pro-visibility"
-      );
+      const { recomputeProVisibility } =
+        await import("@/lib/server/pro-visibility");
       await recomputeProVisibility(supabase, b.userId);
     } catch {
       /* non-fatal */

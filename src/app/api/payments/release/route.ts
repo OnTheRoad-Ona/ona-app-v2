@@ -19,7 +19,7 @@ const bodySchema = z.object({
 /**
  * Dual completion: each party marks complete.
  * When both done → single idempotent pro payout via attemptProPayout
- * (stable transfer ref + ledger + FLW lookup — never a second bank credit).
+ * (stable transfer ref + ledger + FLW lookup never a second bank credit).
  */
 export async function POST(req: Request) {
   try {
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     const parsed = bodySchema.safeParse(await req.json());
     if (!parsed.success) return apiFail("Invalid body", 400);
     const { requestId, role } = parsed.data;
-    // Identity from session only — ignore spoofed body.userId
+    // Identity from session only ignore spoofed body.userId
     const userId = auth.userId;
 
     const payment = await getEscrowByRequest(requestId);
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
       payment.escrowStatus !== "release_pending" &&
       payment.escrowStatus !== "pending_settlement"
     ) {
-      return apiFail("Escrow is not held — cannot release", 400, "not_held");
+      return apiFail("Escrow is not held cannot release", 400, "not_held");
     }
 
     const now = new Date().toISOString();
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
       escrowStatus: "release_pending",
     });
 
-    // ONE path only — never call releaseToPro with a different reference
+    // ONE path only never call releaseToPro with a different reference
     const result = await attemptProPayout({
       jobId: requestId,
       repairProId: payment.repairProId,
@@ -134,11 +134,10 @@ export async function POST(req: Request) {
     return apiFail(
       result.message || "Could not release payout. Funds remain in escrow.",
       400,
-      "payout_failed"
+      "payout_failed",
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Release failed";
     return apiFail(msg, 500);
   }
 }
-

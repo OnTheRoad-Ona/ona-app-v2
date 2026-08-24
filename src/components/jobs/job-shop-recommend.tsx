@@ -36,7 +36,9 @@ function priceLabel(p: ProductHit): string {
 
 export function JobShopRecommend({ jobId, isLight, canEdit }: Props) {
   const muted = isLight ? "text-slate-600" : "text-white/55";
-  const card = isLight ? "bg-white/90 text-slate-900" : "bg-[#1c1c1e] text-white";
+  const card = isLight
+    ? "bg-white/90 text-slate-900"
+    : "bg-[#1c1c1e] text-white";
   const [q, setQ] = useState("");
   const [searching, setSearching] = useState(false);
   const [hits, setHits] = useState<ProductHit[]>([]);
@@ -44,7 +46,9 @@ export function JobShopRecommend({ jobId, isLight, canEdit }: Props) {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const loadRecs = useCallback(async () => {
-    const res = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/recommendations`);
+    const res = await fetch(
+      `/api/jobs/${encodeURIComponent(jobId)}/recommendations`,
+    );
     const json = (await res.json()) as {
       ok?: boolean;
       data?: { recommendations?: Recommendation[] };
@@ -65,13 +69,13 @@ export function JobShopRecommend({ jobId, isLight, canEdit }: Props) {
     setSearching(true);
     try {
       const res = await fetch(
-        `/api/jobs/${encodeURIComponent(jobId)}/recommendations?q=${encodeURIComponent(query)}`
+        `/api/jobs/${encodeURIComponent(jobId)}/recommendations?q=${encodeURIComponent(query)}`,
       );
       const json = (await res.json()) as {
         ok?: boolean;
         data?: { results?: ProductHit[] };
       };
-      setHits(json.ok ? json.data?.results ?? [] : []);
+      setHits(json.ok ? (json.data?.results ?? []) : []);
     } finally {
       setSearching(false);
     }
@@ -96,7 +100,7 @@ export function JobShopRecommend({ jobId, isLight, canEdit }: Props) {
     try {
       await fetch(
         `/api/jobs/${encodeURIComponent(jobId)}/recommendations?recommendationId=${encodeURIComponent(recommendationId)}`,
-        { method: "DELETE" }
+        { method: "DELETE" },
       );
       await loadRecs();
     } finally {
@@ -155,7 +159,7 @@ export function JobShopRecommend({ jobId, isLight, canEdit }: Props) {
           <div
             className={cn(
               "flex items-center gap-1.5 rounded-lg px-2 py-1.5",
-              isLight ? "bg-black/[0.04]" : "bg-white/[0.06]"
+              isLight ? "bg-black/[0.04]" : "bg-white/[0.06]",
             )}
           >
             <Search className="h-3.5 w-3.5 text-[#FF6B35]" />
@@ -170,7 +174,7 @@ export function JobShopRecommend({ jobId, isLight, canEdit }: Props) {
                 "min-w-0 flex-1 border-0 bg-transparent text-[12px] outline-none",
                 isLight
                   ? "text-slate-900 placeholder:text-slate-400"
-                  : "text-white placeholder:text-white/40"
+                  : "text-white placeholder:text-white/40",
               )}
             />
             <button
@@ -178,7 +182,11 @@ export function JobShopRecommend({ jobId, isLight, canEdit }: Props) {
               onClick={() => void runSearch()}
               className="border-0 bg-transparent text-[11px] font-bold text-[#FF6B35]"
             >
-              {searching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Go"}
+              {searching ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                "Go"
+              )}
             </button>
           </div>
           {hits.length ? (
@@ -189,9 +197,13 @@ export function JobShopRecommend({ jobId, isLight, canEdit }: Props) {
                   className="flex items-center gap-2 rounded-lg px-1 py-1"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[12px] font-semibold">{h.name}</p>
+                    <p className="truncate text-[12px] font-semibold">
+                      {h.name}
+                    </p>
                     <p className={cn("text-[10px]", muted)}>
-                      {priceLabel(h)} · {h.stockLabel || (h.inStock ? "In Stock" : "Out of Stock")}
+                      {priceLabel(h)} ·{" "}
+                      {h.stockLabel ||
+                        (h.inStock ? "In Stock" : "Out of Stock")}
                     </p>
                   </div>
                   <button

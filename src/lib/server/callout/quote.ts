@@ -6,10 +6,7 @@
 
 import type { JobFlowStatus } from "@/lib/jobs/types";
 import type { ProService } from "@/lib/types";
-import {
-  type CalloutQuote,
-  type CalloutStatus,
-} from "@/lib/callout/constants";
+import { type CalloutQuote, type CalloutStatus } from "@/lib/callout/constants";
 import { calloutStatusFromJobFlow } from "@/lib/callout/status";
 import {
   classifyRequest,
@@ -47,7 +44,7 @@ export type CalloutAttachInput = {
 function emptyQuote(
   requestId: string,
   status: CalloutStatus,
-  extra: Partial<CalloutQuote> = {}
+  extra: Partial<CalloutQuote> = {},
 ): CalloutQuote {
   return {
     requestId,
@@ -74,7 +71,7 @@ function emptyQuote(
 
 async function persistClassification(
   requestId: string,
-  classification: ServiceClassification
+  classification: ServiceClassification,
 ): Promise<void> {
   if (!isSupabaseAdminConfigured()) return;
   try {
@@ -96,7 +93,7 @@ async function persistClassification(
 }
 
 export async function attachCalloutToRequest(
-  input: CalloutAttachInput
+  input: CalloutAttachInput,
 ): Promise<CalloutQuote | null> {
   const existing = await getCalloutQuote(input.requestId);
   if (existing?.calloutStatus === "LOCKED") return existing;
@@ -115,7 +112,9 @@ export async function attachCalloutToRequest(
   await persistClassification(input.requestId, classification);
 
   const dest = input.destination;
-  const urgencyKind = isCalloutUrgencyKind(String(input.urgencyKind || "normal"))
+  const urgencyKind = isCalloutUrgencyKind(
+    String(input.urgencyKind || "normal"),
+  )
     ? input.urgencyKind
     : "normal";
   const urgencyMultiplier = calloutUrgencyMultiplier(urgencyKind);
@@ -134,7 +133,7 @@ export async function attachCalloutToRequest(
         currency: policy.currency,
         urgencyKind,
         urgencyMultiplier,
-      })
+      }),
     );
   }
 
@@ -148,7 +147,7 @@ export async function attachCalloutToRequest(
       currency: policy.currency,
       urgencyKind,
       urgencyMultiplier,
-    })
+    }),
   );
 }
 

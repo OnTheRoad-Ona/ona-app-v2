@@ -23,7 +23,9 @@ function cronAuthorized(req: Request): boolean {
   ].filter((s): s is string => Boolean(s));
   const auth = req.headers.get("authorization") || "";
   const header =
-    req.headers.get("x-cron-secret") || req.headers.get("x-job-expire-secret") || "";
+    req.headers.get("x-cron-secret") ||
+    req.headers.get("x-job-expire-secret") ||
+    "";
   const url = new URL(req.url);
   const querySecret = url.searchParams.get("secret") || "";
   for (const secret of secrets) {
@@ -33,8 +35,11 @@ function cronAuthorized(req: Request): boolean {
     if (querySecret === secret) return true;
   }
   if (secrets.length > 0) return false;
-  // No secret configured — allow Vercel Cron in preview only if explicitly enabled
-  if (process.env.VERCEL === "1" && process.env.ALLOW_OPEN_PAYOUT_CRON === "true") {
+  // No secret configured allow Vercel Cron in preview only if explicitly enabled
+  if (
+    process.env.VERCEL === "1" &&
+    process.env.ALLOW_OPEN_PAYOUT_CRON === "true"
+  ) {
     return true;
   }
   const ua = req.headers.get("user-agent") || "";

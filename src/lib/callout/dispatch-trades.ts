@@ -17,7 +17,7 @@ export type DispatchTrades = {
 };
 
 export function scoreTradesFromProblem(
-  problem: string
+  problem: string,
 ): { trade: ProService; score: number }[] {
   const q = String(problem || "").toLowerCase();
   const scores = new Map<ProService, number>();
@@ -37,20 +37,19 @@ export function scoreTradesFromProblem(
 /** After they type: ask only if Ona's best trade is not the one they tapped. */
 export function decideHelpTrade(
   problem: string,
-  tappedTrade?: ProService | string | null
+  tappedTrade?: ProService | string | null,
 ): {
   tapped: ProService | null;
   suggested: ProService;
   needsConfirm: boolean;
   fromProblem: ProService[];
 } {
-  const tapped =
-    tappedTrade && isProService(tappedTrade) ? tappedTrade : null;
+  const tapped = tappedTrade && isProService(tappedTrade) ? tappedTrade : null;
   const ranked = scoreTradesFromProblem(problem);
   const fromProblem = ranked.map((r) => r.trade);
   const suggested = ranked[0]?.trade ?? tapped ?? "mechanic";
   const needsConfirm = Boolean(
-    tapped && fromProblem.length > 0 && suggested !== tapped
+    tapped && fromProblem.length > 0 && suggested !== tapped,
   );
   return { tapped, suggested, needsConfirm, fromProblem };
 }
@@ -69,7 +68,7 @@ export function tradesFromProblemText(problem: string): ProService[] {
 
 export function resolveDispatchTrades(
   problem: string,
-  selectedTrade?: ProService | string | null
+  selectedTrade?: ProService | string | null,
 ): DispatchTrades {
   const stated =
     selectedTrade && isProService(selectedTrade) ? selectedTrade : null;
@@ -114,15 +113,31 @@ export function resolveDispatchTrades(
 
 export function proOffersAnyTrade(
   trades: string[],
-  p: { primary_service?: string | null; services?: unknown }
+  p: { primary_service?: string | null; services?: unknown },
 ): boolean {
-  const want = new Set(trades.map((t) => String(t || "").trim().toLowerCase()).filter(Boolean));
+  const want = new Set(
+    trades
+      .map((t) =>
+        String(t || "")
+          .trim()
+          .toLowerCase(),
+      )
+      .filter(Boolean),
+  );
   if (want.size === 0) return true;
-  const primary = String(p.primary_service || "").trim().toLowerCase();
+  const primary = String(p.primary_service || "")
+    .trim()
+    .toLowerCase();
   if (primary && want.has(primary)) return true;
   const list = p.services;
   if (Array.isArray(list)) {
-    return list.some((s) => want.has(String(s || "").trim().toLowerCase()));
+    return list.some((s) =>
+      want.has(
+        String(s || "")
+          .trim()
+          .toLowerCase(),
+      ),
+    );
   }
   return false;
 }

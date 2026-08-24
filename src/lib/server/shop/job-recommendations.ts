@@ -23,7 +23,7 @@ export async function searchShopForJob(q: string): Promise<ShopProductCard[]> {
 }
 
 export async function listJobRecommendations(
-  jobId: string
+  jobId: string,
 ): Promise<JobRecommendation[]> {
   const sb = createServiceSupabase();
   const { data, error } = await sb

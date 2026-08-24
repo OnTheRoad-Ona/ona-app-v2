@@ -63,7 +63,11 @@ async function readCachedDoc(url: string): Promise<string | null> {
 }
 
 /** Prefer admin proxy for private storage / CORS; fall back to direct URL. */
-function proxyDocUrl(url: string, userId?: string | null, kind?: string): string {
+function proxyDocUrl(
+  url: string,
+  userId?: string | null,
+  kind?: string,
+): string {
   if (!url) return url;
   if (url.startsWith("data:") || url.startsWith("blob:")) return url;
   const q = new URLSearchParams();
@@ -79,13 +83,10 @@ function proxyDocUrl(url: string, userId?: string | null, kind?: string): string
 /** Download once online and store for offline viewing. */
 async function cacheDocUrl(
   url: string,
-  opts?: { userId?: string | null; kind?: string }
+  opts?: { userId?: string | null; kind?: string },
 ): Promise<string | null> {
   if (!url || url.startsWith("data:") || url.startsWith("blob:")) return url;
-  const candidates = [
-    proxyDocUrl(url, opts?.userId, opts?.kind),
-    url,
-  ];
+  const candidates = [proxyDocUrl(url, opts?.userId, opts?.kind), url];
   for (const fetchUrl of candidates) {
     try {
       const res = await fetch(fetchUrl, {
@@ -145,7 +146,7 @@ export function AdminTabs({
           aria-selected={value === t.id}
           className={cn(
             "om-admin-tab",
-            value === t.id && "om-admin-tab-active"
+            value === t.id && "om-admin-tab-active",
           )}
           onClick={() => onChange(t.id)}
         >
@@ -172,7 +173,7 @@ export type AdminDocKind =
 /** Build same-origin proxy URL so Care can open private storage / data URLs. */
 export function adminDocViewHref(
   url: string | null | undefined,
-  opts?: { userId?: string | null; kind?: AdminDocKind }
+  opts?: { userId?: string | null; kind?: AdminDocKind },
 ): string {
   if (!url && !(opts?.userId && opts?.kind)) return "";
   if (url && (url.startsWith("data:") || url.startsWith("blob:"))) return url;
@@ -180,7 +181,7 @@ export function adminDocViewHref(
   return `/api/admin/docs?userId=${encodeURIComponent(opts!.userId!)}&kind=${encodeURIComponent(opts!.kind!)}`;
 }
 
-/** Thumbnail for uploaded ID / cert / portfolio — proxy + lightbox for proper view */
+/** Thumbnail for uploaded ID / cert / portfolio proxy + lightbox for proper view */
 export function FileThumb({
   label,
   url,
@@ -245,8 +246,7 @@ export function FileThumb({
       </div>
     );
   }
-  const view =
-    src || adminDocViewHref(url, { userId, kind });
+  const view = src || adminDocViewHref(url, { userId, kind });
   const isPdf =
     (url && /\.pdf(\?|$)/i.test(url)) ||
     (url && url.includes("application/pdf")) ||
@@ -258,10 +258,10 @@ export function FileThumb({
     Boolean(url && /video\//i.test(url || "")) ||
     Boolean(
       label &&
-        /video|intro/i.test(label) &&
-        view &&
-        !isPdf &&
-        !view.startsWith("data:image")
+      /video|intro/i.test(label) &&
+      view &&
+      !isPdf &&
+      !view.startsWith("data:image"),
     );
   const isImage =
     !isPdf &&
@@ -270,9 +270,9 @@ export function FileThumb({
       view.startsWith("blob:") ||
       Boolean(
         url &&
-          (/\.(jpe?g|png|gif|webp|heic)(\?|$)/i.test(url) ||
-            url.includes("image") ||
-            url.startsWith("data:image"))
+        (/\.(jpe?g|png|gif|webp|heic)(\?|$)/i.test(url) ||
+          url.includes("image") ||
+          url.startsWith("data:image")),
       ) ||
       // Proxy often serves images without extension in the path
       Boolean(view.includes("/api/admin/docs")));
@@ -296,7 +296,7 @@ export function FileThumb({
   const retrySrc = () => {
     if (userId && kind) {
       setSrc(
-        `/api/admin/docs?userId=${encodeURIComponent(userId)}&kind=${encodeURIComponent(kind)}&t=${Date.now()}`
+        `/api/admin/docs?userId=${encodeURIComponent(userId)}&kind=${encodeURIComponent(kind)}&t=${Date.now()}`,
       );
     } else if (url) {
       setSrc(proxyDocUrl(url) + `&t=${Date.now()}`);
@@ -395,7 +395,9 @@ export function FileThumb({
             </video>
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
-            <img loading="lazy" decoding="async"
+            <img
+              loading="lazy"
+              decoding="async"
               src={view}
               alt={label}
               style={{
@@ -473,7 +475,9 @@ export function FileThumb({
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img loading="lazy" decoding="async"
+        <img
+          loading="lazy"
+          decoding="async"
           src={view}
           alt={label}
           onError={retrySrc}
@@ -524,7 +528,7 @@ export function FileThumbRow({
                     : "pro_front")
             }
           />
-        ) : null
+        ) : null,
       )}
     </div>
   );
@@ -538,6 +542,7 @@ export function DetailDrawer({
   onClose,
   children,
   footer,
+  headerAction,
   width = 420,
 }: {
   open: boolean;
@@ -546,6 +551,8 @@ export function DetailDrawer({
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  /** Rendered in the header beside the Close button (e.g. a Save action) */
+  headerAction?: ReactNode;
   width?: number;
 }) {
   useEffect(() => {
@@ -576,13 +583,16 @@ export function DetailDrawer({
             <h2>{title}</h2>
             {subtitle ? <p>{subtitle}</p> : null}
           </div>
-          <button
-            type="button"
-            className="om-admin-btn ghost"
-            onClick={onClose}
-          >
-            Close
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {headerAction}
+            <button
+              type="button"
+              className="om-admin-btn ghost"
+              onClick={onClose}
+            >
+              Close
+            </button>
+          </div>
         </header>
         <div className="om-admin-drawer-body">{children}</div>
         {footer ? (
@@ -604,11 +614,7 @@ export function DetailField({
   label: string;
   value: ReactNode;
 }) {
-  const empty =
-    value == null ||
-    value === "" ||
-    value === "—" ||
-    value === "-";
+  const empty = value == null || value === "" || value === "" || value === "-";
   return (
     <div className="om-admin-detail-field">
       <div className="om-admin-detail-label">{label}</div>
@@ -653,11 +659,7 @@ export function StatusBadge({
           : s === "none" || s === "no_id" || s === "attended" || s === "read"
             ? "neutral"
             : "";
-  return (
-    <span className={cn("om-admin-badge", tone)}>
-      {children}
-    </span>
-  );
+  return <span className={cn("om-admin-badge", tone)}>{children}</span>;
 }
 
 /** Scroll wrapper so wide tables never crush columns */

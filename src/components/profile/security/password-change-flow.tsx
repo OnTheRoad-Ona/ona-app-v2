@@ -14,7 +14,10 @@ interface PasswordChangeFlowProps {
 
 type Step = "idle" | "form" | "confirming" | "done" | "error";
 
-export function PasswordChangeFlow({ isLight, accessToken }: PasswordChangeFlowProps) {
+export function PasswordChangeFlow({
+  isLight,
+  accessToken,
+}: PasswordChangeFlowProps) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("idle");
   const [currentPwd, setCurrentPwd] = useState("");
@@ -44,19 +47,42 @@ export function PasswordChangeFlow({ isLight, accessToken }: PasswordChangeFlowP
   }
 
   const doChange = async () => {
-    if (newPwd.length < 8) { setErr("Password must be at least 8 characters."); return; }
-    if (!/[A-Z]/.test(newPwd)) { setErr("Include an uppercase letter."); return; }
-    if (!/[a-z]/.test(newPwd)) { setErr("Include a lowercase letter."); return; }
-    if (!/[0-9]/.test(newPwd)) { setErr("Include a number."); return; }
-    if (!/[^A-Za-z0-9]/.test(newPwd)) { setErr("Include a special character."); return; }
-    if (newPwd !== confirmPwd) { setErr("Passwords do not match."); return; }
-    if (!currentPwd) { setErr("Enter your current password."); return; }
+    if (newPwd.length < 8) {
+      setErr("Password must be at least 8 characters.");
+      return;
+    }
+    if (!/[A-Z]/.test(newPwd)) {
+      setErr("Include an uppercase letter.");
+      return;
+    }
+    if (!/[a-z]/.test(newPwd)) {
+      setErr("Include a lowercase letter.");
+      return;
+    }
+    if (!/[0-9]/.test(newPwd)) {
+      setErr("Include a number.");
+      return;
+    }
+    if (!/[^A-Za-z0-9]/.test(newPwd)) {
+      setErr("Include a special character.");
+      return;
+    }
+    if (newPwd !== confirmPwd) {
+      setErr("Passwords do not match.");
+      return;
+    }
+    if (!currentPwd) {
+      setErr("Enter your current password.");
+      return;
+    }
 
     setBusy(true);
     setErr(null);
     setStep("confirming");
     try {
-      const res = await (await import("@/lib/api-auth-headers")).authFetch("/api/security/action", {
+      const res = await (
+        await import("@/lib/api-auth-headers")
+      ).authFetch("/api/security/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -67,7 +93,10 @@ export function PasswordChangeFlow({ isLight, accessToken }: PasswordChangeFlowP
           currentPassword: currentPwd,
         }),
       });
-      const json = await res.json().catch(() => null) as { ok?: boolean; error?: { message?: string } } | null;
+      const json = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: { message?: string };
+      } | null;
       if (!json?.ok) {
         setErr(json?.error?.message || "Password update failed.");
         setStep("error");
@@ -107,31 +136,70 @@ export function PasswordChangeFlow({ isLight, accessToken }: PasswordChangeFlowP
           </p>
         </div>
         {step === "done" ? (
-          <button type="button" onClick={reset} className="shrink-0 rounded-lg border-0 px-3 py-1.5 text-[11px] font-bold text-brand">Done</button>
+          <button
+            type="button"
+            onClick={reset}
+            className="shrink-0 rounded-lg border-0 px-3 py-1.5 text-[11px] font-bold text-brand"
+          >
+            Done
+          </button>
         ) : (
-          <button type="button" onClick={() => setConfirmCancel(true)} className="shrink-0 rounded-lg border-0 px-3 py-1.5 text-[11px] font-bold text-red-400">Cancel</button>
+          <button
+            type="button"
+            onClick={() => setConfirmCancel(true)}
+            className="shrink-0 rounded-lg border-0 px-3 py-1.5 text-[11px] font-bold text-red-400"
+          >
+            Cancel
+          </button>
         )}
       </div>
 
       {(msg || err) && (
-        <p className={cn("rounded-xl px-3 py-2 text-[12px] font-semibold", err ? "bg-red-500/15 text-red-400" : "bg-emerald-500/15 text-emerald-500")}>
+        <p
+          className={cn(
+            "rounded-xl px-3 py-2 text-[12px] font-semibold",
+            err
+              ? "bg-red-500/15 text-red-400"
+              : "bg-emerald-500/15 text-emerald-500",
+          )}
+        >
           {err || msg}
         </p>
       )}
 
       {step === "form" && (
         <div className="space-y-2">
-          <PasswordInput className={fieldClass} placeholder="Current password" value={currentPwd}
-            onChange={setCurrentPwd} isLight={isLight} />
-          <PasswordInput className={fieldClass} placeholder="New password" value={newPwd}
-            onChange={setNewPwd} isLight={isLight} />
-          <PasswordInput className={fieldClass} placeholder="Confirm new password" value={confirmPwd}
-            onChange={setConfirmPwd} isLight={isLight} />
+          <PasswordInput
+            className={fieldClass}
+            placeholder="Current password"
+            value={currentPwd}
+            onChange={setCurrentPwd}
+            isLight={isLight}
+          />
+          <PasswordInput
+            className={fieldClass}
+            placeholder="New password"
+            value={newPwd}
+            onChange={setNewPwd}
+            isLight={isLight}
+          />
+          <PasswordInput
+            className={fieldClass}
+            placeholder="Confirm new password"
+            value={confirmPwd}
+            onChange={setConfirmPwd}
+            isLight={isLight}
+          />
           <p className={cn("text-[10px] leading-snug", t.muted)}>
-            Minimum 8 characters with upper, lower, number, and special character.
+            Minimum 8 characters with upper, lower, number, and special
+            character.
           </p>
-          <button type="button" disabled={busy} onClick={doChange}
-            className="h-10 w-full rounded-xl border-0 bg-brand text-[13px] font-bold text-white disabled:opacity-50">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={doChange}
+            className="h-10 w-full rounded-xl border-0 bg-brand text-[13px] font-bold text-white disabled:opacity-50"
+          >
             {busy ? "Updating…" : "Update password"}
           </button>
         </div>

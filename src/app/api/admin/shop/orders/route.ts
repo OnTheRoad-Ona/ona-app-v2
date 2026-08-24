@@ -9,7 +9,11 @@ export const dynamic = "force-dynamic";
 /** List shop orders + delivery status for admin control. */
 export async function GET(req: Request) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     await requireAdmin();
@@ -21,7 +25,7 @@ export async function GET(req: Request) {
     let q = sb
       .from("shop_orders")
       .select(
-        "id, order_number, user_id, status, total_minor, currency, created_at, paid_at, ship_to_snapshot"
+        "id, order_number, user_id, status, total_minor, currency, created_at, paid_at, ship_to_snapshot",
       )
       .order("created_at", { ascending: false })
       .limit(limit);
@@ -48,9 +52,7 @@ export async function GET(req: Request) {
         .in("order_id", ids);
       deliveries = (d ?? []) as Array<Record<string, unknown>>;
     }
-    const byOrder = new Map(
-      deliveries.map((d) => [String(d.order_id), d])
-    );
+    const byOrder = new Map(deliveries.map((d) => [String(d.order_id), d]));
 
     return apiOk({
       orders: (orders ?? []).map((o) => ({

@@ -9,7 +9,7 @@ import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
  * estimate so the ₦ total does not flash labour-only.
  */
 export async function resolveJobCalloutQuote(
-  job: JobRecord
+  job: JobRecord,
 ): Promise<CalloutQuote | null> {
   const stored = await getCalloutQuote(job.id);
   if (

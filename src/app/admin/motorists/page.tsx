@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Customers hub — directory + ID review (merged, no duplicate pages).
+ * Customers hub directory + ID review (merged, no duplicate pages).
  * Clean table + file thumbs + full-detail drawer.
  */
 
@@ -207,7 +207,7 @@ export default function AdminCustomersHubPage() {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
     const res = await api<{ motorists: MotoristRow[]; totals: typeof totals }>(
-      `/api/admin/motorists?${params}`
+      `/api/admin/motorists?${params}`,
     );
     if (!res.ok) {
       setError(res.message);
@@ -240,17 +240,17 @@ export default function AdminCustomersHubPage() {
 
   const selectedReview = useMemo(
     () => reviewRows.find((r) => r.user_id === selectedId) || null,
-    [reviewRows, selectedId]
+    [reviewRows, selectedId],
   );
   const selectedDir = useMemo(
     () => rows.find((r) => r.id === selectedId) || null,
-    [rows, selectedId]
+    [rows, selectedId],
   );
 
   const actCustomer = async (
     userId: string,
     action: string,
-    body?: Record<string, unknown>
+    body?: Record<string, unknown>,
   ) => {
     setBusyId(userId);
     setMsg(null);
@@ -299,7 +299,8 @@ export default function AdminCustomersHubPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Customers</h1>
       <p className="om-admin-sub">
-        Customer accounts from the live app. Review IDs, verification, banks, and account status. Approve or freeze customers here.
+        Customer accounts from the live app. Review IDs, verification, banks,
+        and account status. Approve or freeze customers here.
       </p>
 
       <AdminGuideBanner pageId="customers" />
@@ -346,7 +347,10 @@ export default function AdminCustomersHubPage() {
             {(
               [
                 ["All", reviewTotals.total],
-                ["Unattended", reviewTotals.unattended ?? reviewTotals.submitted],
+                [
+                  "Unattended",
+                  reviewTotals.unattended ?? reviewTotals.submitted,
+                ],
                 ["Pending T2", reviewTotals.submitted],
                 ["Approved", reviewTotals.approved],
                 ["No ID yet", reviewTotals.none],
@@ -469,7 +473,7 @@ export default function AdminCustomersHubPage() {
                               #{r.queue_number}
                             </span>
                           ) : (
-                            <span className="om-admin-empty">—</span>
+                            <span className="om-admin-empty"></span>
                           )}
                         </td>
                         <td>
@@ -484,7 +488,7 @@ export default function AdminCustomersHubPage() {
                               }}
                               title={
                                 r.has_switched
-                                  ? `Switched · first ${r.first_role || "—"} · now ${r.current_role || "—"}`
+                                  ? `Switched · first ${r.first_role || ""} · now ${r.current_role || ""}`
                                   : "Holds Customer + Professional roles"
                               }
                             >
@@ -522,9 +526,7 @@ export default function AdminCustomersHubPage() {
                           ) : null}
                         </td>
                         <td className="om-admin-td-files">
-                          <FileThumbRow
-                            items={[{ label: "ID", url: front }]}
-                          />
+                          <FileThumbRow items={[{ label: "ID", url: front }]} />
                         </td>
                         <td className="om-admin-muted">
                           {fmtDate(r.created_at)}
@@ -599,7 +601,7 @@ export default function AdminCustomersHubPage() {
                             #{c.queue_number}
                           </span>
                         ) : (
-                          <span className="om-admin-empty">—</span>
+                          <span className="om-admin-empty"></span>
                         )}
                       </td>
                       <td>
@@ -728,7 +730,7 @@ export default function AdminCustomersHubPage() {
         )}
       </div>
 
-      {/* Detail drawer — directory */}
+      {/* Detail drawer directory */}
       <DetailDrawer
         open={Boolean(selectedDir && tab === "directory")}
         title={selectedDir?.full_name || "Customer"}
@@ -752,9 +754,7 @@ export default function AdminCustomersHubPage() {
                   type="button"
                   className="om-admin-btn"
                   disabled={busyId === selectedDir.id}
-                  onClick={() =>
-                    void actCustomer(selectedDir.id, "approve_t2")
-                  }
+                  onClick={() => void actCustomer(selectedDir.id, "approve_t2")}
                 >
                   Approve T2 ID
                 </button>
@@ -768,7 +768,10 @@ export default function AdminCustomersHubPage() {
             <div className="om-admin-section">
               <h3>Account</h3>
               <DetailGrid>
-                <DetailField label="User ID" value={<code style={{ fontSize: 10 }}>{selectedDir.id}</code>} />
+                <DetailField
+                  label="User ID"
+                  value={<code style={{ fontSize: 10 }}>{selectedDir.id}</code>}
+                />
                 <DetailField
                   label="Active"
                   value={selectedDir.is_active ? "Yes" : "No"}
@@ -859,7 +862,7 @@ export default function AdminCustomersHubPage() {
         ) : null}
       </DetailDrawer>
 
-      {/* Detail drawer — ID review */}
+      {/* Detail drawer ID review */}
       <DetailDrawer
         open={Boolean(selectedReview && tab === "id_review")}
         title={selectedReview?.full_name || "ID review"}
@@ -886,7 +889,7 @@ export default function AdminCustomersHubPage() {
                   onClick={() =>
                     void actCustomer(
                       selectedReview.user_id,
-                      "mark_phone_verified"
+                      "mark_phone_verified",
                     )
                   }
                 >
@@ -915,7 +918,7 @@ export default function AdminCustomersHubPage() {
                 disabled={busyId === selectedReview.user_id}
                 onClick={() =>
                   void actCustomer(selectedReview.user_id, "reject_t2", {
-                    reason: "Rejected by care — re-submit ID",
+                    reason: "Rejected by care re-submit ID",
                   })
                 }
               >
@@ -930,7 +933,7 @@ export default function AdminCustomersHubPage() {
                   onClick={() => {
                     if (
                       !window.confirm(
-                        "Reset Tier 2 ID for this customer? They must re-submit government ID from Verification. Approved IDs cannot be reset this way."
+                        "Reset Tier 2 ID for this customer? They must re-submit government ID from Verification. Approved IDs cannot be reset this way.",
                       )
                     )
                       return;
@@ -971,11 +974,11 @@ export default function AdminCustomersHubPage() {
                 />
                 <DetailField
                   label="First role"
-                  value={selectedReview.first_role || "—"}
+                  value={selectedReview.first_role || ""}
                 />
                 <DetailField
                   label="Current role"
-                  value={selectedReview.current_role || "—"}
+                  value={selectedReview.current_role || ""}
                 />
                 <DetailField
                   label="Last switch"
@@ -984,7 +987,7 @@ export default function AdminCustomersHubPage() {
                       ? fmtDate(selectedReview.last_role_switch_at)
                       : selectedReview.dual_role
                         ? "Not recorded yet"
-                        : "—"
+                        : ""
                   }
                 />
                 <DetailField
@@ -1072,7 +1075,7 @@ export default function AdminCustomersHubPage() {
                         .filter(Boolean)
                         .join(" · ") || `Vehicle ${i + 1}`}
                       {v.commonIssues?.length
-                        ? ` — ${v.commonIssues.join(", ")}`
+                        ? ` ${v.commonIssues.join(", ")}`
                         : ""}
                     </li>
                   ))}
@@ -1201,7 +1204,7 @@ export default function AdminCustomersHubPage() {
                 <DetailField
                   label="First request"
                   value={fmtDate(
-                    selectedReview.levels?.trial?.first_service_at
+                    selectedReview.levels?.trial?.first_service_at,
                   )}
                 />
                 <DetailField
@@ -1228,7 +1231,10 @@ export default function AdminCustomersHubPage() {
                   ];
                   return (
                     <div key={j.id} style={{ marginBottom: 12 }}>
-                      <div className="om-admin-muted" style={{ marginBottom: 4 }}>
+                      <div
+                        className="om-admin-muted"
+                        style={{ marginBottom: 4 }}
+                      >
                         {j.service_type || "Job"} · {j.status} ·{" "}
                         {fmtDate(j.created_at)}
                         {j.pickup_address ? ` · ${j.pickup_address}` : ""}

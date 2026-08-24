@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * NotificationSettings — production-ready prefs for Settings.
+ * NotificationSettings production-ready prefs for Settings.
  * Filter types · delivery (Push / SMS / Email) · quiet hours · save + toast.
  *
  * TODO(api): Persist via PATCH /api/notifications/settings when backend is ready.
@@ -29,7 +29,7 @@ import {
 import { getAppSupabase } from "@/lib/supabase/app-client";
 import { cn } from "@/lib/utils";
 
-/** Icons, on-toggles, and primary buttons — never yellow/copper */
+/** Icons, on-toggles, and primary buttons never yellow/copper */
 const ACCENT = "#FF6B35";
 
 const STORAGE_KEY = "ona-notification-settings";
@@ -39,7 +39,7 @@ export type NotificationCategoryPref = {
   messages: boolean;
   payments: boolean;
   system: boolean;
-  /** Marketing / tips — OFF by default (polite) */
+  /** Marketing / tips OFF by default (polite) */
   promotional: boolean;
 };
 
@@ -223,14 +223,12 @@ const HOUR_OPTIONS: number[] = [
   ...Array.from({ length: 24 }, (_, h) => h),
 ];
 
-
 type Props = {
   /** Compact embed under Settings, or full standalone card */
   className?: string;
   /** Called after successful save (local + future API) */
   onSaved?: (state: NotificationSettingsState) => void;
 };
-
 
 function NotificationToggle({
   on,
@@ -269,7 +267,7 @@ function NotificationToggle({
       <span
         className={cn(
           "absolute top-0.5 h-6 w-6 rounded-full transition-transform",
-          on ? "left-[1.35rem]" : "left-0.5"
+          on ? "left-[1.35rem]" : "left-0.5",
         )}
         style={{
           backgroundColor: on ? knobOn : knobOff,
@@ -288,7 +286,8 @@ export function NotificationSettings({ className, onSaved }: Props) {
   const userKey = backendUserId || "guest";
   const formId = useId();
 
-  const [state, setState] = useState<NotificationSettingsState>(DEFAULT_SETTINGS);
+  const [state, setState] =
+    useState<NotificationSettingsState>(DEFAULT_SETTINGS);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -311,7 +310,7 @@ export function NotificationSettings({ className, onSaved }: Props) {
       }));
       setDirty(true);
     },
-    []
+    [],
   );
 
   const patchDelivery = useCallback(
@@ -322,7 +321,7 @@ export function NotificationSettings({ className, onSaved }: Props) {
       }));
       setDirty(true);
     },
-    []
+    [],
   );
 
   const patchQuiet = useCallback((partial: Partial<QuietHoursConfig>) => {
@@ -370,12 +369,11 @@ export function NotificationSettings({ className, onSaved }: Props) {
   const knobOn = "#ffffff";
   const knobOff = isLight ? "#f4f4f5" : "#ffffff";
 
-
   const sectionLabel = (text: string) => (
     <p
       className={cn(
         "px-1 pb-1 pt-3 text-[10px] font-bold uppercase tracking-wide",
-        muted
+        muted,
       )}
       id={`${formId}-${text.replace(/\s+/g, "-").toLowerCase()}`}
     >
@@ -395,7 +393,11 @@ export function NotificationSettings({ className, onSaved }: Props) {
             style={{ backgroundColor: "rgba(255, 107, 53, 0.15)" }}
             aria-hidden
           >
-            <Bell className="h-4 w-4" style={{ color: ACCENT }} strokeWidth={2.2} />
+            <Bell
+              className="h-4 w-4"
+              style={{ color: ACCENT }}
+              strokeWidth={2.2}
+            />
           </span>
           <div className="min-w-0 flex-1">
             <h3
@@ -424,7 +426,7 @@ export function NotificationSettings({ className, onSaved }: Props) {
         <div
           className={cn(
             "px-3 pb-3 transition-opacity",
-            !state.enabled && "pointer-events-none opacity-45"
+            !state.enabled && "pointer-events-none opacity-45",
           )}
           aria-disabled={!state.enabled}
         >
@@ -434,10 +436,7 @@ export function NotificationSettings({ className, onSaved }: Props) {
               const Icon = row.icon;
               const id = `${formId}-cat-${row.key}`;
               return (
-                <li
-                  key={row.key}
-                  className="flex items-center gap-2 py-2.5"
-                >
+                <li key={row.key} className="flex items-center gap-2 py-2.5">
                   <Icon
                     className="h-4 w-4 shrink-0"
                     style={{ color: accent }}
@@ -453,10 +452,10 @@ export function NotificationSettings({ className, onSaved }: Props) {
                     </p>
                   </div>
                   <NotificationToggle
-            accent={accent}
-            trackOff={trackOff}
-            knobOn={knobOn}
-            knobOff={knobOff}
+                    accent={accent}
+                    trackOff={trackOff}
+                    knobOn={knobOn}
+                    knobOff={knobOff}
                     on={state.categories[row.key]}
                     onChange={(v) => patchCategory(row.key, v)}
                     label={row.label}
@@ -473,10 +472,7 @@ export function NotificationSettings({ className, onSaved }: Props) {
               const Icon = row.icon;
               const id = `${formId}-del-${row.key}`;
               return (
-                <li
-                  key={row.key}
-                  className="flex items-center gap-2 py-2.5"
-                >
+                <li key={row.key} className="flex items-center gap-2 py-2.5">
                   <Icon
                     className="h-4 w-4 shrink-0"
                     style={{ color: accent }}
@@ -492,10 +488,10 @@ export function NotificationSettings({ className, onSaved }: Props) {
                     </p>
                   </div>
                   <NotificationToggle
-            accent={accent}
-            trackOff={trackOff}
-            knobOn={knobOn}
-            knobOff={knobOff}
+                    accent={accent}
+                    trackOff={trackOff}
+                    knobOn={knobOn}
+                    knobOff={knobOff}
                     on={state.delivery[row.key]}
                     onChange={(v) => patchDelivery(row.key, v)}
                     label={`${row.label} delivery`}
@@ -523,10 +519,10 @@ export function NotificationSettings({ className, onSaved }: Props) {
               </p>
             </div>
             <NotificationToggle
-            accent={accent}
-            trackOff={trackOff}
-            knobOn={knobOn}
-            knobOff={knobOff}
+              accent={accent}
+              trackOff={trackOff}
+              knobOn={knobOn}
+              knobOff={knobOff}
               on={state.quietHours.enabled}
               onChange={(v) => patchQuiet({ enabled: v })}
               label="Quiet hours"
@@ -536,7 +532,12 @@ export function NotificationSettings({ className, onSaved }: Props) {
           {state.quietHours.enabled ? (
             <div className="grid grid-cols-2 gap-2 pb-1">
               <label className="block">
-                <span className={cn("mb-1 block text-[10px] font-bold uppercase", muted)}>
+                <span
+                  className={cn(
+                    "mb-1 block text-[10px] font-bold uppercase",
+                    muted,
+                  )}
+                >
                   From
                 </span>
                 <select
@@ -546,7 +547,9 @@ export function NotificationSettings({ className, onSaved }: Props) {
                   }
                   className={cn(
                     "h-9 w-full rounded-md border-0 px-2 text-[12px] font-semibold outline-none",
-                    isLight ? "bg-[#bebfc4] text-slate-900" : "bg-white/10 text-white"
+                    isLight
+                      ? "bg-[#bebfc4] text-slate-900"
+                      : "bg-white/10 text-white",
                   )}
                   aria-label="Quiet hours start"
                 >
@@ -558,7 +561,12 @@ export function NotificationSettings({ className, onSaved }: Props) {
                 </select>
               </label>
               <label className="block">
-                <span className={cn("mb-1 block text-[10px] font-bold uppercase", muted)}>
+                <span
+                  className={cn(
+                    "mb-1 block text-[10px] font-bold uppercase",
+                    muted,
+                  )}
+                >
                   Until
                 </span>
                 <select
@@ -568,7 +576,9 @@ export function NotificationSettings({ className, onSaved }: Props) {
                   }
                   className={cn(
                     "h-9 w-full rounded-md border-0 px-2 text-[12px] font-semibold outline-none",
-                    isLight ? "bg-[#bebfc4] text-slate-900" : "bg-white/10 text-white"
+                    isLight
+                      ? "bg-[#bebfc4] text-slate-900"
+                      : "bg-white/10 text-white",
                   )}
                   aria-label="Quiet hours end"
                 >
@@ -588,7 +598,7 @@ export function NotificationSettings({ className, onSaved }: Props) {
               onClick={() => void handleSave()}
               disabled={saving || !dirty}
               className={cn(
-                "h-10 flex-1 rounded-md border-0 text-[13px] font-bold text-white transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-45"
+                "h-10 flex-1 rounded-md border-0 text-[13px] font-bold text-white transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-45",
               )}
               style={{
                 backgroundColor: accent,

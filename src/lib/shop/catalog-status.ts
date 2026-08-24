@@ -4,8 +4,8 @@
  * Shared server + client (no "use client") so catalog APIs can import it.
  *
  * Availability is SEPARATE from catalog existence:
- *  - a product can exist in the catalog but be "unavailable" (no stock/price)
- *  - "unavailable" is never presented as "product does not exist"
+ * - a product can exist in the catalog but be "unavailable" (no stock/price)
+ * - "unavailable" is never presented as "product does not exist"
  */
 
 export const PRODUCT_STATUSES = [
@@ -71,7 +71,7 @@ export type AvailabilityState = {
   inStock: boolean;
   /** purchasable && priced && inStock */
   available: boolean;
-  /** Display label — never "does not exist" for a cataloged product. */
+  /** Display label never "does not exist" for a cataloged product. */
   label: string;
 };
 
@@ -89,7 +89,8 @@ export function availabilityState(input: {
 
   let label: string;
   if (!exists) label = "Unavailable";
-  else if (!purchasable) label = PRODUCT_STATUS_LABELS[status as ProductStatus] ?? status;
+  else if (!purchasable)
+    label = PRODUCT_STATUS_LABELS[status as ProductStatus] ?? status;
   else if (!priced) label = "Currently unavailable";
   else if (!inStock) label = "Currently unavailable";
   else label = "In stock";
@@ -105,8 +106,11 @@ export function unavailableReason(input: {
 }): string | null {
   const a = availabilityState(input);
   if (a.available || !a.exists) return null;
-  if (!a.purchasable) return PRODUCT_STATUS_LABELS[input.status as ProductStatus] ?? "Unavailable";
+  if (!a.purchasable)
+    return (
+      PRODUCT_STATUS_LABELS[input.status as ProductStatus] ?? "Unavailable"
+    );
   if (!a.priced) return "No price has been set yet";
-  if (!a.inStock) return "Out of stock — restocking soon";
+  if (!a.inStock) return "Out of stock restocking soon";
   return "Currently unavailable";
 }

@@ -21,10 +21,10 @@ export function profileVehiclesOf(
         "vehicles" | "vehicleMake" | "vehicleModel" | "vehicleYear"
       >
     | null
-    | undefined
+    | undefined,
 ): MotoristVehicle[] {
   const list = userProfile?.vehicles?.filter(
-    (v) => v.make || v.model || v.vehicleType
+    (v) => v.make || v.model || v.vehicleType,
   );
   if (list?.length) return list;
   if (userProfile?.vehicleMake || userProfile?.vehicleModel) {
@@ -77,14 +77,14 @@ export function JobVehicleStep({
 
   const savedMatch = useMemo(
     () => vehicles.find((v) => formatVehicleLabel(v) === label),
-    [vehicles, label]
+    [vehicles, label],
   );
 
   const pushManual = (
     nextType: string,
     nextMake: string,
     nextModel: string,
-    nextYear: string
+    nextYear: string,
   ) => {
     onChange(
       formatVehicleLabel({
@@ -92,7 +92,7 @@ export function JobVehicleStep({
         make: nextMake,
         model: nextModel,
         year: nextYear,
-      })
+      }),
     );
   };
 
@@ -137,108 +137,109 @@ export function JobVehicleStep({
     : "relative after:absolute after:bottom-0 after:left-1 after:right-0 after:h-px after:bg-white/[0.08]";
 
   const heading = (
-    <p className={cn("mt-2 px-0.5 pb-2 text-[14px] font-bold leading-snug", ink)}>
-      {vehicles.length && !manual
-        ? "Which vehicle?"
-        : "Enter your vehicle"}
+    <p
+      className={cn("mt-2 px-0.5 pb-2 text-[14px] font-bold leading-snug", ink)}
+    >
+      {vehicles.length && !manual ? "Which vehicle?" : "Enter your vehicle"}
     </p>
   );
 
-  const body = vehicles.length > 0 && !manual ? (
-    <div className="flex flex-col gap-1">
-      {vehicles.map((v) => {
-        const text = formatVehicleLabel(v);
-        const on = savedMatch?.id === v.id;
-        return (
-          <button
-            key={v.id}
-            type="button"
-            onClick={() => pickVehicle(text)}
-            className={cn(
-              "flex w-full items-center gap-2 rounded-[4px] border-0 px-1 py-3 text-left transition-transform duration-150 active:scale-[0.985]",
-              rowCard,
-              insetLine
-            )}
-          >
-            <span
+  const body =
+    vehicles.length > 0 && !manual ? (
+      <div className="flex flex-col gap-1">
+        {vehicles.map((v) => {
+          const text = formatVehicleLabel(v);
+          const on = savedMatch?.id === v.id;
+          return (
+            <button
+              key={v.id}
+              type="button"
+              onClick={() => pickVehicle(text)}
               className={cn(
-                "min-w-0 flex-1 text-[13px] font-semibold capitalize leading-snug",
-                on ? "text-brand" : ink
+                "flex w-full items-center gap-2 rounded-[4px] border-0 px-1 py-3 text-left transition-transform duration-150 active:scale-[0.985]",
+                rowCard,
+                insetLine,
               )}
             >
-              {text}
-            </span>
-          </button>
-        );
-      })}
-      <button
-        type="button"
-        onClick={() => {
-          setManual(true);
-          setSaveError(null);
-          onChange("");
-        }}
-        className={cn(
-          "w-full rounded-[4px] border-0 px-1 py-3 text-left text-[13px] font-semibold",
-          rowCard,
-          ink
-        )}
-      >
-        Enter another vehicle
-      </button>
-    </div>
-  ) : (
-    <div>
-      <VehicleCascadeFields
-        variant="profile"
-        isLight={isLight}
-        makeLabel="Brand"
-        vehicleType={vehicleType}
-        onVehicleTypeChange={(v) => {
-          setVehicleType(v);
-          pushManual(v, make, model, year);
-        }}
-        powertrain={powertrain}
-        onPowertrainChange={(v) => {
-          setPowertrain(v);
-          pushManual(vehicleType, make, model, year);
-        }}
-        make={make}
-        model={model}
-        year={year}
-        onMakeChange={(v) => {
-          setMake(v);
-          pushManual(vehicleType, v, "", "");
-        }}
-        onModelChange={(v) => {
-          setModel(v);
-          pushManual(vehicleType, make, v, "");
-        }}
-        onYearChange={(v) => {
-          setYear(v);
-          pushManual(vehicleType, make, model, v);
-        }}
-      />
-      {!onBack ? (
+              <span
+                className={cn(
+                  "min-w-0 flex-1 text-[13px] font-semibold capitalize leading-snug",
+                  on ? "text-brand" : ink,
+                )}
+              >
+                {text}
+              </span>
+            </button>
+          );
+        })}
         <button
           type="button"
-          disabled={!make.trim() || !model.trim()}
-          onClick={handleSave}
+          onClick={() => {
+            setManual(true);
+            setSaveError(null);
+            onChange("");
+          }}
           className={cn(
-            "mt-3 h-11 w-full rounded-md border-0 text-[14px] font-bold disabled:opacity-50",
-            nextGray
+            "w-full rounded-[4px] border-0 px-1 py-3 text-left text-[13px] font-semibold",
+            rowCard,
+            ink,
           )}
         >
-          Save vehicle
+          Enter another vehicle
         </button>
-      ) : null}
-      {!onBack && saveError ? (
-        <p className="mt-1 text-[12px] font-semibold text-red-500">
-          {saveError}
-        </p>
-      ) : null}
-    </div>
-  );
+      </div>
+    ) : (
+      <div>
+        <VehicleCascadeFields
+          variant="profile"
+          isLight={isLight}
+          makeLabel="Brand"
+          vehicleType={vehicleType}
+          onVehicleTypeChange={(v) => {
+            setVehicleType(v);
+            pushManual(v, make, model, year);
+          }}
+          powertrain={powertrain}
+          onPowertrainChange={(v) => {
+            setPowertrain(v);
+            pushManual(vehicleType, make, model, year);
+          }}
+          make={make}
+          model={model}
+          year={year}
+          onMakeChange={(v) => {
+            setMake(v);
+            pushManual(vehicleType, v, "", "");
+          }}
+          onModelChange={(v) => {
+            setModel(v);
+            pushManual(vehicleType, make, v, "");
+          }}
+          onYearChange={(v) => {
+            setYear(v);
+            pushManual(vehicleType, make, model, v);
+          }}
+        />
+        {!onBack ? (
+          <button
+            type="button"
+            disabled={!make.trim() || !model.trim()}
+            onClick={handleSave}
+            className={cn(
+              "mt-3 h-11 w-full rounded-md border-0 text-[14px] font-bold disabled:opacity-50",
+              nextGray,
+            )}
+          >
+            Save vehicle
+          </button>
+        ) : null}
+        {!onBack && saveError ? (
+          <p className="mt-1 text-[12px] font-semibold text-red-500">
+            {saveError}
+          </p>
+        ) : null}
+      </div>
+    );
 
   if (onBack) {
     return (
@@ -258,7 +259,7 @@ export function JobVehicleStep({
             onClick={onBack}
             className={cn(
               "h-11 flex-1 rounded-md border-0 text-[14px] font-bold",
-              actionFlat
+              actionFlat,
             )}
           >
             Back
@@ -270,7 +271,7 @@ export function JobVehicleStep({
               onClick={handleSave}
               className={cn(
                 "h-11 flex-1 rounded-md border-0 text-[14px] font-bold disabled:opacity-50",
-                nextGray
+                nextGray,
               )}
             >
               Save vehicle

@@ -20,15 +20,7 @@ import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 type StatusFilter = "all" | "active" | "released" | "refunded";
-type DateFilter =
-  | "1d"
-  | "3d"
-  | "7d"
-  | "1m"
-  | "3m"
-  | "6m"
-  | "1y"
-  | "ytd";
+type DateFilter = "1d" | "3d" | "7d" | "1m" | "3m" | "6m" | "1y" | "ytd";
 
 function startOfDay(d: Date): Date {
   const x = new Date(d);
@@ -159,7 +151,7 @@ export default function PaymentsActivityPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader title="Activity" backHref="/settings/payments" />
@@ -182,7 +174,7 @@ export default function PaymentsActivityPage() {
                 onClick={() => setStatusFilter(key)}
                 className={cn(
                   "relative flex-1 border-0 bg-transparent py-2.5 text-center text-[13px] font-semibold transition-colors",
-                  on ? "text-[#FF6B35]" : muted
+                  on ? "text-[#FF6B35]" : muted,
                 )}
               >
                 {label}
@@ -215,7 +207,7 @@ export default function PaymentsActivityPage() {
                   onClick={() => setDateFilter(key)}
                   className={cn(
                     "shrink-0 border-0 bg-transparent px-2.5 py-1.5 text-[12px] font-bold tracking-wide transition-colors",
-                    on ? "text-[#FF6B35]" : muted
+                    on ? "text-[#FF6B35]" : muted,
                   )}
                 >
                   {label}
@@ -228,7 +220,7 @@ export default function PaymentsActivityPage() {
             onClick={() => void reload()}
             className={cn(
               "inline-flex h-8 w-8 shrink-0 items-center justify-center border-0 bg-transparent",
-              muted
+              muted,
             )}
             aria-label="Refresh"
           >
@@ -236,12 +228,12 @@ export default function PaymentsActivityPage() {
           </button>
         </div>
 
-        {/* Period summary — money showcase line */}
+        {/* Period summary money showcase line */}
         <div className={cn("mt-5 border-b pb-4", line)}>
           <p
             className={cn(
               "text-[11px] font-bold uppercase tracking-[0.14em]",
-              muted
+              muted,
             )}
           >
             {periodLabel(dateFilter)}
@@ -296,7 +288,7 @@ export default function PaymentsActivityPage() {
                   className={cn(
                     "flex items-center gap-3 py-4 no-underline",
                     i > 0 && "border-t",
-                    i > 0 && line
+                    i > 0 && line,
                   )}
                 >
                   <div className="min-w-0 flex-1">
@@ -323,7 +315,7 @@ export default function PaymentsActivityPage() {
                     <p
                       className={cn(
                         "text-[12px] font-bold leading-tight",
-                        toneClass(p.statusTone, isLight)
+                        toneClass(p.statusTone, isLight),
                       )}
                     >
                       {p.statusLabel}
@@ -332,7 +324,7 @@ export default function PaymentsActivityPage() {
                       <p
                         className={cn(
                           "mt-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                          muted
+                          muted,
                         )}
                       >
                         {p.provider}

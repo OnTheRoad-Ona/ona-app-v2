@@ -8,7 +8,7 @@ import { AppProvider } from "@/lib/store";
 import "./globals.css";
 
 /**
- * Inter — closest free match to X’s Chirp (clean grotesque sans).
+ * Inter closest free match to X’s Chirp (clean grotesque sans).
  * Used app-wide for menus, body, and chrome.
  */
 const interSans = Inter({

@@ -67,9 +67,7 @@ function proApproved(p: ProRow | null | undefined): boolean {
   );
 }
 
-function pickStr(
-  ...vals: (string | null | undefined)[]
-): string | null {
+function pickStr(...vals: (string | null | undefined)[]): string | null {
   for (const v of vals) {
     if (v != null && String(v).trim()) return String(v);
   }
@@ -83,7 +81,7 @@ function pickStr(
 export async function mirrorDualRoleT2Approved(
   supabase: SupabaseClient,
   userId: string,
-  opts?: { reviewedBy?: string | null; now?: string }
+  opts?: { reviewedBy?: string | null; now?: string },
 ): Promise<{
   ok: boolean;
   dual: boolean;
@@ -97,14 +95,14 @@ export async function mirrorDualRoleT2Approved(
     supabase
       .from("motorist_profiles")
       .select(
-        "user_id, identity_review_status, identity_verified_at, nin_verified, bvn_verified, gov_id_kind, gov_id_number, gov_id_front_url, gov_id_back_url, nin_encrypted, nin_last4, bvn_encrypted, bvn_last4, bank_id_number, gov_id_meta, identity_country_iso"
+        "user_id, identity_review_status, identity_verified_at, nin_verified, bvn_verified, gov_id_kind, gov_id_number, gov_id_front_url, gov_id_back_url, nin_encrypted, nin_last4, bvn_encrypted, bvn_last4, bank_id_number, gov_id_meta, identity_country_iso",
       )
       .eq("user_id", userId)
       .maybeSingle(),
     supabase
       .from("repair_pro_profiles")
       .select(
-        "user_id, gov_id_review_status, gov_id_reviewed_at, verified, nin_verified, bvn_verified, gov_id_kind, gov_id_number, gov_id_front_url, gov_id_back_url, nin_encrypted, nin_last4, bvn_encrypted, bvn_last4, gov_id_meta, tier2_approved_at, status, visibility_tier"
+        "user_id, gov_id_review_status, gov_id_reviewed_at, verified, nin_verified, bvn_verified, gov_id_kind, gov_id_number, gov_id_front_url, gov_id_back_url, nin_encrypted, nin_last4, bvn_encrypted, bvn_last4, gov_id_meta, tier2_approved_at, status, visibility_tier",
       )
       .eq("user_id", userId)
       .maybeSingle(),
@@ -122,16 +120,24 @@ export async function mirrorDualRoleT2Approved(
     return { ok: true, dual: true, mirroredTo: "none" };
   }
 
-  // Shared media / numbers — prefer non-empty from either side
+  // Shared media / numbers prefer non-empty from either side
   const kind = pickStr(m.gov_id_kind, p.gov_id_kind);
-  const number = pickStr(m.gov_id_number, p.gov_id_number, m.nin_encrypted, p.nin_encrypted);
+  const number = pickStr(
+    m.gov_id_number,
+    p.gov_id_number,
+    m.nin_encrypted,
+    p.nin_encrypted,
+  );
   const front = pickStr(m.gov_id_front_url, p.gov_id_front_url);
   const back = pickStr(m.gov_id_back_url, p.gov_id_back_url);
   const ninEnc = pickStr(m.nin_encrypted, p.nin_encrypted, number);
   const ninLast4 = pickStr(m.nin_last4, p.nin_last4);
   const bvnEnc = pickStr(m.bvn_encrypted, p.bvn_encrypted, m.bank_id_number);
   const bvnLast4 = pickStr(m.bvn_last4, p.bvn_last4);
-  const meta = (m.gov_id_meta || p.gov_id_meta) as Record<string, unknown> | null;
+  const meta = (m.gov_id_meta || p.gov_id_meta) as Record<
+    string,
+    unknown
+  > | null;
 
   let mirroredTo: "motorist" | "pro" | "both" | "none" = "none";
 
@@ -216,7 +222,7 @@ export async function mirrorDualRoleT2Approved(
  */
 export async function backfillDualRoleT2Mirrors(
   supabase: SupabaseClient,
-  opts?: { limit?: number }
+  opts?: { limit?: number },
 ): Promise<{ scanned: number; updated: number; errors: string[] }> {
   const limit = opts?.limit ?? 500;
   const errors: string[] = [];
@@ -232,7 +238,7 @@ export async function backfillDualRoleT2Mirrors(
     .from("repair_pro_profiles")
     .select("user_id, gov_id_review_status, verified, tier2_approved_at")
     .or(
-      "gov_id_review_status.eq.approved,verified.eq.true,tier2_approved_at.not.is.null"
+      "gov_id_review_status.eq.approved,verified.eq.true,tier2_approved_at.not.is.null",
     )
     .limit(limit);
 

@@ -19,16 +19,14 @@ import { playPersonTone } from "@/lib/sound-tone";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
-type Banner =
-  | {
-      kind: "message";
-      id: string;
-      title: string;
-      body: string;
-      href: string;
-      who: string;
-    }
-  | null;
+type Banner = {
+  kind: "message";
+  id: string;
+  title: string;
+  body: string;
+  href: string;
+  who: string;
+} | null;
 
 /**
  * Anchors survive a reload: store the per-thread "already seen" timestamps in
@@ -76,8 +74,8 @@ export function InboundBanner() {
   const router = useRouter();
   const [banner, setBanner] = useState<Banner>(null);
   const hideTimer = useRef<number | null>(null);
-  /** Identity (userId|role) the anchors below were seeded for — changing roles
-   *  or accounts must re-seed so the other role's history never re-pops. */
+  /** Identity (userId|role) the anchors below were seeded for changing roles
+   * or accounts must re-seed so the other role's history never re-pops. */
   const primedFor = useRef<string>("");
   /** Per-thread latest inbound message timestamp already absorbed/surfaced. */
   const anchors = useRef<Map<string, string>>(new Map());
@@ -121,7 +119,7 @@ export function InboundBanner() {
 
   // Detect new inbound messages → tone + system notify + in-app banner.
   // Anchored per thread: history loaded at any time (reload, role switch,
-  // refresh re-ordering) only seeds the anchor — it never re-pops. Only a
+  // refresh re-ordering) only seeds the anchor it never re-pops. Only a
   // message NEWER than what we've already absorbed, on an ACTIVE job chat,
   // surfaces. Closed / historical job chats never pop, even when the linked
   // job isn't in the recent live request list.
@@ -131,7 +129,7 @@ export function InboundBanner() {
     const identity = `${backendUserId}|${accountType}`;
     if (primedFor.current !== identity) {
       primedFor.current = identity;
-      // Re-seed from what this role already absorbed before the reload — old
+      // Re-seed from what this role already absorbed before the reload old
       // chat history stays silent no matter how fast/slow the first fetch is.
       anchors.current = new Map(Object.entries(loadSeenAnchors(accountType)));
     }
@@ -146,7 +144,7 @@ export function InboundBanner() {
 
     const inboundByThread = new Map<string, Inbound>();
     for (const th of messages) {
-      // Chat only with a real request — no orphan threads
+      // Chat only with a real request no orphan threads
       if (!th.requestId || th.requestId.startsWith("chat-")) continue;
       for (const m of th.messages) {
         if (m.sender === "system") continue;
@@ -163,9 +161,7 @@ export function InboundBanner() {
                 ? th.technicianId || th.technicianName
                 : th.motoristName,
             name:
-              m.sender === "professional"
-                ? th.technicianName
-                : th.motoristName,
+              m.sender === "professional" ? th.technicianName : th.motoristName,
             text: m.text || "New message",
             threadId: th.id,
           });
@@ -183,7 +179,7 @@ export function InboundBanner() {
         continue;
       }
       if (inbound.at <= prev) continue;
-      // Closed / historical job chat — never pop. The job must be live and
+      // Closed / historical job chat never pop. The job must be live and
       // present in the recent request list, else it's old history.
       const thread = messages.find((t) => t.id === inbound.threadId);
       const job = thread
@@ -212,7 +208,7 @@ export function InboundBanner() {
     if (!candidates.length) return;
     const latest = candidates.reduce((a, b) => (b.at > a.at ? b : a));
 
-    // Already viewing this thread — soft tone only
+    // Already viewing this thread soft tone only
     const onThisThread =
       pathname === `/messages/${latest.threadId}` ||
       pathname.startsWith(`/messages/${latest.threadId}`);
@@ -270,7 +266,7 @@ export function InboundBanner() {
           "pointer-events-auto flex w-full max-w-[360px] items-start gap-3 rounded-2xl border px-3 py-3 text-left shadow-lg backdrop-blur-md",
           isLight
             ? "border-black/10 bg-white/95 text-slate-900"
-            : "border-white/15 bg-[#1a1210]/95 text-white"
+            : "border-white/15 bg-[#1a1210]/95 text-white",
         )}
       >
         <span
@@ -278,7 +274,7 @@ export function InboundBanner() {
             "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
             banner.kind === "message"
               ? "bg-brand/20 text-brand"
-              : "bg-emerald-500/20 text-emerald-400"
+              : "bg-emerald-500/20 text-emerald-400",
           )}
         >
           {banner.kind === "message" ? (
@@ -294,7 +290,7 @@ export function InboundBanner() {
           <span
             className={cn(
               "mt-0.5 block line-clamp-2 text-[11px] leading-snug",
-              isLight ? "text-slate-600" : "text-white/65"
+              isLight ? "text-slate-600" : "text-white/65",
             )}
           >
             {banner.body}
@@ -308,7 +304,7 @@ export function InboundBanner() {
           }}
           className={cn(
             "mt-0.5 shrink-0 rounded-full p-1",
-            isLight ? "text-slate-400" : "text-white/45"
+            isLight ? "text-slate-400" : "text-white/45",
           )}
         >
           <X className="h-3.5 w-3.5" />

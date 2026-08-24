@@ -8,7 +8,8 @@ export const TOW_FINAL_COPY = {
   emergency: "Emergency",
   remote: "Remote location",
   night: "Night service needed",
-  photos: "Add clear photos (minimum 2) of the vehicle and its current position",
+  photos:
+    "Add clear photos (minimum 2) of the vehicle and its current position",
   voice: "Record a short voice note describing the situation",
   location: "Exact location / landmark",
   destination: "Preferred destination (workshop name or area)?",
@@ -41,7 +42,7 @@ export type TowRoute = {
   trade: ProService;
   alternate?: ProService;
   needsConfirm: boolean;
-  /** Branch C — dangerous location: prioritize the tow as an emergency. */
+  /** Branch C dangerous location: prioritize the tow as an emergency. */
   emergency?: boolean;
 };
 
@@ -50,7 +51,8 @@ export const TOW_START_OPTIONS: TowOption[] = [
   { id: "B", label: "Accident or collision" },
   {
     id: "C",
-    label: "Vehicle is in a dangerous location (highway, middle of the road, etc.)",
+    label:
+      "Vehicle is in a dangerous location (highway, middle of the road, etc.)",
   },
   { id: "D", label: "Flat or burst tyre(s) and I cannot change it" },
   { id: "E", label: "Need to move the vehicle to a workshop or safer place" },
@@ -87,7 +89,7 @@ export const TOW_SCREENS: Record<string, TowScreen> = {
     kind: "choice",
     options: TOW_START_OPTIONS,
   },
-  // Branch A — completely broken down
+  // Branch A completely broken down
   a_what: {
     id: "a_what",
     question: "What exactly happened to the vehicle?",
@@ -119,7 +121,7 @@ export const TOW_SCREENS: Record<string, TowScreen> = {
     kind: "choice",
     options: VEHICLE_TYPES,
   },
-  // Branch B — accident or collision
+  // Branch B accident or collision
   b_serious: {
     id: "b_serious",
     question: "How serious is the damage?",
@@ -154,7 +156,7 @@ export const TOW_SCREENS: Record<string, TowScreen> = {
     kind: "choice",
     options: YES_NO,
   },
-  // Branch C — dangerous location
+  // Branch C dangerous location
   c_location: {
     id: "c_location",
     question: "Exact type of location:",
@@ -180,7 +182,7 @@ export const TOW_SCREENS: Record<string, TowScreen> = {
     kind: "choice",
     options: YES_NO,
   },
-  // Branch D — flat / burst tyre, cannot change
+  // Branch D flat / burst tyre, cannot change
   d_count: {
     id: "d_count",
     question: "How many tyres are affected?",
@@ -212,7 +214,7 @@ export const TOW_SCREENS: Record<string, TowScreen> = {
       { id: "road", label: "On the road / unsafe" },
     ],
   },
-  // Branch E — move to workshop / safer place
+  // Branch E move to workshop / safer place
   e_reason: {
     id: "e_reason",
     question: "Why does it need to be moved?",
@@ -230,7 +232,7 @@ export const TOW_SCREENS: Record<string, TowScreen> = {
     kind: "choice",
     options: YES_NO,
   },
-  // Branch F — stuck / sank
+  // Branch F stuck / sank
   f_deep: {
     id: "f_deep",
     question: "How deeply is it stuck?",
@@ -257,7 +259,7 @@ export const TOW_SCREENS: Record<string, TowScreen> = {
     kind: "choice",
     options: VEHICLE_TYPES,
   },
-  // Branch G — something else / not sure
+  // Branch G something else / not sure
   g_desc: {
     id: "g_desc",
     question: "Please describe in your own words what is happening.",
@@ -322,7 +324,7 @@ export function towScreen(id: string): TowScreen | undefined {
 export function nextTowScreen(
   current: string,
   answerId: string,
-  answers: Record<string, string>
+  answers: Record<string, string>,
 ): string {
   if (current === "start") return START_NEXT[answerId] || "g_desc";
 
@@ -381,7 +383,7 @@ export function resolveTowRoute(answers: Record<string, string>): TowRoute {
   const leave = (
     trade: ProService,
     alternate?: ProService,
-    extra?: Partial<TowRoute>
+    extra?: Partial<TowRoute>,
   ): TowRoute => ({
     trade,
     alternate,
@@ -406,7 +408,8 @@ export function resolveTowRoute(answers: Record<string, string>): TowRoute {
 
   if (main === "G") {
     if (answers.g_related === "engine_mech") return leave("towing", "mechanic");
-    if (answers.g_related === "tyre_wheel") return leave("towing", "vulcanizer");
+    if (answers.g_related === "tyre_wheel")
+      return leave("towing", "vulcanizer");
     if (answers.g_related === "battery_electrical")
       return leave("towing", "battery");
     if (answers.g_related === "body") return leave("towing", "body");
@@ -427,7 +430,10 @@ export function resolveTowRoute(answers: Record<string, string>): TowRoute {
   return stay();
 }
 
-export function applyTowConfirmChoice(route: TowRoute, yes: boolean): ProService {
+export function applyTowConfirmChoice(
+  route: TowRoute,
+  yes: boolean,
+): ProService {
   if (yes) return route.trade;
   if (route.alternate) return route.alternate;
   return "towing";
@@ -440,7 +446,7 @@ export function composeTowProblem(
   opts?: {
     destination?: string;
     colour?: string;
-  }
+  },
 ): string {
   const lines: string[] = [];
   const start = towScreen("start");
@@ -451,7 +457,7 @@ export function composeTowProblem(
   }
 
   const order = Object.keys(answers).filter(
-    (k) => k !== "start" && !k.endsWith("_label")
+    (k) => k !== "start" && !k.endsWith("_label"),
   );
   for (const id of order) {
     const screen = towScreen(id);
@@ -470,10 +476,10 @@ export function composeTowProblem(
     lines.push("Heavy-duty / winch recovery needed");
   }
   if (answers.start === "B" && answers.b_injured === "yes") {
-    lines.push("There are injuries on site — treat with priority");
+    lines.push("There are injuries on site treat with priority");
   }
   if (answers.start === "B" && answers.b_paint === "yes") {
-    lines.push("Damaged panels need repainting — a Painter may follow up");
+    lines.push("Damaged panels need repainting a Painter may follow up");
   }
 
   if (landmark.trim()) {

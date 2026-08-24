@@ -1,7 +1,7 @@
 /**
  * Server-side Web Push (VAPID). Routes a cancellation / job update to every
  * registered OS push subscription for a user so the message arrives even when
- * the app is closed or the tab is hidden — the real-time "server prompt" that
+ * the app is closed or the tab is hidden the real-time "server prompt" that
  * does not depend on the app being in the foreground.
  */
 
@@ -26,11 +26,12 @@ export type PushPayload = {
 let vapidReady = false;
 
 function ensureVapid(): boolean {
-  if (vapidReady || !isVapidConfigured()) return vapidReady && isVapidConfigured();
+  if (vapidReady || !isVapidConfigured())
+    return vapidReady && isVapidConfigured();
   webpush.setVapidDetails(
     getVapidSubject(),
     getVapidPublicKey(),
-    getVapidPrivateKey()
+    getVapidPrivateKey(),
   );
   vapidReady = true;
   return true;
@@ -39,23 +40,28 @@ function ensureVapid(): boolean {
 /**
  * Best-effort push to every subscription of a user. Dead subscriptions
  * (410 Gone / 404) are pruned so we never hammer a stale endpoint.
- * Never throws — the caller must not let notification failures block the
+ * Never throws the caller must not let notification failures block the
  * underlying job transition.
  */
 export async function sendPushToUser(
   userId: string,
-  payload: PushPayload
-): Promise<void> {
-  if (!ensureVapid()) return;
+  payload: PushPayload,
+  opts?: { noEnqueue?: boolean },
+): Promise<{ sent: number; failures: string[] }> {
+  if (!ensureVapid()) return { sent: 0, failures: ["vapid_unconfigured"] };
   let sb;
   try {
     sb = createServiceSupabase();
-    if (!sb) return;
+    if (!sb) return { sent: 0, failures: ["db_unavailable"] };
     const { data, error } = await sb
       .from("push_subscriptions")
       .select("endpoint,p256dh,auth")
       .eq("user_id", userId);
-    if (error || !data || data.length === 0) return;
+    if (error || !data || data.length === 0)
+      return { sent: 0, failures: ["no_subscriptions"] };
+
+    const failures: string[] = [];
+    let sent = 0;
 
     const message = JSON.stringify({
       title: payload.title,
@@ -77,20 +83,30 @@ export async function sendPushToUser(
             },
           },
           message,
-          { TTL: 600 }
+          { TTL: 600 },
         );
+        sent += 1;
       } catch (e) {
         const code = (e as { statusCode?: number }).statusCode;
+        failures.push(`${code ?? "err"}:${endpoint.slice(-24)}`);
         if (code === 404 || code === 410) {
           try {
-            await sb.from("push_subscriptions").delete().eq("endpoint", endpoint);
+            await sb
+              .from("push_subscriptions")
+              .delete()
+              .eq("endpoint", endpoint);
           } catch {
             /* cleanup best-effort */
           }
         }
       }
     }
-  } catch {
-    /* push is best-effort — never block the job transition */
+    return { sent, failures };
+  } catch (e) {
+    /* push is best-effort never block the job transition */
+    return {
+      sent: 0,
+      failures: [e instanceof Error ? e.message : "push_failed"],
+    };
   }
 }

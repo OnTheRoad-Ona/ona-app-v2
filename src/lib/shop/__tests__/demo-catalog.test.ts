@@ -7,7 +7,10 @@ import {
   type DemoProduct,
 } from "@/lib/shop/demo-catalog";
 import { validateTradeAttributes } from "@/lib/shop/trade-attributes";
-import { SHOP_TRADE_KEYS, getRootCategoriesForTrade } from "@/lib/shop/taxonomy";
+import {
+  SHOP_TRADE_KEYS,
+  getRootCategoriesForTrade,
+} from "@/lib/shop/taxonomy";
 
 describe("demo catalog coverage", () => {
   it("has at least 70 products (>= 5 per trade × 14 trades)", () => {
@@ -66,7 +69,14 @@ describe("demo catalog coverage", () => {
 
   it("has a spread of lifecycle statuses", () => {
     const statuses = new Set(DEMO_PRODUCTS.map((p) => p.status));
-    for (const s of ["active", "unavailable", "inactive", "source_pending", "future_product", "pending_verification"]) {
+    for (const s of [
+      "active",
+      "unavailable",
+      "inactive",
+      "source_pending",
+      "future_product",
+      "pending_verification",
+    ]) {
       expect(statuses.has(s as never)).toBe(true);
     }
   });
@@ -78,32 +88,62 @@ describe("demo catalog trade separation", () => {
       const result = validateTradeAttributes(p.tradeKey, p.attributes);
       expect(
         { id: p.id, trade: p.tradeKey, errors: result.errors },
-        `attributes invalid for ${p.id}`
+        `attributes invalid for ${p.id}`,
       ).toEqual({ id: p.id, trade: p.tradeKey, errors: [] });
     }
   });
 
   it("non-vehicle trades never carry vehicle fitment attributes", () => {
     const vehicleTrades = new Set([
-      "mechanic", "vulcanizer", "towing", "ac", "battery", "body", "electrical", "diagnostics",
+      "mechanic",
+      "vulcanizer",
+      "towing",
+      "ac",
+      "battery",
+      "body",
+      "electrical",
+      "diagnostics",
     ]);
-    const fitmentKeys = ["vehicleMake", "vehicleModel", "vehicleYear", "position", "engine"];
+    const fitmentKeys = [
+      "vehicleMake",
+      "vehicleModel",
+      "vehicleYear",
+      "position",
+      "engine",
+    ];
     for (const p of DEMO_PRODUCTS) {
       if (vehicleTrades.has(p.tradeKey)) continue;
       for (const k of fitmentKeys) {
-        expect(p.attributes[k], `${p.id} has ${k} in non-vehicle trade`).toBeUndefined();
+        expect(
+          p.attributes[k],
+          `${p.id} has ${k} in non-vehicle trade`,
+        ).toBeUndefined();
       }
     }
   });
 
   it("vehicle trades that claim fitment always include a make", () => {
     const vehicleTrades = new Set([
-      "mechanic", "vulcanizer", "towing", "ac", "battery", "body", "electrical", "diagnostics",
+      "mechanic",
+      "vulcanizer",
+      "towing",
+      "ac",
+      "battery",
+      "body",
+      "electrical",
+      "diagnostics",
     ]);
-    for (const p of DEMO_PRODUCTS.filter((x) => vehicleTrades.has(x.tradeKey))) {
-      const hasFit = ["position", "vehicleModel", "vehicleYear"].some((k) => p.attributes[k] !== undefined);
+    for (const p of DEMO_PRODUCTS.filter((x) =>
+      vehicleTrades.has(x.tradeKey),
+    )) {
+      const hasFit = ["position", "vehicleModel", "vehicleYear"].some(
+        (k) => p.attributes[k] !== undefined,
+      );
       if (hasFit) {
-        expect(p.attributes.vehicleMake, `${p.id} claims fitment without a make`).toBeTruthy();
+        expect(
+          p.attributes.vehicleMake,
+          `${p.id} claims fitment without a make`,
+        ).toBeTruthy();
       }
     }
   });
@@ -111,25 +151,70 @@ describe("demo catalog trade separation", () => {
   it("solar/plumber products use their own trade attributes (wattage/diameter)", () => {
     const solar = demoProductsForTrade("solar");
     expect(solar.length).toBeGreaterThanOrEqual(5);
-    expect(solar.every((p) => Object.keys(p.attributes).some((k) => ["wattage", "voltage", "capacity", "efficiency", "panelType", "inverterType"].includes(k)))).toBe(true);
+    expect(
+      solar.every((p) =>
+        Object.keys(p.attributes).some((k) =>
+          [
+            "wattage",
+            "voltage",
+            "capacity",
+            "efficiency",
+            "panelType",
+            "inverterType",
+          ].includes(k),
+        ),
+      ),
+    ).toBe(true);
 
     const plumber = demoProductsForTrade("plumber");
     expect(plumber.length).toBeGreaterThanOrEqual(5);
-    expect(plumber.every((p) => Object.keys(p.attributes).some((k) => ["diameter", "material", "connection", "application", "pressureRating"].includes(k)))).toBe(true);
+    expect(
+      plumber.every((p) =>
+        Object.keys(p.attributes).some((k) =>
+          [
+            "diameter",
+            "material",
+            "connection",
+            "application",
+            "pressureRating",
+          ].includes(k),
+        ),
+      ),
+    ).toBe(true);
   });
 });
 
 describe("demo catalog realism", () => {
   it("no fake fitment claims: fitment trades only reference known makes/models", () => {
     const knownMakes = new Set([
-      "Toyota", "Honda", "Lexus", "Mercedes-Benz", "BMW", "Nissan",
-      "Hyundai", "Kia", "Ford", "Volkswagen", "Peugeot", "Mazda",
-      "Mitsubishi", "Suzuki", "Isuzu", "Land Rover", "Chevrolet", "Acura", "Infiniti", "Jeep",
+      "Toyota",
+      "Honda",
+      "Lexus",
+      "Mercedes-Benz",
+      "BMW",
+      "Nissan",
+      "Hyundai",
+      "Kia",
+      "Ford",
+      "Volkswagen",
+      "Peugeot",
+      "Mazda",
+      "Mitsubishi",
+      "Suzuki",
+      "Isuzu",
+      "Land Rover",
+      "Chevrolet",
+      "Acura",
+      "Infiniti",
+      "Jeep",
     ]);
     for (const p of DEMO_PRODUCTS) {
       const make = p.attributes.vehicleMake;
       if (make !== undefined) {
-        expect(knownMakes.has(String(make)), `${p.id} references unknown make ${make}`).toBe(true);
+        expect(
+          knownMakes.has(String(make)),
+          `${p.id} references unknown make ${make}`,
+        ).toBe(true);
       }
     }
   });
@@ -143,9 +228,14 @@ describe("demo catalog realism", () => {
 describe("availability separation in demo data", () => {
   it("products with qty 0 exist in catalog but are unavailable", () => {
     for (const p of DEMO_PRODUCTS) {
-      expect(p.status !== "active" || p.qty > 0, `${p.id} has inconsistent availability`).toBe(true);
+      expect(
+        p.status !== "active" || p.qty > 0,
+        `${p.id} has inconsistent availability`,
+      ).toBe(true);
     }
-    const unavailable = DEMO_PRODUCTS.filter((p) => p.qty === 0 && p.status === "active");
+    const unavailable = DEMO_PRODUCTS.filter(
+      (p) => p.qty === 0 && p.status === "active",
+    );
     for (const p of unavailable) {
       expect(p.status).toBe("active"); // catalog exists
     }

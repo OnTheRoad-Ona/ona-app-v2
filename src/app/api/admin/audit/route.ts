@@ -38,12 +38,14 @@ export async function GET(req: Request) {
     // Compute year summary
     const ytdStart = new Date(now.getFullYear(), 0, 1);
     const ytdCount = (data ?? []).filter(
-      (a: Record<string, unknown>) => new Date(String(a.created_at)) >= ytdStart
+      (a: Record<string, unknown>) =>
+        new Date(String(a.created_at)) >= ytdStart,
     ).length;
 
     return apiOk({ actions: data ?? [], yearSummary: { ytdCount } });
   } catch (e) {
-    if (e instanceof AdminAuthError) return apiFail(e.message, e.status, "auth");
+    if (e instanceof AdminAuthError)
+      return apiFail(e.message, e.status, "auth");
     return apiFail("Failed to load audit log", 500);
   }
 }

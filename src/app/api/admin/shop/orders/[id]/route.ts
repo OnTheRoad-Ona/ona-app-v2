@@ -3,10 +3,7 @@ import { requireAdmin } from "@/lib/server/admin-auth";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
-import {
-  cancelUnpaidOrder,
-  refundShopOrder,
-} from "@/lib/server/shop/orders";
+import { cancelUnpaidOrder, refundShopOrder } from "@/lib/server/shop/orders";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,10 +16,14 @@ const bodySchema = z.object({
 /** Admin order actions: cancel an unpaid order or refund a paid one. */
 export async function PATCH(
   req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     const { session } = await requireAdmin();
@@ -45,7 +46,7 @@ export async function PATCH(
         return apiFail(
           `Only unpaid orders can be cancelled (status: ${order.status})`,
           400,
-          "invalid_status"
+          "invalid_status",
         );
       }
       await cancelUnpaidOrder({
@@ -60,7 +61,7 @@ export async function PATCH(
       return apiFail(
         `Only paid orders can be refunded (status: ${order.status})`,
         400,
-        "invalid_status"
+        "invalid_status",
       );
     }
     await refundShopOrder({

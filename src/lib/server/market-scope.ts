@@ -2,14 +2,15 @@
  * Market access scoping (server-side, service role).
  *
  * The public marketplace feed is role-aware in ONE direction only:
- *  - Motorist / guest / admin     → full market (all trades)
- *  - Repair Pro (active role)     → ONLY their primary trade's market
+ * - Motorist / guest / admin → full market (all trades)
+ * - Repair Pro (active role) → ONLY their primary trade's market
  *
  * The trade is derived from the REAL session (never a client param), so a
  * Repair Pro cannot widen their own feed by crafting a query param.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { ShopAccountContext } from "@/lib/server/shop/types";
 import type { ProService } from "@/lib/types";
 import { isProService } from "@/lib/services";
 import { getUserFromRequest } from "@/lib/server/auth-utils";
@@ -17,13 +18,13 @@ import { createServiceSupabase } from "@/lib/supabase/server";
 
 /**
  * Pure decision: what trade (if any) may this actor's market feed show?
- *  - Non-repair-pro actors (motorist / guest / admin) → `null` (full market).
- *  - Repair Pros → their primary trade (or `null` when not set/unknown).
+ * - Non-repair-pro actors (motorist / guest / admin) → `null` (full market).
+ * - Repair Pros → their primary trade (or `null` when not set/unknown).
  * Extracted so unit tests can assert scoping without a DB.
  */
 export function marketTradeForRole(
   role: string | null | undefined,
-  primaryService: string | null | undefined
+  primaryService: string | null | undefined,
 ): ProService | null {
   if (role !== "repair_pro") return null;
   return primaryService && isProService(primaryService) ? primaryService : null;
@@ -36,7 +37,7 @@ export function marketTradeForRole(
  */
 export async function resolveMarketViewer(
   req: Request,
-  sb?: SupabaseClient
+  sb?: SupabaseClient,
 ): Promise<{ userId: string | null; trade: ProService | null }> {
   try {
     const user = await getUserFromRequest(req);
@@ -50,7 +51,7 @@ export async function resolveMarketViewer(
     if (profile?.role !== "repair_pro") {
       return { userId: user.id, trade: null };
     }
-    // Active Repair Pro — cap the market to their primary trade.
+    // Active Repair Pro cap the market to their primary trade.
     const { data: pro } = await client
       .from("repair_pro_profiles")
       .select("primary_service")
@@ -125,10 +126,18 @@ export function shopUiScopeFromViewer(viewer: {
   };
 }
 
-export async function resolveShopUiScope(req: Request): Promise<ShopUiScope> {
+export async function resolveShopUiScope(
+  req: Request,
+  activeContext?: ShopAccountContext,
+): Promise<ShopUiScope> {
   try {
     const user = await getUserFromRequest(req);
     if (!user) return shopUiScopeFromViewer({ trade: null, isPro: false });
+    // Customer mode is NEVER trade-limited, even for dual-role users whose
+    // profile role is repair_pro. Only the ACTIVE pro mode is limited.
+    if (activeContext !== "professional") {
+      return shopUiScopeFromViewer({ trade: null, isPro: false });
+    }
     const client = createServiceSupabase();
     const { data: profile } = await client
       .from("profiles")
@@ -153,7 +162,7 @@ export async function resolveShopUiScope(req: Request): Promise<ShopUiScope> {
 /** Deny unauthorized trade catalog access (API security). */
 export function assertTradeAllowed(
   scope: ShopUiScope,
-  tradeKey: string
+  tradeKey: string,
 ): { ok: true } | { ok: false; message: string; code: string } {
   if (!scope.allowedTradeKeys) return { ok: true };
   if (scope.allowedTradeKeys.includes(tradeKey)) return { ok: true };

@@ -15,13 +15,14 @@ export async function GET(req: NextRequest) {
     const start = sp.get("start") === "1";
     const trade = sp.get("trade") || undefined;
     const parent = sp.get("parent");
-    const data = start && trade
-      ? await getTradeBrowseStart(trade)
-      : await getTradeCategories({
-          rootsOnly: roots,
-          tradeKey: trade,
-          parentId: parent === "null" ? null : parent || undefined,
-        });
+    const data =
+      start && trade
+        ? await getTradeBrowseStart(trade)
+        : await getTradeCategories({
+            rootsOnly: roots,
+            tradeKey: trade,
+            parentId: parent === "null" ? null : parent || undefined,
+          });
     return apiOk({ categories: data });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Categories failed";

@@ -5,7 +5,7 @@ import { Pause, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * In-app voice player — play / pause + duration.
+ * In-app voice player play / pause + duration.
  * Works for sender preview and receiver listen.
  */
 export function VoiceNotePlayer({
@@ -87,7 +87,7 @@ export function VoiceNotePlayer({
         setPlaying(false);
         return;
       }
-      // Seek to start if ended; play() may throw if not ready — retry once
+      // Seek to start if ended; play() may throw if not ready retry once
       if (audio.ended || audio.currentTime >= (audio.duration || 0) - 0.05) {
         audio.currentTime = 0;
       }
@@ -109,7 +109,7 @@ export function VoiceNotePlayer({
       className={cn(
         "flex w-full flex-col gap-1.5 rounded-md px-2.5 py-2",
         isLight ? "bg-black/[0.06]" : "bg-white/[0.08]",
-        className
+        className,
       )}
     >
       <div className="flex items-center gap-2">
@@ -129,7 +129,7 @@ export function VoiceNotePlayer({
           <p
             className={cn(
               "text-[12px] font-bold",
-              isLight ? "text-slate-800" : "text-white"
+              isLight ? "text-slate-800" : "text-white",
             )}
           >
             {label}
@@ -137,7 +137,7 @@ export function VoiceNotePlayer({
           <div
             className={cn(
               "mt-1 h-1.5 overflow-hidden rounded-full",
-              isLight ? "bg-black/10" : "bg-white/15"
+              isLight ? "bg-black/10" : "bg-white/15",
             )}
           >
             <div
@@ -149,7 +149,7 @@ export function VoiceNotePlayer({
         <span
           className={cn(
             "shrink-0 text-[11px] font-bold tabular-nums",
-            isLight ? "text-slate-600" : "text-white/70"
+            isLight ? "text-slate-600" : "text-white/70",
           )}
         >
           {formatSec(playing || current > 0 ? current : total)}

@@ -60,7 +60,7 @@ export function CustomerOpenJobs({
             onClick={() => onOpen(j.id)}
             className={cn(
               "flex w-full items-center justify-between gap-2 rounded-xl border-0 px-3 py-2 text-left",
-              isLight ? "bg-black/[0.05]" : "bg-white/[0.06]"
+              isLight ? "bg-black/[0.05]" : "bg-white/[0.06]",
             )}
           >
             <span className="flex min-w-0 items-center gap-2.5">
@@ -71,7 +71,9 @@ export function CustomerOpenJobs({
                 className="h-10 w-10 shrink-0 rounded-full object-cover"
               />
               <span className="min-w-0">
-                <span className={cn("block truncate text-[13px] font-bold", ink)}>
+                <span
+                  className={cn("block truncate text-[13px] font-bold", ink)}
+                >
                   {PRO_SERVICE_LABELS[j.serviceType] || j.serviceType}
                 </span>
                 <span className={cn("block text-[11px] font-medium", muted)}>

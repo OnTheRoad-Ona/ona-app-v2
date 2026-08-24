@@ -112,7 +112,8 @@ export const YO: MessageDict = {
   "settings.aboutDetail": "Ẹ̀yà 0.1 · ìrànlọ́wọ́ nítòsí",
   "language.title": "Èdè",
   "language.subtitle": "Èdè ìfihàn áàpù",
-  "language.hint": "Yan bí Ona ṣe ń fi àkójọ àti bọ́tìnì hàn. Gẹ̀ẹ́sì ni aṣàyàn ìpilẹ̀ṣẹ̀.",
+  "language.hint":
+    "Yan bí Ona ṣe ń fi àkójọ àti bọ́tìnì hàn. Gẹ̀ẹ́sì ni aṣàyàn ìpilẹ̀ṣẹ̀.",
   "language.saved": "Èdè ti yípadà",
   "language.current": "Lọ́wọ́lọ́wọ́",
   "notif.title": "Ìfitónilétí & ohùn",
@@ -149,7 +150,8 @@ export const YO: MessageDict = {
   "notif.emailDetail": "Summaries and receipts",
   "location.title": "Ibùdó mi",
   "location.subtitle": "Ṣètò ibi tí o wà",
-  "location.hint": "Wá ibi tàbí gbé pínnì. A lò ó fún máàpù ilé àti àwọn oníṣẹ́ nítòsí.",
+  "location.hint":
+    "Wá ibi tàbí gbé pínnì. A lò ó fún máàpù ilé àti àwọn oníṣẹ́ nítòsí.",
   "location.saved": "Ibùdó ti fi pamọ́",
   "location.myLocationBtn": "Ibùdó mi",
   "location.tapMap": "Tẹ máàpù tàbí fa pínnì",
@@ -208,7 +210,8 @@ export const YO: MessageDict = {
   "trade.solar": "Oòrùn",
   "trade.generator": "Jenẹrétọ̀",
   "trade.all": "Gbogbo",
-  "gate.finishBeforeLive": "Parí ìjẹ́rìísí kí o sì fi ránṣẹ́ ṣáájú kí o lè Go Live.",
+  "gate.finishBeforeLive":
+    "Parí ìjẹ́rìísí kí o sì fi ránṣẹ́ ṣáájú kí o lè Go Live.",
   "gate.continueVerification": "Tẹ̀síwájú ìjẹ́rìísí",
   "gate.viewStatus": "Wo ipò",
   "status.draft": "Àkọsílẹ̀",
@@ -258,7 +261,8 @@ export const YO: MessageDict = {
   "profile.reviews": "Reviews",
   "profile.rating": "Rating",
   "verify.title": "Jẹ́rìísí ìdánimọ̀ rẹ",
-  "verify.subtitle": "Free try until job {warn}. Finish this before job {block} so you can keep booking.",
+  "verify.subtitle":
+    "Free try until job {warn}. Finish this before job {block} so you can keep booking.",
   "verify.howTitle": "How verification works",
   "verify.countryFromPhone": "Country: {country} (from your phone number)",
   "verify.requiredFor": "Required for {country}",
@@ -282,7 +286,8 @@ export const YO: MessageDict = {
   "signup.failed": "Ìforúkọsílẹ̀ kùnà",
   "signup.tryAgain": "Gbìyànjú lẹ́ẹ̀kan si",
   "signup.allSet": "You're all set",
-  "signup.accountReady": "Your {role} account is ready. You can start using Ona now.",
+  "signup.accountReady":
+    "Your {role} account is ready. You can start using Ona now.",
   "dashboard.title": "Pẹpẹ",
   "dashboard.incoming": "Incoming jobs",
   "dashboard.recent": "Recent",
@@ -291,7 +296,8 @@ export const YO: MessageDict = {
   "gate.verifySoon": "Verify soon to keep full access",
   "gate.verifyNow": "Verify your ID now",
   "gate.required": "Verification required",
-  "gate.exploreFree": "You explored the app freely. Verify your ID once to book without limits.",
+  "gate.exploreFree":
+    "You explored the app freely. Verify your ID once to book without limits.",
   "menu.settings": "Ètò",
   "menu.help": "Ìrànlọ́wọ́",
   "menu.switchRole": "Yí ipa padà",
@@ -312,7 +318,8 @@ export const YO: MessageDict = {
   "menu.logIn": "Wọlé",
   "menu.needLogin": "Wọlé láti yí láàrin Oníbàárà àti Repair Pro.",
   "menu.noMotorist": "O kò tíì ní àkántì Oníbàárà.",
-  "menu.noPro": "O kò tíì ní àkántì Repair Pro. Parí ìforúkọsílẹ̀ láti lọ Live kí o sì gba iṣẹ́.",
+  "menu.noPro":
+    "O kò tíì ní àkántì Repair Pro. Parí ìforúkọsílẹ̀ láti lọ Live kí o sì gba iṣẹ́.",
   "menu.couldNotSwitch": "Kò le yípadà.",
   "menu.tapToClose": "Tẹ láti tilẹ̀",
   "menu.signedInAs": "O ti wọlé gẹ́gẹ́ bí {name}",
@@ -346,11 +353,12 @@ export const YO: MessageDict = {
   "settings.hub.addressesDetail": "Home, Work, service area & pin",
   "settings.dangerZone": "Agbègbè ewu",
   "settings.deleteAccount": "Pa àkántì rẹ́",
-  "settings.deleteAccountDetail": "Pa a títí — kò ṣe é yípadà",
+  "settings.deleteAccountDetail": "Pa a títí kò ṣe é yípadà",
   "settings.theme.tap": "Tẹ",
   "search.noResultsFor": "Kò sí èsì fún “{q}”",
-  "search.tryAnother": "Pro, iṣẹ́ tàbí ibi yẹn kò sí nítòsí. Gbìyànjú ìwádìí mìíràn.",
-  "search.tryBrowse": "Gbìyànjú orúkọ, iṣẹ́ tàbí ibi — tàbí ṣí Home.",
+  "search.tryAnother":
+    "Pro, iṣẹ́ tàbí ibi yẹn kò sí nítòsí. Gbìyànjú ìwádìí mìíràn.",
+  "search.tryBrowse": "Gbìyànjú orúkọ, iṣẹ́ tàbí ibi tàbí ṣí Home.",
   "search.noMatchesNearby": "Kò sí àwọn tó bára mu nítòsí",
   "search.backHome": "Padà sí ile",
   "search.withinKm": "Láàrin {km} km · èsì {count}",
@@ -359,12 +367,14 @@ export const YO: MessageDict = {
   "search.placeholder": "Wá ìṣòro, òṣìṣẹ́, iṣẹ́…",
   "search.title": "Wá",
   "search.subtitle": "Àwọn òṣìṣẹ́ tó mọ́ṣẹ́ nítòsí",
-  "home.searchNoResults": "Kò sí èsì fún “{q}”. Gbìyànjú orúkọ, iṣẹ́ tàbí ibi mìíràn.",
+  "home.searchNoResults":
+    "Kò sí èsì fún “{q}”. Gbìyànjú orúkọ, iṣẹ́ tàbí ibi mìíràn.",
   "common.customer": "Oníbàárà",
   "common.repairPro": "Repair Pro",
   "common.codeSent": "Wọ́n ti fi kóòdù ránṣẹ́. Tẹ ẹ́ nísàlẹ̀.",
   "nav.shop": "Shop",
   "nav.myShop": "My Shop",
+  "nav.onaExpress": "Ona Express",
   "trade.shop": "Shop",
   "shop.title": "Shop",
   "shop.searchPlaceholder": "What are you looking for?",
@@ -372,6 +382,6 @@ export const YO: MessageDict = {
   "shop.popular": "Popular",
   "shop.newArrivals": "New arrivals",
   "shop.empty": "No products yet. Catalog is loading.",
-  "shop.setupRequired": "Shop is almost ready — catalog database will appear after setup.",
+  "shop.setupRequired":
+    "Shop is almost ready catalog database will appear after setup.",
 };
-

@@ -1,5 +1,5 @@
 /**
- * Vulcanizer Shop taxonomy — 34 category branches with subcategories.
+ * Vulcanizer Shop taxonomy 34 category branches with subcategories.
  * Seeds shop_trade_categories for trade_key = vulcanizer.
  * Expandable; grounded in real tyre/tube/valve/equipment product classes sold
  * by tyre tradesmen (ETRTO-standard sizes, brand product lines).
@@ -74,7 +74,7 @@ export const VULCANIZER_CATEGORY_TREE: VulcCat[] = [
       { slug: "truck-tubes", name: "Truck & Bus Tubes" },
       { slug: "motorcycle-tubes", name: "Motorcycle / Scooter Tubes" },
       { slug: "bicycle-tubes", name: "Bicycle Tubes" },
-      { slug: "r20-r24-tubes", name: "Heavy-Duty (R20–R24) Tubes" },
+      { slug: "r20-r24-tubes", name: "Heavy-Duty (R20-R24) Tubes" },
     ],
   },
   {

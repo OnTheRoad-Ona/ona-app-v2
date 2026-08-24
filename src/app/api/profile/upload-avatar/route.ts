@@ -3,7 +3,11 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { createServiceSupabase } from "@/lib/supabase/server";
-import { getSupabaseAnonKey, getSupabaseUrl, isSupabaseAdminConfigured } from "@/lib/supabase/env";
+import {
+  getSupabaseAnonKey,
+  getSupabaseUrl,
+  isSupabaseAdminConfigured,
+} from "@/lib/supabase/env";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,14 +39,17 @@ export async function POST(req: Request) {
   const userClient = createClient(url, anon, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const { data: userData, error: userErr } = await userClient.auth.getUser(accessToken);
+  const { data: userData, error: userErr } =
+    await userClient.auth.getUser(accessToken);
   if (userErr || !userData.user) {
     return apiFail("Session expired. Sign in again.", 401, "session_expired");
   }
   const userId = userData.user.id;
 
   // Validate and decode the data URL
-  const match = imageDataUrl.match(/^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=]+)$/);
+  const match = imageDataUrl.match(
+    /^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=]+)$/,
+  );
   if (!match) {
     return apiFail("Invalid image format. Accepted: PNG, JPEG, WebP.", 400);
   }
@@ -62,15 +69,20 @@ export async function POST(req: Request) {
   }
 
   // Upload to Supabase Storage
-  const id = createHash("sha256").update(`${userId}:${randomUUID()}`).digest("hex").slice(0, 16);
+  const id = createHash("sha256")
+    .update(`${userId}:${randomUUID()}`)
+    .digest("hex")
+    .slice(0, 16);
   const filePath = `${userId}/${id}.${ext}`;
 
   const admin = createServiceSupabase();
-  const { error: uploadErr } = await admin.storage.from("avatars").upload(filePath, buffer, {
-    contentType: `image/${ext === "jpg" ? "jpeg" : ext}`,
-    cacheControl: "public, max-age=31536000",
-    upsert: false,
-  });
+  const { error: uploadErr } = await admin.storage
+    .from("avatars")
+    .upload(filePath, buffer, {
+      contentType: `image/${ext === "jpg" ? "jpeg" : ext}`,
+      cacheControl: "public, max-age=31536000",
+      upsert: false,
+    });
 
   if (uploadErr) {
     return apiFail("Could not upload image. Try again.", 500);

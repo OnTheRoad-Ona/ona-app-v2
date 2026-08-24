@@ -174,74 +174,74 @@ export default function AdminUsersPage() {
                 const pro = Array.isArray(proRaw) ? proRaw[0] : proRaw;
                 const extra =
                   u.role === "motorist"
-                    ? [
-                        mot?.vehicle_make,
-                        mot?.vehicle_model,
-                        mot?.vehicle_year,
-                      ]
+                    ? [mot?.vehicle_make, mot?.vehicle_model, mot?.vehicle_year]
                         .filter(Boolean)
                         .join(" ") || "Customer"
                     : u.role === "repair_pro"
-                      ? `${pro?.primary_service || "pro"} · ${pro?.status || "—"}`
+                      ? `${pro?.primary_service || "pro"} · ${pro?.status || ""}`
                       : "Admin";
                 return (
-                <tr key={u.id}>
-                  <td>
-                    <div>{u.full_name || "—"}</div>
-                    <div className="om-admin-muted">{u.id.slice(0, 8)}…</div>
-                  </td>
-                  <td>
-                    <div>{u.email || "—"}</div>
-                    <div className="om-admin-muted">{u.phone || u.city || ""}</div>
-                  </td>
-                  <td>
-                    <span className={`om-admin-badge ${u.role}`}>{u.role}</span>
-                  </td>
-                  <td>
-                    <div>{extra}</div>
-                    {u.role === "motorist" && mot ? (
+                  <tr key={u.id}>
+                    <td>
+                      <div>{u.full_name || ""}</div>
+                      <div className="om-admin-muted">{u.id.slice(0, 8)}…</div>
+                    </td>
+                    <td>
+                      <div>{u.email || ""}</div>
                       <div className="om-admin-muted">
-                        NIN {mot.nin_verified ? "✓" : "—"} · BVN{" "}
-                        {mot.bvn_verified ? "✓" : "—"}
+                        {u.phone || u.city || ""}
                       </div>
-                    ) : null}
-                    {u.role === "motorist" ? (
-                      <a
-                        href={`/admin/motorists/${u.id}`}
-                        className="om-admin-muted"
-                        style={{ display: "inline-block", marginTop: 4 }}
+                    </td>
+                    <td>
+                      <span className={`om-admin-badge ${u.role}`}>
+                        {u.role}
+                      </span>
+                    </td>
+                    <td>
+                      <div>{extra}</div>
+                      {u.role === "motorist" && mot ? (
+                        <div className="om-admin-muted">
+                          NIN {mot.nin_verified ? "✓" : ""} · BVN{" "}
+                          {mot.bvn_verified ? "✓" : ""}
+                        </div>
+                      ) : null}
+                      {u.role === "motorist" ? (
+                        <a
+                          href={`/admin/motorists/${u.id}`}
+                          className="om-admin-muted"
+                          style={{ display: "inline-block", marginTop: 4 }}
+                        >
+                          Open motorist →
+                        </a>
+                      ) : null}
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="om-admin-btn ghost"
+                        onClick={() => toggleActive(u.id, !u.is_active)}
                       >
-                        Open motorist →
-                      </a>
-                    ) : null}
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      className="om-admin-btn ghost"
-                      onClick={() => toggleActive(u.id, !u.is_active)}
-                    >
-                      {u.is_active ? "Active" : "Inactive"}
-                    </button>
-                  </td>
-                  <td>
-                    <div className="om-admin-row-actions">
-                      {(["motorist", "repair_pro", "admin"] as const).map(
-                        (r) => (
-                          <button
-                            key={r}
-                            type="button"
-                            className="om-admin-btn ghost"
-                            disabled={u.role === r}
-                            onClick={() => assignRole(u.id, r)}
-                          >
-                            {r}
-                          </button>
-                        )
-                      )}
-                    </div>
-                  </td>
-                </tr>
+                        {u.is_active ? "Active" : "Inactive"}
+                      </button>
+                    </td>
+                    <td>
+                      <div className="om-admin-row-actions">
+                        {(["motorist", "repair_pro", "admin"] as const).map(
+                          (r) => (
+                            <button
+                              key={r}
+                              type="button"
+                              className="om-admin-btn ghost"
+                              disabled={u.role === r}
+                              onClick={() => assignRole(u.id, r)}
+                            >
+                              {r}
+                            </button>
+                          ),
+                        )}
+                      </div>
+                    </td>
+                  </tr>
                 );
               })
             )}

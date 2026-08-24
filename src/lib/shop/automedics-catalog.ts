@@ -1,5 +1,5 @@
 /**
- * Automedics live catalog — the only inventory loaded into Ona Shop.
+ * Automedics live catalog the only inventory loaded into Ona Shop.
  * Every row is a real SKU from the Automedics price list.
  */
 
@@ -18,7 +18,10 @@ export const AUTOMEDICS_CATEGORIES = [
   { slug: "shock-absorbers", name: "Shock Absorbers" },
   { slug: "ball-joints", name: "Ball Joints" },
   { slug: "stabilizer-linkages", name: "Stabilizer Linkages" },
-  { slug: "stabilizer-rubbers-bushings", name: "Stabilizer Rubbers & Bushings" },
+  {
+    slug: "stabilizer-rubbers-bushings",
+    name: "Stabilizer Rubbers & Bushings",
+  },
   { slug: "tie-rod-ends-sockets", name: "Tie Rod Ends & Sockets" },
   { slug: "other-accessories", name: "Other / Accessories" },
 ] as const;
@@ -74,7 +77,7 @@ function p(
   priceMajor: number | null,
   vehicle: string,
   brand = "Automedics",
-  imageKey?: string
+  imageKey?: string,
 ): AutomedicsProduct {
   return {
     sku,
@@ -101,7 +104,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     52000,
     "General",
     "Automedics",
-    "engine-oil-5l"
+    "engine-oil-5l",
   ),
   p(
     "ATM-OIL-5W20-1L",
@@ -110,7 +113,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     13000,
     "General",
     "Automedics",
-    "engine-oil-1l"
+    "engine-oil-1l",
   ),
   p(
     "ATM-OIL-5W30-5L",
@@ -119,7 +122,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     52000,
     "General",
     "Automedics",
-    "engine-oil-5l"
+    "engine-oil-5l",
   ),
   p(
     "ATM-OIL-5W30-1L",
@@ -128,7 +131,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     13000,
     "General",
     "Automedics",
-    "engine-oil-1l"
+    "engine-oil-1l",
   ),
 
   // 3. Transmission Fluid
@@ -139,16 +142,22 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "transmission-fluid",
     25000,
     "General",
-    "Mannol"
+    "Mannol",
   ),
-  p("ATM-ATF-DW1", "DW1 Transmission Oil", "transmission-fluid", 8000, "General"),
+  p(
+    "ATM-ATF-DW1",
+    "DW1 Transmission Oil",
+    "transmission-fluid",
+    8000,
+    "General",
+  ),
   p("ATM-ATF-DEXRON-VI", "Dexron VI", "transmission-fluid", null, "General"),
   p(
     "ATM-ATF-DEXIII",
     "Dexiii Transmission Oil",
     "transmission-fluid",
     7000,
-    "General"
+    "General",
   ),
 
   // 4. Brake Fluid
@@ -163,7 +172,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     7000,
     "General",
     "Automedics",
-    "coolant-green"
+    "coolant-green",
   ),
   p(
     "ATM-COOL-RED",
@@ -172,19 +181,61 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     7000,
     "General",
     "Automedics",
-    "coolant-red"
+    "coolant-red",
   ),
 
   // 6. Oil Filters
-  p("ATM-OF-001", "ATM 001 Automedics Oil Filter", "oil-filters", 2000, "General"),
+  p(
+    "ATM-OF-001",
+    "ATM 001 Automedics Oil Filter",
+    "oil-filters",
+    2000,
+    "General",
+  ),
   p("ATM-OF-002", "ATM 002 Automedics Filter", "oil-filters", 2000, "General"),
-  p("ATM-OF-003", "ATM 003 Automedics Oil Filter", "oil-filters", 2000, "General"),
-  p("ATM-OF-501", "ATM 501 Automedics Oil Filter", "oil-filters", 3500, "General"),
+  p(
+    "ATM-OF-003",
+    "ATM 003 Automedics Oil Filter",
+    "oil-filters",
+    2000,
+    "General",
+  ),
+  p(
+    "ATM-OF-501",
+    "ATM 501 Automedics Oil Filter",
+    "oil-filters",
+    3500,
+    "General",
+  ),
   p("ATM-OF-502", "ATM 502 Automedics Filter", "oil-filters", 3500, "General"),
-  p("ATM-OF-503", "ATM 503 Automedics Oil Filter", "oil-filters", 3500, "General"),
-  p("ATM-OF-504", "ATM 504 Automedics Oil Filter", "oil-filters", 3500, "General"),
-  p("ATM-OF-505", "ATM 505 Automedics Oil Filter", "oil-filters", 3500, "General"),
-  p("ATM-OF-506", "ATM 506 Automedics Oil Filter", "oil-filters", 3500, "General"),
+  p(
+    "ATM-OF-503",
+    "ATM 503 Automedics Oil Filter",
+    "oil-filters",
+    3500,
+    "General",
+  ),
+  p(
+    "ATM-OF-504",
+    "ATM 504 Automedics Oil Filter",
+    "oil-filters",
+    3500,
+    "General",
+  ),
+  p(
+    "ATM-OF-505",
+    "ATM 505 Automedics Oil Filter",
+    "oil-filters",
+    3500,
+    "General",
+  ),
+  p(
+    "ATM-OF-506",
+    "ATM 506 Automedics Oil Filter",
+    "oil-filters",
+    3500,
+    "General",
+  ),
   p("ATM-OF-PG195", "PG195 Oil Filter", "oil-filters", 5000, "General"),
   p("ATM-OF-PG252", "PG252 Oil Filter", "oil-filters", 5000, "General"),
   p("ATM-OF-PG4651", "PG4651 Oil Filter", "oil-filters", 5000, "General"),
@@ -203,7 +254,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "oil-filters",
     3500,
     "General",
-    "SCT"
+    "SCT",
   ),
   p(
     "ATM-OF-SH4031P",
@@ -211,9 +262,16 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "oil-filters",
     3500,
     "General",
-    "SCT"
+    "SCT",
   ),
-  p("ATM-OF-SH4051", "SH4051 SCT Filter", "oil-filters", 3500, "General", "SCT"),
+  p(
+    "ATM-OF-SH4051",
+    "SH4051 SCT Filter",
+    "oil-filters",
+    3500,
+    "General",
+    "SCT",
+  ),
   p("ATM-OF-SM106", "SM106 SCT Filter", "oil-filters", 3500, "General", "SCT"),
   p(
     "ATM-OF-R85394",
@@ -221,7 +279,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "oil-filters",
     3500,
     "General",
-    "Car Quest"
+    "Car Quest",
   ),
 
   // 7. Air Filters (duplicate Camry 2.7 / RAV4 2003 alts dropped)
@@ -230,35 +288,35 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "Air Filter 2.7 Camry",
     "air-filters",
     15000,
-    "Toyota Camry 2.7"
+    "Toyota Camry 2.7",
   ),
   p(
     "ATM-AF-COROLLA18",
     "Air Filter Corolla 1.8",
     "air-filters",
     15000,
-    "Toyota Corolla 1.8"
+    "Toyota Corolla 1.8",
   ),
   p(
     "ATM-AF-FRONTIER",
     "Air Filter Frontier",
     "air-filters",
     15000,
-    "Nissan Frontier"
+    "Nissan Frontier",
   ),
   p(
     "ATM-AF-HIGHLANDER-2011",
     "Air Filter Highlander 2011",
     "air-filters",
     15000,
-    "Toyota Highlander 2011"
+    "Toyota Highlander 2011",
   ),
   p(
     "ATM-AF-RAV4-2003",
     "Air Filter RAV4 2003",
     "air-filters",
     15000,
-    "Toyota RAV4 2003"
+    "Toyota RAV4 2003",
   ),
   p("ATM-AF-RX350", "Air Filter RX350", "air-filters", 15000, "Lexus RX350"),
   p(
@@ -266,23 +324,29 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "Air Filter Corolla (17801-22020)",
     "air-filters",
     15000,
-    "Toyota Corolla"
+    "Toyota Corolla",
   ),
   p(
     "ATM-AF-ELANTRA",
     "Air Filter Elantra",
     "air-filters",
     15000,
-    "Hyundai Elantra"
+    "Hyundai Elantra",
   ),
-  p("ATM-AF-260300-0110", "Air Filter 260300-0110", "air-filters", 15000, "General"),
+  p(
+    "ATM-AF-260300-0110",
+    "Air Filter 260300-0110",
+    "air-filters",
+    15000,
+    "General",
+  ),
   p(
     "ATM-AF-26030-0140",
     "26030-0140 CFAO Air Filter",
     "air-filters",
     15000,
     "General",
-    "CFAO"
+    "CFAO",
   ),
   p(
     "ATM-AF-B130150105",
@@ -290,7 +354,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "air-filters",
     15000,
     "General",
-    "CFAO"
+    "CFAO",
   ),
   p(
     "ATM-AF-B130G0066",
@@ -298,7 +362,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "air-filters",
     15000,
     "General",
-    "CFAO"
+    "CFAO",
   ),
   p(
     "ATM-AF-B130G0154",
@@ -306,7 +370,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "air-filters",
     15000,
     "General",
-    "CFAO"
+    "CFAO",
   ),
   p(
     "ATM-AF-B130G0155",
@@ -314,7 +378,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "air-filters",
     15000,
     "General",
-    "CFAO"
+    "CFAO",
   ),
   p(
     "ATM-AF-B130G0170",
@@ -322,7 +386,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "air-filters",
     15000,
     "General",
-    "CFAO"
+    "CFAO",
   ),
   p(
     "ATM-AF-B13170117",
@@ -330,7 +394,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "air-filters",
     15000,
     "General",
-    "CFAO"
+    "CFAO",
   ),
   p(
     "ATM-AF-B140G0043",
@@ -338,7 +402,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "air-filters",
     15000,
     "General",
-    "CFAO"
+    "CFAO",
   ),
   p(
     "ATM-AF-B140G0054",
@@ -346,7 +410,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "air-filters",
     15000,
     "General",
-    "CFAO"
+    "CFAO",
   ),
   p(
     "ATM-AF-B140G0056",
@@ -354,7 +418,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "air-filters",
     15000,
     "General",
-    "CFAO"
+    "CFAO",
   ),
   p(
     "ATM-AF-B152303200",
@@ -362,7 +426,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "air-filters",
     15000,
     "General",
-    "CFAO"
+    "CFAO",
   ),
 
   // 8. Cabin Filters
@@ -372,7 +436,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "cabin-filters",
     5000,
     "General",
-    "CFAO"
+    "CFAO",
   ),
 
   // 9. Brake Pads
@@ -382,7 +446,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "brake-pads",
     15000,
     "General",
-    "Aisin"
+    "Aisin",
   ),
   p(
     "ATM-BP-A1N138T",
@@ -390,7 +454,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "brake-pads",
     15000,
     "General",
-    "Aisin"
+    "Aisin",
   ),
   p(
     "ATM-BP-A1N141T",
@@ -398,7 +462,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "brake-pads",
     15000,
     "General",
-    "Aisin"
+    "Aisin",
   ),
   p(
     "ATM-BP-A1N225T",
@@ -406,7 +470,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "brake-pads",
     15000,
     "General",
-    "Aisin"
+    "Aisin",
   ),
   p(
     "ATM-BP-A1N229T",
@@ -414,7 +478,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "brake-pads",
     15000,
     "General",
-    "Aisin"
+    "Aisin",
   ),
   p(
     "ATM-BP-A1N254T",
@@ -422,7 +486,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "brake-pads",
     15000,
     "General",
-    "Aisin"
+    "Aisin",
   ),
   p(
     "ATM-BP-A2N007T",
@@ -430,7 +494,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "brake-pads",
     15000,
     "General",
-    "Aisin"
+    "Aisin",
   ),
   p(
     "ATM-BP-A2N224T",
@@ -438,7 +502,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "brake-pads",
     15000,
     "General",
-    "Aisin"
+    "Aisin",
   ),
   p(
     "ATM-BP-A2N232T",
@@ -446,172 +510,202 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "brake-pads",
     15000,
     "General",
-    "Aisin"
+    "Aisin",
   ),
-  p("ATM-BP-D1123", "D-1123 Automedics Brake Pad", "brake-pads", 30000, "General"),
-  p("ATM-BP-D1304", "D-1304 Automedics Brake Pad", "brake-pads", 20000, "General"),
+  p(
+    "ATM-BP-D1123",
+    "D-1123 Automedics Brake Pad",
+    "brake-pads",
+    30000,
+    "General",
+  ),
+  p(
+    "ATM-BP-D1304",
+    "D-1304 Automedics Brake Pad",
+    "brake-pads",
+    20000,
+    "General",
+  ),
   p(
     "ATM-BP-D1324",
     "D-1324 Front Automedics Brake Pad",
     "brake-pads",
     20000,
-    "General"
+    "General",
   ),
   p(
     "ATM-BP-D1325",
     "D-1325 Rear Automedics Brake Pad",
     "brake-pads",
     15000,
-    "General"
+    "General",
   ),
   p(
     "ATM-BP-D1336",
     "D-1336 Front Automedics Brake Pad",
     "brake-pads",
     20000,
-    "General"
+    "General",
   ),
   p(
     "ATM-BP-D1391",
     "D-1391 Rear Automedics Brake Pad",
     "brake-pads",
     15000,
-    "General"
+    "General",
   ),
   p(
     "ATM-BP-D1401",
     "D-1401 Front Automedics Brake Pad",
     "brake-pads",
     20000,
-    "General"
+    "General",
   ),
   p(
     "ATM-BP-D1402",
     "D-1402 Rear Automedics Brake Pad",
     "brake-pads",
     15000,
-    "General"
+    "General",
   ),
   p(
     "ATM-BP-D2270",
     "D-2270 Front Automedics Brake Pad",
     "brake-pads",
     20000,
-    "General"
+    "General",
   ),
-  p("ATM-BP-D2278", "D-2278 Automedics Brake Pad", "brake-pads", 20000, "General"),
+  p(
+    "ATM-BP-D2278",
+    "D-2278 Automedics Brake Pad",
+    "brake-pads",
+    20000,
+    "General",
+  ),
   p(
     "ATM-BP-D787",
     "D-787 Front Automedics Brake Pad",
     "brake-pads",
     20000,
-    "General"
+    "General",
   ),
   p(
     "ATM-BP-D906",
     "D-906 Front Automedics Brake Pad",
     "brake-pads",
     20000,
-    "General"
+    "General",
   ),
   p("ATM-BP-1011", "Brake Pad 1011", "brake-pads", 25000, "Ford F150"),
   p("ATM-BP-1012", "Brake Pad 1012", "brake-pads", 25000, "Ford F150"),
   p("ATM-BP-2228", "Brake Pad 2228", "brake-pads", 25000, "Toyota Tacoma"),
-  p("ATM-BP-2278F", "Brake Pad 2278 Front", "brake-pads", 25000, "Toyota Tundra"),
-  p("ATM-BP-2278B", "Brake Pad 2278B Rear", "brake-pads", 25000, "Toyota Tundra"),
+  p(
+    "ATM-BP-2278F",
+    "Brake Pad 2278 Front",
+    "brake-pads",
+    25000,
+    "Toyota Tundra",
+  ),
+  p(
+    "ATM-BP-2278B",
+    "Brake Pad 2278B Rear",
+    "brake-pads",
+    25000,
+    "Toyota Tundra",
+  ),
   p("ATM-BP-5153", "Brake Pad 5153", "brake-pads", 25000, "General"),
   p(
     "ATM-BP-8691F",
     "Brake Pad 8691F",
     "brake-pads",
     25000,
-    "Hyundai Elantra 2011"
+    "Hyundai Elantra 2011",
   ),
-  p(
-    "ATM-BP-DI011",
-    "Eco Smart Brake Pad DI011",
-    "brake-pads",
-    25000,
-    "Ford"
-  ),
+  p("ATM-BP-DI011", "Eco Smart Brake Pad DI011", "brake-pads", 25000, "Ford"),
   p(
     "ATM-BP-09W20",
     "F Brake Pad 09W20 Asimco",
     "brake-pads",
     25000,
     "Honda",
-    "Asimco"
+    "Asimco",
   ),
   p(
     "ATM-BP-CAMRY-2010-F",
     "Front Brake Pad Camry 2010",
     "brake-pads",
     20000,
-    "Toyota Camry 2010"
+    "Toyota Camry 2010",
   ),
-  p("ATM-BP-RAV4-F", "Front Brake Pad RAV4", "brake-pads", 20000, "Toyota RAV4"),
+  p(
+    "ATM-BP-RAV4-F",
+    "Front Brake Pad RAV4",
+    "brake-pads",
+    20000,
+    "Toyota RAV4",
+  ),
   p(
     "ATM-BP-RX350-F",
     "Front Brake Pad RX350",
     "brake-pads",
     20000,
-    "Lexus RX350"
+    "Lexus RX350",
   ),
   p(
     "ATM-BP-HGB-04465YZZEQ",
     "HGB-04465YZZEQ Front Corolla 2014",
     "brake-pads",
     20000,
-    "Toyota Corolla 2014"
+    "Toyota Corolla 2014",
   ),
   p(
     "ATM-BP-HGB1211-8331",
     "HGB1211-8331 Front RAV4 2008",
     "brake-pads",
     20000,
-    "Toyota RAV4 2008"
+    "Toyota RAV4 2008",
   ),
   p(
     "ATM-BP-HGB1401-8509",
     "HGB1401-8509 Front Venza 2010-2014",
     "brake-pads",
     20000,
-    "Toyota Venza 2010-2014"
+    "Toyota Venza 2010-2014",
   ),
   p(
     "ATM-BP-HGB1402-8510",
     "HGB1402-8510 Rear Venza 2008-2016",
     "brake-pads",
     20000,
-    "Toyota Venza 2008-2016"
+    "Toyota Venza 2008-2016",
   ),
   p(
     "ATM-BP-HGB1571-8780",
     "HGB1571-8780 Front Corolla 2008",
     "brake-pads",
     20000,
-    "Toyota Corolla 2008"
+    "Toyota Corolla 2008",
   ),
   p(
     "ATM-BP-HGB1572-8781",
     "HGB1572-8781 Rear Corolla 2008",
     "brake-pads",
     20000,
-    "Toyota Corolla 2008"
+    "Toyota Corolla 2008",
   ),
   p(
     "ATM-BP-IKB-AC1175",
     "IKB AC1175 Front Corolla 2014",
     "brake-pads",
     20000,
-    "Toyota Corolla 2014"
+    "Toyota Corolla 2014",
   ),
   p(
     "ATM-BP-NUELA-Z",
     "Nuela Z Brake Pad",
     "brake-pads",
     25000,
-    "Ford Edge 2008"
+    "Ford Edge 2008",
   ),
   p("ATM-BP-OWL", "OWL Brake Pad", "brake-pads", 20000, "Nissan & Toyota"),
   p(
@@ -620,7 +714,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "brake-pads",
     25000,
     "Honda Accord",
-    "Asimco"
+    "Asimco",
   ),
   p(
     "ATM-BP-SCT-SP106-SP659",
@@ -628,14 +722,14 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "brake-pads",
     15000,
     "Various",
-    "SCT"
+    "SCT",
   ),
   p(
     "ATM-BP-YBD-BP3004",
     "YBD BP3004",
     "brake-pads",
     25000,
-    "Acura / Honda 2007-2012"
+    "Acura / Honda 2007-2012",
   ),
 
   // 10. Brake Discs
@@ -645,28 +739,28 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "Back Disc Tundra 2008",
     "brake-discs",
     95000,
-    "Toyota Tundra 2008"
+    "Toyota Tundra 2008",
   ),
   p(
     "ATM-BD-ODYSSEY-2008-F",
     "Front Brake Disc Odyssey 2008",
     "brake-discs",
     75000,
-    "Honda Odyssey 2008"
+    "Honda Odyssey 2008",
   ),
   p(
     "ATM-BD-TACOMA-2008-F",
     "Front Disc Tacoma 2008",
     "brake-discs",
     95000,
-    "Toyota Tacoma 2008"
+    "Toyota Tacoma 2008",
   ),
   p(
     "ATM-BD-TUNDRA-2008-F",
     "Front Disc Tundra 2008",
     "brake-discs",
     95000,
-    "Toyota Tundra 2008"
+    "Toyota Tundra 2008",
   ),
 
   // 11. Brake Linings
@@ -675,16 +769,22 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "Auto Brake Lining SS904 L200",
     "brake-linings",
     20000,
-    "Mitsubishi L200"
+    "Mitsubishi L200",
   ),
   p(
     "ATM-BL-SS903",
     "Auto Brake Lining SS903 4Runner",
     "brake-linings",
     20000,
-    "Toyota 4Runner"
+    "Toyota 4Runner",
   ),
-  p("ATM-BL-L200", "Brake Lining L200", "brake-linings", 25000, "Mitsubishi L200"),
+  p(
+    "ATM-BL-L200",
+    "Brake Lining L200",
+    "brake-linings",
+    25000,
+    "Mitsubishi L200",
+  ),
 
   // 12. Shock Absorbers
   p(
@@ -693,7 +793,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "shock-absorbers",
     95000,
     "General",
-    "Sensen"
+    "Sensen",
   ),
   p(
     "ATM-SH-4213-0470",
@@ -701,98 +801,98 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "shock-absorbers",
     95000,
     "General",
-    "Sensen"
+    "Sensen",
   ),
   p(
     "ATM-SH-SEQUOIA-2008-R",
     "Back Shock Sequoia 2008",
     "shock-absorbers",
     65000,
-    "Toyota Sequoia 2008"
+    "Toyota Sequoia 2008",
   ),
   p(
     "ATM-SH-CRV-2009-R",
     "Back Shock CR-V 2009",
     "shock-absorbers",
     80000,
-    "Honda CR-V 2009"
+    "Honda CR-V 2009",
   ),
   p(
     "ATM-SH-HIGHLANDER-2008-R",
     "Back Shock Highlander 2008 4×4",
     "shock-absorbers",
     70000,
-    "Toyota Highlander 2008"
+    "Toyota Highlander 2008",
   ),
   p(
     "ATM-SH-CAMRY-2012-F-SHORT",
     "Front Shock Camry 2012 Short",
     "shock-absorbers",
     70000,
-    "Toyota Camry 2012"
+    "Toyota Camry 2012",
   ),
   p(
     "ATM-SH-CAMRY-2014-F-LONG",
     "Front Shock Camry 2014 Long",
     "shock-absorbers",
     70000,
-    "Toyota Camry 2014"
+    "Toyota Camry 2014",
   ),
   p(
     "ATM-SH-COROLLA-2003-F",
     "Front Shock Corolla 2003",
     "shock-absorbers",
     70000,
-    "Toyota Corolla 2003"
+    "Toyota Corolla 2003",
   ),
   p(
     "ATM-SH-PATHFINDER-2005-F",
     "Front Shock Pathfinder 2005",
     "shock-absorbers",
     70000,
-    "Nissan Pathfinder 2005"
+    "Nissan Pathfinder 2005",
   ),
   p(
     "ATM-SH-PILOT-2003-2007-F",
     "Front Shock Pilot 2003-2007",
     "shock-absorbers",
     65000,
-    "Honda Pilot 2003-2007"
+    "Honda Pilot 2003-2007",
   ),
   p(
     "ATM-SH-RAV4-2005-F",
     "Front Shock RAV4 2005",
     "shock-absorbers",
     70000,
-    "Toyota RAV4 2005"
+    "Toyota RAV4 2005",
   ),
   p(
     "ATM-SH-RX350-F",
     "Front Shock RX350",
     "shock-absorbers",
     70000,
-    "Lexus RX350"
+    "Lexus RX350",
   ),
   p(
     "ATM-SH-JMB-ACCORD-2008-R",
     "JMB Rear Shock Accord 2008",
     "shock-absorbers",
     65000,
-    "Honda Accord 2008"
+    "Honda Accord 2008",
   ),
   p(
     "ATM-SH-MJL-ACCORD-2008-F",
     "MJL Front Shock Accord 2008",
     "shock-absorbers",
     60000,
-    "Honda Accord 2008"
+    "Honda Accord 2008",
   ),
   p(
     "ATM-SH-XTERRA-R",
     "Rear Shock Xterra",
     "shock-absorbers",
     65000,
-    "Nissan Xterra"
+    "Nissan Xterra",
   ),
 
   // 13. Ball Joints (duplicate RAV4 2008 alt dropped)
@@ -801,7 +901,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "Ball Joint Camry 2.7 2008",
     "ball-joints",
     20000,
-    "Toyota Camry 2.7 2008"
+    "Toyota Camry 2.7 2008",
   ),
   p("ATM-BJ-18", "Ball Joint 1.8", "ball-joints", 20000, "Toyota Corolla 1.8"),
   p("ATM-BJ-22", "Ball Joint 2.2", "ball-joints", 20000, "General"),
@@ -812,84 +912,84 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "Ball Joint Accord 2013",
     "ball-joints",
     20000,
-    "Honda Accord 2013"
+    "Honda Accord 2013",
   ),
   p(
     "ATM-BJ-ACCORD-2008UP",
     "Ball Joint Accord 2008+",
     "ball-joints",
     20000,
-    "Honda Accord 2008 upward"
+    "Honda Accord 2008 upward",
   ),
   p(
     "ATM-BJ-ACCORD-2018",
     "Ball Joint Accord 2018",
     "ball-joints",
     20000,
-    "Honda Accord 2018"
+    "Honda Accord 2018",
   ),
   p(
     "ATM-BJ-CAMRY-24",
     "Ball Joint Camry 2.4",
     "ball-joints",
     20000,
-    "Toyota Camry 2.4"
+    "Toyota Camry 2.4",
   ),
   p(
     "ATM-BJ-CAMRY-2015",
     "Ball Joint Camry 2015",
     "ball-joints",
     20000,
-    "Toyota Camry 2015"
+    "Toyota Camry 2015",
   ),
   p(
     "ATM-BJ-CIVIC-2018",
     "Ball Joint Civic 2018",
     "ball-joints",
     20000,
-    "Honda Civic 2018"
+    "Honda Civic 2018",
   ),
   p(
     "ATM-BJ-CIVIC-2007",
     "Ball Joint Civic 2007",
     "ball-joints",
     20000,
-    "Honda Civic 2007"
+    "Honda Civic 2007",
   ),
   p(
     "ATM-BJ-CRV-2015",
     "Ball Joint CR-V 2015",
     "ball-joints",
     20000,
-    "Honda CR-V 2015"
+    "Honda CR-V 2015",
   ),
   p(
     "ATM-BJ-CRV-2018",
     "Ball Joint CR-V 2018",
     "ball-joints",
     20000,
-    "Honda CR-V 2018"
+    "Honda CR-V 2018",
   ),
   p(
     "ATM-BJ-CRV-2007",
     "Ball Joint CR-V 2007",
     "ball-joints",
     20000,
-    "Honda CR-V 2007"
+    "Honda CR-V 2007",
   ),
   p(
     "ATM-BJ-HIGHLANDER",
     "Ball Joint Highlander",
     "ball-joints",
     20000,
-    "Toyota Highlander"
+    "Toyota Highlander",
   ),
   p(
     "ATM-BJ-RAV4-2008",
     "Ball Joint RAV4 2008",
     "ball-joints",
     20000,
-    "Toyota RAV4 2008"
+    "Toyota RAV4 2008",
   ),
   p("ATM-BJ-RX350", "Ball Joint RX350", "ball-joints", 20000, "Lexus RX350"),
   p(
@@ -897,21 +997,21 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "Ball Joint Sequoia",
     "ball-joints",
     25000,
-    "Toyota Sequoia"
+    "Toyota Sequoia",
   ),
   p(
     "ATM-BJ-CAMRY-2012",
     "Ball Joint Camry 2012",
     "ball-joints",
     20000,
-    "Toyota Camry 2012"
+    "Toyota Camry 2012",
   ),
   p(
     "ATM-BJ-CRV-2008",
     "Ball Joint CR-V 2008",
     "ball-joints",
     20000,
-    "Honda CR-V 2008"
+    "Honda CR-V 2008",
   ),
 
   // 14. Stabilizer Linkages + one group for remaining models
@@ -921,21 +1021,21 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "stabilizer-linkages",
     20000,
     "Honda Accord 08/13, CR-V 2012, Odyssey 13",
-    "Speed Plus"
+    "Speed Plus",
   ),
   p(
     "ATM-SL-CAMRY-2007-F",
     "Stab Link Camry 2007 Front",
     "stabilizer-linkages",
     20000,
-    "Toyota Camry 2007"
+    "Toyota Camry 2007",
   ),
   p(
     "ATM-SL-18F",
     "Stab Linkage 1.8F",
     "stabilizer-linkages",
     20000,
-    "Toyota Corolla 1.8"
+    "Toyota Corolla 1.8",
   ),
   p("ATM-SL-22F", "Stab Linkage 2.2F", "stabilizer-linkages", 20000, "General"),
   p("ATM-SL-24F", "Stab Linkage 2.4F", "stabilizer-linkages", 20000, "General"),
@@ -944,63 +1044,63 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "Stab Linkage 2.7F",
     "stabilizer-linkages",
     20000,
-    "Toyota Camry 2.7"
+    "Toyota Camry 2.7",
   ),
   p(
     "ATM-SL-ACCORD-2018-F",
     "Stab Linkage Accord 2018 Front",
     "stabilizer-linkages",
     20000,
-    "Honda Accord 2018"
+    "Honda Accord 2018",
   ),
   p(
     "ATM-SL-ACCORD-2008-R",
     "Stab Linkage Accord 2008 Rear",
     "stabilizer-linkages",
     20000,
-    "Honda Accord 2008"
+    "Honda Accord 2008",
   ),
   p(
     "ATM-SL-ACCORD-2008-F",
     "Stab Linkage Accord 2008 Front",
     "stabilizer-linkages",
     20000,
-    "Honda Accord 2008"
+    "Honda Accord 2008",
   ),
   p(
     "ATM-SL-CRV-2007-R",
     "Stab Linkage CR-V 2007 Rear",
     "stabilizer-linkages",
     20000,
-    "Honda CR-V 2007"
+    "Honda CR-V 2007",
   ),
   p(
     "ATM-SL-CRV-2018-F",
     "Stab Linkage CR-V 2018 Front",
     "stabilizer-linkages",
     20000,
-    "Honda CR-V 2018"
+    "Honda CR-V 2018",
   ),
   p(
     "ATM-SL-CRV-2007",
     "Stab Linkage CR-V 2007",
     "stabilizer-linkages",
     20000,
-    "Honda CR-V 2007"
+    "Honda CR-V 2007",
   ),
   p(
     "ATM-SL-L200-F",
     "Stab Linkage L200 Front",
     "stabilizer-linkages",
     20000,
-    "Mitsubishi L200"
+    "Mitsubishi L200",
   ),
   p(
     "ATM-SL-OTHER-MODELS",
     "Stabilizer linkages for Camry, Corolla, CR-V, RAV4, Highlander, RX350",
     "stabilizer-linkages",
     20000,
-    "Toyota Camry, Toyota Corolla, Honda CR-V, Toyota RAV4, Toyota Highlander, Lexus RX350"
+    "Toyota Camry, Toyota Corolla, Honda CR-V, Toyota RAV4, Toyota Highlander, Lexus RX350",
   ),
 
   // 15. Stabilizer Rubbers & Bushings
@@ -1009,21 +1109,21 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "Stabilizer Rubbers (48815, 48818 series and others)",
     "stabilizer-rubbers-bushings",
     6000,
-    "Camry, CR-V, RAV4, RX350, Jazz, Highlander, GX"
+    "Camry, CR-V, RAV4, RX350, Jazz, Highlander, GX",
   ),
   p(
     "ATM-RB-BUSH-A",
     "Lower Arm Bushings A",
     "stabilizer-rubbers-bushings",
     6000,
-    "Various Toyota & Honda models"
+    "Various Toyota & Honda models",
   ),
   p(
     "ATM-RB-BUSH-B",
     "Lower Arm Bushings B",
     "stabilizer-rubbers-bushings",
     15000,
-    "Various Toyota & Honda models"
+    "Various Toyota & Honda models",
   ),
 
   // 16. Tie Rod Ends & Sockets
@@ -1032,7 +1132,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "Tie Rod End 1.8 Corolla",
     "tie-rod-ends-sockets",
     25000,
-    "Toyota Corolla 1.8"
+    "Toyota Corolla 1.8",
   ),
   p("ATM-TR-22", "Tie Rod End 2.2", "tie-rod-ends-sockets", 25000, "General"),
   p("ATM-TR-24", "Tie Rod End 2.4", "tie-rod-ends-sockets", 25000, "General"),
@@ -1041,49 +1141,49 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     "Tie Rod End Camry 2015",
     "tie-rod-ends-sockets",
     25000,
-    "Toyota Camry 2015"
+    "Toyota Camry 2015",
   ),
   p(
     "ATM-TR-CIVIC-2007",
     "Tie Rod End Civic 2007",
     "tie-rod-ends-sockets",
     25000,
-    "Honda Civic 2007"
+    "Honda Civic 2007",
   ),
   p(
     "ATM-TR-CIVIC-2018",
     "Tie Rod End Civic 2018",
     "tie-rod-ends-sockets",
     25000,
-    "Honda Civic 2018"
+    "Honda Civic 2018",
   ),
   p(
     "ATM-TR-CRV-2007-2018",
     "Tie Rod End CR-V 2007/2010/2018",
     "tie-rod-ends-sockets",
     25000,
-    "Honda CR-V"
+    "Honda CR-V",
   ),
   p(
     "ATM-TR-RAV4-2008-2015",
     "Tie Rod End RAV4 2008/2015",
     "tie-rod-ends-sockets",
     25000,
-    "Toyota RAV4"
+    "Toyota RAV4",
   ),
   p(
     "ATM-TR-RX350",
     "Tie Rod End RX350",
     "tie-rod-ends-sockets",
     25000,
-    "Lexus RX350"
+    "Lexus RX350",
   ),
   p(
     "ATM-TR-SOCKETS",
     "Tie Rod Sockets for Camry, Corolla, Accord, Civic, CR-V, RAV4, Tacoma",
     "tie-rod-ends-sockets",
     25000,
-    "Toyota Camry, Toyota Corolla, Honda Accord, Honda Civic, Honda CR-V, Toyota RAV4, Toyota Tacoma"
+    "Toyota Camry, Toyota Corolla, Honda Accord, Honda Civic, Honda CR-V, Toyota RAV4, Toyota Tacoma",
   ),
 
   // 17. Other / Accessories
@@ -1094,7 +1194,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     4000,
     "General",
     "CFAO",
-    "radiator-cap"
+    "radiator-cap",
   ),
   p(
     "ATM-ACC-DENZO-SPARK",
@@ -1103,7 +1203,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     3000,
     "General",
     "Denzo",
-    "spark-plug"
+    "spark-plug",
   ),
   p(
     "ATM-ACC-GREASE-MAGIC",
@@ -1112,7 +1212,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     3000,
     "General",
     "Automedics",
-    "grease"
+    "grease",
   ),
   p(
     "ATM-ACC-INJECTOR-CURE",
@@ -1121,7 +1221,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     4000,
     "General",
     "Automedics",
-    "injector-cure"
+    "injector-cure",
   ),
   p(
     "ATM-ACC-NANO-BLUE",
@@ -1130,7 +1230,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     4000,
     "General",
     "Automedics",
-    "fuel-additive"
+    "fuel-additive",
   ),
   p(
     "ATM-ACC-POLYTRON-MTC-473",
@@ -1139,7 +1239,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     28000,
     "General",
     "Polytron",
-    "fuel-additive"
+    "fuel-additive",
   ),
   p(
     "ATM-ACC-POLYTRON-4L",
@@ -1148,7 +1248,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     235000,
     "General",
     "Polytron",
-    "engine-oil-5l"
+    "engine-oil-5l",
   ),
   p(
     "ATM-ACC-POLYTRON-FUEL-354",
@@ -1157,7 +1257,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     18000,
     "General",
     "Polytron",
-    "fuel-additive"
+    "fuel-additive",
   ),
   p(
     "ATM-ACC-SEALANT-GUM",
@@ -1166,7 +1266,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     1500,
     "General",
     "Automedics",
-    "sealant"
+    "sealant",
   ),
   p(
     "ATM-ACC-SAFETY-BOOT",
@@ -1175,7 +1275,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     16000,
     "General",
     "Automedics",
-    "safety-boot"
+    "safety-boot",
   ),
   p(
     "ATM-ACC-OVERALL",
@@ -1184,7 +1284,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     16000,
     "General",
     "Automedics",
-    "overall"
+    "overall",
   ),
   p(
     "ATM-ACC-FRONT-HUB",
@@ -1193,7 +1293,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     110000,
     "General",
     "Automedics",
-    "front-hub"
+    "front-hub",
   ),
   p(
     "ATM-ACC-STEERING-RACK",
@@ -1202,7 +1302,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     150000,
     "General",
     "Automedics",
-    "steering-rack"
+    "steering-rack",
   ),
   p(
     "ATM-ACC-O2-SENSOR",
@@ -1211,7 +1311,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     20000,
     "General",
     "Automedics",
-    "oxygen-sensor"
+    "oxygen-sensor",
   ),
   p(
     "ATM-ACC-SOMKOLCH",
@@ -1220,7 +1320,7 @@ export const AUTOMEDICS_PRODUCTS: AutomedicsProduct[] = [
     25000,
     "General",
     "Somkolch",
-    "anti-rust"
+    "anti-rust",
   ),
 ];
 
@@ -1237,8 +1337,7 @@ export function parseVehicleFitment(vehicle: string): {
   vehicleTags: string[];
 } {
   const label = vehicle.trim();
-  const general =
-    /^general$/i.test(label) || /^various$/i.test(label);
+  const general = /^general$/i.test(label) || /^various$/i.test(label);
   const tags = label
     .split(/,|&|\//)
     .map((t) => t.trim())
@@ -1254,12 +1353,12 @@ export function parseVehicleFitment(vehicle: string): {
     "Mitsubishi",
     "Acura",
   ];
-  const make = makes.find((m) =>
-    label.toLowerCase().includes(m.toLowerCase())
-  );
+  const make = makes.find((m) => label.toLowerCase().includes(m.toLowerCase()));
   let model: string | null = null;
   if (make) {
-    const after = label.slice(label.toLowerCase().indexOf(make.toLowerCase()) + make.length).trim();
+    const after = label
+      .slice(label.toLowerCase().indexOf(make.toLowerCase()) + make.length)
+      .trim();
     const modelTok = after.split(/\s+/)[0];
     if (modelTok && !/^\d/.test(modelTok) && modelTok.toLowerCase() !== "and") {
       model = modelTok.replace(/,$/, "");

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Add one motorist vehicle — cascade Make/Model/Year then extras.
+ * Add one motorist vehicle cascade Make/Model/Year then extras.
  * Unlimited vehicles on profile.
  */
 
@@ -89,7 +89,7 @@ export function MotoristVehicleWizard({
     <div
       className={cn(
         "rounded-xl px-3 py-3 transition-all duration-200",
-        isLight ? "bg-black/[0.04]" : "bg-white/[0.06]"
+        isLight ? "bg-black/[0.04]" : "bg-white/[0.06]",
       )}
     >
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -99,7 +99,10 @@ export function MotoristVehicleWizard({
         <button
           type="button"
           onClick={onCancel}
-          className={cn("border-0 bg-transparent text-[11px] font-semibold", muted)}
+          className={cn(
+            "border-0 bg-transparent text-[11px] font-semibold",
+            muted,
+          )}
         >
           Cancel
         </button>
@@ -134,12 +137,17 @@ export function MotoristVehicleWizard({
           <span
             className={cn(
               "flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl",
-              isLight ? "bg-black/10" : "bg-[#2c2c2e]"
+              isLight ? "bg-black/10" : "bg-[#2c2c2e]",
             )}
           >
             {photo ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={photo} alt="" loading="lazy" className="h-full w-full object-cover" />
+              <img
+                src={photo}
+                alt=""
+                loading="lazy"
+                className="h-full w-full object-cover"
+              />
             ) : (
               <Camera className="h-5 w-5 text-brand" />
             )}
@@ -173,7 +181,7 @@ export function MotoristVehicleWizard({
                 type="button"
                 onClick={() =>
                   setIssues((prev) =>
-                    on ? prev.filter((x) => x !== issue) : [...prev, issue]
+                    on ? prev.filter((x) => x !== issue) : [...prev, issue],
                   )
                 }
                 className={cn(
@@ -182,7 +190,7 @@ export function MotoristVehicleWizard({
                     ? "bg-brand text-white"
                     : isLight
                       ? "bg-black/8 text-slate-700"
-                      : "bg-[#2c2c2e] text-white/75"
+                      : "bg-[#2c2c2e] text-white/75",
                 )}
               >
                 {issue}
@@ -202,7 +210,7 @@ export function MotoristVehicleWizard({
           onClick={goBack}
           className={cn(
             "inline-flex h-10 flex-1 items-center justify-center gap-1 rounded-md border-0 text-[13px] font-semibold",
-            isLight ? "bg-black/10 text-slate-900" : "bg-[#2c2c2e] text-white"
+            isLight ? "bg-black/10 text-slate-900" : "bg-[#2c2c2e] text-white",
           )}
         >
           <ChevronLeft className="h-4 w-4" />

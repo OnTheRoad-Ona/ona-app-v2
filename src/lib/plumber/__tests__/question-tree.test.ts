@@ -16,7 +16,7 @@ import {
 } from "@/lib/plumber/question-tree";
 
 describe("plumber question tree", () => {
-  it("offers the eight start categories A–H", () => {
+  it("offers the eight start categories A-H", () => {
     expect(PLUMBER_START_OPTIONS.map((o) => o.id)).toEqual([
       "A",
       "B",
@@ -60,7 +60,7 @@ describe("plumber question tree", () => {
     expect(nextPlumberScreen("c_backup", "backing-up", {})).toBe("c_tried");
     expect(nextPlumberScreen("c_tried", "no", {})).toBe("c_howlong");
     expect(nextPlumberScreen("c_howlong", "Since last night", {})).toBe(
-      "final"
+      "final",
     );
   });
 
@@ -74,7 +74,7 @@ describe("plumber question tree", () => {
     expect(nextPlumberScreen("e_age", "3 years", {})).toBe("final");
 
     expect(nextPlumberScreen("f_happening", "weak-flush", {})).toBe(
-      "f_cistern"
+      "f_cistern",
     );
     expect(nextPlumberScreen("f_cistern", "dual-flush", {})).toBe("final");
   });
@@ -84,12 +84,12 @@ describe("plumber question tree", () => {
     expect(nextPlumberScreen("g_building", "existing", {})).toBe("final");
 
     expect(nextPlumberScreen("h_describe", "gurgling noise", {})).toBe(
-      "h_area"
+      "h_area",
     );
     expect(nextPlumberScreen("h_area", "Upstairs bathroom", {})).toBe("final");
   });
 
-  it("is strictly plumbing — always Plumber, never a confirm card", () => {
+  it("is strictly plumbing always Plumber, never a confirm card", () => {
     const cases: Record<string, string>[] = [
       { start: "A" },
       { start: "B" },
@@ -110,7 +110,7 @@ describe("plumber question tree", () => {
     expect(canFindPlumberPro(2)).toBe(true);
     expect(canFindPlumberPro(4)).toBe(true);
     expect(canAdvanceText("ok")).toBe(true);
-    expect(canAdvanceText("  ")).toBe(false);
+    expect(canAdvanceText(" ")).toBe(false);
   });
 
   it("composes the problem text with questions and answers", () => {
@@ -121,7 +121,7 @@ describe("plumber question tree", () => {
         a_flow_label: "Completely no water",
       },
       "No water for two days",
-      "Lekki"
+      "Lekki",
     );
     expect(out).toContain(PLUMBER_START_QUESTION);
     expect(out).toContain("Completely no water");
@@ -173,7 +173,7 @@ describe("plumber question tree", () => {
   });
 
   it("exposes the final block copy incl. property question", () => {
-    expect(PLUMBER_FINAL_COPY.photos).toContain("2–4");
+    expect(PLUMBER_FINAL_COPY.photos).toContain("2-4");
     expect(PLUMBER_FINAL_COPY.property).toMatch(/property/i);
   });
 });

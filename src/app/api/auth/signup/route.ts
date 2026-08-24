@@ -20,10 +20,10 @@ export const dynamic = "force-dynamic";
  *
  * Why this exists (permanent fix):
  * - Browser `auth.signUp` sends confirmation emails → Supabase free-tier rate
- *   limit → "For security purposes, you can only request this after X seconds"
+ * limit → "For security purposes, you can only request this after X seconds"
  * - Unconfirmed users often have no session → RLS blocks profile writes
  * - Admin createUser with email_confirm:true creates the account without
- *   sending email and allows immediate sign-in.
+ * sending email and allows immediate sign-in.
  */
 const bodySchema = z.object({
   email: z.string().email(),
@@ -34,9 +34,7 @@ const bodySchema = z.object({
   /** Required for new signups */
   gender: z.enum(["male", "female", "prefer_not_to_say"]),
   /** ISO date YYYY-MM-DD */
-  dateOfBirth: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date of birth"),
+  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date of birth"),
   city: z.string().optional(),
   area: z.string().optional(),
   businessName: z.string().optional(),
@@ -63,14 +61,16 @@ const bodySchema = z.object({
         plate: z.string().optional(),
         photo: z.string().optional(),
         commonIssues: z.array(z.string()).optional(),
-      })
+      }),
     )
     .optional(),
   avatarUrl: z.string().optional(),
   nin: z.string().optional(),
   bvn: z.string().optional(),
   /** Labour prices: skill → major units */
-  labourPrices: z.record(z.string(), z.union([z.number(), z.string()])).optional(),
+  labourPrices: z
+    .record(z.string(), z.union([z.number(), z.string()]))
+    .optional(),
   pricingCurrency: z
     .enum(["NGN", "USD", "GBP", "ZAR", "EUR", "GHS", "KES", "CAD", "AUD"])
     .optional(),
@@ -111,7 +111,7 @@ const bodySchema = z.object({
   refCode: z.string().max(30).optional(),
   /**
    * When the user is already logged in (dual-role attach from menu),
-   * pass their access_token so we extend THIS identity — never create a
+   * pass their access_token so we extend THIS identity never create a
    * second auth user (fraud / duplicate account prevention).
    */
   access_token: z.string().min(10).optional(),
@@ -125,7 +125,7 @@ function last4(digits: string | undefined): string | null {
 
 /** Strip huge data-URLs from skill answers (certs stay on dedicated columns). */
 function slimSkillAnswers(
-  raw: Record<string, unknown> | undefined
+  raw: Record<string, unknown> | undefined,
 ): Record<string, unknown> {
   if (!raw || typeof raw !== "object") return {};
   const out: Record<string, unknown> = {};
@@ -135,7 +135,7 @@ function slimSkillAnswers(
       out[k] = {
         name: file.name || "certificate",
         mime: file.mime || undefined,
-        // Never store multi-MB base64 in skills jsonb — breaks vulcanizer/pro signup
+        // Never store multi-MB base64 in skills jsonb breaks vulcanizer/pro signup
         hasFile: Boolean(file.dataUrl || file.name),
       };
       continue;
@@ -152,12 +152,16 @@ function slimSkillAnswers(
 /** Cap cert data URL size so Postgres / request body does not fail signup. */
 function capCertDataUrl(url: string | null | undefined): string | null {
   if (!url || typeof url !== "string") return null;
-  // ~400KB text — enough for compressed photo; larger payloads fail many hosts
+  // ~400KB text enough for compressed photo; larger payloads fail many hosts
   if (url.length > 400_000) return null;
   return url;
 }
 
-function friendlyAuthError(message: string): { message: string; status: number; code: string } {
+function friendlyAuthError(message: string): {
+  message: string;
+  status: number;
+  code: string;
+} {
   const m = message || "Signup failed";
   const lower = m.toLowerCase();
   if (
@@ -203,7 +207,7 @@ async function logSignupEvent(
     error_message?: string | null;
     user_id?: string | null;
     meta?: Record<string, unknown>;
-  }
+  },
 ) {
   try {
     await supabase.from("signup_events").insert({
@@ -226,7 +230,7 @@ export async function POST(req: Request) {
     return apiFail(
       "Server is not configured for sign-up. Contact support.",
       503,
-      "supabase_not_configured"
+      "supabase_not_configured",
     );
   }
 
@@ -248,7 +252,7 @@ export async function POST(req: Request) {
       msg ||
         "Please check your name, gender, date of birth, email, phone and password.",
       400,
-      "validation"
+      "validation",
     );
   }
 
@@ -267,7 +271,7 @@ export async function POST(req: Request) {
       return apiFail(
         `Too many sign-up attempts. Retry in ${rl.retryAfterSec}s.`,
         429,
-        "rate_limited"
+        "rate_limited",
       );
     }
   } catch {
@@ -280,7 +284,7 @@ export async function POST(req: Request) {
     return apiFail(
       "Email is required for Customer and Repair Pro signup.",
       400,
-      "validation"
+      "validation",
     );
   }
   // Store canonical phone so login must match the same signup number
@@ -289,7 +293,7 @@ export async function POST(req: Request) {
     return apiFail(
       "Phone number is required for Customer and Repair Pro signup (e.g. +234 801…).",
       400,
-      "validation"
+      "validation",
     );
   }
   // Normalize in-place for all profile writes below
@@ -301,7 +305,7 @@ export async function POST(req: Request) {
   const hasNin = nin.length === 11;
   const hasBvn = bvn.length === 11;
 
-  // Age gate: real calendar date, not future, 16–120 years
+  // Age gate: real calendar date, not future, 16-120 years
   {
     const raw = input.dateOfBirth;
     const dob = new Date(`${raw}T12:00:00`);
@@ -321,7 +325,7 @@ export async function POST(req: Request) {
       return apiFail(
         "Date of birth cannot be in the future.",
         400,
-        "validation"
+        "validation",
       );
     }
     let age = today.getFullYear() - dob.getFullYear();
@@ -331,7 +335,7 @@ export async function POST(req: Request) {
       return apiFail(
         "You must be at least 16 years old to create an account.",
         400,
-        "validation"
+        "validation",
       );
     }
   }
@@ -352,15 +356,13 @@ export async function POST(req: Request) {
   if (input.access_token) {
     try {
       const { createClient } = await import("@supabase/supabase-js");
-      const {
-        getSupabaseAnonKey,
-        getSupabaseUrl,
-      } = await import("@/lib/supabase/env");
+      const { getSupabaseAnonKey, getSupabaseUrl } =
+        await import("@/lib/supabase/env");
       const userClient = createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
         auth: { autoRefreshToken: false, persistSession: false },
       });
       const { data: tokUser, error: tokErr } = await userClient.auth.getUser(
-        input.access_token
+        input.access_token,
       );
       if (!tokErr && tokUser.user?.id) {
         attachUserId = tokUser.user.id;
@@ -373,12 +375,12 @@ export async function POST(req: Request) {
           // only when keepOtherRole (dual attach). Reject pure hijack attempts.
           if (input.keepOtherRole !== false) {
             // rebind to session email for profile writes
-            // (input.email is const via local — use session for create path skip)
+            // (input.email is const via local use session for create path skip)
           } else {
             return apiFail(
               "Signed-in email does not match. Stay on this account to add a role.",
               403,
-              "identity_mismatch"
+              "identity_mismatch",
             );
           }
         }
@@ -391,8 +393,7 @@ export async function POST(req: Request) {
   // Phone uniqueness across different accounts (same user dual-role reuses their phone)
   const phoneDigits = input.phone.replace(/\D/g, "");
   if (phoneDigits.length >= 10) {
-    const tail =
-      phoneDigits.length > 10 ? phoneDigits.slice(-10) : phoneDigits;
+    const tail = phoneDigits.length > 10 ? phoneDigits.slice(-10) : phoneDigits;
     const { data: phoneRows } = await supabase
       .from("profiles")
       .select("id, email, phone")
@@ -403,9 +404,11 @@ export async function POST(req: Request) {
       if (d.length < 10) return false;
       const rowTail = d.length > 10 ? d.slice(-10) : d;
       if (rowTail !== tail) return false;
-      // Same identity attaching dual role — not a conflict
+      // Same identity attaching dual role not a conflict
       if (attachUserId && row.id === attachUserId) return false;
-      const rowEmail = String(row.email || "").trim().toLowerCase();
+      const rowEmail = String(row.email || "")
+        .trim()
+        .toLowerCase();
       return rowEmail !== email;
     });
     if (phoneTaken) {
@@ -417,12 +420,12 @@ export async function POST(req: Request) {
       return apiFail(
         "This phone number is already used on another Ona account. Use a different number or log in.",
         409,
-        "phone_exists"
+        "phone_exists",
       );
     }
   }
 
-  // 1) Create (or recover) auth user — OR attach to existing session identity
+  // 1) Create (or recover) auth user OR attach to existing session identity
   let userId: string | null = null;
   let createdNew = false;
 
@@ -439,14 +442,14 @@ export async function POST(req: Request) {
       return apiFail(
         "Enter the password for your existing Ona account to add this role.",
         401,
-        "password_required"
+        "password_required",
       );
     }
     if (signed.data.user.id !== attachUserId) {
       return apiFail(
         "Password belongs to a different account. Stay signed in and try again.",
         403,
-        "identity_mismatch"
+        "identity_mismatch",
       );
     }
     userId = attachUserId;
@@ -484,7 +487,7 @@ export async function POST(req: Request) {
         return apiFail(f.message, f.status, f.code);
       }
 
-      // Account already exists — try password sign-in and finish profile (dual-role)
+      // Account already exists try password sign-in and finish profile (dual-role)
       const signed = await supabase.auth.signInWithPassword({
         email,
         password: input.password,
@@ -510,33 +513,31 @@ export async function POST(req: Request) {
     await logSignupEvent(supabase, {
       ...eventBase,
       success: false,
-      error_message: "Signup failed — no user id returned.",
+      error_message: "Signup failed no user id returned.",
     });
-    return apiFail("Signup failed — no user id returned.", 500);
+    return apiFail("Signup failed no user id returned.", 500);
   }
 
   // 2) Enrich profile (service role bypasses RLS; trigger may have inserted stub)
-  // Dual accounts: do not wipe the other role — only set active role to the one signing up
+  // Dual accounts: do not wipe the other role only set active role to the one signing up
   // Always force is_active true on signup / dual-role add (never inherit a frozen flag)
-  const { error: profileErr } = await supabase
-    .from("profiles")
-    .upsert(
-      {
-        id: userId,
-        full_name: input.fullName,
-        phone: input.phone || null,
-        email,
-        city: input.city || null,
-        area: input.area || null,
-        avatar_url: input.avatarUrl || null,
-        gender: input.gender,
-        date_of_birth: input.dateOfBirth,
-        role,
-        is_active: true,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "id" }
-    );
+  const { error: profileErr } = await supabase.from("profiles").upsert(
+    {
+      id: userId,
+      full_name: input.fullName,
+      phone: input.phone || null,
+      email,
+      city: input.city || null,
+      area: input.area || null,
+      avatar_url: input.avatarUrl || null,
+      gender: input.gender,
+      date_of_birth: input.dateOfBirth,
+      role,
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "id" },
+  );
   if (profileErr) {
     // Retry without gender/DOB if columns not migrated yet
     if (
@@ -556,7 +557,7 @@ export async function POST(req: Request) {
           is_active: true,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: "id" }
+        { onConflict: "id" },
       );
       if (e2) {
         await logSignupEvent(supabase, {
@@ -569,7 +570,7 @@ export async function POST(req: Request) {
         return apiFail(
           `Account saved but profile failed: ${e2.message}`,
           500,
-          "profile_error"
+          "profile_error",
         );
       }
     } else {
@@ -583,7 +584,7 @@ export async function POST(req: Request) {
       return apiFail(
         `Account saved but profile failed: ${profileErr.message}`,
         500,
-        "profile_error"
+        "profile_error",
       );
     }
   }
@@ -652,7 +653,7 @@ export async function POST(req: Request) {
         identity_verified_at:
           hasNin && hasBvn ? new Date().toISOString() : null,
       },
-      { onConflict: "user_id" }
+      { onConflict: "user_id" },
     );
     if (motErr) {
       await logSignupEvent(supabase, {
@@ -665,7 +666,7 @@ export async function POST(req: Request) {
       return apiFail(
         `Customer profile failed: ${motErr.message}`,
         500,
-        "motorist_profile_error"
+        "motorist_profile_error",
       );
     }
   } else {
@@ -685,7 +686,8 @@ export async function POST(req: Request) {
     const labourPrices: Record<string, number> = {};
     if (input.labourPrices) {
       for (const [k, v] of Object.entries(input.labourPrices)) {
-        const n = typeof v === "number" ? v : Number(String(v).replace(/[^\d.]/g, ""));
+        const n =
+          typeof v === "number" ? v : Number(String(v).replace(/[^\d.]/g, ""));
         if (Number.isFinite(n) && n > 0) labourPrices[k] = n;
       }
     }
@@ -714,13 +716,11 @@ export async function POST(req: Request) {
       return out;
     })();
     // Vehicle brand focus vs home specialty focus (shared catalog helper)
-    const { storesVehicleBrandFocus } = await import(
-      "@/lib/artisan/catalog"
-    );
+    const { storesVehicleBrandFocus } = await import("@/lib/artisan/catalog");
     const isVehicleTrade = storesVehicleBrandFocus(
       svc,
       specialtyFromSignup,
-      specialtiesArr
+      specialtiesArr,
     );
     const vehicleFocus = isVehicleTrade
       ? {
@@ -741,17 +741,13 @@ export async function POST(req: Request) {
         };
     // Cert upload at signup → under_review (2 km discovery until admin approves)
     const certFromSkills = (() => {
-      const sa = input.skillAnswers as
-        | Record<string, unknown>
-        | undefined;
+      const sa = input.skillAnswers as Record<string, unknown> | undefined;
       const file = sa?.certificationUpload as
-        | { name?: string; dataUrl?: string }
-        | undefined;
+        { name?: string; dataUrl?: string } | undefined;
       if (file && typeof file === "object" && file.name) {
         return {
           name: String(file.name),
-          dataUrl:
-            typeof file.dataUrl === "string" ? file.dataUrl : undefined,
+          dataUrl: typeof file.dataUrl === "string" ? file.dataUrl : undefined,
         };
       }
       return null;
@@ -763,16 +759,13 @@ export async function POST(req: Request) {
     const certUrl = capCertDataUrl(rawCertUrl);
     const hasCert = Boolean(certName || certUrl || rawCertUrl);
     // Default: under_review only when cert present; bare signup is "none" (full radius)
-    const docsStatus =
-      input.docsStatus || (hasCert ? "under_review" : "none");
+    const docsStatus = input.docsStatus || (hasCert ? "under_review" : "none");
     const skillsSlim = {
       ...slimSkillAnswers(
-        input.skillAnswers as Record<string, unknown> | undefined
+        input.skillAnswers as Record<string, unknown> | undefined,
       ),
       // Always mirror signup focus so marketplace specialty filters work
-      ...(specialtyFromSignup
-        ? { specialty: specialtyFromSignup }
-        : {}),
+      ...(specialtyFromSignup ? { specialty: specialtyFromSignup } : {}),
       ...(specialtiesArr.length ? { specialties: specialtiesArr } : {}),
     };
 
@@ -786,7 +779,7 @@ export async function POST(req: Request) {
     const { data: existingPro } = await supabase
       .from("repair_pro_profiles")
       .select(
-        "status, pipeline_status, docs_status, docs_rating_boost_applied, gov_id_review_status, gov_id_submitted_at, gov_id_kind, gov_id_number, gov_id_front_url, gov_id_back_url, gov_id_meta, verified, nin_verified, bvn_verified, nin_encrypted, bvn_encrypted, visibility_tier, is_new_artisan, tier2_approved_at, tier3_approved_at, tier4_approved_at, go_live_window_ends_at, skill_proof, certification_file_name, certification_file_url"
+        "status, pipeline_status, docs_status, docs_rating_boost_applied, gov_id_review_status, gov_id_submitted_at, gov_id_kind, gov_id_number, gov_id_front_url, gov_id_back_url, gov_id_meta, verified, nin_verified, bvn_verified, nin_encrypted, bvn_encrypted, visibility_tier, is_new_artisan, tier2_approved_at, tier3_approved_at, tier4_approved_at, go_live_window_ends_at, skill_proof, certification_file_name, certification_file_url",
       )
       .eq("user_id", userId)
       .maybeSingle();
@@ -802,7 +795,7 @@ export async function POST(req: Request) {
         ? keepExistingVis
         : 2;
 
-    // Care must review — never auto-approve ID/account from raw NIN/BVN digits alone
+    // Care must review never auto-approve ID/account from raw NIN/BVN digits alone
     const { error: proErr } = await supabase.from("repair_pro_profiles").upsert(
       {
         user_id: userId,
@@ -828,7 +821,7 @@ export async function POST(req: Request) {
         lng: input.lng ?? null,
         location_updated_at:
           input.lat != null && input.lng != null ? nowIso : null,
-        // Visibility ladder: Tier 1 until admin promotes — never downgrade approved
+        // Visibility ladder: Tier 1 until admin promotes never downgrade approved
         visibility_tier: wasApproved ? effectiveVis : 1,
         is_new_artisan: wasApproved
           ? existingPro?.is_new_artisan !== false
@@ -837,23 +830,19 @@ export async function POST(req: Request) {
         nin_last4: last4(nin),
         bvn_last4: last4(bvn),
         // Preserve approved identity data when re-signup sends no fresh digits
-        nin_encrypted: hasNin ? nin : existingPro?.nin_encrypted ?? null,
-        bvn_encrypted: hasBvn ? bvn : existingPro?.bvn_encrypted ?? null,
+        nin_encrypted: hasNin ? nin : (existingPro?.nin_encrypted ?? null),
+        bvn_encrypted: hasBvn ? bvn : (existingPro?.bvn_encrypted ?? null),
         // Digits collected ≠ care-approved (unless already approved)
-        nin_verified: wasApproved
-          ? Boolean(existingPro?.nin_verified)
-          : false,
-        bvn_verified: wasApproved
-          ? Boolean(existingPro?.bvn_verified)
-          : false,
-        gov_id_number: hasNin ? nin : existingPro?.gov_id_number ?? null,
+        nin_verified: wasApproved ? Boolean(existingPro?.nin_verified) : false,
+        bvn_verified: wasApproved ? Boolean(existingPro?.bvn_verified) : false,
+        gov_id_number: hasNin ? nin : (existingPro?.gov_id_number ?? null),
         gov_id_review_status: wasApproved
           ? "approved"
           : hasNin || hasBvn
             ? "submitted"
             : "none",
         gov_id_submitted_at: wasApproved
-          ? existingPro?.gov_id_submitted_at ?? null
+          ? (existingPro?.gov_id_submitted_at ?? null)
           : hasNin || hasBvn
             ? nowIso
             : null,
@@ -897,15 +886,19 @@ export async function POST(req: Request) {
           : false,
         certification_file_name:
           certName ||
-          (docsWasApproved ? existingPro?.certification_file_name ?? null : null),
+          (docsWasApproved
+            ? (existingPro?.certification_file_name ?? null)
+            : null),
         // Prefer slim URL; if oversized, keep name only so signup still succeeds
         certification_file_url:
           certUrl ||
-          (docsWasApproved ? existingPro?.certification_file_url ?? null : null),
+          (docsWasApproved
+            ? (existingPro?.certification_file_url ?? null)
+            : null),
         docs_submitted_at: hasCert ? nowIso : null,
         submitted_at: nowIso,
       },
-      { onConflict: "user_id" }
+      { onConflict: "user_id" },
     );
     if (proErr) {
       await logSignupEvent(supabase, {
@@ -918,7 +911,7 @@ export async function POST(req: Request) {
       return apiFail(
         `Repair Pro profile failed: ${proErr.message}`,
         500,
-        "pro_profile_error"
+        "pro_profile_error",
       );
     }
 
@@ -934,7 +927,7 @@ export async function POST(req: Request) {
             occupation: input.guarantor.occupation || null,
             relationship: input.guarantor.relationship,
           },
-          { onConflict: "user_id" }
+          { onConflict: "user_id" },
         );
       } catch {
         /* non-fatal - table may not exist yet */
@@ -953,7 +946,7 @@ export async function POST(req: Request) {
 
   // Signup-time duplicate detection: if this account shares a NIN/BVN last-4,
   // Driver's Licence or Passport number with an existing (non-deleted) account,
-  // queue the pair for admin review — never merges automatically.
+  // queue the pair for admin review never merges automatically.
   try {
     await detectMergeCandidatesForUser(supabase, userId, {
       userId,
@@ -968,7 +961,8 @@ export async function POST(req: Request) {
     const suffix = userId.replace(/-/g, "").slice(-6).toUpperCase();
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let code = "";
-    for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    for (let i = 0; i < 4; i++)
+      code += chars[Math.floor(Math.random() * chars.length)];
     const refCode = `ONA${code}${suffix}`;
     const refLink = `/login/role?ref=${refCode}`;
     try {
@@ -979,10 +973,10 @@ export async function POST(req: Request) {
           referral_link: refLink,
           active: true,
         },
-        { onConflict: "user_id" }
+        { onConflict: "user_id" },
       );
     } catch {
-      /* non-fatal — referral code not critical for signup */
+      /* non-fatal referral code not critical for signup */
     }
   }
 
@@ -1013,7 +1007,9 @@ export async function POST(req: Request) {
   if (attachUserId && userId) {
     try {
       const u = await supabase.auth.admin.getUserById(userId);
-      const em = String(u.data.user?.email || "").trim().toLowerCase();
+      const em = String(u.data.user?.email || "")
+        .trim()
+        .toLowerCase();
       if (em) signInEmail = em;
     } catch {
       /* keep input email */
@@ -1031,7 +1027,7 @@ export async function POST(req: Request) {
       password: input.password,
     });
   }
-  // Confirmation email (Resend) — non-blocking
+  // Confirmation email (Resend) non-blocking
   let emailSent: boolean | null = null;
   let emailError: string | null = null;
   try {
@@ -1047,7 +1043,7 @@ export async function POST(req: Request) {
     emailError = e instanceof Error ? e.message : "email failed";
   }
 
-  // Still return success with profile if session missing — client can auto-login
+  // Still return success with profile if session missing client can auto-login
   if (signedIn.error || !signedIn.data.session || !signedIn.data.user) {
     await logSignupEvent(supabase, {
       ...eventBase,
@@ -1084,9 +1080,7 @@ export async function POST(req: Request) {
         vehicles: input.vehicles,
         businessName: input.businessName,
         primaryService:
-          input.primaryService ||
-          input.services?.[0] ||
-          undefined,
+          input.primaryService || input.services?.[0] || undefined,
         bio: input.bio,
         yearsExperience: input.yearsExperience,
         serviceRadiusKm: input.serviceRadiusKm,
@@ -1096,7 +1090,7 @@ export async function POST(req: Request) {
         bvnVerified: hasBvn,
       },
       warning:
-        "Account created. Opening session failed — try logging in once with the same email and password.",
+        "Account created. Opening session failed try logging in once with the same email and password.",
     });
   }
 

@@ -38,7 +38,7 @@ function TargetReticle({ className }: { className?: string }) {
 function parseGeocodeResult(
   result: google.maps.GeocoderResult,
   lat: number,
-  lng: number
+  lng: number,
 ): PickedLocation {
   const comps = result.address_components ?? [];
   const get = (type: string) =>
@@ -65,7 +65,7 @@ function parseGeocodeResult(
 }
 
 /**
- * inDrive-style address search — no map. A prominent search field with
+ * inDrive-style address search no map. A prominent search field with
  * Google Places autocomplete (curated local places as extra suggestions),
  * tied to Google Maps via Places details / Geocoder, plus "Use my current
  * location". The confirmed address is shown as a checked chip so the field
@@ -91,9 +91,8 @@ export function AddressAutocomplete({
   const [openSuggest, setOpenSuggest] = useState(false);
   const [knownHits, setKnownHits] = useState<KnownPlace[]>([]);
   const [googleHits, setGoogleHits] = useState<GoogleSuggestion[]>([]);
-  const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(
-    null
-  );
+  const sessionTokenRef =
+    useRef<google.maps.places.AutocompleteSessionToken | null>(null);
   const debounceRef = useRef<number | null>(null);
   const placesAnchorRef = useRef<HTMLDivElement | null>(null);
 
@@ -114,14 +113,14 @@ export function AddressAutocomplete({
       setOpenSuggest(false);
       setStatus(null);
     },
-    [onChange]
+    [onChange],
   );
 
   const applyKnown = useCallback(
     (place: KnownPlace) => {
       applyPick(knownPlaceToPick(place));
     },
-    [applyPick]
+    [applyPick],
   );
 
   const reverseGeocode = useCallback(
@@ -141,7 +140,9 @@ export function AddressAutocomplete({
         }
         if (window.google?.maps) {
           const geocoder = new google.maps.Geocoder();
-          const { results } = await geocoder.geocode({ location: { lat, lng } });
+          const { results } = await geocoder.geocode({
+            location: { lat, lng },
+          });
           if (results?.[0]) {
             applyPick(parseGeocodeResult(results[0], lat, lng));
             return;
@@ -155,7 +156,9 @@ export function AddressAutocomplete({
           area: "Selected pin",
         });
       } catch {
-        setStatus("We could not get the street name. Your location is still saved.");
+        setStatus(
+          "We could not get the street name. Your location is still saved.",
+        );
         onChange({
           lat,
           lng,
@@ -167,7 +170,7 @@ export function AddressAutocomplete({
         setBusy(false);
       }
     },
-    [applyPick, onChange]
+    [applyPick, onChange],
   );
 
   const useMyLocation = useCallback(() => {
@@ -183,10 +186,12 @@ export function AddressAutocomplete({
         void reverseGeocode(pos.coords.latitude, pos.coords.longitude);
       },
       () => {
-        setStatus("Could not read GPS. Type your address and pick a suggestion.");
+        setStatus(
+          "Could not read GPS. Type your address and pick a suggestion.",
+        );
         setBusy(false);
       },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 5_000 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 5_000 },
     );
   }, [reverseGeocode]);
 
@@ -226,15 +231,15 @@ export function AddressAutocomplete({
                 secondary:
                   p.structured_formatting?.secondary_text || p.description,
                 placeId: p.place_id,
-              }))
+              })),
             );
-          }
+          },
         );
       } catch {
         setGoogleHits([]);
       }
     },
-    [isLoaded, live]
+    [isLoaded, live],
   );
 
   const onQueryChange = (text: string) => {
@@ -317,7 +322,7 @@ export function AddressAutocomplete({
         } else {
           void reverseGeocode(lat, lng);
         }
-      }
+      },
     );
   };
 
@@ -355,9 +360,9 @@ export function AddressAutocomplete({
         }
         const res = await fetch(
           `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(
-            typed
+            typed,
           )}`,
-          { headers: { Accept: "application/json" } }
+          { headers: { Accept: "application/json" } },
         );
         const data = (await res.json()) as {
           lat?: string;
@@ -419,7 +424,7 @@ export function AddressAutocomplete({
             "h-11 w-full rounded-md border-0 pl-10 pr-11 text-[13px] font-medium outline-none",
             isLight
               ? "bg-[#D8DCE4] text-slate-900 placeholder:text-slate-400"
-              : "bg-white/[0.06] text-white placeholder:text-white/40"
+              : "bg-white/[0.06] text-white placeholder:text-white/40",
           )}
         />
 
@@ -442,7 +447,7 @@ export function AddressAutocomplete({
             role="listbox"
             className={cn(
               "absolute left-0 right-0 top-[calc(100%+4px)] z-40 max-h-56 overflow-y-auto rounded-md shadow-lg",
-              isLight ? "bg-[#D8DCE4]" : "bg-[#1c1c1e]"
+              isLight ? "bg-[#D8DCE4]" : "bg-[#1c1c1e]",
             )}
           >
             {knownHits.map((p) => (
@@ -461,7 +466,7 @@ export function AddressAutocomplete({
                     <span
                       className={cn(
                         "block text-[12px] font-bold",
-                        isLight ? "text-slate-900" : "text-white"
+                        isLight ? "text-slate-900" : "text-white",
                       )}
                     >
                       {p.name}
@@ -469,7 +474,7 @@ export function AddressAutocomplete({
                     <span
                       className={cn(
                         "block text-[10px] font-medium",
-                        isLight ? "text-slate-500" : "text-white/50"
+                        isLight ? "text-slate-500" : "text-white/50",
                       )}
                     >
                       {p.address}
@@ -494,7 +499,7 @@ export function AddressAutocomplete({
                     <span
                       className={cn(
                         "block text-[12px] font-bold",
-                        isLight ? "text-slate-900" : "text-white"
+                        isLight ? "text-slate-900" : "text-white",
                       )}
                     >
                       {s.primary}
@@ -502,7 +507,7 @@ export function AddressAutocomplete({
                     <span
                       className={cn(
                         "block text-[10px] font-medium",
-                        isLight ? "text-slate-500" : "text-white/50"
+                        isLight ? "text-slate-500" : "text-white/50",
                       )}
                     >
                       {s.secondary}
@@ -519,7 +524,7 @@ export function AddressAutocomplete({
         <div
           className={cn(
             "flex items-start gap-2 rounded-md px-2.5 py-2",
-            isLight ? "bg-[#FF6B35]/10" : "bg-[#FF6B35]/15"
+            isLight ? "bg-[#FF6B35]/10" : "bg-[#FF6B35]/15",
           )}
         >
           <Check
@@ -529,7 +534,7 @@ export function AddressAutocomplete({
           <span
             className={cn(
               "min-w-0 text-[12px] font-semibold leading-snug",
-              isLight ? "text-slate-800" : "text-white/90"
+              isLight ? "text-slate-800" : "text-white/90",
             )}
           >
             {value.label}
@@ -541,7 +546,7 @@ export function AddressAutocomplete({
         <p
           className={cn(
             "inline-flex items-center gap-1 text-[11px] font-medium",
-            isLight ? "text-slate-500" : "text-white/45"
+            isLight ? "text-slate-500" : "text-white/45",
           )}
         >
           <Loader2 className="h-3 w-3 animate-spin" />

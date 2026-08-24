@@ -24,7 +24,9 @@ function readMap(): Record<string, Stored> {
     const raw = localStorage.getItem(MAP_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? (parsed as Record<string, Stored>) : {};
+    return parsed && typeof parsed === "object"
+      ? (parsed as Record<string, Stored>)
+      : {};
   } catch {
     return {};
   }
@@ -34,7 +36,7 @@ function writeMap(map: Record<string, Stored>) {
   try {
     localStorage.setItem(MAP_KEY, JSON.stringify(map));
   } catch {
-    /* storage full / unavailable — idempotency degrades gracefully */
+    /* storage full / unavailable idempotency degrades gracefully */
   }
 }
 
@@ -89,7 +91,7 @@ export function getOrCreateIdemKey(intentKey: string): string | null {
   return sticker;
 }
 
-/** Intent fulfilled — a later identical send is a brand-new intent. */
+/** Intent fulfilled a later identical send is a brand-new intent. */
 export function clearIdemKey(intentKey: string): void {
   const map = prune(readMap());
   if (intentKey in map) {
@@ -134,7 +136,7 @@ export async function apiVerifyIdemOp(input: {
       return { status: "error", error: json.data.error || "Operation failed." };
     return { status: "processing" };
   } catch {
-    // Even the verify call failed — treat as unproven, never as failure.
+    // Even the verify call failed treat as unproven, never as failure.
     return { status: "processing" };
   }
 }

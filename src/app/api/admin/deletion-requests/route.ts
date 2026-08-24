@@ -20,7 +20,9 @@ export async function GET(req: Request) {
   const supabase = createServiceSupabase();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, email, phone, deletion_status, deletion_scheduled_at, deleted_at, self_reactivated_at, created_at, updated_at")
+    .select(
+      "id, full_name, email, phone, deletion_status, deletion_scheduled_at, deleted_at, self_reactivated_at, created_at, updated_at",
+    )
     .neq("deletion_status", "active")
     .order("deletion_scheduled_at", { ascending: true, nullsFirst: true });
 
@@ -54,7 +56,9 @@ export async function POST(req: Request) {
       .eq("deletion_status", "pending_deletion");
     if (error) return apiFail(error.message, 500);
 
-    const { error: authError } = await supabase.auth.admin.deleteUser(body.userId);
+    const { error: authError } = await supabase.auth.admin.deleteUser(
+      body.userId,
+    );
     if (authError) return apiFail(authError.message, 500);
 
     return apiOk({ deleted: true });

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Past request / job — view-only full process.
+ * Past request / job view-only full process.
  * Acceptance, trip, arrival, work, payment, chat (read-only), rating.
  * Flat stage layout: no extra panels, glow, or gradients.
  */
@@ -127,7 +127,7 @@ function formatWhenShort(iso: string | null | undefined): string {
 
 function historyAt(
   job: JobRecord,
-  status: JobFlowStatus | JobFlowStatus[]
+  status: JobFlowStatus | JobFlowStatus[],
 ): string | null {
   const want = Array.isArray(status) ? status : [status];
   const hits = (job.statusHistory || []).filter((h) => want.includes(h.status));
@@ -160,7 +160,7 @@ function Section({
       <p
         className={cn(
           "mb-2 text-[11px] font-semibold uppercase tracking-wide",
-          muted
+          muted,
         )}
       >
         {title}
@@ -190,7 +190,7 @@ function DetailRow({
       <span
         className={cn(
           "min-w-0 text-right text-[13px] font-semibold leading-snug",
-          ink
+          ink,
         )}
       >
         {value}
@@ -229,7 +229,7 @@ export default function RequestProcessPage({
   const { quote: calloutQuote, ready: calloutReady } = useJobCallout(
     job?.id,
     job?.status,
-    job?.calloutQuote
+    job?.calloutQuote,
   );
 
   const load = useCallback(async () => {
@@ -274,7 +274,7 @@ export default function RequestProcessPage({
     if (!job) return null;
     return (
       visibleMessageThreads.find(
-        (t) => t.requestId === job.id || t.id === job.id
+        (t) => t.requestId === job.id || t.id === job.id,
       ) ?? null
     );
   }, [job, visibleMessageThreads]);
@@ -313,7 +313,7 @@ export default function RequestProcessPage({
   const counterpart = isPro ? job.motoristName : job.repairProName;
   const skill = PRO_SERVICE_LABELS[job.serviceType] ?? job.serviceType;
   const history = [...(job.statusHistory || [])].sort(
-    (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()
+    (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
   );
   const timeline =
     history.length > 0
@@ -340,7 +340,7 @@ export default function RequestProcessPage({
   const cancelledAt = job.cancelledAt || historyAt(job, "cancelled");
 
   const offers = [...(job.offers || [])].sort(
-    (a, b) => a.offerIndex - b.offerIndex
+    (a, b) => a.offerIndex - b.offerIndex,
   );
   const chatMessages = chatThread?.messages ?? [];
   const chatPreview = chatMessages.slice(-6);
@@ -355,28 +355,38 @@ export default function RequestProcessPage({
           <p className={cn("text-[17px] font-semibold", ink)}>{counterpart}</p>
           <p className={cn("mt-0.5 text-[12px] font-medium", muted)}>
             {skill}
-            {isAutomotiveTrade(job.serviceType) && job.motoristVehicle ? ` · ${job.motoristVehicle}` : ""}
+            {isAutomotiveTrade(job.serviceType) && job.motoristVehicle
+              ? ` · ${job.motoristVehicle}`
+              : ""}
           </p>
-          <p className={cn("mt-3 text-[14px] font-medium leading-relaxed", ink)}>
+          <p
+            className={cn("mt-3 text-[14px] font-medium leading-relaxed", ink)}
+          >
             {job.problem}
           </p>
           {job.locationLabel?.trim() && (
-            <p className={cn("mt-2 text-[12px] font-medium leading-snug", muted)}>
+            <p
+              className={cn("mt-2 text-[12px] font-medium leading-snug", muted)}
+            >
               {job.locationLabel}
             </p>
           )}
           {job.agreedMajor != null && (
-            <p className={cn("mt-3 text-[20px] font-semibold tabular-nums", ink)}>
+            <p
+              className={cn("mt-3 text-[20px] font-semibold tabular-nums", ink)}
+            >
               {!calloutReady ||
-              jobTotalMajor(job.agreedMajor, calloutQuote ?? job.calloutQuote) ==
-                null
+              jobTotalMajor(
+                job.agreedMajor,
+                calloutQuote ?? job.calloutQuote,
+              ) == null
                 ? "\u00a0"
                 : formatMoney(
                     jobTotalMajor(
                       job.agreedMajor,
-                      calloutQuote ?? job.calloutQuote
+                      calloutQuote ?? job.calloutQuote,
                     ) as number,
-                    job.currency
+                    job.currency,
                   )}
             </p>
           )}
@@ -437,7 +447,9 @@ export default function RequestProcessPage({
               <div className="flex flex-wrap gap-2">
                 {job.photos.map((p) => (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img loading="lazy" decoding="async"
+                  <img
+                    loading="lazy"
+                    decoding="async"
                     key={p.id}
                     src={p.url}
                     alt={p.name || "Job photo"}
@@ -495,7 +507,7 @@ export default function RequestProcessPage({
                   key={o.id}
                   className={cn(
                     "flex items-start justify-between gap-3 py-2",
-                    hairline
+                    hairline,
                   )}
                 >
                   <div className="min-w-0">
@@ -506,7 +518,12 @@ export default function RequestProcessPage({
                       {formatWhenShort(o.createdAt)}
                     </p>
                   </div>
-                  <p className={cn("shrink-0 text-[14px] font-semibold tabular-nums", ink)}>
+                  <p
+                    className={cn(
+                      "shrink-0 text-[14px] font-semibold tabular-nums",
+                      ink,
+                    )}
+                  >
                     {formatMoney(o.amountMajor, o.currency || job.currency)}
                   </p>
                 </li>
@@ -683,14 +700,16 @@ export default function RequestProcessPage({
               muted={muted}
             />
             {job.dispute.description?.trim() && (
-              <p className={cn("mt-2 text-[13px] font-medium leading-snug", ink)}>
+              <p
+                className={cn("mt-2 text-[13px] font-medium leading-snug", ink)}
+              >
                 {job.dispute.description.trim()}
               </p>
             )}
           </Section>
         )}
 
-        {/* Chat — read-only summary + open thread */}
+        {/* Chat read-only summary + open thread */}
         <Section title="Chat" muted={muted}>
           <div className="flex items-start gap-2.5">
             <MessageCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#FF6B35]" />
@@ -719,7 +738,7 @@ export default function RequestProcessPage({
                           <p
                             className={cn(
                               "mt-0.5 line-clamp-3 text-[12px] font-medium leading-snug",
-                              ink
+                              ink,
                             )}
                           >
                             {m.text ||
@@ -733,7 +752,7 @@ export default function RequestProcessPage({
                     type="button"
                     onClick={() => setExpiredOpen(true)}
                     className={cn(
-                      "mt-3 inline-flex items-center gap-1 border-0 bg-transparent p-0 text-[13px] font-semibold text-[#FF6B35]"
+                      "mt-3 inline-flex items-center gap-1 border-0 bg-transparent p-0 text-[13px] font-semibold text-[#FF6B35]",
                     )}
                   >
                     Open chat history
@@ -741,7 +760,9 @@ export default function RequestProcessPage({
                   </button>
                 </>
               ) : (
-                <p className={cn("text-[13px] font-medium leading-snug", muted)}>
+                <p
+                  className={cn("text-[13px] font-medium leading-snug", muted)}
+                >
                   No chat thread was opened for this job, or messages are not
                   available on this device.
                 </p>
@@ -764,7 +785,7 @@ export default function RequestProcessPage({
                         ? "fill-[#FF6B35] text-[#FF6B35]"
                         : isLight
                           ? "text-slate-400"
-                          : "text-white/30"
+                          : "text-white/30",
                     )}
                     strokeWidth={1.75}
                   />
@@ -775,7 +796,9 @@ export default function RequestProcessPage({
               </div>
             )}
             {job.ratingNote?.trim() && (
-              <p className={cn("mt-2 text-[13px] font-medium leading-snug", ink)}>
+              <p
+                className={cn("mt-2 text-[13px] font-medium leading-snug", ink)}
+              >
                 “{job.ratingNote.trim()}”
               </p>
             )}
@@ -798,7 +821,7 @@ export default function RequestProcessPage({
                     <span
                       className={cn(
                         "mt-1 min-h-[12px] w-px flex-1",
-                        isLight ? "bg-black/15" : "bg-white/20"
+                        isLight ? "bg-black/15" : "bg-white/20",
                       )}
                     />
                   )}

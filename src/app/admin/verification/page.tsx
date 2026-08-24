@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Verification overview — links into merged hubs (no duplicate queues).
+ * Verification overview links into merged hubs (no duplicate queues).
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -25,7 +25,7 @@ export default function AdminVerificationOverview() {
   const load = useCallback(async () => {
     const [c, p] = await Promise.all([
       api<{ totals: { total: number; submitted: number } }>(
-        "/api/admin/customer-review?status=all"
+        "/api/admin/customer-review?status=all",
       ),
       api<{
         totals: {
@@ -60,7 +60,8 @@ export default function AdminVerificationOverview() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Verification overview</h1>
       <p className="om-admin-sub">
-        At-a-glance verification: pending customer IDs and pro documents waiting for Care review.
+        At-a-glance verification: pending customer IDs and pro documents waiting
+        for Care review.
       </p>
 
       <AdminGuideBanner pageId="verification" />
@@ -93,14 +94,13 @@ export default function AdminVerificationOverview() {
 
       <div className="om-admin-panel" style={{ padding: "1rem 1.1rem" }}>
         <p className="om-admin-muted" style={{ margin: 0 }}>
-          <strong>Customers</strong> — directory + ID review (files, approve /
+          <strong>Customers</strong> directory + ID review (files, approve /
           reject, activate).{" "}
           <Link href="/admin/motorists">Open Customers →</Link>
         </p>
         <p className="om-admin-muted" style={{ margin: "0.75rem 0 0" }}>
-          <strong>Repair Pros</strong> — directory + tier review (ID photos,
-          skill docs, visibility).{" "}
-          <Link href="/admin/pros">Open Repair Pros →</Link>
+          <strong>Repair Pros</strong> directory + tier review (ID photos, skill
+          docs, visibility). <Link href="/admin/pros">Open Repair Pros →</Link>
         </p>
       </div>
     </AdminShell>

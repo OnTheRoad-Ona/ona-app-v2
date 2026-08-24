@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { computeMeritScore, type MeritInput } from "@/lib/server/merit/merit-engine";
+import {
+  computeMeritScore,
+  type MeritInput,
+} from "@/lib/server/merit/merit-engine";
 
 function base(): MeritInput {
   return {
@@ -65,7 +68,11 @@ describe("computeMeritScore", () => {
   });
 
   it("rating average is count-weighted (1 rating does not dominate)", () => {
-    const oneRating = computeMeritScore({ ...base(), ratingAvg: 5, ratingCount: 1 });
+    const oneRating = computeMeritScore({
+      ...base(),
+      ratingAvg: 5,
+      ratingCount: 1,
+    });
     const manyRatings = computeMeritScore({
       ...base(),
       ratingAvg: 5,
@@ -77,7 +84,9 @@ describe("computeMeritScore", () => {
   it("faster average response yields a higher response_speed_score", () => {
     const slow = computeMeritScore({ ...base(), avgResponseMinutes: 120 });
     const fast = computeMeritScore({ ...base(), avgResponseMinutes: 2 });
-    expect(fast.response_speed_score).toBeGreaterThan(slow.response_speed_score);
+    expect(fast.response_speed_score).toBeGreaterThan(
+      slow.response_speed_score,
+    );
   });
 
   it("more completed jobs increases jobs_completed_score (capped)", () => {
@@ -89,20 +98,46 @@ describe("computeMeritScore", () => {
   });
 
   it("disputes drag the dispute_rate_score down", () => {
-    const clean = computeMeritScore({ ...base(), jobsCompleted: 20, disputesCount: 0 });
-    const troubled = computeMeritScore({ ...base(), jobsCompleted: 20, disputesCount: 6 });
+    const clean = computeMeritScore({
+      ...base(),
+      jobsCompleted: 20,
+      disputesCount: 0,
+    });
+    const troubled = computeMeritScore({
+      ...base(),
+      jobsCompleted: 20,
+      disputesCount: 6,
+    });
     expect(troubled.dispute_rate_score).toBeLessThan(clean.dispute_rate_score);
   });
 
   it("wins disputes offset some of the dispute penalty", () => {
-    const lost = computeMeritScore({ ...base(), jobsCompleted: 20, disputesCount: 4, disputesWon: 0 });
-    const won = computeMeritScore({ ...base(), jobsCompleted: 20, disputesCount: 4, disputesWon: 3 });
+    const lost = computeMeritScore({
+      ...base(),
+      jobsCompleted: 20,
+      disputesCount: 4,
+      disputesWon: 0,
+    });
+    const won = computeMeritScore({
+      ...base(),
+      jobsCompleted: 20,
+      disputesCount: 4,
+      disputesWon: 3,
+    });
     expect(won.dispute_rate_score).toBeGreaterThan(lost.dispute_rate_score);
   });
 
   it("cancellations reduce reliability", () => {
-    const none = computeMeritScore({ ...base(), completionRate: 1, cancellationsCount: 0 });
-    const many = computeMeritScore({ ...base(), completionRate: 1, cancellationsCount: 12 });
+    const none = computeMeritScore({
+      ...base(),
+      completionRate: 1,
+      cancellationsCount: 0,
+    });
+    const many = computeMeritScore({
+      ...base(),
+      completionRate: 1,
+      cancellationsCount: 12,
+    });
     expect(many.reliability_score).toBeLessThan(none.reliability_score);
   });
 
@@ -145,7 +180,9 @@ describe("computeMeritScore", () => {
       ...base(),
       locationUpdatedAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
     });
-    expect(active.recent_activity_score).toBeGreaterThan(idle.recent_activity_score);
+    expect(active.recent_activity_score).toBeGreaterThan(
+      idle.recent_activity_score,
+    );
   });
 
   it("score stays clamped to 100 even with all positive signals", () => {

@@ -3,7 +3,7 @@
 /**
  * After reload / cold start: wait until auth is ready AND the browser has
  * actually finished loading the page (window "load" event / readyState
- * "complete"), then a short paint settle — only then show lower panels / OTP /
+ * "complete"), then a short paint settle only then show lower panels / OTP /
  * bank gates. The previous fixed 480ms settle fire ahead of slow page loads;
  * panels must not mount over a still-booting page.
  */
@@ -22,7 +22,7 @@ export function useOverlayGatesReady(settleMs = DEFAULT_SETTLE_MS): boolean {
   const [pageLoaded, setPageLoaded] = useState(pageIsLoaded);
   const [ready, setReady] = useState(false);
 
-  // Real "page finished loading" signal — edge, not timer-driven.
+  // Real "page finished loading" signal edge, not timer-driven.
   // window "load" won't refire for in-app navigations, but readyState stays
   // "complete" so pageLoaded persists once true.
   useEffect(() => {

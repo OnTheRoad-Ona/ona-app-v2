@@ -1,15 +1,13 @@
 "use client";
 
-import {
-  Clock3,
-  Navigation,
-  Star,
-  Zap,
-} from "lucide-react";
+import { Clock3, Navigation, Star, Zap } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { AchievementBadgesRow } from "@/components/profile/achievement-badges";
-import { ProfileSection, ProfileShell } from "@/components/profile/profile-shell";
+import {
+  ProfileSection,
+  ProfileShell,
+} from "@/components/profile/profile-shell";
 import { RadiusMapPreview } from "@/components/profile/radius-map-preview";
 import { SkillsChips } from "@/components/profile/skills-chips";
 import { VerificationMark } from "@/components/profile/verification-mark";
@@ -31,7 +29,7 @@ import type { Technician } from "@/lib/types";
 import { cn, formatDistance, formatEta } from "@/lib/utils";
 
 /**
- * 1. Motorist viewing Repair Pro — 100% read-only.
+ * 1. Motorist viewing Repair Pro 100% read-only.
  */
 export function ProPublicView({
   tech,
@@ -78,14 +76,11 @@ export function ProPublicView({
           const hit = Object.entries(map).find(([k]) => s.includes(k));
           return hit?.[1] ? [hit[1]] : [];
         }),
-    ])
+    ]),
   );
   const photo = tech.photo?.trim() || DEFAULT_VENDOR_PHOTO;
   const skillLabel =
-    tech.roleLabel ||
-    skills[0] ||
-    tech.serviceType ||
-    "Repair Pro";
+    tech.roleLabel || skills[0] || tech.serviceType || "Repair Pro";
   const statusText =
     tech.status === "available"
       ? null
@@ -97,7 +92,7 @@ export function ProPublicView({
             ? "Nearby"
             : tech.status;
 
-  // Live reviews only (no demo filler) — motorists see real ratings before offer
+  // Live reviews only (no demo filler) motorists see real ratings before offer
   const liveReviews = reviews;
 
   return (
@@ -111,7 +106,7 @@ export function ProPublicView({
             "h-12 w-full border-0 shadow-none",
             ctaKind === "open" || ctaKind === "booked"
               ? "bg-emerald-700 text-white hover:bg-emerald-800"
-              : undefined
+              : undefined,
           )}
           onClick={onRequest}
         >
@@ -133,7 +128,12 @@ export function ProPublicView({
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <p className={cn("flex items-center gap-1 text-[18px] font-black leading-tight", t.ink)}>
+            <p
+              className={cn(
+                "flex items-center gap-1 text-[18px] font-black leading-tight",
+                t.ink,
+              )}
+            >
               <span className="truncate">{tech.name}</span>
               <VerificationMark force={tech.verified} size="lg" />
             </p>
@@ -156,7 +156,7 @@ export function ProPublicView({
         <div
           className={cn(
             "mt-2.5 rounded-xl px-2 py-2",
-            isLight ? "bg-black/[0.04]" : "bg-[#2c2c2e]"
+            isLight ? "bg-black/[0.04]" : "bg-[#2c2c2e]",
           )}
         >
           <div className="flex justify-center">
@@ -167,9 +167,7 @@ export function ProPublicView({
             />
           </div>
           <p className={cn("mt-0.5 text-center text-[10px]", t.muted)}>
-            {tech.reviewCount > 0
-              ? `${tech.reviewCount} reviews`
-              : "0 reviews"}
+            {tech.reviewCount > 0 ? `${tech.reviewCount} reviews` : "0 reviews"}
           </p>
           <div className="mt-1.5 grid grid-cols-2 gap-1 text-center">
             <div>
@@ -185,7 +183,7 @@ export function ProPublicView({
                 <p
                   className={cn(
                     "text-[12px] font-bold",
-                    tech.status === "busy" ? "text-[#FF6B35]" : "text-brand"
+                    tech.status === "busy" ? "text-[#FF6B35]" : "text-brand",
                   )}
                 >
                   {statusText}
@@ -196,9 +194,15 @@ export function ProPublicView({
           </div>
         </div>
 
-        <p className={cn("mt-2 flex items-center gap-1 text-[11px] font-medium", t.soft)}>
+        <p
+          className={cn(
+            "mt-2 flex items-center gap-1 text-[11px] font-medium",
+            t.soft,
+          )}
+        >
           <Navigation className="h-3 w-3 text-brand" />
-          {formatDistance(tech.distanceKm)} away · ETA {formatEta(tech.etaMinutes)}
+          {formatDistance(tech.distanceKm)} away · ETA{" "}
+          {formatEta(tech.etaMinutes)}
         </p>
       </ProfileSection>
 
@@ -227,11 +231,16 @@ export function ProPublicView({
               detectCurrency({ countryName: tech.servedCountry });
             const major = getBaseLabourPrice(tech.servicePrices, s);
             return (
-              <li key={s} className={cn("flex justify-between text-[12px]", t.ink)}>
+              <li
+                key={s}
+                className={cn("flex justify-between text-[12px]", t.ink)}
+              >
                 <span className="font-semibold capitalize">
                   {s.replace(/_/g, " ")}
                 </span>
-                <span className={cn("font-bold", major != null ? t.ink : t.muted)}>
+                <span
+                  className={cn("font-bold", major != null ? t.ink : t.muted)}
+                >
                   {formatMoney(major, cur)}
                 </span>
               </li>
@@ -253,7 +262,7 @@ export function ProPublicView({
                 key={r.id}
                 className={cn(
                   "rounded-xl px-2.5 py-2",
-                  isLight ? "bg-black/[0.04]" : "bg-[#2c2c2e]"
+                  isLight ? "bg-black/[0.04]" : "bg-[#2c2c2e]",
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -275,7 +284,12 @@ export function ProPublicView({
             ))}
           </div>
         )}
-        <p className={cn("mt-2 flex items-center justify-center gap-1 text-[10px]", t.muted)}>
+        <p
+          className={cn(
+            "mt-2 flex items-center justify-center gap-1 text-[10px]",
+            t.muted,
+          )}
+        >
           <Clock3 className="h-3 w-3" />
           Typical reply {formatEta(tech.etaMinutes)}
         </p>

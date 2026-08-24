@@ -3,15 +3,15 @@
  * Docs: https://developers.africastalking.com/docs/sms/sending/bulk
  *
  * Env:
- *   AT_USERNAME   — sandbox: "sandbox" | production app username
- *   AT_API_KEY    — from Africa's Talking dashboard
- *   AT_SENDER_ID  — optional shortcode / alphanumeric (production)
- *   AT_BASE_URL   — optional override (default production API)
+ * AT_USERNAME sandbox: "sandbox" | production app username
+ * AT_API_KEY from Africa's Talking dashboard
+ * AT_SENDER_ID optional shortcode / alphanumeric (production)
+ * AT_BASE_URL optional override (default production API)
  */
 
 export function isAfricaTalkingConfigured(): boolean {
   return Boolean(
-    process.env.AT_API_KEY?.trim() && process.env.AT_USERNAME?.trim()
+    process.env.AT_API_KEY?.trim() && process.env.AT_USERNAME?.trim(),
   );
 }
 
@@ -70,7 +70,11 @@ export async function sendAfricaTalkingSms(input: {
     let json: {
       SMSMessageData?: {
         Message?: string;
-        Recipients?: Array<{ status?: string; messageId?: string; statusCode?: number }>;
+        Recipients?: Array<{
+          status?: string;
+          messageId?: string;
+          statusCode?: number;
+        }>;
       };
       // error shapes
       errorMessage?: string;

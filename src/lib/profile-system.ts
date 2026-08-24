@@ -1,5 +1,5 @@
 /**
- * Ona Complete Profiles System — types, badges, tiers, constants.
+ * Ona Complete Profiles System types, badges, tiers, constants.
  */
 
 import { DEFAULT_RADIUS_KM, MAX_RADIUS_KM } from "@/lib/matching";
@@ -33,7 +33,13 @@ export function isExperienceUnset(years?: string | null): boolean {
   if (years == null) return true;
   const t = String(years).trim();
   if (!t) return true;
-  if (t === "—" || t === "-" || t === "–" || t === "0" || t.toLowerCase() === "n/a")
+  if (
+    t === "" ||
+    t === "-" ||
+    t === "-" ||
+    t === "0" ||
+    t.toLowerCase() === "n/a"
+  )
     return true;
   return false;
 }
@@ -45,11 +51,10 @@ export function isExperienceUnset(years?: string | null): boolean {
 export const PRO_MAX_SERVICE_RADIUS_KM = MAX_RADIUS_KM;
 export const SERVICE_RADIUS_OPTIONS_KM = [1, 3, 5] as const;
 
-/** Clamp pro coverage radius to 1–5 km */
-export function clampProServiceRadiusKm(
-  km: number | null | undefined
-): number {
-  const n = typeof km === "number" && Number.isFinite(km) ? km : DEFAULT_RADIUS_KM;
+/** Clamp pro coverage radius to 1-5 km */
+export function clampProServiceRadiusKm(km: number | null | undefined): number {
+  const n =
+    typeof km === "number" && Number.isFinite(km) ? km : DEFAULT_RADIUS_KM;
   return Math.min(PRO_MAX_SERVICE_RADIUS_KM, Math.max(1, n));
 }
 
@@ -72,7 +77,7 @@ export type VerificationTierState = {
 };
 
 export function resolveVerificationTier(
-  profile: UserProfile | null | undefined
+  profile: UserProfile | null | undefined,
 ): VerificationTier {
   if (!profile) return 1;
   if (profile.inPersonVerified) return 3;
@@ -100,24 +105,21 @@ export function verificationTierLabel(tier: VerificationTier): string {
  * - Customers: in-person / high identity tier (unchanged ladder)
  */
 export function hasVerificationMark(
-  profile: UserProfile | null | undefined
+  profile: UserProfile | null | undefined,
 ): boolean {
   if (!profile) return false;
   if (profile.accountType === "professional") {
     return profile.docsStatus === "approved";
   }
-  return Boolean(profile.inPersonVerified) || resolveVerificationTier(profile) >= 3;
+  return (
+    Boolean(profile.inPersonVerified) || resolveVerificationTier(profile) >= 3
+  );
 }
 
 // ── Achievement badges (completed jobs for Motorists / pro jobs done) ─
 
 export type AchievementBadgeId =
-  | "bronze"
-  | "silver"
-  | "gold"
-  | "diamond"
-  | "diamond_elite"
-  | "special";
+  "bronze" | "silver" | "gold" | "diamond" | "diamond_elite" | "special";
 
 export type AchievementBadge = {
   id: AchievementBadgeId;
@@ -188,7 +190,7 @@ export function badgesForJobs(completedJobs: number): AchievementBadge[] {
 
 /** Highest badge only (for compact map pin). */
 export function topBadgeForJobs(
-  completedJobs: number
+  completedJobs: number,
 ): AchievementBadge | null {
   const earned = badgesForJobs(completedJobs);
   return earned.length ? earned[earned.length - 1]! : null;
@@ -287,7 +289,7 @@ export function profileTheme(isLight: boolean): ProfileThemeTokens {
 }
 
 export function canViewMotoristProfile(
-  viewer: AccountType | null | undefined
+  viewer: AccountType | null | undefined,
 ): boolean {
   // Repair Pros must never see Motorist profiles
   return viewer !== "professional";

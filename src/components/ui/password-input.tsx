@@ -40,7 +40,7 @@ export function PasswordInput({
         onClick={() => setShow(!show)}
         className={cn(
           "absolute right-2 top-1/2 -translate-y-1/2 border-0 bg-transparent p-1",
-          isLight ? "text-slate-500" : "text-white/50"
+          isLight ? "text-slate-500" : "text-white/50",
         )}
         aria-label={show ? "Hide password" : "Show password"}
       >

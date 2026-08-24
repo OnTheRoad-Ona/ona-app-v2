@@ -151,17 +151,17 @@ export function ArtisanOnboarding({
 }: {
   /** full = post-signup; settings = optional tiers later */
   mode?: "full" | "settings";
-  /** Nested in ProOnboardingSheet (60% panel) — compact chrome */
+  /** Nested in ProOnboardingSheet (60% panel) compact chrome */
   embedInSheet?: boolean;
-  /** Customer already passed T1 — hide phone OTP step */
+  /** Customer already passed T1 hide phone OTP step */
   skipT1IfCustomerDone?: boolean;
-  /** Customer already passed T2 — hide gov ID re-verify */
+  /** Customer already passed T2 hide gov ID re-verify */
   skipT2IfCustomerDone?: boolean;
   /** Called when mandatory T1+T2 (inherited or done) are satisfied */
   onMandatoryComplete?: () => void;
   /** Sheet swipe: scroll container for “at top → collapse” */
   embedScrollParentRef?: React.RefObject<HTMLDivElement | null>;
-  /** Settings “View Verification” — no edits */
+  /** Settings “View Verification” no edits */
   viewOnly?: boolean;
 }) {
   const router = useRouter();
@@ -185,11 +185,11 @@ export function ArtisanOnboarding({
     "h-11 w-full border-0 border-b bg-transparent px-0 text-[16px] font-medium outline-none",
     isLight
       ? "border-black/15 text-[#1c1c1e] placeholder:text-slate-400"
-      : "border-white/20 text-white placeholder:text-white/35"
+      : "border-white/20 text-white placeholder:text-white/35",
   );
   const selectClass = cn(
     "h-11 w-full border-0 border-b bg-transparent px-0 text-[16px] font-semibold outline-none",
-    isLight ? "border-black/15 text-[#1c1c1e]" : "border-white/20 text-white"
+    isLight ? "border-black/15 text-[#1c1c1e]" : "border-white/20 text-white",
   );
   const panelClass = "rounded-none border-0 bg-transparent p-0";
   const chipOff = isLight
@@ -199,13 +199,13 @@ export function ArtisanOnboarding({
     "flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed text-[13px] font-semibold",
     isLight
       ? "border-black/20 bg-transparent text-slate-800"
-      : "border-white/25 bg-transparent text-white"
+      : "border-white/25 bg-transparent text-white",
   );
   const uploadInlineClass = cn(
     "flex cursor-pointer items-center justify-center rounded-xl border border-dashed text-[13px] font-semibold",
     isLight
       ? "border-black/20 bg-transparent text-slate-800"
-      : "border-white/25 bg-transparent text-white"
+      : "border-white/25 bg-transparent text-white",
   );
   const errBox = isLight
     ? "bg-red-50 text-red-700"
@@ -225,7 +225,7 @@ export function ArtisanOnboarding({
   const tradeOff = isLight
     ? "bg-transparent text-slate-900 border-b border-black/10"
     : "bg-transparent text-white border-b border-white/10";
-  /** Selected chips — brand orange for all Yes/No and option picks */
+  /** Selected chips brand orange for all Yes/No and option picks */
   const chipOn = "bg-[#FF6B35] text-white";
   const userId =
     backendUserId ||
@@ -234,10 +234,10 @@ export function ArtisanOnboarding({
       : "local-pro");
 
   const [step, setStep] = useState<ArtisanOnboardingStep>(
-    mode === "settings" ? "optional_tiers" : "trade"
+    mode === "settings" ? "optional_tiers" : "trade",
   );
   const [profile, setProfile] = useState<ArtisanVerificationProfile | null>(
-    null
+    null,
   );
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
@@ -257,10 +257,13 @@ export function ArtisanOnboarding({
   const idTypeWrapRef = useRef<HTMLDivElement>(null);
   const skillSectionRef = useRef<HTMLDivElement>(null);
 
-  /** Signup primary trade — locked for life of this onboarding/profile */
+  /** Signup primary trade locked for life of this onboarding/profile */
   const lockedPrimaryTrade = useMemo(() => {
     const fromProfile = userProfile?.services?.[0];
-    if (fromProfile && ARTISAN_TRADE_CATALOG.some((t) => t.service === fromProfile)) {
+    if (
+      fromProfile &&
+      ARTISAN_TRADE_CATALOG.some((t) => t.service === fromProfile)
+    ) {
       return fromProfile;
     }
     return null;
@@ -271,9 +274,7 @@ export function ArtisanOnboarding({
     let cancelled = false;
     const iso = resolveSignupCountryIso(userProfile?.identityCountryIso);
     const primary =
-      lockedPrimaryTrade ||
-      userProfile?.services?.[0] ||
-      undefined;
+      lockedPrimaryTrade || userProfile?.services?.[0] || undefined;
     let next = ensureArtisanDraft({
       userId,
       fullName: userProfile?.fullName || displayName || "Artisan",
@@ -313,10 +314,7 @@ export function ArtisanOnboarding({
       };
       dirty = true;
     }
-    if (
-      next.serviceArea.countryCode !== iso ||
-      !next.serviceArea.countryName
-    ) {
+    if (next.serviceArea.countryCode !== iso || !next.serviceArea.countryName) {
       next = {
         ...next,
         serviceArea: {
@@ -371,11 +369,11 @@ export function ArtisanOnboarding({
       cancelled = true;
       window.clearInterval(pollId);
     };
-    // Only re-run when identity/user changes — not every profile field tick
+    // Only re-run when identity/user changes not every profile field tick
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, lockedPrimaryTrade, mode]);
 
-  // Back from state/city/LGA routes — re-read vault + restore Profile step
+  // Back from state/city/LGA routes re-read vault + restore Profile step
   useEffect(() => {
     if (pathname !== "/artisan/onboarding") return;
     const fresh = getArtisanProfile(userId);
@@ -422,7 +420,7 @@ export function ArtisanOnboarding({
         if (!f.type.startsWith("image/")) continue;
         if (f.size > IMAGE_MAX_BYTES) {
           setErr(
-            `Each image must be ${formatMb(IMAGE_MAX_BYTES)} or less. “${f.name}” is ${formatMb(f.size)}.`
+            `Each image must be ${formatMb(IMAGE_MAX_BYTES)} or less. “${f.name}” is ${formatMb(f.size)}.`,
           );
           continue;
         }
@@ -457,7 +455,7 @@ export function ArtisanOnboarding({
       if (
         !professionAnswersValid(
           profile.trade.service,
-          profile.professionAnswers || {}
+          profile.professionAnswers || {},
         )
       ) {
         return "Answer all required questions (include text if you pick Other)";
@@ -477,7 +475,10 @@ export function ArtisanOnboarding({
         return "Pick at least one city";
       }
       if (!profile.toolsOwned?.length) return "Add at least one tool";
-      if (!profile.guarantor.fullName?.trim() || !profile.guarantor.phone?.trim()) {
+      if (
+        !profile.guarantor.fullName?.trim() ||
+        !profile.guarantor.phone?.trim()
+      ) {
         return "Guarantor name and phone are required";
       }
       return null;
@@ -542,7 +543,7 @@ export function ArtisanOnboarding({
     setOtpSent(true);
     setOtp("");
     setMsg(
-      `OTP sent. Code expires in ${Math.floor(res.expiresInSec / 60)} minutes.`
+      `OTP sent. Code expires in ${Math.floor(res.expiresInSec / 60)} minutes.`,
     );
     setErr(null);
   };
@@ -609,7 +610,7 @@ export function ArtisanOnboarding({
   };
 
   const postProVerify = async (
-    body: Record<string, unknown>
+    body: Record<string, unknown>,
   ): Promise<string | null> => {
     const token = await getAccessToken();
     if (!token) return "Sign in again to submit for review.";
@@ -651,7 +652,7 @@ export function ArtisanOnboarding({
       setErr(
         govIdNeedsBack(profile.govIdType)
           ? "Upload a clear photo of the front of the ID."
-          : "Upload a clear photo of the selected ID."
+          : "Upload a clear photo of the selected ID.",
       );
       return;
     }
@@ -683,7 +684,7 @@ export function ArtisanOnboarding({
       govIdSubmittedAt: new Date().toISOString(),
     });
     setMsg(
-      "Government ID submitted for review. Admin / customer care will approve it."
+      "Government ID submitted for review. Admin / customer care will approve it.",
     );
     setIdBusy(null);
   };
@@ -785,10 +786,8 @@ export function ArtisanOnboarding({
   };
 
   // Hooks must run before any early return (Rules of Hooks)
-  const hidePhoneTier =
-    skipT1IfCustomerDone && customerHasT1(userProfile);
-  const hideGovIdTiers =
-    skipT2IfCustomerDone && customerHasT2(userProfile);
+  const hidePhoneTier = skipT1IfCustomerDone && customerHasT1(userProfile);
+  const hideGovIdTiers = skipT2IfCustomerDone && customerHasT2(userProfile);
 
   useEffect(() => {
     if (!onMandatoryComplete || !profile) return;
@@ -827,7 +826,7 @@ export function ArtisanOnboarding({
     );
   }
 
-  // Soft wait state only — never hard-lock the whole page after care reset.
+  // Soft wait state only never hard-lock the whole page after care reset.
   // When ID is submitted and waiting, show banner + still allow reading tiers.
   const waitingCareId =
     profile.status === "pending_review" &&
@@ -840,13 +839,14 @@ export function ArtisanOnboarding({
 
   if (profile.status === "approved" && mode === "full") {
     return (
-      <div className="flex h-full flex-col" style={{ backgroundColor: sheetBg }}>
+      <div
+        className="flex h-full flex-col"
+        style={{ backgroundColor: sheetBg }}
+      >
         <PageHeader title="Verified" backHref="/dashboard" />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
           <Check className="h-10 w-10 text-emerald-600" />
-          <p className={cn("text-[16px] font-bold", ink)}>
-            You are approved
-          </p>
+          <p className={cn("text-[16px] font-bold", ink)}>You are approved</p>
           <p className={cn("max-w-xs text-[13px]", muted)}>
             You can Go Live and complete optional verification tiers anytime
             from Profile.
@@ -904,7 +904,7 @@ export function ArtisanOnboarding({
     <div
       className={cn(
         "relative flex h-full min-h-0 flex-col overflow-hidden",
-        viewOnly && "select-none"
+        viewOnly && "select-none",
       )}
       style={{ backgroundColor: sheetBg }}
       data-view-only={viewOnly ? "1" : undefined}
@@ -931,10 +931,12 @@ export function ArtisanOnboarding({
           <p
             className={cn(
               "mx-3 mb-2 rounded-md px-3 py-2 text-[11px] font-medium",
-              isLight ? "bg-black/5 text-slate-700" : "bg-white/10 text-white/70"
+              isLight
+                ? "bg-black/5 text-slate-700"
+                : "bg-white/10 text-white/70",
             )}
           >
-            View only — verification is complete. Contact Care to change
+            View only verification is complete. Contact Care to change
             documents.
           </p>
         ) : null}
@@ -943,13 +945,18 @@ export function ArtisanOnboarding({
           <div
             className={cn(
               "mx-3 mb-2 rounded-md border-0 px-3 py-2.5",
-              isLight ? "bg-black/[0.05]" : "bg-white/[0.06]"
+              isLight ? "bg-black/[0.05]" : "bg-white/[0.06]",
             )}
           >
             <p className={cn("text-[12px] font-bold", ink)}>
               Care asked you to re-verify
             </p>
-            <p className={cn("mt-0.5 text-[11px] font-medium leading-snug", muted)}>
+            <p
+              className={cn(
+                "mt-0.5 text-[11px] font-medium leading-snug",
+                muted,
+              )}
+            >
               {profile.rejectReason ||
                 "Re-submit government ID and any skill documents below. You are not locked out."}
             </p>
@@ -958,26 +965,29 @@ export function ArtisanOnboarding({
           <div
             className={cn(
               "mx-3 mb-2 rounded-md border-0 px-3 py-2.5",
-              isLight ? "bg-black/[0.05]" : "bg-white/[0.06]"
+              isLight ? "bg-black/[0.05]" : "bg-white/[0.06]",
             )}
           >
-            <p className={cn("text-[12px] font-bold", ink)}>
-              ID under review
-            </p>
-            <p className={cn("mt-0.5 text-[11px] font-medium leading-snug", muted)}>
+            <p className={cn("text-[12px] font-bold", ink)}>ID under review</p>
+            <p
+              className={cn(
+                "mt-0.5 text-[11px] font-medium leading-snug",
+                muted,
+              )}
+            >
               Ona Care is checking your details. You can still update other
               tiers. Go Live unlocks after T2 ID is approved.
             </p>
           </div>
         ) : null}
 
-        {/* Progress — full onboarding only */}
+        {/* Progress full onboarding only */}
         {mode === "full" ? (
           <div className="px-3 pb-2">
             <div
               className={cn(
                 "h-1 w-full overflow-hidden rounded-full",
-                isLight ? "bg-black/10" : "bg-white/15"
+                isLight ? "bg-black/10" : "bg-white/15",
               )}
             >
               <div
@@ -990,7 +1000,7 @@ export function ArtisanOnboarding({
             <p
               className={cn(
                 "mt-2 text-[11px] font-semibold tracking-wide",
-                muted
+                muted,
               )}
             >
               {STEPS[stepIndex]?.label}{" "}
@@ -1008,7 +1018,7 @@ export function ArtisanOnboarding({
         className={cn(
           "min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3",
           embedInSheet ? "pb-2" : "pb-4",
-          viewOnly && "pointer-events-none opacity-90"
+          viewOnly && "pointer-events-none opacity-90",
         )}
         style={{
           WebkitOverflowScrolling: "touch",
@@ -1017,17 +1027,27 @@ export function ArtisanOnboarding({
         data-pro-sheet-scroll={embedInSheet ? "1" : undefined}
       >
         {err ? (
-          <p className={cn("mb-2 rounded-md px-3 py-2 text-[12px] font-semibold", errBox)}>
+          <p
+            className={cn(
+              "mb-2 rounded-md px-3 py-2 text-[12px] font-semibold",
+              errBox,
+            )}
+          >
             {err}
           </p>
         ) : null}
         {msg ? (
-          <p className={cn("mb-2 rounded-md px-3 py-2 text-[12px] font-semibold", msgBox)}>
+          <p
+            className={cn(
+              "mb-2 rounded-md px-3 py-2 text-[12px] font-semibold",
+              msgBox,
+            )}
+          >
             {msg}
           </p>
         ) : null}
 
-        {/* —— TRADE —— */}
+        {/*TRADE*/}
         {step === "trade" && (
           <section className="space-y-3">
             <h2 className={cn("text-[15px] font-bold", ink)}>
@@ -1062,14 +1082,14 @@ export function ArtisanOnboarding({
                     className={cn(
                       "rounded-md border-0 px-2.5 py-2.5 text-left text-[12px] font-bold",
                       on ? "bg-[#FF6B35] text-white" : tradeOff,
-                      lockedPrimaryTrade && !on && "opacity-55"
+                      lockedPrimaryTrade && !on && "opacity-55",
                     )}
                   >
                     {t.label}
                     <span
                       className={cn(
                         "mt-0.5 block text-[10px] font-medium",
-                        on ? "text-white/80" : muted
+                        on ? "text-white/80" : muted,
                       )}
                     >
                       {t.description}
@@ -1101,7 +1121,7 @@ export function ArtisanOnboarding({
                         }
                         className={cn(
                           "rounded-md border-0 px-2.5 py-1.5 text-[11px] font-bold",
-                          on ? "bg-[#FF6B35] text-white" : chipOff
+                          on ? "bg-[#FF6B35] text-white" : chipOff,
                         )}
                       >
                         {s}
@@ -1114,7 +1134,7 @@ export function ArtisanOnboarding({
           </section>
         )}
 
-        {/* —— PROFESSION (category-specific only) —— */}
+        {/*PROFESSION (category-specific only)*/}
         {step === "profession" && (
           <section className="space-y-3">
             <h2 className={cn("text-[15px] font-bold", ink)}>
@@ -1128,7 +1148,12 @@ export function ArtisanOnboarding({
               . No questions from other professions.
             </p>
             {!profile.trade.specialty ? (
-              <p className={cn("rounded-md px-3 py-2 text-[12px] font-semibold", warnBox)}>
+              <p
+                className={cn(
+                  "rounded-md px-3 py-2 text-[12px] font-semibold",
+                  warnBox,
+                )}
+              >
                 Go back and pick a specialty first.
               </p>
             ) : (
@@ -1144,7 +1169,9 @@ export function ArtisanOnboarding({
                       ) : null}
                     </p>
                     {q.hint ? (
-                      <p className={cn("mt-0.5 text-[10px] font-medium", muted)}>
+                      <p
+                        className={cn("mt-0.5 text-[10px] font-medium", muted)}
+                      >
                         {q.hint}
                       </p>
                     ) : null}
@@ -1181,7 +1208,7 @@ export function ArtisanOnboarding({
                               }
                               className={cn(
                                 "rounded-md border-0 px-2.5 py-1.5 text-[11px] font-bold",
-                                on ? chipOn : chipOff
+                                on ? chipOn : chipOff,
                               )}
                             >
                               {opt}
@@ -1205,7 +1232,7 @@ export function ArtisanOnboarding({
                                     ? arr.filter((x) => x !== opt)
                                     : [...arr, opt];
                                   const max = q.maxSelect ?? 6;
-                                  // Other doesn't count against max the same way — allow +1
+                                  // Other doesn't count against max the same way allow +1
                                   const maxAllow =
                                     opt === OTHER_OPTION ? max + 1 : max;
                                   if (next.length > maxAllow)
@@ -1217,10 +1244,7 @@ export function ArtisanOnboarding({
                                     ...answers,
                                     [q.id]: next,
                                   };
-                                  if (
-                                    opt === OTHER_OPTION &&
-                                    on
-                                  ) {
+                                  if (opt === OTHER_OPTION && on) {
                                     // Deselected Other → clear custom text
                                     delete nextAnswers[otherAnswerKey(q.id)];
                                   }
@@ -1228,7 +1252,7 @@ export function ArtisanOnboarding({
                                 }}
                                 className={cn(
                                   "rounded-md border-0 px-2.5 py-1.5 text-[11px] font-bold",
-                                  on ? chipOn : chipOff
+                                  on ? chipOn : chipOff,
                                 )}
                               >
                                 {opt}
@@ -1265,7 +1289,7 @@ export function ArtisanOnboarding({
           </section>
         )}
 
-        {/* —— PHONE TIER 1 —— (skip if Customer already T1) */}
+        {/*PHONE TIER 1(skip if Customer already T1) */}
         {step === "phone" && !hidePhoneTier && (
           <section className="space-y-3">
             <div className="flex items-center gap-2">
@@ -1274,7 +1298,12 @@ export function ArtisanOnboarding({
                 Phone verification
               </h2>
             </div>
-            <div className={cn("rounded-md px-3 py-2.5 text-[11px] font-medium leading-snug", tipBox)}>
+            <div
+              className={cn(
+                "rounded-md px-3 py-2.5 text-[11px] font-medium leading-snug",
+                tipBox,
+              )}
+            >
               <p className="font-bold">Tier 1 required</p>
               <ol className="mt-1 list-decimal space-y-1 pl-4">
                 <li>Enter your phone and send a code</li>
@@ -1313,8 +1342,13 @@ export function ArtisanOnboarding({
                   <div className="flex gap-2">
                     <input
                       value={otp}
-                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                      className={cn("min-w-0 flex-1 font-bold tracking-widest", fieldClass)}
+                      onChange={(e) =>
+                        setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                      }
+                      className={cn(
+                        "min-w-0 flex-1 font-bold tracking-widest",
+                        fieldClass,
+                      )}
                       placeholder="6-digit code"
                       inputMode="numeric"
                       maxLength={6}
@@ -1334,7 +1368,7 @@ export function ArtisanOnboarding({
               <p
                 className={cn(
                   "flex items-center gap-2 text-[13px] font-bold",
-                  isLight ? "text-emerald-700" : "text-emerald-400"
+                  isLight ? "text-emerald-700" : "text-emerald-400",
                 )}
               >
                 <Check className="h-4 w-4" /> Phone verified (Tier 1)
@@ -1343,7 +1377,7 @@ export function ArtisanOnboarding({
           </section>
         )}
 
-        {/* —— ESSENTIALS —— */}
+        {/*ESSENTIALS*/}
         {step === "essentials" && (
           <section className="space-y-3">
             <h2 className={cn("text-[15px] font-bold", ink)}>
@@ -1358,7 +1392,9 @@ export function ArtisanOnboarding({
                 max={60}
                 value={profile.yearsExperience}
                 onChange={(e) =>
-                  patch({ yearsExperience: Math.max(1, Number(e.target.value) || 1) })
+                  patch({
+                    yearsExperience: Math.max(1, Number(e.target.value) || 1),
+                  })
                 }
                 className={cn("mt-1", fieldClass)}
               />
@@ -1382,7 +1418,7 @@ export function ArtisanOnboarding({
             <div
               className={cn(
                 "overflow-hidden rounded-md",
-                isLight ? "bg-black/[0.05]" : "bg-white/[0.06]"
+                isLight ? "bg-black/[0.05]" : "bg-white/[0.06]",
               )}
             >
               <Link
@@ -1405,9 +1441,7 @@ export function ArtisanOnboarding({
                     {profile.serviceArea.states[0] || "Pick one state"}
                   </span>
                 </span>
-                <ChevronRight
-                  className={cn("h-4 w-4 shrink-0", muted)}
-                />
+                <ChevronRight className={cn("h-4 w-4 shrink-0", muted)} />
               </Link>
               <Link
                 href="/artisan/onboarding/cities"
@@ -1433,9 +1467,7 @@ export function ArtisanOnboarding({
                         : "Choose a state first"}
                   </span>
                 </span>
-                <ChevronRight
-                  className={cn("h-4 w-4 shrink-0", muted)}
-                />
+                <ChevronRight className={cn("h-4 w-4 shrink-0", muted)} />
               </Link>
               {supportsLga(profile.serviceArea.countryCode || "NG") ? (
                 <Link
@@ -1453,7 +1485,9 @@ export function ArtisanOnboarding({
                     <span className={cn("block text-[13px] font-bold", ink)}>
                       LGA
                     </span>
-                    <span className={cn("block text-[11px] font-medium", muted)}>
+                    <span
+                      className={cn("block text-[11px] font-medium", muted)}
+                    >
                       {profile.serviceArea.lgas.length
                         ? profile.serviceArea.lgas.join(", ")
                         : profile.serviceArea.states[0]
@@ -1461,9 +1495,7 @@ export function ArtisanOnboarding({
                           : "Choose a state first"}
                     </span>
                   </span>
-                  <ChevronRight
-                    className={cn("h-4 w-4 shrink-0", muted)}
-                  />
+                  <ChevronRight className={cn("h-4 w-4 shrink-0", muted)} />
                 </Link>
               ) : null}
             </div>
@@ -1519,7 +1551,9 @@ export function ArtisanOnboarding({
                         aria-label={`Remove ${t}`}
                         onClick={() =>
                           patch({
-                            toolsOwned: profile.toolsOwned.filter((x) => x !== t),
+                            toolsOwned: profile.toolsOwned.filter(
+                              (x) => x !== t,
+                            ),
                           })
                         }
                         className="border-0 bg-transparent p-0 text-white"
@@ -1574,7 +1608,7 @@ export function ArtisanOnboarding({
           </section>
         )}
 
-        {/* —— PORTFOLIO —— */}
+        {/*PORTFOLIO*/}
         {step === "portfolio" && (
           <section className="space-y-3">
             <div className="flex items-center gap-2">
@@ -1585,16 +1619,23 @@ export function ArtisanOnboarding({
               </h2>
             </div>
             <p className={cn("text-[12px]", muted)}>
-              Upload {PORTFOLIO_MIN}–{PORTFOLIO_MAX} clear photos of previous
+              Upload {PORTFOLIO_MIN}-{PORTFOLIO_MAX} clear photos of previous
               jobs. Each image max {formatMb(IMAGE_MAX_BYTES)}.
             </p>
             <label
               className={cn(
                 "flex h-24 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed",
-                isLight ? "border-black/15 bg-black/[0.06]" : "border-white/20 bg-white/[0.08]"
+                isLight
+                  ? "border-black/15 bg-black/[0.06]"
+                  : "border-white/20 bg-white/[0.08]",
               )}
             >
-              <Upload className={cn("h-5 w-5", isLight ? "text-slate-500" : "text-[#a1a1a6]")} />
+              <Upload
+                className={cn(
+                  "h-5 w-5",
+                  isLight ? "text-slate-500" : "text-[#a1a1a6]",
+                )}
+              />
               <span className={cn("mt-1 text-[12px] font-bold", soft)}>
                 Add photos ({profile.portfolio.length}/{PORTFOLIO_MAX})
               </span>
@@ -1608,9 +1649,14 @@ export function ArtisanOnboarding({
             </label>
             <div className="grid grid-cols-3 gap-2">
               {profile.portfolio.map((m) => (
-                <div key={m.id} className="relative aspect-square overflow-hidden rounded-md bg-black/10">
+                <div
+                  key={m.id}
+                  className="relative aspect-square overflow-hidden rounded-md bg-black/10"
+                >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img loading="lazy" decoding="async"
+                  <img
+                    loading="lazy"
+                    decoding="async"
                     src={m.url}
                     alt=""
                     className="h-full w-full object-cover"
@@ -1619,7 +1665,9 @@ export function ArtisanOnboarding({
                     type="button"
                     onClick={() =>
                       patch({
-                        portfolio: profile.portfolio.filter((x) => x.id !== m.id),
+                        portfolio: profile.portfolio.filter(
+                          (x) => x.id !== m.id,
+                        ),
                       })
                     }
                     className="absolute right-1 top-1 rounded bg-black/70 px-1.5 text-[10px] font-bold text-white"
@@ -1646,7 +1694,7 @@ export function ArtisanOnboarding({
           </section>
         )}
 
-        {/* —— VIDEO —— */}
+        {/*VIDEO*/}
         {step === "video" && (
           <section className="space-y-3">
             <div className="flex items-center gap-2">
@@ -1655,7 +1703,12 @@ export function ArtisanOnboarding({
                 Video introduction
               </h2>
             </div>
-            <div className={cn("rounded-md px-3 py-2.5 text-[12px] font-medium leading-snug", tipBox)}>
+            <div
+              className={cn(
+                "rounded-md px-3 py-2.5 text-[12px] font-medium leading-snug",
+                tipBox,
+              )}
+            >
               Optional. Max {INTRO_VIDEO_MAX_SEC}s and{" "}
               {formatMb(INTRO_VIDEO_MAX_BYTES)}. A short video of you and your
               tools helps admins approve you faster.
@@ -1680,14 +1733,14 @@ export function ArtisanOnboarding({
                   try {
                     if (f.size > INTRO_VIDEO_MAX_BYTES) {
                       setErr(
-                        `Video must be ${formatMb(INTRO_VIDEO_MAX_BYTES)} or less. This file is ${formatMb(f.size)}.`
+                        `Video must be ${formatMb(INTRO_VIDEO_MAX_BYTES)} or less. This file is ${formatMb(f.size)}.`,
                       );
                       return;
                     }
                     const dur = await getVideoDurationSec(f);
                     if (dur > INTRO_VIDEO_MAX_SEC + 0.25) {
                       setErr(
-                        `Video must be ${INTRO_VIDEO_MAX_SEC} seconds or less. This one is ${Math.ceil(dur)}s.`
+                        `Video must be ${INTRO_VIDEO_MAX_SEC} seconds or less. This one is ${Math.ceil(dur)}s.`,
                       );
                       return;
                     }
@@ -1736,7 +1789,7 @@ export function ArtisanOnboarding({
           </section>
         )}
 
-        {/* —— OPTIONAL TIERS 2–4 (strict order) —— */}
+        {/*OPTIONAL TIERS 2-4 (strict order)*/}
         {(step === "optional_tiers" || mode === "settings") && (
           <section className={cn(embedInSheet ? "space-y-3" : "space-y-4")}>
             {/* Lower panel: one tier only. Full page: full order list. */}
@@ -1744,7 +1797,7 @@ export function ArtisanOnboarding({
               <div
                 className={cn(
                   "rounded-md px-3 py-2 text-[11px] font-medium leading-snug",
-                  tipBox
+                  tipBox,
                 )}
               >
                 <p className="font-bold">
@@ -1779,7 +1832,7 @@ export function ArtisanOnboarding({
                 <div
                   className={cn(
                     "rounded-md px-3 py-2.5 text-[11px] font-medium leading-snug",
-                    tipBox
+                    tipBox,
                   )}
                 >
                   <p className="font-bold">Verification order</p>
@@ -1787,14 +1840,16 @@ export function ArtisanOnboarding({
                     <li>Government ID (Tier 2): submit anytime for review</li>
                     <li>Face liveness (Tier 3) after ID</li>
                     <li>BVN (Tier 3) after ID: with liveness before skill</li>
-                    <li>Proof of skill (Tier 4): upload then submit for review</li>
+                    <li>
+                      Proof of skill (Tier 4): upload then submit for review
+                    </li>
                   </ol>
                   <p className="mt-2 font-medium">
-                    Profile Submit does not require Tier 2–4
+                    Profile Submit does not require Tier 2-4
                   </p>
                 </div>
 
-                {/* Status strip — complete = submitted or approved / passed */}
+                {/* Status strip complete = submitted or approved / passed */}
                 <div className="flex flex-wrap gap-1.5">
                   {(
                     [
@@ -1815,7 +1870,7 @@ export function ArtisanOnboarding({
                             : "bg-emerald-900/50 text-emerald-300"
                           : isLight
                             ? "bg-black/10 text-slate-600"
-                            : "bg-white/[0.08] text-[#a1a1a6]"
+                            : "bg-white/[0.08] text-[#a1a1a6]",
                       )}
                     >
                       {ok ? "✓" : "·"} {label}
@@ -1844,10 +1899,14 @@ export function ArtisanOnboarding({
                     "flex-col items-center justify-center rounded-[0.65rem] px-5 py-6 text-center",
                     "border-0 shadow-none",
                     // Match phone shell grey exactly
-                    isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-[#f2f2f7]"
+                    isLight
+                      ? "bg-[#c8c9cd] text-slate-900"
+                      : "bg-black text-[#f2f2f7]",
                   )}
                 >
-                  <p className="text-[14px] font-bold leading-snug">{gatePopup}</p>
+                  <p className="text-[14px] font-bold leading-snug">
+                    {gatePopup}
+                  </p>
                   <button
                     type="button"
                     onClick={() => setGatePopup(null)}
@@ -1906,7 +1965,7 @@ export function ArtisanOnboarding({
                       }
                       className={cn(
                         "min-w-0 flex-1 font-bold tracking-widest",
-                        fieldClass
+                        fieldClass,
                       )}
                       placeholder="6-digit code"
                       inputMode="numeric"
@@ -1931,7 +1990,7 @@ export function ArtisanOnboarding({
                   "rounded-md px-3 py-2.5 text-[11px] font-medium leading-snug",
                   isLight
                     ? "bg-emerald-100 text-emerald-900"
-                    : "bg-emerald-950/40 text-emerald-200"
+                    : "bg-emerald-950/40 text-emerald-200",
                 )}
               >
                 <p className="font-bold">Tier 2 already complete</p>
@@ -1942,18 +2001,22 @@ export function ArtisanOnboarding({
               </div>
             ) : null}
 
-            {/* T2 Government ID — sheet: only when this is the active tier */}
+            {/* T2 Government ID sheet: only when this is the active tier */}
             <div
               className={cn(
                 panelClass,
                 "space-y-2.5",
-                (hideGovIdTiers ||
-                  (embedInSheet && embedStep !== "gov_id")) &&
-                  "hidden"
+                (hideGovIdTiers || (embedInSheet && embedStep !== "gov_id")) &&
+                  "hidden",
               )}
             >
               <div>
-                <p className={cn("flex items-center gap-2 text-[13px] font-bold", ink)}>
+                <p
+                  className={cn(
+                    "flex items-center gap-2 text-[13px] font-bold",
+                    ink,
+                  )}
+                >
                   <FileText className="h-4 w-4 shrink-0 text-[#FF6B35]" />{" "}
                   Government ID
                 </p>
@@ -1984,12 +2047,13 @@ export function ArtisanOnboarding({
                   }}
                   className={cn(
                     selectClass,
-                    "flex items-center justify-between gap-2 text-left disabled:opacity-60"
+                    "flex items-center justify-between gap-2 text-left disabled:opacity-60",
                   )}
                 >
                   <span
                     className={cn(
-                      !profile.govIdType && (isLight ? "text-slate-400" : "text-white/35")
+                      !profile.govIdType &&
+                        (isLight ? "text-slate-400" : "text-white/35"),
                     )}
                   >
                     {profile.govIdType === "nin"
@@ -2006,7 +2070,7 @@ export function ArtisanOnboarding({
                     className={cn(
                       "h-4 w-4 shrink-0 transition-transform",
                       idTypeMenuOpen && "rotate-90",
-                      isLight ? "text-slate-500" : "text-white/45"
+                      isLight ? "text-slate-500" : "text-white/45",
                     )}
                   />
                 </button>
@@ -2015,7 +2079,7 @@ export function ArtisanOnboarding({
                     role="listbox"
                     className={cn(
                       "absolute left-0 right-0 top-full z-50 mt-1 max-h-52 overflow-y-auto overscroll-contain rounded-lg border-0 py-1 shadow-lg",
-                      isLight ? "bg-white" : "bg-[#1c1c1e]"
+                      isLight ? "bg-white" : "bg-[#1c1c1e]",
                     )}
                   >
                     {(
@@ -2040,7 +2104,11 @@ export function ArtisanOnboarding({
                     ).map((opt) => {
                       const selected = profile.govIdType === opt.value;
                       return (
-                        <li key={opt.value} role="option" aria-selected={selected}>
+                        <li
+                          key={opt.value}
+                          role="option"
+                          aria-selected={selected}
+                        >
                           <button
                             type="button"
                             className={cn(
@@ -2049,7 +2117,7 @@ export function ArtisanOnboarding({
                                 ? "bg-[#FF6B35]/15 text-[#FF6B35]"
                                 : isLight
                                   ? "text-slate-900 hover:bg-black/[0.05]"
-                                  : "text-white hover:bg-white/[0.08]"
+                                  : "text-white hover:bg-white/[0.08]",
                             )}
                             onClick={() => {
                               patch({
@@ -2131,7 +2199,7 @@ export function ArtisanOnboarding({
                         : "bg-white/[0.08] text-white",
                       (profile.tiers.tier2_govId ||
                         profile.govIdReviewStatus === "submitted") &&
-                        "pointer-events-none opacity-60"
+                        "pointer-events-none opacity-60",
                     )}
                   >
                     <span className="flex items-center gap-2 text-[12px] font-bold">
@@ -2160,7 +2228,7 @@ export function ArtisanOnboarding({
                         if (!f) return;
                         if (f.size > IMAGE_MAX_BYTES) {
                           setErr(
-                            `ID photo must be ${formatMb(IMAGE_MAX_BYTES)} or less.`
+                            `ID photo must be ${formatMb(IMAGE_MAX_BYTES)} or less.`,
                           );
                           return;
                         }
@@ -2216,357 +2284,361 @@ export function ArtisanOnboarding({
               ) : null}
             </div>
 
-            {/* T3–T4: full page shows all; sheet shows active tier only */}
+            {/* T3-T4: full page shows all; sheet shows active tier only */}
             {(!embedInSheet ||
               embedStep === "liveness" ||
               embedStep === "bvn" ||
               embedStep === "skill") && (
-            <>
-            {/* Face liveness: Tier 3 (after Government ID) */}
-            <div
-              className={cn(
-                "relative",
-                (!embedInSheet || embedStep === "liveness") ? "" : "hidden",
-                !canAccessLiveness(profile) && "opacity-45"
-              )}
-            >
-              {!canAccessLiveness(profile) ? (
-                <button
-                  type="button"
-                  className="absolute inset-0 z-[2] border-0 bg-transparent"
-                  aria-label={lockMessageForSection("liveness")}
-                  onClick={() =>
-                    setGatePopup(lockMessageForSection("liveness"))
-                  }
-                />
-              ) : null}
-              <div
-                className={cn(
-                  panelClass,
-                  !canAccessLiveness(profile) && "pointer-events-none"
-                )}
-              >
-                {showLiveness ? (
-                  <div>
-                    <FaceLiveness
-                      isLight={isLight}
-                      userKey={
-                        backendUserId ||
-                        userProfile?.email ||
-                        userProfile?.phone ||
-                        "guest"
-                      }
-                      userId={backendUserId || undefined}
-                      onCancel={() => setShowLiveness(false)}
-                      onPassed={() => {
-                        const passedAt = new Date().toISOString();
-                        patch({
-                          livenessPassed: true,
-                          livenessPassedAt: passedAt,
-                          tiers: { ...profile.tiers, tier3_liveness: true },
-                          selfie: profile.selfie || {
-                            id: uid(),
-                            url: "",
-                            kind: "selfie",
-                            name: "liveness-pass",
-                            createdAt: passedAt,
-                          },
-                        });
-                        setShowLiveness(false);
-                        setMsg(
-                          "Face liveness passed. Complete BVN (Tier 3) for full T3 search reach."
-                        );
-                        setErr(null);
-                        // Persist liveness + auto-promote visibility T3 on server
-                        void (async () => {
-                          try {
-                            if (backendUserId) {
-                              const { authFetch } = await import(
-                                "@/lib/api-auth-headers"
-                              );
-                              await authFetch("/api/artisan/profile", {
-                                method: "PATCH",
-                                body: JSON.stringify({
-                                  userId: backendUserId,
-                                  livenessPassedAt: passedAt,
-                                }),
-                              });
-                              await authFetch("/api/profile/update", {
-                                method: "POST",
-                                body: JSON.stringify({
-                                  faceLivenessVerified: true,
-                                }),
-                              }).catch(() => null);
-                            }
-                          } catch {
-                            /* local still saved */
-                          }
-                        })();
-                      }}
-                    />
-                  </div>
-                ) : !embedInSheet ? (
-                  <button
-                    type="button"
-                    className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[13px] font-bold text-white"
-                    onClick={() => {
-                      setShowLiveness(true);
-                      setErr(null);
-                    }}
-                  >
-                    <Camera className="h-4 w-4" />
-                    {profile.tiers.tier3_liveness
-                      ? "Run liveness again"
-                      : "Start face liveness"}
-                  </button>
-                ) : null}
-              </div>
-            </div>
-
-            {/* BVN — Tier 3 (after Government ID; not part of T2) */}
-            <div
-              className={cn(
-                "relative",
-                (!embedInSheet || embedStep === "bvn") ? "" : "hidden",
-                !canAccessBvn(profile) && "opacity-45"
-              )}
-            >
-              {!canAccessBvn(profile) ? (
-                <button
-                  type="button"
-                  className="absolute inset-0 z-[2] border-0 bg-transparent"
-                  aria-label={lockMessageForSection("bvn")}
-                  onClick={() =>
-                    setGatePopup(lockMessageForSection("bvn"))
-                  }
-                />
-              ) : null}
-              <div
-                className={cn(
-                  panelClass,
-                  !canAccessBvn(profile) && "pointer-events-none"
-                )}
-              >
-                <p className={cn("flex items-center gap-2 text-[13px] font-bold", ink)}>
-                  <FileText className="h-4 w-4 shrink-0 text-[#FF6B35]" /> BVN
-                  · Tier 3
-                </p>
-                <p className={cn("mt-1 text-[10px] font-medium", muted)}>
-                  {profile.tiers.tier2_nin
-                    ? "Approved by admin / care"
-                    : reviewLabel(profile.ninReviewStatus)}
-                </p>
-                <input
-                  value={profile.nin || ""}
-                  onChange={(e) =>
-                    patch({
-                      nin: e.target.value.replace(/\D/g, "").slice(0, 11),
-                      tiers: { ...profile.tiers, tier2_nin: false },
-                      ninReviewStatus: "none",
-                    })
-                  }
-                  placeholder="11-digit BVN"
-                  className={cn("mt-2", fieldClass)}
-                  inputMode="numeric"
-                  maxLength={11}
-                  pattern="[0-9]{11}"
-                />
-                {!embedInSheet ? (
-                  <button
-                    type="button"
-                    disabled={
-                      idBusy === "nin" ||
-                      profile.tiers.tier2_nin ||
-                      profile.ninReviewStatus === "submitted"
-                    }
-                    className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[13px] font-bold text-white disabled:opacity-60"
-                    onClick={submitNinForReview}
-                  >
-                    {idBusy === "nin" ? (
-                      <>
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />{" "}
-                        Saving…
-                      </>
-                    ) : profile.tiers.tier2_nin ? (
-                      <>
-                        <Check className="h-3.5 w-3.5" /> Approved
-                      </>
-                    ) : profile.ninReviewStatus === "submitted" ? (
-                      "BVN currently in review"
-                    ) : (
-                      "Submit BVN for review"
-                    )}
-                  </button>
-                ) : null}
-              </div>
-            </div>
-
-            {/* Proof of skill — after BVN + liveness */}
-            <div
-              ref={skillSectionRef}
-              className={cn(
-                "relative",
-                (!embedInSheet || embedStep === "skill") ? "" : "hidden",
-                !canAccessSkillProof(profile) && "opacity-45"
-              )}
-            >
-              {!canAccessSkillProof(profile) ? (
-                <button
-                  type="button"
-                  className="absolute inset-0 z-[2] border-0 bg-transparent"
-                  aria-label={lockMessageForSection("skill")}
-                  onClick={() =>
-                    setGatePopup(lockMessageForSection("skill"))
-                  }
-                />
-              ) : null}
-              <div
-                className={cn(
-                  panelClass,
-                  "space-y-2.5",
-                  !canAccessSkillProof(profile) && "pointer-events-none"
-                )}
-              >
-                <div>
-                  <p className={cn("text-[13px] font-bold", ink)}>
-                    Proof of skill
-                  </p>
-                  <p className={cn("mt-1 text-[10px] font-medium", muted)}>
-                    {profile.skillProof
-                      ? profile.skillProofStatus === "under_review" ||
-                        profile.tiers.tier4_skillProof
-                        ? "Submitted for review"
-                        : `Ready: ${profile.skillProof.name || "file"}`
-                      : "Upload certificate, then submit for review"}
-                  </p>
-                </div>
-                <select
-                  value={profile.skillProofType || ""}
-                  onChange={(e) =>
-                    patch({
-                      skillProofType: (e.target.value ||
-                        null) as SkillProofType | null,
-                    })
-                  }
-                  className={selectClass}
+              <>
+                {/* Face liveness: Tier 3 (after Government ID) */}
+                <div
+                  className={cn(
+                    "relative",
+                    !embedInSheet || embedStep === "liveness" ? "" : "hidden",
+                    !canAccessLiveness(profile) && "opacity-45",
+                  )}
                 >
-                  <option value="">Certificate type…</option>
-                  <option value="trade_test">Trade Test</option>
-                  <option value="nabteb">NABTEB</option>
-                  <option value="itf">ITF</option>
-                  <option value="apprenticeship_letter">
-                    Apprenticeship letter
-                  </option>
-                  <option value="other_evidence">Other evidence</option>
-                </select>
-                <div className="space-y-1.5">
-                  <label
-                    className={cn(
-                      "flex w-full min-h-[48px] cursor-pointer flex-col items-center justify-center gap-1 rounded-md px-3 py-3",
-                      isLight
-                        ? "bg-black/[0.06] text-slate-800"
-                        : "bg-white/[0.08] text-white"
-                    )}
-                  >
-                    <span className="flex items-center gap-2 text-[12px] font-bold">
-                      <Upload className="h-4 w-4 shrink-0 text-[#FF6B35]" />
-                      {profile.skillProof
-                        ? `File: ${profile.skillProof.name || "certificate"}`
-                        : "Upload certificate"}
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/*,.pdf"
-                      className="hidden"
-                      onChange={async (e) => {
-                        const f = e.target.files?.[0];
-                        e.target.value = "";
-                        if (!f) return;
-                        if (!canAccessSkillProof(profile)) {
-                          setGatePopup(lockMessageForSection("skill"));
-                          return;
-                        }
-                        if (!profile.skillProofType) {
-                          setErr("Pick a certificate type first.");
-                          return;
-                        }
-                        if (
-                          f.type.startsWith("image/") &&
-                          f.size > IMAGE_MAX_BYTES
-                        ) {
-                          setErr(
-                            `Image must be ${formatMb(IMAGE_MAX_BYTES)} or less.`
-                          );
-                          return;
-                        }
-                        setBusy(true);
-                        try {
-                          const url = await fileToDataUrl(f);
-                          // Draft only — submit button sends for review
-                          patch({
-                            skillProof: {
-                              id: uid(),
-                              url,
-                              kind: "skill_proof",
-                              name: f.name,
-                              mime: f.type,
-                              createdAt: new Date().toISOString(),
-                            },
-                            skillProofStatus: "uploaded",
-                            tiers: {
-                              ...profile.tiers,
-                              tier4_skillProof: false,
-                            },
-                          });
-                          setMsg("Certificate saved. Submit for review below.");
-                          setErr(null);
-                        } catch {
-                          setErr("Could not read file.");
-                        } finally {
-                          setBusy(false);
-                        }
-                      }}
-                    />
-                  </label>
-                  {profile.skillProof?.url ? (
-                    <UploadInlinePreview
-                      url={profile.skillProof.url}
-                      label="Skill proof"
-                      mime={profile.skillProof.mime}
-                      fileName={profile.skillProof.name}
-                      isLight={isLight}
-                      defaultOpen
+                  {!canAccessLiveness(profile) ? (
+                    <button
+                      type="button"
+                      className="absolute inset-0 z-[2] border-0 bg-transparent"
+                      aria-label={lockMessageForSection("liveness")}
+                      onClick={() =>
+                        setGatePopup(lockMessageForSection("liveness"))
+                      }
                     />
                   ) : null}
-                </div>
-                {!embedInSheet ? (
-                  <button
-                    type="button"
-                    disabled={
-                      busy ||
-                      !profile.skillProof ||
-                      profile.tiers.tier4_skillProof ||
-                      profile.skillProofStatus === "under_review"
-                    }
-                    className="flex h-11 w-full items-center justify-center rounded-md border-0 bg-[#323231] text-[13px] font-bold text-white disabled:opacity-60"
-                    onClick={() => {
-                      void submitSkillForReview();
-                    }}
+                  <div
+                    className={cn(
+                      panelClass,
+                      !canAccessLiveness(profile) && "pointer-events-none",
+                    )}
                   >
-                    {profile.tiers.tier4_skillProof ||
-                    profile.skillProofStatus === "under_review"
-                      ? "Skill currently in review"
-                      : "Submit skill for review"}
-                  </button>
-                ) : null}
-              </div>
-            </div>
-            </>
+                    {showLiveness ? (
+                      <div>
+                        <FaceLiveness
+                          isLight={isLight}
+                          userKey={
+                            backendUserId ||
+                            userProfile?.email ||
+                            userProfile?.phone ||
+                            "guest"
+                          }
+                          userId={backendUserId || undefined}
+                          onCancel={() => setShowLiveness(false)}
+                          onPassed={() => {
+                            const passedAt = new Date().toISOString();
+                            patch({
+                              livenessPassed: true,
+                              livenessPassedAt: passedAt,
+                              tiers: { ...profile.tiers, tier3_liveness: true },
+                              selfie: profile.selfie || {
+                                id: uid(),
+                                url: "",
+                                kind: "selfie",
+                                name: "liveness-pass",
+                                createdAt: passedAt,
+                              },
+                            });
+                            setShowLiveness(false);
+                            setMsg(
+                              "Face liveness passed. Complete BVN (Tier 3) for full T3 search reach.",
+                            );
+                            setErr(null);
+                            // Persist liveness + auto-promote visibility T3 on server
+                            void (async () => {
+                              try {
+                                if (backendUserId) {
+                                  const { authFetch } =
+                                    await import("@/lib/api-auth-headers");
+                                  await authFetch("/api/artisan/profile", {
+                                    method: "PATCH",
+                                    body: JSON.stringify({
+                                      userId: backendUserId,
+                                      livenessPassedAt: passedAt,
+                                    }),
+                                  });
+                                  await authFetch("/api/profile/update", {
+                                    method: "POST",
+                                    body: JSON.stringify({
+                                      faceLivenessVerified: true,
+                                    }),
+                                  }).catch(() => null);
+                                }
+                              } catch {
+                                /* local still saved */
+                              }
+                            })();
+                          }}
+                        />
+                      </div>
+                    ) : !embedInSheet ? (
+                      <button
+                        type="button"
+                        className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[13px] font-bold text-white"
+                        onClick={() => {
+                          setShowLiveness(true);
+                          setErr(null);
+                        }}
+                      >
+                        <Camera className="h-4 w-4" />
+                        {profile.tiers.tier3_liveness
+                          ? "Run liveness again"
+                          : "Start face liveness"}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* BVN Tier 3 (after Government ID; not part of T2) */}
+                <div
+                  className={cn(
+                    "relative",
+                    !embedInSheet || embedStep === "bvn" ? "" : "hidden",
+                    !canAccessBvn(profile) && "opacity-45",
+                  )}
+                >
+                  {!canAccessBvn(profile) ? (
+                    <button
+                      type="button"
+                      className="absolute inset-0 z-[2] border-0 bg-transparent"
+                      aria-label={lockMessageForSection("bvn")}
+                      onClick={() => setGatePopup(lockMessageForSection("bvn"))}
+                    />
+                  ) : null}
+                  <div
+                    className={cn(
+                      panelClass,
+                      !canAccessBvn(profile) && "pointer-events-none",
+                    )}
+                  >
+                    <p
+                      className={cn(
+                        "flex items-center gap-2 text-[13px] font-bold",
+                        ink,
+                      )}
+                    >
+                      <FileText className="h-4 w-4 shrink-0 text-[#FF6B35]" />{" "}
+                      BVN · Tier 3
+                    </p>
+                    <p className={cn("mt-1 text-[10px] font-medium", muted)}>
+                      {profile.tiers.tier2_nin
+                        ? "Approved by admin / care"
+                        : reviewLabel(profile.ninReviewStatus)}
+                    </p>
+                    <input
+                      value={profile.nin || ""}
+                      onChange={(e) =>
+                        patch({
+                          nin: e.target.value.replace(/\D/g, "").slice(0, 11),
+                          tiers: { ...profile.tiers, tier2_nin: false },
+                          ninReviewStatus: "none",
+                        })
+                      }
+                      placeholder="11-digit BVN"
+                      className={cn("mt-2", fieldClass)}
+                      inputMode="numeric"
+                      maxLength={11}
+                      pattern="[0-9]{11}"
+                    />
+                    {!embedInSheet ? (
+                      <button
+                        type="button"
+                        disabled={
+                          idBusy === "nin" ||
+                          profile.tiers.tier2_nin ||
+                          profile.ninReviewStatus === "submitted"
+                        }
+                        className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#323231] text-[13px] font-bold text-white disabled:opacity-60"
+                        onClick={submitNinForReview}
+                      >
+                        {idBusy === "nin" ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />{" "}
+                            Saving…
+                          </>
+                        ) : profile.tiers.tier2_nin ? (
+                          <>
+                            <Check className="h-3.5 w-3.5" /> Approved
+                          </>
+                        ) : profile.ninReviewStatus === "submitted" ? (
+                          "BVN currently in review"
+                        ) : (
+                          "Submit BVN for review"
+                        )}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* Proof of skill after BVN + liveness */}
+                <div
+                  ref={skillSectionRef}
+                  className={cn(
+                    "relative",
+                    !embedInSheet || embedStep === "skill" ? "" : "hidden",
+                    !canAccessSkillProof(profile) && "opacity-45",
+                  )}
+                >
+                  {!canAccessSkillProof(profile) ? (
+                    <button
+                      type="button"
+                      className="absolute inset-0 z-[2] border-0 bg-transparent"
+                      aria-label={lockMessageForSection("skill")}
+                      onClick={() =>
+                        setGatePopup(lockMessageForSection("skill"))
+                      }
+                    />
+                  ) : null}
+                  <div
+                    className={cn(
+                      panelClass,
+                      "space-y-2.5",
+                      !canAccessSkillProof(profile) && "pointer-events-none",
+                    )}
+                  >
+                    <div>
+                      <p className={cn("text-[13px] font-bold", ink)}>
+                        Proof of skill
+                      </p>
+                      <p className={cn("mt-1 text-[10px] font-medium", muted)}>
+                        {profile.skillProof
+                          ? profile.skillProofStatus === "under_review" ||
+                            profile.tiers.tier4_skillProof
+                            ? "Submitted for review"
+                            : `Ready: ${profile.skillProof.name || "file"}`
+                          : "Upload certificate, then submit for review"}
+                      </p>
+                    </div>
+                    <select
+                      value={profile.skillProofType || ""}
+                      onChange={(e) =>
+                        patch({
+                          skillProofType: (e.target.value ||
+                            null) as SkillProofType | null,
+                        })
+                      }
+                      className={selectClass}
+                    >
+                      <option value="">Certificate type…</option>
+                      <option value="trade_test">Trade Test</option>
+                      <option value="nabteb">NABTEB</option>
+                      <option value="itf">ITF</option>
+                      <option value="apprenticeship_letter">
+                        Apprenticeship letter
+                      </option>
+                      <option value="other_evidence">Other evidence</option>
+                    </select>
+                    <div className="space-y-1.5">
+                      <label
+                        className={cn(
+                          "flex w-full min-h-[48px] cursor-pointer flex-col items-center justify-center gap-1 rounded-md px-3 py-3",
+                          isLight
+                            ? "bg-black/[0.06] text-slate-800"
+                            : "bg-white/[0.08] text-white",
+                        )}
+                      >
+                        <span className="flex items-center gap-2 text-[12px] font-bold">
+                          <Upload className="h-4 w-4 shrink-0 text-[#FF6B35]" />
+                          {profile.skillProof
+                            ? `File: ${profile.skillProof.name || "certificate"}`
+                            : "Upload certificate"}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*,.pdf"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const f = e.target.files?.[0];
+                            e.target.value = "";
+                            if (!f) return;
+                            if (!canAccessSkillProof(profile)) {
+                              setGatePopup(lockMessageForSection("skill"));
+                              return;
+                            }
+                            if (!profile.skillProofType) {
+                              setErr("Pick a certificate type first.");
+                              return;
+                            }
+                            if (
+                              f.type.startsWith("image/") &&
+                              f.size > IMAGE_MAX_BYTES
+                            ) {
+                              setErr(
+                                `Image must be ${formatMb(IMAGE_MAX_BYTES)} or less.`,
+                              );
+                              return;
+                            }
+                            setBusy(true);
+                            try {
+                              const url = await fileToDataUrl(f);
+                              // Draft only submit button sends for review
+                              patch({
+                                skillProof: {
+                                  id: uid(),
+                                  url,
+                                  kind: "skill_proof",
+                                  name: f.name,
+                                  mime: f.type,
+                                  createdAt: new Date().toISOString(),
+                                },
+                                skillProofStatus: "uploaded",
+                                tiers: {
+                                  ...profile.tiers,
+                                  tier4_skillProof: false,
+                                },
+                              });
+                              setMsg(
+                                "Certificate saved. Submit for review below.",
+                              );
+                              setErr(null);
+                            } catch {
+                              setErr("Could not read file.");
+                            } finally {
+                              setBusy(false);
+                            }
+                          }}
+                        />
+                      </label>
+                      {profile.skillProof?.url ? (
+                        <UploadInlinePreview
+                          url={profile.skillProof.url}
+                          label="Skill proof"
+                          mime={profile.skillProof.mime}
+                          fileName={profile.skillProof.name}
+                          isLight={isLight}
+                          defaultOpen
+                        />
+                      ) : null}
+                    </div>
+                    {!embedInSheet ? (
+                      <button
+                        type="button"
+                        disabled={
+                          busy ||
+                          !profile.skillProof ||
+                          profile.tiers.tier4_skillProof ||
+                          profile.skillProofStatus === "under_review"
+                        }
+                        className="flex h-11 w-full items-center justify-center rounded-md border-0 bg-[#323231] text-[13px] font-bold text-white disabled:opacity-60"
+                        onClick={() => {
+                          void submitSkillForReview();
+                        }}
+                      >
+                        {profile.tiers.tier4_skillProof ||
+                        profile.skillProofStatus === "under_review"
+                          ? "Skill currently in review"
+                          : "Submit skill for review"}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </>
             )}
           </section>
         )}
 
-        {/* —— REVIEW —— single clean summary card */}
+        {/*REVIEWsingle clean summary card */}
         {step === "review" && (
           <section className="space-y-4">
             <div>
@@ -2581,7 +2653,7 @@ export function ArtisanOnboarding({
             <div
               className={cn(
                 "overflow-hidden rounded-md",
-                isLight ? "bg-black/[0.05]" : "bg-white/[0.06]"
+                isLight ? "bg-black/[0.05]" : "bg-white/[0.06]",
               )}
             >
               {(
@@ -2598,7 +2670,7 @@ export function ArtisanOnboarding({
                     "Skills",
                     professionAnswersValid(
                       profile.trade.service,
-                      profile.professionAnswers || {}
+                      profile.professionAnswers || {},
                     )
                       ? "Complete"
                       : "Incomplete",
@@ -2637,7 +2709,7 @@ export function ArtisanOnboarding({
                   <span
                     className={cn(
                       "shrink-0 text-[11px] font-semibold uppercase tracking-wide",
-                      muted
+                      muted,
                     )}
                   >
                     {label}
@@ -2645,7 +2717,7 @@ export function ArtisanOnboarding({
                   <span
                     className={cn(
                       "min-w-0 text-right text-[13px] font-semibold leading-snug",
-                      ink
+                      ink,
                     )}
                   >
                     {value}
@@ -2654,7 +2726,7 @@ export function ArtisanOnboarding({
               ))}
             </div>
 
-            {/* Verification chips — compact */}
+            {/* Verification chips compact */}
             <div className="flex flex-wrap gap-1.5">
               {(
                 [
@@ -2672,7 +2744,7 @@ export function ArtisanOnboarding({
                       ? "bg-[#FF6B35]/15 text-[#FF6B35]"
                       : isLight
                         ? "bg-black/8 text-slate-600"
-                        : "bg-white/10 text-white/55"
+                        : "bg-white/10 text-white/55",
                   )}
                 >
                   {ok ? "✓" : "·"} {label}
@@ -2680,7 +2752,12 @@ export function ArtisanOnboarding({
               ))}
             </div>
 
-            <p className={cn("text-center text-[11px] font-medium leading-snug", muted)}>
+            <p
+              className={cn(
+                "text-center text-[11px] font-medium leading-snug",
+                muted,
+              )}
+            >
               Status becomes Pending Review. An admin must approve before Go
               Live.
             </p>
@@ -2697,7 +2774,7 @@ export function ArtisanOnboarding({
         )}
       </div>
 
-      {/* Trade lock sheet — portal; outside scroll so page can always scroll */}
+      {/* Trade lock sheet portal; outside scroll so page can always scroll */}
       {mode === "full" ? (
         <BottomSheet
           open={tradeLockOpen}
@@ -2707,7 +2784,12 @@ export function ArtisanOnboarding({
           <p id="trade-lock-title" className={cn("text-[16px] font-bold", ink)}>
             Primary trade locked
           </p>
-          <p className={cn("mt-2 text-[13px] font-medium leading-relaxed", muted)}>
+          <p
+            className={cn(
+              "mt-2 text-[13px] font-medium leading-relaxed",
+              muted,
+            )}
+          >
             You can&apos;t change primary trade. Contact Customer care at{" "}
             <a
               href="mailto:witcowavers@gmail.com"
@@ -2803,7 +2885,7 @@ export function ArtisanOnboarding({
         </div>
       ) : null}
 
-      {/* Apple footer — primary Continue, text Back */}
+      {/* Apple footer primary Continue, text Back */}
       {mode === "full" ? (
         <div
           className="flex shrink-0 flex-col gap-2 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3"
@@ -2823,7 +2905,7 @@ export function ArtisanOnboarding({
             onClick={() => setStep(STEPS[Math.max(0, stepIndex - 1)].id)}
             className={cn(
               "h-10 w-full border-0 bg-transparent text-[15px] font-semibold disabled:opacity-40",
-              navBack
+              navBack,
             )}
           >
             Back

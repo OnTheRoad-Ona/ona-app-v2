@@ -60,7 +60,7 @@ export function ShopVehicleBar({
       writeSessionVehicle(v);
       onVehicle?.(v);
     },
-    [onVehicle]
+    [onVehicle],
   );
 
   useEffect(() => {
@@ -115,7 +115,7 @@ export function ShopVehicleBar({
       <div
         className={cn(
           "flex items-center gap-2 rounded-xl px-3 py-2.5",
-          isLight ? "bg-black/[0.02]" : "bg-white/[0.02]"
+          isLight ? "bg-black/[0.02]" : "bg-white/[0.02]",
         )}
       >
         <Car className="h-4 w-4 shrink-0 text-[#FF6B35]" />
@@ -127,14 +127,14 @@ export function ShopVehicleBar({
             onClick={() => router.push("/shop/vehicles")}
             className={cn(
               "min-w-0 flex-1 border-0 bg-transparent text-left text-[13px] font-bold outline-none",
-              isLight ? "text-slate-900" : "text-white"
+              isLight ? "text-slate-900" : "text-white",
             )}
           >
             <span className="line-clamp-1">{label}</span>
             <span
               className={cn(
                 "mt-0.5 block text-[10px] font-semibold",
-                isLight ? "text-slate-500" : "text-white/45"
+                isLight ? "text-slate-500" : "text-white/45",
               )}
             >
               {active
@@ -152,7 +152,7 @@ export function ShopVehicleBar({
                 type="button"
                 onClick={() =>
                   router.push(
-                    `/shop/c/${tradeKey}?allParts=1&makeName=${encodeURIComponent(active.makeName)}&modelName=${encodeURIComponent(active.modelName)}${active.year ? `&year=${active.year}` : ""}${active.makeId ? `&makeId=${active.makeId}` : ""}${active.modelId ? `&modelId=${active.modelId}` : ""}${active.vehicleTypeSlug ? `&vehicleType=${encodeURIComponent(active.vehicleTypeSlug)}` : ""}`
+                    `/shop/c/${tradeKey}?allParts=1&makeName=${encodeURIComponent(active.makeName)}&modelName=${encodeURIComponent(active.modelName)}${active.year ? `&year=${active.year}` : ""}${active.makeId ? `&makeId=${active.makeId}` : ""}${active.modelId ? `&modelId=${active.modelId}` : ""}${active.vehicleTypeSlug ? `&vehicleType=${encodeURIComponent(active.vehicleTypeSlug)}` : ""}`,
                   )
                 }
                 className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border-0 bg-[#FF6B35] px-2.5 py-1.5 text-[11px] font-bold text-white"

@@ -101,71 +101,72 @@ export default function AdminFeaturesPage() {
         } finally {
           setBusy(false);
         }
-      }
+      },
     );
   }
 
   return (
     <AdminShell adminName={adminName}>
       <SensitivePageGate pageName="Features">
-      <h1 className="om-admin-h1">Feature flags</h1>
-      <p className="om-admin-sub">
-        Feature flags for the live app. Turn modules on/off without a redeploy (Super Admin).
-      </p>
+        <h1 className="om-admin-h1">Feature flags</h1>
+        <p className="om-admin-sub">
+          Feature flags for the live app. Turn modules on/off without a redeploy
+          (Super Admin).
+        </p>
 
-      <AdminGuideBanner pageId="features" />
+        <AdminGuideBanner pageId="features" />
 
-      {error ? <div className="om-admin-error">{error}</div> : null}
-      {msg ? <div className="om-admin-success">{msg}</div> : null}
+        {error ? <div className="om-admin-error">{error}</div> : null}
+        {msg ? <div className="om-admin-success">{msg}</div> : null}
 
-      <div className="om-admin-panel">
-        <div className="om-admin-toolbar">
-          <strong>Switches</strong>
-          <button
-            type="button"
-            className="om-admin-btn"
-            disabled={busy || !features}
-            onClick={save}
-            style={{ marginLeft: "auto" }}
-          >
-            {busy ? "Saving…" : "Save flags"}
-          </button>
+        <div className="om-admin-panel">
+          <div className="om-admin-toolbar">
+            <strong>Switches</strong>
+            <button
+              type="button"
+              className="om-admin-btn"
+              disabled={busy || !features}
+              onClick={save}
+              style={{ marginLeft: "auto" }}
+            >
+              {busy ? "Saving…" : "Save flags"}
+            </button>
+          </div>
+          <div style={{ padding: "0.5rem 1rem 1rem" }}>
+            {!features ? (
+              <p className="om-admin-muted">Loading…</p>
+            ) : (
+              FLAGS.map((f) => (
+                <label
+                  key={f.key}
+                  className="om-admin-switch"
+                  style={{
+                    display: "flex",
+                    padding: "0.75rem 0",
+                    borderBottom: "1px solid var(--om-border-soft)",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={Boolean(features[f.key])}
+                    onChange={(e) =>
+                      setFeatures({ ...features, [f.key]: e.target.checked })
+                    }
+                  />
+                  <span>
+                    {f.label}
+                    <small
+                      className="om-admin-muted"
+                      style={{ display: "block", fontWeight: 500 }}
+                    >
+                      {f.help}
+                    </small>
+                  </span>
+                </label>
+              ))
+            )}
+          </div>
         </div>
-        <div style={{ padding: "0.5rem 1rem 1rem" }}>
-          {!features ? (
-            <p className="om-admin-muted">Loading…</p>
-          ) : (
-            FLAGS.map((f) => (
-              <label
-                key={f.key}
-                className="om-admin-switch"
-                style={{
-                  display: "flex",
-                  padding: "0.75rem 0",
-                  borderBottom: "1px solid var(--om-border-soft)",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={Boolean(features[f.key])}
-                  onChange={(e) =>
-                    setFeatures({ ...features, [f.key]: e.target.checked })
-                  }
-                />
-                <span>
-                  {f.label}
-                  <small
-                    className="om-admin-muted"
-                    style={{ display: "block", fontWeight: 500 }}
-                  >
-                    {f.help}
-                  </small>
-                </span>
-              </label>
-            ))
-          )}
-        </div>
-      </div>
       </SensitivePageGate>
     </AdminShell>
   );

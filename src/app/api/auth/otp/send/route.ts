@@ -6,10 +6,7 @@ import {
   normalizeNgPhone,
   sendLoginOtpSms,
 } from "@/lib/server/africastalking";
-import {
-  phoneOrFilter,
-  phonesMatch,
-} from "@/lib/server/phone-match";
+import { phoneOrFilter, phonesMatch } from "@/lib/server/phone-match";
 import {
   DEMO_OTP_CODE,
   emailOtpKey,
@@ -44,7 +41,7 @@ function hashCode(dest: string, code: string): string {
 
 /**
  * Send login/signup OTP to phone or email.
- * Always succeeds in demo mode when SMS/email provider is missing —
+ * Always succeeds in demo mode when SMS/email provider is missing
  * user can enter DEMO_OTP_CODE (336699).
  *
  * The code-issue + delivery step is ledger-idempotent (runIdempotent):
@@ -98,7 +95,7 @@ export async function POST(req: Request) {
         return apiFail(
           "This phone is not registered. Use the exact number from signup.",
           404,
-          "phone_not_registered"
+          "phone_not_registered",
         );
       }
     } else {
@@ -120,7 +117,7 @@ export async function POST(req: Request) {
         return apiFail(
           "No Ona account found for this email. Sign up first.",
           404,
-          "email_not_registered"
+          "email_not_registered",
         );
       }
     }
@@ -131,7 +128,7 @@ export async function POST(req: Request) {
       actorKind: channel,
       actorId: parsed.data.opActorId || dest,
       run: async () => {
-        // Rate limiting applies only to actually issuing a new code — a
+        // Rate limiting applies only to actually issuing a new code a
         // replay of an already-issued code must never be blocked.
         try {
           const { rateLimit } = await import("@/lib/server/modules/rate-limit");
@@ -166,7 +163,12 @@ export async function POST(req: Request) {
           .limit(1);
 
         const last = recent?.[0] as
-          | { id?: string; created_at?: string; attempts?: number; consumed_at?: string | null }
+          | {
+              id?: string;
+              created_at?: string;
+              attempts?: number;
+              consumed_at?: string | null;
+            }
           | undefined;
         const failedAttempts = Number(last?.attempts ?? 0);
         if (failedAttempts >= 4 && last?.created_at && !last.consumed_at) {
@@ -202,8 +204,7 @@ export async function POST(req: Request) {
           code_hash: hashCode(dest, code),
           expires_at: expiresAt,
         });
-        if (insErr)
-          return { ok: false as const, error: insErr.message };
+        if (insErr) return { ok: false as const, error: insErr.message };
 
         let delivery: "sms" | "demo" | "email_demo" = "demo";
         // Never expose "SMS not configured" / demo codes in the client message
@@ -218,7 +219,7 @@ export async function POST(req: Request) {
             deliveryNote = "Code sent. Enter it below.";
           }
         } else if (channel === "email") {
-          // Real email provider not wired yet — demo path (UI stays neutral)
+          // Real email provider not wired yet demo path (UI stays neutral)
           delivery = "email_demo";
           deliveryNote = "Code sent. Enter it below.";
         }
@@ -238,7 +239,7 @@ export async function POST(req: Request) {
     });
 
     if (result.status === "processing") {
-      // A concurrent duplicate is still settling — never report failure here.
+      // A concurrent duplicate is still settling never report failure here.
       // The client verifies against /api/ops/status instead.
       return apiOk({
         sent: false,

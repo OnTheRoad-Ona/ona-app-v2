@@ -67,7 +67,7 @@ export async function readAdminSession(): Promise<AdminSession | null> {
       return null;
     }
     const parsed = JSON.parse(
-      Buffer.from(payload, "base64url").toString("utf8")
+      Buffer.from(payload, "base64url").toString("utf8"),
     ) as AdminSession;
     if (!parsed?.userId || !parsed?.accessToken) return null;
 
@@ -89,7 +89,7 @@ export async function readAdminSession(): Promise<AdminSession | null> {
   }
 }
 
-/** HMAC secret for the admin session cookie — explicit env or derived, never a hardcoded constant. */
+/** HMAC secret for the admin session cookie explicit env or derived, never a hardcoded constant. */
 function sessionSigningSecret(): string | null {
   const explicit = process.env.ADMIN_SESSION_SIGNING_SECRET?.trim();
   if (explicit) return explicit;
@@ -113,7 +113,7 @@ export function encodeAdminSession(session: AdminSession): string {
   const secret = sessionSigningSecret();
   if (!secret) {
     throw new Error(
-      "ADMIN_SESSION_SIGNING_SECRET or SUPABASE_SERVICE_ROLE_KEY is required"
+      "ADMIN_SESSION_SIGNING_SECRET or SUPABASE_SERVICE_ROLE_KEY is required",
     );
   }
   const payload = Buffer.from(
@@ -121,7 +121,7 @@ export function encodeAdminSession(session: AdminSession): string {
       ...session,
       lastActivityAt: Date.now(),
     }),
-    "utf8"
+    "utf8",
   ).toString("base64url");
   const sig = createHmac("sha256", secret).update(payload).digest("base64url");
   return `${payload}.${sig}`;
@@ -140,7 +140,7 @@ export async function touchAdminSession(session: AdminSession): Promise<void> {
         secure: process.env.NODE_ENV === "production",
         path: "/",
         maxAge: 60 * 60 * 8, // 8h hard cap; idle still enforced
-      }
+      },
     );
   } catch {
     /* ignore cookie write failures in edge cases */
@@ -194,7 +194,7 @@ export async function requireAdmin(): Promise<{
             ? "operations"
             : role === "manager"
               ? "manager"
-              : "super_admin")
+              : "super_admin"),
   );
 
   await touchAdminSession(session);
@@ -206,9 +206,7 @@ export async function requireAdmin(): Promise<{
   };
 }
 
-export async function requirePermission(
-  perm: CarePermission
-): Promise<{
+export async function requirePermission(perm: CarePermission): Promise<{
   session: AdminSession;
   profile: AdminProfile;
   adminRole: AdminRole;
@@ -218,7 +216,7 @@ export async function requirePermission(
     throw new AdminAuthError(
       `Permission denied (${perm}). Your access level cannot perform this action.`,
       403,
-      "permission_denied"
+      "permission_denied",
     );
   }
   return ctx;
@@ -231,7 +229,7 @@ export async function requirePermission(
  */
 export async function requireSensitiveAction(
   perm: CarePermission,
-  req: Request
+  req: Request,
 ): Promise<{
   session: AdminSession;
   profile: AdminProfile;
@@ -249,7 +247,7 @@ export async function requireSensitiveAction(
   if (!rl.ok) {
     throw new AdminAuthError(
       `Too many sensitive attempts. Retry in ${rl.retryAfterSec}s`,
-      429
+      429,
     );
   }
 
@@ -264,7 +262,7 @@ export async function requireSensitiveAction(
       throw new AdminAuthError(
         "Sensitive action locked. Enter the temporary staff access code to unlock.",
         403,
-        "sensitive_locked"
+        "sensitive_locked",
       );
     }
   }
@@ -286,7 +284,7 @@ export async function logAdminAction(
   adminId: string,
   action: string,
   targetUserId: string | null,
-  meta: Record<string, unknown> = {}
+  meta: Record<string, unknown> = {},
 ) {
   await writeAuditLog({
     adminId,

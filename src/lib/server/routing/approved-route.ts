@@ -28,14 +28,17 @@ function valid(p: { lat: number; lng: number } | null | undefined): boolean {
 
 async function tryDirections(
   origin: { lat: number; lng: number },
-  destination: { lat: number; lng: number }
+  destination: { lat: number; lng: number },
 ): Promise<ApprovedRoute | null> {
   const key = getGoogleMapsApiKey();
   if (!key) return null;
   try {
     const url = new URL("https://maps.googleapis.com/maps/api/directions/json");
     url.searchParams.set("origin", `${origin.lat},${origin.lng}`);
-    url.searchParams.set("destination", `${destination.lat},${destination.lng}`);
+    url.searchParams.set(
+      "destination",
+      `${destination.lat},${destination.lng}`,
+    );
     url.searchParams.set("mode", "driving");
     url.searchParams.set("key", key);
     const res = await fetch(url.toString(), { cache: "no-store" });
@@ -65,7 +68,7 @@ async function tryDirections(
 /** Server-only road distance. Retries. Never bills a straight line. */
 export async function computeApprovedRoadRoute(
   origin: { lat: number; lng: number },
-  destination: { lat: number; lng: number }
+  destination: { lat: number; lng: number },
 ): Promise<RouteAttempt> {
   if (!valid(origin) || !valid(destination)) {
     return { ok: false, reason: "invalid_coords" };

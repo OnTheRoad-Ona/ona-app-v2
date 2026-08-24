@@ -32,21 +32,21 @@ const bodySchema = z.object({
   actorId: z.string().optional(),
   reason: z.string().optional(),
   cancelReason: z.string().optional(),
-  /** Client idempotency key — dedupes replayed Open/Confirm/Later/Decline */
+  /** Client idempotency key dedupes replayed Open/Confirm/Later/Decline */
   idempotencyKey: z.string().max(128).optional(),
   proLat: z.number().optional(),
   proLng: z.number().optional(),
   accuracyM: z.number().optional(),
   capturedAt: z.string().optional(),
   mockLocation: z.boolean().optional(),
-  /** Optional client overrides — server prefers Google Distance Matrix when GPS present */
+  /** Optional client overrides server prefers Google Distance Matrix when GPS present */
   etaMinutes: z.number().optional(),
   distanceKm: z.number().optional(),
 });
 
 export async function POST(
   req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   const { id } = await ctx.params;
   try {
@@ -98,16 +98,12 @@ export async function POST(
       if (actor !== "repair_pro") {
         return apiFail("Only the assigned Repair Pro can do that", 403);
       }
-      const {
-        openRequest,
-        confirmRequest,
-        deferRequest,
-        declineRequest,
-      } = await import("@/lib/server/pairing/pairing-engine");
+      const { openRequest, confirmRequest, deferRequest, declineRequest } =
+        await import("@/lib/server/pairing/pairing-engine");
       const idempotencyKey = b.idempotencyKey || undefined;
       const t0 = Date.now();
       console.log(
-        `[sspe] ${b.event} start id=${id} pro=${auth.userId} stage=${job.pairingStage ?? job.status} key=${idempotencyKey ?? "-"}`
+        `[sspe] ${b.event} start id=${id} pro=${auth.userId} stage=${job.pairingStage ?? job.status} key=${idempotencyKey ?? "-"}`,
       );
       let res;
       try {
@@ -128,21 +124,25 @@ export async function POST(
         } else if (b.event === "LATER") {
           res = await deferRequest(id, auth.userId);
         } else {
-          res = await declineRequest(id, auth.userId, b.reason || b.cancelReason);
+          res = await declineRequest(
+            id,
+            auth.userId,
+            b.reason || b.cancelReason,
+          );
         }
       } catch (err) {
         console.error(
           `[sspe] ${b.event} threw id=${id} pro=${auth.userId}:`,
-          err
+          err,
         );
         return apiFail("Internal error", 500);
       }
       console.log(
-        `[sspe] ${b.event} end id=${id} pro=${auth.userId} ok=${res.ok} ms=${Date.now() - t0}${res.ok ? "" : ` err=${res.error} status=${res.status}`}`
+        `[sspe] ${b.event} end id=${id} pro=${auth.userId} ok=${res.ok} ms=${Date.now() - t0}${res.ok ? "" : ` err=${res.error} status=${res.status}`}`,
       );
       if (!res.ok) return apiFail(res.error, res.status || 400);
       console.log(
-        `[sspe] ${b.event} success id=${id} noop=${res.noop} next=${res.nextProId ?? "-"}`
+        `[sspe] ${b.event} success id=${id} noop=${res.noop} next=${res.nextProId ?? "-"}`,
       );
       const updatedJob = await getJob(id);
       return apiOk({
@@ -173,7 +173,7 @@ export async function POST(
     if (proLocation && job.motoristLocation) {
       const metrics = await computeDriveMetrics(
         proLocation,
-        job.motoristLocation
+        job.motoristLocation,
       );
       distanceKm = metrics.distanceKm;
       etaMinutes = metrics.etaMinutes;
@@ -217,9 +217,6 @@ export async function POST(
       serverNow: new Date().toISOString(),
     });
   } catch (e) {
-    return apiFail(
-      e instanceof Error ? e.message : "Transition failed",
-      500
-    );
+    return apiFail(e instanceof Error ? e.message : "Transition failed", 500);
   }
 }

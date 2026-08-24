@@ -42,10 +42,26 @@ const URGENCY_CHIPS: {
   label: string;
   fee: string;
 }[] = [
-  { id: "normal", label: VULCANIZER_FINAL_COPY.normal, fee: "1x · base + call-out" },
-  { id: "emergency", label: VULCANIZER_FINAL_COPY.emergency, fee: "1.25x · base + call-out" },
-  { id: "remote", label: VULCANIZER_FINAL_COPY.remote, fee: "1.35x · base + call-out" },
-  { id: "night", label: VULCANIZER_FINAL_COPY.night, fee: "1.5x · base + call-out" },
+  {
+    id: "normal",
+    label: VULCANIZER_FINAL_COPY.normal,
+    fee: "1x · base + call-out",
+  },
+  {
+    id: "emergency",
+    label: VULCANIZER_FINAL_COPY.emergency,
+    fee: "1.25x · base + call-out",
+  },
+  {
+    id: "remote",
+    label: VULCANIZER_FINAL_COPY.remote,
+    fee: "1.35x · base + call-out",
+  },
+  {
+    id: "night",
+    label: VULCANIZER_FINAL_COPY.night,
+    fee: "1.5x · base + call-out",
+  },
 ];
 
 type FinalStep = "urgency" | "photos" | "voice" | "location" | "tow";
@@ -102,8 +118,7 @@ export function VulcanizerHelpFlow({
   const [route, setRoute] = useState<VulcanizerRoute | null>(null);
   const [chosenTrade, setChosenTrade] = useState<ProService>("vulcanizer");
   const { urgency, setUrgency, restoreUrgency } = useAutoCalloutUrgency({
-    unsafe:
-      answers["b_safe"] === "no" || answers["d_use"] === "unsafe",
+    unsafe: answers["b_safe"] === "no" || answers["d_use"] === "unsafe",
     distanceKm: nearestProDistanceKm(visibleTechnicians, [chosenTrade]),
   });
   const [photos, setPhotos] = useState<JobMedia[]>([]);
@@ -148,7 +163,7 @@ export function VulcanizerHelpFlow({
 
   const profileVehicles = useMemo(
     () => profileVehiclesOf(userProfile),
-    [userProfile]
+    [userProfile],
   );
   /** Profile vehicles + vehicles saved in this session (deduped by label). */
   const savedVehicles = useMemo(
@@ -157,11 +172,11 @@ export function VulcanizerHelpFlow({
       ...manualVehicles.filter(
         (mv) =>
           !profileVehicles.some(
-            (pv) => formatVehicleLabel(pv) === formatVehicleLabel(mv)
-          )
+            (pv) => formatVehicleLabel(pv) === formatVehicleLabel(mv),
+          ),
       ),
     ],
-    [profileVehicles, manualVehicles]
+    [profileVehicles, manualVehicles],
   );
 
   const saveVehicle = (v: MotoristVehicle): string | null => {
@@ -182,7 +197,11 @@ export function VulcanizerHelpFlow({
     restoredRef.current = true;
     const snap = readSession<VulcFlowSnapshot>(FLOW_SESSION_KEY);
     if (snap) {
-      setStack(Array.isArray(snap.stack) && snap.stack.length ? snap.stack : ["vehicle"]);
+      setStack(
+        Array.isArray(snap.stack) && snap.stack.length
+          ? snap.stack
+          : ["vehicle"],
+      );
       setAnswers(snap.answers ?? {});
       setVehicleLabel(snap.vehicleLabel ?? "");
       setManualVehicles(snap.manualVehicles ?? []);
@@ -303,9 +322,11 @@ export function VulcanizerHelpFlow({
     if (vulcanizerScreen(leaving)?.kind === "text") {
       setDraft(answers[leaving] || "");
     } else {
-      setDraft(answers[prev] && vulcanizerScreen(prev)?.kind === "text"
-        ? answers[prev]
-        : "");
+      setDraft(
+        answers[prev] && vulcanizerScreen(prev)?.kind === "text"
+          ? answers[prev]
+          : "",
+      );
     }
   };
 
@@ -353,9 +374,7 @@ export function VulcanizerHelpFlow({
       return;
     }
     const trade: ProService = chosenTrade;
-    const problem = [
-      composeVulcanizerProblem(answers, extra, landmark),
-    ]
+    const problem = [composeVulcanizerProblem(answers, extra, landmark)]
       .filter(Boolean)
       .join("\n");
     const payload = {
@@ -404,7 +423,7 @@ export function VulcanizerHelpFlow({
     try {
       window.sessionStorage.setItem(
         `ona-seed-job:${res.data.job.id}`,
-        JSON.stringify(res.data.job)
+        JSON.stringify(res.data.job),
       );
     } catch {
       /* ignore */
@@ -431,7 +450,7 @@ export function VulcanizerHelpFlow({
           ? "voice"
           : finalStep === "voice"
             ? "location"
-            : "tow"
+            : "tow",
     );
   };
 
@@ -449,7 +468,7 @@ export function VulcanizerHelpFlow({
           ? "photos"
           : finalStep === "location"
             ? "voice"
-            : "location"
+            : "location",
     );
   };
 
@@ -468,7 +487,7 @@ export function VulcanizerHelpFlow({
     <div
       className={cn(
         "om-mech-enter flex h-full min-h-0 flex-col overflow-hidden rounded-t-lg px-3 pb-2 pt-1.5",
-        isLight ? "bg-[#d8dce4]/90 backdrop-blur-sm" : "bg-black"
+        isLight ? "bg-[#d8dce4]/90 backdrop-blur-sm" : "bg-black",
       )}
     >
       <div className="mb-1.5 h-0.5 shrink-0 overflow-hidden rounded-full">
@@ -517,17 +536,22 @@ export function VulcanizerHelpFlow({
           {step === "final" ? (
             <div className="flex min-h-0 flex-1 flex-col">
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-hide">
-                <p className={cn("mt-2 px-0.5 pb-2 text-[14px] font-bold capitalize leading-snug", ink)}>
-                    {finalStep === "urgency"
-                      ? VULCANIZER_FINAL_COPY.urgency
-                      : finalStep === "photos"
-                        ? VULCANIZER_FINAL_COPY.photos
-                        : finalStep === "voice"
-                          ? VULCANIZER_FINAL_COPY.voice
-                          : finalStep === "location"
-                            ? VULCANIZER_FINAL_COPY.location
-                            : VULCANIZER_FINAL_COPY.tow}
-                  </p>
+                <p
+                  className={cn(
+                    "mt-2 px-0.5 pb-2 text-[14px] font-bold capitalize leading-snug",
+                    ink,
+                  )}
+                >
+                  {finalStep === "urgency"
+                    ? VULCANIZER_FINAL_COPY.urgency
+                    : finalStep === "photos"
+                      ? VULCANIZER_FINAL_COPY.photos
+                      : finalStep === "voice"
+                        ? VULCANIZER_FINAL_COPY.voice
+                        : finalStep === "location"
+                          ? VULCANIZER_FINAL_COPY.location
+                          : VULCANIZER_FINAL_COPY.tow}
+                </p>
                 <div className={cn("rounded-[4px] px-3 py-2.5", rowCard)}>
                   {finalStep === "urgency" ? (
                     <div className="flex flex-col gap-1.5">
@@ -542,13 +566,15 @@ export function VulcanizerHelpFlow({
                           }}
                           className={cn(
                             "flex w-full items-center justify-between gap-2 rounded-md border-0 px-3 py-2.5 text-left transition-transform duration-150 active:scale-[0.985]",
-                            urgency === opt.id ? "bg-[#FF6B35]/10" : "bg-transparent"
+                            urgency === opt.id
+                              ? "bg-[#FF6B35]/10"
+                              : "bg-transparent",
                           )}
                         >
                           <span
                             className={cn(
                               "text-[13px] font-bold",
-                              urgency === opt.id ? "text-[#FF6B35]" : ink
+                              urgency === opt.id ? "text-[#FF6B35]" : ink,
                             )}
                           >
                             {opt.label}
@@ -556,7 +582,7 @@ export function VulcanizerHelpFlow({
                           <span
                             className={cn(
                               "text-[11px] font-semibold",
-                              urgency === opt.id ? "text-[#FF6B35]" : muted
+                              urgency === opt.id ? "text-[#FF6B35]" : muted,
                             )}
                           >
                             {opt.fee}
@@ -587,13 +613,15 @@ export function VulcanizerHelpFlow({
                             type="button"
                             onClick={() =>
                               setPhotos((prev) =>
-                                prev.filter((x) => x.id !== p.id)
+                                prev.filter((x) => x.id !== p.id),
                               )
                             }
                             className="h-12 w-12 overflow-hidden rounded-lg border-0 p-0"
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img loading="lazy" decoding="async"
+                            <img
+                              loading="lazy"
+                              decoding="async"
                               src={p.url}
                               alt=""
                               className="h-full w-full object-cover"
@@ -606,7 +634,7 @@ export function VulcanizerHelpFlow({
                             onClick={() => photoRef.current?.click()}
                             className={cn(
                               "h-12 w-12 rounded-lg border-0 text-[18px] font-bold",
-                              chipIdle
+                              chipIdle,
                             )}
                           >
                             +
@@ -630,7 +658,9 @@ export function VulcanizerHelpFlow({
                     <VoiceNoteRecorder
                       value={voiceNote}
                       onChange={setVoiceNote}
-                      userId={backendUserId || userProfile?.identityId || "guest"}
+                      userId={
+                        backendUserId || userProfile?.identityId || "guest"
+                      }
                       isLight={isLight}
                       leading={
                         <button
@@ -668,7 +698,9 @@ export function VulcanizerHelpFlow({
                             }}
                             className="flex w-full items-center gap-2 rounded-[4px] border-0 px-1 py-3 text-left transition-transform duration-150 active:scale-[0.985]"
                           >
-                            <span className={cn("text-[13px] font-semibold", ink)}>
+                            <span
+                              className={cn("text-[13px] font-semibold", ink)}
+                            >
                               {VULCANIZER_FINAL_COPY.towYes}
                             </span>
                           </button>
@@ -682,7 +714,9 @@ export function VulcanizerHelpFlow({
                             }}
                             className="flex w-full items-center gap-2 rounded-[4px] border-0 px-1 py-3 text-left transition-transform duration-150 active:scale-[0.985]"
                           >
-                            <span className={cn("text-[13px] font-semibold", ink)}>
+                            <span
+                              className={cn("text-[13px] font-semibold", ink)}
+                            >
                               {VULCANIZER_FINAL_COPY.towNo}
                             </span>
                           </button>
@@ -715,7 +749,7 @@ export function VulcanizerHelpFlow({
                               }}
                               className={cn(
                                 "h-11 flex-1 rounded-md border-0 text-[14px] font-bold active:scale-[0.985]",
-                                chipIdle
+                                chipIdle,
                               )}
                             >
                               No
@@ -739,7 +773,7 @@ export function VulcanizerHelpFlow({
                     onClick={finalBack}
                     className={cn(
                       "h-11 flex-1 rounded-md border-0 text-[14px] font-bold",
-                      actionFlat
+                      actionFlat,
                     )}
                   >
                     Back
@@ -756,141 +790,145 @@ export function VulcanizerHelpFlow({
               </div>
             </div>
           ) : (
-          <>
-          <div
-            key={`${step}-${dir}`}
-            className={cn(
-              "min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-hide",
-              dir === "back" ? "om-mech-slide-back" : "om-mech-slide-fwd"
-            )}
-          >
-        {screen ? (
-          <>
-            <div className="mt-2 flex items-center gap-1 px-0.5 pb-2">
-              {screen?.kind === "text" ? (
-                <button
-                  type="button"
-                  disabled={!canAdvanceText(draft)}
-                  onClick={submitText}
-                  aria-label="Next"
-                  className="border-0 bg-transparent p-0.5 text-[#FF6B35] disabled:opacity-40"
-                >
-                  <ChevronRight className="h-6 w-6" strokeWidth={2.5} />
-                </button>
-              ) : null}
-              <p className={cn("text-[14px] font-bold capitalize leading-snug", ink)}>
-                {screen.question}
-              </p>
-            </div>
-            {screen.kind === "choice" ? (
-              <div className="flex flex-col gap-1">
-                {(screen.options || []).map((opt, i) => {
-                  const letter =
-                    step === "start"
-                      ? VULCANIZER_START_OPTIONS[i]?.id
-                      : undefined;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => pick(opt.id, opt.label)}
-                      className={cn(
-                        "flex w-full items-center gap-2 rounded-[4px] border-0 px-1 py-3 text-left transition-transform duration-150 active:scale-[0.985]",
-                        rowCard
-                      )}
-                    >
-                      {letter ? (
-                        <span
-                          className={cn(
-                            "w-5 shrink-0 text-[12px] font-bold",
-                            muted
-                          )}
+            <>
+              <div
+                key={`${step}-${dir}`}
+                className={cn(
+                  "min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-hide",
+                  dir === "back" ? "om-mech-slide-back" : "om-mech-slide-fwd",
+                )}
+              >
+                {screen ? (
+                  <>
+                    <div className="mt-2 flex items-center gap-1 px-0.5 pb-2">
+                      {screen?.kind === "text" ? (
+                        <button
+                          type="button"
+                          disabled={!canAdvanceText(draft)}
+                          onClick={submitText}
+                          aria-label="Next"
+                          className="border-0 bg-transparent p-0.5 text-[#FF6B35] disabled:opacity-40"
                         >
-                          {letter}.
-                        </span>
+                          <ChevronRight className="h-6 w-6" strokeWidth={2.5} />
+                        </button>
                       ) : null}
-                      <span
+                      <p
                         className={cn(
-                          "min-w-0 flex-1 text-[13px] font-semibold capitalize leading-snug",
-                          ink
+                          "text-[14px] font-bold capitalize leading-snug",
+                          ink,
                         )}
                       >
-                        {opt.label}
-                      </span>
-                    </button>
-                  );
-                })}
+                        {screen.question}
+                      </p>
+                    </div>
+                    {screen.kind === "choice" ? (
+                      <div className="flex flex-col gap-1">
+                        {(screen.options || []).map((opt, i) => {
+                          const letter =
+                            step === "start"
+                              ? VULCANIZER_START_OPTIONS[i]?.id
+                              : undefined;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => pick(opt.id, opt.label)}
+                              className={cn(
+                                "flex w-full items-center gap-2 rounded-[4px] border-0 px-1 py-3 text-left transition-transform duration-150 active:scale-[0.985]",
+                                rowCard,
+                              )}
+                            >
+                              {letter ? (
+                                <span
+                                  className={cn(
+                                    "w-5 shrink-0 text-[12px] font-bold",
+                                    muted,
+                                  )}
+                                >
+                                  {letter}.
+                                </span>
+                              ) : null}
+                              <span
+                                className={cn(
+                                  "min-w-0 flex-1 text-[13px] font-semibold capitalize leading-snug",
+                                  ink,
+                                )}
+                              >
+                                {opt.label}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <textarea
+                        value={draft}
+                        onChange={(e) => {
+                          setDraft(e.target.value);
+                          setError(null);
+                        }}
+                        rows={3}
+                        placeholder={screen.placeholder}
+                        className={cn(
+                          "w-full resize-none rounded-xl border-0 px-3 py-2 text-[13px] font-medium leading-snug outline-none",
+                          field,
+                        )}
+                      />
+                    )}
+                  </>
+                ) : null}
+
+                {step === "confirm" && route ? (
+                  <div>
+                    <p className={cn("text-[14px] font-bold", ink)}>
+                      {confirmQuestion(route.trade)}
+                    </p>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => acceptRoute(true)}
+                        className="h-11 flex-1 rounded-md border-0 bg-brand text-[14px] font-bold text-white active:scale-[0.985]"
+                      >
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => acceptRoute(false)}
+                        className={cn(
+                          "h-11 flex-1 rounded-md border-0 text-[14px] font-bold active:scale-[0.985]",
+                          chipIdle,
+                        )}
+                      >
+                        No
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {error ? (
+                  <p className="mt-1 text-[12px] font-semibold text-red-500">
+                    {error}
+                  </p>
+                ) : null}
               </div>
-            ) : (
-              <textarea
-                value={draft}
-                onChange={(e) => {
-                  setDraft(e.target.value);
-                  setError(null);
-                }}
-                rows={3}
-                placeholder={screen.placeholder}
-                className={cn(
-                  "w-full resize-none rounded-xl border-0 px-3 py-2 text-[13px] font-medium leading-snug outline-none",
-                  field
-                )}
-              />
-            )}
-          </>
-        ) : null}
-
-        {step === "confirm" && route ? (
-          <div>
-            <p className={cn("text-[14px] font-bold", ink)}>
-              {confirmQuestion(route.trade)}
-            </p>
-            <div className="mt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => acceptRoute(true)}
-                className="h-11 flex-1 rounded-md border-0 bg-brand text-[14px] font-bold text-white active:scale-[0.985]"
-              >
-                Yes
-              </button>
-              <button
-                type="button"
-                onClick={() => acceptRoute(false)}
-                className={cn(
-                  "h-11 flex-1 rounded-md border-0 text-[14px] font-bold active:scale-[0.985]",
-                  chipIdle
-                )}
-              >
-                No
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        {error ? (
-            <p className="mt-1 text-[12px] font-semibold text-red-500">
-              {error}
-            </p>
-          ) : null}
-          </div>
-          {stack.length > 1 ? (
-            <div className="mt-auto flex shrink-0 gap-2 pt-2">
-              <button
-                type="button"
-                onClick={goBack}
-                className={cn(
-                  "h-11 w-full rounded-md border-0 text-[14px] font-bold",
-                  actionFlat
-                )}
-              >
-                Back
-              </button>
-            </div>
-          ) : null}
-          </>
+              {stack.length > 1 ? (
+                <div className="mt-auto flex shrink-0 gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={goBack}
+                    className={cn(
+                      "h-11 w-full rounded-md border-0 text-[14px] font-bold",
+                      actionFlat,
+                    )}
+                  >
+                    Back
+                  </button>
+                </div>
+              ) : null}
+            </>
           )}
         </div>
       )}
-
     </div>
   );
 }

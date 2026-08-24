@@ -19,10 +19,10 @@ export function getBearerToken(req: Request): string | null {
 /**
  * Resolve the authenticated Supabase user from the request.
  * Prefer Authorization: Bearer. Optionally pass token from already-parsed body.
- * Does NOT read req.json() — callers that only have body tokens should pass them.
+ * Does NOT read req.json() callers that only have body tokens should pass them.
  */
 export async function getUserFromToken(
-  token: string | null | undefined
+  token: string | null | undefined,
 ): Promise<User | null> {
   if (!token || token.length < 10) return null;
   if (!url || !anon) return null;
@@ -38,7 +38,7 @@ export async function getUserFromToken(
 }
 
 /**
- * Cookie session fallback — browser client (@supabase/ssr) stores tokens in
+ * Cookie session fallback browser client (@supabase/ssr) stores tokens in
  * cookies. Job pages can race Bearer attach; cookie auth still proves login.
  */
 async function getUserFromCookies(): Promise<{
@@ -91,9 +91,15 @@ export type AuthUser = { userId: string; email?: string | null; token: string };
  */
 export async function requireUser(
   req: Request,
-  opts?: { bodyToken?: string | null }
+  opts?: { bodyToken?: string | null },
 ): Promise<
-  | { ok: true; userId: string; email?: string | null; token: string; user: User }
+  | {
+      ok: true;
+      userId: string;
+      email?: string | null;
+      token: string;
+      user: User;
+    }
   | { ok: false; response: Response }
 > {
   const token = getBearerToken(req) || opts?.bodyToken || null;
@@ -158,7 +164,11 @@ export async function requireUser(
 /** True when caller is a party on the job (motorist or assigned pro). */
 export function isJobParty(
   userId: string,
-  job: { motoristId?: string | null; repairProId?: string | null; status?: string }
+  job: {
+    motoristId?: string | null;
+    repairProId?: string | null;
+    status?: string;
+  },
 ): boolean {
   if (userId === job.motoristId || userId === job.repairProId) return true;
   if (job.status === "searching" || job.status === "negotiating") return true;

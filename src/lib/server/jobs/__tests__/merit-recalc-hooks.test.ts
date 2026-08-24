@@ -13,7 +13,7 @@ beforeEach(() => {
   recalcMock.mockClear();
 });
 
-describe("fireMeritRecalc — MRE wiring helper", () => {
+describe("fireMeritRecalc MRE wiring helper", () => {
   it("fires recalculateMerit for a pro id (completed / cancelled / disputed paths)", async () => {
     await fireMeritRecalc("pro-1");
     expect(recalcMock).toHaveBeenCalledTimes(1);

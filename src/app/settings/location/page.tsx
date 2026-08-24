@@ -77,7 +77,7 @@ export default function SettingsLocationPage() {
       city: "",
       area: "",
     }),
-    [location.coordinates.lat, location.coordinates.lng, location.label]
+    [location.coordinates.lat, location.coordinates.lng, location.label],
   );
 
   const onChange = (loc: PickedLocation) => {
@@ -94,15 +94,16 @@ export default function SettingsLocationPage() {
     const entry: SavedAddress = {
       id: `${Date.now()}`,
       label,
-      customLabel: label === "Other" ? customLabel.trim() || "Other" : undefined,
+      customLabel:
+        label === "Other" ? customLabel.trim() || "Other" : undefined,
       text: location.label,
       lat: location.coordinates.lat,
       lng: location.coordinates.lng,
     };
-    const next = [...addresses.filter((a) => a.label !== label || label === "Other"), entry].slice(
-      0,
-      8
-    );
+    const next = [
+      ...addresses.filter((a) => a.label !== label || label === "Other"),
+      entry,
+    ].slice(0, 8);
     setAddresses(next);
     saveAddresses(uid, next);
   };
@@ -123,7 +124,7 @@ export default function SettingsLocationPage() {
     <div
       className={cn(
         "flex h-full min-h-0 flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader
@@ -141,7 +142,7 @@ export default function SettingsLocationPage() {
           <p
             className={cn(
               "mb-2 text-[12px] font-medium leading-snug",
-              isLight ? "text-slate-600" : "text-white/65"
+              isLight ? "text-slate-600" : "text-white/65",
             )}
           >
             Set your base location. Coverage radius is under Availability
@@ -158,13 +159,13 @@ export default function SettingsLocationPage() {
           <div
             className={cn(
               "mt-3 space-y-2 rounded-md px-3 py-3",
-              "bg-transparent"
+              "bg-transparent",
             )}
           >
             <p
               className={cn(
                 "text-[13px] font-bold",
-                isLight ? "text-slate-900" : "text-white"
+                isLight ? "text-slate-900" : "text-white",
               )}
             >
               Save current pin as
@@ -181,7 +182,7 @@ export default function SettingsLocationPage() {
                       ? "bg-[#FF6B35] text-white"
                       : isLight
                         ? "bg-black/10 text-slate-700"
-                        : "bg-white/10 text-white/70"
+                        : "bg-white/10 text-white/70",
                   )}
                 >
                   {l}
@@ -194,7 +195,7 @@ export default function SettingsLocationPage() {
                   "h-10 w-full rounded-md border-0 px-3 text-[13px] font-medium outline-none",
                   isLight
                     ? "bg-black/[0.06] text-slate-900"
-                    : "bg-white/[0.08] text-white"
+                    : "bg-white/[0.08] text-white",
                 )}
                 value={customLabel}
                 onChange={(e) => setCustomLabel(e.target.value)}
@@ -217,13 +218,13 @@ export default function SettingsLocationPage() {
                     key={a.id}
                     className={cn(
                       "rounded-md px-2.5 py-2",
-                      isLight ? "bg-black/[0.05]" : "bg-white/[0.06]"
+                      isLight ? "bg-black/[0.05]" : "bg-white/[0.06]",
                     )}
                   >
                     <p
                       className={cn(
                         "text-[12px] font-bold",
-                        isLight ? "text-slate-900" : "text-white"
+                        isLight ? "text-slate-900" : "text-white",
                       )}
                     >
                       {a.label === "Other" ? a.customLabel || "Other" : a.label}
@@ -231,7 +232,7 @@ export default function SettingsLocationPage() {
                     <p
                       className={cn(
                         "text-[11px] font-medium leading-snug",
-                        isLight ? "text-slate-600" : "text-white/60"
+                        isLight ? "text-slate-600" : "text-white/60",
                       )}
                     >
                       {a.text}
@@ -259,7 +260,7 @@ export default function SettingsLocationPage() {
             <p
               className={cn(
                 "text-[10px] font-medium",
-                isLight ? "text-slate-500" : "text-white/40"
+                isLight ? "text-slate-500" : "text-white/40",
               )}
             >
               Stored on this device

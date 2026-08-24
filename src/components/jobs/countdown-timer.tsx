@@ -34,7 +34,7 @@ export function CountdownTimer({
   const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;
   /**
-   * Pairing is 66s — show "66s"… not "01:06" (reads as 1 minute).
+   * Pairing is 66s show "66s"… not "01:06" (reads as 1 minute).
    * Short windows ≤ 99s always display remaining seconds only.
    */
   const shortSecondsOnly = totalMs > 0 && totalMs <= 99_000;
@@ -67,7 +67,7 @@ export function CountdownTimer({
       <div
         className={cn(
           "relative mx-auto flex items-center justify-center",
-          className
+          className,
         )}
         style={{ width: size, height: size }}
         role="timer"
@@ -105,7 +105,7 @@ export function CountdownTimer({
           <p
             className={cn(
               "text-[28px] font-semibold tabular-nums tracking-tight leading-none",
-              urgent ? "text-red-500" : "text-inherit"
+              urgent ? "text-red-500" : "text-inherit",
             )}
           >
             {timeLabel}
@@ -113,7 +113,7 @@ export function CountdownTimer({
           <p
             className={cn(
               "mt-1.5 text-[10px] font-medium tracking-wide",
-              urgent ? "text-red-500/80" : "text-inherit opacity-55"
+              urgent ? "text-red-500/80" : "text-inherit opacity-55",
             )}
           >
             remaining
@@ -132,7 +132,7 @@ export function CountdownTimer({
         <p
           className={cn(
             "text-[15px] font-semibold tabular-nums tracking-tight leading-none",
-            urgent ? "text-red-500" : "text-inherit"
+            urgent ? "text-red-500" : "text-inherit",
           )}
         >
           {timeLabel}
@@ -142,7 +142,7 @@ export function CountdownTimer({
         <div
           className={cn(
             "h-full rounded-full transition-all duration-300",
-            urgent ? "bg-red-500" : "bg-[#FF6B35]"
+            urgent ? "bg-red-500" : "bg-[#FF6B35]",
           )}
           style={{ width: `${pct}%` }}
         />

@@ -1,6 +1,6 @@
 /**
  * Real-world profession questions for artisan onboarding.
- * Trade-specific only — never mix auto questions into home trades.
+ * Trade-specific only never mix auto questions into home trades.
  */
 
 import type { ProService } from "@/lib/types";
@@ -25,7 +25,7 @@ export function otherAnswerKey(questionId: string): string {
   return `${questionId}__other`;
 }
 
-/** Core focus / strongholds — how pros actually describe their work */
+/** Core focus / strongholds how pros actually describe their work */
 export const PROFESSION_FOCUS: Record<ProService, string[]> = {
   mechanic: [
     "Engine overhaul & diagnostics",
@@ -137,14 +137,14 @@ function withOther(options: string[]): string[] {
 
 function bank(
   service: ProService,
-  extras: ProfessionQuestion[]
+  extras: ProfessionQuestion[],
 ): ProfessionQuestion[] {
   const focus = PROFESSION_FOCUS[service];
   // Every multiselect gets "Other" + free-text when selected
   const extrasWithOther = extras.map((q) =>
     q.type === "multiselect" && q.options
       ? { ...q, options: withOther(q.options) }
-      : q
+      : q,
   );
   return [
     {
@@ -257,12 +257,7 @@ export const PROFESSION_QUESTIONS: Record<ProService, ProfessionQuestion[]> = {
       label: "What body jobs are you comfortable taking?",
       type: "multiselect",
       required: true,
-      options: [
-        "Dent & panel",
-        "Spray paint",
-        "Bumper repair",
-        "Full respray",
-      ],
+      options: ["Dent & panel", "Spray paint", "Bumper repair", "Full respray"],
       maxSelect: 4,
     },
   ]),
@@ -446,14 +441,14 @@ export const PROFESSION_QUESTIONS: Record<ProService, ProfessionQuestion[]> = {
 };
 
 export function professionQuestionsFor(
-  service: ProService
+  service: ProService,
 ): ProfessionQuestion[] {
   return PROFESSION_QUESTIONS[service] ?? PROFESSION_QUESTIONS.mechanic;
 }
 
 export function professionAnswersValid(
   service: ProService,
-  answers: Record<string, string | string[]>
+  answers: Record<string, string | string[]>,
 ): boolean {
   for (const q of professionQuestionsFor(service)) {
     if (!q.required) continue;

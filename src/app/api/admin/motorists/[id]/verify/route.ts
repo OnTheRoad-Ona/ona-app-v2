@@ -24,10 +24,14 @@ const bodySchema = z.object({
 
 export async function POST(
   req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     // Customer care / admin with PII access can approve Tier 2 ID
@@ -70,9 +74,8 @@ export async function POST(
     if (error) return apiFail(error.message, 500);
 
     if (approve) {
-      const { mirrorDualRoleT2Approved } = await import(
-        "@/lib/server/identity/dual-t2-mirror"
-      );
+      const { mirrorDualRoleT2Approved } =
+        await import("@/lib/server/identity/dual-t2-mirror");
       await mirrorDualRoleT2Approved(supabase, id, {
         reviewedBy: session.userId,
         now,
@@ -88,7 +91,7 @@ export async function POST(
         ip: clientIp(req),
         user_agent: userAgent(req),
         meta: { reason: parsed.data.reason || null },
-      }
+      },
     );
 
     return apiOk({

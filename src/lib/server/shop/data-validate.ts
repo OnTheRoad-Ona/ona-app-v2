@@ -2,11 +2,11 @@
  * ONA Shop data-quality validation (Phase 2).
  *
  * Trade-aware validation of incoming catalog records:
- *  - schema shape (required fields, types, price bounds)
- *  - trade/category consistency (a solar record cannot be filed under plumber)
- *  - attribute validation per trade (forbidden vehicle fitment on non-vehicle
- *    trades, required attributes, unknown attributes)
- *  - source validation (sku/part identity present)
+ * - schema shape (required fields, types, price bounds)
+ * - trade/category consistency (a solar record cannot be filed under plumber)
+ * - attribute validation per trade (forbidden vehicle fitment on non-vehicle
+ * trades, required attributes, unknown attributes)
+ * - source validation (sku/part identity present)
  *
  * Each check returns a result; records with any `error`-level failure are
  * rejected (never imported into the canonical catalog).
@@ -60,28 +60,49 @@ export function validateCatalogRecord(input: ValidateRecordInput): {
   // ---- schema ----
   const name = input.name ?? (typeof raw.name === "string" ? raw.name : null);
   if (!name?.trim()) {
-    issues.push({ ruleKey: "schema.name", level: "error", field: "name", message: "name is required" });
+    issues.push({
+      ruleKey: "schema.name",
+      level: "error",
+      field: "name",
+      message: "name is required",
+    });
   }
 
-  const price = input.priceMinor ?? (typeof raw.price_minor === "number" ? raw.price_minor : null);
+  const price =
+    input.priceMinor ??
+    (typeof raw.price_minor === "number" ? raw.price_minor : null);
   if (price != null && (!Number.isFinite(price) || price < 0)) {
-    issues.push({ ruleKey: "schema.price", level: "error", field: "price_minor", message: "price must be a non-negative number" });
+    issues.push({
+      ruleKey: "schema.price",
+      level: "error",
+      field: "price_minor",
+      message: "price must be a non-negative number",
+    });
   }
 
   const sku = input.sku ?? (typeof raw.sku === "string" ? raw.sku : null);
-  const oem = input.oemNumber ?? (typeof raw.oem_number === "string" ? raw.oem_number : null);
+  const oem =
+    input.oemNumber ??
+    (typeof raw.oem_number === "string" ? raw.oem_number : null);
   const mpn = input.mpn ?? (typeof raw.mpn === "string" ? raw.mpn : null);
-  if (!normalizeSku(sku) && !normalizePartNumber(oem) && !normalizePartNumber(mpn)) {
+  if (
+    !normalizeSku(sku) &&
+    !normalizePartNumber(oem) &&
+    !normalizePartNumber(mpn)
+  ) {
     issues.push({
       ruleKey: "schema.identity",
       level: "error",
       field: "sku",
-      message: "at least one of sku / oem_number / mpn is required to identify the part",
+      message:
+        "at least one of sku / oem_number / mpn is required to identify the part",
     });
   }
 
   // ---- trade ----
-  const tradeKey = input.tradeKey ?? (typeof raw.trade_key === "string" ? raw.trade_key : null);
+  const tradeKey =
+    input.tradeKey ??
+    (typeof raw.trade_key === "string" ? raw.trade_key : null);
   if (tradeKey && !isShopTrade(tradeKey)) {
     issues.push({
       ruleKey: "trade.known",
@@ -95,16 +116,22 @@ export function validateCatalogRecord(input: ValidateRecordInput): {
   if (tradeKey && input.externalCategory && isVehicleTrade(tradeKey)) {
     // A vehicle trade is allowed only when the external category actually maps
     // to automotive. Conversely, a non-vehicle trade must NOT reference a
-    // vehicle fitment path — handled below via attributes.
+    // vehicle fitment path handled below via attributes.
   }
 
   // ---- attributes (trade-aware) ----
-  const attributes = input.attributes ?? (raw.attributes && typeof raw.attributes === "object" ? raw.attributes as Record<string, unknown> : {});
+  const attributes =
+    input.attributes ??
+    (raw.attributes && typeof raw.attributes === "object"
+      ? (raw.attributes as Record<string, unknown>)
+      : {});
   if (tradeKey && isShopTrade(tradeKey)) {
     const attrResult = validateTradeAttributes(tradeKey, attributes ?? {});
     for (const msg of attrResult.errors) {
       issues.push({
-        ruleKey: msg.includes("required") ? "attribute.required" : "attribute.invalid",
+        ruleKey: msg.includes("required")
+          ? "attribute.required"
+          : "attribute.invalid",
         level: "error",
         field: "attributes",
         message: msg,
@@ -114,7 +141,9 @@ export function validateCatalogRecord(input: ValidateRecordInput): {
     // No fake fitment: on vehicle trades, fitment keys must reference real
     // vehicle data, never a made-up string.
     const schema = getTradeAttributeSchema(tradeKey);
-    const claimedFit = (schema?.vehicleFitmentKeys ?? []).filter((k) => attributes?.[k]);
+    const claimedFit = (schema?.vehicleFitmentKeys ?? []).filter(
+      (k) => attributes?.[k],
+    );
     if (claimedFit.length && !attributes?.vehicleMake) {
       issues.push({
         ruleKey: "fitment.incomplete",
@@ -137,9 +166,15 @@ export function validateCatalogRecord(input: ValidateRecordInput): {
   }
 
   // ---- brand (normalizable) ----
-  const brand = input.brand ?? (typeof raw.brand === "string" ? raw.brand : null);
+  const brand =
+    input.brand ?? (typeof raw.brand === "string" ? raw.brand : null);
   if (brand && !normalizeName(brand)) {
-    issues.push({ ruleKey: "schema.brand", level: "warning", field: "brand", message: "brand looks empty after normalization" });
+    issues.push({
+      ruleKey: "schema.brand",
+      level: "warning",
+      field: "brand",
+      message: "brand looks empty after normalization",
+    });
   }
 
   const hasError = issues.some((i) => i.level === "error");

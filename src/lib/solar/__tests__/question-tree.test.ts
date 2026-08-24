@@ -8,6 +8,7 @@ import {
   nextSolarScreen,
   resolveSolarRoute,
   SOLAR_FINAL_COPY,
+  SOLAR_MACHINE_QUESTION,
   SOLAR_MAX_PHOTOS,
   SOLAR_MIN_PHOTOS,
   SOLAR_SCREENS,
@@ -18,7 +19,15 @@ import {
 } from "@/lib/solar/question-tree";
 
 describe("solar question tree", () => {
-  it("offers the six start categories A–F", () => {
+  it("starts with the solar system catalog question before work type", () => {
+    expect(SOLAR_MACHINE_QUESTION).toBe(
+      "What type of solar system do you use?",
+    );
+    expect(nextSolarScreen("machine", "catalog", {})).toBe("start");
+    expect(nextSolarScreen("machine", "none", {})).toBe("start");
+  });
+
+  it("offers the six start categories A-F", () => {
     expect(SOLAR_START_OPTIONS.map((o) => o.id)).toEqual([
       "A",
       "B",
@@ -44,7 +53,7 @@ describe("solar question tree", () => {
     expect(nextSolarScreen("a_system", "hybrid", {})).toBe("a_equipment");
     expect(nextSolarScreen("a_equipment", "no", {})).toBe("a_supply");
     expect(nextSolarScreen("a_supply", "technician-supplies", {})).toBe(
-      "a_roof"
+      "a_roof",
     );
     expect(nextSolarScreen("a_roof", "long-span", {})).toBe("final");
 
@@ -105,7 +114,7 @@ describe("solar question tree", () => {
 
   it("confirm question names the Electrical trade", () => {
     expect(confirmQuestion("electrical")).toBe(
-      "This sounds like Electrical. Continue?"
+      "This sounds like Electrical. Continue?",
     );
   });
 
@@ -121,7 +130,7 @@ describe("solar question tree", () => {
   });
 
   it("exposes the final block copy incl. load and supply questions", () => {
-    expect(SOLAR_FINAL_COPY.photos).toContain("2–4");
+    expect(SOLAR_FINAL_COPY.photos).toContain("2-4");
     expect(SOLAR_FINAL_COPY.load).toMatch(/Estimated load/i);
     expect(SOLAR_FINAL_COPY.supply).toMatch(/supplying the equipment/i);
   });
@@ -134,18 +143,30 @@ describe("solar question tree", () => {
         a_property_label: "Residential house / flat",
       },
       "Needs backup for the whole house",
-      "Lekki"
+      "Lekki",
     );
     expect(out).toContain(SOLAR_START_QUESTION);
     expect(out).toContain("Residential house / flat");
     expect(out).toContain("Lekki");
     expect(out).toContain("Needs backup for the whole house");
+    const withMachine = composeSolarProblem(
+      {
+        machine: "catalog",
+        machine_label: "Hybrid solar system · Deye · SUN-5K-SG04LP1 5kW",
+        start: "A",
+      },
+      "",
+      "",
+    );
+    expect(withMachine).toContain(SOLAR_MACHINE_QUESTION);
+    expect(withMachine).toContain("SUN-5K-SG04LP1");
   });
 
   it("builds a breadcrumb with branch letter and send state", () => {
-    expect(solarBreadcrumb(["start"])).toBe("Solar");
-    expect(solarBreadcrumb(["start", "c_which"])).toBe("Solar · C");
-    expect(solarBreadcrumb(["start", "final"])).toBe("Solar · Send");
+    expect(solarBreadcrumb(["machine"])).toBe("Solar");
+    expect(solarBreadcrumb(["machine", "start"])).toBe("Solar");
+    expect(solarBreadcrumb(["machine", "start", "c_which"])).toBe("Solar · C");
+    expect(solarBreadcrumb(["machine", "start", "final"])).toBe("Solar · Send");
   });
 
   it("exposes every chained screen with a question", () => {

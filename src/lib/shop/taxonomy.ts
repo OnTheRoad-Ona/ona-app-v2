@@ -1,5 +1,5 @@
 /**
- * ONA Shop taxonomy — single source of truth for the 14 Repair Pro trades.
+ * ONA Shop taxonomy single source of truth for the 14 Repair Pro trades.
  *
  * Shared server + client module (no "use client"). Each trade maps to its own
  * category tree. Vehicle fitment is only for vehicle-based trades.
@@ -52,7 +52,7 @@ export type TradeCategorySeed = {
   /** Unique within trade. kebab-case slug. */
   slug: string;
   name: string;
-  /** Optional children (depth 2) — currently flat roots only in Phase 1. */
+  /** Optional children (depth 2) currently flat roots only in Phase 1. */
   children?: TradeCategorySeed[];
 };
 
@@ -85,7 +85,10 @@ export const SHOP_TRADE_TAXONOMY: TradeSeed[] = [
       { slug: "shock-absorbers", name: "Shock Absorbers" },
       { slug: "ball-joints", name: "Ball Joints" },
       { slug: "stabilizer-linkages", name: "Stabilizer Linkages" },
-      { slug: "stabilizer-rubbers-bushings", name: "Stabilizer Rubbers & Bushings" },
+      {
+        slug: "stabilizer-rubbers-bushings",
+        name: "Stabilizer Rubbers & Bushings",
+      },
       { slug: "tie-rod-ends-sockets", name: "Tie Rod Ends & Sockets" },
       { slug: "other-accessories", name: "Other / Accessories" },
     ],
@@ -379,7 +382,9 @@ export const SHOP_TRADE_TAXONOMY: TradeSeed[] = [
   },
 ];
 
-export function getRootCategoriesForTrade(tradeKey: string): TradeCategorySeed[] {
+export function getRootCategoriesForTrade(
+  tradeKey: string,
+): TradeCategorySeed[] {
   return SHOP_TRADE_TAXONOMY.find((t) => t.key === tradeKey)?.roots ?? [];
 }
 

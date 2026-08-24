@@ -31,7 +31,6 @@ function load(userId: string): Prefs {
   }
 }
 
-
 function PrivacyToggle({
   isLight,
   on,
@@ -51,7 +50,7 @@ function PrivacyToggle({
         <p
           className={cn(
             "text-[13px] font-bold",
-            isLight ? "text-slate-900" : "text-white"
+            isLight ? "text-slate-900" : "text-white",
           )}
         >
           {label}
@@ -59,7 +58,7 @@ function PrivacyToggle({
         <p
           className={cn(
             "text-[11px] font-medium leading-snug",
-            isLight ? "text-slate-600" : "text-white/60"
+            isLight ? "text-slate-600" : "text-white/60",
           )}
         >
           {detail}
@@ -72,13 +71,13 @@ function PrivacyToggle({
         onClick={() => onChange(!on)}
         className={cn(
           "h-7 w-12 shrink-0 rounded-full border-0",
-          on ? "bg-[#FF6B35]" : isLight ? "bg-black/20" : "bg-white/20"
+          on ? "bg-[#FF6B35]" : isLight ? "bg-black/20" : "bg-white/20",
         )}
       >
         <span
           className={cn(
             "block h-5 w-5 rounded-full bg-white transition-transform",
-            on ? "translate-x-6" : "translate-x-1"
+            on ? "translate-x-6" : "translate-x-1",
           )}
         />
       </button>
@@ -113,7 +112,7 @@ export default function SettingsPrivacyPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader
@@ -122,12 +121,7 @@ export default function SettingsPrivacyPage() {
         backHref="/settings"
       />
       <div className="flex-1 space-y-3 overflow-y-auto px-3 pb-6 scrollbar-hide">
-        <div
-          className={cn(
-            "overflow-hidden rounded-md",
-            "bg-transparent"
-          )}
-        >
+        <div className={cn("overflow-hidden rounded-md", "bg-transparent")}>
           {!isPro ? (
             <PrivacyToggle
               isLight={isLight}
@@ -146,7 +140,7 @@ export default function SettingsPrivacyPage() {
             />
           )}
           <PrivacyToggle
-              isLight={isLight}
+            isLight={isLight}
             on={prefs.shareAnalytics}
             onChange={(v) => set({ shareAnalytics: v })}
             label="Share usage analytics"
@@ -161,7 +155,7 @@ export default function SettingsPrivacyPage() {
           <p
             className={cn(
               "text-[11px] font-medium leading-snug",
-              isLight ? "text-slate-600" : "text-white/55"
+              isLight ? "text-slate-600" : "text-white/55",
             )}
           >
             Verification status is view-only under Settings → Verification

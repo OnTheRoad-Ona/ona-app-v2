@@ -1,15 +1,16 @@
 "use client";
 
 /**
- * NotificationCenter — icon filters, flat X-style notification cards.
+ * NotificationCenter icon filters, flat X-style notification cards.
  * Every item renders with the same anatomy as the in-app toasts: category icon
  * chip (orange for high priority), "Ona · time" header, bold title, muted body,
  * action chip, unread dot. Read: solid grey action chips. Unread: orange.
- * Mark read on card click / hover — no separate "Mark read" control.
+ * Mark read on card click / hover no separate "Mark read" control.
  */
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, useRef } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { AppMenu } from "@/components/layout/app-menu";
 import {
   Info,
   LayoutGrid,
@@ -87,12 +88,13 @@ function toastWhen(iso: string, now = Date.now()): string {
   return formatWhen(iso);
 }
 
-/** Same per-category icon the in-app toasts use — identical brand language. */
+/** Same per-category icon the in-app toasts use identical brand language. */
 function categoryIcon(n: AppNotification): LucideIcon {
   if (isCallNotification(n)) return Phone;
   if (isChatNotification(n)) return MessageCircle;
   if (isPaymentNotification(n)) return Wallet;
-  if (isRequestAcceptNotification(n) || n.category === "requests") return Wrench;
+  if (isRequestAcceptNotification(n) || n.category === "requests")
+    return Wrench;
   switch (n.category as NotificationCategory) {
     case "requests":
       return Wrench;
@@ -110,7 +112,11 @@ type ActionSpec = { icon: LucideIcon | null; label: string };
 
 function actionSpec(
   n: AppNotification,
-  opts: { navBlocked: boolean; accountType?: string | null; releasePay: boolean }
+  opts: {
+    navBlocked: boolean;
+    accountType?: string | null;
+    releasePay: boolean;
+  },
 ): ActionSpec | null {
   const { navBlocked, accountType, releasePay } = opts;
   if (n.actionType === "open_chat" || n.category === "messages") {
@@ -165,14 +171,29 @@ export function NotificationCenter() {
     setSearch,
     filtered,
     markRead,
-    markAllRead,
     loading,
     unreadCount,
   } = useNotifications();
   const { theme, accountType } = useApp();
   const router = useRouter();
+  const pathname = usePathname();
   const isLight = theme === "light";
+  /** Deliberate-hover timers: id → timeout that will mark the row read */
+  const hoverTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map(),
+  );
+  /** Row currently in its 1.5s hold window (drives the pulse cue) */
+  const [hoverHoldId, setHoverHoldId] = useState<string | null>(null);
+  useEffect(
+    () => () => {
+      for (const t of hoverTimers.current.values()) clearTimeout(t);
+      hoverTimers.current.clear();
+    },
+    [],
+  );
   const [blockMsg, setBlockMsg] = useState<string | null>(null);
+  /** ☰ opens the main app sidebar (Dashboard, Settings, …) */
+  const [menuOpen, setMenuOpen] = useState(false);
   const [viewHref, setViewHref] = useState<string | null>(null);
 
   const accent = MESSAGE_ORANGE;
@@ -188,9 +209,9 @@ export function NotificationCenter() {
       [...filtered].sort(
         (a, b) =>
           (Date.parse(b.createdAt || "") || 0) -
-          (Date.parse(a.createdAt || "") || 0)
+          (Date.parse(a.createdAt || "") || 0),
       ),
-    [filtered]
+    [filtered],
   );
 
   if (!centerOpen) return null;
@@ -220,10 +241,8 @@ export function NotificationCenter() {
           (n.groupKey || "").startsWith("service-request")))
     ) {
       try {
-        const {
-          clearJobShown,
-          requestForceIncomingPanel,
-        } = await import("@/lib/jobs/incoming-popup-timing");
+        const { clearJobShown, requestForceIncomingPanel } =
+          await import("@/lib/jobs/incoming-popup-timing");
         if (n.jobId) {
           clearJobShown(n.jobId);
           requestForceIncomingPanel(n.jobId);
@@ -256,7 +275,10 @@ export function NotificationCenter() {
       showBlock(n, blockedActionMessage(n, liveStatus));
       return;
     }
-    if (isChatClosedForNotification(n) || isJobHistoryClosedStatus(liveStatus)) {
+    if (
+      isChatClosedForNotification(n) ||
+      isJobHistoryClosedStatus(liveStatus)
+    ) {
       showBlock(n, blockedActionMessage(n, liveStatus));
       return;
     }
@@ -291,6 +313,7 @@ export function NotificationCenter() {
         className="relative z-10 mt-auto flex h-[92%] max-h-full w-full flex-col animate-[om-sheet-up_0.28s_ease-out] sm:ml-auto sm:mt-0 sm:h-full sm:max-w-[400px]"
         style={{ backgroundColor: stage }}
       >
+        <AppMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
         <div className="flex shrink-0 items-center justify-between gap-3 px-4 pb-2 pt-4">
           <div className="min-w-0">
             <h2
@@ -299,17 +322,34 @@ export function NotificationCenter() {
             >
               Notifications
             </h2>
-            <p className="mt-0.5 text-[11px] font-medium" style={{ color: muted }}>
+            <p
+              className="mt-0.5 text-[11px] font-medium"
+              style={{ color: muted }}
+            >
               {unreadCount > 0 ? `${unreadCount} unread` : "All caught up"}
             </p>
           </div>
           <button
             type="button"
-            onClick={() => void markAllRead()}
-            className="shrink-0 border-0 bg-transparent px-1 py-1.5 text-[12px] font-bold active:opacity-70"
+            aria-label="Open menu"
+            onClick={() => setMenuOpen(true)}
+            className="shrink-0 border-0 bg-transparent px-1 py-1.5 active:opacity-70"
             style={{ color: accent }}
           >
-            Mark all as read
+            <svg
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              aria-hidden
+            >
+              <line x1="4" y1="6" x2="20" y2="6" />
+              <line x1="4" y1="12" x2="20" y2="12" />
+              <line x1="4" y1="18" x2="20" y2="18" />
+            </svg>
           </button>
         </div>
 
@@ -375,6 +415,7 @@ export function NotificationCenter() {
           )}
 
           <ul className="list-none">
+            {/* Hold-to-read timers: 1.5s deliberate hover marks read */}
             {sorted.map((n) => {
               const high = isHighPriority(n.priority);
               const unread = !n.readAt;
@@ -384,18 +425,44 @@ export function NotificationCenter() {
               const navBlocked =
                 !releasePay &&
                 (isNavigationBlocked(n) || closed || historyClosed);
-              // A cancelled/closed job's notification is informational only —
+              // A cancelled/closed job's notification is informational only
               // the request is dead, so the row is inert: no navigation, no
               // tap affordance (mirrors the pro popup card vanishing on cancel).
               const inert = closed || historyClosed;
               const Icon = categoryIcon(n);
-              const spec = actionSpec(n, { navBlocked, accountType, releasePay });
+              const spec = actionSpec(n, {
+                navBlocked,
+                accountType,
+                releasePay,
+              });
               const go = () => {
                 markRead([n.id]);
                 void runAction(n);
               };
               return (
-                <li key={n.id} style={{ borderBottom: `1px solid ${line}` }}>
+                <li
+                  key={n.id}
+                  style={{ borderBottom: `1px solid ${line}` }}
+                  onMouseEnter={() => {
+                    if (unread) {
+                      setHoverHoldId(n.id);
+                      const t = setTimeout(() => {
+                        void markRead([n.id]);
+                        hoverTimers.current.delete(n.id);
+                        setHoverHoldId(null);
+                      }, 1500);
+                      hoverTimers.current.set(n.id, t);
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    const t = hoverTimers.current.get(n.id);
+                    if (t) {
+                      clearTimeout(t);
+                      hoverTimers.current.delete(n.id);
+                    }
+                    setHoverHoldId(null);
+                  }}
+                >
                   <button
                     type="button"
                     disabled={inert}
@@ -408,24 +475,20 @@ export function NotificationCenter() {
                           : "active:bg-white/[0.08]"
                     }`}
                     style={{ backgroundColor: "transparent" }}
-                    onMouseEnter={() => markRead([n.id])}
                     onClick={go}
                   >
                     <Icon
-                      className="mt-1 h-[18px] w-[18px] shrink-0"
-                      style={{ color: high ? accent : muted }}
-                      strokeWidth={2}
+                      className={`mt-1 h-[18px] w-[18px] shrink-0${
+                        hoverHoldId === n.id ? " animate-pulse" : ""
+                      }`}
+                      style={{
+                        color: unread ? accent : muted,
+                        strokeWidth: unread ? 2.4 : 2,
+                      }}
                       aria-hidden
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
-                        {unread ? (
-                          <span
-                            className="h-2 w-2 shrink-0 rounded-full"
-                            style={{ backgroundColor: accent }}
-                            aria-label="Unread"
-                          />
-                        ) : null}
                         <span
                           className="truncate text-[13px] font-bold leading-tight tracking-[-0.01em]"
                           style={{ color: ink }}
@@ -464,19 +527,22 @@ export function NotificationCenter() {
                           className="mt-1 text-[10px] font-semibold"
                           style={{ color: muted }}
                         >
-                          Job {n.jobStatus?.replace(/_/g, " ") || "closed"}. Link
-                          unavailable.
+                          Job {n.jobStatus?.replace(/_/g, " ") || "closed"}.
+                          Link unavailable.
                         </p>
                       ) : null}
                     </div>
-                    {spec && spec.icon ? (
+                    {spec && spec.icon && spec.icon !== Icon ? (
                       <span
                         className="self-center shrink-0 pl-2"
                         title={spec.label}
                         aria-label={spec.label}
                         style={{ color: unread ? accent : muted }}
                       >
-                        <spec.icon className="h-[18px] w-[18px]" strokeWidth={2} />
+                        <spec.icon
+                          className="h-[18px] w-[18px]"
+                          strokeWidth={2}
+                        />
                       </span>
                     ) : null}
                   </button>

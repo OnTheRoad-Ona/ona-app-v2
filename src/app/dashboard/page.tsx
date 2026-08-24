@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Pro dashboard — Uber-style list under Live (no section titles):
+ * Pro dashboard Uber-style list under Live (no section titles):
  * - Incoming: Service Request only, real meet address (never “Current location”)
  * - Recent: Uber place + area only (never problem text / demo address)
  */
@@ -40,7 +40,7 @@ import { useApp } from "@/lib/store";
 import type { ProService } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-/** Service Request only — leaves dashboard after Accept */
+/** Service Request only leaves dashboard after Accept */
 const INCOMING_STATUSES = new Set<JobFlowStatus>([
   "waiting_for_selected",
   "selected_review",
@@ -59,11 +59,8 @@ const ONGOING_STATUSES = new Set<JobFlowStatus>([
   "completed",
 ]);
 
-/** Past / closed jobs for Recent — same set for every trade (Battery, Vulcanizer, …) */
-const RECENT_STATUSES = new Set<JobFlowStatus>([
-  "satisfied",
-  "released",
-]);
+/** Past / closed jobs for Recent same set for every trade (Battery, Vulcanizer, …) */
+const RECENT_STATUSES = new Set<JobFlowStatus>(["satisfied", "released"]);
 
 function ongoingStatusLabel(st: JobFlowStatus): string {
   switch (st) {
@@ -88,7 +85,7 @@ function ongoingStatusLabel(st: JobFlowStatus): string {
 const AREA_HINT =
   /\b(lekki|ikeja|ikoyi|vi|victoria island|island|ajah|yaba|surulere|gbagada|magodo|maryland|ojodu|berger|festac|apapa|mainland|abuja|lagos|phase\s*\d*|estate|gate|route|alternative)\b/i;
 
-/** Away CTA when already Live — rotates every 3 hours */
+/** Away CTA when already Live rotates every 3 hours */
 const LIVE_AWAY_LABELS = [
   "Take Time Off",
   "Take Some Rest",
@@ -163,8 +160,12 @@ function splitPlaceAndArea(label: string): {
 }
 
 /** e.g. Mechanic → "Mechanic Dashboard"; unknown → "Repair Pro Dashboard" */
-function skillDashboardTitle(skill: ProService | string | null | undefined): string {
-  const raw = String(skill || "").trim().toLowerCase();
+function skillDashboardTitle(
+  skill: ProService | string | null | undefined,
+): string {
+  const raw = String(skill || "")
+    .trim()
+    .toLowerCase();
   if (raw && isProService(raw)) {
     return `${PRO_SERVICE_LABELS[raw]} Dashboard`;
   }
@@ -211,11 +212,11 @@ export default function TechnicianDashboardPage() {
   const [ongoing, setOngoing] = useState<JobRecord[]>([]);
   const [recent, setRecent] = useState<JobRecord[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
-  /** Incoming lower panel is up — hide the dashboard's own Incoming list. */
+  /** Incoming lower panel is up hide the dashboard's own Incoming list. */
   const [incomingPanelOpen, setIncomingPanelOpen] = useState(false);
   const [awayLabel, setAwayLabel] = useState(() => liveAwayButtonLabel());
   const [artisan, setArtisan] = useState<ArtisanVerificationProfile | null>(
-    null
+    null,
   );
   const t2CareOk = proT2CareApproved(userProfile, artisan);
   const [switchBusy, setSwitchBusy] = useState(false);
@@ -240,14 +241,11 @@ export default function TechnicianDashboardPage() {
     } catch {
       setArtisan(null);
     }
-    // Jobs-completed count is derived from the shared loadJobs response below —
+    // Jobs-completed count is derived from the shared loadJobs response below
     // never a second /api/jobs round trip on mount.
   }, [backendUserId]);
 
-  useEffect(
-    () => subscribeIncomingPanelOpen(setIncomingPanelOpen),
-    []
-  );
+  useEffect(() => subscribeIncomingPanelOpen(setIncomingPanelOpen), []);
 
   useEffect(() => {
     if (!backendUserId) {
@@ -257,9 +255,8 @@ export default function TechnicianDashboardPage() {
     let cancelled = false;
     const sync = async () => {
       try {
-        const { syncArtisanCareStatus } = await import(
-          "@/lib/artisan/sync-care-status"
-        );
+        const { syncArtisanCareStatus } =
+          await import("@/lib/artisan/sync-care-status");
         const result = await syncArtisanCareStatus(backendUserId);
         if (!cancelled && result.ok && result.profile) {
           setArtisan(result.profile);
@@ -268,11 +265,11 @@ export default function TechnicianDashboardPage() {
         /* offline */
       }
     };
-    // Care profile changes rarely, and the local copy below paints first —
+    // Care profile changes rarely, and the local copy below paints first
     // delay the refresh until just after first paint instead of racing the
     // boot /api/jobs loads.
     const first = window.setTimeout(() => void sync(), 800);
-    // Data saver: care profile changes rarely — 3 min backup
+    // Data saver: care profile changes rarely 3 min backup
     const poll = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void sync();
@@ -308,7 +305,7 @@ export default function TechnicianDashboardPage() {
 
       // Jobs completed = times customers tapped I am Satisfied (released)
       setJobsCompletedCount(
-        mine.filter((j) => ["satisfied", "released"].includes(j.status)).length
+        mine.filter((j) => ["satisfied", "released"].includes(j.status)).length,
       );
 
       const open = mine
@@ -324,7 +321,7 @@ export default function TechnicianDashboardPage() {
         })
         .sort(
           (a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
         );
 
       const active = mine
@@ -332,7 +329,7 @@ export default function TechnicianDashboardPage() {
         .sort(
           (a, b) =>
             new Date(b.updatedAt || b.createdAt).getTime() -
-            new Date(a.updatedAt || a.createdAt).getTime()
+            new Date(a.updatedAt || a.createdAt).getTime(),
         );
 
       const finished = mine
@@ -340,7 +337,7 @@ export default function TechnicianDashboardPage() {
         .sort(
           (a, b) =>
             new Date(b.updatedAt || b.createdAt).getTime() -
-            new Date(a.updatedAt || a.createdAt).getTime()
+            new Date(a.updatedAt || a.createdAt).getTime(),
         )
         .slice(0, 6);
 
@@ -366,14 +363,15 @@ export default function TechnicianDashboardPage() {
   }, [loadJobs]);
 
   // A realtime push (customer cancel/complete, pro decline, reassign) must drop
-  // the request from the Incoming list immediately — never wait for the 4-min
+  // the request from the Incoming list immediately never wait for the 4-min
   // soft refresh. The push already carries the row; a cheap refetch reconciles.
   useEffect(() => {
     if (!backendUserId) return;
     let cancelled = false;
     let schedule: number | undefined;
     const unsub = backendSubscribeJobs(backendUserId, () => {
-      if (cancelled || typeof document === "undefined" || document.hidden) return;
+      if (cancelled || typeof document === "undefined" || document.hidden)
+        return;
       if (schedule) return;
       schedule = window.setTimeout(() => {
         schedule = undefined;
@@ -414,7 +412,7 @@ export default function TechnicianDashboardPage() {
   /** Same for every trade: Recent always when finished jobs exist (not hidden by Incoming). */
   const showRecent = recent.length > 0;
 
-  // Always paint a shell — never blank when role/session is mid-switch
+  // Always paint a shell never blank when role/session is mid-switch
   if (isAuthenticated && accountType !== "professional") {
     return (
       <div className={cn("flex h-full min-h-0 flex-col", stage)}>
@@ -439,7 +437,7 @@ export default function TechnicianDashboardPage() {
                   setSwitchBusy(true);
                   void (async () => {
                     let result = await switchAccount("professional");
-                    // One automatic retry for a cold-start session race — the
+                    // One automatic retry for a cold-start session race the
                     // first tap right after navigation can fail while Supabase
                     // storage is still rehydrating; a manual re-tap succeeded.
                     if (
@@ -448,9 +446,8 @@ export default function TechnicianDashboardPage() {
                       result !== "needs_signup"
                     ) {
                       try {
-                        const { ensureAppSession } = await import(
-                          "@/lib/supabase/session"
-                        );
+                        const { ensureAppSession } =
+                          await import("@/lib/supabase/session");
                         await ensureAppSession({
                           waitForSessionMs: 2200,
                           forceRefresh: true,
@@ -462,7 +459,7 @@ export default function TechnicianDashboardPage() {
                     }
                     if (result === "needs_signup") {
                       setSwitchErr(
-                        "You don't have a Repair Pro account yet. Finish signup to go Live and receive jobs."
+                        "You don't have a Repair Pro account yet. Finish signup to go Live and receive jobs.",
                       );
                     } else if (
                       typeof result === "string" &&
@@ -505,10 +502,7 @@ export default function TechnicianDashboardPage() {
     <div className={cn("relative flex h-full min-h-0 flex-col", stage)}>
       <BankForcePanel surface="dashboard" />
       <div className={cn("z-20 shrink-0", stage)}>
-        <PageHeader
-          title={dashboardTitle}
-          showBack={false}
-        />
+        <PageHeader title={dashboardTitle} showBack={false} />
         <div className="flex items-center justify-end gap-2 px-3 pb-2">
           <button
             type="button"
@@ -520,14 +514,14 @@ export default function TechnicianDashboardPage() {
                 ? "text-emerald-600"
                 : isLight
                   ? "text-slate-500"
-                  : "text-[#a1a1a6]"
+                  : "text-[#a1a1a6]",
             )}
             aria-pressed={proLive}
           >
             <span
               className={cn(
                 "inline-flex h-2 w-2 rounded-full",
-                proLive ? "bg-emerald-500" : "bg-slate-400"
+                proLive ? "bg-emerald-500" : "bg-slate-400",
               )}
             />
             {liveBusy ? "…" : proLive ? "Live" : "Live"}
@@ -536,14 +530,14 @@ export default function TechnicianDashboardPage() {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto px-3 pb-4 scrollbar-hide">
-        {/* Verification above Go Live — card must contrast with shell (#c8c9cd / black) */}
+        {/* Verification above Go Live card must contrast with shell (#c8c9cd / black) */}
         {artisan || dualCtoPro ? (
           <section
             className={cn(
               "rounded-md px-3 py-3",
               isLight
                 ? "bg-white shadow-[0_1px_0_rgba(0,0,0,0.06)] ring-1 ring-black/10"
-                : "bg-[#1c1c1e] ring-1 ring-white/15"
+                : "bg-[#1c1c1e] ring-1 ring-white/15",
             )}
           >
             {(() => {
@@ -560,8 +554,7 @@ export default function TechnicianDashboardPage() {
               const nextStep = artisan
                 ? nextProEmbedTierStep(artisan, {
                     hidePhone: Boolean(
-                      artisan.tiers?.tier1_phone ||
-                        userProfile?.phoneVerified
+                      artisan.tiers?.tier1_phone || userProfile?.phoneVerified,
                     ),
                     hideGovId: t2CareOk,
                   })
@@ -586,8 +579,8 @@ export default function TechnicianDashboardPage() {
                   : "";
               const openSetup = () => {
                 setProOnboardingSheetRequired(true);
-                void import("@/components/pro/pro-onboarding-sheet").then(
-                  (m) => m.requestProOnboardingSheetExpand()
+                void import("@/components/pro/pro-onboarding-sheet").then((m) =>
+                  m.requestProOnboardingSheetExpand(),
                 );
               };
               return (
@@ -598,7 +591,7 @@ export default function TechnicianDashboardPage() {
                     style={
                       hasApproved
                         ? {
-                            // Solid green fill — readable on light and dark cards
+                            // Solid green fill readable on light and dark cards
                             color: isLight ? "#047857" : "#6ee7b7",
                             fill: isLight ? "#059669" : "#10b981",
                           }
@@ -615,10 +608,7 @@ export default function TechnicianDashboardPage() {
                     </p>
                     {statusLine ? (
                       <p
-                        className={cn(
-                          "mt-0.5 text-[11px] font-medium",
-                          muted
-                        )}
+                        className={cn("mt-0.5 text-[11px] font-medium", muted)}
                       >
                         {statusLine}
                       </p>
@@ -649,7 +639,7 @@ export default function TechnicianDashboardPage() {
             <Radio
               className={cn(
                 "h-5 w-5 shrink-0",
-                proLive ? "text-emerald-500" : "text-[#FF6B35]"
+                proLive ? "text-emerald-500" : "text-[#FF6B35]",
               )}
             />
             <div className="min-w-0 flex-1">
@@ -670,14 +660,10 @@ export default function TechnicianDashboardPage() {
             className={cn(
               "mt-3 inline-flex h-11 w-full items-center justify-center rounded-md border-0",
               "bg-[#2c2c2e] text-[14px] font-semibold text-white transition active:scale-[0.99]",
-              "disabled:opacity-50"
+              "disabled:opacity-50",
             )}
           >
-            {liveBusy
-              ? "Updating…"
-              : proLive
-                ? awayLabel
-                : "Go Live"}
+            {liveBusy ? "Updating…" : proLive ? awayLabel : "Go Live"}
           </button>
           {liveErr && (
             <p className="mt-2 text-center text-[11px] font-semibold text-red-500">
@@ -698,7 +684,7 @@ export default function TechnicianDashboardPage() {
             <p
               className={cn(
                 "mb-1 text-[11px] font-black uppercase tracking-[0.12em]",
-                muted
+                muted,
               )}
             >
               Incoming requests
@@ -713,7 +699,7 @@ export default function TechnicianDashboardPage() {
                       onClick={() => {
                         clearJobShown(j.id, backendUserId || undefined);
                         requestForceIncomingPanel(j.id);
-                        // Stay on dashboard — lower panel only (no full /jobs page)
+                        // Stay on dashboard lower panel only (no full /jobs page)
                         router.replace("/dashboard");
                       }}
                     >
@@ -721,12 +707,14 @@ export default function TechnicianDashboardPage() {
                         <p
                           className={cn(
                             "truncate text-[15px] font-semibold",
-                            ink
+                            ink,
                           )}
                         >
-                          {isAutomotiveTrade(j.serviceType) && j.motoristVehicle?.trim()
+                          {isAutomotiveTrade(j.serviceType) &&
+                          j.motoristVehicle?.trim()
                             ? j.motoristVehicle.trim()
-                            : PRO_SERVICE_LABELS[j.serviceType] || "Service Request"}
+                            : PRO_SERVICE_LABELS[j.serviceType] ||
+                              "Service Request"}
                         </p>
                       </div>
                       <ChevronRight className={cn("h-4 w-4 shrink-0", muted)} />
@@ -738,13 +726,13 @@ export default function TechnicianDashboardPage() {
           </section>
         )}
 
-        {/* Ongoing jobs — easy navigation for active work */}
+        {/* Ongoing jobs easy navigation for active work */}
         {!jobsLoading && showOngoing && (
           <section>
             <p
               className={cn(
                 "mb-1 text-[11px] font-black uppercase tracking-[0.12em]",
-                muted
+                muted,
               )}
             >
               Ongoing jobs
@@ -762,16 +750,17 @@ export default function TechnicianDashboardPage() {
                         <p
                           className={cn(
                             "truncate text-[15px] font-semibold",
-                            ink
+                            ink,
                           )}
                         >
-                          {isAutomotiveTrade(j.serviceType) && j.motoristVehicle?.trim()
+                          {isAutomotiveTrade(j.serviceType) &&
+                          j.motoristVehicle?.trim()
                             ? j.motoristVehicle.trim()
                             : PRO_SERVICE_LABELS[j.serviceType] || "Job"}
                         </p>
                         <p
                           className={cn(
-                            "mt-0.5 text-[11px] font-bold text-[#FF6B35]"
+                            "mt-0.5 text-[11px] font-bold text-[#FF6B35]",
                           )}
                         >
                           {ongoingStatusLabel(j.status)}
@@ -780,7 +769,7 @@ export default function TechnicianDashboardPage() {
                           <p
                             className={cn(
                               "mt-0.5 truncate text-[12px] font-medium",
-                              muted
+                              muted,
                             )}
                           >
                             {addr}
@@ -796,10 +785,9 @@ export default function TechnicianDashboardPage() {
           </section>
         )}
 
-        {/* Last 6 finished jobs — vertical listing (Uber/inDrive style), place + area only */}
+        {/* Last 6 finished jobs vertical listing (Uber/inDrive style), place + area only */}
         {!jobsLoading && showRecent && (
           <section aria-label="Recent jobs">
-            <div className={cn("my-2 h-px", muted.replace(/text-/, "bg-"))} />
             <ul className="space-y-0">
               {recent.map((j) => {
                 const addr = meetAddress(j);
@@ -817,7 +805,7 @@ export default function TechnicianDashboardPage() {
                         <p
                           className={cn(
                             "truncate text-[13px] font-semibold leading-snug",
-                            ink
+                            ink,
                           )}
                         >
                           {title}
@@ -826,17 +814,13 @@ export default function TechnicianDashboardPage() {
                           <p
                             className={cn(
                               "mt-0.5 truncate text-[11px] font-medium leading-snug",
-                              muted
+                              muted,
                             )}
                           >
                             {subtitle}
                           </p>
                         ) : null}
                       </div>
-                      <ChevronRight
-                        className={cn("h-4 w-4 shrink-0", muted)}
-                        aria-hidden
-                      />
                     </Link>
                   </li>
                 );

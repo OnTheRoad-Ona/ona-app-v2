@@ -1,5 +1,5 @@
 /**
- * Customer Care operations service — search, board, one-click actions.
+ * Customer Care operations service search, board, one-click actions.
  */
 
 import { createServiceSupabase } from "@/lib/supabase/server";
@@ -51,7 +51,7 @@ export async function careSearch(query: string): Promise<CareSearchHit[]> {
     let jobsQuery = supabase
       .from("service_requests")
       .select(
-        "id, flow_status, status, motorist_name, repair_pro_name, pickup_address, agreed_major, service_type, created_at"
+        "id, flow_status, status, motorist_name, repair_pro_name, pickup_address, agreed_major, service_type, created_at",
       )
       .order("created_at", { ascending: false })
       .limit(15);
@@ -62,7 +62,7 @@ export async function careSearch(query: string): Promise<CareSearchHit[]> {
       jobsQuery = jobsQuery.eq("id", q);
     } else {
       jobsQuery = jobsQuery.or(
-        `pickup_address.ilike.${like},motorist_name.ilike.${like},repair_pro_name.ilike.${like}`
+        `pickup_address.ilike.${like},motorist_name.ilike.${like},repair_pro_name.ilike.${like}`,
       );
     }
     const { data: jobs } = await jobsQuery;
@@ -118,7 +118,8 @@ export async function careSearch(query: string): Promise<CareSearchHit[]> {
       kind: "user",
       id: String(m.user_id),
       title: prof?.full_name || "Customer",
-      subtitle: `Plate ${m.plate_number} · ${m.vehicle_make || ""} ${m.vehicle_model || ""}`.trim(),
+      subtitle:
+        `Plate ${m.plate_number} · ${m.vehicle_make || ""} ${m.vehicle_model || ""}`.trim(),
       meta: { ...m, phone: prof?.phone, is_active: prof?.is_active },
     });
   }
@@ -138,7 +139,7 @@ export async function careLiveBoard() {
   const { data: rows } = await supabase
     .from("service_requests")
     .select(
-      "id, flow_status, status, motorist_name, repair_pro_name, pickup_address, agreed_major, service_type, escrow_status, amount_minor, platform_fee_minor, pro_payout_minor, eta_text, created_at, updated_at, dispute"
+      "id, flow_status, status, motorist_name, repair_pro_name, pickup_address, agreed_major, service_type, escrow_status, amount_minor, platform_fee_minor, pro_payout_minor, eta_text, created_at, updated_at, dispute",
     )
     .in("flow_status", [...LIVE_FLOW])
     .order("updated_at", { ascending: false })
@@ -172,7 +173,7 @@ export async function careJobDetail(jobId: string) {
 
 export async function careUserDetail(
   userId: string,
-  opts: { revealPii: boolean }
+  opts: { revealPii: boolean },
 ) {
   const supabase = createServiceSupabase();
   const { data: profile } = await supabase
@@ -183,8 +184,16 @@ export async function careUserDetail(
   if (!profile) return null;
 
   const [{ data: motorist }, { data: pro }] = await Promise.all([
-    supabase.from("motorist_profiles").select("*").eq("user_id", userId).maybeSingle(),
-    supabase.from("repair_pro_profiles").select("*").eq("user_id", userId).maybeSingle(),
+    supabase
+      .from("motorist_profiles")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    supabase
+      .from("repair_pro_profiles")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle(),
   ]);
 
   const pii = {
@@ -197,8 +206,8 @@ export async function careUserDetail(
     ninVerified: !!(motorist?.nin_verified || pro?.nin_verified),
     bvnVerified: !!(motorist?.bvn_verified || pro?.bvn_verified),
     bank: opts.revealPii
-      ? (pro as { bank_account_encrypted?: string } | null)?.bank_account_encrypted ||
-        null
+      ? (pro as { bank_account_encrypted?: string } | null)
+          ?.bank_account_encrypted || null
       : "•••• (unlock to view)",
   };
 
@@ -207,15 +216,23 @@ export async function careUserDetail(
     motorist: motorist
       ? {
           ...motorist,
-          nin_last4: opts.revealPii ? motorist.nin_last4 : maskIdentity(motorist.nin_last4),
-          bvn_last4: opts.revealPii ? motorist.bvn_last4 : maskIdentity(motorist.bvn_last4),
+          nin_last4: opts.revealPii
+            ? motorist.nin_last4
+            : maskIdentity(motorist.nin_last4),
+          bvn_last4: opts.revealPii
+            ? motorist.bvn_last4
+            : maskIdentity(motorist.bvn_last4),
         }
       : null,
     pro: pro
       ? {
           ...pro,
-          nin_last4: opts.revealPii ? pro.nin_last4 : maskIdentity(pro.nin_last4),
-          bvn_last4: opts.revealPii ? pro.bvn_last4 : maskIdentity(pro.bvn_last4),
+          nin_last4: opts.revealPii
+            ? pro.nin_last4
+            : maskIdentity(pro.nin_last4),
+          bvn_last4: opts.revealPii
+            ? pro.bvn_last4
+            : maskIdentity(pro.bvn_last4),
         }
       : null,
     pii,
@@ -242,8 +259,10 @@ export async function executeCareAction(
     adminId: string;
     ip?: string;
     userAgent?: string;
-  }
-): Promise<{ ok: true; message: string; data?: unknown } | { ok: false; error: string }> {
+  },
+): Promise<
+  { ok: true; message: string; data?: unknown } | { ok: false; error: string }
+> {
   const supabase = createServiceSupabase();
 
   switch (action.type) {
@@ -262,7 +281,7 @@ export async function executeCareAction(
         sensitive: true,
         meta: { reason: action.reason || null },
       });
-      return { ok: true, message: "User frozen — cannot log in or take jobs" };
+      return { ok: true, message: "User frozen cannot log in or take jobs" };
     }
     case "unfreeze_user": {
       const { error } = await supabase
@@ -325,7 +344,10 @@ export async function executeCareAction(
         sensitive: true,
         meta: { note: action.note || null },
       });
-      return { ok: true, message: "Escrow released to Repair Pro (87.5% · 5% Ona · VAT on FLW)" };
+      return {
+        ok: true,
+        message: "Escrow released to Repair Pro (87.5% · 5% Ona · VAT on FLW)",
+      };
     }
     case "refund_escrow": {
       const esc = await getEscrowByRequest(action.jobId);
@@ -387,7 +409,11 @@ export async function executeCareAction(
           note: action.note || null,
         },
       });
-      return { ok: true, message: `${kind} resolved: ${action.outcome}`, data: res };
+      return {
+        ok: true,
+        message: `${kind} resolved: ${action.outcome}`,
+        data: res,
+      };
     }
     default:
       return { ok: false, error: "Unknown action" };

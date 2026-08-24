@@ -1,5 +1,5 @@
 /**
- * Travel integrity — audit only. Never changes Call-Out Fee.
+ * Travel integrity audit only. Never changes Call-Out Fee.
  */
 
 export const INTEGRITY_STATUSES = [
@@ -38,7 +38,7 @@ const ARRIVAL_PROXIMITY_M = 200;
 
 export function haversineMeters(
   a: { lat: number; lng: number },
-  b: { lat: number; lng: number }
+  b: { lat: number; lng: number },
 ): number {
   const R = 6371000;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -100,10 +100,10 @@ export function assessTravelIntegrity(input: IntegrityInput): IntegrityResult {
   }
 
   const high = anomalies.filter((a) =>
-    /impossible|mock_location|unusable/.test(a)
+    /impossible|mock_location|unusable/.test(a),
   );
   const suspicious = anomalies.filter((a) =>
-    /jump|far_from_customer|went_backwards/.test(a)
+    /jump|far_from_customer|went_backwards/.test(a),
   );
   let status: IntegrityStatus = "NORMAL";
   if (high.length >= 2) status = "HIGH_RISK";
@@ -112,7 +112,7 @@ export function assessTravelIntegrity(input: IntegrityInput): IntegrityResult {
   return { status, anomalies };
 }
 
-/** GPS usable as Call-Out origin — not invented, not hours-old, not junk accuracy. */
+/** GPS usable as Call-Out origin not invented, not hours-old, not junk accuracy. */
 export function isUsableAcceptanceFix(input: {
   capturedAt: string;
   accuracyM?: number | null;

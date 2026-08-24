@@ -30,10 +30,10 @@ describe("mechanic question tree", () => {
       "K",
     ]);
     expect(
-      MECHANIC_START_OPTIONS.some((o) => /air conditioning/i.test(o.label))
+      MECHANIC_START_OPTIONS.some((o) => /air conditioning/i.test(o.label)),
     ).toBe(false);
     expect(
-      MECHANIC_START_OPTIONS.some((o) => /electrical/i.test(o.label))
+      MECHANIC_START_OPTIONS.some((o) => /electrical/i.test(o.label)),
     ).toBe(false);
   });
 
@@ -56,38 +56,38 @@ describe("mechanic question tree", () => {
 
   it("skips the transmission question for an Electric powertrain vehicle", () => {
     expect(
-      nextMechanicScreen("start", "G", { start: "G", powertrain: "Electric" })
+      nextMechanicScreen("start", "G", { start: "G", powertrain: "Electric" }),
     ).toBe("g_ev");
     expect(
-      nextMechanicScreen("start", "G", { start: "G", powertrain: "Petrol" })
+      nextMechanicScreen("start", "G", { start: "G", powertrain: "Petrol" }),
     ).toBe("g_type");
   });
 
   it("opens and resolves the EV (K) branch from start", () => {
     expect(nextMechanicScreen("start", "K", { start: "K" })).toBe("ev_issue");
     expect(nextMechanicScreen("ev_issue", "other", { start: "K" })).toBe(
-      "ev_other"
+      "ev_other",
     );
     expect(
       nextMechanicScreen("ev_issue", "charging", {
         start: "K",
         ev_issue: "charging",
-      })
+      }),
     ).toBe("confirm");
   });
 
   it("diagnoses and routes EV issues: charging→Electrical, battery→Battery, motor no-drive→Tow", () => {
+    expect(mechanicDiagnosis({ start: "K", ev_issue: "charging" })).toContain(
+      "charging",
+    );
+    expect(mechanicDiagnosis({ start: "K", ev_issue: "battery" })).toContain(
+      "high-voltage",
+    );
     expect(
-      mechanicDiagnosis({ start: "K", ev_issue: "charging" })
-    ).toContain("charging");
-    expect(
-      mechanicDiagnosis({ start: "K", ev_issue: "battery" })
-    ).toContain("high-voltage");
-    expect(
-      mechanicDiagnosis({ start: "K", ev_issue: "motor_no_drive" })
+      mechanicDiagnosis({ start: "K", ev_issue: "motor_no_drive" }),
     ).toContain("motor");
     expect(
-      mechanicDiagnosis({ start: "K", ev_issue: "won_t_start" })
+      mechanicDiagnosis({ start: "K", ev_issue: "won_t_start" }),
     ).toContain("12V auxiliary");
 
     const charging = resolveMechanicRoute({ start: "K", ev_issue: "charging" });
@@ -96,7 +96,10 @@ describe("mechanic question tree", () => {
     const battery = resolveMechanicRoute({ start: "K", ev_issue: "battery" });
     expect(battery.trade).toBe("battery");
     expect(battery.alternate).toBe("electrical");
-    const motor = resolveMechanicRoute({ start: "K", ev_issue: "motor_no_drive" });
+    const motor = resolveMechanicRoute({
+      start: "K",
+      ev_issue: "motor_no_drive",
+    });
     expect(motor.trade).toBe("towing");
   });
 
@@ -164,7 +167,7 @@ describe("mechanic question tree", () => {
         c_when: "moving",
         c_sound: "squealing",
         c_safe: "yes",
-      }).trade
+      }).trade,
     ).toBe("vulcanizer");
     expect(
       resolveMechanicRoute({
@@ -173,7 +176,7 @@ describe("mechanic question tree", () => {
         c_when: "braking",
         c_sound: "grinding",
         c_safe: "yes",
-      }).trade
+      }).trade,
     ).toBe("vulcanizer");
   });
 
@@ -183,7 +186,7 @@ describe("mechanic question tree", () => {
         start: "I",
         j_kind: "flat",
         j_multi: "no",
-      }).trade
+      }).trade,
     ).toBe("vulcanizer");
   });
 
@@ -193,14 +196,14 @@ describe("mechanic question tree", () => {
         start: "H",
         i_accident: "yes",
         i_driveable: "yes",
-      }).trade
+      }).trade,
     ).toBe("body");
     expect(
       resolveMechanicRoute({
         start: "H",
         i_accident: "yes",
         i_driveable: "no",
-      }).trade
+      }).trade,
     ).toBe("towing");
   });
 
@@ -211,20 +214,20 @@ describe("mechanic question tree", () => {
         f_color: "coolant",
         f_where: "under the car",
         f_safe: "yes",
-      }).trade
+      }).trade,
     ).toBe("mechanic");
     expect(
       resolveMechanicRoute({
         start: "B",
         b_how: "gradual",
         b_move: "yes",
-      }).trade
+      }).trade,
     ).toBe("mechanic");
     expect(
       resolveMechanicRoute({
         start: "D",
         d_safe: "yes",
-      }).trade
+      }).trade,
     ).toBe("mechanic");
   });
 
@@ -235,13 +238,13 @@ describe("mechanic question tree", () => {
         f_color: "coolant",
         f_where: "under the car",
         f_safe: "no",
-      }).trade
+      }).trade,
     ).toBe("towing");
     expect(
       resolveMechanicRoute({
         start: "D",
         d_safe: "no",
-      }).trade
+      }).trade,
     ).toBe("towing");
   });
 
@@ -251,25 +254,25 @@ describe("mechanic question tree", () => {
         start: "J",
         l_related: "power",
         l_power: "solar",
-      }).trade
+      }).trade,
     ).toBe("solar");
     expect(
       resolveMechanicRoute({
         start: "J",
         l_related: "clothing",
-      }).trade
+      }).trade,
     ).toBe("fashion");
     expect(
       resolveMechanicRoute({
         start: "J",
         l_related: "vehicle",
-      }).trade
+      }).trade,
     ).toBe("mechanic");
   });
 
   it("asks Continue with the stronger trade name", () => {
     expect(confirmQuestion("battery")).toBe(
-      "This sounds like Battery. Continue?"
+      "This sounds like Battery. Continue?",
     );
     expect(confirmQuestion("towing")).toBe("This sounds like Tow. Continue?");
   });
@@ -282,7 +285,7 @@ describe("mechanic question tree", () => {
         a_what_label: "Completely silent / nothing happens",
       },
       "please hurry",
-      " lekki phase 1 "
+      " lekki phase 1 ",
     );
     expect(text).toContain(MECHANIC_START_QUESTION);
     expect(text).toContain("The vehicle will not start at all");
@@ -295,12 +298,12 @@ describe("mechanic question tree", () => {
     const text = composeMechanicProblem(
       { start: "A", a_what: "silent", a_lights: "none" },
       "",
-      ""
+      "",
     );
     expect(text).toContain("Likely problem");
     expect(text).toContain("Likely a dead battery or a blown fuse");
     expect(mechanicDiagnosis({ start: "C", c_where: "wheels" })).toBe(
-      "Likely a wheel, brake, or suspension issue"
+      "Likely a wheel, brake, or suspension issue",
     );
     expect(mechanicDiagnosis({ start: "H" })).toBe("Body and panel damage");
   });

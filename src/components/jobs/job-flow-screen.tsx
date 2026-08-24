@@ -109,10 +109,7 @@ import {
   isProPanelOnlyPairingStatus,
   requestForceIncomingPanel,
 } from "@/lib/jobs/incoming-popup-timing";
-import {
-  homePathForForbidden,
-  isForbiddenMessage,
-} from "@/lib/navigation";
+import { homePathForForbidden, isForbiddenMessage } from "@/lib/navigation";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import type { ServiceRequest } from "@/lib/types";
@@ -121,11 +118,8 @@ import { cn, firstNameOnly } from "@/lib/utils";
 // Lazy-load the searching map so the timer page paints instantly; the Google
 // map mounts after the ring timer and bottom sheet are visible.
 const SearchingMap = dynamic(
-  () =>
-    import("@/components/jobs/searching-map").then(
-      (m) => m.SearchingMap
-    ),
-  { ssr: false, loading: () => null }
+  () => import("@/components/jobs/searching-map").then((m) => m.SearchingMap),
+  { ssr: false, loading: () => null },
 );
 
 /** Decline reasons shown to a pro who cannot take a request (SSPE + legacy). */
@@ -154,27 +148,31 @@ function HeaderMenu({ isLight }: { isLight: boolean }) {
         onClick={() => setMenuOpen(true)}
         className={cn(
           "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border-0",
-          isLight ? "bg-[#c8c9cd]" : "bg-black"
+          isLight ? "bg-[#c8c9cd]" : "bg-black",
         )}
         style={{ backgroundColor: isLight ? "#c8c9cd" : "#000000" }}
         aria-label="Open menu"
         aria-expanded={menuOpen}
       >
-        <Menu className="h-[18px] w-[18px]" strokeWidth={2.35} style={{ color: "#FF6B35" }} />
+        <Menu
+          className="h-[18px] w-[18px]"
+          strokeWidth={2.35}
+          style={{ color: "#FF6B35" }}
+        />
       </button>
       {mount &&
         createPortal(
           <AppMenu open={menuOpen} onClose={() => setMenuOpen(false)} />,
-          mount
+          mount,
         )}
     </>
   );
 }
 
 /** Customer photos in a single non-scrolling row that shrinks to fit.
- *  Tapping a thumbnail opens a full-screen lightbox (arrows + swipe + counter),
- *  matching the incoming-job panel preview.
- *  When no job photos: show customer profile picture in the placeholder slot. */
+ * Tapping a thumbnail opens a full-screen lightbox (arrows + swipe + counter),
+ * matching the incoming-job panel preview.
+ * When no job photos: show customer profile picture in the placeholder slot. */
 function PhotoStrip({
   photos,
   isLight,
@@ -183,7 +181,7 @@ function PhotoStrip({
 }: {
   photos: { id: string; url: string; name?: string | null }[];
   isLight: boolean;
-  /** Customer profile picture — fills the image placeholder when no job photos */
+  /** Customer profile picture fills the image placeholder when no job photos */
   profilePhotoUrl?: string | null;
   profileName?: string | null;
 }) {
@@ -213,7 +211,7 @@ function PhotoStrip({
         <div
           className={cn(
             "flex h-20 w-20 shrink-0 items-center justify-center rounded-lg text-[18px] font-black",
-            isLight ? "bg-black/10 text-slate-700" : "bg-white/12 text-white"
+            isLight ? "bg-black/10 text-slate-700" : "bg-white/12 text-white",
           )}
           aria-label="Customer photo placeholder"
         >
@@ -235,7 +233,9 @@ function PhotoStrip({
             className="min-w-0 flex-1 basis-0 overflow-hidden rounded-lg border-0 p-0"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img loading="lazy" decoding="async"
+            <img
+              loading="lazy"
+              decoding="async"
               src={p.url}
               alt={p.name || "Job photo"}
               className="h-20 w-full object-cover"
@@ -276,7 +276,7 @@ function PhotoStrip({
             onClick={() => setLightbox(null)}
             className={cn(
               "absolute right-4 top-[max(1rem,env(safe-area-inset-top))] rounded-full border-0 p-2 text-white",
-              !isLight && "bg-white/10"
+              !isLight && "bg-white/10",
             )}
           >
             <X className="h-6 w-6" />
@@ -293,9 +293,10 @@ function PhotoStrip({
                       ? {
                           ...lb,
                           index:
-                            (lb.index - 1 + lb.photos.length) % lb.photos.length,
+                            (lb.index - 1 + lb.photos.length) %
+                            lb.photos.length,
                         }
-                      : lb
+                      : lb,
                   );
                 }}
                 className="absolute left-2 z-[201] rounded-full border-0 bg-white/10 p-2 text-white"
@@ -310,7 +311,7 @@ function PhotoStrip({
                   setLightbox((lb) =>
                     lb
                       ? { ...lb, index: (lb.index + 1) % lb.photos.length }
-                      : lb
+                      : lb,
                   );
                 }}
                 className="absolute right-2 z-[201] rounded-full border-0 bg-white/10 p-2 text-white"
@@ -320,7 +321,9 @@ function PhotoStrip({
             </>
           )}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img loading="lazy" decoding="async"
+          <img
+            loading="lazy"
+            decoding="async"
             src={lightbox.photos[lightbox.index]?.url}
             alt={lightbox.photos[lightbox.index]?.name || "Job photo"}
             className="max-h-[80%] max-w-[90%] rounded-xl object-contain"
@@ -353,7 +356,7 @@ function CancelConfirmSheet({
       <div
         className={cn(
           "w-full max-w-md overflow-hidden rounded-2xl shadow-2xl",
-          isLight ? "bg-white" : "bg-[#1c1c1e]"
+          isLight ? "bg-white" : "bg-[#1c1c1e]",
         )}
         role="dialog"
         aria-modal
@@ -363,7 +366,7 @@ function CancelConfirmSheet({
           <p
             className={cn(
               "text-center text-[15px] font-black",
-              isLight ? "text-slate-900" : "text-white"
+              isLight ? "text-slate-900" : "text-white",
             )}
           >
             Cancel this request?
@@ -371,7 +374,7 @@ function CancelConfirmSheet({
           <p
             className={cn(
               "mt-1 text-center text-[12px] font-medium",
-              isLight ? "text-slate-500" : "text-white/55"
+              isLight ? "text-slate-500" : "text-white/55",
             )}
           >
             The request will be closed and the other party will be notified. Are
@@ -382,7 +385,7 @@ function CancelConfirmSheet({
           type="button"
           onClick={onConfirm}
           className={cn(
-            "flex h-12 w-full items-center justify-center border-0 text-[14px] font-bold text-red-500"
+            "flex h-12 w-full items-center justify-center border-0 text-[14px] font-bold text-red-500",
           )}
         >
           Yes, cancel
@@ -392,14 +395,14 @@ function CancelConfirmSheet({
           onClick={onClose}
           className={cn(
             "flex h-12 w-full items-center justify-center border-0 text-[14px] font-bold",
-            isLight ? "text-slate-900" : "text-white"
+            isLight ? "text-slate-900" : "text-white",
           )}
         >
           Keep request
         </button>
       </div>
     </div>,
-    document.getElementById("ona-phone") || document.body
+    document.getElementById("ona-phone") || document.body,
   );
 }
 
@@ -495,12 +498,10 @@ export function JobFlowScreen({
   const [locHint, setLocHint] = useState<string | null>(null);
   /** Ended-chat gate: OK stay / View read-only */
   const [chatGateOpen, setChatGateOpen] = useState(false);
-  const [chatGateViewHref, setChatGateViewHref] = useState<string | null>(
-    null
-  );
+  const [chatGateViewHref, setChatGateViewHref] = useState<string | null>(null);
 
   const [retryingSearch, setRetryingSearch] = useState(false);
-  /** Live pros of this trade in customer radius — pairing status under timer */
+  /** Live pros of this trade in customer radius pairing status under timer */
   const [nearbyLiveCount, setNearbyLiveCount] = useState<number | null>(null);
   /** Arrived / Work in progress: home-style swipe sheet */
   const [tripSheetExpanded, setTripSheetExpanded] = useState(false);
@@ -525,13 +526,13 @@ export function JobFlowScreen({
         const existing = visibleMessageThreads.find(
           (t) =>
             (t.requestId === j.id && !t.id.startsWith("chat-")) ||
-            t.id === `chat-${j.id}`
+            t.id === `chat-${j.id}`,
         );
         // Message on ended job → conversation copy; still gated
         setChatGateViewHref(
           existing && !existing.id.startsWith("chat-")
             ? readOnlyChatHref(existing.id)
-            : `/requests/${j.id}`
+            : `/requests/${j.id}`,
         );
         setChatGateOpen(true);
         return;
@@ -539,7 +540,7 @@ export function JobFlowScreen({
       const existing = visibleMessageThreads.find(
         (t) =>
           (t.requestId === j.id && !t.id.startsWith("chat-")) ||
-          t.id === `chat-${j.id}`
+          t.id === `chat-${j.id}`,
       );
       if (existing && !existing.id.startsWith("chat-")) {
         router.push(`/messages/${existing.id}`);
@@ -568,7 +569,7 @@ export function JobFlowScreen({
         window.setTimeout(() => setFlash(null), 3000);
       }
     },
-    [ensureChatForRequestAsync, router, visibleMessageThreads]
+    [ensureChatForRequestAsync, router, visibleMessageThreads],
   );
 
   const startJobCall = useCallback(
@@ -578,12 +579,12 @@ export function JobFlowScreen({
           technicians.find((t) => t.id === j.repairProId) ||
           technicians.find(
             (t) =>
-              t.name === j.repairProName && t.serviceType === j.serviceType
+              t.name === j.repairProName && t.serviceType === j.serviceType,
           );
         const phone = (j.repairProPhone || tech?.phone || "").trim();
         const peerId = j.repairProId;
         if (!phone && !peerId) {
-          setFlash("Cannot call — no in-app peer or phone. Use Message.");
+          setFlash("Cannot call no in-app peer or phone. Use Message.");
           window.setTimeout(() => setFlash(null), 3500);
           return;
         }
@@ -601,7 +602,7 @@ export function JobFlowScreen({
       const phone = (j.motoristPhone || "").trim();
       const peerId = j.motoristId;
       if (!phone && !peerId) {
-        setFlash("Cannot call — no in-app peer or phone. Use Message.");
+        setFlash("Cannot call no in-app peer or phone. Use Message.");
         window.setTimeout(() => setFlash(null), 3500);
         return;
       }
@@ -614,7 +615,7 @@ export function JobFlowScreen({
         jobId: j.id,
       });
     },
-    [startCall, technicians, viewer]
+    [startCall, technicians, viewer],
   );
 
   /* Auto-close: terminal status → customer & pro both go straight to their
@@ -624,10 +625,10 @@ export function JobFlowScreen({
     if (!job) return;
     const isPro = viewer === "repair_pro";
     // Exhausted requests (no pro available after all rounds) must keep showing
-    // the explicit "No pro available / Request again" screen — including after
-    // a refresh — instead of auto-closing to the dashboard.
+    // the explicit "No pro available / Request again" screen including after
+    // a refresh instead of auto-closing to the dashboard.
     const isExhausted = job.statusHistory.some(
-      (h) => h.by === "pairing_exhausted" || h.by === "reroute_exhausted"
+      (h) => h.by === "pairing_exhausted" || h.by === "reroute_exhausted",
     );
     if (isExhausted) return;
     if (isJobHistoryOnlyStatus(job.status)) {
@@ -736,13 +737,13 @@ export function JobFlowScreen({
         return optimistic;
       });
     } catch {
-      /* ignore — fall back to the normal loading + poll path */
+      /* ignore fall back to the normal loading + poll path */
     }
   }, [isNewRequest]);
 
   // Background create once auth is ready; swap activeJobIdRef to the real id
   // so the existing poll/loader machinery takes over seamlessly. We stay on
-  // /jobs/new — swapping the URL mid-search suspends the page (Suspense
+  // /jobs/new swapping the URL mid-search suspends the page (Suspense
   // "Loading…" flash).
   useEffect(() => {
     if (!isNewRequest) return;
@@ -787,7 +788,7 @@ export function JobFlowScreen({
       const { ensureAppSession } = await import("@/lib/supabase/session");
       await ensureAppSession({ waitForSessionMs: 4000 });
     } catch {
-      /* continue — apiGetJob retries */
+      /* continue apiGetJob retries */
     }
     const res = await apiGetJob(id);
     if (!res.ok) {
@@ -802,14 +803,14 @@ export function JobFlowScreen({
         router.replace(accountType === "professional" ? "/jobs" : "/");
         return;
       }
-      // Never park on a Forbidden error screen — role home immediately
+      // Never park on a Forbidden error screen role home immediately
       if (isForbiddenMessage(res.message)) {
         router.replace(homePathForForbidden(accountType));
         return;
       }
-      // Soft auth failure: keep spinner, let poll retry — don't stick forever
+      // Soft auth failure: keep spinner, let poll retry don't stick forever
       const authish = /not authenticated|session|sign in|refresh/i.test(
-        res.message
+        res.message,
       );
       if (authish && !jobRef.current) {
         setErr(res.message);
@@ -819,8 +820,17 @@ export function JobFlowScreen({
       setErr((prev) => stickyReleaseErr || prev || res.message);
       return;
     }
+    // Unpaid Ona Express drafts are booking-session state, never an open
+    // request: tapping one returns the customer to the page they were on.
+    if (
+      (res.data.job as unknown as { flowStatus?: string }).flowStatus ===
+      "express_pending_payment"
+    ) {
+      router.back();
+      return;
+    }
     commitJob(res.data.job);
-    // Never clear stickyReleaseErr here — only dismiss / successful release
+    // Never clear stickyReleaseErr here only dismiss / successful release
     setErr((prev) => (stickyReleaseErr ? stickyReleaseErr : null));
     // If payout already done, drop sticky error
     if (
@@ -831,6 +841,22 @@ export function JobFlowScreen({
       setStickyReleaseErr(null);
     }
   }, [jobId, commitJob, stickyReleaseErr, accountType, router]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Stale-tab reconcile: while a live negotiation screen is open, re-verify
+  // against the server periodically and on refocus. A cancelled/expired job
+  // must never keep showing live negotiation controls from an old copy.
+  useEffect(() => {
+    if (job?.status !== "negotiating") return;
+    const reconcile = () => void load();
+    const iv = window.setInterval(reconcile, 20_000);
+    window.addEventListener("focus", reconcile);
+    document.addEventListener("visibilitychange", reconcile);
+    return () => {
+      window.clearInterval(iv);
+      window.removeEventListener("focus", reconcile);
+      document.removeEventListener("visibilitychange", reconcile);
+    };
+  }, [job?.status, load]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // If Forbidden ever lands in UI state, leave immediately (no stuck screen)
   useEffect(() => {
@@ -899,13 +925,7 @@ export function JobFlowScreen({
       cancelled = true;
       window.clearInterval(t);
     };
-  }, [
-    load,
-    job?.status,
-    job?.escrowStatus,
-    authReady,
-    isAuthenticated,
-  ]);
+  }, [load, job?.status, job?.escrowStatus, authReady, isAuthenticated]);
 
   // When job flips to completed for customer, force satisfaction UI + notify
   const prevStatusRef = useRef<string | null>(null);
@@ -914,8 +934,7 @@ export function JobFlowScreen({
     prevStatusRef.current = job?.status || null;
     if (!job || job.status !== "completed") return;
     const isCustomer =
-      (Boolean(actorId) && job.motoristId === actorId) ||
-      viewer === "motorist";
+      (Boolean(actorId) && job.motoristId === actorId) || viewer === "motorist";
     if (!isCustomer) return;
     // Always re-assert path so dual-role / deep links land on release screen
     if (typeof window !== "undefined") {
@@ -926,13 +945,13 @@ export function JobFlowScreen({
     }
     if (prev && prev !== "completed") {
       try {
-        // Short in-app flash only (2s) — not sticky
-        setFlash("Job complete — release payment");
+        // Short in-app flash only (2s) not sticky
+        setFlash("Job complete release payment");
         window.setTimeout(() => setFlash(null), 2000);
         void import("@/lib/app-notify").then(({ showAppNotification }) => {
           showAppNotification({
             title: "Confirm & release pay",
-            body: "Job complete — tap I am Satisfied to release payment.",
+            body: "Job complete tap I am Satisfied to release payment.",
             tag: `job-complete-${job.id}`,
             href: `/jobs/${job.id}`,
             requireInteraction: false,
@@ -982,12 +1001,12 @@ export function JobFlowScreen({
           : job.status === "completed"
             ? 15_000
             : ["paid_booked", "en_route", "arrived", "in_progress"].includes(
-                  job.status
+                  job.status,
                 )
-            ? 15_000
-            : job.status === "released" || job.status === "satisfied"
-              ? 45_000
-              : 60_000;
+              ? 15_000
+              : job.status === "released" || job.status === "satisfied"
+                ? 45_000
+                : 60_000;
     const id = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       void tick();
@@ -1036,9 +1055,7 @@ export function JobFlowScreen({
     const lat = job.motoristLocation.lat;
     const lng = job.motoristLocation.lng;
     const radius =
-      typeof job.radiusKm === "number" && job.radiusKm > 0
-        ? job.radiusKm
-        : 10;
+      typeof job.radiusKm === "number" && job.radiusKm > 0 ? job.radiusKm : 10;
     const trade = job.serviceType;
     const tick = async () => {
       try {
@@ -1094,7 +1111,7 @@ export function JobFlowScreen({
   useEffect(() => {
     if (!job) return;
     const tracking = ["en_route", "arrived", "in_progress"].includes(
-      job.status
+      job.status,
     );
     if (!tracking || !navigator.geolocation) return;
 
@@ -1172,12 +1189,12 @@ export function JobFlowScreen({
   }, [viewer, job?.id, job?.status, actorId]);
 
   const ink = isLight ? "text-slate-900" : "text-white";
-  /** Readable secondary text — avoid pale gray on stage */
+  /** Readable secondary text avoid pale gray on stage */
   const muted = isLight ? "text-slate-700" : "text-white/75";
   const { quote: calloutQuote, ready: calloutReady } = useJobCallout(
     job?.id,
     job?.status,
-    job?.calloutQuote
+    job?.calloutQuote,
   );
 
   const negStatus = useMemo(() => {
@@ -1192,7 +1209,7 @@ export function JobFlowScreen({
   }, [job]);
 
   // PRO: when this request's timer elapses / the job expires (pairing deadline
-  // or negotiation timer), close this screen and go to the Dashboard — the
+  // or negotiation timer), close this screen and go to the Dashboard the
   // request is closed on every surface (panel card + this tab).
   useEffect(() => {
     if (viewer !== "repair_pro" || !job) return;
@@ -1230,9 +1247,9 @@ export function JobFlowScreen({
             { status: "cancelled", at: ts, by: actor },
           ],
         },
-        true
+        true,
       );
-      // Leave the screen immediately — no wait for server
+      // Leave the screen immediately no wait for server
       if (actor === "repair_pro") {
         router.replace("/dashboard");
       } else {
@@ -1252,10 +1269,14 @@ export function JobFlowScreen({
           /* optimistic cancel already applied */
         });
     },
-    [actorId, commitJob, router]
+    [actorId, commitJob, router],
   );
 
-  const run = async (fn: () => Promise<{ ok: true; data: { job: JobRecord } } | { ok: false; message: string }>) => {
+  const run = async (
+    fn: () => Promise<
+      { ok: true; data: { job: JobRecord } } | { ok: false; message: string }
+    >,
+  ) => {
     setBusy(true);
     setErr(null);
     const prevStatus = jobRef.current?.status;
@@ -1264,10 +1285,10 @@ export function JobFlowScreen({
       if (!res.ok) {
         // Raced SSPE action: the pairing sweep already moved this request on
         // (passed to another pro or expired). Reload so the UI shows the real
-        // state — "Request passed on" / expired — instead of a bare error.
+        // state "Request passed on" / expired instead of a bare error.
         if (
           /Request is not awaiting confirmation|Request is not open for this action|Not assigned to this request/i.test(
-            res.message
+            res.message,
           )
         ) {
           setErr(null);
@@ -1291,15 +1312,15 @@ export function JobFlowScreen({
       applyJob(res.data.job);
       const next = res.data.job.status;
 
-      // Detect reroute — pro cancelled and system found another
+      // Detect reroute pro cancelled and system found another
       const lastHistory = res.data.job.statusHistory?.at(-1);
       const hasReroute = lastHistory?.by?.startsWith("reroute:");
-      const wasCancelled = res.data.job.statusHistory?.some(
-        (h) => h.note?.startsWith("pro_declined")
+      const wasCancelled = res.data.job.statusHistory?.some((h) =>
+        h.note?.startsWith("pro_declined"),
       );
       if (hasReroute && wasCancelled && viewer === "motorist") {
-        const note = res.data.job.statusHistory.find(
-          (h) => h.note?.startsWith("pro_declined")
+        const note = res.data.job.statusHistory.find((h) =>
+          h.note?.startsWith("pro_declined"),
         );
         setRerouteAlert(note?.note || "pro_declined");
         return;
@@ -1323,7 +1344,8 @@ export function JobFlowScreen({
         /* audio optional */
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Something went wrong. Try again.";
+      const msg =
+        e instanceof Error ? e.message : "Something went wrong. Try again.";
       if (isForbiddenMessage(msg)) {
         setErr(null);
         router.replace(homePathForForbidden(accountType));
@@ -1370,7 +1392,11 @@ export function JobFlowScreen({
         isLight={isLight}
         title="Job closed"
         compactHeader
-        onBack={viewer === "repair_pro" ? () => router.replace("/dashboard") : () => router.replace("/")}
+        onBack={
+          viewer === "repair_pro"
+            ? () => router.replace("/dashboard")
+            : () => router.replace("/")
+        }
         rightSlot={<HeaderMenu isLight={isLight} />}
       >
         <p className={cn("px-0.5 pt-4 text-[14px] font-medium", ink)}>
@@ -1381,9 +1407,9 @@ export function JobFlowScreen({
     );
   }
 
-  /* ─── EXPIRED — pure history, no action buttons ─── */
+  /* ─── EXPIRED pure history, no action buttons ─── */
   if (job.status === "expired" || negStatus === "expired") {
-    // PRO: the request's timer elapsed — the screen auto-closes to the
+    // PRO: the request's timer elapsed the screen auto-closes to the
     // Dashboard (effect above); never leave the pro stranded on an expired
     // dead-end tab.
     if (viewer === "repair_pro") {
@@ -1401,10 +1427,10 @@ export function JobFlowScreen({
       PRO_SERVICE_LABELS[job.serviceType as keyof typeof PRO_SERVICE_LABELS] ||
       "Repair Pro";
     const isRerouteExhausted = job.statusHistory.some(
-      (h) => h.by === "reroute_exhausted" || h.by === "pairing_exhausted"
+      (h) => h.by === "reroute_exhausted" || h.by === "pairing_exhausted",
     );
     const retriesUsed = job.statusHistory.filter(
-      (h) => h.by === "retry_search"
+      (h) => h.by === "retry_search",
     ).length;
     const retriesLeft = Math.max(0, 3 - retriesUsed);
     const gaveUp = isRerouteExhausted && retriesLeft <= 0;
@@ -1419,7 +1445,7 @@ export function JobFlowScreen({
       } catch {
         /* */
       }
-      // Stay on the same job shell — no navigation. Server restarts pairing and
+      // Stay on the same job shell no navigation. Server restarts pairing and
       // dispatches the first of up to 6 pros in the customer radius immediately.
       const res = await apiRetrySearch(job.id);
       if (res.ok && res.data.job) {
@@ -1464,7 +1490,12 @@ export function JobFlowScreen({
           )
         }
       >
-        <p className={cn("px-0.5 pt-4 text-[14px] font-medium leading-relaxed", ink)}>
+        <p
+          className={cn(
+            "px-0.5 pt-4 text-[14px] font-medium leading-relaxed",
+            ink,
+          )}
+        >
           {isRerouteExhausted
             ? gaveUp
               ? `No ${tradeLabel} found at this time. Request other help or try again later.`
@@ -1475,7 +1506,7 @@ export function JobFlowScreen({
     );
   }
 
-  /* ─── SCHEDULED — add-another-repair-pro (Tow) ───
+  /* ─── SCHEDULED add-another-repair-pro (Tow) ───
    * A linked second request created at booking time, armed 60 min after the
    * first pro accepts. The sweep pinged the motorist to enter their current
    * address; this panel books the trade pro there.
@@ -1487,7 +1518,7 @@ export function JobFlowScreen({
           <p
             className={cn(
               "px-0.5 pt-8 text-center text-[13px] font-medium",
-              muted
+              muted,
             )}
           >
             Waiting to be dispatched
@@ -1512,8 +1543,8 @@ export function JobFlowScreen({
   /* ─── SSPE DISPATCH STATES ───
    * waiting_for_selected / selected_review / sequential_pairing /
    * waiting_for_pro / reserved. All countdowns render pairing_deadline
-   * (display-only, D3) — the server sweep owns timing.
-   * Repair Pro: full-page UI deleted for these — panel only (see useEffect).
+   * (display-only, D3) the server sweep owns timing.
+   * Repair Pro: full-page UI deleted for these panel only (see useEffect).
    */
   if (
     job.status === "waiting_for_selected" ||
@@ -1522,11 +1553,16 @@ export function JobFlowScreen({
     job.status === "waiting_for_pro" ||
     job.status === "reserved"
   ) {
-    // Pro never sees this full page — redirect effect sends them to dashboard.
+    // Pro never sees this full page redirect effect sends them to dashboard.
     if (viewer === "repair_pro") {
       return (
         <JobShell isLight={isLight} title="Service Request" compactHeader>
-          <p className={cn("px-0.5 pt-8 text-center text-[13px] font-medium", muted)}>
+          <p
+            className={cn(
+              "px-0.5 pt-8 text-center text-[13px] font-medium",
+              muted,
+            )}
+          >
             Opening request…
           </p>
         </JobShell>
@@ -1540,10 +1576,7 @@ export function JobFlowScreen({
     const proLabel = PRO_SERVICE_LABELS[job.serviceType] || job.serviceType;
     const nearbyLine =
       viewer === "motorist"
-        ? nearbyProsStatusLine(
-            nearbyLiveCount ?? 0,
-            proLabel
-          )
+        ? nearbyProsStatusLine(nearbyLiveCount ?? 0, proLabel)
         : null;
 
     // Customer: sequential pairing actively pings pros → full search screen.
@@ -1573,7 +1606,7 @@ export function JobFlowScreen({
       job.status === "waiting_for_selected"
         ? `${firstNameOnly(
             job.repairProName === "Repair Pro" ? null : job.repairProName,
-            proLabel
+            proLabel,
           )} has received your request and will respond shortly.`
         : reviewing
           ? "The Repair Pro is reviewing your request and will respond shortly."
@@ -1593,9 +1626,8 @@ export function JobFlowScreen({
                 onExpire={() => {
                   void (async () => {
                     try {
-                      const { apiPairingSweep } = await import(
-                        "@/lib/jobs/client"
-                      );
+                      const { apiPairingSweep } =
+                        await import("@/lib/jobs/client");
                       await apiPairingSweep();
                     } catch {
                       /* */
@@ -1612,7 +1644,7 @@ export function JobFlowScreen({
               <p
                 className={cn(
                   "mt-3 max-w-[280px] text-center text-[13px] font-bold leading-snug",
-                  ink
+                  ink,
                 )}
               >
                 {nearbyLine}
@@ -1621,14 +1653,19 @@ export function JobFlowScreen({
             <p
               className={cn(
                 "mt-2 max-w-[280px] text-center text-[13px] font-semibold leading-snug",
-                muted
+                muted,
               )}
             >
               {subtitle}
             </p>
           </div>
           <div>
-            <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
+            <p
+              className={cn(
+                "text-[11px] font-semibold uppercase tracking-wide",
+                muted,
+              )}
+            >
               Problem description
             </p>
             <JobProblemQA problem={job.problem} isLight={isLight} transparent />
@@ -1662,9 +1699,7 @@ export function JobFlowScreen({
           onClick={() => setConfirmCancel({ actor: "motorist" })}
           className={cn(
             "inline-flex h-11 w-full items-center justify-center rounded-md border-0 text-[13px] font-semibold",
-            isLight
-              ? "bg-black/10 text-slate-900"
-              : "bg-[#2c2c2e] text-white"
+            isLight ? "bg-black/10 text-slate-900" : "bg-[#2c2c2e] text-white",
           )}
         >
           Cancel request
@@ -1712,329 +1747,354 @@ export function JobFlowScreen({
         : [...job.offers].reverse().find((o) => o.side !== mySide);
 
     return (
-    <>
-      <JobShell
-        isLight={isLight}
-        title="Negotiate labour"
-        compactHeader
-        onBack={goJobsList}
-        backIcon={viewer === "motorist" ? <Minimize2 className="h-4 w-4" /> : undefined}
-        footer={
-          <div className="space-y-1.5">
-            {canAccept && last && (
-              <CopperButton
-                disabled={busy}
-                onClick={() =>
-                  void run(() =>
-                    apiAcceptOffer({
-                      jobId: job.id,
-                      side: mySide,
-                      actorId,
-                    })
-                  )
-                }
-              >
-                Accept {formatMoney(last.amountMajor, job.currency)}
-              </CopperButton>
-            )}
-            {canOffer && (
-              <div className="space-y-1">
-                <div className="flex gap-1.5">
-                  <input
-                    inputMode="numeric"
-                    pattern="[1-9][0-9]*"
-                    maxLength={MAX_OFFER_DIGITS}
-                    value={offerInput}
-                    onChange={(e) => {
-                      const raw = e.target.value
-                        .replace(/\D/g, "")
-                        .slice(0, MAX_OFFER_DIGITS);
-                      if (raw === "") {
-                        setOfferInput("");
-                        return;
-                      }
-                      if (/^0+$/.test(raw)) {
-                        setOfferInput("");
-                        return;
-                      }
-                      setOfferInput(raw.replace(/^0+/, "") || raw);
-                    }}
-                    placeholder={
-                      mySide === "repair_pro"
-                        ? `Labour price (min ${formatMoney(MIN_OFFER_AMOUNT_MAJOR)})`
-                        : "Counter (max 50% off)"
-                    }
-                    className={cn(
-                      "h-11 flex-1 rounded-md border-0 bg-transparent px-3 text-[14px] font-medium outline-none ring-1",
-                      isLight
-                        ? "text-slate-900 ring-black/20 placeholder:text-slate-500 focus:ring-[#FF6B35]/55"
-                        : "text-white ring-white/25 placeholder:text-white/40 focus:ring-[#FF6B35]/55"
-                    )}
-                    aria-label="Labour price offer"
-                  />
-                  <button
-                    type="button"
-                    disabled={
-                      busy ||
-                      !offerInput ||
-                      Number(offerInput.replace(/\D/g, "")) <
-                        MIN_OFFER_AMOUNT_MAJOR
-                    }
-                    onClick={() =>
-                      void run(async () => {
-                        const amount = Number(offerInput.replace(/\D/g, ""));
-                        if (
-                          !Number.isFinite(amount) ||
-                          amount < MIN_OFFER_AMOUNT_MAJOR
-                        ) {
-                          const msg = `Minimum service charge is ${formatMoney(MIN_OFFER_AMOUNT_MAJOR)}.`;
-                          setErr(msg);
-                          return {
-                            ok: false as const,
-                            message: msg,
-                          };
+      <>
+        <JobShell
+          isLight={isLight}
+          title="Negotiate labour"
+          compactHeader
+          onBack={goJobsList}
+          backIcon={
+            viewer === "motorist" ? (
+              <Minimize2 className="h-4 w-4" />
+            ) : undefined
+          }
+          footer={
+            <div className="space-y-1.5">
+              {canAccept && last && (
+                <CopperButton
+                  disabled={busy}
+                  onClick={() =>
+                    void run(() =>
+                      apiAcceptOffer({
+                        jobId: job.id,
+                        side: mySide,
+                        actorId,
+                      }),
+                    )
+                  }
+                >
+                  Accept {formatMoney(last.amountMajor, job.currency)}
+                </CopperButton>
+              )}
+              {canOffer && (
+                <div className="space-y-1">
+                  <div className="flex gap-1.5">
+                    <input
+                      inputMode="numeric"
+                      pattern="[1-9][0-9]*"
+                      maxLength={MAX_OFFER_DIGITS}
+                      value={offerInput}
+                      onChange={(e) => {
+                        const raw = e.target.value
+                          .replace(/\D/g, "")
+                          .slice(0, MAX_OFFER_DIGITS);
+                        if (raw === "") {
+                          setOfferInput("");
+                          return;
                         }
-                        const res = await apiPlaceOffer({
-                          jobId: job.id,
-                          side: mySide,
-                          actorId,
-                          amountMajor: amount,
-                        });
-                        if (res.ok) setOfferInput("");
-                        return res;
-                      })
-                    }
-                    className="h-11 shrink-0 rounded-md border-0 bg-[#FF6B35] px-4 text-[13px] font-semibold text-white disabled:opacity-40"
-                  >
-                    Send
-                  </button>
+                        if (/^0+$/.test(raw)) {
+                          setOfferInput("");
+                          return;
+                        }
+                        setOfferInput(raw.replace(/^0+/, "") || raw);
+                      }}
+                      placeholder={
+                        mySide === "repair_pro"
+                          ? `Labour price (min ${formatMoney(MIN_OFFER_AMOUNT_MAJOR)})`
+                          : "Counter (max 50% off)"
+                      }
+                      className={cn(
+                        "h-11 flex-1 rounded-md border-0 bg-transparent px-3 text-[14px] font-medium outline-none ring-1",
+                        isLight
+                          ? "text-slate-900 ring-black/20 placeholder:text-slate-500 focus:ring-[#FF6B35]/55"
+                          : "text-white ring-white/25 placeholder:text-white/40 focus:ring-[#FF6B35]/55",
+                      )}
+                      aria-label="Labour price offer"
+                    />
+                    <button
+                      type="button"
+                      disabled={
+                        busy ||
+                        !offerInput ||
+                        Number(offerInput.replace(/\D/g, "")) <
+                          MIN_OFFER_AMOUNT_MAJOR
+                      }
+                      onClick={() =>
+                        void run(async () => {
+                          const amount = Number(offerInput.replace(/\D/g, ""));
+                          if (
+                            !Number.isFinite(amount) ||
+                            amount < MIN_OFFER_AMOUNT_MAJOR
+                          ) {
+                            const msg = `Minimum service charge is ${formatMoney(MIN_OFFER_AMOUNT_MAJOR)}.`;
+                            setErr(msg);
+                            return {
+                              ok: false as const,
+                              message: msg,
+                            };
+                          }
+                          const res = await apiPlaceOffer({
+                            jobId: job.id,
+                            side: mySide,
+                            actorId,
+                            amountMajor: amount,
+                          });
+                          if (res.ok) setOfferInput("");
+                          return res;
+                        })
+                      }
+                      className="h-11 shrink-0 rounded-md border-0 bg-[#FF6B35] px-4 text-[13px] font-semibold text-white disabled:opacity-40"
+                    >
+                      Send
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
-            {viewer === "motorist" ? (
-              <button
-                type="button"
-                className={cn(
-                  "inline-flex h-11 w-full items-center justify-center rounded-md border-0 bg-transparent text-[13px] font-medium",
-                  ink
-                )}
-                onClick={() => setConfirmCancel({ actor: "motorist" })}
-              >
-                Cancel request
-              </button>
-            ) : null}
-          </div>
-        }
-      >
-        {/* Top: vehicle/service/problem + offers · Middle: ring timer */}
-        {/* Top: vehicle/service/problem + offers · Middle: ring timer */}
-        <div className="flex min-h-0 flex-col bg-transparent px-0.5 pt-1">
-          <div className="shrink-0 space-y-4 bg-transparent">
-            {viewer === "repair_pro" ? (
-              <div className="space-y-3 bg-transparent">
-                {/* Pro request: vehicle details only — the Q&A, matching skill
-                    and customer info were shown in the lower-panel card before
-                    accepting, so negotiation stays on the price. */}
-                {isAutomotiveTrade(job.serviceType) ? (
-                  <div>
-                    <p
-                      className={cn(
-                        "text-[11px] font-semibold uppercase tracking-wide",
-                        muted
-                      )}
-                    >
-                      Vehicle
-                    </p>
-                    <p className={cn("mt-1 text-[15px] font-semibold", ink)}>
-                      {job.motoristVehicle?.trim() || "Vehicle details on request"}
-                    </p>
-                  </div>
-                ) : null}
-                {calloutQuote ? (
-                  <div>
-                    <CalloutFeeLines
-                      quote={calloutQuote}
-                      currency={job.currency}
-                      ink={ink}
-                      muted={muted}
-                      compact
-                    />
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <div className="bg-transparent">
-                {job.voiceNote?.url && (
-                  <div className="mt-2.5">
-                    <VoiceNotePlayer
-                      url={job.voiceNote.url}
-                      durationSec={job.voiceNote.durationSec}
-                      isLight={isLight}
-                      label="Your voice note"
-                    />
-                  </div>
-                )}
-                {job.photos.length > 0 && (
-                  <div className="mt-2.5">
-                    <p
-                      className={cn(
-                        "text-[11px] font-semibold uppercase tracking-wide",
-                        muted
-                      )}
-                    >
-                      Your photos
-                    </p>
-                    <PhotoStrip photos={job.photos} isLight={isLight} />
-                  </div>
-                )}
-                {calloutQuote ? (
-                  <div className="mt-2.5">
-                    <CalloutFeeLines
-                      quote={calloutQuote}
-                      currency={job.currency}
-                      ink={ink}
-                      muted={muted}
-                      compact
-                    />
-                  </div>
-                ) : null}
-              </div>
-            )}
-
-            {theirOffer && (
-              <div className="bg-transparent">
-                <p className={cn("text-[11px] font-semibold uppercase tracking-wide", muted)}>
-                  {theirOffer.side === "repair_pro"
-                    ? "Repair Pro offered"
-                    : "Customer offered"}
-                </p>
-                <p className={cn("mt-0.5 text-[22px] font-semibold tabular-nums", ink)}>
-                  {formatMoney(theirOffer.amountMajor, job.currency)}
-                </p>
-                <p className={cn("mt-0.5 text-[12px] font-medium", muted)}>
-                  Labour only. Spare parts not included.
-                </p>
-              </div>
-            )}
-
-            {job.offers.length > 0 ? (
-              <div className="bg-transparent">
-                <p className={cn("mb-1.5 text-[11px] font-semibold uppercase tracking-wide", muted)}>
-                  Offer history
-                </p>
-                <ul className="space-y-2">
-                  {job.offers.map((o) => (
-                    <li
-                      key={o.id}
-                      className="flex items-center justify-between gap-3 bg-transparent py-0.5"
-                    >
-                      <span className={cn("text-[12px] font-medium", muted)}>
-                        #{o.offerIndex}{" "}
-                        {o.side === "repair_pro" ? "Repair Pro" : "Customer"}
-                      </span>
-                      <span
+              )}
+              {viewer === "motorist" ? (
+                <button
+                  type="button"
+                  className={cn(
+                    "inline-flex h-11 w-full items-center justify-center rounded-md border-0 bg-transparent text-[13px] font-medium",
+                    ink,
+                  )}
+                  onClick={() => setConfirmCancel({ actor: "motorist" })}
+                >
+                  Cancel request
+                </button>
+              ) : null}
+            </div>
+          }
+        >
+          {/* Top: vehicle/service/problem + offers · Middle: ring timer */}
+          {/* Top: vehicle/service/problem + offers · Middle: ring timer */}
+          <div className="flex min-h-0 flex-col bg-transparent px-0.5 pt-1">
+            <div className="shrink-0 space-y-4 bg-transparent">
+              {viewer === "repair_pro" ? (
+                <div className="space-y-3 bg-transparent">
+                  {/* Pro request: vehicle details only the Q&A, matching skill
+ and customer info were shown in the lower-panel card before
+ accepting, so negotiation stays on the price. */}
+                  {isAutomotiveTrade(job.serviceType) ? (
+                    <div>
+                      <p
                         className={cn(
-                          "text-[15px] font-semibold tabular-nums",
-                          ink
+                          "text-[11px] font-semibold uppercase tracking-wide",
+                          muted,
                         )}
                       >
-                        {formatMoney(o.amountMajor, o.currency)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-          </div>
+                        Vehicle
+                      </p>
+                      <p className={cn("mt-1 text-[15px] font-semibold", ink)}>
+                        {job.motoristVehicle?.trim() ||
+                          "Vehicle details on request"}
+                      </p>
+                    </div>
+                  ) : null}
+                  {calloutQuote ? (
+                    <div>
+                      <CalloutFeeLines
+                        quote={calloutQuote}
+                        currency={job.currency}
+                        ink={ink}
+                        muted={muted}
+                        compact
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="bg-transparent">
+                  {job.voiceNote?.url && (
+                    <div className="mt-2.5">
+                      <VoiceNotePlayer
+                        url={job.voiceNote.url}
+                        durationSec={job.voiceNote.durationSec}
+                        isLight={isLight}
+                        label="Your voice note"
+                      />
+                    </div>
+                  )}
+                  {job.photos.length > 0 && (
+                    <div className="mt-2.5">
+                      <p
+                        className={cn(
+                          "text-[11px] font-semibold uppercase tracking-wide",
+                          muted,
+                        )}
+                      >
+                        Your photos
+                      </p>
+                      <PhotoStrip photos={job.photos} isLight={isLight} />
+                    </div>
+                  )}
+                  {calloutQuote ? (
+                    <div className="mt-2.5">
+                      <CalloutFeeLines
+                        quote={calloutQuote}
+                        currency={job.currency}
+                        ink={ink}
+                        muted={muted}
+                        compact
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              )}
 
-          <div className="flex min-h-[42vh] flex-1 flex-col items-center justify-center bg-transparent py-5">
-            {isNegotiationTimerArmed(job) ? (
-              <CountdownTimer
-                variant="ring"
-                endsAt={job.negotiateEndsAt}
-                onExpire={() => {
-                  const j = jobRef.current;
-                  if (j) {
-                    const ts = new Date().toISOString();
-                    commitJob(
-                      {
-                        ...j,
-                        status: "expired",
-                        updatedAt: ts,
-                        statusHistory: [
-                          ...(j.statusHistory || []),
-                          { status: "expired", at: ts, by: "system" },
-                        ],
-                      },
-                      true
-                    );
-                  }
-                  void apiTransition({
-                    jobId: job.id,
-                    event: "EXPIRE_NEGOTIATION",
-                    actor: "system",
-                  })
-                    .then((res) => {
-                      if (res.ok) commitJob(res.data.job, true);
+              {theirOffer && (
+                <div className="bg-transparent">
+                  <p
+                    className={cn(
+                      "text-[11px] font-semibold uppercase tracking-wide",
+                      muted,
+                    )}
+                  >
+                    {theirOffer.side === "repair_pro"
+                      ? "Repair Pro offered"
+                      : "Customer offered"}
+                  </p>
+                  <p
+                    className={cn(
+                      "mt-0.5 text-[22px] font-semibold tabular-nums",
+                      ink,
+                    )}
+                  >
+                    {formatMoney(theirOffer.amountMajor, job.currency)}
+                  </p>
+                  <p className={cn("mt-0.5 text-[12px] font-medium", muted)}>
+                    Labour only. Spare parts not included.
+                  </p>
+                </div>
+              )}
+
+              {job.offers.length > 0 ? (
+                <div className="bg-transparent">
+                  <p
+                    className={cn(
+                      "mb-1.5 text-[11px] font-semibold uppercase tracking-wide",
+                      muted,
+                    )}
+                  >
+                    Offer history
+                  </p>
+                  <ul className="space-y-2">
+                    {job.offers.map((o) => (
+                      <li
+                        key={o.id}
+                        className="flex items-center justify-between gap-3 bg-transparent py-0.5"
+                      >
+                        <span className={cn("text-[12px] font-medium", muted)}>
+                          #{o.offerIndex}{" "}
+                          {o.side === "repair_pro" ? "Repair Pro" : "Customer"}
+                        </span>
+                        <span
+                          className={cn(
+                            "text-[15px] font-semibold tabular-nums",
+                            ink,
+                          )}
+                        >
+                          {formatMoney(o.amountMajor, o.currency)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex min-h-[42vh] flex-1 flex-col items-center justify-center bg-transparent py-5">
+              {isNegotiationTimerArmed(job) ? (
+                <CountdownTimer
+                  variant="ring"
+                  endsAt={job.negotiateEndsAt}
+                  onExpire={() => {
+                    const j = jobRef.current;
+                    if (j) {
+                      const ts = new Date().toISOString();
+                      commitJob(
+                        {
+                          ...j,
+                          status: "expired",
+                          updatedAt: ts,
+                          statusHistory: [
+                            ...(j.statusHistory || []),
+                            { status: "expired", at: ts, by: "system" },
+                          ],
+                        },
+                        true,
+                      );
+                    }
+                    void apiTransition({
+                      jobId: job.id,
+                      event: "EXPIRE_NEGOTIATION",
+                      actor: "system",
                     })
-                    .catch(() => {
-                      /* optimistic expired already applied */
-                    });
-                }}
-                className={ink}
-              />
-            ) : (
-              <p className={cn("text-center text-[13px] font-semibold", muted)}>
-                {viewer === "repair_pro"
-                  ? "Accept the request to start the 20‑min negotiate timer"
-                  : "Waiting for Repair Pro to accept this request…"}
-              </p>
-            )}
+                      .then((res) => {
+                        if (res.ok) commitJob(res.data.job, true);
+                      })
+                      .catch(() => {
+                        /* optimistic expired already applied */
+                      });
+                  }}
+                  className={ink}
+                />
+              ) : (
+                <p
+                  className={cn("text-center text-[13px] font-semibold", muted)}
+                >
+                  {viewer === "repair_pro"
+                    ? "Accept the request to start the 20‑min negotiate timer"
+                    : "Waiting for Repair Pro to accept this request…"}
+                </p>
+              )}
+            </div>
           </div>
-        </div>
-        {err && (
-          <p className="mt-1 text-center text-[12px] font-medium text-red-500">
-            {err}
-          </p>
-        )}
-      </JobShell>
-
-      {/* Reroute notification overlay for motorist */}
-      {rerouteAlert && viewer === "motorist" && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 pb-12">
-          <div
-            className={cn(
-              "w-full max-w-[390px] rounded-t-2xl px-5 pb-6 pt-5",
-              isLight ? "bg-[#c8c9cd]" : "bg-[#1c1c1e]"
-            )}
-          >
-            <h2 className={cn("mb-2 text-[18px] font-bold", ink)}>
-              Repair Pro Unavailable
-            </h2>
-            <p className={cn("mb-6 text-[14px] font-medium leading-relaxed", muted)}>
-              The selected pro is currently unavailable and has declined your
-              request. We&rsquo;re finding another pro with the same skill.
+          {err && (
+            <p className="mt-1 text-center text-[12px] font-medium text-red-500">
+              {err}
             </p>
-            <CopperButton
-              onClick={() => setRerouteAlert(null)}
-            >
-              Continue Searching
-            </CopperButton>
-          </div>
-        </div>
-      )}
+          )}
+        </JobShell>
 
-      <CancelConfirmSheet
-        open={!!confirmCancel}
-        isLight={isLight}
-        onClose={() => setConfirmCancel(null)}
-        onConfirm={() => {
-          const a = confirmCancel;
-          if (!a) return;
-          cancelRequestInstant(a.actor);
-        }}
-      />
-    </>
+        {/* Reroute notification overlay for motorist */}
+        {rerouteAlert && viewer === "motorist" && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 pb-12">
+            <div
+              className={cn(
+                "w-full max-w-[390px] rounded-t-2xl px-5 pb-6 pt-5",
+                isLight ? "bg-[#c8c9cd]" : "bg-[#1c1c1e]",
+              )}
+            >
+              <h2 className={cn("mb-2 text-[18px] font-bold", ink)}>
+                Repair Pro Unavailable
+              </h2>
+              <p
+                className={cn(
+                  "mb-6 text-[14px] font-medium leading-relaxed",
+                  muted,
+                )}
+              >
+                The selected pro is currently unavailable and has declined your
+                request. We&rsquo;re finding another pro with the same skill.
+              </p>
+              <CopperButton onClick={() => setRerouteAlert(null)}>
+                Continue Searching
+              </CopperButton>
+            </div>
+          </div>
+        )}
+
+        <CancelConfirmSheet
+          open={!!confirmCancel}
+          isLight={isLight}
+          onClose={() => setConfirmCancel(null)}
+          onConfirm={() => {
+            const a = confirmCancel;
+            if (!a) return;
+            cancelRequestInstant(a.actor);
+          }}
+        />
+      </>
     );
   }
 
@@ -2052,7 +2112,7 @@ export function JobFlowScreen({
           viewer === "motorist"
             ? nearbyProsStatusLine(
                 nearbyLiveCount ?? 0,
-                PRO_SERVICE_LABELS[job.serviceType] || job.serviceType
+                PRO_SERVICE_LABELS[job.serviceType] || job.serviceType,
               )
             : null
         }
@@ -2087,12 +2147,10 @@ export function JobFlowScreen({
                   void logPayGate("pay-cta-tapped", {
                     jobId: job.id,
                     status: job.status,
-                    hasPaymentSessionEndsAt: Boolean(
-                      job.paymentSessionEndsAt
-                    ),
+                    hasPaymentSessionEndsAt: Boolean(job.paymentSessionEndsAt),
                   });
                   router.push(
-                    `/payments/checkout?jobId=${encodeURIComponent(job.id)}`
+                    `/payments/checkout?jobId=${encodeURIComponent(job.id)}`,
                   );
                 }}
               >
@@ -2115,7 +2173,7 @@ export function JobFlowScreen({
                   "relative z-10",
                   isLight
                     ? "bg-black/10 text-slate-900"
-                    : "bg-[#2c2c2e] text-white"
+                    : "bg-[#2c2c2e] text-white",
                 )}
               >
                 Cancel
@@ -2126,7 +2184,7 @@ export function JobFlowScreen({
               <p
                 className={cn(
                   "text-center text-[13px] font-semibold",
-                  isLight ? "text-slate-700" : "text-[#c8c9cd]"
+                  isLight ? "text-slate-700" : "text-[#c8c9cd]",
                 )}
               >
                 Waiting for customer to pay into escrow…
@@ -2150,9 +2208,7 @@ export function JobFlowScreen({
               <p className={cn("truncate text-[15px] font-black", ink)}>
                 {job.motoristName}
               </p>
-              <p className={cn("text-[12px] font-semibold", muted)}>
-                Customer
-              </p>
+              <p className={cn("text-[12px] font-semibold", muted)}>Customer</p>
             </div>
           </div>
         ) : (
@@ -2186,10 +2242,10 @@ export function JobFlowScreen({
                     viewer === "motorist"
                       ? composeCustomerPayableMajor(
                           buildCustomerChargeMajor(job.agreedMajor).totalMajor,
-                          calloutQuote
+                          calloutQuote,
                         ).totalMajor
                       : job.agreedMajor + payableCalloutMajor(calloutQuote),
-                    job.currency
+                    job.currency,
                   )}
           </p>
           {viewer === "repair_pro" ? (
@@ -2211,15 +2267,25 @@ export function JobFlowScreen({
             />
           </div>
           {/*
-            20-min pay timer lives only on checkout after Flutterwave opens.
-            Pros never see a pay countdown — only “waiting for customer”.
-          */}
+ 20-min pay timer lives only on checkout after Flutterwave opens.
+ Pros never see a pay countdown only “waiting for customer”.
+ */}
           {viewer === "motorist" && payEndsAt ? (
-            <p className={cn("mt-3 text-center text-[12px] font-semibold", muted)}>
+            <p
+              className={cn(
+                "mt-3 text-center text-[12px] font-semibold",
+                muted,
+              )}
+            >
               Complete payment within 20 minutes in the checkout screen
             </p>
           ) : viewer === "repair_pro" ? (
-            <p className={cn("mt-3 text-center text-[12px] font-semibold", muted)}>
+            <p
+              className={cn(
+                "mt-3 text-center text-[12px] font-semibold",
+                muted,
+              )}
+            >
               Waiting for customer to pay into escrow
             </p>
           ) : null}
@@ -2229,77 +2295,77 @@ export function JobFlowScreen({
             {err}
           </p>
         )}
-        {payCancelOpen ? (
-          createPortal(
-            <div className="fixed inset-0 z-[500] flex items-end justify-center bg-black/50 p-3">
-              <div
-                className={cn(
-                  "w-full max-w-md overflow-hidden rounded-2xl shadow-2xl",
-                  isLight ? "bg-white" : "bg-[#1c1c1e]"
-                )}
-                role="dialog"
-                aria-label="Cancel options"
-              >
-              <div className="px-4 pb-2 pt-4">
-                <p
+        {payCancelOpen
+          ? createPortal(
+              <div className="fixed inset-0 z-[500] flex items-end justify-center bg-black/50 p-3">
+                <div
                   className={cn(
-                    "text-center text-[15px] font-black",
-                    isLight ? "text-slate-900" : "text-white"
+                    "w-full max-w-md overflow-hidden rounded-2xl shadow-2xl",
+                    isLight ? "bg-white" : "bg-[#1c1c1e]",
                   )}
+                  role="dialog"
+                  aria-label="Cancel options"
                 >
-                  Cancel
-                </p>
-                <p
-                  className={cn(
-                    "mt-1 text-center text-[12px] font-medium",
-                    isLight ? "text-slate-500" : "text-white/55"
-                  )}
-                >
-                  Choose what you want to cancel
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setPayCancelOpen(false);
-                  setCategory("none");
-                  router.replace("/");
-                }}
-                className={cn(
-                  "flex h-12 w-full items-center justify-center border-0 text-[14px] font-bold",
-                  isLight ? "text-slate-900" : "text-white"
-                )}
-              >
-                Cancel payment
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  setPayCancelOpen(false);
-                  cancelRequestInstant("motorist");
-                }}
-                className={cn(
-                  "flex h-12 w-full items-center justify-center border-0 text-[14px] font-bold text-red-500"
-                )}
-              >
-                Cancel request
-              </button>
-              <button
-                type="button"
-                onClick={() => setPayCancelOpen(false)}
-                className={cn(
-                  "flex h-11 w-full items-center justify-center border-0 text-[13px] font-semibold",
-                  isLight ? "text-slate-500" : "text-white/50"
-                )}
-              >
-                Keep paying
-              </button>
-            </div>
-            </div>,
-            document.getElementById("ona-phone") || document.body
-          )
-        ) : null}
+                  <div className="px-4 pb-2 pt-4">
+                    <p
+                      className={cn(
+                        "text-center text-[15px] font-black",
+                        isLight ? "text-slate-900" : "text-white",
+                      )}
+                    >
+                      Cancel
+                    </p>
+                    <p
+                      className={cn(
+                        "mt-1 text-center text-[12px] font-medium",
+                        isLight ? "text-slate-500" : "text-white/55",
+                      )}
+                    >
+                      Choose what you want to cancel
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPayCancelOpen(false);
+                      setCategory("none");
+                      router.replace("/");
+                    }}
+                    className={cn(
+                      "flex h-12 w-full items-center justify-center border-0 text-[14px] font-bold",
+                      isLight ? "text-slate-900" : "text-white",
+                    )}
+                  >
+                    Cancel payment
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      setPayCancelOpen(false);
+                      cancelRequestInstant("motorist");
+                    }}
+                    className={cn(
+                      "flex h-12 w-full items-center justify-center border-0 text-[14px] font-bold text-red-500",
+                    )}
+                  >
+                    Cancel request
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPayCancelOpen(false)}
+                    className={cn(
+                      "flex h-11 w-full items-center justify-center border-0 text-[13px] font-semibold",
+                      isLight ? "text-slate-500" : "text-white/50",
+                    )}
+                  >
+                    Keep paying
+                  </button>
+                </div>
+              </div>,
+              document.getElementById("ona-phone") || document.body,
+            )
+          : null}
 
         <CancelConfirmSheet
           open={!!confirmCancel}
@@ -2326,7 +2392,7 @@ export function JobFlowScreen({
         title: "Booked",
         subtitle: "",
       };
-    /** Short catalog trade — Mechanic, Vulcanizer, Tow, etc. */
+    /** Short catalog trade Mechanic, Vulcanizer, Tow, etc. */
     const tradeLabel =
       PRO_SERVICE_LABELS[job.serviceType] || job.serviceType || "Repair Pro";
     /**
@@ -2339,7 +2405,7 @@ export function JobFlowScreen({
         : copy.title;
     const statusLabel: Record<string, string> = {
       paid_booked: "Booked",
-      // Exact product label — do not uppercase in CSS (would become ONTHEROAD)
+      // Exact product label do not uppercase in CSS (would become ONTHEROAD)
       en_route: "OnTheRoad",
       arrived: "Arrived",
       in_progress: "Working",
@@ -2364,11 +2430,10 @@ export function JobFlowScreen({
     const arrivalOk = job.proLocation
       ? isWithinArrivalProximity(job.proLocation, job.motoristLocation).ok
       : false;
-    const arrivedBlocked =
-      nextPro?.event === "MARK_ARRIVED" && !arrivalOk;
+    const arrivedBlocked = nextPro?.event === "MARK_ARRIVED" && !arrivalOk;
 
     const proAdvance = async (
-      event: "START_TRIP" | "MARK_ARRIVED" | "START_WORK" | "MARK_COMPLETED"
+      event: "START_TRIP" | "MARK_ARRIVED" | "START_WORK" | "MARK_COMPLETED",
     ) => {
       if (event === "MARK_ARRIVED" && !arrivalOk) return;
       setBusy(true);
@@ -2392,7 +2457,7 @@ export function JobFlowScreen({
           }
           if (event === "START_TRIP" || event === "MARK_ARRIVED") {
             setLocHint(
-              "Location is limited. Enable GPS so we can confirm you are with the customer."
+              "Location is limited. Enable GPS so we can confirm you are with the customer.",
             );
           }
         }
@@ -2409,7 +2474,7 @@ export function JobFlowScreen({
           setErr(res.message || "Could not update trip status. Try again.");
           return;
         }
-        // Force apply — never let a stale poll undo the advance
+        // Force apply never let a stale poll undo the advance
         commitJob(res.data.job, true);
         setFlash(
           event === "START_TRIP"
@@ -2418,12 +2483,12 @@ export function JobFlowScreen({
               ? "Marked arrived"
               : event === "START_WORK"
                 ? "Work started"
-                : "Job marked complete"
+                : "Job marked complete",
         );
         window.setTimeout(() => setFlash(null), 3500);
       } catch (e) {
         setErr(
-          e instanceof Error ? e.message : "Could not update trip. Try again."
+          e instanceof Error ? e.message : "Could not update trip. Try again.",
         );
       } finally {
         setBusy(false);
@@ -2442,8 +2507,8 @@ export function JobFlowScreen({
     const isPostArrival =
       job.status === "arrived" || job.status === "in_progress";
 
-    // Status / skill / name / ₦ — solid lower panel only (never map overlay).
-    // en_route uses mixed-case "OnTheRoad" — no CSS uppercase.
+    // Status / skill / name / ₦ solid lower panel only (never map overlay).
+    // en_route uses mixed-case "OnTheRoad" no CSS uppercase.
     const statusChip = (
       <span
         className={cn(
@@ -2457,7 +2522,7 @@ export function JobFlowScreen({
               ? "bg-[#FF6B35]"
               : isLight
                 ? "bg-slate-800"
-                : "bg-[#3a3a3c]"
+                : "bg-[#3a3a3c]",
         )}
       >
         {job.status === "paid_booked"
@@ -2470,9 +2535,7 @@ export function JobFlowScreen({
       <span
         className={cn(
           "rounded px-1.5 py-0.5 text-[9px] font-bold",
-          isLight
-            ? "bg-[#a8a9ae] text-slate-900"
-            : "bg-[#2c2c2e] text-white"
+          isLight ? "bg-[#a8a9ae] text-slate-900" : "bg-[#2c2c2e] text-white",
         )}
       >
         {PRO_SERVICE_LABELS[job.serviceType] || job.serviceType}
@@ -2483,7 +2546,7 @@ export function JobFlowScreen({
     const vehicleLabel = (job.motoristVehicle || "").trim();
 
     // Lower-panel meta row only (map keeps ETA + ESCROW Held exclusively)
-    // Customer: skill (Mechanic) + pro name only — no BOOKED chip
+    // Customer: skill (Mechanic) + pro name only no BOOKED chip
     // Pro: status + skill + vehicle card
     const tripMetaHeader = (
       <div className="flex flex-col gap-1.5">
@@ -2494,7 +2557,7 @@ export function JobFlowScreen({
             <p
               className={cn(
                 "min-w-0 flex-1 truncate text-[16px] font-black",
-                ink
+                ink,
               )}
             >
               {job.repairProName}
@@ -2505,13 +2568,16 @@ export function JobFlowScreen({
               viewer === "motorist" && job.agreedMajor != null
                 ? buildCustomerChargeMajor(job.agreedMajor).totalMajor
                 : job.agreedMajor;
-            const total = jobTotalMajor(labour, calloutQuote ?? job.calloutQuote);
+            const total = jobTotalMajor(
+              labour,
+              calloutQuote ?? job.calloutQuote,
+            );
             if (job.agreedMajor == null) return null;
             return (
               <p
                 className={cn(
                   "ml-auto shrink-0 text-[15px] font-black tabular-nums",
-                  isLight ? "text-black" : "text-white"
+                  isLight ? "text-black" : "text-white",
                 )}
               >
                 {total == null ? "\u00a0" : formatMoney(total, job.currency)}
@@ -2532,13 +2598,13 @@ export function JobFlowScreen({
           <div
             className={cn(
               "rounded-xl px-3 py-2.5",
-              isLight ? "bg-black/[0.05]" : "bg-white/[0.06]"
+              isLight ? "bg-black/[0.05]" : "bg-white/[0.06]",
             )}
           >
             <p
               className={cn(
                 "text-[10px] font-bold uppercase tracking-[0.08em]",
-                muted
+                muted,
               )}
             >
               Vehicle
@@ -2546,7 +2612,7 @@ export function JobFlowScreen({
             <p
               className={cn(
                 "mt-0.5 text-[15px] font-black leading-snug tracking-tight",
-                ink
+                ink,
               )}
             >
               {vehicleLabel || "Vehicle details not set"}
@@ -2563,7 +2629,7 @@ export function JobFlowScreen({
             <p
               className={cn(
                 "text-[10px] font-bold uppercase tracking-wide",
-                muted
+                muted,
               )}
             >
               I ADMIT TO FIX IT
@@ -2571,7 +2637,7 @@ export function JobFlowScreen({
             <p
               className={cn(
                 "mt-1 text-[14px] font-semibold leading-snug break-words",
-                ink
+                ink,
               )}
             >
               {job.problem}
@@ -2580,10 +2646,10 @@ export function JobFlowScreen({
         )}
 
         {/*
-          Address + “live on map” block:
-          — Hidden for customer (motorist) entirely
-          — Pro still sees navigate cue while en route (not after arrival)
-        */}
+ Address + “live on map” block:
+ Hidden for customer (motorist) entirely
+ Pro still sees navigate cue while en route (not after arrival)
+ */}
         {viewer === "repair_pro" && !isReadyToGo && !isPostArrival && (
           <div className="flex items-start gap-2">
             <Navigation className="mt-0.5 h-4 w-4 shrink-0 text-[#FF6B35]" />
@@ -2618,14 +2684,14 @@ export function JobFlowScreen({
     const chatClosedForever = isJobEndedStatus(job.status);
 
     /**
-     * Icon-only Call / Message — elite Swiss-minimal line marks.
+     * Icon-only Call / Message elite Swiss-minimal line marks.
      * Flat solid buttons, no labels / glow / gradient / shadow on icons.
      */
     const callMessageRow = (
       <div
         className={cn(
           "grid grid-cols-2 gap-2.5",
-          isSwipeTrip ? "mt-8 pt-2" : "pt-1"
+          isSwipeTrip ? "mt-8 pt-2" : "pt-1",
         )}
       >
         <button
@@ -2640,14 +2706,14 @@ export function JobFlowScreen({
             fill="none"
             aria-hidden
           >
-            {/* Classic phone handset — instantly readable call mark */}
+            {/* Classic phone handset instantly readable call mark */}
             <path
               d="M8.05 3.5c.4-.4 1-.5 1.5-.3l2.2 1c.5.2.8.7.7 1.2l-.4 2.1c-.1.4-.3.7-.7.9l-1.3.6c1.2 2.4 3.1 4.3 5.5 5.5l.6-1.3c.2-.4.5-.6.9-.7l2.1-.4c.5-.1 1 .2 1.2.7l1 2.2c.2.5.1 1.1-.3 1.5l-1.2 1.2c-.5.5-1.2.7-1.9.6-4.8-.7-8.8-4.7-9.5-9.5-.1-.7.1-1.4.6-1.9L8.05 3.5Z"
               stroke="#111111"
               strokeWidth="1.6"
               strokeLinejoin="round"
             />
-            {/* Gold accent — short detail on earpiece */}
+            {/* Gold accent short detail on earpiece */}
             <path
               d="M9.4 5.6l1.4.6"
               stroke="#FF6B35"
@@ -2662,7 +2728,7 @@ export function JobFlowScreen({
           aria-label={chatClosedForever ? "View chat" : "Message"}
           className={cn(
             "inline-flex h-12 w-full items-center justify-center rounded-lg border-0 shadow-none",
-            chatClosedForever ? "bg-[#3a3a3c]" : "bg-[#FF6B35]"
+            chatClosedForever ? "bg-[#3a3a3c]" : "bg-[#FF6B35]",
           )}
         >
           <svg
@@ -2678,7 +2744,7 @@ export function JobFlowScreen({
               strokeWidth="1.55"
               strokeLinejoin="round"
             />
-            {/* Text lines — two black, one gold accent */}
+            {/* Text lines two black, one gold accent */}
             <path
               d="M8.4 7.6h7.2"
               stroke="#111111"
@@ -2722,7 +2788,7 @@ export function JobFlowScreen({
           <p
             className={cn(
               "rounded-md px-3 py-2 text-center text-[12px] font-bold",
-              isLight ? "bg-slate-900 text-white" : "bg-[#2c2c2e] text-white"
+              isLight ? "bg-slate-900 text-white" : "bg-[#2c2c2e] text-white",
             )}
           >
             {locHint}
@@ -2757,7 +2823,7 @@ export function JobFlowScreen({
           <p
             className={cn(
               "text-center text-[12px] font-semibold",
-              isLight ? "text-slate-700" : "text-[#c8c9cd]"
+              isLight ? "text-slate-700" : "text-[#c8c9cd]",
             )}
           >
             {tradeLabel} is OnTheRoad
@@ -2850,144 +2916,152 @@ export function JobFlowScreen({
         }
       };
 
-    return (
-      <>
-        <JobShell
-          isLight={isLight}
-          title={trackTripTitle}
-          subtitle={undefined}
-          compactHeader
-          onBack={goJobsList}
-          fullBleed
-          fillBody
-          footer={footerBlock}
-        >
-          <div className="relative flex min-h-0 flex-1 flex-col">
-            {/* Map — collapses when sheet expands (home pattern) */}
-            <div
-              className={cn(
-                "om-sheet-spring relative min-h-0 overflow-hidden",
-                tripSheetExpanded
-                  ? "h-0 flex-[0_0_0%] opacity-0 pointer-events-none"
-                  : "flex-[0_0_42%] opacity-100"
-              )}
-            >
-              <div className="absolute inset-0">
-                <LiveJobTrackMap job={job} isLight={isLight} viewer={viewer} />
-              </div>
-            </div>
-
-            {/* Lower swipe sheet */}
-            <div
-              className={cn(
-                "om-sheet-spring z-30 flex min-h-0 flex-col overflow-hidden",
-                tripSheetExpanded ? "flex-1" : "flex-[0_0_58%]",
-                isLight ? "bg-[#c8c9cd]" : "bg-black",
-                !tripSheetExpanded &&
-                  "rounded-t-[1.5rem] shadow-[0_-6px_24px_rgba(0,0,0,0.18)]"
-              )}
-              style={{ touchAction: "pan-y" }}
-              onWheel={onSheetWheel}
-            >
-              {/* Expand pill */}
-              <div className="shrink-0">
-                <div
-                  role="button"
-                  tabIndex={0}
-                  aria-label={
-                    tripSheetExpanded
-                      ? "Swipe down to show map"
-                      : "Swipe up to expand details"
-                  }
-                  onClick={onPillClick}
-                  onTouchStart={onPillTouchStart}
-                  onTouchMove={onPillTouchMove}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      onPillClick();
-                    }
-                    if (e.key === "ArrowUp") {
-                      e.preventDefault();
-                      setTripSheetExpanded(true);
-                    }
-                    if (e.key === "ArrowDown") {
-                      e.preventDefault();
-                      setTripSheetExpanded(false);
-                    }
-                  }}
-                  className="flex cursor-grab justify-center pb-1.5 pt-2.5 active:cursor-grabbing"
-                  style={{ touchAction: "pan-y" }}
-                >
-                  <span
-                    className={cn(
-                      "h-1.5 w-11 rounded-full border-0",
-                      isLight ? "bg-[#6b7280]" : "bg-white/40"
-                    )}
+      return (
+        <>
+          <JobShell
+            isLight={isLight}
+            title={trackTripTitle}
+            subtitle={undefined}
+            compactHeader
+            onBack={goJobsList}
+            fullBleed
+            fillBody
+            footer={footerBlock}
+          >
+            <div className="relative flex min-h-0 flex-1 flex-col">
+              {/* Map collapses when sheet expands (home pattern) */}
+              <div
+                className={cn(
+                  "om-sheet-spring relative min-h-0 overflow-hidden",
+                  tripSheetExpanded
+                    ? "h-0 flex-[0_0_0%] opacity-0 pointer-events-none"
+                    : "flex-[0_0_42%] opacity-100",
+                )}
+              >
+                <div className="absolute inset-0">
+                  <LiveJobTrackMap
+                    job={job}
+                    isLight={isLight}
+                    viewer={viewer}
                   />
                 </div>
               </div>
 
+              {/* Lower swipe sheet */}
               <div
                 className={cn(
-                  "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-3 pb-3 scrollbar-hide",
-                  isLight ? "bg-[#c8c9cd]" : "bg-black"
+                  "om-sheet-spring z-30 flex min-h-0 flex-col overflow-hidden",
+                  tripSheetExpanded ? "flex-1" : "flex-[0_0_58%]",
+                  isLight ? "bg-[#c8c9cd]" : "bg-black",
+                  !tripSheetExpanded &&
+                    "rounded-t-[1.5rem] shadow-[0_-6px_24px_rgba(0,0,0,0.18)]",
                 )}
+                style={{ touchAction: "pan-y" }}
+                onWheel={onSheetWheel}
               >
-                {/* Meta (OnTheRoad · skill · name · ₦) lives only in this solid sheet */}
-                <div className="space-y-3 pt-0.5">
-                  {tripMetaHeader}
-                  {tripDetails}
-                </div>
-                {/* Push Call / Message / swipe hint lower on the sheet */}
-                <div className="mt-auto space-y-2 pt-10">
-                  {callMessageRow}
-                  {!tripSheetExpanded && (
-                    <p
+                {/* Expand pill */}
+                <div className="shrink-0">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    aria-label={
+                      tripSheetExpanded
+                        ? "Swipe down to show map"
+                        : "Swipe up to expand details"
+                    }
+                    onClick={onPillClick}
+                    onTouchStart={onPillTouchStart}
+                    onTouchMove={onPillTouchMove}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onPillClick();
+                      }
+                      if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setTripSheetExpanded(true);
+                      }
+                      if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setTripSheetExpanded(false);
+                      }
+                    }}
+                    className="flex cursor-grab justify-center pb-1.5 pt-2.5 active:cursor-grabbing"
+                    style={{ touchAction: "pan-y" }}
+                  >
+                    <span
                       className={cn(
-                        "pb-1 pt-2 text-center text-[10px] font-semibold",
-                        muted
+                        "h-1.5 w-11 rounded-full border-0",
+                        isLight ? "bg-[#6b7280]" : "bg-white/40",
                       )}
-                    >
-                      Swipe up to expand — swipe down to collapse
-                    </p>
+                    />
+                  </div>
+                </div>
+
+                <div
+                  className={cn(
+                    "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-3 pb-3 scrollbar-hide",
+                    isLight ? "bg-[#c8c9cd]" : "bg-black",
                   )}
+                >
+                  {/* Meta (OnTheRoad · skill · name · ₦) lives only in this solid sheet */}
+                  <div className="space-y-3 pt-0.5">
+                    {tripMetaHeader}
+                    {tripDetails}
+                  </div>
+                  {/* Push Call / Message / swipe hint lower on the sheet */}
+                  <div className="mt-auto space-y-2 pt-10">
+                    {callMessageRow}
+                    {!tripSheetExpanded && (
+                      <p
+                        className={cn(
+                          "pb-1 pt-2 text-center text-[10px] font-semibold",
+                          muted,
+                        )}
+                      >
+                        Swipe up to expand swipe down to collapse
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-          {disputeNode}
-      </JobShell>
+            {disputeNode}
+          </JobShell>
 
-        {/* Reroute notification overlay for motorist */}
-        {rerouteAlert && viewer === "motorist" && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 pb-12">
-            <div
-              className={cn(
-                "w-full max-w-[390px] rounded-t-2xl px-5 pb-6 pt-5",
-                isLight ? "bg-[#c8c9cd]" : "bg-[#1c1c1e]"
-              )}
-            >
-              <h2 className={cn("mb-2 text-[18px] font-bold", ink)}>
-                Repair Pro Unavailable
-              </h2>
-              <p className={cn("mb-6 text-[14px] font-medium leading-relaxed", muted)}>
-                The selected pro is currently unavailable and has declined your
-                request. We&rsquo;re finding another pro with the same skill.
-              </p>
-              <CopperButton
-                onClick={() => setRerouteAlert(null)}
+          {/* Reroute notification overlay for motorist */}
+          {rerouteAlert && viewer === "motorist" && (
+            <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 pb-12">
+              <div
+                className={cn(
+                  "w-full max-w-[390px] rounded-t-2xl px-5 pb-6 pt-5",
+                  isLight ? "bg-[#c8c9cd]" : "bg-[#1c1c1e]",
+                )}
               >
-                Continue Searching
-              </CopperButton>
+                <h2 className={cn("mb-2 text-[18px] font-bold", ink)}>
+                  Repair Pro Unavailable
+                </h2>
+                <p
+                  className={cn(
+                    "mb-6 text-[14px] font-medium leading-relaxed",
+                    muted,
+                  )}
+                >
+                  The selected pro is currently unavailable and has declined
+                  your request. We&rsquo;re finding another pro with the same
+                  skill.
+                </p>
+                <CopperButton onClick={() => setRerouteAlert(null)}>
+                  Continue Searching
+                </CopperButton>
+              </div>
             </div>
-          </div>
-        )}
-      </>
-    );
-  }
+          )}
+        </>
+      );
+    }
 
-    /* ── Ready to go only (no map) — details stay on solid stage panel ── */
+    /* ── Ready to go only (no map) details stay on solid stage panel ── */
     return (
       <JobShell
         isLight={isLight}
@@ -3013,7 +3087,7 @@ export function JobFlowScreen({
   /* ─── COMPLETED → customer must confirm to release pay ─── */
   if (job.status === "completed") {
     // Prefer job membership over “Use as” role (dual-account devices).
-    // Motorist on the job ALWAYS gets I’m Satisfied — never hide behind role.
+    // Motorist on the job ALWAYS gets I’m Satisfied never hide behind role.
     const isMotoristOnJob =
       Boolean(actorId) && Boolean(job.motoristId) && job.motoristId === actorId;
     const isProOnlyOnJob =
@@ -3029,9 +3103,7 @@ export function JobFlowScreen({
       (isMotoristOnJob || viewer === "motorist" || !isProOnlyOnJob);
 
     const motoristActor =
-      (job.motoristId && job.motoristId.length > 10
-        ? job.motoristId
-        : null) ||
+      (job.motoristId && job.motoristId.length > 10 ? job.motoristId : null) ||
       (actorId && actorId.length > 10 ? actorId : null) ||
       "";
 
@@ -3056,7 +3128,7 @@ export function JobFlowScreen({
           escrowStatus: "pending_settlement",
           satisfiedAt: new Date().toISOString(),
         },
-        true
+        true,
       );
       // Keep previous sticky until we know result
       void (async () => {
@@ -3067,7 +3139,7 @@ export function JobFlowScreen({
             actor: "motorist",
             actorId: motoristActor,
           });
-          // Always re-fetch — release may have finished even if the response raced.
+          // Always re-fetch release may have finished even if the response raced.
           try {
             const again = await apiGetJob(job.id);
             if (again.ok && again.data.job) {
@@ -3121,13 +3193,13 @@ export function JobFlowScreen({
             playAppSound(
               isPayoutPendingSettlement(res.data.job)
                 ? "success_soft"
-                : "job_complete"
+                : "job_complete",
             );
           } catch {
             /* */
           }
           // Stay on this job shell → rating + text review, then completion.
-          // (Do not router.replace dashboard — that skipped the review flow.)
+          // (Do not router.replace dashboard that skipped the review flow.)
         } catch (e) {
           // Abort/timeout: poll once more before showing failure.
           try {
@@ -3176,7 +3248,7 @@ export function JobFlowScreen({
     const showEgressHint =
       Boolean(releaseBanner) &&
       /ip whitelist|ip whitelisting|whitelist.*ip|ip policy/i.test(
-        releaseBanner || ""
+        releaseBanner || "",
       );
 
     const autoReleaseEndsAt = satisfiedReleaseEndsAtIso(job);
@@ -3191,7 +3263,7 @@ export function JobFlowScreen({
           ? Math.max(
               0,
               fromMinorUnits(job.amountMinor, job.currency) -
-                releaseCalloutMajor
+                releaseCalloutMajor,
             )
           : null;
     const releaseTotalMajor =
@@ -3273,9 +3345,11 @@ export function JobFlowScreen({
                         className="font-bold underline"
                       >
                         /api/payments/egress-ip
-                      </a>
-                      {" "}or turn IP Whitelisting OFF. Prefer{" "}
-                      <code className="text-[10px]">FLUTTERWAVE_TRANSFER_PROXY_URL</code>{" "}
+                      </a>{" "}
+                      or turn IP Whitelisting OFF. Prefer{" "}
+                      <code className="text-[10px]">
+                        FLUTTERWAVE_TRANSFER_PROXY_URL
+                      </code>{" "}
                       for a fixed payout IP.
                     </p>
                   ) : null}
@@ -3311,7 +3385,8 @@ export function JobFlowScreen({
                 Open a dispute
               </button>
               <p className={cn("text-center text-[11px] font-medium", muted)}>
-                Cannot close this job · auto-releases after 6 hours if no dispute
+                Cannot close this job · auto-releases after 6 hours if no
+                dispute
               </p>
             </div>
           ) : payoutDone ? (
@@ -3344,17 +3419,22 @@ export function JobFlowScreen({
               {formatMoney(releaseTotalMajor, job.currency)}
             </p>
           )}
-          {/* Split breakdown — Repair Pro only (customers never see 95/5) */}
+          {/* Split breakdown Repair Pro only (customers never see 95/5) */}
           {viewer === "repair_pro" &&
           releaseProMajor != null &&
           releasePlatformMajor != null ? (
             <div
               className={cn(
                 "mx-auto mt-3 w-full max-w-[280px] space-y-1.5 rounded-xl px-3 py-2.5 text-left text-[12px] font-semibold",
-                isLight ? "bg-black/5" : "bg-white/8"
+                isLight ? "bg-black/5" : "bg-white/8",
               )}
             >
-              <p className={cn("text-center text-[11px] font-bold uppercase tracking-wide", muted)}>
+              <p
+                className={cn(
+                  "text-center text-[11px] font-bold uppercase tracking-wide",
+                  muted,
+                )}
+              >
                 Split on release
               </p>
               <div className="flex items-center justify-between gap-2">
@@ -3377,8 +3457,8 @@ export function JobFlowScreen({
                   </span>
                 </div>
               ) : null}
-              </div>
-            ) : null}
+            </div>
+          ) : null}
           {showSatisfiedCta && autoReleaseEndsAt ? (
             <div className="mt-4 px-1">
               <p className="mb-1 text-center text-[11px] font-semibold text-black">
@@ -3423,7 +3503,7 @@ export function JobFlowScreen({
     );
   }
 
-  /* ─── PENDING SETTLEMENT (pro view only — customer goes to review first) ─── */
+  /* ─── PENDING SETTLEMENT (pro view only customer goes to review first) ─── */
   if (
     isPayoutPendingSettlement(job) &&
     job.status !== "released" &&
@@ -3456,15 +3536,17 @@ export function JobFlowScreen({
           </p>
           {job.agreedMajor != null ? (
             <p className={cn("mt-4 text-[22px] font-black tabular-nums", ink)}>
-              {jobTotalMajor(job.agreedMajor, calloutQuote ?? job.calloutQuote) ==
-              null
+              {jobTotalMajor(
+                job.agreedMajor,
+                calloutQuote ?? job.calloutQuote,
+              ) == null
                 ? "\u00a0"
                 : formatMoney(
                     jobTotalMajor(
                       job.agreedMajor,
-                      calloutQuote ?? job.calloutQuote
+                      calloutQuote ?? job.calloutQuote,
                     ) as number,
-                    job.currency
+                    job.currency,
                   )}
             </p>
           ) : null}
@@ -3553,7 +3635,7 @@ export function JobFlowScreen({
                     ? "fill-[#FF6B35] text-[#FF6B35]"
                     : isLight
                       ? "fill-transparent text-slate-400"
-                      : "fill-transparent text-white/35"
+                      : "fill-transparent text-white/35",
                 )}
                 strokeWidth={1.75}
                 aria-hidden
@@ -3578,7 +3660,7 @@ export function JobFlowScreen({
                     ? "fill-[#FF6B35] text-[#FF6B35]"
                     : isLight
                       ? "fill-transparent text-slate-400"
-                      : "fill-transparent text-white/35"
+                      : "fill-transparent text-white/35",
                 )}
                 strokeWidth={1.75}
               />
@@ -3591,8 +3673,7 @@ export function JobFlowScreen({
     const canDisputeClosed = canOpenDisputeNow(job);
     /** Customer: stars + text first, then job completion ceremony. */
     const showReviewForm = viewer === "motorist" && !alreadyLeft;
-    const showJobComplete =
-      viewer === "motorist" ? alreadyLeft : true;
+    const showJobComplete = viewer === "motorist" ? alreadyLeft : true;
 
     return (
       <JobShell
@@ -3647,7 +3728,7 @@ export function JobFlowScreen({
                 onClick={() => router.replace("/settings/payments")}
                 className={cn(
                   "w-full text-center text-[12px] font-semibold",
-                  muted
+                  muted,
                 )}
               >
                 Payment status
@@ -3662,9 +3743,14 @@ export function JobFlowScreen({
             <p className={cn("text-[20px] font-black tracking-tight", ink)}>
               How was the job?
             </p>
-            <p className={cn("mt-1.5 text-[13px] font-medium leading-snug", muted)}>
-              Rate your {PRO_SERVICE_LABELS[job.serviceType] || "Repair Pro"} and
-              leave a short review
+            <p
+              className={cn(
+                "mt-1.5 text-[13px] font-medium leading-snug",
+                muted,
+              )}
+            >
+              Rate your {PRO_SERVICE_LABELS[job.serviceType] || "Repair Pro"}{" "}
+              and leave a short review
             </p>
             {payoutPending ? (
               <p className="mt-3 rounded-md bg-[#FF6B35]/15 px-3 py-1.5 text-[11px] font-bold text-[#FF6B35]">
@@ -3700,13 +3786,13 @@ export function JobFlowScreen({
                     "w-full resize-none rounded-md border-0 px-3 py-2.5 text-[13px] font-medium outline-none ring-1 transition placeholder:opacity-50",
                     isLight
                       ? "bg-transparent text-slate-900 ring-black/15 focus:ring-[#FF6B35]/50"
-                      : "bg-transparent text-white ring-white/20 focus:ring-[#FF6B35]/50"
+                      : "bg-transparent text-white ring-white/20 focus:ring-[#FF6B35]/50",
                   )}
                 />
                 <p
                   className={cn(
                     "mt-1 text-right text-[11px] font-semibold tabular-nums",
-                    reviewChars >= REVIEW_MAX ? "text-[#FF6B35]" : muted
+                    reviewChars >= REVIEW_MAX ? "text-[#FF6B35]" : muted,
                   )}
                 >
                   {reviewChars}/{REVIEW_MAX}
@@ -3727,26 +3813,33 @@ export function JobFlowScreen({
               strokeWidth={1.75}
               aria-hidden
             />
-            <p className={cn("mt-4 text-[22px] font-black tracking-tight", ink)}>
+            <p
+              className={cn("mt-4 text-[22px] font-black tracking-tight", ink)}
+            >
               Job complete
             </p>
-            <p className={cn("mt-1.5 text-[13px] font-medium leading-snug", muted)}>
+            <p
+              className={cn(
+                "mt-1.5 text-[13px] font-medium leading-snug",
+                muted,
+              )}
+            >
               {payoutPending
-                ? "Thanks — your payment is confirmed. Payout is processing."
-                : "Thanks — payment released and job closed."}
+                ? "Thanks your payment is confirmed. Payout is processing."
+                : "Thanks payment released and job closed."}
             </p>
             {job.agreedMajor != null && (
               <p
                 className={cn(
                   "mt-3 text-[32px] font-black tabular-nums tracking-tight",
-                  ink
+                  ink,
                 )}
               >
                 {jobTotalMajor(
                   viewer === "motorist"
                     ? buildCustomerChargeMajor(job.agreedMajor).totalMajor
                     : job.agreedMajor,
-                  calloutQuote ?? job.calloutQuote
+                  calloutQuote ?? job.calloutQuote,
                 ) == null
                   ? "\u00a0"
                   : formatMoney(
@@ -3754,9 +3847,9 @@ export function JobFlowScreen({
                         viewer === "motorist"
                           ? buildCustomerChargeMajor(job.agreedMajor).totalMajor
                           : job.agreedMajor,
-                        calloutQuote ?? job.calloutQuote
+                        calloutQuote ?? job.calloutQuote,
                       ) as number,
-                      job.currency
+                      job.currency,
                     )}
               </p>
             )}
@@ -3774,7 +3867,7 @@ export function JobFlowScreen({
               onClick={() => setReceiptOpen((o) => !o)}
               className={cn(
                 "mt-6 inline-flex items-center gap-1 border-0 bg-transparent px-0 text-[13px] font-bold",
-                isLight ? "text-slate-800" : "text-white"
+                isLight ? "text-slate-800" : "text-white",
               )}
             >
               Receipt
@@ -3785,7 +3878,9 @@ export function JobFlowScreen({
               )}
             </button>
             {receiptOpen && (
-              <div className={cn("mt-2 space-y-1 text-[12px] font-medium", muted)}>
+              <div
+                className={cn("mt-2 space-y-1 text-[12px] font-medium", muted)}
+              >
                 <p>Ref {job.paymentReference || job.id}</p>
                 <p>Escrow {job.escrowStatus || "released"}</p>
               </div>
@@ -3794,7 +3889,12 @@ export function JobFlowScreen({
             <div className="mt-10 w-full max-w-md text-left">
               {hasRating || alreadyLeft ? (
                 <>
-                  <p className={cn("mb-3 text-center text-[14px] font-bold", ink)}>
+                  <p
+                    className={cn(
+                      "mb-3 text-center text-[14px] font-bold",
+                      ink,
+                    )}
+                  >
                     {viewer === "repair_pro"
                       ? "Customer rating"
                       : "Your review"}
@@ -3806,7 +3906,7 @@ export function JobFlowScreen({
                         "mt-4 rounded-md px-3 py-2.5 text-[13px] font-medium leading-snug break-words",
                         isLight
                           ? "bg-[#bebfc4]/60 text-slate-900"
-                          : "bg-[#1a1a1a] text-white/90"
+                          : "bg-[#1a1a1a] text-white/90",
                       )}
                     >
                       “{displayNote}”
@@ -3815,7 +3915,7 @@ export function JobFlowScreen({
                     <p
                       className={cn(
                         "mt-3 text-center text-[12px] font-semibold",
-                        muted
+                        muted,
                       )}
                     >
                       No written review
@@ -3826,7 +3926,7 @@ export function JobFlowScreen({
                 <p
                   className={cn(
                     "text-center text-[13px] font-semibold leading-snug",
-                    muted
+                    muted,
                   )}
                 >
                   {viewer === "repair_pro"
@@ -3859,7 +3959,7 @@ export function JobFlowScreen({
                   jobId: job.id,
                   by: viewer,
                   reason: "I disagree with the dispute decision.",
-                })
+                }),
               )
             }
           >
@@ -3902,8 +4002,9 @@ export function JobFlowScreen({
                 {job.evidence.priority}
               </p>
               <p className={cn("mt-1 text-[11px]", muted)}>
-                Photo {job.evidence.photoScore} · Voice {job.evidence.voiceScore}{" "}
-                · Location {job.evidence.locationScore} · Time{" "}
+                Photo {job.evidence.photoScore} · Voice{" "}
+                {job.evidence.voiceScore} · Location{" "}
+                {job.evidence.locationScore} · Time{" "}
                 {job.evidence.timestampScore}
               </p>
             </div>
@@ -3932,8 +4033,8 @@ export function JobFlowScreen({
   }
 
   /* ─── CANCELLED / REFUNDED ─── */
-    return (
-      <JobShell
+  return (
+    <JobShell
       isLight={isLight}
       title={
         job.status === "refunded"
@@ -3956,9 +4057,7 @@ export function JobFlowScreen({
           </div>
         ) : (
           <div className="space-y-2">
-            <CopperButton
-              onClick={() => router.push("/")}
-            >
+            <CopperButton onClick={() => router.push("/")}>
               Request again
             </CopperButton>
             <GhostButton isLight={isLight} onClick={() => router.push("/")}>
@@ -3978,9 +4077,9 @@ export function JobFlowScreen({
               : "This job has ended.")}
         </p>
       </JobCard>
-      </JobShell>
-    );
-  }
+    </JobShell>
+  );
+}
 
 function StatusPill({
   label,
@@ -3999,7 +4098,7 @@ function StatusPill({
     <span
       className={cn(
         "inline-flex rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wide",
-        cls
+        cls,
       )}
     >
       {label}
@@ -4031,13 +4130,13 @@ function DisputeSheet({
       <div
         className={cn(
           "max-h-[85vh] w-full max-w-md overflow-y-auto rounded-3xl p-5",
-          isLight ? "bg-[#c8c9cd]" : "bg-black"
+          isLight ? "bg-[#c8c9cd]" : "bg-black",
         )}
       >
         <p
           className={cn(
             "text-[17px] font-black",
-            isLight ? "text-slate-900" : "text-white"
+            isLight ? "text-slate-900" : "text-white",
           )}
         >
           Open dispute
@@ -4045,7 +4144,7 @@ function DisputeSheet({
         <p
           className={cn(
             "mt-1 text-[12px]",
-            isLight ? "text-slate-500" : "text-white/50"
+            isLight ? "text-slate-500" : "text-white/50",
           )}
         >
           Money stays locked until admin resolves (within 24h).
@@ -4058,7 +4157,7 @@ function DisputeSheet({
           onChange={(e) => setReason(e.target.value as DisputeReason)}
           className={cn(
             "mt-1 h-11 w-full rounded-xl px-3 text-[13px] font-semibold",
-            isLight ? "bg-[#bebfc4]" : "bg-[#1c1c1c] text-white"
+            isLight ? "bg-[#bebfc4]" : "bg-[#1c1c1c] text-white",
           )}
         >
           {DISPUTE_REASONS.map((r) => (
@@ -4074,14 +4173,17 @@ function DisputeSheet({
           placeholder="Short description…"
           className={cn(
             "mt-3 w-full resize-none rounded-xl p-3 text-[13px] outline-none",
-            isLight ? "bg-[#bebfc4]" : "bg-[#1c1c1c] text-white"
+            isLight ? "bg-[#bebfc4]" : "bg-[#1c1c1c] text-white",
           )}
         />
         <div className="mt-4 flex gap-2">
           <GhostButton isLight={isLight} onClick={onClose}>
             Cancel
           </GhostButton>
-          <CopperButton disabled={busy || desc.trim().length < 5} onClick={onSubmit}>
+          <CopperButton
+            disabled={busy || desc.trim().length < 5}
+            onClick={onSubmit}
+          >
             Submit dispute
           </CopperButton>
         </div>
@@ -4173,14 +4275,14 @@ function ScheduledDispatchScreen({
         <p
           className={cn(
             "text-[11px] font-semibold uppercase tracking-wide",
-            muted
+            muted,
           )}
         >
           Your current address
         </p>
         <p className={cn("mt-1 text-[15px] font-medium leading-relaxed", ink)}>
-          Enter where you are now — a {proLabel.toLowerCase()} will be
-          dispatched to meet you there.
+          Enter where you are now a {proLabel.toLowerCase()} will be dispatched
+          to meet you there.
         </p>
         <div className="mt-3">
           <AddressAutocomplete
@@ -4193,7 +4295,7 @@ function ScheduledDispatchScreen({
           <p
             className={cn(
               "text-[11px] font-semibold uppercase tracking-wide",
-              muted
+              muted,
             )}
           >
             Job details
@@ -4229,8 +4331,9 @@ function SearchingScreen({
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-700" : "text-white/75";
   const skillLabel =
-    (PRO_SERVICE_LABELS[job.serviceType] || "Pro").replace(/\s*Pro$/i, "").trim() ||
-    "Pro";
+    (PRO_SERVICE_LABELS[job.serviceType] || "Pro")
+      .replace(/\s*Pro$/i, "")
+      .trim() || "Pro";
   const [idx, setIdx] = useState(0);
   const messages = useMemo(
     () => [
@@ -4239,24 +4342,24 @@ function SearchingScreen({
       `Still looking for an available ${skillLabel}…`,
       `Widening the search to more ${skillLabel}s…`,
     ],
-    [skillLabel]
+    [skillLabel],
   );
   useEffect(() => {
     const id = window.setInterval(
       () => setIdx((i) => (i + 1) % messages.length),
-      2600
+      2600,
     );
     return () => window.clearInterval(id);
   }, [messages.length]);
 
   const cancelSearch = useCallback(
     (auto: boolean) => {
-      // Pending (/jobs/new) has no server job yet — just go home, no CANCEL.
+      // Pending (/jobs/new) has no server job yet just go home, no CANCEL.
       if (job.id.startsWith("pending-")) {
         router.replace("/");
         return;
       }
-      // Navigate first — no hang waiting on CANCEL network
+      // Navigate first no hang waiting on CANCEL network
       router.replace(auto ? `/requests/${job.id}` : "/");
       void apiTransition({
         jobId: job.id,
@@ -4268,30 +4371,35 @@ function SearchingScreen({
         /* ignore */
       });
     },
-    [job.id, job.motoristId, router]
+    [job.id, job.motoristId, router],
   );
 
-  // Manual cancel (user-initiated) — go home.
+  // Manual cancel (user-initiated) go home.
   const handleCancelSearch = useCallback(
     () => void cancelSearch(false),
-    [cancelSearch]
+    [cancelSearch],
   );
 
   // 3-minute auto-cancel timer → auto-close: customer to job details page.
   useEffect(() => {
     const t = window.setTimeout(
       () => void cancelSearch(true),
-      SEARCH_REROUTE_WINDOW_MS
+      SEARCH_REROUTE_WINDOW_MS,
     );
     return () => window.clearTimeout(t);
   }, [cancelSearch]);
 
-  // Pro never uses this full-page searching UI for requests — panel only
+  // Pro never uses this full-page searching UI for requests panel only
   if (viewer === "repair_pro") {
     router.replace("/dashboard");
     return (
       <JobShell isLight={isLight} title="Service Request" compactHeader>
-        <p className={cn("px-0.5 pt-8 text-center text-[13px] font-medium", muted)}>
+        <p
+          className={cn(
+            "px-0.5 pt-8 text-center text-[13px] font-medium",
+            muted,
+          )}
+        >
           Opening dashboard…
         </p>
       </JobShell>
@@ -4309,23 +4417,23 @@ function SearchingScreen({
       backIcon={<Minimize2 className="h-4 w-4" />}
     >
       <div className="relative flex h-full min-h-0 flex-1 flex-col">
-        {/* 60% — real Google Map anchored on the motorist location */}
+        {/* 60% real Google Map anchored on the motorist location */}
         <div className="relative min-h-0 flex-[3]">
           <SearchingMap job={job} isLight={isLight} />
         </div>
 
-        {/* 40% — bottom sheet with live searching feedback */}
+        {/* 40% bottom sheet with live searching feedback */}
         <div
           className={cn(
             "relative z-20 flex min-h-0 flex-[2] flex-col rounded-t-[2rem] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2.5",
             "shadow-[0_-10px_30px_rgba(0,0,0,0.35)]",
-            isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white"
+            isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white",
           )}
         >
           <div
             className={cn(
               "mx-auto h-1 w-10 shrink-0 rounded-full",
-              isLight ? "bg-black/15" : "bg-white/20"
+              isLight ? "bg-black/15" : "bg-white/20",
             )}
           />
           <p className="mt-3 text-center text-[10px] font-black uppercase tracking-[0.14em] text-[#FF6B35]">
@@ -4340,7 +4448,7 @@ function SearchingScreen({
             key={idx}
             className={cn(
               "mt-2 text-center text-[15px] font-bold leading-snug",
-              ink
+              ink,
             )}
           >
             {messages[idx]}
@@ -4353,7 +4461,7 @@ function SearchingScreen({
                 "h-11 w-full rounded-xl border-0 text-[13px] font-bold transition-colors",
                 isLight
                   ? "bg-red-500/15 text-red-700 hover:bg-red-500/25"
-                  : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                  : "bg-red-500/20 text-red-400 hover:bg-red-500/30",
               )}
             >
               Cancel Request

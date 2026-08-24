@@ -1,5 +1,5 @@
 /**
- * Pure escrow job state machine — no I/O.
+ * Pure escrow job state machine no I/O.
  * Enforces legal transitions for Ona premium job flow.
  */
 
@@ -28,7 +28,7 @@ export type TransitionEvent =
   | { type: "MARK_COMPLETED" }
   | { type: "SATISFIED" } // motorist → release path
   | { type: "RELEASE" } // system after satisfied
-  /** Repair Pro tapped “I can fix this” — starts 20 min negotiate clock */
+  /** Repair Pro tapped “I can fix this” starts 20 min negotiate clock */
   | { type: "START_NEGOTIATION" }
   | { type: "OPEN_DISPUTE"; by: "motorist" | "repair_pro" }
   | { type: "RESOLVE_DISPUTE"; outcome: "release" | "refund" | "split" }
@@ -49,7 +49,10 @@ export type TransitionEvent =
   /** Server dispatch: sequential_pairing → next waiting_for_pro */
   | { type: "DISPATCH" };
 
-const ALLOWED: Record<JobFlowStatus, Partial<Record<TransitionEvent["type"], JobFlowStatus>>> = {
+const ALLOWED: Record<
+  JobFlowStatus,
+  Partial<Record<TransitionEvent["type"], JobFlowStatus>>
+> = {
   scheduled: {
     CANCEL: "cancelled",
   },
@@ -128,7 +131,7 @@ const ALLOWED: Record<JobFlowStatus, Partial<Record<TransitionEvent["type"], Job
     SATISFIED: "satisfied",
     /** Dispute freezes 6h auto-release until admin resolve (release or refund) */
     OPEN_DISPUTE: "disputed",
-    // No CANCEL — after pro marks complete, only Release / Dispute / 6h auto-release
+    // No CANCEL after pro marks complete, only Release / Dispute / 6h auto-release
   },
   satisfied: {
     RELEASE: "released",
@@ -151,7 +154,7 @@ const ALLOWED: Record<JobFlowStatus, Partial<Record<TransitionEvent["type"], Job
 
 export function canTransition(
   from: JobFlowStatus,
-  event: TransitionEvent
+  event: TransitionEvent,
 ): boolean {
   if (event.type === "OPEN_DISPUTE") {
     return DISPUTABLE_STATUSES.includes(from);
@@ -163,10 +166,21 @@ export function canTransition(
     return true;
   }
   if (event.type === "REFUND") {
-    return from === "paid_booked" || from === "en_route" || from === "disputed" || from === "under_appeal" || from === "cancelled";
+    return (
+      from === "paid_booked" ||
+      from === "en_route" ||
+      from === "disputed" ||
+      from === "under_appeal" ||
+      from === "cancelled"
+    );
   }
   // Actor guards
-  if (event.type === "START_TRIP" || event.type === "MARK_ARRIVED" || event.type === "START_WORK" || event.type === "MARK_COMPLETED") {
+  if (
+    event.type === "START_TRIP" ||
+    event.type === "MARK_ARRIVED" ||
+    event.type === "START_WORK" ||
+    event.type === "MARK_COMPLETED"
+  ) {
     // only pro (caller enforces actor)
   }
   if (event.type === "SATISFIED") {
@@ -177,7 +191,7 @@ export function canTransition(
 
 export function nextStatus(
   from: JobFlowStatus,
-  event: TransitionEvent
+  event: TransitionEvent,
 ): JobFlowStatus | null {
   if (!canTransition(from, event)) return null;
 
@@ -203,7 +217,7 @@ export function nextStatus(
 
 export function assertTransition(
   from: JobFlowStatus,
-  event: TransitionEvent
+  event: TransitionEvent,
 ): JobFlowStatus {
   const next = nextStatus(from, event);
   if (!next) {
@@ -221,11 +235,11 @@ export function assertTransition(
 export function hasIdempotentOffer(
   offers: readonly JobOffer[],
   clientOfferId: string | null | undefined,
-  side: OfferSide
+  side: OfferSide,
 ): boolean {
   if (!clientOfferId) return false;
   return offers.some(
-    (o) => o.clientOfferId === clientOfferId && o.side === side
+    (o) => o.clientOfferId === clientOfferId && o.side === side,
   );
 }
 
@@ -299,8 +313,7 @@ export function validateOfferAmount(input: {
     return { ok: false, reason: "Price is limited to 6 digits." };
   }
   if (input.side === "motorist") {
-    const base =
-      input.lastProOfferMajor ?? input.proBaseMajor;
+    const base = input.lastProOfferMajor ?? input.proBaseMajor;
     if (base == null || base <= 0) {
       return { ok: false, reason: "Wait for the Repair Pro to set a price." };
     }
@@ -344,7 +357,7 @@ export function negotiationUiStatus(input: {
 
 export function actorMay(
   event: TransitionEvent["type"],
-  actor: TransitionActor
+  actor: TransitionActor,
 ): boolean {
   switch (event) {
     case "START_TRIP":

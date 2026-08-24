@@ -27,7 +27,7 @@ export default function AdminSignupsPage() {
   const load = useCallback(async () => {
     const q = failedOnly ? "?failed=1" : "";
     const res = await api<{ events: EventRow[]; totals: typeof totals }>(
-      `/api/admin/signups${q}`
+      `/api/admin/signups${q}`,
     );
     if (!res.ok) {
       setError(res.message);
@@ -47,7 +47,8 @@ export default function AdminSignupsPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Signup events</h1>
       <p className="om-admin-sub">
-        Recent signup events from the live app (Customer and Repair Pro). Useful for onboarding and fraud checks.
+        Recent signup events from the live app (Customer and Repair Pro). Useful
+        for onboarding and fraud checks.
       </p>
 
       <AdminGuideBanner pageId="signups" />
@@ -105,14 +106,14 @@ export default function AdminSignupsPage() {
                   <td className="om-admin-muted">
                     {e.created_at
                       ? new Date(e.created_at).toLocaleString()
-                      : "—"}
+                      : ""}
                   </td>
-                  <td>{e.full_name || "—"}</td>
+                  <td>{e.full_name || ""}</td>
                   <td>
-                    <div>{e.email || "—"}</div>
+                    <div>{e.email || ""}</div>
                     <div className="om-admin-muted">{e.phone || ""}</div>
                   </td>
-                  <td>{e.account_type || "—"}</td>
+                  <td>{e.account_type || ""}</td>
                   <td>
                     <span
                       className={`om-admin-badge ${
@@ -127,7 +128,7 @@ export default function AdminSignupsPage() {
                       ? e.user_id
                         ? `user ${e.user_id.slice(0, 8)}…`
                         : "ok"
-                      : e.error_message || "—"}
+                      : e.error_message || ""}
                   </td>
                 </tr>
               ))

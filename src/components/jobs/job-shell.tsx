@@ -5,7 +5,7 @@ import { ArrowLeft, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * Job flow chrome — same solid stage as the rest of the app
+ * Job flow chrome same solid stage as the rest of the app
  * (light #c8c9cd / dark black). No glass, no double panels.
  */
 export function JobShell({
@@ -51,22 +51,26 @@ export function JobShell({
             className={cn(
               "flex shrink-0 items-center justify-center rounded-lg border-0",
               compactHeader ? "h-8 w-8" : "h-9 w-9",
-              isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white"
+              isLight ? "bg-[#c8c9cd] text-slate-900" : "bg-black text-white",
             )}
             style={{
               backgroundColor: isLight ? "#c8c9cd" : "#000000",
             }}
             aria-label="Back"
           >
-            {backIcon ?? <ArrowLeft className={compactHeader ? "h-4 w-4" : "h-5 w-5"} />}
+            {backIcon ?? (
+              <ArrowLeft className={compactHeader ? "h-4 w-4" : "h-5 w-5"} />
+            )}
           </button>
         )}
         <div className="min-w-0 flex-1">
           <h1
             className={cn(
               "font-black tracking-tight",
-              compactHeader ? "text-[16px] leading-none" : "text-[22px] leading-tight",
-              ink
+              compactHeader
+                ? "text-[16px] leading-none"
+                : "text-[22px] leading-tight",
+              ink,
             )}
           >
             {title}
@@ -76,7 +80,7 @@ export function JobShell({
               className={cn(
                 "mt-0.5 font-medium",
                 compactHeader ? "text-[11px] leading-snug" : "text-[13px]",
-                muted
+                muted,
               )}
             >
               {subtitle}
@@ -92,7 +96,7 @@ export function JobShell({
           fillBody
             ? "flex flex-col overflow-hidden"
             : "overflow-y-auto overscroll-contain scrollbar-hide",
-          fullBleed ? "px-0" : "px-4 pb-6"
+          fullBleed ? "px-0" : "px-4 pb-6",
         )}
       >
         {children}
@@ -102,7 +106,7 @@ export function JobShell({
         <div
           className={cn(
             "relative z-20 shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3",
-            stage
+            stage,
           )}
         >
           {footer}
@@ -131,7 +135,7 @@ export function JobCard({
       className={cn(
         "rounded-md bg-transparent p-0",
         isLight ? "text-slate-900" : "text-white",
-        className
+        className,
       )}
     >
       {children}
@@ -159,7 +163,7 @@ export function CopperButton({
       onClick={onClick}
       className={cn(
         "inline-flex h-12 w-full items-center justify-center gap-2 rounded-md border-0 bg-[#FF6B35] text-[15px] font-black text-white transition active:scale-[0.99] disabled:opacity-50",
-        className
+        className,
       )}
     >
       {children}
@@ -184,10 +188,8 @@ export function GhostButton({
       onClick={onClick}
       className={cn(
         "inline-flex h-12 w-full items-center justify-center rounded-md border-0 text-[14px] font-bold transition",
-        isLight
-          ? "bg-black/10 text-slate-900"
-          : "bg-white/10 text-white",
-        className
+        isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white",
+        className,
       )}
     >
       {children}
@@ -195,7 +197,7 @@ export function GhostButton({
   );
 }
 
-/** Blended stage buttons — light gray / dark gray, soft square corners */
+/** Blended stage buttons light gray / dark gray, soft square corners */
 export function StageButton({
   children,
   onClick,
@@ -221,7 +223,7 @@ export function StageButton({
         isLight
           ? "bg-[#c8c9cd] text-slate-900 ring-1 ring-black/10"
           : "bg-[#2c2c2e] text-white",
-        className
+        className,
       )}
     >
       {children}

@@ -1,8 +1,5 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
-import {
-  listProReviews,
-  toProfileReview,
-} from "@/lib/server/reviews";
+import { listProReviews, toProfileReview } from "@/lib/server/reviews";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { createServiceSupabase } from "@/lib/supabase/server";
 
@@ -10,12 +7,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/pros/[id]/reviews — live motorist reviews for a Repair Pro profile.
+ * GET /api/pros/[id]/reviews live motorist reviews for a Repair Pro profile.
  * Public so motorists can read before requesting / offering.
  */
 export async function GET(
   _req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   if (!isSupabaseAdminConfigured()) {
     return apiFail("Supabase is not configured", 503);
@@ -59,7 +56,7 @@ export async function GET(
   } catch (e) {
     return apiFail(
       e instanceof Error ? e.message : "Failed to load reviews",
-      500
+      500,
     );
   }
 }

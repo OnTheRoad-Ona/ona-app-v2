@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 const CRON_SECRET = process.env.CRON_SECRET?.trim() || "";
 
 function authorized(req: Request): boolean {
-  const authHeader = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
+  const authHeader =
+    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
   const header = req.headers.get("x-cron-secret") || "";
   if (CRON_SECRET) {
     return authHeader === CRON_SECRET || header === CRON_SECRET;

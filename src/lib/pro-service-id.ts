@@ -1,6 +1,6 @@
 import type { ProService } from "@/lib/types";
 
-/** Trade ids only — no icons. Safe for the first client paint. */
+/** Trade ids only no icons. Safe for the first client paint. */
 export const ALL_PRO_SERVICES: ProService[] = [
   "mechanic",
   "vulcanizer",

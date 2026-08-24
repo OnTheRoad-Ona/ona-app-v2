@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Settings hub — one row per category → opens that section page.
+ * Settings hub one row per category → opens that section page.
  * Danger Zone stays on this hub only (not nested).
  * Same layout for Customer and Repair Pro. Fully i18n-aware.
  */
@@ -161,7 +161,7 @@ export default function SettingsPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader
@@ -194,8 +194,8 @@ export default function SettingsPage() {
               onClick={() => {
                 rememberScroll();
                 setProOnboardingSheetRequired(true);
-                void import("@/components/pro/pro-onboarding-sheet").then(
-                  (m) => m.requestProOnboardingSheetExpand()
+                void import("@/components/pro/pro-onboarding-sheet").then((m) =>
+                  m.requestProOnboardingSheetExpand(),
                 );
               }}
             />
@@ -206,7 +206,7 @@ export default function SettingsPage() {
               isLight={isLight}
               icon={BadgeCheck}
               label="View Verification"
-              detail="View only — all tiers complete"
+              detail="View only all tiers complete"
               href="/artisan/verification?view=1"
               onClick={rememberScroll}
             />
@@ -214,7 +214,7 @@ export default function SettingsPage() {
           {HUB_SECTIONS.filter((item) => {
             // Pro: Payments & Payouts lives in the side bar, not Settings
             if (isPro && item.href === "/settings/payments") return false;
-            // Dual: hide hub Verification row — use Continue / View rows above
+            // Dual: hide hub Verification row use Continue / View rows above
             if (
               item.href === "/settings/verification" &&
               isPro &&
@@ -259,7 +259,7 @@ export default function SettingsPage() {
         <p
           className={cn(
             "mt-4 px-2 text-center text-[10px] font-medium",
-            isLight ? "text-slate-500" : "text-white/40"
+            isLight ? "text-slate-500" : "text-white/40",
           )}
         >
           {t("menu.signedInAs", {

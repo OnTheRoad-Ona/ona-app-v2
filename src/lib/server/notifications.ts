@@ -25,7 +25,7 @@ export type CreateNotificationInput = {
 };
 
 export async function insertNotification(
-  input: CreateNotificationInput
+  input: CreateNotificationInput,
 ): Promise<{ id: string } | { error: string; skipped?: boolean }> {
   try {
     const sb = createServiceSupabase();
@@ -77,7 +77,7 @@ export async function insertNotification(
  */
 export async function markNotificationsByGroupKey(
   userId: string,
-  groupKeyPrefix: string
+  groupKeyPrefix: string,
 ): Promise<void> {
   try {
     const sb = createServiceSupabase();
@@ -103,8 +103,7 @@ export function mapNotificationRow(row: Record<string, unknown>) {
     body: String(row.body || ""),
     href: (row.href as string) || null,
     actionType: (row.action_type as NotificationActionType) || null,
-    actionPayload:
-      (row.action_payload as Record<string, unknown>) || {},
+    actionPayload: (row.action_payload as Record<string, unknown>) || {},
     groupKey: (row.group_key as string) || null,
     jobId: (row.job_id as string) || null,
     jobStatus: (row.job_status as string) || null,

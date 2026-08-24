@@ -1,10 +1,12 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function AdminLoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const expired = searchParams.get("expired") === "1";
   const [email, setEmail] = useState("Oluwatosinabdullahime@gmail.com");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +49,7 @@ export default function AdminLoginPage() {
             Staff sign in
           </h1>
           <p className="om-admin-sub">
-            Super Admin, Customer Care, and Support — one console that controls
+            Super Admin, Customer Care, and Support one console that controls
             the live Ona app.
           </p>
           <div
@@ -78,7 +80,25 @@ export default function AdminLoginPage() {
             </span>
           </div>
         </div>
-        {error ? <div className="om-admin-error">{error}</div> : null}
+        {expired && !error ? (
+        <div
+          style={{
+            margin: "0 auto 12px",
+            maxWidth: 360,
+            padding: "8px 12px",
+            borderRadius: 8,
+            background: "#fff7ed",
+            border: "1px solid #fdba74",
+            color: "#9a3412",
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          ⏳ Your session expired. Sign in again to continue, 💡 tip: you stay
+          signed in up to 8 hours, and 4 hours of inactivity now.
+        </div>
+      ) : null}
+      {error ? <div className="om-admin-error">{error}</div> : null}
         <label>
           Email
           <input

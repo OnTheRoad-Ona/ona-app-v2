@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(
   req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   const { id } = await ctx.params;
   try {
@@ -29,7 +29,7 @@ export async function POST(
     if (!result.ok) {
       return apiFail(
         result.error || "Could not retry search",
-        result.status || 500
+        result.status || 500,
       );
     }
 

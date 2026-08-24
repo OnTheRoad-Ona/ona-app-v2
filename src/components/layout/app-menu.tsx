@@ -13,6 +13,8 @@ import type { MessageKey } from "@/lib/i18n";
 import { MESSAGE_ORANGE } from "@/lib/map-trade-icons";
 import { defaultBackHref, resetNavStack } from "@/lib/navigation";
 import { useApp } from "@/lib/store";
+import { useAppConfig } from "@/components/app-config-provider";
+import { applyNavOverrides } from "@/lib/nav-schema";
 import { isProService } from "@/lib/pro-service-id";
 import { PRO_TRADE_OPTIONS } from "@/lib/services";
 import type { AccountType, ProService } from "@/lib/types";
@@ -31,13 +33,20 @@ type MenuIconName =
   | "payments"
   | "notifications"
   | "service"
-  | "shop";
+  | "shop"
+  | "express";
 
 /**
  * Solid orange icons built with DIVs (not SVG).
  * SVG stroke/fill CSS kept fighting us; these cannot render as hollow outlines.
  */
-function SolidMenuIcon({ name, isLight }: { name: MenuIconName; isLight: boolean }) {
+function SolidMenuIcon({
+  name,
+  isLight,
+}: {
+  name: MenuIconName;
+  isLight: boolean;
+}) {
   const cls = "h-5 w-5 shrink-0 text-[#FF6B35]";
   const bgCol = isLight ? "#c8c9cd" : "#000000";
   switch (name) {
@@ -54,7 +63,13 @@ function SolidMenuIcon({ name, isLight }: { name: MenuIconName; isLight: boolean
       return (
         <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden>
           <circle cx="12" cy="12" r="11" fill="#FF6B35" />
-          <path d="M12 7v5l3.5 2.1" stroke={bgCol} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M12 7v5l3.5 2.1"
+            stroke={bgCol}
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       );
     case "profile":
@@ -105,6 +120,12 @@ function SolidMenuIcon({ name, isLight }: { name: MenuIconName; isLight: boolean
           <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zm10 0c-1.1 0-1.99.9-1.99 2S15.9 22 17 22s2-.9 2-2-.9-2-2-2zM7.16 14.26l.03-.12L8.1 12h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49A1 1 0 0 0 20 3H5.21l-.94-2H1v2h2l3.6 7.59-1.35 2.44C4.52 14.37 5.48 16 7 16h12v-2H7.42c-.14 0-.25-.11-.26-.24z" />
         </svg>
       );
+    case "express":
+      return (
+        <svg className={cls} viewBox="0 0 24 24" fill="#FF6B35" aria-hidden>
+          <path d="M13 2L3 14h7v8l10-12h-7z" />
+        </svg>
+      );
     default:
       return null;
   }
@@ -124,22 +145,25 @@ function TradeIcon({ service }: { service: ProService }) {
 }
 
 /** Settings sits in the same list arrangement as other menu items (not inside Profile).
- *  Messages removed from ☰ — chat only via active request/job.
- *  Notifications opens the Notification Center (text + unread badge).
+ * Messages removed from ☰ chat only via active request/job.
+ * Notifications opens the Notification Center (text + unread badge).
  */
 /** Customer: money setup lives under Settings (not side drawer). */
 const CLIENT_NAV: {
   href: string;
   labelKey: MessageKey;
   icon: MenuIconName;
+  labelOverride?: string;
 }[] = [
   { href: "/", labelKey: "nav.dashboard", icon: "dashboard" },
   { href: "/history", labelKey: "nav.history", icon: "history" },
   { href: "/profile", labelKey: "nav.profile", icon: "profile" },
   { href: "/wallet", labelKey: "nav.referralEarn", icon: "referral" },
   { href: "/settings", labelKey: "menu.settings", icon: "settings" },
-  /** ONA Shop — full repair commerce (catalog, cart, checkout, orders) */
+  /** ONA Shop full repair commerce (catalog, cart, checkout, orders) */
   { href: "/shop", labelKey: "nav.myShop", icon: "shop" },
+  /** Ona Express premium direct booking (Vehicle Services) */
+  { href: "/express", labelKey: "nav.onaExpress", icon: "express" },
 ];
 
 /** Repair Pro: dedicated Payments & Payouts in the side bar → full hub. */
@@ -147,6 +171,7 @@ const PRO_NAV: {
   href: string;
   labelKey: MessageKey;
   icon: MenuIconName;
+  labelOverride?: string;
 }[] = [
   { href: "/dashboard", labelKey: "nav.dashboard", icon: "dashboard" },
   { href: "/jobs", labelKey: "nav.jobs", icon: "jobs" },
@@ -158,7 +183,7 @@ const PRO_NAV: {
     icon: "payments",
   },
   { href: "/settings", labelKey: "menu.settings", icon: "settings" },
-  /** ONA Shop — same commerce engine as customers (Ona is seller) */
+  /** ONA Shop same commerce engine as customers (Ona is seller) */
   { href: "/shop", labelKey: "nav.myShop", icon: "shop" },
 ];
 
@@ -189,15 +214,11 @@ function homeForRole(type: AccountType): string {
  * "Chinedu James Okafor" → "Chinedu Okafor"; single token stays as-is.
  */
 function firstAndLastName(full: string): string {
-  const parts = full
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
+  const parts = full.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "";
   if (parts.length === 1) return parts[0];
   return `${parts[0]} ${parts[parts.length - 1]}`;
 }
-
 
 export function AppMenu({
   open,
@@ -209,6 +230,8 @@ export function AppMenu({
   const pathname = usePathname();
   const router = useRouter();
   const t = useT();
+  const { config: appCfg } = useAppConfig();
+  const cfgContent = appCfg.content;
   const {
     theme,
     accountType,
@@ -235,14 +258,12 @@ export function AppMenu({
    * trade shop (e.g. /shop/c/solar). Multi-trade / customers stay general.
    */
   const myShopHref =
-    isPro && proServices.length === 1
-      ? `/shop/c/${proServices[0]}`
-      : "/shop";
+    isPro && proServices.length === 1 ? `/shop/c/${proServices[0]}` : "/shop";
   const navBase = (isPro ? PRO_NAV : CLIENT_NAV).map((i) =>
-    i.href === "/shop" ? { ...i, href: myShopHref } : i
+    i.href === "/shop" ? { ...i, href: myShopHref } : i,
   );
   /** Hard-guarantee My Shop is present for both roles (never drop the row). */
-  const nav = navBase.some((i) => i.href === myShopHref)
+  const navWithShop = navBase.some((i) => i.href === myShopHref)
     ? navBase
     : [
         ...navBase,
@@ -252,6 +273,16 @@ export function AppMenu({
           icon: "shop" as MenuIconName,
         },
       ];
+  /**
+   * Whitelist overrides: backend may hide / reorder / relabel KNOWN rows only
+   * (see nav-schema.ts). Unknown ids ignored; protected rows always render;
+   * empty or broken config → compiled nav untouched. Menus can never vanish.
+   */
+  const nav = applyNavOverrides(
+    navWithShop,
+    isPro ? cfgContent.proMenuOverrides : cfgContent.mainMenuOverrides,
+    { role: isPro ? "pro" : "client", myShopHref },
+  );
   /** Active account first (left Use-as button when dual) */
   const useAsOrder: AccountType[] =
     hasMotoristAccount && hasProAccount
@@ -265,7 +296,7 @@ export function AppMenu({
   const [signupTarget, setSignupTarget] = useState<AccountType | null>(null);
 
   const fullNameDisplay = firstAndLastName(
-    userProfile?.fullName || displayName || ""
+    userProfile?.fullName || displayName || "",
   );
 
   const timeGreeting = (() => {
@@ -285,7 +316,7 @@ export function AppMenu({
 
   /**
    * Drawer + capsule share one clock (MENU_MS). Stay mounted on exit so both
-   * finish together — fixes capsule appearing early / “paused” open.
+   * finish together fixes capsule appearing early / “paused” open.
    * Ona X stays removed. Chip row is separate (data-menu-open).
    */
   const MENU_MS = 200;
@@ -335,7 +366,7 @@ export function AppMenu({
       return;
     }
 
-    // Do not block on client-only dual flags here — switchAccount refreshes
+    // Do not block on client-only dual flags here switchAccount refreshes
     // from the server (vault alone was falsely saying "no Repair Pro account").
     setWarn(null);
     setSignupTarget(null);
@@ -353,14 +384,17 @@ export function AppMenu({
       ) {
         try {
           const { ensureAppSession } = await import("@/lib/supabase/session");
-          await ensureAppSession({ waitForSessionMs: 2200, forceRefresh: true });
+          await ensureAppSession({
+            waitForSessionMs: 2200,
+            forceRefresh: true,
+          });
         } catch {
           /* retry anyway */
         }
         result = await switchAccount(type);
       }
       if (result === null) {
-        // Only “Use as” switches roles — reset stack so Back stays in this role
+        // Only “Use as” switches roles reset stack so Back stays in this role
         resetNavStack(homeForRole(type));
         onClose();
         router.replace(homeForRole(type));
@@ -373,7 +407,7 @@ export function AppMenu({
       if (result === "needs_signup") {
         setSignupTarget(type);
         setWarn(
-          type === "professional" ? t("menu.noPro") : t("menu.noMotorist")
+          type === "professional" ? t("menu.noPro") : t("menu.noMotorist"),
         );
         return;
       }
@@ -392,14 +426,16 @@ export function AppMenu({
         ? "bg-[#323231] text-white"
         : isLight
           ? "bg-transparent text-black hover:bg-[#b0b1b6]/60"
-          : "bg-transparent text-white/85 hover:bg-white/10"
+          : "bg-transparent text-white/85 hover:bg-white/10",
     );
 
   /** Menu row labels: pure black (light) / white (dark) */
   const rowIdle = isLight ? "text-black" : "text-white";
-  const rowActive = "text-[#FF6B35]";
+  const rowActive = isLight
+    ? "rounded-lg bg-[#FF6B35]/10 text-black"
+    : "text-[#FF6B35]";
 
-  /** Solid orange DIV icons (Dashboard energy) — no SVG outline possible. */
+  /** Solid orange DIV icons (Dashboard energy) no SVG outline possible. */
   const renderMenuIcon = (name: MenuIconName) => (
     <span className="om-menu-icon-slot inline-flex shrink-0" aria-hidden>
       <SolidMenuIcon name={name} isLight={isLight} />
@@ -407,9 +443,9 @@ export function AppMenu({
   );
 
   /*
-   * Shared open geometry (light ≡ dark) — no layer lapping:
-   *   left  80% = solid theme drawer + dim under it only
-   *   right 20% = capsule rail (pill + close hit)
+   * Shared open geometry (light ≡ dark) no layer lapping:
+   * left 80% = solid theme drawer + dim under it only
+   * right 20% = capsule rail (pill + close hit)
    * ONE chrome transform moves drawer + capsule together (not separate anims).
    */
   return (
@@ -419,372 +455,376 @@ export function AppMenu({
       aria-modal
     >
       {/*
-        Single sliding unit: dim + drawer + capsule rail share one transform.
-        Capsule is a window over the page — separate rail fade left it “paused”.
-      */}
+ Single sliding unit: dim + drawer + capsule rail share one transform.
+ Capsule is a window over the page separate rail fade left it “paused”.
+ */}
       <div
         className={cn(
           "om-x-chrome absolute inset-0",
-          exiting ? "om-x-chrome-out" : "om-x-chrome-in"
+          exiting ? "om-x-chrome-out" : "om-x-chrome-in",
         )}
       >
-      {/* Dim only under the solid menu (never under the capsule rail) */}
-      <button
-        type="button"
-        className={cn(
-          "om-x-dim absolute bottom-0 left-0 top-0 z-[1] border-0",
-          isLight ? "bg-transparent" : "bg-black/30"
-        )}
-        aria-label={t("menu.closeMenu")}
-        onClick={onClose}
-      />
-      {/* Solid theme sidebar — left extension only (not curved out) */}
-      <aside
-        className={cn(
-          "om-x-drawer absolute bottom-0 left-0 top-0 z-10 flex flex-col",
-          isLight ? "bg-[#c8c9cd]" : "bg-black"
-        )}
-      >
-        <div className="flex shrink-0 items-start pl-3 pr-4 pb-2.5 pt-5">
-          <div className="min-w-0 flex-1">
-            {isAuthenticated && fullNameDisplay ? (
-              <div className="flex items-center gap-3">
-                <Avatar className="h-12 w-12 shrink-0 overflow-hidden rounded-full">
-                  <AvatarImage
-                    src={userProfile?.avatarUrl || DEFAULT_VENDOR_PHOTO}
-                    alt={fullNameDisplay}
-                    className="object-cover"
-                  />
-                  <AvatarFallback className="bg-brand text-[13px] font-bold text-white">
-                    {avatarInitials(fullNameDisplay)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0 space-y-0.5">
-                  <p
-                    className={cn(
-                      "text-[12px] font-semibold leading-tight",
-                      isLight ? "text-black" : "text-white/70"
-                    )}
-                  >
-                    {timeGreeting}
-                  </p>
-                  <p
-                    className={cn(
-                      "flex flex-wrap items-center gap-1 text-[15px] font-bold leading-snug",
-                      isLight ? "text-black" : "text-white"
-                    )}
-                  >
-                    <span className="truncate">{fullNameDisplay}</span>
-                    <NewAccountBadge
-                      visibilityTier={
-                        getArtisanProfile(
-                          userProfile?.identityId || backendUserId || ""
-                        )?.visibilityTier ?? 1
-                      }
-                      status={
-                        getArtisanProfile(
-                          userProfile?.identityId || backendUserId || ""
-                        )?.status
-                      }
-                      size="sm"
-                      className="text-[8px] leading-none tracking-normal"
-                    />
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <p
-                className="whitespace-nowrap text-[32px] font-black tracking-tight leading-none"
-                aria-label={t("brand.name")}
-              >
-                <span className="text-[#FF6B35]">O</span>
-                <span className={isLight ? "text-black" : "text-[#C8C9CD]"}>
-                  na
-                </span>
-              </p>
-            )}
-          </div>
-        </div>
-
-        <nav className="min-h-0 flex-1 space-y-0 overflow-y-auto overflow-x-hidden px-2 pb-1 pt-2.5 scrollbar-hide">
-          {nav.map(({ href, labelKey, icon }) => {
-            // Fallback label if i18n key missing (must never blank the My Shop row)
-            const label =
-              labelKey === "nav.myShop"
-                ? t(labelKey) || "My Shop"
-                : t(labelKey);
-            const roleHome = defaultBackHref(accountType);
-            const isHomeItem =
-              href === "/" || href === "/dashboard" || href === roleHome;
-            const isPaymentsItem = href === "/settings/payments";
-            const isSettingsRoot = href === "/settings";
-            const isShopItem = href === myShopHref || href === "/shop";
-            const active = isHomeItem
-              ? pathname === "/" ||
-                pathname === "/dashboard" ||
-                pathname === roleHome
-              : isPaymentsItem
-                ? pathname === "/settings/payments" ||
-                  pathname.startsWith("/settings/payments/")
-                : isSettingsRoot
-                  ? pathname === "/settings" ||
-                    (pathname.startsWith("/settings/") &&
-                      !pathname.startsWith("/settings/payments"))
-                  : isShopItem
-                    ? pathname === "/shop" || pathname.startsWith("/shop/")
-                    : pathname === href || pathname.startsWith(`${href}/`);
-            return (
-              <button
-                key={href + labelKey}
-                type="button"
-                data-menu-item={isShopItem ? "my-shop" : undefined}
-                onClick={() => {
-                  onClose();
-                  if (isHomeItem) {
-                    // Dashboard must always open on a blank selector — never
-                    // re-open a previously selected trade/flow.
-                    setCategory("none");
-                    setSelectedTechId(null);
-                    resetNavStack(href);
-                    router.replace(href);
-                    return;
-                  }
-                  router.push(href);
-                }}
-                className={cn(
-                  "flex w-full items-center gap-3.5 border-0 bg-transparent px-3 py-2.5 text-left text-[16px] font-medium tracking-[-0.01em] transition-colors",
-                  active ? rowActive : rowIdle
-                )}
-              >
-                {renderMenuIcon(icon)}
-                <span className="leading-none">
-                  {label === "nav.myShop" ? "My Shop" : label}
-                </span>
-              </button>
-            );
-          })}
-
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              notif?.openCenter();
-            }}
-            className={cn(
-              "flex w-full items-center gap-3.5 border-0 bg-transparent px-3 py-2.5 text-left text-[16px] font-medium tracking-[-0.01em] transition-colors",
-              rowIdle
-            )}
-          >
-            {renderMenuIcon("notifications")}
-            <span className="min-w-0 flex-1 leading-none">
-              {t("menu.notifications")}
-            </span>
-            {unread > 0 ? (
-              <span
-                className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-bold text-white"
-                style={{
-                  backgroundColor: MESSAGE_ORANGE,
-                }}
-                aria-label={`${unread} unread`}
-              >
-                {unread > 99 ? "99+" : unread}
-              </span>
-            ) : null}
-          </button>
-
-          <div className="mt-1 px-1">
-            {isPro && proServices.length > 0 && (
-              <div
-                className={cn(
-                  "mb-1.5 border-t pt-1.5",
-                  isLight ? "border-black/10" : "border-white/10"
-                )}
-              >
-                <div
-                  className={cn(
-                    "flex w-full items-center gap-3.5 border-0 px-3 py-2.5 text-left text-[16px] font-medium tracking-[-0.01em]",
-                    rowIdle
-                  )}
-                >
-                  {renderMenuIcon("service")}
-                  <span className="min-w-0 flex-1 leading-none">
-                    {t("menu.myService")}
-                  </span>
-                </div>
-                <div className="flex w-full items-center gap-2 px-3 py-0.5">
-                  <span
-                    className={cn(
-                      "min-w-0 flex-1 text-[12px] font-medium",
-                      isLight ? "text-black" : "text-white"
-                    )}
-                  >
-                    {isProService(proServices[0])
-                      ? t(TRADE_LABEL_KEY[proServices[0]])
-                      : proServices[0]}
-                  </span>
-                  {isProService(proServices[0]) ? (
-                    <TradeIcon service={proServices[0]} />
-                  ) : (
-                    <TradeIcon service="mechanic" />
-                  )}
-                </div>
-              </div>
-            )}
-            <div
-              className={cn(
-                "mt-3 border-t pt-3",
-                isLight ? "border-black/10" : "border-white/10"
-              )}
-            >
-            <p
-              className={cn(
-                "mb-1 px-2 text-[10px] font-bold uppercase tracking-wide",
-                isLight ? "text-black" : "text-white/55"
-              )}
-            >
-              {t("menu.useAs")}
-            </p>
-            {hasMotoristAccount && hasProAccount ? (
-              <p className="mb-1 px-2 text-[11px] font-bold text-[#FF6B35]">
-                Dual Role
-              </p>
-            ) : null}
-            <div
-              className={cn(
-                "grid grid-cols-2 gap-1 rounded-xl p-1",
-                isLight ? "bg-[#bebfc4]" : "bg-[#1c1c1e]",
-                switching && "opacity-70 pointer-events-none"
-              )}
-              role="group"
-              aria-label={t("menu.switchRole")}
-              aria-busy={switching}
-            >
-              {useAsOrder.map((role) => {
-                const active = accountType === role;
-                const label =
-                  role === "motorist" ? t("auth.motorist") : t("auth.pro");
-                return (
-                  <button
-                    key={role}
-                    type="button"
-                    disabled={switching}
-                    onClick={() => void onSwitch(role)}
-                    className={cn(
-                      asBtnClass(active),
-                      switching && "relative"
-                    )}
-                    aria-current={active ? "true" : undefined}
-                  >
-                    {switching && !active ? (
-                      <span className="inline-flex items-center justify-center gap-1.5">
-                        <Loader2
-                          className="h-3.5 w-3.5 animate-spin text-[#FF6B35]"
-                          strokeWidth={2.5}
-                          aria-hidden
-                        />
-                        <span className="sr-only">Switching</span>
-                      </span>
-                    ) : (
-                      label
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-            {warn ? (
-              <div
-                className={cn(
-                  "mt-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium leading-snug",
-                  isLight
-                    ? "bg-black/10 text-black"
-                    : "bg-white/10 text-white"
-                )}
-                role="alert"
-              >
-                <p className={isLight ? "text-black" : "text-white"}>
-                  {warn}
-                </p>
-                {signupTarget && (
-                  <button
-                    type="button"
-                    className="mt-1 border-0 bg-transparent p-0 text-[11px] font-bold text-[#FF6B35] underline"
-                    onClick={() => {
-                      onClose();
-                      router.push(
-                        signupTarget === "professional"
-                          ? "/signup/pro?from=menu&attach=1&next=/dashboard"
-                          : "/signup/motorist?from=menu&attach=1&next=/"
-                      );
-                    }}
-                  >
-                    {t("menu.signUpHere")}
-                  </button>
-                )}
-                {warn === t("menu.needLogin") && (
-                  <button
-                    type="button"
-                    className="mt-1 border-0 bg-transparent p-0 text-[11px] font-bold text-[#FF6B35] underline"
-                    onClick={() => {
-                      onClose();
-                      router.push("/login/signin");
-                    }}
-                  >
-                    {t("menu.logIn")}
-                  </button>
-                )}
-              </div>
-            ) : (
-              <p
-                className={cn(
-                  "mt-1 px-2 text-[10px] font-medium leading-snug",
-                  isLight ? "text-black" : "text-white/55"
-                )}
-              >
-                {t("menu.tapToSwitch")}
-              </p>
-            )}
-            </div>
-          </div>
-        </nav>
-
-        <div
-          className={cn(
-            "shrink-0 border-t px-3 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))]",
-            isLight ? "border-black/10" : "border-white/10"
-          )}
-        >
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              router.push("/logout");
-            }}
-            className={cn(
-              "flex w-full items-center justify-center gap-2 rounded-lg border-0 px-3 py-2 text-sm font-semibold shadow-none ring-0 outline-none",
-              isLight
-                ? "bg-red-500/18 text-red-700 hover:bg-red-500/28"
-                : "bg-red-500/20 text-red-300 hover:bg-red-500/30"
-            )}
-          >
-            <LogOut className="h-4 w-4" />
-            {t("menu.logOut")}
-          </button>
-        </div>
-      </aside>
-
-      {/*
-        Right capsule rail — exclusive strip (starts at 80%, no drawer overlap).
-        Rides inside om-x-chrome so it slides with the drawer.
-      */}
-      <div className="om-x-rail pointer-events-none absolute z-20">
-        <div className="om-x-capsule pointer-events-none absolute" aria-hidden />
+        {/* Dim only under the solid menu (never under the capsule rail) */}
         <button
           type="button"
-          className="om-x-capsule-hit absolute z-[1] border-0 bg-transparent pointer-events-auto"
+          className={cn(
+            "om-x-dim absolute bottom-0 left-0 top-0 z-[1] border-0",
+            isLight ? "bg-transparent" : "bg-black/30",
+          )}
           aria-label={t("menu.closeMenu")}
           onClick={onClose}
         />
-      </div>
+        {/* Solid theme sidebar left extension only (not curved out) */}
+        <aside
+          className={cn(
+            "om-x-drawer absolute bottom-0 left-0 top-0 z-10 flex flex-col",
+            isLight ? "bg-[#c8c9cd]" : "bg-black",
+          )}
+        >
+          <div className="flex shrink-0 items-start pl-3 pr-4 pb-2.5 pt-5">
+            <div className="min-w-0 flex-1">
+              {isAuthenticated && fullNameDisplay ? (
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-12 w-12 shrink-0 overflow-hidden rounded-full">
+                    <AvatarImage
+                      src={userProfile?.avatarUrl || DEFAULT_VENDOR_PHOTO}
+                      alt={fullNameDisplay}
+                      className="object-cover"
+                    />
+                    <AvatarFallback className="bg-brand text-[13px] font-bold text-white">
+                      {avatarInitials(fullNameDisplay)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 space-y-0.5">
+                    <p
+                      className={cn(
+                        "text-[12px] font-semibold leading-tight",
+                        isLight ? "text-black" : "text-white/70",
+                      )}
+                    >
+                      {timeGreeting}
+                    </p>
+                    <p
+                      className={cn(
+                        "flex flex-wrap items-center gap-1 text-[15px] font-bold leading-snug",
+                        isLight ? "text-black" : "text-white",
+                      )}
+                    >
+                      <span className="truncate">{fullNameDisplay}</span>
+                      <NewAccountBadge
+                        visibilityTier={
+                          getArtisanProfile(
+                            userProfile?.identityId || backendUserId || "",
+                          )?.visibilityTier ?? 1
+                        }
+                        status={
+                          getArtisanProfile(
+                            userProfile?.identityId || backendUserId || "",
+                          )?.status
+                        }
+                        size="sm"
+                        className="text-[8px] leading-none tracking-normal"
+                      />
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p
+                  className="whitespace-nowrap text-[32px] font-black tracking-tight leading-none"
+                  aria-label={t("brand.name")}
+                >
+                  <span className="text-[#FF6B35]">O</span>
+                  <span className={isLight ? "text-black" : "text-[#C8C9CD]"}>
+                    na
+                  </span>
+                </p>
+              )}
+            </div>
+          </div>
+
+          <nav className="min-h-0 flex-1 space-y-0 overflow-y-auto overflow-x-hidden px-2 pb-1 pt-2.5 scrollbar-hide">
+            {nav.map(({ href, labelKey, icon, labelOverride }) => {
+              // Fallback label if i18n key missing (must never blank the My Shop row)
+              const label =
+                labelOverride ??
+                (labelKey === "nav.myShop"
+                  ? t(labelKey) || "My Shop"
+                  : t(labelKey));
+              const roleHome = defaultBackHref(accountType);
+              const isHomeItem =
+                href === "/" || href === "/dashboard" || href === roleHome;
+              const isPaymentsItem = href === "/settings/payments";
+              const isSettingsRoot = href === "/settings";
+              const isShopItem = href === myShopHref || href === "/shop";
+              const active = isHomeItem
+                ? pathname === "/" ||
+                  pathname === "/dashboard" ||
+                  pathname === roleHome
+                : isPaymentsItem
+                  ? pathname === "/settings/payments" ||
+                    pathname.startsWith("/settings/payments/")
+                  : isSettingsRoot
+                    ? pathname === "/settings" ||
+                      (pathname.startsWith("/settings/") &&
+                        !pathname.startsWith("/settings/payments"))
+                    : isShopItem
+                      ? pathname === "/shop" || pathname.startsWith("/shop/")
+                      : pathname === href || pathname.startsWith(`${href}/`);
+              return (
+                <button
+                  key={href + labelKey}
+                  type="button"
+                  data-menu-item={isShopItem ? "my-shop" : undefined}
+                  onClick={() => {
+                    onClose();
+                    if (isHomeItem) {
+                      // Dashboard must always open on a blank selector never
+                      // re-open a previously selected trade/flow.
+                      setCategory("none");
+                      setSelectedTechId(null);
+                      resetNavStack(href);
+                      router.replace(href);
+                      return;
+                    }
+                    router.push(href);
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-3.5 border-0 bg-transparent px-3 py-2.5 text-left text-[16px] font-medium tracking-[-0.01em] transition-colors",
+                    active ? rowActive : rowIdle,
+                  )}
+                >
+                  {renderMenuIcon(icon)}
+                  <span className="leading-none">
+                    {label === "nav.myShop" ? "My Shop" : label}
+                  </span>
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                notif?.openCenter();
+              }}
+              className={cn(
+                "flex w-full items-center gap-3.5 border-0 bg-transparent px-3 py-2.5 text-left text-[16px] font-medium tracking-[-0.01em] transition-colors",
+                rowIdle,
+              )}
+            >
+              {renderMenuIcon("notifications")}
+              <span className="min-w-0 flex-1 leading-none">
+                {t("menu.notifications")}
+              </span>
+              {unread > 0 ? (
+                <span
+                  className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-bold text-white"
+                  style={{
+                    backgroundColor: MESSAGE_ORANGE,
+                  }}
+                  aria-label={`${unread} unread`}
+                >
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              ) : null}
+            </button>
+
+            <div className="mt-1 px-1">
+              {isPro && proServices.length > 0 && (
+                <div
+                  className={cn(
+                    "mb-1.5 border-t pt-1.5",
+                    isLight ? "border-black/10" : "border-white/10",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "flex w-full items-center gap-3.5 border-0 px-3 py-2.5 text-left text-[16px] font-medium tracking-[-0.01em]",
+                      rowIdle,
+                    )}
+                  >
+                    {renderMenuIcon("service")}
+                    <span className="min-w-0 flex-1 leading-none">
+                      {t("menu.myService")}
+                    </span>
+                  </div>
+                  <div className="flex w-full items-center gap-2 px-3 py-0.5">
+                    <span
+                      className={cn(
+                        "min-w-0 flex-1 text-[12px] font-medium",
+                        isLight ? "text-black" : "text-white",
+                      )}
+                    >
+                      {isProService(proServices[0])
+                        ? t(TRADE_LABEL_KEY[proServices[0]])
+                        : proServices[0]}
+                    </span>
+                    {isProService(proServices[0]) ? (
+                      <TradeIcon service={proServices[0]} />
+                    ) : (
+                      <TradeIcon service="mechanic" />
+                    )}
+                  </div>
+                </div>
+              )}
+              <div
+                className={cn(
+                  "mt-3 border-t pt-3",
+                  isLight ? "border-black/10" : "border-white/10",
+                )}
+              >
+                <p
+                  className={cn(
+                    "mb-1 px-2 text-[10px] font-bold uppercase tracking-wide",
+                    isLight ? "text-black" : "text-white/55",
+                  )}
+                >
+                  {t("menu.useAs")}
+                </p>
+                {hasMotoristAccount && hasProAccount ? (
+                  <p className="mb-1 px-2 text-[11px] font-bold text-[#FF6B35]">
+                    Dual Role
+                  </p>
+                ) : null}
+                <div
+                  className={cn(
+                    "grid grid-cols-2 gap-1 rounded-xl p-1",
+                    isLight ? "bg-[#bebfc4]" : "bg-[#1c1c1e]",
+                    switching && "opacity-70 pointer-events-none",
+                  )}
+                  role="group"
+                  aria-label={t("menu.switchRole")}
+                  aria-busy={switching}
+                >
+                  {useAsOrder.map((role) => {
+                    const active = accountType === role;
+                    const label =
+                      role === "motorist" ? t("auth.motorist") : t("auth.pro");
+                    return (
+                      <button
+                        key={role}
+                        type="button"
+                        disabled={switching}
+                        onClick={() => void onSwitch(role)}
+                        className={cn(
+                          asBtnClass(active),
+                          switching && "relative",
+                        )}
+                        aria-current={active ? "true" : undefined}
+                      >
+                        {switching && !active ? (
+                          <span className="inline-flex items-center justify-center gap-1.5">
+                            <Loader2
+                              className="h-3.5 w-3.5 animate-spin text-[#FF6B35]"
+                              strokeWidth={2.5}
+                              aria-hidden
+                            />
+                            <span className="sr-only">Switching</span>
+                          </span>
+                        ) : (
+                          label
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                {warn ? (
+                  <div
+                    className={cn(
+                      "mt-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium leading-snug",
+                      isLight
+                        ? "bg-black/10 text-black"
+                        : "bg-white/10 text-white",
+                    )}
+                    role="alert"
+                  >
+                    <p className={isLight ? "text-black" : "text-white"}>
+                      {warn}
+                    </p>
+                    {signupTarget && (
+                      <button
+                        type="button"
+                        className="mt-1 border-0 bg-transparent p-0 text-[11px] font-bold text-[#FF6B35] underline"
+                        onClick={() => {
+                          onClose();
+                          router.push(
+                            signupTarget === "professional"
+                              ? "/signup/pro?from=menu&attach=1&next=/dashboard"
+                              : "/signup/motorist?from=menu&attach=1&next=/",
+                          );
+                        }}
+                      >
+                        {t("menu.signUpHere")}
+                      </button>
+                    )}
+                    {warn === t("menu.needLogin") && (
+                      <button
+                        type="button"
+                        className="mt-1 border-0 bg-transparent p-0 text-[11px] font-bold text-[#FF6B35] underline"
+                        onClick={() => {
+                          onClose();
+                          router.push("/login/signin");
+                        }}
+                      >
+                        {t("menu.logIn")}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <p
+                    className={cn(
+                      "mt-1 px-2 text-[10px] font-medium leading-snug",
+                      isLight ? "text-black" : "text-white/55",
+                    )}
+                  >
+                    {t("menu.tapToSwitch")}
+                  </p>
+                )}
+              </div>
+            </div>
+          </nav>
+
+          <div
+            className={cn(
+              "shrink-0 border-t px-3 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))]",
+              isLight ? "border-black/10" : "border-white/10",
+            )}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                router.push("/logout");
+              }}
+              className={cn(
+                "flex w-full items-center justify-center gap-2 rounded-lg border-0 px-3 py-2 text-sm font-semibold shadow-none ring-0 outline-none",
+                isLight
+                  ? "bg-red-500/18 text-red-700 hover:bg-red-500/28"
+                  : "bg-red-500/20 text-red-300 hover:bg-red-500/30",
+              )}
+            >
+              <LogOut className="h-4 w-4" />
+              {t("menu.logOut")}
+            </button>
+          </div>
+        </aside>
+
+        {/*
+ Right capsule rail exclusive strip (starts at 80%, no drawer overlap).
+ Rides inside om-x-chrome so it slides with the drawer.
+ */}
+        <div className="om-x-rail pointer-events-none absolute z-20">
+          <div
+            className="om-x-capsule pointer-events-none absolute"
+            aria-hidden
+          />
+          <button
+            type="button"
+            className="om-x-capsule-hit absolute z-[1] border-0 bg-transparent pointer-events-auto"
+            aria-label={t("menu.closeMenu")}
+            onClick={onClose}
+          />
+        </div>
       </div>
     </div>
   );

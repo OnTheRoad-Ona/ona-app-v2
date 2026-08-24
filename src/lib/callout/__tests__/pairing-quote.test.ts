@@ -30,8 +30,8 @@ describe("pairing-state quote", () => {
   });
 
   it("applies Night ×1.5 at the current time even for a daytime-created request", async () => {
-    // 22:00 UTC = 23:00 Lagos (night band 9PM–5AM). The job was created at
-    // 10:00 UTC (daytime) — the fee must still carry the Night multiplier
+    // 22:00 UTC = 23:00 Lagos (night band 9PM-5AM). The job was created at
+    // 10:00 UTC (daytime) the fee must still carry the Night multiplier
     // because it's night NOW, never an un-multiplied fee.
     vi.useFakeTimers();
     vi.setSystemTime(Date.parse("2026-08-20T22:00:00.000Z"));

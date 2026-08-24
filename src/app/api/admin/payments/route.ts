@@ -17,7 +17,11 @@ import {
   getEscrowByRequest,
   updateEscrow,
 } from "@/lib/server/payments/escrow-store";
-import { getJob, listDisputedJobs, transitionJob } from "@/lib/server/jobs/job-store";
+import {
+  getJob,
+  listDisputedJobs,
+  transitionJob,
+} from "@/lib/server/jobs/job-store";
 import {
   attemptProPayout,
   finalizeJobReleasedAfterPayout,
@@ -34,8 +38,12 @@ export const dynamic = "force-dynamic";
  * or refunded / failed.
  */
 function effectiveEscrowStatus(row: Record<string, unknown>): string {
-  const esc = String(row.escrow_status || "").toLowerCase().trim();
-  const st = String(row.status || "").toLowerCase().trim();
+  const esc = String(row.escrow_status || "")
+    .toLowerCase()
+    .trim();
+  const st = String(row.status || "")
+    .toLowerCase()
+    .trim();
   const meta = (row.meta as Record<string, unknown>) || {};
   const payout = String(meta.payoutStatus || "").toLowerCase();
 
@@ -45,10 +53,7 @@ function effectiveEscrowStatus(row: Record<string, unknown>): string {
   if (esc === "refunded" || st === "refunded") return "refunded";
   // Unpaid draft replaced by a newer payment intent (double-submit / pay-again)
   if (meta.superseded === true) return "superseded";
-  if (
-    payout === "suspended_admin" ||
-    meta.payoutSuspended === true
-  ) {
+  if (payout === "suspended_admin" || meta.payoutSuspended === true) {
     return "suspended";
   }
   if (
@@ -94,13 +99,13 @@ function displayEscrowLabel(effective: string): string {
     case "pending_payment":
       return "Awaiting payment";
     default:
-      return effective || "—";
+      return effective || "";
   }
 }
 
 function shapePayment(
   row: Record<string, unknown>,
-  role: AdminRole
+  role: AdminRole,
 ): Record<string, unknown> | null {
   const canFull = roleHasPermission(role, "view_payment_full");
   const canStatus = roleHasPermission(role, "view_payment_status");
@@ -125,7 +130,7 @@ function shapePayment(
     /** Canonical filter/display status (released = pro paid) */
     effective_status: effective,
     display_status: displayEscrowLabel(effective),
-    provider: canFull ? row.provider ?? null : undefined,
+    provider: canFull ? (row.provider ?? null) : undefined,
     created_at: row.created_at,
     paid_at: row.paid_at ?? null,
     released_at: row.released_at ?? null,
@@ -150,7 +155,7 @@ function shapePayment(
 }
 
 function buildFilterCounts(
-  rows: Record<string, unknown>[]
+  rows: Record<string, unknown>[],
 ): Record<string, number> {
   const counts: Record<string, number> = {
     all: rows.length,
@@ -178,7 +183,11 @@ function buildFilterCounts(
 
 export async function GET() {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     const { adminRole } = await requirePermission("view_payment_status");
@@ -192,11 +201,11 @@ export async function GET() {
     const staleExpired = await expireStalePendingPayments();
     if (staleExpired > 0) {
       console.log(
-        `[admin/payments] expired ${staleExpired} stale pending charge(s)`
+        `[admin/payments] expired ${staleExpired} stale pending charge(s)`,
       );
     }
 
-    // Prefer active money first, then recency — so Released / Held are not buried
+    // Prefer active money first, then recency so Released / Held are not buried
     // under a wall of cancelled drafts when ops review the board.
     const { data, error } = await supabase
       .from("payments")
@@ -303,7 +312,7 @@ const patchSchema = z.object({
     .optional(),
   reason: z.string().min(8).max(500).optional(),
   jobId: z.string().optional(),
-  /** Standalone manual payout (L4+) — not job-tied */
+  /** Standalone manual payout (L4+) not job-tied */
   amountMajor: z.number().positive().optional(),
   bankCode: z.string().optional(),
   accountNumber: z.string().optional(),
@@ -313,7 +322,11 @@ const patchSchema = z.object({
 
 export async function PATCH(req: Request) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     const parsed = patchSchema.safeParse(await req.json());
@@ -328,7 +341,7 @@ export async function PATCH(req: Request) {
       return apiOk({ message: "Retry queue processed", ...result });
     }
 
-    // Stop auto-retry only (funds stay held — not a refund). L3+ escrow_release.
+    // Stop auto-retry only (funds stay held not a refund). L3+ escrow_release.
     if (action === "cancel_processing") {
       const { session } = await requireSensitiveAction("escrow_release", req);
       const reason = (parsed.data.reason || "").trim();
@@ -336,7 +349,7 @@ export async function PATCH(req: Request) {
         return apiFail(
           "Reason required (min 8 characters) to stop processing.",
           400,
-          "reason_required"
+          "reason_required",
         );
       }
       const paymentId = parsed.data.id;
@@ -349,13 +362,10 @@ export async function PATCH(req: Request) {
         .maybeSingle();
       if (pErr || !payment) return apiFail("Payment not found", 404);
       const escStatus = String(
-        (payment as { escrow_status?: string }).escrow_status || ""
+        (payment as { escrow_status?: string }).escrow_status || "",
       );
       if (escStatus === "released" || escStatus === "refunded") {
-        return apiFail(
-          `Cannot stop processing — already ${escStatus}.`,
-          400
-        );
+        return apiFail(`Cannot stop processing already ${escStatus}.`, 400);
       }
       const meta = {
         ...(((payment as { meta?: Record<string, unknown> }).meta ||
@@ -389,7 +399,7 @@ export async function PATCH(req: Request) {
         .maybeSingle();
       if (error) return apiFail(error.message, 500);
       const jobId = String(
-        (payment as { request_id?: string }).request_id || ""
+        (payment as { request_id?: string }).request_id || "",
       );
       if (jobId) {
         await supabase
@@ -401,7 +411,7 @@ export async function PATCH(req: Request) {
         session.userId,
         "payments.cancel_processing",
         paymentId,
-        { reason, jobId }
+        { reason, jobId },
       );
       return apiOk({
         payment: updated,
@@ -410,20 +420,19 @@ export async function PATCH(req: Request) {
       });
     }
 
-    // Single job force/retry payout (idempotent — same ona_rel_ ref, never double pay)
+    // Single job force/retry payout (idempotent same ona_rel_ ref, never double pay)
     if (action === "retry_payout" || action === "force_release") {
       const { session } = await requireSensitiveAction("escrow_release", req);
       // Force release: L4+ only
       if (action === "force_release") {
-        const { roleAtLeast, normalizeAdminRole } = await import(
-          "@/lib/server/modules/admin-roles"
-        );
+        const { roleAtLeast, normalizeAdminRole } =
+          await import("@/lib/server/modules/admin-roles");
         const role = normalizeAdminRole(session.adminRole);
         if (!roleAtLeast(role, 4)) {
           return apiFail(
             "Force payout requires Manager (L4) or Super Admin (L5).",
             403,
-            "level"
+            "level",
           );
         }
       }
@@ -497,18 +506,17 @@ export async function PATCH(req: Request) {
       return apiOk({ result, jobId: job.id });
     }
 
-    // Standalone manual bank payout (not job-tied) — L4+ only, unique ref, ledgered
+    // Standalone manual bank payout (not job-tied) L4+ only, unique ref, ledgered
     if (action === "manual_standalone") {
       const { session } = await requireSensitiveAction("escrow_release", req);
-      const { roleAtLeast, normalizeAdminRole } = await import(
-        "@/lib/server/modules/admin-roles"
-      );
+      const { roleAtLeast, normalizeAdminRole } =
+        await import("@/lib/server/modules/admin-roles");
       const role = normalizeAdminRole(session.adminRole);
       if (!roleAtLeast(role, 4)) {
         return apiFail(
           "Standalone manual payout requires Manager (L4) or Super Admin (L5).",
           403,
-          "level"
+          "level",
         );
       }
       const reason = (parsed.data.reason || "").trim();
@@ -527,14 +535,15 @@ export async function PATCH(req: Request) {
       if (!bankCode || accountNumber.length < 10 || !accountName) {
         return apiFail(
           "bankCode, 10-digit accountNumber, and accountName are required.",
-          400
+          400,
         );
       }
       const amountMinor = Math.round(amountMajor * 100);
-      const ref = `ona_manual_${session.userId.replace(/-/g, "").slice(0, 8)}_${Date.now().toString(36)}`.slice(
-        0,
-        50
-      );
+      const ref =
+        `ona_manual_${session.userId.replace(/-/g, "").slice(0, 8)}_${Date.now().toString(36)}`.slice(
+          0,
+          50,
+        );
       const { claimTransferRef, markLedgerSuccess, markLedgerFailed } =
         await import("@/lib/server/payments/payout-ledger");
       const claim = await claimTransferRef({
@@ -549,13 +558,11 @@ export async function PATCH(req: Request) {
       });
       if (!claim.ok && claim.reason === "already_exists") {
         return apiFail(
-          "Transfer reference already used — refusing double pay.",
-          409
+          "Transfer reference already used refusing double pay.",
+          409,
         );
       }
-      const { releaseToPro } = await import(
-        "@/lib/server/payments/providers"
-      );
+      const { releaseToPro } = await import("@/lib/server/payments/providers");
       const xfer = await releaseToPro({
         amountMinor,
         currency: "NGN",
@@ -570,12 +577,12 @@ export async function PATCH(req: Request) {
       });
       if (!xfer.ok) {
         await markLedgerFailed(ref, xfer.message || "manual_failed").catch(
-          () => undefined
+          () => undefined,
         );
         return apiFail(xfer.message || "Manual transfer failed", 400);
       }
       await markLedgerSuccess(ref, xfer.transferRef || null).catch(
-        () => undefined
+        () => undefined,
       );
       await logAdminAction(session.userId, "payments.manual_standalone", ref, {
         amountMajor,
@@ -586,7 +593,8 @@ export async function PATCH(req: Request) {
         transferRef: xfer.transferRef || ref,
       });
       return apiOk({
-        message: "Standalone manual payout submitted (unique ref — no double pay).",
+        message:
+          "Standalone manual payout submitted (unique ref no double pay).",
         transferRef: xfer.transferRef || ref,
         amountMajor,
       });
@@ -599,7 +607,7 @@ export async function PATCH(req: Request) {
         return apiFail(
           "A cancellation reason is required (min 8 characters).",
           400,
-          "reason_required"
+          "reason_required",
         );
       }
 
@@ -618,14 +626,14 @@ export async function PATCH(req: Request) {
         String(
           (payment as { request_id?: string }).request_id ||
             (payment as { job_id?: string }).job_id ||
-            ""
+            "",
         );
 
       if (jobId) {
         const esc = await getEscrowByRequest(jobId);
         const escStatus = String(esc?.escrowStatus || esc?.status || "");
         if (escStatus === "released" || escStatus === "refunded") {
-          return apiFail(`Cannot cancel — escrow is already ${escStatus}.`, 400);
+          return apiFail(`Cannot cancel escrow is already ${escStatus}.`, 400);
         }
         if (
           esc &&
@@ -688,10 +696,15 @@ export async function PATCH(req: Request) {
         .maybeSingle();
       if (error) return apiFail(error.message, 500);
 
-      await logAdminAction(session.userId, "payments.cancel_escrow", paymentId, {
-        reason,
-        jobId,
-      });
+      await logAdminAction(
+        session.userId,
+        "payments.cancel_escrow",
+        paymentId,
+        {
+          reason,
+          jobId,
+        },
+      );
 
       return apiOk({
         payment: updated,
@@ -704,6 +717,9 @@ export async function PATCH(req: Request) {
     if (e instanceof AdminAuthError) {
       return apiFail(e.message, e.status, e.code || "auth");
     }
-    return apiFail(e instanceof Error ? e.message : "Payment update failed", 500);
+    return apiFail(
+      e instanceof Error ? e.message : "Payment update failed",
+      500,
+    );
   }
 }

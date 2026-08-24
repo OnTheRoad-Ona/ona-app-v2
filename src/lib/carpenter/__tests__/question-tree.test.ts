@@ -16,7 +16,7 @@ import {
 } from "@/lib/carpenter/question-tree";
 
 describe("carpenter question tree", () => {
-  it("offers the nine start categories A–I", () => {
+  it("offers the nine start categories A-I", () => {
     expect(CARPENTER_START_OPTIONS.map((o) => o.id)).toEqual([
       "A",
       "B",
@@ -51,9 +51,7 @@ describe("carpenter question tree", () => {
   });
 
   it("walks the full repair (B) chain to final", () => {
-    expect(nextCarpenterScreen("b_problem", "loose-joints", {})).toBe(
-      "b_type"
-    );
+    expect(nextCarpenterScreen("b_problem", "loose-joints", {})).toBe("b_type");
     expect(nextCarpenterScreen("b_type", "Sofa", {})).toBe("b_parts");
     expect(nextCarpenterScreen("b_parts", "yes", {})).toBe("b_where");
     expect(nextCarpenterScreen("b_where", "at-location", {})).toBe("final");
@@ -63,15 +61,15 @@ describe("carpenter question tree", () => {
     expect(nextCarpenterScreen("c_need", "new-door", {})).toBe("c_building");
     expect(nextCarpenterScreen("c_building", "residential", {})).toBe("c_wood");
     expect(nextCarpenterScreen("c_wood", "carpenter-supplies", {})).toBe(
-      "c_install"
+      "c_install",
     );
     expect(nextCarpenterScreen("c_install", "remove-and-install", {})).toBe(
-      "final"
+      "final",
     );
 
     expect(nextCarpenterScreen("d_work", "ceiling", {})).toBe("d_building");
     expect(nextCarpenterScreen("d_building", "existing-repair", {})).toBe(
-      "d_sheet"
+      "d_sheet",
     );
     expect(nextCarpenterScreen("d_sheet", "Long span", {})).toBe("d_scaffold");
     expect(nextCarpenterScreen("d_scaffold", "scaffolding", {})).toBe("final");
@@ -81,7 +79,7 @@ describe("carpenter question tree", () => {
     expect(nextCarpenterScreen("e_need", "wardrobe", {})).toBe("e_space");
     expect(nextCarpenterScreen("e_space", "finished", {})).toBe("e_design");
     expect(nextCarpenterScreen("e_design", "measurements-only", {})).toBe(
-      "e_material"
+      "e_material",
     );
     expect(nextCarpenterScreen("e_material", "i-have", {})).toBe("final");
 
@@ -96,18 +94,18 @@ describe("carpenter question tree", () => {
 
   it("walks the full general (H) and not-sure (I) chains to final", () => {
     expect(nextCarpenterScreen("h_describe", "Build a gate", {})).toBe(
-      "h_location"
+      "h_location",
     );
     expect(nextCarpenterScreen("h_location", "outdoor", {})).toBe("h_wood");
     expect(nextCarpenterScreen("h_wood", "no", {})).toBe("final");
 
     expect(nextCarpenterScreen("i_explain", "Fix my shelf", {})).toBe(
-      "i_location"
+      "i_location",
     );
     expect(nextCarpenterScreen("i_location", "house", {})).toBe("final");
   });
 
-  it("is strictly carpentry — always Carpenter, never a confirm card", () => {
+  it("is strictly carpentry always Carpenter, never a confirm card", () => {
     const cases: Record<string, string>[] = [
       { start: "A" },
       { start: "B" },
@@ -128,7 +126,7 @@ describe("carpenter question tree", () => {
     expect(canFindCarpenterPro(2)).toBe(true);
     expect(canFindCarpenterPro(4)).toBe(true);
     expect(canAdvanceText("ok")).toBe(true);
-    expect(canAdvanceText("  ")).toBe(false);
+    expect(canAdvanceText(" ")).toBe(false);
   });
 
   it("composes the problem text with questions and answers", () => {
@@ -139,7 +137,7 @@ describe("carpenter question tree", () => {
         a_type_label: "Bed (with or without storage)",
       },
       "Needs a queen bed",
-      "Ikeja"
+      "Ikeja",
     );
     expect(out).toContain(CARPENTER_START_QUESTION);
     expect(out).toContain("Bed (with or without storage)");
@@ -198,7 +196,7 @@ describe("carpenter question tree", () => {
   });
 
   it("exposes the final block copy incl. measurements question", () => {
-    expect(CARPENTER_FINAL_COPY.photos).toContain("2–4");
+    expect(CARPENTER_FINAL_COPY.photos).toContain("2-4");
     expect(CARPENTER_FINAL_COPY.measurements).toMatch(/measurements/i);
   });
 });

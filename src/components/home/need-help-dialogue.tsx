@@ -56,7 +56,7 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
     unsafe: false,
     distanceKm: nearestProDistanceKm(
       visibleTechnicians,
-      autoTrade ? [autoTrade] : []
+      autoTrade ? [autoTrade] : [],
     ),
   });
   const [vehicleLabel, setVehicleLabel] = useState("");
@@ -66,7 +66,7 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
 
   const profileVehicles = useMemo(
     () => profileVehiclesOf(userProfile),
-    [userProfile]
+    [userProfile],
   );
   /** Profile vehicles + vehicles saved in this session (deduped by label). */
   const savedVehicles = useMemo(
@@ -75,11 +75,11 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
       ...manualVehicles.filter(
         (mv) =>
           !profileVehicles.some(
-            (pv) => formatVehicleLabel(pv) === formatVehicleLabel(mv)
-          )
+            (pv) => formatVehicleLabel(pv) === formatVehicleLabel(mv),
+          ),
       ),
     ],
-    [profileVehicles, manualVehicles]
+    [profileVehicles, manualVehicles],
   );
 
   const saveVehicle = (v: MotoristVehicle): string | null => {
@@ -104,7 +104,7 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
 
   const decision = useMemo(
     () => decideHelpTrade(problem, statedTrade),
-    [problem, statedTrade]
+    [problem, statedTrade],
   );
 
   useEffect(() => {
@@ -211,7 +211,7 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
     try {
       window.sessionStorage.setItem(
         `ona-seed-job:${res.data.job.id}`,
-        JSON.stringify(res.data.job)
+        JSON.stringify(res.data.job),
       );
     } catch {
       /* ignore */
@@ -227,7 +227,7 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
           onClick={goBack}
           className={cn(
             "h-11 flex-1 rounded-md border-0 text-[14px] font-bold",
-            nextGray
+            nextGray,
           )}
         >
           Back
@@ -240,7 +240,7 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
           onClick={goAfterHelp}
           className={cn(
             "h-11 w-full rounded-md border-0 text-[14px] font-bold disabled:opacity-50",
-            nextGray
+            nextGray,
           )}
         >
           Next
@@ -255,7 +255,7 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
           }}
           className={cn(
             "h-11 flex-1 rounded-md border-0 text-[14px] font-bold",
-            nextGray
+            nextGray,
           )}
         >
           Next
@@ -278,7 +278,7 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
     <div
       className={cn(
         "flex h-full min-h-0 flex-col overflow-hidden rounded-t-lg px-3 pb-2 pt-1.5",
-        isLight ? "bg-[#d8dce4]/90 backdrop-blur-sm" : "bg-black"
+        isLight ? "bg-[#d8dce4]/90 backdrop-blur-sm" : "bg-black",
       )}
     >
       {step === "vehicle" ? (
@@ -316,7 +316,7 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
             placeholder={problemPlaceholderForTrade(statedTrade)}
             className={cn(
               "mt-1 w-full resize-none rounded-xl border-0 px-2.5 py-2 text-[13px] font-medium leading-snug outline-none",
-              field
+              field,
             )}
           />
         </div>
@@ -340,7 +340,7 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
               onClick={keepTappedTrade}
               className={cn(
                 "rounded-full border-0 px-3 py-1.5 text-[12px] font-bold",
-                chipIdle
+                chipIdle,
               )}
             >
               No
@@ -351,7 +351,9 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
 
       {step === "urgency" ? (
         <div className={cn("shrink-0 rounded-xl px-3 py-2", card)}>
-          <p className={cn("text-[13px] font-bold", ink)}>How urgent is this?</p>
+          <p className={cn("text-[13px] font-bold", ink)}>
+            How urgent is this?
+          </p>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {CALLOUT_URGENCY_OPTIONS.map((opt) => (
               <button
@@ -360,9 +362,7 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
                 onClick={() => setUrgency(opt.id)}
                 className={cn(
                   "rounded-full border-0 px-3 py-1.5 text-[12px] font-bold",
-                  urgency === opt.id
-                    ? "bg-brand text-white"
-                    : chipIdle
+                  urgency === opt.id ? "bg-brand text-white" : chipIdle,
                 )}
               >
                 {opt.label} {opt.multiplier === 1 ? "1x" : `${opt.multiplier}x`}
@@ -375,8 +375,17 @@ export function NeedHelpDialogue({ isLight }: { isLight: boolean }) {
       {step === "send" ? (
         <div className={cn("shrink-0 rounded-xl px-3 py-2", card)}>
           <p className={cn("text-[13px] font-bold", ink)}>Ready to send</p>
-          <p className={cn("mt-1 text-[12px] font-medium", isLight ? "text-slate-600" : "text-white/55")}>
-            {PRO_SERVICE_LABELS[chosenTrade || statedTrade || decision.suggested]}{" "}
+          <p
+            className={cn(
+              "mt-1 text-[12px] font-medium",
+              isLight ? "text-slate-600" : "text-white/55",
+            )}
+          >
+            {
+              PRO_SERVICE_LABELS[
+                chosenTrade || statedTrade || decision.suggested
+              ]
+            }{" "}
             · {CALLOUT_URGENCY_OPTIONS.find((o) => o.id === urgency)?.label}
           </p>
         </div>

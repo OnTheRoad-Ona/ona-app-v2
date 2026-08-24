@@ -1,6 +1,6 @@
 /**
  * Curated Lagos places for SEARCH SUGGESTIONS only.
- * Never snap GPS / reverse-geocode / map pins to these names — only when
+ * Never snap GPS / reverse-geocode / map pins to these names only when
  * the user explicitly picks a suggestion or types a matching query.
  */
 
@@ -144,7 +144,7 @@ export function scoreKnownPlace(query: string, place: KnownPlace): number {
 /** Ranked known-place matches for a typed query (best first). */
 export function matchKnownPlaces(
   query: string,
-  limit = 5
+  limit = 5,
 ): { place: KnownPlace; score: number }[] {
   const q = query.trim();
   if (q.length < 2) return [];
@@ -167,7 +167,7 @@ export function resolveKnownPlace(query: string): KnownPlace | null {
 /** Distance in metres (haversine). */
 export function metresBetween(
   a: { lat: number; lng: number },
-  b: { lat: number; lng: number }
+  b: { lat: number; lng: number },
 ): number {
   const R = 6371000;
   const toR = (d: number) => (d * Math.PI) / 180;
@@ -189,7 +189,7 @@ export function metresBetween(
 export function knownPlaceNear(
   _lat: number,
   _lng: number,
-  _radiusM = 120
+  _radiusM = 120,
 ): KnownPlace | null {
   return null;
 }

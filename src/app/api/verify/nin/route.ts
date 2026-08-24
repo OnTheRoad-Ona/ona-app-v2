@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     if (!nin) {
       return NextResponse.json(
         { ok: false, message: "NIN is required." },
-        { status: 400 }
+        { status: 400 },
       );
     }
     const result = await verifyNinWithPrembly(nin);
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json(
       { ok: false, message: "NIN verification request failed." },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -32,7 +32,7 @@ export type CartView = {
 
 async function activePriceMinor(
   sb: ReturnType<typeof createServiceSupabase>,
-  variantId: string
+  variantId: string,
 ): Promise<number> {
   const { data } = await sb
     .from("shop_prices")
@@ -47,7 +47,7 @@ async function activePriceMinor(
 
 async function availableQty(
   sb: ReturnType<typeof createServiceSupabase>,
-  variantId: string
+  variantId: string,
 ): Promise<number> {
   const { data } = await sb
     .from("shop_inventory")
@@ -55,15 +55,14 @@ async function availableQty(
     .eq("variant_id", variantId);
   let total = 0;
   for (const row of data ?? []) {
-    total +=
-      Number(row.qty_on_hand ?? 0) - Number(row.qty_reserved ?? 0);
+    total += Number(row.qty_on_hand ?? 0) - Number(row.qty_reserved ?? 0);
   }
   return Math.max(0, total);
 }
 
 export async function getOrCreateCart(
   userId: string,
-  accountContext: ShopAccountContext = "motorist"
+  accountContext: ShopAccountContext = "motorist",
 ): Promise<CartView> {
   const sb = createServiceSupabase();
   const { data: existing } = await sb
@@ -163,15 +162,13 @@ export async function addToCart(opts: {
   const sb = createServiceSupabase();
   const cart = await getOrCreateCart(
     opts.userId,
-    opts.accountContext ?? "motorist"
+    opts.accountContext ?? "motorist",
   );
 
   const avail = await availableQty(sb, opts.variantId);
   if (avail < qty) {
     throw new Error(
-      avail <= 0
-        ? "This item is out of stock"
-        : `Only ${avail} available`
+      avail <= 0 ? "This item is out of stock" : `Only ${avail} available`,
     );
   }
 

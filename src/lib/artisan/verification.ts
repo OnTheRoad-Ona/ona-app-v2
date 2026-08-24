@@ -1,5 +1,5 @@
 /**
- * Artisan verification helpers — real OTP + ID checks + status labels.
+ * Artisan verification helpers real OTP + ID checks + status labels.
  * NIN/BVN hit /api/verify/* (Prembly when keys set, format sandbox otherwise).
  */
 
@@ -11,15 +11,11 @@ import {
 import { verifyBvnApi, verifyNinApi } from "@/lib/ng-id-verify-client";
 
 export type VerifyStatus =
-  | "idle"
-  | "pending"
-  | "checking"
-  | "verified"
-  | "failed";
+  "idle" | "pending" | "checking" | "verified" | "failed";
 
 export type OtpSession = {
   phone: string;
-  /** hashed or plain for demo storage — never log in production */
+  /** hashed or plain for demo storage never log in production */
   code: string;
   expiresAt: number;
   attempts: number;
@@ -92,12 +88,14 @@ export function createOtpCode(): string {
  * Returns the code in `demoCode` so you can complete the flow without SMS keys.
  * In production, wire Africa's Talking and stop returning the code to the client.
  */
-export function sendArtisanOtp(phone: string): {
-  ok: true;
-  demoCode: string;
-  expiresInSec: number;
-  resendInSec: number;
-} | { ok: false; error: string; waitSec?: number } {
+export function sendArtisanOtp(phone: string):
+  | {
+      ok: true;
+      demoCode: string;
+      expiresInSec: number;
+      resendInSec: number;
+    }
+  | { ok: false; error: string; waitSec?: number } {
   const p = phone.trim();
   if (digits(p).length < 10) {
     return { ok: false, error: "Enter a valid phone number first." };
@@ -106,10 +104,7 @@ export function sendArtisanOtp(phone: string): {
   if (existing && existing.phone === normalizePhoneKey(p)) {
     const age = Date.now() - existing.sentAt;
     // Cooldown only after 4 failed attempts (not on every resend)
-    if (
-      existing.attempts >= OTP_FAILS_BEFORE_COOLDOWN &&
-      age < OTP_RESEND_MS
-    ) {
+    if (existing.attempts >= OTP_FAILS_BEFORE_COOLDOWN && age < OTP_RESEND_MS) {
       const wait = Math.ceil((OTP_RESEND_MS - age) / 1000);
       return {
         ok: false,
@@ -138,7 +133,7 @@ export function sendArtisanOtp(phone: string): {
 
 export function verifyArtisanOtp(
   phone: string,
-  code: string
+  code: string,
 ): { ok: true } | { ok: false; error: string } {
   const entered = code.replace(/\D/g, "").trim();
   /**
@@ -160,7 +155,10 @@ export function verifyArtisanOtp(
     };
   }
   if (session.phone !== normalizePhoneKey(phone)) {
-    return { ok: false, error: "Phone does not match the number that received the code." };
+    return {
+      ok: false,
+      error: "Phone does not match the number that received the code.",
+    };
   }
   if (Date.now() > session.expiresAt) {
     writeOtpSession(null);
@@ -202,7 +200,9 @@ export type IdVerifyOutcome = {
 };
 
 /** Real NIN check via /api/verify/nin */
-export async function runNinVerification(nin: string): Promise<IdVerifyOutcome> {
+export async function runNinVerification(
+  nin: string,
+): Promise<IdVerifyOutcome> {
   const d = digits(nin);
   if (d.length !== 11) {
     return { ok: false, message: "NIN must be exactly 11 digits." };
@@ -218,7 +218,7 @@ export async function runNinVerification(nin: string): Promise<IdVerifyOutcome> 
   }
   const modeNote =
     r.mode === "sandbox_format"
-      ? " (format check — add PREMBLY_API_KEY for live NIMC)"
+      ? " (format check add PREMBLY_API_KEY for live NIMC)"
       : " via Prembly";
   return {
     ok: true,
@@ -233,7 +233,9 @@ export async function runNinVerification(nin: string): Promise<IdVerifyOutcome> 
 }
 
 /** Real BVN check via /api/verify/bvn */
-export async function runBvnVerification(bvn: string): Promise<IdVerifyOutcome> {
+export async function runBvnVerification(
+  bvn: string,
+): Promise<IdVerifyOutcome> {
   const d = digits(bvn);
   if (d.length !== 11) {
     return { ok: false, message: "BVN must be exactly 11 digits." };
@@ -249,7 +251,7 @@ export async function runBvnVerification(bvn: string): Promise<IdVerifyOutcome> 
   }
   const modeNote =
     r.mode === "sandbox_format"
-      ? " (format check — add PREMBLY_API_KEY for live NIBSS)"
+      ? " (format check add PREMBLY_API_KEY for live NIBSS)"
       : " via Prembly";
   return {
     ok: true,

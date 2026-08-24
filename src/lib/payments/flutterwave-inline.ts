@@ -1,10 +1,10 @@
 /**
- * Flutterwave Inline v3 — payment modal on the Ona page.
+ * Flutterwave Inline v3 payment modal on the Ona page.
  *
  * HARD RULES:
- *  - Never navigate the browser to Flutterwave hosted pay (separate page / 503 nginx).
- *  - Do not set redirect_url (that forces a full leave after bank transfer).
- *  - Use callback + onclose only so the customer stays in Ona.
+ * - Never navigate the browser to Flutterwave hosted pay (separate page / 503 nginx).
+ * - Do not set redirect_url (that forces a full leave after bank transfer).
+ * - Use callback + onclose only so the customer stays in Ona.
  */
 
 export type FlutterwaveInlineInput = {
@@ -52,7 +52,7 @@ export function loadFlutterwaveInlineScript(): Promise<boolean> {
     };
 
     const existing = document.querySelector<HTMLScriptElement>(
-      'script[data-ona-flw="1"]'
+      'script[data-ona-flw="1"]',
     );
     if (existing) {
       if (typeof window.FlutterwaveCheckout === "function") {
@@ -100,7 +100,7 @@ export function loadFlutterwaveInlineScript(): Promise<boolean> {
  * Never leaves the Ona origin.
  */
 export async function openFlutterwaveInline(
-  input: FlutterwaveInlineInput
+  input: FlutterwaveInlineInput,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const key = (input.publicKey || "").trim();
   if (!key) {
@@ -122,7 +122,7 @@ export async function openFlutterwaveInline(
     return {
       ok: false,
       error:
-        "Could not load Flutterwave (network or 503). Stay on Ona and tap Pay again — we will not leave this page.",
+        "Could not load Flutterwave (network or 503). Stay on Ona and tap Pay again we will not leave this page.",
     };
   }
 
@@ -135,11 +135,10 @@ export async function openFlutterwaveInline(
     .replace(/\s+/g, "")
     .replace(/^\+/, "");
   // Flutterwave NG prefers local format; fall back if empty
-  const phoneNumber =
-    phone.length >= 10 ? phone : "08000000000";
+  const phoneNumber = phone.length >= 10 ? phone : "08000000000";
 
   try {
-    // Intentionally NO redirect_url — keeps bank transfer UI in the modal
+    // Intentionally NO redirect_url keeps bank transfer UI in the modal
     // and prevents full-page hop to checkout.flutterwave.com (nginx 503s).
     window.FlutterwaveCheckout({
       public_key: key,

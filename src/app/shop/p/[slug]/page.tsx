@@ -39,10 +39,12 @@ export default function ShopProductPage() {
   const [product, setProduct] = useState<Record<string, unknown> | null>(null);
   const [variants, setVariants] = useState<Variant[]>([]);
   const [prices, setPrices] = useState<Price[]>([]);
-  const [images, setImages] = useState<Array<{ url: string; alt_text?: string }>>(
-    []
+  const [images, setImages] = useState<
+    Array<{ url: string; alt_text?: string }>
+  >([]);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
+    null,
   );
-  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
   const [adding, setAdding] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -54,8 +56,8 @@ export default function ShopProductPage() {
       try {
         const res = await fetch(
           `/api/shop/products/${encodeURIComponent(slug)}?ctx=${encodeURIComponent(
-            accountType === "professional" ? "professional" : "motorist"
-          )}`
+            accountType === "professional" ? "professional" : "motorist",
+          )}`,
         );
         const json = (await res.json()) as {
           ok?: boolean;
@@ -72,11 +74,9 @@ export default function ShopProductPage() {
           setPrices(json.data.prices ?? []);
           setImages(json.data.images ?? []);
           const first = json.data.variants?.find(
-            (v) => Number(v.stock_available ?? 0) > 0
+            (v) => Number(v.stock_available ?? 0) > 0,
           )?.id;
-          setSelectedVariantId(
-            (first ?? json.data.variants?.[0]?.id) || null
-          );
+          setSelectedVariantId((first ?? json.data.variants?.[0]?.id) || null);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -90,26 +90,30 @@ export default function ShopProductPage() {
   const priceFor = useCallback(
     (variantId: string | null): Price | undefined =>
       prices.find((p) => p.variant_id === variantId),
-    [prices]
+    [prices],
   );
 
   const selectedVariant = useMemo(
     () => variants.find((v) => v.id === selectedVariantId) ?? null,
-    [variants, selectedVariantId]
+    [variants, selectedVariantId],
   );
   const selectedPrice = priceFor(selectedVariantId);
   const available = Number(selectedVariant?.stock_available ?? 0);
-  const attrs = (product?.attributes as Record<string, unknown> | undefined) ?? {};
+  const attrs =
+    (product?.attributes as Record<string, unknown> | undefined) ?? {};
   const priceOnRequest = Boolean(attrs.priceOnRequest);
   const vehicleTags = Array.isArray(attrs.vehicleTags)
     ? (attrs.vehicleTags as unknown[]).map(String)
     : [];
   const outOfStock = !selectedVariant || available <= 0;
 
-  const clampQty = useCallback((n: number) => {
-    const max = Math.max(1, Math.min(99, available));
-    return Math.max(1, Math.min(max, n));
-  }, [available]);
+  const clampQty = useCallback(
+    (n: number) => {
+      const max = Math.max(1, Math.min(99, available));
+      return Math.max(1, Math.min(max, n));
+    },
+    [available],
+  );
 
   useEffect(() => {
     if (!selectedVariantId) return;
@@ -123,7 +127,7 @@ export default function ShopProductPage() {
     ? "Contact for price"
     : selectedPrice
       ? formatPrice(selectedPrice.amount_minor)
-      : "—";
+      : "";
   const compareAt = selectedPrice?.compare_at_minor
     ? formatPrice(selectedPrice.compare_at_minor)
     : null;
@@ -148,12 +152,14 @@ export default function ShopProductPage() {
             <div
               className={cn(
                 "flex h-44 items-center justify-center overflow-hidden rounded-2xl",
-                isLight ? "bg-white/90" : "bg-[#1c1c1e]"
+                isLight ? "bg-white/90" : "bg-[#1c1c1e]",
               )}
             >
               {images[0]?.url || product.primary_image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img loading="lazy" decoding="async"
+                <img
+                  loading="lazy"
+                  decoding="async"
                   src={String(images[0]?.url || product.primary_image_url)}
                   alt={String(product.name)}
                   className="h-full w-full object-cover"
@@ -166,13 +172,15 @@ export default function ShopProductPage() {
               <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
                 {images.map((img, i) => (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img loading="lazy" decoding="async"
+                  <img
+                    loading="lazy"
+                    decoding="async"
                     key={`${img.url}-${i}`}
                     src={img.url}
                     alt=""
                     className={cn(
                       "h-14 w-14 shrink-0 rounded-lg object-cover",
-                      isLight ? "bg-white" : "bg-[#1c1c1e]"
+                      isLight ? "bg-white" : "bg-[#1c1c1e]",
                     )}
                   />
                 ))}
@@ -189,7 +197,12 @@ export default function ShopProductPage() {
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <p className="text-[22px] font-black text-[#FF6B35]">{price}</p>
               {compareAt && !priceOnRequest ? (
-                <p className={cn("text-[13px] font-semibold line-through", muted)}>
+                <p
+                  className={cn(
+                    "text-[13px] font-semibold line-through",
+                    muted,
+                  )}
+                >
                   {compareAt}
                 </p>
               ) : null}
@@ -200,7 +213,7 @@ export default function ShopProductPage() {
                     ? isLight
                       ? "bg-black/10 text-slate-500"
                       : "bg-white/10 text-white/55"
-                    : "bg-emerald-500/15 text-emerald-700"
+                    : "bg-emerald-500/15 text-emerald-700",
                 )}
               >
                 {outOfStock ? "Out of Stock" : "In Stock"}
@@ -215,7 +228,7 @@ export default function ShopProductPage() {
                       "rounded-full px-2 py-0.5 text-[11px] font-semibold",
                       isLight
                         ? "bg-black/8 text-slate-700"
-                        : "bg-white/10 text-white/80"
+                        : "bg-white/10 text-white/80",
                     )}
                   >
                     {tag}
@@ -251,14 +264,14 @@ export default function ShopProductPage() {
                           "rounded-lg border px-2.5 py-1.5 text-left disabled:opacity-40",
                           selectedVariantId === v.id
                             ? "border-[#FF6B35] bg-[#FF6B35]/10"
-                            : border
+                            : border,
                         )}
                       >
                         <span className="block text-[12px] font-bold">
                           {v.option_label || v.title || v.sku}
                         </span>
                         <span className={cn("block text-[11px]", muted)}>
-                          {vPrice ? formatPrice(vPrice.amount_minor) : "—"}
+                          {vPrice ? formatPrice(vPrice.amount_minor) : ""}
                           {soldOut ? " · Out of Stock" : " · In Stock"}
                         </span>
                       </button>
@@ -285,7 +298,7 @@ export default function ShopProductPage() {
               <div
                 className={cn(
                   "mt-3 flex items-center justify-between rounded-xl p-2.5",
-                  isLight ? "bg-white/90" : "bg-[#1c1c1e]"
+                  isLight ? "bg-white/90" : "bg-[#1c1c1e]",
                 )}
               >
                 <span className="text-[12px] font-bold">Quantity</span>
@@ -295,7 +308,9 @@ export default function ShopProductPage() {
                     onClick={() => setQty((q) => clampQty(q - 1))}
                     className={cn(
                       "flex h-8 w-8 items-center justify-center rounded-lg border-0 text-[14px] font-bold",
-                      isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white"
+                      isLight
+                        ? "bg-black/10 text-slate-900"
+                        : "bg-white/10 text-white",
                     )}
                   >
                     <Minus className="h-4 w-4" />
@@ -308,7 +323,9 @@ export default function ShopProductPage() {
                     onClick={() => setQty((q) => clampQty(q + 1))}
                     className={cn(
                       "flex h-8 w-8 items-center justify-center rounded-lg border-0 text-[14px] font-bold",
-                      isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white"
+                      isLight
+                        ? "bg-black/10 text-slate-900"
+                        : "bg-white/10 text-white",
                     )}
                   >
                     <Plus className="h-4 w-4" />
@@ -321,7 +338,7 @@ export default function ShopProductPage() {
               <p
                 className={cn(
                   "mt-3 text-center text-[12px] font-semibold",
-                  msg.includes("Added") ? "text-emerald-600" : "text-red-500"
+                  msg.includes("Added") ? "text-emerald-600" : "text-red-500",
                 )}
               >
                 {msg}
@@ -368,7 +385,9 @@ export default function ShopProductPage() {
               onClick={() => router.push("/shop/cart")}
               className={cn(
                 "mt-2 h-11 w-full rounded-xl border-0 text-[13px] font-bold",
-                isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white"
+                isLight
+                  ? "bg-black/10 text-slate-900"
+                  : "bg-white/10 text-white",
               )}
             >
               View cart

@@ -1,5 +1,5 @@
 /**
- * Legacy phone OTP verify — forwards to unified /api/auth/otp/verify
+ * Legacy phone OTP verify forwards to unified /api/auth/otp/verify
  */
 import { apiFail, apiOk } from "@/lib/server/api-json";
 
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     return apiFail(
       json?.error?.message || "Could not verify code",
       res.status || 400,
-      json?.error?.code || "error"
+      json?.error?.code || "error",
     );
   }
   return apiOk(json.data);

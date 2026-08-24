@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Copy, Gift, Wallet as WalletIcon, ArrowUpRight, CreditCard, History, Loader2 } from "lucide-react";
+import {
+  Copy,
+  Gift,
+  Wallet as WalletIcon,
+  ArrowUpRight,
+  CreditCard,
+  History,
+  Loader2,
+} from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { formatMoney } from "@/lib/pricing";
 import { useT } from "@/lib/i18n";
@@ -21,7 +29,12 @@ type WalletData = {
 
 type ReferralData = {
   code: { referralCode: string; referralLink: string };
-  events: { id: string; status: string; rewardAmount: number; createdAt: string }[];
+  events: {
+    id: string;
+    status: string;
+    rewardAmount: number;
+    createdAt: string;
+  }[];
 };
 
 type TxData = {
@@ -62,8 +75,12 @@ export default function WalletPage() {
     try {
       const { authFetch } = await import("@/lib/api-auth-headers");
       const [walletRes, refRes] = await Promise.all([
-        authFetch(`/api/security/wallet?userId=${encodeURIComponent(backendUserId)}`),
-        authFetch(`/api/security/referral?userId=${encodeURIComponent(backendUserId)}`),
+        authFetch(
+          `/api/security/wallet?userId=${encodeURIComponent(backendUserId)}`,
+        ),
+        authFetch(
+          `/api/security/referral?userId=${encodeURIComponent(backendUserId)}`,
+        ),
       ]);
       const wJson = await walletRes.json();
       const rJson = await refRes.json();
@@ -72,11 +89,15 @@ export default function WalletPage() {
         setTxs(wJson.data.transactions || []);
       }
       if (rJson.ok) setReferral(rJson.data);
-    } catch { /* */ }
+    } catch {
+      /* */
+    }
     setLoading(false);
   }, [backendUserId]);
 
-  useEffect(() => { void fetchData(); }, [fetchData]);
+  useEffect(() => {
+    void fetchData();
+  }, [fetchData]);
 
   const handleCopy = async () => {
     if (!referral?.code.referralCode) return;
@@ -84,7 +105,9 @@ export default function WalletPage() {
       await navigator.clipboard.writeText(referral.code.referralCode);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch { /* */ }
+    } catch {
+      /* */
+    }
   };
 
   const handleCashout = async () => {
@@ -95,7 +118,10 @@ export default function WalletPage() {
       const { authFetch } = await import("@/lib/api-auth-headers");
       const res = await authFetch("/api/security/cashout", {
         method: "POST",
-        body: JSON.stringify({ userId: backendUserId, requestedAmount: Number(cashoutAmount) }),
+        body: JSON.stringify({
+          userId: backendUserId,
+          requestedAmount: Number(cashoutAmount),
+        }),
       });
       const json = await res.json();
       if (json.ok) {
@@ -105,7 +131,9 @@ export default function WalletPage() {
       } else {
         setCashoutMsg(json.error || "Failed");
       }
-    } catch { setCashoutMsg("Network error"); }
+    } catch {
+      setCashoutMsg("Network error");
+    }
     setCashoutBusy(false);
   };
 
@@ -122,25 +150,51 @@ export default function WalletPage() {
       <div className="flex-1 overflow-hidden px-4 pb-4">
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-6 w-6 animate-spin" style={{ color: accent }} />
+            <Loader2
+              className="h-6 w-6 animate-spin"
+              style={{ color: accent }}
+            />
           </div>
         ) : !backendUserId ? (
           <div className="flex items-center justify-center py-20">
-            <p className={cn("text-[13px] font-medium", muted)}>Sign in to view your referral & earnings</p>
+            <p className={cn("text-[13px] font-medium", muted)}>
+              Sign in to view your referral & earnings
+            </p>
           </div>
         ) : (
           <div className="mt-2 space-y-3">
             {/* Balance card */}
             <div className={cn("rounded-2xl p-3", card)}>
-              <p className={cn("text-[11px] font-semibold", muted)}>Available Credit</p>
-              <p className="mt-0.5 text-[24px] font-black" style={{ color: accent }}>
+              <p className={cn("text-[11px] font-semibold", muted)}>
+                Available Credit
+              </p>
+              <p
+                className="mt-0.5 text-[24px] font-black"
+                style={{ color: accent }}
+              >
                 {formatMoney(wallet?.availableCredits ?? 0)}
               </p>
               <div className="mt-2 grid grid-cols-2 gap-1.5">
-                {statBox("Total Earned", `${formatMoney(wallet?.totalEarned ?? 0)}`, true)}
-                {statBox("Pending", `${formatMoney(wallet?.pendingCredits ?? 0)}`, true)}
-                {statBox("Cashable", `${formatMoney(wallet?.cashableCredits ?? 0)}`, true)}
-                {statBox("Spent", `${formatMoney(wallet?.serviceSpendCredits ?? 0)}`, true)}
+                {statBox(
+                  "Total Earned",
+                  `${formatMoney(wallet?.totalEarned ?? 0)}`,
+                  true,
+                )}
+                {statBox(
+                  "Pending",
+                  `${formatMoney(wallet?.pendingCredits ?? 0)}`,
+                  true,
+                )}
+                {statBox(
+                  "Cashable",
+                  `${formatMoney(wallet?.cashableCredits ?? 0)}`,
+                  true,
+                )}
+                {statBox(
+                  "Spent",
+                  `${formatMoney(wallet?.serviceSpendCredits ?? 0)}`,
+                  true,
+                )}
               </div>
             </div>
 
@@ -155,8 +209,18 @@ export default function WalletPage() {
               </p>
               {referral?.code ? (
                 <div className="mt-2">
-                  <div className={cn("flex items-center gap-2 rounded-xl px-3 py-2", isLight ? "bg-slate-100" : "bg-black/40")}>
-                    <code className={cn("flex-1 text-[14px] font-bold tracking-wider", ink)}>
+                  <div
+                    className={cn(
+                      "flex items-center gap-2 rounded-xl px-3 py-2",
+                      isLight ? "bg-slate-100" : "bg-black/40",
+                    )}
+                  >
+                    <code
+                      className={cn(
+                        "flex-1 text-[14px] font-bold tracking-wider",
+                        ink,
+                      )}
+                    >
                       {referral.code.referralCode}
                     </code>
                     <button
@@ -168,10 +232,16 @@ export default function WalletPage() {
                       <Copy className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                  {copied && <p className="mt-0.5 text-[10px] font-medium text-green-500">Copied!</p>}
+                  {copied && (
+                    <p className="mt-0.5 text-[10px] font-medium text-green-500">
+                      Copied!
+                    </p>
+                  )}
                 </div>
               ) : (
-                <p className={cn("mt-1 text-[11px]", muted)}>Loading referral code...</p>
+                <p className={cn("mt-1 text-[11px]", muted)}>
+                  Loading referral code...
+                </p>
               )}
             </div>
 
@@ -193,7 +263,9 @@ export default function WalletPage() {
                   onChange={(e) => setCashoutAmount(e.target.value)}
                   className={cn(
                     "flex-1 rounded-xl border-0 px-3 py-2 text-[13px] font-semibold outline-none",
-                    isLight ? "bg-slate-100 text-black" : "bg-black/40 text-white"
+                    isLight
+                      ? "bg-slate-100 text-black"
+                      : "bg-black/40 text-white",
                   )}
                 />
                 <button
@@ -207,7 +279,14 @@ export default function WalletPage() {
                 </button>
               </div>
               {cashoutMsg ? (
-                <p className={cn("mt-1 text-[10px] font-medium", cashoutMsg.includes("submitted") ? "text-green-500" : "text-red-500")}>
+                <p
+                  className={cn(
+                    "mt-1 text-[10px] font-medium",
+                    cashoutMsg.includes("submitted")
+                      ? "text-green-500"
+                      : "text-red-500",
+                  )}
+                >
                   {cashoutMsg}
                 </p>
               ) : null}
@@ -220,13 +299,26 @@ export default function WalletPage() {
                 <p className={cn("text-[13px] font-bold", ink)}>History</p>
               </div>
               {txs.length === 0 ? (
-                <p className={cn("mt-1 text-[11px]", muted)}>No transactions yet.</p>
+                <p className={cn("mt-1 text-[11px]", muted)}>
+                  No transactions yet.
+                </p>
               ) : (
                 <div className="mt-2 space-y-1.5">
                   {txs.slice(0, 20).map((tx) => (
-                    <div key={tx.id} className={cn("flex items-center justify-between rounded-xl px-3 py-2", isLight ? "bg-slate-50" : "bg-black/30")}>
+                    <div
+                      key={tx.id}
+                      className={cn(
+                        "flex items-center justify-between rounded-xl px-3 py-2",
+                        isLight ? "bg-slate-50" : "bg-black/30",
+                      )}
+                    >
                       <div>
-                        <p className={cn("text-[11px] font-semibold capitalize", ink)}>
+                        <p
+                          className={cn(
+                            "text-[11px] font-semibold capitalize",
+                            ink,
+                          )}
+                        >
                           {tx.transactionType.replace("_", " ")}
                         </p>
                         <p className={cn("text-[9px]", muted)}>
@@ -234,8 +326,14 @@ export default function WalletPage() {
                           {tx.reason ? ` · ${tx.reason}` : ""}
                         </p>
                       </div>
-                      <p className={cn("text-[12px] font-bold", tx.amount > 0 ? "text-green-500" : "text-red-400")}>
-                        {tx.amount > 0 ? "+" : ""}{formatMoney(tx.amount)}
+                      <p
+                        className={cn(
+                          "text-[12px] font-bold",
+                          tx.amount > 0 ? "text-green-500" : "text-red-400",
+                        )}
+                      >
+                        {tx.amount > 0 ? "+" : ""}
+                        {formatMoney(tx.amount)}
                       </p>
                     </div>
                   ))}

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Ona Support — simple, effective help for Customers & Repair Pros.
+ * Ona Support simple, effective help for Customers & Repair Pros.
  * FAQ + email contact + short message to care.
  */
 
@@ -47,7 +47,8 @@ export default function SettingsSupportPage() {
   const { theme, displayName, userProfile, accountType } = useApp();
   const { config } = useAppConfig();
   const isLight = theme === "light";
-  const email = (config.app.supportEmail || SUPPORT_EMAIL).trim() || SUPPORT_EMAIL;
+  const email =
+    (config.app.supportEmail || SUPPORT_EMAIL).trim() || SUPPORT_EMAIL;
 
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [subject, setSubject] = useState("Help with Ona");
@@ -55,14 +56,13 @@ export default function SettingsSupportPage() {
   const [sent, setSent] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const roleLabel =
-    accountType === "professional" ? "Repair Pro" : "Customer";
+  const roleLabel = accountType === "professional" ? "Repair Pro" : "Customer";
 
   const prefilled = useMemo(() => {
     const lines = [
       body.trim(),
       "",
-      "—",
+      "",
       `Name: ${userProfile?.fullName || displayName || "Not set"}`,
       `Role: ${roleLabel}`,
       `Phone: ${userProfile?.phone || "Not set"}`,
@@ -85,7 +85,7 @@ export default function SettingsSupportPage() {
       return;
     }
     const mailto = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(
-      subject.trim() || "Help with Ona"
+      subject.trim() || "Help with Ona",
     )}&body=${encodeURIComponent(prefilled)}`;
     try {
       window.location.href = mailto;
@@ -99,7 +99,7 @@ export default function SettingsSupportPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader
@@ -111,22 +111,24 @@ export default function SettingsSupportPage() {
       <div className="flex-1 space-y-4 overflow-y-auto px-3 pb-8 scrollbar-hide">
         {/* Intro */}
         <div
-          className={cn(
-            "flex items-start gap-3 rounded-md px-3 py-3",
-            card
-          )}
+          className={cn("flex items-start gap-3 rounded-md px-3 py-3", card)}
         >
           <span
             className={cn(
               "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
-              isLight ? "bg-white/80" : "bg-white/10"
+              isLight ? "bg-white/80" : "bg-white/10",
             )}
           >
             <LifeBuoy className="h-5 w-5 text-[#FF6B35]" strokeWidth={2} />
           </span>
           <div className="min-w-0">
             <p className={cn("text-[14px] font-bold", ink)}>Ona Care</p>
-            <p className={cn("mt-0.5 text-[12px] font-medium leading-snug", muted)}>
+            <p
+              className={cn(
+                "mt-0.5 text-[12px] font-medium leading-snug",
+                muted,
+              )}
+            >
               Quick answers below. Still stuck? Email care or send a short
               message. We reply from the Ona team.
             </p>
@@ -138,7 +140,7 @@ export default function SettingsSupportPage() {
           <p
             className={cn(
               "mb-2 px-1 text-[10px] font-bold uppercase tracking-[0.12em]",
-              muted
+              muted,
             )}
           >
             Contact
@@ -147,7 +149,7 @@ export default function SettingsSupportPage() {
             href={`mailto:${email}`}
             className={cn(
               "flex items-center gap-3 rounded-md px-3 py-3 no-underline transition-opacity active:opacity-80",
-              card
+              card,
             )}
           >
             <Mail className="h-4 w-4 shrink-0 text-[#FF6B35]" />
@@ -167,7 +169,7 @@ export default function SettingsSupportPage() {
           <p
             className={cn(
               "mb-2 px-1 text-[10px] font-bold uppercase tracking-[0.12em]",
-              muted
+              muted,
             )}
           >
             Common questions
@@ -176,10 +178,7 @@ export default function SettingsSupportPage() {
             {FAQ.map((item, i) => {
               const open = openFaq === i;
               return (
-                <li
-                  key={item.q}
-                  className=""
-                >
+                <li key={item.q} className="">
                   <button
                     type="button"
                     onClick={() => setOpenFaq(open ? null : i)}
@@ -189,7 +188,7 @@ export default function SettingsSupportPage() {
                     <span
                       className={cn(
                         "min-w-0 flex-1 text-[13px] font-semibold",
-                        ink
+                        ink,
                       )}
                     >
                       {item.q}
@@ -198,7 +197,7 @@ export default function SettingsSupportPage() {
                       className={cn(
                         "h-4 w-4 shrink-0 transition-transform",
                         muted,
-                        open && "rotate-180"
+                        open && "rotate-180",
                       )}
                     />
                   </button>
@@ -206,7 +205,7 @@ export default function SettingsSupportPage() {
                     <p
                       className={cn(
                         "px-3 pb-3 text-[12px] font-medium leading-relaxed",
-                        muted
+                        muted,
                       )}
                     >
                       {item.a}
@@ -223,7 +222,7 @@ export default function SettingsSupportPage() {
           <p
             className={cn(
               "mb-2 flex items-center gap-1.5 px-1 text-[10px] font-bold uppercase tracking-[0.12em]",
-              muted
+              muted,
             )}
           >
             <MessageSquare className="h-3 w-3" />
@@ -274,7 +273,7 @@ export default function SettingsSupportPage() {
         <p
           className={cn(
             "flex items-center justify-center gap-1.5 px-2 text-center text-[10px]",
-            muted
+            muted,
           )}
         >
           <ShieldCheck className="h-3 w-3 shrink-0 text-[#FF6B35]" />

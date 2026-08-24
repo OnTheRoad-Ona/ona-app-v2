@@ -35,7 +35,12 @@ export default function SettingsPricingPage() {
 
   if (accountType !== "professional") {
     return (
-      <div className={cn("flex h-full flex-col", isLight ? "bg-[#c8c9cd]" : "bg-black")}>
+      <div
+        className={cn(
+          "flex h-full flex-col",
+          isLight ? "bg-[#c8c9cd]" : "bg-black",
+        )}
+      >
         <PageHeader title="Pricing" backHref="/settings" />
         <p className="px-4 text-[13px]">Repair Pros only.</p>
       </div>
@@ -57,7 +62,7 @@ export default function SettingsPricingPage() {
       const n = Number(raw);
       if (!Number.isFinite(n) || n < MIN_OFFER_AMOUNT_MAJOR) {
         setErr(
-          `${PRO_SERVICE_LABELS[s]}: minimum labour price is ${formatMoney(MIN_OFFER_AMOUNT_MAJOR)} so payouts can complete.`
+          `${PRO_SERVICE_LABELS[s]}: minimum labour price is ${formatMoney(MIN_OFFER_AMOUNT_MAJOR)} so payouts can complete.`,
         );
         return;
       }
@@ -74,7 +79,7 @@ export default function SettingsPricingPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader
@@ -86,18 +91,13 @@ export default function SettingsPricingPage() {
         <p
           className={cn(
             "mb-3 text-[12px] font-medium leading-snug",
-            isLight ? "text-slate-600" : "text-white/65"
+            isLight ? "text-slate-600" : "text-white/65",
           )}
         >
           No assumed defaults. Leave blank if you quote on request. Skill list
           comes from your registration (edit via verification / profile flow).
         </p>
-        <div
-          className={cn(
-            "overflow-hidden rounded-md",
-            "bg-transparent"
-          )}
-        >
+        <div className={cn("overflow-hidden rounded-md", "bg-transparent")}>
           {skills.length === 0 ? (
             <p className="px-3 py-4 text-[12px] font-medium text-muted">
               No skills on file yet.

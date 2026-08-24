@@ -1,15 +1,22 @@
 "use client";
 
 /**
- * Checkout shell — bank transfer stays ON this Ona page.
+ * Checkout shell bank transfer stays ON this Ona page.
  *
  * HARD RULES:
- *  - Never open Flutterwave.com / new tabs / hosted pay (503 nginx).
- *  - Server creates a Flutterwave VA; we show account + amount in-app.
- *  - Poll until job is booked after customer transfers.
+ * - Never open Flutterwave.com / new tabs / hosted pay (503 nginx).
+ * - Server creates a Flutterwave VA; we show account + amount in-app.
+ * - Poll until job is booked after customer transfers.
  */
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Copy, Loader2, Lock, X } from "lucide-react";
 import {
@@ -42,7 +49,7 @@ function PayTimer({
 
   const secs = Math.ceil(leftMs / 1000);
   const label = `${String(Math.floor(secs / 60)).padStart(2, "0")}:${String(
-    secs % 60
+    secs % 60,
   ).padStart(2, "0")}`;
   const urgent = leftMs <= 15_000;
 
@@ -50,7 +57,7 @@ function PayTimer({
     <p
       className={cn(
         "text-[13px] font-bold tabular-nums",
-        urgent ? "text-red-500" : "text-[#FF6B35]"
+        urgent ? "text-red-500" : "text-[#FF6B35]",
       )}
     >
       Time left · {label}
@@ -93,14 +100,10 @@ function CheckoutInner() {
   const router = useRouter();
   const params = useSearchParams();
   const jobId = params.get("jobId") || params.get("job") || "";
-  const {
-    theme,
-    backendUserId,
-    userProfile,
-    isAuthenticated,
-    authReady,
-  } = useApp();
+  const { theme, backendUserId, userProfile, isAuthenticated, authReady } =
+    useApp();
   const isLight = theme === "light";
+
 
   const [job, setJob] = useState<JobRecord | null>(null);
   const [phase, setPhase] = useState<Phase>("summary");
@@ -115,10 +118,7 @@ function CheckoutInner() {
   const [copied, setCopied] = useState<string | null>(null);
 
   const actorId =
-    backendUserId ||
-    userProfile?.identityId ||
-    userProfile?.email ||
-    "";
+    backendUserId || userProfile?.identityId || userProfile?.email || "";
 
   useEffect(() => {
     if (!jobId) {
@@ -137,7 +137,7 @@ function CheckoutInner() {
       }
       const j = res.data.job;
       setJob(j);
-      // Already paid — leave checkout, never show Pay again
+      // Already paid leave checkout, never show Pay again
       if (
         j.status === "paid_booked" ||
         j.status === "en_route" ||
@@ -218,14 +218,17 @@ function CheckoutInner() {
   const { quote: calloutQuote, ready: calloutReady } = useJobCallout(
     job?.id,
     job?.status,
-    job?.calloutQuote
+    job?.calloutQuote,
   );
 
   const agreedMajor = job?.agreedMajor ?? null;
   const chargeBreakdown = useMemo(() => {
     if (agreedMajor == null) return null;
     const labour = buildCustomerChargeMajor(agreedMajor);
-    const payable = composeCustomerPayableMajor(labour.totalMajor, calloutQuote);
+    const payable = composeCustomerPayableMajor(
+      labour.totalMajor,
+      calloutQuote,
+    );
     return { ...labour, ...payable, serviceChargeMajor: labour.totalMajor };
   }, [agreedMajor, calloutQuote]);
 
@@ -234,7 +237,7 @@ function CheckoutInner() {
     if (!calloutReady) return "\u00a0";
     return formatMoney(
       chargeBreakdown.totalMajor,
-      forceNairaCurrency(job?.currency)
+      forceNairaCurrency(job?.currency),
     );
   }, [chargeBreakdown, calloutReady, job?.currency]);
 
@@ -262,7 +265,7 @@ function CheckoutInner() {
         if (res.ok && res.data.job) setJob(res.data.job);
       });
       void import("@/lib/jobs/client").then(({ apiExpireStaleBookedJobs }) =>
-        apiExpireStaleBookedJobs().catch(() => null)
+        apiExpireStaleBookedJobs().catch(() => null),
       );
     }
   }, [jobId]);
@@ -380,9 +383,7 @@ function CheckoutInner() {
         return;
       }
       const payerId =
-        (backendUserId && backendUserId.length > 10
-          ? backendUserId
-          : null) ||
+        (backendUserId && backendUserId.length > 10 ? backendUserId : null) ||
         (current.motoristId && current.motoristId.length > 10
           ? current.motoristId
           : null) ||
@@ -416,12 +417,13 @@ function CheckoutInner() {
         jobId: current.id,
         motoristId: current.motoristId || payerId,
         email: payEmail,
-        customerName: current.motoristName || userProfile?.fullName || undefined,
+        customerName:
+          current.motoristName || userProfile?.fullName || undefined,
         customerPhone: current.motoristPhone || userProfile?.phone || undefined,
         preferInline: true,
       });
       if (!res.ok) {
-        // Failed to start pay — NOT a used 20‑min window
+        // Failed to start pay NOT a used 20‑min window
         void logPayGate("pay-start-failed", {
           jobId: current.id,
           message: res.message || null,
@@ -469,7 +471,7 @@ function CheckoutInner() {
         let accountName = String(bt?.accountName || "Ona").trim() || "Ona";
         if (
           /please\s|make a bank transfer|transfer to|exact amount/i.test(
-            accountName
+            accountName,
           ) ||
           accountName.length > 48
         ) {
@@ -477,7 +479,7 @@ function CheckoutInner() {
         }
         let note = String(
           bt?.note ||
-            "Pay into Ona escrow (account below). Funds are released after the job is confirmed. Transfer the exact amount only."
+            "Pay into Ona escrow (account below). Funds are released after the job is confirmed. Transfer the exact amount only.",
         ).trim();
         // Normalize older copy
         note = note
@@ -487,7 +489,7 @@ function CheckoutInner() {
         if (/^please\s+make\s+a\s+bank\s+transfer\s+to\s+/i.test(note)) {
           const pro = note.replace(
             /^please\s+make\s+a\s+bank\s+transfer\s+to\s+/i,
-            ""
+            "",
           );
           note = `For ${pro}. Pay into Ona escrow (account below). Funds are released after the job is confirmed. Transfer the exact amount only.`;
         }
@@ -506,7 +508,7 @@ function CheckoutInner() {
       }
 
       setErr(
-        "Could not create bank transfer details. Tap Pay again in a moment."
+        "Could not create bank transfer details. Tap Pay again in a moment.",
       );
       setPhase("summary");
       setSessionEndsAt(null);
@@ -515,7 +517,15 @@ function CheckoutInner() {
       setErr(e instanceof Error ? e.message : "Payment failed");
       setPhase("expired");
     }
-  }, [job, jobId, actorId, backendUserId, userProfile, router, resetPayTimerOnCancel]);
+  }, [
+    job,
+    jobId,
+    actorId,
+    backendUserId,
+    userProfile,
+    router,
+    resetPayTimerOnCancel,
+  ]);
 
   const cancelPaymentOnly = () => {
     setCancelOpen(false);
@@ -560,7 +570,12 @@ function CheckoutInner() {
 
   if (!isAuthenticated) {
     return (
-      <div className={cn("flex h-full flex-col items-center justify-center gap-3 px-6", sheet)}>
+      <div
+        className={cn(
+          "flex h-full flex-col items-center justify-center gap-3 px-6",
+          sheet,
+        )}
+      >
         <p className={cn("text-[14px] font-semibold", ink)}>Sign in to pay</p>
         <button
           type="button"
@@ -587,7 +602,7 @@ function CheckoutInner() {
           onClick={() => setCancelOpen(true)}
           className={cn(
             "inline-flex h-9 items-center gap-1 rounded-full border-0 px-3 text-[13px] font-bold",
-            isLight ? "bg-black/8 text-slate-800" : "bg-white/10 text-white"
+            isLight ? "bg-black/8 text-slate-800" : "bg-white/10 text-white",
           )}
         >
           <X className="h-4 w-4" strokeWidth={2.25} />
@@ -629,9 +644,7 @@ function CheckoutInner() {
           ) : null}
           <button
             type="button"
-            onClick={() =>
-              router.replace(jobId ? `/jobs/${jobId}` : "/jobs")
-            }
+            onClick={() => router.replace(jobId ? `/jobs/${jobId}` : "/jobs")}
             className={cn("text-[13px] font-semibold", muted)}
           >
             Back to job
@@ -640,125 +653,129 @@ function CheckoutInner() {
       ) : phase === "paying" ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 pb-10">
           <Loader2 className="h-8 w-8 animate-spin text-[#FF6B35]" />
-          <p className={cn("text-[14px] font-semibold", ink)}>
-            Loading…
-          </p>
+          <p className={cn("text-[14px] font-semibold", ink)}>Loading…</p>
         </div>
       ) : phase === "bank_pay" && bankPay ? (
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex-1 overflow-y-auto px-4 pb-4 scrollbar-hide">
-          <div className={cn("rounded-2xl px-4 py-4 shadow-sm", card)}>
-            <p className={cn("text-[11px] font-bold uppercase tracking-wide", muted)}>
-              Bank transfer
-            </p>
-
-            {hasOpenSession && payEndsAt ? (
-              <div
+            <div className={cn("rounded-2xl px-4 py-4 shadow-sm", card)}>
+              <p
                 className={cn(
-                  "mt-3 flex items-center justify-between gap-2 rounded-xl px-3 py-2.5",
-                  isLight ? "bg-black/[0.04]" : "bg-white/5"
+                  "text-[11px] font-bold uppercase tracking-wide",
+                  muted,
                 )}
               >
-                <span
-                  className={cn(
-                    "text-[12px] font-bold uppercase tracking-wide",
-                    muted
-                  )}
-                >
-                  Time left
-                </span>
-                <PayTimer deadline={payEndsAt} onExpire={onPaymentExpired} />
-              </div>
-            ) : null}
+                Bank transfer
+              </p>
 
-            {/* Note first so “account below” matches the layout */}
-            {bankPay.note ? (
-              <div
-                className={cn(
-                  "mt-3 rounded-xl px-3 py-2.5 text-left",
-                  isLight ? "bg-amber-50" : "bg-amber-950/30"
-                )}
-              >
-                <p className="text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-                  Note
-                </p>
-                <p
-                  className={cn(
-                    "mt-0.5 text-[12px] font-semibold leading-snug",
-                    isLight ? "text-amber-950" : "text-amber-100"
-                  )}
-                >
-                  {bankPay.note}
-                </p>
-              </div>
-            ) : null}
-
-            <div className="mt-3 space-y-3">
-              {(
-                [
-                  ["Bank", bankPay.bankName],
-                  ["Account name", bankPay.accountName],
-                  ["Account number", bankPay.accountNumber],
-                  [
-                    "Amount",
-                    formatMoney(
-                      bankPay.amountMajor,
-                      forceNairaCurrency(bankPay.currency as "NGN")
-                    ),
-                  ],
-                ] as const
-              ).map(([label, value]) => (
+              {hasOpenSession && payEndsAt ? (
                 <div
-                  key={label}
                   className={cn(
-                    "flex items-center justify-between gap-2 rounded-xl px-3 py-2.5",
-                    isLight ? "bg-black/[0.04]" : "bg-white/5"
+                    "mt-3 flex items-center justify-between gap-2 rounded-xl px-3 py-2.5",
+                    isLight ? "bg-black/[0.04]" : "bg-white/5",
                   )}
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className={cn("text-[10px] font-bold uppercase", muted)}>
-                      {label}
-                    </p>
-                    <p
-                      className={cn(
-                        "text-[15px] font-black break-all",
-                        label === "Account number" ? "tabular-nums" : "",
-                        ink
-                      )}
-                    >
-                      {value}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void copyField(
-                        label,
-                        label === "Amount"
-                          ? String(bankPay.amountMajor)
-                          : value
-                      )
-                    }
-                    className="inline-flex shrink-0 items-center gap-1 rounded-lg border-0 bg-[#FF6B35]/15 px-2.5 py-1.5 text-[11px] font-bold text-[#FF6B35]"
+                  <span
+                    className={cn(
+                      "text-[12px] font-bold uppercase tracking-wide",
+                      muted,
+                    )}
                   >
-                    <Copy className="h-3.5 w-3.5" />
-                    {copied === label ? "Copied" : "Copy"}
-                  </button>
+                    Time left
+                  </span>
+                  <PayTimer deadline={payEndsAt} onExpire={onPaymentExpired} />
                 </div>
-              ))}
+              ) : null}
+
+              {/* Note first so “account below” matches the layout */}
+              {bankPay.note ? (
+                <div
+                  className={cn(
+                    "mt-3 rounded-xl px-3 py-2.5 text-left",
+                    isLight ? "bg-amber-50" : "bg-amber-950/30",
+                  )}
+                >
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                    Note
+                  </p>
+                  <p
+                    className={cn(
+                      "mt-0.5 text-[12px] font-semibold leading-snug",
+                      isLight ? "text-amber-950" : "text-amber-100",
+                    )}
+                  >
+                    {bankPay.note}
+                  </p>
+                </div>
+              ) : null}
+
+              <div className="mt-3 space-y-3">
+                {(
+                  [
+                    ["Bank", bankPay.bankName],
+                    ["Account name", bankPay.accountName],
+                    ["Account number", bankPay.accountNumber],
+                    [
+                      "Amount",
+                      formatMoney(
+                        bankPay.amountMajor,
+                        forceNairaCurrency(bankPay.currency as "NGN"),
+                      ),
+                    ],
+                  ] as const
+                ).map(([label, value]) => (
+                  <div
+                    key={label}
+                    className={cn(
+                      "flex items-center justify-between gap-2 rounded-xl px-3 py-2.5",
+                      isLight ? "bg-black/[0.04]" : "bg-white/5",
+                    )}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={cn("text-[10px] font-bold uppercase", muted)}
+                      >
+                        {label}
+                      </p>
+                      <p
+                        className={cn(
+                          "text-[15px] font-black break-all",
+                          label === "Account number" ? "tabular-nums" : "",
+                          ink,
+                        )}
+                      >
+                        {value}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void copyField(
+                          label,
+                          label === "Amount"
+                            ? String(bankPay.amountMajor)
+                            : value,
+                        )
+                      }
+                      className="inline-flex shrink-0 items-center gap-1 rounded-lg border-0 bg-[#FF6B35]/15 px-2.5 py-1.5 text-[11px] font-bold text-[#FF6B35]"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      {copied === label ? "Copied" : "Copy"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-3 flex items-center justify-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin text-[#FF6B35]" />
+              <p className={cn("text-[12px] font-semibold", muted)}>
+                Waiting for payment…
+              </p>
             </div>
           </div>
 
-          <div className="mt-3 flex items-center justify-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin text-[#FF6B35]" />
-            <p className={cn("text-[12px] font-semibold", muted)}>
-              Waiting for payment…
-            </p>
-          </div>
-
-          </div>
-
-          {/* Pinned bottom bar — I paid / Cancel always visible */}
+          {/* Pinned bottom bar I paid / Cancel always visible */}
           <div className="shrink-0 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <button
               type="button"
@@ -791,7 +808,10 @@ function CheckoutInner() {
             <button
               type="button"
               onClick={() => void resetPayTimerOnCancel()}
-              className={cn("mt-2 w-full text-center text-[13px] font-semibold", muted)}
+              className={cn(
+                "mt-2 w-full text-center text-[13px] font-semibold",
+                muted,
+              )}
             >
               Cancel
             </button>
@@ -802,7 +822,9 @@ function CheckoutInner() {
           <div
             className={cn(
               "flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2",
-              isLight ? "border-black/10 bg-white/90" : "border-white/10 bg-black/40"
+              isLight
+                ? "border-black/10 bg-white/90"
+                : "border-white/10 bg-black/40",
             )}
           >
             <p className={cn("text-[12px] font-black", ink)}>Mock checkout</p>
@@ -814,7 +836,9 @@ function CheckoutInner() {
               }}
               className={cn(
                 "rounded-lg border-0 px-2.5 py-1.5 text-[11px] font-bold",
-                isLight ? "bg-black/8 text-slate-800" : "bg-white/10 text-white"
+                isLight
+                  ? "bg-black/8 text-slate-800"
+                  : "bg-white/10 text-white",
               )}
             >
               Close
@@ -829,112 +853,135 @@ function CheckoutInner() {
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex-1 overflow-y-auto px-4 pb-4 scrollbar-hide">
-          {/* Amount hero */}
-          <div
-            className={cn(
-              "relative overflow-hidden rounded-3xl px-5 py-6 shadow-sm",
-              card
-            )}
-          >
-            <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-[#FF6B35]/15" />
-            <div className="pointer-events-none absolute -bottom-10 -left-6 h-24 w-24 rounded-full bg-sky-500/10" />
-            <p className={cn("text-[12px] font-semibold", muted)}>
-              Amount
-            </p>
-            <p className={cn("mt-1 text-[34px] font-black tracking-tight", ink)}>
-              {amountLabel}
-            </p>
-            {chargeBreakdown ? (
-              <div className={cn("mt-3 space-y-1 text-[11px] font-semibold", muted)}>
-                <div className="flex justify-between gap-2">
-                  <span>Service charge</span>
-                  <span className={ink}>
-                    {formatMoney(
-                      chargeBreakdown.serviceChargeMajor,
-                      forceNairaCurrency(job?.currency)
-                    )}
-                  </span>
-                </div>
-                {chargeBreakdown.calloutMajor > 0 ? (
+            {/* Amount hero */}
+            <div
+              className={cn(
+                "relative overflow-hidden rounded-3xl px-5 py-6 shadow-sm",
+                card,
+              )}
+            >
+              <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-[#FF6B35]/15" />
+              <div className="pointer-events-none absolute -bottom-10 -left-6 h-24 w-24 rounded-full bg-sky-500/10" />
+              <p className={cn("text-[12px] font-semibold", muted)}>Amount</p>
+              <p
+                className={cn(
+                  "mt-1 text-[34px] font-black tracking-tight",
+                  ink,
+                )}
+              >
+                {amountLabel}
+              </p>
+              {chargeBreakdown ? (
+                <div
+                  className={cn(
+                    "mt-3 space-y-1 text-[11px] font-semibold",
+                    muted,
+                  )}
+                >
                   <div className="flex justify-between gap-2">
-                    <span>Call Out Fee</span>
+                    <span>Service charge</span>
                     <span className={ink}>
                       {formatMoney(
-                        chargeBreakdown.calloutMajor,
-                        forceNairaCurrency(job?.currency)
+                        chargeBreakdown.serviceChargeMajor,
+                        forceNairaCurrency(job?.currency),
                       )}
                     </span>
                   </div>
-                ) : (
-                  <CalloutFeeLines
-                    quote={calloutQuote}
-                    currency={job?.currency}
-                    ink={ink}
-                    muted={muted}
-                    compact
-                  />
-                )}
-                <p className="pt-1 text-[10px] font-medium leading-snug">
-                  Pay this exact amount only. Your bank may add its own transfer
-                  fee. Do not change the transfer amount.
-                </p>
-              </div>
-            ) : null}
-          </div>
+                  {chargeBreakdown.calloutMajor > 0 ? (
+                    <div className="flex justify-between gap-2">
+                      <span>Call Out Fee</span>
+                      <span className={ink}>
+                        {formatMoney(
+                          chargeBreakdown.calloutMajor,
+                          forceNairaCurrency(job?.currency),
+                        )}
+                      </span>
+                    </div>
+                  ) : (
+                    <CalloutFeeLines
+                      quote={calloutQuote}
+                      currency={job?.currency}
+                      ink={ink}
+                      muted={muted}
+                      compact
+                    />
+                  )}
+                  <p className="pt-1 text-[10px] font-medium leading-snug">
+                    Pay this exact amount only. Your bank may add its own
+                    transfer fee. Do not change the transfer amount.
+                  </p>
+                </div>
+              ) : null}
+            </div>
 
-          {/* Job summary */}
-          <div className={cn("mt-3 rounded-2xl px-4 py-3.5 shadow-sm", card)}>
-            <p className={cn("text-[11px] font-bold uppercase tracking-wide", muted)}>
-              Booking
-            </p>
-            {!job ? (
-              <div className="mt-3 flex justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin text-[#FF6B35]" />
-              </div>
-            ) : (
-              <dl className="mt-2 space-y-2 text-[13px]">
-                <div className="flex justify-between gap-3">
-                  <dt className={muted}>Repair Pro</dt>
-                  <dd className={cn("truncate font-bold", ink)}>
-                    {job.repairProName}
-                  </dd>
+            {/* Job summary */}
+            <div className={cn("mt-3 rounded-2xl px-4 py-3.5 shadow-sm", card)}>
+              <p
+                className={cn(
+                  "text-[11px] font-bold uppercase tracking-wide",
+                  muted,
+                )}
+              >
+                Booking
+              </p>
+              {!job ? (
+                <div className="mt-3 flex justify-center py-4">
+                  <Loader2 className="h-6 w-6 animate-spin text-[#FF6B35]" />
                 </div>
-                <div className="flex justify-between gap-3">
-                  <dt className={muted}>Service</dt>
-                  <dd className={cn("font-bold", ink)}>
-                    {PRO_SERVICE_LABELS[job.serviceType] || job.serviceType}
-                  </dd>
-                </div>
-                {isAutomotiveTrade(job.serviceType) && job.motoristVehicle ? (
+              ) : (
+                <dl className="mt-2 space-y-2 text-[13px]">
                   <div className="flex justify-between gap-3">
-                    <dt className={muted}>Vehicle</dt>
+                    <dt className={muted}>Repair Pro</dt>
                     <dd className={cn("truncate font-bold", ink)}>
-                      {job.motoristVehicle}
+                      {job.repairProName}
                     </dd>
                   </div>
-                ) : null}
-              </dl>
-            )}
-          </div>
-
-          {/* Bank transfer only — USSD and other methods disabled */}
-          <div className={cn("mt-3 rounded-2xl px-4 py-3.5 shadow-sm", card)}>
-            <p className={cn("text-[11px] font-bold uppercase tracking-wide", muted)}>
-              Method
-            </p>
-            <div className={cn("mt-2 flex w-full items-center justify-between rounded-xl border-0 px-3 py-3 text-left text-[13px] font-bold", card)}>
-              <span>Bank transfer</span>
-              <span className={cn("text-[11px] font-semibold", muted)}>
-                Only
-              </span>
+                  <div className="flex justify-between gap-3">
+                    <dt className={muted}>Service</dt>
+                    <dd className={cn("font-bold", ink)}>
+                      {PRO_SERVICE_LABELS[job.serviceType] || job.serviceType}
+                    </dd>
+                  </div>
+                  {isAutomotiveTrade(job.serviceType) && job.motoristVehicle ? (
+                    <div className="flex justify-between gap-3">
+                      <dt className={muted}>Vehicle</dt>
+                      <dd className={cn("truncate font-bold", ink)}>
+                        {job.motoristVehicle}
+                      </dd>
+                    </div>
+                  ) : null}
+                </dl>
+              )}
             </div>
-          </div>
 
-          {err ? (
-            <p className="mt-3 text-center text-[12px] font-semibold text-red-500">
-              {err}
-            </p>
-          ) : null}
+            {/* Bank transfer only USSD and other methods disabled */}
+            <div className={cn("mt-3 rounded-2xl px-4 py-3.5 shadow-sm", card)}>
+              <p
+                className={cn(
+                  "text-[11px] font-bold uppercase tracking-wide",
+                  muted,
+                )}
+              >
+                Method
+              </p>
+              <div
+                className={cn(
+                  "mt-2 flex w-full items-center justify-between rounded-xl border-0 px-3 py-3 text-left text-[13px] font-bold",
+                  card,
+                )}
+              >
+                <span>Bank transfer</span>
+                <span className={cn("text-[11px] font-semibold", muted)}>
+                  Only
+                </span>
+              </div>
+            </div>
+
+            {err ? (
+              <p className="mt-3 text-center text-[12px] font-semibold text-red-500">
+                {err}
+              </p>
+            ) : null}
           </div>
 
           {/* Pay bar pinned to the bottom of the page */}
@@ -968,7 +1015,7 @@ function CheckoutInner() {
           <div
             className={cn(
               "w-full max-w-md overflow-hidden rounded-2xl shadow-2xl",
-              card
+              card,
             )}
             role="dialog"
             aria-label="Cancel options"
@@ -986,7 +1033,7 @@ function CheckoutInner() {
                 "flex h-12 w-full items-center justify-center border-0 text-[14px] font-bold",
                 isLight
                   ? "bg-transparent text-slate-900"
-                  : "bg-transparent text-white"
+                  : "bg-transparent text-white",
               )}
             >
               Cancel payment
@@ -996,7 +1043,7 @@ function CheckoutInner() {
               disabled={busyCancel}
               onClick={() => setConfirmCancelRequest(true)}
               className={cn(
-                "flex h-12 w-full items-center justify-center border-0 text-[14px] font-bold text-red-500"
+                "flex h-12 w-full items-center justify-center border-0 text-[14px] font-bold text-red-500",
               )}
             >
               {busyCancel ? "Cancelling…" : "Cancel request"}
@@ -1007,7 +1054,7 @@ function CheckoutInner() {
               onClick={() => setCancelOpen(false)}
               className={cn(
                 "flex h-11 w-full items-center justify-center border-0 text-[13px] font-semibold",
-                isLight ? "text-slate-500" : "text-white/50"
+                isLight ? "text-slate-500" : "text-white/50",
               )}
             >
               Keep paying

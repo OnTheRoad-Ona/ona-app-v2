@@ -102,7 +102,7 @@ class Q {
 
   async maybeSingle() {
     const rows = this.sorted(this.db.rows[this.table] ?? []).filter((r) =>
-      this.matches(r)
+      this.matches(r),
     );
     return { data: rows[0] ?? null, error: null };
   }
@@ -143,14 +143,20 @@ class Q {
           if (existing) {
             Object.assign(existing, row);
             this.db.upserts.push({ table: this.table, row });
-            resolve(this.wantSelect ? { data: [existing], error: null } : { error: null });
+            resolve(
+              this.wantSelect
+                ? { data: [existing], error: null }
+                : { error: null },
+            );
             return;
           }
         }
         rows.push(row);
         this.db.rows[this.table] = rows;
         this.db.upserts.push({ table: this.table, row });
-        resolve(this.wantSelect ? { data: [row], error: null } : { error: null });
+        resolve(
+          this.wantSelect ? { data: [row], error: null } : { error: null },
+        );
         return;
       }
       if (this.updateRow) {
@@ -171,12 +177,40 @@ const otherId = "00000000-0000-0000-0000-000000000002";
 function baseDb(): FakeDb {
   return new FakeDb({
     profiles: [
-      { id: userId, full_name: "Ade", phone: "+2348010000001", email: "a@o.com", is_active: true },
-      { id: otherId, full_name: "Ade (pro)", phone: "+2348020000002", email: "a.pro@o.com", is_active: true },
+      {
+        id: userId,
+        full_name: "Ade",
+        phone: "+2348010000001",
+        email: "a@o.com",
+        is_active: true,
+      },
+      {
+        id: otherId,
+        full_name: "Ade (pro)",
+        phone: "+2348020000002",
+        email: "a.pro@o.com",
+        is_active: true,
+      },
     ],
-    motorist_profiles: [{ user_id: userId, bank_account_number: "0123456789", bank_code: "058", created_at: "2026-01-01T00:00:00Z" }],
-    repair_pro_profiles: [{ user_id: otherId, bank_account_number: "0123456789", bank_code: "058", created_at: "2026-02-01T00:00:00Z" }],
-    service_requests: [{ id: "job-1", motorist_id: otherId, repair_pro_id: null }],
+    motorist_profiles: [
+      {
+        user_id: userId,
+        bank_account_number: "0123456789",
+        bank_code: "058",
+        created_at: "2026-01-01T00:00:00Z",
+      },
+    ],
+    repair_pro_profiles: [
+      {
+        user_id: otherId,
+        bank_account_number: "0123456789",
+        bank_code: "058",
+        created_at: "2026-02-01T00:00:00Z",
+      },
+    ],
+    service_requests: [
+      { id: "job-1", motorist_id: otherId, repair_pro_id: null },
+    ],
     user_roles: [],
     payout_methods: [],
     identity_sync_log: [],
@@ -221,7 +255,9 @@ describe("syncPayoutAcrossRoles", () => {
     const db = baseDb();
     const res = await syncPayoutAcrossRoles(db as never, userId);
     expect(res.ok).toBe(true);
-    expect(db.rows.repair_pro_profiles.some((r) => r.user_id === userId)).toBe(false);
+    expect(db.rows.repair_pro_profiles.some((r) => r.user_id === userId)).toBe(
+      false,
+    );
     const pm = db.rows.payout_methods.find((r) => r.user_id === userId);
     expect(pm?.account_number_last4).toBe("6789");
     expect(pm?.linked_role).toBe("motorist");
@@ -231,10 +267,18 @@ describe("syncPayoutAcrossRoles", () => {
     const db = new FakeDb({
       profiles: [],
       motorist_profiles: [
-        { user_id: userId, bank_account_number: "0123456789", bank_code: "058" },
+        {
+          user_id: userId,
+          bank_account_number: "0123456789",
+          bank_code: "058",
+        },
       ],
       repair_pro_profiles: [
-        { user_id: userId, bank_account_number: "9876543210", bank_code: "058" },
+        {
+          user_id: userId,
+          bank_account_number: "9876543210",
+          bank_code: "058",
+        },
       ],
       payout_methods: [],
       user_roles: [],
@@ -256,7 +300,10 @@ describe("runIdentitySync", () => {
     expect(res.roles).toContain("motorist");
     expect(res.roles).toContain("repair_pro");
     const registered = db.rows.user_roles.filter((r) => r.user_id === userId);
-    expect(registered.map((r) => r.role_type).sort()).toEqual(["motorist", "repair_pro"]);
+    expect(registered.map((r) => r.role_type).sort()).toEqual([
+      "motorist",
+      "repair_pro",
+    ]);
   });
 });
 
@@ -284,8 +331,18 @@ describe("detectMergeCandidates", () => {
   it("matches two pro accounts sharing a full Driver's Licence number", async () => {
     const db = baseDb();
     db.rows.repair_pro_profiles = [
-      { user_id: userId, gov_id_kind: "drivers_licence", gov_id_number: "LA-123-456", created_at: "2026-01-01T00:00:00Z" },
-      { user_id: otherId, gov_id_kind: "drivers_licence", gov_id_number: "la123456", created_at: "2026-02-01T00:00:00Z" },
+      {
+        user_id: userId,
+        gov_id_kind: "drivers_licence",
+        gov_id_number: "LA-123-456",
+        created_at: "2026-01-01T00:00:00Z",
+      },
+      {
+        user_id: otherId,
+        gov_id_kind: "drivers_licence",
+        gov_id_number: "la123456",
+        created_at: "2026-02-01T00:00:00Z",
+      },
     ];
     const res = await detectMergeCandidates(db as never);
     expect(res.added).toBe(1);
@@ -298,8 +355,18 @@ describe("detectMergeCandidates", () => {
   it("matches two customer accounts sharing a full Passport number", async () => {
     const db = baseDb();
     db.rows.motorist_profiles = [
-      { user_id: userId, gov_id_kind: "international_passport", gov_id_number: "A1234567", created_at: "2026-01-01T00:00:00Z" },
-      { user_id: otherId, gov_id_kind: "passport", gov_id_number: "A 123 4567", created_at: "2026-02-01T00:00:00Z" },
+      {
+        user_id: userId,
+        gov_id_kind: "international_passport",
+        gov_id_number: "A1234567",
+        created_at: "2026-01-01T00:00:00Z",
+      },
+      {
+        user_id: otherId,
+        gov_id_kind: "passport",
+        gov_id_number: "A 123 4567",
+        created_at: "2026-02-01T00:00:00Z",
+      },
     ];
     const res = await detectMergeCandidates(db as never);
     expect(res.added).toBe(1);
@@ -317,10 +384,18 @@ describe("detectMergeCandidates", () => {
       deleted_at: "2026-05-01T00:00:00Z",
     };
     db.rows.motorist_profiles = [
-      { user_id: userId, nin_last4: "1234", created_at: "2026-01-01T00:00:00Z" },
+      {
+        user_id: userId,
+        nin_last4: "1234",
+        created_at: "2026-01-01T00:00:00Z",
+      },
     ];
     db.rows.repair_pro_profiles = [
-      { user_id: otherId, nin_last4: "1234", created_at: "2026-02-01T00:00:00Z" },
+      {
+        user_id: otherId,
+        nin_last4: "1234",
+        created_at: "2026-02-01T00:00:00Z",
+      },
     ];
     const res = await detectMergeCandidates(db as never);
     expect(res.added).toBe(0);
@@ -329,10 +404,18 @@ describe("detectMergeCandidates", () => {
   it("does not flag a dual-role identity against itself", async () => {
     const db = baseDb();
     db.rows.motorist_profiles = [
-      { user_id: userId, nin_last4: "1234", created_at: "2026-01-01T00:00:00Z" },
+      {
+        user_id: userId,
+        nin_last4: "1234",
+        created_at: "2026-01-01T00:00:00Z",
+      },
     ];
     db.rows.repair_pro_profiles = [
-      { user_id: userId, nin_last4: "1234", created_at: "2026-02-01T00:00:00Z" },
+      {
+        user_id: userId,
+        nin_last4: "1234",
+        created_at: "2026-02-01T00:00:00Z",
+      },
     ];
     const res = await detectMergeCandidates(db as never);
     expect(res.added).toBe(0);
@@ -343,11 +426,26 @@ describe("detectMergeCandidates", () => {
     const third = "00000000-0000-0000-0000-000000000003";
     db.rows.profiles.push({ id: third, full_name: "Third", is_active: true });
     db.rows.motorist_profiles = [
-      { user_id: userId, bvn_last4: "9999", gov_id_kind: "passport", gov_id_number: "P100", created_at: "2026-01-01T00:00:00Z" },
-      { user_id: third, gov_id_kind: "passport", gov_id_number: "P100", created_at: "2026-03-01T00:00:00Z" },
+      {
+        user_id: userId,
+        bvn_last4: "9999",
+        gov_id_kind: "passport",
+        gov_id_number: "P100",
+        created_at: "2026-01-01T00:00:00Z",
+      },
+      {
+        user_id: third,
+        gov_id_kind: "passport",
+        gov_id_number: "P100",
+        created_at: "2026-03-01T00:00:00Z",
+      },
     ];
     db.rows.repair_pro_profiles = [
-      { user_id: otherId, bvn_last4: "9999", created_at: "2026-02-01T00:00:00Z" },
+      {
+        user_id: otherId,
+        bvn_last4: "9999",
+        created_at: "2026-02-01T00:00:00Z",
+      },
     ];
     const res = await detectMergeCandidatesForUser(db as never, otherId);
     expect(res.added).toBe(1);
@@ -359,13 +457,25 @@ describe("detectMergeCandidates", () => {
   it("does not re-add a pair that was already handled", async () => {
     const db = baseDb();
     db.rows.motorist_profiles = [
-      { user_id: userId, nin_last4: "7777", created_at: "2026-01-01T00:00:00Z" },
+      {
+        user_id: userId,
+        nin_last4: "7777",
+        created_at: "2026-01-01T00:00:00Z",
+      },
     ];
     db.rows.repair_pro_profiles = [
-      { user_id: otherId, nin_last4: "7777", created_at: "2026-02-01T00:00:00Z" },
+      {
+        user_id: otherId,
+        nin_last4: "7777",
+        created_at: "2026-02-01T00:00:00Z",
+      },
     ];
     db.rows.identity_merges = [
-      { primary_user_id: userId, duplicate_user_id: otherId, status: "rejected" },
+      {
+        primary_user_id: userId,
+        duplicate_user_id: otherId,
+        status: "rejected",
+      },
     ];
     const res = await detectMergeCandidates(db as never);
     expect(res.added).toBe(0);
@@ -375,9 +485,7 @@ describe("detectMergeCandidates", () => {
 describe("mergeIdentities", () => {
   it("moves history to the primary, registers roles, and disables the duplicate", async () => {
     const db = baseDb();
-    db.rows.user_roles = [
-      { user_id: otherId, role_type: "repair_pro" },
-    ];
+    db.rows.user_roles = [{ user_id: otherId, role_type: "repair_pro" }];
     const res = await mergeIdentities(db as never, {
       primaryUserId: userId,
       duplicateUserId: otherId,
@@ -396,10 +504,12 @@ describe("mergeIdentities", () => {
     const dupProfile = db.rows.profiles.find((p) => p.id === otherId);
     expect(dupProfile?.is_active).toBe(false);
     expect(dupProfile?.deleted_at).toBeTruthy();
-    expect(db.rows.user_roles.filter((r) => r.user_id === otherId)).toHaveLength(0);
+    expect(
+      db.rows.user_roles.filter((r) => r.user_id === otherId),
+    ).toHaveLength(0);
     // Merge log written under primary.
     const log = db.rows.identity_sync_log.find(
-      (r) => r.user_id === userId && r.action === "merge_completed"
+      (r) => r.user_id === userId && r.action === "merge_completed",
     );
     expect(log?.result).toBe("ok");
   });
@@ -416,8 +526,18 @@ describe("mergeIdentities", () => {
   it("merges two same-role accounts (customer + customer)", async () => {
     const db = baseDb();
     db.rows.motorist_profiles = [
-      { user_id: userId, vehicle_make: "Toyota", bank_account_number: "1111111111", created_at: "2026-01-01T00:00:00Z" },
-      { user_id: otherId, vehicle_make: null, bank_account_number: "2222222222", created_at: "2026-02-01T00:00:00Z" },
+      {
+        user_id: userId,
+        vehicle_make: "Toyota",
+        bank_account_number: "1111111111",
+        created_at: "2026-01-01T00:00:00Z",
+      },
+      {
+        user_id: otherId,
+        vehicle_make: null,
+        bank_account_number: "2222222222",
+        created_at: "2026-02-01T00:00:00Z",
+      },
     ];
     db.rows.repair_pro_profiles = [];
     const res = await mergeIdentities(db as never, {
@@ -426,12 +546,16 @@ describe("mergeIdentities", () => {
     });
     expect(res.ok).toBe(true);
     // One motorist row remains on the primary, with empty fields filled from dup.
-    const primaryRows = db.rows.motorist_profiles.filter((r) => r.user_id === userId);
+    const primaryRows = db.rows.motorist_profiles.filter(
+      (r) => r.user_id === userId,
+    );
     expect(primaryRows).toHaveLength(1);
     expect(primaryRows[0].vehicle_make).toBe("Toyota");
     expect(primaryRows[0].bank_account_number).toBe("1111111111");
     // Duplicate side-table row removed and profile soft-disabled.
-    expect(db.rows.motorist_profiles.some((r) => r.user_id === otherId)).toBe(false);
+    expect(db.rows.motorist_profiles.some((r) => r.user_id === otherId)).toBe(
+      false,
+    );
     const dup = db.rows.profiles.find((p) => p.id === otherId);
     expect(dup?.is_active).toBe(false);
     expect(dup?.deleted_at).toBeTruthy();
@@ -442,7 +566,9 @@ describe("identityStatus", () => {
   it("reports needs_sync when the role registry is missing a side table", async () => {
     const db = baseDb();
     // Registry has motorist only, but the identity also has a pro side row.
-    db.rows.user_roles = [{ user_id: userId, role_type: "motorist", role_status: "active" }];
+    db.rows.user_roles = [
+      { user_id: userId, role_type: "motorist", role_status: "active" },
+    ];
     db.rows.repair_pro_profiles.push({ user_id: userId });
     const status = await identityStatus(db as never, userId);
     expect(status.hasMotorist).toBe(true);

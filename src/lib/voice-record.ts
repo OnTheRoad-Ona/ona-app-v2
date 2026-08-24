@@ -49,7 +49,9 @@ export function createMediaRecorder(stream: MediaStream): MediaRecorder {
       ? new MediaRecorder(stream, opts)
       : new MediaRecorder(stream, { audioBitsPerSecond: 48_000 });
   } catch {
-    return mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    return mime
+      ? new MediaRecorder(stream, { mimeType: mime })
+      : new MediaRecorder(stream);
   }
 }
 
@@ -76,7 +78,7 @@ export function extForMime(mime: string): string {
  */
 export function waitRecorderStart(
   rec: MediaRecorder,
-  timeoutMs = 800
+  timeoutMs = 800,
 ): Promise<void> {
   if (rec.state === "recording") return Promise.resolve();
   return new Promise((resolve) => {

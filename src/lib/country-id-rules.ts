@@ -53,7 +53,7 @@ function nameForIso(iso: string): string {
   }
 }
 
-/** Shared driver’s licence factory — rules vary by country */
+/** Shared driver’s licence factory rules vary by country */
 function driversLicence(opts: {
   minLen: number;
   maxLen: number;
@@ -518,9 +518,7 @@ export function applyPhotoSideRules(doc: CountryIdDoc): CountryIdDoc {
       ...doc,
       needsFront: true,
       needsBack: false,
-      hint:
-        doc.hint ||
-        "Photo of the main page with your picture and number.",
+      hint: doc.hint || "Photo of the main page with your picture and number.",
     };
   }
   if (doc.kind === "national_id") {
@@ -530,12 +528,12 @@ export function applyPhotoSideRules(doc: CountryIdDoc): CountryIdDoc {
       ...doc,
       needsFront: true,
       needsBack: false,
-      hint: (doc.hint || doc.label)
-        .replace(/\s*[Ff]ront and back photos?\.?/g, "")
-        .replace(/\s*[Pp]hotos of front and back\.?/g, "")
-        .trim()
-        .replace(/\.$/, "")
-        + ". Front photo only.",
+      hint:
+        (doc.hint || doc.label)
+          .replace(/\s*[Ff]ront and back photos?\.?/g, "")
+          .replace(/\s*[Pp]hotos of front and back\.?/g, "")
+          .trim()
+          .replace(/\.$/, "") + ". Front photo only.",
     };
   }
   return doc;
@@ -567,7 +565,7 @@ export function getCountryIdPack(iso: string): CountryIdPack {
 
 export function getDoc(
   pack: CountryIdPack,
-  kind: IdDocKind
+  kind: IdDocKind,
 ): CountryIdDoc | undefined {
   return pack.docs.find((d) => d.kind === kind);
 }
@@ -595,13 +593,11 @@ export function filterIdInput(raw: string, doc: CountryIdDoc): string {
   return v.slice(0, doc.maxLen);
 }
 
-export type IdFormatResult =
-  | { ok: true }
-  | { ok: false; message: string };
+export type IdFormatResult = { ok: true } | { ok: false; message: string };
 
 export function validateIdFormat(
   value: string,
-  doc: CountryIdDoc
+  doc: CountryIdDoc,
 ): IdFormatResult {
   const v = value.trim();
   if (!v) {

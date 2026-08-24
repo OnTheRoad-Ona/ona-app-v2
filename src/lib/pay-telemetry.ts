@@ -24,7 +24,7 @@ export type PayGate =
 
 export async function logPayGate(
   gate: PayGate,
-  detail?: Record<string, unknown>
+  detail?: Record<string, unknown>,
 ): Promise<void> {
   const metadata: Record<string, unknown> = {
     gate,

@@ -30,17 +30,19 @@ describe("need-help talk box cards", () => {
 
   it("uses a hint that matches the tapped trade", () => {
     expect(problemPlaceholderForTrade("mechanic").toLowerCase()).toMatch(
-      /engine|car|bonnet/
+      /engine|car|bonnet/,
     );
     expect(problemPlaceholderForTrade("vulcanizer").toLowerCase()).toMatch(
-      /tyre|tire/
+      /tyre|tire/,
     );
     expect(problemPlaceholderForTrade("plumber").toLowerCase()).toMatch(
-      /pipe|water/
+      /pipe|water/,
     );
     expect(problemPlaceholderForTrade("fashion").toLowerCase()).toMatch(
-      /dress|tailor|fitting/
+      /dress|tailor|fitting/,
     );
-    expect(problemPlaceholderForTrade("plumber")).not.toMatch(/car won’t start/i);
+    expect(problemPlaceholderForTrade("plumber")).not.toMatch(
+      /car won’t start/i,
+    );
   });
 });

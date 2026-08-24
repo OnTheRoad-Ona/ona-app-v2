@@ -70,11 +70,10 @@ function typeLabel(key: string): string {
  */
 export function groupNotifications(
   list: AppNotification[],
-  now: Date = new Date()
+  now: Date = new Date(),
 ): (AppNotification | NotificationGroup)[] {
   const sorted = [...list].sort(
-    (a, b) =>
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
 
   const stackable: AppNotification[] = [];
@@ -101,13 +100,13 @@ export function groupNotifications(
     const bItems = buckets.get(b)!;
     const aMaxPrio = Math.max(
       ...aItems.map((i) =>
-        i.priority === "critical" ? 3 : i.priority === "high" ? 2 : 1
-      )
+        i.priority === "critical" ? 3 : i.priority === "high" ? 2 : 1,
+      ),
     );
     const bMaxPrio = Math.max(
       ...bItems.map((i) =>
-        i.priority === "critical" ? 3 : i.priority === "high" ? 2 : 1
-      )
+        i.priority === "critical" ? 3 : i.priority === "high" ? 2 : 1,
+      ),
     );
     const aAt = new Date(aItems[0].createdAt).getTime();
     const bAt = new Date(bItems[0].createdAt).getTime();
@@ -134,15 +133,14 @@ export function groupNotifications(
   // nonStack already newest-first from `sorted` iteration order
   // (we pushed in sorted order). Re-sort to be explicit.
   const fullRows = [...nonStack].sort(
-    (a, b) =>
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
 
   return [...stackedSection, ...fullRows];
 }
 
 export function isGroup(
-  x: AppNotification | NotificationGroup
+  x: AppNotification | NotificationGroup,
 ): x is NotificationGroup {
   return "items" in x && Array.isArray((x as NotificationGroup).items);
 }

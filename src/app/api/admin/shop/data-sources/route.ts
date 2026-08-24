@@ -3,7 +3,10 @@ import { AdminAuthError, requirePermission } from "@/lib/server/admin-auth";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { createServiceSupabase } from "@/lib/supabase/server";
-import { listDataSources, listImportJobs } from "@/lib/server/shop/data-sources";
+import {
+  listDataSources,
+  listImportJobs,
+} from "@/lib/server/shop/data-sources";
 import { loadConnector } from "@/lib/server/shop/connectors/types";
 import { NhtsaVpicConnector } from "@/lib/server/shop/connectors/nhtsa";
 import { DemoCatalogConnector } from "@/lib/server/shop/connectors/demo";
@@ -19,7 +22,11 @@ const REGISTRY = {
 
 export async function GET() {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     await requirePermission("shop_catalog");
@@ -30,7 +37,8 @@ export async function GET() {
     ]);
     return apiOk({ sources, jobs });
   } catch (e) {
-    if (e instanceof AdminAuthError) return apiFail(e.message, e.status, "admin_auth");
+    if (e instanceof AdminAuthError)
+      return apiFail(e.message, e.status, "admin_auth");
     const msg = e instanceof Error ? e.message : "Failed";
     return apiFail(msg, 500);
   }
@@ -42,7 +50,11 @@ export async function GET() {
  */
 export async function POST(req: NextRequest) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     const ctx = await requirePermission("shop_catalog");
@@ -54,7 +66,8 @@ export async function POST(req: NextRequest) {
     if (!code) return apiFail("connector code required", 400);
 
     const connector = await loadConnector(code, REGISTRY);
-    if (!connector) return apiFail(`Unknown connector: ${code}`, 404, "UNKNOWN_CONNECTOR");
+    if (!connector)
+      return apiFail(`Unknown connector: ${code}`, 404, "UNKNOWN_CONNECTOR");
 
     const sb = createServiceSupabase();
     const { data: source } = await sb
@@ -82,7 +95,8 @@ export async function POST(req: NextRequest) {
 
     return apiOk(result, { status: 201 });
   } catch (e) {
-    if (e instanceof AdminAuthError) return apiFail(e.message, e.status, "admin_auth");
+    if (e instanceof AdminAuthError)
+      return apiFail(e.message, e.status, "admin_auth");
     const msg = e instanceof Error ? e.message : "Import failed";
     return apiFail(msg, 500);
   }

@@ -6,10 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ProOwnProfile } from "@/components/profile/pro-own-profile";
 import { ProPublicView } from "@/components/profile/pro-public-view";
-import {
-  proCtaKind,
-  proCtaLabel,
-} from "@/lib/jobs/motorist-pro-cta";
+import { proCtaKind, proCtaLabel } from "@/lib/jobs/motorist-pro-cta";
 import { useMotoristJobsByPro } from "@/lib/jobs/use-motorist-jobs-by-pro";
 import type { ProfileReview } from "@/lib/profile-system";
 import { useApp } from "@/lib/store";
@@ -27,31 +24,21 @@ export default function TechnicianPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
-  const {
-    technicians,
-    setSelectedTechId,
-    theme,
-    location,
-    accountType,
-  } = useApp();
+  const { technicians, setSelectedTechId, theme, location, accountType } =
+    useApp();
   const fromStore = technicians.find((t) => t.id === id) || null;
   const [tech, setTech] = useState<Technician | null>(fromStore);
   const [reviews, setReviews] = useState<ProfileReview[]>([]);
   const [loading, setLoading] = useState(!fromStore);
   const [error, setError] = useState<string | null>(null);
   const isLight = theme === "light";
-  const isOwnPro =
-    id === "pro-self" && accountType === "professional";
+  const isOwnPro = id === "pro-self" && accountType === "professional";
   const { byPro: jobsByPro } = useMotoristJobsByPro();
-  const activeJob = tech ? jobsByPro[tech.id] ?? null : null;
+  const activeJob = tech ? (jobsByPro[tech.id] ?? null) : null;
   const cta = proCtaKind(activeJob);
 
   const applyReviewMeta = useCallback(
-    (
-      list: ProfileReview[],
-      ratingAvg?: number,
-      ratingCount?: number
-    ) => {
+    (list: ProfileReview[], ratingAvg?: number, ratingCount?: number) => {
       setReviews(list);
       setTech((prev) => {
         if (!prev) return prev;
@@ -68,7 +55,7 @@ export default function TechnicianPage({
         };
       });
     },
-    []
+    [],
   );
 
   const loadReviews = useCallback(async () => {
@@ -83,7 +70,7 @@ export default function TechnicianPage({
       applyReviewMeta(
         list,
         Number(json.data?.ratingAvg),
-        Number(json.data?.ratingCount)
+        Number(json.data?.ratingCount),
       );
     } catch {
       /* keep last known */
@@ -103,7 +90,7 @@ export default function TechnicianPage({
     setError(null);
     const lat = location?.coordinates?.lat;
     const lng = location?.coordinates?.lng;
-    // Prefer live GPS only — no hardcoded Ikeja/mainland fallback
+    // Prefer live GPS only no hardcoded Ikeja/mainland fallback
     const qs = new URLSearchParams();
     if (typeof lat === "number" && Number.isFinite(lat)) {
       qs.set("lat", String(lat));
@@ -135,7 +122,7 @@ export default function TechnicianPage({
         applyReviewMeta(
           list,
           Number(json.data.ratingAvg ?? t.rating),
-          Number(json.data.ratingCount ?? t.reviewCount)
+          Number(json.data.ratingCount ?? t.reviewCount),
         );
         setLoading(false);
       } catch {
@@ -162,7 +149,7 @@ export default function TechnicianPage({
     loadReviews,
   ]);
 
-  // Reviews: load once + when tab becomes visible (no 4s poll — data saver)
+  // Reviews: load once + when tab becomes visible (no 4s poll data saver)
   useEffect(() => {
     if (isOwnPro || !id || id === "pro-self") return;
     void loadReviews();
@@ -214,8 +201,8 @@ export default function TechnicianPage({
               : "max-w-xs text-center text-[12px] text-white/60"
           }
         >
-          This Repair Pro is Away, switched to Customer, unapproved, or the
-          link is outdated. Only Live pros are available.
+          This Repair Pro is Away, switched to Customer, unapproved, or the link
+          is outdated. Only Live pros are available.
         </p>
         <Button asChild>
           <Link href="/">Back home</Link>
@@ -233,7 +220,7 @@ export default function TechnicianPage({
       ctaLabel={proCtaLabel(cta, true)}
       onRequest={() => {
         if (cta === "open" && activeJob?.id) {
-          // Re-open live job (pay / booked / trip) — not a new request
+          // Re-open live job (pay / booked / trip) not a new request
           router.push(`/jobs/${activeJob.id}`);
           return;
         }

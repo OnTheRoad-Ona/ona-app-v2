@@ -13,7 +13,7 @@ import {
 
 export async function authHeaders(
   extra?: Record<string, string>,
-  opts?: { waitForSessionMs?: number; forceRefresh?: boolean }
+  opts?: { waitForSessionMs?: number; forceRefresh?: boolean },
 ): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -30,7 +30,7 @@ export async function authHeaders(
       headers["x-access-token"] = session.accessToken;
     }
   } catch {
-    /* unauthenticated — server returns 401 */
+    /* unauthenticated server returns 401 */
   }
   return headers;
 }
@@ -38,7 +38,7 @@ export async function authHeaders(
 /** Auth headers without forcing Content-Type (GET/DELETE). */
 export async function authHeadersGet(
   extra?: Record<string, string>,
-  opts?: { waitForSessionMs?: number; forceRefresh?: boolean }
+  opts?: { waitForSessionMs?: number; forceRefresh?: boolean },
 ): Promise<Record<string, string>> {
   const h = await authHeaders(extra, opts);
   return h;
@@ -47,11 +47,10 @@ export async function authHeadersGet(
 /** Convenience: fetch with session Bearer attached + one 401 retry. */
 export async function authFetch(
   input: RequestInfo | URL,
-  init: RequestInit = {}
+  init: RequestInit = {},
 ): Promise<Response> {
   const method = (init.method || "GET").toUpperCase();
-  const isGet =
-    method === "GET" || method === "HEAD" || method === "DELETE";
+  const isGet = method === "GET" || method === "HEAD" || method === "DELETE";
 
   const buildHeaders = async (forceRefresh?: boolean) => {
     const base = isGet

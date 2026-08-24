@@ -28,11 +28,15 @@ export default function AdminDeletionRequestsPage() {
       const res = await fetch("/api/admin/deletion-requests");
       const json = await res.json();
       if (json.ok) setRequests(json.data.requests ?? []);
-    } catch { /* */ }
+    } catch {
+      /* */
+    }
     setLoading(false);
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const act = async (userId: string, action: "force_delete" | "restore") => {
     setActioning(userId);
@@ -44,7 +48,9 @@ export default function AdminDeletionRequestsPage() {
       });
       const json = await res.json();
       if (json.ok) void load();
-    } catch { /* */ }
+    } catch {
+      /* */
+    }
     setActioning(null);
   };
 
@@ -65,7 +71,9 @@ export default function AdminDeletionRequestsPage() {
         {loading ? (
           <p className="text-white/50">Loading...</p>
         ) : requests.length === 0 ? (
-          <p className="text-white/50">No pending or restored deletion requests.</p>
+          <p className="text-white/50">
+            No pending or restored deletion requests.
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -82,7 +90,7 @@ export default function AdminDeletionRequestsPage() {
               <tbody>
                 {requests.map((r) => (
                   <tr key={r.id} className="border-b border-white/5">
-                    <td className="py-3 pr-4">{r.full_name || "—"}</td>
+                    <td className="py-3 pr-4">{r.full_name || ""}</td>
                     <td className="py-3 pr-4 text-white/70">{r.email}</td>
                     <td className="py-3 pr-4">
                       <span
@@ -90,7 +98,7 @@ export default function AdminDeletionRequestsPage() {
                           "inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold",
                           r.deletion_status === "pending_deletion"
                             ? "bg-red-500/20 text-red-400"
-                            : "bg-emerald-500/20 text-emerald-400"
+                            : "bg-emerald-500/20 text-emerald-400",
                         )}
                       >
                         {r.deletion_status === "pending_deletion"
@@ -101,12 +109,12 @@ export default function AdminDeletionRequestsPage() {
                     <td className="py-3 pr-4">
                       {r.deletion_status === "pending_deletion"
                         ? `${daysLeft(r.deletion_scheduled_at)}d`
-                        : "—"}
+                        : ""}
                     </td>
                     <td className="py-3 pr-4 text-white/50 text-[12px]">
                       {r.deletion_scheduled_at
                         ? new Date(r.deletion_scheduled_at).toLocaleDateString()
-                        : "—"}
+                        : ""}
                     </td>
                     <td className="py-3">
                       {r.deletion_status === "pending_deletion" && (

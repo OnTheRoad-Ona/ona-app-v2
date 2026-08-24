@@ -89,10 +89,12 @@ export const FR: MessageDict = {
   "settings.darkMode": "Mode sombre",
   "settings.lightMode": "Mode clair",
   "settings.themeSaved": "Enregistré pour {name}",
-  "settings.themeDevice": "Préférence de l'appareil · connectez-vous pour enregistrer par compte",
+  "settings.themeDevice":
+    "Préférence de l'appareil · connectez-vous pour enregistrer par compte",
   "settings.alerts": "Alertes",
   "settings.notificationsSound": "Notifications et son",
-  "settings.notificationsDetail": "Push, SMS, e-mail, heures calmes, sons de l'app",
+  "settings.notificationsDetail":
+    "Push, SMS, e-mail, heures calmes, sons de l'app",
   "settings.discovery": "Découverte (carte et liste)",
   "settings.searchRadius": "Rayon de recherche",
   "settings.radiusHelp": "Max {max} km · s'applique à la carte et à la liste",
@@ -104,7 +106,8 @@ export const FR: MessageDict = {
   "settings.profilePro": "Profil Repair Pro, documents, tarifs",
   "settings.profileMotorist": "Profil client, véhicules, identité",
   "settings.artisanTiers": "Vérification",
-  "settings.artisanTiersDetail": "Téléphone, pièce d'identité, BVN, visage, preuve de compétence",
+  "settings.artisanTiersDetail":
+    "Téléphone, pièce d'identité, BVN, visage, preuve de compétence",
   "settings.help": "Aide",
   "settings.helpDetail": "Comment Ona fonctionne",
   "settings.language": "Langue",
@@ -112,7 +115,8 @@ export const FR: MessageDict = {
   "settings.aboutDetail": "Version 0.1 · aide à proximité",
   "language.title": "Langue",
   "language.subtitle": "Langue d'affichage de l'app",
-  "language.hint": "Choisissez la langue des menus et des boutons. L'anglais est la langue par défaut.",
+  "language.hint":
+    "Choisissez la langue des menus et des boutons. L'anglais est la langue par défaut.",
   "language.saved": "Langue mise à jour",
   "language.current": "Actuelle",
   "notif.title": "Notifications et son",
@@ -132,7 +136,8 @@ export const FR: MessageDict = {
   "notif.savePrefs": "Enregistrer les préférences",
   "notif.saved": "Enregistré",
   "notif.saving": "Enregistrement…",
-  "notif.savedDevice": "Enregistré sur cet appareil. Synchronisation serveur bientôt.",
+  "notif.savedDevice":
+    "Enregistré sur cet appareil. Synchronisation serveur bientôt.",
   "notif.jobsRequests": "Travaux et demandes",
   "notif.jobsRequestsDetail": "Nouveaux jobs, en route, arrivé, terminé",
   "notif.messages": "Messages",
@@ -149,11 +154,13 @@ export const FR: MessageDict = {
   "notif.emailDetail": "Résumés et reçus",
   "location.title": "Ma position",
   "location.subtitle": "Indiquez où vous êtes",
-  "location.hint": "Cherchez un lieu ou déplacez l'épingle. Utilisé pour la carte d'accueil et les pros proches.",
+  "location.hint":
+    "Cherchez un lieu ou déplacez l'épingle. Utilisé pour la carte d'accueil et les pros proches.",
   "location.saved": "Position enregistrée",
   "location.myLocationBtn": "Ma position",
   "location.tapMap": "Touchez la carte ou glissez l'épingle",
-  "location.searchPlaceholder": "Rechercher un lieu, une rue ou une entreprise…",
+  "location.searchPlaceholder":
+    "Rechercher un lieu, une rue ou une entreprise…",
   "location.updating": "Mise à jour de l'adresse…",
   "map.loading": "Chargement de la carte…",
   "map.nearbyCount": "{count} à proximité",
@@ -208,7 +215,8 @@ export const FR: MessageDict = {
   "trade.solar": "Solaire",
   "trade.generator": "Groupe",
   "trade.all": "Tous",
-  "gate.finishBeforeLive": "Terminez la vérification et envoyez pour examen avant de passer Live.",
+  "gate.finishBeforeLive":
+    "Terminez la vérification et envoyez pour examen avant de passer Live.",
   "gate.continueVerification": "Continuer la vérification",
   "gate.viewStatus": "Voir le statut",
   "status.draft": "Brouillon",
@@ -258,7 +266,8 @@ export const FR: MessageDict = {
   "profile.reviews": "Avis",
   "profile.rating": "Note",
   "verify.title": "Vérifiez votre identité",
-  "verify.subtitle": "Essai gratuit jusqu'au job {warn}. Terminez avant le job {block} pour continuer à réserver.",
+  "verify.subtitle":
+    "Essai gratuit jusqu'au job {warn}. Terminez avant le job {block} pour continuer à réserver.",
   "verify.howTitle": "Comment fonctionne la vérification",
   "verify.countryFromPhone": "Pays : {country} (d'après votre numéro)",
   "verify.requiredFor": "Obligatoire pour {country}",
@@ -282,7 +291,8 @@ export const FR: MessageDict = {
   "signup.failed": "Échec de l'inscription",
   "signup.tryAgain": "Réessayer",
   "signup.allSet": "Tout est prêt",
-  "signup.accountReady": "Votre compte {role} est prêt. Vous pouvez utiliser Ona.",
+  "signup.accountReady":
+    "Votre compte {role} est prêt. Vous pouvez utiliser Ona.",
   "dashboard.title": "Tableau de bord",
   "dashboard.incoming": "Jobs entrants",
   "dashboard.recent": "Récents",
@@ -291,7 +301,8 @@ export const FR: MessageDict = {
   "gate.verifySoon": "Vérifiez bientôt pour garder l'accès complet",
   "gate.verifyNow": "Vérifiez votre pièce d'identité",
   "gate.required": "Vérification requise",
-  "gate.exploreFree": "Vous avez exploré librement. Vérifiez votre identité une fois pour réserver sans limite.",
+  "gate.exploreFree":
+    "Vous avez exploré librement. Vérifiez votre identité une fois pour réserver sans limite.",
   "menu.settings": "Paramètres",
   "menu.help": "Aide",
   "menu.switchRole": "Changer de rôle",
@@ -312,7 +323,8 @@ export const FR: MessageDict = {
   "menu.logIn": "Connexion",
   "menu.needLogin": "Connectez-vous pour basculer entre Client et Repair Pro.",
   "menu.noMotorist": "Vous n'avez pas encore de compte Client.",
-  "menu.noPro": "Vous n'avez pas encore de compte Repair Pro. Terminez l'inscription pour passer Live et recevoir des jobs.",
+  "menu.noPro":
+    "Vous n'avez pas encore de compte Repair Pro. Terminez l'inscription pour passer Live et recevoir des jobs.",
   "menu.couldNotSwitch": "Impossible de basculer.",
   "menu.tapToClose": "Appuyer pour fermer",
   "menu.signedInAs": "Connecté en tant que {name}",
@@ -346,11 +358,13 @@ export const FR: MessageDict = {
   "settings.hub.addressesDetail": "Home, Work, service area & pin",
   "settings.dangerZone": "Zone de danger",
   "settings.deleteAccount": "Supprimer le compte",
-  "settings.deleteAccountDetail": "Désactiver définitivement — irréversible",
+  "settings.deleteAccountDetail": "Désactiver définitivement irréversible",
   "settings.theme.tap": "Appuyer",
   "search.noResultsFor": "Aucun résultat pour « {q} »",
-  "search.tryAnother": "Ce pro, métier ou lieu n'est pas disponible à proximité. Essayez une autre recherche.",
-  "search.tryBrowse": "Essayez un nom, un métier ou un lieu — ou ouvrez l'accueil.",
+  "search.tryAnother":
+    "Ce pro, métier ou lieu n'est pas disponible à proximité. Essayez une autre recherche.",
+  "search.tryBrowse":
+    "Essayez un nom, un métier ou un lieu ou ouvrez l'accueil.",
   "search.noMatchesNearby": "Aucune correspondance à proximité",
   "search.backHome": "Retour à l'accueil",
   "search.withinKm": "Dans un rayon de {km} km · {count} résultat",
@@ -359,12 +373,14 @@ export const FR: MessageDict = {
   "search.placeholder": "Rechercher problème, technicien, service…",
   "search.title": "Recherche",
   "search.subtitle": "Travailleurs qualifiés à proximité",
-  "home.searchNoResults": "Aucun résultat pour « {q} ». Essayez un autre nom, métier ou lieu.",
+  "home.searchNoResults":
+    "Aucun résultat pour « {q} ». Essayez un autre nom, métier ou lieu.",
   "common.customer": "Client",
   "common.repairPro": "Repair Pro",
   "common.codeSent": "Code envoyé. Saisissez-le ci-dessous.",
   "nav.shop": "Shop",
   "nav.myShop": "My Shop",
+  "nav.onaExpress": "Ona Express",
   "trade.shop": "Shop",
   "shop.title": "Shop",
   "shop.searchPlaceholder": "What are you looking for?",
@@ -372,6 +388,6 @@ export const FR: MessageDict = {
   "shop.popular": "Popular",
   "shop.newArrivals": "New arrivals",
   "shop.empty": "No products yet. Catalog is loading.",
-  "shop.setupRequired": "Shop is almost ready — catalog database will appear after setup.",
+  "shop.setupRequired":
+    "Shop is almost ready catalog database will appear after setup.",
 };
-

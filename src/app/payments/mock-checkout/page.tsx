@@ -19,12 +19,13 @@ function MockInner() {
   const amount = Number(params.get("amount") || 0);
   const currency = (params.get("currency") || "NGN") as AppCurrency;
   const jobId = params.get("jobId") || params.get("job") || "";
-  const isShop = params.get("kind") === "ona_shop" || Boolean(params.get("orderId"));
+  const isShop =
+    params.get("kind") === "ona_shop" || Boolean(params.get("orderId"));
   const orderId = params.get("orderId") || "";
   const [cancelOpen, setCancelOpen] = useState(false);
 
   const pay = async () => {
-    // Works in-app (iframe) or full page — promote to Ona shell after verify
+    // Works in-app (iframe) or full page promote to Ona shell after verify
     if (isShop) {
       await fetch("/api/shop/payments/verify", {
         method: "POST",
@@ -60,13 +61,13 @@ function MockInner() {
     <div
       className={cn(
         "relative flex h-full flex-col justify-center gap-4 px-5",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <h1
         className={cn(
           "text-[18px] font-black",
-          isLight ? "text-slate-900" : "text-white"
+          isLight ? "text-slate-900" : "text-white",
         )}
       >
         Mock secure checkout
@@ -74,12 +75,12 @@ function MockInner() {
       <p
         className={cn(
           "text-[12px]",
-          isLight ? "text-slate-600" : "text-white/60"
+          isLight ? "text-slate-600" : "text-white/60",
         )}
       >
         {isShop
-          ? "Bank transfer only (simulated). Spare parts purchase — funds paid to Ona on order confirm."
-          : "Bank transfer only (simulated). Labour fee only — no spare parts. Funds held in escrow."}
+          ? "Bank transfer only (simulated). Spare parts purchase funds paid to Ona on order confirm."
+          : "Bank transfer only (simulated). Labour fee only no spare parts. Funds held in escrow."}
       </p>
       <p className="text-[22px] font-black text-brand">
         {formatMoneyMinor(amount, currency)}
@@ -97,7 +98,7 @@ function MockInner() {
         onClick={() => setCancelOpen(true)}
         className={cn(
           "rounded-xl border-0 py-3 text-[13px] font-bold",
-          isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white"
+          isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white",
         )}
       >
         Cancel
@@ -108,39 +109,35 @@ function MockInner() {
           <div
             className={cn(
               "w-full max-w-md overflow-hidden rounded-2xl",
-              isLight ? "bg-white" : "bg-[#1c1c1e]"
+              isLight ? "bg-white" : "bg-[#1c1c1e]",
             )}
           >
             <p
               className={cn(
                 "px-4 pt-4 text-center text-[15px] font-black",
-                isLight ? "text-slate-900" : "text-white"
+                isLight ? "text-slate-900" : "text-white",
               )}
             >
               Cancel
             </p>
             <button
               type="button"
-              onClick={() =>
-                router.push(jobId ? `/jobs/${jobId}` : "/jobs")
-              }
+              onClick={() => router.push(jobId ? `/jobs/${jobId}` : "/jobs")}
               className={cn(
                 "mt-2 flex h-12 w-full items-center justify-center border-0 border-t text-[14px] font-bold",
                 isLight
                   ? "border-black/10 text-slate-900"
-                  : "border-white/10 text-white"
+                  : "border-white/10 text-white",
               )}
             >
               Cancel payment
             </button>
             <button
               type="button"
-              onClick={() =>
-                router.push(jobId ? `/jobs/${jobId}` : "/jobs")
-              }
+              onClick={() => router.push(jobId ? `/jobs/${jobId}` : "/jobs")}
               className={cn(
                 "flex h-12 w-full items-center justify-center border-0 border-t text-[14px] font-bold text-red-500",
-                isLight ? "border-black/10" : "border-white/10"
+                isLight ? "border-black/10" : "border-white/10",
               )}
             >
               Cancel request
@@ -152,7 +149,7 @@ function MockInner() {
                 "flex h-11 w-full items-center justify-center border-0 border-t text-[13px] font-semibold",
                 isLight
                   ? "border-black/10 text-slate-500"
-                  : "border-white/10 text-white/50"
+                  : "border-white/10 text-white/50",
               )}
             >
               Keep paying

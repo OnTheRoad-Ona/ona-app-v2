@@ -31,9 +31,7 @@ describe("canAutoShowToast", () => {
       allow: true,
       reason: "new_wave",
     });
-    expect(
-      canAutoShowToast(start, start + TOAST_AUTO_THROTTLE_MS)
-    ).toEqual({
+    expect(canAutoShowToast(start, start + TOAST_AUTO_THROTTLE_MS)).toEqual({
       allow: true,
       reason: "new_wave",
     });

@@ -9,7 +9,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArtisanOnboarding } from "@/components/artisan/artisan-onboarding";
-import { getArtisanProfile, saveArtisanProfile } from "@/lib/artisan/local-store";
+import {
+  getArtisanProfile,
+  saveArtisanProfile,
+} from "@/lib/artisan/local-store";
 import {
   applyCustomerTiersToArtisan,
   canAutoExpandProSetup,
@@ -65,7 +68,10 @@ export function ProOnboardingSheet() {
     const sync = () => setMenuOpen(phone.dataset.menuOpen === "true");
     sync();
     const obs = new MutationObserver(sync);
-    obs.observe(phone, { attributes: true, attributeFilter: ["data-menu-open"] });
+    obs.observe(phone, {
+      attributes: true,
+      attributeFilter: ["data-menu-open"],
+    });
     return () => obs.disconnect();
   }, []);
 
@@ -87,9 +93,7 @@ export function ProOnboardingSheet() {
   const recheckDone = useCallback(() => {
     if (!backendUserId) return;
     const art = getArtisanProfile(backendUserId);
-    const merged = art
-      ? applyCustomerTiersToArtisan(art, userProfile)
-      : null;
+    const merged = art ? applyCustomerTiersToArtisan(art, userProfile) : null;
     if (isProSwitchMandatoryOnboardingDone(userProfile, merged)) {
       setProOnboardingSheetRequired(false);
     }
@@ -102,7 +106,7 @@ export function ProOnboardingSheet() {
     return () => window.clearInterval(t);
   }, [open, recheckDone, tick]);
 
-  // User tapped Continue Verification / Settings — always expand (not throttled)
+  // User tapped Continue Verification / Settings always expand (not throttled)
   useEffect(() => {
     const onExpand = () => {
       setExpanded(true);
@@ -161,8 +165,9 @@ export function ProOnboardingSheet() {
       const el = bodyScrollRef.current;
       // Allow body scroll when not at top; collapse only from top / grabber
       const fromGrabber =
-        (e.target as HTMLElement | null)?.closest?.("[data-pro-sheet-grabber]") !=
-        null;
+        (e.target as HTMLElement | null)?.closest?.(
+          "[data-pro-sheet-grabber]",
+        ) != null;
       if (!fromGrabber && el && el.scrollTop > 4) return;
       onCollapse();
       gestureY.current = null;
@@ -200,7 +205,7 @@ export function ProOnboardingSheet() {
       <div
         className={cn(
           "om-sheet-spring pointer-events-auto relative flex w-full flex-col overflow-hidden",
-          isLight ? "bg-[#c8c9cd]" : "bg-black"
+          isLight ? "bg-[#c8c9cd]" : "bg-black",
         )}
         style={{
           height: expanded ? `${EXPANDED_H_PCT}%` : COLLAPSED_H,
@@ -218,7 +223,7 @@ export function ProOnboardingSheet() {
         onTouchEnd={onTouchEnd}
         onTouchCancel={onTouchEnd}
       >
-        {/* Grabber — customer-style pill */}
+        {/* Grabber customer-style pill */}
         <div
           data-pro-sheet-grabber
           role="button"
@@ -244,7 +249,7 @@ export function ProOnboardingSheet() {
           }}
           className={cn(
             "flex w-full shrink-0 cursor-grab flex-col items-center active:cursor-grabbing",
-            expanded ? "px-3 pb-1 pt-2.5" : "h-full justify-center px-3 py-0"
+            expanded ? "px-3 pb-1 pt-2.5" : "h-full justify-center px-3 py-0",
           )}
           style={{ touchAction: "pan-y" }}
         >
@@ -254,14 +259,14 @@ export function ProOnboardingSheet() {
               expanded ? "mb-1.5 h-1.5 w-11" : "h-1 w-12",
               isLight
                 ? "bg-[#6b7280] shadow-sm ring-1 ring-black/10"
-                : "bg-white/40"
+                : "bg-white/40",
             )}
           />
           {expanded ? (
             <span
               className={cn(
                 "w-full text-left text-[13px] font-bold leading-tight",
-                isLight ? "text-slate-900" : "text-white"
+                isLight ? "text-slate-900" : "text-white",
               )}
             >
               {title}

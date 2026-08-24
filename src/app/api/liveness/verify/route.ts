@@ -48,7 +48,7 @@ export async function POST(req: Request) {
     return apiOk({
       recorded: false,
       reason: "no_db",
-      message: "Database not configured — client keeps local pass",
+      message: "Database not configured client keeps local pass",
     });
   }
 
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   if (!existing) {
-    // Not a pro profile — still accept report without failing the client UX
+    // Not a pro profile still accept report without failing the client UX
     return apiOk({
       recorded: false,
       reason: "not_pro",
@@ -86,9 +86,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { recomputeProVisibility } = await import(
-      "@/lib/server/pro-visibility"
-    );
+    const { recomputeProVisibility } =
+      await import("@/lib/server/pro-visibility");
     await recomputeProVisibility(supabase, userId);
   } catch {
     /* non-fatal */

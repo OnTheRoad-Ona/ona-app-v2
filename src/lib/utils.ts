@@ -8,7 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 /** First token of a full name (e.g. "Oluwatosin Temitope" → "Oluwatosin") */
 export function firstNameOnly(
   full: string | null | undefined,
-  fallback = "Customer"
+  fallback = "Customer",
 ): string {
   const t = String(full || "").trim();
   if (!t) return fallback;

@@ -39,7 +39,7 @@ type LogEntry = {
 
 export async function logIdentitySync(
   supabase: Db,
-  entry: LogEntry
+  entry: LogEntry,
 ): Promise<void> {
   try {
     await supabase.from("identity_sync_log").insert({
@@ -70,7 +70,7 @@ function errorMessage(e: unknown): string {
 /** List role types attached to a user (from user_roles registry). */
 export async function listUserRoles(
   supabase: Db,
-  userId: string
+  userId: string,
 ): Promise<RoleType[]> {
   const { data, error } = await supabase
     .from("user_roles")
@@ -85,13 +85,13 @@ export async function listUserRoles(
 
 /**
  * Idempotently register a role on an identity (creates the user_roles row).
- * Does not invent a side-table row — callers create role data themselves.
+ * Does not invent a side-table row callers create role data themselves.
  */
 export async function ensureUserRole(
   supabase: Db,
   userId: string,
   roleType: RoleType,
-  actor?: SyncActor
+  actor?: SyncActor,
 ): Promise<{ ok: boolean; created: boolean; error?: string }> {
   try {
     const { data, error } = await supabase
@@ -124,13 +124,13 @@ export async function ensureUserRole(
 /**
  * Canonical bank sync. Reads the best bank details from either side table,
  * writes one `payout_methods` record per user, and copies the details to the
- * other role's side table when it is missing them — so a bank entered once is
+ * other role's side table when it is missing them so a bank entered once is
  * reused for both payouts (pro) and refunds (customer) without re-entry.
  */
 export async function syncPayoutAcrossRoles(
   supabase: Db,
   userId: string,
-  actor?: SyncActor
+  actor?: SyncActor,
 ): Promise<{
   ok: boolean;
   error?: string;
@@ -142,14 +142,14 @@ export async function syncPayoutAcrossRoles(
       supabase
         .from("motorist_profiles")
         .select(
-          "user_id, bank_name, bank_code, bank_account_name, bank_account_number, updated_at"
+          "user_id, bank_name, bank_code, bank_account_name, bank_account_number, updated_at",
         )
         .eq("user_id", userId)
         .maybeSingle(),
       supabase
         .from("repair_pro_profiles")
         .select(
-          "user_id, bank_name, bank_code, bank_account_name, bank_account_number, updated_at"
+          "user_id, bank_name, bank_code, bank_account_name, bank_account_number, updated_at",
         )
         .eq("user_id", userId)
         .maybeSingle(),
@@ -158,13 +158,16 @@ export async function syncPayoutAcrossRoles(
       return { ok: false, error: "Could not read bank details" };
     }
 
-    type BankRow = {
-      bank_name?: string | null;
-      bank_code?: string | null;
-      bank_account_name?: string | null;
-      bank_account_number?: string | null;
-      updated_at?: string | null;
-    } | null | undefined;
+    type BankRow =
+      | {
+          bank_name?: string | null;
+          bank_code?: string | null;
+          bank_account_name?: string | null;
+          bank_account_number?: string | null;
+          updated_at?: string | null;
+        }
+      | null
+      | undefined;
 
     const mot = motRes.data as BankRow;
     const pro = proRes.data as BankRow;
@@ -188,10 +191,7 @@ export async function syncPayoutAcrossRoles(
     const pick = (
       row: BankRow,
       field:
-        | "bank_name"
-        | "bank_code"
-        | "bank_account_name"
-        | "bank_account_number"
+        "bank_name" | "bank_code" | "bank_account_name" | "bank_account_number",
     ) => (row?.[field] || "").trim() || null;
     const winner = source === "motorist" ? mot : pro;
     const bank = {
@@ -215,13 +215,13 @@ export async function syncPayoutAcrossRoles(
         verified: false,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "user_id" }
+      { onConflict: "user_id" },
     );
     if (pmErr) return { ok: false, error: pmErr.message };
 
     // 2) Always mirror the winning bank into every role side-table that exists
-    //    so refunds (customer) and payouts (pro) withdraw to the same NUBAN.
-    //    Role balances remain separate; only the payout destination is shared.
+    // so refunds (customer) and payouts (pro) withdraw to the same NUBAN.
+    // Role balances remain separate; only the payout destination is shared.
     const bankPatch = {
       bank_name: bank.bank_name,
       bank_code: bank.bank_code,
@@ -240,7 +240,8 @@ export async function syncPayoutAcrossRoles(
           .from("motorist_profiles")
           .update(bankPatch)
           .eq("user_id", userId);
-        if (!copyErr) (bankSynced.copiedTo as string[]).push("motorist_profiles");
+        if (!copyErr)
+          (bankSynced.copiedTo as string[]).push("motorist_profiles");
       }
     }
     if (proRes.data) {
@@ -253,7 +254,8 @@ export async function syncPayoutAcrossRoles(
           .from("repair_pro_profiles")
           .update(bankPatch)
           .eq("user_id", userId);
-        if (!copyErr) (bankSynced.copiedTo as string[]).push("repair_pro_profiles");
+        if (!copyErr)
+          (bankSynced.copiedTo as string[]).push("repair_pro_profiles");
       }
     }
 
@@ -279,7 +281,7 @@ export async function attachRole(
   supabase: Db,
   userId: string,
   roleType: RoleType,
-  actor?: SyncActor
+  actor?: SyncActor,
 ): Promise<{ ok: boolean; error?: string }> {
   const reg = await ensureUserRole(supabase, userId, roleType, {
     ...actor,
@@ -298,12 +300,20 @@ export async function attachRole(
 export async function runIdentitySync(
   supabase: Db,
   userId: string,
-  actor?: SyncActor
+  actor?: SyncActor,
 ): Promise<{ ok: boolean; error?: string; roles?: RoleType[] }> {
   try {
     const [mot, pro] = await Promise.all([
-      supabase.from("motorist_profiles").select("user_id").eq("user_id", userId).maybeSingle(),
-      supabase.from("repair_pro_profiles").select("user_id").eq("user_id", userId).maybeSingle(),
+      supabase
+        .from("motorist_profiles")
+        .select("user_id")
+        .eq("user_id", userId)
+        .maybeSingle(),
+      supabase
+        .from("repair_pro_profiles")
+        .select("user_id")
+        .eq("user_id", userId)
+        .maybeSingle(),
     ]);
 
     const roles: RoleType[] = [];
@@ -335,7 +345,7 @@ export async function runIdentitySync(
 /**
  * Merge queue candidate detection. Since `profiles.phone` / `profiles.email`
  * are UNIQUE, real duplicates are two accounts (a customer + a pro) that share
- * a strong identity signal — most reliably NIN/BVN last-4 (both side tables
+ * a strong identity signal most reliably NIN/BVN last-4 (both side tables
  * store them). We also scan phone/email tails for future-proofing.
  */
 /** Gov-ID kinds that identify a person by Driver's Licence number. */
@@ -356,7 +366,9 @@ const PASSPORT_KINDS = new Set([
 /** Normalize a full document number for matching (alnum + uppercase). */
 function normalizeDocNumber(v: string | null | undefined): string | null {
   if (!v) return null;
-  const n = String(v).replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  const n = String(v)
+    .replace(/[^A-Za-z0-9]/g, "")
+    .toUpperCase();
   return n || null;
 }
 
@@ -378,8 +390,12 @@ function signalsFromRow(row: Record<string, unknown>): IdSignal[] {
   if (bvn != null && String(bvn).trim()) {
     sigs.push({ type: "bvn", value: String(bvn).trim(), source: "bvn_last4" });
   }
-  const kind = String(row.gov_id_kind || "").toLowerCase().trim();
-  const num = normalizeDocNumber(row.gov_id_number as string | null | undefined);
+  const kind = String(row.gov_id_kind || "")
+    .toLowerCase()
+    .trim();
+  const num = normalizeDocNumber(
+    row.gov_id_number as string | null | undefined,
+  );
   if (num) {
     if (LICENSE_KINDS.has(kind)) {
       sigs.push({
@@ -404,15 +420,15 @@ const REASON_FOR_SIGNAL: Record<string, string> = {
 /**
  * Merge candidate detection. Matches ANY two distinct accounts (customer +
  * pro, customer + customer, pro + pro) that share a strong identity signal:
- *   - NIN last-4 / BVN last-4 (privacy-safe)
- *   - full Driver's Licence number (gov_id_kind = drivers_licence)
- *   - full International Passport number (gov_id_kind = passport)
+ * - NIN last-4 / BVN last-4 (privacy-safe)
+ * - full Driver's Licence number (gov_id_kind = drivers_licence)
+ * - full International Passport number (gov_id_kind = passport)
  * Deleted accounts are ignored as match targets. The earliest-created account
  * of a pair is suggested as the primary (canonical) identity.
  */
 export async function detectMergeCandidates(
   supabase: Db,
-  opts: { actor?: SyncActor; onlyUserId?: string } = {}
+  opts: { actor?: SyncActor; onlyUserId?: string } = {},
 ): Promise<{ added: number; candidates: unknown[]; error?: string }> {
   try {
     // Deleted accounts never participate in matching.
@@ -421,23 +437,29 @@ export async function detectMergeCandidates(
       .select("id")
       .or("is_active.eq.false,deleted_at.not.isnull");
     const excluded = new Set(
-      ((deletedRes ?? []) as { id?: string }[]).map((r) => String(r.id))
+      ((deletedRes ?? []) as { id?: string }[]).map((r) => String(r.id)),
     );
 
     const [mots, pros] = await Promise.all([
       supabase
         .from("motorist_profiles")
-        .select("user_id, nin_last4, bvn_last4, gov_id_kind, gov_id_number, created_at")
+        .select(
+          "user_id, nin_last4, bvn_last4, gov_id_kind, gov_id_number, created_at",
+        )
         .order("created_at", { ascending: true })
         .limit(10000),
       supabase
         .from("repair_pro_profiles")
-        .select("user_id, nin_last4, bvn_last4, gov_id_kind, gov_id_number, created_at")
+        .select(
+          "user_id, nin_last4, bvn_last4, gov_id_kind, gov_id_number, created_at",
+        )
         .order("created_at", { ascending: true })
         .limit(10000),
     ]);
-    if (mots.error) return { added: 0, candidates: [], error: mots.error.message };
-    if (pros.error) return { added: 0, candidates: [], error: pros.error.message };
+    if (mots.error)
+      return { added: 0, candidates: [], error: mots.error.message };
+    if (pros.error)
+      return { added: 0, candidates: [], error: pros.error.message };
 
     // Index every identity (by user_id) with its signals + earliest created_at.
     const users = new Map<
@@ -461,7 +483,7 @@ export async function detectMergeCandidates(
         for (const s of sigs) {
           if (
             !existing.signals.some(
-              (x) => x.type === s.type && x.value === s.value
+              (x) => x.type === s.type && x.value === s.value,
             )
           ) {
             existing.signals.push(s);
@@ -490,9 +512,14 @@ export async function detectMergeCandidates(
       .from("identity_merges")
       .select("primary_user_id, duplicate_user_id");
     const existingPairs = new Set<string>();
-    for (const r of (existingRes ?? []) as { primary_user_id?: string; duplicate_user_id?: string }[]) {
+    for (const r of (existingRes ?? []) as {
+      primary_user_id?: string;
+      duplicate_user_id?: string;
+    }[]) {
       existingPairs.add(
-        [String(r.primary_user_id), String(r.duplicate_user_id)].sort().join(":")
+        [String(r.primary_user_id), String(r.duplicate_user_id)]
+          .sort()
+          .join(":"),
       );
     }
 
@@ -577,7 +604,7 @@ export async function detectMergeCandidates(
 export async function detectMergeCandidatesForUser(
   supabase: Db,
   userId: string,
-  actor?: SyncActor
+  actor?: SyncActor,
 ): Promise<{ added: number; candidates: unknown[]; error?: string }> {
   return detectMergeCandidates(supabase, { actor, onlyUserId: userId });
 }
@@ -586,7 +613,7 @@ export async function detectMergeCandidatesForUser(
 async function reassignRefs(
   supabase: Db,
   dup: string,
-  primary: string
+  primary: string,
 ): Promise<string[]> {
   const refTables: { table: string; columns: string[] }[] = [
     { table: "service_requests", columns: ["motorist_id", "repair_pro_id"] },
@@ -608,7 +635,10 @@ async function reassignRefs(
     { table: "user_addresses", columns: ["user_id"] },
     { table: "user_sessions", columns: ["user_id"] },
     { table: "referral_codes", columns: ["user_id"] },
-    { table: "referral_events", columns: ["referrer_user_id", "referred_user_id"] },
+    {
+      table: "referral_events",
+      columns: ["referrer_user_id", "referred_user_id"],
+    },
     { table: "platform_audit_logs", columns: ["actor_id"] },
     { table: "app_settings", columns: ["updated_by"] },
     { table: "feature_flags", columns: ["updated_by"] },
@@ -636,20 +666,20 @@ async function reassignRefs(
 async function mergeProfileFields(
   supabase: Db,
   primary: string,
-  dup: string
+  dup: string,
 ): Promise<void> {
   const [aRes, bRes] = await Promise.all([
     supabase
       .from("profiles")
       .select(
-        "full_name, phone, email, avatar_url, city, area, gender, date_of_birth, preferred_locale"
+        "full_name, phone, email, avatar_url, city, area, gender, date_of_birth, preferred_locale",
       )
       .eq("id", primary)
       .maybeSingle(),
     supabase
       .from("profiles")
       .select(
-        "full_name, phone, email, avatar_url, city, area, gender, date_of_birth, preferred_locale"
+        "full_name, phone, email, avatar_url, city, area, gender, date_of_birth, preferred_locale",
       )
       .eq("id", dup)
       .maybeSingle(),
@@ -687,7 +717,7 @@ async function mergeSideTable(
   supabase: Db,
   dup: string,
   primary: string,
-  table: "motorist_profiles" | "repair_pro_profiles"
+  table: "motorist_profiles" | "repair_pro_profiles",
 ): Promise<void> {
   const { data: dupRow } = await supabase
     .from(table)
@@ -718,8 +748,7 @@ async function mergeSideTable(
   for (const [k, v] of Object.entries(row)) {
     if (["user_id", "created_at", "updated_at"].includes(k)) continue;
     const c = cur[k];
-    const empty =
-      c == null || c === "" || (Array.isArray(c) && c.length === 0);
+    const empty = c == null || c === "" || (Array.isArray(c) && c.length === 0);
     if (empty && v != null && v !== "") patch[k] = v;
   }
   if (Object.keys(patch).length) {
@@ -743,7 +772,7 @@ export async function mergeIdentities(
     duplicateUserId: string;
     performedBy?: string | null;
     performedByRole?: string | null;
-  }
+  },
 ): Promise<{ ok: boolean; error?: string; warnings?: string[] }> {
   const { primaryUserId, duplicateUserId } = opts;
   if (primaryUserId === duplicateUserId) {
@@ -765,23 +794,46 @@ export async function mergeIdentities(
     });
 
     // 1) Move every FK reference to the primary identity.
-    const warnings = await reassignRefs(supabase, duplicateUserId, primaryUserId);
+    const warnings = await reassignRefs(
+      supabase,
+      duplicateUserId,
+      primaryUserId,
+    );
 
     // 2) Fill missing identity fields (never overwrite existing values).
     await mergeProfileFields(supabase, primaryUserId, duplicateUserId);
 
     // 3) Bring role data across.
-    await mergeSideTable(supabase, duplicateUserId, primaryUserId, "motorist_profiles");
-    await mergeSideTable(supabase, duplicateUserId, primaryUserId, "repair_pro_profiles");
+    await mergeSideTable(
+      supabase,
+      duplicateUserId,
+      primaryUserId,
+      "motorist_profiles",
+    );
+    await mergeSideTable(
+      supabase,
+      duplicateUserId,
+      primaryUserId,
+      "repair_pro_profiles",
+    );
 
     // 4) Register both roles on the primary and sync the canonical bank.
     await runIdentitySync(supabase, primaryUserId, actor);
 
     // 5) Remove the duplicate's own role/payout registry rows.
     await supabase.from("user_roles").delete().eq("user_id", duplicateUserId);
-    await supabase.from("payout_methods").delete().eq("user_id", duplicateUserId);
-    await supabase.from("motorist_profiles").delete().eq("user_id", duplicateUserId);
-    await supabase.from("repair_pro_profiles").delete().eq("user_id", duplicateUserId);
+    await supabase
+      .from("payout_methods")
+      .delete()
+      .eq("user_id", duplicateUserId);
+    await supabase
+      .from("motorist_profiles")
+      .delete()
+      .eq("user_id", duplicateUserId);
+    await supabase
+      .from("repair_pro_profiles")
+      .delete()
+      .eq("user_id", duplicateUserId);
 
     // 6) Soft-disable the duplicate identity (keeps history; no second login).
     await supabase
@@ -811,14 +863,18 @@ export async function mergeIdentities(
         reviewed_at: new Date().toISOString(),
         error: warnings.length ? warnings.join("; ") : null,
       })
-      .or(`primary_user_id.eq.${duplicateUserId},duplicate_user_id.eq.${duplicateUserId}`)
+      .or(
+        `primary_user_id.eq.${duplicateUserId},duplicate_user_id.eq.${duplicateUserId}`,
+      )
       .eq("status", "pending");
 
     await logIdentitySync(supabase, {
       userId: primaryUserId,
       action: "merge_completed",
       newState: { duplicateUserId },
-      fieldsSynced: { merged: ["jobs", "chats", "payments", "reviews", "roles", "payout"] },
+      fieldsSynced: {
+        merged: ["jobs", "chats", "payments", "reviews", "roles", "payout"],
+      },
       result: "ok",
       actor,
       meta: { duplicateUserId, warnings },
@@ -844,7 +900,7 @@ export async function mergeIdentities(
  */
 export async function identityStatus(
   supabase: Db,
-  userId: string
+  userId: string,
 ): Promise<{
   roles: RoleType[];
   hasMotorist: boolean;
@@ -859,9 +915,21 @@ export async function identityStatus(
   const roles = await listUserRoles(supabase, userId);
 
   const [motRes, proRes, pmRes, logRes, mergesRes] = await Promise.all([
-    supabase.from("motorist_profiles").select("*").eq("user_id", userId).maybeSingle(),
-    supabase.from("repair_pro_profiles").select("*").eq("user_id", userId).maybeSingle(),
-    supabase.from("payout_methods").select("*").eq("user_id", userId).maybeSingle(),
+    supabase
+      .from("motorist_profiles")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    supabase
+      .from("repair_pro_profiles")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    supabase
+      .from("payout_methods")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle(),
     supabase
       .from("identity_sync_log")
       .select("*")
@@ -884,21 +952,21 @@ export async function identityStatus(
 
   // Registry vs reality check.
   let syncStatus: "in_sync" | "needs_sync" | "conflict" | "unknown" = "in_sync";
-  if (Boolean(mot) !== roles.includes("motorist") || Boolean(pro) !== roles.includes("repair_pro")) {
+  if (
+    Boolean(mot) !== roles.includes("motorist") ||
+    Boolean(pro) !== roles.includes("repair_pro")
+  ) {
     syncStatus = "needs_sync";
   }
-  if (
-    pm &&
-    pm.linked_role === "both" &&
-    (!hasMotorist || !hasPro)
-  ) {
+  if (pm && pm.linked_role === "both" && (!hasMotorist || !hasPro)) {
     syncStatus = "conflict";
   }
 
   const missingFields: string[] = [];
   const completedFields: string[] = [];
   if (mot) {
-    if (!mot.vehicle_make && !mot.vehicle_model) missingFields.push("customer.vehicle");
+    if (!mot.vehicle_make && !mot.vehicle_model)
+      missingFields.push("customer.vehicle");
     if (mot.nin_verified) completedFields.push("customer.nin_verified");
     else missingFields.push("customer.nin_verified");
   }
@@ -907,7 +975,8 @@ export async function identityStatus(
     if (pro.status === "approved") completedFields.push("pro.approved");
     else missingFields.push(`pro.status:${String(pro.status || "?")}`);
     if (pro.nin_verified) completedFields.push("pro.nin_verified");
-    if (pro.docs_status === "approved") completedFields.push("pro.docs_approved");
+    if (pro.docs_status === "approved")
+      completedFields.push("pro.docs_approved");
   }
   if (!pm) missingFields.push("payout_method");
   else completedFields.push(`payout.${pm.linked_role}`);

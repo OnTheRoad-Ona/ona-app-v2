@@ -19,11 +19,13 @@ async function parseJson<T>(res: Response): Promise<T> {
   throw new Error("Unexpected response");
 }
 
-export async function shopGetCart(context: "motorist" | "professional" = "motorist") {
+export async function shopGetCart(
+  context: "motorist" | "professional" = "motorist",
+) {
   const headers = await authHeadersGet();
   const res = await authFetch(
     `/api/shop/cart?context=${encodeURIComponent(context)}`,
-    { headers }
+    { headers },
   );
   return parseJson<{ cart: import("@/lib/server/shop/cart").CartView }>(res);
 }
@@ -38,6 +40,17 @@ export async function shopAddToCart(opts: {
     method: "POST",
     headers,
     body: JSON.stringify(opts),
+  });
+  return parseJson<{ cart: import("@/lib/server/shop/cart").CartView }>(res);
+}
+
+
+export async function shopRemoveCartItem(itemId: string) {
+  const headers = await authHeaders();
+  const res = await authFetch("/api/shop/cart", {
+    method: "DELETE",
+    headers,
+    body: JSON.stringify({ itemId }),
   });
   return parseJson<{ cart: import("@/lib/server/shop/cart").CartView }>(res);
 }
@@ -95,24 +108,24 @@ export async function shopVerifyPayment(reference: string) {
 }
 
 export async function shopListOrders(
-  context: "motorist" | "professional" = "motorist"
+  context: "motorist" | "professional" = "motorist",
 ) {
   const headers = await authHeadersGet();
   const res = await authFetch(
     `/api/shop/orders?ctx=${encodeURIComponent(context)}`,
-    { headers }
+    { headers },
   );
   return parseJson<{ orders: Array<Record<string, unknown>> }>(res);
 }
 
 export async function shopGetOrder(
   id: string,
-  context: "motorist" | "professional" = "motorist"
+  context: "motorist" | "professional" = "motorist",
 ) {
   const headers = await authHeadersGet();
   const res = await authFetch(
     `/api/shop/orders/${encodeURIComponent(id)}?ctx=${encodeURIComponent(context)}`,
-    { headers }
+    { headers },
   );
   return parseJson<{
     order: Record<string, unknown>;
@@ -131,11 +144,13 @@ export type SavedAddress = {
   is_default: boolean;
 };
 
-export async function shopListAddresses(userId: string): Promise<SavedAddress[]> {
+export async function shopListAddresses(
+  userId: string,
+): Promise<SavedAddress[]> {
   const headers = await authHeadersGet();
   const res = await authFetch(
     `/api/addresses?userId=${encodeURIComponent(userId)}`,
-    { headers }
+    { headers },
   );
   const data = await parseJson<{ addresses: SavedAddress[] }>(res);
   return data.addresses;
@@ -184,7 +199,7 @@ export async function shopEstimateDelivery(opts: {
   if (opts.zoneCode) params.set("zoneCode", opts.zoneCode);
   const res = await authFetch(
     `/api/shop/delivery/estimate?${params.toString()}`,
-    { headers }
+    { headers },
   );
   return parseJson<DeliveryEstimateView>(res);
 }

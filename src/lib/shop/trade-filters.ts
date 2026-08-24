@@ -5,14 +5,24 @@
  * import it. Filters are generated PER TRADE from the trade's attribute schema.
  */
 
-import { getTradeAttributeSchema, type TradeAttributeDef } from "@/lib/shop/trade-attributes";
+import {
+  getTradeAttributeSchema,
+  type TradeAttributeDef,
+} from "@/lib/shop/trade-attributes";
 import { SHOP_TRADE_KEYS, type ShopTradeKey } from "@/lib/shop/taxonomy";
 
 export type TradeFilter =
   | { kind: "category"; key: "category"; label: string }
   | { kind: "price"; key: "price"; label: string }
   | { kind: "availability"; key: "availability"; label: string }
-  | { kind: "attribute"; key: string; label: string; type: "number" | "text" | "enum" | "boolean"; unit?: string; options?: string[] };
+  | {
+      kind: "attribute";
+      key: string;
+      label: string;
+      type: "number" | "text" | "enum" | "boolean";
+      unit?: string;
+      options?: string[];
+    };
 
 export type TradeFilterConfig = {
   tradeKey: ShopTradeKey;
@@ -64,7 +74,9 @@ export function getTradeFilters(tradeKey: string): TradeFilter[] {
   return filters;
 }
 
-export function getTradeFilterConfig(tradeKey: string): TradeFilterConfig | null {
+export function getTradeFilterConfig(
+  tradeKey: string,
+): TradeFilterConfig | null {
   const schema = getTradeAttributeSchema(tradeKey);
   if (!schema) return null;
   return {
@@ -84,12 +96,12 @@ export function getFilterConfigs(): TradeFilterConfig[] {
 
 /**
  * Build a predicate used by the catalog query from raw filter selections.
- * Keeps only filters that exist for the given trade — irrelevant filters are
+ * Keeps only filters that exist for the given trade irrelevant filters are
  * silently dropped, never applied.
  */
 export function applyTradeFilters(
   tradeKey: string,
-  selected: Record<string, string | number | boolean | undefined>
+  selected: Record<string, string | number | boolean | undefined>,
 ): {
   categorySlug?: string;
   availability?: "in_stock" | "all";
@@ -98,7 +110,7 @@ export function applyTradeFilters(
   const allowed = new Map(
     getTradeFilters(tradeKey)
       .filter((f) => f.kind === "attribute")
-      .map((f) => [f.key, f])
+      .map((f) => [f.key, f]),
   );
 
   const attributes: Record<string, string | number | boolean> = {};

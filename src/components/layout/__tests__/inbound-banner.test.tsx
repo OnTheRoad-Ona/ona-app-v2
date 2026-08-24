@@ -65,7 +65,7 @@ function msg(
   id: string,
   sender: ChatMessage["sender"],
   text: string,
-  at: string
+  at: string,
 ): ChatMessage {
   return { id, sender, text, at };
 }
@@ -74,7 +74,7 @@ function thread(
   id: string,
   requestId: string,
   messages: ChatMessage[],
-  opts?: { motoristName?: string; technicianName?: string }
+  opts?: { motoristName?: string; technicianName?: string },
 ): MessageThread {
   return {
     id,
@@ -192,7 +192,7 @@ describe("InboundBanner new-chat popups", () => {
     expect(notify.vibrateMessagePattern).toHaveBeenCalled();
     expect(screen.getByText("I'm close")).toBeTruthy();
     expect(notify.showAppNotification).toHaveBeenCalledWith(
-      expect.objectContaining({ body: "I'm close", tag: "msg-th1" })
+      expect.objectContaining({ body: "I'm close", tag: "msg-th1" }),
     );
   });
 
@@ -255,7 +255,7 @@ describe("InboundBanner new-chat popups", () => {
     expect(tone.playPersonTone).not.toHaveBeenCalled();
 
     // Switch to motorist: now the PRO's older message is "inbound" in the SAME
-    // thread — without a role re-seed this would re-pop old history.
+    // thread without a role re-seed this would re-pop old history.
     state.accountType = "motorist";
     state.messages = [
       thread("th1", "r1", [

@@ -114,7 +114,8 @@
 }
 
 .om-admin-shell {
-  min-height: 100%;
+  height: 100vh;
+  overflow: hidden;
   display: grid;
   grid-template-columns: 260px 1fr;
 }
@@ -185,28 +186,6 @@
 @media (max-width: 900px) {
   .om-admin-shell {
     grid-template-columns: 1fr;
-  }
-  .om-admin-nav {
-    position: sticky;
-    top: 0;
-    z-index: 20;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.35rem;
-    border-right: none;
-    border-bottom: 1px solid var(--om-border);
-  }
-  .om-admin-nav .om-admin-brand {
-    width: 100%;
-    margin-bottom: 0.35rem;
-  }
-  .om-admin-nav a {
-    padding: 0.45rem 0.65rem;
-    font-size: 0.8rem;
-  }
-  .om-admin-nav .om-admin-nav-spacer {
-    display: none;
   }
 }
 
@@ -283,7 +262,11 @@
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
-  min-height: 100vh;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .om-admin-brand {
@@ -487,7 +470,10 @@
   max-width: none;
   width: 100%;
   min-width: 0;
+  height: 100vh;
+  overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-width: thin;
 }
 
 .om-admin-h1 {
@@ -1416,5 +1402,140 @@
   }
   .om-admin-stat-grid {
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+}
+
+/* ======================================================================
+ * Phone mode (≤900px): full admin control via hamburger drawer nav.
+ * The sidebar slides in as an overlay with ALL groups, search and labels —
+ * nothing is hidden or wrapped away. Desktop (>900px) is untouched.
+ * ==================================================================== */
+@media (max-width: 900px) {
+  .om-admin-mobile-bar {
+    grid-column: 1 / -1;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    display: flex;
+    min-height: 3rem;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.75rem;
+    background: var(--om-nav);
+    border-bottom: 1px solid var(--om-border);
+  }
+  .om-admin-mobile-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--om-border);
+    background: transparent;
+    color: var(--om-text);
+    border-radius: 0.375rem;
+    padding: 0.45rem;
+    width: 2.1rem;
+    height: 2.1rem;
+    cursor: pointer;
+    font-family: inherit;
+    flex-shrink: 0;
+  }
+  .om-admin-mobile-toggle-ic {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+  .om-admin-mobile-toggle:hover {
+    background: var(--om-nav-hover);
+  }
+  .om-admin-mobile-brand {
+    font-weight: 800;
+    font-size: 0.85rem;
+    color: var(--om-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* The desktop collapse toggle is meaningless inside the drawer */
+  .om-admin-nav-toggle {
+    display: none;
+  }
+
+  /* Off-canvas drawer */
+  .om-admin-nav,
+  .om-admin-shell--collapsed .om-admin-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(300px, 84vw);
+    z-index: 60;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    overflow-x: hidden;
+    overflow-y: auto;
+    transform: translateX(-105%);
+    transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+    border-right: 1px solid var(--om-border);
+    border-bottom: none;
+    padding-bottom: 1.25rem;
+  }
+  .om-admin-nav--open {
+    transform: translateX(0);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  }
+
+  /* Drawer always shows the FULL menu, even if desktop-collapse was saved */
+  .om-admin-shell--collapsed .om-admin-nav-tagline,
+  .om-admin-shell--collapsed .om-admin-role-chip,
+  .om-admin-shell--collapsed .om-admin-nav-search,
+  .om-admin-shell--collapsed .om-admin-nav-label,
+  .om-admin-shell--collapsed .om-admin-nav-foot {
+    display: revert;
+  }
+  .om-admin-shell--collapsed .om-admin-nav-group {
+    display: block;
+  }
+  .om-admin-shell--collapsed .om-admin-nav a,
+  .om-admin-nav a {
+    white-space: normal;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.82rem;
+  }
+
+  .om-admin-nav-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: rgba(10, 12, 16, 0.55);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .om-admin-nav-backdrop--show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .om-admin-main {
+    padding: 0.75rem 0.75rem 2.5rem;
+  }
+}
+
+@media (min-width: 901px) {
+  .om-admin-mobile-bar,
+  .om-admin-nav-backdrop {
+    display: none;
+  }
+}
+
+/* ≤900px: drawer mode — page scrolls normally (nav is an overlay) */
+@media (max-width: 900px) {
+  .om-admin-shell {
+    height: auto;
+    overflow: visible;
+  }
+  .om-admin-main {
+    height: auto;
+    overflow: visible;
   }
 }

@@ -7,7 +7,16 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { ChevronLeft, Clock, Hammer, MapPin, Paintbrush, Wrench, X } from "lucide-react";
+import {
+  ChevronLeft,
+  Clock,
+  Hammer,
+  MapPin,
+  Paintbrush,
+  Wrench,
+  X,
+  Zap,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { CategoryTabs } from "@/components/home/category-tabs";
@@ -37,7 +46,7 @@ import { shouldShowHomeVerifyPanel } from "@/lib/verification-gate";
 
 /** Fallback geocode when Places is unavailable (curated places first). */
 async function geocodeAddress(
-  query: string
+  query: string,
 ): Promise<{ lat: number; lng: number; label: string } | null> {
   const q = query.trim();
   if (!q) return null;
@@ -48,7 +57,7 @@ async function geocodeAddress(
   }
   try {
     const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(
-      q
+      q,
     )}`;
     const res = await fetch(url, {
       headers: { Accept: "application/json" },
@@ -62,7 +71,7 @@ async function geocodeAddress(
     if (!hit?.lat || !hit?.lon) return null;
     const lat = Number(hit.lat);
     const lng = Number(hit.lon);
-    // Real Nominatim label — do not snap coords to curated POI names
+    // Real Nominatim label do not snap coords to curated POI names
     return {
       lat,
       lng,
@@ -82,94 +91,95 @@ const PAGE_SIZE = 10;
 const MechanicHelpFlow = dynamic(
   () =>
     import("@/components/home/mechanic-help-flow").then(
-      (m) => m.MechanicHelpFlow
+      (m) => m.MechanicHelpFlow,
     ),
-  { ssr: false }
+  { ssr: false },
 );
 const VulcanizerHelpFlow = dynamic(
   () =>
     import("@/components/home/vulcanizer-help-flow").then(
-      (m) => m.VulcanizerHelpFlow
+      (m) => m.VulcanizerHelpFlow,
     ),
-  { ssr: false }
+  { ssr: false },
 );
 const TowHelpFlow = dynamic(
   () => import("@/components/home/tow-help-flow").then((m) => m.TowHelpFlow),
-  { ssr: false }
+  { ssr: false },
 );
 const BatteryHelpFlow = dynamic(
   () =>
     import("@/components/home/battery-help-flow").then(
-      (m) => m.BatteryHelpFlow
+      (m) => m.BatteryHelpFlow,
     ),
-  { ssr: false }
+  { ssr: false },
 );
 const AcHelpFlow = dynamic(
   () => import("@/components/home/ac-help-flow").then((m) => m.AcHelpFlow),
-  { ssr: false }
+  { ssr: false },
 );
 const BodyHelpFlow = dynamic(
   () => import("@/components/home/body-help-flow").then((m) => m.BodyHelpFlow),
-  { ssr: false }
+  { ssr: false },
 );
 const ElectricalHelpFlow = dynamic(
   () =>
     import("@/components/home/electrical-help-flow").then(
-      (m) => m.ElectricalHelpFlow
+      (m) => m.ElectricalHelpFlow,
     ),
-  { ssr: false }
+  { ssr: false },
 );
 const DiagnosticsHelpFlow = dynamic(
   () =>
     import("@/components/home/diagnostics-help-flow").then(
-      (m) => m.DiagnosticsHelpFlow
+      (m) => m.DiagnosticsHelpFlow,
     ),
-  { ssr: false }
+  { ssr: false },
 );
 const FashionHelpFlow = dynamic(
   () =>
     import("@/components/home/fashion-help-flow").then(
-      (m) => m.FashionHelpFlow
+      (m) => m.FashionHelpFlow,
     ),
-  { ssr: false }
+  { ssr: false },
 );
 const PlumberHelpFlow = dynamic(
   () =>
     import("@/components/home/plumber-help-flow").then(
-      (m) => m.PlumberHelpFlow
+      (m) => m.PlumberHelpFlow,
     ),
-  { ssr: false }
+  { ssr: false },
 );
 const CarpenterHelpFlow = dynamic(
   () =>
     import("@/components/home/carpenter-help-flow").then(
-      (m) => m.CarpenterHelpFlow
+      (m) => m.CarpenterHelpFlow,
     ),
-  { ssr: false }
+  { ssr: false },
 );
 const PainterHelpFlow = dynamic(
   () =>
     import("@/components/home/painter-help-flow").then(
-      (m) => m.PainterHelpFlow
+      (m) => m.PainterHelpFlow,
     ),
-  { ssr: false }
+  { ssr: false },
 );
 const SolarHelpFlow = dynamic(
-  () => import("@/components/home/solar-help-flow").then((m) => m.SolarHelpFlow),
-  { ssr: false }
+  () =>
+    import("@/components/home/solar-help-flow").then((m) => m.SolarHelpFlow),
+  { ssr: false },
 );
 const GeneratorHelpFlow = dynamic(
   () =>
     import("@/components/home/generator-help-flow").then(
-      (m) => m.GeneratorHelpFlow
+      (m) => m.GeneratorHelpFlow,
     ),
-  { ssr: false }
+  { ssr: false },
 );
 
 /**
  * Motorist lower sheet: trade strip + list always visible.
  * Chevron / swipe-left swaps only the top strip for a quiet
- * “Where are they?” Places field — no separate page.
+ * “Where are they?” Places field no separate page.
  */
 export function HomePanel({
   expanded,
@@ -256,7 +266,7 @@ export function HomePanel({
 
   const isMotorist = isAuthenticated && accountType === "motorist";
 
-  /** Repair Pro in professional mode — market shows ONLY their primary trade. */
+  /** Repair Pro in professional mode market shows ONLY their primary trade. */
   const isProMode = accountType === "professional";
 
   /** Talk box only after they tap a trade. Never for Repair Pro. */
@@ -304,7 +314,7 @@ export function HomePanel({
     : null;
 
   const liveMaps = shouldUseLiveMaps();
-  // Same loader options as every other map surface — never apiKey "disabled"
+  // Same loader options as every other map surface never apiKey "disabled"
   // (that crashed re-search after pro decline with different loader options).
   const { isLoaded: mapsLoaded } = useOnaGoogleMaps();
   // Places Autocomplete only when help mode is open (script may already be ready).
@@ -314,12 +324,59 @@ export function HomePanel({
 
   const handleRequest = (tech: Technician) => {
     setSelectedTechId(tech.id);
-    // Direct-request page is gone — open the trade's new question-flow steps.
+    // Direct-request page is gone open the trade's new question-flow steps.
     setCategory(tech.serviceType);
   };
 
   const handleOpenJob = (jobId: string) => {
     router.push(`/jobs/${jobId}`);
+  };
+
+  /** Unpaid Ona Express booking → "Finish payment" resume card. */
+  const [pendingExpress, setPendingExpress] = useState<{
+    requestId: string;
+    trade: string;
+    lat: number;
+    lng: number;
+    locationLabel: string;
+  } | null>(null);
+  const [hasOpenRequest, setHasOpenRequest] = useState(false);
+  const [openNotice, setOpenNotice] = useState(false);
+  useEffect(() => {
+    if (isProMode) return;
+    let cancelled = false;
+    const loadPending = async () => {
+      try {
+        const res = await fetch("/api/requests/open-state");
+        if (!res.ok) return;
+        const json = await res.json();
+        if (cancelled) return;
+        setHasOpenRequest(Boolean(json?.data?.hasOpen));
+        setPendingExpress(json?.data?.expressPending ?? null);
+      } catch {
+        /* optional */
+      }
+    };
+    void loadPending();
+    return () => {
+      cancelled = true;
+    };
+  }, [isProMode, category]);
+
+  // App-wide one-open-request rule: block new trade flows while one is live.
+  useEffect(() => {
+    if (isProMode || !hasOpenRequest || category === "none") return;
+    setCategory("none");
+    setOpenNotice(true);
+  }, [category, hasOpenRequest, isProMode]);
+
+  const openExpressResume = () => {
+    if (!pendingExpress) return;
+    window.sessionStorage.setItem(
+      "ona-express-resume",
+      JSON.stringify(pendingExpress),
+    );
+    router.push("/express?resume=1");
   };
 
   useEffect(() => {
@@ -357,12 +414,12 @@ export function HomePanel({
       setHelpError(null);
       // Stay in help mode: address on top, trades reappear below (no chip)
     },
-    [setHelpingSomeoneElse, setManualLocation, refreshNearbyPros]
+    [setHelpingSomeoneElse, setManualLocation, refreshNearbyPros],
   );
 
   applyPlaceRef.current = applyHelpLocation;
 
-  // Google Places Autocomplete — worldwide (Uber-style suggestions)
+  // Google Places Autocomplete worldwide (Uber-style suggestions)
   useEffect(() => {
     if (!helpMode || !mapsLoaded || !liveMaps) return;
     if (!helpInputRef.current) return;
@@ -377,7 +434,7 @@ export function HomePanel({
     try {
       const ac = new google.maps.places.Autocomplete(helpInputRef.current, {
         fields: ["formatted_address", "geometry", "name", "place_id"],
-        // Worldwide — no country restriction
+        // Worldwide no country restriction
         types: ["geocode"],
       });
       ac.addListener("place_changed", () => {
@@ -398,7 +455,7 @@ export function HomePanel({
       });
       autocompleteRef.current = ac;
     } catch {
-      /* Places optional — Enter uses Nominatim fallback */
+      /* Places optional Enter uses Nominatim fallback */
     }
 
     return () => {
@@ -499,7 +556,7 @@ export function HomePanel({
       className={cn("relative z-30 flex min-h-0 flex-col", className)}
       style={{
         transition: "transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
-        // Same split as .om-x-drawer / .om-x-rail — chips land in the capsule tube
+        // Same split as .om-x-drawer / .om-x-rail chips land in the capsule tube
         transform: menuOpen
           ? "translateX(var(--om-menu-split, 80%))"
           : "translateX(0%)",
@@ -538,18 +595,18 @@ export function HomePanel({
               "h-1.5 w-11 rounded-full",
               isLight
                 ? "bg-[#6b7280] shadow-sm ring-1 ring-black/10"
-                : "bg-white/40"
+                : "bg-white/40",
             )}
           />
         </div>
 
         {/*
-          Default: trade strip only.
-          Help mode: quiet “Where are they?” on top.
-          After confirm: address stays + trade strip below (no chip).
-          Repair Pro mode: no trade strip — the market is pinned to their
-          own trade (server-enforced), so there is nothing to switch between.
-        */}
+ Default: trade strip only.
+ Help mode: quiet “Where are they?” on top.
+ After confirm: address stays + trade strip below (no chip).
+ Repair Pro mode: no trade strip the market is pinned to their
+ own trade (server-enforced), so there is nothing to switch between.
+ */}
         {helpMode ? (
           <>
             <div
@@ -578,7 +635,7 @@ export function HomePanel({
                   aria-label={t("home.backToTrades")}
                   className={cn(
                     "inline-flex h-8 w-8 shrink-0 items-center justify-center border-0 bg-transparent p-0",
-                    isLight ? "text-slate-600" : "text-white/70"
+                    isLight ? "text-slate-600" : "text-white/70",
                   )}
                 >
                   <ChevronLeft className="h-4 w-4" strokeWidth={2.25} />
@@ -588,7 +645,7 @@ export function HomePanel({
                   <MapPin
                     className={cn(
                       "pointer-events-none absolute left-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2",
-                      isLight ? "text-slate-400" : "text-white/40"
+                      isLight ? "text-slate-400" : "text-white/40",
                     )}
                     strokeWidth={2}
                   />
@@ -600,9 +657,13 @@ export function HomePanel({
                       const next = e.target.value;
                       setHelpAddress(next);
                       setHelpError(null);
-                      const hits = matchKnownPlaces(next, 4).map((r) => r.place);
+                      const hits = matchKnownPlaces(next, 4).map(
+                        (r) => r.place,
+                      );
                       setHelpKnownHits(hits);
-                      setHelpSuggestOpen(hits.length > 0 && next.trim().length >= 2);
+                      setHelpSuggestOpen(
+                        hits.length > 0 && next.trim().length >= 2,
+                      );
                       // Clearing the field restores my location
                       if (!next.trim() && addressConfirmed) {
                         clearHelpingSomeone();
@@ -610,11 +671,11 @@ export function HomePanel({
                     }}
                     onFocus={() => {
                       const hits = matchKnownPlaces(helpAddress, 4).map(
-                        (r) => r.place
+                        (r) => r.place,
                       );
                       setHelpKnownHits(hits);
                       setHelpSuggestOpen(
-                        hits.length > 0 && helpAddress.trim().length >= 2
+                        hits.length > 0 && helpAddress.trim().length >= 2,
                       );
                     }}
                     onBlur={() => {
@@ -640,14 +701,14 @@ export function HomePanel({
                       "om-help-where-input h-9 w-full border-0 border-b bg-transparent pl-5 pr-7 text-[13px] font-medium outline-none transition-colors",
                       isLight
                         ? "border-slate-400/50 text-slate-900 placeholder:text-slate-400 focus:border-brand/60"
-                        : "border-white/20 text-white placeholder:text-white/40 focus:border-brand/50"
+                        : "border-white/20 text-white placeholder:text-white/40 focus:border-brand/50",
                     )}
                   />
                   {helpSuggestOpen && helpKnownHits.length > 0 ? (
                     <ul
                       className={cn(
                         "absolute left-0 right-0 top-[calc(100%+4px)] z-40 max-h-44 overflow-y-auto rounded-md border-0",
-                        isLight ? "bg-[#c8c9cd]" : "bg-black"
+                        isLight ? "bg-[#c8c9cd]" : "bg-black",
                       )}
                       role="listbox"
                     >
@@ -659,7 +720,7 @@ export function HomePanel({
                               "flex w-full flex-col items-start border-0 bg-transparent px-2.5 py-2 text-left",
                               isLight
                                 ? "hover:bg-[#d4d5db]"
-                                : "hover:bg-white/10"
+                                : "hover:bg-white/10",
                             )}
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => {
@@ -671,7 +732,7 @@ export function HomePanel({
                             <span
                               className={cn(
                                 "text-[12px] font-bold",
-                                isLight ? "text-slate-900" : "text-white"
+                                isLight ? "text-slate-900" : "text-white",
                               )}
                             >
                               {p.name}
@@ -679,7 +740,7 @@ export function HomePanel({
                             <span
                               className={cn(
                                 "text-[10px] font-medium",
-                                isLight ? "text-slate-600" : "text-white/55"
+                                isLight ? "text-slate-600" : "text-white/55",
                               )}
                             >
                               {p.address}
@@ -697,7 +758,7 @@ export function HomePanel({
                       onClick={clearHelpingSomeone}
                       className={cn(
                         "absolute right-0 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center border-0 bg-transparent p-0",
-                        isLight ? "text-slate-400" : "text-white/40"
+                        isLight ? "text-slate-400" : "text-white/40",
                       )}
                     >
                       <X className="h-3.5 w-3.5" />
@@ -714,7 +775,7 @@ export function HomePanel({
                 <p
                   className={cn(
                     "mt-1 pl-9 text-[10px]",
-                    isLight ? "text-slate-500" : "text-white/45"
+                    isLight ? "text-slate-500" : "text-white/45",
                   )}
                 >
                   {t("home.findingPlace")}
@@ -743,7 +804,7 @@ export function HomePanel({
           />
         ) : null}
 
-        {/* Mechanic / Vulcanizer / Tow / Battery / A/C / Body / Electric / Scan / Fashion / Plumber / Carpenter / Painter / Solar / Generator: no radius — Repair Pro is found by urgency. */}
+        {/* Mechanic / Vulcanizer / Tow / Battery / A/C / Body / Electric / Scan / Fashion / Plumber / Carpenter / Painter / Solar / Generator: no radius Repair Pro is found by urgency. */}
         {isProMode ||
         (tradeChosen &&
           !isMechanicFlow &&
@@ -782,12 +843,12 @@ export function HomePanel({
         </div>
       )}
 
-      {/* Empty state — Repair Pro market only */}
+      {/* Empty state Repair Pro market only */}
       {isProMode && list.length === 0 && !showVerifyPanel && (
         <div
           className={cn(
             "shrink-0 overflow-hidden rounded-t-lg",
-            isLight ? "bg-[#c8c9cd]" : "bg-black"
+            isLight ? "bg-[#c8c9cd]" : "bg-black",
           )}
           style={{ transform: "translateZ(0)" }}
         >
@@ -795,16 +856,14 @@ export function HomePanel({
             <p
               className={cn(
                 "text-sm font-semibold",
-                isLight ? "text-slate-800" : "text-white"
+                isLight ? "text-slate-800" : "text-white",
               )}
             >
               {query.trim()
                 ? t("search.noResultsFor", { q: query.trim() })
                 : filters.availableNow
                   ? t("home.noProsAvailable")
-                  : filters.rating45 ||
-                      filters.verified ||
-                      filters.fastResponse
+                  : filters.rating45 || filters.verified || filters.fastResponse
                     ? t("home.noProsMatch")
                     : t("home.noRepairPros")}
             </p>
@@ -831,9 +890,23 @@ export function HomePanel({
       <div
         className={cn(
           "min-h-0 flex-1 px-3 pb-0",
-          showTalkBox || isMechanicFlow || isVulcanizerFlow || isTowFlow || isBatteryFlow || isAcFlow || isBodyFlow || isElectricalFlow || isDiagnosticsFlow || isFashionFlow || isPlumberFlow || isCarpenterFlow || isPainterFlow || isSolarFlow || isGeneratorFlow
+          showTalkBox ||
+            isMechanicFlow ||
+            isVulcanizerFlow ||
+            isTowFlow ||
+            isBatteryFlow ||
+            isAcFlow ||
+            isBodyFlow ||
+            isElectricalFlow ||
+            isDiagnosticsFlow ||
+            isFashionFlow ||
+            isPlumberFlow ||
+            isCarpenterFlow ||
+            isPainterFlow ||
+            isSolarFlow ||
+            isGeneratorFlow
             ? "flex flex-col overflow-hidden"
-            : "overflow-y-auto overscroll-contain scrollbar-hide"
+            : "overflow-y-auto overscroll-contain scrollbar-hide",
         )}
       >
         {showVerifyPanel && verifyPanelReady ? (
@@ -841,6 +914,75 @@ export function HomePanel({
             <HomeVerifyPanel message={verifyMessage} isLight={isLight} />
           </div>
         ) : null}
+        {!isProMode && openNotice ? (
+          <div className="shrink-0 pt-2.5">
+            <div
+              className={cn(
+                "flex items-center justify-between gap-2 rounded-xl border-0 px-3 py-2.5",
+                isLight ? "bg-[#FF6B35]/10" : "bg-[#FF6B35]/15",
+              )}
+            >
+              <p
+                className={cn(
+                  "text-[12px] font-semibold",
+                  isLight ? "text-slate-900" : "text-white",
+                )}
+              >
+                You have an open request. Complete or cancel it before starting
+                another.
+              </p>
+              <button
+                type="button"
+                onClick={() => setOpenNotice(false)}
+                className="shrink-0 border-0 bg-transparent p-1 text-[#FF6B35]"
+                aria-label="Dismiss"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {!isProMode && pendingExpress ? (
+          <div className="shrink-0 pt-2.5">
+            <button
+              type="button"
+              onClick={openExpressResume}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left transition-transform active:scale-[0.985]",
+                isLight
+                  ? "bg-[#d8dce4]/90"
+                  : "bg-gradient-to-b from-[#1a1a1a] to-[#141414]",
+              )}
+            >
+              <Zap className="h-5 w-5 shrink-0 text-[#FF6B35]" />
+              <span className="min-w-0 flex-1">
+                <span
+                  className={cn(
+                    "block text-[14px] font-bold",
+                    isLight ? "text-slate-900" : "text-white",
+                  )}
+                >
+                  Finish payment
+                </span>
+                <span
+                  className={cn(
+                    "block text-[12px]",
+                    isLight ? "text-slate-500" : "text-white/55",
+                  )}
+                >
+                  {pendingExpress.trade.charAt(0).toUpperCase() +
+                    pendingExpress.trade.slice(1)}{" "}
+                  · awaiting payment
+                </span>
+              </span>
+              <span className="shrink-0 text-[13px] font-bold text-[#FF6B35]">
+                Resume
+              </span>
+            </button>
+          </div>
+        ) : null}
+
         {!isProMode && openJobs.length > 0 ? (
           <div className="shrink-0 pt-2.5">
             <CustomerOpenJobs
@@ -866,10 +1008,7 @@ export function HomePanel({
           </div>
         ) : isTowFlow ? (
           <div className="flex min-h-0 flex-1 flex-col">
-            <TowHelpFlow
-              isLight={isLight}
-              onExit={() => setCategory("none")}
-            />
+            <TowHelpFlow isLight={isLight} onExit={() => setCategory("none")} />
           </div>
         ) : isBatteryFlow ? (
           <div className="flex min-h-0 flex-1 flex-col">
@@ -880,10 +1019,7 @@ export function HomePanel({
           </div>
         ) : isAcFlow ? (
           <div className="flex min-h-0 flex-1 flex-col">
-            <AcHelpFlow
-              isLight={isLight}
-              onExit={() => setCategory("none")}
-            />
+            <AcHelpFlow isLight={isLight} onExit={() => setCategory("none")} />
           </div>
         ) : isBodyFlow ? (
           <div className="flex min-h-0 flex-1 flex-col">
@@ -952,18 +1088,20 @@ export function HomePanel({
           <div className="flex min-h-0 flex-1 flex-col">
             <NeedHelpDialogue isLight={isLight} />
           </div>
-        ) : isProMode && list.length > 0 && (
-          <div
-            className={cn(
-              "min-h-full overflow-hidden rounded-t-lg",
-              isLight ? "bg-[#d8dce4]/90 backdrop-blur-sm" : "bg-black"
-            )}
-            style={{ transform: "translateZ(0)" }}
-          >
-            <p
+        ) : (
+          isProMode &&
+          list.length > 0 && (
+            <div
+              className={cn(
+                "min-h-full overflow-hidden rounded-t-lg",
+                isLight ? "bg-[#d8dce4]/90 backdrop-blur-sm" : "bg-black",
+              )}
+              style={{ transform: "translateZ(0)" }}
+            >
+              <p
                 className={cn(
                   "px-3 pt-2 text-[10px] font-semibold uppercase tracking-wide",
-                  isLight ? "text-slate-600" : "text-white/55"
+                  isLight ? "text-slate-600" : "text-white/55",
                 )}
               >
                 {t("home.nearbyCount", { total })}
@@ -997,14 +1135,14 @@ export function HomePanel({
                   type="button"
                   onClick={() =>
                     setVisibleCount((n) =>
-                      Math.min(n + PAGE_SIZE, MAX_TECHNICIANS, total)
+                      Math.min(n + PAGE_SIZE, MAX_TECHNICIANS, total),
                     )
                   }
                   className={cn(
                     "w-full border-0 py-2.5 text-[12px] font-bold",
                     isLight
                       ? "bg-transparent text-slate-700 hover:bg-slate-200/60"
-                      : "bg-transparent text-white/80 hover:bg-white/[0.04]"
+                      : "bg-transparent text-white/80 hover:bg-white/[0.04]",
                   )}
                 >
                   {t("home.seeMore", { shown: list.length, total })}
@@ -1015,20 +1153,21 @@ export function HomePanel({
                 <p
                   className={cn(
                     "py-1.5 text-center text-[10px]",
-                    isLight ? "text-slate-400" : "text-white/45"
+                    isLight ? "text-slate-400" : "text-white/45",
                   )}
                 >
                   {t("home.showingAll", { total, km: radiusKm })}
                 </p>
               )}
-          </div>
+            </div>
+          )
         )}
 
         {isProMode && !expanded && list.length > 0 && (
           <p
             className={cn(
               "py-2 text-center text-[10px]",
-              isLight ? "text-slate-400" : "text-white/45"
+              isLight ? "text-slate-400" : "text-white/45",
             )}
           >
             {t("home.swipeHint")}

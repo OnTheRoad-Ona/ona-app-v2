@@ -125,7 +125,9 @@ const BY_SKILL: Record<ProService, string[]> = {
   ],
 };
 
-export function problemsForService(service: ProService | string | undefined): string[] {
+export function problemsForService(
+  service: ProService | string | undefined,
+): string[] {
   if (service && service in BY_SKILL) {
     return BY_SKILL[service as ProService];
   }

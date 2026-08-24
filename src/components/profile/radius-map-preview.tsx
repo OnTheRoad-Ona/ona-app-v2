@@ -19,7 +19,7 @@ export function RadiusMapPreview({
   className?: string;
 }) {
   const r = Math.min(5, Math.max(0.5, radiusKm));
-  // Ring size: 28%–88% of box
+  // Ring size: 28%-88% of box
   const pct = 28 + (r / 5) * 60;
 
   return (
@@ -27,7 +27,7 @@ export function RadiusMapPreview({
       className={cn(
         "relative overflow-hidden rounded-2xl",
         isLight ? "bg-[#0a1610]" : "bg-[#0a0000]",
-        className
+        className,
       )}
       style={{ height: 140 }}
       aria-label={`Service radius ${r} km${label ? ` near ${label}` : ""}`}

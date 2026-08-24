@@ -1,13 +1,10 @@
 /**
- * Support tickets — extend Care desk (Phase B).
+ * Support tickets extend Care desk (Phase B).
  */
 
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
-import {
-  AdminAuthError,
-  requireAdmin,
-} from "@/lib/server/admin-auth";
+import { AdminAuthError, requireAdmin } from "@/lib/server/admin-auth";
 import {
   createTicket,
   listTickets,
@@ -32,7 +29,7 @@ export async function GET(req: Request) {
       return apiFail(e.message, e.status, e.code || "auth");
     return apiFail(
       e instanceof Error ? e.message : "Failed to list tickets",
-      500
+      500,
     );
   }
 }
@@ -70,7 +67,7 @@ export async function POST(req: Request) {
       return apiFail(e.message, e.status, e.code || "auth");
     return apiFail(
       e instanceof Error ? e.message : "Failed to create ticket",
-      500
+      500,
     );
   }
 }

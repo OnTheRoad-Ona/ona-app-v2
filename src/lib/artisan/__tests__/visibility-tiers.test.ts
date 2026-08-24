@@ -71,7 +71,7 @@ describe("effectiveGoLiveTier (Go Live gate single source of truth)", () => {
         ...row,
         visibility_tier: 4,
         docs_status: "approved",
-      })
+      }),
     ).toBe(4);
   });
 

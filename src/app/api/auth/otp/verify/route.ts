@@ -2,10 +2,7 @@ import { createHash } from "crypto";
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { normalizeNgPhone } from "@/lib/server/africastalking";
-import {
-  phoneOrFilter,
-  phonesMatch,
-} from "@/lib/server/phone-match";
+import { phoneOrFilter, phonesMatch } from "@/lib/server/phone-match";
 import {
   DEMO_OTP_CODE,
   emailOtpKey,
@@ -67,7 +64,7 @@ export async function POST(req: Request) {
     if (!phone) return apiFail("Invalid phone number", 400);
     dest = phone;
 
-    // Must be the exact signup number (after normalize) — never fall back to a random OR hit
+    // Must be the exact signup number (after normalize) never fall back to a random OR hit
     const { data: found } = await supabase
       .from("profiles")
       .select("*")
@@ -76,8 +73,7 @@ export async function POST(req: Request) {
       .limit(25);
 
     const list = (found || []) as ProfileRow[];
-    profileRow =
-      list.find((p) => phonesMatch(p.phone, phone)) || null;
+    profileRow = list.find((p) => phonesMatch(p.phone, phone)) || null;
   } else {
     const email = parsed.data.target.trim().toLowerCase();
     if (!email.includes("@")) return apiFail("Invalid email", 400);
@@ -97,7 +93,7 @@ export async function POST(req: Request) {
       channel === "phone"
         ? "This phone is not registered. Use the exact number from signup."
         : "No registered account for this email. Sign up first.",
-      404
+      404,
     );
   }
 
@@ -116,10 +112,7 @@ export async function POST(req: Request) {
     if (error) return apiFail(error.message, 500);
     const otp = rows?.[0];
     if (!otp) {
-      return apiFail(
-        `No active code. Tap Send code${demoHint}.`,
-        400
-      );
+      return apiFail(`No active code. Tap Send code${demoHint}.`, 400);
     }
     if (new Date(otp.expires_at).getTime() < Date.now()) {
       await supabase
@@ -129,7 +122,7 @@ export async function POST(req: Request) {
       return apiFail(
         `Code expired. Request a new one${demoHint}.`,
         400,
-        "otp_expired"
+        "otp_expired",
       );
     }
     if ((otp.attempts ?? 0) >= 5) {
@@ -153,7 +146,7 @@ export async function POST(req: Request) {
           : "Incorrect code. Try again.",
         401,
         "otp_invalid",
-        { failedAttempts: nextAttempts, cooldownAfter: 4 }
+        { failedAttempts: nextAttempts, cooldownAfter: 4 },
       );
     }
 
@@ -181,7 +174,7 @@ export async function POST(req: Request) {
     if (!mot) {
       return apiFail(
         "This login has no Customer account. Choose Repair Pro, or sign up as Customer.",
-        403
+        403,
       );
     }
   }
@@ -197,7 +190,7 @@ export async function POST(req: Request) {
     if (!pro) {
       return apiFail(
         "This login has no Repair Pro account. Choose Customer, or sign up as Repair Pro.",
-        403
+        403,
       );
     }
   }
@@ -209,10 +202,7 @@ export async function POST(req: Request) {
     });
 
   if (linkErr || !linkData?.properties) {
-    return apiFail(
-      linkErr?.message || "Could not create login session",
-      500
-    );
+    return apiFail(linkErr?.message || "Could not create login session", 500);
   }
 
   const emailOtp = linkData.properties.email_otp;
@@ -250,7 +240,7 @@ export async function POST(req: Request) {
   if (!access_token || !refresh_token) {
     return apiFail(
       "Code accepted, but session could not be started. Try password login.",
-      500
+      500,
     );
   }
 
@@ -332,7 +322,8 @@ export async function POST(req: Request) {
       .maybeSingle();
     const pr = pro as Bankish | null;
     extras = {
-      services: (pr?.services as ProService[]) ||
+      services:
+        (pr?.services as ProService[]) ||
         (pr?.primary_service && isProService(pr.primary_service)
           ? [pr.primary_service]
           : undefined),

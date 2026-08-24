@@ -212,10 +212,17 @@ html[data-a11y-hc="1"] #ona-phone [class*="text-white/65"] {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
-/* Force same capsule fill in both themes (no light fork) */
-#ona-phone[data-theme="light"] div.om-x-capsule,
+/* Theme fork: dark keeps the faint sheen; light gets a visible lighter pill
+   (white lift on the grey page) so the capsule reads exactly like dark. */
 #ona-phone[data-theme="dark"] div.om-x-capsule {
   background: rgba(255, 255, 255, 0.04) !important;
+}
+#ona-phone[data-theme="light"] div.om-x-capsule {
+  background: rgba(255, 255, 255, 0.1) !important;
+  /* Crisp pill definition on the grey page (dark gets its contrast free) */
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.1),
+    0 4px 14px rgba(0, 0, 0, 0.08) !important;
 }
 @media (prefers-reduced-motion: reduce) {
   #ona-phone .om-x-chrome-in,

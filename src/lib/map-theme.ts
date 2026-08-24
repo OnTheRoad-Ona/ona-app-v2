@@ -1,11 +1,11 @@
 /**
- * Customer map theme — dark green (light mode) / dark red (black mode).
+ * Customer map theme dark green (light mode) / dark red (black mode).
  *
  * IMPORTANT: Export plain helpers first. Avoid evaluating anything that can
  * throw at module load (that made mapContainerStyle look "not a function"
  * under Turbopack partial init).
  *
- * Never set Google Maps `renderingType` after create — unsupported crash.
+ * Never set Google Maps `renderingType` after create unsupported crash.
  */
 
 /* ─── Palette ─── */
@@ -36,12 +36,12 @@ export type OnaMapStyle = {
 };
 
 /**
- * GoogleMap mapContainerStyle prop — always a real function.
+ * GoogleMap mapContainerStyle prop always a real function.
  * Defined early so any import gets a callable even if styles fail below.
  */
 export function mapContainerStyle(
   isLight: boolean,
-  extra?: Record<string, string | number>
+  extra?: Record<string, string | number>,
 ): Record<string, string | number> {
   return {
     width: "100%",
@@ -157,12 +157,36 @@ export const MAP_STYLES_LIGHT: OnaMapStyle[] = [
     elementType: "geometry",
     stylers: [{ color: "#101e16" }],
   },
-  { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#c7d6cd" }] },
-  { featureType: "poi", elementType: "labels.text.stroke", stylers: [{ color: "#050a08" }, { weight: 2 }] },
-  { featureType: "landmark", elementType: "labels.text.fill", stylers: [{ color: "#eaf4ef" }] },
-  { featureType: "landmark", elementType: "labels.text.stroke", stylers: [{ color: "#050a08" }, { weight: 2 }] },
-  { featureType: "transit.station", elementType: "labels.text.fill", stylers: [{ color: "#b9c8c0" }] },
-  { featureType: "transit.station", elementType: "labels.text.stroke", stylers: [{ color: "#050a08" }, { weight: 2 }] },
+  {
+    featureType: "poi",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#c7d6cd" }],
+  },
+  {
+    featureType: "poi",
+    elementType: "labels.text.stroke",
+    stylers: [{ color: "#050a08" }, { weight: 2 }],
+  },
+  {
+    featureType: "landmark",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#eaf4ef" }],
+  },
+  {
+    featureType: "landmark",
+    elementType: "labels.text.stroke",
+    stylers: [{ color: "#050a08" }, { weight: 2 }],
+  },
+  {
+    featureType: "transit.station",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#b9c8c0" }],
+  },
+  {
+    featureType: "transit.station",
+    elementType: "labels.text.stroke",
+    stylers: [{ color: "#050a08" }, { weight: 2 }],
+  },
 ];
 
 /** Black mode: dark red tiles */
@@ -253,12 +277,36 @@ export const MAP_STYLES_DARK: OnaMapStyle[] = [
     elementType: "geometry",
     stylers: [{ color: "#140606" }],
   },
-  { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#d8c9b5" }] },
-  { featureType: "poi", elementType: "labels.text.stroke", stylers: [{ color: "#050000" }, { weight: 2 }] },
-  { featureType: "landmark", elementType: "labels.text.fill", stylers: [{ color: "#ffe8d6" }] },
-  { featureType: "landmark", elementType: "labels.text.stroke", stylers: [{ color: "#050000" }, { weight: 2 }] },
-  { featureType: "transit.station", elementType: "labels.text.fill", stylers: [{ color: "#cfbfa8" }] },
-  { featureType: "transit.station", elementType: "labels.text.stroke", stylers: [{ color: "#050000" }, { weight: 2 }] },
+  {
+    featureType: "poi",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#d8c9b5" }],
+  },
+  {
+    featureType: "poi",
+    elementType: "labels.text.stroke",
+    stylers: [{ color: "#050000" }, { weight: 2 }],
+  },
+  {
+    featureType: "landmark",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#ffe8d6" }],
+  },
+  {
+    featureType: "landmark",
+    elementType: "labels.text.stroke",
+    stylers: [{ color: "#050000" }, { weight: 2 }],
+  },
+  {
+    featureType: "transit.station",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#cfbfa8" }],
+  },
+  {
+    featureType: "transit.station",
+    elementType: "labels.text.stroke",
+    stylers: [{ color: "#050000" }, { weight: 2 }],
+  },
 ];
 
 export function mapThemeForApp(isLight: boolean): {
@@ -275,7 +323,7 @@ export function mapThemeForApp(isLight: boolean): {
   };
 }
 
-/** Initial GoogleMap options — no renderingType (post-create crashes). */
+/** Initial GoogleMap options no renderingType (post-create crashes). */
 export function mapRenderOptions(isLight: boolean): {
   styles: google.maps.MapTypeStyle[];
   backgroundColor: string;

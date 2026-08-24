@@ -37,11 +37,10 @@ export const PLUMBER_FINAL_COPY = {
   remote: "Remote location",
   night: "Night service needed",
   photos:
-    "Add clear photos of the affected area, leaking point, or blocked section (2–4)",
+    "Add clear photos of the affected area, leaking point, or blocked section (2-4)",
   voice: "Record a short voice note describing the problem",
   location: "Exact location / landmark",
-  property:
-    "Type of property (house, flat, shop, office, or other)?",
+  property: "Type of property (house, flat, shop, office, or other)?",
   extra: "Any other detail you want the plumber to know?",
 };
 
@@ -60,10 +59,9 @@ export const PLUMBER_SCREENS: Record<string, PlumberScreen> = {
     options: PLUMBER_START_OPTIONS,
   },
 
-  // Branch A — no water or very low water pressure
+  // Branch A no water or very low water pressure
   a_flow: {
-    question:
-      "Is there completely no water, or is the pressure just very low?",
+    question: "Is there completely no water, or is the pressure just very low?",
     kind: "choice",
     options: [
       { id: "completely-none", label: "Completely no water" },
@@ -108,7 +106,7 @@ export const PLUMBER_SCREENS: Record<string, PlumberScreen> = {
     placeholder: "e.g. Since yesterday morning",
   },
 
-  // Branch B — water leakage
+  // Branch B water leakage
   b_source: {
     question: "Where is the leakage coming from?",
     kind: "choice",
@@ -148,7 +146,7 @@ export const PLUMBER_SCREENS: Record<string, PlumberScreen> = {
     ],
   },
 
-  // Branch C — blocked drain, sink, or toilet
+  // Branch C blocked drain, sink, or toilet
   c_blocked: {
     question: "What is blocked?",
     kind: "choice",
@@ -172,7 +170,8 @@ export const PLUMBER_SCREENS: Record<string, PlumberScreen> = {
     ],
   },
   c_tried: {
-    question: "Have you already tried any chemical or local method to clear it?",
+    question:
+      "Have you already tried any chemical or local method to clear it?",
     kind: "choice",
     options: [
       { id: "yes-chemical", label: "Yes, chemicals" },
@@ -187,7 +186,7 @@ export const PLUMBER_SCREENS: Record<string, PlumberScreen> = {
     placeholder: "e.g. Since last night",
   },
 
-  // Branch D — faulty or damaged tap / shower / mixer
+  // Branch D faulty or damaged tap / shower / mixer
   d_what: {
     question: "What exactly is wrong?",
     kind: "choice",
@@ -196,7 +195,10 @@ export const PLUMBER_SCREENS: Record<string, PlumberScreen> = {
       { id: "tap-loose-broken", label: "Tap is loose or broken" },
       { id: "tap-no-water", label: "No water coming out of the tap" },
       { id: "shower-not-working", label: "Shower not working properly" },
-      { id: "mixer-hot-cold", label: "Mixer not controlling hot/cold correctly" },
+      {
+        id: "mixer-hot-cold",
+        label: "Mixer not controlling hot/cold correctly",
+      },
     ],
   },
   d_mount: {
@@ -219,7 +221,7 @@ export const PLUMBER_SCREENS: Record<string, PlumberScreen> = {
     ],
   },
 
-  // Branch E — water heater / geyser problem
+  // Branch E water heater / geyser problem
   e_issue: {
     question: "What is the issue?",
     kind: "choice",
@@ -247,14 +249,17 @@ export const PLUMBER_SCREENS: Record<string, PlumberScreen> = {
     placeholder: "e.g. About 3 years old",
   },
 
-  // Branch F — toilet flushing problem
+  // Branch F toilet flushing problem
   f_happening: {
     question: "What is happening?",
     kind: "choice",
     options: [
       { id: "not-flushing", label: "Toilet not flushing at all" },
       { id: "weak-flush", label: "Weak flush" },
-      { id: "cistern-running", label: "Continuous running water in the cistern" },
+      {
+        id: "cistern-running",
+        label: "Continuous running water in the cistern",
+      },
       { id: "cistern-leaking", label: "Cistern leaking" },
       { id: "handle-broken", label: "Handle or button broken" },
     ],
@@ -270,7 +275,7 @@ export const PLUMBER_SCREENS: Record<string, PlumberScreen> = {
     ],
   },
 
-  // Branch G — new installation or complete plumbing work
+  // Branch G new installation or complete plumbing work
   g_install: {
     question: "What do you need installed or done?",
     kind: "choice",
@@ -279,7 +284,10 @@ export const PLUMBER_SCREENS: Record<string, PlumberScreen> = {
       { id: "full-bathroom", label: "Complete bathroom plumbing" },
       { id: "kitchen", label: "Kitchen plumbing" },
       { id: "overhead-tank-pipes", label: "Overhead tank and piping" },
-      { id: "borehole-pump", label: "Borehole connection or pump installation" },
+      {
+        id: "borehole-pump",
+        label: "Borehole connection or pump installation",
+      },
       { id: "full-repipe", label: "Full house re-piping" },
     ],
   },
@@ -294,7 +302,7 @@ export const PLUMBER_SCREENS: Record<string, PlumberScreen> = {
     ],
   },
 
-  // Branch H — something else / not sure
+  // Branch H something else / not sure
   h_describe: {
     question: "Please describe the plumbing problem in your own words.",
     kind: "text",
@@ -326,7 +334,7 @@ export function plumberScreen(id: string): PlumberScreen | undefined {
 export function nextPlumberScreen(
   current: string,
   _answerId: string,
-  _answers: Record<string, string>
+  _answers: Record<string, string>,
 ): string {
   const map: Record<string, string> = {
     a_flow: "a_area",
@@ -370,11 +378,12 @@ export function nextPlumberScreen(
 
 /**
  * Strictly plumbing: the flow is capture-only and always dispatches as
- * "plumber" — no confirm cards, no reroute to any other service.
+ * "plumber" no confirm cards, no reroute to any other service.
  */
-export function resolvePlumberRoute(
-  _answers: Record<string, string>
-): { trade: "plumber"; needsConfirm: false } {
+export function resolvePlumberRoute(_answers: Record<string, string>): {
+  trade: "plumber";
+  needsConfirm: false;
+} {
   return { trade: "plumber", needsConfirm: false };
 }
 
@@ -389,13 +398,11 @@ export function canFindPlumberPro(photoCount: number): boolean {
 export function composePlumberProblem(
   answers: Record<string, string>,
   extra: string,
-  landmark: string
+  landmark: string,
 ): string {
   const lines: string[] = [];
   const startLabel = answers.start_label || answers.start || "";
-  lines.push(
-    `Problem: ${startLabel} (${PLUMBER_START_QUESTION})`
-  );
+  lines.push(`Problem: ${startLabel} (${PLUMBER_START_QUESTION})`);
   const orderedIds = [
     "a_flow",
     "a_area",

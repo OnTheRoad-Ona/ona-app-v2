@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     return apiFail(
       "Supabase is not configured yet. Add project URL + service role key to .env.local",
       503,
-      "supabase_not_configured"
+      "supabase_not_configured",
     );
   }
 
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
         ? "Database tables are missing. Run supabase/migrations/20260714_002_bootstrap_idempotent.sql in the Supabase SQL editor, then try again."
         : profileError.message || "Failed to load admin profile",
       503,
-      missing ? "schema_missing" : "profile_error"
+      missing ? "schema_missing" : "profile_error",
     );
   }
 
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
     return apiFail(
       "This account is not an active admin. Run npm run db:seed-admin after the SQL migration.",
       403,
-      "not_admin"
+      "not_admin",
     );
   }
 
@@ -85,11 +85,10 @@ export async function POST(req: Request) {
     expiresAt: data.session.expires_at ?? 0,
   };
 
-  const { normalizeAdminRole, roleLabel } = await import(
-    "@/lib/server/modules/admin-roles"
-  );
+  const { normalizeAdminRole, roleLabel } =
+    await import("@/lib/server/modules/admin-roles");
   const adminRole = normalizeAdminRole(
-    (profile as { admin_role?: string }).admin_role
+    (profile as { admin_role?: string }).admin_role,
   );
 
   const jar = await cookies();
@@ -106,7 +105,7 @@ export async function POST(req: Request) {
       secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: 60 * 60 * 8, // 8h hard cap; idle timeout still enforced server-side
-    }
+    },
   );
 
   return apiOk({
@@ -117,7 +116,16 @@ export async function POST(req: Request) {
       role: profile.role,
       adminRole,
       roleLabel: roleLabel(adminRole),
-      level: adminRole === "customer_care" ? 1 : adminRole === "senior_support" ? 2 : adminRole === "operations" ? 3 : adminRole === "manager" ? 4 : 5,
+      level:
+        adminRole === "customer_care"
+          ? 1
+          : adminRole === "senior_support"
+            ? 2
+            : adminRole === "operations"
+              ? 3
+              : adminRole === "manager"
+                ? 4
+                : 5,
     },
   });
 }

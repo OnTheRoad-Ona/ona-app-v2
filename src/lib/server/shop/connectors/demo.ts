@@ -5,7 +5,10 @@
  */
 
 import { DEMO_PRODUCTS } from "@/lib/shop/demo-catalog";
-import type { CatalogConnector, StagedRecord } from "@/lib/server/shop/connectors/types";
+import type {
+  CatalogConnector,
+  StagedRecord,
+} from "@/lib/server/shop/connectors/types";
 import { checksum } from "@/lib/server/shop/normalize";
 
 const PAGE_SIZE = 25;
@@ -13,7 +16,8 @@ const PAGE_SIZE = 25;
 export class DemoCatalogConnector implements CatalogConnector {
   readonly code = "ona_demo";
   readonly name = "Ona Demo Catalog";
-  readonly license = "Ona proprietary demo data — synthetic, non-infringing fixtures";
+  readonly license =
+    "Ona proprietary demo data synthetic, non-infringing fixtures";
   readonly licenseUrl = null;
   readonly homepageUrl = null;
   readonly sourceCode = "ona_demo";
@@ -25,25 +29,26 @@ export class DemoCatalogConnector implements CatalogConnector {
     const page = opts?.page ?? 1;
     const pageSize = opts?.pageSize ?? PAGE_SIZE;
     const start = (page - 1) * pageSize;
-    const records = DEMO_PRODUCTS.slice(start, start + pageSize).map<StagedRecord>(
-      (p) => ({
-        externalId: p.id,
-        externalCategory: `${p.tradeKey} > ${p.categorySlug}`,
-        tradeKey: p.tradeKey,
-        name: p.name,
-        subtitle: p.subtitle,
-        description: p.description,
-        brand: p.brand,
-        sku: p.sku,
-        mpn: p.mpn,
-        oemNumber: p.oemNumber,
-        priceMinor: p.priceMinor,
-        status: p.status,
-        attributes: p.attributes,
-        keywords: p.keywords,
-        raw: { source: "ona_demo", id: p.id, qty: p.qty },
-      })
-    );
+    const records = DEMO_PRODUCTS.slice(
+      start,
+      start + pageSize,
+    ).map<StagedRecord>((p) => ({
+      externalId: p.id,
+      externalCategory: `${p.tradeKey} > ${p.categorySlug}`,
+      tradeKey: p.tradeKey,
+      name: p.name,
+      subtitle: p.subtitle,
+      description: p.description,
+      brand: p.brand,
+      sku: p.sku,
+      mpn: p.mpn,
+      oemNumber: p.oemNumber,
+      priceMinor: p.priceMinor,
+      status: p.status,
+      attributes: p.attributes,
+      keywords: p.keywords,
+      raw: { source: "ona_demo", id: p.id, qty: p.qty },
+    }));
 
     return {
       records,

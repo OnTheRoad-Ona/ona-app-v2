@@ -31,7 +31,7 @@ export default function PaymentsHubPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader title={title} backHref={backHref} />
@@ -43,7 +43,9 @@ export default function PaymentsHubPage() {
             isLight={isLight}
             icon={Wallet}
             label={isPro ? "Payout overview" : "Payment overview"}
-            detail={isPro ? "Money held and paid out" : "Money held and released"}
+            detail={
+              isPro ? "Money held and paid out" : "Money held and released"
+            }
             href="/settings/payments/overview"
           />
           <SettingsRow

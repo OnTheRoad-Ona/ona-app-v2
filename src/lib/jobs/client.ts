@@ -12,7 +12,7 @@ type ApiOk<T> = { ok: true; data: T };
 type ApiErr = { ok: false; message: string };
 
 const FETCH_TIMEOUT = 15_000;
-/** Release/payout can wait on Flutterwave transfer — must not abort at 15s. */
+/** Release/payout can wait on Flutterwave transfer must not abort at 15s. */
 const RELEASE_FETCH_TIMEOUT = 90_000;
 
 /**
@@ -22,7 +22,7 @@ const RELEASE_FETCH_TIMEOUT = 90_000;
  */
 async function authHeaders(
   extra?: Record<string, string>,
-  opts?: { forceRefresh?: boolean }
+  opts?: { forceRefresh?: boolean },
 ): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -40,7 +40,7 @@ async function authHeaders(
       headers["x-access-token"] = session.accessToken;
     }
   } catch {
-    /* unauthenticated call — server will 401 */
+    /* unauthenticated call server will 401 */
   }
   return headers;
 }
@@ -50,16 +50,14 @@ function isAbortError(e: unknown): boolean {
   const name = (e as { name?: string }).name;
   const msg = String((e as { message?: string }).message || "").toLowerCase();
   return (
-    name === "AbortError" ||
-    msg.includes("aborted") ||
-    msg.includes("abort")
+    name === "AbortError" || msg.includes("aborted") || msg.includes("abort")
   );
 }
 
 async function fetchWithTimeout(
   url: string,
   init: RequestInit = {},
-  timeoutMs = FETCH_TIMEOUT
+  timeoutMs = FETCH_TIMEOUT,
 ): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -71,7 +69,7 @@ async function fetchWithTimeout(
       const err = new Error(
         timeoutMs >= RELEASE_FETCH_TIMEOUT
           ? "Release is taking longer than expected. Checking status…"
-          : "Request timed out. Please try again."
+          : "Request timed out. Please try again.",
       );
       err.name = "AbortError";
       throw err;
@@ -89,16 +87,16 @@ async function fetchWithTimeout(
 async function jobFetch(
   url: string,
   init: RequestInit = {},
-  timeoutMs = FETCH_TIMEOUT
+  timeoutMs = FETCH_TIMEOUT,
 ): Promise<Response> {
   const headers1 = await authHeaders(
-    init.headers as Record<string, string> | undefined
+    init.headers as Record<string, string> | undefined,
   );
   if (!headers1.Authorization) {
     // Last chance: forced refresh before failing open without token
     const headersRetry = await authHeaders(
       init.headers as Record<string, string> | undefined,
-      { forceRefresh: true }
+      { forceRefresh: true },
     );
     if (!headersRetry.Authorization) {
       // Synthetic 401 so parse surfaces a clear message
@@ -107,7 +105,7 @@ async function jobFetch(
           ok: false,
           error: { code: "auth", message: SESSION_RELOGIN_MESSAGE },
         }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
+        { status: 401, headers: { "Content-Type": "application/json" } },
       );
     }
     return fetchWithTimeout(url, { ...init, headers: headersRetry }, timeoutMs);
@@ -116,14 +114,14 @@ async function jobFetch(
   const res = await fetchWithTimeout(
     url,
     { ...init, headers: headers1 },
-    timeoutMs
+    timeoutMs,
   );
   if (res.status !== 401) return res;
 
-  // Token rejected — refresh once and retry
+  // Token rejected refresh once and retry
   const headers2 = await authHeaders(
     init.headers as Record<string, string> | undefined,
-    { forceRefresh: true }
+    { forceRefresh: true },
   );
   if (!headers2.Authorization) return res;
   return fetchWithTimeout(url, { ...init, headers: headers2 }, timeoutMs);
@@ -192,7 +190,7 @@ function hashBody(body: Record<string, unknown>): string {
 }
 
 export async function apiGetJob(id: string) {
-  // Up to 3 attempts — covers create→navigate session race.
+  // Up to 3 attempts covers create→navigate session race.
   // Prefer POST: production previously returned 401 on GET /api/jobs/[id]
   // with the same Bearer that succeeded on POST /api/jobs (create).
   let last: ApiOk<{ job: JobRecord }> | ApiErr = {
@@ -248,7 +246,7 @@ export async function apiDispatchScheduled(input: {
         lat: input.lat,
         lng: input.lng,
       }),
-    }
+    },
   );
   return parse<{ job: JobRecord }>(res);
 }
@@ -312,7 +310,7 @@ export async function apiExpireStaleBookedJobs() {
 /**
  * Enforce overdue SSPE pairing deadlines via the dedicated light route.
  * Unlike `/api/jobs/expire-stale` (which throttles its pairing sweep to 30s
- * and runs the heavy cancel/refund sweeps), this runs only `sweepPairing` —
+ * and runs the heavy cancel/refund sweeps), this runs only `sweepPairing`
  * no throttle. Calling it from the customer's pairing countdown `onExpire`
  * closes the ring into the next pro / expired state within one `load()`
  * poll instead of waiting on the throttled sweep.
@@ -328,7 +326,7 @@ export async function apiPairingSweep() {
 export async function apiListJobs(
   userId: string,
   role: "motorist" | "repair_pro",
-  opts?: { lean?: boolean }
+  opts?: { lean?: boolean },
 ) {
   const qs = new URLSearchParams({ userId, role });
   // Lean = status-snapshot only (no media hydration / expiry / profile
@@ -351,10 +349,10 @@ export type ProIncomingStatus = {
   updatedAt: string;
 };
 
-/** Ultra-light status check for the incoming popup's visible cards — one tiny
- *  query (id, flow_status, status, pairing_stage, pairing_deadline,
- *  repair_pro_id) so a customer cancellation closes the card within ~1s even
- *  when the realtime push is missed on a slow connection. */
+/** Ultra-light status check for the incoming popup's visible cards one tiny
+ * query (id, flow_status, status, pairing_stage, pairing_deadline,
+ * repair_pro_id) so a customer cancellation closes the card within ~1s even
+ * when the realtime push is missed on a slow connection. */
 export async function apiProIncomingStatus(ids: string[]) {
   const qs = new URLSearchParams({ ids: ids.join(",") });
   const res = await jobFetch(`/api/jobs/pro-incoming-status?${qs}`, {
@@ -372,12 +370,12 @@ export type SurfaceResult = {
 };
 
 /** Tell the server the request just appeared on this pro's screen ("surface").
- *  Server-owned: it arms `pairing_deadline = now + 144s` EXACTLY ONCE per offer
- *  (only when it's still NULL), so the 144s pairing timer starts at the moment
- *  the card renders — on BOTH the pro's popup and the customer's ring (they
- *  read the same shared deadline). Never re-arms once set, so the timer can't
- *  roll back to 144. If the pro's device never surfaces, the server sweep arms
- *  a fallback deadline after ~8s so the offer still times out/advances. */
+ * Server-owned: it arms `pairing_deadline = now + 144s` EXACTLY ONCE per offer
+ * (only when it's still NULL), so the 144s pairing timer starts at the moment
+ * the card renders on BOTH the pro's popup and the customer's ring (they
+ * read the same shared deadline). Never re-arms once set, so the timer can't
+ * roll back to 144. If the pro's device never surfaces, the server sweep arms
+ * a fallback deadline after ~8s so the offer still times out/advances. */
 export async function apiSurfaceJob(jobId: string) {
   const res = await jobFetch(`/api/jobs/${encodeURIComponent(jobId)}/surface`, {
     method: "POST",
@@ -412,10 +410,10 @@ export async function apiPlaceOffer(input: {
     if (parsed.ok) clearIdemKey(intentKey);
     return parsed;
   } catch {
-    // Fail fast — no silent queue. The sticker makes the manual retry safe.
+    // Fail fast no silent queue. The sticker makes the manual retry safe.
     return {
       ok: false as const,
-      message: "Couldn't send — check your connection and tap Send again.",
+      message: "Couldn't send check your connection and tap Send again.",
     };
   }
 }
@@ -444,7 +442,7 @@ export async function apiPayJob(input: {
   customerPhone?: string;
   /** Force mock (dev only). Default: live Flutterwave when keys exist */
   provider?: "mock" | "flutterwave" | "paystack";
-  /** Default true — Flutterwave modal on Ona page */
+  /** Default true Flutterwave modal on Ona page */
   preferInline?: boolean;
 }) {
   const returnOrigin =
@@ -493,7 +491,7 @@ export async function apiPayJob(input: {
   }>(res);
 }
 
-/** Close open pay session — does not count as attempt; next Pay gets fresh 20 min */
+/** Close open pay session does not count as attempt; next Pay gets fresh 20 min */
 export async function apiCancelPaySession(input: {
   jobId: string;
   motoristId: string;
@@ -535,14 +533,14 @@ export async function apiTransition(input: {
   cancelReason?: string;
   /** Client-generated idempotency key (SSPE Open/Confirm/Later/Decline) */
   idempotencyKey?: string;
-  /** Real GPS — server computes Google Distance Matrix ETA */
+  /** Real GPS server computes Google Distance Matrix ETA */
   proLat?: number;
   proLng?: number;
   accuracyM?: number;
   capturedAt?: string;
   mockLocation?: boolean;
 }) {
-  // SATISFIED/RELEASE may call Flutterwave transfer — allow up to 90s.
+  // SATISFIED/RELEASE may call Flutterwave transfer allow up to 90s.
   const timeoutMs =
     input.event === "SATISFIED" || input.event === "RELEASE"
       ? RELEASE_FETCH_TIMEOUT
@@ -554,7 +552,7 @@ export async function apiTransition(input: {
         method: "POST",
         body: JSON.stringify(input),
       },
-      timeoutMs
+      timeoutMs,
     );
     return parse<{ job: JobRecord }>(res);
   } catch (e) {
@@ -591,7 +589,7 @@ export async function apiTransition(input: {
 
 export async function apiDeferJob(
   jobId: string,
-  proId: string
+  proId: string,
 ): Promise<ApiOk<{ job: JobRecord }> | ApiErr> {
   const res = await jobFetch(`/api/jobs/${jobId}/defer`, {
     method: "POST",
@@ -602,7 +600,7 @@ export async function apiDeferJob(
 
 /** Customer re-runs a pairing-exhausted search (max MAX_PAIRING_RETRIES). */
 export async function apiRetrySearch(
-  jobId: string
+  jobId: string,
 ): Promise<ApiOk<{ job: JobRecord }> | ApiErr> {
   const res = await jobFetch(`/api/jobs/${jobId}/retry`, {
     method: "POST",
@@ -673,7 +671,7 @@ export async function apiRateJob(input: {
 
 /** Browser geolocation promise */
 export function getCurrentPosition(
-  opts?: PositionOptions
+  opts?: PositionOptions,
 ): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
@@ -720,10 +718,10 @@ export async function apiOpenAppeal(input: {
 export function useJobPoll(
   jobId: string | null,
   onJob: (j: JobRecord) => void,
-  ms = 2500
+  ms = 2500,
 ) {
   if (typeof window === "undefined") return;
-  // callers use useEffect themselves — helper only
+  // callers use useEffect themselves helper only
   void jobId;
   void onJob;
   void ms;

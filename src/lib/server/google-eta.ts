@@ -15,7 +15,7 @@ export type RouteMetrics = {
 
 function haversineKm(
   a: { lat: number; lng: number },
-  b: { lat: number; lng: number }
+  b: { lat: number; lng: number },
 ): number {
   const R = 6371;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -29,7 +29,7 @@ function haversineKm(
 }
 
 /**
- * Haversine ETA fallback (no fake 5–6 min floor).
+ * Haversine ETA fallback (no fake 5-6 min floor).
  * ~28 km/h urban average; very close pins → 1 min.
  */
 export function haversineEtaMinutes(distanceKm: number): number {
@@ -45,18 +45,18 @@ function haversineEta(distanceKm: number): number {
 
 export async function computeDriveMetrics(
   origin: { lat: number; lng: number },
-  destination: { lat: number; lng: number }
+  destination: { lat: number; lng: number },
 ): Promise<RouteMetrics> {
   const key = getGoogleMapsApiKey();
   if (key) {
     try {
       const url = new URL(
-        "https://maps.googleapis.com/maps/api/distancematrix/json"
+        "https://maps.googleapis.com/maps/api/distancematrix/json",
       );
       url.searchParams.set("origins", `${origin.lat},${origin.lng}`);
       url.searchParams.set(
         "destinations",
-        `${destination.lat},${destination.lng}`
+        `${destination.lat},${destination.lng}`,
       );
       url.searchParams.set("mode", "driving");
       url.searchParams.set("departure_time", "now");
@@ -100,8 +100,7 @@ export async function computeDriveMetrics(
     }
   }
 
-  const distanceKm =
-    Math.round(haversineKm(origin, destination) * 100) / 100;
+  const distanceKm = Math.round(haversineKm(origin, destination) * 100) / 100;
   return {
     distanceKm,
     etaMinutes: haversineEta(distanceKm),
@@ -115,7 +114,7 @@ export async function computeDriveMetrics(
  */
 export async function computeDriveMetricsBatch(
   origin: { lat: number; lng: number },
-  destinations: { lat: number; lng: number }[]
+  destinations: { lat: number; lng: number }[],
 ): Promise<RouteMetrics[]> {
   if (!destinations.length) return [];
 
@@ -123,12 +122,12 @@ export async function computeDriveMetricsBatch(
   if (key && destinations.length <= 25) {
     try {
       const url = new URL(
-        "https://maps.googleapis.com/maps/api/distancematrix/json"
+        "https://maps.googleapis.com/maps/api/distancematrix/json",
       );
       url.searchParams.set("origins", `${origin.lat},${origin.lng}`);
       url.searchParams.set(
         "destinations",
-        destinations.map((d) => `${d.lat},${d.lng}`).join("|")
+        destinations.map((d) => `${d.lat},${d.lng}`).join("|"),
       );
       url.searchParams.set("mode", "driving");
       url.searchParams.set("departure_time", "now");
@@ -169,8 +168,7 @@ export async function computeDriveMetricsBatch(
               distanceText: el.distance.text,
             };
           }
-          const distanceKm =
-            Math.round(haversineKm(origin, dest) * 100) / 100;
+          const distanceKm = Math.round(haversineKm(origin, dest) * 100) / 100;
           return {
             distanceKm,
             etaMinutes: haversineEta(distanceKm),

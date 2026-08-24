@@ -8,7 +8,7 @@ import { isWithinArrivalProximity } from "@/lib/callout/arrival";
 import { calculateCalloutFee } from "@/lib/callout/engine";
 import { haversineMeters } from "@/lib/callout/integrity";
 
-describe("dispatch consistency — words beat the wrong tap", () => {
+describe("dispatch consistency words beat the wrong tap", () => {
   it("puncture + mechanic tap → vulcanizer dispatch", () => {
     const d = resolveDispatchTrades("I have a puncture", "mechanic");
     expect(d.mismatch).toBe(true);
@@ -30,7 +30,7 @@ describe("dispatch consistency — words beat the wrong tap", () => {
   });
 });
 
-describe("decideHelpTrade — ask before sending a different trade", () => {
+describe("decideHelpTrade ask before sending a different trade", () => {
   it("asks when words point to vulcanizer but they tapped mechanic", () => {
     const d = decideHelpTrade("I have a puncture", "mechanic");
     expect(d.needsConfirm).toBe(true);
@@ -53,13 +53,25 @@ describe("decideHelpTrade — ask before sending a different trade", () => {
 
 describe("customer move surcharge", () => {
   it("under 500 m adds nothing", () => {
-    expect(customerMoveSurchargeNaira(499)).toEqual({ steps: 0, extraNaira: 0 });
+    expect(customerMoveSurchargeNaira(499)).toEqual({
+      steps: 0,
+      extraNaira: 0,
+    });
   });
 
   it("each full 500 m adds ₦500", () => {
-    expect(customerMoveSurchargeNaira(500)).toEqual({ steps: 1, extraNaira: 500 });
-    expect(customerMoveSurchargeNaira(999)).toEqual({ steps: 1, extraNaira: 500 });
-    expect(customerMoveSurchargeNaira(1000)).toEqual({ steps: 2, extraNaira: 1000 });
+    expect(customerMoveSurchargeNaira(500)).toEqual({
+      steps: 1,
+      extraNaira: 500,
+    });
+    expect(customerMoveSurchargeNaira(999)).toEqual({
+      steps: 1,
+      extraNaira: 500,
+    });
+    expect(customerMoveSurchargeNaira(1000)).toEqual({
+      steps: 2,
+      extraNaira: 1000,
+    });
   });
 });
 
@@ -67,7 +79,7 @@ describe("arrival proximity", () => {
   it("accepts a pin within 200 m of the customer", () => {
     const r = isWithinArrivalProximity(
       { lat: 6.5, lng: 3.3 },
-      { lat: 6.5001, lng: 3.3001 }
+      { lat: 6.5001, lng: 3.3001 },
     );
     expect(r.ok).toBe(true);
   });
@@ -75,12 +87,12 @@ describe("arrival proximity", () => {
   it("rejects a pin far from the customer", () => {
     const r = isWithinArrivalProximity(
       { lat: 6.53, lng: 3.35 },
-      { lat: 6.5, lng: 3.3 }
+      { lat: 6.5, lng: 3.3 },
     );
     expect(r.ok).toBe(false);
-    expect(haversineMeters({ lat: 6.53, lng: 3.35 }, { lat: 6.5, lng: 3.3 })).toBeGreaterThan(
-      200
-    );
+    expect(
+      haversineMeters({ lat: 6.53, lng: 3.35 }, { lat: 6.5, lng: 3.3 }),
+    ).toBeGreaterThan(200);
   });
 });
 
@@ -95,7 +107,7 @@ describe("locked fee still ignores pro driving", () => {
       calculateCalloutFee({
         tradeId: "mechanic",
         approvedRouteDistanceKm: 1.5,
-      }).calloutFee
+      }).calloutFee,
     ).toBe(3525);
   });
 });

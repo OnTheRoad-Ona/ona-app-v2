@@ -23,10 +23,14 @@ const bodySchema = z.object({
   password: z.string().min(1),
 });
 
-/** POST — unlock sensitive actions with temporary password 336699 */
+/** POST unlock sensitive actions with temporary password 336699 */
 export async function POST(req: Request) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     const { session } = await requireAdmin();
@@ -40,7 +44,7 @@ export async function POST(req: Request) {
       return apiFail(
         `Too many unlock attempts. Wait ${rl.retryAfterSec}s`,
         429,
-        "rate_limited"
+        "rate_limited",
       );
     }
 
@@ -49,7 +53,7 @@ export async function POST(req: Request) {
 
     const check = verifyPasswordAndCreateToken(
       parsed.data.password,
-      session.userId
+      session.userId,
     );
     if (!check.ok) {
       await logAdminAction(session.userId, "sensitive_unlock_failed", null, {
@@ -82,7 +86,7 @@ export async function POST(req: Request) {
   }
 }
 
-/** DELETE — clear unlock */
+/** DELETE clear unlock */
 export async function DELETE() {
   try {
     await requireAdmin();

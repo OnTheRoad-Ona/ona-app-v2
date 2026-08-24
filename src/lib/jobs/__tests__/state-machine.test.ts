@@ -14,15 +14,21 @@ import type { JobFlowStatus } from "@/lib/jobs/types";
 describe("state-machine", () => {
   describe("canTransition", () => {
     it("allows ACCEPT_OFFER from negotiating", () => {
-      expect(canTransition("negotiating", { type: "ACCEPT_OFFER", by: "motorist" })).toBe(true);
+      expect(
+        canTransition("negotiating", { type: "ACCEPT_OFFER", by: "motorist" }),
+      ).toBe(true);
     });
 
     it("allows EXPIRE_NEGOTIATION from negotiating", () => {
-      expect(canTransition("negotiating", { type: "EXPIRE_NEGOTIATION" })).toBe(true);
+      expect(canTransition("negotiating", { type: "EXPIRE_NEGOTIATION" })).toBe(
+        true,
+      );
     });
 
     it("allows CANCEL from negotiating", () => {
-      expect(canTransition("negotiating", { type: "CANCEL", by: "motorist" })).toBe(true);
+      expect(
+        canTransition("negotiating", { type: "CANCEL", by: "motorist" }),
+      ).toBe(true);
     });
 
     it("allows PAYMENT_SUCCESS from agreed", () => {
@@ -30,17 +36,21 @@ describe("state-machine", () => {
     });
 
     it("allows EXPIRE_UNPAID_BOOK from agreed", () => {
-      expect(canTransition("agreed", { type: "EXPIRE_UNPAID_BOOK" })).toBe(true);
+      expect(canTransition("agreed", { type: "EXPIRE_UNPAID_BOOK" })).toBe(
+        true,
+      );
     });
 
     it("rejects EXPIRE_UNPAID_BOOK from paid_booked", () => {
       expect(canTransition("paid_booked", { type: "EXPIRE_UNPAID_BOOK" })).toBe(
-        false
+        false,
       );
     });
 
     it("rejects PAYMENT_SUCCESS from negotiating", () => {
-      expect(canTransition("negotiating", { type: "PAYMENT_SUCCESS" })).toBe(false);
+      expect(canTransition("negotiating", { type: "PAYMENT_SUCCESS" })).toBe(
+        false,
+      );
     });
 
     it("allows START_TRIP from paid_booked", () => {
@@ -48,14 +58,29 @@ describe("state-machine", () => {
     });
 
     it("allows OPEN_DISPUTE from disputable statuses", () => {
-      const disputable = ["paid_booked", "en_route", "arrived", "in_progress", "completed", "satisfied", "released"];
+      const disputable = [
+        "paid_booked",
+        "en_route",
+        "arrived",
+        "in_progress",
+        "completed",
+        "satisfied",
+        "released",
+      ];
       for (const status of disputable) {
-        expect(canTransition(status as JobFlowStatus, { type: "OPEN_DISPUTE", by: "motorist" })).toBe(true);
+        expect(
+          canTransition(status as JobFlowStatus, {
+            type: "OPEN_DISPUTE",
+            by: "motorist",
+          }),
+        ).toBe(true);
       }
     });
 
     it("rejects OPEN_DISPUTE from negotiating", () => {
-      expect(canTransition("negotiating", { type: "OPEN_DISPUTE", by: "motorist" })).toBe(false);
+      expect(
+        canTransition("negotiating", { type: "OPEN_DISPUTE", by: "motorist" }),
+      ).toBe(false);
     });
 
     it("allows REFUND from paid_booked", () => {
@@ -72,84 +97,141 @@ describe("state-machine", () => {
 
     it("terminal statuses have no transitions", () => {
       for (const status of ["cancelled", "expired", "refunded"] as const) {
-        expect(canTransition(status, { type: "CANCEL", by: "system" })).toBe(false);
+        expect(canTransition(status, { type: "CANCEL", by: "system" })).toBe(
+          false,
+        );
         expect(canTransition(status, { type: "PAYMENT_SUCCESS" })).toBe(false);
       }
     });
 
     it("allows RESOLVE_DISPUTE from disputed", () => {
-      expect(canTransition("disputed", { type: "RESOLVE_DISPUTE", outcome: "release" })).toBe(true);
+      expect(
+        canTransition("disputed", {
+          type: "RESOLVE_DISPUTE",
+          outcome: "release",
+        }),
+      ).toBe(true);
     });
 
     it("allows OPEN_APPEAL from disputed", () => {
-      expect(canTransition("disputed", { type: "OPEN_APPEAL", by: "motorist" })).toBe(true);
+      expect(
+        canTransition("disputed", { type: "OPEN_APPEAL", by: "motorist" }),
+      ).toBe(true);
     });
 
     it("allows RESOLVE_APPEAL from under_appeal", () => {
-      expect(canTransition("under_appeal", { type: "RESOLVE_APPEAL", outcome: "release" })).toBe(true);
+      expect(
+        canTransition("under_appeal", {
+          type: "RESOLVE_APPEAL",
+          outcome: "release",
+        }),
+      ).toBe(true);
     });
   });
 
   describe("SSPE dispatch transitions", () => {
     it("OPEN moves waiting_for_selected → selected_review", () => {
-      expect(canTransition("waiting_for_selected", { type: "OPEN", by: "repair_pro" })).toBe(true);
-      expect(nextStatus("waiting_for_selected", { type: "OPEN", by: "repair_pro" })).toBe("selected_review");
+      expect(
+        canTransition("waiting_for_selected", {
+          type: "OPEN",
+          by: "repair_pro",
+        }),
+      ).toBe(true);
+      expect(
+        nextStatus("waiting_for_selected", { type: "OPEN", by: "repair_pro" }),
+      ).toBe("selected_review");
     });
 
     it("OPEN moves waiting_for_pro → reserved", () => {
-      expect(nextStatus("waiting_for_pro", { type: "OPEN", by: "repair_pro" })).toBe("reserved");
+      expect(
+        nextStatus("waiting_for_pro", { type: "OPEN", by: "repair_pro" }),
+      ).toBe("reserved");
     });
 
     it("CONFIRM moves selected_review → negotiating", () => {
-      expect(nextStatus("selected_review", { type: "CONFIRM", by: "repair_pro" })).toBe("negotiating");
+      expect(
+        nextStatus("selected_review", { type: "CONFIRM", by: "repair_pro" }),
+      ).toBe("negotiating");
     });
 
     it("CONFIRM moves reserved → negotiating", () => {
-      expect(nextStatus("reserved", { type: "CONFIRM", by: "repair_pro" })).toBe("negotiating");
+      expect(
+        nextStatus("reserved", { type: "CONFIRM", by: "repair_pro" }),
+      ).toBe("negotiating");
     });
 
     it("LATER / DECLINE / PAIRING_TIMEOUT move to sequential_pairing", () => {
-      expect(nextStatus("waiting_for_selected", { type: "LATER", by: "repair_pro" })).toBe("sequential_pairing");
-      expect(nextStatus("waiting_for_pro", { type: "DECLINE", by: "repair_pro" })).toBe("sequential_pairing");
-      expect(nextStatus("waiting_for_pro", { type: "PAIRING_TIMEOUT" })).toBe("sequential_pairing");
-      expect(nextStatus("selected_review", { type: "PAIRING_TIMEOUT" })).toBe("sequential_pairing");
+      expect(
+        nextStatus("waiting_for_selected", { type: "LATER", by: "repair_pro" }),
+      ).toBe("sequential_pairing");
+      expect(
+        nextStatus("waiting_for_pro", { type: "DECLINE", by: "repair_pro" }),
+      ).toBe("sequential_pairing");
+      expect(nextStatus("waiting_for_pro", { type: "PAIRING_TIMEOUT" })).toBe(
+        "sequential_pairing",
+      );
+      expect(nextStatus("selected_review", { type: "PAIRING_TIMEOUT" })).toBe(
+        "sequential_pairing",
+      );
     });
 
     it("DISPATCH moves sequential_pairing → waiting_for_pro", () => {
-      expect(nextStatus("sequential_pairing", { type: "DISPATCH" })).toBe("waiting_for_pro");
+      expect(nextStatus("sequential_pairing", { type: "DISPATCH" })).toBe(
+        "waiting_for_pro",
+      );
     });
 
     it("PAIRING_TIMEOUT from sequential_pairing → expired (exhausted)", () => {
-      expect(nextStatus("sequential_pairing", { type: "PAIRING_TIMEOUT" })).toBe("expired");
+      expect(
+        nextStatus("sequential_pairing", { type: "PAIRING_TIMEOUT" }),
+      ).toBe("expired");
     });
 
     it("CANCEL allowed from all pairing states", () => {
-      for (const s of ["waiting_for_selected", "selected_review", "sequential_pairing", "waiting_for_pro", "reserved"] as const) {
+      for (const s of [
+        "waiting_for_selected",
+        "selected_review",
+        "sequential_pairing",
+        "waiting_for_pro",
+        "reserved",
+      ] as const) {
         expect(canTransition(s, { type: "CANCEL", by: "motorist" })).toBe(true);
-        expect(nextStatus(s, { type: "CANCEL", by: "motorist" })).toBe("cancelled");
+        expect(nextStatus(s, { type: "CANCEL", by: "motorist" })).toBe(
+          "cancelled",
+        );
       }
     });
 
     it("illegal: DISPATCH not allowed from waiting_for_pro", () => {
-      expect(canTransition("waiting_for_pro", { type: "DISPATCH" })).toBe(false);
+      expect(canTransition("waiting_for_pro", { type: "DISPATCH" })).toBe(
+        false,
+      );
     });
 
     it("illegal: OPEN not allowed from negotiating", () => {
-      expect(canTransition("negotiating", { type: "OPEN", by: "repair_pro" })).toBe(false);
+      expect(
+        canTransition("negotiating", { type: "OPEN", by: "repair_pro" }),
+      ).toBe(false);
     });
   });
 
   describe("nextStatus", () => {
     it("returns agreed after ACCEPT_OFFER", () => {
-      expect(nextStatus("negotiating", { type: "ACCEPT_OFFER", by: "motorist" })).toBe("agreed");
+      expect(
+        nextStatus("negotiating", { type: "ACCEPT_OFFER", by: "motorist" }),
+      ).toBe("agreed");
     });
 
     it("returns paid_booked after PAYMENT_SUCCESS", () => {
-      expect(nextStatus("agreed", { type: "PAYMENT_SUCCESS" })).toBe("paid_booked");
+      expect(nextStatus("agreed", { type: "PAYMENT_SUCCESS" })).toBe(
+        "paid_booked",
+      );
     });
 
     it("returns en_route after START_TRIP", () => {
-      expect(nextStatus("paid_booked", { type: "START_TRIP" })).toBe("en_route");
+      expect(nextStatus("paid_booked", { type: "START_TRIP" })).toBe(
+        "en_route",
+      );
     });
 
     it("returns arrived after MARK_ARRIVED", () => {
@@ -161,7 +243,9 @@ describe("state-machine", () => {
     });
 
     it("returns completed after MARK_COMPLETED", () => {
-      expect(nextStatus("in_progress", { type: "MARK_COMPLETED" })).toBe("completed");
+      expect(nextStatus("in_progress", { type: "MARK_COMPLETED" })).toBe(
+        "completed",
+      );
     });
 
     it("returns satisfied after SATISFIED", () => {
@@ -173,39 +257,57 @@ describe("state-machine", () => {
     });
 
     it("returns expired after EXPIRE_NEGOTIATION", () => {
-      expect(nextStatus("negotiating", { type: "EXPIRE_NEGOTIATION" })).toBe("expired");
+      expect(nextStatus("negotiating", { type: "EXPIRE_NEGOTIATION" })).toBe(
+        "expired",
+      );
     });
 
     it("returns expired after EXPIRE_UNPAID_BOOK from agreed", () => {
-      expect(nextStatus("agreed", { type: "EXPIRE_UNPAID_BOOK" })).toBe("expired");
+      expect(nextStatus("agreed", { type: "EXPIRE_UNPAID_BOOK" })).toBe(
+        "expired",
+      );
     });
 
     it("returns cancelled after CANCEL from agreed", () => {
-      expect(nextStatus("agreed", { type: "CANCEL", by: "motorist" })).toBe("cancelled");
+      expect(nextStatus("agreed", { type: "CANCEL", by: "motorist" })).toBe(
+        "cancelled",
+      );
     });
 
     it("returns cancelled after CANCEL from paid_booked (refund path)", () => {
-      expect(nextStatus("paid_booked", { type: "CANCEL", by: "system" })).toBe("cancelled");
+      expect(nextStatus("paid_booked", { type: "CANCEL", by: "system" })).toBe(
+        "cancelled",
+      );
     });
 
     it("returns disputed after OPEN_DISPUTE", () => {
-      expect(nextStatus("completed", { type: "OPEN_DISPUTE", by: "motorist" })).toBe("disputed");
+      expect(
+        nextStatus("completed", { type: "OPEN_DISPUTE", by: "motorist" }),
+      ).toBe("disputed");
     });
 
     it("returns under_appeal after OPEN_APPEAL", () => {
-      expect(nextStatus("disputed", { type: "OPEN_APPEAL", by: "repair_pro" })).toBe("under_appeal");
+      expect(
+        nextStatus("disputed", { type: "OPEN_APPEAL", by: "repair_pro" }),
+      ).toBe("under_appeal");
     });
 
     it("returns refunded after RESOLVE_DISPUTE with refund outcome", () => {
-      expect(nextStatus("disputed", { type: "RESOLVE_DISPUTE", outcome: "refund" })).toBe("refunded");
+      expect(
+        nextStatus("disputed", { type: "RESOLVE_DISPUTE", outcome: "refund" }),
+      ).toBe("refunded");
     });
 
     it("returns released after RESOLVE_DISPUTE with release outcome", () => {
-      expect(nextStatus("disputed", { type: "RESOLVE_DISPUTE", outcome: "release" })).toBe("released");
+      expect(
+        nextStatus("disputed", { type: "RESOLVE_DISPUTE", outcome: "release" }),
+      ).toBe("released");
     });
 
     it("returns released after RESOLVE_DISPUTE with split outcome", () => {
-      expect(nextStatus("disputed", { type: "RESOLVE_DISPUTE", outcome: "split" })).toBe("released");
+      expect(
+        nextStatus("disputed", { type: "RESOLVE_DISPUTE", outcome: "split" }),
+      ).toBe("released");
     });
 
     it("returns null for illegal transitions", () => {
@@ -217,11 +319,18 @@ describe("state-machine", () => {
 
   describe("assertTransition", () => {
     it("returns the next status for valid transitions", () => {
-      expect(assertTransition("negotiating", { type: "ACCEPT_OFFER", by: "motorist" })).toBe("agreed");
+      expect(
+        assertTransition("negotiating", {
+          type: "ACCEPT_OFFER",
+          by: "motorist",
+        }),
+      ).toBe("agreed");
     });
 
     it("throws for illegal transitions", () => {
-      expect(() => assertTransition("released", { type: "MARK_COMPLETED" })).toThrow("Illegal transition");
+      expect(() =>
+        assertTransition("released", { type: "MARK_COMPLETED" }),
+      ).toThrow("Illegal transition");
     });
   });
 
@@ -258,7 +367,7 @@ describe("state-machine", () => {
         canPlaceOffer({
           ...base,
           negotiateEndsAt: new Date(Date.now() - 60_000).toISOString(),
-        })
+        }),
       ).toEqual({
         ok: false,
         reason: "Negotiation timer expired.",
@@ -273,7 +382,9 @@ describe("state-machine", () => {
     });
 
     it("allows motorist counter-offer after pro's first offer", () => {
-      expect(canPlaceOffer({ ...base, offerCount: 1, side: "motorist" })).toEqual({ ok: true });
+      expect(
+        canPlaceOffer({ ...base, offerCount: 1, side: "motorist" }),
+      ).toEqual({ ok: true });
     });
 
     it("does not enforce expiry when timerArmed is false", () => {
@@ -282,32 +393,60 @@ describe("state-machine", () => {
           ...base,
           negotiateEndsAt: new Date(Date.now() - 60_000).toISOString(),
           timerArmed: false,
-        })
+        }),
       ).toEqual({ ok: true });
     });
   });
 
   describe("validateOfferAmount", () => {
     it("accepts valid pro offer", () => {
-      expect(validateOfferAmount({ side: "repair_pro", amountMajor: 5000, proBaseMajor: null, lastProOfferMajor: null })).toEqual({ ok: true });
+      expect(
+        validateOfferAmount({
+          side: "repair_pro",
+          amountMajor: 5000,
+          proBaseMajor: null,
+          lastProOfferMajor: null,
+        }),
+      ).toEqual({ ok: true });
     });
 
     it("rejects amount below minimum", () => {
-      expect(validateOfferAmount({ side: "repair_pro", amountMajor: 50, proBaseMajor: null, lastProOfferMajor: null })).toEqual({
+      expect(
+        validateOfferAmount({
+          side: "repair_pro",
+          amountMajor: 50,
+          proBaseMajor: null,
+          lastProOfferMajor: null,
+        }),
+      ).toEqual({
         ok: false,
         reason: expect.stringContaining("Minimum"),
       });
     });
 
     it("rejects amount above maximum (6 digits)", () => {
-      expect(validateOfferAmount({ side: "repair_pro", amountMajor: 1_000_000, proBaseMajor: null, lastProOfferMajor: null })).toEqual({
+      expect(
+        validateOfferAmount({
+          side: "repair_pro",
+          amountMajor: 1_000_000,
+          proBaseMajor: null,
+          lastProOfferMajor: null,
+        }),
+      ).toEqual({
         ok: false,
         reason: expect.stringContaining("6 digits"),
       });
     });
 
     it("rejects non-finite amount", () => {
-      expect(validateOfferAmount({ side: "repair_pro", amountMajor: NaN, proBaseMajor: null, lastProOfferMajor: null })).toEqual({
+      expect(
+        validateOfferAmount({
+          side: "repair_pro",
+          amountMajor: NaN,
+          proBaseMajor: null,
+          lastProOfferMajor: null,
+        }),
+      ).toEqual({
         ok: false,
         reason: "Enter a valid labour price.",
       });
@@ -315,7 +454,12 @@ describe("state-machine", () => {
 
     it("rejects motorist counter below 50% of pro base", () => {
       expect(
-        validateOfferAmount({ side: "motorist", amountMajor: 2000, proBaseMajor: 5000, lastProOfferMajor: 5000 })
+        validateOfferAmount({
+          side: "motorist",
+          amountMajor: 2000,
+          proBaseMajor: 5000,
+          lastProOfferMajor: 5000,
+        }),
       ).toEqual({
         ok: false,
         reason: expect.stringContaining("50%"),
@@ -324,13 +468,23 @@ describe("state-machine", () => {
 
     it("accepts motorist counter at exactly 50% of pro base", () => {
       expect(
-        validateOfferAmount({ side: "motorist", amountMajor: 2500, proBaseMajor: 5000, lastProOfferMajor: 5000 })
+        validateOfferAmount({
+          side: "motorist",
+          amountMajor: 2500,
+          proBaseMajor: 5000,
+          lastProOfferMajor: 5000,
+        }),
       ).toEqual({ ok: true });
     });
 
     it("returns waiting message when pro base is null for motorist", () => {
       expect(
-        validateOfferAmount({ side: "motorist", amountMajor: 5000, proBaseMajor: null, lastProOfferMajor: null })
+        validateOfferAmount({
+          side: "motorist",
+          amountMajor: 5000,
+          proBaseMajor: null,
+          lastProOfferMajor: null,
+        }),
       ).toEqual({
         ok: false,
         reason: "Wait for the Repair Pro to set a price.",
@@ -340,15 +494,33 @@ describe("state-machine", () => {
 
   describe("negotiationUiStatus", () => {
     it("returns expired when status is expired", () => {
-      expect(negotiationUiStatus({ status: "expired", offerCount: 0, negotiateEndsAt: "" })).toBe("expired");
+      expect(
+        negotiationUiStatus({
+          status: "expired",
+          offerCount: 0,
+          negotiateEndsAt: "",
+        }),
+      ).toBe("expired");
     });
 
     it("returns agreed when status is agreed", () => {
-      expect(negotiationUiStatus({ status: "agreed", offerCount: 2, negotiateEndsAt: "" })).toBe("agreed");
+      expect(
+        negotiationUiStatus({
+          status: "agreed",
+          offerCount: 2,
+          negotiateEndsAt: "",
+        }),
+      ).toBe("agreed");
     });
 
     it("returns waiting when no offers placed", () => {
-      expect(negotiationUiStatus({ status: "negotiating", offerCount: 0, negotiateEndsAt: new Date(Date.now() + 600_000).toISOString() })).toBe("waiting");
+      expect(
+        negotiationUiStatus({
+          status: "negotiating",
+          offerCount: 0,
+          negotiateEndsAt: new Date(Date.now() + 600_000).toISOString(),
+        }),
+      ).toBe("waiting");
     });
 
     it("returns countered when lastSide is set", () => {
@@ -358,7 +530,7 @@ describe("state-machine", () => {
           offerCount: 2,
           lastSide: "motorist",
           negotiateEndsAt: new Date(Date.now() + 600_000).toISOString(),
-        })
+        }),
       ).toBe("countered");
     });
 
@@ -368,13 +540,19 @@ describe("state-machine", () => {
           status: "negotiating",
           offerCount: 1,
           negotiateEndsAt: new Date(Date.now() - 60_000).toISOString(),
-        })
+        }),
       ).toBe("expired");
     });
   });
 
   describe("actorMay", () => {
-    const repairProEvents: TransitionEvent["type"][] = ["START_TRIP", "MARK_ARRIVED", "START_WORK", "MARK_COMPLETED", "START_NEGOTIATION"];
+    const repairProEvents: TransitionEvent["type"][] = [
+      "START_TRIP",
+      "MARK_ARRIVED",
+      "START_WORK",
+      "MARK_COMPLETED",
+      "START_NEGOTIATION",
+    ];
 
     for (const event of repairProEvents) {
       it(`allows repair_pro to ${event}`, () => {

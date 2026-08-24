@@ -23,7 +23,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Server-side email/password login — reliable on Vercel.
+ * Server-side email/password login reliable on Vercel.
  * Browser sets session from returned tokens; profile loaded via service role.
  */
 const bodySchema = z.object({
@@ -53,7 +53,7 @@ function friendlyLoginError(message: string): string {
 async function loadOrRepairProfile(
   userId: string,
   email: string,
-  meta: Record<string, unknown> | undefined
+  meta: Record<string, unknown> | undefined,
 ): Promise<
   | {
       profile: UserProfile;
@@ -96,7 +96,7 @@ async function loadOrRepairProfile(
           is_active: true,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: "id" }
+        { onConflict: "id" },
       )
       .select("*")
       .maybeSingle();
@@ -123,14 +123,14 @@ async function loadOrRepairProfile(
     admin
       .from("motorist_profiles")
       .select(
-        "vehicle_make, vehicle_model, vehicle_year, plate_number, vehicle_photo, vehicle_common_issues, vehicles, nin_verified, bvn_verified, identity_verified_at, created_at, bank_name, bank_account_name, bank_account_number, bank_code"
+        "vehicle_make, vehicle_model, vehicle_year, plate_number, vehicle_photo, vehicle_common_issues, vehicles, nin_verified, bvn_verified, identity_verified_at, created_at, bank_name, bank_account_name, bank_account_number, bank_code",
       )
       .eq("user_id", userId)
       .maybeSingle(),
     admin
       .from("repair_pro_profiles")
       .select(
-        "user_id, business_name, primary_service, services, years_experience, bio, service_radius_km, nin_verified, bvn_verified, docs_status, docs_rating_boost_applied, certification_file_name, certification_file_url, skills, rating_avg, jobs_completed, labour_prices, pricing_currency, vehicle_focus, created_at, bank_name, bank_account_name, bank_account_number, bank_code"
+        "user_id, business_name, primary_service, services, years_experience, bio, service_radius_km, nin_verified, bvn_verified, docs_status, docs_rating_boost_applied, certification_file_name, certification_file_url, skills, rating_avg, jobs_completed, labour_prices, pricing_currency, vehicle_focus, created_at, bank_name, bank_account_name, bank_account_number, bank_code",
       )
       .eq("user_id", userId)
       .maybeSingle(),
@@ -153,12 +153,14 @@ async function loadOrRepairProfile(
     bank_account_number?: string | null;
     bank_code?: string | null;
   } | null;
-  const pr = proRes.data as (RepairProRow & {
-    bank_name?: string | null;
-    bank_account_name?: string | null;
-    bank_account_number?: string | null;
-    bank_code?: string | null;
-  }) | null;
+  const pr = proRes.data as
+    | (RepairProRow & {
+        bank_name?: string | null;
+        bank_account_name?: string | null;
+        bank_account_number?: string | null;
+        bank_code?: string | null;
+      })
+    | null;
 
   // One bank per login: either side can supply it
   const bankName = pr?.bank_name || mot?.bank_name || undefined;
@@ -205,7 +207,8 @@ async function loadOrRepairProfile(
         serviceRadiusKm: pr?.service_radius_km,
         ninVerified: pr?.nin_verified,
         bvnVerified: pr?.bvn_verified,
-        docsStatus: (pr?.docs_status as UserProfile["docsStatus"]) || "approved",
+        docsStatus:
+          (pr?.docs_status as UserProfile["docsStatus"]) || "approved",
         docsRatingBoostApplied: Boolean(pr?.docs_rating_boost_applied),
         certificationFileName: pr?.certification_file_name || undefined,
         certificationFileDataUrl: pr?.certification_file_url || undefined,
@@ -269,7 +272,8 @@ export async function POST(req: Request) {
 
     // Soft IP + email throttle (in-memory; multi-instance → Redis later)
     try {
-      const { rateLimitAsync } = await import("@/lib/server/modules/rate-limit");
+      const { rateLimitAsync } =
+        await import("@/lib/server/modules/rate-limit");
       const ip =
         req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
         req.headers.get("x-real-ip") ||
@@ -283,7 +287,7 @@ export async function POST(req: Request) {
         return apiFail(
           `Too many login attempts. Retry in ${byIp.retryAfterSec}s.`,
           429,
-          "rate_limited"
+          "rate_limited",
         );
       }
       const byEmail = await rateLimitAsync({
@@ -295,7 +299,7 @@ export async function POST(req: Request) {
         return apiFail(
           `Too many login attempts for this email. Retry in ${byEmail.retryAfterSec}s.`,
           429,
-          "rate_limited"
+          "rate_limited",
         );
       }
     } catch {
@@ -321,21 +325,21 @@ export async function POST(req: Request) {
     const loaded = await loadOrRepairProfile(
       userId,
       email,
-      (data.user.user_metadata || {}) as Record<string, unknown>
+      (data.user.user_metadata || {}) as Record<string, unknown>,
     );
 
     if (loaded && "deactivated" in loaded && loaded.deactivated) {
       return apiFail(
         "This account has been deactivated. Contact support.",
         403,
-        "deactivated"
+        "deactivated",
       );
     }
 
     if (!loaded || !("profile" in loaded) || !loaded.profile) {
       return apiFail(
         "Account exists but profile could not be loaded. Contact support.",
-        500
+        500,
       );
     }
 
@@ -348,10 +352,16 @@ export async function POST(req: Request) {
       const admin = createServiceSupabase();
 
       if (hasMotorist) {
-        await ensureUserRole(admin, userId, "motorist", { userId, source: "login" });
+        await ensureUserRole(admin, userId, "motorist", {
+          userId,
+          source: "login",
+        });
       }
       if (hasPro) {
-        await ensureUserRole(admin, userId, "repair_pro", { userId, source: "login" });
+        await ensureUserRole(admin, userId, "repair_pro", {
+          userId,
+          source: "login",
+        });
       }
       await syncPayoutAcrossRoles(admin, userId, { userId, source: "login" });
 
@@ -359,7 +369,7 @@ export async function POST(req: Request) {
       const again = await loadOrRepairProfile(
         userId,
         email,
-        (data.user.user_metadata || {}) as Record<string, unknown>
+        (data.user.user_metadata || {}) as Record<string, unknown>,
       );
       if (again && "profile" in again && again.profile) {
         profile = again.profile;

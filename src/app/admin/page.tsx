@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Customer Care desk — primary daily workspace.
+ * Customer Care desk primary daily workspace.
  * Search · live board · one-click actions (password popup only when needed).
  */
 
@@ -186,7 +186,7 @@ export default function CareDeskPage() {
     }
     const t = window.setTimeout(async () => {
       const res = await api<{ hits: SearchHit[] }>(
-        `/api/admin/care/search?q=${encodeURIComponent(query.trim())}`
+        `/api/admin/care/search?q=${encodeURIComponent(query.trim())}`,
       );
       if (res.ok) setHits(res.data.hits);
     }, 280);
@@ -209,10 +209,7 @@ export default function CareDeskPage() {
     setJobDetail(res.data);
   };
 
-  const runAction = async (
-    body: Record<string, unknown>,
-    reason: string
-  ) => {
+  const runAction = async (body: Record<string, unknown>, reason: string) => {
     setErr(null);
     setMsg(null);
     await withSensitivePassword(
@@ -245,7 +242,7 @@ export default function CareDeskPage() {
             (document.activeElement as HTMLElement | null)?.blur?.();
           }
         }
-      }
+      },
     );
   };
 
@@ -279,7 +276,8 @@ export default function CareDeskPage() {
     >
       <h1 className="om-admin-h1">Dashboard</h1>
       <p className="om-admin-sub">
-        Live overview of Ona: totals, open jobs, and Care tools. Search people or jobs, watch the board, and run escrow / freeze / dispute from here.
+        Live overview of Ona: totals, open jobs, and Care tools. Search people
+        or jobs, watch the board, and run escrow / freeze / dispute from here.
       </p>
 
       <AdminGuideBanner pageId="dashboard" />
@@ -311,13 +309,16 @@ export default function CareDeskPage() {
         ))}
       </div>
 
-      <p className="om-admin-muted" style={{ marginBottom: "1rem", fontSize: 12 }}>
-        Super Admin can release escrow, freeze users, and resolve disputes without
-        a second password. Customer Care may still see a temporary staff password
-        popup on those actions only.
+      <p
+        className="om-admin-muted"
+        style={{ marginBottom: "1rem", fontSize: 12 }}
+      >
+        Super Admin can release escrow, freeze users, and resolve disputes
+        without a second password. Customer Care may still see a temporary staff
+        password popup on those actions only.
       </p>
 
-      {/* Local BackUp — money fallout protection */}
+      {/* Local BackUp money fallout protection */}
       <div
         className="om-admin-panel"
         style={{
@@ -331,10 +332,14 @@ export default function CareDeskPage() {
       >
         <div>
           <div style={{ fontWeight: 700, fontSize: 14 }}>Local BackUp</div>
-          <p className="om-admin-muted" style={{ margin: "4px 0 0", fontSize: 12 }}>
+          <p
+            className="om-admin-muted"
+            style={{ margin: "4px 0 0", fontSize: 12 }}
+          >
             Saves payments + jobs + banks to{" "}
             <code>Local BackUp/snapshots/</code> on this machine. Also runs
-            automatically after payment status changes (held / released / refunded).
+            automatically after payment status changes (held / released /
+            refunded).
             {latestBackup ? (
               <>
                 {" "}
@@ -425,7 +430,10 @@ export default function CareDeskPage() {
 
       {/* Search */}
       <div className="om-admin-panel" style={{ marginBottom: "1rem" }}>
-        <label className="om-admin-muted" style={{ display: "block", marginBottom: 6 }}>
+        <label
+          className="om-admin-muted"
+          style={{ display: "block", marginBottom: 6 }}
+        >
           Search phone · name · job ID · plate
         </label>
         <input
@@ -521,23 +529,26 @@ export default function CareDeskPage() {
                         {j.escrow_status ? (
                           <>
                             <br />
-                            <span className="om-admin-muted" style={{ fontSize: 11 }}>
+                            <span
+                              className="om-admin-muted"
+                              style={{ fontSize: 11 }}
+                            >
                               escrow:{j.escrow_status}
                             </span>
                           </>
                         ) : null}
                       </td>
                       <td style={{ fontSize: 12 }}>
-                        {j.motorist_name || "—"}
+                        {j.motorist_name || ""}
                         <br />
                         <span className="om-admin-muted">
-                          {j.repair_pro_name || "—"}
+                          {j.repair_pro_name || ""}
                         </span>
                       </td>
                       <td>
                         {j.agreed_major != null
                           ? Number(j.agreed_major).toLocaleString()
-                          : "—"}
+                          : ""}
                       </td>
                       <td>
                         <button
@@ -575,14 +586,13 @@ export default function CareDeskPage() {
                 <br />
                 Status: <strong>{String(job?.status || flow)}</strong>
                 <br />
-                Customer: {String(job?.motoristName || job?.motorist_name || "—")}
+                Customer:{" "}
+                {String(job?.motoristName || job?.motorist_name || "")}
                 <br />
-                Pro: {String(job?.repairProName || job?.repair_pro_name || "—")}
+                Pro: {String(job?.repairProName || job?.repair_pro_name || "")}
                 <br />
                 Address:{" "}
-                {String(
-                  job?.locationLabel || job?.pickup_address || "—"
-                )}
+                {String(job?.locationLabel || job?.pickup_address || "")}
               </p>
 
               <div
@@ -600,7 +610,7 @@ export default function CareDeskPage() {
                   onClick={() =>
                     void runAction(
                       { type: "release_escrow", jobId: selectedJobId },
-                      "Enter password to release escrow to the Repair Pro."
+                      "Enter password to release escrow to the Repair Pro.",
                     )
                   }
                 >
@@ -613,7 +623,7 @@ export default function CareDeskPage() {
                   onClick={() =>
                     void runAction(
                       { type: "refund_escrow", jobId: selectedJobId },
-                      "Enter password to refund escrow to the motorist."
+                      "Enter password to refund escrow to the motorist.",
                     )
                   }
                 >
@@ -631,7 +641,7 @@ export default function CareDeskPage() {
                         outcome: "full_release_pro",
                         kind: "dispute",
                       },
-                      "Enter password to resolve dispute in favour of the pro."
+                      "Enter password to resolve dispute in favour of the pro.",
                     )
                   }
                 >
@@ -649,7 +659,7 @@ export default function CareDeskPage() {
                         outcome: "full_refund_motorist",
                         kind: "dispute",
                       },
-                      "Enter password to resolve dispute with a full refund."
+                      "Enter password to resolve dispute with a full refund.",
                     )
                   }
                 >
@@ -665,11 +675,9 @@ export default function CareDeskPage() {
                         void runAction(
                           {
                             type: "freeze_user",
-                            userId: String(
-                              job?.motoristId || job?.motorist_id
-                            ),
+                            userId: String(job?.motoristId || job?.motorist_id),
                           },
-                          "Enter password to freeze this motorist account."
+                          "Enter password to freeze this motorist account.",
                         )
                       }
                     >
@@ -683,11 +691,9 @@ export default function CareDeskPage() {
                         void runAction(
                           {
                             type: "unfreeze_user",
-                            userId: String(
-                              job?.motoristId || job?.motorist_id
-                            ),
+                            userId: String(job?.motoristId || job?.motorist_id),
                           },
-                          "Enter password to unfreeze this motorist account."
+                          "Enter password to unfreeze this motorist account.",
                         )
                       }
                     >
@@ -705,10 +711,10 @@ export default function CareDeskPage() {
                         {
                           type: "freeze_user",
                           userId: String(
-                            job?.repairProId || job?.repair_pro_id
+                            job?.repairProId || job?.repair_pro_id,
                           ),
                         },
-                        "Enter password to freeze this Repair Pro account."
+                        "Enter password to freeze this Repair Pro account.",
                       )
                     }
                   >
@@ -716,7 +722,10 @@ export default function CareDeskPage() {
                   </button>
                 ) : null}
               </div>
-              <p className="om-admin-muted" style={{ marginTop: "0.75rem", fontSize: 12 }}>
+              <p
+                className="om-admin-muted"
+                style={{ marginTop: "0.75rem", fontSize: 12 }}
+              >
                 Each money/freeze action opens a password popup first. Logged in
                 the audit trail with your staff ID and IP.
               </p>
@@ -727,7 +736,6 @@ export default function CareDeskPage() {
           )}
         </div>
       </div>
-
     </AdminShell>
   );
 }

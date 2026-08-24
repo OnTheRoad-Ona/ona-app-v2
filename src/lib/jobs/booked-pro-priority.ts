@@ -40,7 +40,7 @@ export function recordBookedPro(proId: string | null | undefined) {
   writeMap(map);
 }
 
-/** Pros still in the demotion window (not excluded — just lower priority) */
+/** Pros still in the demotion window (not excluded just lower priority) */
 export function getRadiusDemoteProIds(now = Date.now()): string[] {
   const map = readMap();
   const out: string[] = [];

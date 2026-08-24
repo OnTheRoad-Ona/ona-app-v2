@@ -4,8 +4,8 @@
  * Always full row (never deck-stacked): payment, chat, call.
  *
  * Service request (pro incoming + customer accepted):
- *   - Same local calendar day → open / not stacked
- *   - After that day closes (local midnight) → stack that day only
+ * - Same local calendar day → open / not stacked
+ * - After that day closes (local midnight) → stack that day only
  */
 
 import type { AppNotification } from "@/lib/notifications/types";
@@ -19,8 +19,7 @@ function textBlob(n: AppNotification): string {
 
 /** Local calendar day key YYYY-MM-DD (device timezone). */
 export function localDayKey(isoOrDate: string | Date): string {
-  const d =
-    typeof isoOrDate === "string" ? new Date(isoOrDate) : isoOrDate;
+  const d = typeof isoOrDate === "string" ? new Date(isoOrDate) : isoOrDate;
   if (!Number.isFinite(d.getTime())) return "unknown";
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -31,7 +30,7 @@ export function localDayKey(isoOrDate: string | Date): string {
 /** True while the notification’s local day has not ended yet. */
 export function isNotificationDayOpen(
   createdAt: string,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): boolean {
   return localDayKey(createdAt) === localDayKey(now);
 }
@@ -57,14 +56,14 @@ export function isCallNotification(n: AppNotification): boolean {
   return false;
 }
 
-/** Chat / message notifications — never stack in the pile. */
+/** Chat / message notifications never stack in the pile. */
 export function isChatNotification(n: AppNotification): boolean {
   if (n.category === "messages") return true;
   if (n.actionType === "open_chat") return true;
   return false;
 }
 
-/** Payment / escrow / wallet — full banner under pile */
+/** Payment / escrow / wallet full banner under pile */
 export function isPaymentNotification(n: AppNotification): boolean {
   if (n.category === "payments") return true;
   if (n.actionType === "view_payment") return true;
@@ -84,11 +83,15 @@ export function isPaymentNotification(n: AppNotification): boolean {
  * - Customer: pro accepted / “I can fix this” / request updates
  *
  * Broad: any `requests` category counts, plus accept_request / service-request
- * group keys — so day-stack rules actually hit real prod payloads.
+ * group keys so day-stack rules actually hit real prod payloads.
  */
 export function isServiceRequestNotification(n: AppNotification): boolean {
   if (n.actionType === "accept_request") return true;
-  if (n.jobStatus === "accepted" || n.jobStatus === "searching" || n.jobStatus === "offered") {
+  if (
+    n.jobStatus === "accepted" ||
+    n.jobStatus === "searching" ||
+    n.jobStatus === "offered"
+  ) {
     return true;
   }
   if ((n.groupKey || "").startsWith("service-request")) return true;
@@ -97,7 +100,7 @@ export function isServiceRequestNotification(n: AppNotification): boolean {
   const t = textBlob(n);
   if (
     /\b(service request|new request|incoming request|can fix this|request accepted)\b/.test(
-      t
+      t,
     )
   ) {
     return true;
@@ -117,7 +120,7 @@ export function isRequestAcceptNotification(n: AppNotification): boolean {
  */
 export function isNonStackNotification(
   n: AppNotification,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): boolean {
   if (
     isPaymentNotification(n) ||
@@ -136,7 +139,7 @@ export function isNonStackNotification(
 /** Allowed into the X-style deck pile behind the front card */
 export function isStackableNotification(
   n: AppNotification,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): boolean {
   return !isNonStackNotification(n, now);
 }

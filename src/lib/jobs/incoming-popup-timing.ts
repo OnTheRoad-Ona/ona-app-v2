@@ -1,7 +1,7 @@
 /**
  * Repair Pro service-request popup timing.
- * - Stay visible 144s (progress line only — no second display)
- * - Always surface each new open request (C1 — no 10-minute throttle)
+ * - Stay visible 144s (progress line only no second display)
+ * - Always surface each new open request (C1 no 10-minute throttle)
  * - New requests during the 144s window pile (stack count)
  */
 
@@ -28,17 +28,19 @@ export const PAIRING_ACTION_STAGES = new Set<string>([
 ]);
 
 /**
- * Pro must handle these only on the lower incoming panel — never a full
+ * Pro must handle these only on the lower incoming panel never a full
  * /jobs/[id] page (redirect to dashboard and surface the panel instead).
  */
-export function isProPanelOnlyPairingStatus(status: string | null | undefined): boolean {
+export function isProPanelOnlyPairingStatus(
+  status: string | null | undefined,
+): boolean {
   const s = status ?? "";
   return PAIRING_ACTION_STAGES.has(s) || s === "sequential_pairing";
 }
 
 /** Statuses that mean "still this pro's live request" (card-keep, incl. the
- *  transient sequential_pairing advance). Pairing stages may be reported in
- *  either pairingStage or status, so both are checked. */
+ * transient sequential_pairing advance). Pairing stages may be reported in
+ * either pairingStage or status, so both are checked. */
 export const PRO_CARD_KEEP_STATUSES = new Set<string>([
   ...PAIRING_ACTION_STAGES,
   "sequential_pairing",
@@ -47,20 +49,20 @@ export const PRO_CARD_KEEP_STATUSES = new Set<string>([
 ]);
 
 /** True when a request card should stay visible for this pro: the server still
- *  reports an actionable stage/status. Once the customer cancels/expires it or
- *  it moves to another pro, this returns false so the card closes immediately
- *  (realtime push or the fast status poll) — never wait for the list refresh.
- *  A stale pairing stage must not outlive a terminal status. */
+ * reports an actionable stage/status. Once the customer cancels/expires it or
+ * it moves to another pro, this returns false so the card closes immediately
+ * (realtime push or the fast status poll) never wait for the list refresh.
+ * A stale pairing stage must not outlive a terminal status. */
 export function isProRequestCardKeepable(
   status?: string | null,
-  pairingStage?: string | null
+  pairingStage?: string | null,
 ): boolean {
   const s = status ?? "";
   const stage = pairingStage ?? "";
   if (!s && !stage) return false;
   if (PRO_CARD_KEEP_STATUSES.has(s)) {
     // A terminal status wins over a leftover stage (customer cancelled but
-    // pairing_stage still says waiting_for_pro) — never keep a closed request.
+    // pairing_stage still says waiting_for_pro) never keep a closed request.
     return !isProTerminalStatus(s);
   }
   return PRO_CARD_KEEP_STATUSES.has(stage) && !isProTerminalStatus(s);
@@ -80,16 +82,17 @@ function isProTerminalStatus(status: string): boolean {
 }
 
 export type RequestCloseContext = {
-  job?:
-    | Pick<JobRecord, "motoristName" | "motoristVehicle" | "serviceType">
-    | null;
+  job?: Pick<
+    JobRecord,
+    "motoristName" | "motoristVehicle" | "serviceType"
+  > | null;
   status?: string | null;
   /** Closed because the request moved to another pro (repair_pro_id changed). */
   movedOn?: boolean;
 };
 
-/** One-line, rich explanation for the pro when a request leaves their panel —
- *  shown as OS push body and in-app toast so it never "just disappears". */
+/** One-line, rich explanation for the pro when a request leaves their panel
+ * shown as OS push body and in-app toast so it never "just disappears". */
 export function requestCloseText(input: RequestCloseContext): string {
   const { job, status = "", movedOn = false } = input;
   const name = job?.motoristName?.split(/\s+/)[0];
@@ -142,7 +145,7 @@ export function takeForceIncomingPanelJobId(): string | null {
 export function isIncomingJobOpen(
   j: JobRecord,
   proId: string,
-  now: number = serverNow()
+  now: number = serverNow(),
 ): boolean {
   if (j.repairProId !== proId) return false;
   if (!j.motoristId || !j.problem?.trim()) return false;
@@ -171,7 +174,7 @@ export function isIncomingJobOpen(
 const SHOWN_KEY = "om-job-request-shown";
 
 /** Shown-set is scoped per Repair Pro so a job rerouted to a different pro
- *  can surface again for them (the previous pro's "shown" must not block it). */
+ * can surface again for them (the previous pro's "shown" must not block it). */
 function shownKeyFor(proId?: string): string {
   return proId ? `${SHOWN_KEY}:${proId}` : SHOWN_KEY;
 }
@@ -193,7 +196,7 @@ export function readShownJobIds(proId?: string): Set<string> {
  */
 export function shownOfferKey(
   jobId: string,
-  pairingDeadline?: string | null
+  pairingDeadline?: string | null,
 ): string {
   const d = pairingDeadline?.trim();
   return d ? `${jobId}@${d}` : jobId;
@@ -202,7 +205,7 @@ export function shownOfferKey(
 export function markJobShown(
   id: string,
   proId?: string,
-  pairingDeadline?: string | null
+  pairingDeadline?: string | null,
 ): void {
   try {
     const s = readShownJobIds(proId);
@@ -216,7 +219,7 @@ export function markJobShown(
     }
     sessionStorage.setItem(
       shownKeyFor(proId),
-      JSON.stringify([...s].slice(-80))
+      JSON.stringify([...s].slice(-80)),
     );
   } catch {
     /* */
@@ -257,7 +260,7 @@ export function canSurfaceIncomingJob(
     waveOpen?: boolean;
     proId?: string;
     pairingDeadline?: string | null;
-  }
+  },
 ): IncomingGate {
   const key = shownOfferKey(jobId, opts?.pairingDeadline);
   const shown = readShownJobIds(opts?.proId);
@@ -285,7 +288,7 @@ export function setIncomingPanelOpen(open: boolean): void {
 }
 
 export function subscribeIncomingPanelOpen(
-  listener: (open: boolean) => void
+  listener: (open: boolean) => void,
 ): () => void {
   panelOpenListeners.add(listener);
   return () => panelOpenListeners.delete(listener);

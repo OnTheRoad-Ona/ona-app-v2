@@ -10,14 +10,11 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   req: NextRequest,
-  ctx: { params: Promise<{ slug: string }> }
+  ctx: { params: Promise<{ slug: string }> },
 ) {
   try {
     const { slug } = await ctx.params;
-    const data = await getProductBySlug(
-      slug,
-      await resolveAccountContext(req)
-    );
+    const data = await getProductBySlug(slug, await resolveAccountContext(req));
     if (!data) return apiFail("Product not found", 404, "NOT_FOUND");
     return apiOk(data);
   } catch (e) {

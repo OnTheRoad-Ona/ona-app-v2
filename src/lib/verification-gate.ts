@@ -3,10 +3,10 @@ import type { UserProfile } from "@/lib/types";
 /**
  * Customer progressive verification
  *
- * Tier 1 — Phone OTP verified
- *   Free booking/help for 30 days starting at the first request.
- * Tier 2 — Government ID submitted AND admin/care approved
- *   Full unlimited access.
+ * Tier 1 Phone OTP verified
+ * Free booking/help for 30 days starting at the first request.
+ * Tier 2 Government ID submitted AND admin/care approved
+ * Full unlimited access.
  *
  * Home shows a verify prompt every open until Tier 2.
  */
@@ -14,7 +14,7 @@ import type { UserProfile } from "@/lib/types";
 /** Days of free requests after the customer's first request (Tier 1 only). */
 export const TIER1_TRIAL_DAYS = 30;
 
-/** @deprecated Prefer TIER1_TRIAL_DAYS — kept for older call sites */
+/** @deprecated Prefer TIER1_TRIAL_DAYS kept for older call sites */
 export const VERIFY_WARN_FROM = 1;
 
 /** @deprecated Prefer TIER1_TRIAL_DAYS */
@@ -30,23 +30,20 @@ export { DEMO_OTP_CODE } from "@/lib/auth/demo-otp";
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export type IdentityReviewStatus =
-  | "none"
-  | "submitted"
-  | "approved"
-  | "rejected";
+  "none" | "submitted" | "approved" | "rejected";
 
 export function isPhoneVerified(
-  profile: UserProfile | null | undefined
+  profile: UserProfile | null | undefined,
 ): boolean {
   return Boolean(profile?.phoneVerified);
 }
 
 /**
- * Tier 2 complete — ID must be submitted and admin/care approved.
+ * Tier 2 complete ID must be submitted and admin/care approved.
  * Submitted-only (pending) is NOT full access.
  */
 export function isIdentityVerified(
-  profile: UserProfile | null | undefined
+  profile: UserProfile | null | undefined,
 ): boolean {
   if (!profile) return false;
   // Explicit dual condition: admin approved (implies submitted) + verified flags
@@ -66,27 +63,27 @@ export function isIdentityVerified(
 }
 
 export function isIdentityPending(
-  profile: UserProfile | null | undefined
+  profile: UserProfile | null | undefined,
 ): boolean {
   return profile?.identityReviewStatus === "submitted";
 }
 
 /** ISO timestamp of the customer's first gated request (starts the 30-day clock). */
 export function getFirstServiceAt(
-  profile: UserProfile | null | undefined
+  profile: UserProfile | null | undefined,
 ): string | null {
   return profile?.firstServiceAt || null;
 }
 
 export function getServiceActionCount(
-  profile: UserProfile | null | undefined
+  profile: UserProfile | null | undefined,
 ): number {
   return Math.max(0, profile?.serviceActionCount ?? 0);
 }
 
 /** Next action index (1-based) if the user proceeds now. */
 export function nextActionIndex(
-  profile: UserProfile | null | undefined
+  profile: UserProfile | null | undefined,
 ): number {
   return getServiceActionCount(profile) + 1;
 }
@@ -97,7 +94,7 @@ export function nextActionIndex(
  */
 export function trialMsRemaining(
   profile: UserProfile | null | undefined,
-  trialDays = TIER1_TRIAL_DAYS
+  trialDays = TIER1_TRIAL_DAYS,
 ): number {
   if (isIdentityVerified(profile)) return Infinity;
   const first = getFirstServiceAt(profile);
@@ -109,7 +106,7 @@ export function trialMsRemaining(
 /** Whole days left in trial (ceil). Infinity when T2. */
 export function trialDaysRemaining(
   profile: UserProfile | null | undefined,
-  trialDays = TIER1_TRIAL_DAYS
+  trialDays = TIER1_TRIAL_DAYS,
 ): number {
   const ms = trialMsRemaining(profile, trialDays);
   if (!Number.isFinite(ms)) return Infinity;
@@ -118,7 +115,7 @@ export function trialDaysRemaining(
 
 export function isTrialExpired(
   profile: UserProfile | null | undefined,
-  trialDays = TIER1_TRIAL_DAYS
+  trialDays = TIER1_TRIAL_DAYS,
 ): boolean {
   if (isIdentityVerified(profile)) return false;
   const first = getFirstServiceAt(profile);
@@ -151,7 +148,7 @@ function resolveTrialDays(opts?: VerificationThresholds) {
 export function shouldShowHomeVerifyPanel(
   profile: UserProfile | null | undefined,
   accountType?: UserProfile["accountType"] | null,
-  opts?: VerificationThresholds
+  opts?: VerificationThresholds,
 ): boolean {
   const type = accountType ?? profile?.accountType ?? "motorist";
   if (type === "professional") return false;
@@ -164,7 +161,7 @@ export function shouldShowHomeVerifyPanel(
 /** Days left in free window (for UI). Infinity when T2. */
 export function remainingFreeActions(
   profile: UserProfile | null | undefined,
-  opts?: VerificationThresholds
+  opts?: VerificationThresholds,
 ): number {
   if (isIdentityVerified(profile)) return Infinity;
   return trialDaysRemaining(profile, resolveTrialDays(opts));
@@ -192,14 +189,14 @@ export type GateDecision =
 export function evaluateServiceGate(
   profile: UserProfile | null | undefined,
   accountType?: UserProfile["accountType"] | null,
-  opts?: VerificationThresholds
+  opts?: VerificationThresholds,
 ): GateDecision {
   const type = accountType ?? profile?.accountType ?? "motorist";
   const next = nextActionIndex(profile);
   const trialDays = resolveTrialDays(opts);
   const daysLeft = trialDaysRemaining(profile, trialDays);
 
-  // Pros use separate artisan flow — only gate motorists here for request create
+  // Pros use separate artisan flow only gate motorists here for request create
   if (type === "professional") {
     return {
       allowed: true,
@@ -243,7 +240,7 @@ export function evaluateServiceGate(
     };
   }
 
-  // Within free window (or before first request) — booking allowed
+  // Within free window (or before first request) booking allowed
   let warning: string | null = null;
   if (!isPhoneVerified(profile)) {
     warning =
@@ -268,7 +265,7 @@ export function evaluateServiceGate(
 }
 
 export function verificationStatusLabel(
-  profile: UserProfile | null | undefined
+  profile: UserProfile | null | undefined,
 ): "verified" | "pending" | "phone_only" | "unverified" {
   if (isIdentityVerified(profile)) return "verified";
   if (isIdentityPending(profile)) return "pending";
@@ -277,7 +274,7 @@ export function verificationStatusLabel(
 }
 
 export function customerTierLabel(
-  profile: UserProfile | null | undefined
+  profile: UserProfile | null | undefined,
 ): "Tier 0" | "Tier 1" | "Tier 2" {
   if (isIdentityVerified(profile)) return "Tier 2";
   if (isPhoneVerified(profile)) return "Tier 1";

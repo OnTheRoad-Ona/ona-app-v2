@@ -9,12 +9,16 @@ export const dynamic = "force-dynamic";
 
 /**
  * List ALL Repair Pros from repair_pro_profiles (source of truth),
- * joined to profiles — not filtered by profiles.role alone.
+ * joined to profiles not filtered by profiles.role alone.
  * Dual-account users who signed up customer-first still appear here.
  */
 export async function GET(req: Request) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     await requireAdmin();
@@ -27,7 +31,7 @@ export async function GET(req: Request) {
     let proQ = supabase
       .from("repair_pro_profiles")
       .select(
-        "user_id, business_name, primary_service, status, verified, is_online, location_updated_at, nin_verified, bvn_verified, visibility_tier, rating_avg, rating_count, created_at, updated_at"
+        "user_id, business_name, primary_service, status, verified, is_online, location_updated_at, nin_verified, bvn_verified, visibility_tier, rating_avg, rating_count, created_at, updated_at",
       )
       .order("created_at", { ascending: false })
       .limit(500);
@@ -63,7 +67,7 @@ export async function GET(req: Request) {
       const { data: profs, error: pErr } = await supabase
         .from("profiles")
         .select(
-          "id, full_name, email, phone, role, is_active, created_at, gender, date_of_birth"
+          "id, full_name, email, phone, role, is_active, created_at, gender, date_of_birth",
         )
         .in("id", userIds);
       if (pErr) return apiFail(pErr.message, 500);
@@ -87,13 +91,15 @@ export async function GET(req: Request) {
       const p = profiles[pr.user_id];
       // Effective online = Live flag + fresh heartbeat. A stale is_online (pro
       // closed the app without going Away) should not show as online.
-      const isOnline = Boolean(pr.is_online) && hasRecentLiveHeartbeat(
-        (pr as { location_updated_at?: string | null }).location_updated_at,
-        Date.now()
-      );
+      const isOnline =
+        Boolean(pr.is_online) &&
+        hasRecentLiveHeartbeat(
+          (pr as { location_updated_at?: string | null }).location_updated_at,
+          Date.now(),
+        );
       return {
         id: pr.user_id,
-        full_name: p?.full_name || pr.business_name || "—",
+        full_name: p?.full_name || pr.business_name || "",
         email: p?.email ?? null,
         phone: p?.phone ?? null,
         role: p?.role || "repair_pro",
@@ -139,7 +145,7 @@ export async function GET(req: Request) {
       approved: users.filter((u) => u.repair_pro_profiles.status === "approved")
         .length,
       suspended: users.filter(
-        (u) => u.repair_pro_profiles.status === "suspended"
+        (u) => u.repair_pro_profiles.status === "suspended",
       ).length,
       rejected: users.filter((u) => u.repair_pro_profiles.status === "rejected")
         .length,

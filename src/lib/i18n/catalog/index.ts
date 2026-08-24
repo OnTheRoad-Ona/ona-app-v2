@@ -1,7 +1,7 @@
 /**
- * Ona i18n catalog — English master + full-parity locales.
+ * Ona i18n catalog English master + full-parity locales.
  * English is loaded eagerly (default + fallback); every other locale is a
- * small chunk fetched only when actually used (data saver — keeps ~170KB of
+ * small chunk fetched only when actually used (data saver keeps ~170KB of
  * translations out of the critical first-load bundle).
  * Rule: every MessageKey exists in every locale (EN fallback inside translate).
  */
@@ -46,12 +46,12 @@ export async function loadCatalog(code: LocaleCode): Promise<void> {
 export function translate(
   locale: LocaleCode,
   key: MessageKey,
-  vars?: Record<string, string | number>
+  vars?: Record<string, string | number>,
 ): string {
   const raw = registry[locale]?.[key] ?? EN[key] ?? String(key);
   if (!vars) return raw;
   return raw.replace(/\{(\w+)\}/g, (_, name: string) =>
-    vars[name] != null ? String(vars[name]) : `{${name}}`
+    vars[name] != null ? String(vars[name]) : `{${name}}`,
   );
 }
 

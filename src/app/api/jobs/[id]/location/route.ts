@@ -16,7 +16,7 @@ const bodySchema = z.object({
 
 function haversineKm(
   a: { lat: number; lng: number },
-  b: { lat: number; lng: number }
+  b: { lat: number; lng: number },
 ): number {
   const R = 6371;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -33,12 +33,12 @@ function haversineKm(
  * Live GPS for active trip.
  *
  * DATA FIX: never call Google Distance Matrix on every ping.
- * Previously every 12–25s GPS POST hit Google Maps → massive mobile data + cost.
+ * Previously every 12-25s GPS POST hit Google Maps → massive mobile data + cost.
  * Now: cheap haversine only (client already polls job for status).
  */
 export async function POST(
   req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   try {
     const auth = await requireUser(req);
@@ -71,10 +71,8 @@ export async function POST(
         : ("repair_pro" as const);
     const point = { lat: parsed.data.lat, lng: parsed.data.lng };
 
-    const pro =
-      actor === "repair_pro" ? point : job.proLocation || null;
-    const motorist =
-      actor === "motorist" ? point : job.motoristLocation;
+    const pro = actor === "repair_pro" ? point : job.proLocation || null;
+    const motorist = actor === "motorist" ? point : job.motoristLocation;
 
     let distanceKm = job.distanceKm ?? 0;
     let etaMinutes = job.etaMinutes ?? 0;
@@ -82,8 +80,7 @@ export async function POST(
 
     if (pro && motorist) {
       distanceKm = Math.round(haversineKm(pro, motorist) * 10) / 10;
-      etaMinutes =
-        distanceKm <= 0.15 ? 1 : haversineEtaMinutes(distanceKm);
+      etaMinutes = distanceKm <= 0.15 ? 1 : haversineEtaMinutes(distanceKm);
       source = "haversine_fast";
     }
 
@@ -100,7 +97,7 @@ export async function POST(
 
     if (!updated) return apiFail("Could not save location", 500);
 
-    // Slim response — do not ship full job history/photos every ping
+    // Slim response do not ship full job history/photos every ping
     return apiOk({
       job: {
         id: updated.id,
@@ -125,7 +122,7 @@ export async function POST(
   } catch (e) {
     return apiFail(
       e instanceof Error ? e.message : "Location update failed",
-      500
+      500,
     );
   }
 }

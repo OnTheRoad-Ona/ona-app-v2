@@ -28,7 +28,10 @@ describe("nextPayoutRetryAt", () => {
   it("returns ISO string 10 minutes from now", () => {
     const now = Date.now();
     const result = nextPayoutRetryAt(0, now);
-    expect(new Date(result).getTime()).toBeCloseTo(now + PAYOUT_RETRY_INTERVAL_MS, -2);
+    expect(new Date(result).getTime()).toBeCloseTo(
+      now + PAYOUT_RETRY_INTERVAL_MS,
+      -2,
+    );
   });
 
   it("accepts custom fromMs", () => {
@@ -41,11 +44,15 @@ describe("nextPayoutRetryAt", () => {
 describe("isPayoutAutoRetryExhausted", () => {
   it("returns true when suspended by admin", () => {
     expect(isPayoutAutoRetryExhausted({ payoutSuspended: true })).toBe(true);
-    expect(isPayoutAutoRetryExhausted({ payoutStatus: "suspended_admin" })).toBe(true);
+    expect(
+      isPayoutAutoRetryExhausted({ payoutStatus: "suspended_admin" }),
+    ).toBe(true);
   });
 
   it("returns true when suspended by admin via payoutStatus", () => {
-    expect(isPayoutAutoRetryExhausted({ payoutStatus: "suspended_admin" })).toBe(true);
+    expect(
+      isPayoutAutoRetryExhausted({ payoutStatus: "suspended_admin" }),
+    ).toBe(true);
   });
 
   it("returns true when retry count exceeds max", () => {
@@ -53,13 +60,22 @@ describe("isPayoutAutoRetryExhausted", () => {
   });
 
   it("returns true when window has passed", () => {
-    const past = new Date(Date.now() - (PAYOUT_AUTO_RETRY_WINDOW_MS + 60_000)).toISOString();
-    expect(isPayoutAutoRetryExhausted({ payoutRetryStartedAt: past })).toBe(true);
+    const past = new Date(
+      Date.now() - (PAYOUT_AUTO_RETRY_WINDOW_MS + 60_000),
+    ).toISOString();
+    expect(isPayoutAutoRetryExhausted({ payoutRetryStartedAt: past })).toBe(
+      true,
+    );
   });
 
   it("returns false for fresh retry", () => {
     const recent = new Date(Date.now() - 60_000).toISOString();
-    expect(isPayoutAutoRetryExhausted({ payoutRetryStartedAt: recent, payoutRetryCount: 1 })).toBe(false);
+    expect(
+      isPayoutAutoRetryExhausted({
+        payoutRetryStartedAt: recent,
+        payoutRetryCount: 1,
+      }),
+    ).toBe(false);
   });
 
   it("returns false for empty meta", () => {
@@ -69,7 +85,9 @@ describe("isPayoutAutoRetryExhausted", () => {
 
 describe("isSettlementInsufficientError", () => {
   it("detects available balance errors", () => {
-    expect(isSettlementInsufficientError("Available NGN balance insufficient")).toBe(true);
+    expect(
+      isSettlementInsufficientError("Available NGN balance insufficient"),
+    ).toBe(true);
   });
 
   it("detects insufficient errors", () => {
@@ -111,7 +129,9 @@ describe("isHardPayoutFailure", () => {
   });
 
   it("returns false for settlement errors", () => {
-    expect(isHardPayoutFailure("Available NGN balance insufficient")).toBe(false);
+    expect(isHardPayoutFailure("Available NGN balance insufficient")).toBe(
+      false,
+    );
   });
 
   it("returns false for null/undefined", () => {
@@ -123,7 +143,7 @@ describe("stableProTransferReference", () => {
   it("generates consistent reference from escrow and request IDs", () => {
     const ref = stableProTransferReference(
       "escrow-uuid-1234",
-      "request-uuid-5678"
+      "request-uuid-5678",
     );
     expect(ref).toMatch(/^ona_rel_/);
     expect(ref.length).toBeLessThanOrEqual(50);

@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 const bodySchema = z.object({
   accountNumber: z.string().min(10).max(12),
   bankCode: z.string().min(1).max(20),
-  /** Optional — when omitted, try session cookie / not required for pre-check */
+  /** Optional when omitted, try session cookie / not required for pre-check */
   access_token: z.string().optional(),
 });
 
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
       const { data } = await userClient.auth.getUser(token);
       userId = data.user?.id ?? null;
     } else {
-      // Prefer browser session via anon client cookies is not available here —
+      // Prefer browser session via anon client cookies is not available here
       // client should pass access_token when possible. Without userId we still
       // detect any existing link (stricter pre-check).
     }
@@ -83,9 +83,13 @@ export async function POST(req: Request) {
         .limit(20),
     ]);
 
-    // Canonical payout_methods stores last-4 only — combine bank_code + last4.
+    // Canonical payout_methods stores last-4 only combine bank_code + last4.
     const pmMatch = (pmRes.data || []).some((row) => {
-      const r = row as { user_id?: string; bank_code?: string | null; account_number_last4?: string | null };
+      const r = row as {
+        user_id?: string;
+        bank_code?: string | null;
+        account_number_last4?: string | null;
+      };
       if (userId && r.user_id === userId) return false;
       return (
         String(r.bank_code || "").trim() === bankCode &&
@@ -101,16 +105,12 @@ export async function POST(req: Request) {
     if (taken) {
       return apiOk({
         available: false,
-        message:
-          "This bank is already used on another Ona account.",
+        message: "This bank is already used on another Ona account.",
       });
     }
 
     return apiOk({ available: true });
   } catch (e) {
-    return apiFail(
-      e instanceof Error ? e.message : "Check failed",
-      500
-    );
+    return apiFail(e instanceof Error ? e.message : "Check failed", 500);
   }
 }

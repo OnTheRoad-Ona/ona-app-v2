@@ -55,18 +55,13 @@ export async function GET(req: Request) {
       id: String(r.id),
       status: String(r.flow_status || r.status || ""),
       pairingStage: r.pairing_stage ? String(r.pairing_stage) : null,
-      pairingDeadline: r.pairing_deadline
-        ? String(r.pairing_deadline)
-        : null,
+      pairingDeadline: r.pairing_deadline ? String(r.pairing_deadline) : null,
       repairProId: r.repair_pro_id ? String(r.repair_pro_id) : "",
       negotiateEndsAt: r.negotiate_ends_at ? String(r.negotiate_ends_at) : "",
       updatedAt: r.updated_at ? String(r.updated_at) : "",
     }));
     return apiOk({ jobs, serverNow: new Date().toISOString() });
   } catch (e) {
-    return apiFail(
-      e instanceof Error ? e.message : "Status check failed",
-      500
-    );
+    return apiFail(e instanceof Error ? e.message : "Status check failed", 500);
   }
 }

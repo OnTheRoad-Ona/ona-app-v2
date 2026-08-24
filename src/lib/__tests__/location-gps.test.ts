@@ -18,22 +18,34 @@ describe("location-gps timeouts", () => {
 describe("shouldSurfaceLocationError", () => {
   it("always surfaces errors on an explicit user action (Retry)", () => {
     expect(
-      shouldSurfaceLocationError({ silentRequest: false, hasUsableLocation: true })
+      shouldSurfaceLocationError({
+        silentRequest: false,
+        hasUsableLocation: true,
+      }),
     ).toBe(true);
     expect(
-      shouldSurfaceLocationError({ silentRequest: false, hasUsableLocation: false })
+      shouldSurfaceLocationError({
+        silentRequest: false,
+        hasUsableLocation: false,
+      }),
     ).toBe(true);
   });
 
   it("hides errors on silent refresh when a usable location exists", () => {
     expect(
-      shouldSurfaceLocationError({ silentRequest: true, hasUsableLocation: true })
+      shouldSurfaceLocationError({
+        silentRequest: true,
+        hasUsableLocation: true,
+      }),
     ).toBe(false);
   });
 
   it("surfaces errors on a silent pull only when nothing usable exists yet", () => {
     expect(
-      shouldSurfaceLocationError({ silentRequest: true, hasUsableLocation: false })
+      shouldSurfaceLocationError({
+        silentRequest: true,
+        hasUsableLocation: false,
+      }),
     ).toBe(true);
   });
 });

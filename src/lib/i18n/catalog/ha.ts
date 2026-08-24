@@ -92,7 +92,8 @@ export const HA: MessageDict = {
   "settings.themeDevice": "Zaɓin na'ura · shiga don ajiyewa ga asusu",
   "settings.alerts": "Faɗakarwa",
   "settings.notificationsSound": "Sanarwa & sauti",
-  "settings.notificationsDetail": "Push, SMS, imel, sa'o'in shiru, sautin manhaja",
+  "settings.notificationsDetail":
+    "Push, SMS, imel, sa'o'in shiru, sautin manhaja",
   "settings.discovery": "Gano (taswira & jeri)",
   "settings.searchRadius": "Radius ɗin nema",
   "settings.radiusHelp": "Mafi yawa {max} km · ga taswira da jeri",
@@ -112,7 +113,8 @@ export const HA: MessageDict = {
   "settings.aboutDetail": "Sigar 0.1 · taimako kusa",
   "language.title": "Harshe",
   "language.subtitle": "Harshen nunin manhaja",
-  "language.hint": "Zaɓi yadda Ona ke nuna menu da maɓallan. Turanci ne na asali.",
+  "language.hint":
+    "Zaɓi yadda Ona ke nuna menu da maɓallan. Turanci ne na asali.",
   "language.saved": "An sabunta harshe",
   "language.current": "Yanzu",
   "notif.title": "Sanarwa & sauti",
@@ -149,7 +151,8 @@ export const HA: MessageDict = {
   "notif.emailDetail": "Summaries and receipts",
   "location.title": "Wurina",
   "location.subtitle": "Saita inda kake",
-  "location.hint": "Nemo wuri ko motsa pin. Ana amfani da shi ga taswirar gida da ƙwararrun kusa.",
+  "location.hint":
+    "Nemo wuri ko motsa pin. Ana amfani da shi ga taswirar gida da ƙwararrun kusa.",
   "location.saved": "An ajiye wuri",
   "location.myLocationBtn": "Wurina",
   "location.tapMap": "Taɓa taswira ko ja pin",
@@ -208,7 +211,8 @@ export const HA: MessageDict = {
   "trade.solar": "Rana",
   "trade.generator": "Janareta",
   "trade.all": "Duka",
-  "gate.finishBeforeLive": "Kammala tabbatarwa kuma aika don bita kafin ka iya Go Live.",
+  "gate.finishBeforeLive":
+    "Kammala tabbatarwa kuma aika don bita kafin ka iya Go Live.",
   "gate.continueVerification": "Ci gaba da tabbatarwa",
   "gate.viewStatus": "Duba matsayi",
   "status.draft": "Draft",
@@ -258,7 +262,8 @@ export const HA: MessageDict = {
   "profile.reviews": "Reviews",
   "profile.rating": "Rating",
   "verify.title": "Tabbatar da asali",
-  "verify.subtitle": "Free try until job {warn}. Finish this before job {block} so you can keep booking.",
+  "verify.subtitle":
+    "Free try until job {warn}. Finish this before job {block} so you can keep booking.",
   "verify.howTitle": "How verification works",
   "verify.countryFromPhone": "Country: {country} (from your phone number)",
   "verify.requiredFor": "Required for {country}",
@@ -282,7 +287,8 @@ export const HA: MessageDict = {
   "signup.failed": "Sign-up failed",
   "signup.tryAgain": "Sake gwadawa",
   "signup.allSet": "You're all set",
-  "signup.accountReady": "Your {role} account is ready. You can start using Ona now.",
+  "signup.accountReady":
+    "Your {role} account is ready. You can start using Ona now.",
   "dashboard.title": "Dashboard",
   "dashboard.incoming": "Incoming jobs",
   "dashboard.recent": "Recent",
@@ -291,7 +297,8 @@ export const HA: MessageDict = {
   "gate.verifySoon": "Verify soon to keep full access",
   "gate.verifyNow": "Verify your ID now",
   "gate.required": "Verification required",
-  "gate.exploreFree": "You explored the app freely. Verify your ID once to book without limits.",
+  "gate.exploreFree":
+    "You explored the app freely. Verify your ID once to book without limits.",
   "menu.settings": "Saituna",
   "menu.help": "Taimako",
   "menu.switchRole": "Switch role",
@@ -312,7 +319,8 @@ export const HA: MessageDict = {
   "menu.logIn": "Shiga",
   "menu.needLogin": "Shiga don canza tsakanin Abokin ciniki da Repair Pro.",
   "menu.noMotorist": "Ba ka da asusun Abokin ciniki tukuna.",
-  "menu.noPro": "Ba ka da asusun Repair Pro tukuna. Kammala rajista don Live da karɓar ayyuka.",
+  "menu.noPro":
+    "Ba ka da asusun Repair Pro tukuna. Kammala rajista don Live da karɓar ayyuka.",
   "menu.couldNotSwitch": "An kasa canzawa.",
   "menu.tapToClose": "Taɓa don rufe",
   "menu.signedInAs": "An shiga a matsayin {name}",
@@ -346,11 +354,12 @@ export const HA: MessageDict = {
   "settings.hub.addressesDetail": "Home, Work, service area & pin",
   "settings.dangerZone": "Yankin haɗari",
   "settings.deleteAccount": "Share asusu",
-  "settings.deleteAccountDetail": "Kashe har abada — ba za a iya juyawa ba",
+  "settings.deleteAccountDetail": "Kashe har abada ba za a iya juyawa ba",
   "settings.theme.tap": "Taɓa",
   "search.noResultsFor": "Babu sakamako na “{q}”",
-  "search.tryAnother": "Wannan pro, sana'a ko wuri ba ya kusa. Gwada bincike ɗaya.",
-  "search.tryBrowse": "Gwada suna, sana'a ko wuri — ko buɗe Home.",
+  "search.tryAnother":
+    "Wannan pro, sana'a ko wuri ba ya kusa. Gwada bincike ɗaya.",
+  "search.tryBrowse": "Gwada suna, sana'a ko wuri ko buɗe Home.",
   "search.noMatchesNearby": "Babu daidaito kusa",
   "search.backHome": "Koma gida",
   "search.withinKm": "Cikin {km} km · sakamako {count}",
@@ -359,12 +368,14 @@ export const HA: MessageDict = {
   "search.placeholder": "Nemo matsala, ma'aikaci, sabis…",
   "search.title": "Nemo",
   "search.subtitle": "Ƙwararrun ma'aikata kusa",
-  "home.searchNoResults": "Babu sakamako na “{q}”. Gwada wani suna, sana'a ko wuri.",
+  "home.searchNoResults":
+    "Babu sakamako na “{q}”. Gwada wani suna, sana'a ko wuri.",
   "common.customer": "Abokin ciniki",
   "common.repairPro": "Repair Pro",
   "common.codeSent": "An aika lambar. Shigar da ita a ƙasa.",
   "nav.shop": "Shop",
   "nav.myShop": "My Shop",
+  "nav.onaExpress": "Ona Express",
   "trade.shop": "Shop",
   "shop.title": "Shop",
   "shop.searchPlaceholder": "What are you looking for?",
@@ -372,6 +383,6 @@ export const HA: MessageDict = {
   "shop.popular": "Popular",
   "shop.newArrivals": "New arrivals",
   "shop.empty": "No products yet. Catalog is loading.",
-  "shop.setupRequired": "Shop is almost ready — catalog database will appear after setup.",
+  "shop.setupRequired":
+    "Shop is almost ready catalog database will appear after setup.",
 };
-

@@ -37,7 +37,8 @@ export default function AdminBookingsPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Bookings</h1>
       <p className="om-admin-sub">
-        Booking records linked to jobs and escrow. Cross-check status with Live jobs and Payments.
+        Booking records linked to jobs and escrow. Cross-check status with Live
+        jobs and Payments.
       </p>
 
       <AdminGuideBanner pageId="bookings" />
@@ -69,17 +70,19 @@ export default function AdminBookingsPage() {
               bookings.map((b) => (
                 <tr key={b.id}>
                   <td>{new Date(b.created_at).toLocaleString()}</td>
-                  <td className="om-admin-muted">{b.request_id.slice(0, 8)}…</td>
-                  <td className="om-admin-muted">{b.motorist_id.slice(0, 8)}…</td>
+                  <td className="om-admin-muted">
+                    {b.request_id.slice(0, 8)}…
+                  </td>
+                  <td className="om-admin-muted">
+                    {b.motorist_id.slice(0, 8)}…
+                  </td>
                   <td className="om-admin-muted">
                     {b.repair_pro_id.slice(0, 8)}…
                   </td>
                   <td>
-                    {b.starts_at
-                      ? new Date(b.starts_at).toLocaleString()
-                      : "—"}
+                    {b.starts_at ? new Date(b.starts_at).toLocaleString() : ""}
                   </td>
-                  <td>{b.notes || "—"}</td>
+                  <td>{b.notes || ""}</td>
                 </tr>
               ))
             )}

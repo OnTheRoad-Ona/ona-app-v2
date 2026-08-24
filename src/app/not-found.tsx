@@ -4,9 +4,7 @@ import Link from "next/link";
 
 export default function NotFound() {
   return (
-    <div
-      className="flex min-h-[100vh] min-h-[100dvh] flex-col items-center justify-center gap-4 bg-[#0a0a0a] px-6 text-center text-white"
-    >
+    <div className="flex min-h-[100vh] min-h-[100dvh] flex-col items-center justify-center gap-4 bg-[#0a0a0a] px-6 text-center text-white">
       <p className="text-[22px] font-black tracking-tight" aria-label="Ona">
         <span className="text-[#FF6B35]">O</span>
         <span className="text-[#C8C9CD]">na</span>

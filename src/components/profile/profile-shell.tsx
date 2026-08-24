@@ -8,7 +8,7 @@ import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 /**
- * Own-profile chrome — X-style flat layout.
+ * Own-profile chrome X-style flat layout.
  * Page stage only. No section cards, nested panels, glow, or gradient.
  */
 export function ProfileShell({
@@ -50,7 +50,7 @@ export function ProfileShell({
           }
           className={cn(
             "flex h-8 w-8 items-center justify-center border-0 bg-transparent",
-            t.ink
+            t.ink,
           )}
           aria-label="Back"
         >
@@ -59,7 +59,7 @@ export function ProfileShell({
         <h1
           className={cn(
             "min-w-0 flex-1 truncate text-center text-[16px] font-bold",
-            t.ink
+            t.ink,
           )}
         >
           {title}
@@ -69,7 +69,7 @@ export function ProfileShell({
             type="button"
             onClick={onEdit}
             className={cn(
-              "inline-flex h-8 items-center gap-1 border-0 bg-transparent px-1 text-[13px] font-bold text-[#FF6B35]"
+              "inline-flex h-8 items-center gap-1 border-0 bg-transparent px-1 text-[13px] font-bold text-[#FF6B35]",
             )}
           >
             <Pencil className="h-3.5 w-3.5" strokeWidth={2.25} />
@@ -91,7 +91,7 @@ export function ProfileShell({
                 key={i}
                 className={cn(
                   "h-12 animate-pulse",
-                  isLight ? "bg-black/10" : "bg-white/10"
+                  isLight ? "bg-black/10" : "bg-white/10",
                 )}
               />
             ))}
@@ -141,7 +141,7 @@ export function ProfileSection({
             <p
               className={cn(
                 "text-[12px] font-bold uppercase tracking-[0.12em]",
-                t.muted
+                t.muted,
               )}
             >
               {title}
@@ -158,7 +158,7 @@ export function ProfileSection({
 }
 
 /**
- * X-style identity stack: large avatar, name, role, meta — flat on stage.
+ * X-style identity stack: large avatar, name, role, meta flat on stage.
  */
 export function ProfileIdentityHeader({
   isLight,
@@ -184,7 +184,7 @@ export function ProfileIdentityHeader({
           <p
             className={cn(
               "flex flex-wrap items-center gap-1.5 text-[20px] font-black leading-tight tracking-tight",
-              t.ink
+              t.ink,
             )}
           >
             <span className="truncate">{name}</span>
@@ -194,7 +194,9 @@ export function ProfileIdentityHeader({
             {roleLabel}
           </p>
           {meta ? (
-            <p className={cn("mt-1 text-[12px] font-medium", t.muted)}>{meta}</p>
+            <p className={cn("mt-1 text-[12px] font-medium", t.muted)}>
+              {meta}
+            </p>
           ) : null}
         </div>
       </div>

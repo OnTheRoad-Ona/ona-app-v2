@@ -1,5 +1,5 @@
 /**
- * Ona Call-Out Fee Engine — defaults and catalogues.
+ * Ona Call-Out Fee Engine defaults and catalogues.
  * Travel/attendance fee only. Not labour, parts, or diagnosis price.
  */
 
@@ -12,7 +12,7 @@ export const CALLOUT_CURRENCY = "NGN" as const;
 /** ₦350 per kilometre */
 export const DEFAULT_RATE_PER_KM = 350;
 
-/** 0–500 m bills as 0.5 km */
+/** 0-500 m bills as 0.5 km */
 export const DEFAULT_MINIMUM_BILLABLE_KM = 0.5;
 
 /** Standard call-out pool (same as marketplace max) */
@@ -29,8 +29,8 @@ export const SHORT_DISTANCE_THRESHOLD_KM = 0.5;
 export const SHORT_DISTANCE_REDUCTION_MULTIPLIER = 0.4;
 
 /**
- * Auto Remote band: an approved route of 4.95–5.00 km adds the Remote
- * multiplier (1.35×) on top of the customer's chip — the highest multiplier
+ * Auto Remote band: an approved route of 4.95-5.00 km adds the Remote
+ * multiplier (1.35×) on top of the customer's chip the highest multiplier
  * wins (Night > Remote > Emergency > Normal).
  */
 export const AUTO_REMOTE_BAND_MIN_KM = 4.95;
@@ -38,7 +38,7 @@ export const AUTO_REMOTE_BAND_MAX_KM = 5;
 
 /**
  * Auto Night band: an acceptance between 9PM and 5AM (local) adds the Night
- * multiplier (1.50×) on top of the customer's chip — highest wins.
+ * multiplier (1.50×) on top of the customer's chip highest wins.
  */
 export const AUTO_NIGHT_START_HOUR = 21;
 export const AUTO_NIGHT_END_HOUR = 5;
@@ -82,7 +82,7 @@ export type CalloutStatus = (typeof CALLOUT_STATUSES)[number];
 /**
  * Seed Base Fees (₦, major units).
  * fashion = existing 12th-style wash trade (renamed; spec Car Wash ₦1,500).
- * diagnostics = the 14th existing Ona trade (spec Scan ₦3,000) — admin-configurable seed.
+ * diagnostics = the 14th existing Ona trade (spec Scan ₦3,000) admin-configurable seed.
  */
 export const DEFAULT_TRADE_BASE_FEES: Record<ProService, number> = {
   mechanic: 3000,

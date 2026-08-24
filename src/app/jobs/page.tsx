@@ -3,10 +3,10 @@
 /**
  * Jobs inbox
  * - Repair Pro (menu → Jobs): past jobs with full detail links
- *   Active/incoming stay on Dashboard + job flow; multi-request still
- *   surfaces via popup. Mid-trip jobs still open at /jobs/[id].
- * - Motorist: the "My jobs" inbox was removed — /jobs redirects to the
- *   motorist homepage; motorist requests live on /requests and /history.
+ * Active/incoming stay on Dashboard + job flow; multi-request still
+ * surfaces via popup. Mid-trip jobs still open at /jobs/[id].
+ * - Motorist: the "My jobs" inbox was removed /jobs redirects to the
+ * motorist homepage; motorist requests live on /requests and /history.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -24,7 +24,7 @@ import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
-/** Pro past / closed only — full process on /requests/[id] */
+/** Pro past / closed only full process on /requests/[id] */
 const PRO_PAST = new Set<JobFlowStatus>([
   "completed",
   "satisfied",
@@ -111,22 +111,16 @@ export default function JobsInboxPage() {
   const router = useRouter();
   const { theme, accountType, backendUserId } = useApp();
   const isLight = theme === "light";
-  const viewer =
-    accountType === "professional" ? "repair_pro" : "motorist";
+  const viewer = accountType === "professional" ? "repair_pro" : "motorist";
 
-  // The motorist "My jobs" inbox is removed — a motorist landing here goes
+  // The motorist "My jobs" inbox is removed a motorist landing here goes
   // straight to their homepage; the pro inbox still lives at /jobs.
   useEffect(() => {
     if (viewer === "motorist") router.replace("/");
   }, [viewer, router]);
 
   if (viewer === "repair_pro") {
-    return (
-      <ProJobsPage
-        isLight={isLight}
-        backendUserId={backendUserId}
-      />
-    );
+    return <ProJobsPage isLight={isLight} backendUserId={backendUserId} />;
   }
 
   return null;
@@ -182,7 +176,7 @@ function ProJobsPage({
       .sort(
         (a, b) =>
           new Date(b.updatedAt || b.createdAt).getTime() -
-          new Date(a.updatedAt || a.createdAt).getTime()
+          new Date(a.updatedAt || a.createdAt).getTime(),
       )
       .slice(0, 40);
 
@@ -224,11 +218,16 @@ function ProJobsPage({
           </p>
         )}
 
-        {/* Past job rows — open full process on /requests/[id] */}
+        {/* Past job rows open full process on /requests/[id] */}
         {!loading && (
           <section>
             {past.length === 0 ? (
-              <p className={cn("py-10 text-center text-[14px] font-semibold", muted)}>
+              <p
+                className={cn(
+                  "py-10 text-center text-[14px] font-semibold",
+                  muted,
+                )}
+              >
                 No jobs yet
               </p>
             ) : (
@@ -252,7 +251,7 @@ function ProJobsPage({
                           setClosedOpen(true);
                         }}
                         className={cn(
-                          "flex w-full items-start gap-2.5 border-0 bg-transparent py-3.5 text-left active:opacity-90"
+                          "flex w-full items-start gap-2.5 border-0 bg-transparent py-3.5 text-left active:opacity-90",
                         )}
                       >
                         <div className="min-w-0 flex-1">
@@ -260,7 +259,7 @@ function ProJobsPage({
                             <span
                               className={cn(
                                 "text-[10px] font-bold uppercase tracking-wide",
-                                muted
+                                muted,
                               )}
                             >
                               {statusLabel(j.status)}
@@ -276,18 +275,21 @@ function ProJobsPage({
                           <p
                             className={cn(
                               "mt-1 truncate text-[15px] font-semibold",
-                              ink
+                              ink,
                             )}
                           >
-                          {isAutomotiveTrade(j.serviceType) && j.motoristVehicle?.trim()
-                            ? j.motoristVehicle.trim()
-                            : j.motoristName?.split(/\s+/)[0] || PRO_SERVICE_LABELS[j.serviceType] || "Service Request"}
+                            {isAutomotiveTrade(j.serviceType) &&
+                            j.motoristVehicle?.trim()
+                              ? j.motoristVehicle.trim()
+                              : j.motoristName?.split(/\s+/)[0] ||
+                                PRO_SERVICE_LABELS[j.serviceType] ||
+                                "Service Request"}
                           </p>
                           {j.problem?.trim() ? (
                             <p
                               className={cn(
                                 "mt-0.5 line-clamp-2 text-[12px] font-medium leading-snug",
-                                muted
+                                muted,
                               )}
                             >
                               {j.problem}
@@ -297,14 +299,19 @@ function ProJobsPage({
                             <p
                               className={cn(
                                 "mt-0.5 line-clamp-1 text-[12px] font-medium",
-                                muted
+                                muted,
                               )}
                             >
                               {addr}
                             </p>
                           ) : null}
                           {price ? (
-                            <p className={cn("mt-1 text-[13px] font-semibold tabular-nums", ink)}>
+                            <p
+                              className={cn(
+                                "mt-1 text-[13px] font-semibold tabular-nums",
+                                ink,
+                              )}
+                            >
                               {price}
                             </p>
                           ) : null}

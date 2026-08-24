@@ -16,13 +16,8 @@ import { cn } from "@/lib/utils";
 
 export function BankSetupGate() {
   const router = useRouter();
-  const {
-    theme,
-    accountType,
-    userProfile,
-    updateUserProfile,
-    logout,
-  } = useApp();
+  const { theme, accountType, userProfile, updateUserProfile, logout } =
+    useApp();
   const isLight = theme === "light";
   const isPro = accountType === "professional";
 
@@ -52,7 +47,7 @@ export function BankSetupGate() {
     const validation = validateBankDetailsInput(
       { ...details, bankAccountNumber: num, bankCode: code },
       undefined,
-      userProfile?.fullName
+      userProfile?.fullName,
     );
     if (validation) {
       setErr(validation);
@@ -90,7 +85,7 @@ export function BankSetupGate() {
     <div
       className={cn(
         "flex h-full min-h-0 flex-col px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]",
-        stage
+        stage,
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -115,7 +110,7 @@ export function BankSetupGate() {
           }}
           className={cn(
             "inline-flex items-center gap-1 rounded-md border-0 px-2 py-1.5 text-[11px] font-bold",
-            isLight ? "bg-black/8 text-slate-800" : "bg-white/10 text-white"
+            isLight ? "bg-black/8 text-slate-800" : "bg-white/10 text-white",
           )}
           aria-label="Log out"
         >

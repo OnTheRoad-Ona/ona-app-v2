@@ -12,15 +12,10 @@ import { cn } from "@/lib/utils";
  * (not on refresh / reopen with already-accepted jobs).
  */
 export function AcceptTripPopup() {
-  const {
-    requests,
-    accountType,
-    theme,
-    isAuthenticated,
-  } = useApp();
+  const { requests, accountType, theme, isAuthenticated } = useApp();
   const isLight = theme === "light";
   const router = useRouter();
-  /** Last known status per request id — used to detect pending → accepted */
+  /** Last known status per request id used to detect pending → accepted */
   const prevStatus = useRef<Map<string, RequestStatus>>(new Map());
   const primed = useRef(false);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -30,7 +25,7 @@ export function AcceptTripPopup() {
       return;
     }
 
-    // First run: snapshot current statuses only — never open popup on boot/refresh
+    // First run: snapshot current statuses only never open popup on boot/refresh
     if (!primed.current) {
       const map = new Map<string, RequestStatus>();
       for (const r of requests) {
@@ -52,7 +47,7 @@ export function AcceptTripPopup() {
 
       if (becameAccepted) {
         setActiveId(r.id);
-        // Do not pre-open chat or inject system messages — user opens chat when they want
+        // Do not pre-open chat or inject system messages user opens chat when they want
         break;
       }
     }
@@ -87,7 +82,7 @@ export function AcceptTripPopup() {
       <div
         className={cn(
           "w-full max-w-sm rounded-2xl border-0 p-4",
-          isLight ? "bg-[#c8c9cd]" : "bg-black"
+          isLight ? "bg-[#c8c9cd]" : "bg-black",
         )}
       >
         <div className="flex items-start justify-between gap-2">
@@ -96,7 +91,7 @@ export function AcceptTripPopup() {
               id="accept-trip-title"
               className={cn(
                 "text-[15px] font-bold",
-                isLight ? "text-slate-900" : "text-white"
+                isLight ? "text-slate-900" : "text-white",
               )}
             >
               Request accepted
@@ -104,7 +99,7 @@ export function AcceptTripPopup() {
             <p
               className={cn(
                 "mt-1 text-[12px] leading-snug",
-                isLight ? "text-slate-600" : "text-white/65"
+                isLight ? "text-slate-600" : "text-white/65",
               )}
             >
               <strong>{req.technicianName}</strong> accepted your request for{" "}
@@ -116,7 +111,7 @@ export function AcceptTripPopup() {
             onClick={() => setActiveId(null)}
             className={cn(
               "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-0",
-              isLight ? "bg-black/5 text-slate-700" : "bg-white/10 text-white"
+              isLight ? "bg-black/5 text-slate-700" : "bg-white/10 text-white",
             )}
             aria-label="Dismiss"
           >
@@ -139,12 +134,12 @@ export function AcceptTripPopup() {
             type="button"
             onClick={() => {
               setActiveId(null);
-              // Chat only from the request/job — not a messages inbox
+              // Chat only from the request/job not a messages inbox
               router.push(`/jobs/${req.id}`);
             }}
             className={cn(
               "flex w-full items-center justify-center gap-2 rounded-lg border-0 py-2.5 text-sm font-semibold",
-              isLight ? "text-slate-800" : "text-white/90"
+              isLight ? "text-slate-800" : "text-white/90",
             )}
           >
             <MessageCircle className="h-4 w-4" />

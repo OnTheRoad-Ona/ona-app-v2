@@ -60,7 +60,8 @@ export default function AdminServicesPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Services catalog</h1>
       <p className="om-admin-sub">
-        Service catalog (trades) offered on Ona. Keep labels aligned with signup and home filters.
+        Service catalog (trades) offered on Ona. Keep labels aligned with signup
+        and home filters.
       </p>
 
       <AdminGuideBanner pageId="services" />

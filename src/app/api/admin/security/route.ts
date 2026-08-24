@@ -1,5 +1,9 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
-import { requireAdmin, AdminAuthError } from "@/lib/server/admin-auth";
+import {
+  requireAdmin,
+  requireSensitiveAction,
+  AdminAuthError,
+} from "@/lib/server/admin-auth";
 import {
   listContactChangeRequests,
   updateContactChangeStatus,
@@ -20,6 +24,12 @@ import {
   listNameChangeRequests,
   updateNameChangeStatus,
 } from "@/lib/server/security/security-store";
+import {
+  attemptCashoutTransfer,
+  forceFailCashout,
+  processDueCashoutRetries,
+  verifyPendingCashouts,
+} from "@/lib/server/security/cashout-engine";
 import type {
   CashoutStatus,
   ContactRequestStatus,
@@ -36,7 +46,9 @@ function getAdminId(): string {
 }
 
 async function auth() {
-  try { return await requireAdmin(); } catch (err) {
+  try {
+    return await requireAdmin();
+  } catch (err) {
     if (err instanceof AdminAuthError) return null;
     return null;
   }
@@ -132,9 +144,21 @@ export async function POST(req: Request) {
           "hold-contact-change": "under_review",
           "reverse-contact-change": "reversed",
         };
-        const result = await updateContactChangeStatus(id, statusMap[action], adminId, reason);
+        const result = await updateContactChangeStatus(
+          id,
+          statusMap[action],
+          adminId,
+          reason,
+        );
         if ("error" in result) return apiFail(result.error, 400);
-        await logAdminAction({ adminId, adminName, targetType: "contact_change", targetId: id, actionType: action, reason });
+        await logAdminAction({
+          adminId,
+          adminName,
+          targetType: "contact_change",
+          targetId: id,
+          actionType: action,
+          reason,
+        });
         return apiOk({ request: result.request });
       }
 
@@ -144,14 +168,29 @@ export async function POST(req: Request) {
       case "review-name-change": {
         const { id, reason } = body;
         if (!id) return apiFail("Missing id", 400);
-        const statusMap: Record<string, "approved" | "rejected" | "under_review"> = {
+        const statusMap: Record<
+          string,
+          "approved" | "rejected" | "under_review"
+        > = {
           "approve-name-change": "approved",
           "reject-name-change": "rejected",
           "review-name-change": "under_review",
         };
-        const result = await updateNameChangeStatus(id, statusMap[action], adminId, reason);
+        const result = await updateNameChangeStatus(
+          id,
+          statusMap[action],
+          adminId,
+          reason,
+        );
         if ("error" in result) return apiFail(result.error, 400);
-        await logAdminAction({ adminId, adminName, targetType: "name_change", targetId: id, actionType: action, reason });
+        await logAdminAction({
+          adminId,
+          adminName,
+          targetType: "name_change",
+          targetId: id,
+          actionType: action,
+          reason,
+        });
         return apiOk({ request: result.request });
       }
 
@@ -166,7 +205,13 @@ export async function POST(req: Request) {
           "reject-referral": "rejected",
           "reverse-referral": "reversed",
         };
-        const result = await updateReferralEvent(id, statusMap[action], adminId, reason, rewardAmount);
+        const result = await updateReferralEvent(
+          id,
+          statusMap[action],
+          adminId,
+          reason,
+          rewardAmount,
+        );
         if ("error" in result) return apiFail(result.error, 400);
         if (action === "approve-referral" && rewardAmount) {
           await createCreditTransaction({
@@ -179,7 +224,14 @@ export async function POST(req: Request) {
             reason: reason || "Referral reward",
           });
         }
-        await logAdminAction({ adminId, adminName, targetType: "referral", targetId: id, actionType: action, reason });
+        await logAdminAction({
+          adminId,
+          adminName,
+          targetType: "referral",
+          targetId: id,
+          actionType: action,
+          reason,
+        });
         return apiOk({ event: result.event });
       }
 
@@ -190,16 +242,86 @@ export async function POST(req: Request) {
       case "fail-cashout": {
         const { id, reason } = body;
         if (!id) return apiFail("Missing id", 400);
+        // Manual money movement needs temporary unlock (same as escrow release)
+        if (action === "pay-cashout" || action === "fail-cashout") {
+          try {
+            await requireSensitiveAction("escrow_release", req);
+          } catch (e) {
+            return apiFail(
+              e instanceof Error ? e.message : "Sensitive action required",
+              403,
+            );
+          }
+        }
         const statusMap: Record<string, CashoutStatus> = {
           "approve-cashout": "approved",
           "reject-cashout": "rejected",
           "pay-cashout": "paid",
           "fail-cashout": "failed",
         };
-        const result = await updateCashoutStatus(id, statusMap[action], adminId, reason);
+        const result = await updateCashoutStatus(
+          id,
+          statusMap[action],
+          adminId,
+          reason,
+        );
         if ("error" in result) return apiFail(result.error, 400);
-        await logAdminAction({ adminId, adminName, targetType: "cashout", targetId: id, actionType: action, reason });
+        await logAdminAction({
+          adminId,
+          adminName,
+          targetType: "cashout",
+          targetId: id,
+          actionType: action,
+          reason,
+        });
         return apiOk({ cashout: result.cashout });
+      }
+
+      // Cashout engine: auto-transfer + retries
+      case "transfer-cashout":
+      case "retry-cashout": {
+        const { id } = body;
+        if (!id) return apiFail("Missing id", 400);
+        const result = await attemptCashoutTransfer(id);
+        await logAdminAction({
+          adminId,
+          adminName,
+          targetType: "cashout",
+          targetId: id,
+          actionType: action,
+          reason: body.reason,
+          newValue: { status: result.status, message: result.message },
+        });
+        if (!result.ok) return apiFail(result.message || "Transfer failed", 400);
+        return apiOk({ status: result.status });
+      }
+      case "force-fail-cashout": {
+        const { id, reason } = body;
+        if (!id) return apiFail("Missing id", 400);
+        try {
+          await requireSensitiveAction("escrow_release", req);
+        } catch (e) {
+          return apiFail(
+            e instanceof Error ? e.message : "Sensitive action required",
+            403,
+          );
+        }
+        const result = await forceFailCashout(id, adminId, reason);
+        if (!result.ok) return apiFail(result.message || "Failed", 400);
+        await logAdminAction({
+          adminId,
+          adminName,
+          targetType: "cashout",
+          targetId: id,
+          actionType: "force-fail-cashout",
+          reason,
+        });
+        return apiOk({ status: "failed" });
+      }
+      case "verify-cashouts": {
+        const result = await verifyPendingCashouts();
+        const retries = await processDueCashoutRetries();
+        return apiOk({ verified: result, retries });
       }
 
       // Fraud actions
@@ -211,9 +333,19 @@ export async function POST(req: Request) {
           "resolve-fraud": "resolved",
           "block-fraud": "blocked",
         };
-        const result = await updateFraudFlagStatus(id, statusMap[action], adminId);
+        const result = await updateFraudFlagStatus(
+          id,
+          statusMap[action],
+          adminId,
+        );
         if ("error" in result) return apiFail(result.error, 400);
-        await logAdminAction({ adminId, adminName, targetType: "fraud_flag", targetId: id, actionType: action });
+        await logAdminAction({
+          adminId,
+          adminName,
+          targetType: "fraud_flag",
+          targetId: id,
+          actionType: action,
+        });
         return apiOk({ flag: result.flag });
       }
 
@@ -221,16 +353,52 @@ export async function POST(req: Request) {
       case "update-setting": {
         const { key, value } = body;
         if (!key) return apiFail("Missing key", 400);
+        // Cashout money knobs are clamped, no arbitrary values
+        if (key.startsWith("credit_cashout_")) {
+          const n = Number(value);
+          if (!Number.isFinite(n) || n < 0) {
+            return apiFail("Value must be a positive number", 400);
+          }
+          if (key === "credit_cashout_fee_percent" && n > 50) {
+            return apiFail("Fee percent cannot exceed 50", 400);
+          }
+          if (
+            (key === "credit_cashout_max_per_day" ||
+              key === "credit_cashout_min_account_age_days") &&
+            n > 100
+          ) {
+            return apiFail("Value too large", 400);
+          }
+          const result0 = await setSystemSetting(key, String(n), adminId);
+          if ("error" in result0) return apiFail(result0.error, 400);
+          await logAdminAction({
+            adminId,
+            adminName,
+            targetType: "system_settings",
+            targetId: key,
+            actionType: "update-setting",
+            reason: `Updated ${key}=${n}`,
+          });
+          return apiOk({ setting: result0 });
+        }
         const result = await setSystemSetting(key, value, adminId);
         if ("error" in result) return apiFail(result.error, 400);
-        await logAdminAction({ adminId, adminName, targetType: "system_settings", targetId: key, actionType: "update-setting", reason: `Updated ${key}=${JSON.stringify(value)}` });
+        await logAdminAction({
+          adminId,
+          adminName,
+          targetType: "system_settings",
+          targetId: key,
+          actionType: "update-setting",
+          reason: `Updated ${key}=${JSON.stringify(value)}`,
+        });
         return apiOk({ setting: result });
       }
 
       // Adjust wallet balance
       case "adjust-balance": {
         const { userId, amount, reason } = body;
-        if (!userId || amount == null) return apiFail("Missing userId or amount", 400);
+        if (!userId || amount == null)
+          return apiFail("Missing userId or amount", 400);
         const result = await createCreditTransaction({
           userId,
           transactionType: "adjust",
@@ -239,7 +407,15 @@ export async function POST(req: Request) {
           reason: reason || "Admin adjustment",
         });
         if ("error" in result) return apiFail(result.error, 400);
-        await logAdminAction({ adminId, adminName, targetType: "credit_wallet", targetId: userId, actionType: "adjust-balance", reason, newValue: { amount } });
+        await logAdminAction({
+          adminId,
+          adminName,
+          targetType: "credit_wallet",
+          targetId: userId,
+          actionType: "adjust-balance",
+          reason,
+          newValue: { amount },
+        });
         return apiOk({ wallet: result.wallet, tx: result.tx });
       }
 

@@ -6,7 +6,11 @@ import { getJob } from "@/lib/server/jobs/job-store";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function loadJobForUser(req: Request, id: string, bodyToken?: string | null) {
+async function loadJobForUser(
+  req: Request,
+  id: string,
+  bodyToken?: string | null,
+) {
   const auth = await requireUser(req, { bodyToken: bodyToken || null });
   if (!auth.ok) return auth.response;
 
@@ -29,7 +33,7 @@ async function loadJobForUser(req: Request, id: string, bodyToken?: string | nul
 
 export async function GET(
   req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await ctx.params;
@@ -42,12 +46,12 @@ export async function GET(
 }
 
 /**
- * Preferred load path — same auth surface as POST /api/jobs (create).
+ * Preferred load path same auth surface as POST /api/jobs (create).
  * Some production proxies drop Bearer on GET /api/jobs/[id] only.
  */
 export async function POST(
   req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await ctx.params;

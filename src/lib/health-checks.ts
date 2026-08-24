@@ -31,7 +31,7 @@ export function worstLevel(...levels: HealthLevel[]): HealthLevel {
 export function levelFromCounts(
   count: number,
   warnAt: number,
-  critAt: number
+  critAt: number,
 ): HealthLevel {
   if (count >= critAt) return "critical";
   if (count >= warnAt) return "warning";
@@ -49,7 +49,7 @@ export function countRecentByType(
   logs: HealthLog[],
   type: HealthIssueType,
   windowMs = 60 * 60 * 1000,
-  unresolvedOnly = false
+  unresolvedOnly = false,
 ): number {
   const since = Date.now() - windowMs;
   return logs.filter((l) => {
@@ -61,7 +61,7 @@ export function countRecentByType(
 
 export function buildFrontendHealth(
   logs: HealthLog[],
-  checkedAt: string
+  checkedAt: string,
 ): ComponentHealth {
   const n = countRecentByType(logs, "Frontend Error");
   const status = levelFromCounts(n, 5, 20);
@@ -73,7 +73,7 @@ export function buildFrontendHealth(
     description:
       status === "healthy"
         ? "No significant client render or runtime errors reported."
-        : "Client-side errors detected — check Recent Issues and error boundaries.",
+        : "Client-side errors detected check Recent Issues and error boundaries.",
     lastChecked: checkedAt,
     metrics: { clientErrorsLastHour: n },
   };
@@ -82,13 +82,17 @@ export function buildFrontendHealth(
 export function buildBackendHealth(
   logs: HealthLog[],
   checkedAt: string,
-  avgResponseMs?: number | null
+  avgResponseMs?: number | null,
 ): ComponentHealth {
   const apiErr = countRecentByType(logs, "API Error");
   const conn = countRecentByType(logs, "Connection Issue");
   const perf = countRecentByType(logs, "Performance Warning");
   const n = apiErr + conn;
-  let status = levelFromCounts(n, API_ERROR_WARN_PER_HOUR, API_ERROR_CRIT_PER_HOUR);
+  let status = levelFromCounts(
+    n,
+    API_ERROR_WARN_PER_HOUR,
+    API_ERROR_CRIT_PER_HOUR,
+  );
   if (avgResponseMs != null && avgResponseMs > 2000) {
     status = worstLevel(status, "warning");
   }
@@ -105,7 +109,7 @@ export function buildBackendHealth(
     description:
       status === "healthy"
         ? "API error rate and latency within normal thresholds."
-        : "Elevated API failures or slow responses — inspect route logs.",
+        : "Elevated API failures or slow responses inspect route logs.",
     lastChecked: checkedAt,
     metrics: {
       apiErrorsLastHour: apiErr,
@@ -123,7 +127,7 @@ export function buildDatabaseHealth(
     storagePctUsed: number;
     /** When true, pct is from live query; otherwise sample */
     live: boolean;
-  }
+  },
 ): ComponentHealth {
   if (!opts.connected) {
     return {
@@ -131,7 +135,8 @@ export function buildDatabaseHealth(
       label: "Database Health",
       status: "critical",
       value: "Connection failed",
-      description: "Cannot reach Postgres / Supabase. Check service role + URL.",
+      description:
+        "Cannot reach Postgres / Supabase. Check service role + URL.",
       lastChecked: checkedAt,
       metrics: { connected: false, storagePctUsed: null },
     };
@@ -147,7 +152,7 @@ export function buildDatabaseHealth(
       status === "healthy"
         ? opts.live
           ? "DB reachable. Storage under warning threshold (70%)."
-          : "DB reachable. Storage estimate under 70% (sample metric — wire real size query)."
+          : "DB reachable. Storage estimate under 70% (sample metric wire real size query)."
         : status === "warning"
           ? "Storage ≥ 70%. Plan cleanup or upgrade before 90%."
           : "Storage ≥ 90%. Immediate action required.",
@@ -165,10 +170,14 @@ export function buildDatabaseHealth(
 export function buildMapsHealth(
   logs: HealthLog[],
   checkedAt: string,
-  mapsLiveFlag: boolean
+  mapsLiveFlag: boolean,
 ): ComponentHealth {
   const n = countRecentByType(logs, "Map Error");
-  let status = levelFromCounts(n, MAP_ERROR_WARN_PER_HOUR, MAP_ERROR_CRIT_PER_HOUR);
+  let status = levelFromCounts(
+    n,
+    MAP_ERROR_WARN_PER_HOUR,
+    MAP_ERROR_CRIT_PER_HOUR,
+  );
   if (!mapsLiveFlag) {
     status = worstLevel(status, "warning");
   }
@@ -182,8 +191,8 @@ export function buildMapsHealth(
     description: mapsLiveFlag
       ? status === "healthy"
         ? "Google Maps key + live flag healthy; no surge in map load failures."
-        : "Map load/API errors reported — check key, billing, referrers, quota."
-      : "NEXT_PUBLIC_USE_LIVE_MAPS is false or unset — app may use fallback tiles.",
+        : "Map load/API errors reported check key, billing, referrers, quota."
+      : "NEXT_PUBLIC_USE_LIVE_MAPS is false or unset app may use fallback tiles.",
     lastChecked: checkedAt,
     metrics: { mapErrorsLastHour: n, mapsLive: mapsLiveFlag },
   };
@@ -191,13 +200,13 @@ export function buildMapsHealth(
 
 export function buildAuthHealth(
   logs: HealthLog[],
-  checkedAt: string
+  checkedAt: string,
 ): ComponentHealth {
   const n = countRecentByType(logs, "Auth Error");
   const status = levelFromCounts(
     n,
     AUTH_FAIL_WARN_PER_HOUR,
-    AUTH_FAIL_CRIT_PER_HOUR
+    AUTH_FAIL_CRIT_PER_HOUR,
   );
   return {
     id: "auth",
@@ -207,7 +216,7 @@ export function buildAuthHealth(
     description:
       status === "healthy"
         ? "Login/signup failure rate within normal bounds."
-        : "Spike in auth failures — review credentials, rate limits, session cookies.",
+        : "Spike in auth failures review credentials, rate limits, session cookies.",
     lastChecked: checkedAt,
     metrics: { authErrorsLastHour: n },
   };

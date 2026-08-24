@@ -4,6 +4,7 @@ import { apiFail, apiOk } from "@/lib/server/api-json";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import {
   adminGetProduct,
+  adminHardDeleteProduct,
   adminSoftDeleteProduct,
   adminUpdateProduct,
 } from "@/lib/server/shop/admin-catalog";
@@ -15,7 +16,11 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, ctx: Ctx) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     await requirePermission("shop_catalog");
@@ -34,7 +39,11 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     const auth = await requirePermission("shop_catalog");
@@ -53,8 +62,17 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         status: body.status as "draft" | "active" | "archived" | undefined,
         isProfessionalOnly: body.isProfessionalOnly as boolean | undefined,
         primaryImageUrl: body.primaryImageUrl as string | null | undefined,
+        listingOverride: (body.listingOverride ?? null) as
+          | "available"
+          | "low_stock"
+          | "out_of_stock"
+          | "pre_order"
+          | "coming_soon"
+          | null
+          | undefined,
+        attributes: (body.attributes ?? null) as Record<string, unknown> | null | undefined,
       },
-      auth.session.userId
+      auth.session.userId,
     );
     return apiOk({ product: updated });
   } catch (e) {
@@ -68,11 +86,22 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
 export async function DELETE(_req: NextRequest, ctx: Ctx) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     const auth = await requirePermission("shop_catalog");
     const { id } = await ctx.params;
+    // ?hard=1 → permanent delete (product + cascaded children). Default stays
+    // soft-archive for backward compatibility.
+    const hard = new URL(_req.url).searchParams.get("hard") === "1";
+    if (hard) {
+      const deleted = await adminHardDeleteProduct(id, auth.session.userId);
+      return apiOk({ product: deleted, hardDeleted: true });
+    }
     const deleted = await adminSoftDeleteProduct(id, auth.session.userId);
     return apiOk({ product: deleted, softDeleted: true });
   } catch (e) {

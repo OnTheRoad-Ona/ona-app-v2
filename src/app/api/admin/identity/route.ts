@@ -10,7 +10,11 @@ export const dynamic = "force-dynamic";
 /** Admin identity/account sync board. */
 export async function GET() {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     const { session } = await requireAdmin();
@@ -43,13 +47,20 @@ export async function GET() {
     }
 
     const rolesByUser = new Map<string, Set<string>>();
-    for (const r of (rolesRes.data ?? []) as { user_id?: string; role_type?: string }[]) {
+    for (const r of (rolesRes.data ?? []) as {
+      user_id?: string;
+      role_type?: string;
+    }[]) {
       const id = String(r.user_id);
       if (!rolesByUser.has(id)) rolesByUser.set(id, new Set());
       rolesByUser.get(id)!.add(String(r.role_type));
     }
 
-    const allIds = new Set<string>([...motSet, ...proSet, ...rolesByUser.keys()]);
+    const allIds = new Set<string>([
+      ...motSet,
+      ...proSet,
+      ...rolesByUser.keys(),
+    ]);
     let motoristOnly = 0;
     let proOnly = 0;
     let dual = 0;
@@ -116,7 +127,11 @@ export async function GET() {
 
 export async function POST(req: Request) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     const { session } = await requireAdmin();
@@ -136,7 +151,7 @@ export async function POST(req: Request) {
 
     return apiOk({
       added: result.added,
-      message: `Scanned for duplicate identities — ${result.added} new candidate(s) queued for review.`,
+      message: `Scanned for duplicate identities ${result.added} new candidate(s) queued for review.`,
     });
   } catch (e) {
     if (e instanceof AdminAuthError) {

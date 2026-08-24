@@ -40,14 +40,16 @@ export function isSharedAppPath(pathname: string): boolean {
   if (pathname.startsWith("/artisan")) return true;
   if (pathname.startsWith("/logout")) return true;
   if (pathname.startsWith("/wallet")) return true;
-  // ONA Shop — customers + repair pros are buyers
+  // ONA Shop customers + repair pros are buyers
   if (pathname.startsWith("/shop")) return true;
+  // Ona Express premium direct booking
+  if (pathname.startsWith("/express")) return true;
   return false;
 }
 
 export function isPublicPath(pathname: string): boolean {
   return PUBLIC_PREFIXES.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`)
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
 }
 
@@ -63,7 +65,7 @@ export function homePathForAccount(accountType: AccountType | null): string {
  */
 export function canAccessPath(
   accountType: AccountType | null,
-  pathname: string
+  pathname: string,
 ): boolean {
   if (!accountType) return true;
   if (isPublicPath(pathname)) return true;
@@ -74,7 +76,7 @@ export function canAccessPath(
     return isProAppPath(pathname) || isSharedAppPath(pathname);
   }
 
-  // Motorist — not pro-only tools
+  // Motorist not pro-only tools
   if (isProAppPath(pathname)) return false;
   return true;
 }

@@ -26,16 +26,17 @@ function simpleMessage(raw: string): string {
   if (m.includes("password")) {
     return "Check your password and try again.";
   }
-  // Keep short — strip long technical dumps
+  // Keep short strip long technical dumps
   const one = raw.split(/[.\n]/)[0]?.trim() || raw;
-  return one.length > 120 ? `${one.slice(0, 117)}…` : one || "Sign-up failed. Try again.";
+  return one.length > 120
+    ? `${one.slice(0, 117)}…`
+    : one || "Sign-up failed. Try again.";
 }
 
 function SignupErrorBody() {
   const router = useRouter();
   const params = useSearchParams();
-  const raw =
-    params.get("message") || "Sign-up failed. Please try again.";
+  const raw = params.get("message") || "Sign-up failed. Please try again.";
   const message = simpleMessage(raw);
   const role = params.get("role") || "motorist";
 
@@ -61,7 +62,7 @@ function SignupErrorBody() {
             style={authPrimaryBtnStyle}
             onClick={() =>
               router.replace(
-                role === "professional" ? "/signup/pro" : "/signup/motorist"
+                role === "professional" ? "/signup/pro" : "/signup/motorist",
               )
             }
           >

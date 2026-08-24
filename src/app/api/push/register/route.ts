@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       auth: keys.auth,
       updated_at: new Date().toISOString(),
     },
-    { onConflict: "endpoint" }
+    { onConflict: "endpoint" },
   );
   if (error) return apiFail(error.message, 500);
   return apiOk({ ok: true });

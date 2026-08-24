@@ -39,7 +39,7 @@ function SearchResultsBody() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader title={t("search.title")} subtitle={t("search.subtitle")} />
@@ -57,7 +57,7 @@ function SearchResultsBody() {
                 e.preventDefault();
                 const q = query.trim();
                 router.replace(
-                  q ? `/search?q=${encodeURIComponent(q)}` : "/search"
+                  q ? `/search?q=${encodeURIComponent(q)}` : "/search",
                 );
               }
             }}
@@ -66,14 +66,14 @@ function SearchResultsBody() {
               "h-10 w-full rounded-md border-0 pl-8 pr-3 text-[13px] font-medium outline-none",
               isLight
                 ? "bg-[#bebfc4] text-slate-900 placeholder:text-slate-500"
-                : "bg-neutral-950 text-white placeholder:text-white/45"
+                : "bg-neutral-950 text-white placeholder:text-white/45",
             )}
           />
         </label>
         <p
           className={cn(
             "mt-1.5 text-[11px]",
-            isLight ? "text-slate-500" : "text-white/55"
+            isLight ? "text-slate-500" : "text-white/55",
           )}
         >
           {list.length === 1
@@ -89,7 +89,7 @@ function SearchResultsBody() {
             <p
               className={cn(
                 "text-sm font-semibold",
-                isLight ? "text-slate-800" : "text-white"
+                isLight ? "text-slate-800" : "text-white",
               )}
             >
               {query.trim()
@@ -99,7 +99,7 @@ function SearchResultsBody() {
             <p
               className={cn(
                 "mt-1 text-[12px]",
-                isLight ? "text-slate-500" : "text-white/60"
+                isLight ? "text-slate-500" : "text-white/60",
               )}
             >
               {query.trim() ? t("search.tryAnother") : t("search.tryBrowse")}

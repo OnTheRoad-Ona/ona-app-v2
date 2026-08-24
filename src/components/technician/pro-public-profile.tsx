@@ -26,7 +26,7 @@ import type { Technician } from "@/lib/types";
 import { cn, formatDistance, formatEta } from "@/lib/utils";
 
 /**
- * Motorist-facing Repair Pro profile — solid sheets on both toggles
+ * Motorist-facing Repair Pro profile solid sheets on both toggles
  * (no transparent / glass panels).
  */
 export function ProPublicProfile({
@@ -85,9 +85,7 @@ export function ProPublicProfile({
   const cardBg = isLight ? "transparent" : "#1c1c1e";
   const insetBg = isLight ? "transparent" : "#2c2c2e";
   const page = isLight ? "bg-[#c8c9cd]" : "bg-black";
-  const card = isLight
-    ? "mb-1.5 rounded-2xl bg-black/[0.04]"
-    : "bg-[#1c1c1e]";
+  const card = isLight ? "mb-1.5 rounded-2xl bg-black/[0.04]" : "bg-[#1c1c1e]";
   const inset = isLight ? "bg-transparent" : "bg-[#2c2c2e]";
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-600" : "text-[#a1a1a6]";
@@ -102,16 +100,21 @@ export function ProPublicProfile({
       style={{ backgroundColor: pageBg }}
     >
       <div
-        className={cn("flex shrink-0 items-center gap-1.5 px-2.5 pb-1 pt-2.5", page)}
+        className={cn(
+          "flex shrink-0 items-center gap-1.5 px-2.5 pb-1 pt-2.5",
+          page,
+        )}
         style={{ backgroundColor: pageBg }}
       >
         <button
           type="button"
-          onClick={() => navigateBack(router, backHref || "/", null /* parent only */)}
+          onClick={() =>
+            navigateBack(router, backHref || "/", null /* parent only */)
+          }
           className={cn(
             "flex h-8 w-8 items-center justify-center rounded-lg border-0 text-base leading-none",
             solidBtn,
-            ink
+            ink,
           )}
           style={isLight ? undefined : { backgroundColor: insetBg }}
           aria-label="Back"
@@ -122,7 +125,7 @@ export function ProPublicProfile({
           <p
             className={cn(
               "flex flex-wrap items-center gap-1.5 text-[14px] font-bold leading-none",
-              ink
+              ink,
             )}
           >
             <span className="truncate">{tech.name}</span>
@@ -143,7 +146,7 @@ export function ProPublicProfile({
             onClick={() => router.push("/profile?edit=1")}
             className={cn(
               "inline-flex h-8 items-center gap-1 rounded-lg border-0 px-2.5 text-[11px] font-bold",
-              solidBtn
+              solidBtn,
             )}
           >
             <Pencil className="h-3 w-3" />
@@ -158,7 +161,7 @@ export function ProPublicProfile({
           <section
             className={cn(
               isLight ? "rounded-none px-0 py-3" : "rounded-2xl p-3",
-              card
+              card,
             )}
             style={isLight ? undefined : { backgroundColor: cardBg }}
           >
@@ -166,7 +169,7 @@ export function ProPublicProfile({
               <Avatar
                 className={cn(
                   "h-[4.75rem] w-[4.75rem] shrink-0 overflow-hidden rounded-full border-0 shadow-none ring-0",
-                  inset
+                  inset,
                 )}
                 style={isLight ? undefined : { backgroundColor: insetBg }}
               >
@@ -184,7 +187,7 @@ export function ProPublicProfile({
                 <p
                   className={cn(
                     "flex items-center gap-1 text-[17px] font-black leading-tight tracking-tight",
-                    ink
+                    ink,
                   )}
                 >
                   <span className="truncate">{tech.name}</span>
@@ -197,7 +200,12 @@ export function ProPublicProfile({
                 </p>
 
                 {tech.businessName ? (
-                  <p className={cn("mt-0.5 truncate text-[12px] font-semibold", soft)}>
+                  <p
+                    className={cn(
+                      "mt-0.5 truncate text-[12px] font-semibold",
+                      soft,
+                    )}
+                  >
                     {tech.businessName}
                   </p>
                 ) : null}
@@ -210,7 +218,7 @@ export function ProPublicProfile({
                 <p
                   className={cn(
                     "mt-0.5 flex items-center gap-1.5 text-[11px] font-semibold",
-                    muted
+                    muted,
                   )}
                 >
                   {tech.status === "available" ? (
@@ -219,7 +227,7 @@ export function ProPublicProfile({
                     <span
                       className={cn(
                         "font-bold",
-                        tech.status === "busy" && "text-[#FF6B35]"
+                        tech.status === "busy" && "text-[#FF6B35]",
                       )}
                     >
                       {statusText}
@@ -237,7 +245,7 @@ export function ProPublicProfile({
               className={cn(
                 "mt-2 grid grid-cols-3 gap-0 py-1.5 text-center",
                 isLight ? "rounded-none" : "rounded-xl",
-                inset
+                inset,
               )}
               style={isLight ? undefined : { backgroundColor: insetBg }}
             >
@@ -269,9 +277,19 @@ export function ProPublicProfile({
             </div>
           </section>
 
-          <SolidSection title="About" icon={Briefcase} isLight={isLight} card={card} cardBg={cardBg}>
+          <SolidSection
+            title="About"
+            icon={Briefcase}
+            isLight={isLight}
+            card={card}
+            cardBg={cardBg}
+          >
             {experienceLabel ? (
-              <Row label="Experience" value={experienceLabel} isLight={isLight} />
+              <Row
+                label="Experience"
+                value={experienceLabel}
+                isLight={isLight}
+              />
             ) : null}
             {tech.bio || tech.description ? (
               <p className={cn("text-[13px] leading-snug", soft)}>
@@ -306,7 +324,13 @@ export function ProPublicProfile({
           </SolidSection>
 
           {tech.specialties.length > 0 ? (
-            <SolidSection title="What they can fix" icon={Zap} isLight={isLight} card={card} cardBg={cardBg}>
+            <SolidSection
+              title="What they can fix"
+              icon={Zap}
+              isLight={isLight}
+              card={card}
+              cardBg={cardBg}
+            >
               <div className="flex flex-wrap gap-1.5">
                 {tech.specialties.map((s) => (
                   <span
@@ -314,7 +338,7 @@ export function ProPublicProfile({
                     className={cn(
                       "rounded-lg px-2 py-1 text-[11px] font-semibold",
                       inset,
-                      isLight ? "text-slate-800" : "text-neutral-200"
+                      isLight ? "text-slate-800" : "text-neutral-200",
                     )}
                     style={isLight ? undefined : { backgroundColor: insetBg }}
                   >
@@ -326,7 +350,13 @@ export function ProPublicProfile({
           ) : null}
 
           {isAutomotiveTrade(tech.serviceType) ? (
-            <SolidSection title="Vehicles they serve" icon={Car} isLight={isLight} card={card} cardBg={cardBg}>
+            <SolidSection
+              title="Vehicles they serve"
+              icon={Car}
+              isLight={isLight}
+              card={card}
+              cardBg={cardBg}
+            >
               {serviceFocus.length > 0 ? (
                 serviceFocus.map(([label, value]) => (
                   <Row
@@ -343,14 +373,26 @@ export function ProPublicProfile({
               )}
             </SolidSection>
           ) : (
-            <SolidSection title="Service focus" icon={Briefcase} isLight={isLight} card={card} cardBg={cardBg}>
+            <SolidSection
+              title="Service focus"
+              icon={Briefcase}
+              isLight={isLight}
+              card={card}
+              cardBg={cardBg}
+            >
               <p className={cn("text-[12px]", muted)}>
                 Residential, Commercial & Industrial
               </p>
             </SolidSection>
           )}
 
-          <SolidSection title="Service area" icon={MapPin} isLight={isLight} card={card} cardBg={cardBg}>
+          <SolidSection
+            title="Service area"
+            icon={MapPin}
+            isLight={isLight}
+            card={card}
+            cardBg={cardBg}
+          >
             <Row
               label="Coverage radius"
               value={`${tech.serviceRadiusKm} km`}
@@ -370,7 +412,12 @@ export function ProPublicProfile({
                 isLight={isLight}
               />
             ) : null}
-            <p className={cn("flex items-center gap-1 pt-0.5 text-[11px] font-medium", soft)}>
+            <p
+              className={cn(
+                "flex items-center gap-1 pt-0.5 text-[11px] font-medium",
+                soft,
+              )}
+            >
               <Navigation className="h-3 w-3 text-brand" />
               Near you · {formatDistance(tech.distanceKm)} away
             </p>
@@ -379,7 +426,7 @@ export function ProPublicProfile({
           <p
             className={cn(
               "flex items-center justify-center gap-1 pb-1 text-center text-[10px]",
-              muted
+              muted,
             )}
           >
             <Clock3 className="h-3 w-3" />
@@ -387,7 +434,7 @@ export function ProPublicProfile({
           </p>
         </div>
 
-        {/* Sticky actions — solid, no glass */}
+        {/* Sticky actions solid, no glass */}
         <div
           className={cn("shrink-0 space-y-1.5 px-3 pb-3 pt-2", page)}
           style={{ backgroundColor: pageBg }}
@@ -427,7 +474,7 @@ function Stat({
       <p
         className={cn(
           "text-[14px] font-bold tabular-nums leading-none",
-          isLight ? "text-slate-900" : "text-white"
+          isLight ? "text-slate-900" : "text-white",
         )}
       >
         {value}
@@ -435,7 +482,7 @@ function Stat({
       <p
         className={cn(
           "mt-0.5 text-[10px] font-medium leading-none",
-          isLight ? "text-slate-600" : "text-white/50"
+          isLight ? "text-slate-600" : "text-white/50",
         )}
       >
         {label}
@@ -463,7 +510,7 @@ function SolidSection({
     <section
       className={cn(
         isLight ? "rounded-none px-0 py-2.5" : "rounded-2xl p-3",
-        card
+        card,
       )}
       style={
         !isLight && cardBg && cardBg !== "transparent"
@@ -480,7 +527,7 @@ function SolidSection({
         <p
           className={cn(
             "text-[12px] font-bold tracking-tight",
-            isLight ? "text-slate-900" : "text-white"
+            isLight ? "text-slate-900" : "text-white",
           )}
         >
           {title}
@@ -505,7 +552,7 @@ function Row({
       <span
         className={cn(
           "shrink-0 text-[11px] font-medium",
-          isLight ? "text-slate-600" : "text-white/50"
+          isLight ? "text-slate-600" : "text-white/50",
         )}
       >
         {label}
@@ -513,7 +560,7 @@ function Row({
       <span
         className={cn(
           "min-w-0 text-right text-[12px] font-semibold",
-          isLight ? "text-slate-900" : "text-white"
+          isLight ? "text-slate-900" : "text-white",
         )}
       >
         {value}

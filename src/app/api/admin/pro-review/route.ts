@@ -30,7 +30,7 @@ export async function GET(req: Request) {
     const { data: pros, error } = await supabase
       .from("repair_pro_profiles")
       .select(
-        "user_id, business_name, status, verified, nin_verified, bvn_verified, nin_last4, bvn_last4, nin_encrypted, bvn_encrypted, primary_service, services, docs_status, docs_rating_boost_applied, certification_file_name, certification_file_url, docs_submitted_at, docs_reviewed_at, rating_avg, rating_count, visibility_tier, is_new_artisan, pipeline_status, pipeline_notes, submitted_at, approved_at, rejected_at, rejection_reason, guarantor, tools, portfolio, liveness_passed_at, skill_proof, gov_id_meta, gov_id_kind, gov_id_number, gov_id_front_url, gov_id_back_url, gov_id_review_status, gov_id_submitted_at, gov_id_reviewed_at, phone_verified, phone_verified_at, face_liveness_verified, face_liveness_at, face_liveness_selfie_url, bio, years_experience, service_radius_km, review_checklist, labour_prices, vehicle_focus, skills, cac_document_url, created_at, updated_at"
+        "user_id, business_name, status, verified, nin_verified, bvn_verified, nin_last4, bvn_last4, nin_encrypted, bvn_encrypted, primary_service, services, docs_status, docs_rating_boost_applied, certification_file_name, certification_file_url, docs_submitted_at, docs_reviewed_at, rating_avg, rating_count, visibility_tier, is_new_artisan, pipeline_status, pipeline_notes, submitted_at, approved_at, rejected_at, rejection_reason, guarantor, tools, portfolio, liveness_passed_at, skill_proof, gov_id_meta, gov_id_kind, gov_id_number, gov_id_front_url, gov_id_back_url, gov_id_review_status, gov_id_submitted_at, gov_id_reviewed_at, phone_verified, phone_verified_at, face_liveness_verified, face_liveness_at, face_liveness_selfie_url, bio, years_experience, service_radius_km, review_checklist, labour_prices, vehicle_focus, skills, cac_document_url, created_at, updated_at",
       )
       .order("created_at", { ascending: false })
       .limit(400);
@@ -40,7 +40,7 @@ export async function GET(req: Request) {
       const slim = await supabase
         .from("repair_pro_profiles")
         .select(
-          "user_id, business_name, status, verified, nin_verified, bvn_verified, nin_last4, bvn_last4, primary_service, docs_status, certification_file_name, certification_file_url, docs_submitted_at, rating_avg, rating_count, visibility_tier, is_new_artisan, face_liveness_verified, face_liveness_at, created_at"
+          "user_id, business_name, status, verified, nin_verified, bvn_verified, nin_last4, bvn_last4, primary_service, docs_status, certification_file_name, certification_file_url, docs_submitted_at, rating_avg, rating_count, visibility_tier, is_new_artisan, face_liveness_verified, face_liveness_at, created_at",
         )
         .order("created_at", { ascending: false })
         .limit(400);
@@ -60,7 +60,7 @@ async function buildProList(
   supabase: ReturnType<typeof createServiceSupabase>,
   pros: Record<string, unknown>[],
   filter: string,
-  legacy: boolean
+  legacy: boolean,
 ) {
   const userIds = pros.map((p) => String(p.user_id));
   const profiles: Record<
@@ -85,7 +85,7 @@ async function buildProList(
     const full = await supabase
       .from("profiles")
       .select(
-        "id, full_name, email, phone, city, area, avatar_url, created_at, role, primary_role, last_role_switch_at, role_switch_count"
+        "id, full_name, email, phone, city, area, avatar_url, created_at, role, primary_role, last_role_switch_at, role_switch_count",
       )
       .in("id", userIds);
     if (!full.error && full.data) {
@@ -94,7 +94,7 @@ async function buildProList(
       const slim = await supabase
         .from("profiles")
         .select(
-          "id, full_name, email, phone, city, area, avatar_url, created_at, role"
+          "id, full_name, email, phone, city, area, avatar_url, created_at, role",
         )
         .in("id", userIds);
       rows = (slim.data ?? []) as Record<string, unknown>[];
@@ -122,7 +122,7 @@ async function buildProList(
     for (const m of mots ?? []) motoristIds.add(String(m.user_id));
   }
 
-  // Recent job media (evidence / live photos) — not star reviews
+  // Recent job media (evidence / live photos) not star reviews
   const jobMedia: Record<
     string,
     Array<{
@@ -140,7 +140,7 @@ async function buildProList(
     const { data: jobs } = await supabase
       .from("service_requests")
       .select(
-        "id, repair_pro_id, status, service_type, motorist_photo, repair_pro_photo, photos, evidence, created_at"
+        "id, repair_pro_id, status, service_type, motorist_photo, repair_pro_photo, photos, evidence, created_at",
       )
       .in("repair_pro_id", userIds)
       .order("created_at", { ascending: false })
@@ -189,38 +189,42 @@ async function buildProList(
       (pr.certification_file_name as string | null) ||
       certFromSkills?.name ||
       null;
-    const hasSkillFile = Boolean(skillFileUrl || skillFileName || certFromSkills?.hasFile);
+    const hasSkillFile = Boolean(
+      skillFileUrl || skillFileName || certFromSkills?.hasFile,
+    );
 
-    const t2Ok = Boolean(pr.nin_verified && pr.bvn_verified) ||
+    const t2Ok =
+      Boolean(pr.nin_verified && pr.bvn_verified) ||
       pr.gov_id_review_status === "approved" ||
       Boolean(pr.verified);
     const hasId = Boolean(
       pr.nin_last4 ||
-        pr.bvn_last4 ||
-        pr.gov_id_number ||
-        pr.gov_id_front_url ||
-        pr.nin_encrypted
+      pr.bvn_last4 ||
+      pr.gov_id_number ||
+      pr.gov_id_front_url ||
+      pr.nin_encrypted,
     );
     const hasIdMedia = Boolean(pr.gov_id_front_url || pr.gov_id_back_url);
     const t2Pending =
-      !t2Ok &&
-      (pr.gov_id_review_status === "submitted" || hasId);
+      !t2Ok && (pr.gov_id_review_status === "submitted" || hasId);
     // Submitted without photos → care must request re-upload
     const t2MissingMedia =
-      t2Pending && !hasIdMedia && Boolean(pr.gov_id_review_status === "submitted" || hasId);
+      t2Pending &&
+      !hasIdMedia &&
+      Boolean(pr.gov_id_review_status === "submitted" || hasId);
     const docs = String(pr.docs_status || "none");
-    const t4Pending = docs === "under_review" || (hasSkillFile && docs !== "approved" && docs !== "rejected");
+    const t4Pending =
+      docs === "under_review" ||
+      (hasSkillFile && docs !== "approved" && docs !== "rejected");
     const t3Ok = Boolean(pr.face_liveness_verified || pr.liveness_passed_at);
     const vis = Number(pr.visibility_tier) || 1;
-    const rejectReason = pr.rejection_reason
-      ? String(pr.rejection_reason)
-      : "";
+    const rejectReason = pr.rejection_reason ? String(pr.rejection_reason) : "";
     const needs_resubmit =
       /re-?\s*submit/i.test(rejectReason) ||
       String(pr.pipeline_status || "") === "needs_resubmit" ||
       /needs_resubmit|re-submit/i.test(String(pr.pipeline_notes || "")) ||
       t2MissingMedia;
-    // B3: any open care item — ID pending, docs pending, account pending, or re-submit flag
+    // B3: any open care item ID pending, docs pending, account pending, or re-submit flag
     const accountPending = String(pr.status || "") === "pending";
     const needs_action =
       t2Pending || t4Pending || needs_resubmit || accountPending;
@@ -232,13 +236,12 @@ async function buildProList(
       primaryDbRole: p?.primary_role || null,
       lastRoleSwitchAt: p?.last_role_switch_at || null,
       roleSwitchCount: p?.role_switch_count ?? 0,
-      activeAccountType:
-        p?.role === "motorist" ? "motorist" : "professional",
+      activeAccountType: p?.role === "motorist" ? "motorist" : "professional",
     });
 
     return {
       user_id: uid,
-      full_name: p?.full_name ?? "—",
+      full_name: p?.full_name ?? "",
       email: p?.email ?? null,
       phone: p?.phone ?? null,
       city: p?.city ?? null,
@@ -290,7 +293,9 @@ async function buildProList(
           back_url: pr.gov_id_back_url ?? null,
           nin_verified: Boolean(pr.nin_verified),
           bvn_verified: Boolean(pr.bvn_verified),
-          review_status: pr.gov_id_review_status ?? (t2Ok ? "approved" : t2Pending ? "submitted" : "none"),
+          review_status:
+            pr.gov_id_review_status ??
+            (t2Ok ? "approved" : t2Pending ? "submitted" : "none"),
           submitted_at: pr.gov_id_submitted_at ?? pr.submitted_at ?? null,
         },
         t3_liveness: {
@@ -413,7 +418,7 @@ const patchSchema = z.object({
     "pro_t4_reject",
     "pro_visibility",
     "pro_request_resubmit",
-    /** Care opened the row — mark read until a new re-submit */
+    /** Care opened the row mark read until a new re-submit */
     "mark_attended",
     /** Clear unapproved tier so pro can re-verify from the app */
     "pro_t2_reset",
@@ -421,7 +426,9 @@ const patchSchema = z.object({
     "pro_t4_reset",
     "pro_reset_unapproved",
   ]),
-  visibilityTier: z.union([z.literal(2), z.literal(3), z.literal(4)]).optional(),
+  visibilityTier: z
+    .union([z.literal(2), z.literal(3), z.literal(4)])
+    .optional(),
   reason: z.string().max(500).optional(),
 });
 
@@ -451,7 +458,7 @@ export async function PATCH(req: Request) {
           ? (row.gov_id_meta as Record<string, unknown>)
           : {};
       const submitKey = String(
-        row.gov_id_submitted_at || row.docs_submitted_at || now
+        row.gov_id_submitted_at || row.docs_submitted_at || now,
       );
       const { error } = await supabase
         .from("repair_pro_profiles")
@@ -476,7 +483,7 @@ export async function PATCH(req: Request) {
       const { data: before } = await supabase
         .from("repair_pro_profiles")
         .select(
-          "face_liveness_verified, liveness_passed_at, docs_status, bvn_verified, gov_id_number, gov_id_front_url, nin_encrypted, nin_last4, bvn_encrypted, bvn_last4, gov_id_meta"
+          "face_liveness_verified, liveness_passed_at, docs_status, bvn_verified, gov_id_number, gov_id_front_url, nin_encrypted, nin_last4, bvn_encrypted, bvn_last4, gov_id_meta",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -489,41 +496,42 @@ export async function PATCH(req: Request) {
           : {};
       const hasId = Boolean(
         before.gov_id_number ||
-          before.nin_encrypted ||
-          before.nin_last4 ||
-          meta.primaryId ||
-          before.gov_id_front_url
+        before.nin_encrypted ||
+        before.nin_last4 ||
+        meta.primaryId ||
+        before.gov_id_front_url,
       );
       const hasBvn = Boolean(
         before.bvn_encrypted ||
-          before.bvn_last4 ||
-          meta.bankId ||
-          meta.bvn ||
-          // Pro app stores BVN in nin field when kind=nin
-          (before.nin_encrypted && before.gov_id_number) ||
-          before.nin_last4
+        before.bvn_last4 ||
+        meta.bankId ||
+        meta.bvn ||
+        // Pro app stores BVN in nin field when kind=nin
+        (before.nin_encrypted && before.gov_id_number) ||
+        before.nin_last4,
       );
-      // nin_last4 alone can be ID last4 — prefer explicit bvn fields, else require nin submit as BVN
+      // nin_last4 alone can be ID last4 prefer explicit bvn fields, else require nin submit as BVN
       const hasBvnStrict = Boolean(
-        before.bvn_encrypted || before.bvn_last4 || meta.bankId || meta.bvn
+        before.bvn_encrypted || before.bvn_last4 || meta.bankId || meta.bvn,
       );
       // Accept nin number as BVN package when pro submitted BVN step (nin field)
-      const hasBvnOrNinPackage = hasBvnStrict || Boolean(before.nin_encrypted || before.nin_last4);
+      const hasBvnOrNinPackage =
+        hasBvnStrict || Boolean(before.nin_encrypted || before.nin_last4);
       if (!hasId) {
         return apiFail(
-          "Cannot approve T2 — government ID number/photo is missing.",
-          400
+          "Cannot approve T2 government ID number/photo is missing.",
+          400,
         );
       }
       if (!hasBvnOrNinPackage) {
         return apiFail(
-          "Cannot approve T2 — BVN must be filled with government ID. Ask pro to submit BVN.",
-          400
+          "Cannot approve T2 BVN must be filled with government ID. Ask pro to submit BVN.",
+          400,
         );
       }
       void hasBvn; // reserved for stricter future check
       const alreadyLive = Boolean(
-        before?.face_liveness_verified || before?.liveness_passed_at
+        before?.face_liveness_verified || before?.liveness_passed_at,
       );
       // Care T2 package includes ID + BVN approved together
       const goLiveEnds = new Date(now);
@@ -584,9 +592,8 @@ export async function PATCH(req: Request) {
       }
       const vis = Number(t2Patch.visibility_tier) || 2;
       // Dual-role: auto-approve Customer T2 + share ID media if empty
-      const { mirrorDualRoleT2Approved } = await import(
-        "@/lib/server/identity/dual-t2-mirror"
-      );
+      const { mirrorDualRoleT2Approved } =
+        await import("@/lib/server/identity/dual-t2-mirror");
       await mirrorDualRoleT2Approved(supabase, userId, {
         reviewedBy: session.userId,
         now,
@@ -628,7 +635,7 @@ export async function PATCH(req: Request) {
       const { data: pro } = await supabase
         .from("repair_pro_profiles")
         .select(
-          "docs_rating_boost_applied, rating_avg, visibility_tier, face_liveness_verified, liveness_passed_at, bvn_verified, gov_id_review_status, verified, nin_verified"
+          "docs_rating_boost_applied, rating_avg, visibility_tier, face_liveness_verified, liveness_passed_at, bvn_verified, gov_id_review_status, verified, nin_verified",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -648,16 +655,17 @@ export async function PATCH(req: Request) {
       }
       const boosted = Boolean(pro.docs_rating_boost_applied);
       const avg = Number(pro.rating_avg) || 0;
-      const nextAvg = boosted ? avg : Math.min(5, Math.round((avg + 1) * 100) / 100);
-      const { resolveAutoVisibilityTier } = await import(
-        "@/lib/artisan/visibility-tiers"
-      );
+      const nextAvg = boosted
+        ? avg
+        : Math.min(5, Math.round((avg + 1) * 100) / 100);
+      const { resolveAutoVisibilityTier } =
+        await import("@/lib/artisan/visibility-tiers");
       const govIdApproved =
         pro.gov_id_review_status === "approved" ||
         Boolean(pro.verified) ||
         Boolean(pro.nin_verified);
       const faceOk = Boolean(
-        pro.face_liveness_verified || pro.liveness_passed_at
+        pro.face_liveness_verified || pro.liveness_passed_at,
       );
       // Product: must pass T3 (liveness + BVN) before T4 full reach
       const nextVis = resolveAutoVisibilityTier({
@@ -678,7 +686,8 @@ export async function PATCH(req: Request) {
           is_new_artisan: nextVis <= 2,
           ...(nextVis >= 3 ? { go_live_window_ends_at: null } : {}),
           ...(nextVis >= 4 ? { tier4_approved_at: now } : {}),
-          pipeline_status: nextVis >= 4 ? "live_ready" : "pending_document_review",
+          pipeline_status:
+            nextVis >= 4 ? "live_ready" : "pending_document_review",
           status: "approved",
           updated_at: now,
         })
@@ -693,19 +702,19 @@ export async function PATCH(req: Request) {
           nextVis >= 4
             ? "Skill docs approved. Visibility T4 (full · 5 km)."
             : nextVis >= 3
-              ? "Skill docs approved. Visibility stays T3 until ladder recompute — check liveness + BVN."
+              ? "Skill docs approved. Visibility stays T3 until ladder recompute check liveness + BVN."
               : nextVis >= 2
                 ? "Skill docs saved. Full T4 reach needs T3 first (face liveness + BVN). Currently limited T2."
                 : "Skill docs approved. T2 ID approval still required for search.",
       });
     }
 
-    // Manual visibility retired — automatic ladder only
+    // Manual visibility retired automatic ladder only
     if (action === "pro_visibility") {
       return apiFail(
         "Visibility is automatic: T2 ID → limited search · T3 (liveness + BVN) → wider · T4 skill docs → full (only after T3). No manual Vis buttons.",
         400,
-        "visibility_automatic"
+        "visibility_automatic",
       );
     }
 
@@ -733,7 +742,7 @@ export async function PATCH(req: Request) {
         reason: note,
       });
       return apiOk({
-        message: "Flagged for re-submit — pro will appear in care queue.",
+        message: "Flagged for re-submit pro will appear in care queue.",
       });
     }
 
@@ -747,7 +756,7 @@ export async function PATCH(req: Request) {
       const { data: pro, error: loadErr } = await supabase
         .from("repair_pro_profiles")
         .select(
-          "gov_id_review_status, nin_verified, bvn_verified, verified, docs_status, face_liveness_verified, visibility_tier"
+          "gov_id_review_status, nin_verified, bvn_verified, verified, docs_status, face_liveness_verified, visibility_tier",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -847,7 +856,7 @@ export async function PATCH(req: Request) {
         return apiOk({
           message:
             kept.length > 0
-              ? `Nothing to reset — ${kept.join("; ")}.`
+              ? `Nothing to reset ${kept.join("; ")}.`
               : "Nothing to reset.",
           cleared,
           kept,

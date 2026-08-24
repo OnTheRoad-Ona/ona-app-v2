@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  * Repair Pro submits government ID / NIN / skill docs for admin review.
  * Writes to repair_pro_profiles so care queues see media + numbers instantly.
  *
- * IMPORTANT: Care-approved T2 / account status is sticky — re-submit cannot demote.
+ * IMPORTANT: Care-approved T2 / account status is sticky re-submit cannot demote.
  */
 const bodySchema = z.object({
   access_token: z.string().min(10),
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
     const { data: existing } = await admin
       .from("repair_pro_profiles")
       .select(
-        "user_id, primary_service, status, gov_id_review_status, verified, nin_verified, bvn_verified, tier2_approved_at, pipeline_status, rejection_reason, pipeline_notes, docs_status, gov_id_meta"
+        "user_id, primary_service, status, gov_id_review_status, verified, nin_verified, bvn_verified, tier2_approved_at, pipeline_status, rejection_reason, pipeline_notes, docs_status, gov_id_meta",
       )
       .eq("user_id", userId)
       .maybeSingle();
@@ -91,7 +91,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // Default pending only for net-new unapproved rows — protect-approval will re-assert approved
+    // Default pending only for net-new unapproved rows protect-approval will re-assert approved
     const patch: Record<string, unknown> = {
       updated_at: now,
       status: "pending",
@@ -203,9 +203,7 @@ export async function POST(req: Request) {
       .eq("user_id", userId);
 
     if (error) {
-      if (
-        /gov_id_|skill_proof|pipeline_|certification_/i.test(error.message)
-      ) {
+      if (/gov_id_|skill_proof|pipeline_|certification_/i.test(error.message)) {
         const slim: Record<string, unknown> = {
           updated_at: now,
         };
@@ -241,9 +239,8 @@ export async function POST(req: Request) {
 
     if (kind === "gov_id" || kind === "nin") {
       try {
-        const { detectMergeCandidatesForUser } = await import(
-          "@/lib/server/identity/identity-sync"
-        );
+        const { detectMergeCandidatesForUser } =
+          await import("@/lib/server/identity/identity-sync");
         await detectMergeCandidatesForUser(admin, userId, {
           userId,
           source: "pro_id_verify",

@@ -1,11 +1,15 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
-import { getBearerToken, getUserFromToken, requireUser } from "@/lib/server/auth-utils";
+import {
+  getBearerToken,
+  getUserFromToken,
+  requireUser,
+} from "@/lib/server/auth-utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Diagnostic — disabled by default. Only responds when the operator
+ * Diagnostic disabled by default. Only responds when the operator
  * explicitly opts in via ENABLE_AUTH_ECHO="true" (non-prod debugging).
  */
 export async function GET(req: Request) {

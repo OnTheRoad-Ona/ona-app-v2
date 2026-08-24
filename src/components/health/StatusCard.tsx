@@ -59,11 +59,12 @@ export function StatusCard({
         }}
       >
         <div className="label">{component.label}</div>
-        <span className={badgeClass(component.status)}>
-          {component.status}
-        </span>
+        <span className={badgeClass(component.status)}>{component.status}</span>
       </div>
-      <div className="value" style={{ fontSize: 15, marginTop: 6, lineHeight: 1.25 }}>
+      <div
+        className="value"
+        style={{ fontSize: 15, marginTop: 6, lineHeight: 1.25 }}
+      >
         {component.value}
       </div>
       <p

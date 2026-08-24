@@ -16,7 +16,7 @@ import {
 } from "@/lib/body/question-tree";
 
 describe("body question tree", () => {
-  it("offers the seven start categories A–G", () => {
+  it("offers the seven start categories A-G", () => {
     expect(BODY_START_OPTIONS.map((o) => o.id)).toEqual([
       "A",
       "B",
@@ -87,7 +87,7 @@ describe("body question tree", () => {
     expect(nextBodyScreen("g_related", "mechanic", {})).toBe("final");
   });
 
-  it("never needs a confirm card — body stays body everywhere", () => {
+  it("never needs a confirm card body stays body everywhere", () => {
     const cases: Record<string, string>[] = [
       { start: "A", a_serious: "severe" },
       { start: "D", d_drive: "no" },
@@ -118,7 +118,7 @@ describe("body question tree", () => {
         a_driveable: "no",
       },
       "Please call before arrival",
-      "Lagos mainland"
+      "Lagos mainland",
     );
     expect(out).toContain(BODY_START_QUESTION);
     expect(out).toContain("Accident or collision damage");
@@ -131,7 +131,7 @@ describe("body question tree", () => {
   it("builds a breadcrumb with the branch letter", () => {
     expect(bodyBreadcrumb(["vehicle"])).toBe("Body");
     expect(bodyBreadcrumb(["vehicle", "a_serious", "a_parts"])).toBe(
-      "Body · A"
+      "Body · A",
     );
   });
 

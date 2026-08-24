@@ -14,7 +14,7 @@ import {
 describe("vulcanizer question tree", () => {
   it("asks the tyre/wheel start question with eight options", () => {
     expect(VULCANIZER_START_QUESTION).toBe(
-      "What is the main tyre or wheel problem you are experiencing?"
+      "What is the main tyre or wheel problem you are experiencing?",
     );
     expect(VULCANIZER_START_OPTIONS.map((o) => o.id)).toEqual([
       "A",
@@ -34,7 +34,7 @@ describe("vulcanizer question tree", () => {
 
   it("jumps from multiple flats to the multi-tyre branch", () => {
     expect(nextVulcanizerScreen("a_which", "more", { a_which: "more" })).toBe(
-      "g_howmany"
+      "g_howmany",
     );
     expect(nextVulcanizerScreen("a_which", "front_left", {})).toBe("a_object");
   });
@@ -76,9 +76,10 @@ describe("vulcanizer question tree", () => {
       g_drive: "no",
     });
     expect(route.trade).toBe("towing");
-    expect(resolveVulcanizerRoute({ start: "A", a_which: "more", g_drive: "yes" }).trade).toBe(
-      "vulcanizer"
-    );
+    expect(
+      resolveVulcanizerRoute({ start: "A", a_which: "more", g_drive: "yes" })
+        .trade,
+    ).toBe("vulcanizer");
   });
 
   it("routes an unsafe burst to Tow, but pull to one side to Mechanic", () => {
@@ -89,7 +90,7 @@ describe("vulcanizer question tree", () => {
         b_pull: "no",
         b_rim: "no",
         b_spare: "yes",
-      }).trade
+      }).trade,
     ).toBe("towing");
 
     const suspension = resolveVulcanizerRoute({
@@ -110,7 +111,7 @@ describe("vulcanizer question tree", () => {
         start: "C",
         c_damage: "sidewall",
         c_air: "yes",
-      }).trade
+      }).trade,
     ).toBe("vulcanizer");
   });
 
@@ -121,7 +122,7 @@ describe("vulcanizer question tree", () => {
         d_how: "pothole",
         d_air: "no",
         d_use: "unsafe",
-      }).trade
+      }).trade,
     ).toBe("towing");
 
     expect(
@@ -129,7 +130,7 @@ describe("vulcanizer question tree", () => {
         start: "D",
         d_how: "accident",
         d_use: "usable",
-      }).trade
+      }).trade,
     ).toBe("body");
 
     expect(
@@ -137,7 +138,7 @@ describe("vulcanizer question tree", () => {
         start: "D",
         d_how: "pothole",
         d_use: "usable",
-      }).trade
+      }).trade,
     ).toBe("vulcanizer");
   });
 
@@ -147,7 +148,7 @@ describe("vulcanizer question tree", () => {
         start: "E",
         e_symptoms: "loose",
         e_trigger: "gradual",
-      }).trade
+      }).trade,
     ).toBe("mechanic");
 
     expect(
@@ -155,7 +156,7 @@ describe("vulcanizer question tree", () => {
         start: "E",
         e_symptoms: "vibration",
         e_trigger: "new_tyres",
-      }).trade
+      }).trade,
     ).toBe("vulcanizer");
   });
 
@@ -166,7 +167,7 @@ describe("vulcanizer question tree", () => {
         f_which: "both_front",
         f_supply: "supply",
         f_balance: "yes",
-      }).trade
+      }).trade,
     ).toBe("vulcanizer");
   });
 
@@ -183,40 +184,52 @@ describe("vulcanizer question tree", () => {
         start: "G",
         g_howmany: "two",
         g_drive: "yes",
-      }).trade
+      }).trade,
     ).toBe("vulcanizer");
   });
 
   it("routes the something-else branch to the related trade", () => {
     expect(
-      resolveVulcanizerRoute({ start: "H", h_related: "engine" }).trade
+      resolveVulcanizerRoute({ start: "H", h_related: "engine" }).trade,
     ).toBe("mechanic");
     expect(
-      resolveVulcanizerRoute({ start: "H", h_related: "battery" }).trade
+      resolveVulcanizerRoute({ start: "H", h_related: "battery" }).trade,
     ).toBe("battery");
     expect(
-      resolveVulcanizerRoute({ start: "H", h_related: "battery" }).alternate
+      resolveVulcanizerRoute({ start: "H", h_related: "battery" }).alternate,
     ).toBe("electrical");
     expect(
-      resolveVulcanizerRoute({ start: "H", h_related: "body" }).trade
+      resolveVulcanizerRoute({ start: "H", h_related: "body" }).trade,
     ).toBe("body");
+    expect(resolveVulcanizerRoute({ start: "H", h_related: "tow" }).trade).toBe(
+      "towing",
+    );
     expect(
-      resolveVulcanizerRoute({ start: "H", h_related: "tow" }).trade
-    ).toBe("towing");
-    expect(
-      resolveVulcanizerRoute({ start: "H", h_related: "power", h_power: "solar" }).trade
+      resolveVulcanizerRoute({
+        start: "H",
+        h_related: "power",
+        h_power: "solar",
+      }).trade,
     ).toBe("solar");
     expect(
-      resolveVulcanizerRoute({ start: "H", h_related: "power", h_power: "generator" }).trade
+      resolveVulcanizerRoute({
+        start: "H",
+        h_related: "power",
+        h_power: "generator",
+      }).trade,
     ).toBe("generator");
     expect(
-      resolveVulcanizerRoute({ start: "H", h_related: "house", h_house: "plumber" }).trade
+      resolveVulcanizerRoute({
+        start: "H",
+        h_related: "house",
+        h_house: "plumber",
+      }).trade,
     ).toBe("plumber");
     expect(
-      resolveVulcanizerRoute({ start: "H", h_related: "clothing" }).trade
+      resolveVulcanizerRoute({ start: "H", h_related: "clothing" }).trade,
     ).toBe("fashion");
     expect(
-      resolveVulcanizerRoute({ start: "H", h_related: "tyre" }).trade
+      resolveVulcanizerRoute({ start: "H", h_related: "tyre" }).trade,
     ).toBe("vulcanizer");
   });
 
@@ -229,7 +242,7 @@ describe("vulcanizer question tree", () => {
   it("asks Continue with the stronger trade name", () => {
     expect(confirmQuestion("towing")).toBe("This sounds like Tow. Continue?");
     expect(confirmQuestion("vulcanizer")).toBe(
-      "This sounds like Vulcanizer. Continue?"
+      "This sounds like Vulcanizer. Continue?",
     );
   });
 
@@ -241,7 +254,7 @@ describe("vulcanizer question tree", () => {
         a_which_label: "Front left",
       },
       "please hurry",
-      " lekki phase 1 "
+      " lekki phase 1 ",
     );
     expect(text).toContain(VULCANIZER_START_QUESTION);
     expect(text).toContain("Flat tyre / puncture");

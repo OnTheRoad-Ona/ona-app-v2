@@ -15,7 +15,11 @@ export const dynamic = "force-dynamic";
 /** List catalog products for admin. */
 export async function GET(req: NextRequest) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     await requirePermission("shop_catalog");
@@ -23,10 +27,11 @@ export async function GET(req: NextRequest) {
     const q = url.searchParams.get("q") || undefined;
     const tradeKey = url.searchParams.get("trade") || undefined;
     const status = url.searchParams.get("status") || undefined;
+    const listing = url.searchParams.get("listing") || undefined;
     const limit = Number(url.searchParams.get("limit") || 100);
 
     const [products, categories] = await Promise.all([
-      adminListProducts({ q, tradeKey, status, limit }),
+      adminListProducts({ q, tradeKey, status, listing, limit }),
       adminListCategories(),
     ]);
     return apiOk({ products, categories });
@@ -50,7 +55,11 @@ export async function GET(req: NextRequest) {
 /** Create product + default variant + price + stock. */
 export async function POST(req: NextRequest) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     const ctx = await requirePermission("shop_catalog");
@@ -84,7 +93,7 @@ export async function POST(req: NextRequest) {
         stockQty: body.stockQty ?? 0,
         locationCode: body.locationCode,
       },
-      ctx.session.userId
+      ctx.session.userId,
     );
     return apiOk(created, { status: 201 });
   } catch (e) {

@@ -2,13 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Car,
-  ChevronLeft,
-  CircleDot,
-  Scissors,
-  Wrench,
-} from "lucide-react";
+import { Car, ChevronLeft, CircleDot, Scissors, Wrench } from "lucide-react";
 import { BrandHeroMotion } from "@/components/auth/brand-hero-motion";
 import { useApp } from "@/lib/store";
 import type { ProService } from "@/lib/types";
@@ -48,7 +42,7 @@ const PRO_SERVICES: {
 
 /**
  * Dedicated page: choose primary Repair Professional service.
- * Reached from login after selecting Repair Pro — not an inline menu.
+ * Reached from login after selecting Repair Pro not an inline menu.
  */
 export function ProServiceScreen() {
   const router = useRouter();
@@ -105,14 +99,14 @@ export function ProServiceScreen() {
                     "flex w-full items-center gap-3 rounded-lg border-0 px-3 py-3 text-left transition-colors",
                     active
                       ? "bg-[#FF6B35] text-white shadow-lg shadow-orange-900/25"
-                      : "bg-white/10 text-white hover:bg-white/15"
+                      : "bg-white/10 text-white hover:bg-white/15",
                   )}
                   aria-pressed={active}
                 >
                   <span
                     className={cn(
                       "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
-                      active ? "bg-white/20" : "bg-white/10"
+                      active ? "bg-white/20" : "bg-white/10",
                     )}
                   >
                     <Icon className="h-5 w-5" strokeWidth={2.2} />
@@ -124,7 +118,7 @@ export function ProServiceScreen() {
                     <span
                       className={cn(
                         "mt-0.5 block text-[11px]",
-                        active ? "text-white/85" : "text-white/55"
+                        active ? "text-white/85" : "text-white/55",
                       )}
                     >
                       {hint}

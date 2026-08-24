@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { isJobParty, requireUser } from "@/lib/server/auth-utils";
+import { AdminAuthError, requireAdmin } from "@/lib/server/admin-auth";
 import {
-  AdminAuthError,
-  requireAdmin,
-} from "@/lib/server/admin-auth";
-import { getJob, openDispute, resolveDispute } from "@/lib/server/jobs/job-store";
+  getJob,
+  openDispute,
+  resolveDispute,
+} from "@/lib/server/jobs/job-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,7 +34,7 @@ const openSchema = z.object({
         durationSec: z.number().optional(),
         createdAt: z.string(),
         uploadedBy: z.string(),
-      })
+      }),
     )
     .optional(),
 });
@@ -52,7 +53,7 @@ const resolveSchema = z.object({
 
 export async function POST(
   req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await ctx.params;

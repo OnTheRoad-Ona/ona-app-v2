@@ -20,7 +20,7 @@ describe("chat-expired SSPE dispatch statuses", () => {
       expect(isJobEndedStatus(status)).toBe(false);
       expect(isJobLiveShellStatus(status)).toBe(true);
       expect(isJobHistoryOnlyStatus(status)).toBe(false);
-    }
+    },
   );
 
   it("still treats genuinely ended statuses as history-only", () => {

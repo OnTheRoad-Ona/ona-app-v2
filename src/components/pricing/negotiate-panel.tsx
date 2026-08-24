@@ -35,7 +35,7 @@ export function NegotiatePanel({
     <div
       className={cn(
         "space-y-2 rounded-2xl px-3 py-3",
-        isLight ? "bg-black/[0.04]" : "bg-[#1c1c1e]"
+        isLight ? "bg-black/[0.04]" : "bg-[#1c1c1e]",
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -43,7 +43,7 @@ export function NegotiatePanel({
           <p
             className={cn(
               "text-[13px] font-bold",
-              isLight ? "text-slate-900" : "text-white"
+              isLight ? "text-slate-900" : "text-white",
             )}
           >
             Labour fee
@@ -51,13 +51,18 @@ export function NegotiatePanel({
           <p
             className={cn(
               "mt-0.5 text-[10px] leading-snug",
-              isLight ? "text-slate-600" : "text-[#a1a1a6]"
+              isLight ? "text-slate-600" : "text-[#a1a1a6]",
             )}
           >
             {labourFeeDisclaimerForTrade()}
           </p>
         </div>
-        <p className={cn("text-[15px] font-black tabular-nums", isLight ? "text-slate-900" : "text-white")}>
+        <p
+          className={cn(
+            "text-[15px] font-black tabular-nums",
+            isLight ? "text-slate-900" : "text-white",
+          )}
+        >
           {formatMoney(agreed, currency)}
         </p>
       </div>
@@ -96,7 +101,7 @@ export function NegotiatePanel({
                 ? "bg-brand text-white"
                 : isLight
                   ? "bg-black/8 text-slate-700"
-                  : "bg-[#2c2c2e] text-white/75"
+                  : "bg-[#2c2c2e] text-white/75",
             )}
           >
             {p === 0 ? "Full price" : `−${p}%`}

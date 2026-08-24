@@ -16,7 +16,7 @@ import {
 } from "@/lib/fashion/question-tree";
 
 describe("fashion (tailoring) question tree", () => {
-  it("offers the seven start categories A–G", () => {
+  it("offers the seven start categories A-G", () => {
     expect(FASHION_START_OPTIONS.map((o) => o.id)).toEqual([
       "A",
       "B",
@@ -78,7 +78,7 @@ describe("fashion (tailoring) question tree", () => {
     expect(nextFashionScreen("g_related", "vehicle", {})).toBe("final");
   });
 
-  it("is capture-only — always Fashion, never a confirm card", () => {
+  it("is capture-only always Fashion, never a confirm card", () => {
     const cases: Record<string, string>[] = [
       { start: "A" },
       { start: "B" },
@@ -112,7 +112,7 @@ describe("fashion (tailoring) question tree", () => {
         a_style: "native",
       },
       "Bridal owambe",
-      "Ikeja"
+      "Ikeja",
     );
     expect(out).toContain(FASHION_START_QUESTION);
     expect(out).toContain("New custom-made outfit (Native or English)");
@@ -164,6 +164,6 @@ describe("fashion (tailoring) question tree", () => {
 
   it("exposes the final block copy", () => {
     expect(FASHION_FINAL_COPY.home).toContain("home service");
-    expect(FASHION_FINAL_COPY.photos).toContain("2–4");
+    expect(FASHION_FINAL_COPY.photos).toContain("2-4");
   });
 });

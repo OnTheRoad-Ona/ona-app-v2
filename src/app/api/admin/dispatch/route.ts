@@ -32,7 +32,12 @@ const LIVE_STATUSES = [
   "agreed",
 ] as const;
 
-type HistoryEntry = { status?: string; at?: string; by?: string; note?: string };
+type HistoryEntry = {
+  status?: string;
+  at?: string;
+  by?: string;
+  note?: string;
+};
 
 function parseHistory(raw: unknown): HistoryEntry[] {
   if (Array.isArray(raw)) return raw as HistoryEntry[];
@@ -46,7 +51,10 @@ function parseHistory(raw: unknown): HistoryEntry[] {
   return [];
 }
 
-function latestAtFor(history: HistoryEntry[], pred: (e: HistoryEntry) => boolean): number {
+function latestAtFor(
+  history: HistoryEntry[],
+  pred: (e: HistoryEntry) => boolean,
+): number {
   let latest = 0;
   for (const h of history) {
     const t = Date.parse(h.at || "");
@@ -55,7 +63,12 @@ function latestAtFor(history: HistoryEntry[], pred: (e: HistoryEntry) => boolean
   return latest;
 }
 
-function cooldownsFor(history: HistoryEntry[], now: number, windowMs: number, prefix: string) {
+function cooldownsFor(
+  history: HistoryEntry[],
+  now: number,
+  windowMs: number,
+  prefix: string,
+) {
   const active: { proId: string; until: string }[] = [];
   for (const h of history) {
     const by = h.by || "";
@@ -74,9 +87,14 @@ function cooldownsFor(history: HistoryEntry[], now: number, windowMs: number, pr
  *  No cross-request cooldown anymore, so these never expire within the request. */
 function permanentExclusionsFor(
   history: HistoryEntry[],
-  nameById: Map<string, string>
+  nameById: Map<string, string>,
 ): { proId: string; proName: string; until: string | null; reason: string }[] {
-  const out: { proId: string; proName: string; until: string | null; reason: string }[] = [];
+  const out: {
+    proId: string;
+    proName: string;
+    until: string | null;
+    reason: string;
+  }[] = [];
   for (const h of history) {
     const by = h.by || "";
     if (!by.startsWith("excluded:")) continue;
@@ -117,7 +135,12 @@ type SerializedJob = {
   chosenProName: string | null;
   meritScore: number | null;
   activeDeferrals: { proId: string; proName: string; until: string }[];
-  activeExclusions: { proId: string; proName: string; until: string | null; reason: string }[];
+  activeExclusions: {
+    proId: string;
+    proName: string;
+    until: string | null;
+    reason: string;
+  }[];
   history: HistoryEntry[];
   historySummary: string[];
 };
@@ -125,7 +148,7 @@ type SerializedJob = {
 function serializeJob(
   row: Record<string, unknown>,
   nameById: Map<string, string>,
-  meritById: Map<string, number>
+  meritById: Map<string, number>,
 ): SerializedJob {
   const now = Date.now();
   const history = parseHistory(row.status_history);
@@ -135,7 +158,12 @@ function serializeJob(
       ? row.negotiate_ends_at
       : null;
 
-  const deferrals = cooldownsFor(history, now, DEFER_DURATION_MS, "deferred").map((d) => ({
+  const deferrals = cooldownsFor(
+    history,
+    now,
+    DEFER_DURATION_MS,
+    "deferred",
+  ).map((d) => ({
     ...d,
     proName: nameById.get(d.proId) || "Unknown pro",
   }));
@@ -164,8 +192,12 @@ function serializeJob(
     motoristName: nameById.get(String(row.motorist_id || "")) || "Customer",
     proId,
     proName: nameById.get(proId) || "Unassigned",
-    searchingSince: searchingSince ? new Date(searchingSince).toISOString() : null,
-    searchEndsAt: searchingSince ? new Date(searchingSince + REROUTE_WINDOW_MS).toISOString() : null,
+    searchingSince: searchingSince
+      ? new Date(searchingSince).toISOString()
+      : null,
+    searchEndsAt: searchingSince
+      ? new Date(searchingSince + REROUTE_WINDOW_MS).toISOString()
+      : null,
     negotiateEndsAt,
     pairingStage: row.pairing_stage ? String(row.pairing_stage) : null,
     pairingDeadline:
@@ -174,16 +206,21 @@ function serializeJob(
         : null,
     pairingRadiusKm:
       row.pairing_radius_km != null ? Number(row.pairing_radius_km) : null,
-    queuePosition: row.queue_position != null ? Number(row.queue_position) : null,
+    queuePosition:
+      row.queue_position != null ? Number(row.queue_position) : null,
     remainingCandidates:
-      row.remaining_candidates != null ? Number(row.remaining_candidates) : null,
+      row.remaining_candidates != null
+        ? Number(row.remaining_candidates)
+        : null,
     reservationStatus: row.reservation_status
       ? String(row.reservation_status)
       : null,
-    assignmentStatus: row.assignment_status ? String(row.assignment_status) : null,
+    assignmentStatus: row.assignment_status
+      ? String(row.assignment_status)
+      : null,
     chosenProId: chosenProId || null,
     chosenProName,
-    meritScore: proId ? meritById.get(proId) ?? null : null,
+    meritScore: proId ? (meritById.get(proId) ?? null) : null,
     activeDeferrals: deferrals,
     activeExclusions: exclusions,
     history,
@@ -193,7 +230,11 @@ function serializeJob(
 
 export async function GET() {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     await requireAdmin();
@@ -204,6 +245,13 @@ export async function GET() {
         .from("service_requests")
         .select("*")
         .in("flow_status", LIVE_STATUSES)
+        // Defense in depth: a cancelled/expired/completed job must never
+        // appear as active even if its flow_status went stale (zombie guard)
+        .not(
+          "status",
+          "in",
+          "(cancelled,expired,completed,satisfied,released,refunded)",
+        )
         .order("updated_at", { ascending: false })
         .limit(150),
       supabase
@@ -218,13 +266,14 @@ export async function GET() {
 
     const jobs = jobsRes.data || [];
     const currentProIds = [
-      ...new Set(jobs.map((j) => String(j.repair_pro_id || "")).filter(Boolean)),
+      ...new Set(
+        jobs.map((j) => String(j.repair_pro_id || "")).filter(Boolean),
+      ),
     ];
     let meritById = new Map<string, number>();
     if (currentProIds.length) {
-      const { getMeritScoresForPros } = await import(
-        "@/lib/server/merit/merit-engine"
-      );
+      const { getMeritScoresForPros } =
+        await import("@/lib/server/merit/merit-engine");
       meritById = await getMeritScoresForPros(currentProIds);
     }
 
@@ -253,7 +302,7 @@ export async function GET() {
     }
 
     const queue = jobs.map((row) =>
-      serializeJob(row as Record<string, unknown>, nameById, meritById)
+      serializeJob(row as Record<string, unknown>, nameById, meritById),
     );
 
     const pairingStages = new Set([
@@ -270,7 +319,10 @@ export async function GET() {
       agreed: queue.filter((j) => j.flowStatus === "agreed").length,
       pairing: queue.filter((j) => pairingStages.has(j.flowStatus)).length,
       activeDeferrals: queue.reduce((n, j) => n + j.activeDeferrals.length, 0),
-      activeExclusions: queue.reduce((n, j) => n + j.activeExclusions.length, 0),
+      activeExclusions: queue.reduce(
+        (n, j) => n + j.activeExclusions.length,
+        0,
+      ),
       crossJobExclusions: exclusions.length,
     };
 
@@ -297,7 +349,11 @@ const actionSchema = z.object({
 
 export async function POST(req: Request) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     const { session } = await requireAdmin();
@@ -305,9 +361,9 @@ export async function POST(req: Request) {
     if (!parsed.success) return apiFail("Invalid body", 400);
     const { action, jobId, proId, proName } = parsed.data;
 
-    let result:
-      | { ok: true; job: unknown }
-      | { error: string } = { error: "No-op" };
+    let result: { ok: true; job: unknown } | { error: string } = {
+      error: "No-op",
+    };
     switch (action) {
       case "reroute":
         result = await forceRerouteJob(jobId);

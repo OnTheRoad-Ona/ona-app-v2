@@ -32,12 +32,7 @@ type Props = {
   onPowertrainChange?: (v: string) => void;
 };
 
-export const VEHICLE_POWERTRAINS = [
-  "Petrol",
-  "Diesel",
-  "Hybrid",
-  "Electric",
-];
+export const VEHICLE_POWERTRAINS = ["Petrol", "Diesel", "Hybrid", "Electric"];
 
 function SearchSelect({
   label,
@@ -81,7 +76,7 @@ function SearchSelect({
 
   const filtered = useMemo(
     () => filterOptions(options, open ? query : value, 100),
-    [options, query, value, open]
+    [options, query, value, open],
   );
 
   useEffect(() => {
@@ -172,11 +167,7 @@ function SearchSelect({
         }}
       />
       {open && !disabled && (
-        <ul
-          id={`${id}-list`}
-          role="listbox"
-          className={listClass}
-        >
+        <ul id={`${id}-list`} role="listbox" className={listClass}>
           {filtered.length === 0 ? (
             <li className={cn(itemBase, "opacity-60")}>No matches</li>
           ) : (
@@ -193,7 +184,7 @@ function SearchSelect({
                       ? variant === "auth" || isLight
                         ? "bg-[#FF6B35]/15"
                         : "bg-white/10"
-                      : "hover:bg-black/5 dark:hover:bg-white/10"
+                      : "hover:bg-black/5 dark:hover:bg-white/10",
                   )}
                   onMouseEnter={() => setHighlight(i)}
                   onMouseDown={(e) => {
@@ -229,20 +220,14 @@ export function VehicleCascadeFields({
   onPowertrainChange,
 }: Props) {
   const makes = useMemo(() => getAllMakes(), []);
-  const models = useMemo(
-    () => (make ? getModelsForMake(make) : []),
-    [make]
-  );
+  const models = useMemo(() => (make ? getModelsForMake(make) : []), [make]);
   const years = useMemo(
-    () =>
-      make && model
-        ? getYearsForMakeModel(make, model).map(String)
-        : [],
-    [make, model]
+    () => (make && model ? getYearsForMakeModel(make, model).map(String) : []),
+    [make, model],
   );
   const vehicleTypes = useMemo(
     () => VEHICLE_TYPES.filter((t) => t.toLowerCase() !== "any"),
-    []
+    [],
   );
 
   return (

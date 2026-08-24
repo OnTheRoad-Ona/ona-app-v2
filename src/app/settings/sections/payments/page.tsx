@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Legacy intermediate hop — redirect to the unified payments hub.
+ * Legacy intermediate hop redirect to the unified payments hub.
  * Customers land here from old links; Pros use ☰ → Payments & Payouts.
  */
 

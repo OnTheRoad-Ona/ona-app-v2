@@ -9,10 +9,7 @@ import {
   isProPanelOnlyPairingStatus,
   requestForceIncomingPanel,
 } from "@/lib/jobs/incoming-popup-timing";
-import {
-  homePathForForbidden,
-  isForbiddenMessage,
-} from "@/lib/navigation";
+import { homePathForForbidden, isForbiddenMessage } from "@/lib/navigation";
 import { useApp } from "@/lib/store";
 
 function JobPageInner() {
@@ -35,7 +32,7 @@ function JobPageInner() {
       userProfile?.identityId ||
       userProfile?.email ||
       "local-user",
-    [backendUserId, userProfile]
+    [backendUserId, userProfile],
   );
 
   /**
@@ -43,13 +40,13 @@ function JobPageInner() {
    * who are still on Repair Pro still see Customer “I am satisfied”.
    */
   const [viewer, setViewer] = useState<"motorist" | "repair_pro">(
-    accountType === "professional" ? "repair_pro" : "motorist"
+    accountType === "professional" ? "repair_pro" : "motorist",
   );
 
   useEffect(() => {
     let cancelled = false;
     if (!id || !actorId || !authReady || !isAuthenticated) return;
-    // `/jobs/new` has no job yet — JobFlowScreen creates it in the background.
+    // `/jobs/new` has no job yet JobFlowScreen creates it in the background.
     // Fetching "new" 404s and would bounce us to the dashboard mid-search.
     if (id === "new") return;
     void (async () => {
@@ -71,7 +68,7 @@ function JobPageInner() {
         setViewer("motorist");
       } else if (j.repairProId && j.repairProId === actorId) {
         setViewer("repair_pro");
-        // Pairing request = lower panel only — never full /jobs page for pro
+        // Pairing request = lower panel only never full /jobs page for pro
         if (isProPanelOnlyPairingStatus(j.status)) {
           clearJobShown(j.id, actorId);
           requestForceIncomingPanel(j.id);

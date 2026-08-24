@@ -33,10 +33,7 @@ export type JobFlowStatus =
 export type OfferSide = "repair_pro" | "motorist";
 
 export type NegotiationUiStatus =
-  | "waiting"
-  | "countered"
-  | "agreed"
-  | "expired";
+  "waiting" | "countered" | "agreed" | "expired";
 
 export type DisputeReason =
   | "work_incomplete"
@@ -47,9 +44,7 @@ export type DisputeReason =
   | "other";
 
 export type DisputeOutcome =
-  | "full_release_pro"
-  | "full_refund_motorist"
-  | "partial_split";
+  "full_release_pro" | "full_refund_motorist" | "partial_split";
 
 export type MediaKind = "photo" | "voice" | "other";
 
@@ -74,7 +69,7 @@ export type JobOffer = {
   createdAt: string;
   /** 1-based index in negotiation (max 6) */
   offerIndex: number;
-  /** Client idempotency sticker — dedupes bad-network retries */
+  /** Client idempotency sticker dedupes bad-network retries */
   clientOfferId?: string | null;
 };
 
@@ -131,14 +126,14 @@ export type JobRecord = {
   motoristName: string;
   /** Motorist profile avatar URL when set */
   motoristPhoto?: string | null;
-  /** From profiles.phone — for in-app Call */
+  /** From profiles.phone for in-app Call */
   motoristPhone?: string | null;
   /** Motorist vehicle (from profile) e.g. "Toyota Camry" */
   motoristVehicle?: string | null;
   repairProId: string;
   repairProName: string;
   repairProPhoto?: string;
-  /** From profiles.phone — for in-app Call */
+  /** From profiles.phone for in-app Call */
   repairProPhone?: string | null;
   serviceType: ProService;
   problem: string;
@@ -151,7 +146,7 @@ export type JobRecord = {
   /** Final agreed labour (major) */
   agreedMajor: number | null;
   offers: JobOffer[];
-  /** Negotiation window end (ISO) — 20 min from create */
+  /** Negotiation window end (ISO) 20 min from create */
   negotiateEndsAt: string;
   /** Max offers total (pro + motorist), up to 6 */
   maxOffers: number;
@@ -179,7 +174,12 @@ export type JobRecord = {
   evidence?: EvidenceScores | null;
   rating?: number | null;
   ratingNote?: string | null;
-  statusHistory: { status: JobFlowStatus; at: string; by?: string; note?: string }[];
+  statusHistory: {
+    status: JobFlowStatus;
+    at: string;
+    by?: string;
+    note?: string;
+  }[];
   createdAt: string;
   updatedAt: string;
   paidAt?: string | null;
@@ -187,7 +187,7 @@ export type JobRecord = {
   cancelledAt?: string | null;
   satisfiedAt?: string | null;
   /**
-   * Pay-to-book attempts that exhausted the 20‑min window unpaid (0–3).
+   * Pay-to-book attempts that exhausted the 20‑min window unpaid (0-3).
    * Derived from statusHistory; optional cache for clients.
    */
   paymentAttemptCount?: number;
@@ -203,7 +203,7 @@ export type JobRecord = {
   chosenProId?: string | null;
   pairingRadiusKm?: number | null;
   radiusKm?: number | null;
-  /** Server call-out quote — present on job GET so the ₦ total paints once. */
+  /** Server call-out quote present on job GET so the ₦ total paints once. */
   calloutQuote?: CalloutQuote | null;
   /**
    * Tow "add another repair pro": id of the primary (tow) request that arms
@@ -223,7 +223,7 @@ export type CreateJobInput = {
   motoristId: string;
   motoristName: string;
   motoristPhoto?: string | null;
-  /** e.g. "Toyota Camry 2018" — which vehicle needs help */
+  /** e.g. "Toyota Camry 2018" which vehicle needs help */
   motoristVehicle?: string | null;
   /** Empty / omitted → SSPE picks the first Live pro (no customer pick). */
   repairProId?: string;
@@ -238,11 +238,11 @@ export type CreateJobInput = {
   proBaseMajor?: number | null;
   locationLabel: string;
   motoristLocation: Coordinates;
-  /** Customer's chosen search radius (0–5 km slider); caps pairing expansion */
+  /** Customer's chosen search radius (0-5 km slider); caps pairing expansion */
   radiusKm?: number | null;
-  /** Client idempotency sticker — dedupes bad-network retries */
+  /** Client idempotency sticker dedupes bad-network retries */
   clientRequestId?: string | null;
-  /** Optional classification — server still re-derives eligibility. */
+  /** Optional classification server still re-derives eligibility. */
   atWorkshop?: boolean;
   remoteConsultation?: boolean;
   physicalAttendanceRequired?: boolean;
@@ -255,7 +255,7 @@ export type CreateJobInput = {
    */
   meetProTrade?: ProService | null;
   /**
-   * Internal — set only when creating the scheduled linked request itself
+   * Internal set only when creating the scheduled linked request itself
    * (points back at the primary request id).
    */
   linkedRequestId?: string | null;

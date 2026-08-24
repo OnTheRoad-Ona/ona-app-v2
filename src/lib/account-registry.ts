@@ -26,8 +26,7 @@ export type IdentityClaim = {
 export type IdentityConflictField = "phone" | "email" | "nin" | "bvn";
 
 export type IdentityCheckResult =
-  | { ok: true }
-  | { ok: false; field: IdentityConflictField; message: string };
+  { ok: true } | { ok: false; field: IdentityConflictField; message: string };
 
 function digitsOnly(v: string): string {
   return v.replace(/\D/g, "");
@@ -102,7 +101,7 @@ export function checkIdentityAvailable(
     bvn?: string;
     accountType: AccountType;
   },
-  excludeId?: string
+  excludeId?: string,
 ): IdentityCheckResult {
   const phone = normalizePhone(input.phone);
   const email = normalizeEmail(input.email);
@@ -142,7 +141,7 @@ export function checkIdentityAvailable(
 
   // Only compare against the same account type (motorist vs motorist, pro vs pro)
   const list = readRegistry().filter(
-    (c) => c.id !== excludeId && c.accountType === type
+    (c) => c.id !== excludeId && c.accountType === type,
   );
 
   for (const c of list) {
@@ -188,7 +187,7 @@ export function registerIdentity(claim: IdentityClaim): IdentityCheckResult {
       bvn: claim.bvn,
       accountType: claim.accountType,
     },
-    claim.id
+    claim.id,
   );
   if (!check.ok) return check;
 

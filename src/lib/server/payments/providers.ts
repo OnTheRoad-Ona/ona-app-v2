@@ -1,5 +1,5 @@
 /**
- * Payment gateway adapters — Flutterwave (default) + Paystack.
+ * Payment gateway adapters Flutterwave (default) + Paystack.
  * Escrow: capture full labour fee on charge; release/refund via transfer APIs.
  * Split payments: optional Flutterwave subaccount split when configured.
  * When keys are missing, runs in mock mode for local/dev.
@@ -13,15 +13,15 @@ export type InitChargeInput = {
   amountMinor: number;
   currency: AppCurrency;
   email: string;
-  /** Customer full name — Flutterwave hosted checkout prefers this */
+  /** Customer full name Flutterwave hosted checkout prefers this */
   customerName?: string | null;
-  /** Customer phone — Flutterwave hosted checkout prefers this */
+  /** Customer phone Flutterwave hosted checkout prefers this */
   customerPhone?: string | null;
   reference: string;
   callbackUrl: string;
   metadata?: Record<string, unknown>;
   channels?: string[];
-  /** Pro Flutterwave subaccount id (RS_…) for split — optional */
+  /** Pro Flutterwave subaccount id (RS_…) for split optional */
   proSubaccountId?: string | null;
   /** Platform share percent (default 5) when split enabled */
   platformFeePercent?: number;
@@ -93,17 +93,11 @@ export function isProductionRuntime(): boolean {
   );
 }
 
-export function resolveProvider(
-  preferred?: string | null
-): PaymentProviderId {
+export function resolveProvider(preferred?: string | null): PaymentProviderId {
   // Ona default: Flutterwave (Nigeria-first). Paystack secondary.
-  // Prefer live keys whenever present — never fall through to mock just because
+  // Prefer live keys whenever present never fall through to mock just because
   // PAYMENT_PROVIDER is unset/typo'd (that caused silent mock-book with no checkout).
-  const raw = (
-    preferred ||
-    process.env.PAYMENT_PROVIDER ||
-    "flutterwave"
-  )
+  const raw = (preferred || process.env.PAYMENT_PROVIDER || "flutterwave")
     .toLowerCase()
     .trim();
 
@@ -127,7 +121,7 @@ export function resolveProvider(
 /** Reject instruction sentences wrongly used as bank account names */
 function sanitizeBankAccountName(
   candidate: string | null | undefined,
-  fallback = "Ona"
+  fallback = "Ona",
 ): string {
   const raw = String(candidate || "").trim();
   if (!raw) return fallback;
@@ -161,23 +155,21 @@ function sanitizeTransferNote(note: string | null | undefined): string {
 
 /**
  * Create a one-time NGN bank-transfer charge on Flutterwave.
- * Returns virtual account details to show inside Ona — never leaves the app.
+ * Returns virtual account details to show inside Ona never leaves the app.
  * Docs: POST /v3/charges?type=bank_transfer
  */
-export async function createFlutterwaveBankTransfer(
-  input: {
-    amountMajor: number;
-    currency?: string;
-    email: string;
-    customerName?: string | null;
-    customerPhone?: string | null;
-    reference: string;
-    narration?: string;
-    /** Shown to customer as transfer instruction */
-    transferNote?: string;
-    accountDisplayName?: string;
-  }
-): Promise<
+export async function createFlutterwaveBankTransfer(input: {
+  amountMajor: number;
+  currency?: string;
+  email: string;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  reference: string;
+  narration?: string;
+  /** Shown to customer as transfer instruction */
+  transferNote?: string;
+  accountDisplayName?: string;
+}): Promise<
   | { ok: true; instructions: BankTransferInstructions; raw: unknown }
   | { ok: false; error: string }
 > {
@@ -219,18 +211,18 @@ export async function createFlutterwaveBankTransfer(
           narration:
             input.narration ||
             input.transferNote ||
-            "Ona labour fee escrow — transfer exact amount",
+            "Ona labour fee escrow transfer exact amount",
           bank_transfer_options: {
             // Align with our 20‑min pay window (seconds)
             expires: 20 * 60,
           },
         }),
-      }
+      },
     );
     const json = (await res.json()) as Record<string, unknown>;
     // FLW success shape (official docs):
     // { status: "success", message: "Charge initiated", meta: { authorization: { transfer_account, transfer_bank, ... } } }
-    // Account details are under meta.authorization — not under data.
+    // Account details are under meta.authorization not under data.
     const meta = (json.meta || {}) as Record<string, unknown>;
     const dataObj =
       json.data && typeof json.data === "object"
@@ -249,23 +241,23 @@ export async function createFlutterwaveBankTransfer(
       auth.transfer_account ||
         dataObj.account_number ||
         dataObj.transfer_account ||
-        ""
+        "",
     ).trim();
     const bankName = String(
       auth.transfer_bank ||
         dataObj.bank_name ||
         dataObj.transfer_bank ||
-        "Flutterwave MFB"
+        "Flutterwave MFB",
     ).trim();
     const transferAmount = Number(
-      auth.transfer_amount ?? dataObj.amount ?? amount
+      auth.transfer_amount ?? dataObj.amount ?? amount,
     );
     const expiresAt =
       (auth.account_expiration as string | undefined) ||
       (dataObj.account_expiration as string | undefined) ||
       null;
     const flwRef = String(
-      auth.transfer_reference || dataObj.flw_ref || dataObj.id || ""
+      auth.transfer_reference || dataObj.flw_ref || dataObj.id || "",
     ).trim();
 
     // Real bank recipient name for the VA (what customers type in their bank app).
@@ -276,15 +268,13 @@ export async function createFlutterwaveBankTransfer(
         auth.accountName ||
         dataObj.account_name ||
         dataObj.accountName ||
-        ""
+        "",
     ).trim();
 
     const status = String(json.status || "").toLowerCase();
     const hasAccount = accountNumber.length >= 8;
     const okStatus =
-      status === "success" ||
-      status === "successful" ||
-      (res.ok && hasAccount);
+      status === "success" || status === "successful" || (res.ok && hasAccount);
 
     if (!okStatus && !hasAccount) {
       const msg = String(json.message || "").trim();
@@ -300,7 +290,7 @@ export async function createFlutterwaveBankTransfer(
     if (!hasAccount) {
       console.error(
         "FLW bank_transfer missing account",
-        JSON.stringify(json).slice(0, 800)
+        JSON.stringify(json).slice(0, 800),
       );
       return {
         ok: false,
@@ -309,8 +299,7 @@ export async function createFlutterwaveBankTransfer(
       };
     }
 
-    const brandName =
-      (input.accountDisplayName || "").trim() || "Ona";
+    const brandName = (input.accountDisplayName || "").trim() || "Ona";
     // Prefer FLW VA name only if it looks like a real account holder (not a sentence)
     const accountName = sanitizeBankAccountName(flwAccountName, brandName);
 
@@ -330,7 +319,7 @@ export async function createFlutterwaveBankTransfer(
         accountName,
         amountMajor: Number.isFinite(transferAmount) ? transferAmount : amount,
         currency: String(
-          dataObj.currency || input.currency || "NGN"
+          dataObj.currency || input.currency || "NGN",
         ).toUpperCase(),
         expiresAt: expiresAt ? String(expiresAt) : null,
         note: notePreferred,
@@ -351,7 +340,7 @@ export async function createFlutterwaveBankTransfer(
 
 export async function initCharge(
   input: InitChargeInput,
-  preferred?: string | null
+  preferred?: string | null,
 ): Promise<InitChargeResult> {
   const provider = resolveProvider(preferred);
 
@@ -428,8 +417,8 @@ async function initPaystack(input: InitChargeInput): Promise<InitChargeResult> {
  * Flutterwave standard payment.
  *
  * ESCROW RULE: always charge the full labour amount to the main Ona merchant.
- * Do NOT attach subaccounts on collection — that caused:
- *   "The total subaccount transaction charge cannot be greater than the amount…"
+ * Do NOT attach subaccounts on collection that caused:
+ * "The total subaccount transaction charge cannot be greater than the amount…"
  *
  * Why it failed before:
  * - Flutterwave percentage commission uses fractions (0.05 = 5%), not 5
@@ -440,13 +429,10 @@ async function initPaystack(input: InitChargeInput): Promise<InitChargeResult> {
  * Opt-in split-on-collection only if FLUTTERWAVE_SPLIT_ENABLED=true (advanced).
  */
 async function initFlutterwave(
-  input: InitChargeInput
+  input: InitChargeInput,
 ): Promise<InitChargeResult> {
   const secret = flutterwaveSecret();
-  const feePct = Math.min(
-    50,
-    Math.max(0, input.platformFeePercent ?? 5)
-  );
+  const feePct = Math.min(50, Math.max(0, input.platformFeePercent ?? 5));
   // Fraction form required by Flutterwave (5% → 0.05), never pass 5
   const feeFraction = Math.round(feePct * 100) / 10000;
   const splitOn = isFlutterwaveSplitEnabled();
@@ -460,14 +446,13 @@ async function initFlutterwave(
     input.email.split("@")[0] ||
     "Ona customer";
   // Flutterwave accepts local NG numbers; strip spaces
-  const customerPhone = (input.customerPhone || "")
-    .replace(/\s+/g, "")
-    .trim() || "08000000000";
+  const customerPhone =
+    (input.customerPhone || "").replace(/\s+/g, "").trim() || "08000000000";
 
   // Shop retail is direct-to-Ona collection (never job escrow).
   const isShop = input.metadata?.kind === "ona_shop";
 
-  // Force NGN for Nigerian market — never surface GBP/USD for NG accounts
+  // Force NGN for Nigerian market never surface GBP/USD for NG accounts
   let payCurrency = input.currency || "NGN";
   if (process.env.FLUTTERWAVE_FORCE_NGN !== "false") {
     payCurrency = "NGN";
@@ -486,15 +471,12 @@ async function initFlutterwave(
   const amountMajor = Number((input.amountMinor / 100).toFixed(2));
 
   // Nigeria: bank transfer only (no USSD, card, or mobile money)
-  const channels = input.channels?.length
-    ? input.channels
-    : ["bank_transfer"];
+  const channels = input.channels?.length ? input.channels : ["bank_transfer"];
   const hasBank = channels.some((c) =>
-    ["bank_transfer", "banktransfer", "bank"].includes(String(c).toLowerCase())
+    ["bank_transfer", "banktransfer", "bank"].includes(String(c).toLowerCase()),
   );
-  const ngPaymentOptions = hasBank || channels.length === 0
-    ? "banktransfer"
-    : "banktransfer";
+  const ngPaymentOptions =
+    hasBank || channels.length === 0 ? "banktransfer" : "banktransfer";
 
   const body: Record<string, unknown> = {
     tx_ref: input.reference,
@@ -530,7 +512,7 @@ async function initFlutterwave(
       preferredPaymentMethod: "banktransfer",
       paymentMethodsAllowed: "banktransfer",
     },
-    // Bank transfer only — never USSD / card / mobilemoney for NG collections
+    // Bank transfer only never USSD / card / mobilemoney for NG collections
     payment_options: ngPaymentOptions,
   };
 
@@ -577,7 +559,7 @@ async function initFlutterwave(
 
 export async function verifyCharge(
   reference: string,
-  preferred?: string | null
+  preferred?: string | null,
 ): Promise<VerifyChargeResult> {
   const provider = resolveProvider(preferred);
 
@@ -585,7 +567,7 @@ export async function verifyCharge(
     const secret = paystackSecret();
     const res = await fetch(
       `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
-      { headers: { Authorization: `Bearer ${secret}` } }
+      { headers: { Authorization: `Bearer ${secret}` } },
     );
     const json = (await res.json()) as {
       status?: boolean;
@@ -616,7 +598,7 @@ export async function verifyCharge(
     const secret = flutterwaveSecret();
     const res = await fetch(
       `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(reference)}`,
-      { headers: { Authorization: `Bearer ${secret}` } }
+      { headers: { Authorization: `Bearer ${secret}` } },
     );
     const json = (await res.json()) as {
       status?: string;
@@ -656,14 +638,14 @@ export async function verifyCharge(
 
 /**
  * Map Flutterwave transfer errors to short actionable copy.
- * Does NOT invent IP-whitelist failures — only mention IP when FLW says so.
+ * Does NOT invent IP-whitelist failures only mention IP when FLW says so.
  * Real failures always come from Flutterwave’s API / wallet state.
  */
 export function humanizeFlutterwaveTransferError(raw: string): string {
   const m = (raw || "").trim();
   const low = m.toLowerCase();
 
-  // Only if Flutterwave itself mentions IP (informational — not an Ona hard block)
+  // Only if Flutterwave itself mentions IP (informational not an Ona hard block)
   if (
     low.includes("ip whitelist") ||
     low.includes("ip whitelisting") ||
@@ -672,7 +654,7 @@ export function humanizeFlutterwaveTransferError(raw: string): string {
     return (
       "Flutterwave rejected this transfer (IP policy on their side). " +
       "IP Whitelisting is ON: either turn it OFF for testing, or whitelist the " +
-      "actual Vercel egress IP from /api/payments/egress-ip (rotating) — not only " +
+      "actual Vercel egress IP from /api/payments/egress-ip (rotating) not only " +
       "a static VPS IP unless FLUTTERWAVE_TRANSFER_PROXY_URL is set and used. " +
       "Funds remain in escrow until payout succeeds."
     );
@@ -708,17 +690,23 @@ export function humanizeFlutterwaveTransferError(raw: string): string {
   if (low.includes("insufficient") || low.includes("balance")) {
     return (
       "Flutterwave transfer failed: insufficient Available NGN balance for pro payout. " +
-      "Collections can show on Ledger before they become Available — wait for settlement " +
+      "Collections can show on Ledger before they become Available wait for settlement " +
       "or top up the Flutterwave wallet. Escrow stays held."
     );
   }
-  if (low.includes("account") && (low.includes("invalid") || low.includes("not found"))) {
+  if (
+    low.includes("account") &&
+    (low.includes("invalid") || low.includes("not found"))
+  ) {
     return (
       "Flutterwave transfer failed: Repair Pro bank account could not be verified. " +
       "Escrow stays held until bank details are fixed."
     );
   }
-  if (low.includes("unauthorized") || (low.includes("proxy") && low.includes("secret"))) {
+  if (
+    low.includes("unauthorized") ||
+    (low.includes("proxy") && low.includes("secret"))
+  ) {
     return (
       "Payout proxy rejected the request (check FLUTTERWAVE_TRANSFER_PROXY_URL / SECRET). " +
       "Funds remain in escrow."
@@ -742,7 +730,7 @@ export function humanizeFlutterwaveTransferError(raw: string): string {
   if (!m) {
     return "Could not transfer pro share (87.5%) to Repair Pro. Funds remain in escrow.";
   }
-  // Pass through real FLW message — do not rewrite into IP-whitelist scare text
+  // Pass through real FLW message do not rewrite into IP-whitelist scare text
   return `${m} Funds remain in escrow until payout succeeds.`;
 }
 
@@ -779,7 +767,7 @@ export async function getFlutterwaveNgnBalances(): Promise<{
 }
 
 async function flutterwaveNgnAvailableBalance(
-  secret: string
+  secret: string,
 ): Promise<number | null> {
   void secret;
   const b = await getFlutterwaveNgnBalances();
@@ -836,8 +824,11 @@ function flutterwaveTransferEndpoints(): Array<{
  * Used to avoid a second bank credit when retries race.
  */
 export async function findExistingFlutterwaveTransfer(
-  reference: string
-): Promise<{ found: true; id: string; status: string; reference: string } | { found: false }> {
+  reference: string,
+): Promise<
+  | { found: true; id: string; status: string; reference: string }
+  | { found: false }
+> {
   const secret = flutterwaveSecret();
   const ref = (reference || "").trim();
   if (!secret || !ref) return { found: false };
@@ -848,7 +839,7 @@ export async function findExistingFlutterwaveTransfer(
         headers: { Authorization: `Bearer ${secret}` },
         cache: "no-store",
         signal: AbortSignal.timeout(15_000),
-      }
+      },
     );
     const json = (await res.json()) as {
       status?: string;
@@ -861,11 +852,11 @@ export async function findExistingFlutterwaveTransfer(
     const hit = rows.find(
       (t) =>
         String(t.reference || "") === ref &&
-        /success|successful|NEW|PENDING|pending/i.test(String(t.status || ""))
+        /success|successful|NEW|PENDING|pending/i.test(String(t.status || "")),
     );
     if (!hit) return { found: false };
     const st = String(hit.status || "").toUpperCase();
-    // Treat NEW/PENDING/SUCCESSFUL as already initiated — never create another
+    // Treat NEW/PENDING/SUCCESSFUL as already initiated never create another
     if (
       st.includes("SUCCESS") ||
       st === "NEW" ||
@@ -945,13 +936,13 @@ export async function releaseToPro(input: {
           ok: false,
           code: "hard_fail",
           message: humanizeFlutterwaveTransferError(
-            `Amount is below minimum limit of ${FLW_NGN_TRANSFER_MIN_MAJOR}`
+            `Amount is below minimum limit of ${FLW_NGN_TRANSFER_MIN_MAJOR}`,
           ),
         };
       }
 
       // Soft preflight: only block when Available (payout wallet) is too low.
-      // Do NOT require the job's collection to have settled — use any Available funds.
+      // Do NOT require the job's collection to have settled use any Available funds.
       const available = await flutterwaveNgnAvailableBalance(secret);
       if (available != null && available + 1e-9 < amountMajor) {
         console.error("[releaseToPro] pending settlement", {
@@ -963,23 +954,21 @@ export async function releaseToPro(input: {
           code: "pending_settlement",
           message:
             `Flutterwave Available NGN balance is ₦${available.toFixed(2)} but pro payout is ₦${amountMajor.toFixed(2)}. ` +
-            "PENDING_SETTLEMENT — funds stay in Ona escrow; auto-retry every 10 min when Available is sufficient.",
+            "PENDING_SETTLEMENT funds stay in Ona escrow; auto-retry every 10 min when Available is sufficient.",
         };
       }
 
-      // CRITICAL: never invent a new reference on retry — same ref forever for this payout.
+      // CRITICAL: never invent a new reference on retry same ref forever for this payout.
       // A random fallback would risk double pay; refuse if no stable ref was provided.
-      const flwRef = (
-        input.transferReference ||
-        input.reference ||
-        ""
-      ).trim().slice(0, 50);
+      const flwRef = (input.transferReference || input.reference || "")
+        .trim()
+        .slice(0, 50);
       if (!flwRef) {
         return {
           ok: false,
           code: "hard_fail",
           message:
-            "Missing stable transfer reference — refusing payout to prevent double pay.",
+            "Missing stable transfer reference refusing payout to prevent double pay.",
         };
       }
 
@@ -987,9 +976,9 @@ export async function releaseToPro(input: {
       const existing = await findExistingFlutterwaveTransfer(flwRef);
       if (existing.found) {
         console.info(
-          "[releaseToPro] existing transfer found — skip create",
+          "[releaseToPro] existing transfer found skip create",
           flwRef,
-          existing.status
+          existing.status,
         );
         return {
           ok: true,
@@ -1053,7 +1042,7 @@ export async function releaseToPro(input: {
               ok: true,
               code: "ok",
               transferRef: String(
-                json.data?.reference || json.data?.id || flwRef
+                json.data?.reference || json.data?.id || flwRef,
               ),
             };
           }
@@ -1062,7 +1051,7 @@ export async function releaseToPro(input: {
             json.message ||
               (res.status === 401
                 ? "Unauthorized (check secret key or proxy secret)"
-                : `Flutterwave transfer failed (${res.status})`)
+                : `Flutterwave transfer failed (${res.status})`),
           );
           const low = rawMsg.toLowerCase();
           // Idempotent: same reference already paid
@@ -1079,10 +1068,10 @@ export async function releaseToPro(input: {
             endpoint.via,
             res.status,
             rawMsg,
-            available != null ? `availNGN=${available}` : "availNGN=unknown"
+            available != null ? `availNGN=${available}` : "availNGN=unknown",
           );
 
-          // Proxy auth/network — try direct next
+          // Proxy auth/network try direct next
           if (
             endpoint.via === "proxy" &&
             (res.status >= 500 ||
@@ -1127,7 +1116,7 @@ export async function releaseToPro(input: {
         ok: false,
         code: "pending_settlement",
         message: humanizeFlutterwaveTransferError(
-          e instanceof Error ? e.message : "Transfer error"
+          e instanceof Error ? e.message : "Transfer error",
         ),
       };
     }
@@ -1143,7 +1132,7 @@ export async function releaseToPro(input: {
 
 /**
  * Attempt a Flutterwave transaction refund by provider reference / transaction id.
- * Returns gateway status without throwing — callers update ledger meta accordingly.
+ * Returns gateway status without throwing callers update ledger meta accordingly.
  */
 export async function attemptFlutterwaveRefund(input: {
   providerRef: string;
@@ -1151,15 +1140,28 @@ export async function attemptFlutterwaveRefund(input: {
   reason?: string;
 }): Promise<
   | { ok: true; status: string; flwId?: string; raw?: unknown }
-  | { ok: false; code: "no_key" | "gateway" | "not_found"; message: string; raw?: unknown }
+  | {
+      ok: false;
+      code: "no_key" | "gateway" | "not_found";
+      message: string;
+      raw?: unknown;
+    }
 > {
   const secret = flutterwaveSecret();
   const ref = (input.providerRef || "").trim();
   if (!secret) {
-    return { ok: false, code: "no_key", message: "Flutterwave secret not configured" };
+    return {
+      ok: false,
+      code: "no_key",
+      message: "Flutterwave secret not configured",
+    };
   }
   if (!ref) {
-    return { ok: false, code: "not_found", message: "Missing payment reference" };
+    return {
+      ok: false,
+      code: "not_found",
+      message: "Missing payment reference",
+    };
   }
 
   try {
@@ -1170,11 +1172,13 @@ export async function attemptFlutterwaveRefund(input: {
         headers: { Authorization: `Bearer ${secret}` },
         cache: "no-store",
         signal: AbortSignal.timeout(15_000),
-      }
+      },
     );
     const lookupJson = (await lookup.json().catch(() => null)) as {
       status?: string;
-      data?: Array<{ id?: number; status?: string; tx_ref?: string }> | { id?: number };
+      data?:
+        | Array<{ id?: number; status?: string; tx_ref?: string }>
+        | { id?: number };
       message?: string;
     } | null;
 
@@ -1216,7 +1220,7 @@ export async function attemptFlutterwaveRefund(input: {
         },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(20_000),
-      }
+      },
     );
     const json = (await res.json().catch(() => null)) as {
       status?: string;

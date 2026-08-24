@@ -22,6 +22,7 @@ export function PageHeader({
   backOpensMenu = false,
   titleClassName,
   titleStyle,
+  onBack,
 }: {
   title: string;
   subtitle?: string;
@@ -37,6 +38,8 @@ export function PageHeader({
   /** Optional title color/class (e.g. brand orange for Dashboard) */
   titleClassName?: string;
   titleStyle?: CSSProperties;
+  /** Full override: step backwards through an in-page flow instead of routing. */
+  onBack?: () => void;
 }) {
   const { theme, accountType } = useApp();
   const isLight = theme === "light";
@@ -53,8 +56,12 @@ export function PageHeader({
     clearPageExitClass();
   }, []);
 
-  const onBack = () => {
+  const handleBack = () => {
     clearPageExitClass();
+    if (onBack) {
+      onBack();
+      return;
+    }
     // Prefer explicit backHref (e.g. Settings → role home) over menu-open trap
     if (backOpensMenu && !backHref?.trim()) {
       setMenuOpen(true);
@@ -68,14 +75,14 @@ export function PageHeader({
       <header
         className={cn(
           "flex items-center gap-2 px-3 py-2.5",
-          isLight ? "bg-[#c8c9cd]" : "bg-black"
+          isLight ? "bg-[#c8c9cd]" : "bg-black",
         )}
         style={{ backgroundColor: isLight ? "#c8c9cd" : "#000000" }}
       >
         {showBack ? (
           <button
             type="button"
-            onClick={onBack}
+            onClick={handleBack}
             className="flex h-8 w-8 items-center justify-center border-0 transition-transform duration-150 active:scale-95"
             aria-label="Back"
           >
@@ -93,8 +100,7 @@ export function PageHeader({
           <h1
             className={cn(
               "truncate text-base font-bold",
-              titleClassName ||
-                (isLight ? "text-slate-900" : "text-white")
+              titleClassName || (isLight ? "text-slate-900" : "text-white"),
             )}
             style={titleStyle}
           >
@@ -104,7 +110,7 @@ export function PageHeader({
             <p
               className={cn(
                 "truncate text-[11px]",
-                isLight ? "text-slate-500" : "text-[#a1a1a6]"
+                isLight ? "text-slate-500" : "text-[#a1a1a6]",
               )}
             >
               {subtitle}
@@ -128,7 +134,7 @@ export function PageHeader({
       {mount &&
         createPortal(
           <AppMenu open={menuOpen} onClose={() => setMenuOpen(false)} />,
-          mount
+          mount,
         )}
     </>
   );

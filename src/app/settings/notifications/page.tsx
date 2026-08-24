@@ -57,7 +57,7 @@ export default function SettingsNotificationsPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader
@@ -74,7 +74,7 @@ export default function SettingsNotificationsPage() {
           onClick={() => patchLocal({ soundsOn: !local.soundsOn })}
           className={cn(
             "mt-3 flex w-full items-center gap-2 rounded-xl border-0 px-3 py-3 text-left",
-            "bg-transparent"
+            "bg-transparent",
           )}
         >
           <span className="flex h-9 w-9 items-center justify-center">
@@ -96,7 +96,7 @@ export default function SettingsNotificationsPage() {
             <span
               className={cn(
                 "block text-[14px] font-semibold",
-                isLight ? "text-slate-900" : "text-white"
+                isLight ? "text-slate-900" : "text-white",
               )}
             >
               {t("notif.appSounds")}
@@ -104,28 +104,24 @@ export default function SettingsNotificationsPage() {
             <span
               className={cn(
                 "block text-[11px] font-medium",
-                isLight ? "text-slate-600" : "text-white/65"
+                isLight ? "text-slate-600" : "text-white/65",
               )}
             >
-              {local.soundsOn
-                ? t("notif.soundsOn")
-                : t("notif.soundsOff")}
+              {local.soundsOn ? t("notif.soundsOn") : t("notif.soundsOff")}
             </span>
           </span>
           <span
             className={cn(
               "relative h-6 w-11 shrink-0 rounded-full transition-colors",
-              !local.soundsOn && (isLight ? "bg-black/20" : "bg-white/20")
+              !local.soundsOn && (isLight ? "bg-black/20" : "bg-white/20"),
             )}
-            style={
-              local.soundsOn ? { backgroundColor: "#FF6B35" } : undefined
-            }
+            style={local.soundsOn ? { backgroundColor: "#FF6B35" } : undefined}
             aria-hidden
           >
             <span
               className={cn(
                 "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform",
-                local.soundsOn ? "left-5" : "left-0.5"
+                local.soundsOn ? "left-5" : "left-0.5",
               )}
             />
           </span>

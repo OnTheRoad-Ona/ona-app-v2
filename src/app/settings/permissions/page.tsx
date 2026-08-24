@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * App permissions — Location, Camera, Microphone.
+ * App permissions Location, Camera, Microphone.
  * Shared by customer (map / ID / support) and repair pro (live GPS / ID / voice).
  */
 
@@ -43,7 +43,7 @@ function stateTone(s: PermState, isLight: boolean): string {
 }
 
 async function queryPerm(
-  name: PermissionName | "camera" | "microphone" | "geolocation"
+  name: PermissionName | "camera" | "microphone" | "geolocation",
 ): Promise<PermState> {
   if (typeof navigator === "undefined" || !navigator.permissions?.query) {
     return "unknown";
@@ -101,13 +101,13 @@ export default function SettingsPermissionsPage() {
         navigator.geolocation.getCurrentPosition(
           () => resolve(),
           (e) => reject(e),
-          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
         );
       });
       setNote("Location allowed for this browser.");
     } catch {
       setNote(
-        "Location blocked or unavailable. Allow it in the browser address bar / system Settings, then refresh."
+        "Location blocked or unavailable. Allow it in the browser address bar / system Settings, then refresh.",
       );
     } finally {
       setBusy(null);
@@ -127,7 +127,7 @@ export default function SettingsPermissionsPage() {
       setNote("Camera allowed for this browser.");
     } catch {
       setNote(
-        "Camera blocked or unavailable. Allow camera in browser / system Settings, then try again."
+        "Camera blocked or unavailable. Allow camera in browser / system Settings, then try again.",
       );
     } finally {
       setBusy(null);
@@ -147,7 +147,7 @@ export default function SettingsPermissionsPage() {
       setNote("Microphone allowed for this browser.");
     } catch {
       setNote(
-        "Microphone blocked or unavailable. Allow mic in browser / system Settings, then try again."
+        "Microphone blocked or unavailable. Allow mic in browser / system Settings, then try again.",
       );
     } finally {
       setBusy(null);
@@ -195,7 +195,7 @@ export default function SettingsPermissionsPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader
@@ -212,7 +212,7 @@ export default function SettingsPermissionsPage() {
           <p
             className={cn(
               "rounded-md px-3 py-2 text-[12px] font-semibold",
-              isLight ? "bg-black/5 text-slate-800" : "bg-white/10 text-white"
+              isLight ? "bg-black/5 text-slate-800" : "bg-white/10 text-white",
             )}
           >
             {note}
@@ -230,7 +230,7 @@ export default function SettingsPermissionsPage() {
                   i > 0 &&
                     (isLight
                       ? "border-t border-black/5"
-                      : "border-t border-white/10")
+                      : "border-t border-white/10"),
                 )}
               >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center">
@@ -244,7 +244,7 @@ export default function SettingsPermissionsPage() {
                   <p
                     className={cn(
                       "mt-0.5 text-[11px] font-bold",
-                      stateTone(r.state, isLight)
+                      stateTone(r.state, isLight),
                     )}
                   >
                     {labelState(r.state)}
@@ -260,21 +260,22 @@ export default function SettingsPermissionsPage() {
                       ? isLight
                         ? "bg-emerald-500/15 text-emerald-700"
                         : "bg-emerald-500/20 text-emerald-400"
-                      : "bg-[#FF6B35] text-white disabled:opacity-50"
+                      : "bg-[#FF6B35] text-white disabled:opacity-50",
                   )}
                 >
-                  {busy === r.id
-                    ? "…"
-                    : r.state === "granted"
-                      ? "On"
-                      : "Allow"}
+                  {busy === r.id ? "…" : r.state === "granted" ? "On" : "Allow"}
                 </button>
               </li>
             );
           })}
         </ul>
 
-        <p className={cn("px-1 pt-2 text-[11px] font-medium leading-snug", muted)}>
+        <p
+          className={cn(
+            "px-1 pt-2 text-[11px] font-medium leading-snug",
+            muted,
+          )}
+        >
           If a permission stays blocked, open your browser site settings (or iOS
           / Android app settings) and enable access for this site, then return
           here and tap Allow again.

@@ -60,11 +60,7 @@ export function ServiceAreaPicker({ mode }: { mode: ServiceAreaPickerMode }) {
   }, [userId]);
 
   const title =
-    mode === "states"
-      ? "States"
-      : mode === "cities"
-        ? "Cities"
-        : "LGA";
+    mode === "states" ? "States" : mode === "cities" ? "Cities" : "LGA";
 
   const subtitle =
     mode === "states"
@@ -174,10 +170,7 @@ export function ServiceAreaPicker({ mode }: { mode: ServiceAreaPickerMode }) {
     (mode === "cities" || mode === "lgas") && !selectedState;
 
   return (
-    <div
-      className="flex h-full flex-col"
-      style={{ backgroundColor: sheetBg }}
-    >
+    <div className="flex h-full flex-col" style={{ backgroundColor: sheetBg }}>
       <PageHeader
         title={title}
         subtitle={subtitle}
@@ -187,20 +180,17 @@ export function ServiceAreaPicker({ mode }: { mode: ServiceAreaPickerMode }) {
         <div
           className={cn(
             "flex h-10 items-center gap-2 rounded-md px-3",
-            isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]"
+            isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]",
           )}
         >
-          <Search
-            className={cn("h-4 w-4 shrink-0", muted)}
-            strokeWidth={2.2}
-          />
+          <Search className={cn("h-4 w-4 shrink-0", muted)} strokeWidth={2.2} />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search"
             className={cn(
               "h-full w-full border-0 bg-transparent text-[13px] font-medium outline-none",
-              ink
+              ink,
             )}
           />
         </div>
@@ -219,7 +209,7 @@ export function ServiceAreaPicker({ mode }: { mode: ServiceAreaPickerMode }) {
           <ul
             className={cn(
               "overflow-hidden rounded-md",
-              isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]"
+              isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]",
             )}
           >
             {filtered.map((name) => {
@@ -233,13 +223,13 @@ export function ServiceAreaPicker({ mode }: { mode: ServiceAreaPickerMode }) {
                       "flex w-full items-center gap-2 border-0 px-3 py-3 text-left",
                       isLight
                         ? "bg-transparent hover:bg-black/[0.04]"
-                        : "bg-transparent hover:bg-white/[0.04]"
+                        : "bg-transparent hover:bg-white/[0.04]",
                     )}
                   >
                     <span
                       className={cn(
                         "min-w-0 flex-1 text-[14px] font-semibold",
-                        ink
+                        ink,
                       )}
                     >
                       {name}
@@ -269,9 +259,10 @@ export function ServiceAreaPicker({ mode }: { mode: ServiceAreaPickerMode }) {
           </button>
         ) : null}
 
-        <p className={cn("mt-3 px-1 text-center text-[10px] font-medium", muted)}>
-          {userProfile?.fullName || displayName || "Pro"} ·{" "}
-          {countryCode}
+        <p
+          className={cn("mt-3 px-1 text-center text-[10px] font-medium", muted)}
+        >
+          {userProfile?.fullName || displayName || "Pro"} · {countryCode}
         </p>
       </div>
     </div>

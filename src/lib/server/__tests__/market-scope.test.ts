@@ -93,7 +93,7 @@ describe("resolveMarketViewer", () => {
 
   it("falls back safely on errors", async () => {
     vi.spyOn(authUtils, "getUserFromRequest").mockRejectedValue(
-      new Error("boom")
+      new Error("boom"),
     );
     const result = await resolveMarketViewer({} as Request);
     expect(result.userId).toBe(null);

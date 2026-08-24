@@ -16,7 +16,7 @@ function reviewDone(status: Reviewish, approvedFlag?: boolean): boolean {
 
 /** Government ID submitted or approved */
 export function isGovIdComplete(
-  p: Partial<ArtisanVerificationProfile> | null | undefined
+  p: Partial<ArtisanVerificationProfile> | null | undefined,
 ): boolean {
   if (!p) return false;
   if (reviewDone(p.govIdReviewStatus, p.tiers?.tier2_govId)) return true;
@@ -31,7 +31,7 @@ export function isGovIdComplete(
 
 /** BVN submitted or approved */
 export function isBvnComplete(
-  p: Partial<ArtisanVerificationProfile> | null | undefined
+  p: Partial<ArtisanVerificationProfile> | null | undefined,
 ): boolean {
   if (!p) return false;
   if (reviewDone(p.ninReviewStatus, p.tiers?.tier2_nin)) return true;
@@ -44,7 +44,7 @@ export function isBvnComplete(
 
 /** Face liveness passed on device */
 export function isLivenessComplete(
-  p: Partial<ArtisanVerificationProfile> | null | undefined
+  p: Partial<ArtisanVerificationProfile> | null | undefined,
 ): boolean {
   if (!p) return false;
   return Boolean(p.tiers?.tier3_liveness || p.livenessPassed);
@@ -52,7 +52,7 @@ export function isLivenessComplete(
 
 /** Skill proof uploaded / under review */
 export function isSkillComplete(
-  p: Partial<ArtisanVerificationProfile> | null | undefined
+  p: Partial<ArtisanVerificationProfile> | null | undefined,
 ): boolean {
   if (!p) return false;
   return Boolean(p.tiers?.tier4_skillProof || p.skillProof);
@@ -60,21 +60,21 @@ export function isSkillComplete(
 
 /** Liveness unlocks after Government ID (Tier 3 start) */
 export function canAccessLiveness(
-  p: Partial<ArtisanVerificationProfile> | null | undefined
+  p: Partial<ArtisanVerificationProfile> | null | undefined,
 ): boolean {
   return isGovIdComplete(p);
 }
 
-/** BVN is Tier 3 — after Government ID (with liveness) */
+/** BVN is Tier 3 after Government ID (with liveness) */
 export function canAccessBvn(
-  p: Partial<ArtisanVerificationProfile> | null | undefined
+  p: Partial<ArtisanVerificationProfile> | null | undefined,
 ): boolean {
   return isGovIdComplete(p);
 }
 
 /** Skill only after BVN complete AND face liveness passed */
 export function canAccessSkillProof(
-  p: Partial<ArtisanVerificationProfile> | null | undefined
+  p: Partial<ArtisanVerificationProfile> | null | undefined,
 ): boolean {
   return isBvnComplete(p) && isLivenessComplete(p);
 }
@@ -84,16 +84,11 @@ export function canAccessSkillProof(
  * After Care T2, advances to liveness → BVN → skill.
  */
 export type ProEmbedTierStep =
-  | "phone"
-  | "gov_id"
-  | "liveness"
-  | "bvn"
-  | "skill"
-  | "done";
+  "phone" | "gov_id" | "liveness" | "bvn" | "skill" | "done";
 
 export function nextProEmbedTierStep(
   p: Partial<ArtisanVerificationProfile> | null | undefined,
-  opts?: { hidePhone?: boolean; hideGovId?: boolean }
+  opts?: { hidePhone?: boolean; hideGovId?: boolean },
 ): ProEmbedTierStep {
   if (!opts?.hidePhone && !p?.tiers?.tier1_phone) return "phone";
   // Care-approved or submitted T2 counts as past phone; still on gov if not complete
@@ -122,10 +117,10 @@ export function nextProEmbedTierLabel(step: ProEmbedTierStep): string {
   }
 }
 
-/** All of T1–T4 done (phone + ID + BVN + liveness + skill). */
+/** All of T1-T4 done (phone + ID + BVN + liveness + skill). */
 export function isProVerificationLadderComplete(
   p: Partial<ArtisanVerificationProfile> | null | undefined,
-  opts?: { phoneOk?: boolean }
+  opts?: { phoneOk?: boolean },
 ): boolean {
   if (!(opts?.phoneOk || p?.tiers?.tier1_phone)) return false;
   return verificationOrderComplete(p).ok === true;
@@ -133,7 +128,7 @@ export function isProVerificationLadderComplete(
 
 /** Full verification ladder for Submit / Go Live readiness */
 export function verificationOrderComplete(
-  p: Partial<ArtisanVerificationProfile> | null | undefined
+  p: Partial<ArtisanVerificationProfile> | null | undefined,
 ): { ok: true } | { ok: false; reason: string } {
   if (!isGovIdComplete(p)) {
     return {
@@ -163,7 +158,7 @@ export function verificationOrderComplete(
 }
 
 export function lockMessageForSection(
-  section: "bvn" | "liveness" | "skill"
+  section: "bvn" | "liveness" | "skill",
 ): string {
   if (section === "liveness") {
     return "Complete Government ID first before face liveness";

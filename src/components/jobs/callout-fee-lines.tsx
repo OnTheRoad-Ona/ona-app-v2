@@ -30,7 +30,7 @@ export function CalloutFeeLines({
           className={cn(
             compact ? "text-[11px]" : "text-[12px]",
             "font-medium",
-            muted
+            muted,
           )}
         >
           No Call Out Fee
@@ -62,8 +62,8 @@ export function CalloutFeeLines({
   const kind =
     quote.urgencyKind == null
       ? ""
-      : CALLOUT_URGENCY_OPTIONS.find((o) => o.id === quote.urgencyKind)
-          ?.label ?? "";
+      : (CALLOUT_URGENCY_OPTIONS.find((o) => o.id === quote.urgencyKind)
+          ?.label ?? "");
   const raw = base != null && distance != null ? base + distance : null;
   // The exact amount the multiplier added on top of Base + Travel.
   const added = mult != null && mult !== 1 && raw != null ? fee - raw : null;

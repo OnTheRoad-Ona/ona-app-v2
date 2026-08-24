@@ -20,7 +20,7 @@ export async function GET(req: Request) {
     let q = supabase
       .from("signup_events")
       .select(
-        "id, email, full_name, phone, account_type, success, error_message, user_id, meta, created_at"
+        "id, email, full_name, phone, account_type, success, error_message, user_id, meta, created_at",
       )
       .order("created_at", { ascending: false })
       .limit(150);

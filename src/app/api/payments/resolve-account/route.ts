@@ -11,7 +11,7 @@ const bodySchema = z.object({
 });
 
 /**
- * Flutterwave NUBAN resolve — returns account holder name like bank apps.
+ * Flutterwave NUBAN resolve returns account holder name like bank apps.
  * POST /api/payments/resolve-account
  * { accountNumber, bankCode }
  */
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
         return apiFail(
           `Too many name lookups. Retry in ${rl.retryAfterSec}s.`,
           429,
-          "rate_limited"
+          "rate_limited",
         );
       }
     } catch {
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
       return apiFail(
         "Name lookup is unavailable (payment keys not configured).",
         503,
-        "no_keys"
+        "no_keys",
       );
     }
 
@@ -88,7 +88,7 @@ export async function POST(req: Request) {
         json?.message ||
           "Could not verify account. Check bank and account number.",
         400,
-        "resolve_failed"
+        "resolve_failed",
       );
     }
 
@@ -100,7 +100,7 @@ export async function POST(req: Request) {
   } catch (e) {
     return apiFail(
       e instanceof Error ? e.message : "Account lookup failed",
-      500
+      500,
     );
   }
 }

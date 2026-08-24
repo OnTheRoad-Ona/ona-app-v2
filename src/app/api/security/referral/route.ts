@@ -38,11 +38,8 @@ export async function POST(req: Request) {
     if (!referrerUserId || !referredUserId) {
       return apiFail("Missing referrerUserId or referredUserId", 400);
     }
-    // Only the referred user (or system on signup) should create — bind to session
-    if (
-      referrerUserId !== auth.userId &&
-      referredUserId !== auth.userId
-    ) {
+    // Only the referred user (or system on signup) should create bind to session
+    if (referrerUserId !== auth.userId && referredUserId !== auth.userId) {
       return apiFail("Forbidden", 403, "forbidden");
     }
     const result = await createReferralEvent({

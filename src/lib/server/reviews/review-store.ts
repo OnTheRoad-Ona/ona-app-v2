@@ -39,7 +39,7 @@ function rowToReview(row: Record<string, unknown>): ProReview {
 }
 
 export async function createReview(
-  input: CreateReviewInput
+  input: CreateReviewInput,
 ): Promise<{ ok: true; review: ProReview } | { ok: false; error: string }> {
   if (input.rating < 1 || input.rating > 5) {
     return { ok: false, error: "Rating must be between 1 and 5" };
@@ -61,7 +61,10 @@ export async function createReview(
     return { ok: false, error: "Pro mismatch" };
   }
   if (job.status !== "released" && job.status !== "satisfied") {
-    return { ok: false, error: "Job must be completed and released before reviewing" };
+    return {
+      ok: false,
+      error: "Job must be completed and released before reviewing",
+    };
   }
 
   // Check for duplicate review
@@ -99,9 +102,7 @@ export async function createReview(
   return { ok: true, review: rowToReview(data as Record<string, unknown>) };
 }
 
-export async function getProReviews(
-  proId: string
-): Promise<ProReview[]> {
+export async function getProReviews(proId: string): Promise<ProReview[]> {
   if (!isSupabaseAdminConfigured()) return [];
 
   const sb = createServiceSupabase();
@@ -125,12 +126,17 @@ export async function getProReviews(
 }
 
 export async function getProReviewStats(
-  proId: string
+  proId: string,
 ): Promise<ProReviewStats> {
   const dist: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
 
   if (!isSupabaseAdminConfigured()) {
-    return { median: null, count: 0, distribution: dist, minReviews: MIN_REVIEWS_FOR_RATING };
+    return {
+      median: null,
+      count: 0,
+      distribution: dist,
+      minReviews: MIN_REVIEWS_FOR_RATING,
+    };
   }
 
   const sb = createServiceSupabase();
@@ -140,7 +146,12 @@ export async function getProReviewStats(
     .eq("repair_pro_id", proId);
 
   if (!data?.length) {
-    return { median: null, count: 0, distribution: dist, minReviews: MIN_REVIEWS_FOR_RATING };
+    return {
+      median: null,
+      count: 0,
+      distribution: dist,
+      minReviews: MIN_REVIEWS_FOR_RATING,
+    };
   }
 
   const ratings = data.map((r: { rating: number }) => r.rating);
@@ -156,15 +167,15 @@ export async function getProReviewStats(
   };
 }
 
-export async function listAllReviews(
-  limit = 100
-): Promise<ProReview[]> {
+export async function listAllReviews(limit = 100): Promise<ProReview[]> {
   if (!isSupabaseAdminConfigured()) return [];
 
   const sb = createServiceSupabase();
   const { data } = await sb
     .from("pro_reviews")
-    .select("*, motorist_profile:profiles!motorist_id(full_name), pro_profile:repair_pro_profiles!repair_pro_id(business_name)")
+    .select(
+      "*, motorist_profile:profiles!motorist_id(full_name), pro_profile:repair_pro_profiles!repair_pro_id(business_name)",
+    )
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -172,8 +183,10 @@ export async function listAllReviews(
 
   return data.map((row: Record<string, unknown>) => {
     const review = rowToReview(row);
-    const motoristProfile = row.motorist_profile as { full_name?: string } | undefined;
-    const proProfile = row.pro_profile as { business_name?: string } | undefined;
+    const motoristProfile = row.motorist_profile as
+      { full_name?: string } | undefined;
+    const proProfile = row.pro_profile as
+      { business_name?: string } | undefined;
     return {
       ...review,
       motoristName: motoristProfile?.full_name || "Customer",

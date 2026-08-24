@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  Suspense,
-  use,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { Suspense, use, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Lock, Mic, Send, Square } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
@@ -61,11 +54,7 @@ export default function ChatThreadPage({
   );
 }
 
-function ChatThreadInner({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+function ChatThreadInner({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -83,7 +72,7 @@ function ChatThreadInner({
   const isLight = theme === "light";
   const isPro = accountType === "professional";
   const thread = visibleMessageThreads.find((t) => t.id === id);
-  /** Back to the request/job — never a standalone messages inbox */
+  /** Back to the request/job never a standalone messages inbox */
   const requestBackHref = (() => {
     const rid = thread?.requestId;
     if (rid && !rid.startsWith("chat-") && !rid.startsWith("demo-")) {
@@ -104,7 +93,7 @@ function ChatThreadInner({
     mime: string;
   } | null>(null);
   const [recError, setRecError] = useState<string | null>(null);
-  /** Job ended — no send */
+  /** Job ended no send */
   const [chatClosed, setChatClosed] = useState(false);
   /** 2B mid-session end: popup until View (read-only) or OK (leave) */
   const [expiredOpen, setExpiredOpen] = useState(false);
@@ -122,7 +111,7 @@ function ChatThreadInner({
   const typingStopTimer = useRef<number | null>(null);
   const lastTypingSent = useRef(0);
 
-  // Pull server messages once open; Realtime handles inserts — rare poll backup
+  // Pull server messages once open; Realtime handles inserts rare poll backup
   useEffect(() => {
     refreshCloudChats();
     const t = window.setInterval(() => {
@@ -141,11 +130,10 @@ function ChatThreadInner({
         .filter(
           (n) =>
             !n.readAt &&
-            (n.category === "messages" ||
-              n.category === "requests") &&
+            (n.category === "messages" || n.category === "requests") &&
             (n.href === `/messages/${id}` ||
               n.href === `/messages/${thread.id}` ||
-              (thread.requestId != null && n.jobId === thread.requestId))
+              (thread.requestId != null && n.jobId === thread.requestId)),
         )
         .map((n) => n.id);
       if (ids.length) void notif.markRead(ids);
@@ -214,7 +202,7 @@ function ChatThreadInner({
     };
   }, [id, backendUserId, refreshCloudChats, markThreadRead]);
 
-  // Typing indicator channel (broadcast — no extra DB rows)
+  // Typing indicator channel (broadcast no extra DB rows)
   useEffect(() => {
     if (!id || id.startsWith("chat-") || !backendUserId || chatClosed) {
       setOtherTyping(false);
@@ -227,9 +215,12 @@ function ChatThreadInner({
       return;
     }
     if (!sb) return;
-    const channel = sb.channel(`om-typing:${id}-${Math.random().toString(36).slice(2, 8)}`, {
-      config: { broadcast: { self: false } },
-    });
+    const channel = sb.channel(
+      `om-typing:${id}-${Math.random().toString(36).slice(2, 8)}`,
+      {
+        config: { broadcast: { self: false } },
+      },
+    );
     channel
       .on(
         "broadcast",
@@ -246,7 +237,7 @@ function ChatThreadInner({
               setOtherTyping(false);
             }, 3500);
           }
-        }
+        },
       )
       .subscribe();
     typingChannelRef.current = channel;
@@ -272,7 +263,7 @@ function ChatThreadInner({
         payload: { userId: backendUserId, typing },
       });
     },
-    [backendUserId, chatClosed]
+    [backendUserId, chatClosed],
   );
 
   useEffect(() => {
@@ -294,25 +285,22 @@ function ChatThreadInner({
       <div
         className={cn(
           "flex h-full min-h-0 flex-col",
-          isLight ? "bg-[#c8c9cd]" : "bg-black"
+          isLight ? "bg-[#c8c9cd]" : "bg-black",
         )}
       >
-        <PageHeader
-          title="Chat"
-          backHref={isPro ? "/jobs" : "/requests"}
-        />
+        <PageHeader title="Chat" backHref={isPro ? "/jobs" : "/requests"} />
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-6">
           <p
             className={cn(
               "font-semibold",
-              isLight ? "text-slate-900" : "text-white"
+              isLight ? "text-slate-900" : "text-white",
             )}
           >
             Loading chat…
           </p>
           <p className="text-center text-xs text-muted">
-            Chat is tied to a request. Open Message from your job if it does
-            not appear.
+            Chat is tied to a request. Open Message from your job if it does not
+            appear.
           </p>
           <button
             type="button"
@@ -369,7 +357,7 @@ function ChatThreadInner({
         setRecPhase("idle");
       };
       mediaRef.current = rec;
-      // 1s timeslice — less main-thread work than 200ms chunks
+      // 1s timeslice less main-thread work than 200ms chunks
       rec.start(1000);
       await waitRecorderStart(rec);
       startedAt.current = Date.now();
@@ -395,7 +383,7 @@ function ChatThreadInner({
     const blobType = rec.mimeType || "audio/webm";
     const durationSec = Math.max(
       1,
-      Math.round((Date.now() - startedAt.current) / 1000)
+      Math.round((Date.now() - startedAt.current) / 1000),
     );
 
     rec.onstop = () => {
@@ -432,7 +420,7 @@ function ChatThreadInner({
         }
         rec.stop();
       } else {
-        // Already stopped — finish via the same onstop path
+        // Already stopped finish via the same onstop path
         const handler = rec.onstop;
         if (typeof handler === "function") {
           handler.call(rec, new Event("stop"));
@@ -465,16 +453,20 @@ function ChatThreadInner({
     <div
       className={cn(
         "relative flex h-full min-h-0 flex-col overflow-hidden",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
-      <PageHeader title={title} subtitle={subtitle} backHref={requestBackHref} />
+      <PageHeader
+        title={title}
+        subtitle={subtitle}
+        backHref={requestBackHref}
+      />
 
       {chatClosed && (intentionalViewOnly || !expiredOpen) && (
         <div
           className={cn(
             "flex shrink-0 items-start gap-2 px-3 py-2",
-            isLight ? "text-slate-800" : "text-white/85"
+            isLight ? "text-slate-800" : "text-white/85",
           )}
         >
           <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#FF6B35]" />
@@ -508,14 +500,14 @@ function ChatThreadInner({
                 className={cn(
                   "max-w-[85%] space-y-1.5 rounded-2xl px-3 py-2 text-[13px] leading-snug",
                   mine ? "rounded-br-md" : "rounded-bl-md",
-                  // Sent vs received — far-apart greys, still elegant in both shells
+                  // Sent vs received far-apart greys, still elegant in both shells
                   mine
                     ? isLight
                       ? "bg-[#7c7d83] text-white"
                       : "bg-[#d6d6db] text-slate-900"
                     : isLight
                       ? "bg-[#e5e6e9] text-slate-900"
-                      : "bg-[#1e1e20] text-white/95"
+                      : "bg-[#1e1e20] text-white/95",
                 )}
                 style={
                   mine
@@ -552,7 +544,7 @@ function ChatThreadInner({
           <p
             className={cn(
               "px-2 text-[12px] italic transition-opacity duration-200",
-              isLight ? "text-slate-600" : "text-white/65"
+              isLight ? "text-slate-600" : "text-white/65",
             )}
             aria-live="polite"
           >
@@ -580,7 +572,9 @@ function ChatThreadInner({
         </div>
       )}
       {!chatClosed && recError && (
-        <p className="px-3 text-[11px] font-semibold text-red-500">{recError}</p>
+        <p className="px-3 text-[11px] font-semibold text-red-500">
+          {recError}
+        </p>
       )}
 
       {chatClosed ? (
@@ -589,92 +583,90 @@ function ChatThreadInner({
             "shrink-0 border-t px-3 py-3 text-center text-[12px] font-medium",
             isLight
               ? "border-black/10 text-slate-700"
-              : "border-white/10 text-white/70"
+              : "border-white/10 text-white/70",
           )}
         >
           Chat closed · view only
         </div>
       ) : (
-      <div
-        className={cn(
-          "flex shrink-0 items-center gap-2 border-t px-3 py-2",
-          isLight
-            ? "border-black/10 bg-[#c8c9cd]"
-            : "border-white/10 bg-black"
-        )}
-      >
-        <button
-          type="button"
-          disabled={recBusy}
-          onClick={() => (recording ? stopRec() : void startRec())}
+        <div
           className={cn(
-            "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 text-white disabled:opacity-70",
-            recording || recPhase === "saving"
-              ? "bg-red-500"
-              : "bg-[#FF6B35]"
-          )}
-          aria-label={
-            recording
-              ? "Stop recording"
-              : recPhase === "arming"
-                ? "Starting microphone"
-                : recPhase === "saving"
-                  ? "Saving voice note"
-                  : "Record voice note"
-          }
-        >
-          {recPhase === "arming" || recPhase === "saving" ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : recording ? (
-            <Square className="h-4 w-4 fill-current" />
-          ) : (
-            <Mic className="h-4 w-4" />
-          )}
-        </button>
-        <input
-          value={draft}
-          onChange={(e) => {
-            const v = e.target.value;
-            setDraft(v);
-            if (v.trim()) broadcastTyping(true);
-            else broadcastTyping(false);
-          }}
-          onBlur={() => broadcastTyping(false)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              send();
-            }
-          }}
-          placeholder={
-            recPhase === "arming"
-              ? "Starting mic…"
-              : recording
-                ? "Recording…"
-                : recPhase === "saving"
-                  ? "Saving voice…"
-                  : "Type a message…"
-          }
-          disabled={recording || recBusy}
-          className={cn(
-            "h-10 min-w-0 flex-1 rounded-full border-0 px-4 text-[13px] outline-none",
+            "flex shrink-0 items-center gap-2 border-t px-3 py-2",
             isLight
-              ? "bg-[#bebfc4] text-slate-900 placeholder:text-slate-500"
-              : "bg-neutral-900 text-white placeholder:text-white/40"
+              ? "border-black/10 bg-[#c8c9cd]"
+              : "border-white/10 bg-black",
           )}
-        />
-        <button
-          type="button"
-          onClick={send}
-          disabled={
-            recording || recBusy || (!draft.trim() && !pendingVoice)
-          }
-          className="flex h-10 w-10 items-center justify-center rounded-full border-0 bg-brand text-white disabled:opacity-40"
-          aria-label="Send"
         >
-          <Send className="h-4 w-4" />
-        </button>
-      </div>
+          <button
+            type="button"
+            disabled={recBusy}
+            onClick={() => (recording ? stopRec() : void startRec())}
+            className={cn(
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 text-white disabled:opacity-70",
+              recording || recPhase === "saving"
+                ? "bg-red-500"
+                : "bg-[#FF6B35]",
+            )}
+            aria-label={
+              recording
+                ? "Stop recording"
+                : recPhase === "arming"
+                  ? "Starting microphone"
+                  : recPhase === "saving"
+                    ? "Saving voice note"
+                    : "Record voice note"
+            }
+          >
+            {recPhase === "arming" || recPhase === "saving" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : recording ? (
+              <Square className="h-4 w-4 fill-current" />
+            ) : (
+              <Mic className="h-4 w-4" />
+            )}
+          </button>
+          <input
+            value={draft}
+            onChange={(e) => {
+              const v = e.target.value;
+              setDraft(v);
+              if (v.trim()) broadcastTyping(true);
+              else broadcastTyping(false);
+            }}
+            onBlur={() => broadcastTyping(false)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                send();
+              }
+            }}
+            placeholder={
+              recPhase === "arming"
+                ? "Starting mic…"
+                : recording
+                  ? "Recording…"
+                  : recPhase === "saving"
+                    ? "Saving voice…"
+                    : "Type a message…"
+            }
+            disabled={recording || recBusy}
+            className={cn(
+              "h-10 min-w-0 flex-1 rounded-full border-0 px-4 text-[13px] outline-none",
+              isLight
+                ? "bg-[#bebfc4] text-slate-900 placeholder:text-slate-500"
+                : "bg-neutral-900 text-white placeholder:text-white/40",
+            )}
+          />
+          <button
+            type="button"
+            onClick={send}
+            disabled={recording || recBusy || (!draft.trim() && !pendingVoice)}
+            className="flex h-10 w-10 items-center justify-center rounded-full border-0 bg-brand text-white disabled:opacity-40"
+            aria-label="Send"
+          >
+            <Send className="h-4 w-4" />
+          </button>
+        </div>
       )}
 
       <ExpiredDialog

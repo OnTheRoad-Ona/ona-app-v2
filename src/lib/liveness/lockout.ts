@@ -1,11 +1,11 @@
 /**
- * Liveness attempt lockout — max 6 failures then cool-down.
+ * Liveness attempt lockout max 6 failures then cool-down.
  * Stores only counters + timestamps (no media).
  */
 
 const KEY = "ona-liveness-attempts-v1";
 export const LIVENESS_MAX_FAILS = 6;
-/** Cool-down after max fails (ms) — 30 minutes, data-light */
+/** Cool-down after max fails (ms) 30 minutes, data-light */
 export const LIVENESS_LOCKOUT_MS = 30 * 60 * 1000;
 
 type Store = {

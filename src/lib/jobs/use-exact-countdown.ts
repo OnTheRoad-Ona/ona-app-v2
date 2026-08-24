@@ -2,14 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { refreshServerClock, serverNow } from "@/lib/jobs/server-clock";
-import {
-  exactFireDelayMs,
-  isDeadlinePast,
-} from "@/lib/jobs/countdown-math";
+import { exactFireDelayMs, isDeadlinePast } from "@/lib/jobs/countdown-math";
 
 /**
  * Countdown to a server-issued deadline that FIRES at the exact moment the
- * window ends — never a whole tick late, never a second early.
+ * window ends never a whole tick late, never a second early.
  *
  * The deadline is an absolute server timestamp. Any two phones counting the
  * same deadline (customer ring + pro popup) therefore hit zero at the same
@@ -17,14 +14,14 @@ import {
  * (only if it is stale) so a slow-to-load phone shows the SAME remaining
  * seconds as the phone that started earlier.
  *
- * - `displayMs`: live remaining ms, updated once per second — cheap even for
- *   the 6-hour auto-release window.
+ * - `displayMs`: live remaining ms, updated once per second cheap even for
+ * the 6-hour auto-release window.
  * - `onExpire`: fires ~25ms after the deadline passes, once. A deadline that
- *   is already in the past fires on mount.
+ * is already in the past fires on mount.
  */
 export function useExactCountdown(
   endsAt: string,
-  onExpire?: () => void
+  onExpire?: () => void,
 ): { displayMs: number } {
   const onExpireRef = useRef(onExpire);
   useEffect(() => {
@@ -34,7 +31,7 @@ export function useExactCountdown(
   const endsMs = new Date(endsAt).getTime();
 
   const [displayMs, setDisplayMs] = useState(() =>
-    Math.max(0, endsMs - serverNow())
+    Math.max(0, endsMs - serverNow()),
   );
 
   useEffect(() => {
@@ -74,7 +71,7 @@ export function useExactCountdown(
 
     // Align the clock FIRST, then start the visible countdown from the true
     // remaining time. The live tick never runs on a stale estimate, so the
-    // timer doesn't "start counting before the visuals load" — the first
+    // timer doesn't "start counting before the visuals load" the first
     // painted value is already the freshly-aligned remaining time.
     void refreshServerClock().then(() => {
       if (fired) return;

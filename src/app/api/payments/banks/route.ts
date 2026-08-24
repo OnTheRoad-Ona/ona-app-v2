@@ -60,7 +60,7 @@ function resolveCountry(raw: string | null): string {
 }
 
 async function fetchFlutterwaveBanks(
-  flwCountry: string
+  flwCountry: string,
 ): Promise<Bank[] | null> {
   const secret = (process.env.FLUTTERWAVE_SECRET_KEY || "").trim();
   if (!secret) return null;
@@ -70,7 +70,7 @@ async function fetchFlutterwaveBanks(
       {
         headers: { Authorization: `Bearer ${secret}` },
         next: { revalidate: 0 },
-      }
+      },
     );
     const json = (await res.json()) as {
       status?: string;
@@ -117,7 +117,7 @@ export async function GET(req: Request) {
   } catch (e) {
     return apiFail(
       e instanceof Error ? e.message : "Could not load banks",
-      500
+      500,
     );
   }
 }

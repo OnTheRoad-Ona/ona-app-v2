@@ -12,16 +12,18 @@ import { getBearerToken, getUserFromToken } from "@/lib/server/auth-utils";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const bodySchema = z.object({
-  access_token: z.string().min(10).optional(),
-  // Accept any string id; bare userId alone is ignored without a token
-  userId: z.string().min(1).optional(),
-}).passthrough();
+const bodySchema = z
+  .object({
+    access_token: z.string().min(10).optional(),
+    // Accept any string id; bare userId alone is ignored without a token
+    userId: z.string().min(1).optional(),
+  })
+  .passthrough();
 
 /**
  * Server-side logout: force Go Live OFF before session ends.
  * Prevents ghost "online" Repair Pros after logout or account switch.
- * Requires a valid access_token — bare userId is ignored (DoS / force-offline).
+ * Requires a valid access_token bare userId is ignored (DoS / force-offline).
  */
 export async function POST(req: Request) {
   if (!isSupabaseAdminConfigured()) {
@@ -59,11 +61,7 @@ export async function POST(req: Request) {
   }
 
   // Ignore body.userId unless it matches the token subject
-  if (
-    parsed.data.userId &&
-    userId &&
-    parsed.data.userId !== userId
-  ) {
+  if (parsed.data.userId && userId && parsed.data.userId !== userId) {
     return apiFail("userId does not match session", 403);
   }
 

@@ -26,7 +26,12 @@ type FilterDef =
       options?: string[];
     };
 
-type Category = { id: string; slug: string; name: string; productCount: number };
+type Category = {
+  id: string;
+  slug: string;
+  name: string;
+  productCount: number;
+};
 
 type Props = {
   tradeKey: string;
@@ -50,7 +55,7 @@ export function ShopFacetBar({ tradeKey, filters, onChange }: Props) {
         const [fRes, cRes] = await Promise.all([
           fetch(`/api/shop/filters?trade=${encodeURIComponent(tradeKey)}`),
           fetch(
-            `/api/shop/categories?trade=${encodeURIComponent(tradeKey)}&roots=1`
+            `/api/shop/categories?trade=${encodeURIComponent(tradeKey)}&roots=1`,
           ),
         ]);
         const fJson = (await fRes.json()) as {
@@ -70,7 +75,7 @@ export function ShopFacetBar({ tradeKey, filters, onChange }: Props) {
               : [];
           setDefs(list);
           setCats(
-            Array.isArray(cJson.data?.categories) ? cJson.data.categories : []
+            Array.isArray(cJson.data?.categories) ? cJson.data.categories : [],
           );
         }
       } catch {
@@ -90,9 +95,8 @@ export function ShopFacetBar({ tradeKey, filters, onChange }: Props) {
     (filters.categorySlug ? 1 : 0) +
     (filters.minPriceMinor != null ? 1 : 0) +
     (filters.maxPriceMinor != null ? 1 : 0) +
-    Object.values(filters.attributes).filter(
-      (v) => v !== "" && v != null
-    ).length;
+    Object.values(filters.attributes).filter((v) => v !== "" && v != null)
+      .length;
 
   const clearAll = () => {
     setMinInput("");
@@ -111,10 +115,8 @@ export function ShopFacetBar({ tradeKey, filters, onChange }: Props) {
     const max = maxInput ? Math.round(Number(maxInput) * 100) : null;
     onChange({
       ...filters,
-      minPriceMinor:
-        min != null && !Number.isNaN(min) ? min : null,
-      maxPriceMinor:
-        max != null && !Number.isNaN(max) ? max : null,
+      minPriceMinor: min != null && !Number.isNaN(min) ? min : null,
+      maxPriceMinor: max != null && !Number.isNaN(max) ? max : null,
     });
   };
 
@@ -122,7 +124,7 @@ export function ShopFacetBar({ tradeKey, filters, onChange }: Props) {
   const attrDefs = safeDefs.filter(
     (d): d is Extract<FilterDef, { kind: "attribute" }> =>
       d.kind === "attribute" &&
-      (d.key === "vehicleMake" || d.key === "vehicleModel")
+      (d.key === "vehicleMake" || d.key === "vehicleModel"),
   );
   const hasPrice = safeDefs.some((d) => d.kind === "price");
   const hasCategory = cats.length > 0;
@@ -179,7 +181,7 @@ export function ShopFacetBar({ tradeKey, filters, onChange }: Props) {
                   "rounded-lg border px-2.5 py-1.5 text-[12px] font-bold",
                   filters.availability === "in_stock"
                     ? "border-[#FF6B35] bg-[#FF6B35]/10 text-[#FF6B35]"
-                    : border
+                    : border,
                 )}
               >
                 In stock only
@@ -194,22 +196,30 @@ export function ShopFacetBar({ tradeKey, filters, onChange }: Props) {
                 <input
                   inputMode="numeric"
                   value={minInput}
-                  onChange={(e) => setMinInput(e.target.value.replace(/[^0-9]/g, ""))}
+                  onChange={(e) =>
+                    setMinInput(e.target.value.replace(/[^0-9]/g, ""))
+                  }
                   placeholder="Min"
                   className={cn(
                     "h-9 w-full flex-1 rounded-lg border-0 px-3 text-[12px] outline-none",
-                    isLight ? "bg-black/5 text-slate-900" : "bg-white/10 text-white"
+                    isLight
+                      ? "bg-black/5 text-slate-900"
+                      : "bg-white/10 text-white",
                   )}
                 />
-                <span className={muted}>–</span>
+                <span className={muted}>-</span>
                 <input
                   inputMode="numeric"
                   value={maxInput}
-                  onChange={(e) => setMaxInput(e.target.value.replace(/[^0-9]/g, ""))}
+                  onChange={(e) =>
+                    setMaxInput(e.target.value.replace(/[^0-9]/g, ""))
+                  }
                   placeholder="Max"
                   className={cn(
                     "h-9 w-full flex-1 rounded-lg border-0 px-3 text-[12px] outline-none",
-                    isLight ? "bg-black/5 text-slate-900" : "bg-white/10 text-white"
+                    isLight
+                      ? "bg-black/5 text-slate-900"
+                      : "bg-white/10 text-white",
                   )}
                 />
                 <button
@@ -242,11 +252,13 @@ export function ShopFacetBar({ tradeKey, filters, onChange }: Props) {
                       "rounded-full border px-2.5 py-1 text-[11px] font-bold",
                       filters.categorySlug === c.slug
                         ? "border-[#FF6B35] bg-[#FF6B35]/15 text-[#FF6B35]"
-                        : border
+                        : border,
                     )}
                   >
                     {c.name}
-                    <span className={cn("ml-1 text-[10px] font-semibold", muted)}>
+                    <span
+                      className={cn("ml-1 text-[10px] font-semibold", muted)}
+                    >
                       {c.productCount}
                     </span>
                   </button>
@@ -271,9 +283,7 @@ export function ShopFacetBar({ tradeKey, filters, onChange }: Props) {
                           attributes: {
                             ...filters.attributes,
                             [d.key]:
-                              filters.attributes[d.key] === opt
-                                ? ""
-                                : opt,
+                              filters.attributes[d.key] === opt ? "" : opt,
                           },
                         })
                       }
@@ -281,7 +291,7 @@ export function ShopFacetBar({ tradeKey, filters, onChange }: Props) {
                         "rounded-full border px-2.5 py-1 text-[11px] font-bold",
                         filters.attributes[d.key] === opt
                           ? "border-[#FF6B35] bg-[#FF6B35]/15 text-[#FF6B35]"
-                          : border
+                          : border,
                       )}
                     >
                       {opt}

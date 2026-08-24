@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Repair Pros hub — directory + full review (merged Artisan/Pro review).
+ * Repair Pros hub directory + full review (merged Artisan/Pro review).
  * Clean table, file thumbs in row, detail drawer for everything.
  */
 
@@ -202,9 +202,9 @@ function humanizeKey(k: string): string {
     .replace(/^./, (c) => c.toUpperCase());
 }
 
-/** Human labels for skill / focus maps — never dump raw JSON to care. */
+/** Human labels for skill / focus maps never dump raw JSON to care. */
 function formatAnswerValue(v: unknown): string {
-  if (v == null || v === "" || v === "—" || v === "-") return "";
+  if (v == null || v === "" || v === "" || v === "-") return "";
   if (typeof v === "boolean") return v ? "Yes" : "No";
   if (typeof v === "number") return String(v);
   if (typeof v === "string") {
@@ -244,7 +244,7 @@ function skillRows(skills: unknown): { label: string; value: string }[] {
 
 function focusRows(
   focus: unknown,
-  trade?: string | null
+  trade?: string | null,
 ): { label: string; value: string }[] {
   if (!focus || typeof focus !== "object" || Array.isArray(focus)) return [];
   const o = focus as Record<string, unknown>;
@@ -296,9 +296,12 @@ function focusRows(
     if (used.has(k)) continue;
     if (
       !isVehicle &&
-      ["servedVehicleType", "servedBrand", "servedModel", "servedMake"].includes(
-        k
-      )
+      [
+        "servedVehicleType",
+        "servedBrand",
+        "servedModel",
+        "servedMake",
+      ].includes(k)
     ) {
       // Hide polluted vehicle fields on home trades when they equal specialty
       if (String(v) === String(o.specialty || "")) continue;
@@ -315,9 +318,7 @@ function priceRows(prices: unknown): { label: string; value: string }[] {
     .map(([k, v]) => ({
       label: humanizeKey(k),
       value:
-        typeof v === "number"
-          ? `₦${v.toLocaleString()}`
-          : formatAnswerValue(v),
+        typeof v === "number" ? `₦${v.toLocaleString()}` : formatAnswerValue(v),
     }));
 }
 
@@ -363,7 +364,7 @@ export default function AdminProsHubPage() {
 
   const loadDir = useCallback(async () => {
     const res = await api<{ users: DirRow[]; totals: typeof dirTotals }>(
-      "/api/admin/pros"
+      "/api/admin/pros",
     );
     if (!res.ok) {
       setError(res.message);
@@ -396,11 +397,11 @@ export default function AdminProsHubPage() {
 
   const selectedReview = useMemo(
     () => reviewRows.find((r) => r.user_id === selectedId) || null,
-    [reviewRows, selectedId]
+    [reviewRows, selectedId],
   );
   const selectedDir = useMemo(
     () => dirRows.find((r) => r.id === selectedId) || null,
-    [dirRows, selectedId]
+    [dirRows, selectedId],
   );
 
   const setStatus = async (id: string, status: ProStatus) => {
@@ -425,7 +426,7 @@ export default function AdminProsHubPage() {
   const actReview = async (
     userId: string,
     action: string,
-    extra?: { visibilityTier?: number; reason?: string }
+    extra?: { visibilityTier?: number; reason?: string },
   ) => {
     setBusyId(userId);
     setMsg(null);
@@ -449,7 +450,8 @@ export default function AdminProsHubPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Repair Pros</h1>
       <p className="om-admin-sub">
-        Repair Pro accounts from the live app. Review onboarding, documents, Live status, and payout banks. Approve or suspend pros here.
+        Repair Pro accounts from the live app. Review onboarding, documents,
+        Live status, and payout banks. Approve or suspend pros here.
       </p>
 
       <AdminGuideBanner pageId="pros" />
@@ -718,7 +720,7 @@ export default function AdminProsHubPage() {
                               }}
                               title={
                                 p.has_switched
-                                  ? `Switched · first ${p.first_role || "—"} · now ${p.current_role || "—"}`
+                                  ? `Switched · first ${p.first_role || ""} · now ${p.current_role || ""}`
                                   : "Holds Customer + Professional roles"
                               }
                             >
@@ -743,7 +745,9 @@ export default function AdminProsHubPage() {
                           <StatusBadge status={L.t3_liveness.status}>
                             T3
                           </StatusBadge>{" "}
-                          <StatusBadge status={L.t4_docs.status}>T4</StatusBadge>
+                          <StatusBadge status={L.t4_docs.status}>
+                            T4
+                          </StatusBadge>
                           <div className="om-admin-muted">
                             {p.status} · {p.pipeline_status || ""}
                           </div>
@@ -857,7 +861,7 @@ export default function AdminProsHubPage() {
                                     {
                                       reason:
                                         "Care: please re-submit ID and skill documents.",
-                                    }
+                                    },
                                   )
                                 }
                               >
@@ -880,7 +884,9 @@ export default function AdminProsHubPage() {
       <DetailDrawer
         open={Boolean(selectedDir && tab === "directory")}
         title={selectedDir?.full_name || "Pro"}
-        subtitle={selectedDir?.repair_pro_profiles?.primary_service || undefined}
+        subtitle={
+          selectedDir?.repair_pro_profiles?.primary_service || undefined
+        }
         onClose={() => setSelectedId(null)}
         footer={
           selectedDir ? (
@@ -953,9 +959,7 @@ export default function AdminProsHubPage() {
               <DetailField
                 label="Status"
                 value={
-                  <StatusBadge
-                    status={selectedDir.repair_pro_profiles?.status}
-                  >
+                  <StatusBadge status={selectedDir.repair_pro_profiles?.status}>
                     {selectedDir.repair_pro_profiles?.status}
                   </StatusBadge>
                 }
@@ -972,9 +976,7 @@ export default function AdminProsHubPage() {
               />
               <DetailField
                 label="User ID"
-                value={
-                  <code style={{ fontSize: 10 }}>{selectedDir.id}</code>
-                }
+                value={<code style={{ fontSize: 10 }}>{selectedDir.id}</code>}
               />
               <DetailField
                 label="Joined"
@@ -1007,11 +1009,7 @@ export default function AdminProsHubPage() {
                 </button>
               ) : null}
               {selectedReview.levels.t2_id.status === "approved" ? (
-                <button
-                  type="button"
-                  className="om-admin-btn done"
-                  disabled
-                >
+                <button type="button" className="om-admin-btn done" disabled>
                   ✓ T2 approved
                 </button>
               ) : (
@@ -1029,20 +1027,12 @@ export default function AdminProsHubPage() {
               {selectedReview.levels.t3_liveness?.verified ||
               selectedReview.levels.t3_liveness?.status === "passed" ||
               selectedReview.levels.t3_liveness?.status === "verified" ? (
-                <button
-                  type="button"
-                  className="om-admin-btn done"
-                  disabled
-                >
+                <button type="button" className="om-admin-btn done" disabled>
                   ✓ T3 liveness passed
                 </button>
               ) : null}
               {selectedReview.levels.t4_docs.status === "approved" ? (
-                <button
-                  type="button"
-                  className="om-admin-btn done"
-                  disabled
-                >
+                <button type="button" className="om-admin-btn done" disabled>
                   ✓ T4 approved
                 </button>
               ) : (
@@ -1078,7 +1068,7 @@ export default function AdminProsHubPage() {
                   onClick={() => {
                     if (
                       !window.confirm(
-                        "Reset Tier 2 ID for this pro? They must re-submit ID from the app. Already-approved tiers are not touched."
+                        "Reset Tier 2 ID for this pro? They must re-submit ID from the app. Already-approved tiers are not touched.",
                       )
                     )
                       return;
@@ -1100,7 +1090,7 @@ export default function AdminProsHubPage() {
                   onClick={() => {
                     if (
                       !window.confirm(
-                        "Reset Tier 4 skill docs? They must re-submit skill proof from the app."
+                        "Reset Tier 4 skill docs? They must re-submit skill proof from the app.",
                       )
                     )
                       return;
@@ -1121,7 +1111,7 @@ export default function AdminProsHubPage() {
                 onClick={() => {
                   if (
                     !window.confirm(
-                      "Reset all unapproved verification tiers? Approved tiers stay. Pro can start those steps again in the app."
+                      "Reset all unapproved verification tiers? Approved tiers stay. Pro can start those steps again in the app.",
                     )
                   )
                     return;
@@ -1131,7 +1121,7 @@ export default function AdminProsHubPage() {
                     {
                       reason:
                         "Care reset unapproved tiers. Complete verification again in the app.",
-                    }
+                    },
                   );
                 }}
               >
@@ -1153,8 +1143,14 @@ export default function AdminProsHubPage() {
                 />
               </div>
               <DetailGrid>
-                <DetailField label="Business" value={selectedReview.business_name} />
-                <DetailField label="Trade" value={selectedReview.primary_service} />
+                <DetailField
+                  label="Business"
+                  value={selectedReview.business_name}
+                />
+                <DetailField
+                  label="Trade"
+                  value={selectedReview.primary_service}
+                />
                 <DetailField
                   label="Services"
                   value={
@@ -1200,11 +1196,11 @@ export default function AdminProsHubPage() {
                 />
                 <DetailField
                   label="First role"
-                  value={selectedReview.first_role || "—"}
+                  value={selectedReview.first_role || ""}
                 />
                 <DetailField
                   label="Current role"
-                  value={selectedReview.current_role || "—"}
+                  value={selectedReview.current_role || ""}
                 />
                 <DetailField
                   label="Last switch"
@@ -1213,7 +1209,7 @@ export default function AdminProsHubPage() {
                       ? fmtDate(selectedReview.last_role_switch_at)
                       : selectedReview.dual_role
                         ? "Not recorded yet"
-                        : "—"
+                        : ""
                   }
                 />
                 <DetailField
@@ -1274,7 +1270,11 @@ export default function AdminProsHubPage() {
               ) : (
                 <DetailGrid>
                   {skillRows(selectedReview.skills).map((r) => (
-                    <DetailField key={r.label} label={r.label} value={r.value} />
+                    <DetailField
+                      key={r.label}
+                      label={r.label}
+                      value={r.value}
+                    />
                   ))}
                 </DetailGrid>
               )}
@@ -1282,24 +1282,33 @@ export default function AdminProsHubPage() {
 
             <div className="om-admin-section">
               <h3>
-                {["mechanic", "vulcanizer", "towing", "battery", "panel", "ac"].includes(
-                  String(selectedReview.primary_service || "")
-                )
+                {[
+                  "mechanic",
+                  "vulcanizer",
+                  "towing",
+                  "battery",
+                  "panel",
+                  "ac",
+                ].includes(String(selectedReview.primary_service || ""))
                   ? "Vehicles & area"
                   : "Service focus & area"}
               </h3>
               {focusRows(
                 selectedReview.vehicle_focus,
-                selectedReview.primary_service
+                selectedReview.primary_service,
               ).length === 0 ? (
                 <p className="om-admin-muted">No focus details on file.</p>
               ) : (
                 <DetailGrid>
                   {focusRows(
                     selectedReview.vehicle_focus,
-                    selectedReview.primary_service
+                    selectedReview.primary_service,
                   ).map((r) => (
-                    <DetailField key={r.label} label={r.label} value={r.value} />
+                    <DetailField
+                      key={r.label}
+                      label={r.label}
+                      value={r.value}
+                    />
                   ))}
                 </DetailGrid>
               )}
@@ -1314,7 +1323,11 @@ export default function AdminProsHubPage() {
               ) : (
                 <DetailGrid>
                   {priceRows(selectedReview.labour_prices).map((r) => (
-                    <DetailField key={r.label} label={r.label} value={r.value} />
+                    <DetailField
+                      key={r.label}
+                      label={r.label}
+                      value={r.value}
+                    />
                   ))}
                 </DetailGrid>
               )}
@@ -1332,7 +1345,7 @@ export default function AdminProsHubPage() {
               Object.keys(selectedReview.guarantor as object).length > 0 ? (
                 <DetailGrid>
                   {Object.entries(
-                    selectedReview.guarantor as Record<string, unknown>
+                    selectedReview.guarantor as Record<string, unknown>,
                   ).map(([k, v]) => (
                     <DetailField
                       key={k}
@@ -1377,7 +1390,7 @@ export default function AdminProsHubPage() {
                       url={u}
                       size="md"
                     />
-                  )
+                  ),
                 )}
               </div>
               {portfolioUrls(selectedReview.portfolio).length === 0 &&
@@ -1463,7 +1476,7 @@ export default function AdminProsHubPage() {
                   kind="pro_back"
                 />
               </div>
-              {/* Full-size open uses FileThumb lightbox (admin proxy) — no raw storage links */}
+              {/* Full-size open uses FileThumb lightbox (admin proxy) no raw storage links */}
             </div>
 
             <div className="om-admin-section">
@@ -1481,9 +1494,7 @@ export default function AdminProsHubPage() {
                 />
                 <DetailField
                   label="Passed at"
-                  value={fmtDate(
-                    selectedReview.levels.t3_liveness.verified_at
-                  )}
+                  value={fmtDate(selectedReview.levels.t3_liveness.verified_at)}
                 />
                 <DetailField
                   label="BVN / bank ID"
@@ -1543,8 +1554,8 @@ export default function AdminProsHubPage() {
                 </div>
               ) : (
                 <CareCallout>
-                  No skill file on the server. Pro must use Verification → Submit
-                  skill for review (now saves to the queue).
+                  No skill file on the server. Pro must use Verification →
+                  Submit skill for review (now saves to the queue).
                 </CareCallout>
               )}
             </div>

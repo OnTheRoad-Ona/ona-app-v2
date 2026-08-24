@@ -2,7 +2,7 @@
 /**
  * Guards the first-open landing: a Repair Pro must be bounced from the
  * customer home ("/") to /dashboard once the authoritative server role
- * resolves — even when the optimistic first paint briefly carried a stale
+ * resolves even when the optimistic first paint briefly carried a stale
  * motorist role. Motorists and guests stay on "/".
  */
 import { act, render } from "@testing-library/react";
@@ -28,7 +28,10 @@ const { appState } = vi.hoisted(() => {
 });
 
 vi.mock("@/lib/store", () => ({
-  useApp: () => ({ roleReady: appState.roleReady, accountType: appState.accountType }),
+  useApp: () => ({
+    roleReady: appState.roleReady,
+    accountType: appState.accountType,
+  }),
 }));
 
 beforeEach(() => {

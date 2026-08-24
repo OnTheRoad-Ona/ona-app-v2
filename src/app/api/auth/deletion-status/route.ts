@@ -16,7 +16,9 @@ async function handle(req: Request) {
   const supabase = createServiceSupabase();
   const { data: profile } = await supabase
     .from("profiles")
-    .select("deletion_status, deletion_scheduled_at, deleted_at, self_reactivated_at")
+    .select(
+      "deletion_status, deletion_scheduled_at, deleted_at, self_reactivated_at",
+    )
     .eq("id", user.id)
     .single();
 

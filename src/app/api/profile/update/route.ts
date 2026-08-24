@@ -21,7 +21,7 @@ async function isBankAccountTakenByOtherUser(
   admin: AdminClient,
   userId: string,
   bankCode: string,
-  accountNumber: string
+  accountNumber: string,
 ): Promise<boolean> {
   const code = bankCode.trim();
   const num = accountNumber.replace(/\D/g, "");
@@ -59,7 +59,7 @@ async function isBankAccountTakenByOtherUser(
     const proHits = (proRes.data || []).some(matchRow);
     if (motHits || proHits) return true;
 
-    // Fallback: some rows may store number with spaces/dashes — scan by bank_code
+    // Fallback: some rows may store number with spaces/dashes scan by bank_code
     const [motByCode, proByCode] = await Promise.all([
       admin
         .from("motorist_profiles")
@@ -96,26 +96,16 @@ const bodySchema = z.object({
   avatarUrl: z.string().optional(),
   /** UI language: en | pcm | yo | ig | ha | fr | pt | ar | es | sw | zh */
   preferredLocale: z
-    .enum([
-      "en",
-      "pcm",
-      "yo",
-      "ig",
-      "ha",
-      "fr",
-      "pt",
-      "ar",
-      "es",
-      "sw",
-      "zh",
-    ])
+    .enum(["en", "pcm", "yo", "ig", "ha", "fr", "pt", "ar", "es", "sw", "zh"])
     .optional(),
   businessName: z.string().optional(),
   bio: z.string().max(144).optional(),
   yearsExperience: z.string().optional(),
   serviceRadiusKm: z.number().optional(),
   services: z.array(z.string()).optional(),
-  labourPrices: z.record(z.string(), z.union([z.number(), z.string()])).optional(),
+  labourPrices: z
+    .record(z.string(), z.union([z.number(), z.string()]))
+    .optional(),
   pricingCurrency: z
     .enum(["NGN", "USD", "GBP", "ZAR", "EUR", "GHS", "KES", "CAD", "AUD"])
     .optional(),
@@ -135,7 +125,7 @@ const bodySchema = z.object({
         plate: z.string().optional(),
         photo: z.string().optional(),
         commonIssues: z.array(z.string()).optional(),
-      })
+      }),
     )
     .optional(),
   emergencyContact: z
@@ -150,7 +140,7 @@ const bodySchema = z.object({
         address: z.string(),
         lat: z.number(),
         lng: z.number(),
-      })
+      }),
     )
     .optional(),
   bankName: z.string().optional(),
@@ -203,13 +193,13 @@ export async function POST(req: Request) {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const { data: userData, error: userErr } = await userClient.auth.getUser(
-    parsed.data.access_token
+    parsed.data.access_token,
   );
   if (userErr || !userData.user) {
     return apiFail(
       "Your login session needs a refresh. Save again, or sign in once more.",
       401,
-      "session_expired"
+      "session_expired",
     );
   }
 
@@ -246,18 +236,14 @@ export async function POST(req: Request) {
       return apiFail(
         "Date of birth cannot be in the future.",
         400,
-        "validation"
+        "validation",
       );
     }
     let age = today.getFullYear() - dob.getFullYear();
     const m = today.getMonth() - dob.getMonth();
     if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age -= 1;
     if (age < 16 || age > 120) {
-      return apiFail(
-        "You must be at least 16 years old.",
-        400,
-        "validation"
-      );
+      return apiFail("You must be at least 16 years old.", 400, "validation");
     }
   }
 
@@ -265,19 +251,17 @@ export async function POST(req: Request) {
   await admin
     .from("profiles")
     .update({
-      // full_name is never updated — locked at signup
+      // full_name is never updated locked at signup
       ...(b.phone != null ? { phone: b.phone } : {}),
       ...(b.gender != null ? { gender: b.gender } : {}),
-      ...(b.dateOfBirth != null
-        ? { date_of_birth: b.dateOfBirth }
-        : {}),
+      ...(b.dateOfBirth != null ? { date_of_birth: b.dateOfBirth } : {}),
       ...(b.city != null ? { city: b.city } : {}),
       ...(b.area != null ? { area: b.area } : {}),
       ...(b.avatarUrl != null ? { avatar_url: b.avatarUrl } : {}),
       ...(b.preferredLocale != null
         ? { preferred_locale: b.preferredLocale }
         : {}),
-      // phone_verified is set only by OTP verify routes — never from client profile patch
+      // phone_verified is set only by OTP verify routes never from client profile patch
       updated_at: new Date().toISOString(),
     })
     .eq("id", userId);
@@ -291,7 +275,10 @@ export async function POST(req: Request) {
     b.bankCode !== undefined;
 
   // One bank account (code + NUBAN) may only belong to one Ona user
-  if (hasBankPatch && (b.bankAccountNumber !== undefined || b.bankCode !== undefined)) {
+  if (
+    hasBankPatch &&
+    (b.bankAccountNumber !== undefined || b.bankCode !== undefined)
+  ) {
     let bankCode = (b.bankCode || "").trim();
     let accountNumber = (b.bankAccountNumber || "").replace(/\D/g, "");
 
@@ -315,7 +302,7 @@ export async function POST(req: Request) {
         if (accountNumber.length !== 10) {
           accountNumber = String(existing?.bank_account_number || "").replace(
             /\D/g,
-            ""
+            "",
           );
           if (b.bankAccountNumber !== undefined) {
             accountNumber = String(b.bankAccountNumber).replace(/\D/g, "");
@@ -331,13 +318,13 @@ export async function POST(req: Request) {
         admin,
         userId,
         bankCode,
-        accountNumber
+        accountNumber,
       );
       if (taken) {
         return apiFail(
           "This bank is already used on another Ona account. Use a different one.",
           409,
-          "bank_account_in_use"
+          "bank_account_in_use",
         );
       }
     }
@@ -397,7 +384,7 @@ export async function POST(req: Request) {
           : {}),
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "user_id" }
+      { onConflict: "user_id" },
     );
   }
 
@@ -416,7 +403,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Existing pro row — lock skill + years; clamp radius to 5 km
+    // Existing pro row lock skill + years; clamp radius to 5 km
     const { data: existingPro } = await admin
       .from("repair_pro_profiles")
       .select("services, primary_service, years_experience, service_radius_km")
@@ -425,7 +412,7 @@ export async function POST(req: Request) {
 
     const existingServices = Array.isArray(existingPro?.services)
       ? (existingPro!.services as string[]).filter((s): s is ProService =>
-          isProService(s)
+          isProService(s),
         )
       : [];
     const lockedPrimary: ProService | undefined =
@@ -441,9 +428,7 @@ export async function POST(req: Request) {
         : b.services
             ?.filter((s): s is ProService => isProService(s))
             .slice(0, 1)
-      : b.services
-          ?.filter((s): s is ProService => isProService(s))
-          .slice(0, 9);
+      : b.services?.filter((s): s is ProService => isProService(s)).slice(0, 9);
 
     // Hard max 5 km for all pros
     const clampedRadius =
@@ -452,7 +437,8 @@ export async function POST(req: Request) {
         : undefined;
 
     const vehicleFocus: Record<string, unknown> = {};
-    if (b.servedVehicleType) vehicleFocus.servedVehicleType = b.servedVehicleType;
+    if (b.servedVehicleType)
+      vehicleFocus.servedVehicleType = b.servedVehicleType;
     if (b.servedBrand) vehicleFocus.servedBrand = b.servedBrand;
     if (b.servedModel) vehicleFocus.servedModel = b.servedModel;
     if (b.servedCountry) vehicleFocus.servedCountry = b.servedCountry;
@@ -476,7 +462,7 @@ export async function POST(req: Request) {
             raw == null ||
             String(raw).trim() === "" ||
             String(raw).trim() === "0" ||
-            String(raw).trim() === "—";
+            String(raw).trim() === "";
           if (!unset) return {};
           const next = String(b.yearsExperience).trim();
           if (!next) return {};
@@ -492,9 +478,7 @@ export async function POST(req: Request) {
             }
           : {}),
         ...(b.labourPrices ? { labour_prices: labourPrices } : {}),
-        ...(b.pricingCurrency
-          ? { pricing_currency: b.pricingCurrency }
-          : {}),
+        ...(b.pricingCurrency ? { pricing_currency: b.pricingCurrency } : {}),
         ...(Object.keys(vehicleFocus).length
           ? { vehicle_focus: vehicleFocus }
           : {}),
@@ -520,15 +504,14 @@ export async function POST(req: Request) {
           : {}),
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "user_id" }
+      { onConflict: "user_id" },
     );
 
     // Auto visibility: liveness + BVN (with T2) → T3; + skill docs → T4
     if (b.faceLivenessVerified) {
       try {
-        const { recomputeProVisibility } = await import(
-          "@/lib/server/pro-visibility"
-        );
+        const { recomputeProVisibility } =
+          await import("@/lib/server/pro-visibility");
         await recomputeProVisibility(admin, userId);
       } catch {
         /* non-fatal */
@@ -540,10 +523,12 @@ export async function POST(req: Request) {
   // table in sync after any bank change (one bank = payouts + refunds).
   if (hasBankPatch) {
     try {
-      const { syncPayoutAcrossRoles } = await import(
-        "@/lib/server/identity/identity-sync"
-      );
-      await syncPayoutAcrossRoles(admin, userId, { userId, source: "profile_update" });
+      const { syncPayoutAcrossRoles } =
+        await import("@/lib/server/identity/identity-sync");
+      await syncPayoutAcrossRoles(admin, userId, {
+        userId,
+        source: "profile_update",
+      });
     } catch (e) {
       console.error("profile bank sync failed", e);
     }
@@ -561,7 +546,7 @@ export async function POST(req: Request) {
           occupation: b.guarantor.occupation || null,
           relationship: b.guarantor.relationship,
         },
-        { onConflict: "user_id" }
+        { onConflict: "user_id" },
       );
     } catch {
       /* non-fatal */

@@ -53,7 +53,7 @@ export function StarRatingDisplay({
                   : isLight
                     ? // Empty / transparent outline until users rate
                       "fill-transparent text-slate-400/55"
-                    : "fill-transparent text-white/30"
+                    : "fill-transparent text-white/30",
               )}
               strokeWidth={1.75}
             />
@@ -65,7 +65,7 @@ export function StarRatingDisplay({
           className={cn(
             "font-bold tabular-nums leading-none",
             size === "sm" ? "text-[10px]" : "text-[12px]",
-            isLight ? "text-slate-900" : "text-white"
+            isLight ? "text-slate-900" : "text-white",
           )}
         >
           {r.toFixed(1)}

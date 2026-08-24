@@ -1,8 +1,5 @@
 import { z } from "zod";
-import {
-  AdminAuthError,
-  requireAdmin,
-} from "@/lib/server/admin-auth";
+import { AdminAuthError, requireAdmin } from "@/lib/server/admin-auth";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { setHealthLogResolved } from "@/lib/server/health-service";
 
@@ -14,7 +11,7 @@ const patchSchema = z.object({
   resolved: z.boolean(),
 });
 
-/** PATCH — mark issue resolved / reopen */
+/** PATCH mark issue resolved / reopen */
 export async function PATCH(req: Request) {
   try {
     await requireAdmin();
@@ -24,7 +21,7 @@ export async function PATCH(req: Request) {
 
     const res = await setHealthLogResolved(
       parsed.data.id,
-      parsed.data.resolved
+      parsed.data.resolved,
     );
     if (!res.ok) return apiFail(res.error, 500);
     return apiOk({ id: parsed.data.id, resolved: parsed.data.resolved });

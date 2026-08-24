@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * MotoristReleasePayGate — Confirm Job & Release Payment
+ * MotoristReleasePayGate Confirm Job & Release Payment
  *
  * Only while status=completed AND customer has NOT yet confirmed (no satisfiedAt)
  * and escrow is not already released.
@@ -173,7 +173,7 @@ export function SwipeToRelease({
       <span
         className={cn(
           "absolute inset-0 flex items-center justify-center text-[12px] font-bold tracking-wide",
-          isLight ? "text-slate-600" : "text-zinc-300"
+          isLight ? "text-slate-600" : "text-zinc-300",
         )}
       >
         {busy ? "Confirming…" : "I am Satisfied Release Payment"}
@@ -202,7 +202,7 @@ function needsRelease(j: JobRecord, motoristId: string): boolean {
 
 function AutoReleaseCountdown({ endsAt }: { endsAt: string }) {
   const [left, setLeft] = useState(() =>
-    Math.max(0, new Date(endsAt).getTime() - Date.now())
+    Math.max(0, new Date(endsAt).getTime() - Date.now()),
   );
 
   useEffect(() => {
@@ -221,7 +221,7 @@ function AutoReleaseCountdown({ endsAt }: { endsAt: string }) {
   const label = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   const pct = Math.min(
     100,
-    Math.max(0, (left / COMPLETED_AUTO_RELEASE_WINDOW_MS) * 100)
+    Math.max(0, (left / COMPLETED_AUTO_RELEASE_WINDOW_MS) * 100),
   );
 
   return (
@@ -290,7 +290,7 @@ export function MotoristReleasePayGate() {
   const { quote: calloutQuote, ready: calloutReady } = useJobCallout(
     pending?.id,
     pending?.status,
-    pending?.calloutQuote
+    pending?.calloutQuote,
   );
 
   // Total the customer paid = labour + call-out. Labour splits 87.5/5/7.5;
@@ -299,7 +299,9 @@ export function MotoristReleasePayGate() {
     pending == null || !calloutReady
       ? null
       : pending.agreedMajor != null && pending.agreedMajor > 0
-        ? Math.round((pending.agreedMajor + payableCalloutMajor(calloutQuote)) * 100) / 100
+        ? Math.round(
+            (pending.agreedMajor + payableCalloutMajor(calloutQuote)) * 100,
+          ) / 100
         : pending.amountMinor != null && pending.amountMinor > 0
           ? pending.amountMinor / 100
           : null;
@@ -309,7 +311,7 @@ export function MotoristReleasePayGate() {
       setPending(null);
       return;
     }
-    // Soft sweep — never re-open UI for done jobs.
+    // Soft sweep never re-open UI for done jobs.
     // Data saver: the expire-stale POST is heavy (server DB sweep), so throttle
     // it to ~2 min even though the list poll runs more often.
     const now = Date.now();
@@ -346,7 +348,7 @@ export function MotoristReleasePayGate() {
       .sort(
         (a, b) =>
           new Date(b.updatedAt || b.createdAt).getTime() -
-          new Date(a.updatedAt || a.createdAt).getTime()
+          new Date(a.updatedAt || a.createdAt).getTime(),
       );
 
     const top = needs[0] || null;
@@ -362,7 +364,7 @@ export function MotoristReleasePayGate() {
     const min = isMinimized(top.id);
     setMinimizedUi(min);
 
-    // Alert only once per job — never re-spam full modal every poll
+    // Alert only once per job never re-spam full modal every poll
     if (firstSighting && !readSet(ALERTED_KEY).has(top.id)) {
       markAlerted(top.id);
       buzzForJob(top);
@@ -370,10 +372,7 @@ export function MotoristReleasePayGate() {
 
     // Hourly gentle buzz only if still minimized (does not force full modal open)
     const last = readLastBuzz(top.id);
-    if (
-      min &&
-      Date.now() - last >= SATISFIED_REMINDER_INTERVAL_MS
-    ) {
+    if (min && Date.now() - last >= SATISFIED_REMINDER_INTERVAL_MS) {
       buzzForJob(top);
     }
   }, [backendUserId, isAuthenticated]);
@@ -434,14 +433,13 @@ export function MotoristReleasePayGate() {
         : pending.amountMinor != null && pending.amountMinor > 0
           ? Math.max(
               0,
-              pending.amountMinor / 100 - payableCalloutMajor(calloutQuote)
+              pending.amountMinor / 100 - payableCalloutMajor(calloutQuote),
             )
           : 0;
     const calloutMajor = payableCalloutMajor(calloutQuote);
     const total = Math.round((labourMajor + calloutMajor) * 100) / 100;
     // Service S splits 87.5/5/7.5; the call-out goes to the pro in full.
-    const proShare =
-      Math.round(labourMajor * 0.875 * 100) / 100 + calloutMajor;
+    const proShare = Math.round(labourMajor * 0.875 * 100) / 100 + calloutMajor;
     const platformShare = Math.round(labourMajor * 0.05 * 100) / 100;
 
     markDone(jobId);
@@ -454,7 +452,7 @@ export function MotoristReleasePayGate() {
       amount: formatMoney(total, currency),
       pro: formatMoney(proShare, currency),
       platform: formatMoney(platformShare, currency),
-      note: "Payment confirmed — releasing your Repair Pro's pay.",
+      note: "Payment confirmed releasing your Repair Pro's pay.",
     });
     setSuccess(true);
     setPending(null);
@@ -520,8 +518,8 @@ export function MotoristReleasePayGate() {
 
   if (!pending) return null;
 
-  // On the live job page the job shell already has the single CTA —
-  // do not stack another modal (avoids 2–3 identical buttons).
+  // On the live job page the job shell already has the single CTA
+  // do not stack another modal (avoids 2-3 identical buttons).
   const onThisJobPage =
     pathname === `/jobs/${pending.id}` ||
     pathname.startsWith(`/jobs/${pending.id}/`);
@@ -590,7 +588,7 @@ export function MotoristReleasePayGate() {
             onClick={onMinimize}
             className={cn(
               "inline-flex h-8 w-8 items-center justify-center rounded-full border-0",
-              isLight ? "bg-black/8 text-slate-800" : "bg-white/10 text-white"
+              isLight ? "bg-black/8 text-slate-800" : "bg-white/10 text-white",
             )}
             aria-label="Minimize"
           >
@@ -654,7 +652,6 @@ export function MotoristReleasePayGate() {
           busy={busy || !backendUserId}
           isLight={isLight}
         />
-
       </div>
     </div>
   );

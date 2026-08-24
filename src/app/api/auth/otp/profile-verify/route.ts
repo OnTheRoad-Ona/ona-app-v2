@@ -3,10 +3,7 @@ import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { normalizeNgPhone } from "@/lib/server/africastalking";
 import { emailOtpKey, isDemoOtp, isDemoOtpAllowed } from "@/lib/auth/demo-otp";
-import {
-  phoneOrFilter,
-  phonesMatch,
-} from "@/lib/server/phone-match";
+import { phoneOrFilter, phonesMatch } from "@/lib/server/phone-match";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 
@@ -28,7 +25,7 @@ function hashCode(dest: string, code: string): string {
 /** Mark profiles + motorist + pro side-tables phone verified for this identity. */
 async function markPhoneVerified(
   supabase: ReturnType<typeof createServiceSupabase>,
-  destPhone: string
+  destPhone: string,
 ) {
   const ts = new Date().toISOString();
   const { data: found } = await supabase
@@ -155,7 +152,7 @@ export async function POST(req: Request) {
       nextAttempts >= 4
         ? "Too many incorrect codes. Please wait before requesting another."
         : "Incorrect code. Try again.",
-      401
+      401,
     );
   }
 

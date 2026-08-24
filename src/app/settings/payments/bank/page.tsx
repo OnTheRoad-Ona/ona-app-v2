@@ -68,7 +68,7 @@ export default function PaymentsBankPage() {
     const validation = validateBankDetailsInput(
       { ...details, bankAccountNumber: num, bankCode: code },
       undefined,
-      userProfile?.fullName
+      userProfile?.fullName,
     );
     if (validation) {
       setErr(validation);
@@ -105,7 +105,7 @@ export default function PaymentsBankPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader title="Bank account details" backHref="/settings/payments" />
@@ -202,7 +202,7 @@ export default function PaymentsBankPage() {
                       "inline-flex h-12 flex-1 items-center justify-center rounded-lg border-0 text-[14px] font-black",
                       isLight
                         ? "bg-black/10 text-slate-900"
-                        : "bg-white/10 text-white"
+                        : "bg-white/10 text-white",
                     )}
                   >
                     Cancel

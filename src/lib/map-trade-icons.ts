@@ -1,7 +1,7 @@
 import type { ProService } from "@/lib/types";
 
 /**
- * Map Repair Pro trade icons — same solid orange as the Message button.
+ * Map Repair Pro trade icons same solid orange as the Message button.
  * Clean glyph only: no dual-tone rim, glow, drop-shadow, or disc plate.
  */
 export const MESSAGE_ORANGE = "#FF6B35";
@@ -25,7 +25,7 @@ function tradeGlyph(type: ProService, color: string): string {
     case "towing":
       return `<path ${stroked} d="M5 17h-1a1 1 0 0 1-1-1v-3.2c0-.5.2-1 .6-1.3L6 9.5h7.2c.4 0 .8.2 1 .5L16 12h2.5c.8 0 1.5.7 1.5 1.5V16a1 1 0 0 1-1 1h-1"/><circle ${dual} cx="7.5" cy="17" r="1.9"/><circle ${dual} cx="16.5" cy="17" r="1.9"/><path ${stroked} d="M5 17h9"/>`;
     case "battery":
-      // Car battery block with top posts (+ / −) — not phone battery
+      // Car battery block with top posts (+ / −) not phone battery
       return `<rect ${stroked} x="3" y="8" width="18" height="12" rx="1.5"/><path ${stroked} d="M6 8V5.5A1.5 1.5 0 0 1 7.5 4h1A1.5 1.5 0 0 1 10 5.5V8M14 8V5.5A1.5 1.5 0 0 1 15.5 4h1A1.5 1.5 0 0 1 18 5.5V8"/><path ${stroked} d="M7 13h2.5M8.25 11.75v2.5M14.5 13h2.5"/>`;
     case "ac":
       return `<path ${stroked} d="M12 4v4M12 16v4M4 12h4M16 12h4M6.5 6.5l2.5 2.5M15 15l2.5 2.5M17.5 6.5 15 9M9 15l-2.5 2.5"/><circle ${dual} cx="12" cy="12" r="2.2"/>`;
@@ -58,14 +58,14 @@ function tradeGlyph(type: ProService, color: string): string {
  */
 export function tradeIconDataUrl(
   type: ProService | string,
-  opts?: { size?: number; selected?: boolean; flat?: boolean }
+  opts?: { size?: number; selected?: boolean; flat?: boolean },
 ): string {
   const size = opts?.size ?? 22;
   const svc = (type || "mechanic") as ProService;
   const body = tradeGlyph(svc, MESSAGE_ORANGE);
 
   const svg = encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none">${body}</svg>`
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none">${body}</svg>`,
   );
   return `data:image/svg+xml;charset=UTF-8,${svg}`;
 }
@@ -76,16 +76,18 @@ export function tradeIconDataUrl(
  */
 export function tradeIconHtml(
   type: ProService | string,
-  opts?: { size?: number; selected?: boolean; live?: boolean }
+  opts?: { size?: number; selected?: boolean; live?: boolean },
 ): string {
   const size = opts?.size ?? 22;
   const live = opts?.live !== false;
   const url = tradeIconDataUrl(type, { size, selected: opts?.selected });
   const box = Math.max(size + 4, 28);
-  const pulseClass = live ? "om-live-glyph om-live-glyph--pulse" : "om-live-glyph";
+  const pulseClass = live
+    ? "om-live-glyph om-live-glyph--pulse"
+    : "om-live-glyph";
   return `<div class="om-live-pin" style="width:${box}px;height:${box}px;position:relative;background:transparent;border:none">
-    <span style="position:absolute;left:50%;top:50%;width:${size}px;height:${size}px;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center">
-      <img loading="lazy" decoding="async" src="${url}" width="${size}" height="${size}" alt="" class="${pulseClass}" style="width:${size}px;height:${size}px;background:transparent;border:none;display:block;filter:none" draggable="false"/>
-    </span>
-  </div>`;
+ <span style="position:absolute;left:50%;top:50%;width:${size}px;height:${size}px;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center">
+ <img loading="lazy" decoding="async" src="${url}" width="${size}" height="${size}" alt="" class="${pulseClass}" style="width:${size}px;height:${size}px;background:transparent;border:none;display:block;filter:none" draggable="false"/>
+ </span>
+ </div>`;
 }

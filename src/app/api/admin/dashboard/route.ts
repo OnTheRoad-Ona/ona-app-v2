@@ -8,7 +8,11 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     await requireAdmin();
@@ -51,10 +55,7 @@ export async function GET() {
         .from("service_requests")
         .select("id", { count: "exact", head: true })
         .eq("status", "completed"),
-      supabase
-        .from("payments")
-        .select("amount_kobo")
-        .eq("status", "paid"),
+      supabase.from("payments").select("amount_kobo").eq("status", "paid"),
       supabase
         .from("admin_actions")
         .select("id, action, target_user_id, meta, created_at, admin_id")
@@ -68,7 +69,7 @@ export async function GET() {
 
     const revenueKobo = (paymentsPaid.data ?? []).reduce(
       (sum, row) => sum + Number(row.amount_kobo || 0),
-      0
+      0,
     );
 
     return apiOk({

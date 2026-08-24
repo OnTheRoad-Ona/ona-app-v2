@@ -1,5 +1,5 @@
 /**
- * Automedics Mechanic Shop taxonomy — 17 live categories.
+ * Automedics Mechanic Shop taxonomy 17 live categories.
  * Seeds shop_trade_categories for trade_key = mechanic.
  */
 
@@ -12,7 +12,7 @@ export type MechCat = {
 };
 
 export const MECHANIC_CATEGORY_TREE: MechCat[] = AUTOMEDICS_CATEGORIES.map(
-  (c) => ({ slug: c.slug, name: c.name })
+  (c) => ({ slug: c.slug, name: c.name }),
 );
 
 /** Flat walk for seeding: depth 0 roots then depth 1 children. */

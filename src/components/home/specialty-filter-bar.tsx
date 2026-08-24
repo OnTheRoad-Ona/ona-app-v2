@@ -48,7 +48,7 @@ export function SpecialtyFilterBar() {
                 ? "bg-[#FF6B35] text-white"
                 : isLight
                   ? "bg-transparent text-[#475569]"
-                  : "bg-transparent text-white/75"
+                  : "bg-transparent text-white/75",
             )}
           >
             {specialtyChipLabel(opt)}

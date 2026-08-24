@@ -13,13 +13,13 @@ describe("job vehicle step", () => {
         make: "Toyota",
         model: "Camry",
         year: "2018",
-      })
+      }),
     ).toBe("Automobile / Passenger Car · Toyota · Camry · 2018");
     expect(
       formatVehicleLabel({
         make: "Toyota",
         model: "Camry",
-      })
+      }),
     ).toBe("Toyota · Camry");
   });
 
@@ -31,10 +31,8 @@ describe("job vehicle step", () => {
   it("reads saved vehicles from the profile", () => {
     expect(
       profileVehiclesOf({
-        vehicles: [
-          { id: "1", make: "Honda", model: "Civic", year: "2014" },
-        ],
-      }).map((v) => formatVehicleLabel(v))
+        vehicles: [{ id: "1", make: "Honda", model: "Civic", year: "2014" }],
+      }).map((v) => formatVehicleLabel(v)),
     ).toEqual(["Honda · Civic · 2014"]);
   });
 });

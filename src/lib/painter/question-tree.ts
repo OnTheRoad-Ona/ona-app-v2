@@ -1,7 +1,6 @@
 /** Deep cascading question flow for the Painter trade. */
 
-export const PAINTER_START_QUESTION =
-  "What kind of painting work do you need?";
+export const PAINTER_START_QUESTION = "What kind of painting work do you need?";
 
 export const PAINTER_MIN_PHOTOS = 2;
 export const PAINTER_MAX_PHOTOS = 4;
@@ -37,7 +36,7 @@ export const PAINTER_FINAL_COPY = {
   emergency: "Emergency",
   remote: "Remote location",
   night: "Night service / weekend work needed",
-  photos: "Add clear photos of the area to be painted (2–4)",
+  photos: "Add clear photos of the area to be painted (2-4)",
   voice: "Record a short voice note explaining exactly what you want",
   location: "Exact location / landmark",
   supply: "Who is supplying the paint and materials?",
@@ -62,7 +61,7 @@ export const PAINTER_SCREENS: Record<string, PainterScreen> = {
     options: PAINTER_START_OPTIONS,
   },
 
-  // Branch A — residential house painting
+  // Branch A residential house painting
   a_scope: {
     question: "Is it interior, exterior, or both?",
     kind: "choice",
@@ -77,7 +76,7 @@ export const PAINTER_SCREENS: Record<string, PainterScreen> = {
     kind: "choice",
     options: [
       { id: "newly-built", label: "Newly built" },
-      { id: "old-repaint", label: "Old house – repainting" },
+      { id: "old-repaint", label: "Old house, repainting" },
       { id: "not-sure", label: "Not sure" },
     ],
   },
@@ -94,7 +93,7 @@ export const PAINTER_SCREENS: Record<string, PainterScreen> = {
       { id: "gloss", label: "Gloss" },
       { id: "textured", label: "Textured" },
       { id: "weather-shield", label: "Weather Shield / Exterior paint" },
-      { id: "advise", label: "I don’t know – advise me" },
+      { id: "advise", label: "I don’t know, advise me" },
     ],
   },
   a_supply: {
@@ -115,7 +114,7 @@ export const PAINTER_SCREENS: Record<string, PainterScreen> = {
     ],
   },
 
-  // Branch B — commercial / shop / office painting
+  // Branch B commercial / shop / office painting
   b_place: {
     question: "What type of place is it?",
     kind: "choice",
@@ -162,7 +161,7 @@ export const PAINTER_SCREENS: Record<string, PainterScreen> = {
     ],
   },
 
-  // Branch C — industrial / factory / warehouse painting
+  // Branch C industrial / factory / warehouse painting
   c_facility: {
     question: "What type of facility is it?",
     kind: "choice",
@@ -175,7 +174,8 @@ export const PAINTER_SCREENS: Record<string, PainterScreen> = {
     ],
   },
   c_surface: {
-    question: "Is it mainly walls, steel structures, machines, or floor marking?",
+    question:
+      "Is it mainly walls, steel structures, machines, or floor marking?",
     kind: "choice",
     options: [
       { id: "walls", label: "Walls" },
@@ -202,7 +202,7 @@ export const PAINTER_SCREENS: Record<string, PainterScreen> = {
     ],
   },
 
-  // Branch D — roadside, market stall or kiosk painting
+  // Branch D roadside, market stall or kiosk painting
   d_need: {
     question: "What exactly needs painting?",
     kind: "choice",
@@ -230,7 +230,7 @@ export const PAINTER_SCREENS: Record<string, PainterScreen> = {
     ],
   },
 
-  // Branch E — gate, fence, railing or burglary proof
+  // Branch E gate, fence, railing or burglary proof
   e_need: {
     question: "What needs painting?",
     kind: "choice",
@@ -267,7 +267,7 @@ export const PAINTER_SCREENS: Record<string, PainterScreen> = {
     placeholder: "e.g. Black gloss or dark green",
   },
 
-  // Branch F — roof painting
+  // Branch F roof painting
   f_roof: {
     question: "What type of roof is it?",
     kind: "choice",
@@ -279,7 +279,8 @@ export const PAINTER_SCREENS: Record<string, PainterScreen> = {
     ],
   },
   f_purpose: {
-    question: "Is the main purpose beautification, heat reduction, or waterproofing?",
+    question:
+      "Is the main purpose beautification, heat reduction, or waterproofing?",
     kind: "choice",
     options: [
       { id: "beautification", label: "Beautification" },
@@ -303,7 +304,7 @@ export const PAINTER_SCREENS: Record<string, PainterScreen> = {
     placeholder: "e.g. Single storey",
   },
 
-  // Branch G — church, school, mosque or public building
+  // Branch G church, school, mosque or public building
   g_type: {
     question: "What type of building is it?",
     kind: "text",
@@ -338,7 +339,7 @@ export const PAINTER_SCREENS: Record<string, PainterScreen> = {
     ],
   },
 
-  // Branch H — sign writing, branding or wall design
+  // Branch H sign writing, branding or wall design
   h_need: {
     question: "What do you need?",
     kind: "choice",
@@ -369,7 +370,7 @@ export const PAINTER_SCREENS: Record<string, PainterScreen> = {
     ],
   },
 
-  // Branch I — something else / not sure
+  // Branch I something else / not sure
   i_describe: {
     question: "Please describe the painting work you need in your own words.",
     kind: "text",
@@ -408,7 +409,7 @@ export function painterScreen(id: string): PainterScreen | undefined {
 export function nextPainterScreen(
   current: string,
   _answerId: string,
-  _answers: Record<string, string>
+  _answers: Record<string, string>,
 ): string {
   const map: Record<string, string> = {
     a_scope: "a_building",
@@ -464,11 +465,12 @@ export function nextPainterScreen(
 
 /**
  * Strictly painting works: the flow is capture-only and always dispatches as
- * "painter" — no confirm cards, no reroute to any other service.
+ * "painter" no confirm cards, no reroute to any other service.
  */
-export function resolvePainterRoute(
-  _answers: Record<string, string>
-): { trade: "painter"; needsConfirm: false } {
+export function resolvePainterRoute(_answers: Record<string, string>): {
+  trade: "painter";
+  needsConfirm: false;
+} {
   return { trade: "painter", needsConfirm: false };
 }
 
@@ -483,7 +485,7 @@ export function canFindPainterPro(photoCount: number): boolean {
 export function composePainterJob(
   answers: Record<string, string>,
   extra: string,
-  landmark: string
+  landmark: string,
 ): string {
   const lines: string[] = [];
   const startLabel = answers.start_label || answers.start || "";

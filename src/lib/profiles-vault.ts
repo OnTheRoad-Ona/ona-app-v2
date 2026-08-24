@@ -54,7 +54,7 @@ export function writeProfilesVault(vault: ProfilesVault) {
     const active =
       vault.professional && vault.motorist
         ? null
-        : vault.professional ?? vault.motorist;
+        : (vault.professional ?? vault.motorist);
     if (active) {
       localStorage.setItem(LEGACY_PROFILE_KEY, JSON.stringify(active));
     }
@@ -71,9 +71,7 @@ export function saveProfileToVault(profile: UserProfile): ProfilesVault {
   return vault;
 }
 
-export function getVaultProfile(
-  type: AccountType
-): UserProfile | undefined {
+export function getVaultProfile(type: AccountType): UserProfile | undefined {
   const vault = readProfilesVault();
   return type === "motorist" ? vault.motorist : vault.professional;
 }
@@ -88,17 +86,14 @@ export function hasVaultAccount(type: AccountType): boolean {
  */
 export function findProfilesForLogin(
   email: string,
-  password: string
+  password: string,
 ): UserProfile[] {
   const em = email.trim().toLowerCase();
   const vault = readProfilesVault();
   const hits: UserProfile[] = [];
   for (const p of [vault.motorist, vault.professional]) {
     if (!p) continue;
-    if (
-      p.email.trim().toLowerCase() === em &&
-      p.password === password
-    ) {
+    if (p.email.trim().toLowerCase() === em && p.password === password) {
       hits.push(p);
     }
   }

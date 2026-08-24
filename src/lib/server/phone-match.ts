@@ -11,7 +11,7 @@ export function canonicalPhone(raw: string | null | undefined): string | null {
 /** True when two numbers are the same account after normalization. */
 export function phonesMatch(
   a: string | null | undefined,
-  b: string | null | undefined
+  b: string | null | undefined,
 ): boolean {
   const na = canonicalPhone(a);
   const nb = canonicalPhone(b);
@@ -21,7 +21,7 @@ export function phonesMatch(
 
 /**
  * PostgREST OR filter variants so we still find rows stored as 080… / 234… / +234…
- * Final match must always use phonesMatch — never pick an arbitrary OR hit.
+ * Final match must always use phonesMatch never pick an arbitrary OR hit.
  */
 export function phoneLookupVariants(e164: string): string[] {
   const phone = canonicalPhone(e164);

@@ -28,7 +28,10 @@ const actionSchema = z.object({
   identityDocumentType: z.string().optional(),
 });
 
-function maskValue(val: string, type: "phone" | "email" | "bank" | "other"): string {
+function maskValue(
+  val: string,
+  type: "phone" | "email" | "bank" | "other",
+): string {
   if (type === "phone" && val.length >= 8) {
     return val.slice(0, 5) + "***" + val.slice(-3);
   }
@@ -109,10 +112,13 @@ async function notifyUser(
 
 function validatePasswordStrength(password: string): string | null {
   if (password.length < 8) return "Password must be at least 8 characters.";
-  if (!/[A-Z]/.test(password)) return "Password must contain an uppercase letter.";
-  if (!/[a-z]/.test(password)) return "Password must contain a lowercase letter.";
+  if (!/[A-Z]/.test(password))
+    return "Password must contain an uppercase letter.";
+  if (!/[a-z]/.test(password))
+    return "Password must contain a lowercase letter.";
   if (!/[0-9]/.test(password)) return "Password must contain a number.";
-  if (!/[^A-Za-z0-9]/.test(password)) return "Password must contain a special character.";
+  if (!/[^A-Za-z0-9]/.test(password))
+    return "Password must contain a special character.";
   return null;
 }
 
@@ -133,7 +139,15 @@ export async function POST(req: Request) {
     return apiFail(parsed.error.issues[0]?.message || "Invalid request", 400);
   }
 
-  const { action, accessToken, newValue, currentPassword, reason, identityDocumentUrl, identityDocumentType } = parsed.data;
+  const {
+    action,
+    accessToken,
+    newValue,
+    currentPassword,
+    reason,
+    identityDocumentUrl,
+    identityDocumentType,
+  } = parsed.data;
 
   const userId = await getUserIdFromToken(accessToken);
   if (!userId) return apiFail("Invalid session", 401);
@@ -157,7 +171,8 @@ export async function POST(req: Request) {
         .eq("phone", phone)
         .limit(1);
       const phoneTaken = (existing || []).length > 0;
-      if (phoneTaken) return apiFail("This phone number is already in use.", 409);
+      if (phoneTaken)
+        return apiFail("This phone number is already in use.", 409);
 
       // Get current phone
       const { data: profile } = await supabase
@@ -169,11 +184,20 @@ export async function POST(req: Request) {
       const oldPhone = (profile as { phone?: string } | null)?.phone || "";
 
       // Update profiles table
-      await supabase.from("profiles").update({ phone, updated_at: now }).eq("id", userId);
+      await supabase
+        .from("profiles")
+        .update({ phone, updated_at: now })
+        .eq("id", userId);
 
       // Update role-specific tables
-      await supabase.from("motorist_profiles").update({ phone, updated_at: now }).eq("user_id", userId);
-      await supabase.from("repair_pro_profiles").update({ phone, updated_at: now }).eq("user_id", userId);
+      await supabase
+        .from("motorist_profiles")
+        .update({ phone, updated_at: now })
+        .eq("user_id", userId);
+      await supabase
+        .from("repair_pro_profiles")
+        .update({ phone, updated_at: now })
+        .eq("user_id", userId);
 
       await writeAuditLog({
         userId,
@@ -187,7 +211,12 @@ export async function POST(req: Request) {
         verificationMethod: "otp_phone",
       });
 
-      await notifyUser(userId, "Phone number updated", "Your phone number has been changed. If you did not make this change, secure your account immediately.", "phone_changed");
+      await notifyUser(
+        userId,
+        "Phone number updated",
+        "Your phone number has been changed. If you did not make this change, secure your account immediately.",
+        "phone_changed",
+      );
 
       return apiOk({ updated: true, maskedValue: maskValue(phone, "phone") });
     }
@@ -216,7 +245,10 @@ export async function POST(req: Request) {
       const oldEmail = (profile as { email?: string } | null)?.email || "";
 
       // Update email in profiles table
-      await supabase.from("profiles").update({ email, updated_at: now }).eq("id", userId);
+      await supabase
+        .from("profiles")
+        .update({ email, updated_at: now })
+        .eq("id", userId);
 
       // Attempt to update Supabase Auth email
       try {
@@ -237,7 +269,12 @@ export async function POST(req: Request) {
         verificationMethod: "otp_email",
       });
 
-      await notifyUser(userId, "Email address updated", "Your email address has been changed. If you did not make this change, secure your account immediately.", "email_changed");
+      await notifyUser(
+        userId,
+        "Email address updated",
+        "Your email address has been changed. If you did not make this change, secure your account immediately.",
+        "email_changed",
+      );
 
       // TODO: send email notification to oldEmail when email provider is wired
 
@@ -275,9 +312,12 @@ export async function POST(req: Request) {
       if (authErr) return apiFail("Current password is incorrect", 403);
 
       // Update password via admin API
-      const { error: updateErr } = await supabase.auth.admin.updateUserById(userId, {
-        password: newValue,
-      });
+      const { error: updateErr } = await supabase.auth.admin.updateUserById(
+        userId,
+        {
+          password: newValue,
+        },
+      );
       if (updateErr) return apiFail(updateErr.message, 500);
 
       await writeAuditLog({
@@ -288,7 +328,12 @@ export async function POST(req: Request) {
         verificationMethod: "password",
       });
 
-      await notifyUser(userId, "Password changed", "Your password has been updated. If you did not make this change, secure your account immediately.", "password_changed");
+      await notifyUser(
+        userId,
+        "Password changed",
+        "Your password has been updated. If you did not make this change, secure your account immediately.",
+        "password_changed",
+      );
 
       return apiOk({ updated: true });
     }
@@ -297,14 +342,28 @@ export async function POST(req: Request) {
     case "change_bank": {
       if (!newValue) return apiFail("Bank details are required", 400);
 
-      let bankData: { bankName?: string; bankAccountName?: string; bankAccountNumber?: string; bankCode?: string };
+      let bankData: {
+        bankName?: string;
+        bankAccountName?: string;
+        bankAccountNumber?: string;
+        bankCode?: string;
+      };
       try {
-        bankData = typeof newValue === "string" ? JSON.parse(newValue) : newValue;
+        bankData =
+          typeof newValue === "string" ? JSON.parse(newValue) : newValue;
       } catch {
         return apiFail("Invalid bank data format", 400);
       }
-      if (!bankData.bankName || !bankData.bankAccountName || !bankData.bankAccountNumber || !bankData.bankCode) {
-        return apiFail("All bank fields are required: bankName, bankAccountName, bankAccountNumber, bankCode", 400);
+      if (
+        !bankData.bankName ||
+        !bankData.bankAccountName ||
+        !bankData.bankAccountNumber ||
+        !bankData.bankCode
+      ) {
+        return apiFail(
+          "All bank fields are required: bankName, bankAccountName, bankAccountNumber, bankCode",
+          400,
+        );
       }
 
       const { data: currentBank } = await supabase
@@ -322,8 +381,14 @@ export async function POST(req: Request) {
         updated_at: now,
       };
 
-      await supabase.from("repair_pro_profiles").update(updateData).eq("user_id", userId);
-      await supabase.from("motorist_profiles").update(updateData).eq("user_id", userId);
+      await supabase
+        .from("repair_pro_profiles")
+        .update(updateData)
+        .eq("user_id", userId);
+      await supabase
+        .from("motorist_profiles")
+        .update(updateData)
+        .eq("user_id", userId);
 
       await writeAuditLog({
         userId,
@@ -332,12 +397,20 @@ export async function POST(req: Request) {
         status: "completed",
         oldValue: JSON.stringify(oldBank || {}),
         newValue: JSON.stringify(bankData),
-        maskedOldValue: maskValue(oldBank?.bank_account_number as string || "", "bank"),
+        maskedOldValue: maskValue(
+          (oldBank?.bank_account_number as string) || "",
+          "bank",
+        ),
         maskedNewValue: maskValue(bankData.bankAccountNumber, "bank"),
         verificationMethod: "otp_phone",
       });
 
-      await notifyUser(userId, "Bank account updated", "Your payout bank account has been changed. If you did not make this change, contact support immediately.", "bank_changed");
+      await notifyUser(
+        userId,
+        "Bank account updated",
+        "Your payout bank account has been changed. If you did not make this change, contact support immediately.",
+        "bank_changed",
+      );
 
       return apiOk({ updated: true });
     }
@@ -346,24 +419,28 @@ export async function POST(req: Request) {
     case "request_name_change": {
       if (!newValue) return apiFail("Requested name is required", 400);
       const requestedName = newValue.trim();
-      if (requestedName.length < 2) return apiFail("Name must be at least 2 characters", 400);
+      if (requestedName.length < 2)
+        return apiFail("Name must be at least 2 characters", 400);
 
       const { data: profile } = await supabase
         .from("profiles")
         .select("full_name")
         .eq("id", userId)
         .single();
-      const currentName = (profile as { full_name?: string } | null)?.full_name || "";
+      const currentName =
+        (profile as { full_name?: string } | null)?.full_name || "";
 
-      const { error: insertErr } = await supabase.from("name_change_requests").insert({
-        user_id: userId,
-        current_name: currentName,
-        requested_name: requestedName,
-        reason: reason || null,
-        identity_document_url: identityDocumentUrl || null,
-        identity_document_type: identityDocumentType || null,
-        status: "pending",
-      });
+      const { error: insertErr } = await supabase
+        .from("name_change_requests")
+        .insert({
+          user_id: userId,
+          current_name: currentName,
+          requested_name: requestedName,
+          reason: reason || null,
+          identity_document_url: identityDocumentUrl || null,
+          identity_document_type: identityDocumentType || null,
+          status: "pending",
+        });
       if (insertErr) return apiFail(insertErr.message, 500);
 
       await writeAuditLog({
@@ -378,7 +455,12 @@ export async function POST(req: Request) {
         verificationMethod: "admin_review",
       });
 
-      await notifyUser(userId, "Name change requested", "Your request to change your name has been submitted for review. We will notify you once it is processed.", "name_change_requested");
+      await notifyUser(
+        userId,
+        "Name change requested",
+        "Your request to change your name has been submitted for review. We will notify you once it is processed.",
+        "name_change_requested",
+      );
 
       return apiOk({ submitted: true });
     }

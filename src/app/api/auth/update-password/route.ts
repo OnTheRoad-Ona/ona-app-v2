@@ -36,7 +36,7 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return apiFail(
       "Invalid reset session or password (min 6 characters).",
-      400
+      400,
     );
   }
 
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
   if (sessErr) {
     return apiFail(
       "Reset link expired or invalid. Request a new password reset.",
-      401
+      401,
     );
   }
 

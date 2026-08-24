@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Flat 2D picker — no native <select>.
+ * Flat 2D picker no native <select>.
  *
  * Open state: full-width BOTTOM SHEET = 80% of #ona-phone height.
  * Portaled into #ona-phone with position:absolute + height:80% + bottom:0
@@ -136,7 +136,7 @@ export function FlatSelect({
                   onClick={() => setOpen(false)}
                   className={cn(
                     "flex h-8 w-8 items-center justify-center rounded-md border-0 bg-transparent",
-                    muted
+                    muted,
                   )}
                 >
                   <X className="h-4 w-4" strokeWidth={2.5} />
@@ -151,10 +151,7 @@ export function FlatSelect({
               >
                 {options.length === 0 ? (
                   <li
-                    className={cn(
-                      "px-3 py-3 text-[12px] font-medium",
-                      muted
-                    )}
+                    className={cn("px-3 py-3 text-[12px] font-medium", muted)}
                   >
                     No options
                   </li>
@@ -173,7 +170,7 @@ export function FlatSelect({
                             "flex w-full items-center justify-between gap-2 border-0 bg-transparent px-3 py-3 text-left text-[14px] font-semibold outline-none",
                             hoverBg,
                             active && activeBg,
-                            ink
+                            ink,
                           )}
                           onClick={() => {
                             onChange(o.value);
@@ -196,7 +193,7 @@ export function FlatSelect({
               <p
                 className={cn(
                   "shrink-0 px-3 py-2 text-center text-[10px] font-semibold",
-                  muted
+                  muted,
                 )}
               >
                 {options.length} option{options.length === 1 ? "" : "s"} · 80%
@@ -204,7 +201,7 @@ export function FlatSelect({
               </p>
             </div>
           </>,
-          phone
+          phone,
         )
       : null;
 
@@ -224,7 +221,7 @@ export function FlatSelect({
         }}
         className={cn(
           "flex h-11 w-full items-center justify-between gap-2 rounded-md border-0 px-3 text-left text-[13px] font-semibold outline-none shadow-none ring-0",
-          "disabled:cursor-not-allowed disabled:opacity-50"
+          "disabled:cursor-not-allowed disabled:opacity-50",
         )}
         style={{
           backgroundColor: fieldBg,
@@ -243,7 +240,7 @@ export function FlatSelect({
           className={cn(
             "h-4 w-4 shrink-0 transition-transform",
             muted,
-            open && "rotate-180"
+            open && "rotate-180",
           )}
           strokeWidth={2.5}
           aria-hidden

@@ -3,7 +3,7 @@
  *
  * The Flutterwave payout proxy sits behind a fixed egress IP. If the host is
  * rebuilt/redeployed (Fly.io hands VMs a new public IPv4 on each deploy), the
- * egress IP can silently change — and every transfer then fails with the
+ * egress IP can silently change and every transfer then fails with the
  * "account administrator" 400 until the new IP is whitelisted on Flutterwave.
  *
  * This route checks the proxy's advertised egress IP against the expected
@@ -24,7 +24,10 @@ export const maxDuration = 30;
 function expectedIps(): string[] {
   const raw = process.env.FLUTTERWAVE_EGRESS_IPS?.trim();
   if (raw) {
-    return raw.split(",").map((s) => s.trim()).filter(Boolean);
+    return raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
   }
   // Default: IPs whitelisted on Flutterwave ↔ Settings ↔ API ↔ IP Whitelisting.
   return ["152.233.48.151", "152.233.42.58"];
@@ -38,7 +41,9 @@ function cronAuthorized(req: Request): boolean {
   ].filter((s): s is string => Boolean(s));
   const auth = req.headers.get("authorization") || "";
   const header =
-    req.headers.get("x-cron-secret") || req.headers.get("x-job-expire-secret") || "";
+    req.headers.get("x-cron-secret") ||
+    req.headers.get("x-job-expire-secret") ||
+    "";
   const url = new URL(req.url);
   const querySecret = url.searchParams.get("secret") || "";
   for (const secret of secrets) {
@@ -53,7 +58,9 @@ function cronAuthorized(req: Request): boolean {
   return false;
 }
 
-async function fetchEgressIp(): Promise<{ ok: true; ip: string } | { ok: false; error: string }> {
+async function fetchEgressIp(): Promise<
+  { ok: true; ip: string } | { ok: false; error: string }
+> {
   const proxyUrl =
     process.env.FLUTTERWAVE_TRANSFER_PROXY_URL?.trim() ||
     "https://ona-flw-payout.fly.dev";
@@ -67,7 +74,10 @@ async function fetchEgressIp(): Promise<{ ok: true; ip: string } | { ok: false; 
     if (!ip) return { ok: false, error: "proxy response missing data.ip" };
     return { ok: true, ip };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "proxy unreachable" };
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "proxy unreachable",
+    };
   }
 }
 
@@ -96,11 +106,15 @@ async function storeAlertedIp(ip: string): Promise<void> {
     await sb
       .from("ona_cron_config")
       .upsert(
-        { name: "egress_ip_last_alerted", value: ip, updated_at: new Date().toISOString() },
-        { onConflict: "name" }
+        {
+          name: "egress_ip_last_alerted",
+          value: ip,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "name" },
       );
   } catch {
-    // best effort — alert already sent; a failed store only means we may
+    // best effort alert already sent; a failed store only means we may
     // alert again on the next tick, which is acceptable for an IP change.
   }
 }
@@ -113,7 +127,12 @@ async function run(req: Request) {
   const expected = expectedIps();
   const probe = await fetchEgressIp();
   if (!probe.ok) {
-    return apiOk({ ok: false, reason: "probe_failed", error: probe.error, expected });
+    return apiOk({
+      ok: false,
+      reason: "probe_failed",
+      error: probe.error,
+      expected,
+    });
   }
 
   const ip = probe.ip;
@@ -126,16 +145,24 @@ async function run(req: Request) {
   // Egress IP is NOT whitelisted → payout risk. Alert once per new IP.
   const prev = await lastAlertedIp();
   if (prev === ip) {
-    return apiOk({ ok: true, ip, known: false, alreadyAlerted: true, expected });
+    return apiOk({
+      ok: true,
+      ip,
+      known: false,
+      alreadyAlerted: true,
+      expected,
+    });
   }
 
   const alertTo =
     process.env.ADMIN_SEED_EMAIL?.trim() ||
     process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() ||
     "";
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://336699.vercel.app";
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://336699.vercel.app";
 
-  const subject = "[Ona] Flutterwave payout egress IP changed — whitelist required";
+  const subject =
+    "[Ona] Flutterwave payout egress IP changed whitelist required";
   const text = [
     `The payout proxy egress IP changed and is NOT whitelisted on Flutterwave.`,
     ``,
@@ -148,27 +175,29 @@ async function run(req: Request) {
     `Until this is done, NEW payout transfers to Repair Pros will be rejected with`,
     `the "account administrator" 400 error.`,
     ``,
-    `— Ona ops`,
+    `Ona ops`,
   ].join("\n");
   const html = `
-  <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#0f172a">
-    <h1 style="font-size:16px;margin:0 0 12px">Flutterwave payout egress IP changed</h1>
-    <p style="font-size:14px;line-height:1.5;margin:0 0 16px">
-      The payout proxy now egresses from <strong style="color:#dc2626">${ip}</strong>, which is
-      not whitelisted on Flutterwave. Transfers to Repair Pros will be rejected until it is added.
-    </p>
-    <p style="font-size:14px;line-height:1.5;margin:0 0 16px">
-      Expected (whitelisted): <code>${expected.join(", ")}</code>
-    </p>
-    <p style="font-size:14px;line-height:1.5;margin:0 0 16px">
-      Action: add <code>${ip}</code> to
-      <strong>Flutterwave → Settings → API → IP Whitelisting</strong>, then confirm on
-      <a href="${appUrl}/api/cron/egress-ip">the monitor</a>.
-    </p>
-    <p style="font-size:12px;color:#64748b;margin:0">— Ona ops</p>
-  </div>`;
+ <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#0f172a">
+ <h1 style="font-size:16px;margin:0 0 12px">Flutterwave payout egress IP changed</h1>
+ <p style="font-size:14px;line-height:1.5;margin:0 0 16px">
+ The payout proxy now egresses from <strong style="color:#dc2626">${ip}</strong>, which is
+ not whitelisted on Flutterwave. Transfers to Repair Pros will be rejected until it is added.
+ </p>
+ <p style="font-size:14px;line-height:1.5;margin:0 0 16px">
+ Expected (whitelisted): <code>${expected.join(", ")}</code>
+ </p>
+ <p style="font-size:14px;line-height:1.5;margin:0 0 16px">
+ Action: add <code>${ip}</code> to
+ <strong>Flutterwave → Settings → API → IP Whitelisting</strong>, then confirm on
+ <a href="${appUrl}/api/cron/egress-ip">the monitor</a>.
+ </p>
+ <p style="font-size:12px;color:#64748b;margin:0">Ona ops</p>
+ </div>`;
 
-  const sent = alertTo ? await sendResendEmail({ to: alertTo, subject, html, text }) : null;
+  const sent = alertTo
+    ? await sendResendEmail({ to: alertTo, subject, html, text })
+    : null;
   await storeAlertedIp(ip);
 
   return apiOk({

@@ -8,9 +8,9 @@ import {
 
 describe("protect-approval", () => {
   it("locks pro T2 when gov_id_review_status is approved", () => {
-    expect(
-      isProT2ApprovedLocked({ gov_id_review_status: "approved" })
-    ).toBe(true);
+    expect(isProT2ApprovedLocked({ gov_id_review_status: "approved" })).toBe(
+      true,
+    );
   });
 
   it("does not demote approved pro on gov_id re-submit patch", () => {
@@ -31,7 +31,7 @@ describe("protect-approval", () => {
         bvn_verified: false,
         gov_id_number: "12345",
         pipeline_status: "pending_verification",
-      }
+      },
     );
     expect(locked).toBe(true);
     expect(patch.gov_id_review_status).toBe("approved");
@@ -52,7 +52,7 @@ describe("protect-approval", () => {
         status: "pending",
         docs_status: "under_review",
         pipeline_status: "pending_document_review",
-      }
+      },
     );
     expect(locked).toBe(true);
     expect(patch.status).toBe("approved");
@@ -71,7 +71,7 @@ describe("protect-approval", () => {
         status: "pending",
         gov_id_review_status: "submitted",
         verified: false,
-      }
+      },
     );
     expect(locked).toBe(false);
     expect(patch.gov_id_review_status).toBe("submitted");
@@ -83,7 +83,7 @@ describe("protect-approval", () => {
         identity_review_status: "approved",
         nin_verified: true,
         identity_verified_at: "2026-01-01T00:00:00Z",
-      })
+      }),
     ).toBe(true);
 
     const { patch, locked } = protectMotoristClientPatch(
@@ -99,7 +99,7 @@ describe("protect-approval", () => {
         bvn_verified: false,
         identity_verified_at: null,
         gov_id_number: "ABC",
-      }
+      },
     );
     expect(locked).toBe(true);
     expect(patch.identity_review_status).toBe("approved");
@@ -114,7 +114,7 @@ describe("protect-approval", () => {
       {
         identity_review_status: "submitted",
         nin_verified: false,
-      }
+      },
     );
     expect(locked).toBe(false);
     expect(patch.identity_review_status).toBe("submitted");

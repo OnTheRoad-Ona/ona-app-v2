@@ -6,16 +6,17 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Phase 2 dynamic filter engine — public read of per-trade filter facets.
- * GET ?trade=mechanic  → filters for that trade only
- * GET (no trade)        → all trades' filter configs
+ * Phase 2 dynamic filter engine public read of per-trade filter facets.
+ * GET ?trade=mechanic → filters for that trade only
+ * GET (no trade) → all trades' filter configs
  */
 export async function GET(req: NextRequest) {
   try {
     const trade = req.nextUrl.searchParams.get("trade");
     if (trade) {
       const config = getTradeFilterConfig(trade);
-      if (!config) return apiFail(`Unknown trade: ${trade}`, 404, "UNKNOWN_TRADE");
+      if (!config)
+        return apiFail(`Unknown trade: ${trade}`, 404, "UNKNOWN_TRADE");
       // Client expects `filters` as FilterDef[] (not the full config object).
       return apiOk({
         trade: config.tradeKey,
@@ -24,9 +25,20 @@ export async function GET(req: NextRequest) {
       });
     }
     const trades = [
-      "mechanic", "vulcanizer", "towing", "ac", "battery", "body",
-      "electrical", "diagnostics", "fashion", "plumber", "carpenter",
-      "painter", "solar", "generator",
+      "mechanic",
+      "vulcanizer",
+      "towing",
+      "ac",
+      "battery",
+      "body",
+      "electrical",
+      "diagnostics",
+      "fashion",
+      "plumber",
+      "carpenter",
+      "painter",
+      "solar",
+      "generator",
     ];
     const configs = trades
       .map((t) => getTradeFilterConfig(t))

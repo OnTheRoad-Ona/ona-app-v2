@@ -12,14 +12,21 @@ import {
   finalizeJobReleasedAfterPayout,
   getPaymentOpsSnapshot,
 } from "@/lib/server/payments/payout-settlement";
-import { getEscrowByRequest, updateEscrow } from "@/lib/server/payments/escrow-store";
+import {
+  getEscrowByRequest,
+  updateEscrow,
+} from "@/lib/server/payments/escrow-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     await requirePermission("view_payment_status");
@@ -41,12 +48,20 @@ export async function GET() {
       paidAt: e.paidAt,
       releasedAt: e.releasedAt,
       retryCount: Number(e.meta?.payoutRetryCount) || 0,
-      lastError: e.meta?.lastReleaseError != null ? String(e.meta.lastReleaseError) : null,
-      nextRetryAt: e.meta?.nextRetryAt != null ? String(e.meta.nextRetryAt) : null,
-      payoutStatus: e.meta?.payoutStatus != null ? String(e.meta.payoutStatus) : null,
+      lastError:
+        e.meta?.lastReleaseError != null
+          ? String(e.meta.lastReleaseError)
+          : null,
+      nextRetryAt:
+        e.meta?.nextRetryAt != null ? String(e.meta.nextRetryAt) : null,
+      payoutStatus:
+        e.meta?.payoutStatus != null ? String(e.meta.payoutStatus) : null,
       autoRetryCancelled: e.meta?.autoRetryCancelled === true,
       payoutSuspended: e.meta?.payoutSuspended === true,
-      exhausted: e.meta?.payoutStatus === "suspended_admin" || ((Number(e.meta?.payoutRetryCount) || 0) >= 144 && e.meta?.autoRetryCancelled === true),
+      exhausted:
+        e.meta?.payoutStatus === "suspended_admin" ||
+        ((Number(e.meta?.payoutRetryCount) || 0) >= 144 &&
+          e.meta?.autoRetryCancelled === true),
     }));
 
     return apiOk({
@@ -56,7 +71,8 @@ export async function GET() {
       suspendedCount: snapshot.ona.suspendedCount,
     });
   } catch (e) {
-    if (e instanceof AdminAuthError) return apiFail(e.message, e.status, "auth");
+    if (e instanceof AdminAuthError)
+      return apiFail(e.message, e.status, "auth");
     return apiFail("Failed to load failed payouts", 500);
   }
 }
@@ -72,7 +88,11 @@ const patchSchema = z.object({
 
 export async function PATCH(req: Request) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     const parsed = patchSchema.safeParse(await req.json());
@@ -93,13 +113,23 @@ export async function PATCH(req: Request) {
       if (result.ok) {
         await finalizeJobReleasedAfterPayout(b.jobId, result);
       }
-      await logAdminAction(session.userId, "failed_payout.retry", b.jobId, { result, note: b.note });
-      return apiOk({ result, message: result.ok ? "Retry succeeded" : `Retry attempted: ${result.message || "see result"}` });
+      await logAdminAction(session.userId, "failed_payout.retry", b.jobId, {
+        result,
+        note: b.note,
+      });
+      return apiOk({
+        result,
+        message: result.ok
+          ? "Retry succeeded"
+          : `Retry attempted: ${result.message || "see result"}`,
+      });
     }
 
     if (b.action === "resolve") {
       const { session } = await requireSensitiveAction("escrow_refund", req);
-      await logAdminAction(session.userId, "failed_payout.resolve", b.jobId, { note: b.note });
+      await logAdminAction(session.userId, "failed_payout.resolve", b.jobId, {
+        note: b.note,
+      });
       const esc = await getEscrowByRequest(b.jobId);
       if (!esc) return apiFail("Escrow not found", 404);
       await updateEscrow(esc.id, {
@@ -111,26 +141,39 @@ export async function PATCH(req: Request) {
           payoutResolveNote: b.note,
         },
       });
-      return apiOk({ message: "Failed payout resolved. Funds remain in escrow." });
+      return apiOk({
+        message: "Failed payout resolved. Funds remain in escrow.",
+      });
     }
 
     if (b.action === "update_bank") {
       const { session } = await requireSensitiveAction("escrow_release", req);
       if (!b.bankCode || !b.accountNumber || !b.accountName) {
-        return apiFail("bankCode, accountNumber, and accountName required", 400);
+        return apiFail(
+          "bankCode, accountNumber, and accountName required",
+          400,
+        );
       }
-      await logAdminAction(session.userId, "failed_payout.update_bank", b.jobId, {
-        bankCode: b.bankCode,
-        accountNumberLast4: b.accountNumber.slice(-4),
-        accountName: b.accountName,
-        note: b.note,
+      await logAdminAction(
+        session.userId,
+        "failed_payout.update_bank",
+        b.jobId,
+        {
+          bankCode: b.bankCode,
+          accountNumberLast4: b.accountNumber.slice(-4),
+          accountName: b.accountName,
+          note: b.note,
+        },
+      );
+      return apiOk({
+        message: "Bank details updated. Use retry to attempt payout again.",
       });
-      return apiOk({ message: "Bank details updated. Use retry to attempt payout again." });
     }
 
     return apiFail("Unknown action", 400);
   } catch (e) {
-    if (e instanceof AdminAuthError) return apiFail(e.message, e.status, "auth");
+    if (e instanceof AdminAuthError)
+      return apiFail(e.message, e.status, "auth");
     return apiFail("Failed to process failed payout", 500);
   }
 }

@@ -1,5 +1,5 @@
 /**
- * Shop pay-now via Flutterwave — NEVER uses job escrow store.
+ * Shop pay-now via Flutterwave NEVER uses job escrow store.
  */
 
 import { createServiceSupabase } from "@/lib/supabase/server";
@@ -56,7 +56,7 @@ export async function createShopPaymentAndInit(opts: {
         reference: String(existing.provider_ref),
         authorizationUrl: String(
           (existing.raw_init as { authorizationUrl?: string } | null)
-            ?.authorizationUrl || ""
+            ?.authorizationUrl || "",
         ),
         provider: String(existing.provider),
         amountMinor: Number(existing.amount_minor),
@@ -69,7 +69,7 @@ export async function createShopPaymentAndInit(opts: {
     process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
     "http://localhost:3000";
   const callbackUrl = `${appUrl}/shop/checkout/callback?ref=${encodeURIComponent(
-    reference
+    reference,
   )}&order=${encodeURIComponent(opts.orderId)}`;
 
   const provider = resolveProvider(null);
@@ -110,7 +110,8 @@ export async function createShopPaymentAndInit(opts: {
     })
     .select("id")
     .single();
-  if (error || !payment) throw new Error(error?.message || "Payment row failed");
+  if (error || !payment)
+    throw new Error(error?.message || "Payment row failed");
 
   await sb.from("shop_order_events").insert({
     order_id: opts.orderId,
@@ -157,7 +158,7 @@ export async function verifyShopPayment(opts: {
 
   const verified = await verifyCharge(
     opts.reference,
-    payment.provider as "flutterwave" | "paystack" | "mock"
+    payment.provider as "flutterwave" | "paystack" | "mock",
   );
 
   if (!verified.success) {
@@ -184,7 +185,10 @@ export async function verifyShopPayment(opts: {
       .from("shop_payments")
       .update({
         status: "failed",
-        raw_verify: { ...((verified.raw as object) || {}), amountMismatch: true },
+        raw_verify: {
+          ...((verified.raw as object) || {}),
+          amountMismatch: true,
+        },
         updated_at: new Date().toISOString(),
       })
       .eq("id", payment.id);
@@ -202,7 +206,7 @@ export async function verifyShopPayment(opts: {
     .eq("id", payment.id);
 
   // Reserve inventory atomically. If stock ran out between checkout and pay,
-  // the money was captured but we cannot fulfill — mark order refunded and
+  // the money was captured but we cannot fulfill mark order refunded and
   // surface a clear failure so the buyer is never left "paid, no stock".
   try {
     await markShopOrderPaid({
@@ -243,7 +247,7 @@ export async function verifyShopPayment(opts: {
       actor_id: null,
     });
     throw new Error(
-      "Payment received but the item went out of stock — your order has been refunded."
+      "Payment received but the item went out of stock your order has been refunded.",
     );
   }
 

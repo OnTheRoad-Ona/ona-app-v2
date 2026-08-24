@@ -18,11 +18,14 @@ import {
 } from "lucide-react";
 
 /**
- * Car battery (12V block with top posts) — not the Lucide phone/device battery.
+ * Car battery (12V block with top posts) not the Lucide phone/device battery.
  * Matches Lucide stroke style so it works anywhere PRO_TRADE_OPTIONS icons are used.
  */
 export const CarBattery = createLucideIcon("CarBattery", [
-  ["rect", { x: "3", y: "8", width: "18", height: "12", rx: "1.5", key: "body" }],
+  [
+    "rect",
+    { x: "3", y: "8", width: "18", height: "12", rx: "1.5", key: "body" },
+  ],
   [
     "path",
     {
@@ -45,7 +48,7 @@ export const CarBattery = createLucideIcon("CarBattery", [
 /** Soft tile fills (reference-style service chips) */
 export type TradeTileTone = { bg: string; fg: string };
 
-/** Real trades — same as home service cards (excludes "All") */
+/** Real trades same as home service cards (excludes "All") */
 export const PRO_TRADE_OPTIONS: {
   id: ProService;
   label: string;

@@ -93,10 +93,17 @@ function pickName(data: Record<string, unknown> | undefined): {
 }
 
 function isSuccessBody(json: Record<string, unknown>): boolean {
-  if (json.status === true || json.status === "success" || json.status === "SUCCESS")
+  if (
+    json.status === true ||
+    json.status === "success" ||
+    json.status === "SUCCESS"
+  )
     return true;
   const verification = json.verification as Record<string, unknown> | undefined;
-  if (verification?.status === "VERIFIED" || verification?.status === "verified")
+  if (
+    verification?.status === "VERIFIED" ||
+    verification?.status === "verified"
+  )
     return true;
   const code = String(json.response_code ?? json.responseCode ?? "");
   if (code === "00" || code === "0") return true;
@@ -109,7 +116,7 @@ function isSuccessBody(json: Record<string, unknown>): boolean {
  */
 function localFormatCheck(
   kind: "nin" | "bvn",
-  number: string
+  number: string,
 ): PremblyVerifyResult {
   const d = digitsOnly(number);
   if (d.length !== 11) {
@@ -141,7 +148,7 @@ function localFormatCheck(
 }
 
 export async function verifyNinWithPrembly(
-  nin: string
+  nin: string,
 ): Promise<PremblyVerifyResult> {
   const d = digitsOnly(nin);
   if (d.length !== 11) {
@@ -212,7 +219,8 @@ export async function verifyNinWithPrembly(
       (json.data as Record<string, unknown>) ||
       undefined;
     const names = pickName(data);
-    const verification = json.verification as Record<string, unknown> | undefined;
+    const verification = json.verification as
+      Record<string, unknown> | undefined;
 
     return {
       ok: true,
@@ -237,7 +245,7 @@ export async function verifyNinWithPrembly(
 }
 
 export async function verifyBvnWithPrembly(
-  bvn: string
+  bvn: string,
 ): Promise<PremblyVerifyResult> {
   const d = digitsOnly(bvn);
   if (d.length !== 11) {
@@ -270,7 +278,10 @@ export async function verifyBvnWithPrembly(
         cache: "no-store",
       });
       lastStatus = res.status;
-      lastJson = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      lastJson = (await res.json().catch(() => ({}))) as Record<
+        string,
+        unknown
+      >;
       if (res.ok && isSuccessBody(lastJson)) break;
     }
 
@@ -291,8 +302,7 @@ export async function verifyBvnWithPrembly(
     const data = (lastJson.data as Record<string, unknown>) || lastJson;
     const names = pickName(data as Record<string, unknown>);
     const verification = lastJson.verification as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
 
     return {
       ok: true,

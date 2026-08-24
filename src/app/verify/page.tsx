@@ -40,8 +40,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * Customer verification (customers only)
- * Tier 1 — Phone OTP (demo code 336699)
- * Tier 2 — Country ID type + number + photo → admin/care review + approval
+ * Tier 1 Phone OTP (demo code 336699)
+ * Tier 2 Country ID type + number + photo → admin/care review + approval
  */
 export default function VerifyIdentityPage() {
   const router = useRouter();
@@ -72,9 +72,9 @@ export default function VerifyIdentityPage() {
   const idTypes = useMemo(
     () =>
       pack.docs.filter(
-        (d) => d.kind !== "bank_id" && (d.requiredForVerify || d.needsFront)
+        (d) => d.kind !== "bank_id" && (d.requiredForVerify || d.needsFront),
       ),
-    [pack]
+    [pack],
   );
   const [otp, setOtp] = useState("");
   const [otpBusy, setOtpBusy] = useState(false);
@@ -116,14 +116,14 @@ export default function VerifyIdentityPage() {
 
   const selectedDoc: CountryIdDoc | undefined = useMemo(
     () => idTypes.find((d) => d.kind === idType) || idTypes[0],
-    [idTypes, idType]
+    [idTypes, idType],
   );
 
   useEffect(() => {
     if (!idType && idTypes[0]) setIdType(idTypes[0].kind);
   }, [idTypes, idType]);
 
-  // Poll server while ID is in review — flip to approved immediately
+  // Poll server while ID is in review flip to approved immediately
   useEffect(() => {
     if (!pending || tier2Ok || !backendUserId) return;
     let cancelled = false;
@@ -184,9 +184,7 @@ export default function VerifyIdentityPage() {
     });
 
   const sendDemoOtp = () => {
-    setOtpMsg(
-      `Code sent. For now enter ${CUSTOMER_PHONE_OTP} (demo OTP).`
-    );
+    setOtpMsg(`Code sent. For now enter ${CUSTOMER_PHONE_OTP} (demo OTP).`);
     setError("");
   };
 
@@ -228,7 +226,7 @@ export default function VerifyIdentityPage() {
       setError(
         doc.needsBack
           ? `Upload a clear front photo of your ${doc.label}.`
-          : `Upload a clear photo of your ${doc.label}.`
+          : `Upload a clear photo of your ${doc.label}.`,
       );
       return;
     }
@@ -260,7 +258,7 @@ export default function VerifyIdentityPage() {
 
   const ink = isLight ? "text-slate-900" : "text-white";
   const muted = isLight ? "text-slate-600" : "text-white/60";
-  // Soft grey cards (not pure white) — matches app shell
+  // Soft grey cards (not pure white) matches app shell
   const card = isLight ? "bg-[#d4d5d9]" : "bg-white/[0.06]";
   const shell = isLight ? "bg-[#c8c9cd]" : "bg-black";
 
@@ -269,7 +267,7 @@ export default function VerifyIdentityPage() {
       <div
         className={cn(
           "flex h-full flex-col items-center justify-center px-5 text-center",
-          shell
+          shell,
         )}
       >
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50">
@@ -278,7 +276,12 @@ export default function VerifyIdentityPage() {
         <h2 className={cn("mt-4 text-[17px] font-bold", ink)}>
           Tier 2 approved
         </h2>
-        <p className={cn("mt-2 max-w-[280px] text-[12px] leading-relaxed", muted)}>
+        <p
+          className={cn(
+            "mt-2 max-w-[280px] text-[12px] leading-relaxed",
+            muted,
+          )}
+        >
           Your ID was submitted and approved by admin / customer care. You can
           book without the free-period limit.
         </p>
@@ -304,7 +307,7 @@ export default function VerifyIdentityPage() {
           }
           className={cn(
             "inline-flex h-9 w-9 items-center justify-center border-0 bg-transparent",
-            ink
+            ink,
           )}
           aria-label="Back"
         >
@@ -333,9 +336,14 @@ export default function VerifyIdentityPage() {
           </p>
         ) : null}
 
-        {/* Tier 1 — Phone */}
+        {/* Tier 1 Phone */}
         <section className={cn("rounded-xl px-3 py-3", card)}>
-          <p className={cn("flex items-center gap-1.5 text-[12px] font-bold", ink)}>
+          <p
+            className={cn(
+              "flex items-center gap-1.5 text-[12px] font-bold",
+              ink,
+            )}
+          >
             <Phone className="h-3.5 w-3.5 text-[#FF6B35]" />
             Tier 1 · Phone
           </p>
@@ -389,7 +397,7 @@ export default function VerifyIdentityPage() {
                   onClick={() => void confirmPhone()}
                   className={cn(
                     authPrimaryBtnClass,
-                    "!h-10 text-[13px] disabled:opacity-50"
+                    "!h-10 text-[13px] disabled:opacity-50",
                   )}
                   style={authPrimaryBtnStyle}
                 >
@@ -400,9 +408,14 @@ export default function VerifyIdentityPage() {
           )}
         </section>
 
-        {/* Tier 2 — Country ID */}
+        {/* Tier 2 Country ID */}
         <section className={cn("rounded-xl px-3 py-3", card)}>
-          <p className={cn("flex items-center gap-1.5 text-[12px] font-bold", ink)}>
+          <p
+            className={cn(
+              "flex items-center gap-1.5 text-[12px] font-bold",
+              ink,
+            )}
+          >
             <Upload className="h-3.5 w-3.5 text-[#FF6B35]" />
             Tier 2 · Government ID
           </p>
@@ -455,7 +468,7 @@ export default function VerifyIdentityPage() {
                     setIdNumber(
                       selectedDoc
                         ? filterIdInput(e.target.value, selectedDoc)
-                        : e.target.value
+                        : e.target.value,
                     )
                   }
                   placeholder={selectedDoc?.placeholder || "ID number"}
@@ -482,7 +495,7 @@ export default function VerifyIdentityPage() {
                         isLight
                           ? "bg-black/10 text-slate-800"
                           : "bg-[#2c2c2e] text-white",
-                        !phoneOk && "pointer-events-none opacity-50"
+                        !phoneOk && "pointer-events-none opacity-50",
                       )}
                     >
                       <Upload className="h-3.5 w-3.5" />
@@ -529,7 +542,7 @@ export default function VerifyIdentityPage() {
                         isLight
                           ? "bg-black/10 text-slate-800"
                           : "bg-[#2c2c2e] text-white",
-                        !phoneOk && "pointer-events-none opacity-50"
+                        !phoneOk && "pointer-events-none opacity-50",
                       )}
                     >
                       <Upload className="h-3.5 w-3.5" />
@@ -572,7 +585,7 @@ export default function VerifyIdentityPage() {
                   onClick={() => void submitId()}
                   className={cn(
                     authPrimaryBtnClass,
-                    "!h-10 text-[13px] disabled:opacity-50"
+                    "!h-10 text-[13px] disabled:opacity-50",
                   )}
                   style={authPrimaryBtnStyle}
                 >
@@ -588,10 +601,13 @@ export default function VerifyIdentityPage() {
 }
 
 function trialNote(
-  profile: {
-    firstServiceAt?: string;
-    serviceActionCount?: number;
-  } | null | undefined
+  profile:
+    | {
+        firstServiceAt?: string;
+        serviceActionCount?: number;
+      }
+    | null
+    | undefined,
 ): string {
   if (!profile?.firstServiceAt) return ".";
   const days = remainingFreeActions(profile as never);

@@ -10,7 +10,7 @@ export type ArtisanTradeDef = {
   label: string;
   homeLabel: string;
   description: string;
-  /** Sub-categories — required on signup / onboarding */
+  /** Sub-categories required on signup / onboarding */
   specialties: string[];
 };
 
@@ -68,12 +68,7 @@ export const ARTISAN_TRADE_CATALOG: ArtisanTradeDef[] = [
     label: "A/C",
     homeLabel: "A/C",
     description: "Vehicle, home, commercial and industrial cooling",
-    specialties: [
-      "Vehicle",
-      "Residential (Homes)",
-      "Commercial",
-      "Industrial",
-    ],
+    specialties: ["Vehicle", "Residential (Homes)", "Commercial", "Industrial"],
   },
   {
     service: "body",
@@ -204,7 +199,7 @@ export const SPECIALTY_PICKER_TRADES: ProService[] = [
 ];
 
 export function isSpecialtyPickerTrade(
-  service: string | null | undefined
+  service: string | null | undefined,
 ): boolean {
   return SPECIALTY_PICKER_TRADES.includes(service as ProService);
 }
@@ -228,7 +223,7 @@ export function specialtyChipLabel(specialty: string): string {
 }
 
 /**
- * Pure vehicle / auto trades — always use vehicle focus (type/brand/model)
+ * Pure vehicle / auto trades always use vehicle focus (type/brand/model)
  * and show vehicle fields on customer request.
  * Single source of truth for signup, admin, request UI, jobs.
  * (Never include non-services like "panel".)
@@ -243,7 +238,7 @@ export const AUTOMOTIVE_TRADES: readonly ProService[] = [
 ] as const;
 
 export function isAutomotiveTrade(
-  service: ProService | string | null | undefined
+  service: ProService | string | null | undefined,
 ): boolean {
   return AUTOMOTIVE_TRADES.includes(service as ProService);
 }
@@ -255,14 +250,14 @@ export function isAutomotiveTrade(
  */
 export function showsVehicleOnRequest(
   service: ProService | string | null | undefined,
-  specialties?: string[] | null
+  specialties?: string[] | null,
 ): boolean {
   const s = (service || "") as ProService;
   if (isAutomotiveTrade(s)) return true;
   if (s !== "ac" && s !== "electrical") return false;
   const list = (specialties || []).map((x) => String(x).toLowerCase());
   if (!list.length) {
-    // Legacy pros without specialty chips — allow vehicle when trade can be auto
+    // Legacy pros without specialty chips allow vehicle when trade can be auto
     return true;
   }
   // Any vehicle-focused specialty → show vehicle picker
@@ -281,16 +276,13 @@ export function showsVehicleOnRequest(
 export function needsVehiclesSignupStep(
   service: ProService | string | null | undefined,
   specialty?: string | null,
-  specialties?: string[] | null
+  specialties?: string[] | null,
 ): boolean {
   const s = (service || "") as ProService;
   if (!s) return false;
   if (isAutomotiveTrade(s)) return true;
   if (s === "ac" || s === "electrical") {
-    const list = [
-      specialty,
-      ...((specialties || []) as string[]),
-    ]
+    const list = [specialty, ...((specialties || []) as string[])]
       .filter(Boolean)
       .map((x) => String(x).toLowerCase());
     if (!list.length) return false;
@@ -303,7 +295,7 @@ export function needsVehiclesSignupStep(
 export function storesVehicleBrandFocus(
   service: ProService | string | null | undefined,
   specialty?: string | null,
-  specialties?: string[] | null
+  specialties?: string[] | null,
 ): boolean {
   return needsVehiclesSignupStep(service, specialty, specialties);
 }

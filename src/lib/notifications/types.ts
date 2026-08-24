@@ -1,5 +1,5 @@
 /**
- * Ona notification domain — premium minimalist system.
+ * Ona notification domain premium minimalist system.
  * Solid fills only; copper #FF6B35 accents; no borders/glows/gradients.
  */
 
@@ -15,10 +15,7 @@ import {
 } from "@/lib/chat-expired";
 
 export type NotificationCategory =
-  | "requests"
-  | "messages"
-  | "payments"
-  | "system";
+  "requests" | "messages" | "payments" | "system";
 
 export type NotificationPriority = "low" | "normal" | "high" | "critical";
 
@@ -46,22 +43,18 @@ export type AppNotification = {
   groupKey?: string | null;
   jobId?: string | null;
   jobStatus?: string | null;
-  /** Full chat text when job finished — inline only, no open-chat */
+  /** Full chat text when job finished inline only, no open-chat */
   messageText?: string | null;
   readAt?: string | null;
   createdAt: string;
 };
 
 export type NotificationFilter =
-  | "all"
-  | "requests"
-  | "messages"
-  | "payments"
-  | "system";
+  "all" | "requests" | "messages" | "payments" | "system";
 
 /** Spec palette */
 export const COPPER = "#FF6B35";
-/** Message / glassy orange — light-theme Notifications chrome only */
+/** Message / glassy orange light-theme Notifications chrome only */
 export const MESSAGE_ORANGE = "#FF6B35";
 export const CHARCOAL = "#1c1c1e";
 export const SOFT_WHITE = "#FFFFFF";
@@ -81,10 +74,10 @@ export const CHAT_CLOSED_JOB_STATUSES = new Set([
   "under_appeal",
 ]);
 
-/** Terminal / ended (5C: anything not live mid-job) — use isJobFinishedStatus */
+/** Terminal / ended (5C: anything not live mid-job) use isJobFinishedStatus */
 export const JOB_FINISHED_STATUSES = CHAT_CLOSED_JOB_STATUSES;
 
-/** Active / ongoing job — live chat only */
+/** Active / ongoing job live chat only */
 export const JOB_ACTIVE_STATUSES = JOB_LIVE_CHAT_STATUSES;
 
 export {
@@ -119,17 +112,19 @@ export function jobStatusLabel(status: string | null | undefined): string {
 }
 
 /**
- * Chat / mid-job ended (includes `completed` — chat closes, but live
+ * Chat / mid-job ended (includes `completed` chat closes, but live
  * /jobs/[id] shell stays open for “I’m Satisfied” release pay).
  * Prefer isJobHistoryOnlyStatus for “no live job page”.
  */
-export function isJobFinishedStatus(status: string | null | undefined): boolean {
+export function isJobFinishedStatus(
+  status: string | null | undefined,
+): boolean {
   return isJobEndedStatus(status);
 }
 
 /** True only when job is fully closed (no live /jobs/[id] actions left). */
 export function isJobHistoryClosedStatus(
-  status: string | null | undefined
+  status: string | null | undefined,
 ): boolean {
   return isJobHistoryOnlyStatus(status);
 }
@@ -139,7 +134,7 @@ export function isJobHistoryClosedStatus(
  * Never treat these as “link unavailable” in notification UI.
  */
 export function isReleasePayPendingStatus(
-  status: string | null | undefined
+  status: string | null | undefined,
 ): boolean {
   const s = String(status || "")
     .toLowerCase()
@@ -160,11 +155,11 @@ export function isChatClosedForNotification(n: AppNotification): boolean {
 /** True when this notification must not navigate live to job / chat / track */
 export function isNavigationBlocked(
   n: AppNotification,
-  liveStatus?: string | null
+  liveStatus?: string | null,
 ): boolean {
   if (n.actionType === "rate") return false;
   if (n.actionType === "none") return true;
-  // Missing action but has sensitive href — still evaluate
+  // Missing action but has sensitive href still evaluate
   if (!n.actionType && !n.href) return true;
 
   // Release-pay notifications must always open /jobs/[id] (completed is live shell)
@@ -197,7 +192,7 @@ export function isNavigationBlocked(
  */
 export function blockedActionMessage(
   n?: AppNotification,
-  _liveStatus?: string | null
+  _liveStatus?: string | null,
 ): string {
   if (!n) return CONVERSATION_ENDED_MESSAGE;
   return closedOpenMessage({
@@ -216,17 +211,14 @@ export function shouldListNotification(n: AppNotification): boolean {
 /**
  * Toasts (top in-app stack): never for closed-chat messages.
  * Incoming service requests are handled only by the lower Incoming panel
- * (+ OS push) — do not also pile a top toast with the same text.
+ * (+ OS push) do not also pile a top toast with the same text.
  */
 export function shouldToastNotification(n: AppNotification): boolean {
   if (isChatClosedForNotification(n)) return false;
-  // A cancelled service request always deserves a toast — the pro must learn
+  // A cancelled service request always deserves a toast the pro must learn
   // their live request died the moment it happens, on every screen, whether or
   // not the incoming card was surfaced this session.
-  if (
-    String(n.jobStatus || "") === "cancelled" &&
-    isHighPriority(n.priority)
-  ) {
+  if (String(n.jobStatus || "") === "cancelled" && isHighPriority(n.priority)) {
     return true;
   }
   if (

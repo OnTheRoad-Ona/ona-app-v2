@@ -3,7 +3,10 @@ import { z } from "zod";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { requireUser } from "@/lib/server/auth-utils";
 import { createServiceSupabase } from "@/lib/supabase/server";
-import { estimateDelivery, listDeliveryZones } from "@/lib/server/shop/delivery";
+import {
+  estimateDelivery,
+  listDeliveryZones,
+} from "@/lib/server/shop/delivery";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,10 +24,14 @@ export async function GET(req: NextRequest) {
     if (!auth.ok) return auth.response;
 
     const parsed = querySchema.safeParse(
-      Object.fromEntries(new URL(req.url).searchParams)
+      Object.fromEntries(new URL(req.url).searchParams),
     );
     if (!parsed.success) {
-      return apiFail("addressId and subtotalMinor required", 400, "invalid_query");
+      return apiFail(
+        "addressId and subtotalMinor required",
+        400,
+        "invalid_query",
+      );
     }
 
     const sb = createServiceSupabase();

@@ -10,8 +10,9 @@ export const FASHION_FINAL_COPY = {
   remote: "Remote location",
   night: "Night service needed",
   photos:
-    "Add clear photos (minimum 2–4): style inspiration, fabric, or the current garment",
-  voice: "Record a short voice note describing the exact style, event, or preference",
+    "Add clear photos (minimum 2-4): style inspiration, fabric, or the current garment",
+  voice:
+    "Record a short voice note describing the exact style, event, or preference",
   location: "Exact location / landmark",
   extra: "Any other detail you want the tailor / fashion designer to know?",
   home: "Do you need home service (measurement or delivery) or will you visit the tailor?",
@@ -62,7 +63,7 @@ export const FASHION_SCREENS: Record<string, FashionScreen> = {
     kind: "choice",
     options: FASHION_START_OPTIONS,
   },
-  // Branch A — New custom-made outfit (Native or English)
+  // Branch A New custom-made outfit (Native or English)
   a_who: {
     id: "a_who",
     question: "Who is the outfit for?",
@@ -85,7 +86,10 @@ export const FASHION_SCREENS: Record<string, FashionScreen> = {
           "Native / Traditional (Agbada, Buba & Sokoto, Iro & Buba, Kaftan, Dashiki, Senator, etc.)",
       },
       { id: "english", label: "English / Corporate" },
-      { id: "african", label: "Contemporary African (Ankara mix, modern native)" },
+      {
+        id: "african",
+        label: "Contemporary African (Ankara mix, modern native)",
+      },
       { id: "wedding", label: "Wedding / Bridal" },
       { id: "party", label: "Party / Owambe / Reception" },
       { id: "church", label: "Church / Formal event" },
@@ -107,7 +111,8 @@ export const FASHION_SCREENS: Record<string, FashionScreen> = {
   },
   a_style_ref: {
     id: "a_style_ref",
-    question: "Do you have a style reference (photo, screenshot, or celebrity look)?",
+    question:
+      "Do you have a style reference (photo, screenshot, or celebrity look)?",
     kind: "choice",
     options: YES_NO,
   },
@@ -123,15 +128,15 @@ export const FASHION_SCREENS: Record<string, FashionScreen> = {
       { id: "notsure", label: "I'm not sure" },
     ],
   },
-  // Branch B — Aso-Ebi / Group or family uniform
+  // Branch B Aso-Ebi / Group or family uniform
   b_count: {
     id: "b_count",
     question: "How many people are involved?",
     kind: "choice",
     options: [
-      { id: "few", label: "1 – 2" },
-      { id: "group", label: "3 – 5" },
-      { id: "large", label: "6 – 10" },
+      { id: "few", label: "1, 2" },
+      { id: "group", label: "3, 5" },
+      { id: "large", label: "6, 10" },
       { id: "bulk", label: "More than 10" },
     ],
   },
@@ -186,7 +191,7 @@ export const FASHION_SCREENS: Record<string, FashionScreen> = {
     kind: "text",
     placeholder: "e.g. 25 December",
   },
-  // Branch C — Alteration, adjustment or restyling of existing clothes
+  // Branch C Alteration, adjustment or restyling of existing clothes
   c_what: {
     id: "c_what",
     question: "What needs to be done?",
@@ -226,7 +231,7 @@ export const FASHION_SCREENS: Record<string, FashionScreen> = {
       { id: "drop", label: "I will drop it off" },
     ],
   },
-  // Branch D — Repair of torn, damaged or worn clothes
+  // Branch D Repair of torn, damaged or worn clothes
   d_damage: {
     id: "d_damage",
     question: "What is the damage?",
@@ -258,7 +263,7 @@ export const FASHION_SCREENS: Record<string, FashionScreen> = {
       { id: "functional", label: "Just functional" },
     ],
   },
-  // Branch E — Ready-to-wear / Off-the-rack purchase & fitting
+  // Branch E Ready-to-wear / Off-the-rack purchase & fitting
   e_looking: {
     id: "e_looking",
     question: "Are you looking for:",
@@ -268,7 +273,10 @@ export const FASHION_SCREENS: Record<string, FashionScreen> = {
       { id: "english", label: "English / Corporate wear" },
       { id: "ankara", label: "Ankara ready-to-wear" },
       { id: "children", label: "Children's wear" },
-      { id: "accessories", label: "Accessories (fila, gele, shoes, bags – if offered)" },
+      {
+        id: "accessories",
+        label: "Accessories (fila, gele, shoes, bags, if offered)",
+      },
     ],
   },
   e_fitting: {
@@ -277,7 +285,7 @@ export const FASHION_SCREENS: Record<string, FashionScreen> = {
     kind: "choice",
     options: YES_NO,
   },
-  // Branch F — Fashion design consultation or style advice
+  // Branch F Fashion design consultation or style advice
   f_advice: {
     id: "f_advice",
     question: "What do you need advice on?",
@@ -287,7 +295,10 @@ export const FASHION_SCREENS: Record<string, FashionScreen> = {
         id: "style",
         label: "Choosing the right native style for your body type or event",
       },
-      { id: "fabric", label: "Fabric selection (Ankara vs Lace vs Aso-oke etc.)" },
+      {
+        id: "fabric",
+        label: "Fabric selection (Ankara vs Lace vs Aso-oke etc.)",
+      },
       { id: "colour", label: "Colour combination for owambe or wedding" },
       { id: "modern", label: "Modern twist on traditional wear" },
       { id: "wardrobe", label: "Full wardrobe planning" },
@@ -299,7 +310,7 @@ export const FASHION_SCREENS: Record<string, FashionScreen> = {
     kind: "choice",
     options: YES_NO,
   },
-  // Branch G — Something else / I'm not sure
+  // Branch G Something else / I'm not sure
   g_describe: {
     id: "g_describe",
     question: "Please describe in your own words what you need.",
@@ -335,7 +346,7 @@ export function fashionScreen(id: string): FashionScreen | undefined {
 export function nextFashionScreen(
   current: string,
   _answerId: string,
-  _answers: Record<string, string>
+  _answers: Record<string, string>,
 ): string {
   if (current === "start") return START_NEXT[_answerId] || "g_describe";
 
@@ -378,7 +389,7 @@ export function nextFashionScreen(
  * never a trade switch.
  */
 export function resolveFashionRoute(
-  _answers: Record<string, string>
+  _answers: Record<string, string>,
 ): FashionRoute {
   return { trade: "fashion", needsConfirm: false };
 }
@@ -386,7 +397,7 @@ export function resolveFashionRoute(
 export function composeFashionProblem(
   answers: Record<string, string>,
   extra: string,
-  landmark: string
+  landmark: string,
 ): string {
   const lines: string[] = [];
   const start = fashionScreen("start");
@@ -397,7 +408,7 @@ export function composeFashionProblem(
   }
 
   const order = Object.keys(answers).filter(
-    (k) => k !== "start" && !k.endsWith("_label")
+    (k) => k !== "start" && !k.endsWith("_label"),
   );
   for (const id of order) {
     const screen = fashionScreen(id);
@@ -433,12 +444,10 @@ export function canFindFashionPro(photoCount: number): boolean {
 
 export function fashionBreadcrumb(stack: string[]): string {
   const bits: string[] = ["Fashion"];
-  const firstBranch = stack.find(
-    (id) => id !== "start" && id !== "final"
-  );
+  const firstBranch = stack.find((id) => id !== "start" && id !== "final");
   if (firstBranch) {
     const letter = Object.entries(START_NEXT).find(
-      ([, id]) => id === firstBranch
+      ([, id]) => id === firstBranch,
     )?.[0];
     if (letter) bits.push(letter);
   }

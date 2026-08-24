@@ -48,7 +48,10 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     const loaded = await loadParty(req, id);
     if ("error" in loaded && loaded.error) return loaded.error;
     if (loaded.job.repairProId !== loaded.auth.userId) {
-      return apiFail("Only the Repair Pro on this job can recommend parts", 403);
+      return apiFail(
+        "Only the Repair Pro on this job can recommend parts",
+        403,
+      );
     }
     const body = (await req.json()) as { productId?: string; note?: string };
     if (!body.productId) return apiFail("productId required", 400);

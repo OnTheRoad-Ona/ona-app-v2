@@ -1,0 +1,363 @@
+{
+  "version": 1,
+  "source": "Nigeria-first generator seed (petrol, diesel, inverter)",
+  "generatedAt": "2026-08-21",
+  "types": [
+    {
+      "id": "petrol",
+      "label": "Petrol"
+    },
+    {
+      "id": "diesel",
+      "label": "Diesel"
+    },
+    {
+      "id": "inverter",
+      "label": "Inverter"
+    }
+  ],
+  "brandsByType": {
+    "petrol": [
+      "Aico",
+      "Elemax",
+      "Elepaq",
+      "Forte",
+      "Haier",
+      "Honda",
+      "Jincheng",
+      "Kipor",
+      "Lutian",
+      "Matrix",
+      "Maxi",
+      "Power Value",
+      "Pramac",
+      "Senwei",
+      "Sumec Firman",
+      "Tiger",
+      "Yamaha"
+    ],
+    "diesel": [
+      "Aksa",
+      "Aosif",
+      "Baudouin",
+      "Caterpillar",
+      "Cummins",
+      "Denyo",
+      "Elepaq",
+      "FG Wilson",
+      "Himoinsa",
+      "Jovex",
+      "Justeen",
+      "Kohler",
+      "Lister Petter",
+      "Lutian",
+      "Mikano",
+      "Perkins",
+      "SDMO",
+      "Senci",
+      "Sumec Firman",
+      "Weichai",
+      "Yuchai"
+    ],
+    "inverter": [
+      "Champion",
+      "DuroMax",
+      "Elepaq",
+      "Honda",
+      "Hyundai",
+      "Kipor",
+      "Lutian",
+      "Pulsar",
+      "Sumec Firman",
+      "Tiger",
+      "WEN",
+      "Yamaha"
+    ]
+  },
+  "modelsByTypeBrand": {
+    "petrol|Aico": [
+      "AI2500 1.0kVA",
+      "AI3800 1.8kVA",
+      "AI5500 2.2kVA",
+      "AI6500 2.5kVA",
+      "AI7500 3.0kVA"
+    ],
+    "petrol|Elemax": [
+      "SH1900 1.6kVA",
+      "SH3200EX 2.8kVA",
+      "SH5300EX 4.5kVA",
+      "SH7600EX 6.0kVA"
+    ],
+    "petrol|Elepaq": [
+      "SV1200 0.8kVA",
+      "SV2200 0.8kVA",
+      "SV2500 1.0kVA",
+      "SV3000 1.2kVA",
+      "SV3800 1.8kVA",
+      "SV5500 2.2kVA",
+      "SV6500 2.5kVA",
+      "SV7200 2.8kVA",
+      "SV9000 3.5kVA",
+      "SV10000 4.0kVA",
+      "SV13000 5.0kVA"
+    ],
+    "petrol|Forte": ["FG2500 1.0kVA", "FG3800 1.8kVA", "FG5500 2.2kVA"],
+    "petrol|Haier": [
+      "HG2500 1.0kVA",
+      "HG3800 1.8kVA",
+      "HG5500 2.2kVA",
+      "HG7500 3.0kVA"
+    ],
+    "petrol|Honda": [
+      "EG650 0.65kVA",
+      "EG1000 0.9kVA",
+      "EG2500 2.0kVA",
+      "EG3600 3.0kVA",
+      "EG5500 4.5kVA",
+      "EG6500CXS 5.5kVA",
+      "EB5000 4.0kVA"
+    ],
+    "petrol|Jincheng": [
+      "JC1500 0.8kVA",
+      "JC2500 1.0kVA",
+      "JC3800 1.8kVA",
+      "JC5500 2.2kVA",
+      "JC6500 2.5kVA",
+      "JC7500 3.0kVA"
+    ],
+    "petrol|Kipor": ["KGE2500X 2.0kVA", "KGE3500X 2.8kVA", "KGE6500E 5.0kVA"],
+    "petrol|Lutian": [
+      "LT1200 0.8kVA",
+      "LT2500 1.0kVA",
+      "LT3900 1.8kVA",
+      "LT5500 2.2kVA",
+      "LT6500 2.5kVA",
+      "LT7500 3.0kVA",
+      "LT9000 3.5kVA",
+      "LT10000 4.0kVA"
+    ],
+    "petrol|Matrix": ["MXG2500 1.0kVA", "MXG3800 1.8kVA", "MXG5500 2.2kVA"],
+    "petrol|Maxi": [
+      "MX1500 0.8kVA",
+      "MX2500 1.0kVA",
+      "MX3500 1.5kVA",
+      "MX5500 2.2kVA",
+      "MX7500 3.0kVA"
+    ],
+    "petrol|Power Value": [
+      "PV2500 1.0kVA",
+      "PV3800 1.8kVA",
+      "PV5500 2.2kVA",
+      "PV7500 3.0kVA"
+    ],
+    "petrol|Pramac": ["W150 1.5kVA", "W220 2.2kVA", "W300 3.0kVA"],
+    "petrol|Senwei": [
+      "SW2500 1.0kVA",
+      "SW3800 1.8kVA",
+      "SW5500 2.2kVA",
+      "SW6500 2.5kVA",
+      "SW8000 3.5kVA"
+    ],
+    "petrol|Sumec Firman": [
+      "SPG1500 0.8kVA",
+      "SPG2200 0.9kVA",
+      "SPG2500 1.0kVA",
+      "SPG3000 1.2kVA",
+      "SPG3800 1.8kVA",
+      "SPG5500 2.2kVA",
+      "SPG6500 2.5kVA",
+      "SPG7500 3.0kVA",
+      "SPG8500E 3.5kVA",
+      "ECO8990ES 3.5kVA",
+      "FPG3800E 1.8kVA"
+    ],
+    "petrol|Tiger": [
+      "TG950 0.65kVA",
+      "TG1500 0.8kVA",
+      "TG2500 1.0kVA",
+      "TG3500 1.5kVA",
+      "TG5500 2.2kVA",
+      "TG6500 2.5kVA",
+      "TG7500 3.0kVA",
+      "TG8500 3.5kVA",
+      "TG9500 4.0kVA"
+    ],
+    "petrol|Yamaha": [
+      "EF1000 0.9kVA",
+      "EF2600 2.0kVA",
+      "EF4000 3.2kVA",
+      "EF5500 4.5kVA",
+      "EF7200E 5.5kVA"
+    ],
+    "diesel|Aksa": ["A22 20kVA", "A33 30kVA", "A50 50kVA", "A110 100kVA"],
+    "diesel|Aosif": [
+      "AS20 20kVA",
+      "AS30 30kVA",
+      "AS50 50kVA",
+      "AS80 80kVA",
+      "AS100 100kVA"
+    ],
+    "diesel|Baudouin": ["B20 20kVA", "B50 50kVA", "B100 100kVA", "B200 200kVA"],
+    "diesel|Caterpillar": [
+      "DE22E3 20kVA",
+      "DE33E0 30kVA",
+      "DE50E0 50kVA",
+      "DE88E0 80kVA",
+      "DE110E0 100kVA",
+      "DE150E0 150kVA",
+      "DE220E0 200kVA",
+      "C15 500kVA"
+    ],
+    "diesel|Cummins": [
+      "C22D5 20kVA",
+      "C33D5 30kVA",
+      "C55D5 50kVA",
+      "C88D5 80kVA",
+      "C110D5 100kVA",
+      "C150D5 150kVA",
+      "C220D5 200kVA",
+      "C330D5 300kVA",
+      "C550D5 500kVA"
+    ],
+    "diesel|Denyo": [
+      "DCA-25ESK 20kVA",
+      "DCA-45ESI 37kVA",
+      "DCA-60ESI 50kVA",
+      "DCA-100ESI 80kVA"
+    ],
+    "diesel|Elepaq": [
+      "ED6500 5kVA",
+      "ED8500 7.5kVA",
+      "ED12 12kVA",
+      "ED20 20kVA"
+    ],
+    "diesel|FG Wilson": [
+      "P22-6 20kVA",
+      "P33-3 30kVA",
+      "P50-3 45kVA",
+      "P88-3 80kVA",
+      "P110-3 100kVA",
+      "P165-3 150kVA",
+      "P220-3 200kVA",
+      "P550-3 500kVA"
+    ],
+    "diesel|Himoinsa": [
+      "HSY-20 20kVA",
+      "HSY-30 30kVA",
+      "HSY-60 60kVA",
+      "HSY-100 100kVA"
+    ],
+    "diesel|Jovex": [
+      "JX20 20kVA",
+      "JX30 30kVA",
+      "JX50 50kVA",
+      "JX80 80kVA",
+      "JX100 100kVA"
+    ],
+    "diesel|Justeen": [
+      "JT20 20kVA",
+      "JT30 30kVA",
+      "JT50 50kVA",
+      "JT80 80kVA",
+      "JT100 100kVA"
+    ],
+    "diesel|Kohler": [
+      "K20 20kVA",
+      "K30 30kVA",
+      "K50 50kVA",
+      "K80 80kVA",
+      "K100 100kVA",
+      "K200 200kVA"
+    ],
+    "diesel|Lister Petter": [
+      "TR2 8kVA",
+      "TR3 12kVA",
+      "TS3 20kVA",
+      "TS4 30kVA",
+      "LPWX4 40kVA"
+    ],
+    "diesel|Lutian": [
+      "LTD6500 5kVA",
+      "LTD8500 7.5kVA",
+      "LTD12 12kVA",
+      "LTD20 20kVA"
+    ],
+    "diesel|Mikano": [
+      "M10 10kVA",
+      "M15 15kVA",
+      "M20 20kVA",
+      "M30 30kVA",
+      "M40 40kVA",
+      "M50 50kVA",
+      "M80 80kVA",
+      "M100 100kVA",
+      "M150 150kVA",
+      "M200 200kVA",
+      "M250 250kVA",
+      "M350 350kVA",
+      "M500 500kVA"
+    ],
+    "diesel|Perkins": [
+      "P13.5 13.5kVA",
+      "P20 20kVA",
+      "P30 30kVA",
+      "P50 50kVA",
+      "P80 80kVA",
+      "P100 100kVA",
+      "P150 150kVA",
+      "P200 200kVA",
+      "P250 250kVA",
+      "P350 350kVA",
+      "P500 500kVA"
+    ],
+    "diesel|SDMO": [
+      "J22 20kVA",
+      "J33 30kVA",
+      "J44 40kVA",
+      "J66 60kVA",
+      "J110 100kVA",
+      "J165 150kVA"
+    ],
+    "diesel|Senci": ["SC20 20kVA", "SC30 30kVA", "SC50 50kVA"],
+    "diesel|Sumec Firman": [
+      "FDE6500E 5kVA",
+      "FDE8500E 7kVA",
+      "FDG12 12kVA",
+      "FDG20 20kVA",
+      "FDG30 30kVA"
+    ],
+    "diesel|Weichai": [
+      "WP20 20kVA",
+      "WP30 30kVA",
+      "WP50 50kVA",
+      "WP100 100kVA",
+      "WP200 200kVA"
+    ],
+    "diesel|Yuchai": ["YC20 20kVA", "YC30 30kVA", "YC50 50kVA", "YC100 100kVA"],
+    "inverter|Champion": ["2000W Inverter", "3400W Dual Fuel Inverter"],
+    "inverter|DuroMax": ["XP2300iH 2.3kVA", "XP4500iH 4.5kVA"],
+    "inverter|Elepaq": ["IG2000 2.0kVA", "IG3000 3.0kVA", "IG4000 4.0kVA"],
+    "inverter|Honda": [
+      "EU10i 1.0kVA",
+      "EU22i 2.2kVA",
+      "EU30is 3.0kVA",
+      "EU70is 7.0kVA"
+    ],
+    "inverter|Hyundai": ["HY2000Si 2.0kVA", "HY3200SEi 3.2kVA"],
+    "inverter|Kipor": ["IG2600 2.3kVA", "IG3000 2.8kVA", "IG6000 5.5kVA"],
+    "inverter|Lutian": ["LT2000i 2.0kVA", "LT3000i 3.0kVA"],
+    "inverter|Pulsar": ["PG2000iS 2.0kVA", "PG4500iSR 4.5kVA"],
+    "inverter|Sumec Firman": [
+      "RDG2900i 2.5kVA",
+      "RDG3600i 3.2kVA",
+      "RDG4500iE 4.0kVA"
+    ],
+    "inverter|Tiger": ["TGi2000 2.0kVA", "TGi3000 3.0kVA"],
+    "inverter|WEN": ["56200i 2.0kVA", "56380i 3.4kVA"],
+    "inverter|Yamaha": [
+      "EF2000iS 2.0kVA",
+      "EF2400iS 2.4kVA",
+      "EF3000iSE 3.0kVA"
+    ]
+  }
+}

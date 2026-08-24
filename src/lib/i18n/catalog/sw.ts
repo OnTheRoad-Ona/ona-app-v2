@@ -104,7 +104,8 @@ export const SW: MessageDict = {
   "settings.profilePro": "Wasifu wa pro, hati, bei",
   "settings.profileMotorist": "Wasifu wa mteja, magari, utambulisho",
   "settings.artisanTiers": "Uthibitisho",
-  "settings.artisanTiersDetail": "Simu, kitambulisho, BVN, uso, uthibitisho wa ujuzi",
+  "settings.artisanTiersDetail":
+    "Simu, kitambulisho, BVN, uso, uthibitisho wa ujuzi",
   "settings.help": "Msaada",
   "settings.helpDetail": "Jinsi Ona inavyofanya kazi",
   "settings.language": "Lugha",
@@ -112,7 +113,8 @@ export const SW: MessageDict = {
   "settings.aboutDetail": "Toleo 0.1 · msaada karibu",
   "language.title": "Lugha",
   "language.subtitle": "Lugha ya kuonyesha programu",
-  "language.hint": "Chagua lugha ya menyu na vitufe. Kiingereza ni chaguo-msingi.",
+  "language.hint":
+    "Chagua lugha ya menyu na vitufe. Kiingereza ni chaguo-msingi.",
   "language.saved": "Lugha imesasishwa",
   "language.current": "Ya sasa",
   "notif.title": "Arifa na sauti",
@@ -149,7 +151,8 @@ export const SW: MessageDict = {
   "notif.emailDetail": "Summaries and receipts",
   "location.title": "My location",
   "location.subtitle": "Set where you are",
-  "location.hint": "Search a place or move the pin. This is used for the home map and nearby pros.",
+  "location.hint":
+    "Search a place or move the pin. This is used for the home map and nearby pros.",
   "location.saved": "Location saved",
   "location.myLocationBtn": "My location",
   "location.tapMap": "Tap map or drag pin",
@@ -208,7 +211,8 @@ export const SW: MessageDict = {
   "trade.solar": "Jua",
   "trade.generator": "Jenereta",
   "trade.all": "Zote",
-  "gate.finishBeforeLive": "Maliza uthibitishaji na wasilisha kwa ukaguzi kabla ya Go Live.",
+  "gate.finishBeforeLive":
+    "Maliza uthibitishaji na wasilisha kwa ukaguzi kabla ya Go Live.",
   "gate.continueVerification": "Endelea uthibitishaji",
   "gate.viewStatus": "Tazama hali",
   "status.draft": "Rasimu",
@@ -258,7 +262,8 @@ export const SW: MessageDict = {
   "profile.reviews": "Reviews",
   "profile.rating": "Rating",
   "verify.title": "Thibitisha utambulisho wako",
-  "verify.subtitle": "Free try until job {warn}. Finish this before job {block} so you can keep booking.",
+  "verify.subtitle":
+    "Free try until job {warn}. Finish this before job {block} so you can keep booking.",
   "verify.howTitle": "How verification works",
   "verify.countryFromPhone": "Country: {country} (from your phone number)",
   "verify.requiredFor": "Required for {country}",
@@ -282,7 +287,8 @@ export const SW: MessageDict = {
   "signup.failed": "Usajili umeshindikana",
   "signup.tryAgain": "Jaribu tena",
   "signup.allSet": "You're all set",
-  "signup.accountReady": "Your {role} account is ready. You can start using Ona now.",
+  "signup.accountReady":
+    "Your {role} account is ready. You can start using Ona now.",
   "dashboard.title": "Dashibodi",
   "dashboard.incoming": "Incoming jobs",
   "dashboard.recent": "Recent",
@@ -291,7 +297,8 @@ export const SW: MessageDict = {
   "gate.verifySoon": "Verify soon to keep full access",
   "gate.verifyNow": "Verify your ID now",
   "gate.required": "Verification required",
-  "gate.exploreFree": "You explored the app freely. Verify your ID once to book without limits.",
+  "gate.exploreFree":
+    "You explored the app freely. Verify your ID once to book without limits.",
   "menu.settings": "Mipangilio",
   "menu.help": "Msaada",
   "menu.switchRole": "Switch role",
@@ -312,7 +319,8 @@ export const SW: MessageDict = {
   "menu.logIn": "Ingia",
   "menu.needLogin": "Ingia ili kubadilisha kati ya Mteja na Repair Pro.",
   "menu.noMotorist": "Bado huna akaunti ya Mteja.",
-  "menu.noPro": "Bado huna akaunti ya Repair Pro. Maliza usajili ili uwe Live na upokee kazi.",
+  "menu.noPro":
+    "Bado huna akaunti ya Repair Pro. Maliza usajili ili uwe Live na upokee kazi.",
   "menu.couldNotSwitch": "Imeshindwa kubadilisha.",
   "menu.tapToClose": "Gusa kufunga",
   "menu.signedInAs": "Umeingia kama {name}",
@@ -346,11 +354,12 @@ export const SW: MessageDict = {
   "settings.hub.addressesDetail": "Home, Work, service area & pin",
   "settings.dangerZone": "Eneo la hatari",
   "settings.deleteAccount": "Futa akaunti",
-  "settings.deleteAccountDetail": "Zima kabisa — haiwezi kutenduliwa",
+  "settings.deleteAccountDetail": "Zima kabisa haiwezi kutenduliwa",
   "settings.theme.tap": "Gusa",
   "search.noResultsFor": "Hakuna matokeo ya “{q}”",
-  "search.tryAnother": "Pro, biashara au mahali hapo hapapatikani karibu. Jaribu utafutaji mwingine.",
-  "search.tryBrowse": "Jaribu jina, biashara au mahali — au fungua Nyumbani.",
+  "search.tryAnother":
+    "Pro, biashara au mahali hapo hapapatikani karibu. Jaribu utafutaji mwingine.",
+  "search.tryBrowse": "Jaribu jina, biashara au mahali au fungua Nyumbani.",
   "search.noMatchesNearby": "Hakuna mechi karibu",
   "search.backHome": "Rudi nyumbani",
   "search.withinKm": "Ndani ya {km} km · matokeo {count}",
@@ -359,12 +368,14 @@ export const SW: MessageDict = {
   "search.placeholder": "Tafuta tatizo, fundi, huduma…",
   "search.title": "Tafuta",
   "search.subtitle": "Wafanyakazi wenye stadi karibu",
-  "home.searchNoResults": "Hakuna matokeo ya “{q}”. Jaribu jina, biashara au mahali pengine.",
+  "home.searchNoResults":
+    "Hakuna matokeo ya “{q}”. Jaribu jina, biashara au mahali pengine.",
   "common.customer": "Mteja",
   "common.repairPro": "Repair Pro",
   "common.codeSent": "Msimbo umetumwa. Ingiza hapa chini.",
   "nav.shop": "Shop",
   "nav.myShop": "My Shop",
+  "nav.onaExpress": "Ona Express",
   "trade.shop": "Shop",
   "shop.title": "Shop",
   "shop.searchPlaceholder": "What are you looking for?",
@@ -372,6 +383,6 @@ export const SW: MessageDict = {
   "shop.popular": "Popular",
   "shop.newArrivals": "New arrivals",
   "shop.empty": "No products yet. Catalog is loading.",
-  "shop.setupRequired": "Shop is almost ready — catalog database will appear after setup.",
+  "shop.setupRequired":
+    "Shop is almost ready catalog database will appear after setup.",
 };
-

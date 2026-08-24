@@ -17,7 +17,7 @@ export default function SettingsPrivacySectionPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader
@@ -32,9 +32,7 @@ export default function SettingsPrivacySectionPage() {
           icon={Shield}
           label={isPro ? "Privacy & visibility" : "Privacy"}
           detail={
-            isPro
-              ? "Search, blocked, export"
-              : "Visibility, data, blocked"
+            isPro ? "Search, blocked, export" : "Visibility, data, blocked"
           }
           href="/settings/privacy"
         />

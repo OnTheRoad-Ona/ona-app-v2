@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     if (b.motoristId !== auth.userId) {
       return apiFail("You can only init payment for your own jobs", 403);
     }
-    // Nigerian users always pay in NGN — never GBP/USD from browser locale
+    // Nigerian users always pay in NGN never GBP/USD from browser locale
     const detected = detectCurrency({
       countryCode: b.countryCode,
       countryName: b.countryName,
@@ -63,9 +63,7 @@ export async function POST(req: Request) {
       (b.countryCode || "").toUpperCase() === "NGA" ||
       /nigeria/i.test(b.countryName || "") ||
       process.env.FLUTTERWAVE_FORCE_NGN !== "false";
-    const currency: AppCurrency = isNigeria
-      ? "NGN"
-      : b.currency || detected;
+    const currency: AppCurrency = isNigeria ? "NGN" : b.currency || detected;
 
     const snap = buildPricingSnapshot({
       serviceType: b.serviceType as ProService,
@@ -75,9 +73,9 @@ export async function POST(req: Request) {
     });
     if (!snap) {
       return apiFail(
-        "This Repair Pro has no labour price set. Quote on request — they must set a price first.",
+        "This Repair Pro has no labour price set. Quote on request they must set a price first.",
         400,
-        "price_required"
+        "price_required",
       );
     }
 
@@ -86,7 +84,7 @@ export async function POST(req: Request) {
       process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
       "http://localhost:3000";
     const callbackUrl = `${appUrl}/payments/callback?ref=${encodeURIComponent(
-      reference
+      reference,
     )}`;
 
     // Attach bank codes for audit / later payout & refund (not required to charge)
@@ -114,7 +112,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Anti self-payment — a Repair Pro must never pay escrow to themselves.
+    // Anti self-payment a Repair Pro must never pay escrow to themselves.
     // Same name AND same BVN/NIN means both accounts belong to one person.
     if (isSupabaseAdminConfigured()) {
       const sb = createServiceSupabase();
@@ -156,7 +154,7 @@ export async function POST(req: Request) {
         return apiFail(
           "You cannot send money to yourself. Pick a different Repair Pro.",
           403,
-          "self_payment_blocked"
+          "self_payment_blocked",
         );
       }
     }
@@ -184,7 +182,7 @@ export async function POST(req: Request) {
         // NG: bank transfer only (no USSD)
         channels: ["bank_transfer"],
       },
-      b.provider
+      b.provider,
     );
 
     const payment = await createEscrowPayment({

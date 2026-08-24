@@ -48,7 +48,7 @@ export default function SettingsAccessibilityPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader
@@ -57,16 +57,11 @@ export default function SettingsAccessibilityPage() {
         backHref="/settings"
       />
       <div className="flex-1 space-y-3 overflow-y-auto px-3 pb-6 scrollbar-hide">
-        <div
-          className={cn(
-            "rounded-md px-3 py-3",
-            "bg-transparent"
-          )}
-        >
+        <div className={cn("rounded-md px-3 py-3", "bg-transparent")}>
           <p
             className={cn(
               "text-[13px] font-bold",
-              isLight ? "text-slate-900" : "text-white"
+              isLight ? "text-slate-900" : "text-white",
             )}
           >
             Text size
@@ -74,7 +69,7 @@ export default function SettingsAccessibilityPage() {
           <p
             className={cn(
               "mt-0.5 text-[11px] font-medium",
-              isLight ? "text-slate-600" : "text-white/60"
+              isLight ? "text-slate-600" : "text-white/60",
             )}
           >
             Current {scale}%
@@ -99,7 +94,7 @@ export default function SettingsAccessibilityPage() {
             type="button"
             className={cn(
               "mt-2 w-full border-0 bg-transparent text-[11px] font-semibold",
-              isLight ? "text-slate-600" : "text-white/55"
+              isLight ? "text-slate-600" : "text-white/55",
             )}
             onClick={() => applyScale(100)}
           >
@@ -110,14 +105,14 @@ export default function SettingsAccessibilityPage() {
         <div
           className={cn(
             "flex items-center justify-between gap-3 rounded-md px-3 py-3",
-            "bg-transparent"
+            "bg-transparent",
           )}
         >
           <div>
             <p
               className={cn(
                 "text-[13px] font-bold",
-                isLight ? "text-slate-900" : "text-white"
+                isLight ? "text-slate-900" : "text-white",
               )}
             >
               Stronger contrast
@@ -125,7 +120,7 @@ export default function SettingsAccessibilityPage() {
             <p
               className={cn(
                 "text-[11px] font-medium",
-                isLight ? "text-slate-600" : "text-white/60"
+                isLight ? "text-slate-600" : "text-white/60",
               )}
             >
               Preference saved on this device.
@@ -142,13 +137,13 @@ export default function SettingsAccessibilityPage() {
                 ? "bg-[#FF6B35]"
                 : isLight
                   ? "bg-black/20"
-                  : "bg-white/20"
+                  : "bg-white/20",
             )}
           >
             <span
               className={cn(
                 "block h-5 w-5 rounded-full bg-white transition-transform",
-                highContrast ? "translate-x-6" : "translate-x-1"
+                highContrast ? "translate-x-6" : "translate-x-1",
               )}
             />
           </button>

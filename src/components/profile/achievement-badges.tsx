@@ -39,7 +39,7 @@ export function BadgeChip({
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full font-bold shadow-sm",
-        compact ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-0.5 text-[10px]"
+        compact ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-0.5 text-[10px]",
       )}
       style={{
         backgroundColor: badge.bg,
@@ -48,7 +48,10 @@ export function BadgeChip({
       }}
       title={`${badge.label} · ${badge.minJobs}+ jobs`}
     >
-      <Award className={compact ? "h-2.5 w-2.5" : "h-3 w-3"} strokeWidth={2.5} />
+      <Award
+        className={compact ? "h-2.5 w-2.5" : "h-3 w-3"}
+        strokeWidth={2.5}
+      />
       {badge.label}
     </span>
   );

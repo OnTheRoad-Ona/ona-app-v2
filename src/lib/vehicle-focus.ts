@@ -7,11 +7,7 @@
 import { Country, State } from "country-state-city";
 
 export type PrefKey =
-  | "vehicleType"
-  | "brand"
-  | "model"
-  | "country"
-  | "location";
+  "vehicleType" | "brand" | "model" | "country" | "location";
 
 export const VEHICLE_TYPES = [
   "Any",
@@ -559,7 +555,15 @@ const MODELS_BY_BRAND: Record<string, string[]> = {
     "Silverado",
     "Other",
   ],
-  Tesla: ["Any", "Model 3", "Model Y", "Model S", "Model X", "Cybertruck", "Other"],
+  Tesla: [
+    "Any",
+    "Model 3",
+    "Model Y",
+    "Model S",
+    "Model X",
+    "Cybertruck",
+    "Other",
+  ],
   Suzuki: [
     "Any",
     "Swift",
@@ -572,7 +576,15 @@ const MODELS_BY_BRAND: Record<string, string[]> = {
     "Other",
   ],
   Renault: ["Any", "Clio", "Megane", "Duster", "Koleos", "Trafic", "Other"],
-  Jeep: ["Any", "Wrangler", "Cherokee", "Grand Cherokee", "Compass", "Renegade", "Other"],
+  Jeep: [
+    "Any",
+    "Wrangler",
+    "Cherokee",
+    "Grand Cherokee",
+    "Compass",
+    "Renegade",
+    "Other",
+  ],
   Volvo: ["Any", "S60", "S90", "XC40", "XC60", "XC90", "FH", "FM", "Other"],
   Isuzu: ["Any", "D-Max", "MU-X", "NPR", "NQR", "FVR", "Other"],
   Hino: ["Any", "300 Series", "500 Series", "700 Series", "Other"],
@@ -593,9 +605,23 @@ const MODELS_BY_BRAND: Record<string, string[]> = {
     "Other",
   ],
   Kawasaki: ["Any", "Ninja", "Z900", "Versys", "KLR", "Other"],
-  "Royal Enfield": ["Any", "Classic 350", "Meteor", "Himalayan", "Hunter", "Other"],
+  "Royal Enfield": [
+    "Any",
+    "Classic 350",
+    "Meteor",
+    "Himalayan",
+    "Hunter",
+    "Other",
+  ],
   "BMW Motorrad": ["Any", "G 310", "F 750", "R 1250", "S 1000", "Other"],
-  "Harley-Davidson": ["Any", "Sportster", "Street", "Softail", "Touring", "Other"],
+  "Harley-Davidson": [
+    "Any",
+    "Sportster",
+    "Street",
+    "Softail",
+    "Touring",
+    "Other",
+  ],
   KTM: ["Any", "Duke 200", "Duke 390", "RC 390", "Adventure", "Other"],
   Caterpillar: ["Any", "Excavator", "Loader", "Bulldozer", "Grader", "Other"],
   "John Deere": ["Any", "Tractor", "Loader", "Harvester", "Other"],
@@ -672,7 +698,7 @@ export const getMakesForVehicleType = getBrandsForVehicleType;
 
 export function getModelsForBrand(
   brand: string,
-  vehicleType?: string
+  vehicleType?: string,
 ): string[] {
   // Full catalog for the brand (complete list for whichever brands the user picked)
   const base = MODELS_BY_BRAND[brand] ?? ["Any", "Other"];
@@ -680,15 +706,7 @@ export function getModelsForBrand(
   if (!vehicleType || vehicleType === "Any") return [...base];
   const bucket = bucketForVehicleType(vehicleType);
   if (bucket === "motorcycle" && brand === "Honda") {
-    return [
-      "Any",
-      "CB500",
-      "CBR",
-      "PCX",
-      "Activa",
-      "Africa Twin",
-      "Other",
-    ];
+    return ["Any", "CB500", "CBR", "PCX", "Activa", "Africa Twin", "Other"];
   }
   if (bucket === "motorcycle" && brand === "Yamaha") {
     return ["Any", "YZF-R3", "MT-07", "MT-09", "NMAX", "RayZR", "Other"];
@@ -702,7 +720,7 @@ export function getModelsForMake(make: string): string[] {
   return getModelsForBrand(make);
 }
 
-/** Cache all countries once (Nigeria first, then A–Z). */
+/** Cache all countries once (Nigeria first, then A-Z). */
 let _countriesCache: string[] | null = null;
 let _isoByName: Map<string, string> | null = null;
 
@@ -723,16 +741,17 @@ function ensureCountryIndex() {
   ];
 }
 
-/** All world countries — Nigeria first, then alphabetical, plus Any/Other. */
+/** All world countries Nigeria first, then alphabetical, plus Any/Other. */
 export function getAllCountries(): string[] {
   ensureCountryIndex();
   return _countriesCache!;
 }
 
 /** @deprecated use getAllCountries() */
-export const COUNTRIES = typeof window === "undefined"
-  ? (["Any", "Nigeria", "Other"] as string[])
-  : getAllCountries();
+export const COUNTRIES =
+  typeof window === "undefined"
+    ? (["Any", "Nigeria", "Other"] as string[])
+    : getAllCountries();
 
 /**
  * States / regions for a country (full list from ISO data).
@@ -758,7 +777,7 @@ export function getLocationsForCountry(country: string): string[] {
     .map((s) => s.name)
     .sort((a, b) => a.localeCompare(b));
   if (states.length === 0) {
-    // Some territories have no states — offer Any/Other only
+    // Some territories have no states offer Any/Other only
     return ["Any", "Other"];
   }
   return ["Any", ...states, "Other"];
@@ -776,7 +795,7 @@ export function optionsForPref(
   key: PrefKey,
   vehicleType: string,
   brand: string,
-  country: string
+  country: string,
 ): string[] {
   switch (key) {
     case "vehicleType":
@@ -794,7 +813,7 @@ export function optionsForPref(
 
 export function syncBrandForVehicleType(
   vehicleType: string,
-  currentBrand: string
+  currentBrand: string,
 ): string {
   const brands = getBrandsForVehicleType(vehicleType);
   if (brands.includes(currentBrand)) return currentBrand;
@@ -807,7 +826,7 @@ export const syncMakeForVehicleType = syncBrandForVehicleType;
 export function syncModelForBrand(
   brand: string,
   currentModel: string,
-  vehicleType?: string
+  vehicleType?: string,
 ): string {
   const models = getModelsForBrand(brand, vehicleType);
   if (models.includes(currentModel)) return currentModel;
@@ -821,7 +840,7 @@ export function syncModelForMake(make: string, currentModel: string): string {
 
 export function syncLocationForCountry(
   country: string,
-  currentLocation: string
+  currentLocation: string,
 ): string {
   const locs = getLocationsForCountry(country);
   if (locs.includes(currentLocation)) return currentLocation;

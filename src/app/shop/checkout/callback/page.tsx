@@ -36,7 +36,7 @@ function CallbackInner() {
           setMessage(
             result.alreadyPaid
               ? "Payment already confirmed."
-              : "Payment successful. Order is confirmed."
+              : "Payment successful. Order is confirmed.",
           );
         } else {
           setStatus("fail");
@@ -86,7 +86,7 @@ function CallbackInner() {
             onClick={() => router.replace("/shop")}
             className={cn(
               "h-11 rounded-xl border-0 text-[13px] font-bold",
-              isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white"
+              isLight ? "bg-black/10 text-slate-900" : "bg-white/10 text-white",
             )}
           >
             Back to Shop

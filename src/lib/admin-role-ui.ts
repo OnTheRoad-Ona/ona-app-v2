@@ -4,11 +4,7 @@
  */
 
 export type AdminRoleUi =
-  | "customer_care"
-  | "senior_support"
-  | "operations"
-  | "manager"
-  | "super_admin";
+  "customer_care" | "senior_support" | "operations" | "manager" | "super_admin";
 
 const ALIASES: Record<string, AdminRoleUi> = {
   customer_care: "customer_care",
@@ -24,7 +20,7 @@ const ALIASES: Record<string, AdminRoleUi> = {
 };
 
 export function normalizeAdminRoleUi(
-  raw: string | null | undefined
+  raw: string | null | undefined,
 ): AdminRoleUi {
   if (!raw) return "super_admin";
   const key = String(raw).trim().toLowerCase().replace(/\s+/g, "_");
@@ -107,18 +103,11 @@ export function navGroupsForRoleUi(role: AdminRoleUi): string[] {
   }
 }
 
-export function canAccessAdminPathUi(
-  role: AdminRoleUi,
-  href: string
-): boolean {
+export function canAccessAdminPathUi(role: AdminRoleUi, href: string): boolean {
   const path = href.split("?")[0] || href;
   if (role === "super_admin") return true;
 
-  const superOnly = [
-    "/admin/settings",
-    "/admin/features",
-    "/admin/matching",
-  ];
+  const superOnly = ["/admin/settings", "/admin/features", "/admin/matching"];
   if (superOnly.some((p) => path === p || path.startsWith(`${p}/`))) {
     return false;
   }
@@ -171,12 +160,12 @@ export function canCancelEscrowUi(role: AdminRoleUi): boolean {
   return roleLevelUi(role) >= 3;
 }
 
-/** Force pro payout / cancel processing cockpit — L4 Manager + L5 Super Admin */
+/** Force pro payout / cancel processing cockpit L4 Manager + L5 Super Admin */
 export function canForcePayoutUi(role: AdminRoleUi): boolean {
   return roleLevelUi(role) >= 4;
 }
 
-/** Standalone manual bank payout (not job-tied) — L4 + L5 */
+/** Standalone manual bank payout (not job-tied) L4 + L5 */
 export function canManualStandalonePayoutUi(role: AdminRoleUi): boolean {
   return roleLevelUi(role) >= 4;
 }

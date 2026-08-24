@@ -36,7 +36,7 @@ export function getPhoneCodeOptions(): PhoneCodeOption[] {
     })
     .filter((x): x is PhoneCodeOption => x != null);
 
-  // Dedupe by dial+iso, Nigeria first, then A–Z by name
+  // Dedupe by dial+iso, Nigeria first, then A-Z by name
   const nigeria = mapped.filter((c) => c.iso === "NG");
   const rest = mapped
     .filter((c) => c.iso !== "NG")
@@ -57,7 +57,7 @@ export function dialForIso(iso: string): string {
 /** Combine country dial + national number → E.164-ish storage string. */
 export function formatInternationalPhone(
   dial: string,
-  national: string
+  national: string,
 ): string {
   const d = normalizeDial(dial);
   let n = national.replace(/\D/g, "");
@@ -73,10 +73,16 @@ export function splitStoredPhone(phone: string): {
   national: string;
 } {
   const digits = phone.replace(/\D/g, "");
-  const codes = getPhoneCodeOptions().slice().sort((a, b) => b.dial.length - a.dial.length);
+  const codes = getPhoneCodeOptions()
+    .slice()
+    .sort((a, b) => b.dial.length - a.dial.length);
   for (const c of codes) {
     if (digits.startsWith(c.dial) && digits.length > c.dial.length) {
-      return { iso: c.iso, dial: c.dial, national: digits.slice(c.dial.length) };
+      return {
+        iso: c.iso,
+        dial: c.dial,
+        national: digits.slice(c.dial.length),
+      };
     }
   }
   return { iso: DEFAULT_PHONE_ISO, dial: DEFAULT_PHONE_DIAL, national: digits };

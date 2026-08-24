@@ -1,5 +1,5 @@
 /**
- * Quiet Hours — suppress non-critical toasts overnight.
+ * Quiet Hours suppress non-critical toasts overnight.
  * Critical / high (safety, new request, arrived) always break through.
  *
  * startHour / endHour use -1 for "Anytime" (no quiet window on that side
@@ -11,7 +11,7 @@ export const QUIET_HOURS_ANYTIME = -1;
 
 export type QuietHoursConfig = {
   enabled: boolean;
-  /** Local hour 0–23, or -1 = Anytime */
+  /** Local hour 0-23, or -1 = Anytime */
   startHour: number;
   endHour: number;
 };
@@ -47,7 +47,9 @@ export function getQuietHours(): QuietHoursConfig {
   }
 }
 
-export function setQuietHours(cfg: Partial<QuietHoursConfig>): QuietHoursConfig {
+export function setQuietHours(
+  cfg: Partial<QuietHoursConfig>,
+): QuietHoursConfig {
   const next = { ...getQuietHours(), ...cfg };
   try {
     localStorage.setItem(KEY, JSON.stringify(next));
@@ -57,7 +59,9 @@ export function setQuietHours(cfg: Partial<QuietHoursConfig>): QuietHoursConfig 
   return next;
 }
 
-export function isInQuietHours(cfg: QuietHoursConfig = getQuietHours()): boolean {
+export function isInQuietHours(
+  cfg: QuietHoursConfig = getQuietHours(),
+): boolean {
   if (!cfg.enabled) return false;
   // Anytime on From or Until → no quiet window
   if (
@@ -76,7 +80,7 @@ export function isInQuietHours(cfg: QuietHoursConfig = getQuietHours()): boolean
 
 /** Toasts during quiet hours: critical/high always show */
 export function shouldShowToast(
-  priority: "low" | "normal" | "high" | "critical"
+  priority: "low" | "normal" | "high" | "critical",
 ): boolean {
   if (priority === "critical" || priority === "high") return true;
   return !isInQuietHours();

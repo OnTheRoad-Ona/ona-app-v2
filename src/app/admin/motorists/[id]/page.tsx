@@ -99,7 +99,7 @@ type Detail = {
 
 function one<T>(v: T | T[] | null | undefined): T | null {
   if (!v) return null;
-  return Array.isArray(v) ? v[0] ?? null : v;
+  return Array.isArray(v) ? (v[0] ?? null) : v;
 }
 
 export default function AdminMotoristDetailPage() {
@@ -148,7 +148,7 @@ export default function AdminMotoristDetailPage() {
   async function hardDelete() {
     if (
       !window.confirm(
-        `Hard-delete ${data?.user.full_name || "this motorist"} permanently?`
+        `Hard-delete ${data?.user.full_name || "this motorist"} permanently?`,
       )
     ) {
       return;
@@ -175,7 +175,7 @@ export default function AdminMotoristDetailPage() {
       return;
     }
     setMsg(
-      `Identity sync re-run: roles ${((res.data as { roles?: string[] } | undefined)?.roles || []).join(", ") || "—"}`
+      `Identity sync re-run: roles ${((res.data as { roles?: string[] } | undefined)?.roles || []).join(", ") || ""}`,
     );
     await load();
   }
@@ -241,7 +241,10 @@ export default function AdminMotoristDetailPage() {
           <div className="om-admin-panel" style={{ marginBottom: 16 }}>
             <div className="om-admin-toolbar">
               <strong>Profile</strong>
-              <div className="om-admin-row-actions" style={{ marginLeft: "auto" }}>
+              <div
+                className="om-admin-row-actions"
+                style={{ marginLeft: "auto" }}
+              >
                 <button
                   type="button"
                   className="om-admin-btn"
@@ -265,18 +268,18 @@ export default function AdminMotoristDetailPage() {
               <tbody>
                 <tr>
                   <th style={{ width: 160 }}>Email</th>
-                  <td>{u?.email || "—"}</td>
+                  <td>{u?.email || ""}</td>
                 </tr>
                 <tr>
                   <th>Phone</th>
-                  <td>{u?.phone || "—"}</td>
+                  <td>{u?.phone || ""}</td>
                 </tr>
                 <tr>
                   <th>Location</th>
                   <td>
                     {[u?.area, u?.city].filter(Boolean).join(", ") ||
                       mot?.address_text ||
-                      "—"}
+                      ""}
                   </td>
                 </tr>
                 <tr>
@@ -284,7 +287,7 @@ export default function AdminMotoristDetailPage() {
                   <td>
                     {u?.created_at
                       ? new Date(u.created_at).toLocaleString()
-                      : "—"}
+                      : ""}
                   </td>
                 </tr>
                 <tr>
@@ -306,19 +309,19 @@ export default function AdminMotoristDetailPage() {
                   <td>
                     {[mot?.vehicle_make, mot?.vehicle_model, mot?.vehicle_year]
                       .filter(Boolean)
-                      .join(" ") || "—"}
+                      .join(" ") || ""}
                   </td>
                 </tr>
                 <tr>
                   <th>Plate</th>
-                  <td>{mot?.plate_number || "—"}</td>
+                  <td>{mot?.plate_number || ""}</td>
                 </tr>
                 <tr>
                   <th>Map pin</th>
                   <td className="om-admin-muted">
                     {mot?.default_lat != null && mot?.default_lng != null
                       ? `${mot.default_lat.toFixed(5)}, ${mot.default_lng.toFixed(5)}`
-                      : "—"}
+                      : ""}
                   </td>
                 </tr>
               </tbody>
@@ -350,7 +353,7 @@ export default function AdminMotoristDetailPage() {
                   <td>
                     {mot?.identity_verified_at
                       ? new Date(mot.identity_verified_at).toLocaleString()
-                      : "—"}
+                      : ""}
                   </td>
                 </tr>
               </tbody>
@@ -360,7 +363,10 @@ export default function AdminMotoristDetailPage() {
           <div className="om-admin-panel" style={{ marginBottom: 16 }}>
             <div className="om-admin-toolbar">
               <strong>Accounts & identity sync</strong>
-              <div className="om-admin-row-actions" style={{ marginLeft: "auto" }}>
+              <div
+                className="om-admin-row-actions"
+                style={{ marginLeft: "auto" }}
+              >
                 <button
                   type="button"
                   className="om-admin-btn"
@@ -390,7 +396,7 @@ export default function AdminMotoristDetailPage() {
                           : ""}
                       </span>
                     ) : (
-                      <span className="om-admin-muted">—</span>
+                      <span className="om-admin-muted"></span>
                     )}
                   </td>
                 </tr>
@@ -407,20 +413,20 @@ export default function AdminMotoristDetailPage() {
                   <td>
                     {data.identity?.payoutMethod ? (
                       <span>
+                        {String(data.identity.payoutMethod.bank_name || "Bank")}{" "}
+                        · …
                         {String(
-                          data.identity.payoutMethod.bank_name || "Bank"
-                        )}{" "}
-                        · …{String(
-                          data.identity.payoutMethod.account_number_last4 || "????"
+                          data.identity.payoutMethod.account_number_last4 ||
+                            "????",
                         )}{" "}
                         <span className="om-admin-muted">
-                          ({String(
-                            data.identity.payoutMethod.linked_role || "—"
-                          )})
+                          (
+                          {String(data.identity.payoutMethod.linked_role || "")}
+                          )
                         </span>
                       </span>
                     ) : (
-                      <span className="om-admin-muted">—</span>
+                      <span className="om-admin-muted"></span>
                     )}
                   </td>
                 </tr>
@@ -432,7 +438,7 @@ export default function AdminMotoristDetailPage() {
                         {data.identity.completedFields.join(", ")}
                       </span>
                     ) : (
-                      <span className="om-admin-muted">—</span>
+                      <span className="om-admin-muted"></span>
                     )}
                   </td>
                 </tr>
@@ -444,7 +450,7 @@ export default function AdminMotoristDetailPage() {
                         {data.identity.missingFields.join(", ")}
                       </span>
                     ) : (
-                      <span className="om-admin-muted">—</span>
+                      <span className="om-admin-muted"></span>
                     )}
                   </td>
                 </tr>
@@ -459,12 +465,12 @@ export default function AdminMotoristDetailPage() {
                           style={{ fontSize: 11, lineHeight: 1.5 }}
                         >
                           {e.action} · {e.result}
-                          {e.error ? ` · ${e.error}` : ""} —{" "}
+                          {e.error ? ` · ${e.error}` : ""}{" "}
                           {new Date(e.created_at).toLocaleString()}
                         </div>
                       ))
                     ) : (
-                      <span className="om-admin-muted">—</span>
+                      <span className="om-admin-muted"></span>
                     )}
                   </td>
                 </tr>
@@ -504,7 +510,7 @@ export default function AdminMotoristDetailPage() {
                           {j.status}
                         </span>
                       </td>
-                      <td>{j.pickup_address || "—"}</td>
+                      <td>{j.pickup_address || ""}</td>
                     </tr>
                   ))
                 )}
@@ -537,11 +543,11 @@ export default function AdminMotoristDetailPage() {
                       <td className="om-admin-muted">
                         {new Date(b.created_at).toLocaleString()}
                       </td>
-                      <td>{b.status || "—"}</td>
+                      <td>{b.status || ""}</td>
                       <td>
                         {b.scheduled_at
                           ? new Date(b.scheduled_at).toLocaleString()
-                          : "—"}
+                          : ""}
                       </td>
                     </tr>
                   ))
@@ -576,8 +582,7 @@ export default function AdminMotoristDetailPage() {
                         {new Date(p.created_at).toLocaleString()}
                       </td>
                       <td>
-                        ₦
-                        {(Number(p.amount_kobo || 0) / 100).toLocaleString()}
+                        ₦{(Number(p.amount_kobo || 0) / 100).toLocaleString()}
                       </td>
                       <td>{p.status}</td>
                     </tr>

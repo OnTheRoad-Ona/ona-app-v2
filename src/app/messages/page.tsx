@@ -25,7 +25,7 @@ export default function MessagesPage() {
     <div
       className={cn(
         "flex h-full min-h-0 flex-col overflow-hidden",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader title="Chat" backHref={home} />
@@ -33,7 +33,7 @@ export default function MessagesPage() {
         <p
           className={cn(
             "text-[15px] font-bold",
-            isLight ? "text-slate-900" : "text-white"
+            isLight ? "text-slate-900" : "text-white",
           )}
         >
           Chat opens from a request

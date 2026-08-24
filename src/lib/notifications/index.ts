@@ -1,22 +1,22 @@
 /**
- * Ona notification system — public exports.
+ * Ona notification system public exports.
  *
  * Usage (already wired in AppFrame):
- *   <NotificationProvider>
- *     <NotificationToasts />
- *     <NotificationCenter />
- *   </NotificationProvider>
+ * <NotificationProvider>
+ * <NotificationToasts />
+ * <NotificationCenter />
+ * </NotificationProvider>
  *
  * Trigger a demo toast from any client component:
- *   const { pushLocal } = useNotifications();
- *   pushLocal({
- *     category: "requests",
- *     priority: "critical",
- *     title: "New service request",
- *     body: "Battery · Lekki · 1.2 km",
- *     actionType: "accept_request",
- *     href: "/dashboard",
- *   });
+ * const { pushLocal } = useNotifications();
+ * pushLocal({
+ * category: "requests",
+ * priority: "critical",
+ * title: "New service request",
+ * body: "Battery · Lekki · 1.2 km",
+ * actionType: "accept_request",
+ * href: "/dashboard",
+ * });
  */
 
 export type {

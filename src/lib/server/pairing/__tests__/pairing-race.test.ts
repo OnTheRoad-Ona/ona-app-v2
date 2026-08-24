@@ -9,9 +9,9 @@ vi.mock("@/lib/supabase/env", () => ({
 }));
 
 vi.mock("@/lib/server/merit/merit-engine", () => ({
-  orderCandidatesByMerit: vi.fn(async (candidates: Array<{ user_id: string }>) => [
-    ...candidates,
-  ]),
+  orderCandidatesByMerit: vi.fn(
+    async (candidates: Array<{ user_id: string }>) => [...candidates],
+  ),
   getMeritScoresForPros: vi.fn(async () => new Map<string, number>()),
   recalculateMerit: vi.fn(async () => {}),
 }));
@@ -90,11 +90,14 @@ type Responder =
   | Promise<{ data?: unknown; error?: { message: string } | null }>;
 
 /** Per-table scripted responders; default = { error: null }. */
-const responders: Record<string, (calls: { op: string; args: unknown[] }[]) => Responder> = {};
+const responders: Record<
+  string,
+  (calls: { op: string; args: unknown[] }[]) => Responder
+> = {};
 
 function resolveResponder(
   table: string,
-  calls: { op: string; args: unknown[] }[]
+  calls: { op: string; args: unknown[] }[],
 ): Responder {
   const fn = responders[table];
   return fn ? fn(calls) : { data: null, error: null };
@@ -166,10 +169,7 @@ function makeQuery(table: string) {
       record("delete", []);
       return q;
     },
-    then: (
-      resolve: (v: unknown) => void,
-      reject: (e: unknown) => void
-    ) => {
+    then: (resolve: (v: unknown) => void, reject: (e: unknown) => void) => {
       const r = resolveResponder(table, calls);
       Promise.resolve(r).then(resolve, reject);
     },
@@ -200,9 +200,7 @@ function installClient(row: Row | null) {
 }
 
 function callsFor(table: string, op?: string) {
-  return sent.filter(
-    (c) => c.table === table && (!op || c.op === op)
-  );
+  return sent.filter((c) => c.table === table && (!op || c.op === op));
 }
 
 beforeEach(() => {
@@ -211,7 +209,7 @@ beforeEach(() => {
   createServiceSupabaseMock.mockClear();
 });
 
-describe("openRequest — idempotency & race safety", () => {
+describe("openRequest idempotency & race safety", () => {
   it("creates one active reservation and moves waiting_for_selected → selected_review", async () => {
     const row: Row = { ...FULL_ROW, pairing_stage: "waiting_for_selected" };
     installClient(row);
@@ -234,7 +232,8 @@ describe("openRequest — idempotency & race safety", () => {
     expect(patch.idempotency_key).toBe("k-1");
     // CAS guard on the expected stage
     const casGuard = callsFor("service_requests", "eq").some(
-      (c) => c.args[0] === "pairing_stage" && c.args[1] === "waiting_for_selected"
+      (c) =>
+        c.args[0] === "pairing_stage" && c.args[1] === "waiting_for_selected",
     );
     expect(casGuard).toBe(true);
   });
@@ -310,7 +309,7 @@ describe("openRequest — idempotency & race safety", () => {
   });
 });
 
-describe("confirmRequest — assignment point", () => {
+describe("confirmRequest assignment point", () => {
   it("confirms the reservation, arms the 20-min negotiation clock, and clears pairing_stage", async () => {
     const row: Row = { ...FULL_ROW, pairing_stage: "reserved" };
     installClient(row);
@@ -338,9 +337,8 @@ describe("confirmRequest — assignment point", () => {
     expect(Number.isFinite(armed)).toBe(true);
     expect(armed - before).toBeGreaterThanOrEqual(19 * 60_000);
 
-    const { recalculateMerit } = await import(
-      "@/lib/server/merit/merit-engine"
-    );
+    const { recalculateMerit } =
+      await import("@/lib/server/merit/merit-engine");
     expect(recalculateMerit).toHaveBeenCalledWith("pro-1");
   });
 
@@ -392,13 +390,22 @@ describe("confirmRequest — assignment point", () => {
   });
 });
 
-describe("declineRequest — per-request permanent exclusion (D6)", () => {
+describe("declineRequest per-request permanent exclusion (D6)", () => {
   it("writes excluded:<proId> history, marks queue declined, and advances to the next pro", async () => {
     const row: Row = { ...FULL_ROW, pairing_stage: "waiting_for_selected" };
     installClient(row);
     responders["request_pairing_queue"] = () => ({ data: null, error: null });
     responders["repair_pro_profiles"] = () => ({
-      data: [{ user_id: "pro-2", business_name: "Beta", primary_service: "auto", lat: 6.5, lng: 3.3, location_updated_at: new Date().toISOString() }],
+      data: [
+        {
+          user_id: "pro-2",
+          business_name: "Beta",
+          primary_service: "auto",
+          lat: 6.5,
+          lng: 3.3,
+          location_updated_at: new Date().toISOString(),
+        },
+      ],
       error: null,
     });
     responders["profiles"] = () => ({
@@ -436,14 +443,23 @@ describe("declineRequest — per-request permanent exclusion (D6)", () => {
     installClient(row);
     responders["request_pairing_queue"] = () => ({ data: null, error: null });
     responders["repair_pro_profiles"] = () => ({
-      data: [{ user_id: "pro-2", business_name: "Beta", primary_service: "auto", lat: 6.5, lng: 3.3, location_updated_at: new Date().toISOString() }],
+      data: [
+        {
+          user_id: "pro-2",
+          business_name: "Beta",
+          primary_service: "auto",
+          lat: 6.5,
+          lng: 3.3,
+          location_updated_at: new Date().toISOString(),
+        },
+      ],
       error: null,
     });
     responders["profiles"] = () => ({ data: null, error: null });
 
     await declineRequest("job-1", "pro-1");
     const allPatches = callsFor("service_requests", "update").map(
-      (c) => c.args[0] as Record<string, unknown>
+      (c) => c.args[0] as Record<string, unknown>,
     );
     const history = (allPatches[0].status_history ?? []) as Array<{
       by?: string;
@@ -452,7 +468,7 @@ describe("declineRequest — per-request permanent exclusion (D6)", () => {
   });
 });
 
-describe("timeoutRequest — sweep enforcement", () => {
+describe("timeoutRequest sweep enforcement", () => {
   it("never settles or advances a sequential_pairing row (noop)", async () => {
     const row: Row = { ...FULL_ROW, pairing_stage: "sequential_pairing" };
     installClient(row);
@@ -472,7 +488,16 @@ describe("timeoutRequest — sweep enforcement", () => {
     installClient(row);
     responders["request_pairing_queue"] = () => ({ data: null, error: null });
     responders["repair_pro_profiles"] = () => ({
-      data: [{ user_id: "pro-2", business_name: "Beta", primary_service: "auto", lat: 6.5, lng: 3.3, location_updated_at: new Date().toISOString() }],
+      data: [
+        {
+          user_id: "pro-2",
+          business_name: "Beta",
+          primary_service: "auto",
+          lat: 6.5,
+          lng: 3.3,
+          location_updated_at: new Date().toISOString(),
+        },
+      ],
       error: null,
     });
     responders["profiles"] = () => ({ data: null, error: null });
@@ -511,7 +536,7 @@ describe("timeoutRequest — sweep enforcement", () => {
   });
 
   it("is a noop when the stage CAS loses the confirm race", async () => {
-    // confirmRequest already moved the row to negotiating — the stale timeout's
+    // confirmRequest already moved the row to negotiating the stale timeout's
     // CAS on the old stage matches nothing, so nothing advances.
     const row: Row = { ...FULL_ROW, pairing_stage: "negotiating" };
     installClient(row);
@@ -523,7 +548,7 @@ describe("timeoutRequest — sweep enforcement", () => {
   });
 });
 
-describe("confirmRequest — marks the queue accepted (race-safe vs sweep)", () => {
+describe("confirmRequest marks the queue accepted (race-safe vs sweep)", () => {
   it("writes status=accepted to the queue so a racing timeout never marks it timed_out", async () => {
     const row: Row = { ...FULL_ROW, pairing_stage: "selected_review" };
     installClient(row);
@@ -534,27 +559,26 @@ describe("confirmRequest — marks the queue accepted (race-safe vs sweep)", () 
     expect(res.ok).toBe(true);
 
     const qUpdate = callsFor("request_pairing_queue", "update").find(
-      (c) => (c.args[0] as Record<string, unknown>).status === "accepted"
+      (c) => (c.args[0] as Record<string, unknown>).status === "accepted",
     );
     expect(qUpdate).toBeTruthy();
   });
 });
 
-describe("deferRequest — Later defers pro and advances immediately (D5)", () => {
+describe("deferRequest Later defers pro and advances immediately (D5)", () => {
   it("records deferred, moves to sequential_pairing, and advances pairing", async () => {
     const row: Row = { ...FULL_ROW, pairing_stage: "waiting_for_pro" };
     installClient(row);
     responders["request_pairing_queue"] = () => ({ data: null, error: null });
     responders["request_reservations"] = () => ({ data: null, error: null });
 
-    const { deferRequest } = await import(
-      "@/lib/server/pairing/pairing-engine"
-    );
+    const { deferRequest } =
+      await import("@/lib/server/pairing/pairing-engine");
     const res = await deferRequest("job-1", "pro-1");
     expect(res.ok).toBe(true);
 
     const qPatch = callsFor("request_pairing_queue", "update").find(
-      (c) => (c.args[0] as Record<string, unknown>).status === "deferred"
+      (c) => (c.args[0] as Record<string, unknown>).status === "deferred",
     );
     expect(qPatch).toBeTruthy();
 
@@ -564,18 +588,18 @@ describe("deferRequest — Later defers pro and advances immediately (D5)", () =
     const stagePatch = srUpdates.find(
       (c) =>
         (c.args[0] as Record<string, unknown>).pairing_stage ===
-        "sequential_pairing"
+        "sequential_pairing",
     );
     expect(stagePatch).toBeTruthy();
   });
 });
 
-describe("advancePairing — never clobbers an assigned negotiation", () => {
+describe("advancePairing never clobbers an assigned negotiation", () => {
   it("is a no-op when the job has already advanced to negotiating", async () => {
     // Simulates the race: a stale decline/defer/timeout read the row while it
     // was "reserved", but the pro "I can fix this" (confirmRequest) already moved
     // it to negotiating. advancePairing must NOT flip it back to sequential
-    // pairing — otherwise the 20-min negotiation "closes after a few seconds".
+    // pairing otherwise the 20-min negotiation "closes after a few seconds".
     const row: Row = {
       ...FULL_ROW,
       pairing_stage: "negotiating",
@@ -591,7 +615,7 @@ describe("advancePairing — never clobbers an assigned negotiation", () => {
   });
 });
 
-describe("sweepPairing — recovery loop", () => {
+describe("sweepPairing recovery loop", () => {
   it("sweeps a fresh waiting_for_selected row whose reservation_status is NULL (stuck-chosen-pro bug)", async () => {
     const row: Row = {
       ...FULL_ROW,
@@ -631,22 +655,20 @@ describe("sweepPairing — recovery loop", () => {
     expect(res.checked).toBe(1);
     // No candidates → radius expands within the fresh-search cap (1 → 2, not a
     // hard timeout and never beyond the 2 km round-0 cap).
-    const radiusUpdate = callsFor("service_requests", "update").find(
-      (c) => {
-        const p = c.args[0] as Record<string, unknown>;
-        return p.pairing_radius_km === 2;
-      }
-    );
+    const radiusUpdate = callsFor("service_requests", "update").find((c) => {
+      const p = c.args[0] as Record<string, unknown>;
+      return p.pairing_radius_km === 2;
+    });
     expect(radiusUpdate).toBeTruthy();
     expect(
       callsFor("service_requests", "update").some(
-        (c) => (c.args[0] as Record<string, unknown>).pairing_radius_km === 5
-      )
+        (c) => (c.args[0] as Record<string, unknown>).pairing_radius_km === 5,
+      ),
     ).toBe(false);
     expect(
       callsFor("request_pairing_queue", "update").filter(
-        (c) => (c.args[0] as Record<string, unknown>).status === "timed_out"
-      )
+        (c) => (c.args[0] as Record<string, unknown>).status === "timed_out",
+      ),
     ).toHaveLength(0);
   });
 
@@ -659,7 +681,16 @@ describe("sweepPairing — recovery loop", () => {
     installClient(row);
     responders["request_pairing_queue"] = () => ({ data: [], error: null });
     responders["repair_pro_profiles"] = () => ({
-      data: [{ user_id: "pro-2", business_name: "Beta", primary_service: "auto", lat: 6.5, lng: 3.3, location_updated_at: new Date().toISOString() }],
+      data: [
+        {
+          user_id: "pro-2",
+          business_name: "Beta",
+          primary_service: "auto",
+          lat: 6.5,
+          lng: 3.3,
+          location_updated_at: new Date().toISOString(),
+        },
+      ],
       error: null,
     });
     responders["profiles"] = () => ({ data: null, error: null });
@@ -667,7 +698,7 @@ describe("sweepPairing — recovery loop", () => {
     const res = await sweepPairing();
     expect(res.checked).toBe(1);
     const timedOut = callsFor("request_pairing_queue", "update").filter(
-      (c) => (c.args[0] as Record<string, unknown>).status === "timed_out"
+      (c) => (c.args[0] as Record<string, unknown>).status === "timed_out",
     );
     expect(timedOut).toHaveLength(1);
     const advancePatch = callsFor("service_requests", "update")
@@ -678,7 +709,7 @@ describe("sweepPairing — recovery loop", () => {
   });
 });
 
-describe("advancePairing — 5-round cap & recycling", () => {
+describe("advancePairing 5-round cap & recycling", () => {
   it("expires the request once MAX_PAIRING_ATTEMPTS rounds have run", async () => {
     const row: Row = {
       ...FULL_ROW,
@@ -747,8 +778,22 @@ describe("advancePairing — 5-round cap & recycling", () => {
     });
     responders["repair_pro_profiles"] = () => ({
       data: [
-        { user_id: "pro-1", business_name: "Alpha", primary_service: "auto", lat: 6.5, lng: 3.3, location_updated_at: fresh },
-        { user_id: "pro-2", business_name: "Beta", primary_service: "auto", lat: 6.5, lng: 3.3, location_updated_at: fresh },
+        {
+          user_id: "pro-1",
+          business_name: "Alpha",
+          primary_service: "auto",
+          lat: 6.5,
+          lng: 3.3,
+          location_updated_at: fresh,
+        },
+        {
+          user_id: "pro-2",
+          business_name: "Beta",
+          primary_service: "auto",
+          lat: 6.5,
+          lng: 3.3,
+          location_updated_at: fresh,
+        },
       ],
       error: null,
     });
@@ -788,15 +833,37 @@ describe("advancePairing — 5-round cap & recycling", () => {
     installClient(row);
     responders["request_pairing_queue"] = () => ({
       data: [
-        { pro_id: "pro-1", status: "deferred", responded_at: new Date().toISOString() },
-        { pro_id: "pro-2", status: "timed_out", responded_at: new Date(Date.now() - 1000).toISOString() },
+        {
+          pro_id: "pro-1",
+          status: "deferred",
+          responded_at: new Date().toISOString(),
+        },
+        {
+          pro_id: "pro-2",
+          status: "timed_out",
+          responded_at: new Date(Date.now() - 1000).toISOString(),
+        },
       ],
       error: null,
     });
     responders["repair_pro_profiles"] = () => ({
       data: [
-        { user_id: "pro-1", business_name: "Alpha", primary_service: "auto", lat: 6.5, lng: 3.3, location_updated_at: fresh },
-        { user_id: "pro-2", business_name: "Beta", primary_service: "auto", lat: 6.5, lng: 3.3, location_updated_at: fresh },
+        {
+          user_id: "pro-1",
+          business_name: "Alpha",
+          primary_service: "auto",
+          lat: 6.5,
+          lng: 3.3,
+          location_updated_at: fresh,
+        },
+        {
+          user_id: "pro-2",
+          business_name: "Beta",
+          primary_service: "auto",
+          lat: 6.5,
+          lng: 3.3,
+          location_updated_at: fresh,
+        },
       ],
       error: null,
     });
@@ -827,9 +894,30 @@ describe("advancePairing — 5-round cap & recycling", () => {
     });
     responders["repair_pro_profiles"] = () => ({
       data: [
-        { user_id: "pro-1", business_name: "Alpha", primary_service: "auto", lat: 6.5, lng: 3.3, location_updated_at: fresh },
-        { user_id: "pro-2", business_name: "Beta", primary_service: "auto", lat: 6.5, lng: 3.3, location_updated_at: fresh },
-        { user_id: "pro-3", business_name: "Gamma", primary_service: "auto", lat: 6.5, lng: 3.3, location_updated_at: fresh },
+        {
+          user_id: "pro-1",
+          business_name: "Alpha",
+          primary_service: "auto",
+          lat: 6.5,
+          lng: 3.3,
+          location_updated_at: fresh,
+        },
+        {
+          user_id: "pro-2",
+          business_name: "Beta",
+          primary_service: "auto",
+          lat: 6.5,
+          lng: 3.3,
+          location_updated_at: fresh,
+        },
+        {
+          user_id: "pro-3",
+          business_name: "Gamma",
+          primary_service: "auto",
+          lat: 6.5,
+          lng: 3.3,
+          location_updated_at: fresh,
+        },
       ],
       error: null,
     });
@@ -869,8 +957,22 @@ describe("advancePairing — 5-round cap & recycling", () => {
     responders["repair_pro_profiles"] = () => ({
       data: [
         // pro-ghost: is_online=true but heartbeat stale → must be excluded.
-        { user_id: "pro-ghost", business_name: "Ghost", primary_service: "auto", lat: 6.5, lng: 3.3, location_updated_at: stale },
-        { user_id: "pro-live", business_name: "Live", primary_service: "auto", lat: 6.5, lng: 3.3, location_updated_at: fresh },
+        {
+          user_id: "pro-ghost",
+          business_name: "Ghost",
+          primary_service: "auto",
+          lat: 6.5,
+          lng: 3.3,
+          location_updated_at: stale,
+        },
+        {
+          user_id: "pro-live",
+          business_name: "Live",
+          primary_service: "auto",
+          lat: 6.5,
+          lng: 3.3,
+          location_updated_at: fresh,
+        },
       ],
       error: null,
     });
@@ -902,13 +1004,22 @@ describe("advancePairing — 5-round cap & recycling", () => {
       queue_position: 3,
       pairing_radius_km: 10,
       created_at: new Date().toISOString(),
-      status_history: [{ status: "expired", at: fresh, by: "pairing_exhausted" }],
+      status_history: [
+        { status: "expired", at: fresh, by: "pairing_exhausted" },
+      ],
     };
     installClient(row);
     responders["request_pairing_queue"] = () => ({ data: [], error: null });
     responders["repair_pro_profiles"] = () => ({
       data: [
-        { user_id: "pro-1", business_name: "Alpha", primary_service: "auto", lat: 6.5, lng: 3.3, location_updated_at: fresh },
+        {
+          user_id: "pro-1",
+          business_name: "Alpha",
+          primary_service: "auto",
+          lat: 6.5,
+          lng: 3.3,
+          location_updated_at: fresh,
+        },
       ],
       error: null,
     });
@@ -923,7 +1034,10 @@ describe("advancePairing — 5-round cap & recycling", () => {
     // The retry re-opened the request into sequential pairing.
     const retryUpdate = callsFor("service_requests", "update").find((c) => {
       const p = c.args[0] as Record<string, unknown>;
-      return p.by === undefined && (c.args[0] as Record<string, unknown>).status === "requested";
+      return (
+        p.by === undefined &&
+        (c.args[0] as Record<string, unknown>).status === "requested"
+      );
     });
     expect(retryUpdate).toBeTruthy();
     const patch = retryUpdate?.args[0] as Record<string, unknown>;
@@ -932,7 +1046,7 @@ describe("advancePairing — 5-round cap & recycling", () => {
 
     // Retry recorded a marker so the client can show the remaining retries.
     expect(row.status_history).toContainEqual(
-      expect.objectContaining({ by: "retry_search" })
+      expect.objectContaining({ by: "retry_search" }),
     );
 
     // And the fresh search dispatched a pro (waiting_for_pro).
@@ -953,7 +1067,7 @@ describe("advancePairing — 5-round cap & recycling", () => {
       status: "expired",
       queue_position: 3,
       pairing_radius_km: 10,
-      // Old request — the old "hold only ≤15s after creation" rule would
+      // Old request the old "hold only ≤15s after creation" rule would
       // instantly exhaust a Retry of this request.
       created_at: new Date(Date.now() - 120_000).toISOString(),
       status_history: [
@@ -1011,7 +1125,9 @@ describe("advancePairing — 5-round cap & recycling", () => {
     const res = await retrySearch("job-1");
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.noop).toBe(true);
-    expect(callsFor("service_requests", "update").length).toBe(before === 0 ? 0 : callsFor("service_requests", "update").length);
+    expect(callsFor("service_requests", "update").length).toBe(
+      before === 0 ? 0 : callsFor("service_requests", "update").length,
+    );
     // No update was written on the expired job.
     const written = callsFor("service_requests", "update").some((c) => {
       const p = c.args[0] as Record<string, unknown>;

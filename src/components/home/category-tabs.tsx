@@ -45,7 +45,7 @@ const ALL_TABS: {
   { id: "painter", labelKey: "trade.painter", icon: PaintRoller },
   { id: "solar", labelKey: "trade.solar", icon: Sun },
   { id: "generator", labelKey: "trade.generator", icon: Zap },
-  /** Replaces former "All" — opens ONA Shop (repair commerce) */
+  /** Replaces former "All" opens ONA Shop (repair commerce) */
   { id: "all", labelKey: "trade.shop", icon: Grid2x2 },
 ];
 
@@ -78,7 +78,7 @@ export function CategoryTabs({
   const isLight = theme === "light";
   const start = useRef<{ x: number; y: number } | null>(null);
   const moved = useRef(false);
-  // Full motorist trade bar — always show every shipped trade
+  // Full motorist trade bar always show every shipped trade
   const tabs = ALL_TABS;
 
   const onAxisWheel = (e: React.WheelEvent) => {
@@ -158,7 +158,7 @@ export function CategoryTabs({
     <div
       className={cn(
         "relative px-3 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]",
-        compact ? "pt-0.5 pb-0.5" : "pt-1 pb-1"
+        compact ? "pt-0.5 pb-0.5" : "pt-1 pb-1",
       )}
       onWheel={onAxisWheel}
       onPointerDown={onPointerDown}
@@ -177,9 +177,9 @@ export function CategoryTabs({
         aria-label={t("home.serviceCategory")}
         className={cn(
           "relative grid grid-cols-5 gap-0 rounded-xl p-0.5",
-                isLight
-                  ? "bg-[#d8dce4]/90"
-                  : "bg-gradient-to-b from-[#1a1a1a] to-[#141414]"
+          isLight
+            ? "bg-[#d8dce4]"
+            : "bg-gradient-to-b from-[#1a1a1a] to-[#141414]",
         )}
       >
         {tabs.map(({ id, labelKey, icon: Icon }) => {
@@ -217,7 +217,7 @@ export function CategoryTabs({
                   ? "metallic-orange text-white"
                   : isLight
                     ? "bg-transparent text-black hover:text-black"
-                    : "bg-transparent text-[#a0a0a0] hover:text-white"
+                    : "bg-transparent text-[#a0a0a0] hover:text-white",
               )}
             >
               <Icon
@@ -225,10 +225,7 @@ export function CategoryTabs({
                   width: compact ? 12 : expanded ? 18.24 : 16,
                   height: compact ? 12 : expanded ? 18.24 : 16,
                 }}
-                className={cn(
-                  "shrink-0",
-                  !active && isLight && "text-black"
-                )}
+                className={cn("shrink-0", !active && isLight && "text-black")}
                 strokeWidth={active ? 2.4 : 2}
               />
               <span className="truncate leading-none">{t(labelKey)}</span>
@@ -236,7 +233,7 @@ export function CategoryTabs({
           );
         })}
 
-        {/* Small bounce arrow: middle of A/C (top-right) and All (bottom-right) — no 3rd row */}
+        {/* Small bounce arrow: middle of A/C (top-right) and All (bottom-right) no 3rd row */}
         {onOpenHelp && (
           <button
             type="button"
@@ -246,7 +243,7 @@ export function CategoryTabs({
             }}
             aria-label={t("home.helpSomeone")}
             className={cn(
-              "absolute right-0.5 top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center border-0 bg-transparent p-0"
+              "absolute right-0.5 top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center border-0 bg-transparent p-0",
             )}
           >
             <span
@@ -254,7 +251,7 @@ export function CategoryTabs({
                 "om-bounce-arrow flex h-5 w-5 items-center justify-center rounded-full",
                 isLight
                   ? "bg-white/90 text-black shadow-sm ring-1 ring-black/8"
-                  : "bg-white/15 text-white ring-1 ring-white/15"
+                  : "bg-white/15 text-white ring-1 ring-white/15",
               )}
             >
               <ChevronRight className="h-3 w-3" strokeWidth={2.75} />

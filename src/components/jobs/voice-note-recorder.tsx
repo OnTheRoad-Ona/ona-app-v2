@@ -21,7 +21,7 @@ function wallClockMs(): number {
 }
 
 /**
- * Browser MediaRecorder voice note — record, listen back, re-record.
+ * Browser MediaRecorder voice note record, listen back, re-record.
  * Tuned to avoid UI lag: instant button feedback, low bitrate, less re-render.
  */
 export function VoiceNoteRecorder({
@@ -124,7 +124,7 @@ export function VoiceNoteRecorder({
       };
 
       rec.onstop = () => {
-        // Handled in stop() after requestData — keep handler light
+        // Handled in stop() after requestData keep handler light
       };
 
       mediaRef.current = rec;
@@ -169,8 +169,8 @@ export function VoiceNoteRecorder({
       1,
       Math.min(
         VOICE_MAX_SEC,
-        Math.round((wallClockMs() - startedAt.current) / 1000)
-      )
+        Math.round((wallClockMs() - startedAt.current) / 1000),
+      ),
     );
 
     const blob = await new Promise<Blob>((resolve) => {
@@ -252,7 +252,7 @@ export function VoiceNoteRecorder({
         <p
           className={cn(
             "text-[12px] font-bold",
-            isLight ? "text-slate-700" : "text-white/70"
+            isLight ? "text-slate-700" : "text-white/70",
           )}
         >
           Voice note
@@ -323,7 +323,7 @@ export function VoiceNoteRecorder({
             onClick={reset}
             className={cn(
               "inline-flex h-11 items-center gap-2 rounded-md border-0 px-4 text-[13px] font-bold",
-              isLight ? "bg-black/10 text-slate-800" : "bg-white/10 text-white"
+              isLight ? "bg-black/10 text-slate-800" : "bg-white/10 text-white",
             )}
           >
             <RotateCcw className="h-4 w-4" />
@@ -349,7 +349,7 @@ export function VoiceNoteRecorder({
       <p
         className={cn(
           "mt-2 text-[11px]",
-          isLight ? "text-slate-500" : "text-white/45"
+          isLight ? "text-slate-500" : "text-white/45",
         )}
       >
         Optional. Describe the problem out loud (max {VOICE_MAX_SEC}s). Play it

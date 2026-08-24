@@ -1,11 +1,11 @@
 /**
- * Repair Pro search-visibility ladder (automatic only — care never sets Vis manually).
+ * Repair Pro search-visibility ladder (automatic only care never sets Vis manually).
  *
  * Product lock:
- *  T1 — registered; hidden from search; no Go Live
- *  T2 — after care approves government ID → limited search (~30% · 1 km · 30-day Go Live window)
- *  T3 — after face liveness + BVN verified (and T2 done) → wider search (~70% · 3 km · no 30-day cap · New badge off)
- *  T4 — after skill docs approved, and only if T3 already passed → full (~100% · 5 km)
+ * T1 registered; hidden from search; no Go Live
+ * T2 after care approves government ID → limited search (~30% · 1 km · 30-day Go Live window)
+ * T3 after face liveness + BVN verified (and T2 done) → wider search (~70% · 3 km · no 30-day cap · New badge off)
+ * T4 after skill docs approved, and only if T3 already passed → full (~100% · 5 km)
  *
  * Motorists are not on this ladder (pros only).
  */
@@ -47,15 +47,13 @@ export function autoVisibilityFromProRow(pro: {
   return resolveAutoVisibilityTier({
     govIdApproved,
     bvnVerified: Boolean(pro.bvn_verified),
-    faceLiveness: Boolean(
-      pro.face_liveness_verified || pro.liveness_passed_at
-    ),
+    faceLiveness: Boolean(pro.face_liveness_verified || pro.liveness_passed_at),
     skillDocsApproved: pro.docs_status === "approved",
   });
 }
 
 /**
- * Effective tier for the Go Live gate — a single, safe read.
+ * Effective tier for the Go Live gate a single, safe read.
  *
  * Care-approved T2 flags (or a stored tier2_approved_at) ALWAYS dominate a stale,
  * missing, or clobbered `visibility_tier` column. This prevents the "approved for
@@ -64,21 +62,20 @@ export function autoVisibilityFromProRow(pro: {
  * auto ladder + stored tier agree on otherwise.
  */
 export function effectiveGoLiveTier(
-  pro: Record<string, unknown> | null | undefined
+  pro: Record<string, unknown> | null | undefined,
 ): VisibilityTier {
-  // Legacy rows (pre-visibility_tier migration) have no stored tier — default 2
+  // Legacy rows (pre-visibility_tier migration) have no stored tier default 2
   // so existing approved pros are never locked out (same as the old ?? 2 gate).
   const rawVis = pro?.visibility_tier;
-  const stored =
-    rawVis == null ? 2 : clampVisibilityTier(Number(rawVis));
+  const stored = rawVis == null ? 2 : clampVisibilityTier(Number(rawVis));
   const auto = autoVisibilityFromProRow({
     gov_id_review_status:
       (pro?.gov_id_review_status as string | null | undefined) || null,
     verified: pro?.verified as boolean | null | undefined,
     nin_verified: pro?.nin_verified as boolean | null | undefined,
     bvn_verified: pro?.bvn_verified as boolean | null | undefined,
-    face_liveness_verified:
-      pro?.face_liveness_verified as boolean | null | undefined,
+    face_liveness_verified: pro?.face_liveness_verified as
+      boolean | null | undefined,
     liveness_passed_at:
       (pro?.liveness_passed_at as string | null | undefined) || null,
     docs_status: (pro?.docs_status as string | null | undefined) || null,
@@ -99,7 +96,7 @@ export function effectiveGoLiveTier(
 /** Patch fields when auto-promoting visibility (timestamps, new badge, go-live window). */
 export function visibilityPromotionPatch(
   nextTier: VisibilityTier,
-  nowIso: string
+  nowIso: string,
 ): Record<string, unknown> {
   const patch: Record<string, unknown> = {
     visibility_tier: nextTier,
@@ -126,14 +123,14 @@ export type VisibilityTier = 1 | 2 | 3 | 4;
 
 export const TIER2_GO_LIVE_DAYS = 30;
 export const TIER2_WARN_DAYS_BEFORE = 5;
-/** Tier 2 discovery radius — wide enough that Live pros are findable (was 1 km, too strict) */
+/** Tier 2 discovery radius wide enough that Live pros are findable (was 1 km, too strict) */
 export const TIER2_MAX_RADIUS_KM = 5;
 export const TIER3_MAX_RADIUS_KM = 5;
 export const TIER4_MAX_RADIUS_KM = 5;
 
 export type VisibilityTierRules = {
   tier: VisibilityTier;
-  /** 0–100 marketplace visibility weight */
+  /** 0-100 marketplace visibility weight */
   visibilityPercent: number;
   /** Max km motorists may discover this pro */
   maxRadiusKm: number;
@@ -147,56 +144,58 @@ export type VisibilityTierRules = {
   seedOneStarIfHasRatings: boolean;
 };
 
-export const VISIBILITY_TIER_RULES: Record<VisibilityTier, VisibilityTierRules> =
-  {
-    1: {
-      tier: 1,
-      visibilityPercent: 0,
-      maxRadiusKm: 0,
-      canAppearInSearch: false,
-      canGoLive: false,
-      goLiveWindowDays: null,
-      warnDaysBeforeExpiry: null,
-      showNewBadge: true,
-      seedOneStarIfHasRatings: false,
-    },
-    2: {
-      tier: 2,
-      visibilityPercent: 30,
-      maxRadiusKm: TIER2_MAX_RADIUS_KM,
-      canAppearInSearch: true,
-      canGoLive: true,
-      goLiveWindowDays: TIER2_GO_LIVE_DAYS,
-      warnDaysBeforeExpiry: TIER2_WARN_DAYS_BEFORE,
-      showNewBadge: true,
-      seedOneStarIfHasRatings: false,
-    },
-    3: {
-      tier: 3,
-      visibilityPercent: 70,
-      maxRadiusKm: TIER3_MAX_RADIUS_KM,
-      canAppearInSearch: true,
-      canGoLive: true,
-      goLiveWindowDays: null,
-      warnDaysBeforeExpiry: null,
-      showNewBadge: false,
-      seedOneStarIfHasRatings: false,
-    },
-    4: {
-      tier: 4,
-      visibilityPercent: 100,
-      maxRadiusKm: TIER4_MAX_RADIUS_KM,
-      canAppearInSearch: true,
-      canGoLive: true,
-      goLiveWindowDays: null,
-      warnDaysBeforeExpiry: null,
-      showNewBadge: false,
-      seedOneStarIfHasRatings: true,
-    },
-  };
+export const VISIBILITY_TIER_RULES: Record<
+  VisibilityTier,
+  VisibilityTierRules
+> = {
+  1: {
+    tier: 1,
+    visibilityPercent: 0,
+    maxRadiusKm: 0,
+    canAppearInSearch: false,
+    canGoLive: false,
+    goLiveWindowDays: null,
+    warnDaysBeforeExpiry: null,
+    showNewBadge: true,
+    seedOneStarIfHasRatings: false,
+  },
+  2: {
+    tier: 2,
+    visibilityPercent: 30,
+    maxRadiusKm: TIER2_MAX_RADIUS_KM,
+    canAppearInSearch: true,
+    canGoLive: true,
+    goLiveWindowDays: TIER2_GO_LIVE_DAYS,
+    warnDaysBeforeExpiry: TIER2_WARN_DAYS_BEFORE,
+    showNewBadge: true,
+    seedOneStarIfHasRatings: false,
+  },
+  3: {
+    tier: 3,
+    visibilityPercent: 70,
+    maxRadiusKm: TIER3_MAX_RADIUS_KM,
+    canAppearInSearch: true,
+    canGoLive: true,
+    goLiveWindowDays: null,
+    warnDaysBeforeExpiry: null,
+    showNewBadge: false,
+    seedOneStarIfHasRatings: false,
+  },
+  4: {
+    tier: 4,
+    visibilityPercent: 100,
+    maxRadiusKm: TIER4_MAX_RADIUS_KM,
+    canAppearInSearch: true,
+    canGoLive: true,
+    goLiveWindowDays: null,
+    warnDaysBeforeExpiry: null,
+    showNewBadge: false,
+    seedOneStarIfHasRatings: true,
+  },
+};
 
 export function clampVisibilityTier(
-  n: number | null | undefined
+  n: number | null | undefined,
 ): VisibilityTier {
   const t = Math.floor(Number(n) || 1);
   if (t <= 1) return 1;
@@ -217,7 +216,7 @@ export function resolveVisibilityTier(
           Pick<ArtisanVerificationProfile, "tiers" | "govIdReviewStatus">
         >)
     | null
-    | undefined
+    | undefined,
 ): VisibilityTier {
   if (!p) return 1;
   let tier =
@@ -227,10 +226,7 @@ export function resolveVisibilityTier(
         ? 2
         : 1;
   // Care-approved T2 must never still read as Tier 1
-  if (
-    p.govIdReviewStatus === "approved" ||
-    Boolean(p.tiers?.tier2_govId)
-  ) {
+  if (p.govIdReviewStatus === "approved" || Boolean(p.tiers?.tier2_govId)) {
     tier = Math.max(tier, 2) as VisibilityTier;
   }
   if (Boolean(p.tiers?.tier3_liveness)) {
@@ -248,7 +244,9 @@ export function addDaysIso(fromIso: string, days: number): string {
   return d.toISOString();
 }
 
-export function daysRemainingUntil(iso: string | null | undefined): number | null {
+export function daysRemainingUntil(
+  iso: string | null | undefined,
+): number | null {
   if (!iso) return null;
   const end = Date.parse(iso);
   if (!Number.isFinite(end)) return null;
@@ -260,7 +258,7 @@ export function daysRemainingUntil(iso: string | null | undefined): number | nul
  * Go Live gate for visibility tiers (on top of profile status).
  */
 export function canGoLiveForVisibilityTier(
-  p: ArtisanVerificationProfile | null | undefined
+  p: ArtisanVerificationProfile | null | undefined,
 ): { allowed: true } | { allowed: false; message: string } {
   if (!p) {
     return {
@@ -325,7 +323,7 @@ export function canGoLiveForVisibilityTier(
 
 /** Warning copy when Tier 2 window is within 5 days */
 export function tier2GoLiveWarning(
-  p: ArtisanVerificationProfile | null | undefined
+  p: ArtisanVerificationProfile | null | undefined,
 ): string | null {
   if (!p) return null;
   const tier = resolveVisibilityTier(p);
@@ -363,7 +361,7 @@ export function visibilitySoftPenalty(percent: number): number {
 export function passesAppearChance(
   proId: string,
   visibilityPercent: number,
-  nowMs: number = Date.now()
+  nowMs: number = Date.now(),
 ): boolean {
   if (visibilityPercent >= 100) return true;
   if (visibilityPercent <= 0) return false;
@@ -371,15 +369,15 @@ export function passesAppearChance(
   let h = 0;
   const s = `${proId}:${hourBucket}`;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  const roll = (h % 10000) / 100; // 0–99.99
+  const roll = (h % 10000) / 100; // 0-99.99
   return roll < visibilityPercent;
 }
 
-/** Apply admin promotion to a target tier (2–4). */
+/** Apply admin promotion to a target tier (2-4). */
 export function applyAdminTierPromotion(
   p: ArtisanVerificationProfile,
   target: 2 | 3 | 4,
-  adminName: string
+  adminName: string,
 ): ArtisanVerificationProfile {
   const now = new Date().toISOString();
   const next: ArtisanVerificationProfile = {
@@ -397,7 +395,7 @@ export function applyAdminTierPromotion(
     if (target === 2 || !p.goLiveWindowEndsAt) {
       next.goLiveWindowEndsAt = addDaysIso(
         next.tier2ApprovedAt,
-        TIER2_GO_LIVE_DAYS
+        TIER2_GO_LIVE_DAYS,
       );
     }
     next.isNewArtisan = true;

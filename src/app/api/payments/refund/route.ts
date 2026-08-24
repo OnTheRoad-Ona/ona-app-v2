@@ -65,9 +65,9 @@ export async function POST(req: Request) {
 
     if (payment.escrowStatus === "released") {
       return apiFail(
-        "Job already completed and paid out — refund not available",
+        "Job already completed and paid out refund not available",
         400,
-        "already_released"
+        "already_released",
       );
     }
 
@@ -106,7 +106,7 @@ export async function POST(req: Request) {
       }
     } else if (payment.provider === "mock") {
       gatewayStatus = "mock_ok";
-      gatewayMessage = "Mock payment — ledger only";
+      gatewayMessage = "Mock payment ledger only";
     }
 
     const updated = await updateEscrow(payment.id, {

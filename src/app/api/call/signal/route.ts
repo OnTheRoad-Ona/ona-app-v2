@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     if (!parsed.success) {
       return apiFail(
         `Invalid signal: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
-        400
+        400,
       );
     }
     const b = parsed.data;
@@ -59,13 +59,10 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (error) {
-      if (
-        error.message.includes("call_signals") ||
-        error.code === "42P01"
-      ) {
+      if (error.message.includes("call_signals") || error.code === "42P01") {
         return apiFail(
           "Call signaling table missing. Run migration 017_call_signals.",
-          503
+          503,
         );
       }
       console.error("call_signals insert", error);
@@ -77,7 +74,7 @@ export async function POST(req: Request) {
   }
 }
 
-/** Poll inbox — does NOT consume (use PATCH to ack) */
+/** Poll inbox does NOT consume (use PATCH to ack) */
 export async function GET(req: Request) {
   if (!isSupabaseAdminConfigured()) {
     return apiFail("Supabase not configured", 503);
@@ -90,7 +87,7 @@ export async function GET(req: Request) {
     const userId = url.searchParams.get("userId") || "";
     if (
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        userId
+        userId,
       )
     ) {
       return apiFail("userId required (uuid)", 400);

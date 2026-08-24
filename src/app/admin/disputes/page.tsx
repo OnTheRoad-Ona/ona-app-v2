@@ -37,7 +37,7 @@ export default function AdminDisputesPage() {
   const resolve = async (
     jobId: string,
     kind: "dispute" | "appeal",
-    outcome: "full_release_pro" | "full_refund_motorist" | "partial_split"
+    outcome: "full_release_pro" | "full_refund_motorist" | "partial_split",
   ) => {
     setError(null);
     setFlash(null);
@@ -68,7 +68,7 @@ export default function AdminDisputesPage() {
         } finally {
           setBusyId(null);
         }
-      }
+      },
     );
   };
 
@@ -76,7 +76,8 @@ export default function AdminDisputesPage() {
     <AdminShell adminName={adminName}>
       <h1 className="om-admin-h1">Disputes & appeals</h1>
       <p className="om-admin-sub">
-        Jobs in dispute or appeal. Review evidence, lock funds in escrow, and resolve or escalate for Customer Care.
+        Jobs in dispute or appeal. Review evidence, lock funds in escrow, and
+        resolve or escalate for Customer Care.
       </p>
 
       <AdminGuideBanner pageId="disputes" />
@@ -140,7 +141,7 @@ export default function AdminDisputesPage() {
                     <div className="om-admin-muted">
                       {j.agreedMajor != null
                         ? `${j.currency} ${j.agreedMajor}`
-                        : "—"}{" "}
+                        : ""}{" "}
                       · {j.serviceType}
                     </div>
                   </td>
@@ -158,7 +159,7 @@ export default function AdminDisputesPage() {
                     ) : null}
                   </td>
                   <td>
-                    {j.dispute?.reason || "—"}
+                    {j.dispute?.reason || ""}
                     <div className="om-admin-muted">
                       {(j.dispute?.description || "").slice(0, 80)}
                     </div>
@@ -174,7 +175,7 @@ export default function AdminDisputesPage() {
                         </div>
                       </>
                     ) : (
-                      "—"
+                      ""
                     )}
                   </td>
                   <td>
@@ -222,7 +223,7 @@ export default function AdminDisputesPage() {
                               void resolve(
                                 j.id,
                                 "dispute",
-                                "full_refund_motorist"
+                                "full_refund_motorist",
                               )
                             }
                           >
@@ -260,7 +261,7 @@ export default function AdminDisputesPage() {
                               void resolve(
                                 j.id,
                                 "appeal",
-                                "full_refund_motorist"
+                                "full_refund_motorist",
                               )
                             }
                           >

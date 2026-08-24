@@ -1,5 +1,5 @@
 /**
- * Ona sounds — pure Web Audio API (no audio files, zero network cost).
+ * Ona sounds pure Web Audio API (no audio files, zero network cost).
  * Person-specific tones for messages/calls + unique system motifs for key events.
  */
 
@@ -14,13 +14,9 @@ function hashId(id: string): number {
 }
 
 export type ToneKind =
-  | "message"
-  | "notification"
-  | "call_ring"
-  | "call_end"
-  | "sent";
+  "message" | "notification" | "call_ring" | "call_end" | "sent";
 
-/** Distinct system events — each has its own motif */
+/** Distinct system events each has its own motif */
 export type AppSoundKind =
   | "signup_complete"
   | "login_success"
@@ -85,7 +81,7 @@ function beep(
   start: number,
   dur: number,
   wave: OscillatorType,
-  gainPeak: number
+  gainPeak: number,
 ) {
   const osc = ctx.createOscillator();
   const g = ctx.createGain();
@@ -106,7 +102,7 @@ function beep(
  */
 export function playPersonTone(
   personId: string,
-  kind: ToneKind = "message"
+  kind: ToneKind = "message",
 ): void {
   const ctx = getCtx();
   if (!ctx) return;
@@ -157,7 +153,7 @@ export function playSystemClick(): void {
 }
 
 /**
- * Strategic app event sounds — each kind is a distinct, memorable motif.
+ * Strategic app event sounds each kind is a distinct, memorable motif.
  * Safe no-op when audio is blocked until user gesture (call unlockAudio first).
  */
 export function playAppSound(kind: AppSoundKind): void {
@@ -167,7 +163,7 @@ export function playAppSound(kind: AppSoundKind): void {
 
   switch (kind) {
     case "signup_complete":
-      // Bright rising fanfare C–E–G–C
+      // Bright rising fanfare C-E-G-C
       beep(ctx, 523.25, t0, 0.12, "triangle", 0.14);
       beep(ctx, 659.25, t0 + 0.12, 0.12, "triangle", 0.14);
       beep(ctx, 783.99, t0 + 0.24, 0.14, "triangle", 0.15);

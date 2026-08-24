@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { normalizeNgPhone, isAfricaTalkingConfigured } from "@/lib/server/africastalking";
+import {
+  normalizeNgPhone,
+  isAfricaTalkingConfigured,
+} from "@/lib/server/africastalking";
 
 describe("normalizeNgPhone", () => {
   it("normalizes 11-digit Nigerian number starting with 0", () => {

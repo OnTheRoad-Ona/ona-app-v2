@@ -1,5 +1,5 @@
 /**
- * Smart shop search — text intent + optional trade lock + fitment re-rank.
+ * Smart shop search text intent + optional trade lock + fitment re-rank.
  */
 
 import { listProducts } from "@/lib/server/shop/catalog";
@@ -28,7 +28,7 @@ export type SearchShopOptions = {
   /** Force results into this trade (trade page search). */
   tradeKey?: string;
   /**
-   * When true, intent cannot change trade — only filters within tradeKey.
+   * When true, intent cannot change trade only filters within tradeKey.
    * Global search leaves this false so intent can detect trade and UI can jump.
    */
   lockTrade?: boolean;
@@ -91,7 +91,7 @@ function tokenizeForSearch(intent: ShopSearchIntent, raw: string): string[] {
 
 function softFitmentScore(
   product: ShopProductCard,
-  intent: ShopSearchIntent
+  intent: ShopSearchIntent,
 ): { status: FitmentStatus; score: number; reasons: string[] } {
   const hay =
     `${product.name} ${product.subtitle || ""} ${product.slug}`.toLowerCase();
@@ -157,7 +157,8 @@ export function relevanceScore(opts: {
   if (q.length >= 2 && name === q) return { score: 100, reason: "exact name" };
 
   // 2. exact SKU / part number / OEM / MPN
-  if (opts.partMatch === "exact") return { score: 90, reason: "exact sku/part" };
+  if (opts.partMatch === "exact")
+    return { score: 90, reason: "exact sku/part" };
 
   // 3. exact brand
   if (q.length >= 2 && brand === q) return { score: 80, reason: "exact brand" };
@@ -198,7 +199,7 @@ export function relevanceScore(opts: {
 /** Map productId -> how well its variant part-identities matched the query. */
 async function loadPartMatchMap(
   productIds: string[],
-  tokens: string[]
+  tokens: string[],
 ): Promise<Map<string, "exact" | "contains">> {
   const out = new Map<string, "exact" | "contains">();
   if (!productIds.length) return out;
@@ -237,8 +238,10 @@ async function loadPartMatchMap(
 
 async function loadDbFitmentScores(
   productIds: string[],
-  intent: ShopSearchIntent
-): Promise<Map<string, { status: FitmentStatus; score: number; reasons: string[] }>> {
+  intent: ShopSearchIntent,
+): Promise<
+  Map<string, { status: FitmentStatus; score: number; reasons: string[] }>
+> {
   const out = new Map<
     string,
     { status: FitmentStatus; score: number; reasons: string[] }
@@ -290,7 +293,7 @@ async function loadDbFitmentScores(
   const { data: fits } = await sb
     .from("shop_product_fitments")
     .select(
-      "variant_id, make_id, model_id, year_start, year_end, position, fitment_status, engine"
+      "variant_id, make_id, model_id, year_start, year_end, position, fitment_status, engine",
     )
     .in("variant_id", vids)
     .limit(500);
@@ -308,7 +311,7 @@ async function loadDbFitmentScores(
       score += 30;
       reasons.push("db:make");
     } else if (makeId && f.make_id && String(f.make_id) !== makeId) {
-      // wrong make — skip
+      // wrong make skip
       continue;
     }
 
@@ -358,7 +361,7 @@ async function loadDbFitmentScores(
 
 export async function searchShop(
   query: string,
-  opts?: SearchShopOptions
+  opts?: SearchShopOptions,
 ): Promise<{
   intent: ShopSearchIntent;
   results: ShopSearchResultCard[];
@@ -434,15 +437,15 @@ export async function searchShop(
   scored.sort((a, b) => {
     // Phase 3 ladder first (exact > sku > brand > category > trade > attribute > partial)
     if (a.relevance !== b.relevance) return b.relevance - a.relevance;
-    if (a.fitmentScore !== b.fitmentScore) return b.fitmentScore - a.fitmentScore;
+    if (a.fitmentScore !== b.fitmentScore)
+      return b.fitmentScore - a.fitmentScore;
     if (a.inStock !== b.inStock) return a.inStock ? -1 : 1;
     // Prefer lower price as soft tie-break for same fit
     return (a.fromPriceMinor ?? 0) - (b.fromPriceMinor ?? 0);
   });
 
   // Global: suggest trade jump when intent detected a trade and we aren't locked
-  const suggestedTradeKey =
-    !locked && intent.tradeKey ? intent.tradeKey : null;
+  const suggestedTradeKey = !locked && intent.tradeKey ? intent.tradeKey : null;
 
   if (opts?.userId) {
     try {

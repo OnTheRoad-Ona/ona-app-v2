@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     if (!bvn) {
       return NextResponse.json(
         { ok: false, message: "BVN is required." },
-        { status: 400 }
+        { status: 400 },
       );
     }
     const result = await verifyBvnWithPrembly(bvn);
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json(
       { ok: false, message: "BVN verification request failed." },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

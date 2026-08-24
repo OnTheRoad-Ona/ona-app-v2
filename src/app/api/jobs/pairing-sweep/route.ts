@@ -6,11 +6,11 @@ export const dynamic = "force-dynamic";
 
 /**
  * Server sweep for Smart Sequential Pairing (SSPE).
- * Enforces DB-owned `pairing_deadline` (66s) for requests in a pairing stage —
+ * Enforces DB-owned `pairing_deadline` (66s) for requests in a pairing stage
  * the single source of truth (D3). Safe to call every minute from:
- *  - Vercel cron (Bearer CRON_SECRET / JOB_EXPIRE_SECRET)
- *  - Authenticated app client while open (idempotent)
- *  - pg_cron wrapper `public.pairing_sweep()` (timeout transition only)
+ * - Vercel cron (Bearer CRON_SECRET / JOB_EXPIRE_SECRET)
+ * - Authenticated app client while open (idempotent)
+ * - pg_cron wrapper `public.pairing_sweep()` (timeout transition only)
  *
  * Production/preview: secret required for unauthenticated callers (fail closed).
  */
@@ -64,13 +64,12 @@ async function run(req: Request) {
     const result = await sweepPairing(50);
     return apiOk({
       ...result,
-      rule:
-        "Requests in a pairing stage past their 66s pairing_deadline are timed out and advanced to the next merit-ranked pro.",
+      rule: "Requests in a pairing stage past their 66s pairing_deadline are timed out and advanced to the next merit-ranked pro.",
     });
   } catch (e) {
     return apiFail(
       e instanceof Error ? e.message : "Pairing sweep failed",
-      500
+      500,
     );
   }
 }

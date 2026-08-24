@@ -1,5 +1,5 @@
 /**
- * User session registry (device / login history) — DB-backed.
+ * User session registry (device / login history) DB-backed.
  */
 
 import { z } from "zod";
@@ -32,7 +32,9 @@ export async function GET(req: Request) {
   const supabase = createServiceSupabase();
   const { data, error } = await supabase
     .from("user_sessions")
-    .select("id, device_label, user_agent, ip, last_seen_at, revoked_at, created_at")
+    .select(
+      "id, device_label, user_agent, ip, last_seen_at, revoked_at, created_at",
+    )
     .eq("user_id", auth.userId)
     .is("revoked_at", null)
     .order("last_seen_at", { ascending: false })

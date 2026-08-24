@@ -12,14 +12,16 @@ const UNSETTLED_STATUSES = new Set<CalloutStatus>(["PENDING", "CALCULATING"]);
 
 /** True when the ₦ total can paint (fee known, or definitely none). */
 export function isCalloutAmountReady(
-  quote: CalloutQuote | null | undefined
+  quote: CalloutQuote | null | undefined,
 ): boolean {
   if (!quote) return false;
   return !UNSETTLED_STATUSES.has(quote.calloutStatus);
 }
 
 /** Server quote → major units to collect. 0 if not a payable call-out. */
-export function payableCalloutMajor(quote: CalloutQuote | null | undefined): number {
+export function payableCalloutMajor(
+  quote: CalloutQuote | null | undefined,
+): number {
   if (!quote) return 0;
   if (!quote.calloutEligible) return 0;
   if (!PAYABLE_STATUSES.has(quote.calloutStatus)) return 0;
@@ -34,7 +36,7 @@ export function payableCalloutMajor(quote: CalloutQuote | null | undefined): num
  */
 export function jobTotalMajor(
   labourMajor: number | null | undefined,
-  quote: CalloutQuote | null | undefined
+  quote: CalloutQuote | null | undefined,
 ): number | null {
   if (labourMajor == null || !Number.isFinite(Number(labourMajor))) return null;
   if (!isCalloutAmountReady(quote)) return null;
@@ -44,7 +46,7 @@ export function jobTotalMajor(
 /** Labour charge (existing) + separate call-out. Does not change labour split. */
 export function composeCustomerPayableMajor(
   labourChargeMajor: number,
-  quote: CalloutQuote | null | undefined
+  quote: CalloutQuote | null | undefined,
 ): {
   labourMajor: number;
   calloutMajor: number;

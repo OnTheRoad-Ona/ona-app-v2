@@ -1,21 +1,15 @@
 "use client";
 
 /**
- * In-app toasts — X-style layout:
- * 1) Stacked pile (top) — general updates only
- * 2) Full banners under the pile — chat, call, payment, request accept
- *    (never deck-stacked; newest first by time)
+ * In-app toasts X-style layout:
+ * 1) Stacked pile (top) general updates only
+ * 2) Full banners under the pile chat, call, payment, request accept
+ * (never deck-stacked; newest first by time)
  */
 
 import { createElement, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  MessageCircle,
-  Phone,
-  Wrench,
-  Wallet,
-  Info,
-} from "lucide-react";
+import { MessageCircle, Phone, Wrench, Wallet, Info } from "lucide-react";
 import {
   MESSAGE_ORANGE,
   CONVERSATION_ENDED_MESSAGE,
@@ -43,10 +37,7 @@ import {
 import { useNotificationsOptional } from "@/components/notifications/notification-provider";
 import type { ToastItem } from "@/components/notifications/notification-provider";
 import { ExpiredDialog } from "@/components/ui/expired-dialog";
-import {
-  messageThreadIdFromHref,
-  readOnlyChatHref,
-} from "@/lib/chat-expired";
+import { messageThreadIdFromHref, readOnlyChatHref } from "@/lib/chat-expired";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -54,7 +45,8 @@ function categoryIcon(n: AppNotification) {
   if (isCallNotification(n)) return Phone;
   if (isChatNotification(n)) return MessageCircle;
   if (isPaymentNotification(n)) return Wallet;
-  if (isRequestAcceptNotification(n) || n.category === "requests") return Wrench;
+  if (isRequestAcceptNotification(n) || n.category === "requests")
+    return Wrench;
   switch (n.category as NotificationCategory) {
     case "requests":
       return Wrench;
@@ -104,7 +96,7 @@ function ToastCard({
           ? depth === 0
             ? "relative animate-[om-toast-in_0.32s_cubic-bezier(0.2,0.8,0.2,1)]"
             : "absolute left-0 right-0 top-0"
-          : "relative animate-[om-toast-in_0.32s_cubic-bezier(0.2,0.8,0.2,1)]"
+          : "relative animate-[om-toast-in_0.32s_cubic-bezier(0.2,0.8,0.2,1)]",
       )}
       style={{
         zIndex: stacked ? 40 - depth : 50,
@@ -195,9 +187,7 @@ export function NotificationToasts() {
   if (!ctx) return null;
   const { toasts, dismissToast, markRead, openCenter } = ctx;
 
-  const visible = toasts.filter((t) =>
-    shouldToastNotification(t.notification)
-  );
+  const visible = toasts.filter((t) => shouldToastNotification(t.notification));
 
   const accent = MESSAGE_ORANGE;
 
@@ -282,7 +272,7 @@ export function NotificationToasts() {
         aria-live="polite"
       >
         <div className="flex w-full max-w-[460px] flex-col gap-2">
-          {/* 1) Stacked pile — general only */}
+          {/* 1) Stacked pile general only */}
           {stackable.length > 0 ? (
             <div className="relative w-full">
               {stackable.map((t, index) => (
@@ -305,7 +295,7 @@ export function NotificationToasts() {
             </div>
           ) : null}
 
-          {/* 2) Full banners under pile — chat / call / payment / accept */}
+          {/* 2) Full banners under pile chat / call / payment / accept */}
           {fullRows.map((t) => (
             <ToastCard
               key={t.id}

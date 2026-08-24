@@ -1,9 +1,6 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { hasRecentLiveHeartbeat } from "@/lib/matching";
-import {
-  listProReviews,
-  toProfileReview,
-} from "@/lib/server/reviews";
+import { listProReviews, toProfileReview } from "@/lib/server/reviews";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { mapProToTechnician } from "@/lib/supabase/mappers";
@@ -14,13 +11,13 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/pros/[id] — single Live Repair Pro for motorist deep-links.
+ * GET /api/pros/[id] single Live Repair Pro for motorist deep-links.
  * Only when: approved + is_online + profiles.role = repair_pro.
  * Includes live reviews so motorists can read before offering.
  */
 export async function GET(
   req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   if (!isSupabaseAdminConfigured()) {
     return apiFail("Supabase is not configured", 503);
@@ -52,7 +49,7 @@ export async function GET(
       return apiFail(
         "This Repair Pro is Away or not available right now.",
         404,
-        "pro_offline"
+        "pro_offline",
       );
     }
 
@@ -64,7 +61,7 @@ export async function GET(
       return apiFail(
         "This Repair Pro is Away or not available right now.",
         404,
-        "pro_offline"
+        "pro_offline",
       );
     }
 
@@ -80,7 +77,7 @@ export async function GET(
       return apiFail(
         "This Repair Pro is Away or not available right now.",
         404,
-        "pro_offline"
+        "pro_offline",
       );
     }
 
@@ -95,14 +92,14 @@ export async function GET(
       return apiFail(
         "This Repair Pro is Away or not available right now.",
         404,
-        "pro_offline"
+        "pro_offline",
       );
     }
 
     const technician = mapProToTechnician(
       pro as RepairProRow,
       profile as ProfileRow,
-      userCoords
+      userCoords,
     );
 
     const reviewRows = await listProReviews(id, 30);

@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(
   req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   try {
     const auth = await requireUser(req);
@@ -35,7 +35,7 @@ export async function GET(
   } catch (e) {
     return apiFail(
       e instanceof Error ? e.message : "Could not load call-out",
-      500
+      500,
     );
   }
 }

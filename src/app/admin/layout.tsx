@@ -4,7 +4,7 @@ import "./admin.css";
 export const metadata: Metadata = {
   title: "Ona Control Centre",
   description:
-    "Super Admin — full control of Customer, Repair Pro, jobs, payments, content & features",
+    "Super Admin full control of Customer, Repair Pro, jobs, payments, content & features",
 };
 
 /**

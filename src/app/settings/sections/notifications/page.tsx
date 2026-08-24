@@ -17,7 +17,7 @@ export default function SettingsNotificationsSectionPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader
@@ -31,9 +31,7 @@ export default function SettingsNotificationsSectionPage() {
           isLight={isLight}
           icon={Bell}
           label="Notifications"
-          detail={
-            isPro ? "Jobs, chat, payments" : "Booking, chat, promo"
-          }
+          detail={isPro ? "Jobs, chat, payments" : "Booking, chat, promo"}
           href="/settings/notifications"
         />
       </div>

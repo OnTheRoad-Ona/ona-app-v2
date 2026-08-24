@@ -30,7 +30,7 @@ export function isCalloutUrgencyKind(v: string): v is CalloutUrgencyKind {
 }
 
 export function calloutUrgencyMultiplier(
-  kind?: CalloutUrgencyKind | string | null
+  kind?: CalloutUrgencyKind | string | null,
 ): number {
   const hit = CALLOUT_URGENCY_OPTIONS.find((o) => o.id === kind);
   return hit?.multiplier ?? 1;
@@ -38,8 +38,8 @@ export function calloutUrgencyMultiplier(
 
 /**
  * Auto-select the urgency chip so the customer doesn't have to choose it.
- * Matches the engine's auto bands: Night (9pm–5am Lagos) and Remote
- * (4.95–5 km) win over a diagnosis Emergency; otherwise Normal.
+ * Matches the engine's auto bands: Night (9pm-5am Lagos) and Remote
+ * (4.95-5 km) win over a diagnosis Emergency; otherwise Normal.
  */
 export function autoCalloutUrgency(input: {
   /** Diagnosis says it's not safe to drive / use. */
@@ -55,10 +55,9 @@ export function autoCalloutUrgency(input: {
       hour: "numeric",
       hour12: false,
       timeZone: "Africa/Lagos",
-    }).format(d)
+    }).format(d),
   );
-  const night =
-    hour >= AUTO_NIGHT_START_HOUR || hour < AUTO_NIGHT_END_HOUR;
+  const night = hour >= AUTO_NIGHT_START_HOUR || hour < AUTO_NIGHT_END_HOUR;
   if (night) return "night";
   if (input.unsafe) return "emergency";
   const km = input.distanceKm;

@@ -1,10 +1,7 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { requireUser } from "@/lib/server/auth-utils";
 import { recalculateMerit } from "@/lib/server/merit/merit-engine";
-import {
-  createReview,
-  getProReviews,
-} from "@/lib/server/reviews/review-store";
+import { createReview, getProReviews } from "@/lib/server/reviews/review-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +18,7 @@ export async function POST(req: Request) {
       return apiFail("jobId, repairProId, and rating are required", 400);
     }
 
-    // Motorist id always from session — ignore spoofed body motoristId
+    // Motorist id always from session ignore spoofed body motoristId
     const motoristId = auth.userId;
     if (body.motoristId && body.motoristId !== auth.userId) {
       return apiFail("Forbidden", 403, "forbidden");
@@ -47,7 +44,7 @@ export async function POST(req: Request) {
   } catch (e) {
     return apiFail(
       e instanceof Error ? e.message : "Could not create review",
-      500
+      500,
     );
   }
 }
@@ -64,7 +61,7 @@ export async function GET(req: Request) {
   } catch (e) {
     return apiFail(
       e instanceof Error ? e.message : "Could not fetch reviews",
-      500
+      500,
     );
   }
 }

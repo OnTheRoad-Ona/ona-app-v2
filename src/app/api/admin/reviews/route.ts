@@ -1,8 +1,5 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
-import {
-  AdminAuthError,
-  requireAdmin,
-} from "@/lib/server/admin-auth";
+import { AdminAuthError, requireAdmin } from "@/lib/server/admin-auth";
 import { listAllReviews } from "@/lib/server/reviews/review-store";
 
 export const runtime = "nodejs";
@@ -19,7 +16,7 @@ export async function GET() {
     }
     return apiFail(
       e instanceof Error ? e.message : "Could not list reviews",
-      500
+      500,
     );
   }
 }

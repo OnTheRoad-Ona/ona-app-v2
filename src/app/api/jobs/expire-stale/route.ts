@@ -7,6 +7,48 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/**
+ * Zombie guard: jobs that reached a terminal status but whose flow_status
+ * is still a live pairing value would linger on the Dispatch board forever.
+ * Reset them each sweep (additive hygiene, touches only stale rows).
+ */
+async function resetZombieFlowStatuses(): Promise<number> {
+  try {
+    const { createServiceSupabase } = await import(
+      "@/lib/supabase/server"
+    );
+    const { isSupabaseAdminConfigured: configured } = await import(
+      "@/lib/supabase/env"
+    );
+    if (!configured()) return 0;
+    const sb = createServiceSupabase();
+    const { data, error } = await sb
+      .from("service_requests")
+      .update({ flow_status: "cancelled" })
+      .in("flow_status", [
+        "waiting_for_selected",
+        "selected_review",
+        "sequential_pairing",
+        "waiting_for_pro",
+        "reserved",
+        "searching",
+      ])
+      .in("status", [
+        "cancelled",
+        "expired",
+        "completed",
+        "satisfied",
+        "released",
+        "refunded",
+      ])
+      .select("id");
+    if (error) return 0;
+    return data?.length ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 // The pairing sweep has its own dedicated every-minute route; expire-stale
 // only runs it as a backup, throttled to ≤1x/30s per instance so the ~8s
 // external hits don't re-run the same indexed sweep 7× a minute.
@@ -16,8 +58,8 @@ let lastPairingSweepAt = 0;
 /**
  * Auto-cancel Booked jobs not completed within 6h of payment + full refund.
  * Safe to call from:
- *  - Vercel cron / external scheduler (Bearer CRON_SECRET / JOB_EXPIRE_SECRET)
- *  - Authenticated app client (Bearer user session) as backup while app is open
+ * - Vercel cron / external scheduler (Bearer CRON_SECRET / JOB_EXPIRE_SECRET)
+ * - Authenticated app client (Bearer user session) as backup while app is open
  *
  * Production/preview: secret required for unauthenticated callers (fail closed).
  * Local/dev without secret: open only when NODE_ENV is not production and not Vercel prod.
@@ -54,7 +96,7 @@ async function authorized(req: Request): Promise<boolean> {
     process.env.VERCEL_ENV === "preview";
   // Fail closed outside local: require secret or user session
   if (isProd) return false;
-  // Local dev without secret configured — allow for DX
+  // Local dev without secret configured allow for DX
   if (secrets.length === 0) return true;
   return false;
 }
@@ -63,17 +105,18 @@ async function run(req: Request) {
   try {
     // Job cancel/refund sweeps stay behind CRON_SECRET when configured.
     // Payout catch-up is always allowed (idempotent) so open jobs unstick when
-    // Available is funded — even if the browser cannot send the cron secret.
+    // Available is funded even if the browser cannot send the cron secret.
     let result: { checked: number; cancelled: number; ids: string[] } = {
       checked: 0,
       cancelled: 0,
       ids: [],
     };
+    let zombies = 0;
     if (await authorized(req)) {
       result = await expireOverdueBookedJobs(50);
     }
 
-    // Sweep unaccepted jobs — reroute to next pro after 1 min, expire after 15 min
+    // Sweep unaccepted jobs reroute to next pro after 1 min, expire after 15 min
     let unacceptedResult: {
       checked: number;
       rerouted: number;
@@ -85,7 +128,14 @@ async function run(req: Request) {
       console.error("expireUnacceptedJobs in expire-stale", e);
     }
 
-    // SSPE sweep — enforce 66s pairing deadlines and advance to next pro.
+    // Zombie guard: clear stale live flow_status on terminal jobs
+    try {
+      zombies = await resetZombieFlowStatuses();
+    } catch (e) {
+      console.error("resetZombieFlowStatuses in expire-stale", e);
+    }
+
+    // SSPE sweep enforce 66s pairing deadlines and advance to next pro.
     // Backed by the dedicated pairing-sweep route (every minute); throttled
     // here so the frequent expire-stale hits don't duplicate it every 8s.
     let pairingResult: {
@@ -97,9 +147,8 @@ async function run(req: Request) {
     if (now - lastPairingSweepAt >= PAIRING_SWEEP_INTERVAL_MS) {
       lastPairingSweepAt = now;
       try {
-        const { sweepPairing } = await import(
-          "@/lib/server/pairing/pairing-engine"
-        );
+        const { sweepPairing } =
+          await import("@/lib/server/pairing/pairing-engine");
         pairingResult = await sweepPairing(50);
       } catch (e) {
         console.error("sweepPairing in expire-stale", e);
@@ -116,9 +165,8 @@ async function run(req: Request) {
       notified: number;
     } | null = null;
     try {
-      const { sweepScheduledDispatches } = await import(
-        "@/lib/server/pairing/pairing-engine"
-      );
+      const { sweepScheduledDispatches } =
+        await import("@/lib/server/pairing/pairing-engine");
       scheduledDispatchResult = await sweepScheduledDispatches(50);
     } catch (e) {
       console.error("sweepScheduledDispatches in expire-stale", e);
@@ -132,9 +180,8 @@ async function run(req: Request) {
       ids: string[];
     } | null = null;
     try {
-      const { processDuePayoutRetries } = await import(
-        "@/lib/server/payments/payout-settlement"
-      );
+      const { processDuePayoutRetries } =
+        await import("@/lib/server/payments/payout-settlement");
       payoutRetry = await processDuePayoutRetries(30);
     } catch (e) {
       console.error("payout retry in expire-stale", e);
@@ -145,14 +192,10 @@ async function run(req: Request) {
       pairing: pairingResult,
       scheduledDispatch: scheduledDispatchResult,
       payoutRetry,
-      rule:
-        "Agreed unpaid: payment details expire after 11 min; Booked not completed within 6h: cancel + refund; Completed 6h: auto-release pro 87.5%; PENDING_SETTLEMENT: auto-retry when FLW Available is enough",
+      rule: "Agreed unpaid: payment details expire after 11 min; Booked not completed within 6h: cancel + refund; Completed 6h: auto-release pro 87.5%; PENDING_SETTLEMENT: auto-retry when FLW Available is enough",
     });
   } catch (e) {
-    return apiFail(
-      e instanceof Error ? e.message : "Expire sweep failed",
-      500
-    );
+    return apiFail(e instanceof Error ? e.message : "Expire sweep failed", 500);
   }
 }
 

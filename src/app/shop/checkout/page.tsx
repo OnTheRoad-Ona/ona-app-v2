@@ -36,7 +36,9 @@ export default function ShopCheckoutPage() {
   const [addressId, setAddressId] = useState<string | null>(null);
   const [zoneCode, setZoneCode] = useState<string>("default");
   const [zones, setZones] = useState<Array<{ code: string; name: string }>>([]);
-  const [estimate, setEstimate] = useState<DeliveryEstimateView["estimate"] | null>(null);
+  const [estimate, setEstimate] = useState<
+    DeliveryEstimateView["estimate"] | null
+  >(null);
   const [estimating, setEstimating] = useState(false);
   const [showNewAddress, setShowNewAddress] = useState(false);
   const [newAddressText, setNewAddressText] = useState("");
@@ -92,7 +94,7 @@ export default function ShopCheckoutPage() {
         setEstimating(false);
       }
     },
-    []
+    [],
   );
 
   useEffect(() => {
@@ -103,10 +105,12 @@ export default function ShopCheckoutPage() {
 
   const selectedAddress = useMemo(
     () => addresses.find((a) => a.id === addressId) ?? null,
-    [addresses, addressId]
+    [addresses, addressId],
   );
 
-  const deliveryFeeMinor = estimate?.freeDelivery ? 0 : estimate?.deliveryFeeMinor ?? 0;
+  const deliveryFeeMinor = estimate?.freeDelivery
+    ? 0
+    : (estimate?.deliveryFeeMinor ?? 0);
   const total = subtotalMinor + (itemsCount ? deliveryFeeMinor : 0);
 
   const createAddress = async () => {
@@ -155,12 +159,12 @@ export default function ShopCheckoutPage() {
         window.location.href = data.payment.authorizationUrl;
         return;
       }
-      // Mock provider may return empty URL — verify immediately with ref
+      // Mock provider may return empty URL verify immediately with ref
       if (data.payment.provider === "mock" && data.payment.reference) {
         router.push(
           `/shop/checkout/callback?ref=${encodeURIComponent(
-            data.payment.reference
-          )}&order=${encodeURIComponent(data.orderId)}`
+            data.payment.reference,
+          )}&order=${encodeURIComponent(data.orderId)}`,
         );
         return;
       }
@@ -173,7 +177,9 @@ export default function ShopCheckoutPage() {
   };
 
   const bg = isLight ? "bg-[#c8c9cd]" : "bg-black";
-  const card = isLight ? "bg-white/90 text-slate-900" : "bg-[#1c1c1e] text-white";
+  const card = isLight
+    ? "bg-white/90 text-slate-900"
+    : "bg-[#1c1c1e] text-white";
   const muted = isLight ? "text-slate-600" : "text-white/55";
   const border = isLight ? "border-black/10" : "border-white/10";
 
@@ -220,7 +226,7 @@ export default function ShopCheckoutPage() {
                       "h-10 w-full rounded-lg border-0 px-3 text-[13px] outline-none",
                       isLight
                         ? "bg-black/5 text-slate-900"
-                        : "bg-white/10 text-white"
+                        : "bg-white/10 text-white",
                     )}
                   />
                   <div className="flex gap-2">
@@ -238,7 +244,7 @@ export default function ShopCheckoutPage() {
                         "h-10 flex-1 rounded-lg border-0 text-[12px] font-bold",
                         isLight
                           ? "bg-black/10 text-slate-900"
-                          : "bg-white/10 text-white"
+                          : "bg-white/10 text-white",
                       )}
                     >
                       Cancel
@@ -262,20 +268,25 @@ export default function ShopCheckoutPage() {
                         "flex w-full items-start gap-2 rounded-lg border px-2.5 py-2 text-left",
                         addressId === a.id
                           ? "border-[#FF6B35] bg-[#FF6B35]/10"
-                          : border
+                          : border,
                       )}
                     >
                       <MapPin
                         className={cn(
                           "mt-0.5 h-4 w-4 shrink-0",
-                          addressId === a.id ? "text-[#FF6B35]" : muted
+                          addressId === a.id ? "text-[#FF6B35]" : muted,
                         )}
                       />
                       <span className="min-w-0">
                         <span className="block text-[12px] font-bold">
                           {a.label}
                           {a.is_default ? (
-                            <span className={cn("ml-1 text-[10px] font-semibold", muted)}>
+                            <span
+                              className={cn(
+                                "ml-1 text-[10px] font-semibold",
+                                muted,
+                              )}
+                            >
                               · Default
                             </span>
                           ) : null}
@@ -283,7 +294,7 @@ export default function ShopCheckoutPage() {
                         <span
                           className={cn(
                             "block truncate text-[11px] font-medium",
-                            muted
+                            muted,
                           )}
                         >
                           {a.address_text}
@@ -307,7 +318,7 @@ export default function ShopCheckoutPage() {
                           "rounded-full border px-2.5 py-1 text-[11px] font-bold",
                           zoneCode === z.code
                             ? "border-[#FF6B35] bg-[#FF6B35]/15 text-[#FF6B35]"
-                            : border
+                            : border,
                         )}
                       >
                         {z.name}
@@ -322,7 +333,7 @@ export default function ShopCheckoutPage() {
                     <p className={cn("mt-1.5 text-[11px]", muted)}>
                       {estimate.freeDelivery
                         ? "Free delivery on this order."
-                        : `Delivery fee ${formatPrice(estimate.deliveryFeeMinor)} · ${estimate.etaMinutesMin}–${estimate.etaMinutesMax} min via ${estimate.serviceName}.`}
+                        : `Delivery fee ${formatPrice(estimate.deliveryFeeMinor)} · ${estimate.etaMinutesMin}-${estimate.etaMinutesMax} min via ${estimate.serviceName}.`}
                     </p>
                   ) : null}
                 </div>
@@ -348,7 +359,7 @@ export default function ShopCheckoutPage() {
               <div
                 className={cn(
                   "mt-3 space-y-1 border-t pt-2 text-[12px]",
-                  border
+                  border,
                 )}
               >
                 <div className="flex justify-between">
@@ -358,13 +369,11 @@ export default function ShopCheckoutPage() {
                 <div className="flex justify-between">
                   <span className={muted}>Delivery</span>
                   <span>
-                    {estimating ? (
-                      "…"
-                    ) : estimate?.freeDelivery ? (
-                      "Free"
-                    ) : (
-                      formatPrice(deliveryFeeMinor)
-                    )}
+                    {estimating
+                      ? "…"
+                      : estimate?.freeDelivery
+                        ? "Free"
+                        : formatPrice(deliveryFeeMinor)}
                   </span>
                 </div>
                 <div className="flex justify-between text-[14px] font-black">
@@ -374,8 +383,8 @@ export default function ShopCheckoutPage() {
               </div>
             </div>
             <p className={cn("mt-3 text-[11px] leading-relaxed", muted)}>
-              Pay now to Ona Shop (retail). This is not job escrow — no Repair
-              Pro hold/release. Stock is reserved after successful payment.
+              Pay now to Ona Shop (retail). This is not job escrow no Repair Pro
+              hold/release. Stock is reserved after successful payment.
             </p>
             {error ? (
               <p className="mt-2 text-[12px] font-semibold text-red-500">

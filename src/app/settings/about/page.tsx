@@ -18,21 +18,18 @@ export default function SettingsAboutPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader title="About Ona" backHref="/settings" />
       <div className="flex-1 space-y-3 overflow-y-auto px-3 pb-6 scrollbar-hide">
         <div
-          className={cn(
-            "rounded-md px-3 py-4 text-center",
-            "bg-transparent"
-          )}
+          className={cn("rounded-md px-3 py-4 text-center", "bg-transparent")}
         >
           <p
             className={cn(
               "text-[18px] font-black",
-              isLight ? "text-slate-900" : "text-white"
+              isLight ? "text-slate-900" : "text-white",
             )}
           >
             {config.app.name || "Ona"}
@@ -40,7 +37,7 @@ export default function SettingsAboutPage() {
           <p
             className={cn(
               "mt-1 text-[12px] font-medium",
-              isLight ? "text-slate-600" : "text-white/65"
+              isLight ? "text-slate-600" : "text-white/65",
             )}
           >
             {config.app.tagline}
@@ -51,7 +48,7 @@ export default function SettingsAboutPage() {
           <p
             className={cn(
               "mt-1 text-[10px] font-semibold tabular-nums",
-              isLight ? "text-slate-500" : "text-white/45"
+              isLight ? "text-slate-500" : "text-white/45",
             )}
           >
             {ONA_BUILD_LABEL}
@@ -59,7 +56,7 @@ export default function SettingsAboutPage() {
           <p
             className={cn(
               "mt-0.5 text-[9px] font-mono",
-              isLight ? "text-slate-400" : "text-white/30"
+              isLight ? "text-slate-400" : "text-white/30",
             )}
           >
             {ONA_BUILD_ID}
@@ -68,7 +65,7 @@ export default function SettingsAboutPage() {
         <p
           className={cn(
             "px-1 text-center text-[11px] font-medium leading-snug",
-            isLight ? "text-slate-600" : "text-white/55"
+            isLight ? "text-slate-600" : "text-white/55",
           )}
         >
           Two-sided repair marketplace · Customers & Repair Pros · Care:{" "}

@@ -10,7 +10,7 @@ import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 function formatPrice(minor: number | null | undefined): string {
-  if (minor == null) return "—";
+  if (minor == null) return "";
   return formatMoney(fromMinorUnits(minor, "NGN"), detectCurrency());
 }
 
@@ -20,8 +20,7 @@ export default function ShopOrdersPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<Array<Record<string, unknown>>>([]);
   const [loading, setLoading] = useState(true);
-  const ctx =
-    accountType === "professional" ? "professional" : "motorist";
+  const ctx = accountType === "professional" ? "professional" : "motorist";
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -70,7 +69,7 @@ export default function ShopOrdersPage() {
                 className={cn(
                   "rounded-xl border-0 p-3 text-left",
                   card,
-                  isLight ? "text-slate-900" : "text-white"
+                  isLight ? "text-slate-900" : "text-white",
                 )}
               >
                 <div className="flex justify-between gap-2">

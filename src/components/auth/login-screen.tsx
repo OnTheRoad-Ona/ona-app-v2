@@ -3,10 +3,7 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Car, Check, ChevronLeft, ChevronRight, Wrench } from "lucide-react";
-import {
-  AuthPlate,
-  WHEEL_GRAY,
-} from "@/components/auth/auth-plate";
+import { AuthPlate, WHEEL_GRAY } from "@/components/auth/auth-plate";
 import { useAuthNavigate } from "@/components/auth/auth-transition";
 import { useT } from "@/lib/i18n";
 import type { AccountType } from "@/lib/types";
@@ -15,7 +12,7 @@ import { cn } from "@/lib/utils";
 const ACCENT = "#FF6B35";
 
 /**
- * Role selection — professional account-type step before signup.
+ * Role selection professional account-type step before signup.
  * Sheet #C8C9CD · wheel gray #323231 · brand orange accents.
  */
 export function LoginScreen() {
@@ -23,13 +20,14 @@ export function LoginScreen() {
   const t = useT();
   const searchParams = useSearchParams();
   const ref = searchParams.get("ref");
-  /** No default — user must pick Motorist or Repair Pro */
+  /** No default user must pick Motorist or Repair Pro */
   const [accountType, setAccountType] = useState<AccountType | null>(null);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!accountType) return;
-    const dest = accountType === "professional" ? "/signup/pro" : "/signup/motorist";
+    const dest =
+      accountType === "professional" ? "/signup/pro" : "/signup/motorist";
     go(ref ? `${dest}?ref=${encodeURIComponent(ref)}` : dest);
   };
 
@@ -45,7 +43,7 @@ export function LoginScreen() {
   return (
     <AuthPlate exiting={exiting}>
       <div className="flex min-h-0 flex-1 flex-col">
-        {/* Top bar — no step counter; keep Back only */}
+        {/* Top bar no step counter; keep Back only */}
         <div className="flex items-center px-4 pb-0 pt-3">
           <button
             type="button"
@@ -57,7 +55,7 @@ export function LoginScreen() {
           </button>
         </div>
 
-        {/* Brand + intro — pulled up closer to top */}
+        {/* Brand + intro pulled up closer to top */}
         <div className="px-5 pt-1 text-center">
           <h1
             className="text-[32px] font-black leading-none tracking-tight"
@@ -183,16 +181,16 @@ function RoleCard({
       className={cn(
         "flex w-full gap-3 rounded-md px-3.5 py-3.5 text-left transition-all duration-150",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B35]/45",
-        /* Unselected: flat sheet tone — no white “highlight” until user taps */
+        /* Unselected: flat sheet tone no white “highlight” until user taps */
         active
           ? "border border-transparent bg-white shadow-[0_4px_18px_rgba(15,23,42,0.10)]"
-          : "border border-[#9A9EA6]/70 bg-transparent shadow-none active:bg-black/[0.04]"
+          : "border border-[#9A9EA6]/70 bg-transparent shadow-none active:bg-black/[0.04]",
       )}
     >
       <Icon
         className={cn(
           "mt-0.5 h-[18px] w-[18px] shrink-0",
-          active ? "text-[#FF6B35]" : "text-[#64748b]"
+          active ? "text-[#FF6B35]" : "text-[#64748b]",
         )}
         strokeWidth={2.1}
       />
@@ -217,7 +215,7 @@ function RoleCard({
         <p
           className={cn(
             "mt-0.5 text-[12.5px] font-medium leading-snug",
-            active ? "text-[#334155]" : "text-[#64748b]"
+            active ? "text-[#334155]" : "text-[#64748b]",
           )}
         >
           {subtitle}
@@ -229,7 +227,7 @@ function RoleCard({
           "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
           active
             ? "border-[#FF6B35] bg-[#FF6B35]"
-            : "border-[#94a3b8] bg-transparent"
+            : "border-[#94a3b8] bg-transparent",
         )}
         aria-hidden
       >

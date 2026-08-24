@@ -14,7 +14,7 @@ export default function BookingsPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader title="Bookings" subtitle="Scheduled repairs" />
@@ -30,12 +30,14 @@ export default function BookingsPage() {
                   <p
                     className={cn(
                       "text-sm font-bold",
-                      isLight ? "text-slate-900" : "text-white"
+                      isLight ? "text-slate-900" : "text-white",
                     )}
                   >
                     {b.technicianName}
                   </p>
-                  <p className="text-xs capitalize text-muted">{b.serviceType}</p>
+                  <p className="text-xs capitalize text-muted">
+                    {b.serviceType}
+                  </p>
                 </div>
                 <Badge
                   variant={b.status === "upcoming" ? "soft" : "secondary"}
@@ -47,7 +49,7 @@ export default function BookingsPage() {
               <p
                 className={cn(
                   "mt-2 flex items-center gap-1.5 text-xs",
-                  isLight ? "text-slate-700" : "text-white/85"
+                  isLight ? "text-slate-700" : "text-white/85",
                 )}
               >
                 <Calendar className="h-3.5 w-3.5 text-brand" />

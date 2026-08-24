@@ -1,11 +1,7 @@
 import type { ProService } from "@/lib/types";
 
 export type SkillFieldType =
-  | "text"
-  | "select"
-  | "multiselect"
-  | "boolean"
-  | "file";
+  "text" | "select" | "multiselect" | "boolean" | "file";
 
 export type SkillFileValue = {
   name: string;
@@ -105,12 +101,7 @@ export const SPECIALTIES_BY_SKILL: Record<ProService, readonly string[]> = {
    * Specialty-picker trades: labels MUST match ARTISAN_TRADE_CATALOG
    * so signup focus + home Home/Office chips + skill flow stay aligned.
    */
-  ac: [
-    "Vehicle",
-    "Residential (Homes)",
-    "Commercial",
-    "Industrial",
-  ],
+  ac: ["Vehicle", "Residential (Homes)", "Commercial", "Industrial"],
   body: [
     "Dent repair",
     "Panel beat",
@@ -212,7 +203,8 @@ export const SKILL_AGREEMENTS: Record<ProService, string> = {
     "By completing this process, you agree you can fix all electrical and wiring works of the selected motor brand(s).",
   diagnostics:
     "By completing this process, you agree you can run full diagnostics and scan works of the selected motor brand(s).",
-  fashion: "By completing this process, you agree you can provide fashion design and tailoring services for the jobs you accept.",
+  fashion:
+    "By completing this process, you agree you can provide fashion design and tailoring services for the jobs you accept.",
   plumber:
     "By completing this process, you agree you can handle plumbing and water works for the jobs you accept.",
   carpenter:
@@ -228,7 +220,7 @@ export const SKILL_AGREEMENTS: Record<ProService, string> = {
 function withCertAndSpecialties(
   flow: Omit<SkillFlow, "questions"> & {
     questions: SkillQuestion[];
-  }
+  },
 ): SkillFlow {
   const specialtyOptions = [...SPECIALTIES_BY_SKILL[flow.skill]];
   const skillShort = flow.title
@@ -618,7 +610,7 @@ export function isSkillFileValue(v: unknown): v is SkillFileValue {
 
 export function skillAnswersValid(
   skill: ProService,
-  answers: Record<string, SkillAnswerValue>
+  answers: Record<string, SkillAnswerValue>,
 ): boolean {
   const flow = getSkillFlow(skill);
   for (const q of flow.questions) {
@@ -639,7 +631,7 @@ export function skillAnswersValid(
 
 export function publicSkillRows(
   skill: ProService,
-  answers?: Record<string, SkillAnswerValue>
+  answers?: Record<string, SkillAnswerValue>,
 ): { label: string; value: string }[] {
   if (!answers) return [];
   const flow = getSkillFlow(skill);
@@ -654,8 +646,7 @@ export function publicSkillRows(
     }
     if (Array.isArray(v)) {
       // Use stable public label for core focus
-      const label =
-        q.id === "specialties" ? "My Repair Core Focus" : q.label;
+      const label = q.id === "specialties" ? "My Repair Core Focus" : q.label;
       if (v.length) rows.push({ label, value: v.join(", ") });
       continue;
     }

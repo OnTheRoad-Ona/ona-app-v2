@@ -1,11 +1,8 @@
 /**
- * Admin payment detail — Ona escrow + Flutterwave transfers for one payment/job.
+ * Admin payment detail Ona escrow + Flutterwave transfers for one payment/job.
  */
 
-import {
-  AdminAuthError,
-  requirePermission,
-} from "@/lib/server/admin-auth";
+import { AdminAuthError, requirePermission } from "@/lib/server/admin-auth";
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
@@ -28,7 +25,7 @@ async function listFlwTransfersForRef(reference: string) {
         headers: { Authorization: `Bearer ${secret}` },
         cache: "no-store",
         signal: AbortSignal.timeout(20_000),
-      }
+      },
     );
     const json = (await res.json()) as {
       status?: string;
@@ -83,7 +80,9 @@ async function listRecentFlwTransfersMentioning(jobIdShort: string) {
         const row = t as Record<string, unknown>;
         const ref = String(row.reference || "").toLowerCase();
         const narr = String(row.narration || "").toLowerCase();
-        return ref.includes(needle) || narr.includes(needle) || narr.includes("ona");
+        return (
+          ref.includes(needle) || narr.includes(needle) || narr.includes("ona")
+        );
       })
       .slice(0, 30)
       .map((t) => {
@@ -113,7 +112,7 @@ async function listRecentFlwTransfersMentioning(jobIdShort: string) {
 
 export async function GET(
   _req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   if (!isSupabaseAdminConfigured()) {
     return apiFail("Supabase is not configured", 503);
@@ -125,7 +124,11 @@ export async function GET(
 
     // id may be payment uuid or request/job uuid
     let payment: Record<string, unknown> | null = null;
-    const byId = await sb.from("payments").select("*").eq("id", id).maybeSingle();
+    const byId = await sb
+      .from("payments")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
     if (byId.data) payment = byId.data as Record<string, unknown>;
     if (!payment) {
       const byReq = await sb
@@ -140,25 +143,21 @@ export async function GET(
     if (!payment) return apiFail("Payment not found", 404);
 
     const paymentId = String(payment.id);
-    const requestId = payment.request_id
-      ? String(payment.request_id)
-      : null;
+    const requestId = payment.request_id ? String(payment.request_id) : null;
     const meta = (payment.meta as Record<string, unknown>) || {};
     const idemRef = String(
-      meta.idempotentTransferRef || meta.proTransferRef || ""
+      meta.idempotentTransferRef || meta.proTransferRef || "",
     ).trim();
 
     const [ledgerByPay, ledgerByReq, flwByRef, job] = await Promise.all([
       listLedgerByPayment(paymentId),
       requestId ? listLedgerByRequest(requestId) : Promise.resolve([]),
-      idemRef
-        ? listFlwTransfersForRef(idemRef)
-        : Promise.resolve([]),
+      idemRef ? listFlwTransfersForRef(idemRef) : Promise.resolve([]),
       requestId
         ? sb
             .from("service_requests")
             .select(
-              "id, status, flow_status, escrow_status, agreed_major, amount_minor, pro_payout_minor, platform_fee_minor, released_at, satisfied_at, repair_pro_id, motorist_id, motorist_name, repair_pro_name, service_type, updated_at"
+              "id, status, flow_status, escrow_status, agreed_major, amount_minor, pro_payout_minor, platform_fee_minor, released_at, satisfied_at, repair_pro_id, motorist_id, motorist_name, repair_pro_name, service_type, updated_at",
             )
             .eq("id", requestId)
             .maybeSingle()
@@ -197,7 +196,7 @@ export async function GET(
       ? await sb
           .from("repair_pro_profiles")
           .select(
-            "bank_code, bank_name, bank_account_number, bank_account_name"
+            "bank_code, bank_name, bank_account_number, bank_account_name",
           )
           .eq("user_id", proId)
           .maybeSingle()
@@ -259,16 +258,18 @@ export async function GET(
           name:
             (motoristProf.data as { full_name?: string } | null)?.full_name ||
             (jobRow?.motorist_name as string) ||
-            "—",
-          phone: (motoristProf.data as { phone?: string } | null)?.phone || null,
-          email: (motoristProf.data as { email?: string } | null)?.email || null,
+            "",
+          phone:
+            (motoristProf.data as { phone?: string } | null)?.phone || null,
+          email:
+            (motoristProf.data as { email?: string } | null)?.email || null,
         },
         pro: {
           id: proId,
           name:
             (proProf.data as { full_name?: string } | null)?.full_name ||
             (jobRow?.repair_pro_name as string) ||
-            "—",
+            "",
           phone: (proProf.data as { phone?: string } | null)?.phone || null,
           email: (proProf.data as { email?: string } | null)?.email || null,
           bank: bank
@@ -287,14 +288,14 @@ export async function GET(
       job: jobRow,
       ledger: [...ledgerMap.values()],
       flwTransfers: [...flwMap.values()].sort((a, b) =>
-        String(b.created_at || "").localeCompare(String(a.created_at || ""))
+        String(b.created_at || "").localeCompare(String(a.created_at || "")),
       ),
       flwLookup: existingCheck,
       doublePayRisk:
         [...flwMap.values()].filter((t) =>
-          /success/i.test(String(t.status || ""))
+          /success/i.test(String(t.status || "")),
         ).length > 1
-          ? "Multiple SUCCESSFUL Flutterwave transfers found — review amounts and refs"
+          ? "Multiple SUCCESSFUL Flutterwave transfers found review amounts and refs"
           : null,
     });
   } catch (e) {
@@ -303,7 +304,7 @@ export async function GET(
     }
     return apiFail(
       e instanceof Error ? e.message : "Failed to load payment detail",
-      500
+      500,
     );
   }
 }

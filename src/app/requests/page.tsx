@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Requests — Live help & dispatch.
+ * Requests Live help & dispatch.
  * Active jobs open the live job flow. Past jobs open a view-only process summary (no chat).
  */
 
@@ -159,7 +159,7 @@ export default function RequestsPage() {
       .sort(
         (a, b) =>
           new Date(b.updatedAt || b.createdAt).getTime() -
-          new Date(a.updatedAt || a.createdAt).getTime()
+          new Date(a.updatedAt || a.createdAt).getTime(),
       );
     setJobs(list);
     setErr(null);
@@ -197,11 +197,13 @@ export default function RequestsPage() {
   };
 
   const Row = ({ j }: { j: JobRecord }) => {
-    // Pro: no customer full name — vehicle + issues only
+    // Pro: no customer full name vehicle + issues only
     const name = isPro
       ? isAutomotiveTrade(j.serviceType) && j.motoristVehicle?.trim()
         ? j.motoristVehicle.trim()
-        : j.motoristName?.split(/\s+/)[0] || PRO_SERVICE_LABELS[j.serviceType] || "Service Request"
+        : j.motoristName?.split(/\s+/)[0] ||
+          PRO_SERVICE_LABELS[j.serviceType] ||
+          "Service Request"
       : j.repairProName;
     const skill = PRO_SERVICE_LABELS[j.serviceType] ?? j.serviceType;
     const when = formatWhen(j.updatedAt || j.createdAt);
@@ -220,7 +222,7 @@ export default function RequestsPage() {
         onClick={() => openJob(j)}
         className={cn(
           "flex w-full items-start gap-3 border-0 bg-transparent py-3.5 text-left",
-          ""
+          "",
         )}
       >
         <div className="min-w-0 flex-1">
@@ -232,7 +234,7 @@ export default function RequestsPage() {
                   ? "bg-[#FF6B35] text-white"
                   : isLight
                     ? "bg-transparent text-slate-700 ring-1 ring-black/15"
-                    : "bg-transparent text-white/80 ring-1 ring-white/25"
+                    : "bg-transparent text-white/80 ring-1 ring-white/25",
               )}
             >
               {statusLabel(j.status, isPro)}
@@ -247,7 +249,7 @@ export default function RequestsPage() {
           <p
             className={cn(
               "mt-0.5 line-clamp-2 text-[13px] font-medium leading-snug",
-              muted
+              muted,
             )}
           >
             {j.problem}
@@ -323,7 +325,7 @@ export default function RequestsPage() {
             <p
               className={cn(
                 "mb-1 text-[11px] font-semibold uppercase tracking-wide",
-                muted
+                muted,
               )}
             >
               Active
@@ -341,14 +343,16 @@ export default function RequestsPage() {
             <p
               className={cn(
                 "mb-1 text-[11px] font-semibold uppercase tracking-wide",
-                muted
+                muted,
               )}
             >
               Past
             </p>
-            <p className={cn("mb-2 text-[11px] font-medium leading-snug", muted)}>
-              Tap a past request to view the full process. Chat is closed —
-              view only.
+            <p
+              className={cn("mb-2 text-[11px] font-medium leading-snug", muted)}
+            >
+              Tap a past request to view the full process. Chat is closed view
+              only.
             </p>
             <div>
               {past.map((j) => (

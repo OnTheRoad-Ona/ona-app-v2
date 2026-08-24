@@ -12,7 +12,7 @@ import {
 
 describe("normalization", () => {
   it("normalizes brand names", () => {
-    expect(normalizeName("  BOSCH Inc. ")).toBe("bosch");
+    expect(normalizeName(" BOSCH Inc. ")).toBe("bosch");
     expect(normalizeName("Toyota Motor Corporation")).toBe("toyota motor");
     expect(normalizeName("")).toBe("");
   });
@@ -30,7 +30,7 @@ describe("normalization", () => {
 
   it("slugifies product names deterministically", () => {
     expect(slugify("Bosch Front Brake Pads")).toBe("bosch-front-brake-pads");
-    expect(slugify("  A.C. Unit  ")).toBe("a-c-unit");
+    expect(slugify(" A.C. Unit ")).toBe("a-c-unit");
   });
 });
 
@@ -44,11 +44,13 @@ describe("deterministic ids", () => {
   });
 
   it("ignores case and nulls", () => {
-    expect(deterministicId("SKU", null, "Trade")).toBe(deterministicId("sku", undefined, "trade"));
+    expect(deterministicId("SKU", null, "Trade")).toBe(
+      deterministicId("sku", undefined, "trade"),
+    );
   });
 });
 
-describe("dedup keys — one part, many sources, one Ona product", () => {
+describe("dedup keys one part, many sources, one Ona product", () => {
   it("same sku across sources → same key", () => {
     const a = dedupKeyForVariant({ tradeKey: "mechanic", sku: "ONA-ABC-001" });
     const b = dedupKeyForVariant({ tradeKey: "mechanic", sku: "ona-abc-001" });
@@ -57,8 +59,14 @@ describe("dedup keys — one part, many sources, one Ona product", () => {
   });
 
   it("same oem number → same key regardless of sku differences", () => {
-    const a = dedupKeyForVariant({ tradeKey: "mechanic", oemNumber: "04465-33470" });
-    const b = dedupKeyForVariant({ tradeKey: "mechanic", oemNumber: "0446533470" });
+    const a = dedupKeyForVariant({
+      tradeKey: "mechanic",
+      oemNumber: "04465-33470",
+    });
+    const b = dedupKeyForVariant({
+      tradeKey: "mechanic",
+      oemNumber: "0446533470",
+    });
     expect(a).toBe(b);
   });
 
@@ -85,7 +93,10 @@ describe("external category mapping", () => {
   });
 
   it("tolerates missing external category", () => {
-    const m = mapExternalCategory({ externalCategory: null, tradeKey: "solar" });
+    const m = mapExternalCategory({
+      externalCategory: null,
+      tradeKey: "solar",
+    });
     expect(m).toEqual({});
   });
 });

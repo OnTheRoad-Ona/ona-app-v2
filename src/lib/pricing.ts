@@ -1,36 +1,29 @@
 /**
  * Ona labour/service pricing.
- * Does NOT include spare parts — labour fee only.
+ * Does NOT include spare parts labour fee only.
  * Currency follows market/geo: ₦ NG, £ UK, R ZA, etc.
  */
 
 import type { ProService } from "@/lib/types";
 
 export type AppCurrency =
-  | "NGN"
-  | "USD"
-  | "GBP"
-  | "ZAR"
-  | "EUR"
-  | "GHS"
-  | "KES"
-  | "CAD"
-  | "AUD";
+  "NGN" | "USD" | "GBP" | "ZAR" | "EUR" | "GHS" | "KES" | "CAD" | "AUD";
 
 /**
  * Settlement from the **service charge S** (customer pays S only):
- * - Repair pro: 87.5% = S − 5% Ona − 7.5% VAT  (equiv. 95% of S − VAT)
+ * - Repair pro: 87.5% = S − 5% Ona − 7.5% VAT (equiv. 95% of S − VAT)
  * - Ona platform: 5% of S (Flutterwave fees come out of this; Ona absorbs if fees > 5%)
  * - VAT: 7.5% of S stays on Flutterwave main balance (not paid to pro or Zenith)
  * - FLW collection + payout fees: deducted from Ona’s 5% only
  */
 export const PLATFORM_COMMISSION_PERCENT = 5;
-/** @deprecated Name kept for imports — fee is taken from S, not added on top. */
+/** @deprecated Name kept for imports fee is taken from S, not added on top. */
 export const PLATFORM_FEE_ON_TOP_PERCENT = PLATFORM_COMMISSION_PERCENT;
 /** Nigeria VAT on labour/service only. */
 export const VAT_PERCENT_NG = 7.5;
 /** Pro net share of service charge after Ona 5% and VAT 7.5%. */
-export const PRO_NET_PAYOUT_PERCENT = 100 - PLATFORM_COMMISSION_PERCENT - VAT_PERCENT_NG;
+export const PRO_NET_PAYOUT_PERCENT =
+  100 - PLATFORM_COMMISSION_PERCENT - VAT_PERCENT_NG;
 
 /** Max motorist-negotiated discount off the pro’s base labour price. */
 export const MAX_DISCOUNT_PERCENT = 50;
@@ -38,7 +31,7 @@ export const MAX_DISCOUNT_PERCENT = 50;
 export const LABOUR_FEE_DISCLAIMER =
   "Labour / service fee only. Does not include spare parts or motor parts.";
 
-/** Pro-only copy — never show to customers */
+/** Pro-only copy never show to customers */
 export const LABOUR_SPLIT_LINE_PRO =
   "You receive 87.5% · 5% Ona · 7.5% VAT held on Flutterwave";
 
@@ -56,7 +49,9 @@ export function splitServiceChargeMinor(amountMinor: number): {
   vatMinor: number;
 } {
   const total = Math.max(0, Math.round(amountMinor));
-  const platformFeeMinor = Math.round((total * PLATFORM_COMMISSION_PERCENT) / 100);
+  const platformFeeMinor = Math.round(
+    (total * PLATFORM_COMMISSION_PERCENT) / 100,
+  );
   const vatMinor = Math.round((total * VAT_PERCENT_NG) / 100);
   const proPayoutMinor = Math.max(0, total - platformFeeMinor - vatMinor);
   return { totalMinor: total, proPayoutMinor, platformFeeMinor, vatMinor };
@@ -90,7 +85,7 @@ export function buildCustomerChargeMajor(labourMajor: number): {
 
 /** Trade-aware labour disclaimer (parts vs materials vs consumables). */
 export function labourFeeDisclaimerForTrade(
-  service?: ProService | string | null
+  service?: ProService | string | null,
 ): string {
   const s = (service || "").toLowerCase();
   if (
@@ -130,7 +125,7 @@ export function labourFeeDisclaimerForTrade(
 
 /** Trade-aware problem description placeholder. */
 export function problemPlaceholderForTrade(
-  service?: ProService | string | null
+  service?: ProService | string | null,
 ): string {
   const s = (service || "").toLowerCase();
   switch (s) {
@@ -199,7 +194,14 @@ const COUNTRY_CURRENCY: Record<string, AppCurrency> = {
 function nameToCurrency(name: string): AppCurrency | null {
   const n = name.toUpperCase();
   if (n.includes("NIGERIA") || n === "NG") return "NGN";
-  if (n.includes("UNITED KINGDOM") || n.includes("ENGLAND") || n.includes("SCOTLAND") || n.includes("WALES") || n === "UK" || n === "GB")
+  if (
+    n.includes("UNITED KINGDOM") ||
+    n.includes("ENGLAND") ||
+    n.includes("SCOTLAND") ||
+    n.includes("WALES") ||
+    n === "UK" ||
+    n === "GB"
+  )
     return "GBP";
   if (n.includes("SOUTH AFRICA") || n === "ZA") return "ZAR";
   if (n.includes("UNITED STATES") || n === "USA" || n === "US") return "USD";
@@ -247,7 +249,12 @@ export function detectCurrency(opts?: {
   const fromName = nameToCurrency(opts?.countryName || "");
   if (fromName === "NGN") return "NGN";
   if (fromName && !forceNg) return fromName;
-  if (fromName && fromName !== "GBP" && fromName !== "USD" && fromName !== "EUR")
+  if (
+    fromName &&
+    fromName !== "GBP" &&
+    fromName !== "USD" &&
+    fromName !== "EUR"
+  )
     return fromName;
 
   const locale = (
@@ -255,7 +262,7 @@ export function detectCurrency(opts?: {
     (typeof navigator !== "undefined" ? navigator.language : "en-NG")
   ).toLowerCase();
 
-  // Prefer Nigeria market defaults — do not infer GBP/EUR from browser language alone
+  // Prefer Nigeria market defaults do not infer GBP/EUR from browser language alone
   // (many Nigerian devices report en-GB / en-US and wrongly priced in £).
   if (
     locale.startsWith("en-ng") ||
@@ -281,13 +288,13 @@ export function detectCurrency(opts?: {
   if (locale.startsWith("en-gh")) return "GHS";
   if (locale.startsWith("en-ke") || locale.startsWith("sw-ke")) return "KES";
 
-  // Primary market default — always NGN
+  // Primary market default always NGN
   return "NGN";
 }
 
 /** Nigerian display/pay currency only */
 export function forceNairaCurrency(
-  currency?: AppCurrency | string | null
+  currency?: AppCurrency | string | null,
 ): AppCurrency {
   if (process.env.NEXT_PUBLIC_FORCE_NGN === "false") {
     return (currency as AppCurrency) || "NGN";
@@ -319,7 +326,7 @@ export async function detectCurrencyFromGeolocation(): Promise<AppCurrency> {
     try {
       const res = await fetch(
         `/api/reverse-geocode?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`,
-        { cache: "no-store" }
+        { cache: "no-store" },
       );
       const data = (await res.json().catch(() => null)) as {
         country?: string;
@@ -380,18 +387,27 @@ export function currencyLabel(currency: AppCurrency): string {
 }
 
 function usesDecimals(currency: AppCurrency): boolean {
-  return currency === "USD" || currency === "GBP" || currency === "EUR" || currency === "CAD" || currency === "AUD";
+  return (
+    currency === "USD" ||
+    currency === "GBP" ||
+    currency === "EUR" ||
+    currency === "CAD" ||
+    currency === "AUD"
+  );
 }
 
 /** Major units → minor (kobo / cents / pence). */
-export function toMinorUnits(amountMajor: number, currency: AppCurrency): number {
+export function toMinorUnits(
+  amountMajor: number,
+  currency: AppCurrency,
+): number {
   const n = Math.max(0, Number(amountMajor) || 0);
   return Math.round(n * 100);
 }
 
 export function fromMinorUnits(
   amountMinor: number,
-  currency: AppCurrency
+  currency: AppCurrency,
 ): number {
   return (Number(amountMinor) || 0) / 100;
 }
@@ -402,12 +418,12 @@ export function fromMinorUnits(
  */
 export function formatMoney(
   amountMajor: number | null | undefined,
-  currency?: AppCurrency | string | null
+  currency?: AppCurrency | string | null,
 ): string {
   if (amountMajor == null || !Number.isFinite(Number(amountMajor))) {
     return "Quote on request";
   }
-  // Default market is Nigeria — prefer ₦ when currency missing/unknown
+  // Default market is Nigeria prefer ₦ when currency missing/unknown
   const cur: AppCurrency =
     currency === "USD" ||
     currency === "GBP" ||
@@ -435,13 +451,15 @@ export function formatMoney(
 
 export function formatMoneyMinor(
   amountMinor: number,
-  currency: AppCurrency
+  currency: AppCurrency,
 ): string {
   return formatMoney(fromMinorUnits(amountMinor, currency), currency);
 }
 
 /** Parse free-text price ("₦5,000", "50", "$25.00") → major units or null. */
-export function parsePriceInput(raw: string | number | null | undefined): number | null {
+export function parsePriceInput(
+  raw: string | number | null | undefined,
+): number | null {
   if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) return raw;
   if (raw == null) return null;
   const s = String(raw).replace(/[^\d.]/g, "");
@@ -457,7 +475,7 @@ export function parsePriceInput(raw: string | number | null | undefined): number
  */
 export function getBaseLabourPrice(
   prices: Partial<Record<ProService, number | string>> | null | undefined,
-  service: ProService
+  service: ProService,
 ): number | null {
   if (!prices) return null;
   return parsePriceInput(prices[service]);
@@ -470,7 +488,7 @@ export function clampDiscountPercent(pct: number): number {
 
 export function applyDiscount(
   baseMajor: number,
-  discountPercent: number
+  discountPercent: number,
 ): number {
   const d = clampDiscountPercent(discountPercent);
   const agreed = baseMajor * (1 - d / 100);
@@ -530,7 +548,7 @@ export function buildPricingSnapshot(input: {
   };
 }
 
-/** @deprecated Use splitServiceChargeMinor — alias for call sites expecting 95/5 name. */
+/** @deprecated Use splitServiceChargeMinor alias for call sites expecting 95/5 name. */
 export function split95_5_from_service(amountMinor: number) {
   return splitServiceChargeMinor(amountMinor);
 }

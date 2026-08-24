@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Ona Control Centre — Backend Health Monitoring
+ * Ona Control Centre Backend Health Monitoring
  * Protected admin-only page. Auto-refreshes every 60s.
  * INTEGRATION: POST /api/log-error from map onError, API catch, error boundaries.
  */
@@ -56,13 +56,13 @@ export default function AdminHealthPage() {
         if (key !== lastCriticalRef.current) {
           lastCriticalRef.current = key;
           setToast(
-            "Critical health status detected. Review components and Recent Issues."
+            "Critical health status detected. Review components and Recent Issues.",
           );
           window.setTimeout(() => setToast(null), 6000);
         }
       }
     },
-    [api, snapshot]
+    [api, snapshot],
   );
 
   useEffect(() => {
@@ -87,9 +87,7 @@ export default function AdminHealthPage() {
       if (!prev) return prev;
       return {
         ...prev,
-        issues: prev.issues.map((i) =>
-          i.id === id ? { ...i, resolved } : i
-        ),
+        issues: prev.issues.map((i) => (i.id === id ? { ...i, resolved } : i)),
       };
     });
   }
@@ -104,8 +102,9 @@ export default function AdminHealthPage() {
             System health
           </h1>
           <p className="om-admin-sub" style={{ marginBottom: 0 }}>
-        Backend health: Supabase, payments, maps, and error signals. Use when the live app misbehaves.
-      </p>
+            Backend health: Supabase, payments, maps, and error signals. Use
+            when the live app misbehaves.
+          </p>
         </div>
         <button
           type="button"
@@ -153,7 +152,7 @@ export default function AdminHealthPage() {
           Last checked:{" "}
           {snapshot?.checkedAt
             ? new Date(snapshot.checkedAt).toLocaleString()
-            : "—"}
+            : ""}
           {snapshot?.live === false
             ? " · some metrics estimated (see card notes)"
             : ""}

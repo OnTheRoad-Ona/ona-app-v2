@@ -21,7 +21,7 @@ export function VerificationWarningBanner({
         "relative rounded-xl px-3 py-2.5 pr-9 text-[12px] leading-snug",
         isLight
           ? "bg-[#FF6B35]/15 text-[#FF6B35] ring-1 ring-[#FF6B35]/40"
-          : "bg-[#FF6B35]/150/15 text-[#FF6B35] ring-1 ring-[#FF6B35]/40/30"
+          : "bg-[#FF6B35]/150/15 text-[#FF6B35] ring-1 ring-[#FF6B35]/40/30",
       )}
     >
       <div className="flex gap-2">
@@ -69,7 +69,7 @@ export function VerificationBlockedPanel({
         "rounded-2xl p-4 shadow-lg",
         isLight
           ? "bg-[#d4d5d9] ring-1 ring-black/10"
-          : "bg-zinc-900 ring-1 ring-white/10"
+          : "bg-zinc-900 ring-1 ring-white/10",
       )}
     >
       <div className="flex h-11 w-11 items-center justify-center rounded-full bg-brand/15">
@@ -78,7 +78,7 @@ export function VerificationBlockedPanel({
       <h2
         className={cn(
           "mt-3 text-[16px] font-bold",
-          isLight ? "text-slate-900" : "text-white"
+          isLight ? "text-slate-900" : "text-white",
         )}
       >
         Verification required
@@ -101,7 +101,7 @@ export function VerificationBlockedPanel({
             onClick={onClose}
             className={cn(
               "h-10 rounded-lg text-[13px] font-semibold",
-              isLight ? "bg-black/10 text-slate-700" : "bg-white/10 text-white"
+              isLight ? "bg-black/10 text-slate-700" : "bg-white/10 text-white",
             )}
           >
             Not now
@@ -113,7 +113,7 @@ export function VerificationBlockedPanel({
 }
 
 /**
- * Home lower-panel only — phone verify nudge after free period ends.
+ * Home lower-panel only phone verify nudge after free period ends.
  * Parent controls visibility (hidden once phone is verified).
  */
 export function HomeVerifyPanel({
@@ -128,7 +128,7 @@ export function HomeVerifyPanel({
       role="status"
       className={cn(
         "flex min-h-[25%] flex-col justify-center rounded-2xl px-4 py-3",
-        isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]"
+        isLight ? "bg-[#d4d5d9]" : "bg-[#1c1c1e]",
       )}
     >
       <div className="flex gap-2.5">
@@ -137,7 +137,7 @@ export function HomeVerifyPanel({
           <p
             className={cn(
               "text-[13px] font-bold",
-              isLight ? "text-slate-900" : "text-white"
+              isLight ? "text-slate-900" : "text-white",
             )}
           >
             Complete verification
@@ -145,7 +145,7 @@ export function HomeVerifyPanel({
           <p
             className={cn(
               "mt-1 text-[12px] leading-snug",
-              isLight ? "text-slate-600" : "text-white/65"
+              isLight ? "text-slate-600" : "text-white/65",
             )}
           >
             {message || "Verify your phone number to request help"}

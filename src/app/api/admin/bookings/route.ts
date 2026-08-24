@@ -21,7 +21,8 @@ export async function GET() {
     if (error) return apiFail(error.message, 500);
     return apiOk({ bookings: data ?? [] });
   } catch (e) {
-    if (e instanceof AdminAuthError) return apiFail(e.message, e.status, "auth");
+    if (e instanceof AdminAuthError)
+      return apiFail(e.message, e.status, "auth");
     return apiFail("Failed to load bookings", 500);
   }
 }

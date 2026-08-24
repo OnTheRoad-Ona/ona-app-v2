@@ -18,7 +18,7 @@ export function proSheetBg(isLight: boolean) {
   return isLight ? PRO_SHEET_LIGHT : PRO_SHEET_DARK;
 }
 
-/** Full-height wizard frame — single sheet color, no extra stage fills */
+/** Full-height wizard frame single sheet color, no extra stage fills */
 export function AppleProWizard({
   isLight,
   children,
@@ -32,7 +32,7 @@ export function AppleProWizard({
     <div
       className={cn(
         "relative flex h-full min-h-0 w-full flex-col overflow-hidden",
-        className
+        className,
       )}
       style={{ backgroundColor: proSheetBg(isLight) }}
     >
@@ -59,7 +59,7 @@ export function AppleProTitle({
         <p
           className={cn(
             "mb-1 text-[12px] font-semibold tracking-wide",
-            isLight ? "text-slate-500" : "text-white/45"
+            isLight ? "text-slate-500" : "text-white/45",
           )}
         >
           {stepLabel}
@@ -68,7 +68,7 @@ export function AppleProTitle({
       <h1
         className={cn(
           "text-[28px] font-bold leading-tight tracking-tight",
-          isLight ? "text-[#1c1c1e]" : "text-white"
+          isLight ? "text-[#1c1c1e]" : "text-white",
         )}
       >
         {title}
@@ -77,7 +77,7 @@ export function AppleProTitle({
         <p
           className={cn(
             "mt-1.5 text-[14px] font-medium leading-snug",
-            isLight ? "text-slate-600" : "text-white/55"
+            isLight ? "text-slate-600" : "text-white/55",
           )}
         >
           {subtitle}
@@ -108,7 +108,7 @@ export function AppleProProgress({
               ? "bg-[#FF6B35]"
               : isLight
                 ? "bg-black/12"
-                : "bg-white/15"
+                : "bg-white/15",
           )}
         />
       ))}
@@ -116,7 +116,7 @@ export function AppleProProgress({
   );
 }
 
-/** Grouped list — hairline only, no fill cards */
+/** Grouped list hairline only, no fill cards */
 export function AppleProList({
   children,
   isLight,
@@ -131,13 +131,13 @@ export function AppleProList({
       className={cn(
         "overflow-hidden rounded-xl",
         isLight ? "bg-transparent" : "bg-transparent",
-        className
+        className,
       )}
     >
       <div
         className={cn(
           "divide-y",
-          isLight ? "divide-black/10" : "divide-white/10"
+          isLight ? "divide-black/10" : "divide-white/10",
         )}
       >
         {children}
@@ -162,14 +162,15 @@ export function AppleProRow({
     <div
       className={cn(
         "px-1 py-2.5",
-        !last && (isLight ? "border-b border-black/10" : "border-b border-white/10")
+        !last &&
+          (isLight ? "border-b border-black/10" : "border-b border-white/10"),
       )}
     >
       {label ? (
         <p
           className={cn(
             "mb-1 text-[11px] font-semibold",
-            isLight ? "text-slate-500" : "text-white/45"
+            isLight ? "text-slate-500" : "text-white/45",
           )}
         >
           {label}
@@ -187,16 +188,14 @@ export function appleProFieldClass(isLight: boolean, locked?: boolean) {
     isLight
       ? "border-black/15 text-[#1c1c1e] placeholder:text-slate-400"
       : "border-white/20 text-white placeholder:text-white/35",
-    locked && "opacity-55"
+    locked && "opacity-55",
   );
 }
 
 export function appleProSelectClass(isLight: boolean) {
   return cn(
     "h-11 w-full appearance-none border-0 border-b bg-transparent px-0 text-[16px] font-medium outline-none",
-    isLight
-      ? "border-black/15 text-[#1c1c1e]"
-      : "border-white/20 text-white"
+    isLight ? "border-black/15 text-[#1c1c1e]" : "border-white/20 text-white",
   );
 }
 
@@ -205,11 +204,11 @@ export function appleProTextareaClass(isLight: boolean) {
     "min-h-[88px] w-full resize-none border-0 border-b bg-transparent px-0 py-2 text-[16px] font-medium leading-snug outline-none",
     isLight
       ? "border-black/15 text-[#1c1c1e] placeholder:text-slate-400"
-      : "border-white/20 text-white placeholder:text-white/35"
+      : "border-white/20 text-white placeholder:text-white/35",
   );
 }
 
-/** Selectable list row (trade / option) — no gray well */
+/** Selectable list row (trade / option) no gray well */
 export function AppleProOptionRow({
   active,
   isLight,
@@ -229,7 +228,7 @@ export function AppleProOptionRow({
       className={cn(
         "flex min-h-[52px] w-full items-center gap-3 border-0 border-b bg-transparent px-1 py-3 text-left transition-opacity",
         isLight ? "border-black/10" : "border-white/10",
-        active ? "opacity-100" : "opacity-80 active:opacity-100"
+        active ? "opacity-100" : "opacity-80 active:opacity-100",
       )}
     >
       {children}
@@ -279,7 +278,7 @@ export function AppleProFooter({
           onClick={onBack}
           className={cn(
             "h-10 w-full border-0 bg-transparent text-[15px] font-semibold",
-            isLight ? "text-slate-600" : "text-white/60"
+            isLight ? "text-slate-600" : "text-white/60",
           )}
         >
           {backLabel}
@@ -301,7 +300,7 @@ export function AppleProBody({
     <div
       className={cn(
         "min-h-0 flex-1 overflow-y-auto px-5 pb-2 scrollbar-hide",
-        className
+        className,
       )}
     >
       {children}

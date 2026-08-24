@@ -82,7 +82,12 @@ describe("constants", () => {
   });
 
   it("terminal statuses are released, refunded, cancelled, expired", () => {
-    expect(TERMINAL_STATUSES).toEqual(["released", "refunded", "cancelled", "expired"]);
+    expect(TERMINAL_STATUSES).toEqual([
+      "released",
+      "refunded",
+      "cancelled",
+      "expired",
+    ]);
   });
 });
 
@@ -140,16 +145,22 @@ describe("bookedPaymentStartMs", () => {
 describe("isBookedPastCompletionDeadline", () => {
   it("returns true when past 6h deadline", () => {
     const paidAt = new Date(Date.now() - 7 * 60 * 60 * 1000).toISOString();
-    expect(isBookedPastCompletionDeadline({ status: "paid_booked", paidAt })).toBe(true);
+    expect(
+      isBookedPastCompletionDeadline({ status: "paid_booked", paidAt }),
+    ).toBe(true);
   });
 
   it("returns false when within 6h deadline", () => {
     const paidAt = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    expect(isBookedPastCompletionDeadline({ status: "paid_booked", paidAt })).toBe(false);
+    expect(
+      isBookedPastCompletionDeadline({ status: "paid_booked", paidAt }),
+    ).toBe(false);
   });
 
   it("returns false for non-booked statuses", () => {
-    expect(isBookedPastCompletionDeadline({ status: "negotiating" })).toBe(false);
+    expect(isBookedPastCompletionDeadline({ status: "negotiating" })).toBe(
+      false,
+    );
   });
 });
 
@@ -195,8 +206,16 @@ describe("getOpenPaymentSessionStartMs", () => {
     const result = getOpenPaymentSessionStartMs({
       status: "agreed",
       statusHistory: [
-        { status: "agreed", at: "2026-01-01T12:00:00Z", by: PAY_HISTORY.SESSION_START },
-        { status: "agreed", at: "2026-01-01T12:05:00Z", by: PAY_HISTORY.SESSION_CANCELLED },
+        {
+          status: "agreed",
+          at: "2026-01-01T12:00:00Z",
+          by: PAY_HISTORY.SESSION_START,
+        },
+        {
+          status: "agreed",
+          at: "2026-01-01T12:05:00Z",
+          by: PAY_HISTORY.SESSION_CANCELLED,
+        },
       ],
     });
     expect(result).toBeNull();
@@ -214,7 +233,11 @@ describe("paymentEndsAtIso", () => {
       status: "agreed",
       paymentSessionEndsAt: endsAt,
       statusHistory: [
-        { status: "agreed", at: new Date().toISOString(), by: PAY_HISTORY.SESSION_START },
+        {
+          status: "agreed",
+          at: new Date().toISOString(),
+          by: PAY_HISTORY.SESSION_START,
+        },
       ],
     });
     expect(result).toBe(endsAt);
@@ -231,7 +254,7 @@ describe("paymentEndsAtIso", () => {
     expect(result).toBeTruthy();
     expect(new Date(result!).getTime()).toBeCloseTo(
       new Date(start).getTime() + PAYMENT_WINDOW_MS,
-      -2
+      -2,
     );
   });
 });
@@ -242,14 +265,21 @@ describe("isAgreedPastPaymentDeadline", () => {
     expect(
       isAgreedPastPaymentDeadline({
         status: "agreed",
-        statusHistory: [{ status: "agreed", at: start, by: "payment_session_start" }],
-      })
+        statusHistory: [
+          { status: "agreed", at: start, by: "payment_session_start" },
+        ],
+      }),
     ).toBe(true);
   });
 
   it("returns false when within payment window", () => {
     const endsAt = new Date(Date.now() + 600_000).toISOString();
-    expect(isAgreedPastPaymentDeadline({ status: "agreed", paymentSessionEndsAt: endsAt })).toBe(false);
+    expect(
+      isAgreedPastPaymentDeadline({
+        status: "agreed",
+        paymentSessionEndsAt: endsAt,
+      }),
+    ).toBe(false);
   });
 
   it("returns false when not agreed", () => {
@@ -264,7 +294,7 @@ describe("pay-to-book 30 minute deadline", () => {
       isAgreedPastPayToBookDeadline({
         status: "agreed",
         statusHistory: [{ status: "agreed", at, by: "motorist" }],
-      })
+      }),
     ).toBe(true);
   });
 
@@ -274,7 +304,7 @@ describe("pay-to-book 30 minute deadline", () => {
       isAgreedPastPayToBookDeadline({
         status: "agreed",
         statusHistory: [{ status: "agreed", at, by: "motorist" }],
-      })
+      }),
     ).toBe(false);
   });
 
@@ -287,7 +317,7 @@ describe("pay-to-book 30 minute deadline", () => {
           { status: "agreed", at: agreed, by: "motorist" },
           { status: "agreed", at: pay, by: PAY_HISTORY.SESSION_START },
         ],
-      })
+      }),
     ).toBe(true);
     expect(
       isAgreedPastPayToBookDeadline({
@@ -296,7 +326,7 @@ describe("pay-to-book 30 minute deadline", () => {
           { status: "agreed", at: agreed, by: "motorist" },
           { status: "agreed", at: pay, by: PAY_HISTORY.SESSION_START },
         ],
-      })
+      }),
     ).toBe(false);
   });
 
@@ -306,7 +336,7 @@ describe("pay-to-book 30 minute deadline", () => {
       agreedAtMs({
         status: "agreed",
         statusHistory: [{ status: "agreed", at, by: "motorist" }],
-      })
+      }),
     ).toBe(new Date(at).getTime());
   });
 });
@@ -328,12 +358,16 @@ describe("paymentAttemptsRemaining", () => {
 describe("completedAtMs", () => {
   it("returns completed timestamp from history", () => {
     const at = "2026-07-28T12:00:00.000Z";
-    expect(completedAtMs({ statusHistory: [{ status: "completed", at }] })).toBe(new Date(at).getTime());
+    expect(
+      completedAtMs({ statusHistory: [{ status: "completed", at }] }),
+    ).toBe(new Date(at).getTime());
   });
 
   it("returns updatedAt fallback", () => {
     const updatedAt = "2026-07-28T12:00:00.000Z";
-    expect(completedAtMs({ status: "completed", updatedAt })).toBe(new Date(updatedAt).getTime());
+    expect(completedAtMs({ status: "completed", updatedAt })).toBe(
+      new Date(updatedAt).getTime(),
+    );
   });
 
   it("returns null when not completed", () => {
@@ -355,7 +389,7 @@ describe("satisfiedReleaseEndsAtIso", () => {
     expect(result).toBeTruthy();
     expect(new Date(result!).getTime()).toBeCloseTo(
       new Date(at).getTime() + COMPLETED_AUTO_RELEASE_WINDOW_MS,
-      -2
+      -2,
     );
   });
 });
@@ -363,12 +397,16 @@ describe("satisfiedReleaseEndsAtIso", () => {
 describe("isCompletedPastAutoReleaseDeadline", () => {
   it("returns true when past 6h and no dispute", () => {
     const updatedAt = new Date(Date.now() - 7 * 60 * 60 * 1000).toISOString();
-    expect(isCompletedPastAutoReleaseDeadline({ status: "completed", updatedAt })).toBe(true);
+    expect(
+      isCompletedPastAutoReleaseDeadline({ status: "completed", updatedAt }),
+    ).toBe(true);
   });
 
   it("returns false when within 6h", () => {
     const updatedAt = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    expect(isCompletedPastAutoReleaseDeadline({ status: "completed", updatedAt })).toBe(false);
+    expect(
+      isCompletedPastAutoReleaseDeadline({ status: "completed", updatedAt }),
+    ).toBe(false);
   });
 
   it("returns false when dispute is open", () => {
@@ -378,54 +416,93 @@ describe("isCompletedPastAutoReleaseDeadline", () => {
         status: "completed",
         updatedAt,
         dispute: { status: "open" },
-      })
+      }),
     ).toBe(false);
   });
 
   it("returns false when not completed", () => {
-    expect(isCompletedPastAutoReleaseDeadline({ status: "paid_booked" })).toBe(false);
+    expect(isCompletedPastAutoReleaseDeadline({ status: "paid_booked" })).toBe(
+      false,
+    );
   });
 });
 
 describe("needsCustomerReleaseConfirm", () => {
   it("returns true for completed with no satisfied/release info", () => {
-    expect(needsCustomerReleaseConfirm({ id: "1", status: "completed" })).toBe(true);
+    expect(needsCustomerReleaseConfirm({ id: "1", status: "completed" })).toBe(
+      true,
+    );
   });
 
   it("returns false for released", () => {
-    expect(needsCustomerReleaseConfirm({ id: "1", status: "released" })).toBe(false);
+    expect(needsCustomerReleaseConfirm({ id: "1", status: "released" })).toBe(
+      false,
+    );
   });
 
   it("returns false when satisfiedAt set", () => {
-    expect(needsCustomerReleaseConfirm({ id: "1", status: "completed", satisfiedAt: "2026-01-01" })).toBe(false);
+    expect(
+      needsCustomerReleaseConfirm({
+        id: "1",
+        status: "completed",
+        satisfiedAt: "2026-01-01",
+      }),
+    ).toBe(false);
   });
 
   it("returns false for terminal statuses", () => {
-    expect(needsCustomerReleaseConfirm({ id: "1", status: "cancelled" })).toBe(false);
-    expect(needsCustomerReleaseConfirm({ id: "1", status: "refunded" })).toBe(false);
-    expect(needsCustomerReleaseConfirm({ id: "1", status: "expired" })).toBe(false);
+    expect(needsCustomerReleaseConfirm({ id: "1", status: "cancelled" })).toBe(
+      false,
+    );
+    expect(needsCustomerReleaseConfirm({ id: "1", status: "refunded" })).toBe(
+      false,
+    );
+    expect(needsCustomerReleaseConfirm({ id: "1", status: "expired" })).toBe(
+      false,
+    );
   });
 
   it("returns false when escrow is settled", () => {
-    expect(needsCustomerReleaseConfirm({ id: "1", status: "completed", escrowStatus: "released" })).toBe(false);
+    expect(
+      needsCustomerReleaseConfirm({
+        id: "1",
+        status: "completed",
+        escrowStatus: "released",
+      }),
+    ).toBe(false);
   });
 
   it("returns false for unsatisfied completed with pending settlement", () => {
-    expect(needsCustomerReleaseConfirm({ id: "1", status: "completed", escrowStatus: "pending_settlement" })).toBe(false);
+    expect(
+      needsCustomerReleaseConfirm({
+        id: "1",
+        status: "completed",
+        escrowStatus: "pending_settlement",
+      }),
+    ).toBe(false);
   });
 });
 
 describe("isPayoutPendingSettlement", () => {
   it("returns true for pending_settlement", () => {
-    expect(isPayoutPendingSettlement({ escrowStatus: "pending_settlement" })).toBe(true);
+    expect(
+      isPayoutPendingSettlement({ escrowStatus: "pending_settlement" }),
+    ).toBe(true);
   });
 
   it("returns true for release_pending", () => {
-    expect(isPayoutPendingSettlement({ escrowStatus: "release_pending" })).toBe(true);
+    expect(isPayoutPendingSettlement({ escrowStatus: "release_pending" })).toBe(
+      true,
+    );
   });
 
   it("returns false when releasedAt is set", () => {
-    expect(isPayoutPendingSettlement({ releasedAt: "2026-01-01", escrowStatus: "pending_settlement" })).toBe(false);
+    expect(
+      isPayoutPendingSettlement({
+        releasedAt: "2026-01-01",
+        escrowStatus: "pending_settlement",
+      }),
+    ).toBe(false);
   });
 
   it("returns false when released", () => {
@@ -449,11 +526,18 @@ describe("canOpenDisputeNow", () => {
   });
 
   it("returns false when an open dispute exists", () => {
-    expect(canOpenDisputeNow({ status: "paid_booked", dispute: { status: "open" } })).toBe(false);
+    expect(
+      canOpenDisputeNow({ status: "paid_booked", dispute: { status: "open" } }),
+    ).toBe(false);
   });
 
   it("returns true when dispute is resolved", () => {
-    expect(canOpenDisputeNow({ status: "paid_booked", dispute: { status: "resolved" } })).toBe(true);
+    expect(
+      canOpenDisputeNow({
+        status: "paid_booked",
+        dispute: { status: "resolved" },
+      }),
+    ).toBe(true);
   });
 
   it("returns true for released within 48h of satisfiedAt", () => {
@@ -462,7 +546,9 @@ describe("canOpenDisputeNow", () => {
   });
 
   it("returns false for released past 48h", () => {
-    const satisfiedAt = new Date(Date.now() - 100 * 60 * 60 * 1000).toISOString();
+    const satisfiedAt = new Date(
+      Date.now() - 100 * 60 * 60 * 1000,
+    ).toISOString();
     expect(canOpenDisputeNow({ status: "released", satisfiedAt })).toBe(false);
   });
 
@@ -482,7 +568,9 @@ describe("isNegotiationTimerArmed", () => {
   });
 
   it("returns false when endsAt is a far-future sentinel", () => {
-    const farFuture = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    const farFuture = new Date(
+      Date.now() + 365 * 24 * 60 * 60 * 1000,
+    ).toISOString();
     expect(isNegotiationTimerArmed({ negotiateEndsAt: farFuture })).toBe(false);
   });
 
@@ -492,7 +580,7 @@ describe("isNegotiationTimerArmed", () => {
       isNegotiationTimerArmed({
         negotiateEndsAt: nearFuture,
         statusHistory: [{ by: "pro_can_fix", status: "negotiating" }],
-      })
+      }),
     ).toBe(true);
   });
 
@@ -502,7 +590,7 @@ describe("isNegotiationTimerArmed", () => {
       isNegotiationTimerArmed({
         negotiateEndsAt: nearFuture,
         offers: [{ id: "1" }],
-      })
+      }),
     ).toBe(true);
   });
 
@@ -514,14 +602,12 @@ describe("isNegotiationTimerArmed", () => {
 
 describe("nearbyProsStatusLine", () => {
   it("formats singular and plural", () => {
-    expect(nearbyProsStatusLine(1, "Mechanic")).toBe(
-      "1 Mechanic is near you"
-    );
+    expect(nearbyProsStatusLine(1, "Mechanic")).toBe("1 Mechanic is near you");
     expect(nearbyProsStatusLine(3, "Mechanic")).toBe(
-      "3 Mechanics are near you"
+      "3 Mechanics are near you",
     );
     expect(nearbyProsStatusLine(6, "Carpenter")).toBe(
-      "6 Carpenters are near you"
+      "6 Carpenters are near you",
     );
   });
 

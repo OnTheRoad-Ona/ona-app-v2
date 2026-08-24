@@ -15,8 +15,8 @@ export const VULCANIZER_FINAL_COPY = {
   extra: "Any other detail you want the repair pro to know?",
   diagnosis: "Likely problem",
   tow: "Do you need the vehicle towed to a safer place or workshop?",
-  towYes: "Yes — I need a tow",
-  towNo: "No — proceed with Vulcanizer",
+  towYes: "Yes I need a tow",
+  towNo: "No proceed with Vulcanizer",
 } as const;
 
 export const VULCANIZER_MIN_PHOTOS = 0;
@@ -75,7 +75,7 @@ export const VULCANIZER_SCREENS: Record<string, VulcanizerScreen> = {
     kind: "choice",
     options: VULCANIZER_START_OPTIONS,
   },
-  // Branch A — flat tyre / puncture
+  // Branch A flat tyre / puncture
   a_which: {
     id: "a_which",
     question: "Which tyre(s) is affected?",
@@ -110,7 +110,7 @@ export const VULCANIZER_SCREENS: Record<string, VulcanizerScreen> = {
       { id: "road", label: "On the road / highway" },
     ],
   },
-  // Branch B — burst or blown tyre
+  // Branch B burst or blown tyre
   b_which: {
     id: "b_which",
     question: "Which tyre burst?",
@@ -141,7 +141,7 @@ export const VULCANIZER_SCREENS: Record<string, VulcanizerScreen> = {
     kind: "choice",
     options: YES_NO,
   },
-  // Branch C — slow puncture
+  // Branch C slow puncture
   c_time: {
     id: "c_time",
     question: "How long has the tyre been losing air?",
@@ -158,8 +158,8 @@ export const VULCANIZER_SCREENS: Record<string, VulcanizerScreen> = {
     question: "Do you see any nail, screw or damage on the tread or sidewall?",
     kind: "choice",
     options: [
-      { id: "tread", label: "Yes — nail / screw on the tread" },
-      { id: "sidewall", label: "Yes — damage on the sidewall" },
+      { id: "tread", label: "Yes nail / screw on the tread" },
+      { id: "sidewall", label: "Yes damage on the sidewall" },
       { id: "none", label: "Nothing visible" },
     ],
   },
@@ -175,7 +175,7 @@ export const VULCANIZER_SCREENS: Record<string, VulcanizerScreen> = {
     kind: "choice",
     options: TYRE_POSITIONS,
   },
-  // Branch D — damaged rim / wheel
+  // Branch D damaged rim / wheel
   d_how: {
     id: "d_how",
     question: "How did the rim get damaged?",
@@ -212,7 +212,7 @@ export const VULCANIZER_SCREENS: Record<string, VulcanizerScreen> = {
       { id: "replace", label: "Full wheel replacement" },
     ],
   },
-  // Branch E — balancing / alignment
+  // Branch E balancing / alignment
   e_symptoms: {
     id: "e_symptoms",
     question: "What symptoms are you noticing?",
@@ -237,15 +237,16 @@ export const VULCANIZER_SCREENS: Record<string, VulcanizerScreen> = {
   },
   e_trigger: {
     id: "e_trigger",
-    question: "Did this start after hitting a pothole or after new tyres were fitted?",
+    question:
+      "Did this start after hitting a pothole or after new tyres were fitted?",
     kind: "choice",
     options: [
       { id: "pothole", label: "After hitting a pothole" },
       { id: "new_tyres", label: "After new tyres were fitted" },
-      { id: "gradual", label: "No — gradual" },
+      { id: "gradual", label: "No gradual" },
     ],
   },
-  // Branch F — new tyres / replacement
+  // Branch F new tyres / replacement
   f_which: {
     id: "f_which",
     question: "Which tyre(s) need replacement?",
@@ -283,7 +284,7 @@ export const VULCANIZER_SCREENS: Record<string, VulcanizerScreen> = {
     kind: "choice",
     options: YES_NO,
   },
-  // Branch G — multiple tyres
+  // Branch G multiple tyres
   g_howmany: {
     id: "g_howmany",
     question: "How many tyres are affected?",
@@ -312,7 +313,7 @@ export const VULCANIZER_SCREENS: Record<string, VulcanizerScreen> = {
     kind: "choice",
     options: YES_NO,
   },
-  // Branch H — something else
+  // Branch H something else
   h_describe: {
     id: "h_describe",
     question:
@@ -372,16 +373,14 @@ function resolveScreen(answers: Record<string, string>): "confirm" | "final" {
   return resolveVulcanizerRoute(answers).needsConfirm ? "confirm" : "final";
 }
 
-export function vulcanizerScreen(
-  id: string
-): VulcanizerScreen | undefined {
+export function vulcanizerScreen(id: string): VulcanizerScreen | undefined {
   return VULCANIZER_SCREENS[id];
 }
 
 export function nextVulcanizerScreen(
   current: string,
   answerId: string,
-  answers: Record<string, string>
+  answers: Record<string, string>,
 ): string {
   if (current === "start") return START_NEXT[answerId] || "h_describe";
 
@@ -442,16 +441,16 @@ export function nextVulcanizerScreen(
  * arrives with the real issue already identified.
  */
 export function vulcanizerDiagnosis(
-  answers: Record<string, string>
+  answers: Record<string, string>,
 ): string | undefined {
   const main = answers.start;
 
   if (main === "A") {
     if (answers.a_which === "more") {
-      return "Multiple tyres affected — likely a puncture or worn tyres";
+      return "Multiple tyres affected likely a puncture or worn tyres";
     }
     if (answers.a_spare === "no") {
-      return "No spare available — tyre beyond a roadside fix";
+      return "No spare available tyre beyond a roadside fix";
     }
     return "Likely a puncture or flat tyre";
   }
@@ -461,7 +460,8 @@ export function vulcanizerDiagnosis(
   if (main === "C") return "Slow puncture or air loss";
 
   if (main === "D") {
-    if (answers.d_how === "accident") return "Likely rim or wheel damage from an accident";
+    if (answers.d_how === "accident")
+      return "Likely rim or wheel damage from an accident";
     return "Likely a damaged, bent, or cracked rim";
   }
 
@@ -470,7 +470,7 @@ export function vulcanizerDiagnosis(
   if (main === "F") return "Tyre replacement needed";
 
   if (main === "G") {
-    return "Multiple tyres affected — likely worn or damaged tyres";
+    return "Multiple tyres affected likely worn or damaged tyres";
   }
 
   return undefined;
@@ -482,7 +482,7 @@ export function vulcanizerDiagnosis(
  * clearly point to another trade.
  */
 export function resolveVulcanizerRoute(
-  answers: Record<string, string>
+  answers: Record<string, string>,
 ): VulcanizerRoute {
   const diagnosis = vulcanizerDiagnosis(answers);
   const stay = (): VulcanizerRoute => ({
@@ -492,7 +492,7 @@ export function resolveVulcanizerRoute(
   });
   const leave = (
     trade: ProService,
-    alternate?: ProService
+    alternate?: ProService,
   ): VulcanizerRoute => ({
     trade,
     alternate,
@@ -574,7 +574,7 @@ export function resolveVulcanizerRoute(
 
 export function applyVulcanizerConfirmChoice(
   route: VulcanizerRoute,
-  yes: boolean
+  yes: boolean,
 ): ProService {
   if (yes) return route.trade;
   if (route.alternate) return route.alternate;
@@ -584,7 +584,7 @@ export function applyVulcanizerConfirmChoice(
 export function composeVulcanizerProblem(
   answers: Record<string, string>,
   extra: string,
-  landmark: string
+  landmark: string,
 ): string {
   const lines: string[] = [];
   const start = vulcanizerScreen("start");
@@ -595,7 +595,7 @@ export function composeVulcanizerProblem(
   }
 
   const order = Object.keys(answers).filter(
-    (k) => k !== "start" && !k.endsWith("_label")
+    (k) => k !== "start" && !k.endsWith("_label"),
   );
   for (const id of order) {
     const screen = vulcanizerScreen(id);

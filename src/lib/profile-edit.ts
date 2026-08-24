@@ -1,4 +1,4 @@
-/** Profile edit helpers — vehicles-served lock window */
+/** Profile edit helpers vehicles-served lock window */
 
 export const VEHICLES_SERVED_LOCK_DAYS = 28;
 
@@ -19,7 +19,7 @@ export type VehiclesServedLock = {
  * First-time set (no timestamp) is always allowed.
  */
 export function getVehiclesServedLock(
-  vehiclesServedUpdatedAt?: string | null
+  vehiclesServedUpdatedAt?: string | null,
 ): VehiclesServedLock {
   if (!vehiclesServedUpdatedAt) {
     return {

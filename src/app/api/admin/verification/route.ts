@@ -52,7 +52,7 @@ type ProRow = {
 async function buildVerificationResponse(
   supabase: ReturnType<typeof createServiceSupabase>,
   pros: ProRow[],
-  mots: MotRow[]
+  mots: MotRow[],
 ) {
   const userIds = [
     ...pros.map((p) => p.user_id),
@@ -91,7 +91,7 @@ async function buildVerificationResponse(
     return {
       kind: "customer" as const,
       user_id: m.user_id,
-      full_name: p?.full_name ?? "—",
+      full_name: p?.full_name ?? "",
       email: p?.email ?? null,
       phone: p?.phone ?? null,
       label:
@@ -138,7 +138,7 @@ async function buildVerificationResponse(
     return {
       kind: "repair_pro" as const,
       user_id: pr.user_id,
-      full_name: p?.full_name ?? "—",
+      full_name: p?.full_name ?? "",
       email: p?.email ?? null,
       phone: p?.phone ?? null,
       label: pr.business_name || pr.primary_service || "Repair Pro",
@@ -218,14 +218,14 @@ export async function GET() {
       supabase
         .from("repair_pro_profiles")
         .select(
-          "user_id, business_name, status, verified, nin_verified, bvn_verified, nin_last4, bvn_last4, primary_service, docs_status, docs_rating_boost_applied, certification_file_name, certification_file_url, docs_submitted_at, docs_reviewed_at, rating_avg, rating_count, visibility_tier, is_new_artisan, created_at"
+          "user_id, business_name, status, verified, nin_verified, bvn_verified, nin_last4, bvn_last4, primary_service, docs_status, docs_rating_boost_applied, certification_file_name, certification_file_url, docs_submitted_at, docs_reviewed_at, rating_avg, rating_count, visibility_tier, is_new_artisan, created_at",
         )
         .order("created_at", { ascending: false })
         .limit(400),
       supabase
         .from("motorist_profiles")
         .select(
-          "user_id, vehicle_make, vehicle_model, nin_verified, bvn_verified, nin_last4, bvn_last4, identity_verified_at, identity_review_status, identity_submitted_at, gov_id_kind, gov_id_front_url, phone_verified, created_at"
+          "user_id, vehicle_make, vehicle_model, nin_verified, bvn_verified, nin_last4, bvn_last4, identity_verified_at, identity_review_status, identity_submitted_at, gov_id_kind, gov_id_front_url, phone_verified, created_at",
         )
         .order("created_at", { ascending: false })
         .limit(400),
@@ -240,7 +240,7 @@ export async function GET() {
         const legacy = await supabase
           .from("motorist_profiles")
           .select(
-            "user_id, vehicle_make, vehicle_model, nin_verified, bvn_verified, nin_last4, bvn_last4, identity_verified_at, created_at"
+            "user_id, vehicle_make, vehicle_model, nin_verified, bvn_verified, nin_last4, bvn_last4, identity_verified_at, created_at",
           )
           .order("created_at", { ascending: false })
           .limit(400);
@@ -248,7 +248,7 @@ export async function GET() {
         return buildVerificationResponse(
           supabase,
           (prosRes.data ?? []) as ProRow[],
-          (legacy.data ?? []) as MotRow[]
+          (legacy.data ?? []) as MotRow[],
         );
       }
       return apiFail(motRes.error.message, 500);
@@ -257,7 +257,7 @@ export async function GET() {
     return buildVerificationResponse(
       supabase,
       (prosRes.data ?? []) as ProRow[],
-      (motRes.data ?? []) as MotRow[]
+      (motRes.data ?? []) as MotRow[],
     );
   } catch (e) {
     if (e instanceof AdminAuthError)
@@ -278,7 +278,9 @@ const patchSchema = z.object({
     "pro_t4_reject",
     "pro_visibility",
   ]),
-  visibilityTier: z.union([z.literal(2), z.literal(3), z.literal(4)]).optional(),
+  visibilityTier: z
+    .union([z.literal(2), z.literal(3), z.literal(4)])
+    .optional(),
 });
 
 export async function PATCH(req: Request) {
@@ -323,9 +325,8 @@ export async function PATCH(req: Request) {
             .eq("user_id", userId));
         }
         if (error) return apiFail(error.message, 500);
-        const { mirrorDualRoleT2Approved } = await import(
-          "@/lib/server/identity/dual-t2-mirror"
-        );
+        const { mirrorDualRoleT2Approved } =
+          await import("@/lib/server/identity/dual-t2-mirror");
         await mirrorDualRoleT2Approved(supabase, userId, {
           reviewedBy: session.userId,
           now,
@@ -335,7 +336,7 @@ export async function PATCH(req: Request) {
           subject,
           action,
           message:
-            "Customer Tier 2 approved — dual Repair Pro T2 auto-approved when both accounts exist.",
+            "Customer Tier 2 approved dual Repair Pro T2 auto-approved when both accounts exist.",
         });
       }
       if (action === "customer_t2_reject") {
@@ -367,7 +368,7 @@ export async function PATCH(req: Request) {
         return apiOk({
           subject,
           action,
-          message: "Customer Tier 2 rejected — ask them to re-upload ID.",
+          message: "Customer Tier 2 rejected ask them to re-upload ID.",
         });
       }
       return apiFail("Invalid customer action", 400);
@@ -391,9 +392,8 @@ export async function PATCH(req: Request) {
         })
         .eq("user_id", userId);
       if (error) return apiFail(error.message, 500);
-      const { mirrorDualRoleT2Approved } = await import(
-        "@/lib/server/identity/dual-t2-mirror"
-      );
+      const { mirrorDualRoleT2Approved } =
+        await import("@/lib/server/identity/dual-t2-mirror");
       await mirrorDualRoleT2Approved(supabase, userId, {
         reviewedBy: session.userId,
         now,
@@ -430,7 +430,7 @@ export async function PATCH(req: Request) {
       const { data: pro, error: fetchErr } = await supabase
         .from("repair_pro_profiles")
         .select(
-          "user_id, docs_status, docs_rating_boost_applied, rating_avg, rating_count, visibility_tier"
+          "user_id, docs_status, docs_rating_boost_applied, rating_avg, rating_count, visibility_tier",
         )
         .eq("user_id", userId)
         .maybeSingle();

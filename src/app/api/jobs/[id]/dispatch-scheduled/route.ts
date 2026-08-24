@@ -22,7 +22,7 @@ const bodySchema = z.object({
 
 export async function POST(
   req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   const { id } = await ctx.params;
   try {
@@ -31,7 +31,8 @@ export async function POST(
 
     const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
     if (!parsed.success) return apiFail("Enter your current address", 400);
-    if (!isSupabaseAdminConfigured()) return apiFail("Service unavailable", 503);
+    if (!isSupabaseAdminConfigured())
+      return apiFail("Service unavailable", 503);
 
     const job = await getJob(id);
     if (!job) return apiFail("Job not found", 404);
@@ -71,9 +72,8 @@ export async function POST(
     if (error) return apiFail("Could not dispatch request", 500);
 
     // Immediately book the first pro of the requested trade.
-    const { advancePairing } = await import(
-      "@/lib/server/pairing/pairing-engine"
-    );
+    const { advancePairing } =
+      await import("@/lib/server/pairing/pairing-engine");
     await advancePairing(id);
 
     const updated = await getJob(id);

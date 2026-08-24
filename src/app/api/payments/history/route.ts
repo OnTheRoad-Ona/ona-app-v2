@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 function humanStatus(
   p: EscrowPayment,
-  role: "motorist" | "professional"
+  role: "motorist" | "professional",
 ): { label: string; tone: "ok" | "warn" | "bad" | "muted" } {
   const esc = String(p.escrowStatus || "").toLowerCase();
   const meta = p.meta || {};
@@ -29,9 +29,7 @@ function humanStatus(
   if (esc === "pending_settlement" || esc === "release_pending") {
     return {
       label:
-        role === "professional"
-          ? "Payout processing"
-          : "Payment processing",
+        role === "professional" ? "Payout processing" : "Payment processing",
       tone: "warn",
     };
   }
@@ -41,7 +39,11 @@ function humanStatus(
       tone: "warn",
     };
   }
-  if (esc === "pending_payment" || esc === "pending" || p.status === "pending") {
+  if (
+    esc === "pending_payment" ||
+    esc === "pending" ||
+    p.status === "pending"
+  ) {
     return { label: "Awaiting payment", tone: "muted" };
   }
   if (esc === "refunded") {
@@ -63,9 +65,13 @@ export async function GET(req: Request) {
 
     const url = new URL(req.url);
     const userId = url.searchParams.get("userId");
-    const roleParam = (url.searchParams.get("role") || "motorist").toLowerCase();
+    const roleParam = (
+      url.searchParams.get("role") || "motorist"
+    ).toLowerCase();
     const role: "motorist" | "professional" =
-      roleParam === "professional" || roleParam === "repair_pro" || roleParam === "pro"
+      roleParam === "professional" ||
+      roleParam === "repair_pro" ||
+      roleParam === "pro"
         ? "professional"
         : "motorist";
 
@@ -132,25 +138,25 @@ export async function GET(req: Request) {
       totalCount: payments.length,
       heldCount: payments.filter((p) =>
         ["held", "pending_settlement", "release_pending"].includes(
-          String(p.escrowStatus)
-        )
+          String(p.escrowStatus),
+        ),
       ).length,
       releasedCount: payments.filter(
         (p) =>
           p.escrowStatus === "released" ||
           p.statusLabel === "Released" ||
-          p.statusLabel === "Paid out"
+          p.statusLabel === "Paid out",
       ).length,
       processingCount: payments.filter((p) =>
-        String(p.statusLabel).toLowerCase().includes("processing")
+        String(p.statusLabel).toLowerCase().includes("processing"),
       ).length,
       refundedCount: payments.filter((p) => p.escrowStatus === "refunded")
         .length,
       heldMinor: payments
         .filter((p) =>
           ["held", "pending_settlement", "release_pending"].includes(
-            String(p.escrowStatus)
-          )
+            String(p.escrowStatus),
+          ),
         )
         .reduce(
           (a, p) =>
@@ -158,14 +164,14 @@ export async function GET(req: Request) {
             (role === "professional"
               ? Number(p.proPayoutMinor) || 0
               : Number(p.amountMinor) || 0),
-          0
+          0,
         ),
       releasedMinor: payments
         .filter(
           (p) =>
             p.escrowStatus === "released" ||
             p.statusLabel === "Paid out" ||
-            p.statusLabel === "Released"
+            p.statusLabel === "Released",
         )
         .reduce(
           (a, p) =>
@@ -173,7 +179,7 @@ export async function GET(req: Request) {
             (role === "professional"
               ? Number(p.proPayoutMinor) || 0
               : Number(p.amountMinor) || 0),
-          0
+          0,
         ),
     };
 

@@ -69,7 +69,11 @@ function permFor(type: CareAction["type"]): CarePermission {
 /** One-click Customer Care actions (all password-gated) */
 export async function POST(req: Request) {
   if (!isSupabaseAdminConfigured()) {
-    return apiFail("Supabase is not configured", 503, "supabase_not_configured");
+    return apiFail(
+      "Supabase is not configured",
+      503,
+      "supabase_not_configured",
+    );
   }
   try {
     const body = schema.safeParse(await req.json());
@@ -78,7 +82,7 @@ export async function POST(req: Request) {
     const action = body.data as CareAction;
     const { session, ip } = await requireSensitiveAction(
       permFor(action.type),
-      req
+      req,
     );
 
     const result = await executeCareAction(action, {

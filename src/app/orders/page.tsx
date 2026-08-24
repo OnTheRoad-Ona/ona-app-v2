@@ -19,7 +19,7 @@ import { PRO_SERVICE_LABELS } from "@/lib/services";
 import type { RequestStatus, ServiceRequest } from "@/lib/types";
 import { cn, formatDistance, formatEta } from "@/lib/utils";
 
-/** Coarse labels — live truth is flow_status on /jobs/[id]; desk maps cloud jobs into RequestStatus. */
+/** Coarse labels live truth is flow_status on /jobs/[id]; desk maps cloud jobs into RequestStatus. */
 const STATUS_LABEL: Record<RequestStatus, string> = {
   pending: "Service Request / pairing / negotiate",
   accepted: "Booked (paid)",
@@ -31,7 +31,7 @@ const STATUS_LABEL: Record<RequestStatus, string> = {
 };
 
 /**
- * Repair Pro order desk — incoming motorist requests,
+ * Repair Pro order desk incoming motorist requests,
  * accept / en-route / complete flow.
  */
 export default function ProOrdersPage() {
@@ -61,8 +61,7 @@ export default function ProOrdersPage() {
     if (result.warning) setWarning(result.warning);
   };
 
-  const isPro =
-    userMode === "professional" || accountType === "professional";
+  const isPro = userMode === "professional" || accountType === "professional";
 
   const list = useMemo(() => {
     let rows = [...requests];
@@ -72,13 +71,11 @@ export default function ProOrdersPage() {
       rows = rows.filter((r) => r.technicianId === backendUserId);
     }
     if (filter === "open") {
-      rows = rows.filter(
-        (r) => !["completed", "cancelled"].includes(r.status)
-      );
+      rows = rows.filter((r) => !["completed", "cancelled"].includes(r.status));
     }
     return rows.sort(
       (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
   }, [requests, filter, isPro, backendUserId]);
 
@@ -87,7 +84,7 @@ export default function ProOrdersPage() {
       <div
         className={cn(
           "flex h-full flex-col",
-          isLight ? "bg-[#c8c9cd]" : "bg-black"
+          isLight ? "bg-[#c8c9cd]" : "bg-black",
         )}
       >
         <PageHeader title="Orders" subtitle="Repair Pro only" backHref="/" />
@@ -102,7 +99,7 @@ export default function ProOrdersPage() {
     <div
       className={cn(
         "flex h-full flex-col",
-        isLight ? "bg-[#c8c9cd]" : "bg-black"
+        isLight ? "bg-[#c8c9cd]" : "bg-black",
       )}
     >
       <PageHeader
@@ -128,7 +125,7 @@ export default function ProOrdersPage() {
                 ? "bg-brand text-white"
                 : isLight
                   ? "bg-white text-slate-600"
-                  : "bg-white/10 text-white/75"
+                  : "bg-white/10 text-white/75",
             )}
           >
             {label}
@@ -155,19 +152,19 @@ export default function ProOrdersPage() {
           <div
             className={cn(
               "rounded-xl p-6 text-center",
-              isLight ? "bg-[#c8c9cd]" : "bg-white/5"
+              isLight ? "bg-[#c8c9cd]" : "bg-white/5",
             )}
           >
             <Clock3
               className={cn(
                 "mx-auto h-8 w-8",
-                isLight ? "text-slate-300" : "text-white/30"
+                isLight ? "text-slate-300" : "text-white/30",
               )}
             />
             <p
               className={cn(
                 "mt-2 text-sm font-semibold",
-                isLight ? "text-slate-800" : "text-white"
+                isLight ? "text-slate-800" : "text-white",
               )}
             >
               No {filter === "open" ? "active" : ""} orders yet
@@ -206,7 +203,7 @@ function OrderCard({
     <article
       className={cn(
         "rounded-xl p-3",
-        isLight ? "bg-white shadow-sm" : "bg-white/[0.06]"
+        isLight ? "bg-white shadow-sm" : "bg-white/[0.06]",
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -214,7 +211,7 @@ function OrderCard({
           <p
             className={cn(
               "text-[13px] font-bold",
-              isLight ? "text-slate-900" : "text-white"
+              isLight ? "text-slate-900" : "text-white",
             )}
           >
             {job.problem}
@@ -232,7 +229,7 @@ function OrderCard({
               ? "bg-amber-100 text-amber-800"
               : job.status === "completed"
                 ? "bg-emerald-100 text-emerald-800"
-                : "bg-brand-soft text-brand"
+                : "bg-brand-soft text-brand",
           )}
         >
           {STATUS_LABEL[job.status]}
@@ -242,7 +239,7 @@ function OrderCard({
       <div
         className={cn(
           "mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]",
-          isLight ? "text-slate-600" : "text-white/70"
+          isLight ? "text-slate-600" : "text-white/70",
         )}
       >
         <span className="inline-flex items-center gap-1">
@@ -311,7 +308,7 @@ function OrderCard({
             }}
             className={cn(
               "h-9 flex-none rounded-lg px-3 text-[11px]",
-              "bg-black/8 text-slate-800 dark:bg-[#2c2c2e] dark:text-white"
+              "bg-black/8 text-slate-800 dark:bg-[#2c2c2e] dark:text-white",
             )}
           />
         </div>
@@ -339,7 +336,7 @@ function Action({
         "inline-flex items-center gap-1 rounded-md border-0 px-2.5 py-1.5 text-[11px] font-bold",
         primary
           ? "bg-brand text-white"
-          : "bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-white/85"
+          : "bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-white/85",
       )}
     >
       <Icon className="h-3.5 w-3.5" />

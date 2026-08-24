@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     if (!auth.ok) return auth.response;
     const orders = await getUserOrders(
       auth.userId,
-      shopCtxFromQuery(req.nextUrl.searchParams.get("ctx"))
+      shopCtxFromQuery(req.nextUrl.searchParams.get("ctx")),
     );
     return apiOk({ orders });
   } catch (e) {

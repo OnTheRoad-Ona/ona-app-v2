@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * Customer submits full government ID package for Tier 2 admin review.
- * Care-approved T2 is sticky — re-submit cannot demote approval.
+ * Care-approved T2 is sticky re-submit cannot demote approval.
  */
 const bodySchema = z.object({
   access_token: z.string().min(10),
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const { data: userData, error: userErr } = await userClient.auth.getUser(
-      parsed.data.access_token
+      parsed.data.access_token,
     );
     if (userErr || !userData.user) {
       return apiFail("Sign in again to submit ID", 401, "auth");
@@ -91,7 +91,7 @@ export async function POST(req: Request) {
     const { data: existingMot } = await admin
       .from("motorist_profiles")
       .select(
-        "user_id, vehicle_make, vehicle_model, vehicle_year, plate_number, vehicles, phone_verified, first_service_at, identity_review_status, identity_verified_at, nin_verified, bvn_verified, identity_rejection_reason"
+        "user_id, vehicle_make, vehicle_model, vehicle_year, plate_number, vehicles, phone_verified, first_service_at, identity_review_status, identity_verified_at, nin_verified, bvn_verified, identity_rejection_reason",
       )
       .eq("user_id", userId)
       .maybeSingle();
@@ -205,9 +205,8 @@ export async function POST(req: Request) {
     }
 
     try {
-      const { detectMergeCandidatesForUser } = await import(
-        "@/lib/server/identity/identity-sync"
-      );
+      const { detectMergeCandidatesForUser } =
+        await import("@/lib/server/identity/identity-sync");
       await detectMergeCandidatesForUser(admin, userId, {
         userId,
         source: "customer_id_verify",

@@ -22,7 +22,7 @@ export function OnlineStatusDot({
       <span
         className={cn(
           "relative inline-flex h-1.5 w-1.5 shrink-0 items-center justify-center",
-          className
+          className,
         )}
         title="Online"
         aria-label="Online"
@@ -34,7 +34,13 @@ export function OnlineStatusDot({
   }
   if (!showLabel) return null;
   const label =
-    s === "busy" ? "Busy" : s === "nearby" ? "Nearby" : s === "offline" ? "Offline" : "";
+    s === "busy"
+      ? "Busy"
+      : s === "nearby"
+        ? "Nearby"
+        : s === "offline"
+          ? "Offline"
+          : "";
   if (!label) return null;
   return (
     <span className={cn("text-[10px] font-bold", className)}>{label}</span>

@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { DemoCatalogConnector, demoConnectorCount } from "@/lib/server/shop/connectors/demo";
+import {
+  DemoCatalogConnector,
+  demoConnectorCount,
+} from "@/lib/server/shop/connectors/demo";
 import { NhtsaVpicConnector } from "@/lib/server/shop/connectors/nhtsa";
 import { DEMO_PRODUCTS } from "@/lib/shop/demo-catalog";
 
@@ -40,8 +43,12 @@ describe("DemoCatalogConnector", () => {
 
   it("checksum is deterministic per record", () => {
     const c = new DemoCatalogConnector();
-    expect(c.checksumFor({ raw: { a: 1 } })).toBe(c.checksumFor({ raw: { a: 1 } }));
-    expect(c.checksumFor({ raw: { a: 1 } })).not.toBe(c.checksumFor({ raw: { a: 2 } }));
+    expect(c.checksumFor({ raw: { a: 1 } })).toBe(
+      c.checksumFor({ raw: { a: 1 } }),
+    );
+    expect(c.checksumFor({ raw: { a: 1 } })).not.toBe(
+      c.checksumFor({ raw: { a: 2 } }),
+    );
   });
 });
 
@@ -72,7 +79,11 @@ describe("NhtsaVpicConnector", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const c = new NhtsaVpicConnector();
-    const page1 = await c.fetchRecords({ page: 1, pageSize: 10, signal: new AbortController().signal });
+    const page1 = await c.fetchRecords({
+      page: 1,
+      pageSize: 10,
+      signal: new AbortController().signal,
+    });
     expect(page1.records.length).toBeGreaterThan(0);
     expect(page1.hasMore).toBe(true);
     expect(page1.total).toBeGreaterThan(10);

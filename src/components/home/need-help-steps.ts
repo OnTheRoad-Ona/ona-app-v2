@@ -7,7 +7,7 @@ export function canOpenEmergencyCard(problem: string): boolean {
 
 /** Talk box stays blank until they tap a real trade. */
 export function talkBoxAfterTradePick(
-  category: string
+  category: string,
 ): category is ProService {
   return isProService(category);
 }

@@ -1,15 +1,12 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { runFullHealthCheck } from "@/lib/server/health-service";
-import {
-  AdminAuthError,
-  requireAdmin,
-} from "@/lib/server/admin-auth";
+import { AdminAuthError, requireAdmin } from "@/lib/server/admin-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/health — aggregated ops health snapshot (admin session required).
+ * GET /api/health aggregated ops health snapshot (admin session required).
  * Public ping: use GET /api/health?public=1 for shallow liveness only.
  */
 export async function GET(req: Request) {

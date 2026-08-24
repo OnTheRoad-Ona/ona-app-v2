@@ -2,8 +2,8 @@
 /**
  * Guards the fast-close mechanism of the Repair Pro incoming panel:
  * - while a card is visible, `poll()` calls the ultra-light
- *   `/api/jobs/pro-incoming-status` endpoint (via `apiProIncomingStatus`) with
- *   the visible card ids, instead of the full list;
+ * `/api/jobs/pro-incoming-status` endpoint (via `apiProIncomingStatus`) with
+ * the visible card ids, instead of the full list;
  * - a `cancelled` snapshot closes the card (even if realtime was "missed");
  * - a keepable snapshot keeps the card;
  * - the full lean list still runs every few cycles to surface/reconcile.
@@ -18,14 +18,16 @@ import type { JobRecord } from "@/lib/jobs/types";
 
 const routerPush = vi.fn();
 const client = vi.hoisted(() => ({
-   apiListJobs: vi.fn(),
-   apiProIncomingStatus: vi.fn(),
-   apiGetJob: vi.fn(),
-   apiTransition: vi.fn(),
-   apiDeferJob: vi.fn(),
-   apiSurfaceJob: vi.fn(() => Promise.resolve({ ok: true })),
-   apiGetCallout: vi.fn(() => Promise.resolve({ ok: true, data: { quote: null } })),
- }));
+  apiListJobs: vi.fn(),
+  apiProIncomingStatus: vi.fn(),
+  apiGetJob: vi.fn(),
+  apiTransition: vi.fn(),
+  apiDeferJob: vi.fn(),
+  apiSurfaceJob: vi.fn(() => Promise.resolve({ ok: true })),
+  apiGetCallout: vi.fn(() =>
+    Promise.resolve({ ok: true, data: { quote: null } }),
+  ),
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -58,7 +60,7 @@ const realtime = vi.hoisted(() => {
         return () => {
           listener = null;
         };
-      }
+      },
     ),
     emit: (payload: unknown) => {
       listener?.(payload);
@@ -154,14 +156,12 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
   vi.clearAllMocks();
-  // jsdom has no pointer-capture implementation — no-op stubs are enough for
+  // jsdom has no pointer-capture implementation no-op stubs are enough for
   // the panel drag gestures in these tests.
   Element.prototype.setPointerCapture = () => {};
   Element.prototype.releasePointerCapture = () => {};
   client.apiGetJob.mockResolvedValue(okList([openJob]));
-  client.apiProIncomingStatus.mockResolvedValue(
-    okStatus([statusSnapshot()])
-  );
+  client.apiProIncomingStatus.mockResolvedValue(okStatus([statusSnapshot()]));
 });
 
 afterEach(() => {
@@ -183,7 +183,7 @@ const flushPolls = async () => {
 };
 
 /** The panel opens expanded by default (only a swipe-down collapses it). The
- *  tap simply re-expands a collapsed panel — harmless when already open. */
+ * tap simply re-expands a collapsed panel harmless when already open. */
 const expandPanel = async () => {
   await act(async () => {
     fireEvent.click(screen.getByRole("dialog"));
@@ -357,7 +357,7 @@ describe("IncomingJobPopup panel three levels", () => {
     await swipe(-80); // swipe up → full
     await flushPolls();
 
-    // Level change scrolls back to the top — the profile picture placeholder
+    // Level change scrolls back to the top the profile picture placeholder
     // is the first thing visible, not a mid-scroll position.
     expect(scroll.scrollTop).toBe(0);
   });
@@ -395,7 +395,7 @@ describe("IncomingJobPopup panel three levels", () => {
 });
 
 describe("IncomingJobPopup fast status-check poll", () => {
-  it("opens the panel expanded by default — no tap needed to see the card", async () => {
+  it("opens the panel expanded by default no tap needed to see the card", async () => {
     client.apiListJobs
       .mockResolvedValueOnce(okList([openJob]))
       .mockResolvedValue(okList([]));
@@ -421,9 +421,7 @@ describe("IncomingJobPopup fast status-check poll", () => {
 
     expect(screen.getByText("Confirm you can fix this")).toBeTruthy();
     expect(
-      screen.getByText(
-        /won't get call out fee if you don't/i
-      )
+      screen.getByText(/won't get call out fee if you don't/i),
     ).toBeTruthy();
   });
 
@@ -441,7 +439,7 @@ describe("IncomingJobPopup fast status-check poll", () => {
     await flushPolls();
     expect(screen.getByText("Confirm you can fix this")).toBeTruthy();
 
-    // Pairing deadline (NOW + 60s) elapses while the dialog is open — the
+    // Pairing deadline (NOW + 60s) elapses while the dialog is open the
     // dialog must close too, not stay pinned over the expired card.
     await act(async () => {
       vi.advanceTimersByTime(61_000);
@@ -501,7 +499,7 @@ describe("IncomingJobPopup fast status-check poll", () => {
 
     expect(screen.queryByText("Engine won't start")).toBeNull();
     // Cancellation notice is single-voiced through the notification center's
-    // top toast — the popup banner must NOT double it.
+    // top toast the popup banner must NOT double it.
     expect(screen.queryByText("Request cancelled")).toBeNull();
   });
 
@@ -516,12 +514,10 @@ describe("IncomingJobPopup fast status-check poll", () => {
     expect(screen.getByText("Engine won't start")).toBeTruthy();
 
     // Customer cancels; realtime push never arrives. The next ~1s status check
-    // must close the card — the cancellation toasts through the notification
+    // must close the card the cancellation toasts through the notification
     // center's top toast, not a transient panel banner.
     client.apiProIncomingStatus.mockResolvedValue(
-      okStatus([
-        statusSnapshot({ status: "cancelled", pairingStage: null }),
-      ])
+      okStatus([statusSnapshot({ status: "cancelled", pairingStage: null })]),
     );
 
     await advanceOnePoll();
@@ -530,7 +526,7 @@ describe("IncomingJobPopup fast status-check poll", () => {
     expect(screen.queryByText("Engine won't start")).toBeNull();
     expect(client.apiProIncomingStatus).toHaveBeenCalledWith(["j1"]);
     expect(
-      screen.queryByText("Mina cancelled the Toyota Camry request.")
+      screen.queryByText("Mina cancelled the Toyota Camry request."),
     ).toBeNull();
     expect(screen.queryByText("Request cancelled")).toBeNull();
     expect(showAppNotification).not.toHaveBeenCalled();
@@ -587,9 +583,7 @@ describe("IncomingJobPopup fast status-check poll", () => {
     expect(screen.getByText("Engine won't start")).toBeTruthy();
 
     client.apiProIncomingStatus.mockResolvedValue(
-      okStatus([
-        statusSnapshot({ pairingDeadline: NEW_DEADLINE }),
-      ])
+      okStatus([statusSnapshot({ pairingDeadline: NEW_DEADLINE })]),
     );
 
     await advanceOnePoll();
@@ -598,7 +592,7 @@ describe("IncomingJobPopup fast status-check poll", () => {
 
     expect(screen.getByText("Engine won't start")).toBeTruthy();
     expect(
-      screen.queryByText("The customer cancelled this request.")
+      screen.queryByText("The customer cancelled this request."),
     ).toBeNull();
     expect(client.apiProIncomingStatus).toHaveBeenCalledWith(["j1"]);
   });

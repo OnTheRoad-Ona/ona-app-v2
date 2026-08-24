@@ -3,7 +3,7 @@ import type { AppFilters, ServiceCategory, Technician } from "@/lib/types";
 
 /** Max techs returned in any search (keep load reasonable) */
 export const MAX_TECHNICIANS = 24;
-/** Hard max search radius in km — pros farther away are never listed or mapped */
+/** Hard max search radius in km pros farther away are never listed or mapped */
 export const MAX_RADIUS_KM = 5;
 /** Default search radius (motorist pin and book-for-someone meet pin) */
 export const DEFAULT_RADIUS_KM = 5;
@@ -19,7 +19,7 @@ export const LIVE_HEARTBEAT_MAX_MS = 5 * 60 * 1000;
 /** True when Live pin was refreshed within LIVE_HEARTBEAT_MAX_MS. */
 export function hasRecentLiveHeartbeat(
   locationUpdatedAt: string | null | undefined,
-  nowMs: number = Date.now()
+  nowMs: number = Date.now(),
 ): boolean {
   if (!locationUpdatedAt) return false;
   const t = new Date(locationUpdatedAt).getTime();
@@ -60,7 +60,7 @@ export function scoreTechnician(tech: Technician, query: string): number {
   const verifiedBonus = tech.verified ? 10 : 0;
   const fastBonus = tech.fastResponse ? 8 : 0;
   const matchBoost = problemPriority(tech, query);
-  // New Artisan: lower ranking (Tier 1–2 badge)
+  // New Artisan: lower ranking (Tier 1-2 badge)
   const newArtisanPenalty = tech.isNewArtisan ? 35 : 0;
   // Visibility tier: (A) multiply by %, (C) soft penalty for incomplete visibility
   const visPct =
@@ -92,7 +92,7 @@ export function scoreTechnician(tech: Technician, query: string): number {
 }
 
 /**
- * Trade tab match — strict.
+ * Trade tab match strict.
  * Battery tab = battery pros only (never show mechanics as battery).
  * Mechanic tab = mechanic only, etc.
  */
@@ -105,7 +105,7 @@ function matchesCategory(tech: Technician, category: ServiceCategory): boolean {
 /** True when free-text search matches this pro (name, trade, specialty, problem). */
 export function technicianMatchesQuery(
   tech: Technician,
-  query: string
+  query: string,
 ): boolean {
   const q = query.toLowerCase().trim();
   if (!q) return true;
@@ -146,17 +146,29 @@ export function specialtyAffinityTokens(raw: string): Set<string> {
     set.add("office");
     set.add("offices");
   }
-  if (n.includes("commercial") || n.includes("shop") || n.includes("business")) {
+  if (
+    n.includes("commercial") ||
+    n.includes("shop") ||
+    n.includes("business")
+  ) {
     set.add("commercial");
   }
-  if (n.includes("industrial") || n.includes("factory") || n.includes("plant")) {
+  if (
+    n.includes("industrial") ||
+    n.includes("factory") ||
+    n.includes("plant")
+  ) {
     set.add("industrial");
   }
   if (n.includes("vehicle") || n.includes("auto") || n === "car") {
     set.add("vehicle");
     set.add("auto");
   }
-  if (n.includes("furniture") || n.includes("fit-out") || n.includes("fit out")) {
+  if (
+    n.includes("furniture") ||
+    n.includes("fit-out") ||
+    n.includes("fit out")
+  ) {
     set.add("furniture");
   }
   if (n.includes("exterior") || n.includes("facade") || n.includes("façade")) {
@@ -169,10 +181,10 @@ export function specialtyAffinityTokens(raw: string): Set<string> {
   return set;
 }
 
-/** Customer specialty chip vs pro focus — soft match (never require exact string). */
+/** Customer specialty chip vs pro focus soft match (never require exact string). */
 export function proMatchesSpecialtyFilter(
   proSpecialties: string[] | null | undefined,
-  want: string | null | undefined
+  want: string | null | undefined,
 ): boolean {
   const w = String(want || "").trim();
   if (!w) return true;
@@ -203,16 +215,16 @@ export function filterAndRankTechnicians(
     /** When set, only pros listing this specialty (or no specialty list) */
     specialtyFilter?: string | null;
     /**
-     * Pros with an active job for this customer — hide from discovery
+     * Pros with an active job for this customer hide from discovery
      * (they stay on History / active job; reappear for a new request later).
      */
     excludeProIds?: Iterable<string> | null;
     /**
-     * Recently booked by this customer — 50% less radius ranking priority
+     * Recently booked by this customer 50% less radius ranking priority
      * so other pros surface first (effective distance ×2 for sort/score).
      */
     radiusDemoteProIds?: Iterable<string> | null;
-  }
+  },
 ): Technician[] {
   const {
     radiusKm,
@@ -223,13 +235,13 @@ export function filterAndRankTechnicians(
     excludeProIds,
     radiusDemoteProIds,
   } = options;
-  // Always cap at 5 km — never show pros outside this (self or book-for-someone).
+  // Always cap at 5 km never show pros outside this (self or book-for-someone).
   const radius = Math.min(Math.max(radiusKm, 0), MAX_RADIUS_KM);
   const exclude = new Set(
-    Array.from(excludeProIds || []).map((id) => String(id))
+    Array.from(excludeProIds || []).map((id) => String(id)),
   );
   const demote = new Set(
-    Array.from(radiusDemoteProIds || []).map((id) => String(id))
+    Array.from(radiusDemoteProIds || []).map((id) => String(id)),
   );
   const rankDistance = (t: Technician) =>
     demote.has(String(t.id)) ? t.distanceKm * 2 : t.distanceKm;
@@ -258,7 +270,7 @@ export function filterAndRankTechnicians(
     return d <= radius + 0.75;
   });
 
-  // No lottery / no second radius gate — empty lists were too common.
+  // No lottery / no second radius gate empty lists were too common.
   let list = eligible;
 
   if (category !== "all") {
@@ -267,7 +279,7 @@ export function filterAndRankTechnicians(
 
   if (specialtyFilter && specialtyFilter.trim()) {
     list = list.filter((t) =>
-      proMatchesSpecialtyFilter(t.specialties, specialtyFilter)
+      proMatchesSpecialtyFilter(t.specialties, specialtyFilter),
     );
   }
 
@@ -279,7 +291,7 @@ export function filterAndRankTechnicians(
   // Available = Live with a real GPS pin (not a stale/offline placeholder)
   if (filters.availableNow) {
     list = list.filter(
-      (t) => t.status === "available" && t.hasLiveLocation !== false
+      (t) => t.status === "available" && t.hasLiveLocation !== false,
     );
   }
   // 4.5+ rating
@@ -296,7 +308,7 @@ export function filterAndRankTechnicians(
       (t) =>
         Boolean(t.fastResponse) ||
         (typeof t.responseSpeedScore === "number" &&
-          t.responseSpeedScore >= 0.75)
+          t.responseSpeedScore >= 0.75),
     );
   }
 
@@ -319,7 +331,7 @@ export function filterAndRankTechnicians(
     return rankDistance(a) - rankDistance(b);
   });
 
-  // Strict radius only — empty list means no Live pros within radius
+  // Strict radius only empty list means no Live pros within radius
   // (including when booking for someone else at their meet pin).
   return list.slice(0, MAX_TECHNICIANS);
 }

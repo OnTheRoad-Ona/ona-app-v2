@@ -18,8 +18,7 @@ import { cn } from "@/lib/utils";
  * - Nearby pros refresh lives in AppProvider (slow poll), not on every open
  */
 const ServiceMap = dynamic(
-  () =>
-    import("@/components/map/service-map").then((m) => m.ServiceMap),
+  () => import("@/components/map/service-map").then((m) => m.ServiceMap),
   {
     ssr: false,
     loading: () => (
@@ -27,7 +26,7 @@ const ServiceMap = dynamic(
         Loading map…
       </div>
     ),
-  }
+  },
 );
 
 export function HomeScreen() {
@@ -41,7 +40,7 @@ export function HomeScreen() {
   } = useApp();
   const { config } = useAppConfig();
   const isLight = theme === "light";
-  /** Open with lower panel down (collapsed) — map slot on top, sheet ~60% bottom */
+  /** Open with lower panel down (collapsed) map slot on top, sheet ~60% bottom */
   const [sheetExpanded, setSheetExpanded] = useState(false);
   /** Data-saver: no map tiles until the user taps the blank map area */
   const [mapEnabled, setMapEnabled] = useState(false);
@@ -75,7 +74,7 @@ export function HomeScreen() {
   }, [setCategory, setSelectedTechId, authReady]);
 
   // Pre-warm the map work stream as soon as the customer home opens so that a
-  // tap on “Show map” paints the real street map immediately — no green
+  // tap on “Show map” paints the real street map immediately no green
   // “Loading map…” placeholder flash. Tiles themselves still only download
   // after the tap (data-saver), but the code + Google script are already warm.
   useOnaGoogleMaps();
@@ -98,13 +97,13 @@ export function HomeScreen() {
       <div
         className={cn(
           "flex h-full flex-col items-center justify-center gap-3 px-6 text-center",
-          isLight ? "bg-[#c8c9cd]" : "bg-black"
+          isLight ? "bg-[#c8c9cd]" : "bg-black",
         )}
       >
         <p
           className={cn(
             "text-lg font-bold",
-            isLight ? "text-slate-900" : "text-white"
+            isLight ? "text-slate-900" : "text-white",
           )}
         >
           {config.app.name}
@@ -117,7 +116,7 @@ export function HomeScreen() {
   }
 
   const sheetBg = isLight ? "bg-[#c8c9cd]" : "bg-black";
-  // Cap map pins hard — tiles + markers are the main data cost
+  // Cap map pins hard tiles + markers are the main data cost
   const mapTechs = visibleTechnicians
     .filter((t) => t.status !== "offline")
     .slice(0, Math.min(4, MAX_TECHNICIANS));
@@ -131,7 +130,10 @@ export function HomeScreen() {
   return (
     <div
       data-theme-toggle-ok
-      className={cn("relative flex h-full min-h-0 flex-col overflow-hidden", sheetBg)}
+      className={cn(
+        "relative flex h-full min-h-0 flex-col overflow-hidden",
+        sheetBg,
+      )}
     >
       <div className={cn("z-20 shrink-0", sheetBg)}>
         <AppHeader />
@@ -144,7 +146,7 @@ export function HomeScreen() {
             "om-sheet-spring relative min-h-0 overflow-hidden",
             sheetExpanded
               ? "h-0 flex-[0_0_0%] opacity-0 pointer-events-none"
-              : "flex-[0_0_40%] opacity-100"
+              : "flex-[0_0_40%] opacity-100",
           )}
         >
           {mapEnabled && !sheetExpanded ? (
@@ -158,7 +160,7 @@ export function HomeScreen() {
                 // Match map palette (not pale gray) so home never looks “white”
                 isLight
                   ? "bg-[#0a1610] text-[#e2eee8]"
-                  : "bg-[#0a0000] text-[#f0e4e4]"
+                  : "bg-[#0a0000] text-[#f0e4e4]",
               )}
             >
               <span className="text-[13px] font-semibold">Show map</span>
@@ -176,7 +178,7 @@ export function HomeScreen() {
             sheetExpanded ? "flex-1" : "flex-[0_0_60%]",
             isLight ? "bg-[#c8c9cd]" : "bg-black",
             !sheetExpanded &&
-              "rounded-t-2xl shadow-[0_-6px_24px_rgba(0,0,0,0.18)]"
+              "rounded-t-2xl shadow-[0_-6px_24px_rgba(0,0,0,0.18)]",
           )}
           style={{ touchAction: "pan-y" }}
         >

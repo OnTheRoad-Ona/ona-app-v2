@@ -32,7 +32,7 @@ function score(
     tokens?: string[];
     tradeKey?: string | null;
     partMatch?: "exact" | "contains" | null;
-  } = {}
+  } = {},
 ) {
   const tokens = opts.tokens ?? query.split(/\s+/).filter(Boolean);
   return relevanceScore({
@@ -46,21 +46,31 @@ function score(
 
 describe("computeDeliveryFee", () => {
   it("charges base fee for the default zone", () => {
-    expect(computeDeliveryFee({ service, zone: defaultZone, subtotalMinor: 500000 })).toEqual({
+    expect(
+      computeDeliveryFee({ service, zone: defaultZone, subtotalMinor: 500000 }),
+    ).toEqual({
       deliveryFeeMinor: 150000,
       freeDelivery: false,
     });
   });
 
   it("adds the island surcharge", () => {
-    expect(computeDeliveryFee({ service, zone: islandZone, subtotalMinor: 500000 })).toEqual({
+    expect(
+      computeDeliveryFee({ service, zone: islandZone, subtotalMinor: 500000 }),
+    ).toEqual({
       deliveryFeeMinor: 200000,
       freeDelivery: false,
     });
   });
 
   it("is free above the threshold", () => {
-    expect(computeDeliveryFee({ service, zone: islandZone, subtotalMinor: 10_000_000 })).toEqual({
+    expect(
+      computeDeliveryFee({
+        service,
+        zone: islandZone,
+        subtotalMinor: 10_000_000,
+      }),
+    ).toEqual({
       deliveryFeeMinor: 0,
       freeDelivery: true,
     });
@@ -82,17 +92,17 @@ describe("search relevanceScore (Phase 3 ladder)", () => {
     const brand = score(
       card({ name: "Brake Pads", slug: "brake-pads", brandName: "Toyota" }),
       "Toyota",
-      { tokens: ["toyota"] }
+      { tokens: ["toyota"] },
     );
     const trade = score(
       card({ name: "Brake Pads", slug: "disc-kit", tradeKey: "brake" }),
       "brake",
-      { tokens: ["brake"], tradeKey: "brake" }
+      { tokens: ["brake"], tradeKey: "brake" },
     );
     const partial = score(
       card({ name: "Brake Pads", slug: "disc-kit" }),
       "pad",
-      { tokens: ["pad"] }
+      { tokens: ["pad"] },
     );
     expect(brand.reason).toBe("exact brand");
     expect(brand.score).toBeGreaterThan(trade.score);
@@ -103,7 +113,7 @@ describe("search relevanceScore (Phase 3 ladder)", () => {
     const trade = score(
       card({ name: "Brake Pads", slug: "friction-set", tradeKey: "brake" }),
       "brake",
-      { tokens: ["brake"], tradeKey: "brake" }
+      { tokens: ["brake"], tradeKey: "brake" },
     );
     const attr = score(
       card({
@@ -112,12 +122,12 @@ describe("search relevanceScore (Phase 3 ladder)", () => {
         attributes: { size: "40mm" },
       }),
       "40mm",
-      { tokens: ["40mm"] }
+      { tokens: ["40mm"] },
     );
     const partial = score(
       card({ name: "Brake Pads", slug: "friction-set" }),
       "pad",
-      { tokens: ["pad"] }
+      { tokens: ["pad"] },
     );
     expect(trade.score).toBeGreaterThan(attr.score);
     expect(attr.score).toBeGreaterThan(partial.score);
