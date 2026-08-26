@@ -137,6 +137,46 @@ export function takeForceIncomingPanelJobId(): string | null {
 }
 
 /**
+ * "I can fix this" now opens the negotiation screen IMMEDIATELY while the
+ * OPEN/CONFIRM transitions finish in the background. While that acceptance is
+ * in flight the job's server status can still be a panel-only pairing stage
+ * (reserved), which would normally bounce the pro from /jobs/{id} back to
+ * /dashboard — this flag suppresses that bounce for a short TTL window.
+ */
+const ACCEPT_INFLIGHT_KEY = "om-accept-inflight";
+const ACCEPT_INFLIGHT_TTL_MS = 45_000;
+
+export function markAcceptInFlight(jobId: string): void {
+  try {
+    if (!jobId) return;
+    const raw = sessionStorage.getItem(ACCEPT_INFLIGHT_KEY) || "{}";
+    const map = JSON.parse(raw) as Record<string, number>;
+    map[jobId] = Date.now();
+    sessionStorage.setItem(ACCEPT_INFLIGHT_KEY, JSON.stringify(map));
+  } catch {
+    /* */
+  }
+}
+
+export function isAcceptInFlight(jobId: string): boolean {
+  try {
+    const raw = sessionStorage.getItem(ACCEPT_INFLIGHT_KEY);
+    if (!raw) return false;
+    const map = JSON.parse(raw) as Record<string, number>;
+    const ts = map[jobId];
+    if (!ts) return false;
+    if (Date.now() - ts > ACCEPT_INFLIGHT_TTL_MS) {
+      delete map[jobId];
+      sessionStorage.setItem(ACCEPT_INFLIGHT_KEY, JSON.stringify(map));
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * True while a job is still actionable for this pro (popup panel / badge /
  * dashboard incoming). The job's actual status must still be live: a stale
  * pairing stage left behind after cancel / decline / complete / expire must

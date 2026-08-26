@@ -6,6 +6,7 @@ import { JobFlowScreen } from "@/components/jobs/job-flow-screen";
 import { apiGetJob } from "@/lib/jobs/client";
 import {
   clearJobShown,
+  isAcceptInFlight,
   isProPanelOnlyPairingStatus,
   requestForceIncomingPanel,
 } from "@/lib/jobs/incoming-popup-timing";
@@ -64,12 +65,16 @@ function JobPageInner() {
         return;
       }
       const j = res.data.job;
+      // "I can fix this" navigates here while OPEN/CONFIRM still run in the
+      // background the server status can be a panel-only pairing stage
+      // during that window never bounce the pro back to /dashboard.
+      const acceptInFlight = isAcceptInFlight(j.id);
       if (j.motoristId && j.motoristId === actorId) {
         setViewer("motorist");
       } else if (j.repairProId && j.repairProId === actorId) {
         setViewer("repair_pro");
         // Pairing request = lower panel only never full /jobs page for pro
-        if (isProPanelOnlyPairingStatus(j.status)) {
+        if (isProPanelOnlyPairingStatus(j.status) && !acceptInFlight) {
           clearJobShown(j.id, actorId);
           requestForceIncomingPanel(j.id);
           router.replace("/dashboard");
@@ -79,7 +84,8 @@ function JobPageInner() {
         setViewer(accountType === "professional" ? "repair_pro" : "motorist");
         if (
           accountType === "professional" &&
-          isProPanelOnlyPairingStatus(j.status)
+          isProPanelOnlyPairingStatus(j.status) &&
+          !acceptInFlight
         ) {
           requestForceIncomingPanel(j.id);
           router.replace("/dashboard");

@@ -57,6 +57,7 @@ import {
   INCOMING_POPUP_VISIBLE_SEC,
   isIncomingJobOpen,
   isProRequestCardKeepable,
+  markAcceptInFlight,
   markJobShown,
   PAIRING_ACTION_STAGES,
   requestCloseText,
@@ -166,6 +167,23 @@ function idemFor(j: JobRecord, proId: string, event: string): string {
   return `${event}:${j.id}:${(proId || "").slice(0, 8)}`;
 }
 
+/** Hand the just-accepted job to the negotiation screen so it paints
+ * instantly from this snapshot instead of spinning until its first GET.
+ * JobFlowScreen consumes `ona-seed-job:{id}` on mount and revalidates via
+ * its normal loader/poll machinery. Card fields are merged under the fresh
+ * server job so nothing the card already had (photos, name) is lost if the
+ * transition response is slimmer than the list record. */
+function seedNegotiationScreen(card: JobRecord, fresh: JobRecord): void {
+  try {
+    window.sessionStorage.setItem(
+      `ona-seed-job:${fresh.id || card.id}`,
+      JSON.stringify({ ...card, ...fresh }),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Server messages that mean "this request is no longer this pro's live
  * request" (the customer closed/cancelled it, or it moved to another pro).
  * The server already refuses the tap surface a friendly message and drop
@@ -202,6 +220,9 @@ export function IncomingJobPopup() {
   const notifiedCloseRef = useRef<Set<string>>(new Set());
   /** Horizontal swipe origin for the photo lightbox (next/prev without closing). */
   const lightboxTouchX = useRef<number | null>(null);
+  /** Job ids we already auto-reserved (OPEN) when the card surfaced so the
+   * accept tap only needs CONFIRM. */
+  const openAttemptedRef = useRef<Set<string>>(new Set());
 
   /** Up to MAX_VISIBLE_INCOMING full request cards in the lower panel */
   const [visibleJobs, setVisibleJobs] = useState<JobRecord[]>([]);
@@ -328,10 +349,13 @@ export function IncomingJobPopup() {
   );
 
   /**
-   * One-tap "I can fix this": accepts the request right here (lower panel) and
-   * lands straight on the negotiation page no full-page review in between.
-   * - pairing-stage: OPEN (reserve) then CONFIRM (accept) so the negotiation
-   * gate is skipped server-side (reservation confirmed / assignment assigned)
+   * One-tap "I can fix this": navigates to the negotiation screen IMMEDIATELY
+   * (seeded with the card data so it paints instantly) while OPEN + CONFIRM
+   * finish in the background. The popup stays mounted app-wide (phone shell),
+   * so errors still surface here and the job page's own polls reconcile the
+   * confirmed state within seconds.
+   * - pairing-stage: OPEN (reserve; usually already done by ensureOpened at
+   *   surface time so this is a server noop) then CONFIRM (accept)
    * - classic: START_NEGOTIATION + session flag so the page skips the gate.
    * Errors are surfaced inline so a failed tap is never silent.
    */
@@ -340,6 +364,7 @@ export function IncomingJobPopup() {
       if (!backendUserId) return;
       setAcceptingId(j.id);
       setActionError(null);
+      markAcceptInFlight(j.id);
       try {
         // Branch on the LIVE flow status, not pairingStage: a card that
         // already moved to negotiating (e.g. stale pairing stage left on the
@@ -348,6 +373,15 @@ export function IncomingJobPopup() {
           const stage = j.pairingStage ?? "";
           const needsOpen =
             stage === "waiting_for_selected" || stage === "waiting_for_pro";
+          // Instant open: paint the negotiation screen from the card data
+          // right now the background transitions reconcile the rest.
+          fullyHide();
+          seedNegotiationScreen(j, {
+            ...j,
+            status: "negotiating",
+            pairingStage: null,
+          });
+          router.push(`/jobs/${j.id}`);
           // GPS is best-effort never block the confirm on it. Start it
           // alongside OPEN and only attach the fix if it resolves within
           // ~250ms; otherwise the server uses the pro's existing Live pin.
@@ -363,7 +397,8 @@ export function IncomingJobPopup() {
               capturedAt: new Date().toISOString(),
             }))
             .catch(() => ({}));
-          if (needsOpen) {
+          if (needsOpen && !openAttemptedRef.current.has(j.id)) {
+            openAttemptedRef.current.add(j.id);
             const openRes = await apiTransition({
               jobId: j.id,
               event: "OPEN",
@@ -420,8 +455,7 @@ export function IncomingJobPopup() {
             }
             return;
           }
-          fullyHide();
-          router.push(`/jobs/${j.id}`);
+          seedNegotiationScreen(j, confirmRes.data.job);
         } else {
           const res = await apiTransition({
             jobId: j.id,
@@ -443,6 +477,7 @@ export function IncomingJobPopup() {
             /* */
           }
           fullyHide();
+          seedNegotiationScreen(j, res.data.job);
           router.push(`/jobs/${j.id}`);
         }
       } finally {
@@ -472,6 +507,36 @@ export function IncomingJobPopup() {
       }
     });
   }, []);
+
+  /**
+   * Auto-reserve the request the moment its card surfaces (OPEN = reserve for
+   * this pro). By the time the pro taps "I can fix this" the reservation is
+   * already held server-side, so the tap only needs CONFIRM. Uses the same
+   * idempotency key as the tap's OPEN so a double call is a server noop.
+   * Best-effort: failure is silent the tap path still runs OPEN itself.
+   */
+  const ensureOpened = useCallback(
+    (j: JobRecord) => {
+      if (!backendUserId) return;
+      if (!PAIRING_ACTION_STAGES.has(j.status ?? "")) return;
+      const stage = j.pairingStage ?? "";
+      const needsOpen =
+        stage === "waiting_for_selected" || stage === "waiting_for_pro";
+      if (!needsOpen || openAttemptedRef.current.has(j.id)) return;
+      openAttemptedRef.current.add(j.id);
+      void apiTransition({
+        jobId: j.id,
+        event: "OPEN",
+        actor: "repair_pro",
+        actorId: backendUserId,
+        idempotencyKey: idemFor(j, backendUserId, "OPEN"),
+      }).catch(() => {
+        // Allow a later retry from the tap path
+        openAttemptedRef.current.delete(j.id);
+      });
+    },
+    [backendUserId],
+  );
 
   /**
    * Add/update a job in a free visible slot (max 2).
@@ -542,6 +607,8 @@ export function IncomingJobPopup() {
         .catch(() => {
           /* surface alignment best-effort */
         });
+      // Reserve for this pro right away so the accept tap only needs CONFIRM.
+      ensureOpened(job);
       // Enroll this device for web-push (once per session) so the server can
       // reach the pro with a cancellation OS notification even when the app is
       // closed or the tab hidden. Best-effort; never blocks the card.
