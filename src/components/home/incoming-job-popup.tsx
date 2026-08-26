@@ -80,6 +80,7 @@ import { enablePushNotifications } from "@/lib/push/client";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { playAppSound, unlockAudio } from "@/lib/sound-tone";
 import { backendSubscribeJobs } from "@/lib/supabase/app-api";
+import { ensureAppSession } from "@/lib/supabase/session";
 import { VoiceNotePlayer } from "@/components/jobs/voice-note-player";
 import { JobProblemQA } from "@/components/jobs/job-problem-qa";
 import { useJobCallout } from "@/lib/callout/use-job-callout";
@@ -233,6 +234,38 @@ export function IncomingJobPopup() {
   useEffect(() => {
     queueRef.current = queue;
   }, [queue]);
+
+  /**
+   * Background-warm the negotiation screen while a request card is on screen:
+   * prefetch the /jobs/[id] route chunk (JS + RSC shell) for every visible
+   * and queued request so tapping "I can fix this" lands on an already-loaded
+   * screen instead of downloading it after the tap. Best-effort never blocks.
+   */
+  useEffect(() => {
+    const ids = new Set<string>();
+    for (const j of visibleJobs) ids.add(j.id);
+    for (const j of queue) ids.add(j.id);
+    for (const id of ids) {
+      try {
+        void router.prefetch(`/jobs/${id}`);
+      } catch {
+        /* prefetch is best-effort */
+      }
+    }
+  }, [visibleJobs, queue, router]);
+
+  /**
+   * Prewarm the auth session while the popup is up so the accept tap's
+   * OPEN/CONFIRM calls and the negotiation screen's first job fetch resolve
+   * from a warm session instead of waiting on a cold storage-rehydrate /
+   * refresh roundtrip. Single-flight in session.ts keeps this cheap.
+   */
+  useEffect(() => {
+    if (!isAuthenticated || !authReady || !backendUserId) return;
+    void ensureAppSession({ waitForSessionMs: 3500 }).catch(() => {
+      /* prewarm is best-effort */
+    });
+  }, [isAuthenticated, authReady, backendUserId]);
 
   useEffect(() => {
     if (!closeBanner) return;
