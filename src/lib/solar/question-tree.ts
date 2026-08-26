@@ -162,7 +162,7 @@ export const SOLAR_SCREENS: Record<string, SolarScreen> = {
     options: [
       { id: "yes", label: "Yes" },
       { id: "no", label: "No" },
-      { id: "not-sure", label: "Not sure" },
+      { id: "not-sure", label: "I'm not sure" },
     ],
   },
 
@@ -174,6 +174,7 @@ export const SOLAR_SCREENS: Record<string, SolarScreen> = {
       { id: "batteries", label: "Batteries" },
       { id: "inverter", label: "Inverter" },
       { id: "both", label: "Both" },
+      { id: "not-sure", label: "I'm not sure" },
     ],
   },
   c_symptom: {
@@ -223,7 +224,7 @@ export const SOLAR_SCREENS: Record<string, SolarScreen> = {
       { id: "bird-droppings", label: "Bird droppings" },
       { id: "shaded", label: "Shaded by trees" },
       { id: "clean", label: "No, they look clean" },
-      { id: "not-sure", label: "Not sure" },
+      { id: "not-sure", label: "I'm not sure" },
     ],
   },
   d_check: {

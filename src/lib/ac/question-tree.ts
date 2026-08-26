@@ -1,4 +1,5 @@
 import type { ProService } from "@/lib/types";
+import { qaLinesForPath } from "@/lib/help-flow-progress";
 
 export const AC_START_QUESTION =
   "What is the main air-conditioning problem you are experiencing?";
@@ -67,7 +68,7 @@ const YES_NO: AcOption[] = [
 const YES_NO_UNSURE: AcOption[] = [
   { id: "yes", label: "Yes" },
   { id: "no", label: "No" },
-  { id: "unsure", label: "Not sure" },
+  { id: "unsure", label: "I'm not sure" },
 ];
 
 export const AC_SCREENS: Record<string, AcScreen> = {
@@ -148,7 +149,7 @@ export const AC_SCREENS: Record<string, AcScreen> = {
     options: [
       { id: "equal", label: "Yes, both equal" },
       { id: "one_side", label: "No, one side is worse" },
-      { id: "unsure", label: "Not sure" },
+      { id: "unsure", label: "I'm not sure" },
     ],
   },
   b_noise: {
@@ -187,7 +188,7 @@ export const AC_SCREENS: Record<string, AcScreen> = {
     options: [
       { id: "engine_bay", label: "Engine bay" },
       { id: "dashboard", label: "Inside the dashboard" },
-      { id: "unsure", label: "Not sure" },
+      { id: "unsure", label: "I'm not sure" },
     ],
   },
   d_smell: {
@@ -371,29 +372,13 @@ export function composeAcProblem(
   extra: string,
   landmark: string,
 ): string {
-  const lines: string[] = [];
-  const start = acScreen("start");
-  if (start) {
-    lines.push(start.question);
-    const picked = AC_START_OPTIONS.find((o) => o.id === answers.start);
-    if (picked) lines.push(picked.label);
-  }
-
-  const order = Object.keys(answers).filter(
-    (k) => k !== "start" && !k.endsWith("_label"),
-  );
-  for (const id of order) {
-    const screen = acScreen(id);
-    if (!screen) continue;
-    lines.push(screen.question);
-    const stored = answers[`${id}_label`];
-    if (stored) lines.push(stored);
-    else if (screen.kind === "text") lines.push(answers[id] || "");
-    else {
-      const opt = screen.options?.find((o) => o.id === answers[id]);
-      lines.push(opt?.label || answers[id] || "");
-    }
-  }
+  const lines = qaLinesForPath({
+    answers,
+    next: nextAcScreen,
+    screenOf: acScreen,
+    startId: answers.unit ? "unit" : "start",
+    bridge: { vehicle: "start" },
+  });
 
   if (landmark.trim()) {
     lines.push(AC_FINAL_COPY.location);

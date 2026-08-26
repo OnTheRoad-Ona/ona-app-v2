@@ -1,4 +1,5 @@
 import type { ProService } from "@/lib/types";
+import { qaLinesForPath } from "@/lib/help-flow-progress";
 
 export const BATTERY_START_QUESTION =
   "What is the main battery or starting problem you are experiencing?";
@@ -80,7 +81,7 @@ const YES_NO: BatteryOption[] = [
 const YES_NO_UNSURE: BatteryOption[] = [
   { id: "yes", label: "Yes" },
   { id: "no", label: "No" },
-  { id: "unsure", label: "Not sure" },
+  { id: "unsure", label: "I'm not sure" },
 ];
 
 export const BATTERY_SCREENS: Record<string, BatteryScreen> = {
@@ -238,7 +239,7 @@ export const BATTERY_SCREENS: Record<string, BatteryScreen> = {
     options: [
       { id: "checked", label: "Yes, checked" },
       { id: "never", label: "No, never" },
-      { id: "unsure", label: "Not sure" },
+      { id: "unsure", label: "I'm not sure" },
     ],
   },
   e_suspect: {
@@ -259,7 +260,7 @@ export const BATTERY_SCREENS: Record<string, BatteryScreen> = {
     options: [
       { id: "test", label: "Test it first" },
       { id: "supply", label: "Supply a new battery" },
-      { id: "unsure", label: "Not sure" },
+      { id: "unsure", label: "I'm not sure" },
     ],
   },
   e_brand: {
@@ -348,7 +349,7 @@ export const BATTERY_SCREENS: Record<string, BatteryScreen> = {
       },
       { id: "hv", label: "High-voltage (HV) battery / range problem" },
       { id: "charging", label: "Charging problem / won't charge" },
-      { id: "unsure", label: "Not sure" },
+      { id: "unsure", label: "I'm not sure" },
     ],
   },
   ev_safe: {
@@ -598,29 +599,11 @@ export function composeBatteryProblem(
   extra: string,
   landmark: string,
 ): string {
-  const lines: string[] = [];
-  const start = batteryScreen("start");
-  if (start) {
-    lines.push(start.question);
-    const picked = BATTERY_START_OPTIONS.find((o) => o.id === answers.start);
-    if (picked) lines.push(picked.label);
-  }
-
-  const order = Object.keys(answers).filter(
-    (k) => k !== "start" && !k.endsWith("_label"),
-  );
-  for (const id of order) {
-    const screen = batteryScreen(id);
-    if (!screen) continue;
-    lines.push(screen.question);
-    const stored = answers[`${id}_label`];
-    if (stored) lines.push(stored);
-    else if (screen.kind === "text") lines.push(answers[id] || "");
-    else {
-      const opt = screen.options?.find((o) => o.id === answers[id]);
-      lines.push(opt?.label || answers[id] || "");
-    }
-  }
+  const lines = qaLinesForPath({
+    answers,
+    next: nextBatteryScreen,
+    screenOf: batteryScreen,
+  });
 
   if (landmark.trim()) {
     lines.push(BATTERY_FINAL_COPY.location);

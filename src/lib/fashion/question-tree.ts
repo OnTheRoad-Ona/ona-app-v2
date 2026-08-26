@@ -1,4 +1,5 @@
 import type { ProService } from "@/lib/types";
+import { qaLinesForPath } from "@/lib/help-flow-progress";
 
 export const FASHION_START_QUESTION =
   "What fashion or tailoring service do you need?";
@@ -163,7 +164,7 @@ export const FASHION_SCREENS: Record<string, FashionScreen> = {
       { id: "aso", label: "Aso-oke" },
       { id: "george", label: "George" },
       { id: "other", label: "Other" },
-      { id: "notsure", label: "Not sure" },
+      { id: "notsure", label: "I'm not sure" },
     ],
   },
   b_have: {
@@ -217,7 +218,7 @@ export const FASHION_SCREENS: Record<string, FashionScreen> = {
     options: [
       { id: "native", label: "Native" },
       { id: "english", label: "English" },
-      { id: "notsure", label: "Not sure" },
+      { id: "notsure", label: "I'm not sure" },
     ],
   },
   c_have: {
@@ -399,29 +400,11 @@ export function composeFashionProblem(
   extra: string,
   landmark: string,
 ): string {
-  const lines: string[] = [];
-  const start = fashionScreen("start");
-  if (start) {
-    lines.push(start.question);
-    const picked = FASHION_START_OPTIONS.find((o) => o.id === answers.start);
-    if (picked) lines.push(picked.label);
-  }
-
-  const order = Object.keys(answers).filter(
-    (k) => k !== "start" && !k.endsWith("_label"),
-  );
-  for (const id of order) {
-    const screen = fashionScreen(id);
-    if (!screen) continue;
-    lines.push(screen.question);
-    const stored = answers[`${id}_label`];
-    if (stored) lines.push(stored);
-    else if (screen.kind === "text") lines.push(answers[id] || "");
-    else {
-      const opt = screen.options?.find((o) => o.id === answers[id]);
-      lines.push(opt?.label || answers[id] || "");
-    }
-  }
+  const lines = qaLinesForPath({
+    answers,
+    next: nextFashionScreen,
+    screenOf: fashionScreen,
+  });
 
   if (landmark.trim()) {
     lines.push(FASHION_FINAL_COPY.location);

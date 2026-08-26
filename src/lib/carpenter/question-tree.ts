@@ -140,7 +140,7 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
     options: [
       { id: "yes", label: "Yes" },
       { id: "no", label: "No" },
-      { id: "not-sure", label: "Not sure" },
+      { id: "not-sure", label: "I'm not sure" },
     ],
   },
   b_where: {
@@ -150,7 +150,7 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
     options: [
       { id: "at-location", label: "Repair at my location" },
       { id: "workshop", label: "Take it to the workshop" },
-      { id: "not-sure", label: "Not sure" },
+      { id: "not-sure", label: "I'm not sure" },
     ],
   },
 
@@ -179,7 +179,7 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
       { id: "shop", label: "Shop" },
       { id: "office", label: "Office" },
       { id: "industrial", label: "Industrial building" },
-      { id: "not-sure", label: "Not sure" },
+      { id: "not-sure", label: "I'm not sure" },
     ],
   },
   c_wood: {
@@ -231,7 +231,7 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
     options: [
       { id: "new-building", label: "New building" },
       { id: "existing-repair", label: "Existing house, repair" },
-      { id: "not-sure", label: "Not sure" },
+      { id: "not-sure", label: "I'm not sure" },
     ],
   },
   d_sheet: {
@@ -245,7 +245,7 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
     options: [
       { id: "scaffolding", label: "Scaffolding needed" },
       { id: "from-inside", label: "Can be done from inside" },
-      { id: "not-sure", label: "Not sure" },
+      { id: "not-sure", label: "I'm not sure" },
     ],
   },
 
@@ -268,7 +268,7 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
     options: [
       { id: "finished", label: "Tiled / finished" },
       { id: "under-construction", label: "Still under construction" },
-      { id: "not-sure", label: "Not sure" },
+      { id: "not-sure", label: "I'm not sure" },
     ],
   },
   e_design: {
@@ -290,7 +290,7 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
         id: "carpenter-supplies",
         label: "Carpenter should supply the material",
       },
-      { id: "not-sure", label: "Not sure" },
+      { id: "not-sure", label: "I'm not sure" },
     ],
   },
 
@@ -348,7 +348,7 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
     options: [
       { id: "permanent", label: "Permanent use" },
       { id: "temporary", label: "Temporary use" },
-      { id: "not-sure", label: "Not sure" },
+      { id: "not-sure", label: "I'm not sure" },
     ],
   },
   g_mobile: {
@@ -357,7 +357,7 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
     options: [
       { id: "mobile", label: "Mobile (with wheels)" },
       { id: "fixed", label: "Fixed" },
-      { id: "not-sure", label: "Not sure" },
+      { id: "not-sure", label: "I'm not sure" },
     ],
   },
 
@@ -382,7 +382,7 @@ export const CARPENTER_SCREENS: Record<string, CarpenterScreen> = {
     options: [
       { id: "yes", label: "Yes, I have them" },
       { id: "no", label: "No, carpenter should supply" },
-      { id: "not-sure", label: "Not sure" },
+      { id: "not-sure", label: "I'm not sure" },
     ],
   },
 

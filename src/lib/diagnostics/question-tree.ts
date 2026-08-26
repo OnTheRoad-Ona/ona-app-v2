@@ -1,4 +1,5 @@
 import type { ProService } from "@/lib/types";
+import { qaLinesForPath } from "@/lib/help-flow-progress";
 
 export const SCAN_START_QUESTION = "Why do you need a diagnostic scan?";
 
@@ -295,7 +296,7 @@ export const SCAN_SCREENS: Record<string, ScanScreen> = {
       { id: "motor", label: "Motor / inverter fault codes" },
       { id: "charging", label: "Charging system check" },
       { id: "all", label: "Full EV system health check" },
-      { id: "unsure", label: "Not sure" },
+      { id: "unsure", label: "I'm not sure" },
     ],
   },
 };
@@ -476,29 +477,11 @@ export function composeScanProblem(
   extra: string,
   landmark: string,
 ): string {
-  const lines: string[] = [];
-  const start = scanScreen("start");
-  if (start) {
-    lines.push(start.question);
-    const picked = SCAN_START_OPTIONS.find((o) => o.id === answers.start);
-    if (picked) lines.push(picked.label);
-  }
-
-  const order = Object.keys(answers).filter(
-    (k) => k !== "start" && !k.endsWith("_label"),
-  );
-  for (const id of order) {
-    const screen = scanScreen(id);
-    if (!screen) continue;
-    lines.push(screen.question);
-    const stored = answers[`${id}_label`];
-    if (stored) lines.push(stored);
-    else if (screen.kind === "text") lines.push(answers[id] || "");
-    else {
-      const opt = screen.options?.find((o) => o.id === answers[id]);
-      lines.push(opt?.label || answers[id] || "");
-    }
-  }
+  const lines = qaLinesForPath({
+    answers,
+    next: nextScanScreen,
+    screenOf: scanScreen,
+  });
 
   if (landmark.trim()) {
     lines.push(SCAN_FINAL_COPY.location);

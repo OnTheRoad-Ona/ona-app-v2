@@ -77,7 +77,7 @@ export const PAINTER_SCREENS: Record<string, PainterScreen> = {
     options: [
       { id: "newly-built", label: "Newly built" },
       { id: "old-repaint", label: "Old house, repainting" },
-      { id: "not-sure", label: "Not sure" },
+      { id: "not-sure", label: "I'm not sure" },
     ],
   },
   a_size: {
@@ -110,7 +110,7 @@ export const PAINTER_SCREENS: Record<string, PainterScreen> = {
     options: [
       { id: "scaffolding", label: "Scaffolding needed" },
       { id: "ladder", label: "Ladder is enough" },
-      { id: "not-sure", label: "Not sure" },
+      { id: "not-sure", label: "I'm not sure" },
     ],
   },
 
@@ -149,7 +149,7 @@ export const PAINTER_SCREENS: Record<string, PainterScreen> = {
     options: [
       { id: "newly-built", label: "Newly built" },
       { id: "repainting", label: "Due for repainting" },
-      { id: "not-sure", label: "Not sure" },
+      { id: "not-sure", label: "I'm not sure" },
     ],
   },
   b_supply: {
@@ -198,7 +198,7 @@ export const PAINTER_SCREENS: Record<string, PainterScreen> = {
     options: [
       { id: "ongoing", label: "Production ongoing" },
       { id: "vacated", label: "Can be vacated" },
-      { id: "not-sure", label: "Not sure" },
+      { id: "not-sure", label: "I'm not sure" },
     ],
   },
 
@@ -258,7 +258,7 @@ export const PAINTER_SCREENS: Record<string, PainterScreen> = {
     options: [
       { id: "yes", label: "Yes" },
       { id: "no", label: "No" },
-      { id: "not-sure", label: "Not sure" },
+      { id: "not-sure", label: "I'm not sure" },
     ],
   },
   e_colour: {

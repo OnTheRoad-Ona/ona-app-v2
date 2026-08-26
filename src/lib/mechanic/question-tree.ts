@@ -1,4 +1,9 @@
 import type { ProService } from "@/lib/types";
+import {
+  answeredScreenPath,
+  pickAnswersOnPath,
+  qaLinesForPath,
+} from "@/lib/help-flow-progress";
 
 export const MECHANIC_START_QUESTION = "What's wrong with your vehicle?";
 
@@ -51,10 +56,8 @@ export const MECHANIC_START_OPTIONS: MechanicOption[] = [
   { id: "E", label: "Smoke, burning smell, or unusual smell" },
   { id: "F", label: "Fluid leak (oil, water, fuel, etc.)" },
   { id: "G", label: "Transmission / gear / clutch problem" },
-  { id: "H", label: "Body damage, dent, or accident-related" },
-  { id: "I", label: "Tyre or wheel problem" },
-  { id: "J", label: "Something else / I am not sure" },
-  { id: "K", label: "Electric vehicle (EV) problem" },
+  { id: "H", label: "Electric vehicle (EV) problem" },
+  { id: "I", label: "Something else / I am not sure" },
 ];
 
 const YES_NO: MechanicOption[] = [
@@ -222,8 +225,7 @@ export const MECHANIC_SCREENS: Record<string, MechanicScreen> = {
   },
   d_when: {
     id: "d_when",
-    question:
-      "When did it start overheating? (After long drive / in traffic / suddenly)",
+    question: "When did it start overheating?",
     kind: "choice",
     options: [
       { id: "long_drive", label: "After long drive" },
@@ -256,8 +258,7 @@ export const MECHANIC_SCREENS: Record<string, MechanicScreen> = {
   },
   e_where: {
     id: "e_where",
-    question:
-      "Where is the smoke coming from? (Bonnet / exhaust / under the car)",
+    question: "Where is the smoke coming from?",
     kind: "choice",
     options: [
       { id: "bonnet", label: "Bonnet" },
@@ -312,8 +313,7 @@ export const MECHANIC_SCREENS: Record<string, MechanicScreen> = {
   },
   g_what: {
     id: "g_what",
-    question:
-      "What exactly is happening? (Hard to change gear / slipping / no drive / noise when changing gear)",
+    question: "What exactly is happening?",
     kind: "choice",
     options: [
       { id: "hard", label: "Hard to change gear" },
@@ -331,6 +331,7 @@ export const MECHANIC_SCREENS: Record<string, MechanicScreen> = {
       { id: "check_engine", label: "Check engine light" },
       { id: "multiple", label: "Multiple lights" },
       { id: "other", label: "Other" },
+      { id: "not_sure", label: "I'm not sure" },
     ],
   },
   h_parts: {
@@ -464,6 +465,336 @@ export const MECHANIC_SCREENS: Record<string, MechanicScreen> = {
     kind: "text",
     placeholder: "Please describe the EV problem in your own words.",
   },
+  part_pick: {
+    id: "part_pick",
+    question: "Which of these is it?",
+    kind: "choice",
+    options: [],
+  },
+  eng_sym: {
+    id: "eng_sym",
+    question: "What is the engine doing?",
+    kind: "choice",
+    options: [
+      { id: "no_start", label: "Will not start" },
+      { id: "cut", label: "Cuts or dies while driving" },
+      { id: "knock", label: "Knocking or hitting sound" },
+      { id: "misfire", label: "Jerking / misfire (like it's coughing)" },
+      { id: "weak", label: "No power / weak pull" },
+      { id: "overheat", label: "Overheating" },
+    ],
+  },
+  eng_when: {
+    id: "eng_when",
+    question: "When does it happen?",
+    kind: "choice",
+    options: [
+      { id: "cold", label: "Cold start (morning / first start)" },
+      { id: "driving", label: "While driving" },
+      { id: "idle", label: "When parked / idling" },
+      { id: "always", label: "Always" },
+    ],
+  },
+  eng_light: {
+    id: "eng_light",
+    question: "Any engine or oil light on?",
+    kind: "choice",
+    options: [
+      { id: "check", label: "Check engine light" },
+      { id: "oil", label: "Oil light" },
+      { id: "both", label: "Both" },
+      { id: "none", label: "None" },
+    ],
+  },
+  eng_plug: {
+    id: "eng_plug",
+    question: "Any recent work on plug, coil, or injector?",
+    kind: "choice",
+    options: YES_NO,
+  },
+  gear_when: {
+    id: "gear_when",
+    question: "When is the gear acting up?",
+    kind: "choice",
+    options: [
+      { id: "changing", label: "When changing gear" },
+      { id: "drive", label: "While driving in gear" },
+      { id: "takeoff", label: "When taking off / first gear" },
+      { id: "always", label: "Always" },
+    ],
+  },
+  gear_fluid: {
+    id: "gear_fluid",
+    question: "Any red oil leak or burnt smell from the gearbox?",
+    kind: "choice",
+    options: [
+      { id: "leak", label: "Red oil leaking" },
+      { id: "burnt", label: "Burnt smell" },
+      { id: "both", label: "Leak and burnt smell" },
+      { id: "none", label: "None" },
+    ],
+  },
+  gear_light: {
+    id: "gear_light",
+    question: "Gear or engine light on the dash?",
+    kind: "choice",
+    options: [
+      { id: "gear", label: "Gear / transmission light" },
+      { id: "engine", label: "Check engine light" },
+      { id: "none", label: "None" },
+    ],
+  },
+  str_feel: {
+    id: "str_feel",
+    question: "How is the power steering?",
+    kind: "choice",
+    options: [
+      { id: "heavy", label: "Steering is heavy / hard to turn" },
+      { id: "noise", label: "Whining or screaming when you turn" },
+      { id: "leak", label: "Power steering oil leaking" },
+      { id: "shake", label: "Steering shakes in your hand" },
+    ],
+  },
+  str_when: {
+    id: "str_when",
+    question: "When is it worst?",
+    kind: "choice",
+    options: [
+      { id: "idle_turn", label: "Turning while the car is slow / parked" },
+      { id: "moving", label: "While driving" },
+      { id: "always", label: "Always" },
+    ],
+  },
+  str_fluid: {
+    id: "str_fluid",
+    question: "Is the power steering oil low?",
+    kind: "choice",
+    options: [
+      { id: "low", label: "Yes, oil is low" },
+      { id: "ok", label: "Oil looks okay" },
+      { id: "unknown", label: "I have not checked" },
+    ],
+  },
+  str_lock: {
+    id: "str_lock",
+    question: "Can you still turn the wheel?",
+    kind: "choice",
+    options: YES_NO,
+  },
+  brn_light: {
+    id: "brn_light",
+    question: "What is the brain box showing?",
+    kind: "choice",
+    options: [
+      { id: "check", label: "Check engine light staying on" },
+      { id: "many", label: "Many lights coming on together" },
+      { id: "immobilizer", label: "Car locks / immobilizer, will not fire" },
+      { id: "none", label: "No light, but it behaves like wiring/brain" },
+    ],
+  },
+  brn_cut: {
+    id: "brn_cut",
+    question: "Does it cut suddenly like someone removed the key?",
+    kind: "choice",
+    options: YES_NO,
+  },
+  brn_work: {
+    id: "brn_work",
+    question: "Any recent work on the brain box, wiring, or alarm?",
+    kind: "choice",
+    options: YES_NO,
+  },
+  brn_scan: {
+    id: "brn_scan",
+    question: "Has anyone scanned it with a diagnostic machine?",
+    kind: "choice",
+    options: [
+      { id: "yes", label: "Yes, already scanned" },
+      { id: "no", label: "Not yet" },
+    ],
+  },
+  brk_feel: {
+    id: "brk_feel",
+    question: "How is the brake?",
+    kind: "choice",
+    options: [
+      { id: "grinding", label: "Grinding / metal-on-metal" },
+      { id: "soft", label: "Pedal is soft / goes down" },
+      { id: "hard", label: "Pedal is hard, poor stopping" },
+      { id: "noise", label: "Squealing when you brake" },
+    ],
+  },
+  brk_pull: {
+    id: "brk_pull",
+    question: "Does it pull to one side when you brake?",
+    kind: "choice",
+    options: YES_NO,
+  },
+  brk_light: {
+    id: "brk_light",
+    question: "ABS or brake light on?",
+    kind: "choice",
+    options: [
+      { id: "abs", label: "ABS light" },
+      { id: "brake", label: "Brake light" },
+      { id: "both", label: "Both" },
+      { id: "none", label: "None" },
+    ],
+  },
+  sus_feel: {
+    id: "sus_feel",
+    question: "How is the suspension / shock?",
+    kind: "choice",
+    options: [
+      { id: "bounce", label: "Car is bouncing" },
+      { id: "knock", label: "Knocking on bump" },
+      { id: "lean", label: "Leaning to one side" },
+      { id: "harsh", label: "Too hard / hitting every hole" },
+    ],
+  },
+  sus_where: {
+    id: "sus_where",
+    question: "Which side?",
+    kind: "choice",
+    options: [
+      { id: "front", label: "Front" },
+      { id: "rear", label: "Rear" },
+      { id: "one", label: "One side only" },
+      { id: "all", label: "All round" },
+    ],
+  },
+  sus_leak: {
+    id: "sus_leak",
+    question: "Is the shock leaking oil?",
+    kind: "choice",
+    options: [
+      { id: "yes", label: "Yes" },
+      { id: "no", label: "No" },
+      { id: "unknown", label: "I have not checked" },
+    ],
+  },
+  rad_steam: {
+    id: "rad_steam",
+    question: "What is the radiator / cooling doing?",
+    kind: "choice",
+    options: [
+      { id: "steam", label: "Steam / boiling" },
+      { id: "needle", label: "Needle in red, no steam" },
+      { id: "fan", label: "Fan not coming on" },
+      { id: "leak", label: "Water leaking" },
+    ],
+  },
+  rad_level: {
+    id: "rad_level",
+    question: "Is the radiator water low?",
+    kind: "choice",
+    options: [
+      { id: "low", label: "Yes, water is low" },
+      { id: "ok", label: "Water looks okay" },
+      { id: "unknown", label: "I have not checked" },
+    ],
+  },
+  rad_when: {
+    id: "rad_when",
+    question: "When does it heat?",
+    kind: "choice",
+    options: [
+      { id: "traffic", label: "In traffic" },
+      { id: "highway", label: "On a long drive" },
+      { id: "always", label: "Anytime" },
+    ],
+  },
+  fuel_sym: {
+    id: "fuel_sym",
+    question: "What is the fuel system doing?",
+    kind: "choice",
+    options: [
+      { id: "no_fuel", label: "Not getting fuel" },
+      { id: "starve", label: "Starving / dying when you accelerate" },
+      { id: "smell", label: "Smelling fuel" },
+      { id: "pump", label: "No pump sound when you switch on" },
+    ],
+  },
+  fuel_tank: {
+    id: "fuel_tank",
+    question: "How is the tank?",
+    kind: "choice",
+    options: [
+      { id: "empty", label: "Low / empty" },
+      { id: "filled", label: "Just filled" },
+      { id: "ok", label: "Has fuel" },
+    ],
+  },
+  fuel_work: {
+    id: "fuel_work",
+    question: "Any recent pump, filter, or injector work?",
+    kind: "choice",
+    options: YES_NO,
+  },
+  exh_sym: {
+    id: "exh_sym",
+    question: "What is the exhaust / silencer doing?",
+    kind: "choice",
+    options: [
+      { id: "loud", label: "Too loud / bursting" },
+      { id: "smoke", label: "Smoke from the silencer" },
+      { id: "hang", label: "Hanging / hitting the ground" },
+      { id: "smell", label: "Strong exhaust smell in the cabin" },
+    ],
+  },
+  exh_smoke: {
+    id: "exh_smoke",
+    question: "If there is smoke, what colour?",
+    kind: "choice",
+    options: [
+      { id: "white", label: "White" },
+      { id: "blue", label: "Blue / grey" },
+      { id: "black", label: "Black" },
+      { id: "none", label: "No smoke" },
+    ],
+  },
+  exh_where: {
+    id: "exh_where",
+    question: "Where on the exhaust?",
+    kind: "choice",
+    options: [
+      { id: "front", label: "Front pipe / manifold" },
+      { id: "middle", label: "Middle / cat" },
+      { id: "silencer", label: "Silencer at the back" },
+      { id: "unknown", label: "I am not sure" },
+    ],
+  },
+  bat_sym: {
+    id: "bat_sym",
+    question: "What is the battery / charging doing?",
+    kind: "choice",
+    options: [
+      { id: "dead", label: "Completely dead" },
+      { id: "slow", label: "Slow to crank" },
+      { id: "light", label: "Charging / battery light on while driving" },
+      { id: "drain", label: "Goes down after parking" },
+    ],
+  },
+  bat_jump: {
+    id: "bat_jump",
+    question: "Did jump-start bring it back?",
+    kind: "choice",
+    options: [
+      { id: "yes", label: "Yes, it started" },
+      { id: "no", label: "No, still dead" },
+      { id: "not_tried", label: "I have not tried" },
+    ],
+  },
+  bat_age: {
+    id: "bat_age",
+    question: "Is the battery old or newly changed?",
+    kind: "choice",
+    options: [
+      { id: "old", label: "Old (over 2 years)" },
+      { id: "new", label: "Newly changed" },
+      { id: "unknown", label: "I don’t know" },
+    ],
+  },
 };
 
 const START_NEXT: Record<string, string> = {
@@ -474,18 +805,299 @@ const START_NEXT: Record<string, string> = {
   E: "e_color",
   F: "f_color",
   G: "g_type",
-  H: "i_accident",
-  I: "j_kind",
-  J: "l_describe",
-  K: "ev_issue",
+  H: "ev_issue",
+  I: "l_describe",
 };
+
+export const MECHANIC_PART_IDS = [
+  "engine",
+  "gear",
+  "steering",
+  "brain",
+  "brakes",
+  "suspension",
+  "radiator",
+  "fuel",
+  "exhaust",
+  "battery",
+] as const;
+
+export type MechanicPartId = (typeof MECHANIC_PART_IDS)[number];
+
+export const MECHANIC_PART_LABELS: Record<MechanicPartId, string> = {
+  engine: "Engine",
+  gear: "Gear",
+  steering: "Power steering",
+  brain: "Brain box",
+  brakes: "Brakes",
+  suspension: "Suspension / shocks",
+  radiator: "Radiator",
+  fuel: "Fuel system",
+  exhaust: "Exhaust / silencer",
+  battery: "Battery / charging",
+};
+
+const PART_FIRST: Record<MechanicPartId, string> = {
+  engine: "eng_sym",
+  gear: "gear_when",
+  steering: "str_feel",
+  brain: "brn_light",
+  brakes: "brk_feel",
+  suspension: "sus_feel",
+  radiator: "rad_steam",
+  fuel: "fuel_sym",
+  exhaust: "exh_sym",
+  battery: "bat_sym",
+};
+
+const PART_CHAIN: Record<string, string | "end"> = {
+  eng_sym: "eng_when",
+  eng_when: "eng_light",
+  eng_light: "eng_plug",
+  eng_plug: "end",
+  gear_when: "gear_fluid",
+  gear_fluid: "gear_light",
+  gear_light: "end",
+  str_feel: "str_when",
+  str_when: "str_fluid",
+  str_lock: "end",
+  str_fluid: "str_lock",
+  brn_light: "brn_cut",
+  brn_cut: "brn_work",
+  brn_work: "brn_scan",
+  brn_scan: "end",
+  brk_feel: "brk_pull",
+  brk_pull: "brk_light",
+  brk_light: "end",
+  sus_feel: "sus_where",
+  sus_where: "sus_leak",
+  sus_leak: "end",
+  rad_steam: "rad_level",
+  rad_level: "rad_when",
+  rad_when: "end",
+  fuel_sym: "fuel_tank",
+  fuel_tank: "fuel_work",
+  fuel_work: "end",
+  exh_sym: "exh_smoke",
+  exh_smoke: "exh_where",
+  exh_where: "end",
+  bat_sym: "bat_jump",
+  bat_jump: "bat_age",
+  bat_age: "end",
+};
+
+function bump(
+  scores: Record<MechanicPartId, number>,
+  id: MechanicPartId,
+  n: number,
+) {
+  scores[id] += n;
+}
+
+/**
+ * Rank major systems from the symptom answers so far.
+ * Higher score = more likely. Used to auto-open one cascade, or to
+ * ask “Which of these is it?” when two or more are close.
+ */
+export function scoreMechanicParts(
+  answers: Record<string, string>,
+): Record<MechanicPartId, number> {
+  const s = Object.fromEntries(
+    MECHANIC_PART_IDS.map((id) => [id, 0]),
+  ) as Record<MechanicPartId, number>;
+  const main = answers.start;
+
+  if (main === "A") {
+    const what = answers.a_what;
+    const lights = answers.a_lights;
+    if (what === "silent" && lights === "none") bump(s, "battery", 6);
+    else if (what === "lights_no_crank") {
+      bump(s, "battery", 5);
+      bump(s, "brain", 2);
+    } else if (what === "weak_crank") bump(s, "battery", 6);
+    else if (what === "cranks_no_start") {
+      bump(s, "engine", 4);
+      bump(s, "fuel", 4);
+      bump(s, "brain", 3);
+    } else if (what === "silent") {
+      bump(s, "battery", 3);
+      bump(s, "brain", 2);
+    }
+    if (answers.a_recent === "yes") bump(s, "battery", 2);
+  }
+
+  if (main === "B") {
+    if (answers.b_warning === "battery") bump(s, "battery", 5);
+    if (answers.b_warning === "check_engine") {
+      bump(s, "brain", 5);
+      bump(s, "engine", 2);
+    }
+    if (answers.b_warning === "temperature") {
+      bump(s, "radiator", 5);
+      bump(s, "engine", 2);
+    }
+    if (answers.b_warning === "oil") bump(s, "engine", 5);
+    if (answers.b_how === "suddenly") {
+      bump(s, "fuel", 3);
+      bump(s, "brain", 3);
+      bump(s, "engine", 2);
+    }
+    if (answers.b_how === "shook") {
+      bump(s, "engine", 3);
+      bump(s, "fuel", 3);
+    }
+    if (answers.b_how === "gradual") {
+      bump(s, "fuel", 3);
+      bump(s, "engine", 2);
+    }
+  }
+
+  if (main === "C") {
+    if (answers.c_where === "engine") bump(s, "engine", 5);
+    if (answers.c_where === "under") {
+      bump(s, "exhaust", 4);
+      bump(s, "gear", 2);
+    }
+    if (answers.c_where === "wheels") {
+      bump(s, "brakes", 3);
+      bump(s, "suspension", 3);
+    }
+    if (answers.c_where === "exhaust") bump(s, "exhaust", 6);
+    if (answers.c_where === "cabin") {
+      bump(s, "brain", 2);
+      bump(s, "gear", 1);
+    }
+    if (answers.c_when === "turning") {
+      bump(s, "steering", 6);
+      bump(s, "suspension", 2);
+    }
+    if (answers.c_when === "braking") bump(s, "brakes", 6);
+    if (answers.c_when === "idle") bump(s, "engine", 3);
+    if (answers.c_sound === "knocking" && answers.c_where === "engine") {
+      bump(s, "engine", 3);
+    }
+    if (answers.c_sound === "whining") {
+      bump(s, "steering", 2);
+      bump(s, "gear", 2);
+    }
+    if (answers.c_sound === "grinding") {
+      bump(s, "brakes", 3);
+      bump(s, "gear", 2);
+    }
+    if (answers.c_sound === "squealing") {
+      bump(s, "brakes", 2);
+      bump(s, "steering", 2);
+    }
+  }
+
+  if (main === "D") {
+    bump(s, "radiator", 6);
+    bump(s, "engine", 2);
+    if (answers.d_steam === "yes") bump(s, "radiator", 2);
+  }
+
+  if (main === "E") {
+    if (answers.e_color === "white") {
+      bump(s, "radiator", 4);
+      bump(s, "engine", 2);
+    }
+    if (answers.e_color === "blue") bump(s, "engine", 6);
+    if (answers.e_color === "black") {
+      bump(s, "fuel", 4);
+      bump(s, "engine", 2);
+    }
+    if (answers.e_where === "exhaust") bump(s, "exhaust", 3);
+    if (answers.e_where === "bonnet") bump(s, "engine", 3);
+  }
+
+  if (main === "F") {
+    if (answers.f_color === "oil") {
+      bump(s, "engine", 4);
+      bump(s, "gear", 2);
+    }
+    if (answers.f_color === "coolant") bump(s, "radiator", 6);
+    if (answers.f_color === "clear") {
+      bump(s, "fuel", 3);
+      bump(s, "brakes", 2);
+      bump(s, "steering", 2);
+    }
+    if (answers.f_color === "unknown") {
+      bump(s, "engine", 1);
+      bump(s, "radiator", 1);
+      bump(s, "steering", 1);
+    }
+  }
+
+  if (main === "G") bump(s, "gear", 8);
+
+  if (main === "I" && answers.l_related === "vehicle") {
+    for (const id of MECHANIC_PART_IDS) bump(s, id, 1);
+  }
+
+  return s;
+}
+
+/** Close scores → picker. One clear winner → go straight into that cascade. */
+export function rankMechanicParts(
+  answers: Record<string, string>,
+): MechanicPartId[] {
+  const scores = scoreMechanicParts(answers);
+  const sorted = MECHANIC_PART_IDS.map((id) => [id, scores[id]] as const)
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1]);
+  if (sorted.length === 0) return [];
+  const top = sorted[0][1];
+  const second = sorted[1]?.[1] ?? 0;
+  if (sorted.length === 1 || second < top * 0.4) return [sorted[0][0]];
+  return sorted
+    .filter(([, n]) => n >= top * 0.45)
+    .slice(0, 8)
+    .map(([id]) => id);
+}
+
+function shouldSkipPartCascade(answers: Record<string, string>): boolean {
+  const main = answers.start;
+  if (main === "H") return true;
+  if (main === "I" && answers.l_related && answers.l_related !== "vehicle") {
+    return true;
+  }
+  if (answers.g_type === "electric" || answers.g_ev) return true;
+  if (resolveMechanicRoute(answers).trade === "towing") return true;
+  return false;
+}
+
+function nextAfterSymptoms(answers: Record<string, string>): string {
+  if (shouldSkipPartCascade(answers)) return resolveScreen(answers);
+  const ranked = rankMechanicParts(answers);
+  if (ranked.length === 0) return resolveScreen(answers);
+  if (ranked.length === 1) return PART_FIRST[ranked[0]];
+  return "part_pick";
+}
 
 function resolveScreen(answers: Record<string, string>): "confirm" | "final" {
   return resolveMechanicRoute(answers).needsConfirm ? "confirm" : "final";
 }
 
-export function mechanicScreen(id: string): MechanicScreen | undefined {
-  return MECHANIC_SCREENS[id];
+export function mechanicScreen(
+  id: string,
+  answers: Record<string, string> = {},
+): MechanicScreen | undefined {
+  const screen = MECHANIC_SCREENS[id];
+  if (!screen) return undefined;
+  if (id !== "part_pick") return screen;
+  const ranked = rankMechanicParts(answers);
+  const ids = ranked.length >= 2 ? ranked : MECHANIC_PART_IDS.slice();
+  return {
+    ...screen,
+    options: [
+      ...ids.map((partId) => ({
+        id: partId,
+        label: MECHANIC_PART_LABELS[partId],
+      })),
+      // Customers often cannot name vehicle parts give them an honest out.
+      { id: "not_sure", label: "I'm not sure" },
+    ],
+  };
 }
 
 export function nextMechanicScreen(
@@ -504,39 +1116,50 @@ export function nextMechanicScreen(
   if (current === "a_lights") return "a_when";
   if (current === "a_when") return "a_recent";
   if (current === "a_recent") return "a_danger";
-  if (current === "a_danger") return resolveScreen(answers);
+  if (current === "a_danger") return nextAfterSymptoms(answers);
 
   if (current === "b_how") return "b_warning";
   if (current === "b_warning") return "b_restart";
   if (current === "b_restart") return "b_load";
   if (current === "b_load") return "b_move";
-  if (current === "b_move") return resolveScreen(answers);
+  if (current === "b_move") return nextAfterSymptoms(answers);
 
   if (current === "c_where") return "c_when";
   if (current === "c_when") return "c_sound";
   if (current === "c_sound") return "c_safe";
-  if (current === "c_safe") return resolveScreen(answers);
+  if (current === "c_safe") return nextAfterSymptoms(answers);
 
   if (current === "d_red") return "d_steam";
   if (current === "d_steam") return "d_fan";
   if (current === "d_fan") return "d_when";
   if (current === "d_when") return "d_ac";
   if (current === "d_ac") return "d_safe";
-  if (current === "d_safe") return resolveScreen(answers);
+  if (current === "d_safe") return nextAfterSymptoms(answers);
 
   if (current === "e_color") return "e_where";
-  if (current === "e_where") return resolveScreen(answers);
+  if (current === "e_where") return nextAfterSymptoms(answers);
 
   if (current === "f_color") return "f_where";
   if (current === "f_where") return "f_safe";
-  if (current === "f_safe") return resolveScreen(answers);
+  if (current === "f_safe") return nextAfterSymptoms(answers);
 
   if (current === "g_type") {
     if (answerId === "electric") return "g_ev";
     return "g_what";
   }
-  if (current === "g_what") return resolveScreen(answers);
+  if (current === "g_what") return nextAfterSymptoms(answers);
   if (current === "g_ev") return resolveScreen(answers);
+
+  if (current === "part_pick") {
+    // "I'm not sure" skips the part cascade the symptom answers already
+    // ranked things, so the confirm/final screen still carries a diagnosis.
+    if (answerId === "not_sure") return resolveScreen(answers);
+    const part = answerId as MechanicPartId;
+    return PART_FIRST[part] || resolveScreen(answers);
+  }
+  const partNext = PART_CHAIN[current];
+  if (partNext === "end") return resolveScreen(answers);
+  if (partNext) return partNext;
 
   if (current === "h_light") return "h_parts";
   if (current === "h_parts") return resolveScreen(answers);
@@ -558,7 +1181,7 @@ export function nextMechanicScreen(
   if (current === "l_related") {
     if (answerId === "power") return "l_power";
     if (answerId === "house") return "l_house";
-    return resolveScreen(answers);
+    return nextAfterSymptoms(answers);
   }
   if (current === "l_power" || current === "l_house") {
     return resolveScreen(answers);
@@ -581,6 +1204,72 @@ export function nextMechanicScreen(
 export function mechanicDiagnosis(
   answers: Record<string, string>,
 ): string | undefined {
+  const part = answers.part_pick as MechanicPartId | undefined;
+
+  if (part === "engine" || answers.eng_sym) {
+    if (answers.eng_sym === "knock") return "Likely engine knock (big end / knocking)";
+    if (answers.eng_sym === "misfire")
+      return "Likely plug, coil, or injector misfire";
+    if (answers.eng_sym === "cut") return "Likely engine cutting (fuel, coil, or brain box)";
+    if (answers.eng_sym === "overheat") return "Likely engine overheating";
+    if (answers.eng_light === "oil") return "Likely low oil or oil-pump fault";
+    if (answers.eng_light === "check")
+      return "Likely an engine or sensor fault (check engine)";
+    return "Likely an engine fault";
+  }
+  if (part === "gear" || answers.gear_when || answers.g_what) {
+    if (answers.gear_fluid === "leak" || answers.gear_fluid === "both") {
+      return "Likely gearbox oil leak";
+    }
+    if (answers.gear_fluid === "burnt") return "Likely burnt gearbox / clutch";
+    if (answers.g_what === "slipping")
+      return "Likely a slipping clutch or transmission";
+    if (answers.g_what === "hard")
+      return "Likely a gearbox or clutch engagement fault";
+    if (answers.g_what === "no_drive") return "Vehicle has no drive";
+    return "Likely a gear / gearbox fault";
+  }
+  if (part === "steering" || answers.str_feel) {
+    if (answers.str_feel === "heavy") return "Likely power steering pump or low oil";
+    if (answers.str_feel === "noise") return "Likely power steering pump noise";
+    if (answers.str_feel === "leak") return "Likely power steering oil leak";
+    return "Likely a power steering fault";
+  }
+  if (part === "brain" || answers.brn_light) {
+    if (answers.brn_light === "immobilizer")
+      return "Likely immobilizer / brain box not firing";
+    if (answers.brn_cut === "yes")
+      return "Likely brain box or crank sensor cutting the engine";
+    return "Likely a brain box (ECU) or wiring fault";
+  }
+  if (part === "brakes" || answers.brk_feel) {
+    if (answers.brk_feel === "grinding") return "Likely worn brake pad / disc";
+    if (answers.brk_feel === "soft") return "Likely brake fluid leak or air in line";
+    return "Likely a brake fault";
+  }
+  if (part === "suspension" || answers.sus_feel) {
+    if (answers.sus_leak === "yes") return "Likely leaking shock";
+    return "Likely a suspension / shock fault";
+  }
+  if (part === "radiator" || answers.rad_steam) {
+    return "Likely a radiator / cooling-system fault";
+  }
+  if (part === "fuel" || answers.fuel_sym) {
+    if (answers.fuel_sym === "pump") return "Likely fuel pump not running";
+    if (answers.fuel_tank === "empty") return "Likely no fuel in the tank";
+    return "Likely a fuel pump, filter, or injector fault";
+  }
+  if (part === "exhaust" || answers.exh_sym) {
+    if (answers.exh_sym === "loud") return "Likely burst silencer / exhaust leak";
+    return "Likely an exhaust / silencer fault";
+  }
+  if (part === "battery" || answers.bat_sym) {
+    if (answers.bat_sym === "light")
+      return "Likely alternator / charging fault";
+    if (answers.bat_jump === "yes") return "Likely a weak or dead battery";
+    return "Likely a battery or charging fault";
+  }
+
   const main = answers.start;
 
   if (main === "A") {
@@ -668,7 +1357,7 @@ export function mechanicDiagnosis(
     return "Likely a transmission fault";
   }
 
-  if (main === "K") {
+  if (main === "H") {
     if (answers.ev_issue === "charging") {
       return "Likely an EV charging fault (charger, cable, or charge port)";
     }
@@ -683,9 +1372,6 @@ export function mechanicDiagnosis(
     }
     return "EV problem (customer described)";
   }
-
-  if (main === "H") return "Body and panel damage";
-  if (main === "I") return "Tyre or wheel issue";
 
   return undefined;
 }
@@ -754,6 +1440,20 @@ export function resolveMechanicRoute(
   }
 
   if (main === "C") {
+    const picked = answers.part_pick;
+    if (
+      picked === "brakes" ||
+      picked === "steering" ||
+      picked === "suspension" ||
+      picked === "engine" ||
+      picked === "gear" ||
+      picked === "exhaust"
+    ) {
+      return stay();
+    }
+    if (answers.brk_feel || answers.str_feel || answers.sus_feel) {
+      return stay();
+    }
     if (
       answers.c_where === "wheels" ||
       answers.c_when === "turning" ||
@@ -786,7 +1486,7 @@ export function resolveMechanicRoute(
     return stay();
   }
 
-  if (main === "K") {
+  if (main === "H") {
     if (answers.ev_issue === "charging") return leave("electrical", "mechanic");
     if (answers.ev_issue === "battery") return leave("battery", "electrical");
     if (answers.ev_issue === "motor_no_drive") {
@@ -797,15 +1497,7 @@ export function resolveMechanicRoute(
     return stay();
   }
 
-  if (main === "H") {
-    return leave("body");
-  }
-
   if (main === "I") {
-    return leave("vulcanizer");
-  }
-
-  if (main === "J") {
     if (answers.l_related === "clothing") return leave("fashion");
     if (answers.l_related === "power") {
       if (answers.l_power === "solar") return leave("solar");
@@ -851,34 +1543,66 @@ export function confirmQuestion(trade: ProService): string {
   return `This sounds like ${labels[trade]}. Continue?`;
 }
 
+function questionKey(text: string): string {
+  const qi = text.indexOf("?");
+  const cut = qi >= 0 ? text.slice(0, qi + 1) : text;
+  return cut.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+export function filterMechanicProblemRows<
+  T extends { label: string; answer: string },
+>(rows: T[]): T[] {
+  const startRow = rows.find(
+    (r) => questionKey(r.label) === questionKey(MECHANIC_START_QUESTION),
+  );
+  if (!startRow) return rows;
+  const startOpt = MECHANIC_START_OPTIONS.find(
+    (o) => o.label === startRow.answer,
+  );
+  if (!startOpt) return rows;
+
+  const reconstructed: Record<string, string> = {
+    start: startOpt.id,
+    start_label: startRow.answer,
+  };
+  for (const [id, screen] of Object.entries(MECHANIC_SCREENS)) {
+    const row = rows.find(
+      (r) => questionKey(r.label) === questionKey(screen.question),
+    );
+    if (!row) continue;
+    const opt = screen.options?.find((o) => o.label === row.answer);
+    reconstructed[id] = opt?.id ?? row.answer;
+    reconstructed[`${id}_label`] = row.answer;
+  }
+  reconstructed.start = startOpt.id;
+  reconstructed.start_label = startRow.answer;
+
+  const path = answeredScreenPath(reconstructed, nextMechanicScreen);
+  const keep = new Set<string>([
+    questionKey(MECHANIC_FINAL_COPY.location),
+    questionKey(MECHANIC_FINAL_COPY.extra),
+    questionKey(MECHANIC_FINAL_COPY.diagnosis),
+  ]);
+  for (const id of path) {
+    const screen = mechanicScreen(id, reconstructed);
+    if (screen) keep.add(questionKey(screen.question));
+  }
+  const trimmed = rows.filter((r) => keep.has(questionKey(r.label)));
+  return trimmed.length ? trimmed : rows;
+}
+
 export function composeMechanicProblem(
   answers: Record<string, string>,
   extra: string,
   landmark: string,
 ): string {
-  const lines: string[] = [];
-  const start = mechanicScreen("start");
-  if (start) {
-    lines.push(start.question);
-    const picked = MECHANIC_START_OPTIONS.find((o) => o.id === answers.start);
-    if (picked) lines.push(picked.label);
-  }
-
-  const order = Object.keys(answers).filter(
-    (k) => k !== "start" && !k.endsWith("_label"),
-  );
-  for (const id of order) {
-    const screen = mechanicScreen(id);
-    if (!screen) continue;
-    lines.push(screen.question);
-    const stored = answers[`${id}_label`];
-    if (stored) lines.push(stored);
-    else if (screen.kind === "text") lines.push(answers[id] || "");
-    else {
-      const opt = screen.options?.find((o) => o.id === answers[id]);
-      lines.push(opt?.label || answers[id] || "");
-    }
-  }
+  const path = answeredScreenPath(answers, nextMechanicScreen);
+  const scoped = pickAnswersOnPath(answers, path);
+  const lines = qaLinesForPath({
+    answers: scoped,
+    next: nextMechanicScreen,
+    screenOf: mechanicScreen,
+  });
 
   if (landmark.trim()) {
     lines.push(MECHANIC_FINAL_COPY.location);
@@ -888,7 +1612,7 @@ export function composeMechanicProblem(
     lines.push(MECHANIC_FINAL_COPY.extra);
     lines.push(extra.trim());
   }
-  const diagnosis = mechanicDiagnosis(answers);
+  const diagnosis = mechanicDiagnosis(scoped);
   if (diagnosis) {
     lines.push(MECHANIC_FINAL_COPY.diagnosis);
     lines.push(diagnosis);

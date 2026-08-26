@@ -1,4 +1,5 @@
 import type { ProService } from "@/lib/types";
+import { qaLinesForPath } from "@/lib/help-flow-progress";
 
 export const BODY_START_QUESTION =
   "What is the main body or panel problem you are experiencing?";
@@ -210,6 +211,7 @@ export const BODY_SCREENS: Record<string, BodyScreen> = {
       { id: "bonnet", label: "Bonnet" },
       { id: "boot", label: "Boot" },
       { id: "multiple", label: "More than one" },
+      { id: "not_sure", label: "I'm not sure" },
     ],
   },
   e_opens: {
@@ -358,29 +360,11 @@ export function composeBodyProblem(
   extra: string,
   landmark: string,
 ): string {
-  const lines: string[] = [];
-  const start = bodyScreen("start");
-  if (start) {
-    lines.push(start.question);
-    const picked = BODY_START_OPTIONS.find((o) => o.id === answers.start);
-    if (picked) lines.push(picked.label);
-  }
-
-  const order = Object.keys(answers).filter(
-    (k) => k !== "start" && !k.endsWith("_label"),
-  );
-  for (const id of order) {
-    const screen = bodyScreen(id);
-    if (!screen) continue;
-    lines.push(screen.question);
-    const stored = answers[`${id}_label`];
-    if (stored) lines.push(stored);
-    else if (screen.kind === "text") lines.push(answers[id] || "");
-    else {
-      const opt = screen.options?.find((o) => o.id === answers[id]);
-      lines.push(opt?.label || answers[id] || "");
-    }
-  }
+  const lines = qaLinesForPath({
+    answers,
+    next: nextBodyScreen,
+    screenOf: bodyScreen,
+  });
 
   if (landmark.trim()) {
     lines.push(BODY_FINAL_COPY.location);

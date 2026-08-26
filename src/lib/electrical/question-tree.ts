@@ -1,4 +1,5 @@
 import type { ProService } from "@/lib/types";
+import { qaLinesForPath } from "@/lib/help-flow-progress";
 
 export const ELECTRICAL_START_QUESTION =
   "What type of electrical problem or service do you need?";
@@ -343,29 +344,12 @@ export function composeElectricalProblem(
   extra: string,
   landmark: string,
 ): string {
-  const lines: string[] = [];
-  const start = electricalScreen("start");
-  if (start) {
-    lines.push(start.question);
-    const picked = ELECTRICAL_START_OPTIONS.find((o) => o.id === answers.start);
-    if (picked) lines.push(picked.label);
-  }
-
-  const order = Object.keys(answers).filter(
-    (k) => k !== "start" && !k.endsWith("_label"),
-  );
-  for (const id of order) {
-    const screen = electricalScreen(id);
-    if (!screen) continue;
-    lines.push(screen.question);
-    const stored = answers[`${id}_label`];
-    if (stored) lines.push(stored);
-    else if (screen.kind === "text") lines.push(answers[id] || "");
-    else {
-      const opt = screen.options?.find((o) => o.id === answers[id]);
-      lines.push(opt?.label || answers[id] || "");
-    }
-  }
+  const lines = qaLinesForPath({
+    answers,
+    next: nextElectricalScreen,
+    screenOf: electricalScreen,
+    bridge: { vehicle: "a_symptom" },
+  });
 
   if (landmark.trim()) {
     lines.push(ELECTRICAL_FINAL_COPY.location);

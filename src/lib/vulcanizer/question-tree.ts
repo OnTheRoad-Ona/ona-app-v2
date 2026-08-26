@@ -1,4 +1,5 @@
 import type { ProService } from "@/lib/types";
+import { qaLinesForPath } from "@/lib/help-flow-progress";
 
 export const VULCANIZER_START_QUESTION =
   "What is the main tyre or wheel problem you are experiencing?";
@@ -150,7 +151,7 @@ export const VULCANIZER_SCREENS: Record<string, VulcanizerScreen> = {
       { id: "hours", label: "A few hours" },
       { id: "days", label: "A few days" },
       { id: "week", label: "A week or more" },
-      { id: "unsure", label: "Not sure" },
+      { id: "unsure", label: "I'm not sure" },
     ],
   },
   c_damage: {
@@ -269,7 +270,7 @@ export const VULCANIZER_SCREENS: Record<string, VulcanizerScreen> = {
     options: [
       { id: "have", label: "I already have them" },
       { id: "supply", label: "Vulcanizer should supply" },
-      { id: "unsure", label: "Not sure" },
+      { id: "unsure", label: "I'm not sure" },
     ],
   },
   f_brand: {
@@ -586,29 +587,11 @@ export function composeVulcanizerProblem(
   extra: string,
   landmark: string,
 ): string {
-  const lines: string[] = [];
-  const start = vulcanizerScreen("start");
-  if (start) {
-    lines.push(start.question);
-    const picked = VULCANIZER_START_OPTIONS.find((o) => o.id === answers.start);
-    if (picked) lines.push(picked.label);
-  }
-
-  const order = Object.keys(answers).filter(
-    (k) => k !== "start" && !k.endsWith("_label"),
-  );
-  for (const id of order) {
-    const screen = vulcanizerScreen(id);
-    if (!screen) continue;
-    lines.push(screen.question);
-    const stored = answers[`${id}_label`];
-    if (stored) lines.push(stored);
-    else if (screen.kind === "text") lines.push(answers[id] || "");
-    else {
-      const opt = screen.options?.find((o) => o.id === answers[id]);
-      lines.push(opt?.label || answers[id] || "");
-    }
-  }
+  const lines = qaLinesForPath({
+    answers,
+    next: nextVulcanizerScreen,
+    screenOf: vulcanizerScreen,
+  });
 
   if (landmark.trim()) {
     lines.push(VULCANIZER_FINAL_COPY.location);

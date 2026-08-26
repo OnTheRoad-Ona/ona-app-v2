@@ -1,4 +1,5 @@
 import type { ProService } from "@/lib/types";
+import { qaLinesForPath } from "@/lib/help-flow-progress";
 
 export const TOW_START_QUESTION = "Why do you need towing service?";
 
@@ -80,6 +81,7 @@ const BODY_PARTS: TowOption[] = [
   { id: "wheels", label: "Wheels / suspension" },
   { id: "undercarriage", label: "Undercarriage / chassis" },
   { id: "multiple", label: "Multiple areas" },
+  { id: "not_sure", label: "I'm not sure" },
 ];
 
 export const TOW_SCREENS: Record<string, TowScreen> = {
@@ -448,29 +450,11 @@ export function composeTowProblem(
     colour?: string;
   },
 ): string {
-  const lines: string[] = [];
-  const start = towScreen("start");
-  if (start) {
-    lines.push(start.question);
-    const picked = TOW_START_OPTIONS.find((o) => o.id === answers.start);
-    if (picked) lines.push(picked.label);
-  }
-
-  const order = Object.keys(answers).filter(
-    (k) => k !== "start" && !k.endsWith("_label"),
-  );
-  for (const id of order) {
-    const screen = towScreen(id);
-    if (!screen) continue;
-    lines.push(screen.question);
-    const stored = answers[`${id}_label`];
-    if (stored) lines.push(stored);
-    else if (screen.kind === "text") lines.push(answers[id] || "");
-    else {
-      const opt = screen.options?.find((o) => o.id === answers[id]);
-      lines.push(opt?.label || answers[id] || "");
-    }
-  }
+  const lines = qaLinesForPath({
+    answers,
+    next: nextTowScreen,
+    screenOf: towScreen,
+  });
 
   if (answers.start === "F" && answers.f_recovery === "heavy") {
     lines.push("Heavy-duty / winch recovery needed");
