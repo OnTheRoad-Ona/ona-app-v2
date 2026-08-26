@@ -863,25 +863,33 @@ export async function confirmRequest(
   // Confirming = "I can fix this" → arm the 20-min negotiation clock now.
   const armedEnds = new Date(Date.now() + NEGOTIATE_WINDOW_MS).toISOString();
 
-  const { error: resErr } = await sb
-    .from("request_reservations")
-    .update({ status: "confirmed", confirmed_at: ts, released_by: "confirm" })
-    .eq("request_id", row.id)
-    .eq("pro_id", proId)
-    .eq("status", "active");
-  if (resErr) return { ok: false, error: resErr.message, status: 500 };
-
-  // Record acceptance so a racing sweep's CAS-on-offered can never mark the
-  // pro timed_out after they confirmed ("I can fix this").
-  await sb
-    .from("request_pairing_queue")
-    .update({
-      status: "accepted",
-      responded_at: ts,
-      result_note: "pro_confirmed",
-    })
-    .eq("request_id", row.id)
-    .eq("pro_id", proId);
+  // Reservation confirm + queue acceptance marker are independent writes —
+  // run them in one round trip (~600ms per DB query on a typical link was
+  // making CONFIRM take ~6s sequentially).
+  const [resRes, queueRes] = await Promise.all([
+    sb
+      .from("request_reservations")
+      .update({
+        status: "confirmed",
+        confirmed_at: ts,
+        released_by: "confirm",
+      })
+      .eq("request_id", row.id)
+      .eq("pro_id", proId)
+      .eq("status", "active"),
+    // Record acceptance so a racing sweep's CAS-on-offered can never mark the
+    // pro timed_out after they confirmed ("I can fix this").
+    sb
+      .from("request_pairing_queue")
+      .update({
+        status: "accepted",
+        responded_at: ts,
+        result_note: "pro_confirmed",
+      })
+      .eq("request_id", row.id)
+      .eq("pro_id", proId),
+  ]);
+  if (resRes.error) return { ok: false, error: resRes.error.message, status: 500 };
 
   const patch: Record<string, unknown> = {
     // Clear pairing stage so post-assign paths never re-enter SSPE decline/timeout.
@@ -934,35 +942,41 @@ export async function confirmRequest(
   const { recalculateMerit } = await import("@/lib/server/merit/merit-engine");
   void recalculateMerit(proId);
 
-  // "Add another repair pro": a linked scheduled second request (Tow) becomes
-  // dispatchable 60 min after this acceptance. Armed once the sweep only
-  // touches requests whose scheduled_dispatch_at is still NULL.
-  try {
-    await armLinkedScheduledDispatch(sb, row.id, ts);
-  } catch (e) {
-    console.error("[second-pro] arm linked dispatch failed", e);
-  }
-
-  try {
-    const { lockCalloutOnAcceptance } =
-      await import("@/lib/server/callout/acceptance");
-    const destLat = Number(row.pickup_lat);
-    const destLng = Number(row.pickup_lng);
-    if (Number.isFinite(destLat) && Number.isFinite(destLng)) {
-      await lockCalloutOnAcceptance({
-        requestId: row.id,
-        proId,
-        trade: (await import("@/lib/services")).isProService(row.service_type)
-          ? (row.service_type as import("@/lib/types").ProService)
-          : "mechanic",
-        destination: { lat: destLat, lng: destLng },
-        gps: gps || null,
-        idempotencyKey: idempotencyKey || null,
-      });
+  // Post-accept side effects (linked scheduled dispatch + callout fee lock)
+  // are NOT on the confirm critical path the negotiation screen reconciles
+  // them via its own fetches seconds later. Awaiting these here added ~2s to
+  // every "I can fix this" tap.
+  void (async () => {
+    // "Add another repair pro": a linked scheduled second request (Tow) becomes
+    // dispatchable 60 min after this acceptance. Armed once the sweep only
+    // touches requests whose scheduled_dispatch_at is still NULL.
+    try {
+      await armLinkedScheduledDispatch(sb, row.id, ts);
+    } catch (e) {
+      console.error("[second-pro] arm linked dispatch failed", e);
     }
-  } catch (e) {
-    console.error("[callout] lock on accept failed", e);
-  }
+
+    try {
+      const { lockCalloutOnAcceptance } =
+        await import("@/lib/server/callout/acceptance");
+      const destLat = Number(row.pickup_lat);
+      const destLng = Number(row.pickup_lng);
+      if (Number.isFinite(destLat) && Number.isFinite(destLng)) {
+        await lockCalloutOnAcceptance({
+          requestId: row.id,
+          proId,
+          trade: (await import("@/lib/services")).isProService(row.service_type)
+            ? (row.service_type as import("@/lib/types").ProService)
+            : "mechanic",
+          destination: { lat: destLat, lng: destLng },
+          gps: gps || null,
+          idempotencyKey: idempotencyKey || null,
+        });
+      }
+    } catch (e) {
+      console.error("[callout] lock on accept failed", e);
+    }
+  })();
 
   return { ok: true, jobId: row.id, currentProId: proId };
 }
