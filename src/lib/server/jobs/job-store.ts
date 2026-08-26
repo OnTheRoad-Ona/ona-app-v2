@@ -1055,7 +1055,127 @@ export async function reconcileJobPayment(job: JobRecord): Promise<JobRecord> {
   return job;
 }
 
-/** Load job without payment reconciliation (avoids getJob ↔ markPaid loops). */
+/**
+ * Hydrate contact / photo / vehicle fields in ONE parallel round trip.
+ * The old path awaited up to 3-4 sequential profile queries (~600ms each),
+ * which alone made every job GET ~2s+ — the customer's ring sat ~3s behind
+ * the pro's "I can fix this" because each 1s poll carried that cost.
+ * Semantics are identical to hydrateJobPhones + hydrateMotoristPhoto +
+ * hydrateMotoristVehicle: only fills missing/placeholder fields, never
+ * overwrites data already on the row.
+ */
+async function hydrateJobContacts(job: JobRecord): Promise<JobRecord> {
+  if (!isSupabaseAdminConfigured() || !job.motoristId) return job;
+  const needProfiles =
+    !job.motoristPhone?.trim() ||
+    !job.repairProPhone?.trim() ||
+    !job.motoristPhoto?.trim();
+  const needVehicle = !job.motoristVehicle?.trim();
+  const ids = [job.motoristId, job.repairProId].filter(Boolean);
+  if ((!needProfiles || !ids.length) && !needVehicle) return job;
+  try {
+    const sb = createServiceSupabase();
+    const [profilesRes, vehicleRes] = await Promise.all([
+      needProfiles && ids.length
+        ? sb
+            .from("profiles")
+            .select("id, phone, avatar_url, full_name")
+            .in("id", ids)
+        : Promise.resolve({ data: null } as { data: unknown }),
+      needVehicle
+        ? sb
+            .from("motorist_profiles")
+            .select("vehicle_make, vehicle_model, vehicle_year, vehicles")
+            .eq("user_id", job.motoristId)
+            .maybeSingle()
+        : Promise.resolve({ data: null } as { data: unknown }),
+    ]);
+    let next = { ...job };
+    const rows = profilesRes.data as
+      | {
+          id: string;
+          phone?: string | null;
+          avatar_url?: string | null;
+          full_name?: string | null;
+        }[]
+      | null;
+    if (rows?.length) {
+      for (const row of rows) {
+        const phone = (row.phone || "").trim() || null;
+        if (row.id === job.motoristId) {
+          next = {
+            ...next,
+            motoristPhone: next.motoristPhone || phone,
+            motoristPhoto:
+              next.motoristPhoto ||
+              (row.avatar_url ? String(row.avatar_url) : null),
+            motoristName:
+              next.motoristName && next.motoristName !== "Customer"
+                ? next.motoristName
+                : String(row.full_name || next.motoristName || "Customer"),
+          };
+        }
+        if (row.id === job.repairProId) {
+          next = {
+            ...next,
+            repairProPhone: next.repairProPhone || phone,
+            repairProPhoto:
+              next.repairProPhoto ||
+              (row.avatar_url ? String(row.avatar_url) : undefined),
+            repairProName:
+              next.repairProName && next.repairProName !== "Repair Pro"
+                ? next.repairProName
+                : String(row.full_name || next.repairProName || "Repair Pro"),
+          };
+        }
+      }
+    }
+    // Vehicle lives on motorist_profiles (not profiles) same label logic
+    const vdata = vehicleRes.data as
+      | {
+          vehicle_make?: string | null;
+          vehicle_model?: string | null;
+          vehicle_year?: string | null;
+          vehicles?: unknown;
+        }
+      | null;
+    if (vdata && !next.motoristVehicle?.trim()) {
+      const vehicles = Array.isArray(vdata.vehicles) ? vdata.vehicles : [];
+      const first =
+        vehicles.find(
+          (v: { make?: string; model?: string }) => v && (v.make || v.model),
+        ) || null;
+      let label = "";
+      if (first && typeof first === "object") {
+        const f = first as {
+          vehicleType?: string;
+          make?: string;
+          model?: string;
+          year?: string;
+        };
+        label = [f.vehicleType, f.make, f.model, f.year]
+          .filter((x) => x && String(x).trim() && String(x) !== "Any")
+          .join(" ");
+      }
+      if (!label) {
+        label = [
+          vdata.vehicle_make,
+          vdata.vehicle_model,
+          vdata.vehicle_year,
+        ]
+          .filter((x) => x && String(x).trim())
+          .join(" ");
+      }
+      if (label.trim()) next = { ...next, motoristVehicle: label.trim() };
+    }
+    return next;
+  } catch {
+    return job;
+  }
+}
+
+/**
+ * Load job without payment reconciliation (avoids getJob ↔ markPaid loops). */
 async function getJobRaw(id: string): Promise<JobRecord | null> {
   // Fast path a copy this process persisted or read within the last
   // READ_CACHE_MS is served from memory instead of a Supabase round-trip.
@@ -1082,9 +1202,7 @@ async function getJobRaw(id: string): Promise<JobRecord | null> {
         if (!job.motoristVehicle?.trim() && memHit?.motoristVehicle) {
           job = { ...job, motoristVehicle: memHit.motoristVehicle };
         }
-        job = await hydrateJobPhones(job);
-        job = await hydrateMotoristPhoto(job);
-        job = await hydrateMotoristVehicle(job);
+        job = await hydrateJobContacts(job);
         memory.set(id, job);
         return job;
       }
@@ -1094,9 +1212,7 @@ async function getJobRaw(id: string): Promise<JobRecord | null> {
   }
   const mem = memory.get(id);
   if (!mem) return null;
-  let job = await hydrateJobPhones(mem);
-  job = await hydrateMotoristVehicle(job);
-  return job;
+  return hydrateJobContacts(mem);
 }
 
 export async function getJob(id: string): Promise<JobRecord | null> {
