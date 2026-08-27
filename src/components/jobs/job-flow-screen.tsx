@@ -47,6 +47,7 @@ import { CalloutFeeLines } from "@/components/jobs/callout-fee-lines";
 import { useJobCallout } from "@/lib/callout/use-job-callout";
 import {
   composeCustomerPayableMajor,
+  getDisplayTotalMajor,
   jobTotalMajor,
   payableCalloutMajor,
 } from "@/lib/callout/payable";
@@ -2250,12 +2251,13 @@ export function JobFlowScreen({
                     viewer === "motorist"
                       ? buildCustomerChargeMajor(job.agreedMajor as number).totalMajor
                       : (job.agreedMajor as number);
-                  const rawCallout = Number(calloutQuote?.calloutFee ?? job.calloutQuote?.calloutFee ?? 0);
-                  const callout = Number.isFinite(rawCallout) && rawCallout > 0 ? rawCallout : payableCalloutMajor(calloutQuote ?? job.calloutQuote);
-                  const total = jobTotalMajor(labour, calloutQuote ?? job.calloutQuote);
-                  const escrowTotal = job.amountMinor != null ? job.amountMinor / 100 : null;
-                  const display = escrowTotal ?? total ?? labour + callout;
-                  return formatMoney(display, job.currency);
+                  const display = getDisplayTotalMajor({
+                    labourMajor: labour,
+                    amountMinor: (job as any).amountMinor ?? job.amountMinor,
+                    quote: calloutQuote,
+                    fallbackQuote: job.calloutQuote,
+                  });
+                  return display != null ? formatMoney(display, job.currency) : "Not set";
                 })()}
           </p>
           {viewer === "repair_pro" ? (
@@ -2311,8 +2313,9 @@ export function JobFlowScreen({
                 </span>
                 <span className={cn("text-[12px] font-semibold tabular-nums", ink)}>
                   {(() => {
-                    const raw = Number((calloutQuote ?? job.calloutQuote)?.calloutFee ?? 0);
-                    const fee = Number.isFinite(raw) && raw > 0 ? raw : payableCalloutMajor(calloutQuote ?? job.calloutQuote);
+                    const q = calloutQuote ?? job.calloutQuote;
+                    const raw = Number((q as any)?.calloutFee ?? 0);
+                    const fee = Number.isFinite(raw) && raw > 0 ? raw : payableCalloutMajor(q);
                     return formatMoney(fee, job.currency);
                   })()}
                 </span>
@@ -2330,12 +2333,13 @@ export function JobFlowScreen({
                       viewer === "motorist"
                         ? buildCustomerChargeMajor(job.agreedMajor as number).totalMajor
                         : (job.agreedMajor as number);
-                    const raw = Number((calloutQuote ?? job.calloutQuote)?.calloutFee ?? 0);
-                    const callout = Number.isFinite(raw) && raw > 0 ? raw : payableCalloutMajor(calloutQuote ?? job.calloutQuote);
-                    const total = jobTotalMajor(labour, calloutQuote ?? job.calloutQuote);
-                    const escrowTotal = job.amountMinor != null ? job.amountMinor / 100 : null;
-                    const display = escrowTotal ?? total ?? labour + callout;
-                    return formatMoney(display, job.currency);
+                    const display = getDisplayTotalMajor({
+                      labourMajor: labour,
+                      amountMinor: (job as any).amountMinor ?? job.amountMinor,
+                      quote: calloutQuote,
+                      fallbackQuote: job.calloutQuote,
+                    });
+                    return display != null ? formatMoney(display, job.currency) : formatMoney(labour, job.currency);
                   })()}
                 </span>
               </div>
@@ -2661,11 +2665,13 @@ export function JobFlowScreen({
                 ? buildCustomerChargeMajor(job.agreedMajor).totalMajor
                 : job.agreedMajor;
             if (labour == null) return null;
-            const rawCallout = Number((calloutQuote ?? job.calloutQuote)?.calloutFee ?? 0);
-            const callout = Number.isFinite(rawCallout) && rawCallout > 0 ? rawCallout : payableCalloutMajor(calloutQuote ?? job.calloutQuote);
-            const total = jobTotalMajor(labour, calloutQuote ?? job.calloutQuote);
-            const escrowTotal = job.amountMinor != null ? job.amountMinor / 100 : null;
-            const display = escrowTotal ?? total ?? labour + callout;
+            const display = getDisplayTotalMajor({
+              labourMajor: labour as number,
+              amountMinor: (job as any).amountMinor ?? job.amountMinor,
+              quote: calloutQuote,
+              fallbackQuote: job.calloutQuote,
+            });
+            if (display == null) return null;
             return (
               <p
                 className={cn(
@@ -3602,13 +3608,13 @@ export function JobFlowScreen({
           {job.agreedMajor != null ? (
             <p className={cn("mt-4 text-[22px] font-black tabular-nums", ink)}>
               {(() => {
-                const labour = job.agreedMajor as number;
-                const rawCallout = Number((calloutQuote ?? job.calloutQuote)?.calloutFee ?? 0);
-                const callout = Number.isFinite(rawCallout) && rawCallout > 0 ? rawCallout : payableCalloutMajor(calloutQuote ?? job.calloutQuote);
-                const total = jobTotalMajor(labour, calloutQuote ?? job.calloutQuote);
-                const escrowTotal = (job as any).amountMinor != null ? (job as any).amountMinor / 100 : job.amountMinor != null ? (job.amountMinor as number) / 100 : null;
-                const display = escrowTotal ?? total ?? labour + callout;
-                return formatMoney(display, job.currency);
+                const display = getDisplayTotalMajor({
+                  agreedMajor: job.agreedMajor as number,
+                  amountMinor: (job as any).amountMinor ?? job.amountMinor,
+                  quote: calloutQuote,
+                  fallbackQuote: job.calloutQuote,
+                });
+                return display != null ? formatMoney(display, job.currency) : formatMoney(job.agreedMajor as number, job.currency);
               })()}
             </p>
           ) : null}
@@ -3902,12 +3908,13 @@ export function JobFlowScreen({
                     viewer === "motorist"
                       ? buildCustomerChargeMajor(job.agreedMajor as number).totalMajor
                       : (job.agreedMajor as number);
-                  const rawCallout = Number((calloutQuote ?? job.calloutQuote)?.calloutFee ?? 0);
-                  const callout = Number.isFinite(rawCallout) && rawCallout > 0 ? rawCallout : payableCalloutMajor(calloutQuote ?? job.calloutQuote);
-                  const total = jobTotalMajor(labour, calloutQuote ?? job.calloutQuote);
-                  const escrowTotal = (job as any).amountMinor != null ? (job as any).amountMinor / 100 : job.amountMinor != null ? (job.amountMinor as number) / 100 : null;
-                  const display = escrowTotal ?? total ?? labour + callout;
-                  return formatMoney(display, job.currency);
+                  const display = getDisplayTotalMajor({
+                    labourMajor: labour,
+                    amountMinor: (job as any).amountMinor ?? job.amountMinor,
+                    quote: calloutQuote,
+                    fallbackQuote: job.calloutQuote,
+                  });
+                  return display != null ? formatMoney(display, job.currency) : formatMoney(labour, job.currency);
                 })()}
               </p>
             )}

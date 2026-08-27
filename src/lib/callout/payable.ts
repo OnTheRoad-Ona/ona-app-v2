@@ -60,3 +60,35 @@ export function composeCustomerPayableMajor(
     totalMajor: Math.round((labour + callout) * 100) / 100,
   };
 }
+
+/**
+ * Single source of truth for display Total (Labour + Call Out Fee).
+ * Use everywhere instead of `formatMoney(agreedMajor)` alone.
+ * - Prefers escrow `amountMinor/100` when present (held/released)
+ * - Then `jobTotalMajor` when callout is settled
+ * - Falls back to labour + raw `calloutFee` even when pending
+ */
+export function getDisplayTotalMajor(input: {
+  agreedMajor?: number | null;
+  labourMajor?: number | null;
+  amountMinor?: number | null;
+  quote?: CalloutQuote | null;
+  fallbackQuote?: CalloutQuote | null;
+}): number | null {
+  const labourRaw = input.labourMajor ?? input.agreedMajor;
+  if (labourRaw == null || !Number.isFinite(Number(labourRaw))) return null;
+  const labour = Number(labourRaw);
+  const quote = input.quote ?? input.fallbackQuote ?? null;
+  const fallbackQuote = input.fallbackQuote ?? quote;
+  const q = quote ?? fallbackQuote;
+  // escrow is ground truth after payment
+  const escrow = input.amountMinor;
+  if (escrow != null && Number.isFinite(Number(escrow)) && Number(escrow) > 0) {
+    return Math.round(Number(escrow)) / 100;
+  }
+  const total = jobTotalMajor(labour, q);
+  if (total != null) return total;
+  const rawCallout = Number((q as any)?.calloutFee ?? 0);
+  const callout = Number.isFinite(rawCallout) && rawCallout > 0 ? rawCallout : payableCalloutMajor(q);
+  return Math.round((labour + callout) * 100) / 100;
+}

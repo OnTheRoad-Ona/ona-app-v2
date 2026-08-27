@@ -29,7 +29,7 @@ import {
 import type { JobRecord } from "@/lib/jobs/types";
 import { formatMoney, forceNairaCurrency } from "@/lib/pricing";
 import { useJobCallout } from "@/lib/callout/use-job-callout";
-import { payableCalloutMajor } from "@/lib/callout/payable";
+import { getDisplayTotalMajor } from "@/lib/callout/payable";
 import { playAppSound, unlockAudio } from "@/lib/sound-tone";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -293,19 +293,15 @@ export function MotoristReleasePayGate() {
     pending?.calloutQuote,
   );
 
-  // Total the customer paid = labour + call-out. Labour splits 87.5/5/7.5;
-  // the call-out goes to the pro in full. Always show total (labour + callout), not just labour.
+  // Single source: Total = labour + callout (via helper), not just labour
   const pendingTotal = (() => {
     if (pending == null) return null;
-    const rawCallout = Number((calloutQuote ?? (pending as any).calloutQuote ?? (pending as any).callout_quote)?.calloutFee ?? 0);
-    const callout = Number.isFinite(rawCallout) && rawCallout > 0 ? rawCallout : payableCalloutMajor(calloutQuote ?? (pending as any).calloutQuote);
-    if (pending.agreedMajor != null && pending.agreedMajor > 0) {
-      const computed = Math.round((pending.agreedMajor + callout) * 100) / 100;
-      const escrow = pending.amountMinor != null && pending.amountMinor > 0 ? pending.amountMinor / 100 : null;
-      return escrow ?? computed;
-    }
-    if (pending.amountMinor != null && pending.amountMinor > 0) return pending.amountMinor / 100;
-    return null;
+    return getDisplayTotalMajor({
+      agreedMajor: pending.agreedMajor,
+      amountMinor: (pending as any).amountMinor ?? (pending as any).amount_minor,
+      quote: calloutQuote,
+      fallbackQuote: (pending as any).calloutQuote ?? (pending as any).callout_quote,
+    });
   })();
 
   const refresh = useCallback(async () => {
@@ -429,18 +425,16 @@ export function MotoristReleasePayGate() {
     // 6h auto-release countdown it carries). The transfer runs in the
     // background; the job shell we land on reconciles with the real payout.
     const currency = forceNairaCurrency(pending.currency);
-    const rawCalloutForLabour = Number((calloutQuote ?? (pending as any).calloutQuote)?.calloutFee ?? 0);
-    const calloutForLabour = Number.isFinite(rawCalloutForLabour) && rawCalloutForLabour > 0 ? rawCalloutForLabour : payableCalloutMajor(calloutQuote ?? (pending as any).calloutQuote);
-    const labourMajor =
-      pending.agreedMajor != null && pending.agreedMajor > 0
-        ? pending.agreedMajor
-        : pending.amountMinor != null && pending.amountMinor > 0
-          ? Math.max(0, pending.amountMinor / 100 - calloutForLabour)
-          : 0;
+    const displayTotal = getDisplayTotalMajor({
+      agreedMajor: pending.agreedMajor,
+      amountMinor: (pending as any).amountMinor ?? (pending as any).amount_minor,
+      quote: calloutQuote,
+      fallbackQuote: (pending as any).calloutQuote ?? (pending as any).callout_quote,
+    });
+    const total = displayTotal ?? 0;
     const rawCallout = Number((calloutQuote ?? (pending as any).calloutQuote)?.calloutFee ?? 0);
-    const calloutMajor = Number.isFinite(rawCallout) && rawCallout > 0 ? rawCallout : payableCalloutMajor(calloutQuote ?? (pending as any).calloutQuote);
-    const escrowTotal = pending.amountMinor != null && pending.amountMinor > 0 ? pending.amountMinor / 100 : null;
-    const total = escrowTotal ?? Math.round((labourMajor + calloutMajor) * 100) / 100;
+    const calloutMajor = Number.isFinite(rawCallout) && rawCallout > 0 ? rawCallout : 0;
+    const labourMajor = total - calloutMajor > 0 ? total - calloutMajor : pending.agreedMajor ?? 0;
     // Service S splits 87.5/5/7.5; the call-out goes to the pro in full.
     const proShare = Math.round(labourMajor * 0.875 * 100) / 100 + calloutMajor;
     const platformShare = Math.round(labourMajor * 0.05 * 100) / 100;

@@ -63,6 +63,20 @@ function isLocationRow(r: JobProblemRow): boolean {
   return label.includes("location") || label.includes("landmark");
 }
 
+export function customerWaitingHighlights(problem: string, locationLabel?: string | null): JobProblemRow[] {
+  const rows: JobProblemRow[] = [];
+  if (problem?.trim()) {
+    const lines = problem.split("\n").map((s) => s.trim()).filter(Boolean);
+    for (let i = 0; i < Math.min(lines.length, 2); i++) {
+      rows.push({ label: `Detail ${i + 1}`, answer: lines[i] });
+    }
+  }
+  if (locationLabel?.trim()) {
+    rows.push({ label: "Location", answer: String(locationLabel).trim() });
+  }
+  return rows.slice(0, 3);
+}
+
 export interface ParsedJobProblem {
   summary: string | null;
   rows: JobProblemRow[];

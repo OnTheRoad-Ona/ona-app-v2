@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CalloutQuote } from "@/lib/callout/constants";
 import {
   composeCustomerPayableMajor,
+  getDisplayTotalMajor,
   isCalloutAmountReady,
   jobTotalMajor,
   payableCalloutMajor,
@@ -93,5 +94,34 @@ describe("composeCustomerPayableMajor", () => {
     );
     expect(p.totalMajor).toBe(12000);
     expect(p.calloutMajor).toBe(0);
+  });
+});
+
+describe("getDisplayTotalMajor", () => {
+  it("prefers escrow amountMinor over computed total", () => {
+    expect(
+      getDisplayTotalMajor({ agreedMajor: 150, amountMinor: 142000, quote: quote({ calloutFee: 1270 }) }),
+    ).toBe(1420);
+    expect(
+      getDisplayTotalMajor({ agreedMajor: 150, amountMinor: 15000, quote: quote({ calloutFee: 500 }) }),
+    ).toBe(150);
+  });
+
+  it("falls back to labour + raw calloutFee when pending", () => {
+    expect(
+      getDisplayTotalMajor({ agreedMajor: 150, quote: quote({ calloutStatus: "PENDING", calloutFee: 1270 }) }),
+    ).toBe(1420);
+    expect(
+      getDisplayTotalMajor({ agreedMajor: 150, quote: quote({ calloutStatus: "PENDING", calloutFee: 0 }) }),
+    ).toBe(150);
+  });
+
+  it("shows total for in_progress/completed even when not yet LOCKED", () => {
+    expect(getDisplayTotalMajor({ agreedMajor: 150, quote: quote({ calloutFee: 500 }) })).toBe(650);
+    expect(getDisplayTotalMajor({ labourMajor: 1420, quote: quote({ calloutFee: 0 }) })).toBe(1420);
+  });
+
+  it("returns null when no labour", () => {
+    expect(getDisplayTotalMajor({ agreedMajor: null, quote: quote({}) })).toBeNull();
   });
 });
