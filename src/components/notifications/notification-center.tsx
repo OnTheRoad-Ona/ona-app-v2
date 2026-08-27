@@ -9,8 +9,7 @@
  */
 
 import { useEffect, useMemo, useState, useRef } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import { AppMenu } from "@/components/layout/app-menu";
+import { useRouter } from "next/navigation";
 import {
   Info,
   LayoutGrid,
@@ -26,7 +25,6 @@ import {
   MESSAGE_ORANGE,
   blockedActionMessage,
   isChatClosedForNotification,
-  isHighPriority,
   isJobHistoryClosedStatus,
   isNavigationBlocked,
   isReleasePayPendingStatus,
@@ -176,7 +174,6 @@ export function NotificationCenter() {
   } = useNotifications();
   const { theme, accountType } = useApp();
   const router = useRouter();
-  const pathname = usePathname();
   const isLight = theme === "light";
   /** Deliberate-hover timers: id → timeout that will mark the row read */
   const hoverTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(
@@ -192,8 +189,6 @@ export function NotificationCenter() {
     [],
   );
   const [blockMsg, setBlockMsg] = useState<string | null>(null);
-  /** ☰ opens the main app sidebar (Dashboard, Settings, …) */
-  const [menuOpen, setMenuOpen] = useState(false);
   const [viewHref, setViewHref] = useState<string | null>(null);
 
   const accent = MESSAGE_ORANGE;
@@ -313,7 +308,6 @@ export function NotificationCenter() {
         className="relative z-10 mt-auto flex h-[92%] max-h-full w-full flex-col animate-[om-sheet-up_0.28s_ease-out] sm:ml-auto sm:mt-0 sm:h-full sm:max-w-[400px]"
         style={{ backgroundColor: stage }}
       >
-        <AppMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
         <div className="flex shrink-0 items-center justify-between gap-3 px-4 pb-2 pt-4">
           <div className="min-w-0">
             <h2
@@ -329,28 +323,6 @@ export function NotificationCenter() {
               {unreadCount > 0 ? `${unreadCount} unread` : "All caught up"}
             </p>
           </div>
-          <button
-            type="button"
-            aria-label="Open menu"
-            onClick={() => setMenuOpen(true)}
-            className="shrink-0 border-0 bg-transparent px-1 py-1.5 active:opacity-70"
-            style={{ color: accent }}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              width="20"
-              height="20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.4"
-              strokeLinecap="round"
-              aria-hidden
-            >
-              <line x1="4" y1="6" x2="20" y2="6" />
-              <line x1="4" y1="12" x2="20" y2="12" />
-              <line x1="4" y1="18" x2="20" y2="18" />
-            </svg>
-          </button>
         </div>
 
         <div className="shrink-0 px-4 pb-2">
@@ -417,7 +389,6 @@ export function NotificationCenter() {
           <ul className="list-none">
             {/* Hold-to-read timers: 1.5s deliberate hover marks read */}
             {sorted.map((n) => {
-              const high = isHighPriority(n.priority);
               const unread = !n.readAt;
               const closed = isChatClosedForNotification(n);
               const historyClosed = isJobHistoryClosedStatus(n.jobStatus);

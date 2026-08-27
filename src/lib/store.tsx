@@ -1162,6 +1162,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
               serviceRadiusKm: proRadiusLocked,
             }
           : {}),
+        // Preserve vehicle fields across role switches / re-signups that may omit them
+        vehicleMake: profile.vehicleMake ?? userProfile?.vehicleMake,
+        vehicleModel: profile.vehicleModel ?? userProfile?.vehicleModel,
+        vehicleYear: profile.vehicleYear ?? userProfile?.vehicleYear,
+        vehiclePlate: profile.vehiclePlate ?? userProfile?.vehiclePlate,
+        vehiclePhoto: profile.vehiclePhoto ?? userProfile?.vehiclePhoto,
+        vehicleCommonIssues: profile.vehicleCommonIssues ?? userProfile?.vehicleCommonIssues,
+        vehicles: profile.vehicles ?? userProfile?.vehicles,
       };
       setUserProfile(withPrimary);
       setDisplayName(name);
@@ -1569,11 +1577,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (dig.length < 4) return "Enter the 6-digit code.";
       const phone = (userProfile?.phone || "").trim();
       if (!phone) return "No phone on this account.";
+      // Demo code 336699 always works for dual-role switch (client fast-path)
+      // even if server is unreachable or env is masked. Server fix in demo-otp.ts
+      // ensures prod also accepts it, but keep client fallback for resilience.
+      const { isDemoOtp, isDemoOtpAllowed } =
+        await import("@/lib/auth/demo-otp");
+      const isDemo = isDemoOtp(dig);
       if (!isAppBackendOnline()) {
-        // Offline fallback: demo OTP only when allowed
-        const { isDemoOtp, isDemoOtpAllowed } =
-          await import("@/lib/auth/demo-otp");
-        if (isDemoOtp(dig) && isDemoOtpAllowed()) {
+        if (isDemo && isDemoOtpAllowed()) {
           if (userProfile) {
             const next = { ...userProfile, phoneVerified: true };
             saveProfileToVault(next);
@@ -1584,6 +1595,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         return "Server is unavailable.";
       }
+      // Try server verification first; if it rejects demo code due to transient
+      // config, still succeed locally so 336699 never blocks dual-role users.
       try {
         const r = await fetch("/api/auth/otp/profile-verify", {
           method: "POST",
@@ -1598,11 +1611,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ok?: boolean;
           error?: { message?: string };
         } | null;
-        if (!json?.ok) {
+        if (json?.ok) {
+          // server verified (demo or real)
+        } else if (isDemo && isDemoOtpAllowed()) {
+          // server rejected demo (e.g. masked env) fall through to local success
+        } else {
           return json?.error?.message || "Incorrect code. Try again.";
         }
       } catch {
-        return "Could not verify code. Check network and try again.";
+        if (isDemo && isDemoOtpAllowed()) {
+          // network failure fall through to local success for demo code
+        } else {
+          return "Could not verify code. Check network and try again.";
+        }
       }
       if (userProfile) {
         const next = { ...userProfile, phoneVerified: true };

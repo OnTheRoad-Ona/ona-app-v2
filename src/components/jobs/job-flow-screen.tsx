@@ -41,7 +41,7 @@ import {
   StageButton,
 } from "@/components/jobs/job-shell";
 import { VoiceNotePlayer } from "@/components/jobs/voice-note-player";
-import { JobProblemQA } from "@/components/jobs/job-problem-qa";
+import { customerWaitingHighlights } from "@/components/jobs/job-problem-qa";
 import { JobShopRecommend } from "@/components/jobs/job-shop-recommend";
 import { CalloutFeeLines } from "@/components/jobs/callout-fee-lines";
 import { useJobCallout } from "@/lib/callout/use-job-callout";
@@ -508,6 +508,7 @@ export function JobFlowScreen({
   const tripGestureY = useRef<number | null>(null);
   /** Pay screen: single Cancel → choose payment vs request */
   const [payCancelOpen, setPayCancelOpen] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(false);
   /** Pro cancel reason modal */
   const [showCancelReasons, setShowCancelReasons] = useState(false);
   const [cancelReason, setCancelReason] = useState<string | null>(null);
@@ -1614,6 +1615,11 @@ export function JobFlowScreen({
             ? "We’re finding another pro with the same skill."
             : "A pro is checking your request.";
 
+    const waitingHighlights = customerWaitingHighlights(
+      job.problem,
+      job.locationLabel,
+    );
+
     const body = (
       <div className="flex min-h-0 flex-col bg-transparent px-0.5 pt-1">
         <div className="shrink-0 space-y-3 bg-transparent">
@@ -1659,27 +1665,30 @@ export function JobFlowScreen({
               {subtitle}
             </p>
           </div>
-          <div>
-            <p
-              className={cn(
-                "text-[11px] font-semibold uppercase tracking-wide",
-                muted,
-              )}
-            >
-              Problem description
-            </p>
-            <JobProblemQA problem={job.problem} isLight={isLight} transparent />
-            {job.voiceNote?.url && (
-              <div className="mt-2.5">
-                <VoiceNotePlayer
-                  url={job.voiceNote.url}
-                  durationSec={job.voiceNote.durationSec}
-                  isLight={isLight}
-                  label="Your voice note"
-                />
-              </div>
-            )}
-          </div>
+          {waitingHighlights.length ? (
+            <div className="mt-2.5 space-y-1.5">
+              {waitingHighlights.map((row) => (
+                <div key={row.label}>
+                  <p
+                    className={cn(
+                      "text-[13px] font-semibold leading-snug",
+                      muted,
+                    )}
+                  >
+                    {row.label}
+                  </p>
+                  <p
+                    className={cn(
+                      "mt-0.5 text-[15px] font-bold leading-snug",
+                      ink,
+                    )}
+                  >
+                    {row.answer}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="flex-1" />
@@ -2236,40 +2245,123 @@ export function JobFlowScreen({
           <p className={cn("text-[26px] font-black tracking-tight", ink)}>
             {job.agreedMajor == null
               ? "Not set"
-              : !calloutReady
-                ? "\u00a0"
-                : formatMoney(
+              : (() => {
+                  const labour =
                     viewer === "motorist"
-                      ? composeCustomerPayableMajor(
-                          buildCustomerChargeMajor(job.agreedMajor).totalMajor,
-                          calloutQuote,
-                        ).totalMajor
-                      : job.agreedMajor + payableCalloutMajor(calloutQuote),
-                    job.currency,
-                  )}
+                      ? buildCustomerChargeMajor(job.agreedMajor as number).totalMajor
+                      : (job.agreedMajor as number);
+                  const rawCallout = Number(calloutQuote?.calloutFee ?? job.calloutQuote?.calloutFee ?? 0);
+                  const callout = Number.isFinite(rawCallout) && rawCallout > 0 ? rawCallout : payableCalloutMajor(calloutQuote ?? job.calloutQuote);
+                  const total = jobTotalMajor(labour, calloutQuote ?? job.calloutQuote);
+                  const escrowTotal = job.amountMinor != null ? job.amountMinor / 100 : null;
+                  const display = escrowTotal ?? total ?? labour + callout;
+                  return formatMoney(display, job.currency);
+                })()}
           </p>
           {viewer === "repair_pro" ? (
             <p className={cn("mt-1 text-[12px] font-medium", muted)}>
               {LABOUR_SPLIT_LINE_PRO}
             </p>
-          ) : job.agreedMajor != null && calloutReady ? (
+          ) : job.agreedMajor != null ? (
             <p className={cn("mt-1 text-[12px] font-medium", muted)}>
               Service charge · pay exact amount
             </p>
           ) : null}
-          <div className="mt-2">
-            <CalloutFeeLines
-              quote={calloutQuote}
-              currency={job.currency}
-              ink={ink}
-              muted={muted}
-              compact
-            />
-          </div>
+          {job.agreedMajor != null ? (
+            <button
+              type="button"
+              onClick={() => setShowBreakdown((v) => !v)}
+              className={cn(
+                "mt-3 inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-bold",
+                isLight
+                  ? "bg-black/[0.06] text-slate-700"
+                  : "bg-white/[0.08] text-white/80",
+              )}
+              aria-expanded={showBreakdown}
+            >
+              {showBreakdown ? "Hide breakdown" : "View breakdown"}
+              {showBreakdown ? (
+                <ChevronUp className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5" />
+              )}
+            </button>
+          ) : null}
+          {job.agreedMajor != null && showBreakdown ? (
+            <div
+              className={cn(
+                "mt-3 w-full rounded-xl px-3 py-3 text-left",
+                isLight ? "bg-black/[0.04]" : "bg-white/[0.06]",
+              )}
+            >
+              <div className="flex items-baseline justify-between gap-3">
+                <span className={cn("text-[12px] font-medium", muted)}>Labour</span>
+                <span className={cn("text-[12px] font-semibold tabular-nums", ink)}>
+                  {formatMoney(
+                    viewer === "motorist"
+                      ? buildCustomerChargeMajor(job.agreedMajor as number).totalMajor
+                      : (job.agreedMajor as number),
+                    job.currency,
+                  )}
+                </span>
+              </div>
+              <div className="mt-1 flex items-baseline justify-between gap-3">
+                <span className={cn("text-[12px] font-medium", muted)}>
+                  Call Out Fee
+                </span>
+                <span className={cn("text-[12px] font-semibold tabular-nums", ink)}>
+                  {(() => {
+                    const raw = Number((calloutQuote ?? job.calloutQuote)?.calloutFee ?? 0);
+                    const fee = Number.isFinite(raw) && raw > 0 ? raw : payableCalloutMajor(calloutQuote ?? job.calloutQuote);
+                    return formatMoney(fee, job.currency);
+                  })()}
+                </span>
+              </div>
+              <div
+                className={cn(
+                  "mt-2 flex items-baseline justify-between gap-3 border-t pt-2",
+                  isLight ? "border-black/10" : "border-white/10",
+                )}
+              >
+                <span className={cn("text-[13px] font-black", ink)}>Total</span>
+                <span className={cn("text-[13px] font-black tabular-nums", ink)}>
+                  {(() => {
+                    const labour =
+                      viewer === "motorist"
+                        ? buildCustomerChargeMajor(job.agreedMajor as number).totalMajor
+                        : (job.agreedMajor as number);
+                    const raw = Number((calloutQuote ?? job.calloutQuote)?.calloutFee ?? 0);
+                    const callout = Number.isFinite(raw) && raw > 0 ? raw : payableCalloutMajor(calloutQuote ?? job.calloutQuote);
+                    const total = jobTotalMajor(labour, calloutQuote ?? job.calloutQuote);
+                    const escrowTotal = job.amountMinor != null ? job.amountMinor / 100 : null;
+                    const display = escrowTotal ?? total ?? labour + callout;
+                    return formatMoney(display, job.currency);
+                  })()}
+                </span>
+              </div>
+              <p className={cn("mt-1.5 text-[10px] font-medium", muted)}>
+                Labour + Call Out Fee
+              </p>
+              <div
+                className={cn(
+                  "mt-3 border-t pt-3",
+                  isLight ? "border-black/10" : "border-white/10",
+                )}
+              >
+                <CalloutFeeLines
+                  quote={calloutQuote}
+                  currency={job.currency}
+                  ink={ink}
+                  muted={muted}
+                  compact
+                />
+              </div>
+            </div>
+          ) : null}
           {/*
- 20-min pay timer lives only on checkout after Flutterwave opens.
- Pros never see a pay countdown only “waiting for customer”.
- */}
+  20-min pay timer lives only on checkout after Flutterwave opens.
+  Pros never see a pay countdown only “waiting for customer”.
+  */}
           {viewer === "motorist" && payEndsAt ? (
             <p
               className={cn(
@@ -2568,11 +2660,12 @@ export function JobFlowScreen({
               viewer === "motorist" && job.agreedMajor != null
                 ? buildCustomerChargeMajor(job.agreedMajor).totalMajor
                 : job.agreedMajor;
-            const total = jobTotalMajor(
-              labour,
-              calloutQuote ?? job.calloutQuote,
-            );
-            if (job.agreedMajor == null) return null;
+            if (labour == null) return null;
+            const rawCallout = Number((calloutQuote ?? job.calloutQuote)?.calloutFee ?? 0);
+            const callout = Number.isFinite(rawCallout) && rawCallout > 0 ? rawCallout : payableCalloutMajor(calloutQuote ?? job.calloutQuote);
+            const total = jobTotalMajor(labour, calloutQuote ?? job.calloutQuote);
+            const escrowTotal = job.amountMinor != null ? job.amountMinor / 100 : null;
+            const display = escrowTotal ?? total ?? labour + callout;
             return (
               <p
                 className={cn(
@@ -2580,7 +2673,7 @@ export function JobFlowScreen({
                   isLight ? "text-black" : "text-white",
                 )}
               >
-                {total == null ? "\u00a0" : formatMoney(total, job.currency)}
+                {formatMoney(display, job.currency)}
               </p>
             );
           })()}
@@ -2624,29 +2717,8 @@ export function JobFlowScreen({
 
     const tripDetails = (
       <>
-        {job.problem?.trim() && (
-          <div>
-            <p
-              className={cn(
-                "text-[10px] font-bold uppercase tracking-wide",
-                muted,
-              )}
-            >
-              I ADMIT TO FIX IT
-            </p>
-            <p
-              className={cn(
-                "mt-1 text-[14px] font-semibold leading-snug break-words",
-                ink,
-              )}
-            >
-              {job.problem}
-            </p>
-          </div>
-        )}
-
         {/*
- Address + “live on map” block:
+  Address + “live on map” block:
  Hidden for customer (motorist) entirely
  Pro still sees navigate cue while en route (not after arrival)
  */}
@@ -2663,13 +2735,6 @@ export function JobFlowScreen({
             </div>
           </div>
         )}
-
-        {/* Customer: keep only the lower status line (from TRIP_STATUS_COPY) */}
-        {!isSwipeTrip && copy.subtitle && viewer === "motorist" ? (
-          <p className={cn("text-[12px] font-medium leading-snug", muted)}>
-            {copy.subtitle}
-          </p>
-        ) : null}
 
         {job.id && (viewer === "repair_pro" || viewer === "motorist") ? (
           <JobShopRecommend
@@ -3536,18 +3601,15 @@ export function JobFlowScreen({
           </p>
           {job.agreedMajor != null ? (
             <p className={cn("mt-4 text-[22px] font-black tabular-nums", ink)}>
-              {jobTotalMajor(
-                job.agreedMajor,
-                calloutQuote ?? job.calloutQuote,
-              ) == null
-                ? "\u00a0"
-                : formatMoney(
-                    jobTotalMajor(
-                      job.agreedMajor,
-                      calloutQuote ?? job.calloutQuote,
-                    ) as number,
-                    job.currency,
-                  )}
+              {(() => {
+                const labour = job.agreedMajor as number;
+                const rawCallout = Number((calloutQuote ?? job.calloutQuote)?.calloutFee ?? 0);
+                const callout = Number.isFinite(rawCallout) && rawCallout > 0 ? rawCallout : payableCalloutMajor(calloutQuote ?? job.calloutQuote);
+                const total = jobTotalMajor(labour, calloutQuote ?? job.calloutQuote);
+                const escrowTotal = (job as any).amountMinor != null ? (job as any).amountMinor / 100 : job.amountMinor != null ? (job.amountMinor as number) / 100 : null;
+                const display = escrowTotal ?? total ?? labour + callout;
+                return formatMoney(display, job.currency);
+              })()}
             </p>
           ) : null}
           <div className="mt-1">
@@ -3835,22 +3897,18 @@ export function JobFlowScreen({
                   ink,
                 )}
               >
-                {jobTotalMajor(
-                  viewer === "motorist"
-                    ? buildCustomerChargeMajor(job.agreedMajor).totalMajor
-                    : job.agreedMajor,
-                  calloutQuote ?? job.calloutQuote,
-                ) == null
-                  ? "\u00a0"
-                  : formatMoney(
-                      jobTotalMajor(
-                        viewer === "motorist"
-                          ? buildCustomerChargeMajor(job.agreedMajor).totalMajor
-                          : job.agreedMajor,
-                        calloutQuote ?? job.calloutQuote,
-                      ) as number,
-                      job.currency,
-                    )}
+                {(() => {
+                  const labour =
+                    viewer === "motorist"
+                      ? buildCustomerChargeMajor(job.agreedMajor as number).totalMajor
+                      : (job.agreedMajor as number);
+                  const rawCallout = Number((calloutQuote ?? job.calloutQuote)?.calloutFee ?? 0);
+                  const callout = Number.isFinite(rawCallout) && rawCallout > 0 ? rawCallout : payableCalloutMajor(calloutQuote ?? job.calloutQuote);
+                  const total = jobTotalMajor(labour, calloutQuote ?? job.calloutQuote);
+                  const escrowTotal = (job as any).amountMinor != null ? (job as any).amountMinor / 100 : job.amountMinor != null ? (job.amountMinor as number) / 100 : null;
+                  const display = escrowTotal ?? total ?? labour + callout;
+                  return formatMoney(display, job.currency);
+                })()}
               </p>
             )}
             <div className="mt-1">

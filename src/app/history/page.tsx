@@ -14,7 +14,7 @@ import { JOB_CLOSED_MESSAGE } from "@/lib/chat-expired";
 import { apiListJobs } from "@/lib/jobs/client";
 import { canOpenDisputeNow } from "@/lib/jobs/constants";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
-import { jobTotalMajor } from "@/lib/callout/payable";
+import { jobTotalMajor, payableCalloutMajor } from "@/lib/callout/payable";
 import { formatMoney } from "@/lib/pricing";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
@@ -232,13 +232,12 @@ export default function HistoryPage() {
               : j.repairProName;
             const skill = PRO_SERVICE_LABELS[j.serviceType] ?? j.serviceType;
             const when = formatWhen(j.updatedAt || j.createdAt);
+            const rawCallout = Number(j.calloutQuote?.calloutFee ?? 0);
+            const callout = Number.isFinite(rawCallout) && rawCallout > 0 ? rawCallout : payableCalloutMajor(j.calloutQuote);
             const total = jobTotalMajor(j.agreedMajor, j.calloutQuote);
-            const price =
-              total != null
-                ? formatMoney(total, j.currency)
-                : j.agreedMajor != null
-                  ? formatMoney(j.agreedMajor, j.currency)
-                  : null;
+            const escrowTotal = (j as any).amountMinor != null ? (j as any).amountMinor / 100 : null;
+            const displayTotal = escrowTotal ?? total ?? (j.agreedMajor != null ? j.agreedMajor + callout : null);
+            const price = displayTotal != null ? formatMoney(displayTotal, j.currency) : null;
             return (
               <button
                 key={j.id}

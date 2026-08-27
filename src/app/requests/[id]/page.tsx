@@ -28,7 +28,7 @@ import { CalloutFeeLines } from "@/components/jobs/callout-fee-lines";
 import { useJobCallout } from "@/lib/callout/use-job-callout";
 import type { JobFlowStatus, JobOffer, JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
-import { jobTotalMajor } from "@/lib/callout/payable";
+import { jobTotalMajor, payableCalloutMajor } from "@/lib/callout/payable";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
@@ -375,19 +375,14 @@ export default function RequestProcessPage({
             <p
               className={cn("mt-3 text-[20px] font-semibold tabular-nums", ink)}
             >
-              {!calloutReady ||
-              jobTotalMajor(
-                job.agreedMajor,
-                calloutQuote ?? job.calloutQuote,
-              ) == null
-                ? "\u00a0"
-                : formatMoney(
-                    jobTotalMajor(
-                      job.agreedMajor,
-                      calloutQuote ?? job.calloutQuote,
-                    ) as number,
-                    job.currency,
-                  )}
+              {(() => {
+                const rawCallout = Number((calloutQuote ?? job.calloutQuote)?.calloutFee ?? 0);
+                const callout = Number.isFinite(rawCallout) && rawCallout > 0 ? rawCallout : payableCalloutMajor(calloutQuote ?? job.calloutQuote);
+                const total = jobTotalMajor(job.agreedMajor, calloutQuote ?? job.calloutQuote);
+                const escrowTotal = (job as any).amountMinor != null ? (job as any).amountMinor / 100 : null;
+                const display = escrowTotal ?? total ?? job.agreedMajor + callout;
+                return formatMoney(display, job.currency);
+              })()}
             </p>
           )}
           <div className="mt-2">
@@ -477,7 +472,14 @@ export default function RequestProcessPage({
             label="Agreed price"
             value={
               job.agreedMajor != null
-                ? formatMoney(job.agreedMajor, job.currency)
+                ? (() => {
+                    const rawCallout = Number((calloutQuote ?? job.calloutQuote)?.calloutFee ?? 0);
+                    const callout = Number.isFinite(rawCallout) && rawCallout > 0 ? rawCallout : payableCalloutMajor(calloutQuote ?? job.calloutQuote);
+                    const total = jobTotalMajor(job.agreedMajor, calloutQuote ?? job.calloutQuote);
+                    const escrowTotal = (job as any).amountMinor != null ? (job as any).amountMinor / 100 : null;
+                    const display = escrowTotal ?? total ?? job.agreedMajor + callout;
+                    return formatMoney(display, job.currency);
+                  })()
                 : "Not agreed"
             }
             ink={ink}

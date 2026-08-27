@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, Search, ShoppingBag, X } from "lucide-react";
+import { ProductSheet } from "@/components/shop/product-sheet";
 import { detectCurrency, formatMoney, fromMinorUnits } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
 
@@ -37,23 +38,31 @@ function priceLabel(p: ProductHit): string {
 export function JobShopRecommend({ jobId, isLight, canEdit }: Props) {
   const muted = isLight ? "text-slate-600" : "text-white/55";
   const card = isLight
-    ? "bg-white/90 text-slate-900"
-    : "bg-[#1c1c1e] text-white";
+    ? "bg-black/[0.02] text-slate-900"
+    : "bg-white/[0.02] text-white";
   const [q, setQ] = useState("");
   const [searching, setSearching] = useState(false);
   const [hits, setHits] = useState<ProductHit[]>([]);
   const [recs, setRecs] = useState<Recommendation[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const [loadingRecs, setLoadingRecs] = useState(true);
 
   const loadRecs = useCallback(async () => {
-    const res = await fetch(
-      `/api/jobs/${encodeURIComponent(jobId)}/recommendations`,
-    );
-    const json = (await res.json()) as {
-      ok?: boolean;
-      data?: { recommendations?: Recommendation[] };
-    };
-    if (json.ok) setRecs(json.data?.recommendations ?? []);
+    setLoadingRecs(true);
+    try {
+      const res = await fetch(
+        `/api/jobs/${encodeURIComponent(jobId)}/recommendations`,
+        { cache: "no-store" },
+      );
+      const json = (await res.json()) as {
+        ok?: boolean;
+        data?: { recommendations?: Recommendation[] };
+      };
+      if (json.ok) setRecs(json.data?.recommendations ?? []);
+    } finally {
+      setLoadingRecs(false);
+    }
   }, [jobId]);
 
   useEffect(() => {
@@ -115,20 +124,36 @@ export function JobShopRecommend({ jobId, isLight, canEdit }: Props) {
         Linked to this repair request
       </p>
 
-      {recs.length ? (
+      {loadingRecs ? (
+        <ul className="mt-2 space-y-1.5">
+          {[0, 1].map((i) => (
+            <li
+              key={`sk-${i}`}
+              className="flex items-center gap-2 rounded-lg bg-transparent px-2 py-1.5"
+            >
+              <span className="h-3.5 w-3.5 shrink-0 animate-pulse rounded bg-black/10 dark:bg-white/10" />
+              <span className="h-3 w-32 animate-pulse rounded bg-black/10 dark:bg-white/10" />
+              <span className="ml-auto h-3 w-12 animate-pulse rounded bg-black/10 dark:bg-white/10" />
+            </li>
+          ))}
+        </ul>
+      ) : recs.length ? (
         <ul className="mt-2 space-y-1.5">
           {recs.map((r) => (
             <li
               key={r.id}
-              className="flex items-center gap-2 rounded-lg bg-black/[0.04] px-2 py-1.5 dark:bg-white/[0.06]"
+              className="flex items-center gap-2 rounded-lg bg-transparent px-2 py-1.5"
             >
               <ShoppingBag className="h-3.5 w-3.5 shrink-0 text-[#FF6B35]" />
-              <a
-                href={r.product?.slug ? `/shop/p/${r.product.slug}` : "/shop"}
-                className="min-w-0 flex-1 truncate text-[12px] font-semibold text-[#FF6B35]"
+              <button
+                type="button"
+                onClick={() => {
+                  if (r.product?.slug) setSelectedSlug(r.product.slug);
+                }}
+                className="min-w-0 flex-1 truncate text-left text-[12px] font-semibold text-[#FF6B35]"
               >
                 {r.product?.name || "Part"}
-              </a>
+              </button>
               {r.product ? (
                 <span className={cn("shrink-0 text-[10px] font-bold", muted)}>
                   {priceLabel(r.product)}
@@ -159,7 +184,7 @@ export function JobShopRecommend({ jobId, isLight, canEdit }: Props) {
           <div
             className={cn(
               "flex items-center gap-1.5 rounded-lg px-2 py-1.5",
-              isLight ? "bg-black/[0.04]" : "bg-white/[0.06]",
+              isLight ? "bg-black/[0.02]" : "bg-white/[0.02]",
             )}
           >
             <Search className="h-3.5 w-3.5 text-[#FF6B35]" />
@@ -196,7 +221,11 @@ export function JobShopRecommend({ jobId, isLight, canEdit }: Props) {
                   key={h.id}
                   className="flex items-center gap-2 rounded-lg px-1 py-1"
                 >
-                  <div className="min-w-0 flex-1">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSlug(h.slug)}
+                    className="min-w-0 flex-1 text-left"
+                  >
                     <p className="truncate text-[12px] font-semibold">
                       {h.name}
                     </p>
@@ -205,12 +234,12 @@ export function JobShopRecommend({ jobId, isLight, canEdit }: Props) {
                       {h.stockLabel ||
                         (h.inStock ? "In Stock" : "Out of Stock")}
                     </p>
-                  </div>
+                  </button>
                   <button
                     type="button"
                     disabled={busyId === h.id}
                     onClick={() => void recommend(h.id)}
-                    className="shrink-0 rounded-md border-0 bg-[#FF6B35] px-2 py-1 text-[10px] font-bold text-white"
+                    className="shrink-0 border-0 bg-transparent px-2 py-1 text-[10px] font-bold text-[#FF6B35] disabled:opacity-50"
                   >
                     Add
                   </button>
@@ -220,6 +249,7 @@ export function JobShopRecommend({ jobId, isLight, canEdit }: Props) {
           ) : null}
         </div>
       ) : null}
+      <ProductSheet slug={selectedSlug} onClose={() => setSelectedSlug(null)} />
     </div>
   );
 }

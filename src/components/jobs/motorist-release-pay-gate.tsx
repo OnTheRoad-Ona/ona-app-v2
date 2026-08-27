@@ -294,17 +294,19 @@ export function MotoristReleasePayGate() {
   );
 
   // Total the customer paid = labour + call-out. Labour splits 87.5/5/7.5;
-  // the call-out goes to the pro in full.
-  const pendingTotal =
-    pending == null || !calloutReady
-      ? null
-      : pending.agreedMajor != null && pending.agreedMajor > 0
-        ? Math.round(
-            (pending.agreedMajor + payableCalloutMajor(calloutQuote)) * 100,
-          ) / 100
-        : pending.amountMinor != null && pending.amountMinor > 0
-          ? pending.amountMinor / 100
-          : null;
+  // the call-out goes to the pro in full. Always show total (labour + callout), not just labour.
+  const pendingTotal = (() => {
+    if (pending == null) return null;
+    const rawCallout = Number((calloutQuote ?? (pending as any).calloutQuote ?? (pending as any).callout_quote)?.calloutFee ?? 0);
+    const callout = Number.isFinite(rawCallout) && rawCallout > 0 ? rawCallout : payableCalloutMajor(calloutQuote ?? (pending as any).calloutQuote);
+    if (pending.agreedMajor != null && pending.agreedMajor > 0) {
+      const computed = Math.round((pending.agreedMajor + callout) * 100) / 100;
+      const escrow = pending.amountMinor != null && pending.amountMinor > 0 ? pending.amountMinor / 100 : null;
+      return escrow ?? computed;
+    }
+    if (pending.amountMinor != null && pending.amountMinor > 0) return pending.amountMinor / 100;
+    return null;
+  })();
 
   const refresh = useCallback(async () => {
     if (!isAuthenticated || !backendUserId) {
@@ -427,17 +429,18 @@ export function MotoristReleasePayGate() {
     // 6h auto-release countdown it carries). The transfer runs in the
     // background; the job shell we land on reconciles with the real payout.
     const currency = forceNairaCurrency(pending.currency);
+    const rawCalloutForLabour = Number((calloutQuote ?? (pending as any).calloutQuote)?.calloutFee ?? 0);
+    const calloutForLabour = Number.isFinite(rawCalloutForLabour) && rawCalloutForLabour > 0 ? rawCalloutForLabour : payableCalloutMajor(calloutQuote ?? (pending as any).calloutQuote);
     const labourMajor =
       pending.agreedMajor != null && pending.agreedMajor > 0
         ? pending.agreedMajor
         : pending.amountMinor != null && pending.amountMinor > 0
-          ? Math.max(
-              0,
-              pending.amountMinor / 100 - payableCalloutMajor(calloutQuote),
-            )
+          ? Math.max(0, pending.amountMinor / 100 - calloutForLabour)
           : 0;
-    const calloutMajor = payableCalloutMajor(calloutQuote);
-    const total = Math.round((labourMajor + calloutMajor) * 100) / 100;
+    const rawCallout = Number((calloutQuote ?? (pending as any).calloutQuote)?.calloutFee ?? 0);
+    const calloutMajor = Number.isFinite(rawCallout) && rawCallout > 0 ? rawCallout : payableCalloutMajor(calloutQuote ?? (pending as any).calloutQuote);
+    const escrowTotal = pending.amountMinor != null && pending.amountMinor > 0 ? pending.amountMinor / 100 : null;
+    const total = escrowTotal ?? Math.round((labourMajor + calloutMajor) * 100) / 100;
     // Service S splits 87.5/5/7.5; the call-out goes to the pro in full.
     const proShare = Math.round(labourMajor * 0.875 * 100) / 100 + calloutMajor;
     const platformShare = Math.round(labourMajor * 0.05 * 100) / 100;

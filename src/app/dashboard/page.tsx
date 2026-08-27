@@ -814,7 +814,7 @@ export default function TechnicianDashboardPage() {
           </section>
         )}
 
-        {/* Last 6 finished jobs vertical listing (Uber/inDrive style), place + area only */}
+        {/* Last 6 finished jobs vertical listing (Uber/inDrive style), place + area only — read-only, not clickable */}
         {!jobsLoading && showRecent && (
           <section aria-label="Recent jobs">
             <ul className="space-y-0">
@@ -825,11 +825,8 @@ export default function TechnicianDashboardPage() {
                 if (!title) return null;
                 return (
                   <li key={j.id}>
-                    <Link
-                      href={`/jobs/${j.id}`}
-                      className="flex items-center gap-2 py-[7px] active:opacity-90"
-                    >
-                      <Clock className="h-3.5 w-3.5 shrink-0" />
+                    <div className="flex cursor-default items-center gap-2 py-[7px]">
+                      <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
                       <div className="min-w-0 flex-1">
                         <p
                           className={cn(
@@ -850,7 +847,7 @@ export default function TechnicianDashboardPage() {
                           </p>
                         ) : null}
                       </div>
-                    </Link>
+                    </div>
                   </li>
                 );
               })}

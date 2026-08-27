@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Minus, Plus, ShoppingBag } from "lucide-react";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { CartSheet } from "@/components/shop/cart-sheet";
 import { shopAddToCart } from "@/lib/shop/client";
 import { detectCurrency, formatMoney, fromMinorUnits } from "@/lib/pricing";
 import { useApp } from "@/lib/store";
@@ -52,6 +53,7 @@ export function ProductSheet({ slug, onClose }: Props) {
   const [qty, setQty] = useState(1);
   const [adding, setAdding] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [cartOpen, setCartOpen] = useState(false);
 
   const open = Boolean(slug);
 
@@ -136,13 +138,14 @@ export function ProductSheet({ slug, onClose }: Props) {
     : null;
 
   return (
-    <BottomSheet
-      open={open}
-      onClose={onClose}
-      titleId="product-sheet-title"
-      heightPercent={55}
-      growToPercent={82}
-    >
+    <>
+      <BottomSheet
+        open={open}
+        onClose={onClose}
+        titleId="product-sheet-title"
+        heightPercent={55}
+        growToPercent={82}
+      >
       {loading ? (
         <div className="flex justify-center py-10">
           <Loader2 className="h-8 w-8 animate-spin text-[#FF6B35]" />
@@ -343,7 +346,7 @@ export function ProductSheet({ slug, onClose }: Props) {
             type="button"
             onClick={() => {
               onClose();
-              router.push("/shop/cart");
+              setCartOpen(true);
             }}
             className={cn(
               "mt-2 h-10 w-full rounded-xl border-0 text-[12px] font-bold",
@@ -355,5 +358,7 @@ export function ProductSheet({ slug, onClose }: Props) {
         </div>
       )}
     </BottomSheet>
+      <CartSheet open={cartOpen} onClose={() => setCartOpen(false)} />
+    </>
   );
 }
