@@ -48,8 +48,10 @@ import { useJobCallout } from "@/lib/callout/use-job-callout";
 import {
   composeCustomerPayableMajor,
   getDisplayTotalMajor,
+  jobEscrowAmountMinor,
   jobTotalMajor,
   payableCalloutMajor,
+  quoteCalloutFeeMajor,
 } from "@/lib/callout/payable";
 import { isWithinArrivalProximity } from "@/lib/callout/arrival";
 import { ExpiredDialog } from "@/components/ui/expired-dialog";
@@ -2253,7 +2255,7 @@ export function JobFlowScreen({
                     : (job.agreedMajor as number);
                   const display = getDisplayTotalMajor({
                     labourMajor: labour,
-                    amountMinor: (job as any).amountMinor ?? job.amountMinor,
+                    amountMinor: jobEscrowAmountMinor(job),
                     quote: calloutQuote,
                     fallbackQuote: job.calloutQuote,
                   });
@@ -2314,8 +2316,8 @@ export function JobFlowScreen({
                 <span className={cn("text-[12px] font-semibold tabular-nums", ink)}>
                   {(() => {
                     const q = calloutQuote ?? job.calloutQuote;
-                    const raw = Number((q as any)?.calloutFee ?? 0);
-                    const fee = Number.isFinite(raw) && raw > 0 ? raw : payableCalloutMajor(q);
+                    const raw = quoteCalloutFeeMajor(q);
+                    const fee = raw > 0 ? raw : payableCalloutMajor(q);
                     return formatMoney(fee, job.currency);
                   })()}
                 </span>
@@ -2335,7 +2337,7 @@ export function JobFlowScreen({
                           : (job.agreedMajor as number);
                       const display = getDisplayTotalMajor({
                       labourMajor: labour,
-                      amountMinor: (job as any).amountMinor ?? job.amountMinor,
+                      amountMinor: jobEscrowAmountMinor(job),
                       quote: calloutQuote,
                       fallbackQuote: job.calloutQuote,
                     });
@@ -2668,7 +2670,7 @@ export function JobFlowScreen({
             if (labour == null) return null;
             const display = getDisplayTotalMajor({
               labourMajor: labour as number,
-              amountMinor: (job as any).amountMinor ?? job.amountMinor,
+              amountMinor: jobEscrowAmountMinor(job),
               quote: calloutQuote,
               fallbackQuote: job.calloutQuote,
             });
@@ -3611,7 +3613,7 @@ export function JobFlowScreen({
               {(() => {
                 const display = getDisplayTotalMajor({
                   agreedMajor: job.agreedMajor as number,
-                  amountMinor: (job as any).amountMinor ?? job.amountMinor,
+                  amountMinor: jobEscrowAmountMinor(job),
                   quote: calloutQuote,
                   fallbackQuote: job.calloutQuote,
                 });
@@ -3912,7 +3914,7 @@ export function JobFlowScreen({
                       : (job.agreedMajor as number);
                   const display = getDisplayTotalMajor({
                     labourMajor: labour,
-                    amountMinor: (job as any).amountMinor ?? job.amountMinor,
+                    amountMinor: jobEscrowAmountMinor(job),
                     quote: calloutQuote,
                     fallbackQuote: job.calloutQuote,
                   });

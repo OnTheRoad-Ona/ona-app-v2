@@ -28,7 +28,10 @@ import { CalloutFeeLines } from "@/components/jobs/callout-fee-lines";
 import { useJobCallout } from "@/lib/callout/use-job-callout";
 import type { JobFlowStatus, JobOffer, JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
-import { getDisplayTotalMajor } from "@/lib/callout/payable";
+import {
+  getDisplayTotalMajor,
+  jobEscrowAmountMinor,
+} from "@/lib/callout/payable";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
@@ -378,7 +381,7 @@ export default function RequestProcessPage({
               {(() => {
                 const display = getDisplayTotalMajor({
                   agreedMajor: job.agreedMajor,
-                  amountMinor: (job as any).amountMinor ?? job.amountMinor,
+                  amountMinor: jobEscrowAmountMinor(job),
                   quote: calloutQuote,
                   fallbackQuote: job.calloutQuote,
                 });
@@ -476,7 +479,7 @@ export default function RequestProcessPage({
                 ? (() => {
                     const display = getDisplayTotalMajor({
                       agreedMajor: job.agreedMajor,
-                      amountMinor: (job as any).amountMinor ?? job.amountMinor,
+                      amountMinor: jobEscrowAmountMinor(job),
                       quote: calloutQuote,
                       fallbackQuote: job.calloutQuote,
                     });

@@ -18,6 +18,35 @@ export function isCalloutAmountReady(
   return !UNSETTLED_STATUSES.has(quote.calloutStatus);
 }
 
+/** Camel or snake escrow total (kobo) from a job payload. */
+export function jobEscrowAmountMinor(job: {
+  amountMinor?: number | null;
+  amount_minor?: number | null;
+} | null | undefined): number | null {
+  if (!job) return null;
+  const n = job.amountMinor ?? job.amount_minor;
+  if (n == null || !Number.isFinite(Number(n))) return null;
+  return Number(n);
+}
+
+/** Camel or snake call-out quote on a job payload. */
+export function jobCalloutQuoteOf(job: {
+  calloutQuote?: CalloutQuote | null;
+  callout_quote?: CalloutQuote | null;
+} | null | undefined): CalloutQuote | null {
+  return job?.calloutQuote ?? job?.callout_quote ?? null;
+}
+
+/** Raw call-out ₦ on a quote (camel or snake). 0 if missing. */
+export function quoteCalloutFeeMajor(
+  quote: CalloutQuote | null | undefined,
+): number {
+  if (!quote) return 0;
+  const n = Number(quote.calloutFee ?? quote.callout_fee ?? 0);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.round(n * 100) / 100;
+}
+
 /** Server quote → major units to collect. 0 if not a payable call-out. */
 export function payableCalloutMajor(
   quote: CalloutQuote | null | undefined,
@@ -25,9 +54,7 @@ export function payableCalloutMajor(
   if (!quote) return 0;
   if (!quote.calloutEligible) return 0;
   if (!PAYABLE_STATUSES.has(quote.calloutStatus)) return 0;
-  const n = Number(quote.calloutFee);
-  if (!Number.isFinite(n) || n <= 0) return 0;
-  return Math.round(n * 100) / 100;
+  return quoteCalloutFeeMajor(quote);
 }
 
 /**
@@ -88,7 +115,7 @@ export function getDisplayTotalMajor(input: {
   }
   const total = jobTotalMajor(labour, q);
   if (total != null) return total;
-  const rawCallout = Number((q as any)?.calloutFee ?? 0);
-  const callout = Number.isFinite(rawCallout) && rawCallout > 0 ? rawCallout : payableCalloutMajor(q);
+  const rawCallout = quoteCalloutFeeMajor(q);
+  const callout = rawCallout > 0 ? rawCallout : payableCalloutMajor(q);
   return Math.round((labour + callout) * 100) / 100;
 }

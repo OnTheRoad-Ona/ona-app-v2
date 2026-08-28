@@ -99,7 +99,7 @@ Before any commit:
 npm run lint && npm run typecheck && npm run test
 ```
 
-`npm run lint` currently reports **pre-existing** `@typescript-eslint/no-explicit-any` errors (job-flow, lists, payable). Do not add new ones. Do not mass-fix them in the same PR as a product change.
+`npm run lint` must have **0 errors**. Remaining items are warnings (unused vars, hook deps) — do not add `any`, and do not mix warning cleanup with a product change.
 
 Smoke: `docs/ANTI_REGRESSION.md` §8 (Call, Chat, Back, multi-request, negotiate 20 min / 6 offers).
 

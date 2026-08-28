@@ -4,8 +4,11 @@ import {
   composeCustomerPayableMajor,
   getDisplayTotalMajor,
   isCalloutAmountReady,
+  jobCalloutQuoteOf,
+  jobEscrowAmountMinor,
   jobTotalMajor,
   payableCalloutMajor,
+  quoteCalloutFeeMajor,
 } from "@/lib/callout/payable";
 
 function quote(partial: Partial<CalloutQuote>): CalloutQuote {
@@ -123,5 +126,16 @@ describe("getDisplayTotalMajor", () => {
 
   it("returns null when no labour", () => {
     expect(getDisplayTotalMajor({ agreedMajor: null, quote: quote({}) })).toBeNull();
+  });
+
+  it("reads snake_case escrow and quote aliases without any-casts", () => {
+    expect(jobEscrowAmountMinor({ amount_minor: 142000 })).toBe(142000);
+    expect(jobEscrowAmountMinor({ amountMinor: 15000 })).toBe(15000);
+    expect(
+      quoteCalloutFeeMajor(quote({ calloutFee: null, callout_fee: 1270 })),
+    ).toBe(1270);
+    expect(jobCalloutQuoteOf({ callout_quote: quote({}) })?.requestId).toBe(
+      "job-1",
+    );
   });
 });

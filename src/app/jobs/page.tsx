@@ -17,7 +17,10 @@ import { ExpiredDialog } from "@/components/ui/expired-dialog";
 import { JOB_CLOSED_MESSAGE } from "@/lib/chat-expired";
 import { apiListJobs } from "@/lib/jobs/client";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
-import { getDisplayTotalMajor } from "@/lib/callout/payable";
+import {
+  getDisplayTotalMajor,
+  jobEscrowAmountMinor,
+} from "@/lib/callout/payable";
 import { formatMoney } from "@/lib/pricing";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
@@ -237,7 +240,7 @@ function ProJobsPage({
                   const when = formatWhen(j.updatedAt || j.createdAt);
                   const displayTotal = getDisplayTotalMajor({
                     agreedMajor: j.agreedMajor,
-                    amountMinor: (j as any).amountMinor ?? (j as any).amount_minor,
+                    amountMinor: jobEscrowAmountMinor(j),
                     quote: j.calloutQuote,
                     fallbackQuote: j.calloutQuote,
                   });

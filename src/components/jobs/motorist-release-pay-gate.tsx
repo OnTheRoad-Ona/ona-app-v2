@@ -29,7 +29,11 @@ import {
 import type { JobRecord } from "@/lib/jobs/types";
 import { formatMoney, forceNairaCurrency } from "@/lib/pricing";
 import { useJobCallout } from "@/lib/callout/use-job-callout";
-import { getDisplayTotalMajor } from "@/lib/callout/payable";
+import {
+  getDisplayTotalMajor,
+  jobCalloutQuoteOf,
+  jobEscrowAmountMinor,
+} from "@/lib/callout/payable";
 import { playAppSound, unlockAudio } from "@/lib/sound-tone";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -298,9 +302,9 @@ export function MotoristReleasePayGate() {
     if (pending == null) return null;
     return getDisplayTotalMajor({
       agreedMajor: pending.agreedMajor,
-      amountMinor: (pending as any).amountMinor ?? (pending as any).amount_minor,
+      amountMinor: jobEscrowAmountMinor(pending),
       quote: calloutQuote,
-      fallbackQuote: (pending as any).calloutQuote ?? (pending as any).callout_quote,
+      fallbackQuote: jobCalloutQuoteOf(pending),
     });
   })();
 
@@ -427,9 +431,9 @@ export function MotoristReleasePayGate() {
     const currency = forceNairaCurrency(pending.currency);
     const displayTotal = getDisplayTotalMajor({
       agreedMajor: pending.agreedMajor,
-      amountMinor: (pending as any).amountMinor ?? (pending as any).amount_minor,
+      amountMinor: jobEscrowAmountMinor(pending),
       quote: calloutQuote,
-      fallbackQuote: (pending as any).calloutQuote ?? (pending as any).callout_quote,
+      fallbackQuote: jobCalloutQuoteOf(pending),
     });
     const total = displayTotal ?? 0;
     const calloutMajor = 0;
