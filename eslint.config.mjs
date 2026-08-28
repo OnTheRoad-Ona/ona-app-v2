@@ -27,6 +27,7 @@ const eslintConfig = defineConfig([
     // Local scratch / backups — not app source
     "tmp-audit/**",
     "tmp-db-transfer/**",
+    "scripts/scratch/**",
     "Local BackUp/**",
     ".opencode-tmp/**",
     "node_modules/**",

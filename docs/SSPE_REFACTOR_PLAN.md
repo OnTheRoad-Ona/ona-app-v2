@@ -1,8 +1,18 @@
 # Ona — Intelligent Discovery, Merit Ranking & Smart Sequential Pairing (SSPE) Refactor Plan
 
-Status: **Proposed** — awaiting approval before Phase 1 implementation.
-Author: AI Builder · Date: 2026-08-04
+Status: **IMPLEMENTED** (historical notes — do not rebuild).
+Author: AI Builder · Date: 2026-08-04 · Stamped 2026-08-28
 Read this before touching job flow: `docs/ANTI_REGRESSION.md` (mandatory) and `AGENTS.md`.
+
+> **Live code already shipped this.** Schema `20260804_047_sspe.sql`, `src/lib/server/pairing/pairing-engine.ts`, `src/lib/server/merit/merit-engine.ts`, `/api/jobs/pairing-sweep` cron, SSPE states in `state-machine.ts`.
+>
+> Figures **in this document that are stale** — use code, not the original plan:
+> | Plan text | Live (`src/lib/jobs/constants.ts`) |
+> |-----------|-------------------------------------|
+> | 66s pairing | **144s** `PAIRING_WINDOW_MS` |
+> | Radius 15→50 km | **1→2→3→5 km** |
+>
+> Extend SSPE from **code + `docs/RULES.md`**. This file is for state names and reservation semantics only.
 
 ---
 

@@ -1,5 +1,7 @@
 # Ona Customer Care guide
 
+> **Engineering split is 87.5% pro / 5% platform / 7.5% VAT** (`docs/RULES.md`). Any 95/5 figure in this ops guide is stale.
+
 **Who this is for:** Customer Care, Support, Super Admin  
 **Where:** https://ona-backend.vercel.app/admin or https://ona-mi.vercel.app/admin (local: http://localhost:4500/admin)  
 **Temporary sensitive password:** `336699`  

@@ -5,7 +5,7 @@
 | **Document** | Ona Full Wallet + Cashout Product |
 | **Author** | Ona engineering |
 | **Date** | 2026-08-21 |
-| **Status** | Draft |
+| **Status** | **v2 DRAFT — not approved. Do not implement.** Collides with as-built v1 (`ona_cash_*` in `cashout-engine.ts`). Express already used migration `076`. Freeze v1 vs v2 before any wallet PR. |
 | **Repo** | `/Users/mac/Desktop/Code/Ona` |
 | **Audience** | Senior engineers implementing PRs against existing ledger, payout, and admin surfaces |
 

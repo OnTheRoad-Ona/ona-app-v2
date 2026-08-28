@@ -1,52 +1,40 @@
 # Ona
 
-Live mechanic discovery and dispatch platform — find nearby mechanics, vulcanizers, and tow trucks within 0–5 km.
+Nigeria-first live dispatch: motorists and repair pros (14 trades), escrow jobs, Shop, Express, admin.
+
+This README is how to run the app. **Product and UI law live in docs — do not redesign from this page.**
+
+| Start here | File |
+|------------|------|
+| Handover | [`docs/HANDOFF.md`](docs/HANDOFF.md) |
+| Product rules | [`docs/RULES.md`](docs/RULES.md) |
+| Visual freeze | [`docs/UI.md`](docs/UI.md) |
+| Anti-regression | [`docs/ANTI_REGRESSION.md`](docs/ANTI_REGRESSION.md) |
+| Code map | [`docs/CODEMAP.md`](docs/CODEMAP.md) |
 
 ## Stack
 
-- **Next.js** (App Router) + **TypeScript**
+- **Next.js 16** App Router + **TypeScript**
 - **Tailwind CSS** v4
-- **shadcn-style** UI primitives (Radix + CVA)
-- Mobile-first **iPhone 16** shell (393×852)
-
-## Features
-
-- Map-first home with live radius, ETA pins, and smart matching
-- Service categories: Mechanics · Vulcanizers · Tow · All
-- Distance slider 0–5 km with live result counts
-- Filters: Nearest, 4.5+, Available Now, Verified, Fast Response
-- Technician profiles, request flow, live request tracking
-- Technician dashboard (online/offline, accept jobs, status updates)
-- Requests, Bookings, Messages, Profile tabs
+- **Supabase** Postgres + Auth
+- Mobile-first **phone shell** 390×844 (`#ona-phone`)
+- Payments: Flutterwave (escrow jobs; Shop/Express separate)
 
 ## Run
 
 ```bash
 npm install
+cp .env.example .env.local   # example is incomplete — see docs/HANDOFF.md
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
-
-## Environment
-
-Copy `.env.example` → `.env.local`:
-
-| Variable | Purpose |
-|----------|---------|
-| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Google Maps JavaScript API (home map, radius, pins, route) |
-
-**Never commit API keys.** `.env.local` is gitignored.
-
-In [Google Cloud Console](https://console.cloud.google.com/):
-
-1. Enable **Maps JavaScript API**
-2. Restrict the key by **HTTP referrer** (`localhost:3000/*`, your domain)
-3. Ensure billing is active if required for Maps
+Open [http://localhost:3000](http://localhost:3000). Admin: `npm run dev:admin` → [http://localhost:4500/admin](http://localhost:4500/admin).
 
 ## Scripts
 
-- `npm run dev` — development server
-- `npm run build` — production build
-- `npm run start` — serve production build
-- `npm run lint` — ESLint
+- `npm run dev` — app on port 3000
+- `npm run dev:admin` — admin on port 4500
+- `npm run lint && npm run typecheck && npm run test` — **pre-merge gate**
+- `npm run build` / `npm run start`
+
+Never commit API keys. `.env.local` is gitignored. Ops notes: `docs/HANDOFF_KEYS.md`.

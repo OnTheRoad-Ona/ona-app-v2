@@ -1,7 +1,11 @@
 # Wallet Cashout Product — Design Doc (v1, for approval)
 
-Status: PROPOSED — no code written yet.
+Status: **PARTIAL / AS-BUILT** — not a blank spec.
 Scope rule: backend + admin UI only. Consumer app untouched. Nothing existing is removed or replaced; all changes are additive. Existing `/api/security/cashout`, `/api/security/wallet`, and admin credit-control flows keep their current request/response shapes (backward compatible).
+
+> **Code exists.** Engine: `src/lib/server/security/cashout-engine.ts`. Migration: `20260823_071_wallet_cashout_engine.sql`. Transfer prefix: `ona_cash_*`. Flag: `feature_flags.wallet`.
+>
+> Do **not** implement this document from scratch. Do **not** implement `WALLET_CASHOUT_DESIGN.md` (v2 draft) until product picks **v1 as-built** vs **v2**. v2 names (`ona_csh_*`, migrations 076–078) collide with Express (`20260822_076_ona_express.sql`).
 
 ---
 

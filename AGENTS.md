@@ -6,6 +6,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Ona agent rules (mandatory)
 
+Handover index: **`docs/HANDOFF.md`**. Visual freeze: **`docs/UI.md`**. Product rules: **`docs/RULES.md`**.
+
 Before changing **call**, **messages**, **navigation**, **job flow**, **dashboard/jobs list**, or **negotiation/pricing**, read and obey:
 
 **[`docs/ANTI_REGRESSION.md`](./docs/ANTI_REGRESSION.md)**
